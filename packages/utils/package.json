@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/fs",
+    "name": "@gjsify/utils",
     "version": "0.0.1",
-    "description": "fs core module for gjsify",
+    "description": "utils module for gjsify",
     "main": "index.js",
     "keywords": [
         "gjs",

@@ -1,7 +1,7 @@
-const gi = imports.gi;
-const constants= imports.cgjs.constants;
-const GLib = gi.GLib;
-const Gio = gi.Gio;
+import { getProgramExe } from '@gjsify/utils';
+import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
+
 const File = Gio.File;
 const System = imports.system;
 const TIME = Date.now();
@@ -23,7 +23,7 @@ const process = Object.defineProperties(
     },
     get argv() {
       const fs = require('fs');
-      const arr = [constants.PROGRAM_EXE];
+      const arr = [ getProgramExe() ];
       ARGV.forEach(arg => {
         if (arg[0] !== '-') {
           arr.push(
@@ -38,7 +38,7 @@ const process = Object.defineProperties(
       return lazy('argv', arr);
     },
     get argv0() {
-      return lazy('argv0', File.new_for_path(constants.PROGRAM_EXE).get_basename());
+      return lazy('argv0', File.new_for_path(getProgramExe()).get_basename());
     },
     get env() {
       return lazy('env', GLib.listenv().reduce(
@@ -59,12 +59,15 @@ const process = Object.defineProperties(
       return lazy('title', GLib.get_prgname());
     },
     get version() {
-      return lazy('version', GJSIFY_VERSION);
+      return lazy('version', String(System.version)); // TODO: use `gjs --version`
     },
     get versions() {
       return lazy('versions', Object.assign(
-        {cgjs: process.version},
-        GJSIFY_DEPS,
+        {
+          gjs: process.version,
+          node: "16.0.0"
+        },
+        [] // TODO GJSIFY_DEPS,
       ));
     },
 

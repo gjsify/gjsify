@@ -1,14 +1,18 @@
-const system = require('./src/system.js');
-
+import system from './src/system.js';
+import * as linux from './src/linux.js';
+import * as darwin from './src/darwin.js';
 import GLib from 'gi://GLib';
+import { getPathSeparator } from '@gjsify/utils';
 
-// TODO:
-const { PATH_SEPARATOR } = imports.cgjs.constants;
-this.EOL = PATH_SEPARATOR === '/' ? '\n' : '\r\n';
+import constants from './src/constants.js';
+
+export { constants }
+
+export const EOL = getPathSeparator() === '/' ? '\n' : '\r\n';
 
 const UNAME_ALL = system('uname -a');
 
-this.arch = () => {
+export const arch = () => {
   switch (true) {
     case /\bx86_64\b/.test(UNAME_ALL): return 'x64';
     case /\bi686\b/.test(UNAME_ALL): return 'ia32';
@@ -16,7 +20,7 @@ this.arch = () => {
   }
 };
 
-this.platform = () => {
+export const platform = () => {
   switch (true) {
     case /\bDarwin\b/i.test(UNAME_ALL): return 'darwin';
     case /\bLinux\b/i.test(UNAME_ALL): return 'linux';
@@ -24,25 +28,84 @@ this.platform = () => {
   }
 };
 
-this.homedir = () => GLib.get_home_dir();
+export const homedir = () => GLib.get_home_dir();
 
-this.hostname = () => GLib.get_host_name();
+export const hostname = () => GLib.get_host_name();
 
-this.release = () => system('uname -r');
+export const release = () => system('uname -r');
 
-this.tmpdir = () => GLib.get_tmp_dir();
+export const tmpdir = () => GLib.get_tmp_dir();
 
-this.type = () => system('uname');
+export const type = () => system('uname');
 
-this.userInfo = () => ({
+export const userInfo = () => ({
   uid: 1000,
   gid: 100,
   username: GLib.get_user_name(),
   homedir: GLib.get_home_dir()
 });
 
-this.constants = require('./src/constants.js');
+export const cpus = () => {
+  const platform = platform();
+  switch (platform) {
+    case "darwin":
+      return darwin.cpus();
+    case "linux":
+      return linux.cpus();
+    default:
+      console.warn(`${platform} is not supported!`);
+      break;
+  }
+};
 
-const extras = require(`./src/${this.platform()}.js`);
+export const endianness = () => {
+  const platform = platform();
+  switch (platform) {
+    case "darwin":
+      return darwin.endianness();
+    case "linux":
+      return linux.endianness();
+    default:
+      console.warn(`${platform} is not supported!`);
+      break;
+  }
+};
 
-Object.keys(extras).forEach(key => this[key] = extras[key]);
+export const freemem = () => {
+  const platform = platform();
+  switch (platform) {
+    case "darwin":
+      return darwin.freemem();
+    case "linux":
+      return linux.freemem();
+    default:
+      console.warn(`${platform} is not supported!`);
+      break;
+  }
+};
+
+export const loadavg = () => {
+  const platform = platform();
+  switch (platform) {
+    case "darwin":
+      return darwin.loadavg();
+    case "linux":
+      return linux.loadavg();
+    default:
+      console.warn(`${platform} is not supported!`);
+      break;
+  }
+}
+
+export const networkInterfaces = () => {
+  const platform = platform();
+  switch (platform) {
+    case "darwin":
+      return darwin.networkInterfaces();
+    case "linux":
+      return linux.networkInterfaces();
+    default:
+      console.warn(`${platform} is not supported!`);
+      break;
+  }
+};

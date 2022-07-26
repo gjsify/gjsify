@@ -1,9 +1,10 @@
 /*! (c) Andrea Giammarchi - ISC - https://github.com/WebReflection/gjs-require */
 
 const { gi, system, searchPath } = imports;
-
-const { GLib, Gio } = gi;
-const { File } = Gio;
+import { resolve, readJSON } from '@gjsify/utils';
+import process from '@gjsify/process';
+import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 
 const cache = Object.create(null);
 
@@ -15,19 +16,6 @@ function getProgramDir(programFile) {
   } else {
     return programFile.get_parent();
   }
-}
-
-function resolve(dir, file) {
-  return File.new_for_path(dir).resolve_relative_path(file);
-}
-
-function readJSON(path) {
-  const [ok, contents] = GLib.file_get_contents(path);
-  if (ok) {
-    const map = JSON.parse(contents);
-    return map;
-  }
-  throw new Error(`Error on require "${path}"`);
 }
 
 /**
@@ -89,6 +77,7 @@ Object.defineProperties(window, {
   __dirname: {get: () => __dirname},
   __filename: {get: () => __filename},
   global: {value: window},
-  require: {value: require}
+  require: {value: require},
+  process: {value: process},
 });
 

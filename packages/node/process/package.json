@@ -1,28 +1,17 @@
 {
   "name": "@gjsify/process",
-  "version": "0.0.1b",
+  "version": "0.0.1",
   "description": "process core module for gjs",
   "scripts": {
     "test": "cgjs ./test --foo bar"
   },
   "keywords": [
     "gjs",
-    "require",
-    "commonjs",
-    "npm",
     "node",
-    "gtk",
-    "native",
-    "cgjs",
     "process"
   ],
-  "author": "Andrea Giammarchi",
-  "license": "ISC",
   "main": "index.js",
-  "repository": "github:cgjs/cgjs",
-  "bugs": "https://github.com/cgjs/cgjs/issues",
-  "homepage": "https://github.com/cgjs/cgjs/tree/master/packages/process#readme",
-  "devDependencies": {
-    "cgjs": "^0.1.28"
+  "dependencies": {
+    "@gjsify/utils": "workspace:^"
   }
 }

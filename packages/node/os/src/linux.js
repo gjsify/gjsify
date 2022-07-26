@@ -1,9 +1,42 @@
-const createSubnet = require('./createSubnet');
-const system = require('./system.js');
+import createSubnet from './createSubnet.js';
+import system from './system.js';
+
 const EOL = /\r\n|\n/;
 
 const getIPv4Subnet = createSubnet(32, 8, 10, '.');
 const getIPv6Subnet = createSubnet(128, 16, 16, ':');
+
+function parseInterfaces(info) {
+  info = info.trim();
+  if (info.length < 1) return;
+  let iface = [], mac;
+  for (let
+    line,
+    lines = info.split(EOL),
+    i = 0; i < lines.length; i++
+  ) {
+    line = lines[i];
+    switch (true) {
+      case /link\/\S+\s+((?:\S{2}:)+\S{2})/.test(line):
+        mac = RegExp.$1;
+        break;
+      case /inet(\d*)\s+(\S+)/.test(line):
+        let
+          ip = RegExp.$2.split('/'),
+          v = RegExp.$1 || '4'
+        ;
+        iface.push({
+          address: ip[0],
+          netmask: (v === '4' ? getIPv4Subnet : getIPv6Subnet)(ip[1]),
+          family: 'IPv' + v,
+          mac: mac,
+          internal: ip[0] === '127.0.0.1'
+        });
+        break;
+    }
+  }
+  if (mac) this[info.slice(0, info.indexOf(':'))] = iface;
+};
 
 export const cpus = () => {
   const PROCESSOR = /^processor\s*:\s*(\d+)/i;
@@ -52,38 +85,6 @@ export const networkInterfaces = () => {
   const ifaces = {};
   system('ip addr').split(/^\d+:\s+/m).forEach(parseInterfaces, ifaces);
   return ifaces;
-};
-
-function parseInterfaces(info) {
-  info = info.trim();
-  if (info.length < 1) return;
-  let iface = [], mac;
-  for (let
-    line,
-    lines = info.split(EOL),
-    i = 0; i < lines.length; i++
-  ) {
-    line = lines[i];
-    switch (true) {
-      case /link\/\S+\s+((?:\S{2}:)+\S{2})/.test(line):
-        mac = RegExp.$1;
-        break;
-      case /inet(\d*)\s+(\S+)/.test(line):
-        let
-          ip = RegExp.$2.split('/'),
-          v = RegExp.$1 || '4'
-        ;
-        iface.push({
-          address: ip[0],
-          netmask: (v === '4' ? getIPv4Subnet : getIPv6Subnet)(ip[1]),
-          family: 'IPv' + v,
-          mac: mac,
-          internal: ip[0] === '127.0.0.1'
-        });
-        break;
-    }
-  }
-  if (mac) this[info.slice(0, info.indexOf(':'))] = iface;
 };
 
 export const totalmem = () => {

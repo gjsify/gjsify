@@ -1,0 +1,16 @@
+{
+  "name": "@gjsify/globals",
+  "version": "0.0.1",
+  "description": "globals core module for gjs",
+  "keywords": [
+    "gjs",
+    "node",
+    "globals"
+  ],
+  "author": "Pascal Garber",
+  "main": "index.js",
+  "dependencies": {
+    "@gjsify/process": "workspace:^",
+    "@gjsify/utils": "workspace:^"
+  }
+}

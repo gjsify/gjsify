@@ -5,9 +5,9 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@deepkit/app@portal:../deepkit-framework/packages/app::locator=deepkit-test%40workspace%3A.":
+"@deepkit/app@portal:../deepkit-framework/packages/app::locator=gjsify%40workspace%3A.":
   version: 0.0.0-use.local
-  resolution: "@deepkit/app@portal:../deepkit-framework/packages/app::locator=deepkit-test%40workspace%3A."
+  resolution: "@deepkit/app@portal:../deepkit-framework/packages/app::locator=gjsify%40workspace%3A."
   dependencies:
     "@oclif/command": ^1.8.16
     "@oclif/config": ^1.18.2
@@ -22,27 +22,27 @@ __metadata:
   languageName: node
   linkType: soft
 
-"@deepkit/core@portal:../deepkit-framework/packages/core::locator=deepkit-test%40workspace%3A.":
+"@deepkit/core@portal:../deepkit-framework/packages/core::locator=gjsify%40workspace%3A.":
   version: 0.0.0-use.local
-  resolution: "@deepkit/core@portal:../deepkit-framework/packages/core::locator=deepkit-test%40workspace%3A."
+  resolution: "@deepkit/core@portal:../deepkit-framework/packages/core::locator=gjsify%40workspace%3A."
   dependencies:
     dot-prop: ^5.1.1
     to-fast-properties: ^3.0.1
   languageName: node
   linkType: soft
 
-"@deepkit/injector@portal:../deepkit-framework/packages/injector::locator=deepkit-test%40workspace%3A.":
+"@deepkit/injector@portal:../deepkit-framework/packages/injector::locator=gjsify%40workspace%3A.":
   version: 0.0.0-use.local
-  resolution: "@deepkit/injector@portal:../deepkit-framework/packages/injector::locator=deepkit-test%40workspace%3A."
+  resolution: "@deepkit/injector@portal:../deepkit-framework/packages/injector::locator=gjsify%40workspace%3A."
   peerDependencies:
     "@deepkit/core": ^1.0.1-alpha.13
     "@deepkit/type": ^1.0.1-alpha.13
   languageName: node
   linkType: soft
 
-"@deepkit/type-compiler@portal:../deepkit-framework/packages/type-compiler::locator=deepkit-test%40workspace%3A.":
+"@deepkit/type-compiler@portal:../deepkit-framework/packages/type-compiler::locator=gjsify%40workspace%3A.":
   version: 0.0.0-use.local
-  resolution: "@deepkit/type-compiler@portal:../deepkit-framework/packages/type-compiler::locator=deepkit-test%40workspace%3A."
+  resolution: "@deepkit/type-compiler@portal:../deepkit-framework/packages/type-compiler::locator=gjsify%40workspace%3A."
   dependencies:
     "@deepkit/core": ^1.0.1-alpha.74
     "@deepkit/type-spec": ^1.0.1-alpha.74
@@ -58,15 +58,15 @@ __metadata:
   languageName: node
   linkType: soft
 
-"@deepkit/type-spec@portal:../deepkit-framework/packages/type-spec::locator=deepkit-test%40workspace%3A.":
+"@deepkit/type-spec@portal:../deepkit-framework/packages/type-spec::locator=gjsify%40workspace%3A.":
   version: 0.0.0-use.local
-  resolution: "@deepkit/type-spec@portal:../deepkit-framework/packages/type-spec::locator=deepkit-test%40workspace%3A."
+  resolution: "@deepkit/type-spec@portal:../deepkit-framework/packages/type-spec::locator=gjsify%40workspace%3A."
   languageName: node
   linkType: soft
 
-"@deepkit/type@portal:../deepkit-framework/packages/type::locator=deepkit-test%40workspace%3A.":
+"@deepkit/type@portal:../deepkit-framework/packages/type::locator=gjsify%40workspace%3A.":
   version: 0.0.0-use.local
-  resolution: "@deepkit/type@portal:../deepkit-framework/packages/type::locator=deepkit-test%40workspace%3A."
+  resolution: "@deepkit/type@portal:../deepkit-framework/packages/type::locator=gjsify%40workspace%3A."
   dependencies:
     "@deepkit/type-spec": ^1.0.1-alpha.74
     "@types/uuid": ^8.3.0
@@ -83,6 +83,77 @@ __metadata:
   checksum: 4059f790e2d07bf3c3ff3e0fec0daa8144fe35c1f6e0111c9921bd32106adaa97a4ab096ad7dab1e28ee6a9060083c4d1a4ada42a7f5f3f7a96b8812e2b757c1
   languageName: node
   linkType: hard
+
+"@gjsify/example-basic@workspace:examples/basic":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-basic@workspace:examples/basic"
+  dependencies:
+    "@deepkit/app": ^1.0.1-alpha.72
+    "@deepkit/injector": ^1.0.1-alpha.72
+    "@deepkit/type": ^1.0.1-alpha.72
+    "@deepkit/type-compiler": ^1.0.1-alpha.72
+    "@gjsify/fs": "workspace:^"
+    "@gjsify/globals": "workspace:^"
+    "@gjsify/os": "workspace:^"
+    "@gjsify/process": "workspace:^"
+    "@types/node": ^18.0.3
+    assert: ^2.0.0
+    browserify-zlib: ^0.2.0
+    buffer: ^6.0.3
+    constants-browserify: ^1.0.0
+    cross-dirname: ^0.0.3
+    crypto-browserify: ^3.12.0
+    domain-browser: ^4.22.0
+    esbuild: ^0.14.48
+    esbuild-plugin-alias: ^0.2.1
+    events: ^3.3.0
+    path-browserify: ^1.0.1
+    querystring-es3: ^0.2.1
+    stream-browserify: ^3.0.0
+    string_decoder: ^1.3.0
+    tty-browserify: ^0.0.1
+    typescript: ^4.6.4
+    url: ^0.11.0
+    util: ^0.12.4
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/fs@workspace:^, @gjsify/fs@workspace:packages/node/fs":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/fs@workspace:packages/node/fs"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/globals@workspace:^, @gjsify/globals@workspace:packages/node/globals":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/globals@workspace:packages/node/globals"
+  dependencies:
+    "@gjsify/process": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/os@workspace:^, @gjsify/os@workspace:packages/node/os":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/os@workspace:packages/node/os"
+  dependencies:
+    "@gjsify/utils": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/process@workspace:^, @gjsify/process@workspace:packages/node/process":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/process@workspace:packages/node/process"
+  dependencies:
+    "@gjsify/utils": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/utils@workspace:^, @gjsify/utils@workspace:packages/utils":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/utils@workspace:packages/utils"
+  languageName: unknown
+  linkType: soft
 
 "@nodelib/fs.scandir@npm:2.1.5":
   version: 2.1.5
@@ -733,36 +804,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"deepkit-test@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "deepkit-test@workspace:."
-  dependencies:
-    "@deepkit/app": ^1.0.1-alpha.72
-    "@deepkit/injector": ^1.0.1-alpha.72
-    "@deepkit/type": ^1.0.1-alpha.72
-    "@deepkit/type-compiler": ^1.0.1-alpha.72
-    "@types/node": ^18.0.3
-    assert: ^2.0.0
-    browserify-zlib: ^0.2.0
-    buffer: ^6.0.3
-    constants-browserify: ^1.0.0
-    cross-dirname: ^0.0.3
-    crypto-browserify: ^3.12.0
-    domain-browser: ^4.22.0
-    esbuild: ^0.14.48
-    esbuild-plugin-alias: ^0.2.1
-    events: ^3.3.0
-    path-browserify: ^1.0.1
-    querystring-es3: ^0.2.1
-    stream-browserify: ^3.0.0
-    string_decoder: ^1.3.0
-    tty-browserify: ^0.0.1
-    typescript: ^4.6.4
-    url: ^0.11.0
-    util: ^0.12.4
-  languageName: unknown
-  linkType: soft
-
 "define-properties@npm:^1.1.3, define-properties@npm:^1.1.4":
   version: 1.1.4
   resolution: "define-properties@npm:1.1.4"
@@ -1299,6 +1340,15 @@ __metadata:
   checksum: 9ceff8fe968f9270a37a1f73bf3f1f7bda69ca80f4f80850670e0e7b9444ff99323f7ac52f96567f8b5f5fbe7ac717a0d81d3407c7313e82810c6199446a5247
   languageName: node
   linkType: hard
+
+"gjsify@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "gjsify@workspace:."
+  dependencies:
+    "@deepkit/type-compiler": ^1.0.1-alpha.72
+    typescript: ^4.6.4
+  languageName: unknown
+  linkType: soft
 
 "glob-parent@npm:^5.1.2":
   version: 5.1.2

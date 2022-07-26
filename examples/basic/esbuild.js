@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import alias from 'esbuild-plugin-alias';
 import { createRequire } from 'module';
-import { dirname, resolve } from "path"
+import { dirname } from "path"
 import { fileURLToPath } from "url"
 
 const __filename = fileURLToPath(import.meta.url)
@@ -24,8 +24,9 @@ const aliases = {
     querystring: require.resolve('querystring-es3/'),
     zlib: require.resolve('browserify-zlib/'),
     tty: require.resolve('tty-browserify/'),
-    fs: resolve(__dirname, 'packages/node/fs/index.js'), // https://github.com/gjsify/fs
-    os: resolve(__dirname, 'packages/node/os/index.js'), // https://github.com/gjsify/os
+    fs: require.resolve('@gjsify/fs/'), // https://github.com/gjsify/fs
+    os: require.resolve('@gjsify/os/'), // https://github.com/gjsify/os
+    process: require.resolve('@gjsify/process/'), // https://github.com/gjsify/os
 }
 
 console.debug("aliases", aliases);
@@ -38,8 +39,7 @@ await build({
     //     js: `import '../packages/node/global/index.js';`
     // },
     inject: [
-        './packages/node/global/index.js',
-        './packages/node/process/index.js'
+        require.resolve('@gjsify/globals/'),
     ],
     // target: "firefox60", // Since GJS 1.53.90
     // target: "firefox68", // Since GJS 1.63.90

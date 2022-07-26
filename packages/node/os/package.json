@@ -7,22 +7,10 @@
   },
   "keywords": [
     "gjs",
-    "require",
-    "commonjs",
-    "npm",
     "node",
-    "gtk",
-    "native",
-    "cgjs",
     "os"
   ],
-  "author": "Andrea Giammarchi",
-  "license": "ISC",
-  "main": "index.js",
-  "repository": "github:cgjs/cgjs",
-  "bugs": "https://github.com/gjsify/os/issues",
-  "homepage": "https://github.com/gjsify/os/tree/master/packages/os#readme",
-  "devDependencies": {
-    "cgjs": "^0.1.28"
+  "dependencies": {
+    "@gjsify/utils": "workspace:^"
   }
 }

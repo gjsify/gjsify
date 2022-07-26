@@ -1,4 +1,3 @@
-import { App } from '@deepkit/app';
 import { serialize, deserialize } from '@deepkit/type';
 import { InjectorContext } from '@deepkit/injector';
 
@@ -62,8 +61,3 @@ const userRepo = injector.get(UserRepository);
 const users = await userRepo.getUsers();
 
 console.log("users", users);
-
-new App({
-    // @ts-ignore
-    prov
-}).run();
