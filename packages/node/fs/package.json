@@ -1,0 +1,11 @@
+{
+    "name": "@gjsify/fs",
+    "version": "0.0.1",
+    "description": "fs core module for gjsify",
+    "main": "index.js",
+    "keywords": [
+      "gjs",
+      "node",
+      "fs"
+    ]
+  }

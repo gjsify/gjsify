@@ -1,0 +1,57 @@
+{
+  "name": "deepkit-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "gjs -m dist/index.js",
+    "build": "npm run build:ts && npm run build:js",
+    "build:ts": "tsc",
+    "build:js": "node esbuild.js",
+    "deepkit-type-install": "deepkit-type-install "
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "dependencies": {
+    "@deepkit/app": "^1.0.1-alpha.72",
+    "@deepkit/injector": "^1.0.1-alpha.72",
+    "@deepkit/type": "^1.0.1-alpha.72",
+    "assert": "^2.0.0",
+    "browserify-zlib": "^0.2.0",
+    "buffer": "^6.0.3",
+    "constants-browserify": "^1.0.0",
+    "cross-dirname": "^0.0.3",
+    "crypto-browserify": "^3.12.0",
+    "domain-browser": "^4.22.0",
+    "events": "^3.3.0",
+    "path-browserify": "^1.0.1",
+    "querystring-es3": "^0.2.1",
+    "stream-browserify": "^3.0.0",
+    "string_decoder": "^1.3.0",
+    "tty-browserify": "^0.0.1",
+    "url": "^0.11.0",
+    "util": "^0.12.4"
+  },
+  "devDependencies": {
+    "@deepkit/type-compiler": "^1.0.1-alpha.72",
+    "@types/node": "^18.0.3",
+    "esbuild": "^0.14.48",
+    "esbuild-plugin-alias": "^0.2.1",
+    "typescript": "^4.6.4"
+  },
+  "packageManager": "yarn@3.2.1",
+  "resolutions": {
+    "@deepkit/core": "portal:../deepkit-framework/packages/core",
+    "@deepkit/event": "portal:../deepkit-framework/packages/event",
+    "@deepkit/stopwatch": "portal:../deepkit-framework/packages/stopwatch",
+    "@deepkit/workflow": "portal:../deepkit-framework/packages/workflow",
+    "@deepkit/app": "portal:../deepkit-framework/packages/app",
+    "@deepkit/injector": "portal:../deepkit-framework/packages/injector",
+    "@deepkit/type": "portal:../deepkit-framework/packages/type",
+    "@deepkit/type-compiler": "portal:../deepkit-framework/packages/type-compiler",
+    "@deepkit/type-spec": "portal:../deepkit-framework/packages/type-spec",
+    "buffer": "^6.0.3"
+  }
+}

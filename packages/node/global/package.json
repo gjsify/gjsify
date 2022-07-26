@@ -1,0 +1,24 @@
+{
+  "name": "@gjsify/globals",
+  "version": "0.0.1",
+  "description": "globals core module for gjs",
+  "scripts": {},
+  "keywords": [
+    "gjs",
+    "require",
+    "commonjs",
+    "npm",
+    "node",
+    "gtk",
+    "native",
+    "cgjs",
+    "globals"
+  ],
+  "author": "Pascal Garber",
+  "license": "ISC",
+  "main": "index.js",
+  "repository": "github:cgjs/cgjs",
+  "bugs": "https://github.com/gjsify/globals/issues",
+  "homepage": "https://github.com/gjsify/globals",
+  "devDependencies": {}
+}
