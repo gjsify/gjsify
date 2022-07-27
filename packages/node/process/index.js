@@ -1,95 +1,102 @@
 import { getProgramExe } from '@gjsify/utils';
+import { EventEmitter } from 'events';
+import { arch, platform } from 'os';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
 const File = Gio.File;
 const System = imports.system;
 const TIME = Date.now();
-const EventEmitter = require('events').EventEmitter;
 
-const lazy = (key, value) =>
-  Object.defineProperty(process, key, {
-    enumerable: true,
-    value: value
-  })[key];
+class Process extends EventEmitter {
+  constructor() {
+    super();
+  }
 
-const process = Object.defineProperties(
-  new EventEmitter,
-  Object.getOwnPropertyDescriptors({
+   // lazy own properties
+   get arch() {
+    return arch();
+  }
 
-    // lazy own properties
-    get arch() {
-      return lazy('arch', require('os').arch());
-    },
-    get argv() {
-      const fs = require('fs');
-      const arr = [ getProgramExe() ];
-      ARGV.forEach(arg => {
-        if (arg[0] !== '-') {
-          arr.push(
-            fs.existsSync(arg) ?
-              File.new_for_path(arg).get_path() :
-              arg
-          );
-        } else {
-          arr.push(arg);
-        }
-      });
-      return lazy('argv', arr);
-    },
-    get argv0() {
-      return lazy('argv0', File.new_for_path(getProgramExe()).get_basename());
-    },
-    get env() {
-      return lazy('env', GLib.listenv().reduce(
-        (env, key) => {
-          env[key] = GLib.getenv(key);
-          return env;
-        },
-        {}
-      ));
-    },
-    get pid() {
-      return lazy('pid', new Gio.Credentials().get_unix_pid());
-    },
-    get platform() {
-      return lazy('platform', require('os').platform());
-    },
-    get title() {
-      return lazy('title', GLib.get_prgname());
-    },
-    get version() {
-      return lazy('version', String(System.version)); // TODO: use `gjs --version`
-    },
-    get versions() {
-      return lazy('versions', Object.assign(
-        {
-          gjs: process.version,
-          node: "16.0.0"
-        },
-        [] // TODO GJSIFY_DEPS,
-      ));
-    },
+  get argv() {
+    const fs = require('fs');
+    const arr = [ getProgramExe() ];
+    ARGV.forEach(arg => {
+      if (arg[0] !== '-') {
+        arr.push(
+          fs.existsSync(arg) ?
+            File.new_for_path(arg).get_path() :
+            arg
+        );
+      } else {
+        arr.push(arg);
+      }
+    });
+    return lazy('argv', arr);
+  }
 
-    // methods
-    abort() {
-      process.emit('abort');
-      System.exit(1);
-    },
-    cwd() {
-      return GLib.get_current_dir();
-    },
-    exit(status) {
-      process.emit('exit', status);
-      System.exit(status || 0);
-    },
-    nextTick() {
-      setImmediate.apply(null, arguments);
-    },
-    uptime() {
-      return (Date.now() - TIME) / 1000;
+  get argv0() {
+    return lazy('argv0', File.new_for_path(getProgramExe()).get_basename());
+  }
+
+  get env() {
+    return lazy('env', GLib.listenv().reduce(
+      (env, key) => {
+        env[key] = GLib.getenv(key);
+        return env;
+      },
+      {}
+    ));
+  }
+
+  get pid() {
+    return new Gio.Credentials().get_unix_pid();
+  }
+
+  get platform() {
+    return platform();
+  }
+
+  get title() {
+    return GLib.get_prgname();
+  }
+
+  get version() {
+    return String(System.version); // TODO: use `gjs --version`
+  }
+
+  get versions() {
+    return {
+      gjs: process.version,
+      node: "0.0.0"
+      // TODO version op dependencies
     }
-  })
-);
+  }
+
+  abort() {
+    process.emit('abort');
+    System.exit(1);
+  }
+
+  cwd() {
+    return GLib.get_current_dir();
+  }
+
+  exit(status) {
+    process.emit('exit', status);
+    System.exit(status || 0);
+  }
+
+  nextTick() {
+    setImmediate.apply(null, arguments);
+  }
+
+  uptime() {
+    return (Date.now() - TIME) / 1000;
+  }
+}
+
+/** https://nodejs.org/api/process.html#process_process */
+const process = new Process();
 
 export default process;
