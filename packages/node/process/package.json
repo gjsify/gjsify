@@ -2,16 +2,24 @@
   "name": "@gjsify/process",
   "version": "0.0.1",
   "description": "process core module for gjs",
+  "main": "lib/index.js",
+  "type": "module",
   "scripts": {
-    "test": "cgjs ./test --foo bar"
+    "test": "jasmin",
+    "build": "tsc"
   },
   "keywords": [
     "gjs",
     "node",
     "process"
   ],
-  "main": "index.js",
   "dependencies": {
+    "@gjsify/types": "workspace:^",
     "@gjsify/utils": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/jasmine": "^4.0.3",
+    "jasmine": "^4.3.0",
+    "typescript": "^4.7.4"
   }
 }

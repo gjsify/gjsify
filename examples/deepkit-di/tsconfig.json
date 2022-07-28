@@ -5,7 +5,7 @@
       "target": "ESNext",
       "moduleResolution": "node",
       "experimentalDecorators": true,
-      "outDir": "tmp"
+      "outDir": "dist"
     },
     "reflection": true,
     "files": ["src/index.ts"]

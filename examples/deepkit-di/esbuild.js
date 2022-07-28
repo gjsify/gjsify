@@ -1,11 +1,8 @@
 import { build } from "esbuild";
 import alias from 'esbuild-plugin-alias';
-import { createRequire } from 'module';
-import { dirname } from "path"
-import { fileURLToPath } from "url"
+import { deepkit } from '@gjsify/esbuild-deepkit-plugin';
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 
@@ -23,7 +20,7 @@ const aliases = {
     string_decoder: require.resolve('string_decoder/'), // https://github.com/nodejs/string_decoder
     querystring: require.resolve('querystring-es3/'),
     zlib: require.resolve('browserify-zlib/'),
-    tty: require.resolve('tty-browserify/'),
+    tty: require.resolve('@gjsify/tty/'),
     fs: require.resolve('@gjsify/fs/'), // https://github.com/gjsify/fs
     os: require.resolve('@gjsify/os/'), // https://github.com/gjsify/os
     process: require.resolve('@gjsify/process/'), // https://github.com/gjsify/os
@@ -32,12 +29,9 @@ const aliases = {
 console.debug("aliases", aliases);
 
 await build({
-    entryPoints: ['tmp/index.js'],
+    entryPoints: ['src/index.ts'],
     outfile: 'dist/index.js',
     bundle: true,
-    // banner: {
-    //     js: `import '../packages/node/global/index.js';`
-    // },
     inject: [
         require.resolve('@gjsify/globals/'),
     ],
@@ -50,5 +44,6 @@ await build({
     external: ['gi://*'],
     plugins: [
         alias(aliases),
+        deepkit(),
     ],
 })

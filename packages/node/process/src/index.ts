@@ -1,8 +1,8 @@
 import { getProgramExe } from '@gjsify/utils';
 import { EventEmitter } from 'events';
 import { arch, platform } from 'os';
-import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
+import GLib from '@gjsify/types/GLib-2.0';
+import Gio from '@gjsify/types/Gio-2.0';
 
 const File = Gio.File;
 const System = imports.system;
@@ -32,21 +32,21 @@ class Process extends EventEmitter {
         arr.push(arg);
       }
     });
-    return lazy('argv', arr);
+    return arr;
   }
 
   get argv0() {
-    return lazy('argv0', File.new_for_path(getProgramExe()).get_basename());
+    return  File.new_for_path(getProgramExe()).get_basename();
   }
 
   get env() {
-    return lazy('env', GLib.listenv().reduce(
+    return GLib.listenv().reduce(
       (env, key) => {
         env[key] = GLib.getenv(key);
         return env;
       },
       {}
-    ));
+    );
   }
 
   get pid() {
@@ -69,7 +69,7 @@ class Process extends EventEmitter {
     return {
       gjs: process.version,
       node: "0.0.0"
-      // TODO version op dependencies
+      // TODO: version dependencies
     }
   }
 
@@ -82,7 +82,7 @@ class Process extends EventEmitter {
     return GLib.get_current_dir();
   }
 
-  exit(status) {
+  exit(status: number) {
     process.emit('exit', status);
     System.exit(status || 0);
   }

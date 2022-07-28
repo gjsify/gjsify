@@ -1,3 +1,10 @@
 import GLib from 'gi://GLib';
-const trim = ''.trim;
-export default (o_O) => trim.call(GLib.spawn_command_line_sync(o_O)[1]);
+const byteArray = imports.byteArray;
+
+export default (commandLine) => {
+    const [res, out, err, status] = GLib.spawn_command_line_sync(commandLine);
+
+    if(err.byteLength) throw new Error(byteArray.toString(err));
+
+    return byteArray.toString(out);
+};

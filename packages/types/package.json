@@ -1,0 +1,33 @@
+{
+  "name": "@gjsify/types",
+  "packageManager": "yarn@3.2.1",
+  "type": "module",
+  "main": "./@types/Gjs/index.js",
+  "module": "./@types/Gjs/index.js",
+  "types": "./@types/Gjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./@types/Gjs/index.js",
+      "default": "./@types/Gjs/index.js"
+    },
+    "./*": {
+      "import": "./@types/Gjs/*.js",
+      "default": "./@types/Gjs/GLib-2.0.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./@types/Gjs/*.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "clear": "rm -rf @types",
+    "build": "yarn run clear; ts-for-gir generate Gio-2.0 GLib-2.0 GTop-2.0 -e gjs -t esm",
+    "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"
+  },
+  "devDependencies": {
+    "@ts-for-gir/cli": "^3.0.0-beta.2"
+  }
+}

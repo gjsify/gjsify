@@ -5,15 +5,8 @@
       "target": "ESNext",
       "moduleResolution": "node",
       "experimentalDecorators": true,
-      "outDir": "tmp"
+      "outDir": "lib"
     },
     "reflection": true,
-    "references": [
-      {
-        "path": "examples/basic/tsconfig.json"
-      },
-      {
-        "path": "packages/node/tty/tsconfig.json"
-      },
-    ]
+    "files": ["src/index.ts"]
 }
