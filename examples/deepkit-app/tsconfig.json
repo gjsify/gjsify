@@ -1,11 +1,11 @@
 {
     "compilerOptions": {
       "module": "ESNext",
-      "types": ["node"],
+      "types": [],
       "target": "ESNext",
       "moduleResolution": "node",
       "experimentalDecorators": true,
-      "outDir": "lib"
+      "outDir": "dist"
     },
     "reflection": true,
     "files": ["src/index.ts"]

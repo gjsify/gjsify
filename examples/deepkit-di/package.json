@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "start": "gjs -m dist/index.js",
-    "build": "node esbuild.js"
+    "build": "node esbuild.mjs"
   },
   "engines": {
     "node": "16",
@@ -16,9 +16,9 @@
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "dependencies": {
-    "@deepkit/app": "^1.0.1-alpha.72",
-    "@deepkit/injector": "^1.0.1-alpha.72",
-    "@deepkit/type": "^1.0.1-alpha.72",
+    "@deepkit/app": "^1.0.1-alpha.74",
+    "@deepkit/injector": "^1.0.1-alpha.74",
+    "@deepkit/type": "^1.0.1-alpha.74",
     "@gjsify/fs": "workspace:^",
     "@gjsify/globals": "workspace:^",
     "@gjsify/os": "workspace:^",
@@ -28,7 +28,6 @@
     "browserify-zlib": "^0.2.0",
     "buffer": "^6.0.3",
     "constants-browserify": "^1.0.0",
-    "cross-dirname": "^0.0.3",
     "crypto-browserify": "^3.12.0",
     "domain-browser": "^4.22.0",
     "events": "^3.3.0",
@@ -40,11 +39,11 @@
     "util": "^0.12.4"
   },
   "devDependencies": {
-    "@deepkit/type-compiler": "^1.0.1-alpha.72",
-    "@gjsify/esbuild-deepkit-plugin": "workspace:^",
-    "@types/node": "^18.0.3",
-    "esbuild": "^0.14.48",
+    "@deepkit/type-compiler": "^1.0.1-alpha.74",
+    "@gjsify/esbuild-plugin-deepkit": "workspace:^",
+    "@types/node": "^18.6.2",
+    "esbuild": "^0.14.51",
     "esbuild-plugin-alias": "^0.2.1",
-    "typescript": "^4.6.4"
+    "typescript": "^4.7.4"
   }
 }

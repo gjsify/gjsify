@@ -1,7 +1,7 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-
 import { Buffer } from 'buffer';
+const byteArray = imports.byteArray;
 
 function getEncodingFromOptions(options, defaultEncoding = 'utf8') {
   if (options === null) {
@@ -70,7 +70,8 @@ function readFileSync(path, options = { encoding: null, flag: 'r' }) {
     return Buffer.from(data);
   }
 
-  return data.toString(encoding);
+  // TODO encoding
+  return byteArray.toString(data);
 }
 
 function mkdirSync(path, mode = 0o777) {

@@ -1,5 +1,5 @@
 {
-  "name": "@gjsify/example-deepkit-types",
+  "name": "@gjsify/example-deepkit-app",
   "private": true,
   "version": "0.0.1",
   "description": "",
@@ -16,11 +16,14 @@
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
-    "@deepkit/type-compiler": "^1.0.1-alpha.74",
     "@gjsify/esbuild-plugin-deepkit": "workspace:^",
     "@gjsify/esbuild-plugin-gjsify": "workspace:^",
     "@types/node": "^18.6.2",
     "esbuild": "^0.14.51",
     "typescript": "^4.7.4"
+  },
+  "dependencies": {
+    "@deepkit/app": "^1.0.1-alpha.74",
+    "core-js": "^3.24.1"
   }
 }

@@ -8,12 +8,5 @@
       "outDir": "tmp"
     },
     "reflection": true,
-    "references": [
-      {
-        "path": "examples/basic/tsconfig.json"
-      },
-      {
-        "path": "packages/node/tty/tsconfig.json"
-      },
-    ]
+    "references": []
 }

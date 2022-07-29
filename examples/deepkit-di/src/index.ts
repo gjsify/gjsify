@@ -1,3 +1,4 @@
+import '@gjsify/types/index';
 import { InjectorContext } from '@deepkit/injector';
 
 // Dependency Inversion
@@ -27,8 +28,10 @@ const injector = InjectorContext.forProviders([
     HttpClient,
 ]);
 
+// Dependency Inversion
+
 const userRepo = injector.get(UserRepository);
 
 const users = await userRepo.getUsers();
 
-console.log("users", users);
+print("users", users);

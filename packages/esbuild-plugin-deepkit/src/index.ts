@@ -1,7 +1,6 @@
 import { readFile } from 'fs/promises';
 import { DeepkitLoader } from '@deepkit/type-compiler';
-import { printDiagnostics } from './log.js';
-import { parseTsConfig } from './config.js';
+import { inspect } from 'util';
 
 import type { Plugin } from 'esbuild';
 
@@ -13,16 +12,17 @@ interface DeepkitPluginOptions {
   cwd?: string;
 }
 
+export const printDiagnostics = (...args: any[]) => {
+    console.log(inspect(args, false, 10, true));
+}
+
 export const deepkit = (options: DeepkitPluginOptions = {}): Plugin => {
   return {
     name: 'deepkit',
     setup(build) {
+      options.reflection = options.reflection === undefined ? true : options.reflection;
 
-      let parsedTsConfig= parseTsConfig(options.tsconfigName, options.cwd);
-      const reflection = options.reflection === true || parsedTsConfig.raw.reflection === true;
-
-      if (!reflection) {
-        console.debug("Skip deepkit reflection. Reason: Disabled.");
+      if (!options.reflection) {
         return;
       }
 

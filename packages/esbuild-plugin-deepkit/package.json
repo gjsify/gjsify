@@ -1,5 +1,5 @@
 {
-    "name": "@gjsify/esbuild-deepkit-plugin",
+    "name": "@gjsify/esbuild-plugin-deepkit",
     "version": "0.0.1",
     "description": "Deepkit type compiler plugin for esbuild",
     "type": "commonjs",
@@ -20,7 +20,7 @@
         "@deepkit/type-compiler": "^1.0.1-alpha.74"
     },
     "devDependencies": {
-        "esbuild": "^0.14.50",
+        "esbuild": "^0.14.51",
         "typescript": "^4.7.4"
     }
 }

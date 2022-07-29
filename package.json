@@ -5,14 +5,13 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
-    "deepkit-type-install": "deepkit-type-install"
+    "build": "yarn workspaces foreach -pt run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
-    "@deepkit/type-compiler": "^1.0.1-alpha.72",
-    "typescript": "^4.6.4"
+    "@deepkit/type-compiler": "^1.0.1-alpha.74",
+    "typescript": "^4.7.4"
   },
   "packageManager": "yarn@3.2.1",
   "resolutions": {

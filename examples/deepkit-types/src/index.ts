@@ -1,3 +1,4 @@
+import '@gjsify/types/index';
 import { serialize, deserialize } from '@deepkit/type';
 
 class MyModel {
@@ -12,18 +13,18 @@ const myModel = new MyModel('Peter');
 const jsonObject = serialize<MyModel>(myModel);
 const json = JSON.stringify(jsonObject);
 
-console.log("json", json);
-console.log("jsonObject", jsonObject, typeof jsonObject.created);
-console.log("myModel", myModel, typeof myModel.created );
+print("json", json);
+print("jsonObject", jsonObject, typeof jsonObject.created);
+print("myModel", myModel, typeof myModel.created );
 
 
 const myModelBack = deserialize<MyModel>(myModel);
-console.log("myModelBack", myModelBack, typeof myModelBack.created );
+print("myModelBack", myModelBack, typeof myModelBack.created );
 
-console.log(deserialize<boolean>('false')); //false
-console.log(deserialize<boolean>('0')); //false
-console.log(deserialize<boolean>('1')); //true
+print(deserialize<boolean>('false')); //false
+print(deserialize<boolean>('0')); //false
+print(deserialize<boolean>('1')); //true
 
-console.log(deserialize<number>('1')); //1
+print(deserialize<number>('1')); //1
 
-console.log(deserialize<string>(1)); //'1'
+print(deserialize<string>(1)); //'1'
