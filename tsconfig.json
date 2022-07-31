@@ -1,12 +1,10 @@
 {
-    "compilerOptions": {
-      "module": "ESNext",
-      "types": [],
-      "target": "ESNext",
-      "moduleResolution": "node",
-      "experimentalDecorators": true,
-      "outDir": "tmp"
-    },
-    "reflection": true,
-    "references": []
+  "compilerOptions": {
+    "module": "ESNext",
+    "types": [],
+    "target": "ESNext",
+    "moduleResolution": "node",
+    "experimentalDecorators": true
+  },
+  "references": []
 }

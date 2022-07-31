@@ -5,7 +5,9 @@
       "target": "ESNext",
       "moduleResolution": "node",
       "experimentalDecorators": true,
-      "outDir": "lib"
+      "outDir": "lib",
+      "rootDir": "src",
+      "composite": true
     },
     "reflection": true,
     "files": ["src/index.ts"]
