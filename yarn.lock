@@ -217,6 +217,9 @@ __metadata:
 "@gjsify/fs@workspace:^, @gjsify/fs@workspace:packages/node/fs":
   version: 0.0.0-use.local
   resolution: "@gjsify/fs@workspace:packages/node/fs"
+  dependencies:
+    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/unit": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -266,7 +269,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/unit@workspace:packages/unit":
+"@gjsify/unit@workspace:^, @gjsify/unit@workspace:packages/unit":
   version: 0.0.0-use.local
   resolution: "@gjsify/unit@workspace:packages/unit"
   dependencies:

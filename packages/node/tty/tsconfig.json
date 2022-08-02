@@ -9,6 +9,6 @@
       "rootDir": "src",
       "composite": true
     },
-    "reflection": true,
-    "files": ["src/index.ts"]
+    "reflection": false,
+    "include": ["src/**/*"],
 }

@@ -1,6 +1,11 @@
-import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
+import imports from '@gjsify/types/index';
+import GLib from '@gjsify/types/GLib-2.0';
+import Gio from '@gjsify/types/Gio-2.0';
 import { Buffer } from 'buffer';
+
+import FSWatcher from './fs-watcher';
+import { createReadStream, ReadStream } from './fs-read-streams.js';
+
 const byteArray = imports.byteArray;
 
 function getEncodingFromOptions(options, defaultEncoding = 'utf8') {
@@ -19,7 +24,7 @@ function getEncodingFromOptions(options, defaultEncoding = 'utf8') {
   return defaultEncoding;
 }
 
-function existsSync(path) {
+function existsSync(path: string) {
   // TODO: accept buffer and URL too
   if (typeof path !== 'string' || path === '') {
     return false;
@@ -29,7 +34,7 @@ function existsSync(path) {
   return file.query_exists(null);
 }
 
-function readdirSync(path, options = 'utf8') {
+function readdirSync(path: string, options = 'utf8') {
   const encoding = getEncodingFromOptions(options);
   const dir = Gio.File.new_for_path(path);
   const list = [];
@@ -55,7 +60,7 @@ function readdirSync(path, options = 'utf8') {
   return list;
 }
 
-function readFileSync(path, options = { encoding: null, flag: 'r' }) {
+function readFileSync(path: string, options = { encoding: null, flag: 'r' }) {
   const file = Gio.File.new_for_path(path);
 
   const [ok, data] = file.load_contents(null);
@@ -74,14 +79,14 @@ function readFileSync(path, options = { encoding: null, flag: 'r' }) {
   return byteArray.toString(data);
 }
 
-function mkdirSync(path, mode = 0o777) {
+function mkdirSync(path: string, mode = 0o777) {
   if (GLib.mkdir_with_parents(path, mode) !== 0) {
     // TODO: throw a better error
     throw new Error(`failed to make ${path} directory`);
   }
 }
 
-function rmdirSync(path) {
+function rmdirSync(path: string) {
   const result = GLib.rmdir(path);
 
   if (result !== 0) {
@@ -94,16 +99,15 @@ function unlinkSync(path) {
   GLib.unlink(path);
 }
 
-function writeFileSync(path, data) {
+function writeFileSync(path: string, data) {
   GLib.file_set_contents(path, data);
 }
 
-const FSWatcher = require('./fs-watcher');
-function watch(filename, options, listener) {
+function watch(filename: string, options, listener) {
   return new FSWatcher(filename, options, listener);
 }
 
-module.exports = {
+export {
   FSWatcher,
   existsSync,
   readdirSync,
@@ -112,5 +116,22 @@ module.exports = {
   mkdirSync,
   rmdirSync,
   unlinkSync,
-  watch
+  watch,
+  createReadStream,
+  ReadStream
+};
+
+
+export default {
+  FSWatcher,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  rmdirSync,
+  unlinkSync,
+  watch,
+  createReadStream,
+  ReadStream
 };

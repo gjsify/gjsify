@@ -2,13 +2,13 @@
     "name": "@gjsify/esbuild-plugin-gjsify",
     "version": "0.0.1",
     "description": "Deepkit type compiler plugin for esbuild",
-    "type": "commonjs",
-    "main": "dist/index.cjs",
+    "type": "module",
+    "main": "dist/index.mjs",
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",
     "scripts": {
         "build": "yarn run build:js && yarn run build:types",
-        "build:js": "node esbuild.js",
+        "build:js": "node esbuild.cjs",
         "build:types": "tsc --emitDeclarationOnly"
     },
     "keywords": [

@@ -16,18 +16,19 @@ const baseConfig = {
         'process',
         'util',
         'typescript',
+        'module',
         '@deepkit/type-compiler',
     ]
 }
 
-if (pkg.main) {
-    esbuild.build({
-        ...baseConfig,
-        outfile: pkg.main,
-        format: 'cjs',
-        platform: "node",
-    });    
-}
+// if (pkg.main) {
+//     esbuild.build({
+//         ...baseConfig,
+//         outfile: pkg.main,
+//         format: 'cjs',
+//         platform: "node",
+//     });    
+// }
 
 if (pkg.module) {
     esbuild.build({

@@ -1,10 +1,59 @@
 import type { Plugin } from "esbuild";
 import alias from 'esbuild-plugin-alias';
+import { createRequire } from "module";
 
-export const gjsify = (aliases: Record<string, string>, options: { debug: boolean }) => {
+export const NODE_EXTERNALS = [
+    'zlib',
+    'worker_threads',
+    'stream',
+    'crypto',
+    'wasi',
+    'vm',
+    'v8',
+    'util',
+    'url',
+    'dgram',
+    'tty',
+    'trace_events',
+    'tls',
+    'timers',
+    'test',
+    'string_decoder',
+    'repl',
+    'readline',
+    'querystring',
+    'punycode',
+    'process',
+    'perf_hooks',
+    'path',
+    'os',
+    'net',
+    'inspector',
+    'https',
+    'http2',
+    'http',
+    'fs',
+    'events',
+    'domain',
+    'dns',
+    'diagnostics_channel',
+    'crypto',
+    'cluster',
+    'child_process',
+    'buffer',
+    'async_hooks',
+    'assert'
+]
+
+export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string, string>, exclude?: string[]} = {}) => {
+
+    const require = globalThis.require || createRequire(import.meta.url);
     const plugin: Plugin = {
         name: 'gjsify',
         async setup(build) {
+
+            pluginOptions.aliases ||= {};
+            pluginOptions.exclude ||= [];
 
             // Set default options
             const esbuildOptions = build.initialOptions;
@@ -30,9 +79,6 @@ export const gjsify = (aliases: Record<string, string>, options: { debug: boolea
             // esbuildOptions.target = "firefox78", // Since GJS 1.65.90
             esbuildOptions.target = "firefox91"; // Since GJS 1.71.1
 
-            if(options.debug) console.debug("esbuild options", build.initialOptions);
-
-
             const defaultAliases = {
                 path: require.resolve('path-browserify/'),
                 util: require.resolve('util/'), // https://github.com/browserify/node-util
@@ -48,17 +94,22 @@ export const gjsify = (aliases: Record<string, string>, options: { debug: boolea
                 querystring: require.resolve('querystring-es3/'),
                 zlib: require.resolve('browserify-zlib/'),
                 tty: require.resolve('@gjsify/tty/'),
-                fs: require.resolve('@gjsify/fs/'),
+                fs: require.resolve('@gjsify/fs/'), // require.resolve('@gjsify/fs/'),
                 os: require.resolve('@gjsify/os/'),
                 process: require.resolve('@gjsify/process/'),
             }
         
-            aliases = {...defaultAliases, ...aliases};
+            const aliases = {...defaultAliases, ...pluginOptions.aliases};
+
+            for (const aliasKey of Object.keys(aliases)) {
+                if(pluginOptions.exclude.includes(aliasKey)) {
+                    delete aliases[aliasKey];
+                }
+            }
         
-            if(options.debug) console.debug("aliases", aliases);
+            if(pluginOptions.debug) console.debug("aliases", aliases);
         
-            const gjsifyAlias = await alias(aliases).setup(build);
-            return gjsifyAlias;
+            await alias(aliases).setup(build);
         }
     }
     return plugin;

@@ -1,11 +1,11 @@
-import Gio from 'gi://Gio';
+import Gio from '@gjsify/types/Gio-2.0';
 const mainloop = imports.mainloop;
 
 import { EventEmitter } from 'events';
 
 const privates = new WeakMap;
 
-module.exports = class FSWatcher extends EventEmitter {
+export class FSWatcher extends EventEmitter {
 
   constructor(filename, options, listener) {
     super();
@@ -26,14 +26,14 @@ module.exports = class FSWatcher extends EventEmitter {
       watcher
     });
     if (listener) this.on('change', listener);
-    if (options.persistent) mainloop.wait();
+    // TODO: if (options.persistent) mainloop.wait();
   }
 
   close() {
     const {cancellable, persistent} = privates.get(this);
     if (!cancellable.is_cancelled()) {
       cancellable.cancel();
-      if (persistent) mainloop.go();
+      // TODO: if (persistent) mainloop.go();
     }
   }
 
@@ -53,3 +53,5 @@ function changed(watcher, file, otherFile, eventType) {
       break;
   }
 }
+
+export default FSWatcher;

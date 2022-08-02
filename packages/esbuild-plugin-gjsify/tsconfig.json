@@ -1,8 +1,11 @@
 {
     "compilerOptions": {
+      "module": "ESNext",
+      "target": "ESNext",
       "outDir": "dist",
       "declarationDir": "dist",
-      "declaration": true
+      "declaration": true,
+      "moduleResolution": "node"
     },
     "files": ["src/index.ts"]
 }

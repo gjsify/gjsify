@@ -7,9 +7,6 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "test": "test.js",
-  "directories": {
-    "test": "test"
-  },
   "scripts": {
     "test": "yarn run build:js && yarn run test:gjs && yarn run test:node",
     "test:gjs": "gjs -m test.js",

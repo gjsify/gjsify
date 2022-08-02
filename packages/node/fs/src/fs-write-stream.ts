@@ -1,0 +1,1 @@
+// Credits https://github.com/denoland/deno_std/blob/main/node/internal/fs/streams.ts

@@ -6,7 +6,7 @@ await build({
     entryPoints: ['src/index.ts'],
     outfile: 'dist/index.js',
     plugins: [
-        gjsify({}, { debug: true }),
+        gjsify({ debug: true }),
         deepkit(),
     ],
 })

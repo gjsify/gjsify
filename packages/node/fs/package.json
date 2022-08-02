@@ -2,10 +2,23 @@
     "name": "@gjsify/fs",
     "version": "0.0.1",
     "description": "fs core module for gjsify",
-    "main": "index.js",
+    "main": "lib/index.mjs",
+    "module": "lib/index.mjs",
+    "type": "module",
+    "test": "test.js",
+    "scripts": {
+        "build": "node --experimental-import-meta-resolve esbuild.mjs",
+        "test": "yarn run build && yarn run test:gjs",
+        "test:gjs": "gjs -m test.js",
+        "test:node": "node test.js"
+    },
     "keywords": [
         "gjs",
         "node",
         "fs"
-    ]
+    ],
+    "devDependencies": {
+        "@gjsify/esbuild-plugin-gjsify": "workspace:^",
+        "@gjsify/unit": "workspace:^"
+    }
 }
