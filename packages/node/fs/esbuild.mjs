@@ -18,36 +18,32 @@ const build = async () => {
         )
     );
 
-    if (!pkg.main && !pkg.module) {
-        throw new Error("package.json: The main or module properties are required!");
+    if (!pkg.main || !pkg.module) {
+        throw new Error("package.json: The main and module properties are required!");
     }
 
-    // if (pkg.main) {
-    //     await _build({
-    //         ...baseConfig,
-    //         outfile: pkg.main,
-    //         format: 'cjs',
-    //     });    
-    // }
+    await _build({
+        ...baseConfig,
+        outfile: pkg.module,
+        format: 'esm',
+    });
 
-    if (pkg.module) {
-        await _build({
-            ...baseConfig,
-            outfile: pkg.module,
-            format: 'esm',
-        });
-    }
+    await _build({
+        ...baseConfig,
+        entryPoints: ['src/test.ts'],
+        outfile: 'test.gjs.js',
+        plugins: [
+            gjsify({debug: true}),
+        ]
+    });
 
-    if (pkg.test) {
-        await _build({
-            ...baseConfig,
-            entryPoints: ['src/test.ts'],
-            outfile: pkg.test,
-            plugins: [
-                gjsify({debug: true}),
-            ]
-        })
-    }
+    await _build({
+        ...baseConfig,
+        entryPoints: ['src/test.ts'],
+        outfile: 'test.node.js',
+        format: 'esm',
+        platform: 'node'
+    });
 }
 
 build();

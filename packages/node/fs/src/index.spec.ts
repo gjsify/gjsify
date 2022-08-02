@@ -64,7 +64,7 @@ function checkMkdirSyncRmdirSync() {
 export function testSuite() {
 	describe('fs.existsSync', function() {
 
-		const existingFiles = ['test.js', 'package.json'];
+		const existingFiles = ['tsconfig.json', 'package.json', 'test.gjs.js'];
 		const nonExistingFiles = ['asdasd', '/asdasd', ''];
 
 		it('should return true for existing files', function() {

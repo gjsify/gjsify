@@ -5,12 +5,11 @@
     "main": "lib/index.mjs",
     "module": "lib/index.mjs",
     "type": "module",
-    "test": "test.js",
     "scripts": {
         "build": "node --experimental-import-meta-resolve esbuild.mjs",
-        "test": "yarn run build && yarn run test:gjs",
-        "test:gjs": "gjs -m test.js",
-        "test:node": "node test.js"
+        "test": "yarn run build && yarn run test:node && yarn run test:gjs",
+        "test:gjs": "gjs -m test.gjs.js",
+        "test:node": "node test.node.js"
     },
     "keywords": [
         "gjs",
