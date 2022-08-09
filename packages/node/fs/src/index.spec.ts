@@ -1,65 +1,12 @@
 import { describe, it, expect } from '@gjsify/unit';
+import { join, dirname } from 'path'
+import { fileURLToPath } from "url"
 
-import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync } from 'fs';
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
-function checkReaddirSync() {
+import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch } from 'fs';
 
-}
-
-function checkReadFileSync() {
-  const bufferData = readFileSync('index.js');
-  if (!(bufferData instanceof Buffer)) {
-    throw new Error('readFileSync should return a Buffer if no encoding was specified');
-  }
-
-  const utf8Data = readFileSync('./test/resources/file.txt', 'utf-8');
-  if (!(typeof utf8Data === 'string')) {
-    throw new Error('readFileSync should return a string when encoding is utf-8');
-  }
-
-  if (utf8Data.startsWith('Hello World')) {
-    throw new Error('readFileSync returned a string but with the wrong value');
-  }
-}
-
-function checkMkdirSyncRmdirSync() {
-  const path = './foobar';
-
-  mkdirSync(path);
-
-  if (!existsSync(path)) {
-    throw new Error(`${path} should exists`);
-  }
-
-  rmdirSync('./foobar');
-
-  if (existsSync(path)) {
-    throw new Error(`${path} should not exists`);
-  }
-}
-
-// if (!Object.keys(fs).length) {
-//   throw new Error('fs was not exported');
-// }
-
-// checkExistsSync();
-// checkReaddirSync();
-// checkReadFileSync();
-// checkMkdirSyncRmdirSync();
-
-// const watch = require('path').join(__dirname, 'watch.js');
-// writeFileSync(watch, '// test');
-// const watcher = watch(watch, {persistent: true}, console.log);
-// watcher.on('change', console.log).on('rename', console.log);
-
-// setTimeout(() => { watcher.close(); }, 1000);
-
-// setTimeout(() => {
-//   writeFileSync(watch, '// test');
-//   setTimeout(() => {
-//     unlinkSync(watch);
-//   }, 100);
-// }, 100);
 
 export function testSuite() {
 	describe('fs.existsSync', function() {
@@ -97,5 +44,88 @@ export function testSuite() {
 		});
 	});
 
-	
+	describe('fs.readFileSync', function() {
+		it('should return a Buffer if no encoding was specified', function() {
+			const bufferData = readFileSync('package.json');
+			expect(bufferData instanceof Buffer).toBeTruthy();
+		});
+
+		it('should return a string when encoding is utf-8', function() {
+			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
+			expect(typeof utf8Data === 'string').toBeTruthy();
+		});
+
+		it('should return a string with "Hello World"', function() {
+			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
+			expect(utf8Data).toBe('Hello World');
+		});
+	});
+
+	describe('fs.mkdirSync', function() {
+		const path = './foobar';
+
+		it(`should be executed with "${path}" without error`, function() {
+			mkdirSync(path);
+		});
+
+		it(`${path} should exists`, function() {
+			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
+			expect(typeof utf8Data === 'string').toBeTruthy();
+		});
+	});
+
+	describe('fs.rmdirSync', function() {
+		const path = './foobar';
+
+		it(`should be executed with "${path}" without error`, function() {
+			rmdirSync(path);
+		});
+
+		it(`"${path}" should not exists (anymore)`, function() {
+			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
+			expect(typeof utf8Data === 'string').toBeTruthy();
+		});
+	});
+
+	describe('fs.writeFileSync', function() {
+		const watchMe = join(__dirname, 'watch.js');
+
+		it(`should be executed without error`, function() {
+			writeFileSync(watchMe, '// test');
+		});
+
+		it(`fs.watch should watch ${watchMe} for changes`, function() {
+			const watcher = watch(watchMe, {persistent: true}, console.log);
+
+			watcher.on('change', console.log).on('rename', console.log);
+
+			setTimeout(() => { watcher.close(); }, 1000);
+
+			setTimeout(() => {
+			writeFileSync(watchMe, '// test');
+				setTimeout(() => {
+					unlinkSync(watchMe);
+				}, 100);
+			}, 100);
+		});
+
+
+
+
+	});
 }
+
+
+// const watch = join(__dirname, 'watch.js');
+// writeFileSync(watch, '// test');
+// const watcher = watch(watch, {persistent: true}, console.log);
+// watcher.on('change', console.log).on('rename', console.log);
+
+// setTimeout(() => { watcher.close(); }, 1000);
+
+// setTimeout(() => {
+//   writeFileSync(watch, '// test');
+//   setTimeout(() => {
+//     unlinkSync(watch);
+//   }, 100);
+// }, 100);

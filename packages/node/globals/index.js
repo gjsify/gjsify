@@ -1,7 +1,7 @@
 /*! (c) Andrea Giammarchi - ISC - https://github.com/WebReflection/gjs-require */
 
 const { gi, system, searchPath } = imports;
-import { resolve, readJSON } from '@gjsify/utils';
+import { resolve, readJSON, getProgramDir } from '@gjsify/utils';
 import { performance } from './performance.js';
 import timers from './timers.js';
 import process from 'process';
@@ -9,16 +9,6 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
 const cache = Object.create(null);
-
-function getProgramDir(programFile) {
-  const info = programFile.query_info('standard::', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
-  if (info.get_is_symlink()) {
-    const symlinkFile = programFile.get_parent().resolve_relative_path(info.get_symlink_target());
-    return symlinkFile.get_parent();
-  } else {
-    return programFile.get_parent();
-  }
-}
 
 /**
  * CommonJS require
@@ -70,7 +60,7 @@ function require(file) {
 const DIR = GLib.get_current_dir();
 const PROGRAM = resolve(DIR, system.programInvocationName);
 
-let __dirname = getProgramDir(PROGRAM).get_path();
+let __dirname = getProgramDir(PROGRAM);
 let __filename = PROGRAM.get_path();
 
 

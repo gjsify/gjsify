@@ -1,5 +1,5 @@
 import createSubnet from './createSubnet.js';
-import system from './system.js';
+import { cli } from '@gjsify/utils';
 
 const EOL = /\r\n|\n/;
 
@@ -44,7 +44,7 @@ export const cpus = () => {
   const FREQ = /^cpu[\s_]+MHz\s*:\s*(\d+)/i;
   const cpus = [];
   let cpu;
-  system('cat /proc/cpuinfo').split(EOL).forEach(line => {
+  cli('cat /proc/cpuinfo').split(EOL).forEach(line => {
     switch (true) {
       case PROCESSOR.test(line):
         cpus[RegExp.$1.trim()] = (cpu = {
@@ -67,14 +67,14 @@ export const cpus = () => {
 export const endianness = () => 'LE';
 
 export const freemem = () => {
-  let I, mem = system('free -b').split(EOL);
+  let I, mem = cli('free -b').split(EOL);
   mem[0].split(/\s+/).some((info, i) => info === 'free' && (I = i));
   return parseFloat(mem[1].split(/\s+/)[I + 1]);
 };
 
 export const loadavg = () =>
   /(\d+(?:\.\d+))\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))/.test(
-    system('cat /proc/loadavg')
+    cli('cat /proc/loadavg')
   ) && [
     parseFloat(RegExp.$1),
     parseFloat(RegExp.$2),
@@ -83,18 +83,18 @@ export const loadavg = () =>
 
 export const networkInterfaces = () => {
   const ifaces = {};
-  system('ip addr').split(/^\d+:\s+/m).forEach(parseInterfaces, ifaces);
+  cli('ip addr').split(/^\d+:\s+/m).forEach(parseInterfaces, ifaces);
   return ifaces;
 };
 
 export const totalmem = () => {
-  let I, mem = system('free -b').split(EOL);
+  let I, mem = cli('free -b').split(EOL);
   mem[0].split(/\s+/).some((info, i) => info === 'total' && (I = i));
   return parseFloat(mem[1].split(/\s+/)[I + 1]);
 };
 
 export const uptime = () => (
   Date.now() -
-  Date.parse(system('uptime -s').replace(' ', 'T'))
+  Date.parse(cli('uptime -s').replace(' ', 'T'))
 ) / 1000;
 

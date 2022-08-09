@@ -30,10 +30,17 @@ const build = async () => {
 
     await _build({
         ...baseConfig,
+        outfile: pkg.main,
+        platform: "node",
+        format: 'esm',
+    });
+
+    await _build({
+        ...baseConfig,
         entryPoints: ['src/test.ts'],
         outfile: 'test.gjs.js',
         plugins: [
-            gjsify({debug: false}),
+            gjsify({debug: true}),
         ]
     });
 

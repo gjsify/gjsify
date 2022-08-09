@@ -9,10 +9,10 @@
   "test": "test.js",
   "scripts": {
     "test": "yarn run build:js && yarn run test:gjs && yarn run test:node",
-    "test:gjs": "gjs -m test.js",
-    "test:node": "node test.js",
+    "test:gjs": "gjs -m test.gjs.js",
+    "test:node": "node test.node.js",
     "build": "yarn run build:js && yarn run build:types",
-    "build:js": "node esbuild.cjs",
+    "build:js": "node esbuild.mjs",
     "build:types": "tsc --emitDeclarationOnly"
   },
   "repository": {

@@ -1,5 +1,5 @@
 import createSubnet from './createSubnet.js';
-import system from './system.js';
+import { cli } from '@gjsify/utils';
 
 const EOL = /\r\n|\n/;
 const NOMAC = '00:00:00:00:00:00';
@@ -48,12 +48,12 @@ const parseInterfaces = function(info) {
 };
 
 export const cpus = () => {
-  let cores = parseFloat(system('sysctl -n hw.ncpu'));
+  let cores = parseFloat(cli('sysctl -n hw.ncpu'));
   const cpus = [];
   while (cores--) {
     cpus.push({
-      model: system('sysctl -n machdep.cpu.brand_string').replace(/\s+/g, ' '),
-      speed: parseFloat(system('sysctl -n hw.cpufrequency')) / 1000 / 1000,
+      model: cli('sysctl -n machdep.cpu.brand_string').replace(/\s+/g, ' '),
+      speed: parseFloat(cli('sysctl -n hw.cpufrequency')) / 1000 / 1000,
       get times() {
         console.warn('cpus.times is not supported');
         return {};
@@ -65,11 +65,11 @@ export const cpus = () => {
 
 export const endianness = () => 'LE';
 
-export const freemem = () =>  parseFloat(system('sysctl -n hw.memsize')) -
-                      parseFloat(system('sysctl -n hw.physmem'));
+export const freemem = () =>  parseFloat(cli('sysctl -n hw.memsize')) -
+                      parseFloat(cli('sysctl -n hw.physmem'));
 
 export const loadavg = () => /load\s+averages:\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))/.test(
-    system('uptime')
+    cli('uptime')
   ) && [
     parseFloat(RegExp.$1),
     parseFloat(RegExp.$2),
@@ -79,7 +79,7 @@ export const loadavg = () => /load\s+averages:\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))
 export const networkInterfaces = () => {
   const ifaces = {};
   const groups = [];
-  const lines = system('ifconfig').split(EOL);
+  const lines = cli('ifconfig').split(EOL);
   const length = lines.length;
   for (let
     group = [],
@@ -101,13 +101,13 @@ export const networkInterfaces = () => {
 };
 
 export const totalmem = () => {
-  let I, mem = system('free -b').split(EOL);
+  let I, mem = cli('free -b').split(EOL);
   mem[0].split(/\s+/).some((info, i) => info === 'total' && (I = i));
   return parseFloat(mem[1].split(/\s+/)[I + 1]);
 };
 
 export const uptime = () => {
-  const uptime = system('uptime');
+  const uptime = cli('uptime');
   const up = /up\s+([^,]+)?,/.test(uptime) && RegExp.$1;
   switch (true) {
     case /^(\d+):(\d+)$/.test(up):

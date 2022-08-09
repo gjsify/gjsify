@@ -1,3 +1,5 @@
+import { versions } from 'process';
+
 // This file is part of the gjsunit framework
 // Please visit https://github.com/philipphoffmann/gjsunit for more information
 
@@ -5,7 +7,7 @@ var countTestsOverall = 0;
 var countTestsFailed = 0;
 
 // Makes this work on Gjs and Node.js
-const print = globalThis.print || console.log;
+export const print = globalThis.print || console.log;
 
 class MatcherFactory {
 
@@ -175,8 +177,20 @@ const printResult = () => {
 	}
 }
 
+const printRuntime = () => {
+	if (versions.gjs) {
+		print(`Running on Gjs ${versions.gjs}`);
+	} else if(versions.node) {
+		print(`Running on Node.js ${versions.node}`);
+	} else {
+		print(`Running on unknown runtime`);
+	}
+	
+}
+
 export const run = function(namespace) {
-	runTests(namespace)
+	printRuntime();
+	runTests(namespace);
 	printResult();
 	print();	
 }

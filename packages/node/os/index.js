@@ -1,4 +1,4 @@
-import system from './src/system.js';
+import { cli } from '@gjsify/utils';
 import * as linux from './src/linux.js';
 import * as darwin from './src/darwin.js';
 import GLib from 'gi://GLib';
@@ -10,7 +10,7 @@ export { constants }
 
 export const EOL = getPathSeparator() === '/' ? '\n' : '\r\n';
 
-const UNAME_ALL = system('uname -a');
+const UNAME_ALL = cli('uname -a');
 
 export const arch = () => {
   switch (true) {
@@ -32,11 +32,11 @@ export const homedir = () => GLib.get_home_dir();
 
 export const hostname = () => GLib.get_host_name();
 
-export const release = () => system('uname -r');
+export const release = () => cli('uname -r');
 
 export const tmpdir = () => GLib.get_tmp_dir();
 
-export const type = () => system('uname');
+export const type = () => cli('uname');
 
 export const userInfo = () => ({
   uid: 1000,

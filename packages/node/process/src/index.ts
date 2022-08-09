@@ -1,7 +1,8 @@
 import { getProgramExe } from '@gjsify/utils';
 import { EventEmitter } from 'events';
-import { arch, platform } from 'os';
+import { arch as _arch, platform as _platform  } from 'os';
 import { WriteStream, ReadStream } from 'tty';
+import * as fs from 'fs';
 
 import imports from '@gjsify/types/index';
 import GLib from '@gjsify/types/GLib-2.0';
@@ -31,17 +32,16 @@ class Process extends EventEmitter {
     super();
   }
 
-  listenerCount (eventName: string) {
+  _listenerCount (eventName: string) {
     return this.listeners(eventName).length
   }
 
   get arch() {
-    return arch();
+    return _arch();
   }
 
   get argv() {
-    const fs = require('fs');
-    const arr = [ getProgramExe() ];
+    const arr: string[] = [ getProgramExe().get_path() ];
     ARGV.forEach(arg => {
       if (arg[0] !== '-') {
         arr.push(
@@ -57,7 +57,7 @@ class Process extends EventEmitter {
   }
 
   get argv0() {
-    return  File.new_for_path(getProgramExe()).get_basename();
+    return File.new_for_path(getProgramExe().get_path()).get_basename();
   }
 
   get env() {
@@ -75,7 +75,7 @@ class Process extends EventEmitter {
   }
 
   get platform() {
-    return platform();
+    return _platform();
   }
 
   get title() {
@@ -88,7 +88,7 @@ class Process extends EventEmitter {
 
   get versions() {
     return {
-      gjs: process.version,
+      gjs: this.version,
       http_parser: '0.0',
       node: '0.0',
       v8: '0.0',
@@ -143,3 +143,26 @@ class Process extends EventEmitter {
 const process = new Process();
 
 export default process;
+
+export {
+  hrtime,
+}
+
+export const stdout = process.stdout;
+export const stderr = process.stderr;
+export const stdin = process.stdin;
+export const arch = process.arch;
+export const argv = process.argv;
+export const argv0 = process.argv0;
+export const env = process.env;
+export const pid = process.pid;
+export const platform = process.platform;
+export const title = process.title;
+export const version = process.version;
+export const versions = process.versions;
+export const abort = process.abort;
+export const cwd = process.cwd;
+export const exit = process.exit;
+export const nextTick = process.nextTick;
+export const uptime = process.uptime;
+export const memoryUsage = process.memoryUsage;

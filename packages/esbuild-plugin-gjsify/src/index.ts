@@ -88,7 +88,7 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
                 crypto: require.resolve('crypto-browserify/'),
                 domain: require.resolve('domain-browser/'),
                 events: require.resolve('events/'),
-                url: require.resolve('url/'), // https://github.com/defunctzombie/node-url
+                url: require.resolve('@gjsify/url/'), // https://github.com/defunctzombie/node-url
                 stream: require.resolve('stream-browserify/'),
                 string_decoder: require.resolve('string_decoder/'), // https://github.com/nodejs/string_decoder
                 querystring: require.resolve('querystring-es3/'),
@@ -97,6 +97,7 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
                 fs: require.resolve('@gjsify/fs/'), // require.resolve('@gjsify/fs/'),
                 os: require.resolve('@gjsify/os/'),
                 process: require.resolve('@gjsify/process/'),
+                punycode: require.resolve('punycode/'),
             }
         
             const aliases = {...defaultAliases, ...pluginOptions.aliases};

@@ -2,10 +2,21 @@
     "name": "@gjsify/utils",
     "version": "0.0.1",
     "description": "utils module for gjsify",
-    "main": "index.js",
+    "main": "lib/index.mjs",
+    "module": "lib/index.mjs",
+    "type": "module",
+    "scripts": {
+        "build": "yarn run build:js && yarn run build:types",
+        "build:js": "node --experimental-import-meta-resolve esbuild.mjs",
+        "build:types": "tsc --emitDeclarationOnly"
+    },
     "keywords": [
         "gjs",
         "node",
         "fs"
-    ]
+    ],
+    "devDependencies": {
+        "@gjsify/types": "workspace:^",
+        "typescript": "^4.7.4"
+    }
 }
