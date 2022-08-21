@@ -30,8 +30,12 @@ export const getPathSeparator = () => {
 }
 
 // TODO move to path
-export const resolve = (dir: string, filename: string) => {
-  return File.new_for_path(dir).resolve_relative_path(filename);
+export const resolve = (dir: string, ...filenames: string[]) => {
+  let file = File.new_for_path(dir);
+  for (const filename of filenames) {
+    file = file.resolve_relative_path(filename);
+  }
+  return file;
 }
   
 export const readJSON = (path: string) => {

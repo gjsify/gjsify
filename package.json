@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "yarn run build:esbuild; yarn run build:unit; yarn run build:node",
+    "build": "yarn run build:esbuild; yarn run build:utils; yarn run build:unit; yarn run build:node",
     "build:esbuild": "yarn workspace @gjsify/esbuild-plugin-deepkit run build; yarn workspace @gjsify/esbuild-plugin-gjsify run build",
-    "build:node": "yarn workspace @gjsify/unit run build",
-    "build:unit": "yarn workspace @gjsify/process run build; yarn workspace @gjsify/tty run build"
+    "build:unit": "yarn workspace @gjsify/unit run build",
+    "build:node": "yarn workspace @gjsify/process run build; yarn workspace @gjsify/tty run build; yarn workspace @gjsify/url run build; yarn workspace @gjsify/fs run build; yarn workspace @gjsify/os run build; yarn workspace @gjsify/globals run build",
+    "build:types": "yarn workspace @gjsify/types run build",
+    "build:utils": "yarn workspace @gjsify/utils run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

@@ -8,9 +8,19 @@
     "globals"
   ],
   "author": "Pascal Garber",
-  "main": "index.js",
+  "type": "module",
+  "main": "src/index.js",
+  "module": "lib/index.js",
+  "scripts": {
+    "build": "node --experimental-import-meta-resolve esbuild.mjs",
+    "test": "yarn run build && yarn run test:gjs",
+    "test:gjs": "gjs -m test.gjs.js"
+  },
   "dependencies": {
     "@gjsify/process": "workspace:^",
     "@gjsify/utils": "workspace:^"
+  },
+  "devDependencies": {
+    "@gjsify/unit": "workspace:^"
   }
 }

@@ -7,7 +7,6 @@ const __dirname = dirname(__filename)
 
 import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch } from 'fs';
 
-
 export function testSuite() {
 	describe('fs.existsSync', function() {
 
@@ -109,23 +108,5 @@ export function testSuite() {
 			}, 100);
 		});
 
-
-
-
 	});
 }
-
-
-// const watch = join(__dirname, 'watch.js');
-// writeFileSync(watch, '// test');
-// const watcher = watch(watch, {persistent: true}, console.log);
-// watcher.on('change', console.log).on('rename', console.log);
-
-// setTimeout(() => { watcher.close(); }, 1000);
-
-// setTimeout(() => {
-//   writeFileSync(watch, '// test');
-//   setTimeout(() => {
-//     unlinkSync(watch);
-//   }, 100);
-// }, 100);

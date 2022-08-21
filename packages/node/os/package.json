@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "description": "os core module for gjs",
   "scripts": {
-    "test": "cgjs ./test"
+    "test": "cgjs ./test",
+    "build": "echo 'nothing to do'"
   },
   "keywords": [
     "gjs",

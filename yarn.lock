@@ -149,7 +149,6 @@ __metadata:
     stream-browserify: ^3.0.0
     string_decoder: ^1.3.0
     typescript: ^4.7.4
-    url: ^0.11.0
     util: ^0.12.4
   languageName: unknown
   linkType: soft
@@ -229,6 +228,7 @@ __metadata:
   resolution: "@gjsify/globals@workspace:packages/node/globals"
   dependencies:
     "@gjsify/process": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
   languageName: unknown
   linkType: soft

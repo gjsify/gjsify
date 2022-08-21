@@ -1,6 +1,7 @@
 import type { Plugin } from "esbuild";
 import alias from 'esbuild-plugin-alias';
 import { createRequire } from "module";
+import { resolve } from "path";
 
 export const NODE_EXTERNALS = [
     'zlib',
@@ -48,6 +49,7 @@ export const NODE_EXTERNALS = [
 export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string, string>, exclude?: string[]} = {}) => {
 
     const require = globalThis.require || createRequire(import.meta.url);
+
     const plugin: Plugin = {
         name: 'gjsify',
         async setup(build) {
@@ -64,6 +66,7 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
             esbuildOptions.define = esbuildOptions.define || {}
             esbuildOptions.define.global = 'globalThis';
             esbuildOptions.define['process.env.NODE_DEBUG'] = 'false'; // WORKAROUND
+            esbuildOptions.define['NODE_MODULES'] = `"${resolve(require.resolve('punycode/'), '..', '..')}"`;
 
             esbuildOptions.inject = esbuildOptions.inject || [];
             esbuildOptions.inject.push(require.resolve('core-js/features/url/'))

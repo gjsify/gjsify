@@ -95,7 +95,7 @@ function rmdirSync(path: string) {
   }
 }
 
-function unlinkSync(path) {
+function unlinkSync(path: string) {
   GLib.unlink(path);
 }
 
