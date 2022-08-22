@@ -3,26 +3,12 @@ import GLib from '@gjsify/types/GLib-2.0';
 import Gio from '@gjsify/types/Gio-2.0';
 import { Buffer } from 'buffer';
 
+import { getEncodingFromOptions } from './encoding.js';
 import FSWatcher from './fs-watcher';
 import { createReadStream, ReadStream } from './fs-read-streams.js';
+import * as promises from './promises.js';
 
 const byteArray = imports.byteArray;
-
-function getEncodingFromOptions(options, defaultEncoding = 'utf8') {
-  if (options === null) {
-    return defaultEncoding;
-  }
-
-  if (typeof options === 'string') {
-    return options;
-  }
-
-  if (typeof options === 'object' && typeof options.encoding === 'string') {
-    return options.encoding;
-  }
-
-  return defaultEncoding;
-}
 
 function existsSync(path: string) {
   // TODO: accept buffer and URL too
@@ -99,7 +85,7 @@ function unlinkSync(path: string) {
   GLib.unlink(path);
 }
 
-function writeFileSync(path: string, data) {
+function writeFileSync(path: string, data: any) {
   GLib.file_set_contents(path, data);
 }
 
@@ -118,9 +104,9 @@ export {
   unlinkSync,
   watch,
   createReadStream,
-  ReadStream
+  ReadStream,
+  promises
 };
-
 
 export default {
   FSWatcher,
@@ -133,5 +119,6 @@ export default {
   unlinkSync,
   watch,
   createReadStream,
-  ReadStream
+  ReadStream,
+  promises
 };

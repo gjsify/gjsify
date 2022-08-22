@@ -1,4 +1,5 @@
 import '@gjsify/types/index';
+import GObject from '@gjsify/types/GObject-2.0';
 import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
 
@@ -77,9 +78,22 @@ export const warnNotImplemented = (msg) => {
 
 // TODO move this to a new package for https://nodejs.org/api/child_process.html
 export const cli = (commandLine: string) => {
-    const [res, out, err, status] = GLib.spawn_command_line_sync(commandLine);
+  const [res, out, err, status] = GLib.spawn_command_line_sync(commandLine);
 
-    if(err.byteLength) throw new Error(byteArray.toString(err));
+  if(err.byteLength) throw new Error(byteArray.toString(err));
 
-    return byteArray.toString(out);
+  return byteArray.toString(out);
 };
+
+// Credits: https://github.com/sonnyp/troll/blob/9ab960dc442a63259b56f60730bd0938e62a0c37/src/util.js#L12
+export function promiseTask<M extends (...args: any) => any, F extends (...args: any) => any>(method: M, finish: F, ...args: any[]) {
+  return new Promise<ReturnType<F>>((resolve, reject) => {
+    method(...args, (self: any, asyncResult: any) => {
+      try {
+        resolve(finish(asyncResult));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+}

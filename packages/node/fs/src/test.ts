@@ -1,5 +1,6 @@
 
 import { run } from '@gjsify/unit';
-import { testSuite } from './index.spec.js';
+import testSuiteIndex from './index.spec.js';
+import testSuitePromise from './promises.spec.js';
 
-run({testSuite});
+run({testSuiteIndex, testSuitePromise});
