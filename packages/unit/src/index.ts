@@ -1,10 +1,19 @@
 import { versions } from 'process';
 
+const mainloop = (globalThis as any)?.imports?.mainloop || {
+  run: (name: string) => {},
+  quit: () => {}
+}
+
 // This file is part of the gjsunit framework
 // Please visit https://github.com/philipphoffmann/gjsunit for more information
 
 var countTestsOverall = 0;
 var countTestsFailed = 0;
+
+export interface Namespaces {
+	[key: string]: () => (void | Promise<void>) | Namespaces;
+}
 
 // Makes this work on Gjs and Node.js
 export const print = globalThis.print || console.log;
@@ -127,14 +136,14 @@ class MatcherFactory {
 	}
 }
 
-export const describe = function(moduleName: string, callback: () => void) {
+export const describe = async function(moduleName: string, callback: () => void | Promise<void>) {
 	print('\n' + moduleName);
-	callback();
+	await callback();
 };
 
-export const it = function(expectation: string, callback: () => void) {
+export const it = async function(expectation: string, callback: () => void | Promise<void>) {
 	try {
-		callback();
+		await callback();
 		print('  \x1B[32m✔\x1B[39m \x1B[90m' + expectation + '\x1B[39m');
 	}
 	catch(e) {
@@ -151,17 +160,17 @@ export const expect = function(actualValue: any) {
 	return expecter;
 }
 
-const runTests = function(namespace) {
+const runTests = async function(namespaces: Namespaces) {
 	// recursively check the test directory for executable tests
-	for( var subNamespace in namespace ) {
-
+	for( var subNamespace in namespaces ) {
+		const namespace = namespaces[subNamespace];
 		// execute any test functions
-		if( subNamespace === 'testSuite' && typeof namespace[subNamespace] === 'function' ) {
-			namespace[subNamespace]();
+		if(typeof namespace === 'function' ) {
+			await namespace();
 		}
 		// descend into subfolders and objects
-		else if( typeof namespace[subNamespace] === 'object' ) {
-			runTests(namespace[subNamespace]);
+		else if( typeof namespace === 'object' ) {
+			await runTests(namespace);
 		}
 	}
 }
@@ -188,9 +197,14 @@ const printRuntime = () => {
 	
 }
 
-export const run = function(namespace) {
+export const run = function(namespaces: Namespaces) {
 	printRuntime();
-	runTests(namespace);
-	printResult();
-	print();	
+	runTests(namespaces).then(() => {
+    printResult();
+    print();
+    mainloop.quit("unit");
+  });
+
+  // Run the GJS mainloop for async operations
+  mainloop.run("unit");
 }
