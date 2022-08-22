@@ -23,7 +23,7 @@ async function readFile(path: string, options = { encoding: null, flag: 'r' }) {
     return Buffer.from(data);
   }
 
-  // TODO encoding
+  // TODO more encodings
   return byteArray.toString(data);
 }
 

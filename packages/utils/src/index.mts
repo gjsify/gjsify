@@ -1,5 +1,4 @@
 import '@gjsify/types/index';
-import GObject from '@gjsify/types/GObject-2.0';
 import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
 
@@ -8,6 +7,7 @@ const { File } = Gio;
 
 const _getProgramDir = (programFile: Gio.File) => {
   const info = programFile.query_info('standard::', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+
   if (info.get_is_symlink()) {
     const symlinkFile = programFile.get_parent().resolve_relative_path(info.get_symlink_target());
     return symlinkFile.get_parent();

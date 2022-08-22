@@ -1,7 +1,9 @@
 /*! (c) Andrea Giammarchi - ISC - https://github.com/WebReflection/gjs-require */
 
 const { gi, searchPath } = imports;
-import { resolve, readJSON, getProgramDir, getProgramExe, getNodeModulesPath } from '@gjsify/utils';
+import { resolve as _resolve, readJSON, getProgramDir, getProgramExe, getNodeModulesPath } from '@gjsify/utils';
+import Gio from '@gjsify/types/Gio-2.0';
+import { extname } from 'path';
 
 let __dirname = getProgramDir();
 let __filename = getProgramExe().get_path();
@@ -20,7 +22,7 @@ const requireJs = (file: string) => {
     file += '.js';
   }
 
-  const fd = resolve(__dirname, file);
+  const fd = _resolve(__dirname, file);
   const fn = fd.get_path();
   const dn = fd.get_parent().get_path();
 
@@ -60,12 +62,12 @@ const requireJs = (file: string) => {
  * @returns 
  */
 export const requireNpm = (pkgName: string) => {
-  const path =  resolve(NODE_MODULES, pkgName).get_path();
-  const pkgJsonPath = resolve(path, 'package.json').get_path();
+  const path =  _resolve(NODE_MODULES, pkgName).get_path();
+  const pkgJsonPath = _resolve(path, 'package.json').get_path();
   const pkgData = readJSON(pkgJsonPath);
   const pkgMain = pkgData.main || 'index.js';
 
-  return requireJs(resolve(path, pkgMain).get_path());
+  return requireJs(_resolve(path, pkgMain).get_path());
 }
 
 /**
@@ -74,7 +76,7 @@ export const requireNpm = (pkgName: string) => {
  * @returns 
  */
  export const requireJson = (file: string) => {
-  const fd = resolve(__dirname, file);
+  const fd = _resolve(__dirname, file);
   const fn = fd.get_path();
 
   const data = readJSON(fn);
@@ -90,26 +92,60 @@ export const requireNpm = (pkgName: string) => {
  * @returns 
  */
 export const require = (file: string) => {
+  const path = resolve(file);
+
+  if (path in cache) {
+    return cache[path];
+  }
+
+  if (file.endsWith('.json')) {
+    return readJSON(path);
+  } else if (file.indexOf('/') === -1) {
+    return requireNpm(path);
+  }
+
+  return requireJs(file);
+}
+
+const resolve = (file: string) => {
+
+  // if file is an NPM package
+  if (!file.includes('/') || !file.includes('.')) {
+    return resolveNpm(file);
+  }
 
   if (/^[A-Z]/.test(file)) {
     return file.split('.').reduce(($, k) => $[k], gi);
   }
 
-  const fd = resolve(__dirname, file);
+  const fd = _resolve(__dirname, file);
   const fn = fd.get_path();
 
-  if (fn in cache) {
-    return cache[fn];
-  }
-
-  if (file.endsWith('.json')) {
-    return readJSON(fn);
-  } else if (file.indexOf('/') === -1) {
-    return requireNpm(file);
-  }
-
-  return requireJs(file);
+  return fn;
 }
+
+const resolveNpm = (pkgName: string) => {
+  const path = _resolve(NODE_MODULES, pkgName);
+  let pathStr = path.get_path();
+
+  const pathInfo = path.query_info('standard::', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+  if (pathInfo.get_is_symlink()) {
+    // Get real path from symlink
+    pathStr = path.get_parent().resolve_relative_path(pathInfo.get_symlink_target()).get_path();
+  }
+
+  const pkgJsonPath = _resolve(pathStr, 'package.json').get_path();
+  const pkgData = readJSON(pkgJsonPath);
+  let pkgMain: string = pkgData.main || 'index.js';
+
+  if(extname(pkgMain) === '') {
+    pkgMain = pkgMain + '.js';
+  }
+
+  return _resolve(pathStr, pkgMain).get_path();
+}
+
+require.resolve = resolve;
 
 Object.defineProperties(globalThis, {
   __dirname: { get: () => __dirname },
