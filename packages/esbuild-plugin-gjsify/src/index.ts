@@ -66,7 +66,6 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
             esbuildOptions.define = esbuildOptions.define || {}
             esbuildOptions.define.global = 'globalThis';
             esbuildOptions.define['process.env.NODE_DEBUG'] = 'false'; // WORKAROUND
-            esbuildOptions.define['NODE_MODULES'] = `"${resolve(require.resolve('punycode/'), '..', '..')}"`;
 
             esbuildOptions.inject = esbuildOptions.inject || [];
             esbuildOptions.inject.push(require.resolve('core-js/features/url/'))

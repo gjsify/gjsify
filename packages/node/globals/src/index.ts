@@ -1,6 +1,6 @@
 import './require.js';
 import { performance } from './performance.js';
-import timers from '../timers.js';
+import timers from './timers.js';
 import process from 'process';
 
 // if (!globalThis.global) Object.defineProperty(global, { value: globalThis });

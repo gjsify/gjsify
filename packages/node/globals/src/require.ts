@@ -1,14 +1,12 @@
 /*! (c) Andrea Giammarchi - ISC - https://github.com/WebReflection/gjs-require */
 
-const { gi, searchPath, system } = imports;
-import { resolve, readJSON, getProgramDir } from '@gjsify/utils';
-import GLib from 'gi://GLib';
+const { gi, searchPath } = imports;
+import { resolve, readJSON, getProgramDir, getProgramExe, getNodeModulesPath } from '@gjsify/utils';
 
-const DIR = GLib.get_current_dir();
-const PROGRAM = resolve(DIR, system.programInvocationName);
+let __dirname = getProgramDir();
+let __filename = getProgramExe().get_path();
 
-let __dirname = getProgramDir(PROGRAM);
-let __filename = PROGRAM.get_path();
+const NODE_MODULES = getNodeModulesPath().get_path();
 
 const cache = Object.create(null);
 
@@ -17,7 +15,7 @@ const cache = Object.create(null);
  * @param {string} file 
  * @returns 
  */
-const requireJs = (file) => {
+const requireJs = (file: string) => {
   if (!/\.js$/.test(file)) {
     file += '.js';
   }
@@ -34,7 +32,7 @@ const requireJs = (file) => {
   const module = { exports };
 
   globalThis.exports = exports;
-  globalThis.module = module;
+  globalThis.module = module as NodeModule;
   
   // Override `__filename` and `__dirname` relative to the current required file so that indirect requires can be resolved correctly
   __filename = fn;
@@ -61,7 +59,7 @@ const requireJs = (file) => {
  * @param {string} pkgName 
  * @returns 
  */
-export const requireNpm = (pkgName) => {
+export const requireNpm = (pkgName: string) => {
   const path =  resolve(NODE_MODULES, pkgName).get_path();
   const pkgJsonPath = resolve(path, 'package.json').get_path();
   const pkgData = readJSON(pkgJsonPath);
@@ -75,7 +73,7 @@ export const requireNpm = (pkgName) => {
  * @param {string} file 
  * @returns 
  */
- export const requireJson = (file) => {
+ export const requireJson = (file: string) => {
   const fd = resolve(__dirname, file);
   const fn = fd.get_path();
 
@@ -91,7 +89,7 @@ export const requireNpm = (pkgName) => {
  * @param {string} file 
  * @returns 
  */
-export const require = (file) => {
+export const require = (file: string) => {
 
   if (/^[A-Z]/.test(file)) {
     return file.split('.').reduce(($, k) => $[k], gi);

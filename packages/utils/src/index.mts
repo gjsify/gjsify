@@ -29,7 +29,24 @@ export const getPathSeparator = () => {
   return /^\//.test(currentDir) ? '/' : '\\';
 }
 
-// TODO move to path
+export const getNodeModulesPath = () => {
+  let dir = File.new_for_path(getProgramDir());
+  let found = false;
+
+  do {
+    dir = dir.resolve_relative_path("..");
+    const nodeModulesDir = dir.resolve_relative_path("node_modules");
+    found = nodeModulesDir.query_exists(null);
+    if (found) {
+      dir = nodeModulesDir;
+    }
+  } while (dir.has_parent(null) && !found)
+
+  return dir;
+}
+
+
+// TODO move to path?
 export const resolve = (dir: string, ...filenames: string[]) => {
   let file = File.new_for_path(dir);
   for (const filename of filenames) {

@@ -9,12 +9,13 @@
   ],
   "author": "Pascal Garber",
   "type": "module",
-  "main": "src/index.js",
+  "main": "lib/index.js",
   "module": "lib/index.js",
   "scripts": {
     "build": "node --experimental-import-meta-resolve esbuild.mjs",
-    "test": "yarn run build && yarn run test:gjs",
-    "test:gjs": "gjs -m test.gjs.js"
+    "test": "yarn run build && yarn run test:node && yarn run test:gjs",
+    "test:gjs": "gjs -m test.gjs.js",
+    "test:node": "node test.node.cjs"
   },
   "dependencies": {
     "@gjsify/process": "workspace:^",

@@ -18,8 +18,8 @@ const build = async () => {
         )
     );
 
-    if (!pkg.main || !pkg.module) {
-        throw new Error("package.json: The main and module properties are required!");
+    if (!pkg.module) {
+        throw new Error("package.json: The module properties are required!");
     }
 
     await _build({

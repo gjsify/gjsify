@@ -5,6 +5,7 @@
       "target": "ESNext",
       "moduleResolution": "node",
       "experimentalDecorators": true,
+      "allowSyntheticDefaultImports": true,
       "outDir": "lib",
       "rootDir": "src",
       "composite": true
