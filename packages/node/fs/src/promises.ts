@@ -1,10 +1,11 @@
 import Gio from '@gjsify/types/Gio-2.0';
+import GLib from '@gjsify/types/GLib-2.0';
 import { warnNotImplemented } from '@gjsify/utils';
-import { encodeUint8Array } from './encoding.js';
+import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { readdirSync, writeFileSync, mkdirSync, rmdirSync, unlinkSync } from './sync.js';
 import { FileHandle } from './file-handle.js';
 
-import type { PathLike, Mode, ObjectEncodingOptions, OpenMode, ReadOptions } from './types/index.js';
+import type { PathLike, Mode, OpenFlags, ReadOptions, RmOptions } from './types/index.js';
 
 async function mkdir(path: string, mode = 0o777) {
   // TODO async
@@ -29,7 +30,7 @@ async function readFile(path: PathLike | FileHandle, options: ReadOptions = { en
     throw new Error('failed to read file');
   }
 
-  return encodeUint8Array(options, data);
+  return encodeUint8Array(getEncodingFromOptions(options), data);
 }
 
 async function writeFile(path: string, data: any) {
@@ -47,8 +48,12 @@ async function unlink(path: string) {
   return unlinkSync(path);
 }
 
-async function open(path: PathLike, flags?: string | number, mode?: Mode): Promise<FileHandle> {
-  return new FileHandle(path);
+async function open(path: PathLike, flags?: OpenFlags, mode?: Mode): Promise<FileHandle> {
+  return new FileHandle({
+    path,
+    flags,
+    mode,
+  });
 }
 
 async function write<TBuffer extends Uint8Array>(
@@ -121,6 +126,28 @@ async function _writeStr(
   }
 }
 
+/**
+ * Removes files and directories (modeled on the standard POSIX `rm` utility).
+ * @since v14.14.0
+ * @return Fulfills with `undefined` upon success.
+ */
+async function rm(path: PathLike, options?: RmOptions): Promise<void> {
+  const file = Gio.File.new_for_path(path.toString());
+
+  file.delete_async
+
+  const ok = await new Promise<boolean>((resolve, reject) => {
+    file.delete_async(GLib.PRIORITY_DEFAULT, null, (self, res) => {
+      resolve(file.delete_finish(res));
+    });
+  });
+
+  if (!ok) {
+    // TODO: throw a better error
+    throw new Error('failed to read file');
+  }
+}
+
 export {
   readFile,
   mkdir,
@@ -130,6 +157,7 @@ export {
   unlink,
   open,
   write,
+  rm,
 };
 
 export default {
@@ -141,4 +169,5 @@ export default {
   unlink,
   open,
   write,
+  rm,
 };

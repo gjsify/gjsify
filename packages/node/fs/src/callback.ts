@@ -40,7 +40,7 @@ export function open(path: PathLike, flags: OpenMode | undefined, callback: Open
 export function open(path: PathLike, callback: OpenCallback): void;
 
 export function open(path: PathLike, ...args: any[]): void {
-    let flags: OpenMode | undefined;
+    let flags: number | OpenMode | undefined;
     let mode: Mode | undefined | null;
     let callback: OpenCallback
 
@@ -61,7 +61,7 @@ export function open(path: PathLike, ...args: any[]): void {
             break;
     }
 
-    openP(path, flags, mode)
+    openP(path, flags as any, mode)
     .then((fileHandle) => {
         callback(null, fileHandle.fd);
     })

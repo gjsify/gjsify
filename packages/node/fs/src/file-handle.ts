@@ -3,6 +3,8 @@ import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
 import { readFile } from "./promises.js";
 import { Stats } from "./stats.js";
+import Gio from '@gjsify/types/Gio-2.0';
+import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 
 import { ReadableStream } from "stream/web";
 
@@ -15,6 +17,7 @@ import type {
     FileReadOptions,
     CreateWriteStreamOptions,
     OpenMode,
+    OpenFlags,
     PathLike,
     StatOptions,
     BigIntStats,
@@ -22,19 +25,33 @@ import type {
     WriteVResult,
     ReadVResult,
 } from './types/index.js';
+import GLib from '@gjsify/types/GLib-2.0';
 
 export class FileHandle {
 
-    constructor(readonly path: PathLike) {
-        // TODO open file
-        warnNotImplemented('fs.FileHandle');
+    /** Custom property of gjsify */
+    private _file: GLib.IOChannel;
+
+    private _stream?: Gio.FileIOStream;
+
+    constructor(readonly options: {
+        path: PathLike,
+        flags?: OpenFlags,
+        mode?: Mode
+    }) {
+        this.options.flags ||= "r";
+        this.options.mode ||= 0o666;
+        this._file = GLib.IOChannel.new_file(options.path.toString(), this.options.flags);
+        this.fd = this._file.unix_get_fd();
     }
+
 
     /**
      * The numeric file descriptor managed by the {FileHandle} object.
      * @since v10.0.0
      */
     readonly fd: number;
+
     /**
      * Alias of `filehandle.writeFile()`.
      *
@@ -44,7 +61,14 @@ export class FileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async appendFile(data: string | Uint8Array, options?: (ObjectEncodingOptions & FlagAndOpenMode) | BufferEncoding | null): Promise<void> {
-        warnNotImplemented('fs.FileHandle.appendFile');
+        const encoding = getEncodingFromOptions(options);
+        if (typeof data === 'string') {
+            data = Buffer.from(data);
+        }
+
+        if (encoding) this._file.set_encoding(encoding);
+
+        const [status, written] = this._file.write_chars(data, data.length);
     }
     /**
      * Changes the ownership of the file. A wrapper for [`chown(2)`](http://man7.org/linux/man-pages/man2/chown.2.html).
@@ -119,8 +143,7 @@ export class FileHandle {
      * @since v16.11.0
      */
     createReadStream(options?: CreateReadStreamOptions): ReadStream {
-        warnNotImplemented('fs.FileHandle.createReadStream');
-        return new ReadStream(this.path, options);
+        return new ReadStream(this.options.path, options);
     }
     /**
      * `options` may also include a `start` option to allow writing data at some
@@ -139,8 +162,7 @@ export class FileHandle {
      * @since v16.11.0
      */
     createWriteStream(options?: CreateWriteStreamOptions): WriteStream {
-        warnNotImplemented('fs.FileHandle.createWriteStream');
-        return new WriteStream(this.path, options);
+        return new WriteStream(this.options.path, options);
     }
     /**
      * Forces all currently queued I/O operations associated with the file to the
@@ -177,12 +199,51 @@ export class FileHandle {
      * @return Fulfills upon success with an object with two properties:
      */
     async read<T extends NodeJS.ArrayBufferView>(buffer: T, offset?: number | null, length?: number | null, position?: number | null): Promise<FileReadResult<T>>
-    async read<T extends NodeJS.ArrayBufferView = Buffer>(options?: FileReadOptions<T>): Promise<FileReadResult<T>> {
-        warnNotImplemented('fs.FileHandle.read');
-        const buffer: T = Buffer.from('') as unknown as T;
+    async read<T extends NodeJS.ArrayBufferView = Buffer>(options?: FileReadOptions<T>): Promise<FileReadResult<T>>
+
+    async read<T extends NodeJS.ArrayBufferView = Buffer>(args: any[]): Promise<FileReadResult<T>> {
+        let buffer: T | undefined;
+        let offset: number | null | undefined;
+        let length: number | null | undefined;
+        let position:  number | null | undefined;
+
+        if (typeof args[0] === 'object') {
+            const options: FileReadOptions<T> = args[0];
+            buffer = options.buffer;
+            offset = options.offset;
+            length = options.length;
+            position = options.position;
+        } else {
+            buffer = args[0];
+            offset = args[1];
+            length = args[2];
+            position = args[3];
+        }
+
+        if(offset) {
+            const status = this._file.seek_position(offset, GLib.SeekType.CUR);
+            if(status === GLib.IOStatus.ERROR) {
+                throw new Error("Error on seek position!")
+            }
+        }
+        if(length) this._file.set_buffer_size(length);
+        if(position) {
+            const status = this._file.seek_position(position, GLib.SeekType.SET);
+            if(status === GLib.IOStatus.ERROR) {
+                throw new Error("Error on seek position!")
+            }
+        }
+
+        const [status, buf, bytesRead] = this._file.read_chars();
+        if(status === GLib.IOStatus.ERROR) {
+            throw new Error("Error on read!")
+        }
+
+        buffer = buf as T;
+
         return {
+            bytesRead,
             buffer,
-            bytesRead: 0
         }
     }
     /**
@@ -208,7 +269,6 @@ export class FileHandle {
      * @experimental
      */
     readableWebStream(): ReadableStream {
-        warnNotImplemented('fs.FileHandle.readableWebStream');
         return new ReadableStream();
     }
     /**
@@ -259,8 +319,18 @@ export class FileHandle {
             | BufferEncoding
             | null
     ): Promise<string | Buffer> {
-        warnNotImplemented('fs.FileHandle.readFile');
-        return readFile(this.path, options);
+        const encoding = getEncodingFromOptions(options);
+        if (encoding) this._file.set_encoding(encoding);
+
+        const [status, buf] = this._file.read_to_end();
+
+        if(status === GLib.IOStatus.ERROR) {
+            throw new Error("Error on seek position!")
+        }
+
+        const res = encodeUint8Array(encoding, buf);
+
+        return res;
     }
     /**
      * @since v10.0.0
@@ -444,6 +514,6 @@ export class FileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async close(): Promise<void> {
-        warnNotImplemented('fs.FileHandle.close');
+        this._file.close();
     }
 }

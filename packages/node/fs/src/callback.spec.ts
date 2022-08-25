@@ -1,9 +1,9 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { open, write, close, rm } from 'fs';
 
-export default async () => {
-	await describe('fs.open', () => {
-		it(`should open a file for write`, () => {
+export default () => {
+	describe('fs.open', () => {
+		it(`should open a file for writing`, () => {
 			open('./test/open.txt', 'w+', 0o666, (err, fd) => {
 
 				expect(err).toBeNull();
@@ -19,7 +19,9 @@ export default async () => {
 
 					console.log('file written');
 
-					expect(written).toBe(written);
+					console.log('written', written);
+
+					expect(written).toBe(buffWrite.length);
 
 					expect(buffer).toBe(buffWrite);
 

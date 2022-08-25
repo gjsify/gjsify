@@ -18,13 +18,12 @@ export function getEncodingFromOptions(options: ReadOptions | ObjectEncodingOpti
   return defaultEncoding;
 }
 
-export function encodeUint8Array(options: ReadOptions = { encoding: null, flag: 'r' }, data: Uint8Array) {
-  const encoding = getEncodingFromOptions(options, 'buffer');
-
+export function encodeUint8Array(encoding: BufferEncoding | 'buffer', data: Uint8Array) {
   if (encoding === 'buffer') {
     return Buffer.from(data);
   }
 
-  // TODO more encodings
-  return byteArray.toString(data);
+  const decoder = new TextDecoder(encoding);
+  return decoder.decode(data);
+  // return byteArray.toString(data);
 }
