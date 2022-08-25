@@ -1,0 +1,28 @@
+{
+  "name": "@gjsify/require",
+  "version": "0.0.1",
+  "description": "require core module for gjs",
+  "keywords": [
+    "gjs",
+    "node",
+    "require"
+  ],
+  "author": "Pascal Garber",
+  "type": "module",
+  "main": "lib/index.js",
+  "module": "lib/index.js",
+  "scripts": {
+    "build": "node --experimental-import-meta-resolve esbuild.mjs",
+    "test": "yarn run build && yarn run test:node && yarn run test:gjs",
+    "test:gjs": "gjs -m test.gjs.js",
+    "test:node": "node test.node.cjs"
+  },
+  "dependencies": {
+    "@gjsify/process": "workspace:^",
+    "@gjsify/utils": "workspace:^"
+  },
+  "devDependencies": {
+    "@gjsify/unit": "workspace:^",
+    "cowsay": "^1.5.0"
+  }
+}

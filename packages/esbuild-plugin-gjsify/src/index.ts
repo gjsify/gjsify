@@ -1,7 +1,6 @@
 import type { Plugin } from "esbuild";
 import alias from 'esbuild-plugin-alias';
 import { createRequire } from "module";
-import { resolve } from "path";
 
 export const NODE_EXTERNALS = [
     'zlib',
@@ -63,14 +62,15 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
             esbuildOptions.external = esbuildOptions.external || [];
             esbuildOptions.external.push('gi://*');
 
+            esbuildOptions.inject = esbuildOptions.inject || [];
+            esbuildOptions.inject.push(require.resolve('@gjsify/require/'))
+            esbuildOptions.inject.push(require.resolve('@gjsify/globals/'))
+            esbuildOptions.inject.push(require.resolve('core-js/features/url/'))
+            esbuildOptions.inject.push(require.resolve('core-js/features/url-search-params/'))
+
             esbuildOptions.define = esbuildOptions.define || {}
             esbuildOptions.define.global = 'globalThis';
             esbuildOptions.define['process.env.NODE_DEBUG'] = 'false'; // WORKAROUND
-
-            esbuildOptions.inject = esbuildOptions.inject || [];
-            esbuildOptions.inject.push(require.resolve('core-js/features/url/'))
-            esbuildOptions.inject.push(require.resolve('core-js/features/url-search-params/'))
-            esbuildOptions.inject.push(require.resolve('@gjsify/globals/'))
 
             esbuildOptions.format = 'esm';
 
@@ -92,6 +92,7 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
                 events: require.resolve('events/'),
                 url: require.resolve('@gjsify/url/'), // https://github.com/defunctzombie/node-url
                 stream: require.resolve('stream-browserify/'),
+                'stream/web': require.resolve('web-streams-polyfill/ponyfill/'),
                 string_decoder: require.resolve('string_decoder/'), // https://github.com/nodejs/string_decoder
                 querystring: require.resolve('querystring-es3/'),
                 zlib: require.resolve('browserify-zlib/'),

@@ -3,7 +3,6 @@
 const { gi, searchPath } = imports;
 import { resolve as _resolve, readJSON, getProgramDir, getProgramExe, getNodeModulesPath } from '@gjsify/utils';
 import Gio from '@gjsify/types/Gio-2.0';
-import { extname } from 'path';
 
 let __dirname = getProgramDir();
 let __filename = getProgramExe().get_path();
@@ -18,11 +17,7 @@ const cache = Object.create(null);
  * @returns 
  */
 const requireJs = (file: string) => {
-  if (!/\.js$/.test(file)) {
-    file += '.js';
-  }
-
-  const fd = _resolve(__dirname, file);
+  const fd = _resolve(file);
   const fn = fd.get_path();
   const dn = fd.get_parent().get_path();
 
@@ -57,42 +52,16 @@ const requireJs = (file: string) => {
 }
 
 /**
- * CJS require for npm packages
- * @param {string} pkgName 
- * @returns 
- */
-export const requireNpm = (pkgName: string) => {
-  const path =  _resolve(NODE_MODULES, pkgName).get_path();
-  const pkgJsonPath = _resolve(path, 'package.json').get_path();
-  const pkgData = readJSON(pkgJsonPath);
-  const pkgMain = pkgData.main || 'index.js';
-
-  return requireJs(_resolve(path, pkgMain).get_path());
-}
-
-/**
- * CJS require for json files
- * @param {string} file 
- * @returns 
- */
- export const requireJson = (file: string) => {
-  const fd = _resolve(__dirname, file);
-  const fn = fd.get_path();
-
-  const data = readJSON(fn);
-
-  cache[fn] = data;
-
-  return cache[fn];
-}
-
-/**
  * CJS require
  * @param {string} file 
  * @returns 
  */
-export const require = (file: string) => {
+const require = (file: string) => {
   const path = resolve(file);
+
+  if(!path) {
+    throw new Error(`require: File "${file}" not found!`);
+  }
 
   if (path in cache) {
     return cache[path];
@@ -100,32 +69,39 @@ export const require = (file: string) => {
 
   if (file.endsWith('.json')) {
     return readJSON(path);
-  } else if (file.indexOf('/') === -1) {
-    return requireNpm(path);
-  }
+  } 
 
-  return requireJs(file);
+  return requireJs(path);
 }
 
-const resolve = (file: string) => {
+/**
+ * @param file 
+ * @returns THe string path if the file was found, otherwise null
+ */
+const resolve = (pkgNameOrFile: string) => {
 
-  // if file is an NPM package
-  if (!file.includes('/') || !file.includes('.')) {
-    return resolveNpm(file);
+  let path: Gio.File;
+
+  // Relative path
+  if (pkgNameOrFile.startsWith('.')) {
+    path = _resolve(__dirname, pkgNameOrFile);
+  }
+  // Full path
+  else if (pkgNameOrFile.startsWith('/') || pkgNameOrFile.startsWith('file://')) {
+    path = _resolve(pkgNameOrFile);
+  }
+  // node modules path
+  else {
+    path = _resolve(NODE_MODULES, pkgNameOrFile);
   }
 
-  if (/^[A-Z]/.test(file)) {
-    return file.split('.').reduce(($, k) => $[k], gi);
+  if (!path.query_exists(null)) {
+    const basename = path.get_basename();
+    if(!basename.includes('.')) {
+      path = _resolve(path.get_path() + '.js');
+    }
   }
 
-  const fd = _resolve(__dirname, file);
-  const fn = fd.get_path();
-
-  return fn;
-}
-
-const resolveNpm = (pkgName: string) => {
-  const path = _resolve(NODE_MODULES, pkgName);
   let pathStr = path.get_path();
 
   const pathInfo = path.query_info('standard::', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
@@ -134,15 +110,33 @@ const resolveNpm = (pkgName: string) => {
     pathStr = path.get_parent().resolve_relative_path(pathInfo.get_symlink_target()).get_path();
   }
 
-  const pkgJsonPath = _resolve(pathStr, 'package.json').get_path();
-  const pkgData = readJSON(pkgJsonPath);
+  const basename = path.get_basename();
+
+  if(basename.includes('.') || pathStr.endsWith('/')) {
+    return pathStr;
+  }
+
+  const pkgJsonFile = _resolve(pathStr, 'package.json');
+  
+  if (!pkgJsonFile.query_exists(null)) {
+    return pathStr;
+  }
+
+  const pkgData = readJSON(pkgJsonFile.get_path());
   let pkgMain: string = pkgData.main || 'index.js';
 
-  if(extname(pkgMain) === '') {
+  if(!pkgMain.slice(pkgMain.length - 5).includes('.')) {
     pkgMain = pkgMain + '.js';
   }
 
-  return _resolve(pathStr, pkgMain).get_path();
+  const entryFile = _resolve(pathStr, pkgMain);
+
+  if (!entryFile.query_exists(null)) {
+    console.error(`require: Entry file "${entryFile.get_path()}" not exists!`);
+    return null;
+  }
+
+  return entryFile.get_path();
 }
 
 require.resolve = resolve;
