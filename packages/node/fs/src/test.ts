@@ -1,6 +1,7 @@
 
 import { run } from '@gjsify/unit';
-import testSuiteIndex from './index.spec.js';
+import testSuiteSync from './sync.spec.js';
 import testSuitePromise from './promises.spec.js';
+import testSuiteCallback from './callback.spec.js';
 
-run({testSuiteIndex, testSuitePromise});
+run({testSuiteSync, testSuitePromise, testSuiteCallback});

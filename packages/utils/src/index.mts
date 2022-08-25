@@ -46,7 +46,6 @@ export const getNodeModulesPath = () => {
   return dir;
 }
 
-
 // TODO move to path?
 export const resolve = (dir: string, ...filenames: string[]) => {
   let file = File.new_for_path(dir);
@@ -74,6 +73,7 @@ export const notImplemented = (msg: string) => {
 export const warnNotImplemented = (msg) => {
   const message = msg ? `Not implemented: ${msg}` : "Not implemented";
   console.warn(message);
+  return message;
 }
 
 // TODO move this to a new package for https://nodejs.org/api/child_process.html

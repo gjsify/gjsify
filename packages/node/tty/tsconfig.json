@@ -1,14 +1,14 @@
 {
-    "compilerOptions": {
-      "module": "ESNext",
-      "types": ["node"],
-      "target": "ESNext",
-      "moduleResolution": "node",
-      "experimentalDecorators": true,
-      "outDir": "lib",
-      "rootDir": "src",
-      "composite": true
-    },
-    "reflection": false,
-    "include": ["src/**/*"],
+  "compilerOptions": {
+    "module": "ESNext",
+    "types": ["node"],
+    "target": "ESNext",
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "outDir": "lib",
+    "rootDir": "src",
+    "composite": true
+  },
+  "reflection": false,
+  "include": ["src/**/*"]
 }

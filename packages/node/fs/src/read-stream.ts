@@ -4,7 +4,7 @@ import { notImplemented } from "@gjsify/utils";
 import { Buffer } from "buffer";
 import { Readable } from "stream";
 
-type ReadStreamOptions = Record<string, unknown>;
+import type { CreateReadStreamOptions, PathLike } from './types/index.js';
 
 /**
  * Converts a file URL to a path string.
@@ -17,19 +17,19 @@ type ReadStreamOptions = Record<string, unknown>;
  * @credits https://github.com/denoland/deno_std/blob/44d05e7a8d445888d989d49eb3e59eee3055f2c5/node/path/posix.ts#L486
  */
 export function fromFileUrl(url: string | URL): string {
- url = url instanceof URL ? url : new URL(url);
- if (url.protocol != "file:") {
-   throw new TypeError("Must be a file URL.");
- }
- return decodeURIComponent(
-   url.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"),
- );
+  url = url instanceof URL ? url : new URL(url);
+  if (url.protocol != "file:") {
+    throw new TypeError("Must be a file URL.");
+  }
+  return decodeURIComponent(
+    url.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"),
+  );
 }
 
 export class ReadStream extends Readable {
-  public path: string;
+  public path: PathLike;
 
-  constructor(path: string | URL, opts?: ReadStreamOptions) {
+  constructor(path: PathLike, opts?: CreateReadStreamOptions) {
     path = path instanceof URL ? fromFileUrl(path) : path;
     const hasBadOptions = opts && (
       opts.fd || opts.start || opts.end || opts.fs
@@ -41,7 +41,7 @@ export class ReadStream extends Readable {
         })`,
       );
     }
-    const file = GLib.IOChannel.new_file(path, "r")
+    const file = GLib.IOChannel.new_file(path.toString(), "r")
     const buffer = "";
     super({
       autoDestroy: true,
@@ -69,7 +69,7 @@ export class ReadStream extends Readable {
 
 export function createReadStream(
   path: string | URL,
-  options?: ReadStreamOptions,
+  options?: CreateReadStreamOptions,
 ): ReadStream {
   return new ReadStream(path, options);
 }

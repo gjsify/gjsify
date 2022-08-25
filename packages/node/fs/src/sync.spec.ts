@@ -5,7 +5,7 @@ import { fileURLToPath } from "url"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch } from 'fs';
+import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, open, write, close } from 'fs';
 
 export default async () => {
 	await describe('fs.existsSync', () => {
@@ -107,6 +107,6 @@ export default async () => {
 				}, 100);
 			}, 100);
 		});
-
 	});
+
 }
