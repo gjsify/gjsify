@@ -110,7 +110,7 @@ const resolve = (pkgNameOrFile: string) => {
     pathStr = path.get_parent().resolve_relative_path(pathInfo.get_symlink_target()).get_path();
   }
 
-  const basename = path.get_basename();
+  let basename = path.get_basename();
 
   if(basename.includes('.') || pathStr.endsWith('/')) {
     return pathStr;
@@ -125,11 +125,15 @@ const resolve = (pkgNameOrFile: string) => {
   const pkgData = readJSON(pkgJsonFile.get_path());
   let pkgMain: string = pkgData.main || 'index.js';
 
-  if(!pkgMain.slice(pkgMain.length - 5).includes('.')) {
-    pkgMain = pkgMain + '.js';
-  }
+  let entryFile = _resolve(pathStr, pkgMain);
+  basename = entryFile.get_basename();
 
-  const entryFile = _resolve(pathStr, pkgMain);
+  if (!entryFile.query_exists(null)) {
+    basename = entryFile.get_basename();
+    if(!basename.includes('.')) {
+      entryFile = _resolve(entryFile.get_path() + '.js');
+    }
+  }
 
   if (!entryFile.query_exists(null)) {
     console.error(`require: Entry file "${entryFile.get_path()}" not exists!`);

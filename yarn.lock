@@ -270,7 +270,7 @@ __metadata:
     "@gjsify/process": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
-    cowsay: ^1.5.0
+    cowsay2: ^2.0.4
   languageName: unknown
   linkType: soft
 
@@ -1119,6 +1119,17 @@ __metadata:
     path-type: ^4.0.0
     yaml: ^1.10.0
   checksum: 4be63e7117955fd88333d7460e4c466a90f556df6ef34efd59034d2463484e339666c41f02b523d574a797ec61f4a91918c5b89a316db2ea2f834e0d2d09465b
+  languageName: node
+  linkType: hard
+
+"cowsay2@npm:^2.0.4":
+  version: 2.0.4
+  resolution: "cowsay2@npm:2.0.4"
+  dependencies:
+    string-width: ^4
+  bin:
+    cowsay2: cli.js
+  checksum: 5de86e998c6eb2576e7b7474071ae67448b14bf1643b4627da522a7414a736f04b937f2e67f3a6201014490a8cccacc9a14a79221dec6cd005983f6e275a3f06
   languageName: node
   linkType: hard
 
@@ -3346,7 +3357,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"string-width@npm:^1.0.2 || 2 || 3 || 4, string-width@npm:^4.0.0, string-width@npm:^4.1.0, string-width@npm:^4.2.0, string-width@npm:^4.2.3":
+"string-width@npm:^1.0.2 || 2 || 3 || 4, string-width@npm:^4, string-width@npm:^4.0.0, string-width@npm:^4.1.0, string-width@npm:^4.2.0, string-width@npm:^4.2.3":
   version: 4.2.3
   resolution: "string-width@npm:4.2.3"
   dependencies:

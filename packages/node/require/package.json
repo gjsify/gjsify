@@ -23,6 +23,6 @@
   },
   "devDependencies": {
     "@gjsify/unit": "workspace:^",
-    "cowsay": "^1.5.0"
+    "cowsay2": "^2.0.4"
   }
 }
