@@ -30,6 +30,13 @@ const build = async () => {
 
     await _build({
         ...baseConfig,
+        entryPoints: ['src/promises.ts'],
+        outfile: 'lib/promises.mjs',
+        format: 'esm',
+    });
+
+    await _build({
+        ...baseConfig,
         entryPoints: ['src/test.ts'],
         outfile: 'test.gjs.js',
         plugins: [

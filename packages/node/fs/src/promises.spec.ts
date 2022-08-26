@@ -1,9 +1,17 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { promises, existsSync } from 'fs';
+import { mkdir } from 'fs/promises';
 import { join } from 'path';
 
 export default async () => {
-	await describe('fsPromises.readFile', async () => {
+
+	await describe('fs/promises', async () => {
+		await it('import over "fs/should" should be work', async () => {
+			expect(typeof mkdir).toBe("function");
+		});
+	});
+
+	await describe('fs.promises.readFile', async () => {
 
 		await it('should be a function', async () => {
 			expect(typeof promises.readFile).toBe("function");
@@ -29,7 +37,7 @@ export default async () => {
 		});
 	});
 
-	await describe('fsPromises.mkdtemp', async () => {
+	await describe('fs.promises.mkdtemp', async () => {
 		await it('should be a function', async () => {
 			expect(typeof promises.mkdtemp).toBe("function");
 		});
@@ -37,21 +45,28 @@ export default async () => {
 		await it('should create a new directory', async () => {
 			const directory = await promises.mkdtemp('fs-test-');
 			expect(existsSync(directory)).toBeTruthy();
-			await promises.rm(directory);
+			await promises.rmdir(directory);
 		});
 	});
 
-	await describe('fsPromises.rm', async () => {
+	await describe('fs.promises.rm', async () => {
 		await it('should be a function', async () => {
 			expect(typeof promises.rm).toBe("function");
 		});
 
-		await it('should remove an empty folder', async () => {
+		await it('should remove an text file', async () => {
 
-			const path = await promises.mkdtemp('fs-test-')
-			expect(existsSync(path)).toBeTruthy();
-			await promises.rm(path);
-			expect(existsSync(path)).toBeFalsy();
+			const dir = await promises.mkdtemp('fs-test-');
+			const txt1 = join(dir, 'file1.txt');
+			await promises.writeFile(txt1, '');
+
+
+			expect(existsSync(txt1)).toBeTruthy();
+			await promises.rm(txt1);
+			expect(existsSync(txt1)).toBeFalsy();
+			
+			// Clear
+			await promises.rmdir(dir);
 		});
 
 		await it('should not remove an non-empty folder if recursive option is false and should remove an non-empty folder if recursive option is true', async () => {

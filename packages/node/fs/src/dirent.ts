@@ -1,4 +1,5 @@
 import Gio from '@gjsify/types/Gio-2.0';
+import { basename } from 'path';
 
 /**
  * A representation of a directory entry, which can be a file or a subdirectory
@@ -30,7 +31,9 @@ export class Dirent {
     protected _file: Gio.File;
 
     /** This is not part of node.fs and is used internal by gjsify */
-    constructor(path: string) {
+    constructor(path: string, filename?: string) {
+        if (!filename) filename = basename(path);
+        this.name = filename;
         this._file = Gio.File.new_for_path(path);
         const type = this._file.query_file_type(Gio.FileQueryInfoFlags.NONE, null);
 

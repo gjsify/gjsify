@@ -29,17 +29,75 @@ export default async () => {
 	});
 
 	await describe('fs.readdirSync', () => {
-		const expectedFilesCount = 1;
-		const expectedFileName = 'file.txt';
-	  
-		const files = readdirSync('./test');
+		it('should return no files for an empty directory', () => {
+			const dir = mkdtempSync('fs-test-');
+			const files = readdirSync(dir);
+			expect(files.length).toBe(0);
 
-		it('should return one file', () => {
-			expect(files.length).toEqual(expectedFilesCount)
+			// Clear
+			rmdirSync(dir);
+		});
+
+		it('should return the files for non-empty directory', () => {
+			const dir = mkdtempSync('fs-test-');
+			const txt1 = join(dir, 'test1.txt');
+			const txt2 = join(dir, 'test2.txt');
+			const dir1 = join(dir, 'empty-dir');
+			writeFileSync(txt1, '');
+			writeFileSync(txt2, '');
+			mkdirSync(dir1);
+			const files = readdirSync(dir);
+			expect(files.length).toEqual(3);
+
+			// Clear
+			rmSync(txt1);
+			rmSync(txt2);
+			rmdirSync(dir1);
+			rmdirSync(dir);
 		});
 
 		it('should return the file with the name "file.txt"', () => {
-			expect(files[0]).toEqual(expectedFileName)
+			const dir = mkdtempSync('fs-test-');
+			const expectedFileName = 'file.txt';
+			const file = join(dir, expectedFileName);
+
+			writeFileSync(file, '');
+
+			const files = readdirSync(dir);
+			expect(files[0]).toEqual(expectedFileName);
+
+			// Clear
+			rmSync(file);
+			rmdirSync(dir);
+		});
+
+		it('should return with file types if option "withFileTypes" is `true`', () => {
+			const dir = mkdtempSync('fs-test-');
+			const expectedFile = 'file.txt';
+			const expectedDir = 'subdir';
+			const file = join(dir, expectedFile);
+			const subdir = join(dir, expectedDir);
+
+			writeFileSync(file, '');
+			mkdirSync(subdir);
+
+			const files = readdirSync(dir, { withFileTypes: true });
+
+			expect(files.length).toBe(2);
+
+			const fileWithTypes = files.find((f) => f.name === expectedFile);
+			const dirWithTypes = files.find((f) => f.name === expectedDir);
+
+			expect(fileWithTypes.isFile()).toBeTruthy();
+			expect(fileWithTypes.isDirectory()).toBeFalsy();
+
+			expect(dirWithTypes.isFile()).toBeFalsy();
+			expect(dirWithTypes.isDirectory()).toBeTruthy();
+
+			// Clear
+			rmSync(file);
+			rmdirSync(subdir);
+			rmdirSync(dir);
 		});
 	});
 
@@ -61,26 +119,25 @@ export default async () => {
 	});
 
 	await describe('fs.mkdirSync', () => {
-		const path = './foobar';
+		const dir = './foobar';
 
-		it(`should be executed with "${path}" without error`, () => {
-			mkdirSync(path);
+		it(`should be executed with "${dir}" without error`, () => {
+			mkdirSync(dir);
 		});
 
-		it(`${path} should exists`, () => {
-			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
-			expect(typeof utf8Data === 'string').toBeTruthy();
+		it(`${dir} should exists`, () => {
+			expect(existsSync(dir)).toBeTruthy();
 		});
 	});
 
 	await describe('fs.rmdirSync', () => {
-		const path = './foobar';
+		const dir = './foobar';
 
-		it(`should be executed with "${path}" without error`, () => {
-			rmdirSync(path);
+		it(`should be executed with "${dir}" without error`, () => {
+			rmdirSync(dir);
 		});
 
-		it(`"${path}" should not exists (anymore)`, () => {
+		it(`"${dir}" should not exists (anymore)`, () => {
 			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
 			expect(typeof utf8Data === 'string').toBeTruthy();
 		});

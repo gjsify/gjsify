@@ -21,6 +21,7 @@ export * from './read-position.js';
 export * from './read-sync-options.js';
 export * from './read-v-result.js';
 export * from './rm-options.js';
+export * from './rm-dir-options.js';
 export * from './stat-options.js';
 export * from './stats-base.js';
 export * from './write-v-result.js';

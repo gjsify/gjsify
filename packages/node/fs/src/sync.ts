@@ -1,6 +1,7 @@
 import GLib from '@gjsify/types/GLib-2.0';
 import Gio from '@gjsify/types/Gio-2.0';
 import { Buffer } from 'buffer';
+import { join } from 'path';
 
 import FSWatcher from './fs-watcher';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
@@ -8,7 +9,7 @@ import { FileHandle } from './file-handle.js';
 import { Dirent } from './dirent.js';
 import { tempDirPath } from './utils.js';
 
-import type { PathLike, Mode, OpenFlags, MakeDirectoryOptions, ObjectEncodingOptions, BufferEncodingOption, EncodingOption, RmOptions } from './types/index.js';
+import type { PathLike, Mode, OpenFlags, MakeDirectoryOptions, ObjectEncodingOptions, BufferEncodingOption, EncodingOption, RmOptions, RmDirOptions } from './types/index.js';
 
 export function existsSync(path: string) {
   // TODO: accept buffer and URL too
@@ -85,8 +86,9 @@ export function readdirSync(
 
 export function readdirSync(path: string, options: (BufferEncodingOption | ObjectEncodingOptions) & { withFileTypes?: boolean } | BufferEncoding = 'utf8'): Buffer[] | Dirent[] | string[] {
   const encoding = getEncodingFromOptions(options);
+  const withFileTypes = typeof options === 'object' ? options.withFileTypes: false;
   const dir = Gio.File.new_for_path(path);
-  const list = [];
+  let list: any[] = [];
 
   const enumerator = dir.enumerate_children('standard::*', 0, null);
   let info = enumerator.next_file(null);
@@ -103,7 +105,17 @@ export function readdirSync(path: string, options: (BufferEncodingOption | Objec
       list.push(encodedName);
     }
 
-    info = enumerator.next_file(null);
+    info = enumerator.next_file(null);    
+  }
+
+
+  if (withFileTypes) {
+    list = list.map((filename: string | Buffer) => {
+      if (filename instanceof Buffer) {
+        filename = filename.toString();
+      }
+      return new Dirent(join(path, filename), filename);
+    });
   }
 
   return list;
@@ -165,14 +177,14 @@ export function mkdirSync(
  */
 export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions | null): string | undefined | void {
 
-  let recursive: boolean | undefined;
+  let recursive = false
   let mode: Mode | undefined = 0o777;
 
   if (typeof options === 'object') {
-    if(options.recursive) recursive = options.recursive;
-    if(options.mode) mode = options.mode
+    if(options?.recursive) recursive = options.recursive;
+    if(options?.mode) mode = options.mode;
   } else {
-    mode = options;
+    mode = options || 0o777;
   }
 
   if (typeof path !== 'string') {
@@ -195,12 +207,38 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
   return undefined;
 }
 
-export function rmdirSync(path: string) {
-  const result = GLib.rmdir(path);
+/**
+ * Synchronous [`rmdir(2)`](http://man7.org/linux/man-pages/man2/rmdir.2.html). Returns `undefined`.
+ *
+ * Using `fs.rmdirSync()` on a file (not a directory) results in an `ENOENT` error
+ * on Windows and an `ENOTDIR` error on POSIX.
+ *
+ * To get a behavior similar to the `rm -rf` Unix command, use {@link rmSync} with options `{ recursive: true, force: true }`.
+ * @since v0.1.21
+ */
+export function rmdirSync(path: PathLike, options?: RmDirOptions): void {
+
+  const recursive = options?.recursive || false;
+
+  const childFiles = readdirSync(path, { withFileTypes: true });
+
+  if (!recursive && childFiles.length) {
+    throw new Error('Dir is not empty!');
+  }
+
+  for (const childFile of childFiles) {
+    if (childFile.isDirectory()) {
+      rmdirSync(join(path.toString(), childFile.name));
+    } else if (childFile.isFile()) {
+      rmSync(join(path.toString(), childFile.name));
+    }
+  }
+
+  const result = GLib.rmdir(path.toString());
 
   if (result !== 0) {
     // TODO: throw a better error
-    throw new Error(`failed to remove ${path} directory`);
+    throw new Error(`Failed to remove ${path} directory`);
   }
 }
 
@@ -250,7 +288,7 @@ export function mkdtempSync(prefix: string, options?: EncodingOption | BufferEnc
 
   mkdirSync(
     path,
-    { recursive: false, mode: 0o700 }
+    { recursive: false, mode: 0o777 }
   )
 
   return decode(path, encoding);
@@ -262,6 +300,25 @@ export function mkdtempSync(prefix: string, options?: EncodingOption | BufferEnc
  */
 export function rmSync(path: PathLike, options?: RmOptions): void {
   const file = Gio.File.new_for_path(path.toString());
+  const recursive = options?.recursive || false;
+
+  const dirent = new Dirent(path.toString());
+
+  if (dirent.isDirectory()) {
+    const childFiles = readdirSync(path, { withFileTypes: true });
+
+    if (!recursive && childFiles.length) {
+      throw new Error('Dir is not empty!');
+    }
+  
+    for (const childFile of childFiles) {
+      if (childFile.isDirectory()) {
+        rmdirSync(join(path.toString(), childFile.name), options);
+      } else if (childFile.isFile()) {
+        rmSync(join(path.toString(), childFile.name), options);
+      }
+    }
+  }
 
   const ok = file.delete(null);
 

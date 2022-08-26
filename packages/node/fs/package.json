@@ -4,8 +4,7 @@
     "description": "fs core module for gjsify",
     "main": "lib/index.mjs",
     "module": "lib/index.mjs",
-    "type": "module",
-    "scripts": {
+    "type": "module",    "scripts": {
         "build": "node --experimental-import-meta-resolve esbuild.mjs",
         "test": "yarn run build && yarn run test:node && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.js",

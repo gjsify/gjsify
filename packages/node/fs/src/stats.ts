@@ -1,5 +1,6 @@
 import Gio from '@gjsify/types/Gio-2.0';
 import { Dirent } from './dirent.js';
+import { basename } from 'path';
 
 import type { StatsBase } from './types/index.js';
 
@@ -94,8 +95,9 @@ export class Stats extends Dirent implements StatsBase<number> {
     protected _info: Gio.FileInfo;
 
     /** This is not part of node.fs and is used internal by gjsify */
-    constructor(path: string) {
-        super(path);
+    constructor(path: string, filename?: string) {
+        if (!filename) filename = basename(path);
+        super(path, filename);
         if(!this._file) {
             throw new TypeError('this._file is not defined!');
         }

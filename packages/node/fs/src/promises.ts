@@ -1,12 +1,14 @@
 import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
 import { warnNotImplemented } from '@gjsify/utils';
+import { join } from 'path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
 import { readdirSync, writeFileSync, mkdirSync, rmdirSync, unlinkSync } from './sync.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath } from './utils.js';
+import { Dirent } from './dirent.js';
 
-import type { PathLike, Mode, OpenFlags, ReadOptions, RmOptions, ObjectEncodingOptions, BufferEncodingOption, MakeDirectoryOptions } from './types/index.js';
+import type { PathLike, Mode, OpenFlags, ReadOptions, RmOptions, ObjectEncodingOptions, BufferEncodingOption, MakeDirectoryOptions, RmDirOptions } from './types/index.js';
 
 /**
  * Asynchronously creates a directory.
@@ -151,9 +153,19 @@ async function writeFile(path: string, data: any) {
   return writeFileSync(path, data);
 }
 
-async function rmdir(path: string) {
+/**
+ * Removes the directory identified by `path`.
+ *
+ * Using `fsPromises.rmdir()` on a file (not a directory) results in the
+ * promise being rejected with an `ENOENT` error on Windows and an `ENOTDIR`error on POSIX.
+ *
+ * To get a behavior similar to the `rm -rf` Unix command, use `fsPromises.rm()` with options `{ recursive: true, force: true }`.
+ * @since v10.0.0
+ * @return Fulfills with `undefined` upon success.
+ */
+async function rmdir(path: PathLike, options?: RmDirOptions): Promise<void> {
   // TODO async
-  return rmdirSync(path);
+  return rmdirSync(path, options);
 }
 
 async function unlink(path: string) {
@@ -246,6 +258,26 @@ async function _writeStr(
  */
 async function rm(path: PathLike, options?: RmOptions): Promise<void> {
   const file = Gio.File.new_for_path(path.toString());
+
+  const recursive = options?.recursive || false;
+
+  const dirent = new Dirent(path.toString());
+
+  if (dirent.isDirectory()) {
+    const childFiles = readdirSync(path, { withFileTypes: true });
+
+    if (!recursive && childFiles.length) {
+      throw new Error('Dir is not empty!');
+    }
+  
+    for (const childFile of childFiles) {
+      if (childFile.isDirectory()) {
+        await rmdir(join(path.toString(), childFile.name), options);
+      } else if (childFile.isFile()) {
+        await rm(join(path.toString(), childFile.name), options);
+      }
+    }
+  }
 
   const ok = await new Promise<boolean>((resolve, reject) => {
     try {
