@@ -1,9 +1,7 @@
+import type GLib from '@gjsify/types/GLib-2.0';
 import { versions } from 'process';
 
-const mainloop = (globalThis as any)?.imports?.mainloop || {
-  run: (name: string) => {},
-  quit: () => {}
-}
+const mainloop: GLib.MainLoop | undefined = (globalThis as any)?.imports?.mainloop;
 
 // This file is part of the gjsunit framework
 // Please visit https://github.com/philipphoffmann/gjsunit for more information
@@ -149,6 +147,7 @@ export const it = async function(expectation: string, callback: () => void | Pro
 	catch(e) {
 		print('  \x1B[31m❌\x1B[39m \x1B[90m' + expectation + '\x1B[39m');
 		print('\x1B[31m' + e.message + '\x1B[39m');
+		// if (e.stack) print(e.stack);
 	}
 }
 
@@ -199,12 +198,13 @@ const printRuntime = () => {
 
 export const run = function(namespaces: Namespaces) {
 	printRuntime();
-	runTests(namespaces).then(() => {
-    printResult();
-    print();
-    mainloop.quit("unit");
-  });
+	runTests(namespaces)
+	.then(() => {
+		printResult();
+		print();
+		mainloop?.quit();
+	})
 
   // Run the GJS mainloop for async operations
-  mainloop.run("unit");
+  mainloop?.run();
 }

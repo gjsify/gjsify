@@ -1,9 +1,7 @@
 import { warnNotImplemented } from '@gjsify/utils';
 import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
-import { readFile } from "./promises.js";
 import { Stats } from "./stats.js";
-import Gio from '@gjsify/types/Gio-2.0';
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 
 import { ReadableStream } from "stream/web";
@@ -24,15 +22,17 @@ import type {
     Abortable,
     WriteVResult,
     ReadVResult,
+    ReadPosition,
 } from './types/index.js';
 import GLib from '@gjsify/types/GLib-2.0';
 
 export class FileHandle {
 
-    /** Custom property of gjsify */
+    /** Not part of the default implementation, used internal by gjsify */
     private _file: GLib.IOChannel;
 
-    private _stream?: Gio.FileIOStream;
+    /** Not part of the default implementation, used internal by gjsify */
+    private static instances: {[fd: number]: FileHandle} = {};
 
     constructor(readonly options: {
         path: PathLike,
@@ -43,6 +43,9 @@ export class FileHandle {
         this.options.mode ||= 0o666;
         this._file = GLib.IOChannel.new_file(options.path.toString(), this.options.flags);
         this.fd = this._file.unix_get_fd();
+
+        FileHandle.instances[this.fd] = this;
+        return FileHandle.getInstance(this.fd);
     }
 
 
@@ -51,6 +54,15 @@ export class FileHandle {
      * @since v10.0.0
      */
     readonly fd: number;
+
+    /** Not part of the default implementation, used internal by gjsify */
+    static getInstance(fd: number) {
+        const instance = FileHandle.instances[fd];
+        if(!instance) {
+            throw new Error("No instance found for fd!");
+        }
+        return FileHandle.instances[fd];
+    }
 
     /**
      * Alias of `filehandle.writeFile()`.
@@ -69,6 +81,11 @@ export class FileHandle {
         if (encoding) this._file.set_encoding(encoding);
 
         const [status, written] = this._file.write_chars(data, data.length);
+
+        if(status === GLib.IOStatus.ERROR) {
+            throw new Error("Error on append to file!")
+        }
+
     }
     /**
      * Changes the ownership of the file. A wrapper for [`chown(2)`](http://man7.org/linux/man-pages/man2/chown.2.html).
@@ -198,7 +215,7 @@ export class FileHandle {
      * integer, the current file position will remain unchanged.
      * @return Fulfills upon success with an object with two properties:
      */
-    async read<T extends NodeJS.ArrayBufferView>(buffer: T, offset?: number | null, length?: number | null, position?: number | null): Promise<FileReadResult<T>>
+    async read<T extends NodeJS.ArrayBufferView>(buffer: T, offset?: number | null, length?: number | null, position?: ReadPosition | null): Promise<FileReadResult<T>>
     async read<T extends NodeJS.ArrayBufferView = Buffer>(options?: FileReadOptions<T>): Promise<FileReadResult<T>>
 
     async read<T extends NodeJS.ArrayBufferView = Buffer>(args: any[]): Promise<FileReadResult<T>> {
@@ -223,14 +240,14 @@ export class FileHandle {
         if(offset) {
             const status = this._file.seek_position(offset, GLib.SeekType.CUR);
             if(status === GLib.IOStatus.ERROR) {
-                throw new Error("Error on seek position!")
+                throw new Error("Error on set offset!")
             }
         }
         if(length) this._file.set_buffer_size(length);
         if(position) {
             const status = this._file.seek_position(position, GLib.SeekType.SET);
             if(status === GLib.IOStatus.ERROR) {
-                throw new Error("Error on seek position!")
+                throw new Error("Error on set position!")
             }
         }
 
@@ -319,13 +336,13 @@ export class FileHandle {
             | BufferEncoding
             | null
     ): Promise<string | Buffer> {
-        const encoding = getEncodingFromOptions(options);
+        const encoding = getEncodingFromOptions(options, 'buffer');
         if (encoding) this._file.set_encoding(encoding);
 
         const [status, buf] = this._file.read_to_end();
 
         if(status === GLib.IOStatus.ERROR) {
-            throw new Error("Error on seek position!")
+            throw new Error("Error on read from file!")
         }
 
         const res = encodeUint8Array(encoding, buf);
@@ -348,7 +365,7 @@ export class FileHandle {
     ): Promise<BigIntStats>
     async stat(opts?: StatOptions): Promise<Stats | BigIntStats> {
         warnNotImplemented('fs.FileHandle.stat');
-        return new Stats();
+        return new Stats(this.options.path.toString());
     }
     /**
      * Truncates the file.
@@ -427,7 +444,7 @@ export class FileHandle {
      * @param position The offset from the beginning of the file where the data from `buffer` should be written. If `position` is not a `number`, the data will be written at the current position.
      * See the POSIX pwrite(2) documentation for more detail.
      */
-    async write<TBuffer extends Uint8Array>(
+    async write<TBuffer extends NodeJS.ArrayBufferView>(
         buffer: TBuffer,
         offset?: number | null,
         length?: number | null,
@@ -444,21 +461,70 @@ export class FileHandle {
         bytesWritten: number;
         buffer: string;
     }>
-    async write<TBuffer extends Uint8Array>(
+    async write<TBuffer extends NodeJS.ArrayBufferView>(
         data: string | TBuffer,
-        positionOrOffset?: number | null,
-        encodingOrLength?: BufferEncoding | null | number,
-        position?: number | null
-      ): Promise<{
-        bytesWritten: number;
-        buffer: string | TBuffer;
-      }> {
-        warnNotImplemented('fs.FileHandle.write');
+        ...args: any[]
+    ): Promise<{
+    bytesWritten: number;
+    buffer: string | TBuffer;
+    }> {
+        let position: number | null = null;
+        let encoding: BufferEncoding | 'buffer' | null = null;
+        let offset: number | null = null;
+        let length: number | null = null;
+
+        if(typeof data === 'string') {
+            position = args[0];
+            encoding = args[1];
+        } else {
+            offset = args[0];
+            length = args[1];
+            position = args[2];
+        }
+
+        encoding = getEncodingFromOptions(encoding, typeof data === 'string' ? 'utf8' : null);
+        if (encoding) {
+            console.log("set_encoding", encoding, this._file.get_encoding(), typeof data);
+            
+            this._file.set_encoding(encoding === 'buffer' ? null : encoding);
+        }
+
+        if(offset) {
+            const status = this._file.seek_position(offset, GLib.SeekType.CUR);
+            if(status === GLib.IOStatus.ERROR) {
+                throw new Error("Error on set offset!")
+            }
+        }
+        if(length) this._file.set_buffer_size(length);
+
+        if(position) {
+            const status = this._file.seek_position(position, GLib.SeekType.SET);
+            if(status === GLib.IOStatus.ERROR) {
+                throw new Error("Error on set position!")
+            }
+        }
+
+        let bytesWritten = 0;
+        let status: GLib.IOStatus;
+
+        if(typeof data === 'string') {
+            status = this._file.write_unichar(data);
+            bytesWritten = data.length;
+        } else {
+            const [_status, _bytesWritten] = this._file.write_chars(data as Uint8Array, length);
+            bytesWritten = _bytesWritten;
+            status = _status;
+        }        
+
+        if(status === GLib.IOStatus.ERROR) {
+            throw new Error("Error on write to file!")
+        }
+        
         return {
-            bytesWritten: 0,
+            bytesWritten,
             buffer: data
         }
-      }
+    }
       
 
     /**

@@ -1,4 +1,5 @@
 /*! (c) 2017 Andrea Giammarchi - @WebReflection (ISC) https://github.com/cgjs/cgjs/blob/master/packages/cgjs/cgjs/timers.js */
+import imports from '@gjsify/types/index';
 const mainloop = imports.mainloop;
 // const cgjsloop = imports.cgjs.mainloop;
 

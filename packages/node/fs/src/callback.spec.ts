@@ -4,11 +4,12 @@ import { open, write, close, rm } from 'fs';
 export default () => {
 	describe('fs.open', () => {
 		it(`should open a file for writing`, () => {
-			open('./test/open.txt', 'w+', 0o666, (err, fd) => {
+			const path = './test/open.txt';
+			open(path, 'w+', 0o666, (err, fd) => {
 
 				expect(err).toBeNull();
 
-				console.log('file open');
+				console.log('fs.open: file open');
 
 				let buffWrite = Buffer.from('Hello World', 'utf8'),
 				buffStart = 0,
@@ -17,9 +18,7 @@ export default () => {
 				write(fd, buffWrite, buffStart, buffLength, filePos, (err, written, buffer) => {
 					expect(err).toBeNull();
 
-					console.log('file written');
-
-					console.log('written', written);
+					console.log('fs.open: file written');
 
 					expect(written).toBe(buffWrite.length);
 
@@ -28,11 +27,11 @@ export default () => {
 					close(fd, (err) => {
 						expect(err).toBeNull();
 
-						console.log('file closed');
+						console.log('fs.open: file closed');
 
-						rm('./test/open.txt', (err) => {
+						rm(path, (err) => {
 							expect(err).toBeNull();
-							console.log('file removed');
+							console.log('fs.open: file removed');
 						});
 					});
 				});

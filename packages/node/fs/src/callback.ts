@@ -1,6 +1,7 @@
-import { open as openP, write as writeP } from './promises.js'
+import { open as openP, rm as rmP } from './promises.js'
 import { warnNotImplemented } from '@gjsify/utils';
-import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions } from './types/index.js'
+import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions } from './types/index.js';
+import { FileHandle } from './file-handle.js';
 
 type OpenCallback = (err: NodeJS.ErrnoException | null, fd: number) => void;
 
@@ -159,11 +160,14 @@ export function write(fd: number, string: string, position: number | undefined |
  */
 export function write(fd: number, string: string, callback: WriteStrCallback): void;
 
-export function write(fd: number, data: any, ...args: any[]): void {
+export function write<TBuffer extends NodeJS.ArrayBufferView>(fd: number, data: string | TBuffer, ...args: any[]): void {
+
+    const fileHandle = FileHandle.getInstance(fd);
     
     if (typeof data === 'string') {
         const callback: WriteStrCallback = args[args.length -1];
-        writeP(fd, data, ...args.pop())
+
+        fileHandle.write(data, ...args.pop())
         .then((res) => {
             callback(null, res.bytesWritten, res.buffer);
         })
@@ -175,15 +179,17 @@ export function write(fd: number, data: any, ...args: any[]): void {
     }
 
     const callback: WriteBufCallback = args[args.length -1];
+    const offset: number | undefined = args[0];
+    const length: number | undefined = args[1];
+    const position: number | undefined = args[2];
 
-    writeP(fd, data, ...args.pop())
+    fileHandle.write(data, offset, length, position)
     .then((res) => {
         callback(null, res.bytesWritten, res.buffer);
     })
     .catch((err) => {
         callback(err, 0, Buffer.from([]));
     });
-
 }
 
 /**
@@ -244,7 +250,7 @@ export function read(fd: number, callback: ReadCallback): void;
  * @param position Specifies where to begin reading from in the file. If `position` is `null` or `-1 `, data will be read from the current file position, and the file position will be updated. If
  * `position` is an integer, the file position will be unchanged.
  */
-    export function read<TBuffer extends NodeJS.ArrayBufferView>(
+export function read<TBuffer extends NodeJS.ArrayBufferView>(
     fd: number,
     buffer: TBuffer,
     offset: number,
@@ -270,9 +276,38 @@ export function read(fd: number, callback: ReadCallback): void;
 
 export function read(fd: number, ...args: any[]): void {
 
+    const fileHandle = FileHandle.getInstance(fd);
+
     const callback: ReadCallback = args[args.length -1];
     const err = new Error(warnNotImplemented('fs.read'));
     callback(err, 0, Buffer.from(''));
+
+    let buffer: NodeJS.ArrayBufferView | undefined;
+    let offset: number | null | undefined;
+    let length: number | null | undefined;
+    let position: ReadPosition | null | undefined;
+
+    if (typeof args[0] === 'object') {
+        const options: ReadAsyncOptions<any> = args[0];
+        buffer = options.buffer;
+        offset = options.offset;
+        length = options.length;
+        position = options.position;
+    } else {
+        buffer = args[0];
+        offset = args[1];
+        length = args[2];
+        position = args[3];
+    }
+
+
+    fileHandle.read(buffer, offset, length, position)
+    .then((res) => {
+        callback(null, res.bytesRead, res.buffer);
+    })
+    .catch((err) => {
+        callback(err, 0, Buffer.from([]));
+    });
 }
 
 /**
@@ -286,8 +321,11 @@ export function read(fd: number, ...args: any[]): void {
  * @since v0.0.2
  */
 export function close(fd: number, callback?: NoParamCallback): void {
-    const err = new Error(warnNotImplemented('fs.close'));
-    callback(err);
+    FileHandle.getInstance(fd).close()
+    .then(() => {
+        callback(null);
+    })
+    .catch((err) => callback(err))
 }
 
 /**
@@ -307,7 +345,11 @@ export function rm(path: PathLike, ...args: any[]): void {
         options = args[0];
     }
 
-    const err = new Error(warnNotImplemented('fs.rm'));
-
-    callback(err);
+    rmP(path, options)
+    .then(() => {
+        callback(null);
+    })
+    .catch((err) => {
+        callback(err);
+    });
 }

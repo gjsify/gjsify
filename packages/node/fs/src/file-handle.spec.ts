@@ -2,30 +2,32 @@ import { describe, it, expect } from '@gjsify/unit';
 import { promises, rm } from 'fs';
 
 export default async () => {
-	await describe('fsPromises.open', async () => {
+	await describe('FileHandle', async () => {
 		await it(`should open a file for writing`, async () => {
-			const fileHandle = await promises.open('./test/openP.txt', 'w+', 0o666);
+			const path = './test/openP.txt';
+			const fileHandle = await promises.open(path, 'w+', 0o666);
 
-			console.log('file open');
+			console.log('FileHandle: file open');
 
 			let buffWrite = Buffer.from('Hello World', 'utf8'),
 			buffStart = 0,
 			buffLength = buffWrite.length,
 			filePos = 0;
 			const res = await fileHandle.write(buffWrite, buffStart, buffLength, filePos);
-			console.log('file written');
+			console.log('FileHandle: file written');
 
-			console.log('written', res.bytesWritten);
+			// console.log('written', res.bytesWritten);
 
 			expect(res.bytesWritten).toBe(buffWrite.length);
 
 			expect(res.buffer).toBe(buffWrite);
 
 			await fileHandle.close();
-			console.log('file closed');
+			console.log('FileHandle: file closed');
 
-			await promises.rm('./test/open.txt');
-			console.log('file removed');
+			await promises.rm(path);
+			console.log('FileHandle: file removed');	
+
 		});
 	});
 }

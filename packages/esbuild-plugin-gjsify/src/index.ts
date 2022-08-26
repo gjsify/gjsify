@@ -63,6 +63,8 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
             esbuildOptions.external.push('gi://*');
 
             esbuildOptions.inject = esbuildOptions.inject || [];
+
+            esbuildOptions.inject = esbuildOptions.inject || [];
             esbuildOptions.inject.push(require.resolve('@gjsify/require/'))
             esbuildOptions.inject.push(require.resolve('@gjsify/globals/'))
             esbuildOptions.inject.push(require.resolve('core-js/features/url/'))

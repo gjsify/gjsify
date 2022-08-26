@@ -1,3 +1,6 @@
+import Gio from '@gjsify/types/Gio-2.0';
+import { Dirent } from './dirent.js';
+
 import type { StatsBase } from './types/index.js';
 
 /**
@@ -60,7 +63,7 @@ import type { StatsBase } from './types/index.js';
  * ```
  * @since v0.1.21
  */
-export class Stats implements StatsBase<number>{
+export class Stats extends Dirent implements StatsBase<number> {
     dev: number;
     ino: number;
     mode: number;
@@ -74,37 +77,28 @@ export class Stats implements StatsBase<number>{
     atimeMs: number;
     mtimeMs: number;
     ctimeMs: number;
-    birthtimeMs: number;
+    /** The timestamp indicating the creation time of this file expressed in milliseconds since the POSIX Epoch. */
+    get birthtimeMs(): number {
+        const creationDateTime = this._info.get_creation_date_time();
+        return creationDateTime.get_microsecond() * 1000;
+    }
     atime: Date;
     mtime: Date;
     ctime: Date;
-    birthtime: Date;
-
-    isFile(): boolean {
-        return false;
+    /** The timestamp indicating the creation time of this file. */
+    get birthtime(): Date {
+        const creationDateTime = this._info.get_creation_date_time();
+        return new Date(creationDateTime.format_iso8601());
     }
 
-    isDirectory(): boolean {
-        return false;
-    }
+    protected _info: Gio.FileInfo;
 
-    isBlockDevice(): boolean {
-        return false;
-    }
-
-    isCharacterDevice(): boolean {
-        return false;
-    }
-
-    isSymbolicLink(): boolean {
-        return false;
-    }
-
-    isFIFO(): boolean {
-        return false;
-    }
-
-    isSocket(): boolean {
-        return false;
+    /** This is not part of node.fs and is used internal by gjsify */
+    constructor(path: string) {
+        super(path);
+        if(!this._file) {
+            throw new TypeError('this._file is not defined!');
+        }
+        this._info = this._file.query_info('standard::', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
     }
 }

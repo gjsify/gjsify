@@ -1,11 +1,11 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { join, dirname } from 'path'
-import { fileURLToPath } from "url"
+import { join, dirname } from 'path';
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, open, write, close } from 'fs';
+import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync } from 'fs';
 
 export default async () => {
 	await describe('fs.existsSync', () => {
@@ -87,7 +87,7 @@ export default async () => {
 	});
 
 	await describe('fs.writeFileSync', () => {
-		const watchMe = join(__dirname, 'watch.js');
+		const watchMe = join(__dirname, 'test/watch.js');
 
 		it(`should be executed without error`, () => {
 			writeFileSync(watchMe, '// test');
@@ -101,11 +101,24 @@ export default async () => {
 			setTimeout(() => { watcher.close(); }, 1000);
 
 			setTimeout(() => {
-			writeFileSync(watchMe, '// test');
+				writeFileSync(watchMe, '// test');
 				setTimeout(() => {
 					unlinkSync(watchMe);
 				}, 100);
 			}, 100);
+		});
+	});
+
+	await describe('fs.mkdtempSync', () => {
+
+		it('should be a function', () => {
+			expect(typeof mkdtempSync).toBe("function");
+		});
+
+		it('should create a new directory', () => {
+			const directory = mkdtempSync('fs-test-');
+			expect(existsSync(directory)).toBeTruthy();
+			rmdirSync(directory);
 		});
 	});
 
