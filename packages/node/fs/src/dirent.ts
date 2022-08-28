@@ -1,6 +1,8 @@
 import Gio from '@gjsify/types/Gio-2.0';
 import { basename } from 'path';
 
+import type { Dirent as OriginalDirent } from 'fs'; // Types from @types/node
+
 /**
  * A representation of a directory entry, which can be a file or a subdirectory
  * within the directory, as returned by reading from an `fs.Dir`. The
@@ -10,7 +12,7 @@ import { basename } from 'path';
  * the `withFileTypes` option set to `true`, the resulting array is filled with `fs.Dirent` objects, rather than strings or `Buffer` s.
  * @since v10.10.0
  */
-export class Dirent {
+export class Dirent implements OriginalDirent {
 
     /**
      * The file name that this `fs.Dirent` object refers to. The type of this

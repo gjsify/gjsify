@@ -1,1 +1,0 @@
-export type NoParamCallback = (err: NodeJS.ErrnoException | null) => void;

@@ -8,7 +8,19 @@ import { FileHandle } from './file-handle.js';
 import { tempDirPath } from './utils.js';
 import { Dirent } from './dirent.js';
 
-import type { PathLike, Mode, OpenFlags, ReadOptions, RmOptions, ObjectEncodingOptions, BufferEncodingOption, MakeDirectoryOptions, RmDirOptions } from './types/index.js';
+import type { 
+  OpenFlags,
+  ReadOptions,
+} from './types/index.js';
+import type {
+  PathLike,
+  Mode,
+  RmOptions,
+  ObjectEncodingOptions,
+  BufferEncodingOption,
+  MakeDirectoryOptions,
+  RmDirOptions
+} from 'fs';
 
 /**
  * Asynchronously creates a directory.

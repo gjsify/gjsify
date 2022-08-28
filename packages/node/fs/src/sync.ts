@@ -9,7 +9,8 @@ import { FileHandle } from './file-handle.js';
 import { Dirent } from './dirent.js';
 import { tempDirPath } from './utils.js';
 
-import type { PathLike, Mode, OpenFlags, MakeDirectoryOptions, ObjectEncodingOptions, BufferEncodingOption, EncodingOption, RmOptions, RmDirOptions } from './types/index.js';
+import type { PathLike, Mode, OpenFlags, MakeDirectoryOptions, BufferEncodingOption, EncodingOption, RmOptions, RmDirOptions } from './types/index.js';
+import type { ObjectEncodingOptions } from 'fs'; // Types from @types/node
 
 export function existsSync(path: string) {
   // TODO: accept buffer and URL too
@@ -168,7 +169,7 @@ export function mkdirSync(
  * @param options Either the file mode, or an object optionally specifying the file mode and whether parent folders
  * should be created. If a string is passed, it is parsed as an octal integer. If not specified, defaults to `0o777`.
  */
- export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions | null): string | undefined | void
+export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions | null): string | undefined | void
 /**
  * Synchronous mkdir(2) - create a directory.
  * @param path A path to a file. If a URL is provided, it must use the `file:` protocol.

@@ -3,30 +3,31 @@ import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
 import { Stats } from "./stats.js";
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
-
+import GLib from '@gjsify/types/GLib-2.0';
 import { ReadableStream } from "stream/web";
 
+import type { Abortable } from 'events';
 import type {
-    ObjectEncodingOptions,
     FlagAndOpenMode,
-    Mode,
-    CreateReadStreamOptions,
     FileReadResult,
     FileReadOptions,
-    CreateWriteStreamOptions,
-    OpenMode,
     OpenFlags,
+} from './types/index.js';
+import type { FileHandle as IFileHandle, CreateReadStreamOptions, CreateWriteStreamOptions } from 'fs/promises'; // Types from @types/node
+import type {
+    ObjectEncodingOptions,
+    Mode,
+    OpenMode,
     PathLike,
     StatOptions,
     BigIntStats,
-    Abortable,
     WriteVResult,
     ReadVResult,
-    ReadPosition,
-} from './types/index.js';
-import GLib from '@gjsify/types/GLib-2.0';
+    ReadPosition
+} from 'fs';
 
-export class FileHandle {
+
+export class FileHandle implements IFileHandle {
 
     /** Not part of the default implementation, used internal by gjsify */
     private _file: GLib.IOChannel;
@@ -353,7 +354,7 @@ export class FileHandle {
      * @since v10.0.0
      * @return Fulfills with an {fs.Stats} for the file.
      */
-     async stat(
+    async stat(
         opts?: StatOptions & {
             bigint?: false | undefined;
         }

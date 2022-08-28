@@ -4,7 +4,8 @@ import { notImplemented } from "@gjsify/utils";
 import { Buffer } from "buffer";
 import { Readable } from "stream";
 
-import type { CreateReadStreamOptions, PathLike } from './types/index.js';
+import type { CreateReadStreamOptions } from 'fs/promises'; // Types from @types/node
+import type { PathLike, ReadStream as IReadStream } from 'fs'; // Types from @types/node
 
 /**
  * Converts a file URL to a path string.
@@ -26,13 +27,34 @@ export function fromFileUrl(url: string | URL): string {
   );
 }
 
-export class ReadStream extends Readable {
-  public path: PathLike;
+export class ReadStream extends Readable implements IReadStream {
+  close(callback?: (err?: NodeJS.ErrnoException | null) => void): void {
+    // TODO
+    callback(notImplemented('ReadStream.close'));
+  }
+  /**
+   * The number of bytes that have been read so far.
+   * @since v6.4.0
+   */
+  bytesRead: number;
+  /**
+   * The path to the file the stream is reading from as specified in the first
+   * argument to `fs.createReadStream()`. If `path` is passed as a string, then`readStream.path` will be a string. If `path` is passed as a `Buffer`, then`readStream.path` will be a
+   * `Buffer`. If `fd` is specified, then`readStream.path` will be `undefined`.
+   * @since v0.1.93
+   */
+  path: string | Buffer;
+  /**
+   * This property is `true` if the underlying file has not been opened yet,
+   * i.e. before the `'ready'` event is emitted.
+   * @since v11.2.0, v10.16.0
+   */
+  pending: boolean;
 
   constructor(path: PathLike, opts?: CreateReadStreamOptions) {
     path = path instanceof URL ? fromFileUrl(path) : path;
     const hasBadOptions = opts && (
-      opts.fd || opts.start || opts.end || opts.fs
+      opts.start || opts.end
     );
     if (hasBadOptions) {
       notImplemented(
@@ -63,7 +85,7 @@ export class ReadStream extends Readable {
         cb(err);
       },
     });
-    this.path = path;
+    this.path = path.toString();
   }
 }
 

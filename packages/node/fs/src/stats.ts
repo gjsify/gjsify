@@ -2,7 +2,7 @@ import Gio from '@gjsify/types/Gio-2.0';
 import { Dirent } from './dirent.js';
 import { basename } from 'path';
 
-import type { StatsBase } from './types/index.js';
+import type { Stats as OriginalStats } from 'fs';
 
 /**
  * A `fs.Stats` object provides information about a file.
@@ -64,7 +64,7 @@ import type { StatsBase } from './types/index.js';
  * ```
  * @since v0.1.21
  */
-export class Stats extends Dirent implements StatsBase<number> {
+export class Stats extends Dirent implements OriginalStats {
     dev: number;
     ino: number;
     mode: number;
@@ -94,7 +94,6 @@ export class Stats extends Dirent implements StatsBase<number> {
 
     protected _info: Gio.FileInfo;
 
-    /** This is not part of node.fs and is used internal by gjsify */
     constructor(path: string, filename?: string) {
         if (!filename) filename = basename(path);
         super(path, filename);

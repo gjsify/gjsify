@@ -1,6 +1,6 @@
 import { open as openP, rm as rmP } from './promises.js'
 import { warnNotImplemented } from '@gjsify/utils';
-import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions } from './types/index.js';
+import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions } from 'fs';
 import { FileHandle } from './file-handle.js';
 
 type OpenCallback = (err: NodeJS.ErrnoException | null, fd: number) => void;

@@ -1,6 +1,5 @@
-import imports from '@gjsify/types/index';
-const byteArray = imports.byteArray;
-import type { ReadOptions, ObjectEncodingOptions, BufferEncodingOption } from './types/index.js'
+import type { ReadOptions, BufferEncodingOption } from './types/index.js';
+import type { ObjectEncodingOptions } from 'fs'; // Types from @types/node
 
 export function getEncodingFromOptions(options: ReadOptions | ObjectEncodingOptions | BufferEncodingOption= { encoding: null, flag: 'r' }, defaultEncoding: null | BufferEncoding | "buffer" = 'utf8'): BufferEncoding | 'buffer' {
   if (options === null) {

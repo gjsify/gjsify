@@ -1,1 +1,0 @@
-export type ReadPosition = number | bigint;

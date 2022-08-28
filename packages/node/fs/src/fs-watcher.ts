@@ -2,7 +2,9 @@ import Gio from '@gjsify/types/Gio-2.0';
 import { EventEmitter } from 'events';
 const privates = new WeakMap;
 
-export class FSWatcher extends EventEmitter {
+import type { FSWatcher as IFSWatcher } from 'fs';
+
+export class FSWatcher extends EventEmitter implements IFSWatcher {
 
   constructor(filename: string, options, listener) {
     super();
