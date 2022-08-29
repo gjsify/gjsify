@@ -93,17 +93,22 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
                 domain: require.resolve('domain-browser/'),
                 events: require.resolve('events/'),
                 url: require.resolve('@gjsify/url/'), // https://github.com/defunctzombie/node-url
-                stream: require.resolve('stream-browserify/'),
+                stream: require.resolve('@gjsify/stream/'),
                 'stream/web': require.resolve('web-streams-polyfill/ponyfill/'),
                 string_decoder: require.resolve('string_decoder/'), // https://github.com/nodejs/string_decoder
                 querystring: require.resolve('querystring-es3/'),
-                zlib: require.resolve('browserify-zlib/'),
+                zlib: require.resolve('@gjsify/zlib/'),
                 tty: require.resolve('@gjsify/tty/'),
                 fs: require.resolve('@gjsify/fs/'),
                 'fs/promises': require.resolve('@gjsify/fs/lib/promises.mjs'),
                 os: require.resolve('@gjsify/os/'),
                 process: require.resolve('@gjsify/process/'),
                 punycode: require.resolve('punycode/'),
+                http: require.resolve('@gjsify/http/'),
+                net: require.resolve('@gjsify/net/'),
+
+                // Third party
+                // 'node-fetch': require.resolve('@gjsify/fetch/'),
             }
         
             const aliases = {...defaultAliases, ...pluginOptions.aliases};

@@ -13,7 +13,7 @@ import type {
     FileReadOptions,
     OpenFlags,
 } from './types/index.js';
-import type { FileHandle as IFileHandle, CreateReadStreamOptions, CreateWriteStreamOptions } from 'fs/promises'; // Types from @types/node
+import type { FileHandle as IFileHandle, CreateReadStreamOptions, CreateWriteStreamOptions } from 'fs/promises';
 import type {
     ObjectEncodingOptions,
     Mode,
@@ -25,7 +25,6 @@ import type {
     ReadVResult,
     ReadPosition
 } from 'fs';
-
 
 export class FileHandle implements IFileHandle {
 

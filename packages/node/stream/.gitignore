@@ -1,0 +1,5 @@
+test.*.js
+test.*.js.map
+!lib/
+lib/*
+!lib/index.mjs

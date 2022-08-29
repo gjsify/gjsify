@@ -12,7 +12,7 @@
     },
     "./*": {
       "import": "./@types/Gjs/*.js",
-      "default": "./@types/Gjs/GLib-2.0.js"
+      "default": "./@types/Gjs/*.js"
     }
   },
   "typesVersions": {
@@ -24,7 +24,7 @@
   },
   "scripts": {
     "clear": "rm -rf @types",
-    "build": "yarn run clear; ts-for-gir generate Gio-2.0 GLib-2.0 GTop-2.0 -e gjs -t esm",
+    "build": "yarn run clear; ts-for-gir generate Gio-2.0 GLib-2.0 GTop-2.0 Soup-3.0 -e gjs -t esm",
     "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"
   },
   "devDependencies": {

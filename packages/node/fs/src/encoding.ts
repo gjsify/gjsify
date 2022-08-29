@@ -1,5 +1,5 @@
-import type { ReadOptions, BufferEncodingOption } from './types/index.js';
-import type { ObjectEncodingOptions } from 'fs'; // Types from @types/node
+import type { ReadOptions } from './types/index.js';
+import type { ObjectEncodingOptions, BufferEncodingOption } from 'fs'; // Types from @types/node
 
 export function getEncodingFromOptions(options: ReadOptions | ObjectEncodingOptions | BufferEncodingOption= { encoding: null, flag: 'r' }, defaultEncoding: null | BufferEncoding | "buffer" = 'utf8'): BufferEncoding | 'buffer' {
   if (options === null) {
@@ -7,7 +7,7 @@ export function getEncodingFromOptions(options: ReadOptions | ObjectEncodingOpti
   }
 
   if (typeof options === 'string') {
-    return options;
+    return options as BufferEncoding | 'buffer';
   }
 
   if (typeof options === 'object' && typeof options.encoding === 'string') {

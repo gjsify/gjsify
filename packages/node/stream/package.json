@@ -1,0 +1,29 @@
+{
+    "name": "@gjsify/stream",
+    "version": "0.0.1",
+    "description": "node stream module for gjsify",
+    "main": "lib/index.mjs",
+    "module": "lib/index.mjs",
+    "type": "module",
+    "scripts": {
+        "build": "node --experimental-import-meta-resolve esbuild.mjs",
+        "build:esm": "node to-esm.js",
+        "test": "yarn run build && yarn run test:node && yarn run test:gjs",
+        "test:gjs": "gjs -m test.gjs.js",
+        "test:node": "node test.node.js"
+    },
+    "keywords": [
+        "gjs",
+        "node",
+        "fs"
+    ],
+    "devDependencies": {
+        "@gjsify/esbuild-plugin-gjsify": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^18.7.13",
+        "esinstall": "^1.1.7"
+    },
+    "dependencies": {
+        "vite-compatible-readable-stream": "^3.6.1"
+    }
+}

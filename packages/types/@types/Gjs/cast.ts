@@ -444,6 +444,111 @@ const inheritanceTable: { [key: string]: string[] } = {
     'GObject.Object',
     'Gio.Converter',
 ],
+    'Soup.Auth': [
+    'GObject.Object',
+],
+    'Soup.AuthBasic': [
+    'Soup.Auth',
+    'GObject.Object',
+],
+    'Soup.AuthDigest': [
+    'Soup.Auth',
+    'GObject.Object',
+],
+    'Soup.AuthDomain': [
+    'GObject.Object',
+],
+    'Soup.AuthDomainBasic': [
+    'Soup.AuthDomain',
+    'GObject.Object',
+],
+    'Soup.AuthDomainDigest': [
+    'Soup.AuthDomain',
+    'GObject.Object',
+],
+    'Soup.AuthManager': [
+    'GObject.Object',
+    'Soup.SessionFeature',
+],
+    'Soup.AuthNTLM': [
+    'Soup.Auth',
+    'GObject.Object',
+],
+    'Soup.AuthNegotiate': [
+    'Soup.Auth',
+    'GObject.Object',
+],
+    'Soup.Cache': [
+    'GObject.Object',
+    'Soup.SessionFeature',
+],
+    'Soup.ContentDecoder': [
+    'GObject.Object',
+    'Soup.SessionFeature',
+],
+    'Soup.ContentSniffer': [
+    'GObject.Object',
+    'Soup.SessionFeature',
+],
+    'Soup.CookieJar': [
+    'GObject.Object',
+    'Soup.SessionFeature',
+],
+    'Soup.CookieJarDB': [
+    'Soup.CookieJar',
+    'Soup.SessionFeature',
+    'GObject.Object',
+],
+    'Soup.CookieJarText': [
+    'Soup.CookieJar',
+    'Soup.SessionFeature',
+    'GObject.Object',
+],
+    'Soup.HSTSEnforcer': [
+    'GObject.Object',
+    'Soup.SessionFeature',
+],
+    'Soup.HSTSEnforcerDB': [
+    'Soup.HSTSEnforcer',
+    'Soup.SessionFeature',
+    'GObject.Object',
+],
+    'Soup.Logger': [
+    'GObject.Object',
+    'Soup.SessionFeature',
+],
+    'Soup.Message': [
+    'GObject.Object',
+],
+    'Soup.MultipartInputStream': [
+    'Gio.FilterInputStream',
+    'Gio.PollableInputStream',
+    'Gio.InputStream',
+    'GObject.Object',
+],
+    'Soup.Server': [
+    'GObject.Object',
+],
+    'Soup.ServerMessage': [
+    'GObject.Object',
+],
+    'Soup.Session': [
+    'GObject.Object',
+],
+    'Soup.WebsocketConnection': [
+    'GObject.Object',
+],
+    'Soup.WebsocketExtension': [
+    'GObject.Object',
+],
+    'Soup.WebsocketExtensionDeflate': [
+    'Soup.WebsocketExtension',
+    'GObject.Object',
+],
+    'Soup.WebsocketExtensionManager': [
+    'GObject.Object',
+    'Soup.SessionFeature',
+],
     'GObject.Binding': [
     'GObject.Object',
 ],

@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "vite-compatible-readable-stream": "./vite-compatible-readable-stream.js"
+  }
+}

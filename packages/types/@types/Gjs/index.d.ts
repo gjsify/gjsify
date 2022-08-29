@@ -8,6 +8,7 @@
 import type * as Gjs from './Gjs.js'
 import type Gio20 from "./Gio-2.0.js";
 import type GLib20 from "./GLib-2.0.js";
+import type Soup30 from "./Soup-3.0.js";
 import type GObject20 from "./GObject-2.0.js";
 
 // See also https://github.com/microsoft/TypeScript/blob/main/lib/lib.dom.d.ts
@@ -195,8 +196,6 @@ declare global {
         logDomain: string
     }
 
-    // Ignore Cannot redeclare block-scoped variable 'console'
-    // @ts-ignore
     const console: Console;
 
     interface BooleanConstructor {
@@ -248,10 +247,12 @@ declare global {
         gi: {
             Gio:              typeof Gio20
             GLib:              typeof GLib20
+            Soup:              typeof Soup30
             GObject:              typeof GObject20
           versions: {
               Gio:                '2.0'
               GLib:                '2.0'
+              Soup:                '3.0'
               GObject:                '2.0'
           }
         }
