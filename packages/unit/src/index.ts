@@ -119,17 +119,19 @@ class MatcherFactory {
 		);
 	}
 	toThrow() {
+		let errorMessage = ''; 
 		var didThrow = false;
 		try {
 			this.actualValue();
 			didThrow = false;
 		}
 		catch(e) {
+			errorMessage = e.message || '';
 			didThrow = true;
 		}
-
+		const functionName = this.actualValue.name || typeof this.actualValue === 'function' ? "[anonymous function]" : this.actualValue.toString();
 		this.triggerResult(didThrow,
-			'      Expected ' + this.actualValue.name + ' to throw an exception'
+			`      Expected ${functionName} to ${this.positive ? 'throw' : 'not throw'} an exception ${!this.positive && errorMessage ? `, but an error with the message "${errorMessage}" was thrown` : ''}`
 		);
 	}
 }
