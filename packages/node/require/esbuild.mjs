@@ -8,7 +8,7 @@ const baseConfig = {
     minify: false,
     sourcemap: true,
     platform: "browser",
-    external: [...NODE_EXTERNALS, 'gi://*'],
+    external: [NODE_EXTERNALS, 'gi://*'],
 }
 
 const build = async () => {

@@ -4,6 +4,8 @@
  * Response class provides content decoding
  */
 
+ import Gio from '@gjsify/types/Gio-2.0';
+
 import Headers from './headers.js';
 import Body, { clone, extractContentType } from './body.js';
 import { isRedirect } from './utils/is-redirect.js';

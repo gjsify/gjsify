@@ -1,9 +1,6 @@
-// import { install } from 'esinstall';
 import { build as _build } from 'esbuild';
 import { gjsify, NODE_EXTERNALS } from '@gjsify/esbuild-plugin-gjsify';
 import { readFile } from 'fs/promises';
-// import { createRequire } from "module";
-// const require = globalThis.require || createRequire(import.meta.url);
 
 const baseConfig = {
     entryPoints: ['src/index.ts'],
@@ -11,7 +8,7 @@ const baseConfig = {
     minify: false,
     sourcemap: true,
     platform: "browser",
-    external: [/*...NODE_EXTERNALS*/, 'gi://*'],
+    external: [...NODE_EXTERNALS, 'gi://*'],
 }
 
 const build = async () => {
@@ -24,19 +21,6 @@ const build = async () => {
     if (!pkg.module) {
         throw new Error("package.json: The module properties are required!");
     }
-
-    /**
-     * Convert vite-compatible-readable-stream to esm
-     * @credits https://github.com/geut/brode/blob/main/packages/browser-node-core/to-esm.js
-     */
-    // await install(['vite-compatible-readable-stream'], {
-    //     dest: './src/esm',
-    //     external: ['buffer', 'events'],
-    //     rollup: {
-    //         format: 'es'
-    //     },
-    // });
-
 
     await _build({
         ...baseConfig,

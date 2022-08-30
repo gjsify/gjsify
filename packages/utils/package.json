@@ -8,7 +8,9 @@
     "scripts": {
         "build": "yarn run build:js && yarn run build:types",
         "build:js": "node --experimental-import-meta-resolve esbuild.mjs",
-        "build:types": "tsc --emitDeclarationOnly"
+        "build:types": "tsc --emitDeclarationOnly",
+        "test": "yarn run build:js && yarn run test:gjs",
+        "test:gjs": "gjs -m test.gjs.js"
     },
     "keywords": [
         "gjs",

@@ -1,6 +1,6 @@
 /*! (c) Andrea Giammarchi - ISC - https://github.com/WebReflection/gjs-require */
 
-const { gi, searchPath } = imports;
+const { searchPath } = imports;
 import { resolve as _resolve, readJSON, getProgramDir, getProgramExe, getNodeModulesPath } from '@gjsify/utils';
 import Gio from '@gjsify/types/Gio-2.0';
 
@@ -8,6 +8,32 @@ let __dirname = getProgramDir();
 let __filename = getProgramExe().get_path();
 
 const NODE_MODULES = getNodeModulesPath().get_path();
+
+// This should be defined with esbuild.define, but currently this leads to an error in esbuild
+const RESOLVE_ALIASES = {
+  path: 'path-browserify',
+  util: 'util',
+  buffer: 'buffer',
+  assert: 'assert',
+  constants: 'constants-browserify',
+  crypto: 'crypto-browserify',
+  domain: 'domain-browser',
+  events: '@gjsify/events',
+  url: '@gjsify/url',
+  stream: '@gjsify/stream',
+  'stream/web': 'web-streams-polyfill/ponyfill',
+  string_decoder: 'string_decoder',
+  querystring: 'querystring-es3',
+  zlib: '@gjsify/zlib',
+  tty: '@gjsify/tty',
+  fs: '@gjsify/fs',
+  'fs/promises': '@gjsify/fs/lib/promises.mjs',
+  os: '@gjsify/os',
+  process: '@gjsify/process',
+  punycode: 'punycode',
+  http: '@gjsify/http',
+  net: '@gjsify/net',
+}
 
 const cache = Object.create(null);
 
@@ -36,7 +62,21 @@ const requireJs = (file: string) => {
   __dirname = dn;
 
   searchPath.unshift(dn);
-  imports[fd.get_basename().replace(/\.js$/, '')];
+
+  const basename = fd.get_basename();
+
+  // "Gjs can't import files with .cjs file extensions, so we copy it to .js if no .js exists
+  if (/\.(cjs)$/.test(basename)) {
+    const dest = _resolve(dn, basename.replace(/\.(cjs)$/, '.js'));
+    if(!dest.query_exists(null)) {
+      fd.copy(dest, Gio.FileCopyFlags.NONE, null, null);
+    }
+  }
+
+  print("require", file, "from", _fn);
+  
+  // Use gjs import.xyz to import the file
+  imports[basename.replace(/\.(js|cjs)$/, '')];
 
   cache[fn] = module.exports;
 
@@ -57,6 +97,11 @@ const requireJs = (file: string) => {
  * @returns 
  */
 const require = (file: string) => {
+
+  if(RESOLVE_ALIASES[file]) {
+    file = RESOLVE_ALIASES[file];
+  }
+
   const path = resolve(file);
 
   if(!path) {
@@ -100,6 +145,10 @@ const resolve = (pkgNameOrFile: string) => {
     if(!basename.includes('.')) {
       path = _resolve(path.get_path() + '.js');
     }
+
+    if (!path.query_exists(null)) {
+      path = _resolve(path.get_path() + '.cjs');
+    }
   }
 
   let pathStr = path.get_path();
@@ -123,7 +172,7 @@ const resolve = (pkgNameOrFile: string) => {
   }
 
   const pkgData = readJSON(pkgJsonFile.get_path());
-  let pkgMain: string = pkgData.main || 'index.js';
+  let pkgMain: string = pkgData.main || pkgData.module || pkgData.browser || 'index.js';
 
   let entryFile = _resolve(pathStr, pkgMain);
   basename = entryFile.get_basename();

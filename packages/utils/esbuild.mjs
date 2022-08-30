@@ -1,5 +1,5 @@
 import { build as _build } from 'esbuild';
-import { NODE_EXTERNALS } from '@gjsify/esbuild-plugin-gjsify';
+import { gjsify, NODE_EXTERNALS } from '@gjsify/esbuild-plugin-gjsify';
 import { readFile } from 'fs/promises';
 
 const baseConfig = {
@@ -26,6 +26,15 @@ const build = async () => {
         ...baseConfig,
         outfile: pkg.module,
         format: 'esm',
+    });
+
+    await _build({
+        ...baseConfig,
+        entryPoints: ['src/test.ts'],
+        outfile: 'test.gjs.js',
+        plugins: [
+            gjsify({debug: true}),
+        ]
     });
 }
 

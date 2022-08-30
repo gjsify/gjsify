@@ -20,6 +20,7 @@
         "@deepkit/app": "^1.0.1-alpha.74",
         "@deepkit/injector": "^1.0.1-alpha.74",
         "@deepkit/type": "^1.0.1-alpha.74",
+        "@gjsify/events": "workspace:^",
         "@gjsify/fs": "workspace:^",
         "@gjsify/globals": "workspace:^",
         "@gjsify/os": "workspace:^",
@@ -34,7 +35,6 @@
         "crypto-browserify": "^3.12.0",
         "domain-browser": "^4.22.0",
         "esbuild-plugin-alias": "^0.2.1",
-        "events": "^3.3.0",
         "path-browserify": "^1.0.1",
         "punycode": "^2.1.1",
         "querystring-es3": "^0.2.1",
@@ -44,7 +44,7 @@
         "web-streams-polyfill": "^3.2.1"
     },
     "devDependencies": {
-        "esbuild": "^0.15.5",
+        "esbuild": "^0.15.6",
         "typescript": "^4.8.2"
     }
 }

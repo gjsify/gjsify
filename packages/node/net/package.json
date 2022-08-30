@@ -19,6 +19,6 @@
     "devDependencies": {
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.7.13"
+        "@types/node": "^18.7.14"
     }
 }

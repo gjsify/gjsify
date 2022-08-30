@@ -52,7 +52,7 @@ export default async () => {
 			await it(`"${validName}" should be valid and not throw any error`, async () => {
 				expect(() => {
 					validateHeaderName(validName);
-				}).not.toThrow();	
+				}).not?.toThrow();	
 			});
 		}
 

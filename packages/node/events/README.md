@@ -1,0 +1,7 @@
+# @gjsify/events
+
+## Inspirations and credits
+- https://github.com/EventEmitter2/EventEmitter2
+- https://github.com/browserify/events
+- https://github.com/geut/brode/blob/main/packages/browser-node-core/src/events.js
+- https://github.com/denoland/deno_std/blob/main/node/_events.mjs

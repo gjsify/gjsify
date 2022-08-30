@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/zlib",
+    "name": "@gjsify/events",
     "version": "0.0.1",
-    "description": "node zlib module for gjsify",
+    "description": "node events module for gjsify",
     "main": "lib/index.mjs",
     "module": "lib/index.mjs",
     "type": "module",
@@ -22,6 +22,6 @@
         "@types/node": "^18.7.14"
     },
     "dependencies": {
-        "fflate": "^0.7.3"
+        "eventemitter2": "^6.4.7"
     }
 }

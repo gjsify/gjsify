@@ -1,6 +1,8 @@
 import type { Plugin } from "esbuild";
+import { extname } from "path";
 import alias from 'esbuild-plugin-alias';
 import { createRequire } from "module";
+const require = globalThis.require || createRequire(import.meta.url);
 
 export const NODE_EXTERNALS = [
     'zlib',
@@ -45,10 +47,45 @@ export const NODE_EXTERNALS = [
     'assert'
 ]
 
+const RESOLVE_ALIASES = {
+    path: 'path-browserify',
+    util: 'util', // https://github.com/browserify/node-util
+    buffer: 'buffer', // https://www.npmjs.com/package/buffer
+    assert: 'assert', // https://github.com/browserify/commonjs-assert
+    constants: 'constants-browserify', // https://github.com/juliangruber/constants-browserify
+    crypto: 'crypto-browserify',
+    domain: 'domain-browser',
+    events: '@gjsify/events',
+    url: '@gjsify/url', // https://github.com/defunctzombie/node-url
+    stream: '@gjsify/stream',
+    'stream/web': 'web-streams-polyfill/ponyfill',
+    string_decoder: 'string_decoder', // https://github.com/nodejs/string_decoder
+    querystring: 'querystring-es3',
+    zlib: '@gjsify/zlib',
+    tty: '@gjsify/tty',
+    fs: '@gjsify/fs',
+    'fs/promises': '@gjsify/fs/lib/promises.mjs',
+    os: '@gjsify/os',
+    process: '@gjsify/process',
+    punycode: 'punycode',
+    http: '@gjsify/http',
+    net: '@gjsify/net',
+    'abort-controller': '@gjsify/abort-controller',
+}
+
+const resolveAliases = () => {
+    const aliases: Record<string, string> = {}
+    for (const RESOLVE_ALIAS in RESOLVE_ALIASES) {
+        let resolveTo = RESOLVE_ALIASES[RESOLVE_ALIAS];
+        if(!resolveTo.endsWith('/') && !extname(resolveTo) ) {
+            resolveTo = resolveTo + '/'
+        }
+        aliases[RESOLVE_ALIAS] = require.resolve(resolveTo);
+    }
+    return aliases
+}
+
 export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string, string>, exclude?: string[]} = {}) => {
-
-    const require = globalThis.require || createRequire(import.meta.url);
-
     const plugin: Plugin = {
         name: 'gjsify',
         async setup(build) {
@@ -65,14 +102,19 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
             esbuildOptions.inject = esbuildOptions.inject || [];
 
             esbuildOptions.inject = esbuildOptions.inject || [];
-            esbuildOptions.inject.push(require.resolve('@gjsify/require/'))
+            
+            esbuildOptions.inject.push(require.resolve('@gjsify/abort-controller/'))
             esbuildOptions.inject.push(require.resolve('@gjsify/globals/'))
             esbuildOptions.inject.push(require.resolve('core-js/features/url/'))
             esbuildOptions.inject.push(require.resolve('core-js/features/url-search-params/'))
+            esbuildOptions.inject.push(require.resolve('@gjsify/require/'))
 
             esbuildOptions.define = esbuildOptions.define || {}
             esbuildOptions.define.global = 'globalThis';
             esbuildOptions.define['process.env.NODE_DEBUG'] = 'false'; // WORKAROUND
+            
+            // FIXME:
+            // esbuildOptions.define['RESOLVE_ALIASES'] = JSON.stringify(RESOLVE_ALIASES); // Used in @gjsify/require
 
             esbuildOptions.format = 'esm';
 
@@ -83,34 +125,7 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
             // esbuildOptions.target = "firefox78", // Since GJS 1.65.90
             esbuildOptions.target = "firefox91"; // Since GJS 1.71.1
 
-            const defaultAliases = {
-                path: require.resolve('path-browserify/'),
-                util: require.resolve('util/'), // https://github.com/browserify/node-util
-                buffer: require.resolve('buffer/'), // https://www.npmjs.com/package/buffer
-                assert: require.resolve('assert/'), // https://github.com/browserify/commonjs-assert
-                constants: require.resolve('constants-browserify/'), // https://github.com/juliangruber/constants-browserify
-                crypto: require.resolve('crypto-browserify/'),
-                domain: require.resolve('domain-browser/'),
-                events: require.resolve('events/'),
-                url: require.resolve('@gjsify/url/'), // https://github.com/defunctzombie/node-url
-                stream: require.resolve('@gjsify/stream/'),
-                'stream/web': require.resolve('web-streams-polyfill/ponyfill/'),
-                string_decoder: require.resolve('string_decoder/'), // https://github.com/nodejs/string_decoder
-                querystring: require.resolve('querystring-es3/'),
-                zlib: require.resolve('@gjsify/zlib/'),
-                tty: require.resolve('@gjsify/tty/'),
-                fs: require.resolve('@gjsify/fs/'),
-                'fs/promises': require.resolve('@gjsify/fs/lib/promises.mjs'),
-                os: require.resolve('@gjsify/os/'),
-                process: require.resolve('@gjsify/process/'),
-                punycode: require.resolve('punycode/'),
-                http: require.resolve('@gjsify/http/'),
-                net: require.resolve('@gjsify/net/'),
-
-                // Third party
-                // 'node-fetch': require.resolve('@gjsify/fetch/'),
-            }
-        
+            const defaultAliases = resolveAliases();
             const aliases = {...defaultAliases, ...pluginOptions.aliases};
 
             for (const aliasKey of Object.keys(aliases)) {
@@ -118,7 +133,7 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
                     delete aliases[aliasKey];
                 }
             }
-        
+
             if(pluginOptions.debug) console.debug("aliases", aliases);
         
             await alias(aliases).setup(build);

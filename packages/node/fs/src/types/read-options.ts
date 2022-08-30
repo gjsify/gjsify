@@ -1,5 +1,5 @@
-import type { Abortable, OpenMode } from './index.js';
-import type { ObjectEncodingOptions } from 'fs'; // Types from @types/node
+import type { Abortable } from 'events';
+import type { ObjectEncodingOptions, OpenMode } from 'fs'; // Types from @types/node
 
 export type ReadOptions = 
 | (ObjectEncodingOptions & Abortable & {
