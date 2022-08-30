@@ -7,7 +7,7 @@
  */
 export function validateHeaderName(name: string) {
     if (!/^[\^`\-\w!#$%&'*+.|~]+$/.test(name)) {
-        const error = new TypeError(`Header name must be a valid HTTP token [${name}]`);
+        const error = new TypeError(`Header name must be a valid HTTP token ["${name}"]`);
         Object.defineProperty(error, 'code', { value: 'ERR_INVALID_HTTP_TOKEN' });
         throw error;
     }
