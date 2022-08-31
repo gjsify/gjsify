@@ -76,6 +76,7 @@ const RESOLVE_ALIASES = {
     http: '@gjsify/http',
     net: '@gjsify/net',
     'abort-controller': '@gjsify/abort-controller',
+    console: '@gjsify/console',
 }
 
 const resolveAliases = () => {
@@ -108,8 +109,9 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
 
             esbuildOptions.inject = esbuildOptions.inject || [];
             
-            esbuildOptions.inject.push(require.resolve('@gjsify/abort-controller/'))
             esbuildOptions.inject.push(require.resolve('@gjsify/globals/'))
+            esbuildOptions.inject.push(require.resolve('@gjsify/deno_globals/'))
+            esbuildOptions.inject.push(require.resolve('@gjsify/abort-controller/'))
             esbuildOptions.inject.push(require.resolve('core-js/features/url/'))
             esbuildOptions.inject.push(require.resolve('core-js/features/url-search-params/'))
             esbuildOptions.inject.push(require.resolve('@gjsify/require/'))

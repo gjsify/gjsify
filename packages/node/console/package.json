@@ -1,23 +1,10 @@
 {
-    "name": "@gjsify/deno_std",
+    "name": "@gjsify/console",
     "version": "0.0.1",
-    "description": "Deno deno_std module for gjsify",
-    "main": "lib/node/global.js",
-    "module": "lib/node/global.mjs",
+    "description": "Node console module for gjsify",
+    "main": "lib/index.mjs",
+    "module": "lib/index.mjs",
     "type": "module",
-    "exports": {
-        "./*": {
-            "import": "./lib/*.js",
-            "default": "./lib/*.js"
-        }
-    },
-    "typesVersions": {
-        "*": {
-            "*": [
-                "./lib/*.d.ts"
-            ]
-        }
-    },
     "scripts": {
         "build": "node --experimental-import-meta-resolve esbuild.mjs",
         "test": "yarn run build && yarn run test:node && yarn run test:gjs",
@@ -27,12 +14,14 @@
     "keywords": [
         "gjs",
         "node",
-        "deno",
-        "deno_std"
+        "fs"
     ],
     "devDependencies": {
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.7.14"
+    },
+    "dependencies": {
+        "@gjsify/deno_std": "workspace:^"
     }
 }

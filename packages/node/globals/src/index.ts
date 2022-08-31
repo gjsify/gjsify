@@ -21,6 +21,3 @@ if (!globalThis.Buffer) Object.defineProperty(globalThis, 'Buffer', { value: Buf
 // if (!globalThis.global) Object.defineProperty(globalThis, { value: globalThis });
 // if (!globalThis.window) Object.defineProperty(globalThis, { value: globalThis });
 
-// TODO move to packages/deno/globals
-const Deno = {};
-if (!globalThis.Deno) Object.defineProperty(globalThis, 'Deno', { value: Deno });
