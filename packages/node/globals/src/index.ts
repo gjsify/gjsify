@@ -18,9 +18,9 @@ if (!globalThis.process) Object.defineProperty(globalThis, 'process', { value: p
 import { Buffer } from 'buffer';
 if (!globalThis.Buffer) Object.defineProperty(globalThis, 'Buffer', { value: Buffer });
 
-// if (!globalThis.global) Object.defineProperty(global, { value: globalThis });
-// if (!globalThis.window) Object.defineProperty(window, { value: globalThis });
+// if (!globalThis.global) Object.defineProperty(globalThis, { value: globalThis });
+// if (!globalThis.window) Object.defineProperty(globalThis, { value: globalThis });
 
-
-
-
+// TODO move to packages/deno/globals
+const Deno = {};
+if (!globalThis.Deno) Object.defineProperty(globalThis, 'Deno', { value: Deno });

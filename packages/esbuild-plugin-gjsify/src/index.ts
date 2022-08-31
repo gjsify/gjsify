@@ -5,51 +5,56 @@ import { createRequire } from "module";
 const require = globalThis.require || createRequire(import.meta.url);
 
 export const NODE_EXTERNALS = [
-    'zlib',
-    'worker_threads',
-    'stream',
-    'crypto',
-    'wasi',
-    'vm',
-    'v8',
-    'util',
-    'url',
-    'dgram',
-    'tty',
-    'trace_events',
-    'tls',
-    'timers',
-    'test',
-    'string_decoder',
-    'repl',
-    'readline',
-    'querystring',
-    'punycode',
-    'process',
-    'perf_hooks',
-    'path',
-    'os',
-    'net',
-    'inspector',
-    'https',
-    'http2',
-    'http',
-    'fs',
-    'events',
-    'domain',
-    'dns',
-    'diagnostics_channel',
-    'crypto',
     'cluster',
-    'child_process',
-    'buffer',
+    'domain',
+    'stream',
+    'util',
+    'assertion_error',
+    'console',
+    'module',
+    'process',
+    'v8',
+    'assert',
+    'constants',
+    'events',
+    'https',
+    'net',
+    'punycode',
+    'string_decoder',
+    'tty',
     'async_hooks',
-    'assert'
+    'fs',
+    'sys',
+    'vm',
+    'http',
+    'querystring',
+    'upstream_modules',
+    'wasi',
+    'crypto',
+    'inspector',
+    'os',
+    'timers',
+    'buffer',
+    'dgram',
+    'path',
+    'readline',
+    'url',
+    'worker_threads',
+    'diagnostics_channel',
+    'http2',
+    'module_all',
+    'repl',
+    'zlib',
+    'child_process',
+    'dns',
+    'module_esm',
+    'perf_hooks',
+    'tls',
 ]
 
 const RESOLVE_ALIASES = {
     path: 'path-browserify',
-    util: 'util', // https://github.com/browserify/node-util
+    util: '@gjsify/util',
     buffer: 'buffer', // https://www.npmjs.com/package/buffer
     assert: 'assert', // https://github.com/browserify/commonjs-assert
     constants: 'constants-browserify', // https://github.com/juliangruber/constants-browserify
@@ -98,7 +103,7 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
 
             esbuildOptions.external = esbuildOptions.external || [];
             esbuildOptions.external.push('gi://*');
-
+            
             esbuildOptions.inject = esbuildOptions.inject || [];
 
             esbuildOptions.inject = esbuildOptions.inject || [];
@@ -120,10 +125,12 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
 
             esbuildOptions.bundle = true;
 
-            // esbuildOptions.target = "firefox60", // Since GJS 1.53.90
-            // esbuildOptions.target = "firefox68", // Since GJS 1.63.90
-            // esbuildOptions.target = "firefox78", // Since GJS 1.65.90
-            esbuildOptions.target = "firefox91"; // Since GJS 1.71.1
+            // firefox60"  // Since GJS 1.53.90
+            // firefox68"  // Since GJS 1.63.90
+            // firefox78"  // Since GJS 1.65.90
+            // "firefox91" // Since GJS 1.71.1
+            // firefox102" // Since GJS 1.73.2
+            esbuildOptions.target = "firefox91";
 
             const defaultAliases = resolveAliases();
             const aliases = {...defaultAliases, ...pluginOptions.aliases};

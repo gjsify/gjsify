@@ -34,6 +34,7 @@
     "packages/*",
     "packages/node/*",
     "packages/web/*",
+    "packages/deno/*",
     "examples/*"
   ]
 }

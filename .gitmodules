@@ -1,0 +1,3 @@
+[submodule "packages/deno/deno_std/original"]
+	path = packages/deno/deno_std/original
+	url = https://github.com/denoland/deno_std.git
