@@ -1,14 +1,22 @@
+import GLib from '@gjsify/types/GLib-2.0';
+
+
+
+
 export const env = {
-    get: (name: string) => {
-        return process.env[name];
+    get: (key: string) => {
+        return GLib.getenv(key);
     },
-    set: (name: string, value: string) => {
-        return process.env[name] = value;
+    set: (key: string, value: string) => {
+        return GLib.setenv(key, value, true);
     },
-    delete: (name: string) => {
-        delete process.env[name];
+    delete: (key: string) => {
+        return GLib.unsetenv(key);
     },
     toObject: () => {
-        return process.env;
+        return GLib.listenv().reduce((env, key) => {
+            env[key] = GLib.getenv(key);
+            return env;
+        }, {});
     }
 }

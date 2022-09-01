@@ -1,11 +1,12 @@
 {
-    "compilerOptions": {
-      "module": "ESNext",
-      "target": "ESNext",
-      "outDir": "dist",
-      "declarationDir": "dist",
-      "declaration": true,
-      "moduleResolution": "node"
-    },
-    "files": ["src/index.ts"]
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ESNext",
+    "outDir": "dist",
+    "declarationDir": "dist",
+    "declaration": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true
+  },
+  "files": ["src/index.ts"]
 }

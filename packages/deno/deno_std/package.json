@@ -5,21 +5,11 @@
     "main": "lib/node/global.js",
     "module": "lib/node/global.mjs",
     "type": "module",
-    "exports": {
-        "./*": {
-            "import": "./lib/*.js",
-            "default": "./lib/*.js"
-        }
-    },
-    "typesVersions": {
-        "*": {
-            "*": [
-                "./lib/*.d.ts"
-            ]
-        }
-    },
     "scripts": {
-        "build": "node --experimental-import-meta-resolve esbuild.mjs",
+        "clear": "rm -rf .tmp lib dest tsconfig.tsbuildinfo",
+        "build": "yarn run clear && yarn run transform && yarn run build:tsc",
+        "build:tsc": "tsc",
+        "transform": "node ./transform.mjs",
         "test": "yarn run build && yarn run test:node && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.js",
         "test:node": "node test.node.js"
@@ -33,6 +23,10 @@
     "devDependencies": {
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.7.14"
+        "cpy": "^9.0.1",
+        "typescript": "^4.6.2"
+    },
+    "dependencies": {
+        "ts-morph": "^15.1.0"
     }
 }

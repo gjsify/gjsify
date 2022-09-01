@@ -1,3 +1,6 @@
+import { platform, arch } from "process";
+
 export const build = {
-    os: globalThis.process?.platform || 'linux', // TODO
+    os: platform || 'linux', // TODO
+    arch,
 }
