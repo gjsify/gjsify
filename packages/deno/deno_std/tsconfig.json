@@ -5,7 +5,7 @@
 
     "skipDefaultLibCheck": true,
     "outDir": "lib",
-    "rootDir": ".tmp",
+    "rootDir": "temp",
     "composite": true,
     "typeRoots": [],
     "declaration": true,
@@ -36,5 +36,5 @@
     "target": "esnext",
     "skipLibCheck": true,
   },
-  "include": [".tmp/**/*.ts", ".tmp/**/*.mts", ".tmp/**/*.js", ".tmp/**/*.mjs", "deno/cli/dts/*.d.ts"],
+  "include": ["temp/**/*.ts", "temp/**/*.mts", "temp/**/*.js", "temp/**/*.mjs", "deno/cli/dts/*.d.ts"],
 }
