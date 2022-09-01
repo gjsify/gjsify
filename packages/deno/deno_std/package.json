@@ -14,6 +14,13 @@
         "test:gjs": "gjs -m test.gjs.js",
         "test:node": "node test.node.js"
     },
+    "exports": {
+        "./*": {
+            "import": "./lib/*.js",
+            "default": "./lib/*.js",
+            "types": "./lib/*.d.ts"
+        }
+    },
     "keywords": [
         "gjs",
         "node",

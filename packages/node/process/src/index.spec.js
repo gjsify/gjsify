@@ -20,8 +20,6 @@ import process from '@gjsify/process';
 // assert.deepEqual(process.argv.splice(2),  ["--foo", "bar"]);
 
 
-
-
 describe("Progress", function() {
   it("process.arch should be a string", function() {
     expect(typeof process.arch).toBe("string");

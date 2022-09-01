@@ -13,19 +13,15 @@ export const EOL = getPathSeparator() === '/' ? '\n' : '\r\n';
 const UNAME_ALL = cli('uname -a');
 
 export const arch = () => {
-  switch (true) {
-    case /\bx86_64\b/.test(UNAME_ALL): return 'x64';
-    case /\bi686\b/.test(UNAME_ALL): return 'ia32';
-    default: return 'arm';
-  }
+  if(/\bx86_64\b/.test(UNAME_ALL)) return 'x64';
+  if(/\bi686\b/.test(UNAME_ALL)) return 'ia32';
+  return 'arm';
 };
 
 export const platform = () => {
-  switch (true) {
-    case /\bDarwin\b/i.test(UNAME_ALL): return 'darwin';
-    case /\bLinux\b/i.test(UNAME_ALL): return 'linux';
-    default: return 'win32';
-  }
+  if(/\bDarwin\b/i.test(UNAME_ALL)) return 'darwin';
+  if(/\bLinux\b/i.test(UNAME_ALL)) return 'linux';
+  return 'win32';
 };
 
 export const homedir = () => GLib.get_home_dir();

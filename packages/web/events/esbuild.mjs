@@ -6,7 +6,7 @@ const baseConfig = {
     entryPoints: ['src/index.ts'],
     bundle: true,
     minify: false,
-    sourcemap: false,
+    sourcemap: true,
     platform: "browser",
     external: [...NODE_EXTERNALS, 'gi://*'],
 }
@@ -40,11 +40,9 @@ const build = async () => {
     await _build({
         ...baseConfig,
         entryPoints: ['src/test.ts'],
-        outfile: 'test.deno.js',
+        outfile: 'test.node.js',
         format: 'esm',
-        plugins: [
-            gjsify({debug: false}),
-        ]
+        platform: 'node'
     });
 }
 

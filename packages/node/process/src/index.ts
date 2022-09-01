@@ -26,7 +26,7 @@ class Process extends EventEmitter {
   // TODO
   stdin = new ReadStream(0);
 
-  protected _startTime = Date.now();
+  protected _startTime = TIME;
 
   constructor() {
     super();

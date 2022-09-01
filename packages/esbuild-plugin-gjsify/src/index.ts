@@ -2,7 +2,7 @@ import type { Plugin, BuildOptions } from "esbuild";
 import { extname } from "path";
 import alias from 'esbuild-plugin-alias';
 import { createRequire } from "module";
-import deepmerge from "deepmerge";
+import { merge } from "lodash";
 const require = globalThis.require || createRequire(import.meta.url);
 
 export const NODE_EXTERNALS = [
@@ -169,13 +169,14 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
                     '.ctsx': 'ts',
                 },
                 inject: [
-                    require.resolve('@gjsify/globals/'),
-                    require.resolve('@gjsify/abort-controller/'),
-                    require.resolve('core-js/features/url/'),
-                    require.resolve('@gjsify/deno_globals/'),
+                    require.resolve('@gjsify/require/'),
                     // TODO: Move to web
                     require.resolve('core-js/features/url-search-params/'),
-                    require.resolve('@gjsify/require/'),
+                    require.resolve('core-js/features/url/'),
+                    require.resolve('@gjsify/abort-controller/'),
+                    require.resolve('@gjsify/web-events/'),
+                    require.resolve('@gjsify/globals/'),
+                    require.resolve('@gjsify/deno_globals/'),
                 ],
                 define: {
                     global: 'globalThis',
@@ -186,7 +187,9 @@ export const gjsify = (pluginOptions: { debug?: boolean, aliases?: Record<string
                 }
             };
 
-            build.initialOptions = deepmerge<BuildOptions>(build.initialOptions, esbuildOptions);
+            merge(build.initialOptions, esbuildOptions);
+
+            if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
             const defaultAliases = resolveAliases();
             const aliases = {...defaultAliases, ...pluginOptions.aliases};
