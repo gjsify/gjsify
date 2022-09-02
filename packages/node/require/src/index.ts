@@ -3,37 +3,16 @@
 const { searchPath } = imports;
 import { resolve as _resolve, readJSON, getProgramDir, getProgramExe, getNodeModulesPath } from '@gjsify/utils';
 import Gio from '@gjsify/types/Gio-2.0';
+import { ALIASES_NODE, ALIASES_WEB } from "@gjsify/resolve-npm";
 
+// See also https://gjs-docs.gnome.org/gjs/esmodules.md
 let __dirname = getProgramDir();
 let __filename = getProgramExe().get_path();
 
-const NODE_MODULES = getNodeModulesPath().get_path();
+const NODE_MODULES_PATH = getNodeModulesPath().get_path();
 
 // This should be defined with esbuild.define, but currently this leads to an error in esbuild
-const RESOLVE_ALIASES = {
-  path: 'path-browserify',
-  util: 'util',
-  buffer: 'buffer',
-  assert: 'assert',
-  constants: 'constants-browserify',
-  crypto: 'crypto-browserify',
-  domain: 'domain-browser',
-  events: '@gjsify/events',
-  url: '@gjsify/url',
-  stream: '@gjsify/stream',
-  'stream/web': 'web-streams-polyfill/ponyfill',
-  string_decoder: 'string_decoder',
-  querystring: 'querystring-es3',
-  zlib: '@gjsify/zlib',
-  tty: '@gjsify/tty',
-  fs: '@gjsify/fs',
-  'fs/promises': '@gjsify/fs/lib/promises.mjs',
-  os: '@gjsify/os',
-  process: '@gjsify/process',
-  punycode: 'punycode',
-  http: '@gjsify/http',
-  net: '@gjsify/net',
-}
+const RESOLVE_ALIASES = {...ALIASES_NODE, ...ALIASES_WEB};
 
 const cache = Object.create(null);
 
@@ -65,12 +44,18 @@ const requireJs = (file: string) => {
 
   const basename = fd.get_basename();
 
-  // "Gjs can't import files with .cjs file extensions, so we copy it to .js if no .js exists
+  if(basename.endsWith('.mjs')) {
+    throw new Error(`You can't use "require" for .mjs files! Please use "import" instead! Path: ${fn}"`);
+  }
+
+  // "Gjs can't import files with .cjs file extensions, so we copy it to .js
   if (/\.(cjs)$/.test(basename)) {
-    const dest = _resolve(dn, basename.replace(/\.(cjs)$/, '.js'));
-    if(!dest.query_exists(null)) {
-      fd.copy(dest, Gio.FileCopyFlags.NONE, null, null);
+    const dest = _resolve(dn, '__gjsify__' + basename.replace(/\.(cjs)$/, '.js'));
+    if(dest.query_exists(null)) {
+      dest.delete(null);
     }
+
+    fd.copy(dest, Gio.FileCopyFlags.NONE, null, null);
   }
 
   print("require", file, "from", _fn);
@@ -97,11 +82,6 @@ const requireJs = (file: string) => {
  * @returns 
  */
 const require = (file: string) => {
-
-  if(RESOLVE_ALIASES[file]) {
-    file = RESOLVE_ALIASES[file];
-  }
-
   const path = resolve(file);
 
   if(!path) {
@@ -123,7 +103,16 @@ const require = (file: string) => {
  * @param file 
  * @returns THe string path if the file was found, otherwise null
  */
-const resolve = (pkgNameOrFile: string) => {
+const resolve = (pkgNameOrFile: string, useAlias = true) => {
+
+  const _pkgNameOrFile = pkgNameOrFile;
+
+  if(useAlias && RESOLVE_ALIASES[pkgNameOrFile] && RESOLVE_ALIASES[pkgNameOrFile] !== pkgNameOrFile) {
+    const alias = RESOLVE_ALIASES[pkgNameOrFile];
+    console.warn(`require: Use alias "${alias}" for "${pkgNameOrFile}"`);
+    pkgNameOrFile = alias;
+    
+  }
 
   let path: Gio.File;
 
@@ -137,7 +126,7 @@ const resolve = (pkgNameOrFile: string) => {
   }
   // node modules path
   else {
-    path = _resolve(NODE_MODULES, pkgNameOrFile);
+    path = _resolve(NODE_MODULES_PATH, pkgNameOrFile);
   }
 
   if (!path.query_exists(null)) {
@@ -180,13 +169,37 @@ const resolve = (pkgNameOrFile: string) => {
   if (!entryFile.query_exists(null)) {
     basename = entryFile.get_basename();
     if(!basename.includes('.')) {
-      entryFile = _resolve(entryFile.get_path() + '.js');
+      const entryFileWithoutExtension = entryFile.get_path();
+      entryFile = _resolve(entryFileWithoutExtension + '.js');
+      if (!entryFile.query_exists(null)) {
+        entryFile = _resolve(entryFileWithoutExtension + '.cjs');
+      }
+    }
+  }
+
+  if(basename.endsWith('.mjs') && useAlias) {
+
+    entryFile = _resolve(entryFile.get_path().replace(/\.mjs$/, '.js'));
+    if (entryFile.query_exists(null)) {
+      console.warn(`require: Replace ".mjs" with ".js", because you can't require ".mjs" files!`);
+    } else {
+      entryFile = _resolve(entryFile.get_path().replace(/\.mjs$/, '.cjs'));
+      if (entryFile.query_exists(null)) {
+        console.warn(`require: Replace ".mjs" with ".cjs", because you can't require ".mjs" files!`);
+      } else {
+        console.warn(`require: Revert alias because the resolved alias file ends with .mjs!`);
+        return resolve(_pkgNameOrFile, false);
+      }
     }
   }
 
   if (!entryFile.query_exists(null)) {
-    console.error(`require: Entry file "${entryFile.get_path()}" not exists!`);
-    return null;
+    if(useAlias) {
+      console.warn(`require: Revert alias because the file was not found!`);
+      return resolve(_pkgNameOrFile, false);
+    }
+
+    throw new Error(`require: Entry file "${entryFile.get_path()}" not exists!`);
   }
 
   return entryFile.get_path();

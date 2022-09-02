@@ -1,4 +1,4 @@
-# @gjsify/http
+# @gjsify/util
 
-## Inspirations
-- https://github.com/node-fetch/node-fetch/blob/main/src/headers.js
+## Inspirations and credits
+ * https://github.com/browserify/node-util

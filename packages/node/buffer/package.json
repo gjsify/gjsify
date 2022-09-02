@@ -1,12 +1,13 @@
 {
-    "name": "@gjsify/console",
+    "name": "@gjsify/buffer",
     "version": "0.0.1",
-    "description": "Node console module for gjsify",
-    "main": "lib/index.mjs",
+    "description": "Node buffer module for gjsify",
+    "main": "lib/index.cjs",
     "module": "lib/index.mjs",
     "type": "module",
     "scripts": {
         "build": "node --experimental-import-meta-resolve esbuild.mjs",
+        "bundle:deno": "deno bundle https://deno.land/std/node/buffer.ts src/buffer.deno.js",
         "test": "yarn run build && yarn run test:node && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.js",
         "test:node": "node test.node.js"

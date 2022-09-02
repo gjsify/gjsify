@@ -19,9 +19,11 @@
   },
   "dependencies": {
     "@gjsify/process": "workspace:^",
+    "@gjsify/resolve-npm": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {
+    "@gjsify/esbuild-plugin-gjsify": "workspace:^",
     "@gjsify/unit": "workspace:^",
     "cowsay2": "^2.0.4"
   }

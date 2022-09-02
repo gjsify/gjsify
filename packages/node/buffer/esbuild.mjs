@@ -6,7 +6,7 @@ const baseConfig = {
     entryPoints: ['src/index.ts'],
     bundle: true,
     minify: false,
-    sourcemap: true,
+    sourcemap: false,
     platform: "browser",
     external: [...EXTERNALS_NODE, 'gi://*'],
 }
@@ -18,15 +18,26 @@ const build = async () => {
         )
     );
 
-    if (!pkg.module) {
-        throw new Error("package.json: The module properties are required!");
+    if (!pkg.module || !pkg.main) {
+        throw new Error("package.json: The module or main property is required!");
     }
 
-    await _build({
-        ...baseConfig,
-        outfile: pkg.module,
-        format: 'esm',
-    });
+    if (pkg.module) {
+        await _build({
+            ...baseConfig,
+            outfile: pkg.module,
+            format: 'esm',
+        });
+    }
+
+    if (pkg.main) {
+        await _build({
+            ...baseConfig,
+            platform: 'browser',
+            outfile: pkg.main,
+            format: 'cjs',
+        });
+    }
 
     await _build({
         ...baseConfig,

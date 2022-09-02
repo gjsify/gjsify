@@ -1,6 +1,6 @@
 // import { install } from 'esinstall';
 import { build as _build } from 'esbuild';
-import { gjsify, NODE_EXTERNALS } from '@gjsify/esbuild-plugin-gjsify';
+import { gjsify, EXTERNALS_NODE } from '@gjsify/esbuild-plugin-gjsify';
 import { readFile } from 'fs/promises';
 
 const baseConfig = {
@@ -9,7 +9,7 @@ const baseConfig = {
     minify: false,
     sourcemap: true,
     platform: "browser",
-    external: [/*...NODE_EXTERNALS*/, 'gi://*'],
+    external: [/*...EXTERNALS_NODE*/, 'gi://*'],
 }
 
 const build = async () => {
