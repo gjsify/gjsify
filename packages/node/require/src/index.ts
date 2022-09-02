@@ -22,7 +22,7 @@ const cache = Object.create(null);
  * @returns 
  */
 const requireJs = (file: string) => {
-  const fd = _resolve(file);
+  let fd = _resolve(file);
   const fn = fd.get_path();
   const dn = fd.get_parent().get_path();
 
@@ -42,7 +42,7 @@ const requireJs = (file: string) => {
 
   searchPath.unshift(dn);
 
-  const basename = fd.get_basename();
+  let basename = fd.get_basename();
 
   if(basename.endsWith('.mjs')) {
     throw new Error(`You can't use "require" for .mjs files! Please use "import" instead! Path: ${fn}"`);
@@ -56,6 +56,8 @@ const requireJs = (file: string) => {
     }
 
     fd.copy(dest, Gio.FileCopyFlags.NONE, null, null);
+    fd = dest;
+    basename = fd.get_basename();
   }
 
   print("require", file, "from", _fn);
@@ -100,7 +102,8 @@ const require = (file: string) => {
 }
 
 /**
- * @param file 
+ * @param pkgNameOrFile
+ * @param useAlias
  * @returns THe string path if the file was found, otherwise null
  */
 const resolve = (pkgNameOrFile: string, useAlias = true) => {
@@ -175,10 +178,10 @@ const resolve = (pkgNameOrFile: string, useAlias = true) => {
         entryFile = _resolve(entryFileWithoutExtension + '.cjs');
       }
     }
+    basename = entryFile.get_basename();
   }
 
   if(basename.endsWith('.mjs') && useAlias) {
-
     entryFile = _resolve(entryFile.get_path().replace(/\.mjs$/, '.js'));
     if (entryFile.query_exists(null)) {
       console.warn(`require: Replace ".mjs" with ".js", because you can't require ".mjs" files!`);

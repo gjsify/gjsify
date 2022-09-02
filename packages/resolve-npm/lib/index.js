@@ -72,7 +72,7 @@ export const ALIASES_NODE = {
     // 'sys': '@gjsify/deno_std/node/sys',
     // 'vm': '@gjsify/deno_std/node/vm',
     http: '@gjsify/http',
-    querystring: 'querystring-es3',
+    querystring: '@gjsify/querystring',
     // 'upstream_modules': '@gjsify/deno_std/node/upstream_modules',
     // 'wasi': '@gjsify/deno_std/node/wasi',
     crypto: 'crypto-browserify',

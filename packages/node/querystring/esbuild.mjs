@@ -9,6 +9,7 @@ const baseConfig = {
     sourcemap: false,
     platform: "browser",
     external: [...EXTERNALS_NODE, 'gi://*'],
+    format: 'esm',
 }
 
 const build = async () => {
@@ -44,7 +45,7 @@ const build = async () => {
         entryPoints: ['src/test.ts'],
         outfile: 'test.gjs.js',
         plugins: [
-            gjsify({debug: false}),
+            gjsify({debug: true}),
         ]
     });
 

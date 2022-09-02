@@ -1,23 +1,35 @@
 import { describe, it, expect } from '@gjsify/unit';
 
-export function testSuite() {
-	describe('require.resolve', () => {
+export async function testSuite() {
+	await describe('require.resolve', async () => {
 
-		it('should return the path to the @gjsify/unit entry file', () => {
+		await it('should return the path to the @gjsify/unit entry file', async () => {
 			const path = require.resolve('@gjsify/unit');
-			// console.log("path", path);
 			expect(typeof path).toBe('string');
 			expect(path.endsWith("packages/unit/dist/index.cjs")).toBeTruthy();
 		});
 
-		it('should return the path to the cowsay2 entry file', () => {
+		// TODO: Run this test only on Gjs
+		await it('Gjs should return the alias to the @gjsify/querystring entry file for "querystring"', async () => {
+			const path = require.resolve('querystring');
+			expect(typeof path).toBe('string');
+			expect(path.includes("/@gjsify/querystring/") || path.includes('/packages/node/querystring/')).toBeTruthy();
+		});
+
+		// TODO: Run this test only on Node.js
+		await it('Node.js should just return intern package name for "querystring"', async () => {
+			const path = require.resolve('querystring');
+			expect(typeof path).toBe('string');
+			expect(path).toBe("querystring");
+		});
+
+		await it('should return the path to the cowsay2 entry file', async () => {
 			const path = require.resolve('cowsay2');
-			// console.log("path", path);
 			expect(typeof path).toBe('string');
 			expect(path.endsWith("node_modules/cowsay2/index.js")).toBeTruthy();
 		});
 
-		it('should return the path to the cowsay2/package.json', () => {
+		await it('should return the path to the cowsay2/package.json', async () => {
 			const path = require.resolve('cowsay2/package.json');
 			// console.log("path", path);
 			expect(typeof path).toBe('string');
@@ -25,9 +37,9 @@ export function testSuite() {
 		});
 	});
 
-	describe('require', () => {
+	await describe('require', async () => {
 
-		it('should be able to import and use querystring', () => {
+		await it('should be able to import and use querystring', async () => {
 			const qs = require('querystring');
 			expect(typeof qs.decode).toBe('function');
 			expect(typeof qs.encode).toBe('function');
@@ -36,7 +48,7 @@ export function testSuite() {
 			expect(qs.decode('foo=bar&baz=qux&baz=quux&corge=').foo).toBe('bar');
 		});
 
-		it('should be able to import and use cowsay2', () => {
+		await it('should be able to import and use cowsay2', async () => {
 			const cowsay = require('cowsay2');
 			expect(typeof cowsay.say).toBe('function');
 

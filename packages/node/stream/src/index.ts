@@ -23,17 +23,36 @@
 // if (!globalThis.AbortController) Object.defineProperty(globalThis, 'AbortController', { value: AbortController });
 // if (!globalThis.AbortSignal) Object.defineProperty(globalThis, 'AbortSignal', { value: AbortSignal });
 
+import type {
+    Readable as TReadable,
+    Writable as TWritable,
+    Duplex as TDuplex,
+    Transform as TTransform,
+    PassThrough as TPassThrough,
+    finished as Tfinished,
+    pipeline as Tpipeline,
+    Stream as TStream
+} from 'stream';
+
 import { EventEmitter } from 'events';
 
-import Readable from 'readable-stream/lib/_stream_readable.js';
-import Writable from 'readable-stream/lib/_stream_writable.js';
-import Duplex from 'readable-stream/lib/_stream_duplex.js';
-import Transform from 'readable-stream/lib/_stream_transform.js';
-import PassThrough from 'readable-stream/lib/_stream_passthrough.js';
-import finished from 'readable-stream/lib/internal/streams/end-of-stream.js';
-import pipeline from 'readable-stream/lib/internal/streams/pipeline.js';
+import _Readable from 'readable-stream/lib/_stream_readable.js';
+import _Writable from 'readable-stream/lib/_stream_writable.js';
+import _Duplex from 'readable-stream/lib/_stream_duplex.js';
+import _Transform from 'readable-stream/lib/_stream_transform.js';
+import _PassThrough from 'readable-stream/lib/_stream_passthrough.js';
+import _finished from 'readable-stream/lib/internal/streams/end-of-stream.js';
+import _pipeline from 'readable-stream/lib/internal/streams/pipeline.js';
 
-class Stream extends EventEmitter {
+const Readable: TReadable = _Readable;
+const Writable: TWritable = _Writable;
+const Duplex: TDuplex = _Duplex;
+const Transform: TTransform = _Transform;
+const PassThrough: TPassThrough = _PassThrough;
+const finished: typeof Tfinished = _finished;
+const pipeline: typeof Tpipeline = _pipeline;
+
+class Stream extends EventEmitter implements TStream {
 
     static Readable = Readable;
     static Writable = Writable;
@@ -52,7 +71,12 @@ class Stream extends EventEmitter {
 
     // old-style streams.  Note that the pipe method (the only relevant
     // part of this class) is overridden in the Readable class.
-    pipe(dest, options) {
+    pipe<T extends NodeJS.WritableStream>(
+        dest: T & { _isStdio?: boolean, destroy?: () => void },
+        options?: {
+            end?: boolean | undefined;
+        }
+    ): T {
         var source: any = this;
       
         function ondata(chunk) {
