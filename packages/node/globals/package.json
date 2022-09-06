@@ -1,7 +1,7 @@
 {
   "name": "@gjsify/globals",
   "version": "0.0.1",
-  "description": "Node globals module for gjs",
+  "description": "Node.js globals module for Gjs",
   "keywords": [
     "gjs",
     "node",
@@ -12,17 +12,20 @@
   "main": "lib/index.js",
   "module": "lib/index.js",
   "scripts": {
-    "build": "node --experimental-import-meta-resolve esbuild.mjs",
-    "test": "yarn run build && yarn run test:node && yarn run test:gjs",
+    "build": "gjsify build --library src/index.ts",
+    "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+    "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+    "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+    "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
     "test:gjs": "gjs -m test.gjs.js",
-    "test:node": "node test.node.cjs"
+    "test:node": "node test.node.js"
   },
   "dependencies": {
     "@gjsify/process": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {
-    "@gjsify/unit": "workspace:^",
-    "cowsay": "^1.5.0"
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/unit": "workspace:^"
   }
 }

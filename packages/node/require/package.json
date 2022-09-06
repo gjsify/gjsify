@@ -12,8 +12,11 @@
   "main": "lib/index.mjs",
   "module": "lib/index.mjs",
   "scripts": {
-    "build": "node --experimental-import-meta-resolve esbuild.mjs",
-    "test": "yarn run build && yarn run test:node && yarn run test:gjs",
+    "build": "gjsify build --library src/index.ts",
+    "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+    "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+    "build:test:node": "node --experimental-import-meta-resolve esbuild.mjs",
+    "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
     "test:gjs": "gjs -m test.gjs.js",
     "test:node": "node test.node.cjs"
   },

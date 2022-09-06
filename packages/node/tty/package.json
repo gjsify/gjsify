@@ -1,12 +1,18 @@
 {
     "name": "@gjsify/tty",
     "version": "0.0.1",
-    "description": "tty core module for gjsify",
+    "description": "Node.js tty module for Gjs",
+    "main": "lib/index.cjs",
+    "module": "lib/index.mjs",
     "type": "module",
-    "main": "lib/index.js",
-    "module": "lib/index.js",
     "scripts": {
-        "build": "tsc"
+        "build": "gjsify build --library src/index.ts",
+        "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+        "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+        "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+        "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
+        "test:gjs": "gjs -m test.gjs.js",
+        "test:node": "node test.node.js"
     },
     "keywords": [
         "gjs",
@@ -14,8 +20,8 @@
         "tty"
     ],
     "devDependencies": {
-        "@types/node": "^18.7.15",
-        "typescript": "^4.8.2"
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^18.7.15"
     },
     "dependencies": {
         "@gjsify/utils": "workspace:^"

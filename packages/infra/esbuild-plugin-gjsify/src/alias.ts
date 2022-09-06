@@ -2,10 +2,10 @@ import path from "path";
 import {readFileSync } from "fs";
 import { ALIASES_NODE, ALIASES_WEB } from "@gjsify/resolve-npm";
 
-export const setNpmAliasPrefix = (ALIASES: Record<string, string>) => {
+export const setNodeAliasPrefix = (ALIASES: Record<string, string>) => {
     // Also resolve alias names with `npm:${ALIAS}`
     for (const ALIAS in ALIASES) {
-        const key = `npm:${ALIAS}`;
+        const key = `node:${ALIAS}`;
         if(!ALIASES[key]) ALIASES[key] = ALIASES[ALIAS];
     }
     return ALIASES;
@@ -43,6 +43,6 @@ export const resolveAliases = (ALIASES: Record<string, string>, resolveBy: 'main
     return aliases
 }
 
-export const aliasesNode = resolveAliases(setNpmAliasPrefix(ALIASES_NODE));
+export const aliasesNode = resolveAliases(setNodeAliasPrefix(ALIASES_NODE));
 
 export const aliasesWeb = resolveAliases(ALIASES_WEB);

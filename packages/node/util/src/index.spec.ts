@@ -228,11 +228,11 @@ export default async () => {
 				(util.getSystemErrorName as FnTestInvalidArg)(1)
 			} catch (error) {
 				expect(error instanceof Error).toBeTruthy();
-				// FIXME: expect(error instanceof RangeError).toBeTruthy();
+				expect(error instanceof RangeError).toBeTruthy();
 			}
 		
 			// FIXME: Returns undefined on Gjs / Deno
-			// expect(util.getSystemErrorName(-424242)).toBe('Unknown system error -424242');
+			expect(util.getSystemErrorName(-424242)).toBe('Unknown system error -424242');
 		
 			// TODO
 			const os = globalThis.process?.platform || (globalThis as any).Deno?.build?.os || 'linux';

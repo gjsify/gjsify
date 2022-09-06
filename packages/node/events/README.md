@@ -1,5 +1,7 @@
 # @gjsify/events
 
+Node.js events module for Gjs
+
 ## Inspirations and credits
 - https://github.com/EventEmitter2/EventEmitter2
 - https://github.com/browserify/events

@@ -1,10 +1,10 @@
 import { cli } from '@gjsify/utils';
-import * as linux from './src/linux.js';
-import * as darwin from './src/darwin.js';
-import GLib from 'gi://GLib';
+import * as linux from './linux.js';
+import * as darwin from './darwin.js';
+import GLib from '@gjsify/types/GLib-2.0';
 import { getPathSeparator } from '@gjsify/utils';
 
-import constants from './src/constants.js';
+import constants from './constants.js';
 
 export { constants }
 
@@ -42,66 +42,66 @@ export const userInfo = () => ({
 });
 
 export const cpus = () => {
-  const platform = platform();
-  switch (platform) {
+  const os = platform();
+  switch (os) {
     case "darwin":
       return darwin.cpus();
     case "linux":
       return linux.cpus();
     default:
-      console.warn(`${platform} is not supported!`);
+      console.warn(`${os} is not supported!`);
       break;
   }
 };
 
 export const endianness = () => {
-  const platform = platform();
-  switch (platform) {
+  const os = platform();
+  switch (os) {
     case "darwin":
       return darwin.endianness();
     case "linux":
       return linux.endianness();
     default:
-      console.warn(`${platform} is not supported!`);
+      console.warn(`${os} is not supported!`);
       break;
   }
 };
 
 export const freemem = () => {
-  const platform = platform();
-  switch (platform) {
+  const os = platform();
+  switch (os) {
     case "darwin":
       return darwin.freemem();
     case "linux":
       return linux.freemem();
     default:
-      console.warn(`${platform} is not supported!`);
+      console.warn(`${os} is not supported!`);
       break;
   }
 };
 
 export const loadavg = () => {
-  const platform = platform();
-  switch (platform) {
+  const os = platform();
+  switch (os) {
     case "darwin":
       return darwin.loadavg();
     case "linux":
       return linux.loadavg();
     default:
-      console.warn(`${platform} is not supported!`);
+      console.warn(`${os} is not supported!`);
       break;
   }
 }
 
 export const networkInterfaces = () => {
-  const platform = platform();
-  switch (platform) {
+  const os = platform();
+  switch (os) {
     case "darwin":
       return darwin.networkInterfaces();
     case "linux":
       return linux.networkInterfaces();
     default:
-      console.warn(`${platform} is not supported!`);
+      console.warn(`${os} is not supported!`);
       break;
   }
 };

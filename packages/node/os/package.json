@@ -1,10 +1,18 @@
 {
   "name": "@gjsify/os",
   "version": "0.0.1",
-  "description": "os core module for gjs",
+  "description": "Node.js os module for Gjs",
+  "main": "lib/index.mjs",
+  "module": "lib/index.mjs",
+  "type": "module",
   "scripts": {
-    "test": "cgjs ./test",
-    "build": "echo 'nothing to do'"
+    "build": "gjsify build --library src/index.ts",
+    "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+    "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+    "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+    "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
+    "test:gjs": "gjs -m test.gjs.js",
+    "test:node": "node test.node.js"
   },
   "keywords": [
     "gjs",
@@ -12,6 +20,8 @@
     "os"
   ],
   "dependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/types": "workspace:^",
     "@gjsify/utils": "workspace:^"
   }
 }

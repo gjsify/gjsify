@@ -1,13 +1,18 @@
 {
     "name": "@gjsify/events",
     "version": "0.0.1",
-    "description": "node events module for gjsify",
-    "main": "lib/index.mjs",
+    "description": "Node.js events module for Gjs",
+    "main": "lib/index.cjs",
     "module": "lib/index.mjs",
     "type": "module",
     "scripts": {
-        "build": "node --experimental-import-meta-resolve esbuild.mjs",
-        "test": "yarn run build && yarn run test:node && yarn run test:gjs",
+        "bundle:deno": "rm -f src/url.deno.js && deno bundle https://deno.land/std/node/events.ts src/events.deno.js",
+        "build": "yarn run build:deno && gjsify build --library src/index.ts",
+        "build:deno": "yarn run bundle:deno",
+        "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+        "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+        "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+        "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.js",
         "test:node": "node test.node.js"
     },
@@ -17,11 +22,8 @@
         "fs"
     ],
     "devDependencies": {
-        "@gjsify/esbuild-plugin-gjsify": "workspace:^",
+        "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.7.15"
-    },
-    "dependencies": {
-        "eventemitter2": "^6.4.7"
     }
 }

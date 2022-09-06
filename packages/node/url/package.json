@@ -1,16 +1,19 @@
 {
     "name": "@gjsify/url",
     "version": "0.0.1",
-    "description": "url node module for gjsify",
-    "main": "lib/index.mjs",
+    "description": "Node.js url module for Gjs",
+    "main": "lib/index.cjs",
     "module": "lib/index.mjs",
     "type": "module",
     "scripts": {
-        "build": "yarn run bundle:deno && yarn run patch:deno && yarn run build:esbuild",
-        "build:esbuild": "node --experimental-import-meta-resolve esbuild.mjs",
         "bundle:deno": "rm -f src/url.deno.js && deno bundle https://deno.land/std/node/url.ts src/url.deno.js",
         "patch:deno": "node ./patch-deno.mjs",
-        "test": "yarn run build && yarn run test:node && yarn run test:gjs",
+        "build": "yarn run build:deno && gjsify build --library src/index.ts",
+        "build:deno": "yarn run bundle:deno && yarn run patch:deno",
+        "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+        "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+        "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+        "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.js",
         "test:node": "node test.node.js"
     },
@@ -20,7 +23,7 @@
         "fs"
     ],
     "devDependencies": {
-        "@gjsify/esbuild-plugin-gjsify": "workspace:^",
+        "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^"
     }
 }

@@ -94,7 +94,7 @@ export const networkInterfaces = () => {
       }
       --i;
     }
-    groups.push(group.join(EOL));
+    groups.push(group.join(EOL as any)); // TODO check this
   }
   groups.forEach(parseInterfaces, ifaces);
   return ifaces;
