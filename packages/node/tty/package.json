@@ -14,7 +14,7 @@
         "tty"
     ],
     "devDependencies": {
-        "@types/node": "^18.7.14",
+        "@types/node": "^18.7.15",
         "typescript": "^4.8.2"
     },
     "dependencies": {

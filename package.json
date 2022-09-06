@@ -33,7 +33,8 @@
     "buffer": "^6.0.3"
   },
   "workspaces": [
-    "packages/*",
+    "packages/infra/*",
+    "packages/gjs/*",
     "packages/node/*",
     "packages/web/*",
     "packages/deno/*",

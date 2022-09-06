@@ -24,6 +24,13 @@ const build = async () => {
 
     await _build({
         ...baseConfig,
+        define: {
+            'Deno.core': 'false',
+            'Deno.errors.PermissionDenied': 'Error',
+            'Deno.cwd': 'process.cwd',
+            'Deno2.cwd': 'process.cwd',
+            'Deno.build.os': 'process.platform'
+        },
         outfile: pkg.module,
         format: 'esm',
     });

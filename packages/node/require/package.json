@@ -9,8 +9,8 @@
   ],
   "author": "Pascal Garber",
   "type": "module",
-  "main": "lib/index.js",
-  "module": "lib/index.js",
+  "main": "lib/index.mjs",
+  "module": "lib/index.mjs",
   "scripts": {
     "build": "node --experimental-import-meta-resolve esbuild.mjs",
     "test": "yarn run build && yarn run test:node && yarn run test:gjs",

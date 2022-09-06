@@ -1,0 +1,35 @@
+{
+    "name": "@gjsify/cli",
+    "version": "0.0.1",
+    "description": "CLI for Gjsify",
+    "type": "module",
+    "main": "lib/index.cjs",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "bin": {
+        "gjsify": "./lib/index.js"
+    },
+    "scripts": {
+        "start": "yarn node lib/index.js",
+        "build": "tsc && yarn run chmod",
+        "chmod": "chmod +x ./lib/index.js"
+    },
+    "keywords": [
+        "gjs",
+        "node",
+        "gjsify",
+        "cli"
+    ],
+    "dependencies": {
+        "@gjsify/esbuild-plugin-gjsify": "workspace:^",
+        "esbuild": "^0.15.7",
+        "lodash": "^4.17.21",
+        "pkg-types": "^0.3.5",
+        "vite": "^3.1.0",
+        "yargs": "^17.5.1"
+    },
+    "devDependencies": {
+        "@types/yargs": "^17.0.12",
+        "typescript": "^4.8.2"
+    }
+}

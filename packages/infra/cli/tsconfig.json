@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+      "outDir": "lib",
+      "declarationDir": "lib",
+      "declaration": true,
+      "target": "ESNext",
+      "moduleResolution":"Node",
+      "allowSyntheticDefaultImports": true,
+      "strict": true
+    },
+    "files": ["src/index.ts"]
+}

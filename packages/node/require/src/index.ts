@@ -1,13 +1,15 @@
 /*! (c) Andrea Giammarchi - ISC - https://github.com/WebReflection/gjs-require */
 
 const { searchPath } = imports;
-import { resolve as _resolve, readJSON, getProgramDir, getProgramExe, getNodeModulesPath } from '@gjsify/utils';
+import { resolve as _resolve, readJSON, getNodeModulesPath } from '@gjsify/utils';
 import Gio from '@gjsify/types/Gio-2.0';
+import GLib from '@gjsify/types/GLib-2.0';
 import { ALIASES_NODE, ALIASES_WEB } from "@gjsify/resolve-npm";
+// import { URL } from 'url';
 
-// See also https://gjs-docs.gnome.org/gjs/esmodules.md
-let __dirname = getProgramDir();
-let __filename = getProgramExe().get_path();
+// See https://gjs-docs.gnome.org/gjs/esmodules.md
+let [ __filename ] = GLib.filename_from_uri(import.meta.url);
+let __dirname = GLib.path_get_dirname(__filename);
 
 const NODE_MODULES_PATH = getNodeModulesPath().get_path();
 
@@ -16,12 +18,37 @@ const RESOLVE_ALIASES = {...ALIASES_NODE, ...ALIASES_WEB};
 
 const cache = Object.create(null);
 
+/** gi://GLib?version=2.0 */
+const giEsmImportToLegacy = (path: string) => {
+  print("require", path);
+  path = path.replace(/^gi\:\/\//, '');
+  const parts = path.split('?')
+  let version = parts[1];
+  const lib = parts[0];
+  if (version?.startsWith('version=')) {
+    version = version.replace('version=', '');
+    imports.gi.versions[lib] = version;
+  }
+
+  print("version", version);
+  print("lib", lib);
+  const test = imports.gi[lib];
+  print("test", test);
+  return test;
+}
+
 /**
  * CJS require for .js files
  * @param {string} file 
  * @returns 
  */
 const requireJs = (file: string) => {
+
+  // TODO
+  if(file.startsWith('gi://')) {
+    return giEsmImportToLegacy(file);
+  }
+
   let fd = _resolve(file);
   const fn = fd.get_path();
   const dn = fd.get_parent().get_path();
@@ -110,11 +137,14 @@ const resolve = (pkgNameOrFile: string, useAlias = true) => {
 
   const _pkgNameOrFile = pkgNameOrFile;
 
+  if(pkgNameOrFile.startsWith('gi://')) {
+    return pkgNameOrFile;
+  }
+
   if(useAlias && RESOLVE_ALIASES[pkgNameOrFile] && RESOLVE_ALIASES[pkgNameOrFile] !== pkgNameOrFile) {
     const alias = RESOLVE_ALIASES[pkgNameOrFile];
     console.warn(`require: Use alias "${alias}" for "${pkgNameOrFile}"`);
     pkgNameOrFile = alias;
-    
   }
 
   let path: Gio.File;

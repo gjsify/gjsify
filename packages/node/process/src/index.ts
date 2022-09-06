@@ -1,4 +1,3 @@
-import { getProgramExe } from '@gjsify/utils';
 import { EventEmitter } from 'events';
 import { arch as _arch, platform as _platform  } from 'os';
 import { WriteStream, ReadStream } from 'tty';
@@ -41,7 +40,8 @@ class Process extends EventEmitter {
   }
 
   get argv() {
-    const arr: string[] = [ getProgramExe().get_path() ];
+    const [ __filename ] = GLib.filename_from_uri(import.meta.url);
+    const arr: string[] = [ __filename ];
     ARGV.forEach(arg => {
       if (arg[0] !== '-') {
         arr.push(
@@ -57,7 +57,7 @@ class Process extends EventEmitter {
   }
 
   get argv0() {
-    return File.new_for_path(getProgramExe().get_path()).get_basename();
+    return File.new_for_path(GLib.filename_from_uri(import.meta.url)[0]).get_basename();
   }
 
   get env() {
@@ -83,7 +83,8 @@ class Process extends EventEmitter {
   }
 
   get version() {
-    return String(System.version); // TODO: use `gjs --version`
+    const v = System.version.toString();
+    return `${v[0]}.${+(v[1] + v[2])}.${+(v[3] + v[4])}`;
   }
 
   get versions() {

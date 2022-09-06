@@ -1,6 +1,6 @@
-# @gjsify/process [![License: ISC](https://img.shields.io/badge/License-ISC-yellow.svg)](https://opensource.org/licenses/ISC)
+# @gjsify/process
 
-process core module for [gjs](https://gitlab.gnome.org/GNOME/gjs) forked from [@cgjs/process](https://github.com/cgjs/cgjs/tree/master/packages/process)
+Node.js process module for Gjs
 
 ## Currently usable
 

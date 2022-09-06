@@ -6,9 +6,8 @@ const baseConfig = {
     entryPoints: ['src/index.ts'],
     bundle: true,
     minify: false,
-    sourcemap: true,
-    platform: "browser",
-    external: [...EXTERNALS_NODE, 'gi://*'],
+    sourcemap: false,
+    platform: "browser"
 }
 
 const build = async () => {
@@ -24,25 +23,29 @@ const build = async () => {
 
     await _build({
         ...baseConfig,
+        external: ['gi://*'],
         outfile: pkg.module,
         format: 'esm',
     });
 
     await _build({
         ...baseConfig,
+        external: ['gi://*'],
+        platform: "browser",
         entryPoints: ['src/test.ts'],
         outfile: 'test.gjs.js',
         plugins: [
-            gjsify({debug: false}),
+            gjsify({debug: true, platform: 'gjs'}),
         ]
     });
 
     await _build({
         ...baseConfig,
+        external: [...EXTERNALS_NODE, 'gi://*'],
+        platform: "browser",
         entryPoints: ['src/test.ts'],
         outfile: 'test.node.cjs',
-        format: 'cjs',
-        platform: 'node'
+        format: 'cjs'
     });
 }
 

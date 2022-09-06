@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import qs from 'querystring';
+import * as qs from 'querystring';
 
 // TODO: Port more tests from https://github.com/SpainTrain/querystring-es3/tree/master/test
 

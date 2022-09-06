@@ -14,5 +14,5 @@ tmp/
 dist/
 lib/
 
-packages/*/test.*.js
-packages/*/test.*.js.map
+packages/**/*/test.*.js
+packages/**/*/test.*.js.map

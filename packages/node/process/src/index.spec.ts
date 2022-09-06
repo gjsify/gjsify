@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'jasmine'
+import { describe, it, expect } from '@gjsify/unit'
 
-import process from '@gjsify/process';
+import process from 'process';
 
 // process.on('exit', code => console.log('bye bye: ' + code));
 
@@ -19,10 +19,10 @@ import process from '@gjsify/process';
 
 // assert.deepEqual(process.argv.splice(2),  ["--foo", "bar"]);
 
-
-describe("Progress", function() {
-  it("process.arch should be a string", function() {
-    expect(typeof process.arch).toBe("string");
+export default async () => {
+  await describe("Progress", async () => {
+    await it("process.arch should be a string", async () => {
+      await expect(typeof process.arch).toBe("string");
+    });
   });
-});
-
+};

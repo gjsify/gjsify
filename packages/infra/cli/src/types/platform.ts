@@ -1,0 +1,1 @@
+export type Platform = 'gjs' | 'node' | 'deno';
