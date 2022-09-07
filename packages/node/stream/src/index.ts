@@ -24,34 +24,12 @@
 // if (!globalThis.AbortSignal) Object.defineProperty(globalThis, 'AbortSignal', { value: AbortSignal });
 
 import type {
-    Readable as TReadable,
-    Writable as TWritable,
-    Duplex as TDuplex,
-    Transform as TTransform,
-    PassThrough as TPassThrough,
-    finished as Tfinished,
-    pipeline as Tpipeline,
     Stream as TStream
 } from 'stream';
 
 import { EventEmitter } from 'events';
 
-import _Readable from 'readable-stream/lib/_stream_readable.js';
-import _Writable from 'readable-stream/lib/_stream_writable.js';
-import _Duplex from 'readable-stream/lib/_stream_duplex.js';
-import _Transform from 'readable-stream/lib/_stream_transform.js';
-import _PassThrough from 'readable-stream/lib/_stream_passthrough.js';
-import _finished from 'readable-stream/lib/internal/streams/end-of-stream.js';
-import _pipeline from 'readable-stream/lib/internal/streams/pipeline.js';
-
-const Readable: TReadable = _Readable;
-const Writable: TWritable = _Writable;
-const Duplex: TDuplex = _Duplex;
-const Transform: TTransform = _Transform;
-const PassThrough: TPassThrough = _PassThrough;
-const finished: typeof Tfinished = _finished;
-const pipeline: typeof Tpipeline = _pipeline;
-
+import { Readable, Writable, Duplex, Transform, PassThrough, finished, pipeline, Stream } from '@gjsify/readable-stream';
 class Stream extends EventEmitter implements TStream {
 
     static Readable = Readable;

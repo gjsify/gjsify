@@ -9,7 +9,7 @@
 import Headers from './headers.js';
 import Body, { clone, extractContentType } from './body.js';
 import { isRedirect } from './utils/is-redirect.js';
-import type { Readable } from 'node:stream';
+import type { Readable } from 'stream';
 
 const INTERNALS = Symbol('Response internals');
 

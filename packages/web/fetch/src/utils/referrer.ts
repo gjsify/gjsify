@@ -1,4 +1,4 @@
-import { isIP } from 'node:net';
+import { isIP } from 'net';
 import GjsifyRequest from '../request';
 
 /**

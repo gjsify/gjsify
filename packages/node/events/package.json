@@ -6,9 +6,7 @@
     "module": "lib/index.mjs",
     "type": "module",
     "scripts": {
-        "bundle:deno": "rm -f src/url.deno.js && deno bundle https://deno.land/std/node/events.ts src/events.deno.js",
-        "build": "yarn run build:deno && gjsify build --library src/index.ts",
-        "build:deno": "yarn run bundle:deno",
+        "build": "gjsify build --library src/index.ts",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
         "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",

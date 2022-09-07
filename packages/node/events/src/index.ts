@@ -786,750 +786,744 @@ function setupListener(event, listener, options) {
     return [listener, objectify ? new Listener(this, event, listener) : this];
 }
 
-class EventEmitter {
+function EventEmitter(conf) {
+    this._events = {};
+    this._newListener = false;
+    this._removeListener = false;
+    this.verboseMemoryLeak = false;
+    configure.call(this, conf);
+}
 
-    constructor(conf) {
-        this._events = {};
-        this._newListener = false;
-        this._removeListener = false;
-        this.verboseMemoryLeak = false;
-        configure.call(this, conf);
+EventEmitter.prototype.listenTo = function (target, events, options) {
+    if (typeof target !== 'object') {
+        throw TypeError('target musts be an object');
     }
 
-    listenTo(target, events, options) {
-        if (typeof target !== 'object') {
-            throw TypeError('target musts be an object');
+    var emitter = this;
+
+    options = resolveOptions(options, {
+        on: undefined,
+        off: undefined,
+        reducers: undefined
+    }, {
+        on: functionReducer,
+        off: functionReducer,
+        reducers: objectFunctionReducer
+    });
+
+    function listen(events) {
+        if (typeof events !== 'object') {
+            throw TypeError('events must be an object');
         }
-    
-        var emitter = this;
-    
-        options = resolveOptions(options, {
-            on: undefined,
-            off: undefined,
-            reducers: undefined
-        }, {
-            on: functionReducer,
-            off: functionReducer,
-            reducers: objectFunctionReducer
-        });
-    
-        function listen(events) {
-            if (typeof events !== 'object') {
-                throw TypeError('events must be an object');
-            }
-    
-            var reducers = options.reducers;
-            var index = findTargetIndex.call(emitter, target);
-            var observer;
-    
-            if (index === -1) {
-                observer = new TargetObserver(emitter, target, options);
-            } else {
-                observer = emitter._observers[index];
-            }
-    
-            var keys = ownKeys(events);
-            var len = keys.length;
-            var event;
-            var isSingleReducer = typeof reducers === 'function';
-    
-            for (var i = 0; i < len; i++) {
-                event = keys[i];
-                observer.subscribe(
-                    event,
-                    events[event] || event,
-                    isSingleReducer ? reducers : reducers && reducers[event]
-                );
-            }
-        }
-    
-        isArray(events) ?
-            listen(toObject(events)) :
-            (typeof events === 'string' ? listen(toObject(events.split(/\s+/))) : listen(events));
-    
-        return this;
-    }
-    
-    stopListeningTo(target, event) {
-        var observers = this._observers;
-    
-        if (!observers) {
-            return false;
-        }
-    
-        var i = observers.length;
+
+        var reducers = options.reducers;
+        var index = findTargetIndex.call(emitter, target);
         var observer;
-        var matched = false;
-    
-        if (target && typeof target !== 'object') {
-            throw TypeError('target should be an object');
+
+        if (index === -1) {
+            observer = new TargetObserver(emitter, target, options);
+        } else {
+            observer = emitter._observers[index];
         }
-    
-        while (i-- > 0) {
-            observer = observers[i];
-            if (!target || observer._target === target) {
-                observer.unsubscribe(event);
-                matched = true;
-            }
-        }
-    
-        return matched;
-    }
-    
-    // By default EventEmitters will print a warning if more than
-    // 10 listeners are added to it. This is a useful default which
-    // helps finding memory leaks.
-    //
-    // Obviously not all Emitters should be limited to 10. This function allows
-    // that to be increased. Set to zero for unlimited.
-    
-    delimiter = '.';
-    
-    setMaxListeners(n) {
-        if (n !== undefined) {
-            this._maxListeners = n;
-            if (!this._conf) this._conf = {};
-            this._conf.maxListeners = n;
+
+        var keys = ownKeys(events);
+        var len = keys.length;
+        var event;
+        var isSingleReducer = typeof reducers === 'function';
+
+        for (var i = 0; i < len; i++) {
+            event = keys[i];
+            observer.subscribe(
+                event,
+                events[event] || event,
+                isSingleReducer ? reducers : reducers && reducers[event]
+            );
         }
     }
-    
-    getMaxListeners () {
-        return this._maxListeners;
+
+    isArray(events) ?
+        listen(toObject(events)) :
+        (typeof events === 'string' ? listen(toObject(events.split(/\s+/))) : listen(events));
+
+    return this;
+};
+
+EventEmitter.prototype.stopListeningTo = function (target, event) {
+    var observers = this._observers;
+
+    if (!observers) {
+        return false;
     }
-    
-    event = '';
-    
-    once(event, fn, options) {
-        return this._once(event, fn, false, options);
+
+    var i = observers.length;
+    var observer;
+    var matched = false;
+
+    if (target && typeof target !== 'object') {
+        throw TypeError('target should be an object');
     }
-    
-    prependOnceListener (event, fn, options) {
-        return this._once(event, fn, true, options);
-    }
-    
-    _once (event, fn, prepend, options) {
-        return this._many(event, 1, fn, prepend, options);
-    }
-    
-    many (event, ttl, fn, options) {
-        return this._many(event, ttl, fn, false, options);
-    }
-    
-    prependMany (event, ttl, fn, options) {
-        return this._many(event, ttl, fn, true, options);
-    }
-    
-    _many (event, ttl, fn, prepend, options) {
-        var self = this;
-    
-        if (typeof fn !== 'function') {
-            throw new Error('many only accepts instances of Function');
+
+    while (i-- > 0) {
+        observer = observers[i];
+        if (!target || observer._target === target) {
+            observer.unsubscribe(event);
+            matched = true;
         }
-    
-        function listener() {
-            if (--ttl === 0) {
-                self.off(event, listener);
-            }
-            return fn.apply(this, arguments);
-        }
-    
-        listener._origin = fn;
-    
-        return this._on(event, listener, prepend, options);
     }
-    
-    emit () {
-        if (!this._events && !this._all) {
+
+    return matched;
+};
+
+// By default EventEmitters will print a warning if more than
+// 10 listeners are added to it. This is a useful default which
+// helps finding memory leaks.
+//
+// Obviously not all Emitters should be limited to 10. This function allows
+// that to be increased. Set to zero for unlimited.
+
+EventEmitter.prototype.delimiter = '.';
+
+EventEmitter.prototype.setMaxListeners = function (n) {
+    if (n !== undefined) {
+        this._maxListeners = n;
+        if (!this._conf) this._conf = {};
+        this._conf.maxListeners = n;
+    }
+};
+
+EventEmitter.prototype.getMaxListeners = function () {
+    return this._maxListeners;
+};
+
+EventEmitter.prototype.event = '';
+
+EventEmitter.prototype.once = function (event, fn, options) {
+    return this._once(event, fn, false, options);
+};
+
+EventEmitter.prototype.prependOnceListener = function (event, fn, options) {
+    return this._once(event, fn, true, options);
+};
+
+EventEmitter.prototype._once = function (event, fn, prepend, options) {
+    return this._many(event, 1, fn, prepend, options);
+};
+
+EventEmitter.prototype.many = function (event, ttl, fn, options) {
+    return this._many(event, ttl, fn, false, options);
+};
+
+EventEmitter.prototype.prependMany = function (event, ttl, fn, options) {
+    return this._many(event, ttl, fn, true, options);
+};
+
+EventEmitter.prototype._many = function (event, ttl, fn, prepend, options) {
+    var self = this;
+
+    if (typeof fn !== 'function') {
+        throw new Error('many only accepts instances of Function');
+    }
+
+    function listener() {
+        if (--ttl === 0) {
+            self.off(event, listener);
+        }
+        return fn.apply(this, arguments);
+    }
+
+    listener._origin = fn;
+
+    return this._on(event, listener, prepend, options);
+};
+
+EventEmitter.prototype.emit = function () {
+    if (!this._events && !this._all) {
+        return false;
+    }
+
+    this._events || init.call(this);
+
+    var type = arguments[0], ns, wildcard = this.wildcard;
+    var args, l, i, j, containsSymbol;
+
+    if (type === 'newListener' && !this._newListener) {
+        if (!this._events.newListener) {
             return false;
         }
-    
-        this._events || init.call(this);
-    
-        var type = arguments[0], ns, wildcard = this.wildcard;
-        var args, l, i, j, containsSymbol;
-    
-        if (type === 'newListener' && !this._newListener) {
-            if (!this._events.newListener) {
-                return false;
-            }
-        }
-    
-        if (wildcard) {
-            ns = type;
-            if (type !== 'newListener' && type !== 'removeListener') {
-                if (typeof type === 'object') {
-                    l = type.length;
-                    if (symbolsSupported) {
-                        for (i = 0; i < l; i++) {
-                            if (typeof type[i] === 'symbol') {
-                                containsSymbol = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!containsSymbol) {
-                        type = type.join(this.delimiter);
-                    }
-                }
-            }
-        }
-    
-        var al = arguments.length;
-        var handler;
-    
-        if (this._all && this._all.length) {
-            handler = this._all.slice();
-    
-            for (i = 0, l = handler.length; i < l; i++) {
-                this.event = type;
-                switch (al) {
-                    case 1:
-                        handler[i].call(this, type);
-                        break;
-                    case 2:
-                        handler[i].call(this, type, arguments[1]);
-                        break;
-                    case 3:
-                        handler[i].call(this, type, arguments[1], arguments[2]);
-                        break;
-                    default:
-                        handler[i].apply(this, arguments);
-                }
-            }
-        }
-    
-        if (wildcard) {
-            handler = [];
-            searchListenerTree.call(this, handler, ns, this.listenerTree, 0, l);
-        } else {
-            handler = this._events[type];
-            if (typeof handler === 'function') {
-                this.event = type;
-                switch (al) {
-                    case 1:
-                        handler.call(this);
-                        break;
-                    case 2:
-                        handler.call(this, arguments[1]);
-                        break;
-                    case 3:
-                        handler.call(this, arguments[1], arguments[2]);
-                        break;
-                    default:
-                        args = new Array(al - 1);
-                        for (j = 1; j < al; j++) args[j - 1] = arguments[j];
-                        handler.apply(this, args);
-                }
-                return true;
-            } else if (handler) {
-                // need to make copy of handlers because list can change in the middle
-                // of emit call
-                handler = handler.slice();
-            }
-        }
-    
-        if (handler && handler.length) {
-            if (al > 3) {
-                args = new Array(al - 1);
-                for (j = 1; j < al; j++) args[j - 1] = arguments[j];
-            }
-            for (i = 0, l = handler.length; i < l; i++) {
-                this.event = type;
-                switch (al) {
-                    case 1:
-                        handler[i].call(this);
-                        break;
-                    case 2:
-                        handler[i].call(this, arguments[1]);
-                        break;
-                    case 3:
-                        handler[i].call(this, arguments[1], arguments[2]);
-                        break;
-                    default:
-                        handler[i].apply(this, args);
-                }
-            }
-            return true;
-        } else if (!this.ignoreErrors && !this._all && type === 'error') {
-            if (arguments[1] instanceof Error) {
-                throw arguments[1]; // Unhandled 'error' event
-            } else {
-                throw new Error("Uncaught, unspecified 'error' event.");
-            }
-        }
-    
-        return !!this._all;
     }
-    
-    emitAsync () {
-        if (!this._events && !this._all) {
-            return false;
-        }
-    
-        this._events || init.call(this);
-    
-        var type = arguments[0], wildcard = this.wildcard, ns, containsSymbol;
-        var args, l, i, j;
-    
-        if (type === 'newListener' && !this._newListener) {
-            if (!this._events.newListener) { return Promise.resolve([false]); }
-        }
-    
-        if (wildcard) {
-            ns = type;
-            if (type !== 'newListener' && type !== 'removeListener') {
-                if (typeof type === 'object') {
-                    l = type.length;
-                    if (symbolsSupported) {
-                        for (i = 0; i < l; i++) {
-                            if (typeof type[i] === 'symbol') {
-                                containsSymbol = true;
-                                break;
-                            }
+
+    if (wildcard) {
+        ns = type;
+        if (type !== 'newListener' && type !== 'removeListener') {
+            if (typeof type === 'object') {
+                l = type.length;
+                if (symbolsSupported) {
+                    for (i = 0; i < l; i++) {
+                        if (typeof type[i] === 'symbol') {
+                            containsSymbol = true;
+                            break;
                         }
                     }
-                    if (!containsSymbol) {
-                        type = type.join(this.delimiter);
-                    }
+                }
+                if (!containsSymbol) {
+                    type = type.join(this.delimiter);
                 }
             }
         }
-    
-        var promises = [];
-    
-        var al = arguments.length;
-        var handler;
-    
-        if (this._all) {
-            for (i = 0, l = this._all.length; i < l; i++) {
-                this.event = type;
-                switch (al) {
-                    case 1:
-                        promises.push(this._all[i].call(this, type));
-                        break;
-                    case 2:
-                        promises.push(this._all[i].call(this, type, arguments[1]));
-                        break;
-                    case 3:
-                        promises.push(this._all[i].call(this, type, arguments[1], arguments[2]));
-                        break;
-                    default:
-                        promises.push(this._all[i].apply(this, arguments));
-                }
+    }
+
+    var al = arguments.length;
+    var handler;
+
+    if (this._all && this._all.length) {
+        handler = this._all.slice();
+
+        for (i = 0, l = handler.length; i < l; i++) {
+            this.event = type;
+            switch (al) {
+                case 1:
+                    handler[i].call(this, type);
+                    break;
+                case 2:
+                    handler[i].call(this, type, arguments[1]);
+                    break;
+                case 3:
+                    handler[i].call(this, type, arguments[1], arguments[2]);
+                    break;
+                default:
+                    handler[i].apply(this, arguments);
             }
         }
-    
-        if (wildcard) {
-            handler = [];
-            searchListenerTree.call(this, handler, ns, this.listenerTree, 0);
-        } else {
-            handler = this._events[type];
-        }
-    
+    }
+
+    if (wildcard) {
+        handler = [];
+        searchListenerTree.call(this, handler, ns, this.listenerTree, 0, l);
+    } else {
+        handler = this._events[type];
         if (typeof handler === 'function') {
             this.event = type;
             switch (al) {
                 case 1:
-                    promises.push(handler.call(this));
+                    handler.call(this);
                     break;
                 case 2:
-                    promises.push(handler.call(this, arguments[1]));
+                    handler.call(this, arguments[1]);
                     break;
                 case 3:
-                    promises.push(handler.call(this, arguments[1], arguments[2]));
+                    handler.call(this, arguments[1], arguments[2]);
                     break;
                 default:
                     args = new Array(al - 1);
                     for (j = 1; j < al; j++) args[j - 1] = arguments[j];
-                    promises.push(handler.apply(this, args));
+                    handler.apply(this, args);
             }
-        } else if (handler && handler.length) {
+            return true;
+        } else if (handler) {
+            // need to make copy of handlers because list can change in the middle
+            // of emit call
             handler = handler.slice();
-            if (al > 3) {
+        }
+    }
+
+    if (handler && handler.length) {
+        if (al > 3) {
+            args = new Array(al - 1);
+            for (j = 1; j < al; j++) args[j - 1] = arguments[j];
+        }
+        for (i = 0, l = handler.length; i < l; i++) {
+            this.event = type;
+            switch (al) {
+                case 1:
+                    handler[i].call(this);
+                    break;
+                case 2:
+                    handler[i].call(this, arguments[1]);
+                    break;
+                case 3:
+                    handler[i].call(this, arguments[1], arguments[2]);
+                    break;
+                default:
+                    handler[i].apply(this, args);
+            }
+        }
+        return true;
+    } else if (!this.ignoreErrors && !this._all && type === 'error') {
+        if (arguments[1] instanceof Error) {
+            throw arguments[1]; // Unhandled 'error' event
+        } else {
+            throw new Error("Uncaught, unspecified 'error' event.");
+        }
+    }
+
+    return !!this._all;
+};
+
+EventEmitter.prototype.emitAsync = function () {
+    if (!this._events && !this._all) {
+        return false;
+    }
+
+    this._events || init.call(this);
+
+    var type = arguments[0], wildcard = this.wildcard, ns, containsSymbol;
+    var args, l, i, j;
+
+    if (type === 'newListener' && !this._newListener) {
+        if (!this._events.newListener) { return Promise.resolve([false]); }
+    }
+
+    if (wildcard) {
+        ns = type;
+        if (type !== 'newListener' && type !== 'removeListener') {
+            if (typeof type === 'object') {
+                l = type.length;
+                if (symbolsSupported) {
+                    for (i = 0; i < l; i++) {
+                        if (typeof type[i] === 'symbol') {
+                            containsSymbol = true;
+                            break;
+                        }
+                    }
+                }
+                if (!containsSymbol) {
+                    type = type.join(this.delimiter);
+                }
+            }
+        }
+    }
+
+    var promises = [];
+
+    var al = arguments.length;
+    var handler;
+
+    if (this._all) {
+        for (i = 0, l = this._all.length; i < l; i++) {
+            this.event = type;
+            switch (al) {
+                case 1:
+                    promises.push(this._all[i].call(this, type));
+                    break;
+                case 2:
+                    promises.push(this._all[i].call(this, type, arguments[1]));
+                    break;
+                case 3:
+                    promises.push(this._all[i].call(this, type, arguments[1], arguments[2]));
+                    break;
+                default:
+                    promises.push(this._all[i].apply(this, arguments));
+            }
+        }
+    }
+
+    if (wildcard) {
+        handler = [];
+        searchListenerTree.call(this, handler, ns, this.listenerTree, 0);
+    } else {
+        handler = this._events[type];
+    }
+
+    if (typeof handler === 'function') {
+        this.event = type;
+        switch (al) {
+            case 1:
+                promises.push(handler.call(this));
+                break;
+            case 2:
+                promises.push(handler.call(this, arguments[1]));
+                break;
+            case 3:
+                promises.push(handler.call(this, arguments[1], arguments[2]));
+                break;
+            default:
                 args = new Array(al - 1);
                 for (j = 1; j < al; j++) args[j - 1] = arguments[j];
-            }
-            for (i = 0, l = handler.length; i < l; i++) {
-                this.event = type;
-                switch (al) {
-                    case 1:
-                        promises.push(handler[i].call(this));
-                        break;
-                    case 2:
-                        promises.push(handler[i].call(this, arguments[1]));
-                        break;
-                    case 3:
-                        promises.push(handler[i].call(this, arguments[1], arguments[2]));
-                        break;
-                    default:
-                        promises.push(handler[i].apply(this, args));
-                }
-            }
-        } else if (!this.ignoreErrors && !this._all && type === 'error') {
-            if (arguments[1] instanceof Error) {
-                return Promise.reject(arguments[1]); // Unhandled 'error' event
-            } else {
-                return Promise.reject("Uncaught, unspecified 'error' event.");
+                promises.push(handler.apply(this, args));
+        }
+    } else if (handler && handler.length) {
+        handler = handler.slice();
+        if (al > 3) {
+            args = new Array(al - 1);
+            for (j = 1; j < al; j++) args[j - 1] = arguments[j];
+        }
+        for (i = 0, l = handler.length; i < l; i++) {
+            this.event = type;
+            switch (al) {
+                case 1:
+                    promises.push(handler[i].call(this));
+                    break;
+                case 2:
+                    promises.push(handler[i].call(this, arguments[1]));
+                    break;
+                case 3:
+                    promises.push(handler[i].call(this, arguments[1], arguments[2]));
+                    break;
+                default:
+                    promises.push(handler[i].apply(this, args));
             }
         }
-    
-        return Promise.all(promises);
-    }
-    
-    on (type, listener, options) {
-        return this._on(type, listener, false, options);
-    }
-    
-    prependListener = function (type, listener, options) {
-        return this._on(type, listener, true, options);
-    }
-    
-    onAny = function (fn) {
-        return this._onAny(fn, false);
-    }
-    
-    prependAny = function (fn) {
-        return this._onAny(fn, true);
-    }
-    
-    addListener = this.on;
-    
-    _onAny (fn, prepend) {
-        if (typeof fn !== 'function') {
-            throw new Error('onAny only accepts instances of Function');
-        }
-    
-        if (!this._all) {
-            this._all = [];
-        }
-    
-        // Add the function to the event listener collection.
-        if (prepend) {
-            this._all.unshift(fn);
+    } else if (!this.ignoreErrors && !this._all && type === 'error') {
+        if (arguments[1] instanceof Error) {
+            return Promise.reject(arguments[1]); // Unhandled 'error' event
         } else {
-            this._all.push(fn);
+            return Promise.reject("Uncaught, unspecified 'error' event.");
         }
-    
+    }
+
+    return Promise.all(promises);
+};
+
+EventEmitter.prototype.on = function (type, listener, options) {
+    return this._on(type, listener, false, options);
+};
+
+EventEmitter.prototype.prependListener = function (type, listener, options) {
+    return this._on(type, listener, true, options);
+};
+
+EventEmitter.prototype.onAny = function (fn) {
+    return this._onAny(fn, false);
+};
+
+EventEmitter.prototype.prependAny = function (fn) {
+    return this._onAny(fn, true);
+};
+
+EventEmitter.prototype.addListener = EventEmitter.prototype.on;
+
+EventEmitter.prototype._onAny = function (fn, prepend) {
+    if (typeof fn !== 'function') {
+        throw new Error('onAny only accepts instances of Function');
+    }
+
+    if (!this._all) {
+        this._all = [];
+    }
+
+    // Add the function to the event listener collection.
+    if (prepend) {
+        this._all.unshift(fn);
+    } else {
+        this._all.push(fn);
+    }
+
+    return this;
+};
+
+EventEmitter.prototype._on = function (type, listener, prepend, options) {
+    if (typeof type === 'function') {
+        this._onAny(type, listener);
         return this;
     }
-    
-    _on (type, listener, prepend, options) {
-        if (typeof type === 'function') {
-            this._onAny(type, listener);
-            return this;
-        }
-    
-        if (typeof listener !== 'function') {
-            throw new Error('on only accepts instances of Function');
-        }
-        this._events || init.call(this);
-    
-        var returnValue = this, temp;
-    
-        if (options !== undefined) {
-            temp = setupListener.call(this, type, listener, options);
-            listener = temp[0];
-            returnValue = temp[1];
-        }
-    
-        // To avoid recursion in the case that type == "newListeners"! Before
-        // adding it to the listeners, first emit "newListeners".
-        if (this._newListener) {
-            this.emit('newListener', type, listener);
-        }
-    
-        if (this.wildcard) {
-            growListenerTree.call(this, type, listener, prepend);
-            return returnValue;
-        }
-    
-        if (!this._events[type]) {
-            // Optimize the case of one listener. Don't need the extra array object.
-            this._events[type] = listener;
-        } else {
-            if (typeof this._events[type] === 'function') {
-                // Change to array.
-                this._events[type] = [this._events[type]];
-            }
-    
-            // If we've already got an array, just add
-            if (prepend) {
-                this._events[type].unshift(listener);
-            } else {
-                this._events[type].push(listener);
-            }
-    
-            // Check for listener leak
-            if (
-                !this._events[type].warned &&
-                this._maxListeners > 0 &&
-                this._events[type].length > this._maxListeners
-            ) {
-                this._events[type].warned = true;
-                logPossibleMemoryLeak.call(this, this._events[type].length, type);
-            }
-        }
-    
+
+    if (typeof listener !== 'function') {
+        throw new Error('on only accepts instances of Function');
+    }
+    this._events || init.call(this);
+
+    var returnValue = this, temp;
+
+    if (options !== undefined) {
+        temp = setupListener.call(this, type, listener, options);
+        listener = temp[0];
+        returnValue = temp[1];
+    }
+
+    // To avoid recursion in the case that type == "newListeners"! Before
+    // adding it to the listeners, first emit "newListeners".
+    if (this._newListener) {
+        this.emit('newListener', type, listener);
+    }
+
+    if (this.wildcard) {
+        growListenerTree.call(this, type, listener, prepend);
         return returnValue;
     }
-    
-    off (type, listener) {
-        if (typeof listener !== 'function') {
-            throw new Error('removeListener only takes instances of Function');
+
+    if (!this._events[type]) {
+        // Optimize the case of one listener. Don't need the extra array object.
+        this._events[type] = listener;
+    } else {
+        if (typeof this._events[type] === 'function') {
+            // Change to array.
+            this._events[type] = [this._events[type]];
         }
-    
-        var handlers, leafs = [];
-    
-        if (this.wildcard) {
-            var ns = typeof type === 'string' ? type.split(this.delimiter) : type.slice();
-            leafs = searchListenerTree.call(this, null, ns, this.listenerTree, 0);
-            if (!leafs) return this;
+
+        // If we've already got an array, just add
+        if (prepend) {
+            this._events[type].unshift(listener);
         } else {
-            // does not use listeners(), so no side effect of creating _events[type]
-            if (!this._events[type]) return this;
-            handlers = this._events[type];
-            leafs.push({ _listeners: handlers });
+            this._events[type].push(listener);
         }
-    
-        for (var iLeaf = 0; iLeaf < leafs.length; iLeaf++) {
-            var leaf = leafs[iLeaf];
-            handlers = leaf._listeners;
-            if (isArray(handlers)) {
-    
-                var position = -1;
-    
-                for (var i = 0, length = handlers.length; i < length; i++) {
-                    if (handlers[i] === listener ||
-                        (handlers[i].listener && handlers[i].listener === listener) ||
-                        (handlers[i]._origin && handlers[i]._origin === listener)) {
-                        position = i;
-                        break;
-                    }
+
+        // Check for listener leak
+        if (
+            !this._events[type].warned &&
+            this._maxListeners > 0 &&
+            this._events[type].length > this._maxListeners
+        ) {
+            this._events[type].warned = true;
+            logPossibleMemoryLeak.call(this, this._events[type].length, type);
+        }
+    }
+
+    return returnValue;
+};
+
+EventEmitter.prototype.off = function (type, listener) {
+    if (typeof listener !== 'function') {
+        throw new Error('removeListener only takes instances of Function');
+    }
+
+    var handlers, leafs = [];
+
+    if (this.wildcard) {
+        var ns = typeof type === 'string' ? type.split(this.delimiter) : type.slice();
+        leafs = searchListenerTree.call(this, null, ns, this.listenerTree, 0);
+        if (!leafs) return this;
+    } else {
+        // does not use listeners(), so no side effect of creating _events[type]
+        if (!this._events[type]) return this;
+        handlers = this._events[type];
+        leafs.push({ _listeners: handlers });
+    }
+
+    for (var iLeaf = 0; iLeaf < leafs.length; iLeaf++) {
+        var leaf = leafs[iLeaf];
+        handlers = leaf._listeners;
+        if (isArray(handlers)) {
+
+            var position = -1;
+
+            for (var i = 0, length = handlers.length; i < length; i++) {
+                if (handlers[i] === listener ||
+                    (handlers[i].listener && handlers[i].listener === listener) ||
+                    (handlers[i]._origin && handlers[i]._origin === listener)) {
+                    position = i;
+                    break;
                 }
-    
-                if (position < 0) {
-                    continue;
-                }
-    
-                if (this.wildcard) {
-                    leaf._listeners.splice(position, 1);
-                }
-                else {
-                    this._events[type].splice(position, 1);
-                }
-    
-                if (handlers.length === 0) {
-                    if (this.wildcard) {
-                        delete leaf._listeners;
-                    }
-                    else {
-                        delete this._events[type];
-                    }
-                }
-                if (this._removeListener)
-                    this.emit("removeListener", type, listener);
-    
-                return this;
             }
-            else if (handlers === listener ||
-                (handlers.listener && handlers.listener === listener) ||
-                (handlers._origin && handlers._origin === listener)) {
+
+            if (position < 0) {
+                continue;
+            }
+
+            if (this.wildcard) {
+                leaf._listeners.splice(position, 1);
+            }
+            else {
+                this._events[type].splice(position, 1);
+            }
+
+            if (handlers.length === 0) {
                 if (this.wildcard) {
                     delete leaf._listeners;
                 }
                 else {
                     delete this._events[type];
                 }
-                if (this._removeListener)
-                    this.emit("removeListener", type, listener);
             }
-        }
-    
-        this.listenerTree && recursivelyGarbageCollect(this.listenerTree);
-    
-        return this;
-    }
-    
-    offAny (fn) {
-        var i = 0, l = 0, fns;
-        if (fn && this._all && this._all.length > 0) {
-            fns = this._all;
-            for (i = 0, l = fns.length; i < l; i++) {
-                if (fn === fns[i]) {
-                    fns.splice(i, 1);
-                    if (this._removeListener)
-                        this.emit("removeListenerAny", fn);
-                    return this;
-                }
-            }
-        } else {
-            fns = this._all;
-            if (this._removeListener) {
-                for (i = 0, l = fns.length; i < l; i++)
-                    this.emit("removeListenerAny", fns[i]);
-            }
-            this._all = [];
-        }
-        return this;
-    }
-    
-    removeListener = this.off;
-    
-    removeAllListeners (type) {
-        if (type === undefined) {
-            !this._events || init.call(this);
+            if (this._removeListener)
+                this.emit("removeListener", type, listener);
+
             return this;
         }
-    
-        if (this.wildcard) {
-            var leafs = searchListenerTree.call(this, null, type, this.listenerTree, 0), leaf, i;
-            if (!leafs) return this;
-            for (i = 0; i < leafs.length; i++) {
-                leaf = leafs[i];
-                leaf._listeners = null;
+        else if (handlers === listener ||
+            (handlers.listener && handlers.listener === listener) ||
+            (handlers._origin && handlers._origin === listener)) {
+            if (this.wildcard) {
+                delete leaf._listeners;
             }
-            this.listenerTree && recursivelyGarbageCollect(this.listenerTree);
-        } else if (this._events) {
-            this._events[type] = null;
+            else {
+                delete this._events[type];
+            }
+            if (this._removeListener)
+                this.emit("removeListener", type, listener);
         }
+    }
+
+    this.listenerTree && recursivelyGarbageCollect(this.listenerTree);
+
+    return this;
+};
+
+EventEmitter.prototype.offAny = function (fn) {
+    var i = 0, l = 0, fns;
+    if (fn && this._all && this._all.length > 0) {
+        fns = this._all;
+        for (i = 0, l = fns.length; i < l; i++) {
+            if (fn === fns[i]) {
+                fns.splice(i, 1);
+                if (this._removeListener)
+                    this.emit("removeListenerAny", fn);
+                return this;
+            }
+        }
+    } else {
+        fns = this._all;
+        if (this._removeListener) {
+            for (i = 0, l = fns.length; i < l; i++)
+                this.emit("removeListenerAny", fns[i]);
+        }
+        this._all = [];
+    }
+    return this;
+};
+
+EventEmitter.prototype.removeListener = EventEmitter.prototype.off;
+
+EventEmitter.prototype.removeAllListeners = function (type) {
+    if (type === undefined) {
+        !this._events || init.call(this);
         return this;
     }
-    
-    listeners (type) {
-        var _events = this._events;
-        var keys, listeners, allListeners;
-        var i;
-        var listenerTree;
-    
-        if (type === undefined) {
-            if (this.wildcard) {
-                throw Error('event name required for wildcard emitter');
-            }
-    
-            if (!_events) {
-                return [];
-            }
-    
-            keys = ownKeys(_events);
-            i = keys.length;
-            allListeners = [];
-            while (i-- > 0) {
-                listeners = _events[keys[i]];
-                if (typeof listeners === 'function') {
-                    allListeners.push(listeners);
-                } else {
-                    allListeners.push.apply(allListeners, listeners);
-                }
-            }
-            return allListeners;
-        } else {
-            if (this.wildcard) {
-                listenerTree = this.listenerTree;
-                if (!listenerTree) return [];
-                var handlers = [];
-                var ns = typeof type === 'string' ? type.split(this.delimiter) : type.slice();
-                searchListenerTree.call(this, handlers, ns, listenerTree, 0);
-                return handlers;
-            }
-    
-            if (!_events) {
-                return [];
-            }
-    
-            listeners = _events[type];
-    
-            if (!listeners) {
-                return [];
-            }
-            return typeof listeners === 'function' ? [listeners] : listeners;
+
+    if (this.wildcard) {
+        var leafs = searchListenerTree.call(this, null, type, this.listenerTree, 0), leaf, i;
+        if (!leafs) return this;
+        for (i = 0; i < leafs.length; i++) {
+            leaf = leafs[i];
+            leaf._listeners = null;
         }
+        this.listenerTree && recursivelyGarbageCollect(this.listenerTree);
+    } else if (this._events) {
+        this._events[type] = null;
     }
-    
-    eventNames (nsAsArray) {
-        var _events = this._events;
-        return this.wildcard ? collectTreeEvents.call(this, this.listenerTree, [], null, nsAsArray) : (_events ? ownKeys(_events) : []);
-    }
-    
-    listenerCount (type) {
-        return this.listeners(type).length;
-    }
-    
-    hasListeners (type) {
+    return this;
+};
+
+EventEmitter.prototype.listeners = function (type) {
+    var _events = this._events;
+    var keys, listeners, allListeners;
+    var i;
+    var listenerTree;
+
+    if (type === undefined) {
         if (this.wildcard) {
-            var handlers = [];
-            var ns = typeof type === 'string' ? type.split(this.delimiter) : type.slice();
-            searchListenerTree.call(this, handlers, ns, this.listenerTree, 0);
-            return handlers.length > 0;
+            throw Error('event name required for wildcard emitter');
         }
-    
-        var _events = this._events;
-        var _all = this._all;
-    
-        return !!(_all && _all.length || _events && (type === undefined ? ownKeys(_events).length : _events[type]));
-    }
-    
-    listenersAny () {
-    
-        if (this._all) {
-            return this._all;
-        }
-        else {
+
+        if (!_events) {
             return [];
         }
-    
-    }
-    
-    waitFor (event, options) {
-        var self = this;
-        var type = typeof options;
-        if (type === 'number') {
-            options = { timeout: options };
-        } else if (type === 'function') {
-            options = { filter: options };
-        }
-    
-        options = resolveOptions(options, {
-            timeout: 0,
-            filter: undefined,
-            handleError: false,
-            Promise: Promise,
-            overload: false
-        }, {
-            filter: functionReducer,
-            Promise: constructorReducer
-        });
-    
-        return makeCancelablePromise(options.Promise, function (resolve, reject, onCancel) {
-            function listener() {
-                var filter = options.filter;
-                if (filter && !filter.apply(self, arguments)) {
-                    return;
-                }
-                self.off(event, listener);
-                if (options.handleError) {
-                    var err = arguments[0];
-                    err ? reject(err) : resolve(toArray.apply(null, arguments).slice(1));
-                } else {
-                    resolve(toArray.apply(null, arguments));
-                }
+
+        keys = ownKeys(_events);
+        i = keys.length;
+        allListeners = [];
+        while (i-- > 0) {
+            listeners = _events[keys[i]];
+            if (typeof listeners === 'function') {
+                allListeners.push(listeners);
+            } else {
+                allListeners.push.apply(allListeners, listeners);
             }
-    
-            onCancel(function () {
-                self.off(event, listener);
-            });
-    
-            self._on(event, listener, false);
-        }, {
-            timeout: options.timeout,
-            overload: options.overload
-        })
+        }
+        return allListeners;
+    } else {
+        if (this.wildcard) {
+            listenerTree = this.listenerTree;
+            if (!listenerTree) return [];
+            var handlers = [];
+            var ns = typeof type === 'string' ? type.split(this.delimiter) : type.slice();
+            searchListenerTree.call(this, handlers, ns, listenerTree, 0);
+            return handlers;
+        }
+
+        if (!_events) {
+            return [];
+        }
+
+        listeners = _events[type];
+
+        if (!listeners) {
+            return [];
+        }
+        return typeof listeners === 'function' ? [listeners] : listeners;
     }
-}
+};
 
-// backwards compatibility for exporting EventEmitter property
-EventEmitter.EventEmitter = EventEmitter;
+EventEmitter.prototype.eventNames = function (nsAsArray) {
+    var _events = this._events;
+    return this.wildcard ? collectTreeEvents.call(this, this.listenerTree, [], null, nsAsArray) : (_events ? ownKeys(_events) : []);
+};
 
-export function once(emitter, name, options) {
+EventEmitter.prototype.listenerCount = function (type) {
+    return this.listeners(type).length;
+};
+
+EventEmitter.prototype.hasListeners = function (type) {
+    if (this.wildcard) {
+        var handlers = [];
+        var ns = typeof type === 'string' ? type.split(this.delimiter) : type.slice();
+        searchListenerTree.call(this, handlers, ns, this.listenerTree, 0);
+        return handlers.length > 0;
+    }
+
+    var _events = this._events;
+    var _all = this._all;
+
+    return !!(_all && _all.length || _events && (type === undefined ? ownKeys(_events).length : _events[type]));
+};
+
+EventEmitter.prototype.listenersAny = function () {
+
+    if (this._all) {
+        return this._all;
+    }
+    else {
+        return [];
+    }
+
+};
+
+EventEmitter.prototype.waitFor = function (event, options) {
+    var self = this;
+    var type = typeof options;
+    if (type === 'number') {
+        options = { timeout: options };
+    } else if (type === 'function') {
+        options = { filter: options };
+    }
+
+    options = resolveOptions(options, {
+        timeout: 0,
+        filter: undefined,
+        handleError: false,
+        Promise: Promise,
+        overload: false
+    }, {
+        filter: functionReducer,
+        Promise: constructorReducer
+    });
+
+    return makeCancelablePromise(options.Promise, function (resolve, reject, onCancel) {
+        function listener() {
+            var filter = options.filter;
+            if (filter && !filter.apply(self, arguments)) {
+                return;
+            }
+            self.off(event, listener);
+            if (options.handleError) {
+                var err = arguments[0];
+                err ? reject(err) : resolve(toArray.apply(null, arguments).slice(1));
+            } else {
+                resolve(toArray.apply(null, arguments));
+            }
+        }
+
+        onCancel(function () {
+            self.off(event, listener);
+        });
+
+        self._on(event, listener, false);
+    }, {
+        timeout: options.timeout,
+        overload: options.overload
+    })
+};
+
+function once(emitter, name, options) {
     options = resolveOptions(options, {
         Promise: Promise,
         timeout: 0,
@@ -1618,6 +1612,6 @@ Object.defineProperties(prototype, {
     _observers: { value: null, writable: true, configurable: true }
 });
 
+EventEmitter.EventEmitter = EventEmitter; // backwards compatibility for exporting EventEmitter property
 export { EventEmitter }
-export default EventEmitter;
-export = EventEmitter;
+export default EventEmitter

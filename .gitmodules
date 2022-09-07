@@ -1,0 +1,3 @@
+[submodule "packages/packages/node/readable-stream"]
+	path = packages/packages/node/readable-stream
+	url = https://github.com/gjsify/readable-stream.git

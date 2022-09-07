@@ -4,9 +4,9 @@
  * Headers class offers convenient helpers
  */
 
-import { types } from 'node:util';
-import http from 'node:http';
-import type { IncomingMessage } from 'node:http';
+import { types } from 'util';
+import http from 'http';
+import type { IncomingMessage } from 'http';
 import Soup from '@gjsify/types/Soup-3.0';
 
 

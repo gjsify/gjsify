@@ -270,7 +270,7 @@ export class FileHandle implements IFileHandle {
      * or closing.
      *
      * ```js
-     * import { open } from 'node:fs/promises';
+     * import { open } from 'fs/promises';
      *
      * const file = await open('./some/file/to/read');
      *
