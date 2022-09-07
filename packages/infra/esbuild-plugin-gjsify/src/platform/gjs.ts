@@ -38,7 +38,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             require.resolve('core-js/features/url-search-params/'),
             require.resolve('core-js/features/url/'),
             require.resolve('@gjsify/abort-controller/'),
-            require.resolve('@gjsify/web-events/'),
+            // require.resolve('@gjsify/web-events/'),
             require.resolve('@gjsify/globals/'),
             // require.resolve('@gjsify/deno_globals/'),
         ],

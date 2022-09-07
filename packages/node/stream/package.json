@@ -1,12 +1,14 @@
 {
     "name": "@gjsify/stream",
     "version": "0.0.1",
-    "description": "node stream module for gjsify",
-    "main": "lib/index.cjs",
-    "module": "lib/index.mjs",
+    "description": "Node.js stream module for Gjs",
+    "main": "lib/stream.cjs",
+    "module": "lib/stream.mjs",
     "type": "module",
     "scripts": {
-        "build": "gjsify build --library src/index.ts",
+        "build": "yarn run build:rollup",
+        "build:gjsify": "gjsify build --library src/index.ts",
+        "build:rollup": "yarn node rollup.js",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
         "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
@@ -17,12 +19,18 @@
     "keywords": [
         "gjs",
         "node",
-        "fs"
+        "stream"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.7.15"
+        "@rollup/plugin-commonjs": "^22.0.2",
+        "@rollup/plugin-node-resolve": "^14.0.0",
+        "@types/node": "^18.7.15",
+        "esbuild": "^0.15.7",
+        "rollup": "^2.79.0",
+        "rollup-plugin-esbuild": "^4.10.1"
     },
     "dependencies": {
         "inherits": "^2.0.4",

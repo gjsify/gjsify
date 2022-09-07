@@ -44,6 +44,7 @@ export const EXTERNALS_NODE = [
     'module_esm',
     'perf_hooks',
     'tls',
+    'readable-stream' // Not internal, published on npm but we replace it anyway
 ]
 
 export const ALIASES_NODE = {
@@ -95,6 +96,8 @@ export const ALIASES_NODE = {
     // 'module_esm': '@gjsify/deno_std/node/module_esm',
     // 'perf_hooks': '@gjsify/deno_std/node/perf_hooks',
     // 'tls': '@gjsify/deno_std/node/tls',
+
+    'readable-stream': '@gjsify/readable-stream',
 
     // Node and Web
     'stream/web': 'web-streams-polyfill/ponyfill',

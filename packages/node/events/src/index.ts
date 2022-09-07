@@ -1526,9 +1526,6 @@ class EventEmitter {
     }
 }
 
-// backwards compatibility for exporting EventEmitter property
-EventEmitter.EventEmitter = EventEmitter;
-
 export function once(emitter, name, options) {
     options = resolveOptions(options, {
         Promise: Promise,
@@ -1618,6 +1615,8 @@ Object.defineProperties(prototype, {
     _observers: { value: null, writable: true, configurable: true }
 });
 
+// backwards compatibility for exporting EventEmitter property
+// EventEmitter.EventEmitter = EventEmitter;
+EventEmitter.EventEmitter = EventEmitter;
 export { EventEmitter }
-export default EventEmitter;
-export = EventEmitter;
+export default EventEmitter

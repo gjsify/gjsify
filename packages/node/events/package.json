@@ -2,8 +2,8 @@
     "name": "@gjsify/events",
     "version": "0.0.1",
     "description": "Node.js events module for Gjs",
-    "main": "lib/index.cjs",
-    "module": "lib/index.mjs",
+    "main": "lib/events.cjs",
+    "module": "lib/events.mjs",
     "type": "module",
     "scripts": {
         "bundle:deno": "rm -f src/url.deno.js && deno bundle https://deno.land/std/node/events.ts src/events.deno.js",
@@ -25,5 +25,8 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.7.15"
+    },
+    "dependencies": {
+        "rollup-plugin-polyfill-node": "^0.10.2"
     }
 }

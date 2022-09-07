@@ -3,7 +3,7 @@ import {readFileSync } from "fs";
 import { ALIASES_NODE, ALIASES_WEB } from "@gjsify/resolve-npm";
 
 export const setNodeAliasPrefix = (ALIASES: Record<string, string>) => {
-    // Also resolve alias names with `npm:${ALIAS}`
+    // Also resolve alias names with `node:${ALIAS}`
     for (const ALIAS in ALIASES) {
         const key = `node:${ALIAS}`;
         if(!ALIASES[key]) ALIASES[key] = ALIASES[ALIAS];

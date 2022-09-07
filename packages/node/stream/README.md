@@ -6,3 +6,4 @@
 - https://github.com/exogee-technology/readable-stream
 - https://github.com/nodejs/readable-stream
 - https://github.com/denoland/deno_std/blob/main/node/_stream.mjs
+- https://github.com/FredKSchott/rollup-plugin-polyfill-node/blob/main/polyfills/stream.js
