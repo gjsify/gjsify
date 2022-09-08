@@ -5,12 +5,22 @@ const mainloop: GLib.MainLoop | undefined = (globalThis as any)?.imports?.mainlo
 // This file is part of the gjsunit framework
 // Please visit https://github.com/philipphoffmann/gjsunit for more information
 
-var countTestsOverall = 0;
-var countTestsFailed = 0;
+let countTestsOverall = 0;
+let countTestsFailed = 0;
+let countTestsIgnored = 0;
+let runtime = '';
+
+const RED = '\x1B[31m';
+const GREEN = '\x1B[32m';
+const BLUE = '\x1b[34m';
+const GRAY = '\x1B[90m';
+const RESET = '\x1B[39m';
 
 export interface Namespaces {
 	[key: string]: () => (void | Promise<void>) | Namespaces;
 }
+
+export type Callback = () => Promise<void>;
 
 // Makes this work on Gjs and Node.js
 export const print = globalThis.print || console.log;
@@ -112,14 +122,14 @@ class MatcherFactory {
 		);
 	}
 	toBeCloseTo(expectedValue: number, precision: number) {
-		var shiftHelper = Math.pow(10, precision);
+		const shiftHelper = Math.pow(10, precision);
 		this.triggerResult(Math.round((this.actualValue as unknown as number) * shiftHelper) / shiftHelper === Math.round(expectedValue * shiftHelper) / shiftHelper,
 			'      Expected ' + this.actualValue + ' with precision ' + precision + ' to be close to ' + expectedValue
 		);
 	}
 	toThrow() {
 		let errorMessage = ''; 
-		var didThrow = false;
+		let didThrow = false;
 		try {
 			this.actualValue();
 			didThrow = false;
@@ -135,19 +145,45 @@ class MatcherFactory {
 	}
 }
 
-export const describe = async function(moduleName: string, callback: () => void | Promise<void>) {
+export const describe = async function(moduleName: string, callback: Callback) {
 	print('\n' + moduleName);
 	await callback();
 };
 
+/** E.g on('Deno', () {  it(...) }) */
+export const on = async function(name: string, version: string | Callback, callback: Callback) {
+	name = name.toLowerCase();
+	const runtime = (await getRuntime()).toLowerCase();
+
+	if(typeof version === 'function') {
+		callback = version;
+	}
+
+	if (!runtime.includes(name)) {
+		++countTestsIgnored;
+		return;
+	}
+
+	if(typeof version === 'string') {
+		version = version.toLowerCase();
+		// TODO allow version wildcards like 16.x.x
+		if(!runtime.includes(version)) {
+			countTestsIgnored;
+			return
+		}
+	}
+
+	await callback();
+}
+
 export const it = async function(expectation: string, callback: () => void | Promise<void>) {
 	try {
 		await callback();
-		print('  \x1B[32m✔\x1B[39m \x1B[90m' + expectation + '\x1B[39m');
+		print(`  ${GREEN}✔${RESET} ${GRAY}${expectation}${RESET}`);
 	}
 	catch(e) {
-		print('  \x1B[31m❌\x1B[39m \x1B[90m' + expectation + '\x1B[39m');
-		print('\x1B[31m' + e.message + '\x1B[39m');
+		print(`  ${RED}❌${RESET} ${GRAY}${expectation}${RESET}`);
+		print(`${RED}${e.message}${RESET}`);
 		// if (e.stack) print(e.stack);
 	}
 }
@@ -155,14 +191,14 @@ export const it = async function(expectation: string, callback: () => void | Pro
 export const expect = function(actualValue: any) {
 	++countTestsOverall;
 
-	var expecter = new MatcherFactory(actualValue, true);
+	const expecter = new MatcherFactory(actualValue, true);
 
 	return expecter;
 }
 
 const runTests = async function(namespaces: Namespaces) {
 	// recursively check the test directory for executable tests
-	for( var subNamespace in namespaces ) {
+	for( const subNamespace in namespaces ) {
 		const namespace = namespaces[subNamespace];
 		// execute any test functions
 		if(typeof namespace === 'function' ) {
@@ -176,17 +212,27 @@ const runTests = async function(namespaces: Namespaces) {
 }
 
 const printResult = () => {
+
+	if( countTestsIgnored ) {
+		// some tests ignored
+		print(`\n${BLUE}✔ ${countTestsIgnored} ignored test${ countTestsIgnored > 1 ? 's' : ''}${RESET}`);
+	}
+
 	if( countTestsFailed ) {
 		// some tests failed
-		print('\n\x1B[31m❌ ' + countTestsFailed + ' of ' + countTestsOverall + ' tests failed\x1B[39m');
+		print(`\n${RED}❌ ${countTestsFailed} of ${countTestsOverall} tests failed${RESET}`);
 	}
 	else {
 		// all tests okay
-		print('\n\x1B[32m✔ ' + countTestsOverall + ' completed\x1B[39m');
+		print(`\n${GREEN}✔ ${countTestsOverall} completed${RESET}`);
 	}
 }
 
 const getRuntime = async () => {
+	if(runtime && runtime !== 'Unknown') {
+		return runtime;
+	}
+
 	if(globalThis.Deno?.version?.deno) {
 		return 'Deno ' + globalThis.Deno?.version?.deno;
 	} else {
@@ -198,17 +244,17 @@ const getRuntime = async () => {
 			} catch (error) {
 				console.error(error)
 				console.warn(error.message);
-				return 'Unknown'
+				runtime = 'Unknown'
 			}
 		}
 
 		if(process?.versions?.gjs) {
-			return 'Gjs ' + process.versions.gjs;
+			runtime = 'Gjs ' + process.versions.gjs;
 		} else if (process?.versions?.node) {
-			return 'Node.js ' + process.versions.node;
+			runtime = 'Node.js ' + process.versions.node;
 		}
 	}
-	return 'Unknown'
+	return runtime || 'Unknown';
 }
 
 const printRuntime = async () => {

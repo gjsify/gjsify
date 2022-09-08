@@ -1,11 +1,12 @@
 {
     "name": "@gjsify/utils",
     "version": "0.0.1",
-    "description": "utils module for gjsify",
-    "main": "lib/index.mjs",
-    "module": "lib/index.mjs",
+    "description": "Utils module for gjsify",
+    "main": "lib/utils.cjs",
+    "module": "lib/utils.mjs",
     "type": "module",
     "scripts": {
+        "clear": "rm -rf lib",
         "build": "yarn run build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/index.mts",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
@@ -22,6 +23,6 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/types": "workspace:^",
-        "typescript": "^4.8.2"
+        "typescript": "^4.8.3"
     }
 }
