@@ -1,5 +1,4 @@
 import type GLib from '@gjsify/types/GLib-2.0';
-import { versions } from 'process';
 
 const mainloop: GLib.MainLoop | undefined = (globalThis as any)?.imports?.mainloop;
 
@@ -187,26 +186,48 @@ const printResult = () => {
 	}
 }
 
-const printRuntime = () => {
-	if (versions.gjs) {
-		print(`Running on Gjs ${versions.gjs}`);
-	} else if(versions.node) {
-		print(`Running on Node.js ${versions.node}`);
+const getRuntime = async () => {
+	if(globalThis.Deno?.version?.deno) {
+		return 'Deno ' + globalThis.Deno?.version?.deno;
 	} else {
-		print(`Running on unknown runtime`);
+		let process = globalThis.process;
+
+		if(!process) {
+			try {
+				process = await import('process');
+			} catch (error) {
+				console.error(error)
+				console.warn(error.message);
+				return 'Unknown'
+			}
+		}
+
+		if(process?.versions?.gjs) {
+			return 'Gjs ' + process.versions.gjs;
+		} else if (process?.versions?.node) {
+			return 'Node.js ' + process.versions.node;
+		}
 	}
-	
+	return 'Unknown'
 }
 
-export const run = function(namespaces: Namespaces) {
-	printRuntime();
-	runTests(namespaces)
-	.then(() => {
-		printResult();
-		print();
-		mainloop?.quit();
-	})
+const printRuntime = async () => {
+	const runtime = await getRuntime()
+	print(`Running on ${runtime}`);	
+}
 
-  // Run the GJS mainloop for async operations
-  mainloop?.run();
+export const run = async (namespaces: Namespaces) => {
+
+	printRuntime()
+	.then(async () => {
+		return runTests(namespaces)
+		.then(() => {
+			printResult();
+			print();
+			mainloop?.quit();
+		})
+	});
+
+	// Run the GJS mainloop for async operations
+	mainloop?.run();
 }
