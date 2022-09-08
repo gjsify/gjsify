@@ -1,6 +1,5 @@
 {
   "name": "@gjsify/types",
-  "packageManager": "yarn@3.2.1",
   "type": "module",
   "main": "./@types/Gjs/index.js",
   "module": "./@types/Gjs/index.js",

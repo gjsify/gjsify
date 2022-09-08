@@ -1,0 +1,33 @@
+name: GJS
+on:
+  pull_request:
+  push:
+
+jobs:
+  linux:
+    strategy:
+      matrix:
+        node-version: [ 18.x ]
+        deno-version: [ vx.x.x ]
+        os:
+          - ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Setup Deno
+        uses: denolib/setup-deno@v2
+        with:
+          deno-version: ${{ matrix.deno-version }}
+      - name: Setup Gjs
+        run: sudo apt-get --yes install gjs
+      - name: Install NPM dependencies
+        run: yarn install
+      - name: Build
+        run: yarn run build
+      - name: Test
+        run: yarn run test

@@ -10,7 +10,7 @@
         "gjsify": "./lib/index.js"
     },
     "scripts": {
-        "start": "yarn node lib/index.js",
+        "start": "node lib/index.js",
         "build": "tsc && yarn run chmod",
         "chmod": "chmod +x ./lib/index.js"
     },
