@@ -1,3 +1,4 @@
+/** Array of Node.js build in module names */
 export const EXTERNALS_NODE = [
     'cluster',
     'domain',
@@ -46,6 +47,13 @@ export const EXTERNALS_NODE = [
     'tls',
 ]
 
+/** Array of NPM module names for which we have our own implementation */
+export const EXTERNALS_NPM = [
+    'readable-stream',
+    'node-fetch'
+]
+
+/** Record of Node.js modules (build in or not) and his replacement */
 export const ALIASES_NODE = {
     // 'cluster': '@gjsify/deno_std/node/cluster',
     // 'domain': '@gjsify/deno_std/node/domain',
@@ -100,6 +108,7 @@ export const ALIASES_NODE = {
     'stream/web': 'web-streams-polyfill/ponyfill',
 }
 
+/** Record of Web modules and his replacement */
 export const ALIASES_WEB = {
     'abort-controller': '@gjsify/abort-controller',    
 }

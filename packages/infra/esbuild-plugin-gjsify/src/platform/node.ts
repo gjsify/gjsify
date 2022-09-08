@@ -10,15 +10,17 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];
 
+    const format = pluginOptions.format || 'esm';
+
     // Set default options
     const esbuildOptions: BuildOptions = {
-        format: 'esm',
+        format: pluginOptions.format || 'esm',
         bundle: true,
         minify: false,
         sourcemap: false,
         target: [ "node16" ],
         platform: "node",
-        mainFields: ['module', 'main'],
+        mainFields: format === 'esm' ? ['module', 'main'] : ['main', 'module', 'browser'],
         external: [...EXTERNALS_NODE, 'gi://*'],
         loader: {
             '.ts': 'ts',

@@ -21,6 +21,7 @@
         "cli"
     ],
     "dependencies": {
+        "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "esbuild": "^0.15.7",
         "lodash": "^4.17.21",

@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/fetch",
     "version": "0.0.1",
-    "description": "web fetch module for gjsify",
+    "description": "Web and Node.js fetch module for Gjs",
     "main": "lib/index.mjs",
     "module": "lib/index.mjs",
     "type": "module",

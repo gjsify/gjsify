@@ -36,6 +36,12 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 type: 'string',
                 normalize: true,
             })
+            .option('reflection', {
+                description: "Enables TypeScript types on runtime",
+                type: 'boolean',
+                normalize: true,
+                default: false
+            })
     },
     handler: async (args) => {
         const config = new Config();

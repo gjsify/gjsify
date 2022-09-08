@@ -9,7 +9,7 @@
     "scripts": {
         "build": "yarn run build:js && yarn run build:types",
         "build:js": "node esbuild.mjs",
-        "build:types": "tsc --emitDeclarationOnly"
+        "build:types": "tsc --emitDeclarationOnly || exit 0"
     },
     "keywords": [
         "gjs",
@@ -29,6 +29,8 @@
         "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/tty": "workspace:^",
         "@gjsify/zlib": "workspace:^",
+        "assert": "^2.0.0",
+        "constants-browserify": "^1.0.0",
         "core-js": "^3.25.0",
         "crypto-browserify": "^3.12.0",
         "esbuild-plugin-alias": "^0.2.1",

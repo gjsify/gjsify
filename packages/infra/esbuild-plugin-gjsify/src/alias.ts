@@ -1,6 +1,6 @@
 import path from "path";
 import {readFileSync } from "fs";
-import { ALIASES_NODE, ALIASES_WEB, EXTERNALS_NODE } from "@gjsify/resolve-npm";
+import { ALIASES_NODE, ALIASES_WEB, EXTERNALS_NODE, EXTERNALS_NPM } from "@gjsify/resolve-npm";
 
 export const setNodeAliasPrefix = (ALIASES: Record<string, string>) => {
     // Also resolve alias names with `npm:${ALIAS}`
@@ -47,4 +47,8 @@ export const aliasesNode = resolveAliases(setNodeAliasPrefix(ALIASES_NODE));
 
 export const aliasesWeb = resolveAliases(ALIASES_WEB);
 
+/** Array of Node.js build in module names (also with node: prefix) */
 export const externalNode = [...EXTERNALS_NODE, ...EXTERNALS_NODE.map(E => `node:${E}`)];
+
+/** Array of NPM module names for which we have our own implementation */
+export const externalNPM = [...EXTERNALS_NPM];

@@ -14,4 +14,6 @@ export interface CliBuildOptions {
    * @see https://esbuild.github.io/api/#outfile
    */
   outfile?: string;
+  /** Enables TypeScript types on runtime */
+  reflection?: boolean;
 }

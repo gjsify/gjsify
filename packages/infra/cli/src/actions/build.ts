@@ -1,6 +1,7 @@
 import type { ConfigData, Platform } from '../types/index.js';
 import { build } from 'esbuild';
 import { gjsify } from '@gjsify/esbuild-plugin-gjsify';
+import { deepkit } from '@gjsify/esbuild-plugin-deepkit';
 
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {
@@ -8,36 +9,42 @@ export class BuildAction {
     }
 
     async buildLibrary() {
-        const { library, esbuild } = this.configData;
-
-        console.debug("library", library);
+        const { library, esbuild, typescript } = this.configData;
 
         const multipleBuilds = library?.module && library.main && library.module !== library.main;
     
         if(multipleBuilds) {
+            const moduleFormat = library.module?.endsWith('.cjs') ? 'cjs' : 'esm';
             await build({
                 ...esbuild,
+                format: moduleFormat,
                 outfile: library.module,
                 plugins: [
-                    gjsify({debug: true, library: 'esm'}),
+                    gjsify({debug: true, library: moduleFormat}),
+                    deepkit({reflection: typescript?.reflection})
                 ]
             });
     
+            const mainFormat = library.main?.endsWith('.cjs') ? 'cjs' : 'esm';
             await build({
                 ...esbuild,
+                format: moduleFormat,
                 outfile: library.main,
                 plugins: [
-                    gjsify({debug: true, library: 'cjs'}),
+                    gjsify({debug: true, library: mainFormat}),
+                    deepkit({reflection: typescript?.reflection})
                 ]
             });
         } else {
             const outfile = library?.module || library?.main || esbuild?.outfile;
-            const format = library?.type === 'module' || outfile?.endsWith('.mjs') || !outfile?.endsWith('.cjs') ? 'esm' : 'cjs';
+            const format: 'cjs' | 'esm' = esbuild?.format || library?.type === 'module' || outfile?.endsWith('.mjs') || !outfile?.endsWith('.cjs') ? 'esm' : 'cjs';
             await build({
                 ...esbuild,
+                format,
                 outfile,
                 plugins: [
                     gjsify({debug: true, library: format}),
+                    deepkit({reflection: typescript?.reflection})
                 ]
             });
         }
@@ -45,12 +52,16 @@ export class BuildAction {
 
     async buildApp(platform: Platform = 'gjs') {
 
-        const { esbuild } = this.configData;
+        const { esbuild, typescript } = this.configData;
+
+        const format: 'cjs' | 'esm' = esbuild?.format || esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm';
 
         await build({
             ...esbuild,
+            format,
             plugins: [
-                gjsify({debug: true, platform}),
+                gjsify({debug: true, platform, format}),
+                deepkit({reflection: typescript?.reflection})
             ]
         });
 

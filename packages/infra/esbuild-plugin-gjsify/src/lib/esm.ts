@@ -2,7 +2,7 @@ import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
 import { merge } from "lodash";
 import aliasPlugin from 'esbuild-plugin-alias';
-import { externalNode } from "../alias";
+import { externalNode, externalNPM } from "../alias";
 
 export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -28,7 +28,7 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox102" // Since GJS 1.73.2
         target: [ "firefox91" ],
         platform: "browser",
-        external: [...externalNode, 'gi://*'],
+        external: [...externalNode, ...externalNPM, 'gi://*', '@gjsify/*'],
         format: 'esm',
     };
 

@@ -13,7 +13,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         bundle: true,
         minify: false,
         sourcemap: false,
-        target: [ "browser" ],
+        target: [ "esnext" ], // TODO?
         platform: "browser",
         external: [],
         loader: {

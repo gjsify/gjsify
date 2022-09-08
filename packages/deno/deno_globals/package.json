@@ -6,10 +6,13 @@
     "module": "lib/index.mjs",
     "type": "module",
     "scripts": {
-        "build": "node --experimental-import-meta-resolve esbuild.mjs",
-        "test": "yarn run build && yarn run test:deno && yarn run test:gjs",
+        "build": "gjsify build --library src/index.ts",
+        "build:test": "yarn run build:test:gjs && yarn run build:test:deno",
+        "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+        "build:test:deno": "gjsify build src/test.ts --platform deno --outfile test.deno.js",
+        "test": "yarn run build && yarn run build:test && yarn run test:deno && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.js",
-        "test:deno": "deno run test.gjs.js"
+        "test:deno": "deno run test.deno.js"
     },
     "keywords": [
         "gjs",
@@ -17,7 +20,7 @@
         "globals"
     ],
     "devDependencies": {
-        "@gjsify/esbuild-plugin-gjsify": "workspace:^",
+        "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.7.15"
     }

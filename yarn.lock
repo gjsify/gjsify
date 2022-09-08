@@ -123,7 +123,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/abort-controller@workspace:packages/web/abort-controller"
   dependencies:
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.15
     abort-controller: ^3.0.0
@@ -144,6 +144,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/cli@workspace:packages/infra/cli"
   dependencies:
+    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@types/yargs": ^17.0.12
     esbuild: ^0.15.7
@@ -161,7 +162,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/console@workspace:packages/node/console"
   dependencies:
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.15
   languageName: unknown
@@ -171,7 +172,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/deno_globals@workspace:packages/deno/deno_globals"
   dependencies:
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.15
   languageName: unknown
@@ -204,6 +205,8 @@ __metadata:
     "@gjsify/tty": "workspace:^"
     "@gjsify/zlib": "workspace:^"
     "@types/lodash": ^4.14.184
+    assert: ^2.0.0
+    constants-browserify: ^1.0.0
     core-js: ^3.25.0
     crypto-browserify: ^3.12.0
     esbuild: ^0.15.7
@@ -228,51 +231,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-deepkit-app@workspace:examples/deepkit-app":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-deepkit-app@workspace:examples/deepkit-app"
-  dependencies:
-    "@deepkit/app": ^1.0.1-alpha.74
-    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
-    "@types/node": ^18.7.15
-    core-js: ^3.25.0
-    esbuild: ^0.15.7
-    typescript: ^4.8.2
-  languageName: unknown
-  linkType: soft
-
 "@gjsify/example-deepkit-di@workspace:examples/deepkit-di":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-deepkit-di@workspace:examples/deepkit-di"
   dependencies:
-    "@deepkit/app": ^1.0.1-alpha.74
-    "@deepkit/injector": ^1.0.1-alpha.74
-    "@deepkit/type": ^1.0.1-alpha.74
-    "@deepkit/type-compiler": ^1.0.1-alpha.74
-    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
-    "@gjsify/fs": "workspace:^"
-    "@gjsify/globals": "workspace:^"
-    "@gjsify/os": "workspace:^"
-    "@gjsify/process": "workspace:^"
-    "@gjsify/tty": "workspace:^"
+    "@deepkit/injector": ^1.0.1-alpha.75
+    "@deepkit/type": ^1.0.1-alpha.75
+    "@gjsify/cli": "workspace:^"
     "@types/node": ^18.7.15
-    assert: ^2.0.0
-    browserify-zlib: ^0.2.0
-    buffer: ^6.0.3
-    constants-browserify: ^1.0.0
-    crypto-browserify: ^3.12.0
-    domain-browser: ^4.22.0
-    esbuild: ^0.15.7
-    esbuild-plugin-alias: ^0.2.1
-    events: ^3.3.0
-    path-browserify: ^1.0.1
-    querystring-es3: ^0.2.1
-    stream-browserify: ^3.0.0
-    string_decoder: ^1.3.0
-    typescript: ^4.8.2
-    url: ^0.11.0
-    util: ^0.12.4
   languageName: unknown
   linkType: soft
 
@@ -280,12 +246,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-deepkit-types@workspace:examples/deepkit-types"
   dependencies:
-    "@deepkit/type-compiler": ^1.0.1-alpha.74
-    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@deepkit/type": ^1.0.1-alpha.75
+    "@gjsify/cli": "workspace:^"
     "@types/node": ^18.7.15
-    esbuild: ^0.15.7
-    typescript: ^4.8.2
   languageName: unknown
   linkType: soft
 
@@ -486,7 +449,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/web-events@workspace:packages/web/events"
   dependencies:
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.15
@@ -498,7 +461,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/zlib@workspace:packages/node/zlib"
   dependencies:
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.15
     fflate: ^0.7.3
@@ -1193,15 +1156,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"browserify-zlib@npm:^0.2.0":
-  version: 0.2.0
-  resolution: "browserify-zlib@npm:0.2.0"
-  dependencies:
-    pako: ~1.0.5
-  checksum: 5cd9d6a665190fedb4a97dfbad8dabc8698d8a507298a03f42c734e96d58ca35d3c7d4085e283440bbca1cd1938cff85031728079bedb3345310c58ab1ec92d6
-  languageName: node
-  linkType: hard
-
 "buffer-from@npm:^1.0.0":
   version: 1.1.2
   resolution: "buffer-from@npm:1.1.2"
@@ -1704,13 +1658,6 @@ __metadata:
   dependencies:
     path-type: ^4.0.0
   checksum: fa05e18324510d7283f55862f3161c6759a3f2f8dbce491a2fc14c8324c498286c54282c1f0e933cb930da8419b30679389499b919122952a4f8592362ef4615
-  languageName: node
-  linkType: hard
-
-"domain-browser@npm:^4.22.0":
-  version: 4.22.0
-  resolution: "domain-browser@npm:4.22.0"
-  checksum: e7ce1c19073e17dec35cfde050a3ddaac437d3ba8b870adabf9d5682e665eab3084df05de432dedf25b34303f0a2c71ac30f1cdba61b1aea018047b10de3d988
   languageName: node
   linkType: hard
 
@@ -3553,13 +3500,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pako@npm:~1.0.5":
-  version: 1.0.11
-  resolution: "pako@npm:1.0.11"
-  checksum: 1be2bfa1f807608c7538afa15d6f25baa523c30ec870a3228a89579e474a4d992f4293859524e46d5d87fd30fa17c5edf34dbef0671251d9749820b488660b16
-  languageName: node
-  linkType: hard
-
 "parent-module@npm:^1.0.0":
   version: 1.0.1
   resolution: "parent-module@npm:1.0.1"
@@ -3768,13 +3708,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"punycode@npm:1.3.2":
-  version: 1.3.2
-  resolution: "punycode@npm:1.3.2"
-  checksum: b8807fd594b1db33335692d1f03e8beeddde6fda7fbb4a2e32925d88d20a3aa4cd8dcc0c109ccaccbd2ba761c208dfaaada83007087ea8bfb0129c9ef1b99ed6
-  languageName: node
-  linkType: hard
-
 "punycode@npm:^2.1.1":
   version: 2.1.1
   resolution: "punycode@npm:2.1.1"
@@ -3788,20 +3721,6 @@ __metadata:
   dependencies:
     side-channel: ^1.0.4
   checksum: 6e1f29dd5385f7488ec74ac7b6c92f4d09a90408882d0c208414a34dd33badc1a621019d4c799a3df15ab9b1d0292f97c1dd71dc7c045e69f81a8064e5af7297
-  languageName: node
-  linkType: hard
-
-"querystring-es3@npm:^0.2.1":
-  version: 0.2.1
-  resolution: "querystring-es3@npm:0.2.1"
-  checksum: 691e8d6b8b157e7cd49ae8e83fcf86de39ab3ba948c25abaa94fba84c0986c641aa2f597770848c64abce290ed17a39c9df6df737dfa7e87c3b63acc7d225d61
-  languageName: node
-  linkType: hard
-
-"querystring@npm:0.2.0":
-  version: 0.2.0
-  resolution: "querystring@npm:0.2.0"
-  checksum: 8258d6734f19be27e93f601758858c299bdebe71147909e367101ba459b95446fbe5b975bf9beb76390156a592b6f4ac3a68b6087cea165c259705b8b4e56a69
   languageName: node
   linkType: hard
 
@@ -4488,16 +4407,6 @@ __metadata:
   version: 0.1.2
   resolution: "universalify@npm:0.1.2"
   checksum: 40cdc60f6e61070fe658ca36016a8f4ec216b29bf04a55dce14e3710cc84c7448538ef4dad3728d0bfe29975ccd7bfb5f414c45e7b78883567fb31b246f02dff
-  languageName: node
-  linkType: hard
-
-"url@npm:^0.11.0":
-  version: 0.11.0
-  resolution: "url@npm:0.11.0"
-  dependencies:
-    punycode: 1.3.2
-    querystring: 0.2.0
-  checksum: 50d100d3dd2d98b9fe3ada48cadb0b08aa6be6d3ac64112b867b56b19be4bfcba03c2a9a0d7922bfd7ac17d4834e88537749fe182430dfd9b68e520175900d90
   languageName: node
   linkType: hard
 

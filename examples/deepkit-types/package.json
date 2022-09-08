@@ -3,11 +3,15 @@
   "private": true,
   "version": "0.0.1",
   "description": "",
-  "main": "dist/index.js",
+  "main": "dist/index.gjs.js",
   "type": "module",
   "scripts": {
-    "start": "gjs -m dist/index.js",
-    "build": "node esbuild.mjs"
+    "start": "yarn run build && yarn run start:gjs",
+    "start:gjs": "gjs -m dist/index.gjs.js",
+    "start:node": "node dist/index.node.cjs",
+    "build": "yarn run build:gjs && yarn run build:node",
+    "build:gjs": "gjsify build src/index.ts --platform gjs --outfile dist/index.gjs.js",
+    "build:node": "gjsify build src/index.ts --platform node --outfile dist/index.node.cjs"
   },
   "engines": {
     "node": "16",
@@ -16,11 +20,10 @@
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
-    "@deepkit/type-compiler": "^1.0.1-alpha.74",
-    "@gjsify/esbuild-plugin-deepkit": "workspace:^",
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^",
-    "@types/node": "^18.7.15",
-    "esbuild": "^0.15.7",
-    "typescript": "^4.8.2"
+    "@gjsify/cli": "workspace:^",
+    "@types/node": "^18.7.15"
+  },
+  "dependencies": {
+    "@deepkit/type": "^1.0.1-alpha.75"
   }
 }
