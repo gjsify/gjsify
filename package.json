@@ -3,18 +3,20 @@
   "version": "0.0.1",
   "description": "",
   "type": "module",
+  "private": true,
   "scripts": {
-    "test": "yarn workspaces foreach run test",
+    "test": "yarn workspaces foreach --no-private --parallel run test",
+    "clear": "yarn workspaces foreach --no-private --parallel run clear",
     "build": "yarn run build:infra && yarn run build:gjs && yarn run build:all",
     "build:infra": "yarn workspace @gjsify/resolve-npm run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/cli run build",
     "build:gjs": "yarn workspace @gjsify/types run build && yarn workspace @gjsify/utils run build && yarn workspace @gjsify/unit run build",
-    "build:all": "yarn workspaces foreach run build"
+    "build:all": "yarn workspaces foreach --no-private --parallel run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
     "@types/jsdom": "^20.0.0",
-    "typescript": "^4.8.2"
+    "typescript": "^4.8.3"
   },
   "packageManager": "yarn@3.2.1",
   "resolutions": {

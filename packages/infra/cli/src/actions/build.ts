@@ -37,7 +37,7 @@ export class BuildAction {
             });
         } else {
             const outfile = library?.module || library?.main || esbuild?.outfile;
-            const format: 'cjs' | 'esm' = esbuild?.format || library?.type === 'module' || outfile?.endsWith('.mjs') || !outfile?.endsWith('.cjs') ? 'esm' : 'cjs';
+            const format = esbuild?.format || outfile?.endsWith('.cjs') ? 'cjs' : 'esm';
             await build({
                 ...esbuild,
                 format,

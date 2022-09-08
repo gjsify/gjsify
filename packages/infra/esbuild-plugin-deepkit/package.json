@@ -7,6 +7,7 @@
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",
     "scripts": {
+        "clear": "rm -rf dist",
         "build": "yarn run build:js && yarn run build:types",
         "build:js": "node esbuild.mjs",
         "build:types": "tsc --emitDeclarationOnly"
@@ -17,10 +18,10 @@
         "fs"
     ],
     "dependencies": {
-        "@deepkit/type-compiler": "^1.0.1-alpha.74"
+        "@deepkit/type-compiler": "^1.0.1-alpha.75"
     },
     "devDependencies": {
         "esbuild": "^0.15.7",
-        "typescript": "^4.8.2"
+        "typescript": "^4.8.3"
     }
 }

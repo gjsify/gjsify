@@ -2,10 +2,11 @@
     "name": "@gjsify/buffer",
     "version": "0.0.1",
     "description": "Node.js buffer module for Gjs",
-    "main": "lib/index.cjs",
-    "module": "lib/index.mjs",
+    "main": "lib/buffer.cjs",
+    "module": "lib/buffer.mjs",
     "type": "module",
     "scripts": {
+        "clear": "rm -rf lib",
         "build": "gjsify build --library src/index.ts",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
@@ -22,6 +23,6 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.7.15"
+        "@types/node": "^18.7.16"
     }
 }

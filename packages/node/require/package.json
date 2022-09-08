@@ -9,13 +9,14 @@
   ],
   "author": "Pascal Garber",
   "type": "module",
-  "main": "lib/index.mjs",
-  "module": "lib/index.mjs",
+  "main": "lib/require.cjs",
+  "module": "lib/require.mjs",
   "scripts": {
+    "clear": "rm -rf lib",
     "build": "gjsify build --library src/index.ts",
     "build:test": "yarn run build:test:gjs && yarn run build:test:node",
     "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
-    "build:test:node": "node --experimental-import-meta-resolve esbuild.mjs",
+    "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.cjs",
     "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
     "test:gjs": "gjs -m test.gjs.js",
     "test:node": "node test.node.cjs"
@@ -26,7 +27,7 @@
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^",
+    "@gjsify/cli": "workspace:^",
     "@gjsify/unit": "workspace:^",
     "cowsay2": "^2.0.4"
   }

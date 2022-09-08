@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
-import { arch as _arch, platform as _platform  } from 'os';
+import { arch as _arch, platform as _platform } from '@gjsify/utils';
 import { WriteStream, ReadStream } from 'tty';
-import * as fs from 'fs';
+import { existsSync } from 'fs';
 
 import imports from '@gjsify/types/index';
 import GLib from '@gjsify/types/GLib-2.0';
@@ -45,7 +45,7 @@ class Process extends EventEmitter {
     ARGV.forEach(arg => {
       if (arg[0] !== '-') {
         arr.push(
-          fs.existsSync(arg) ?
+          existsSync(arg) ?
             File.new_for_path(arg).get_path() :
             arg
         );

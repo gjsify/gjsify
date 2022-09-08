@@ -1,7 +1,7 @@
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
 import { merge } from "lodash";
-// import { aliasesWeb } from "../alias";
+import { aliasesWeb, resolvePackageByType } from "../alias";
 import aliasPlugin from 'esbuild-plugin-alias';
 import { EXTERNALS_NODE } from "@gjsify/resolve-npm";
 
@@ -12,9 +12,14 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
 
     const format = pluginOptions.format || 'esm';
 
+    const inject = [
+        '@gjsify/abort-controller',
+        '@gjsify/web-events',
+    ].map(inj => resolvePackageByType(inj, format === 'cjs' ? 'main' : 'module'));
+
     // Set default options
     const esbuildOptions: BuildOptions = {
-        format: pluginOptions.format || 'esm',
+        format,
         bundle: true,
         minify: false,
         sourcemap: false,
@@ -30,11 +35,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
             '.mtsx': 'ts',
             '.ctsx': 'ts',
         },
-        inject: [
-            // require.resolve('@gjsify/abort-controller/'),
-            // require.resolve('@gjsify/web-events/'),
-            // require.resolve('@gjsify/globals/')
-        ],
+        inject,
         define: {
             global: 'globalThis',
         }

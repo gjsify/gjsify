@@ -16,3 +16,7 @@ lib/
 
 packages/**/*/test.*.js
 packages/**/*/test.*.js.map
+packages/**/*/test.*.cjs
+packages/**/*/test.*.cjs.map
+packages/**/*/test.*.mjs
+packages/**/*/test.*.mjs.map

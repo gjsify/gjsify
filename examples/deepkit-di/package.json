@@ -6,6 +6,7 @@
   "main": "dist/index.gjs.js",
   "type": "module",
   "scripts": {
+    "clear": "rm -rf dist",
     "start": "yarn run build && yarn run start:gjs",
     "start:gjs": "gjs -m dist/index.gjs.js",
     "start:node": "node dist/index.node.cjs",
@@ -25,6 +26,6 @@
   },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
-    "@types/node": "^18.7.15"
+    "@types/node": "^18.7.16"
   }
 }

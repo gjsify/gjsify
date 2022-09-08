@@ -28,7 +28,7 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox102" // Since GJS 1.73.2
         target: [ "firefox91" ],
         platform: "browser",
-        external: [...externalNode, ...externalNPM, 'gi://*', '@gjsify/*'],
+        external: [...externalNode, ...externalNPM, 'gi://*',/* FIXME arch is undefined '@gjsify/*'*/],
         format: 'esm',
     };
 

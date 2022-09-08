@@ -2,10 +2,11 @@
     "name": "@gjsify/url",
     "version": "0.0.1",
     "description": "Node.js url module for Gjs",
-    "main": "lib/index.cjs",
-    "module": "lib/index.mjs",
+    "main": "lib/url.cjs",
+    "module": "lib/url.mjs",
     "type": "module",
     "scripts": {
+        "clear": "rm -rf lib",
         "bundle:deno": "rm -f src/url.deno.js && deno bundle https://deno.land/std/node/url.ts src/url.deno.js",
         "patch:deno": "node ./patch-deno.mjs",
         "build": "yarn run build:deno && gjsify build --library src/index.ts",

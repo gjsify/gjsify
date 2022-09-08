@@ -9,9 +9,10 @@
   ],
   "author": "Pascal Garber",
   "type": "module",
-  "main": "lib/index.js",
-  "module": "lib/index.js",
+  "main": "lib/globals.js",
+  "module": "lib/globals.js",
   "scripts": {
+    "clear": "rm -rf lib",
     "build": "gjsify build --library src/index.ts",
     "build:test": "yarn run build:test:gjs && yarn run build:test:node",
     "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",

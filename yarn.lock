@@ -125,7 +125,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
     abort-controller: ^3.0.0
   languageName: unknown
   linkType: soft
@@ -136,7 +136,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -150,7 +150,7 @@ __metadata:
     esbuild: ^0.15.7
     lodash: ^4.17.21
     pkg-types: ^0.3.5
-    typescript: ^4.8.2
+    typescript: ^4.8.3
     vite: ^3.1.0
     yargs: ^17.5.1
   bin:
@@ -164,7 +164,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -174,7 +174,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -182,9 +182,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/esbuild-plugin-deepkit@workspace:packages/infra/esbuild-plugin-deepkit"
   dependencies:
-    "@deepkit/type-compiler": ^1.0.1-alpha.74
+    "@deepkit/type-compiler": ^1.0.1-alpha.75
     esbuild: ^0.15.7
-    typescript: ^4.8.2
+    typescript: ^4.8.3
   languageName: unknown
   linkType: soft
 
@@ -192,9 +192,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/esbuild-plugin-gjsify@workspace:packages/infra/esbuild-plugin-gjsify"
   dependencies:
-    "@deepkit/app": ^1.0.1-alpha.74
-    "@deepkit/injector": ^1.0.1-alpha.74
-    "@deepkit/type": ^1.0.1-alpha.74
+    "@deepkit/app": ^1.0.1-alpha.75
+    "@deepkit/injector": ^1.0.1-alpha.75
+    "@deepkit/type": ^1.0.1-alpha.75
     "@gjsify/events": "workspace:^"
     "@gjsify/fs": "workspace:^"
     "@gjsify/globals": "workspace:^"
@@ -207,7 +207,7 @@ __metadata:
     "@types/lodash": ^4.14.184
     assert: ^2.0.0
     constants-browserify: ^1.0.0
-    core-js: ^3.25.0
+    core-js: ^3.25.1
     crypto-browserify: ^3.12.0
     esbuild: ^0.15.7
     esbuild-plugin-alias: ^0.2.1
@@ -216,7 +216,7 @@ __metadata:
     punycode: ^2.1.1
     stream-browserify: ^3.0.0
     string_decoder: ^1.3.0
-    typescript: ^4.8.2
+    typescript: ^4.8.3
     web-streams-polyfill: ^3.2.1
   languageName: unknown
   linkType: soft
@@ -227,7 +227,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -238,7 +238,7 @@ __metadata:
     "@deepkit/injector": ^1.0.1-alpha.75
     "@deepkit/type": ^1.0.1-alpha.75
     "@gjsify/cli": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -248,7 +248,7 @@ __metadata:
   dependencies:
     "@deepkit/type": ^1.0.1-alpha.75
     "@gjsify/cli": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -259,7 +259,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/http": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
     data-uri-to-buffer: ^4.0.0
     fetch-blob: ^3.2.0
     formdata-polyfill: ^4.0.10
@@ -272,7 +272,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -293,7 +293,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -304,7 +304,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -325,7 +325,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/utils": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -337,7 +337,7 @@ __metadata:
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/inherits": ^0.0.30
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -346,7 +346,7 @@ __metadata:
   resolution: "@gjsify/readable-stream@workspace:packages/node/readable-stream"
   dependencies:
     "@rollup/plugin-commonjs": ^22.0.2
-    "@rollup/plugin-node-resolve": ^14.0.0
+    "@rollup/plugin-node-resolve": ^14.0.1
     abort-controller: ^3.0.0
     rollup-plugin-node-polyfills: ^0.2.1
   languageName: unknown
@@ -356,7 +356,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/require@workspace:packages/node/require"
   dependencies:
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/cli": "workspace:^"
     "@gjsify/process": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -377,7 +377,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
     inherits: ^2.0.4
     readable-stream: ^4.1.0
   languageName: unknown
@@ -389,7 +389,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/utils": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
   languageName: unknown
   linkType: soft
 
@@ -406,7 +406,7 @@ __metadata:
   resolution: "@gjsify/unit@workspace:packages/gjs/unit"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    typescript: ^4.8.2
+    typescript: ^4.8.3
   languageName: unknown
   linkType: soft
 
@@ -426,7 +426,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/inherits": ^0.0.30
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
     is-arguments: ^1.1.1
     is-generator-function: ^1.0.10
     is-typed-array: ^1.1.9
@@ -441,7 +441,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
-    typescript: ^4.8.2
+    typescript: ^4.8.3
   languageName: unknown
   linkType: soft
 
@@ -452,7 +452,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
     happy-dom: ^6.0.4
   languageName: unknown
   linkType: soft
@@ -463,7 +463,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": ^18.7.15
+    "@types/node": ^18.7.16
     fflate: ^0.7.3
   languageName: unknown
   linkType: soft
@@ -625,9 +625,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rollup/plugin-node-resolve@npm:^14.0.0":
-  version: 14.0.0
-  resolution: "@rollup/plugin-node-resolve@npm:14.0.0"
+"@rollup/plugin-node-resolve@npm:^14.0.1":
+  version: 14.0.1
+  resolution: "@rollup/plugin-node-resolve@npm:14.0.1"
   dependencies:
     "@rollup/pluginutils": ^3.1.0
     "@types/resolve": 1.17.1
@@ -637,7 +637,7 @@ __metadata:
     resolve: ^1.19.0
   peerDependencies:
     rollup: ^2.78.0
-  checksum: c40e7db6c36fd34d699904e8fdf87e550d608d1fe99f2004eda0251d2e436934a901336730eedcb051c2a0c600ee3fc3173b9a2013968247de1fda06fb0a6605
+  checksum: 504ff5485f81e435d3da41d1be92cdccbb1f1cb3cab444183517b2ad2de9f9246288964783b28b121c72642cc9ac05ca945300ac65997f047141d648e6c0515b
   languageName: node
   linkType: hard
 
@@ -763,10 +763,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^18.7.15":
-  version: 18.7.15
-  resolution: "@types/node@npm:18.7.15"
-  checksum: 1435fc7fe44744467a3ba8ace646455be228516530dbb3db64a03cca6abcfdc5ba2e48a3eafc71f25f836d2ca871132361c58a5e760237a53674cb09151147d9
+"@types/node@npm:^18.7.16":
+  version: 18.7.16
+  resolution: "@types/node@npm:18.7.16"
+  checksum: 01a3d35c764a3f0e7370b56e1ad4203731131883c65784e020009014171b3f53c4649cde6c7aa4f1026b907ee87ef6ae6ece2bc518151dc7b81100fe8b1db3ad
   languageName: node
   linkType: hard
 
@@ -1464,10 +1464,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"core-js@npm:^3.25.0":
-  version: 3.25.0
-  resolution: "core-js@npm:3.25.0"
-  checksum: 5a72740bf5babaf2e6203da4c0e831a0b97c3fe6f21b4c1aa8601d3a927660a22128dd8f0e86ce84778c4e5372ab0fc03c7944afa7e215c7fb13b2c79d5d5504
+"core-js@npm:^3.25.1":
+  version: 3.25.1
+  resolution: "core-js@npm:3.25.1"
+  checksum: bfacb078e790913841e2d5008b9b6705ae56ed23f83c7f0ae08d330d874561012611089d53b71520105234ed0abba36f28d91b391514a16541a8c8d98c464239
   languageName: node
   linkType: hard
 
@@ -2335,7 +2335,7 @@ __metadata:
   resolution: "gjsify@workspace:."
   dependencies:
     "@types/jsdom": ^20.0.0
-    typescript: ^4.8.2
+    typescript: ^4.8.3
   languageName: unknown
   linkType: soft
 
@@ -4346,23 +4346,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^4.8.2":
-  version: 4.8.2
-  resolution: "typescript@npm:4.8.2"
+"typescript@npm:^4.8.3":
+  version: 4.8.3
+  resolution: "typescript@npm:4.8.3"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 7f5b81d0d558c9067f952c7af52ab7f19c2e70a916817929e4a5b256c93990bf3178eccb1ac8a850bc75df35f6781b6f4cb3370ce20d8b1ded92ed462348f628
+  checksum: 8286a5edcaf3d68e65c451aa1e7150ad1cf53ee0813c07ec35b7abdfdb10f355ecaa13c6a226a694ae7a67785fd7eeebf89f845da0b4f7e4a35561ddc459aba0
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@^4.8.2#~builtin<compat/typescript>":
-  version: 4.8.2
-  resolution: "typescript@patch:typescript@npm%3A4.8.2#~builtin<compat/typescript>::version=4.8.2&hash=7ad353"
+"typescript@patch:typescript@^4.8.3#~builtin<compat/typescript>":
+  version: 4.8.3
+  resolution: "typescript@patch:typescript@npm%3A4.8.3#~builtin<compat/typescript>::version=4.8.3&hash=7ad353"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 6f49363af8af2fe480da1d5fa68712644438785208b06690a3cbe5e7365fd652c3a0f1e587bc8684d78fb69de3dde4de185c0bad7bb4f3664ddfc813ce8caad6
+  checksum: 0404a09c625df01934ef774b45ce1ca57ccae41cd625fcdbb82056715320d9329e70d9d75c2c732ec6ef947444ca978c189a332b71fa21f5c1437d5a83e24906
   languageName: node
   linkType: hard
 

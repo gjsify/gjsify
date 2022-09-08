@@ -23,7 +23,7 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
         },
         target: ['node16'],
         platform: "browser",
-        external: [...externalNode, ...externalNPM, 'gi://*', '@gjsify/*'],
+        external: [...externalNode, ...externalNPM, 'gi://*', /* FIXME '@gjsify/*'*/],
         format: 'cjs',
     };
 

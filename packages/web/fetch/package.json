@@ -2,10 +2,11 @@
     "name": "@gjsify/fetch",
     "version": "0.0.1",
     "description": "Web and Node.js fetch module for Gjs",
-    "main": "lib/index.mjs",
-    "module": "lib/index.mjs",
+    "main": "lib/fetch.cjs",
+    "module": "lib/fetch.mjs",
     "type": "module",
     "scripts": {
+        "clear": "rm -rf lib",
         "build": "gjsify build --library src/index.ts",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
@@ -23,7 +24,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/http": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.7.15"
+        "@types/node": "^18.7.16"
     },
     "dependencies": {
         "data-uri-to-buffer": "^4.0.0",

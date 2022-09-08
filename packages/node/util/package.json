@@ -2,10 +2,11 @@
     "name": "@gjsify/util",
     "version": "0.0.1",
     "description": "Node.js util module for Gjs",
-    "main": "lib/index.cjs",
-    "module": "lib/index.mjs",
+    "main": "lib/util.cjs",
+    "module": "lib/util.mjs",
     "type": "module",
     "scripts": {
+        "clear": "rm -rf lib",
         "build": "gjsify build --library src/index.ts",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
@@ -23,7 +24,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
-        "@types/node": "^18.7.15"
+        "@types/node": "^18.7.16"
     },
     "dependencies": {
         "is-arguments": "^1.1.1",
