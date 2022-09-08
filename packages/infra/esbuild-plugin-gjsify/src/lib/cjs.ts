@@ -2,7 +2,7 @@ import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
 import { merge } from "lodash";
 import aliasPlugin from 'esbuild-plugin-alias';
-import { EXTERNALS_NODE } from "@gjsify/resolve-npm";
+import { externalNode } from "../alias";
 
 export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -23,7 +23,7 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
         },
         target: ['node16'],
         platform: "browser",
-        external: [...EXTERNALS_NODE, 'gi://*'],
+        external: [...externalNode, 'gi://*'],
         format: 'cjs',
     };
 

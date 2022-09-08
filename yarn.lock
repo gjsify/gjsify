@@ -293,7 +293,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/fetch@workspace:packages/web/fetch"
   dependencies:
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/cli": "workspace:^"
     "@gjsify/http": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.15
@@ -442,6 +442,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/unit@workspace:packages/gjs/unit"
   dependencies:
+    "@gjsify/cli": "workspace:^"
     typescript: ^4.8.2
   languageName: unknown
   linkType: soft
@@ -475,6 +476,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/utils@workspace:packages/gjs/utils"
   dependencies:
+    "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     typescript: ^4.8.2
   languageName: unknown

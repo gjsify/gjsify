@@ -1,19 +1,22 @@
 {
   "name": "@gjsify/unit",
   "version": "0.0.1",
-  "description": "A BDD-style testing framework for the gjs Gnome Javascript binding.",
+  "description": "A BDD-style testing framework for Gjs",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "test": "test.js",
   "scripts": {
-    "test": "yarn run build:js && yarn run test:gjs && yarn run test:node",
+    "build": "yarn run build:gjsify && yarn run build:types",
+    "build:gjsify": "gjsify build --library src/index.ts",
+    "build:types": "tsc --emitDeclarationOnly",
+    "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+    "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+    "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+    "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
     "test:gjs": "gjs -m test.gjs.js",
-    "test:node": "node test.node.js",
-    "build": "yarn run build:js && yarn run build:types",
-    "build:js": "node esbuild.mjs",
-    "build:types": "tsc --emitDeclarationOnly"
+    "test:node": "node test.node.js"
   },
   "repository": {
     "type": "git",
@@ -32,6 +35,7 @@
   },
   "homepage": "https://github.com/gjsify/unit#readme",
   "devDependencies": {
+    "@gjsify/cli": "workspace:^",
     "typescript": "^4.8.2"
   }
 }

@@ -8,7 +8,7 @@
     "types": "dist/index.d.ts",
     "scripts": {
         "build": "yarn run build:js && yarn run build:types",
-        "build:js": "node esbuild.js",
+        "build:js": "node esbuild.mjs",
         "build:types": "tsc --emitDeclarationOnly"
     },
     "keywords": [
