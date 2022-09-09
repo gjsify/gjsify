@@ -2,46 +2,55 @@ import type { ConfigData, Platform } from '../types/index.js';
 import { build } from 'esbuild';
 import { gjsify } from '@gjsify/esbuild-plugin-gjsify';
 import { deepkit } from '@gjsify/esbuild-plugin-deepkit';
+import { dirname, extname } from 'path';
 
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {
 
     }
 
+    /** Library mode */
     async buildLibrary() {
-        const { library, esbuild, typescript } = this.configData;
+        let { library, esbuild, typescript } = this.configData;
+        library ||= {};
+        esbuild ||= {};
+        typescript ||= {};
 
-        const multipleBuilds = library?.module && library.main && library.module !== library.main;
+        const moduleOutdir = library?.module ? dirname(library.module) : undefined;
+        const mainOutdir = library?.main ? dirname(library.main) : undefined;
+
+        const multipleBuilds = moduleOutdir && mainOutdir && (moduleOutdir !== mainOutdir);
     
         if(multipleBuilds) {
-            const moduleFormat = library.module?.endsWith('.cjs') ? 'cjs' : 'esm';
+            const moduleFormat = moduleOutdir.includes('/cjs') ? 'cjs' : 'esm';
             await build({
                 ...esbuild,
                 format: moduleFormat,
-                outfile: library.module,
+                outdir: moduleOutdir,
                 plugins: [
                     gjsify({debug: true, library: moduleFormat}),
                     deepkit({reflection: typescript?.reflection})
                 ]
             });
     
-            const mainFormat = library.main?.endsWith('.cjs') ? 'cjs' : 'esm';
+            const mainFormat = mainOutdir.includes('/cjs') ? 'cjs' : 'esm';
             await build({
                 ...esbuild,
                 format: moduleFormat,
-                outfile: library.main,
+                outdir: mainOutdir,
                 plugins: [
                     gjsify({debug: true, library: mainFormat}),
                     deepkit({reflection: typescript?.reflection})
                 ]
             });
         } else {
-            const outfile = library?.module || library?.main || esbuild?.outfile;
-            const format = esbuild?.format || outfile?.endsWith('.cjs') ? 'cjs' : 'esm';
+            const outfile = esbuild?.outfile || library?.module || library?.main;
+            const outdir = esbuild?.outdir || (outfile ? dirname(outfile) : undefined);
+            const format = esbuild?.format || outdir?.includes('/cjs') ? 'cjs' : 'esm';
             await build({
                 ...esbuild,
                 format,
-                outfile,
+                outdir,
                 plugins: [
                     gjsify({debug: true, library: format}),
                     deepkit({reflection: typescript?.reflection})
@@ -50,6 +59,7 @@ export class BuildAction {
         }
     }
 
+    /** Platform / Application mode */
     async buildApp(platform: Platform = 'gjs') {
 
         const { esbuild, typescript } = this.configData;

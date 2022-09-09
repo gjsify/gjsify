@@ -1,7 +1,10 @@
 import type { Platform } from './index.js';
 
 export interface CliBuildOptions {
-  /** @see https://esbuild.github.io/api/#entry-points */
+  /**
+   * This is an array of files that each serve as an input to the bundling algorithm.
+   * @see https://esbuild.github.io/api/#entry-points
+   */
   entryPoints?: string[];
   /** The platform you want to build your application for, the platforms node and deno are usually only used internally to build the tests for Gjsify */
   platform?: Platform;
@@ -14,6 +17,11 @@ export interface CliBuildOptions {
    * @see https://esbuild.github.io/api/#outfile
    */
   outfile?: string;
-  /** Enables TypeScript types on runtime */
+  /**
+   * This option sets the output directory for the build operation.
+   * @see https://esbuild.github.io/api/#outdir
+   */
+  outdir?: string;
+  /** Enables TypeScript types on runtime using Deepkit's type compiler */
   reflection?: boolean;
 }

@@ -2,8 +2,8 @@ import '@gjsify/types/index';
 import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
 
-export * from './cli.mjs';
-export * from './os.mjs';
+export * from './cli.js';
+export * from './os.js';
 
 const byteArray = imports.byteArray;
 const { File } = Gio;

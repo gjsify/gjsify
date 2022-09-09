@@ -32,12 +32,17 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 default: false
             })
             .option('outfile', {
-                description: "Sets the output file name for the build operation. If no outfile is specified, the outfile will be parsed from the package.json",
+                description: "Sets the output file name for the build operation. If no outfile is specified, the outfile will be parsed from the package.json. Only used if platform mode is active",
+                type: 'string',
+                normalize: true,
+            })
+            .option('outdir', {
+                description: "Sets the output directory for the build operation. If no outdir is specified, the outdir will be parsed from the package.json. Only used if library mode is active",
                 type: 'string',
                 normalize: true,
             })
             .option('reflection', {
-                description: "Enables TypeScript types on runtime",
+                description: "Enables TypeScript types on runtime using Deepkit's type compiler",
                 type: 'boolean',
                 normalize: true,
                 default: false

@@ -52,9 +52,9 @@ export const resolvePackageByType = (pkgName: string, resolveBy: 'main' | 'modul
     return result;
 }
 
-export const aliasesNode = resolveAliasesByType(setNodeAliasPrefix(ALIASES_NODE));
+export const getAliasesNode = () => resolveAliasesByType(setNodeAliasPrefix(ALIASES_NODE));
 
-export const aliasesWeb = resolveAliasesByType(ALIASES_WEB);
+export const getAliasesWeb = () => resolveAliasesByType(ALIASES_WEB);
 
 /** Array of Node.js build in module names (also with node: prefix) */
 export const externalNode = [...EXTERNALS_NODE, ...EXTERNALS_NODE.map(E => `node:${E}`)];

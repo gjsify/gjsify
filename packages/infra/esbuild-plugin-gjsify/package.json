@@ -35,6 +35,7 @@
         "core-js": "^3.25.1",
         "crypto-browserify": "^3.12.0",
         "esbuild-plugin-alias": "^0.2.1",
+        "esbuild-plugin-glob": "^2.1.0",
         "path-browserify": "^1.0.1",
         "punycode": "^2.1.1",
         "stream-browserify": "^3.0.0",

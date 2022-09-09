@@ -1,4 +1,4 @@
-import { cli } from './cli.mjs'
+import { cli } from './cli.js'
 
 const UNAME_ALL = cli('uname -a');
 

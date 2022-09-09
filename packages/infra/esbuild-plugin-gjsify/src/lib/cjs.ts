@@ -1,8 +1,10 @@
+import aliasPlugin from 'esbuild-plugin-alias';
+import { globPlugin } from 'esbuild-plugin-glob';
+import { merge } from "lodash";
+
+// Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
-import { merge } from "lodash";
-import aliasPlugin from 'esbuild-plugin-alias';
-import { externalNode, externalNPM } from "../alias";
 
 export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -10,7 +12,8 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
     pluginOptions.exclude ||= [];
 
     const esbuildOptions: BuildOptions = {
-        bundle: true,
+        bundle: false,
+        splitting: false, // only works with esm, see https://esbuild.github.io/api/#splitting
         minify: false,
         sourcemap: false,
         loader: {
@@ -23,8 +26,10 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
         },
         target: ['node16'],
         platform: "browser",
-        external: [...externalNode, ...externalNPM, 'gi://*', /* FIXME '@gjsify/*'*/],
         format: 'cjs',
+        plugins: [
+            globPlugin()
+        ]
     };
 
     merge(build.initialOptions, esbuildOptions);

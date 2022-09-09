@@ -1,13 +1,13 @@
 {
     "name": "@gjsify/zlib",
     "version": "0.0.1",
-    "description": "node zlib module for gjsify",
-    "main": "lib/zlib.cjs",
-    "module": "lib/zlib.mjs",
+    "description": "Node.js zlib module for Gjs",
+    "main": "lib/cjs/index.js",
+    "module": "lib/esm/index.js",
     "type": "module",
     "scripts": {
         "clear": "rm -rf lib",
-        "build": "gjsify build --library src/index.ts",
+        "build": "gjsify build --library src/**/*.{ts,js}",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
         "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
@@ -18,7 +18,7 @@
     "keywords": [
         "gjs",
         "node",
-        "fs"
+        "zlib"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

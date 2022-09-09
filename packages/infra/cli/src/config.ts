@@ -59,11 +59,14 @@ export class Config {
 
         tsConfig.reflection ||= cliArgs.reflection;
 
+        
+
         merge(configData.library, pkg, configData.library);
         merge(configData.typescript, tsConfig, configData.typescript);
         merge(configData.esbuild, {
             entryPoints: cliArgs.entryPoints,
             outfile: cliArgs.outfile,
+            outdir: cliArgs.outdir,
         });
 
         console.debug("configData", configData);

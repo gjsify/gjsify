@@ -1,9 +1,13 @@
+
+import aliasPlugin from 'esbuild-plugin-alias';
+import { globPlugin } from 'esbuild-plugin-glob';
+import { merge } from "lodash";
+import { resolvePackageByType } from "../alias";
+import { EXTERNALS_NODE } from "@gjsify/resolve-npm";
+
+// Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
-import { merge } from "lodash";
-import { aliasesWeb, resolvePackageByType } from "../alias";
-import aliasPlugin from 'esbuild-plugin-alias';
-import { EXTERNALS_NODE } from "@gjsify/resolve-npm";
 
 export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -38,14 +42,15 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         inject,
         define: {
             global: 'globalThis',
-        }
+        },
+        plugins: [
+            globPlugin()
+        ]
     };
 
     merge(build.initialOptions, esbuildOptions);
 
-    if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
-
-    const aliases = {/*...aliasesWeb,*/ ...pluginOptions.aliases};
+    const aliases = {/*...getAliasesWeb(),*/ ...pluginOptions.aliases};
 
     for (const aliasKey of Object.keys(aliases)) {
         if(pluginOptions.exclude.includes(aliasKey)) {
@@ -53,7 +58,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         }
     }
 
-    if(pluginOptions.debug) console.debug("aliases", aliases);
+    if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
 }

@@ -1,6 +1,10 @@
+import aliasPlugin from 'esbuild-plugin-alias';
+import { globPlugin } from 'esbuild-plugin-glob';
+import { merge } from "lodash";
+
+// Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
-import { merge } from "lodash";
 
 export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -27,10 +31,23 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         inject: [],
         define: {
             global: 'globalThis',
-        }
+        },
+        plugins: [
+            globPlugin()
+        ]
     };
 
     merge(build.initialOptions, esbuildOptions);
 
+    const aliases = {...pluginOptions.aliases};
+
+    for (const aliasKey of Object.keys(aliases)) {
+        if(pluginOptions.exclude.includes(aliasKey)) {
+            delete aliases[aliasKey];
+        }
+    }
+
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
+
+    await aliasPlugin(aliases).setup(build);
 }

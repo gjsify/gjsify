@@ -1,4 +1,4 @@
-# @gjsify/http
+# @gjsify/zlib
 
 ## Inspirations and credits
 - https://nodejs.org/api/zlib.html

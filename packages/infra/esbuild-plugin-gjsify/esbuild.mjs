@@ -1,5 +1,8 @@
+import { globPlugin } from 'esbuild-plugin-glob';
 import { build } from 'esbuild';
 import { readFile } from 'fs/promises';
+import { extname, dirname } from 'path';
+import { EXTERNALS_NODE } from '@gjsify/resolve-npm';
 
 const pkg = JSON.parse(
     await readFile(
@@ -14,24 +17,24 @@ if (!pkg.main && !pkg.module) {
 const baseConfig = {
     entryPoints: ['src/index.ts'],
     bundle: true,
-    minify: true,
+    minify: false,
     external: [
-        'fs',
-        'util',
-        'path',
-        'process',
-        'util',
+        ...EXTERNALS_NODE,
         'typescript',
-        'module',
         '@deepkit/type-compiler',
+        'esbuild'
+    ],
+    plugins: [
+        globPlugin(),
     ]
 }
 
 if (pkg.main) {
     build({
         ...baseConfig,
-        outfile: pkg.main,
+        outdir: dirname(pkg.main),
         format: 'cjs',
+        outExtension: {'.js': extname(pkg.main)},
         platform: "node",
     });    
 }
@@ -39,7 +42,8 @@ if (pkg.main) {
 if (pkg.module) {
     build({
         ...baseConfig,
-        outfile: pkg.module,
+        outdir: dirname(pkg.module),
         format: 'esm',
+        outExtension: {'.js': extname(pkg.module)},
     });
 }

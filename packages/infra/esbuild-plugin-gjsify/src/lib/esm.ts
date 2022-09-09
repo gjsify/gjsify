@@ -1,8 +1,10 @@
+import aliasPlugin from 'esbuild-plugin-alias';
+import { globPlugin } from 'esbuild-plugin-glob';
+import { merge } from "lodash";
+
+// Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
-import { merge } from "lodash";
-import aliasPlugin from 'esbuild-plugin-alias';
-import { externalNode, externalNPM } from "../alias";
 
 export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -10,7 +12,8 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
     pluginOptions.exclude ||= [];
 
     const esbuildOptions: BuildOptions = {
-        bundle: true,
+        bundle: false,
+        splitting: true, // only works with esm, see https://esbuild.github.io/api/#splitting
         minify: false,
         sourcemap: false,
         loader: {
@@ -28,8 +31,10 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox102" // Since GJS 1.73.2
         target: [ "firefox91" ],
         platform: "browser",
-        external: [...externalNode, ...externalNPM, 'gi://*',/* FIXME arch is undefined '@gjsify/*'*/],
         format: 'esm',
+        plugins: [
+            globPlugin()
+        ]
     };
 
     merge(build.initialOptions, esbuildOptions);

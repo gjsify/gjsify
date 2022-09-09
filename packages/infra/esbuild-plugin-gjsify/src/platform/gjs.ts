@@ -1,8 +1,11 @@
+import aliasPlugin from 'esbuild-plugin-alias';
+import { globPlugin } from 'esbuild-plugin-glob';
+import { merge } from "lodash";
+import { getAliasesNode, getAliasesWeb, resolvePackageByType } from "../alias";
+
+// Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
-import { merge } from "lodash";
-import { aliasesNode, aliasesWeb, resolvePackageByType } from "../alias";
-import aliasPlugin from 'esbuild-plugin-alias';
 
 export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -48,20 +51,23 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             global: 'globalThis',
             // WORKAROUND
             'process.env.NODE_DEBUG': 'false',
-        }
+        },
+        plugins: [
+            globPlugin()
+        ]
     };
 
     merge(build.initialOptions, esbuildOptions);
 
-    if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
-
-    const aliases = {...aliasesNode, ...aliasesWeb, ...pluginOptions.aliases};
+    const aliases = {...getAliasesNode(), ...getAliasesWeb(), ...pluginOptions.aliases};
 
     for (const aliasKey of Object.keys(aliases)) {
         if(pluginOptions.exclude.includes(aliasKey)) {
             delete aliases[aliasKey];
         }
     }
+
+    if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
 }

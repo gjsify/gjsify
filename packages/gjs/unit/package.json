@@ -9,7 +9,7 @@
   "test": "test.js",
   "scripts": {
     "build": "yarn run build:gjsify && yarn run build:types",
-    "build:gjsify": "gjsify build --library src/index.ts",
+    "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
     "build:types": "tsc --emitDeclarationOnly",
     "build:test": "yarn run build:test:gjs && yarn run build:test:node",
     "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",

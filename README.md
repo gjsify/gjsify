@@ -3,6 +3,6 @@
 Combine the power of Typescript with the power of GJS
 
 ## TODO
- - Do not bundle library output
+ - Change "type": "module" to "commonjs" because the default for require is "commonjs", we use "module" to target the esm version
  - Fix fetch package
  - 
