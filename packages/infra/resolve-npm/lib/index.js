@@ -76,7 +76,7 @@ export const ALIASES_NODE = {
     tty: '@gjsify/tty',
     // 'async_hooks': '@gjsify/deno_std/node/async_hooks',
     'fs': '@gjsify/fs',
-    'fs/promises': '@gjsify/fs/lib/promises.mjs',
+    'fs/promises': '@gjsify/fs/lib/esm/promises.js',
     // 'sys': '@gjsify/deno_std/node/sys',
     // 'vm': '@gjsify/deno_std/node/vm',
     http: '@gjsify/http',
