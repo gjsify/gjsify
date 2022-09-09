@@ -27,11 +27,13 @@ export const print = globalThis.print || console.log;
 
 class MatcherFactory {
 
-	public not?: MatcherFactory;
+	public not: MatcherFactory;
 
-	constructor(protected readonly actualValue: any, protected readonly positive: boolean, withOpposite = true) {
-		if (withOpposite) {
-			this.not = new MatcherFactory(actualValue, !positive, false);
+	constructor(protected readonly actualValue: any, protected readonly positive: boolean, negated?: MatcherFactory) {
+		if(negated) {
+			this.not = negated;
+		} else {
+			this.not = new MatcherFactory(actualValue, !positive, this);
 		}
 	}
 
@@ -151,7 +153,7 @@ export const describe = async function(moduleName: string, callback: Callback) {
 };
 
 /** E.g on('Deno', () {  it(...) }) */
-export const on = async function(name: string, version: string | Callback, callback: Callback) {
+export const on = async function(name: string, version: string | Callback, callback?: Callback) {
 	name = name.toLowerCase();
 	const runtime = (await getRuntime()).toLowerCase();
 
