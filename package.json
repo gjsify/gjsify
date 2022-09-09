@@ -1,9 +1,13 @@
 {
   "name": "gjsify",
   "version": "0.0.1",
-  "description": "",
+  "description": "Combine the power of Typescript with the power of GJS",
   "type": "module",
   "private": true,
+  "keywords": [
+    "gjs",
+    "typescript"
+  ],
   "scripts": {
     "test": "yarn workspaces foreach --no-private --parallel run test",
     "clear": "yarn workspaces foreach --no-private --parallel run clear",
