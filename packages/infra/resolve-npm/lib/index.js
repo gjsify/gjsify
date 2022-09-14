@@ -66,7 +66,8 @@ export const ALIASES_NODE = {
     // 'module': '@gjsify/deno_std/node/module',
     'process': '@gjsify/process',
     // 'v8': '@gjsify/deno_std/node/v8',
-    assert: 'assert', // https://github.com/browserify/commonjs-assert
+    // assert: 'assert', // https://github.com/browserify/commonjs-assert
+    'assert': '@gjsify/assert',
     constants: 'constants-browserify', // https://github.com/juliangruber/constants-browserify
     events: '@gjsify/events',
     // 'https': '@gjsify/deno_std/node/https',
@@ -110,5 +111,6 @@ export const ALIASES_NODE = {
 
 /** Record of Web modules and his replacement */
 export const ALIASES_WEB = {
-    'abort-controller': '@gjsify/abort-controller',    
+    'abort-controller': '@gjsify/abort-controller',
+    'event-target-shim': '@gjsify/event-target',
 }

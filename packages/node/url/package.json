@@ -2,8 +2,8 @@
     "name": "@gjsify/url",
     "version": "0.0.1",
     "description": "Node.js url module for Gjs",
-    "main": "lib/indexs.cjs",
-    "module": "lib/indexs.mjs",
+    "main": "lib/cjs/index.js",
+    "module": "lib/esm/index.js",
     "type": "module",
     "scripts": {
         "clear": "rm -rf lib",

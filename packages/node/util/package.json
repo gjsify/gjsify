@@ -4,10 +4,13 @@
     "description": "Node.js util module for Gjs",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
     "type": "module",
     "scripts": {
         "clear": "rm -rf lib",
-        "build": "gjsify build --library src/**/*.{ts,js}",
+        "build": "yarn run build:gjsify && yarn run build:types",
+        "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
+        "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
         "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
@@ -24,9 +27,11 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
-        "@types/node": "^18.7.16"
+        "@types/node": "^18.7.16",
+        "typescript": "^4.8.3"
     },
     "dependencies": {
+        "@gjsify/node-internal": "workspace:^",
         "is-arguments": "^1.1.1",
         "is-generator-function": "^1.0.10",
         "is-typed-array": "^1.1.9",

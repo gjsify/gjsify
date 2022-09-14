@@ -1,6 +1,52 @@
-import { describe, it, expect, run } from '@gjsify/unit';
+import { describe, it, expect, assert, beforeEach, afterEach } from '@gjsify/unit';
 
 export const testSuite = async () => {
+
+	await describe('assert', async () => {
+
+		await it('should consider truthy values as valid', async () => {
+			assert(true);
+			assert(1);
+			assert({});
+			assert([]);
+		});
+	})
+
+	await describe('beforeEach', async () => {
+
+		let foo = '';
+		let count = 0;
+		let countAfter = 0;
+
+		await beforeEach(async () => {
+			console.log("beforeEach");
+			foo = 'bar';
+			++count;
+		});
+
+		await afterEach(async () => {
+			console.log("afterEach");
+			--countAfter;
+		});
+
+		await it('foo should be "bar"', async () => {
+			expect(foo).toBe('bar');
+			foo = 'override me again'
+		});
+
+		await it('foo should be "bar" again', async () => {
+			expect(foo).toBe('bar');
+		});
+
+		await it('count should be 3 again', async () => {
+			expect(count).toBe(3);
+		});
+
+		await it('countAfter should be -3', async () => {
+			expect(countAfter).toBe(-3);
+		});
+	});
+
 	await describe('expect::to', async () => {
 		await it('should be possible to validate expectations by callback', async () => {
 			expect(3).to(function(actualValue) {

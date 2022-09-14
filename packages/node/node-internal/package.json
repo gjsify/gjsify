@@ -1,0 +1,31 @@
+{
+    "name": "@gjsify/node-internal",
+    "version": "0.0.1",
+    "description": "Internal module for Gjs internally used to rebuild the Node.js build in modules for Gjs",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "type": "module",
+    "scripts": {
+        "clear": "rm -rf lib",
+        "build": "yarn run build:gjsify && yarn run build:types",
+        "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
+        "build:types": "tsc --emitDeclarationOnly || exit 0",
+        "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+        "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
+        "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+        "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
+        "test:gjs": "gjs -m test.gjs.js",
+        "test:node": "node test.node.js"
+    },
+    "keywords": [
+        "gjs",
+        "node",
+        "console"
+    ],
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^18.7.16",
+        "typescript": "^4.8.3"
+    }
+}

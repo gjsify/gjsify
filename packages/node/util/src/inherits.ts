@@ -1,4 +1,5 @@
 /**
+ * TODO: use https://github.com/denoland/deno_std/blob/3b9fb39ddd9a99e64aff159302039dc3cfddd36e/node/util.ts#L144
  * Inherit the prototype methods from one constructor into another.
  *
  * The Function.prototype.inherits from lang.js rewritten as a standalone

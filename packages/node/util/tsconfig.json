@@ -6,6 +6,7 @@
       "moduleResolution": "Node",
       "experimentalDecorators": true,
       "outDir": "lib",
+      "declarationDir": "lib/types",
       "rootDir": "src",
       "composite": true,
       "allowSyntheticDefaultImports": true,

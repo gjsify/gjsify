@@ -124,9 +124,21 @@ __metadata:
   resolution: "@gjsify/abort-controller@workspace:packages/web/abort-controller"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/event-target": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": ^18.7.17
+    typescript: ^4.8.3
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/assert@workspace:^, @gjsify/assert@workspace:packages/node/assert":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/assert@workspace:packages/node/assert"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.16
-    abort-controller: ^3.0.0
   languageName: unknown
   linkType: soft
 
@@ -195,16 +207,18 @@ __metadata:
     "@deepkit/app": ^1.0.1-alpha.75
     "@deepkit/injector": ^1.0.1-alpha.75
     "@deepkit/type": ^1.0.1-alpha.75
+    "@gjsify/assert": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/fs": "workspace:^"
     "@gjsify/globals": "workspace:^"
+    "@gjsify/node-internal": "workspace:^"
     "@gjsify/os": "workspace:^"
     "@gjsify/process": "workspace:^"
     "@gjsify/require": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
     "@gjsify/tty": "workspace:^"
     "@gjsify/zlib": "workspace:^"
-    "@types/lodash": ^4.14.184
+    "@types/lodash": ^4.14.185
     assert: ^2.0.0
     constants-browserify: ^1.0.0
     core-js: ^3.25.1
@@ -219,6 +233,16 @@ __metadata:
     string_decoder: ^1.3.0
     typescript: ^4.8.3
     web-streams-polyfill: ^3.2.1
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/event-target@workspace:^, @gjsify/event-target@workspace:packages/web/event-target":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/event-target@workspace:packages/web/event-target"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    typescript: ^4.8.3
   languageName: unknown
   linkType: soft
 
@@ -309,6 +333,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/node-internal@workspace:^, @gjsify/node-internal@workspace:packages/node/node-internal":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/node-internal@workspace:packages/node/node-internal"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": ^18.7.16
+    typescript: ^4.8.3
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/os@workspace:^, @gjsify/os@workspace:packages/node/os":
   version: 0.0.0-use.local
   resolution: "@gjsify/os@workspace:packages/node/os"
@@ -347,7 +382,7 @@ __metadata:
   resolution: "@gjsify/readable-stream@workspace:packages/node/readable-stream"
   dependencies:
     "@rollup/plugin-commonjs": ^22.0.2
-    "@rollup/plugin-node-resolve": ^14.0.1
+    "@rollup/plugin-node-resolve": ^14.1.0
     abort-controller: ^3.0.0
     rollup-plugin-node-polyfills: ^0.2.1
   languageName: unknown
@@ -425,12 +460,14 @@ __metadata:
   resolution: "@gjsify/util@workspace:packages/node/util"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/inherits": ^0.0.30
     "@types/node": ^18.7.16
     is-arguments: ^1.1.1
     is-generator-function: ^1.0.10
     is-typed-array: ^1.1.9
+    typescript: ^4.8.3
     util: ^0.12.4
     which-typed-array: ^1.1.8
   languageName: unknown
@@ -626,9 +663,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rollup/plugin-node-resolve@npm:^14.0.1":
-  version: 14.0.1
-  resolution: "@rollup/plugin-node-resolve@npm:14.0.1"
+"@rollup/plugin-node-resolve@npm:^14.1.0":
+  version: 14.1.0
+  resolution: "@rollup/plugin-node-resolve@npm:14.1.0"
   dependencies:
     "@rollup/pluginutils": ^3.1.0
     "@types/resolve": 1.17.1
@@ -638,7 +675,7 @@ __metadata:
     resolve: ^1.19.0
   peerDependencies:
     rollup: ^2.78.0
-  checksum: 504ff5485f81e435d3da41d1be92cdccbb1f1cb3cab444183517b2ad2de9f9246288964783b28b121c72642cc9ac05ca945300ac65997f047141d648e6c0515b
+  checksum: 7c5bed3e5a511ee47172acd91da1a828383f7ef72d54d27d8050598ef9038df0f86a8559db455611e138e07b99d787fd7445b11f81129970d07104644576d80a
   languageName: node
   linkType: hard
 
@@ -736,10 +773,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/lodash@npm:^4.14.184":
-  version: 4.14.184
-  resolution: "@types/lodash@npm:4.14.184"
-  checksum: 6d9a4d67f7f9d0ec3fd21174f3dd3d00629dc1227eb469450eace53adbc1f7e2330699c28d0fe093e5f0fef0f0e763098be1f779268857213224af082b62be21
+"@types/lodash@npm:^4.14.185":
+  version: 4.14.185
+  resolution: "@types/lodash@npm:4.14.185"
+  checksum: f81d13da5ecab110ca9c5c7cc2bedc3c9802a6acf668576aecd1b8f4b134ed81d06c15f1e600fb08f05975098280a0d97d30cddfc2cb39ec1c6b56e971ca53b3
   languageName: node
   linkType: hard
 
@@ -768,6 +805,13 @@ __metadata:
   version: 18.7.16
   resolution: "@types/node@npm:18.7.16"
   checksum: 01a3d35c764a3f0e7370b56e1ad4203731131883c65784e020009014171b3f53c4649cde6c7aa4f1026b907ee87ef6ae6ece2bc518151dc7b81100fe8b1db3ad
+  languageName: node
+  linkType: hard
+
+"@types/node@npm:^18.7.17":
+  version: 18.7.17
+  resolution: "@types/node@npm:18.7.17"
+  checksum: bb1b832f4ad42a106d189d87e95aef117f0026a7ea291f34c5d106a25419d6d4c9d39099688ad46746cc3c2307c263be4adec1049a35dc12c9e48f19975b2dc6
   languageName: node
   linkType: hard
 

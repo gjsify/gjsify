@@ -1,5 +1,5 @@
-import { EventEmitter } from 'events';
 import { arch as _arch, platform as _platform } from '@gjsify/utils';
+import { EventEmitter } from 'events';
 import { WriteStream, ReadStream } from 'tty';
 import { existsSync } from 'fs';
 

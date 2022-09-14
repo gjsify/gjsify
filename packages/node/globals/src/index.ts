@@ -1,4 +1,3 @@
-console.debug("Inject node_globals");
 import process from 'process';
 if (!globalThis.process) Object.defineProperty(globalThis, 'process', { value: process });
 

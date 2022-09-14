@@ -13,13 +13,16 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     pluginOptions.exclude ||= [];
 
     const inject = [
-        '@gjsify/require',
-        // TODO: Move to web
-        'core-js/features/url-search-params/',
-        'core-js/features/url/',
-        '@gjsify/abort-controller',
-        '@gjsify/web-events',
         '@gjsify/globals',
+        '@gjsify/web-events',
+        '@gjsify/abort-controller',
+
+        '@gjsify/require',
+
+        // TODO: Move to web
+        'core-js/features/url/',
+        'core-js/features/url-search-params/',
+
         // '@gjsify/deno_globals/',
     ].map(inj => resolvePackageByType(inj, 'module'));
 
@@ -35,8 +38,9 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox91 // Since GJS 1.71.1
         // firefox102" // Since GJS 1.73.2
         target: [ "firefox91" ],
-        platform: "browser",
+        platform: "neutral",
         mainFields: ['module', 'main'],
+        conditions: ['import'],
         external: ['gi://*'],
         loader: {
             '.ts': 'ts',
@@ -49,6 +53,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         inject,
         define: {
             global: 'globalThis',
+            window: 'globalThis',
             // WORKAROUND
             'process.env.NODE_DEBUG': 'false',
         },

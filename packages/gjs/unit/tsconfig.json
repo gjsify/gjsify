@@ -1,8 +1,9 @@
 {
     "compilerOptions": {
-      "outDir": "dist",
-      "declarationDir": "dist",
-      "declaration": true
+      "outDir": "lib",
+      "declarationDir": "lib/types",
+      "declaration": true,
+      "esModuleInterop": true,
     },
     "files": ["src/index.ts"]
 }

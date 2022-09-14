@@ -30,6 +30,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         target: [ "node16" ],
         platform: "node",
         mainFields: format === 'esm' ? ['module', 'main'] : ['main', 'module', 'browser'],
+        conditions: format === 'esm' ? ['import'] : ['require'],
         external: [...EXTERNALS_NODE, 'gi://*'],
         loader: {
             '.ts': 'ts',
@@ -42,6 +43,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         inject,
         define: {
             global: 'globalThis',
+            window: 'globalThis',
         },
         plugins: [
             globPlugin()

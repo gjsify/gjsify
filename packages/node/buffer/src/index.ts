@@ -1,3 +1,3 @@
-export * from './buffer.deno.js';
-import * as buffer from './buffer.deno.js';
+export * from './buffer.js';
+import buffer from './buffer.js';
 export default buffer;

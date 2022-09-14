@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "description": "A BDD-style testing framework for Gjs",
   "type": "module",
-  "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
+  "main": "lib/cjs/index.js",
+  "module": "lib/esm/index.js",
+  "types": "lib/types/index.d.ts",
   "test": "test.js",
   "scripts": {
     "build": "yarn run build:gjsify && yarn run build:types",

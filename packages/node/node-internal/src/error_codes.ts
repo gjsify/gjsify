@@ -1,0 +1,8 @@
+// https://github.com/denoland/deno_std/blob/main/node/internal/error_codes.ts
+// Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
+
+// Lazily initializes the error classes in this object.
+// This trick is necessary for avoiding circular dendencies between
+// `internal/errors` and other modules.
+// deno-lint-ignore no-explicit-any
+export const codes: Record<string, any> = {};

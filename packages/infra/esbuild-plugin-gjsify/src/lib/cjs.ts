@@ -26,6 +26,7 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
         },
         target: ['node16'],
         platform: "browser",
+        conditions: ['require'],
         format: 'cjs',
         plugins: [
             globPlugin()

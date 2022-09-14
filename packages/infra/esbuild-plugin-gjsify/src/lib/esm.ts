@@ -31,6 +31,7 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox102" // Since GJS 1.73.2
         target: [ "firefox91" ],
         platform: "browser",
+        conditions: ['import'],
         format: 'esm',
         plugins: [
             globPlugin()

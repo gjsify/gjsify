@@ -18,7 +18,8 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         minify: false,
         sourcemap: false,
         target: [ "esnext" ], // TODO?
-        platform: "browser",
+        platform: "neutral",
+        conditions: ['import'],
         external: [],
         loader: {
             '.ts': 'ts',
@@ -31,6 +32,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         inject: [],
         define: {
             global: 'globalThis',
+            window: 'globalThis',
         },
         plugins: [
             globPlugin()

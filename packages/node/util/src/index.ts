@@ -28,6 +28,8 @@ export * from './is-buffer.js';
 import * as _types from './types.js';
 export { inherits } from './inherits.js';
 
+export * from './get-system-error-name.js';
+
 var getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors ||
   function getOwnPropertyDescriptors(obj) {
     var keys = Object.keys(obj);

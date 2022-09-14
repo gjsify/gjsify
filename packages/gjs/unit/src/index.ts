@@ -1,4 +1,5 @@
 import type GLib from '@gjsify/types/GLib-2.0';
+import nodeAssert from 'assert';
 
 const mainloop: GLib.MainLoop | undefined = (globalThis as any)?.imports?.mainloop;
 
@@ -47,23 +48,41 @@ class MatcherFactory {
 
 	to(callback: (actualValue: any) => boolean) {
 		this.triggerResult(callback(this.actualValue),
-			'      Expected callback to validate'
+			`      Expected callback to validate`
 		);
 	}
 
 	toBe(expectedValue: any) {
 		this.triggerResult(this.actualValue === expectedValue,
-			'      Expected values to match using ===\n' +
-			'      Expected: ' + expectedValue + '\n' +
-			'      Actual: ' + this.actualValue
+			`      Expected values to match using ===\n` +
+			`      Expected: ${expectedValue} (${typeof expectedValue})\n` +
+			`      Actual: ${this.actualValue} (${typeof this.actualValue})`
 		);
 	}
 
 	toEqual(expectedValue: any) {
 		this.triggerResult(this.actualValue == expectedValue,
-			'      Expected values to match using ==\n' +
-			'      Expected: ' + expectedValue + '\n' +
-			'      Actual: ' + this.actualValue
+			`      Expected values to match using ==\n` +
+			`      Expected: ${expectedValue} (${typeof expectedValue})\n` +
+			`      Actual: ${this.actualValue} (${typeof this.actualValue})`
+		);
+	}
+
+	toEqualArray(expectedValue: Array<any> | Uint8Array) {
+
+		let success = Array.isArray(this.actualValue) && Array.isArray(expectedValue) && this.actualValue.length === expectedValue.length;
+
+		for (let i = 0; i < this.actualValue.length; i++) {
+			const actualVal = this.actualValue[i];
+			const expectedVal = expectedValue[i];
+			success = actualVal == expectedVal;
+			if(!success) break;
+		}
+
+		this.triggerResult(success,
+			`      Expected array items to match using ==\n` +
+			`      Expected: ${expectedValue} (${typeof expectedValue})\n` +
+			`      Actual: ${this.actualValue} (${typeof this.actualValue})`
 		);
 	}
 
@@ -80,58 +99,59 @@ class MatcherFactory {
 
 	toBeDefined() {
 		this.triggerResult(typeof this.actualValue !== 'undefined',
-			'      Expected value to be defined'
+			`      Expected value to be defined`
 		);
 	}
 
 	toBeUndefined() {
 		this.triggerResult(typeof this.actualValue === 'undefined',
-			'      Expected value to be undefined'
+			`      Expected value to be undefined`
 		);
 	}
 
 	toBeNull() {
 		this.triggerResult(this.actualValue === null,
-			'      Expected value to be null'
+			`      Expected value to be null`
 		);
 	}
 
 	toBeTruthy() {
 		this.triggerResult(this.actualValue as unknown as boolean,
-			'      Expected value to be truthy'
+			`      Expected value to be truthy`
 		);
 	}
 
 	toBeFalsy() {
 		this.triggerResult(!this.actualValue,
-			'      Expected value to be falsy'
+			`      Expected value to be falsy`
 		);
 	}
 
 	toContain(needle: any) {
 		this.triggerResult(this.actualValue instanceof Array && this.actualValue.indexOf(needle) !== -1,
-			'      Expected ' + this.actualValue + ' to contain ' + needle
+			`      Expected ` + this.actualValue + ` to contain ` + needle
 		);
 	}
 	toBeLessThan(greaterValue: number) {
 		this.triggerResult(this.actualValue < greaterValue,
-			'      Expected ' + this.actualValue + ' to be less than ' + greaterValue
+			`      Expected ` + this.actualValue + ` to be less than ` + greaterValue
 		);
 	}
 	toBeGreaterThan(smallerValue: number) {
 		this.triggerResult(this.actualValue > smallerValue,
-			'      Expected ' + this.actualValue + ' to be greater than ' + smallerValue
+			`      Expected ` + this.actualValue + ` to be greater than ` + smallerValue
 		);
 	}
 	toBeCloseTo(expectedValue: number, precision: number) {
 		const shiftHelper = Math.pow(10, precision);
 		this.triggerResult(Math.round((this.actualValue as unknown as number) * shiftHelper) / shiftHelper === Math.round(expectedValue * shiftHelper) / shiftHelper,
-			'      Expected ' + this.actualValue + ' with precision ' + precision + ' to be close to ' + expectedValue
+			`      Expected ` + this.actualValue + ` with precision ` + precision + ` to be close to ` + expectedValue
 		);
 	}
-	toThrow() {
+	toThrow(ErrorType?: typeof Error) {
 		let errorMessage = ''; 
 		let didThrow = false;
+		let typeMatch = true;
 		try {
 			this.actualValue();
 			didThrow = false;
@@ -139,16 +159,30 @@ class MatcherFactory {
 		catch(e) {
 			errorMessage = e.message || '';
 			didThrow = true;
+			if(ErrorType) {
+				typeMatch = (e instanceof ErrorType)
+			}
 		}
 		const functionName = this.actualValue.name || typeof this.actualValue === 'function' ? "[anonymous function]" : this.actualValue.toString();
 		this.triggerResult(didThrow,
 			`      Expected ${functionName} to ${this.positive ? 'throw' : 'not throw'} an exception ${!this.positive && errorMessage ? `, but an error with the message "${errorMessage}" was thrown` : ''}`
 		);
+
+		if(ErrorType) {
+			this.triggerResult(typeMatch,
+				`      Expected Error type '${ErrorType.name}', but the error is not an instance of it`
+			);
+		}
 	}
 }
 
 export const describe = async function(moduleName: string, callback: Callback) {
 	print('\n' + moduleName);
+
+	// Reset after and before callbacks
+	beforeEachCb = null;
+	afterEachCb = null;
+
 	await callback();
 };
 
@@ -178,9 +212,30 @@ export const on = async function(name: string, version: string | Callback, callb
 	await callback();
 }
 
+let beforeEachCb: Callback | undefined | null;
+let afterEachCb: Callback | undefined | null;
+
+export const beforeEach = async function (callback?: Callback) {
+	beforeEachCb = callback;
+}
+
+export const afterEach = async function (callback?: Callback) {
+	afterEachCb = callback;
+}
+
+
 export const it = async function(expectation: string, callback: () => void | Promise<void>) {
 	try {
+		if(typeof beforeEachCb === 'function') {
+			await beforeEachCb();
+		}
+		
 		await callback();
+
+		if(typeof afterEachCb === 'function') {
+			await afterEachCb();
+		}
+
 		print(`  ${GREEN}✔${RESET} ${GRAY}${expectation}${RESET}`);
 	}
 	catch(e) {
@@ -197,6 +252,20 @@ export const expect = function(actualValue: any) {
 
 	return expecter;
 }
+
+export const assert = function(success: any, message?: string | Error) {
+	++countTestsOverall;
+
+	if(!success) {
+		++countTestsFailed;
+	}
+
+	nodeAssert(success, message);
+}
+
+assert.strictEqual = nodeAssert.strictEqual;
+assert.throws = nodeAssert.throws;
+assert.deepStrictEqual = nodeAssert.deepStrictEqual;
 
 const runTests = async function(namespaces: Namespaces) {
 	// recursively check the test directory for executable tests

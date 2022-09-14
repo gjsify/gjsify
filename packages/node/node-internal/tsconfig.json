@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+      "module": "ESNext",
+      "types": ["node"],
+      "target": "ESNext",
+      "moduleResolution": "node",
+      "experimentalDecorators": true,
+      "allowSyntheticDefaultImports": true,
+      "outDir": "lib",
+      "declarationDir": "lib",
+      "rootDir": "src",
+      "composite": true
+    },
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false,
+    "reflection": false,
+    "include": ["src/**/*.ts"],
+    "exclude": ["src/test.ts", "src/**/*.spec.ts"]
+}
