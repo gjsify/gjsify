@@ -1,10 +1,10 @@
+// Forked from https://github.com/philipphoffmann/gjsunit
+
 import type GLib from '@gjsify/types/GLib-2.0';
+export * from './spy.js';
 import nodeAssert from 'assert';
 
 const mainloop: GLib.MainLoop | undefined = (globalThis as any)?.imports?.mainloop;
-
-// This file is part of the gjsunit framework
-// Please visit https://github.com/philipphoffmann/gjsunit for more information
 
 let countTestsOverall = 0;
 let countTestsFailed = 0;
@@ -22,6 +22,8 @@ export interface Namespaces {
 }
 
 export type Callback = () => Promise<void>;
+
+export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser';
 
 // Makes this work on Gjs and Node.js
 export const print = globalThis.print || console.log;
@@ -179,35 +181,62 @@ class MatcherFactory {
 export const describe = async function(moduleName: string, callback: Callback) {
 	print('\n' + moduleName);
 
+	await callback();
+
 	// Reset after and before callbacks
 	beforeEachCb = null;
 	afterEachCb = null;
-
-	await callback();
 };
 
+const runtimeMatch = async function(onRuntime: Runtime[], version?: string) {
+
+	const currRuntime = (await getRuntime());
+
+	const foundRuntime = onRuntime.find((r) => currRuntime.includes(r));
+
+	if (!foundRuntime) {
+		return {
+			matched: false
+		}
+	}
+
+	if(typeof version === 'string') {
+		// TODO allow version wildcards like 16.x.x
+		if(!currRuntime.includes(version)) {
+			return {
+				matched: false
+			}
+		}
+	}
+
+	return {
+		matched: true,
+		runtime: foundRuntime,
+		version: version,
+	}
+}
+
+// TODO add support for Browser
 /** E.g on('Deno', () {  it(...) }) */
-export const on = async function(name: string, version: string | Callback, callback?: Callback) {
-	name = name.toLowerCase();
-	const runtime = (await getRuntime()).toLowerCase();
+export const on = async function(onRuntime: Runtime | Runtime[], version: string | Callback, callback?: Callback) {
+
+	if(typeof onRuntime === 'string') {
+		onRuntime = [onRuntime];
+	}
 
 	if(typeof version === 'function') {
 		callback = version;
+		version = undefined;
 	}
 
-	if (!runtime.includes(name)) {
+	const { matched } = await runtimeMatch(onRuntime, version as string | undefined);
+
+	if(!matched) {
 		++countTestsIgnored;
 		return;
 	}
 
-	if(typeof version === 'string') {
-		version = version.toLowerCase();
-		// TODO allow version wildcards like 16.x.x
-		if(!runtime.includes(version)) {
-			countTestsIgnored;
-			return
-		}
-	}
+	print(`\nOn ${onRuntime.join(', ')}${version ? ' ' + version : ''}`);
 
 	await callback();
 }
@@ -215,11 +244,11 @@ export const on = async function(name: string, version: string | Callback, callb
 let beforeEachCb: Callback | undefined | null;
 let afterEachCb: Callback | undefined | null;
 
-export const beforeEach = async function (callback?: Callback) {
+export const beforeEach = function (callback?: Callback) {
 	beforeEachCb = callback;
 }
 
-export const afterEach = async function (callback?: Callback) {
+export const afterEach = function (callback?: Callback) {
 	afterEachCb = callback;
 }
 
@@ -263,9 +292,41 @@ export const assert = function(success: any, message?: string | Error) {
 	nodeAssert(success, message);
 }
 
-assert.strictEqual = nodeAssert.strictEqual;
-assert.throws = nodeAssert.throws;
-assert.deepStrictEqual = nodeAssert.deepStrictEqual;
+assert.strictEqual = function<T>(actual: unknown, expected: T, message?: string | Error): asserts actual is T {
+	++countTestsOverall;
+	try {
+		nodeAssert.strictEqual(actual, expected, message);
+	} catch (error) {
+		++countTestsFailed;
+		throw error
+	}
+}
+
+assert.throws = function(promiseFn: () => unknown, ...args: any[]) {
+	++countTestsOverall;
+	let error: any;
+	try {
+		promiseFn();
+	} catch (e) {
+		error = e;
+	}
+
+	if(!error) ++countTestsFailed;
+
+	nodeAssert.throws(() => { if(error) throw error }, args[0], args[1])
+};
+
+assert.deepStrictEqual = function<T>(actual: unknown, expected: T, message?: string | Error): asserts actual is T {
+	++countTestsOverall;
+	try {
+		nodeAssert.deepStrictEqual(actual, expected, message);
+	} catch (error) {
+		++countTestsFailed;
+		throw error
+	}
+}
+
+// TODO wrap more assert methods
 
 const runTests = async function(namespaces: Namespaces) {
 	// recursively check the test directory for executable tests

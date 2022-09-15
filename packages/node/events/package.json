@@ -24,5 +24,9 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.7.16"
+    },
+    "dependencies": {
+        "@gjsify/event-target": "workspace:^",
+        "@gjsify/node-internal": "workspace:^"
     }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, assert, beforeEach, afterEach } from '@gjsify/unit';
 
-export const testSuite = async () => {
+export default async () => {
 
 	await describe('assert', async () => {
 
@@ -18,13 +18,13 @@ export const testSuite = async () => {
 		let count = 0;
 		let countAfter = 0;
 
-		await beforeEach(async () => {
+		beforeEach(async () => {
 			console.log("beforeEach");
 			foo = 'bar';
 			++count;
 		});
 
-		await afterEach(async () => {
+		afterEach(async () => {
 			console.log("afterEach");
 			--countAfter;
 		});

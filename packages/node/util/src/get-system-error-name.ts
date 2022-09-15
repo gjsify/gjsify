@@ -1,4 +1,4 @@
-import {  } from '@gjsify/node-internal';
+import { codes, errorMap } from '@gjsify/node-internal';
 
 /**
  * Returns a system error name from an error code number.
@@ -8,9 +8,13 @@ import {  } from '@gjsify/node-internal';
     if (typeof code !== "number") {
       throw new codes.ERR_INVALID_ARG_TYPE("err", "number", code);
     }
-    if (code >= 0 || !NumberIsSafeInteger(code)) {
+    if (code >= 0 || !Number.isSafeInteger(code)) {
       throw new codes.ERR_OUT_OF_RANGE("err", "a negative integer", code);
     }
-    return errorMap.get(code)?.[0];
+    const result = errorMap.get(code)?.[0];
+    if(!result) {
+      return `Unknown system error ${code}`
+    }
+    return result;
   }
   

@@ -242,6 +242,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
     typescript: ^4.8.3
   languageName: unknown
   linkType: soft
@@ -251,6 +252,8 @@ __metadata:
   resolution: "@gjsify/events@workspace:packages/node/events"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/event-target": "workspace:^"
+    "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.16
   languageName: unknown
@@ -294,6 +297,16 @@ __metadata:
 "@gjsify/fs@workspace:^, @gjsify/fs@workspace:packages/node/fs":
   version: 0.0.0-use.local
   resolution: "@gjsify/fs@workspace:packages/node/fs"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": ^18.7.16
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/gio-2.0@workspace:packages/gjs/gio-2.0":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/gio-2.0@workspace:packages/gjs/gio-2.0"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"

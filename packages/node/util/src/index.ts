@@ -142,6 +142,20 @@ export const debuglog = function(set) {
   return debugs[set];
 };
 
+const inspectDefaultOptions: InspectOptions = {
+  showHidden: false,
+  depth: 2,
+  colors: false,
+  customInspect: true,
+  showProxy: false,
+  maxArrayLength: 100,
+  maxStringLength: 10000,
+  breakLength: 80,
+  compact: 3,
+  sorted: false,
+  getters: false,
+  // TODO since 18 ? numericSeparator: false,
+}
 
 /**
  * Echos the value of a value. Trys to print the value out
@@ -167,16 +181,22 @@ function inspect(object: any, opts?: InspectOptions | boolean, ...args: any[]) {
     ctx.showHidden = opts as boolean;
   } else if (opts) {
     // got an "options" object
-    exports._extend(ctx, opts);
+    _extend(ctx, opts);
   }
   // set default options
-  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
-  if (isUndefined(ctx.depth)) ctx.depth = 2;
-  if (isUndefined(ctx.colors)) ctx.colors = false;
-  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
+  if (isUndefined(ctx.showHidden)) ctx.showHidden = inspectDefaultOptions.showHidden;
+  if (isUndefined(ctx.depth)) ctx.depth = inspectDefaultOptions.depth;
+  if (isUndefined(ctx.colors)) ctx.colors = inspectDefaultOptions.colors;
+  if (isUndefined(ctx.customInspect)) ctx.customInspect = inspectDefaultOptions.customInspect;
+
+  // TODO: Add support for more options
+
   if (ctx.colors) ctx.stylize = stylizeWithColor;
   return formatValue(ctx, object, ctx.depth);
 }
+
+inspect.defaultOptions = inspectDefaultOptions
+
 export { inspect };
 
 

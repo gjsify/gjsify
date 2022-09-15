@@ -1,6 +1,6 @@
 
 import { run } from '@gjsify/unit';
 
-import testSuite from './index.spec.js';
+import eventEmitterTestSuite from './event-emitter.spec.js';
 
-run({testSuite});
+run({ eventEmitterTestSuite });

@@ -1,7 +1,4 @@
 import { EventEmitter } from 'events';
-// TODO fork this
-// TODO: PointerEvent, StorageEvent
-// import { CustomEvent, Event, ErrorEvent, AnimationEvent, FocusEvent, InputEvent, KeyboardEvent, MouseEvent, ProgressEvent, WheelEvent } from 'happy-dom';
 
 const globalEventEmitter = new EventEmitter();
 
