@@ -94,13 +94,13 @@ export default async function fetch(url: RequestInfo | URL, init: RequestInit = 
       finalize();
     };
 
-    let inputStream: Gio.InputStream;
+    let readable: Stream.Readable;
     let cancellable: Gio.Cancellable;
 
     // Send request
     try {
       const sendRes = await request._send(options);
-      inputStream = sendRes.inputStream;
+      readable = sendRes.readable;
       cancellable = sendRes.cancellable;
     } catch (error) {
       reject(error);
@@ -124,10 +124,10 @@ export default async function fetch(url: RequestInfo | URL, init: RequestInit = 
 
     const message = request._message;
 
-    // inputStream.on('error', (error: SystemError) => {
-    //   reject(new FetchError(`request to ${request.url} failed, reason: ${error.message}`, 'system', error));
-    //   finalize();
-    // });
+    readable.on('error', (error: SystemError) => {
+      reject(new FetchError(`request to ${request.url} failed, reason: ${error.message}`, 'system', error));
+      finalize();
+    });
 
     message.connect('finished', (message) => {
 

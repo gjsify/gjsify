@@ -1,7 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 
-import { DataInputStream } from './index.js';
-
+import { ExtInputStream } from './index.js';
 import { byteArray } from '@gjsify/types/Gjs';
 import Gio from '@gjsify/types/Gio-2.0';
 import { Readable } from 'stream';
@@ -19,11 +18,11 @@ export default async () => {
 
 		await it('should also be usable without iterable implementation', () => {
 			// A reference to our file
-			var file = Gio.File.new_for_path (dataTextFile);
+			const file = Gio.File.new_for_path (dataTextFile);
 			// File should exists
 			expect(file.query_exists(null)).toBeTruthy();
 			
-			var dataInputStream = new DataInputStream({ base_stream: file.read(null) });
+			const dataInputStream = new Gio.DataInputStream({ base_stream: file.read(null) });
 
 			let chunk: Uint8Array | null;
 
@@ -40,45 +39,76 @@ export default async () => {
 		});
 	});
 
-	await describe('DataInputStream.iterable', async () => {
+	await describe('DataInputStream.iterator', async () => {
+
+		const bytesSize = 512;
+		const chunks: string[] = [];
+
 		await it('should be iterable', () => {
+			const dataInputStream = ExtInputStream.newForFilePath(dataTextFile);
+			dataInputStream.defaultBytesSize = bytesSize;
+			expect(dataInputStream.defaultBytesSize).toBe(bytesSize);
 
-			// A reference to our file
-			var file = Gio.File.new_for_path (dataTextFile);
+			for(let data of dataInputStream) {
+				expect(data instanceof Uint8Array).toBeTruthy();
 
-			// File should exists
-			expect(file.query_exists(null)).toBeTruthy();
-
-			const dataInputStream = new DataInputStream({ base_stream: file.read(null) });
-
-			dataInputStream.defaultCount = 512;
-
-			for(let data of dataInputStream){
 				const str = byteArray.toString(data);
 				expect(typeof str).toBe('string');
+				expect(str.length <= bytesSize).toBeTruthy();
+
+				chunks.push(str);
+			}
+		});
+
+
+		await it(`should only have chunks loaded with a maximum byte number of ${bytesSize}`, () => {
+			for (let i = 0; i < chunks.length; i++) {
+				const chunk = chunks[i];
+				const moreToFollow = i + 1 < chunks.length;
+				if(moreToFollow) {
+					expect(chunk.length).toBe(bytesSize);
+				} else {
+					expect(chunk.length <= bytesSize).toBeTruthy();
+				}
 			}
 		});
 	});
 
-	await describe('DataInputStream to Readable Stream', async () => {
+	await describe('DataInputStream.asyncIterator', async () => {
 
 		let data: string = '';
+		const bytesSize = 256;
+		const chunks: string[] = [];
 
-		await it('should also be usable with AsyncIterable implementation', async () => {
+		await it('should be asynchronously iterable', async () => {
+			const dataInputStream = ExtInputStream.newForFilePath(dataTextFile);
+
+			dataInputStream.defaultBytesSize = bytesSize;
+			expect(dataInputStream.defaultBytesSize).toBe(bytesSize);
+
+			for await (let data of dataInputStream) {
+				expect(data instanceof Uint8Array).toBeTruthy();
+
+				const str = byteArray.toString(data);
+				expect(typeof str).toBe('string');
+				expect(str.length <= bytesSize).toBeTruthy();
+
+				chunks.push(str);
+			}
+
+		})
+
+		await it('should be possible to create a Node.js compatible Readable Stream from it', async () => {
 
 			return new Promise((resolve, reject) => {
-				// A reference to our file
-				var file = Gio.File.new_for_path (dataTextFile);
+				const dataInputStream = ExtInputStream.newForFilePath(dataTextFile);
 
-				// File should exists
-				expect(file.query_exists(null)).toBeTruthy();
-
-				const dataInputStream = new DataInputStream({ base_stream: file.read(null) });
+				dataInputStream.defaultBytesSize = 128;
 
 				const readable = Readable.from(dataInputStream, { objectMode: false, encoding: 'utf8' });
 				
 				readable.on('readable', () => {
-					const chunk = readable.read();
+					const chunk: string = readable.read();
 
 					if(chunk !== null) {
 						expect(typeof chunk).toBe("string");
@@ -87,12 +117,39 @@ export default async () => {
 		
 				});
 
-				readable.on('data', () => {
-					// console.log("data called (AsyncIterable)");
+				readable.on('data', (chunk: string) => {
+					// console.log("data called (AsyncIterable)", chunk.length);
 				});
 
 				readable.on('end', () => {
-					// console.log('end called (AsyncIterable)', data);
+					expect(data.length > 0).toBeTruthy();
+					resolve();
+				});
+			});
+			
+		});
+
+		await it('should be possible to create a Node.js compatible Readable Stream from it with the helper function', async () => {
+
+			return new Promise((resolve, reject) => {
+				const readable = ExtInputStream.newForFilePath(dataTextFile).toReadable({ objectMode: false, encoding: 'utf8' });
+				
+				readable.on('readable', () => {
+					const chunk: string = readable.read();
+
+					if(chunk !== null) {
+						expect(typeof chunk).toBe("string");
+						data += chunk		
+					}
+		
+				});
+
+				readable.on('data', (chunk: string) => {
+					// console.log("data called (AsyncIterable)", chunk.length);
+				});
+
+				readable.on('end', () => {
+					expect(data.length > 0).toBeTruthy();
 					resolve();
 				});
 			});

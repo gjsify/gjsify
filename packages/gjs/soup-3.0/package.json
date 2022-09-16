@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/gio-2.0",
+    "name": "@gjsify/soup-3.0",
     "version": "0.0.1",
-    "description": "Extended Gio-2.0 module for Gjsify",
+    "description": "Extended Soup-3.0 module for Gjsify",
     "main": "lib/index.js",
     "module": "lib/index.js",
     "types": "lib/index.d.ts",
@@ -27,6 +27,7 @@
         "typescript": "^4.8.3"
     },
     "dependencies": {
+        "@gjsify/gio-2.0": "workspace:^",
         "@gjsify/types": "workspace:^"
     }
 }

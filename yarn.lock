@@ -285,7 +285,9 @@ __metadata:
   resolution: "@gjsify/fetch@workspace:packages/web/fetch"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/gio-2.0": "workspace:^"
     "@gjsify/http": "workspace:^"
+    "@gjsify/soup-3.0": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.16
     data-uri-to-buffer: ^4.0.0
@@ -304,13 +306,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/gio-2.0@workspace:packages/gjs/gio-2.0":
+"@gjsify/gio-2.0@workspace:^, @gjsify/gio-2.0@workspace:packages/gjs/gio-2.0":
   version: 0.0.0-use.local
   resolution: "@gjsify/gio-2.0@workspace:packages/gjs/gio-2.0"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.16
+    typescript: ^4.8.3
   languageName: unknown
   linkType: soft
 
@@ -417,6 +421,19 @@ __metadata:
 "@gjsify/resolve-npm@workspace:^, @gjsify/resolve-npm@workspace:packages/infra/resolve-npm":
   version: 0.0.0-use.local
   resolution: "@gjsify/resolve-npm@workspace:packages/infra/resolve-npm"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/soup-3.0@workspace:^, @gjsify/soup-3.0@workspace:packages/gjs/soup-3.0":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/soup-3.0@workspace:packages/gjs/soup-3.0"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/gio-2.0": "workspace:^"
+    "@gjsify/types": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": ^18.7.16
+    typescript: ^4.8.3
   languageName: unknown
   linkType: soft
 

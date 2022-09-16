@@ -27,6 +27,8 @@
         "@types/node": "^18.7.16"
     },
     "dependencies": {
+        "@gjsify/gio-2.0": "workspace:^",
+        "@gjsify/soup-3.0": "workspace:^",
         "data-uri-to-buffer": "^4.0.0",
         "fetch-blob": "^3.2.0",
         "formdata-polyfill": "^4.0.10"

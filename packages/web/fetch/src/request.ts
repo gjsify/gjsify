@@ -2,6 +2,10 @@ import '@gjsify/types/index';
 import GLib from '@gjsify/types/GLib-2.0';
 import Soup from '@gjsify/types/Soup-3.0';
 import Gio from '@gjsify/types/Gio-2.0';
+import * as GioExt from '@gjsify/gio-2.0';
+import * as SoupExt from '@gjsify/soup-3.0';
+
+import { Readable } from 'stream';
 
 import Headers from './headers.js';
 import Body, {clone, extractContentType, getTotalBytes} from './body.js';
@@ -116,9 +120,10 @@ export class GjsifyRequest extends Body implements Request {
     referrer: string | URL;
     referrerPolicy: ReferrerPolicy;
     // Gjsify
-    session: Soup.Session;
+    session: SoupExt.ExtSession & Soup.Session;
     message: Soup.Message;
-    inputStream?: Gio.InputStream;
+    inputStream?: Gio.InputStream & GioExt.ExtInputStream<Gio.InputStream>;
+    readable?: Readable
   };
 
   // Node-fetch-only options
@@ -194,7 +199,7 @@ export class GjsifyRequest extends Body implements Request {
       referrer = undefined;
     }
 
-    const session = new Soup.Session();
+    const session = SoupExt.ExtSession.new();
     const message = new Soup.Message({
       method,
       uri: this._uri,
@@ -235,18 +240,13 @@ export class GjsifyRequest extends Body implements Request {
 
     const cancellable = new Gio.Cancellable();
 
-    this[INTERNALS].inputStream = await new Promise<Gio.InputStream>((resolve, reject) => {
-      this._session.send_async(this._message, GLib.PRIORITY_DEFAULT, cancellable, (self, res) => {
-        try {
-          resolve(this._session.send_finish(res));
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
+    this[INTERNALS].inputStream = await this._session.sendAsync(this._message, GLib.PRIORITY_DEFAULT, cancellable);
+
+    this[INTERNALS].readable = this[INTERNALS].inputStream.toReadable({});
     
     return {
       inputStream: this[INTERNALS].inputStream,
+      readable: this[INTERNALS].readable,
       cancellable
     }
   }
