@@ -458,7 +458,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/types@workspace:packages/gjs/types"
   dependencies:
-    "@ts-for-gir/cli": ^3.0.0-beta.2
+    "@ts-for-gir/cli": ^3.0.0-beta.5
   languageName: unknown
   linkType: soft
 
@@ -631,9 +631,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ts-for-gir/cli@npm:^3.0.0-beta.2":
-  version: 3.0.0-beta.4
-  resolution: "@ts-for-gir/cli@npm:3.0.0-beta.4"
+"@ts-for-gir/cli@npm:^3.0.0-beta.5":
+  version: 3.0.0-beta.5
+  resolution: "@ts-for-gir/cli@npm:3.0.0-beta.5"
   dependencies:
     colorette: ^2.0.19
     columnify: ^1.6.0
@@ -650,7 +650,7 @@ __metadata:
     yargs: ^17.5.1
   bin:
     ts-for-gir: ./lib/start.js
-  checksum: 8090e5fb7f13c7d633c7bf882543d5912baf332a7e12478d7dd4a19314c14dffce044e0333ed57b3b407f02cab2495c122f320f69b35f4071d6de3096d15bca0
+  checksum: 230c7f897970099f5347ec23b9396db3ddb3cf9097ff20af36935739beafa8a8f514ad158558fc8a6db4b8f49ba886eed178ce0e0bde14365e872a7839f79174
   languageName: node
   linkType: hard
 
