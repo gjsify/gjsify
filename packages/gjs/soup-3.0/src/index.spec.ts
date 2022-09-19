@@ -1,9 +1,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import * as SoupExt from './index.js';
-import * as GioExt from '@gjsify/gio-2.0';
 import Soup from "@gjsify/types/Soup-3.0";
-import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
 
 export default async () => {
@@ -38,7 +36,7 @@ export default async () => {
 			const bodyBytes = extOutputStream.steal_as_bytes();
 			
 			// To Uint8Array
-			const bodyUInt8Array = (bodyBytes as any).toArray() as Uint8Array; // TODO fix this in ts-for-gir
+			const bodyUInt8Array = bodyBytes.toArray();
 			
 			// To Text
 			const bodyText = new TextDecoder().decode(bodyUInt8Array);

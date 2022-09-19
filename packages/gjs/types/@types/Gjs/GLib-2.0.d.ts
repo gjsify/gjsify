@@ -12939,6 +12939,10 @@ interface Bytes {
      * data is copied.
      */
     unref_to_data(): Uint8Array
+    /**
+     * Convert a [`GLib.Bytes`](https://gjs-docs.gnome.org/glib20/glib.bytes) object to a `Uint8Array` object.
+     */
+    toArray(): Uint8Array
 }
 
 /**
@@ -24605,5 +24609,15 @@ class TokenValue {
     type Time = number
     type TimeSpan = number
     type Type = number
+/**
+ * Name of the imported GIR library
+ * @see https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L188
+ */
+const __name__: string
+/**
+ * Version of the imported GIR library
+ * @see https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L189
+ */
+const __version__: string
 }
 export default GLib;

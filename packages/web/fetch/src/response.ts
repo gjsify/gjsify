@@ -171,7 +171,7 @@ export class GjsifyResponse extends Body implements Response {
     
         const bytes = outputStream.steal_as_bytes();
     
-        return new TextDecoder().decode((bytes as any).toArray()); // TODO ts-for-gir: Add toArray method
+        return new TextDecoder().decode(bytes.toArray());
       }
 }
 

@@ -7049,5 +7049,15 @@ class _Value__data__union {
 
     type SignalCMarshaller = ClosureMarshal
     type SignalCVaMarshaller = any
+/**
+ * Name of the imported GIR library
+ * @see https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L188
+ */
+const __name__: string
+/**
+ * Version of the imported GIR library
+ * @see https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L189
+ */
+const __version__: string
 }
 export default GObject;
