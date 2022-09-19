@@ -3,6 +3,9 @@ import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
 import { Readable, ReadableOptions } from 'stream';
 
+// This interface is used for pseudo extend Gio.InputStream
+export interface ExtInputStream extends Gio.InputStream {}
+
 /**
  * Extended version of Gio.InputStream.
  * 
@@ -19,26 +22,26 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
     /** Maximum default number of bytes that will be read from the stream. Common values include `4096` and `8192`. */
     defaultBytesSize = 4096;
 
-    private constructor() {}
+    protected constructor(inputStream: T) {
+        const extInputStream = inputStream as T & ExtInputStream;
+        extInputStream.defaultBytesSize = this.defaultBytesSize;
+        extInputStream.toReadable = this.toReadable.bind(extInputStream);
+        extInputStream.toReadableStream = this.toReadableStream.bind(extInputStream);
+        extInputStream.readBytes = this.readBytes.bind(extInputStream);
+        extInputStream.readBytesAsync = this.readBytesAsync.bind(extInputStream);
+        extInputStream.spliceAsync = this.spliceAsync.bind(extInputStream);
+        extInputStream[Symbol.iterator] = this[Symbol.iterator].bind(extInputStream);
+        extInputStream[Symbol.asyncIterator] = this[Symbol.asyncIterator].bind(extInputStream);
+        return extInputStream;
+    }
 
     /**
-     * Creates a new instance of `ExtInputStream` based on a existing `Gio.InputStream` instance.
+     * Creates a new instance of `ExtInputStream` extended on a existing `Gio.InputStream` instance.
      * @param inputStream The original unextended `Gio.InputStream`
      * @returns The Gio.InputStream` extended to `ExtInputStream`
      */
-    static create<T extends Gio.InputStream = Gio.InputStream>(inputStream: T): ExtInputStream & T {
-        const self = new ExtInputStream<T>();
-
-        const extInputStream = inputStream as T & ExtInputStream;
-        extInputStream.defaultBytesSize = self.defaultBytesSize;
-        extInputStream.toReadable = self.toReadable.bind(extInputStream);
-        extInputStream.toReadableStream = self.toReadableStream.bind(extInputStream);
-        extInputStream.readBytes = self.readBytes.bind(extInputStream);
-        extInputStream.readBytesAsync = self.readBytesAsync.bind(extInputStream);
-        extInputStream.spliceAsync = self.spliceAsync.bind(extInputStream) as any;
-        extInputStream[Symbol.iterator] = self[Symbol.iterator].bind(extInputStream);
-        extInputStream[Symbol.asyncIterator] = self[Symbol.asyncIterator].bind(extInputStream);
-        return extInputStream;
+    static extend<T extends Gio.InputStream = Gio.InputStream>(inputStream: T) {
+        return new this(inputStream) as T & ExtInputStream<T>;
     }
 
     /**
@@ -48,7 +51,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      */
     static newDataInputStream(config: Gio.DataInputStream.ConstructorProperties = {}) {
         const dataInputStream = new Gio.DataInputStream(config);
-        return this.create<Gio.DataInputStream>(dataInputStream)
+        return this.extend<Gio.DataInputStream>(dataInputStream)
     }
 
     /**
@@ -58,7 +61,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      */
     static newInputStream(config: Gio.InputStream.ConstructorProperties = {}) {
         const inputStream = new Gio.InputStream(config);
-        return this.create<Gio.InputStream>(inputStream)
+        return this.extend<Gio.InputStream>(inputStream)
     }
 
     /**
@@ -101,7 +104,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @param cancellable `Gio.Cancellable` object, `null` to ignore.
      * @return The data or null if the end is reached
      */
-    public readBytes(this: T & this, count: number = this.defaultBytesSize, cancellable: Gio.Cancellable | null = null): Uint8Array | null {
+    public readBytes(count: number = this.defaultBytesSize, cancellable: Gio.Cancellable | null = null): Uint8Array | null {
         const res = this.read_bytes(count, cancellable);
         if(res.get_size() === 0) {
             return null;
@@ -116,7 +119,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @param cancellable `Gio.Cancellable` object, `null` to ignore.
      * @return The data or null if the end is reached
      */
-    public async readBytesAsync(this: T & this, count = this.defaultBytesSize, ioPriority = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null): Promise<Uint8Array | null> {
+    public async readBytesAsync(count = this.defaultBytesSize, ioPriority = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null): Promise<Uint8Array | null> {
         return new Promise<Uint8Array | null>((resolve, reject) => {
             this.read_bytes_async(count, ioPriority, cancellable, (self, asyncRes) => {
                 try {
@@ -134,7 +137,6 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
     }
 
     /**
-     * Promise version of `Gio.OutputStream.splice_async` / `Gio.OutputStream.splice_finish`-
      * Splices this input stream into an output stream.
      * 
      * @param targetOutputStream The `Gio.OutputStream` you want to use, by default this is a new resizable `Gio.MemoryOutputStream`
@@ -143,9 +145,9 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @param cancellable optional #GCancellable object, %NULL to ignore.
      * @returns 
      */
-    public async spliceAsync<K extends Gio.MemoryOutputStream = Gio.MemoryOutputStream>(this: T & this, targetOutputStream?: undefined, flags?: Gio.OutputStreamSpliceFlags, ioPriority?: number, cancellable?: Gio.Cancellable | null): Promise<ExtOutputStream<Gio.MemoryOutputStream> & Gio.MemoryOutputStream>
-    public async spliceAsync<K extends Gio.OutputStream = Gio.OutputStream>(this: T & this, targetOutputStream: K, flags?: Gio.OutputStreamSpliceFlags, ioPriority?: number, cancellable?: Gio.Cancellable | null): Promise<ExtOutputStream<Gio.OutputStream> & K>
-    public async spliceAsync(this: T & this, targetOutputStream?: Gio.OutputStream, flags: Gio.OutputStreamSpliceFlags = Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, ioPriority: number = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null) {
+    public async spliceAsync<K extends Gio.MemoryOutputStream = Gio.MemoryOutputStream>(targetOutputStream?: undefined, flags?: Gio.OutputStreamSpliceFlags, ioPriority?: number, cancellable?: Gio.Cancellable | null): Promise<ExtOutputStream<Gio.MemoryOutputStream> & Gio.MemoryOutputStream>
+    public async spliceAsync<K extends Gio.OutputStream = Gio.OutputStream>(targetOutputStream: K, flags?: Gio.OutputStreamSpliceFlags, ioPriority?: number, cancellable?: Gio.Cancellable | null): Promise<ExtOutputStream<Gio.OutputStream> & K>
+    public async spliceAsync(targetOutputStream?: Gio.OutputStream, flags: Gio.OutputStreamSpliceFlags = Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, ioPriority: number = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null) {
         
         if(!targetOutputStream) {
             const extTargetOutputStream = ExtOutputStream.newMemoryOutputStreamResizable();
@@ -153,7 +155,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
             return extTargetOutputStream;
         }
         
-        const extTargetOutputStream = ExtOutputStream.create(targetOutputStream);
+        const extTargetOutputStream = ExtOutputStream.extend(targetOutputStream);
         const numRes = await extTargetOutputStream.spliceAsync(this, flags, ioPriority, cancellable);
         return extTargetOutputStream;
     }
@@ -163,7 +165,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @param count The number of bytes that will be read from the stream
      * @param cancellable `Gio.Cancellable` object, `null` to ignore.
      */
-    public *[Symbol.iterator](this: T & this, count = this.defaultBytesSize, cancellable: Gio.Cancellable | null = null) {
+    public *[Symbol.iterator](count = this.defaultBytesSize, cancellable: Gio.Cancellable | null = null) {
         let chunk: Uint8Array | null;
         while ((chunk = this.readBytes(count, cancellable)) !== null) {
             yield chunk
@@ -176,7 +178,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @param ioPriority — The I/O priority of the request
      * @param cancellable — `Gio.Cancellable` object, `null` to ignore.
      */
-    public async *[Symbol.asyncIterator](this: T & this, count = this.defaultBytesSize, ioPriority = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null) {
+    public async *[Symbol.asyncIterator](count = this.defaultBytesSize, ioPriority = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null) {
         let chunk: Uint8Array | null;
         while ((chunk = (await this.readBytesAsync(count, ioPriority, cancellable))) !== null) {
             yield chunk
@@ -184,26 +186,32 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
     }
 }
 
-
+// This interface is used for pseudo extend Gio.OutputStream
+export interface ExtOutputStream extends Gio.OutputStream {}
 
 export class ExtOutputStream<T extends Gio.OutputStream = Gio.OutputStream> /*implements Iterable<Uint8Array>, AsyncIterable<Uint8Array>*/ {
-
-    private constructor() {}
 
     /**
      * Creates a new instance of `ExtOutputStream` based on a existing `Gio.OutputStream` instance.
      * @param outputStream The original unextended `Gio.OutputStream`
      * @returns The Gio.OutputStream` extended to `ExtOutputStream`
      */
-     static create<T extends Gio.OutputStream = Gio.OutputStream>(outputStream: T): ExtOutputStream & T {
-        const self = new ExtOutputStream<T>();
-
-        const extOutputStream = outputStream as T & ExtOutputStream;
-        extOutputStream.spliceAsync = self.spliceAsync;
+    protected constructor(outputStream: T) {
+        const extOutputStream = outputStream as T & ExtOutputStream<T>;
+        extOutputStream.spliceAsync = this.spliceAsync;
 
         // extOutputStream[Symbol.iterator] = self[Symbol.iterator].bind(extOutputStream);
         // extOutputStream[Symbol.asyncIterator] = self[Symbol.asyncIterator].bind(extOutputStream);
         return extOutputStream;
+    }
+
+    /**
+     * Creates a new instance of `ExtOutputStream` based on a existing `Gio.OutputStream` instance.
+     * @param outputStream The original unextended `Gio.OutputStream`
+     * @returns The Gio.OutputStream` extended to `ExtOutputStream`
+     */
+    static extend<T extends Gio.OutputStream = Gio.OutputStream>(outputStream: T) {
+        return new this(outputStream) as T & ExtOutputStream<T>;
     }
 
     /**
@@ -213,7 +221,7 @@ export class ExtOutputStream<T extends Gio.OutputStream = Gio.OutputStream> /*im
      */
      static newMemoryOutputStream(config: Gio.MemoryOutputStream.ConstructorProperties = {}) {
         const memoryOutputStream = new Gio.MemoryOutputStream(config);
-        return this.create<Gio.MemoryOutputStream>(memoryOutputStream);
+        return new this<Gio.MemoryOutputStream>(memoryOutputStream);
     }
 
 
@@ -224,7 +232,7 @@ export class ExtOutputStream<T extends Gio.OutputStream = Gio.OutputStream> /*im
      */
      static newMemoryOutputStreamResizable(config: Gio.MemoryOutputStream.ConstructorProperties = {}) {
         const memoryOutputStream = Gio.MemoryOutputStream.new_resizable();
-        return this.create<Gio.MemoryOutputStream>(memoryOutputStream);
+        return new this<Gio.MemoryOutputStream>(memoryOutputStream);
     }
 
     /**
@@ -237,7 +245,7 @@ export class ExtOutputStream<T extends Gio.OutputStream = Gio.OutputStream> /*im
      * @param cancellable optional #GCancellable object, %NULL to ignore.
      * @returns 
      */
-    public async spliceAsync(this: T & this, source: Gio.InputStream, flags: Gio.OutputStreamSpliceFlags = Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, ioPriority: number = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null) {
+    public async spliceAsync(source: Gio.InputStream, flags: Gio.OutputStreamSpliceFlags = Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, ioPriority: number = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null) {
         return new Promise<number>((resolve, reject) => {
             this.splice_async(source, flags, ioPriority, cancellable, (self, asyncRes) => {
                 try {
