@@ -3,11 +3,11 @@
 
 import type {} from 'util/types';
 
-import {warnNotImplemented} from '@gjsify/utils';
-var isArgumentsObject = require('is-arguments');
-var isGeneratorFunction = require('is-generator-function');
-var whichTypedArray = require('which-typed-array');
-var isTypedArray = require('is-typed-array');
+import { warnNotImplemented } from '@gjsify/utils';
+import isArgumentsObject from 'is-arguments';
+import isGeneratorFunction from 'is-generator-function';
+import whichTypedArray from 'which-typed-array';
+import isTypedArray from 'is-typed-array';
 
 function uncurryThis(f) {
   return f.call.bind(f);

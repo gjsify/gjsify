@@ -8,19 +8,19 @@ const __dirname = dirname(__filename)
 import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync } from 'fs';
 
 export default async () => {
-	await describe('fs.existsSync', () => {
+	await describe('fs.existsSync', async () => {
 
 		const existingFiles = ['tsconfig.json', 'package.json', 'test.gjs.js'];
 		const nonExistingFiles = ['asdasd', '/asdasd', ''];
 
-		it('should return true for existing files', () => {
+		await it('should return true for existing files', () => {
 			for (const file of existingFiles) {
 				const result = existsSync(file);
 				expect(result).toBe(true)
 			}
 		});
 
-		it('should return false for non existing files', () => {
+		await it('should return false for non existing files', () => {
 			for (const file of nonExistingFiles) {
 				const result = existsSync(file);
 				expect(result).toBe(false)
@@ -28,8 +28,8 @@ export default async () => {
 		});
 	});
 
-	await describe('fs.readdirSync', () => {
-		it('should return no files for an empty directory', () => {
+	await describe('fs.readdirSync', async () => {
+		await it('should return no files for an empty directory', () => {
 			const dir = mkdtempSync('fs-test-');
 			const files = readdirSync(dir);
 			expect(files.length).toBe(0);
@@ -38,7 +38,7 @@ export default async () => {
 			rmdirSync(dir);
 		});
 
-		it('should return the files for non-empty directory', () => {
+		await it('should return the files for non-empty directory', () => {
 			const dir = mkdtempSync('fs-test-');
 			const txt1 = join(dir, 'test1.txt');
 			const txt2 = join(dir, 'test2.txt');
@@ -56,7 +56,7 @@ export default async () => {
 			rmdirSync(dir);
 		});
 
-		it('should return the file with the name "file.txt"', () => {
+		await it('should return the file with the name "file.txt"', () => {
 			const dir = mkdtempSync('fs-test-');
 			const expectedFileName = 'file.txt';
 			const file = join(dir, expectedFileName);
@@ -71,7 +71,7 @@ export default async () => {
 			rmdirSync(dir);
 		});
 
-		it('should return with file types if option "withFileTypes" is `true`', () => {
+		await it('should return with file types if option "withFileTypes" is `true`', () => {
 			const dir = mkdtempSync('fs-test-');
 			const expectedFile = 'file.txt';
 			const expectedDir = 'subdir';
@@ -101,56 +101,56 @@ export default async () => {
 		});
 	});
 
-	await describe('fs.readFileSync', () => {
-		it('should return a Buffer if no encoding was specified', () => {
+	await describe('fs.readFileSync', async () => {
+		await it('should return a Buffer if no encoding was specified', () => {
 			const bufferData = readFileSync('package.json');
 			expect(bufferData instanceof Buffer).toBeTruthy();
 		});
 
-		it('should return a string when encoding is utf-8', () => {
+		await it('should return a string when encoding is utf-8', () => {
 			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
 			expect(typeof utf8Data === 'string').toBeTruthy();
 		});
 
-		it('should return a string with "Hello World"', () => {
+		await it('should return a string with "Hello World"', () => {
 			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
 			expect(utf8Data).toBe('Hello World');
 		});
 	});
 
-	await describe('fs.mkdirSync', () => {
+	await describe('fs.mkdirSync', async () => {
 		const dir = './foobar';
 
-		it(`should be executed with "${dir}" without error`, () => {
+		await it(`should be executed with "${dir}" without error`, () => {
 			mkdirSync(dir);
 		});
 
-		it(`${dir} should exists`, () => {
+		await it(`${dir} should exists`, () => {
 			expect(existsSync(dir)).toBeTruthy();
 		});
 	});
 
-	await describe('fs.rmdirSync', () => {
+	await describe('fs.rmdirSync', async () => {
 		const dir = './foobar';
 
-		it(`should be executed with "${dir}" without error`, () => {
+		await it(`should be executed with "${dir}" without error`, () => {
 			rmdirSync(dir);
 		});
 
-		it(`"${dir}" should not exists (anymore)`, () => {
+		await it(`"${dir}" should not exists (anymore)`, () => {
 			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
 			expect(typeof utf8Data === 'string').toBeTruthy();
 		});
 	});
 
-	await describe('fs.writeFileSync', () => {
+	await describe('fs.writeFileSync', async () => {
 		const watchMe = join(__dirname, 'test/watch.js');
 
-		it(`should be executed without error`, () => {
+		await it(`should be executed without error`, () => {
 			writeFileSync(watchMe, '// test');
 		});
 
-		it(`fs.watch should watch ${watchMe} for changes`, () => {
+		await it(`fs.watch should watch ${watchMe} for changes`, () => {
 			const watcher = watch(watchMe, {persistent: true}, console.log);
 
 			watcher.on('change', console.log).on('rename', console.log);
@@ -166,13 +166,13 @@ export default async () => {
 		});
 	});
 
-	await describe('fs.mkdtempSync', () => {
+	await describe('fs.mkdtempSync', async () => {
 
-		it('should be a function', () => {
+		await it('should be a function', () => {
 			expect(typeof mkdtempSync).toBe("function");
 		});
 
-		it('should create a new directory', () => {
+		await it('should create a new directory', () => {
 			const directory = mkdtempSync('fs-test-');
 			expect(existsSync(directory)).toBeTruthy();
 			rmdirSync(directory);

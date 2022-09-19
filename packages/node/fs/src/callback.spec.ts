@@ -1,9 +1,9 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { open, write, close, rm } from 'fs';
 
-export default () => {
-	describe('fs.open', () => {
-		it(`should open a file for writing`, () => {
+export default async () => {
+	await describe('fs.open', async () => {
+		await it(`should open a file for writing`, () => {
 			const path = './test/open.txt';
 			open(path, 'w+', 0o666, (err, fd) => {
 

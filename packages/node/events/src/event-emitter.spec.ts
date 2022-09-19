@@ -1,6 +1,6 @@
 import { describe, it, expect, on as onPlatform } from '@gjsify/unit';
 
-import { EventEmitter, on } from 'events';
+import { EventEmitter } from 'events';
 
 export default async () => {
 

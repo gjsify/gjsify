@@ -3,7 +3,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { fileURLToPath } from "url"
 
-export function testSuite() {
+export default async () => {
   var fileURLToPathTestCases = [
     // Lowercase ascii alpha
     { path: '/foo', fileURL: 'file:///foo' },
@@ -49,26 +49,25 @@ export function testSuite() {
     { path: '/🚀', fileURL: 'file:///%F0%9F%9A%80' }
   ];
 
-  
-  fileURLToPathTestCases.forEach(function (fileURLToPathTestCase) {
-    describe('url.fileURLToPath(' + fileURLToPathTestCase.fileURL + ')', function () {
+  for (const fileURLToPathTestCase of fileURLToPathTestCases) {
+    await describe('url.fileURLToPath(' + fileURLToPathTestCase.fileURL + ')', async () => {
 
-      it(`should return ${fileURLToPathTestCase.path} from string`, function() {
+      await it(`should return ${fileURLToPathTestCase.path} from string`, async () => {
         var fromString = fileURLToPath(fileURLToPathTestCase.fileURL);
         expect(fromString).toEqual(fileURLToPathTestCase.path)
       });
 
-      it(`should return ${fileURLToPathTestCase.path} from URL`, function() {
+      await it(`should return ${fileURLToPathTestCase.path} from URL`, async () => {
         var fromURL = fileURLToPath(new URL(fileURLToPathTestCase.fileURL));
         expect(fromURL).toEqual(fileURLToPathTestCase.path)
       });
     });
-  });
+  }
     
-  [].concat(
+  for (const val in [
     'https://host/y',
     'file://host/a',
-    typeof URL === 'function' ? new URL('https://host/y') : [],
+    new URL('https://host/y'),
     'file:///a%2F/',
     '',
     null,
@@ -76,14 +75,14 @@ export function testSuite() {
     1,
     {},
     true
-    ).forEach(function (val) {
-    describe('url.fileURLToPath(' + val + ')', function () {
-      it(`should throw an Error`, function() {
+  ]) {
+    await describe('url.fileURLToPath(' + val + ')', async () => {
+      await it(`should throw an Error`, async () => {
         expect(() => {
           fileURLToPath(val);
         }).toThrow()
       });
 
     });
-  });
+  }
 }
