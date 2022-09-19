@@ -59,7 +59,7 @@ export class Config {
 
         tsConfig.reflection ||= cliArgs.reflection;
 
-        
+        configData.verbose = cliArgs.verbose || false;
 
         merge(configData.library, pkg, configData.library);
         merge(configData.typescript, tsConfig, configData.typescript);
@@ -69,7 +69,7 @@ export class Config {
             outdir: cliArgs.outdir,
         });
 
-        console.debug("configData", configData);
+        if(configData.verbose) console.debug("configData", configData);
 
         return configData;
 

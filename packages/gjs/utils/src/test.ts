@@ -1,4 +1,4 @@
 import { run } from '@gjsify/unit';
-import { testSuiteStreams } from './streams.spec.js';
+import indexSuiteStreams from './index.spec.js';
 
-run({testSuiteStreams});
+run({indexSuiteStreams});

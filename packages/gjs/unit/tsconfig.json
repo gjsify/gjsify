@@ -1,9 +1,9 @@
 {
-    "compilerOptions": {
-      "outDir": "lib",
-      "declarationDir": "lib/types",
-      "declaration": true,
-      "esModuleInterop": true,
-    },
-    "files": ["src/index.ts"]
+  "compilerOptions": {
+    "outDir": "lib",
+    "declarationDir": "lib/types",
+    "declaration": true,
+    "esModuleInterop": true
+  },
+  "files": ["src/index.ts"]
 }

@@ -18,6 +18,12 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                     return [...new Set(arg)];
                 }
             })
+            .option('verbose', {
+                description: "Switch on the verbose mode",
+                type: 'boolean',
+                normalize: true,
+                default: false
+            })
             .option('platform', {
                 description: "The platform you want to build your application for, the platforms node and deno are usually only used for tests",
                 type: 'string',

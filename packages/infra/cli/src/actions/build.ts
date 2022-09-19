@@ -11,7 +11,7 @@ export class BuildAction {
 
     /** Library mode */
     async buildLibrary() {
-        let { library, esbuild, typescript } = this.configData;
+        let { verbose, library, esbuild, typescript } = this.configData;
         library ||= {};
         esbuild ||= {};
         typescript ||= {};
@@ -28,7 +28,7 @@ export class BuildAction {
                 format: moduleFormat,
                 outdir: moduleOutdir,
                 plugins: [
-                    gjsify({debug: true, library: moduleFormat}),
+                    gjsify({debug: verbose, library: moduleFormat}),
                     deepkit({reflection: typescript?.reflection})
                 ]
             });
@@ -39,7 +39,7 @@ export class BuildAction {
                 format: moduleFormat,
                 outdir: mainOutdir,
                 plugins: [
-                    gjsify({debug: true, library: mainFormat}),
+                    gjsify({debug: verbose, library: mainFormat}),
                     deepkit({reflection: typescript?.reflection})
                 ]
             });
@@ -52,7 +52,7 @@ export class BuildAction {
                 format,
                 outdir,
                 plugins: [
-                    gjsify({debug: true, library: format}),
+                    gjsify({debug: verbose, library: format}),
                     deepkit({reflection: typescript?.reflection})
                 ]
             });
@@ -62,7 +62,7 @@ export class BuildAction {
     /** Platform / Application mode */
     async buildApp(platform: Platform = 'gjs') {
 
-        const { esbuild, typescript } = this.configData;
+        const { verbose, esbuild, typescript } = this.configData;
 
         const format: 'cjs' | 'esm' = esbuild?.format || esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm';
 
@@ -70,7 +70,7 @@ export class BuildAction {
             ...esbuild,
             format,
             plugins: [
-                gjsify({debug: true, platform, format}),
+                gjsify({debug: verbose, platform, format}),
                 deepkit({reflection: typescript?.reflection})
             ]
         });

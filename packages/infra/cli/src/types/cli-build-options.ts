@@ -6,6 +6,8 @@ export interface CliBuildOptions {
    * @see https://esbuild.github.io/api/#entry-points
    */
   entryPoints?: string[];
+  /** Switch on the verbose mode */
+  verbose?: boolean;
   /** The platform you want to build your application for, the platforms node and deno are usually only used internally to build the tests for Gjsify */
   platform?: Platform;
   /** Use this if you want to build a library for Gjsify */
