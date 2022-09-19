@@ -21,6 +21,7 @@
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "dependencies": {
+    "@deepkit/core": "^1.0.1-alpha.75",
     "@deepkit/injector": "^1.0.1-alpha.75",
     "@deepkit/type": "^1.0.1-alpha.75"
   },
