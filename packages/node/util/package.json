@@ -5,18 +5,17 @@
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
-    "type": "module",
     "scripts": {
         "clear": "rm -rf lib",
         "build": "yarn run build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
-        "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
-        "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+        "build:test:gjs": "gjsify build src/test.mts --platform gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --platform node --outfile test.node.mjs",
         "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
-        "test:gjs": "gjs -m test.gjs.js",
-        "test:node": "node test.node.js"
+        "test:gjs": "gjs -m test.gjs.mjs",
+        "test:node": "node test.node.mjs"
     },
     "keywords": [
         "gjs",

@@ -17,8 +17,8 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
     const format = pluginOptions.format || 'esm';
 
     const inject = [
-        '@gjsify/abort-controller',
-        '@gjsify/web-events',
+        // '@gjsify/abort-controller',
+        // '@gjsify/web-events',
     ].map(inj => resolvePackageByType(inj, format === 'cjs' ? 'main' : 'module'));
 
     // Set default options

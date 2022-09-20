@@ -4,7 +4,6 @@
     "description": "Node.js buffer module for Gjs",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
-    "type": "module",
     "scripts": {
         "clear": "rm -rf lib",
         "bundle:deno": "rm -f src/buffer.deno.js && deno bundle https://deno.land/std/node/buffer.ts src/buffer.deno.js",
@@ -12,11 +11,11 @@
         "build": "yarn run build:deno && gjsify build --library src/**/*.{ts,js}",
         "build:deno": "yarn run bundle:deno && yarn run patch:deno",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
-        "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
-        "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
+        "build:test:gjs": "gjsify build src/test.mts --platform gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --platform node --outfile test.node.mjs",
         "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
-        "test:gjs": "gjs -m test.gjs.js",
-        "test:node": "node test.node.js"
+        "test:gjs": "gjs -m test.gjs.mjs",
+        "test:node": "node test.node.mjs"
     },
     "keywords": [
         "gjs",

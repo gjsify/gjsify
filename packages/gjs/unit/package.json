@@ -5,7 +5,6 @@
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
   "types": "lib/types/index.d.ts",
-  "test": "test.js",
   "scripts": {
     "build": "yarn run build:gjsify && yarn run build:types",
     "build:gjsify": "gjsify build --library src/**/*.{ts,js}",

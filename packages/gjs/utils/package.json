@@ -5,7 +5,6 @@
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
-    "type": "module",
     "scripts": {
         "clear": "rm -rf lib",
         "build": "yarn run build:gjsify && yarn run build:types",
