@@ -8,6 +8,7 @@
     "types": "dist/index.d.ts",
     "scripts": {
         "clear": "rm -rf dist",
+        "print:name": "echo '@gjsify/esbuild-plugin-gjsify'",
         "build": "yarn run build:js && yarn run build:types",
         "build:js": "node esbuild.mjs",
         "build:types": "tsc --emitDeclarationOnly || exit 0"

@@ -1,19 +1,19 @@
 {
-    "compilerOptions": {
-      "module": "ESNext",
-      "types": ["node"],
-      "target": "ESNext",
-      "moduleResolution": "Node",
-      "experimentalDecorators": true,
-      "outDir": "lib",
-      "rootDir": "src",
-      "composite": true,
-      "allowSyntheticDefaultImports": true,
-    },
-    "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false,
-    "reflection": false,
-    "include": ["src/**/*.ts"],
-    "exclude": ["src/test.ts", "src/**/*.spec.ts"]
+  "compilerOptions": {
+    "module": "ESNext",
+    "types": ["node"],
+    "target": "ESNext",
+    "moduleResolution": "Node",
+    "experimentalDecorators": true,
+    "outDir": "lib",
+    "rootDir": "src",
+    "composite": true,
+    "allowSyntheticDefaultImports": true,
+  },
+  "skipLibCheck": true,
+  "allowJs": true,
+  "checkJs": false,
+  "reflection": false,
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/test.mts", "src/**/*.spec.ts"]
 }

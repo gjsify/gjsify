@@ -18,7 +18,7 @@ const GRAY = '\x1B[90m';
 const RESET = '\x1B[39m';
 
 export interface Namespaces {
-	[key: string]: () => (void | Promise<void>) | Namespaces;
+	[key: string]: () => (Promise<void>) | Namespaces;
 }
 
 export type Callback = () => Promise<void>;

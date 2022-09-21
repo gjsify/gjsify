@@ -24,8 +24,8 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
                 default: false
             })
-            .option('platform', {
-                description: "The platform you want to build your application for, the platforms node and deno are usually only used for tests",
+            .option('app', {
+                description: "Use this if you want to build a application, the application platforms node and deno are usually only used for tests",
                 type: 'string',
                 choices: ['gjs', 'node', 'deno'],
                 normalize: true,
@@ -38,7 +38,7 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 default: false
             })
             .option('outfile', {
-                description: "Sets the output file name for the build operation. If no outfile is specified, the outfile will be parsed from the package.json. Only used if platform mode is active",
+                description: "Sets the output file name for the build operation. If no outfile is specified, the outfile will be parsed from the package.json. Only used if application mode is active",
                 type: 'string',
                 normalize: true,
             })
@@ -60,7 +60,7 @@ export const buildCommand: Command<any, CliBuildOptions> = {
         const action = new BuildAction(configData);
         await action.start({
             library: args.library,
-            platform: args.platform,
+            app: args.app,
         })
     }
 }

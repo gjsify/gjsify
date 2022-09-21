@@ -8,6 +8,7 @@
     "types": "lib/index.d.ts",
     "scripts": {
         "clear": "echo 'nothing to do'",
+        "print:name": "echo '@gjsify/resolve-npm'",
         "build": "echo 'nothing to do'"
     },
     "keywords": [

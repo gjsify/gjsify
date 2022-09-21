@@ -16,5 +16,5 @@
   "checkJs": false,
   "reflection": false,
   "include": ["src/**/*.ts"],
-  "exclude": ["src/test.ts", "src/**/*.spec.ts"]
+  "exclude": ["src/test.mts", "src/**/*.spec.ts"]
 }

@@ -6,11 +6,12 @@
     "module": "lib/esm/index.js",
     "scripts": {
         "clear": "rm -rf lib",
+        "print:name": "echo '@gjsify/zlib'",
         "build": "gjsify build --library src/**/*.{ts,js}",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
-        "build:test:gjs": "gjsify build src/test.mts --platform gjs --outfile test.gjs.mjs",
-        "build:test:node": "gjsify build src/test.mts --platform node --outfile test.node.mjs",
-        "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.mjs",
         "test:node": "node test.node.mjs"
     },

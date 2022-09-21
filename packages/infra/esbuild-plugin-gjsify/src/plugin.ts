@@ -1,7 +1,7 @@
 import type { Plugin } from "esbuild";
 import type { PluginOptions } from './types/plugin-options.js';
 import { setupCjsLib, setupEsmLib } from './lib/index.js';
-import { setupForGjs, setupForNode, setupForDeno } from './platform/index.js';
+import { setupForGjs, setupForNode, setupForDeno } from './app/index.js';
 
 export const gjsify = (pluginOptions: PluginOptions = {}) => {
     const plugin: Plugin = {
@@ -20,10 +20,10 @@ export const gjsify = (pluginOptions: PluginOptions = {}) => {
                 }
             }
 
-            pluginOptions.platform ||= 'gjs';
+            pluginOptions.app ||= 'gjs';
             
             // End user applications or tests
-            switch (pluginOptions.platform) {
+            switch (pluginOptions.app) {
                 case 'gjs':
                     return await setupForGjs(build, pluginOptions);
                 case 'node':
@@ -31,7 +31,7 @@ export const gjsify = (pluginOptions: PluginOptions = {}) => {
                 case 'deno':
                     return await setupForDeno(build, pluginOptions);
                 default:
-                    throw new TypeError('Unknown platform: ' + pluginOptions.platform);
+                    throw new TypeError('Unknown app platform: ' + pluginOptions.app);
             }
         }
     }

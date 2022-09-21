@@ -7,12 +7,13 @@
     "types": "lib/types/index.d.ts",
     "scripts": {
         "clear": "rm -rf lib",
+        "print:name": "echo '@gjsify/utils'",
         "build": "yarn run build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs",
-        "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
-        "test": "yarn run build && yarn run build:test && yarn run test:gjs",
+        "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
+        "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.js"
     },
     "keywords": [

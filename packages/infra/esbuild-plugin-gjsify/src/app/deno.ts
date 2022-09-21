@@ -19,6 +19,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         sourcemap: false,
         target: [ "esnext" ], // TODO?
         platform: "neutral",
+        mainFields: ['module', 'main'],
         conditions: ['import'],
         external: [],
         loader: {

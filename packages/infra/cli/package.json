@@ -11,6 +11,7 @@
     },
     "scripts": {
         "clear": "rm -rf lib",
+        "print:name": "echo '@gjsify/cli'",
         "start": "node lib/index.js",
         "build": "tsc && yarn run chmod",
         "chmod": "chmod +x ./lib/index.js"

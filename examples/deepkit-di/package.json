@@ -11,8 +11,8 @@
     "start:gjs": "gjs -m dist/index.gjs.js",
     "start:node": "node dist/index.node.cjs",
     "build": "yarn run build:gjs && yarn run build:node",
-    "build:gjs": "gjsify build src/index.ts --platform gjs --outfile dist/index.gjs.js",
-    "build:node": "gjsify build src/index.ts --platform node --outfile dist/index.node.cjs"
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.cjs"
   },
   "engines": {
     "node": "16",

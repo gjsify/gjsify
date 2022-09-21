@@ -23,6 +23,7 @@
   },
   "scripts": {
     "clear": "rm -rf @types",
+    "print:name": "echo '@gjsify/types'",
     "build": "yarn run clear; ts-for-gir generate Gio-2.0 GLib-2.0 GTop-2.0 Soup-3.0 -e gjs -t esm --noDOMLib",
     "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"
   },

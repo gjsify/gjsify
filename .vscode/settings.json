@@ -6,7 +6,8 @@
         "gjsify",
         "mainloop",
         "outdir",
-        "outfile"
+        "outfile",
+        "tform"
     ],
     "typescript.tsdk": "node_modules/typescript/lib"
 }

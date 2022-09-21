@@ -1,4 +1,4 @@
-import type { Platform } from './index.js';
+import type { App } from './index.js';
 
 export interface CliBuildOptions {
   /**
@@ -8,8 +8,8 @@ export interface CliBuildOptions {
   entryPoints?: string[];
   /** Switch on the verbose mode */
   verbose?: boolean;
-  /** The platform you want to build your application for, the platforms node and deno are usually only used internally to build the tests for Gjsify */
-  platform?: Platform;
+  /** Use this if you want to build a application or test, the platforms node and deno are usually only used internally to build the tests for Gjsify */
+  app?: App;
   /** Use this if you want to build a library for Gjsify */
   library?: boolean;
   /**

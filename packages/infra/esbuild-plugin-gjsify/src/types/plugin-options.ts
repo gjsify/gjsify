@@ -1,9 +1,9 @@
 export interface PluginOptions {
     debug?: boolean;
-    platform?: 'gjs' | 'node' | 'deno';
+    app?: 'gjs' | 'node' | 'deno';
     aliases?: Record<string, string>;
     exclude?: string[];
-    /** Override the format, only be considered if the target platform is `'node'`, otherwise it is always `'esm'` */
+    /** Override the format, only be considered if the target app platform is `'node'`, otherwise it is always `'esm'` */
     format?: 'esm' | 'cjs'
     /** 
      * Library Mode

@@ -1,8 +1,8 @@
-import type { ConfigData, Platform } from '../types/index.js';
+import type { ConfigData, App } from '../types/index.js';
 import { build } from 'esbuild';
 import { gjsify } from '@gjsify/esbuild-plugin-gjsify';
 import { deepkit } from '@gjsify/esbuild-plugin-deepkit';
-import { dirname, extname } from 'path';
+import { dirname } from 'path';
 
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {
@@ -59,8 +59,8 @@ export class BuildAction {
         }
     }
 
-    /** Platform / Application mode */
-    async buildApp(platform: Platform = 'gjs') {
+    /** Application mode */
+    async buildApp(app: App = 'gjs') {
 
         const { verbose, esbuild, typescript } = this.configData;
 
@@ -70,17 +70,17 @@ export class BuildAction {
             ...esbuild,
             format,
             plugins: [
-                gjsify({debug: verbose, platform, format}),
+                gjsify({debug: verbose, app, format}),
                 deepkit({reflection: typescript?.reflection})
             ]
         });
 
     }
 
-    async start(buildType: {library?: boolean, platform?: Platform} = {platform: 'gjs'}) {
+    async start(buildType: {library?: boolean, app?: App} = {app: 'gjs'}) {
         if(buildType.library) {
             return this.buildLibrary()
         }
-        return this.buildApp(buildType.platform)
+        return this.buildApp(buildType.app)
     }
 }

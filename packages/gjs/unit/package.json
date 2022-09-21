@@ -6,13 +6,14 @@
   "module": "lib/esm/index.js",
   "types": "lib/types/index.d.ts",
   "scripts": {
+    "print:name": "echo '@gjsify/unit'",
     "build": "yarn run build:gjsify && yarn run build:types",
     "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
     "build:types": "tsc --emitDeclarationOnly",
     "build:test": "yarn run build:test:gjs && yarn run build:test:node",
-    "build:test:gjs": "gjsify build src/test.ts --platform gjs --outfile test.gjs.js",
-    "build:test:node": "gjsify build src/test.ts --platform node --outfile test.node.js",
-    "test": "yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
+    "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
+    "build:test:node": "gjsify build src/test.ts --app node --outfile test.node.js",
+    "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
     "test:gjs": "gjs -m test.gjs.js",
     "test:node": "node test.node.js"
   },
