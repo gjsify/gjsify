@@ -16,7 +16,7 @@ export const printDiagnostics = (...args: any[]) => {
     console.log(inspect(args, false, 10, true));
 }
 
-export const deepkit = (options: DeepkitPluginOptions = {}): Plugin => {
+export const deepkitPlugin = (options: DeepkitPluginOptions = {}): Plugin => {
   return {
     name: 'deepkit',
     setup(build) {
@@ -42,5 +42,5 @@ export const deepkit = (options: DeepkitPluginOptions = {}): Plugin => {
   }
 }
 
-export default deepkit;
+export default deepkitPlugin;
 

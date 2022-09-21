@@ -1,7 +1,7 @@
 import type { ConfigData, App } from '../types/index.js';
 import { build } from 'esbuild';
-import { gjsify } from '@gjsify/esbuild-plugin-gjsify';
-import { deepkit } from '@gjsify/esbuild-plugin-deepkit';
+import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
+import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
 import { dirname } from 'path';
 
 export class BuildAction {
@@ -28,8 +28,8 @@ export class BuildAction {
                 format: moduleFormat,
                 outdir: moduleOutdir,
                 plugins: [
-                    gjsify({debug: verbose, library: moduleFormat}),
-                    deepkit({reflection: typescript?.reflection})
+                    gjsifyPlugin({debug: verbose, library: moduleFormat}),
+                    deepkitPlugin({reflection: typescript?.reflection})
                 ]
             });
     
@@ -39,8 +39,8 @@ export class BuildAction {
                 format: moduleFormat,
                 outdir: mainOutdir,
                 plugins: [
-                    gjsify({debug: verbose, library: mainFormat}),
-                    deepkit({reflection: typescript?.reflection})
+                    gjsifyPlugin({debug: verbose, library: mainFormat}),
+                    deepkitPlugin({reflection: typescript?.reflection})
                 ]
             });
         } else {
@@ -52,8 +52,8 @@ export class BuildAction {
                 format,
                 outdir,
                 plugins: [
-                    gjsify({debug: verbose, library: format}),
-                    deepkit({reflection: typescript?.reflection})
+                    gjsifyPlugin({debug: verbose, library: format}),
+                    deepkitPlugin({reflection: typescript?.reflection})
                 ]
             });
         }
@@ -70,8 +70,8 @@ export class BuildAction {
             ...esbuild,
             format,
             plugins: [
-                gjsify({debug: verbose, app, format}),
-                deepkit({reflection: typescript?.reflection})
+                gjsifyPlugin({debug: verbose, app, format}),
+                deepkitPlugin({reflection: typescript?.reflection})
             ]
         });
 

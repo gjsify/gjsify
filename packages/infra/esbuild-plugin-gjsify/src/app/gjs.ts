@@ -1,4 +1,5 @@
-import aliasPlugin from 'esbuild-plugin-alias';
+import { aliasPlugin } from '../alias-plugin.js';
+import { denoPlugin } from '../deno-plugin.js';
 import { globPlugin } from 'esbuild-plugin-glob';
 import { merge } from "lodash";
 import { getAliasesNode, getAliasesWeb, resolvePackageByType } from "../alias";
@@ -58,7 +59,8 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             'process.env.NODE_DEBUG': 'false',
         },
         plugins: [
-            globPlugin()
+            globPlugin(),
+            denoPlugin()
         ]
     };
 

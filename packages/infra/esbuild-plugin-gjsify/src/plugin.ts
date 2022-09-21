@@ -3,7 +3,7 @@ import type { PluginOptions } from './types/plugin-options.js';
 import { setupCjsLib, setupEsmLib } from './lib/index.js';
 import { setupForGjs, setupForNode, setupForDeno } from './app/index.js';
 
-export const gjsify = (pluginOptions: PluginOptions = {}) => {
+export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
     const plugin: Plugin = {
         name: 'gjsify',
         async setup(build) {
@@ -37,3 +37,5 @@ export const gjsify = (pluginOptions: PluginOptions = {}) => {
     }
     return plugin;
 };
+
+export default gjsifyPlugin;

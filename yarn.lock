@@ -218,7 +218,6 @@ __metadata:
     core-js: ^3.25.2
     crypto-browserify: ^3.12.0
     esbuild: ^0.15.8
-    esbuild-plugin-alias: ^0.2.1
     esbuild-plugin-glob: ^2.1.0
     lodash: ^4.17.21
     path-browserify: ^1.0.1
@@ -270,6 +269,15 @@ __metadata:
   resolution: "@gjsify/example-deepkit-types@workspace:examples/deepkit-types"
   dependencies:
     "@deepkit/type": ^1.0.1-alpha.75
+    "@gjsify/cli": "workspace:^"
+    "@types/node": ^18.7.18
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-deno-module-jsonc@workspace:examples/deno-module-jsonc":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-deno-module-jsonc@workspace:examples/deno-module-jsonc"
+  dependencies:
     "@gjsify/cli": "workspace:^"
     "@types/node": ^18.7.18
   languageName: unknown
@@ -1917,13 +1925,6 @@ __metadata:
   version: 0.15.8
   resolution: "esbuild-openbsd-64@npm:0.15.8"
   conditions: os=openbsd & cpu=x64
-  languageName: node
-  linkType: hard
-
-"esbuild-plugin-alias@npm:^0.2.1":
-  version: 0.2.1
-  resolution: "esbuild-plugin-alias@npm:0.2.1"
-  checksum: afe2d2c8b5f09d5321cb8d9c0825e8a9f6e03c2d50df92f953a291d4620cc29eddb3da9e33b238f6d8f77738e0277bdcb831f127399449fecf78fb84c04e5da9
   languageName: node
   linkType: hard
 

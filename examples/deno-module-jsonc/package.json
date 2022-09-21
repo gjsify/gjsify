@@ -1,0 +1,27 @@
+{
+  "name": "@gjsify/example-deno-module-jsonc",
+  "private": true,
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "scripts": {
+    "clear": "rm -rf dist",
+    "start": "yarn run build && yarn run start:gjs",
+    "start:gjs": "gjs -m dist/index.gjs.js",
+    "start:node": "node dist/index.node.cjs",
+    "build": "yarn run build:gjs && yarn run build:node",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.cjs"
+  },
+  "engines": {
+    "node": "16",
+    "gjs": "1.72.x"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@types/node": "^18.7.18"
+  }
+}
