@@ -13,6 +13,8 @@ node_modules/
 tmp/
 dist/
 lib/
+build/
+builddir/
 
 packages/**/*/test.*.js
 packages/**/*/test.*.js.map

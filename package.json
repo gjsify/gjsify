@@ -36,6 +36,9 @@
     "@deepkit/type-spec": "portal:../deepkit-framework/packages/type-spec",
     "@ts-for-gir/cli": "portal:../../ts-for-gir/packages/cli/"
   },
+  "resolutions": {
+    "@ts-for-gir/cli": "portal:../../ts-for-gir/packages/cli/"
+  },
   "workspaces": [
     "packages/infra/*",
     "packages/gjs/*",

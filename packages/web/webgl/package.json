@@ -1,0 +1,34 @@
+{
+    "name": "@gjsify/webgl",
+    "version": "0.0.1",
+    "description": "WebGL module for Gjs",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "type": "module",
+    "scripts": {
+        "clear": "rm -rf lib",
+        "print:name": "echo '@gjsify/webgl'",
+        "init:meson": "meson setup build .",
+        "build": "yarn run init:meson && yarn run build:meson && yarn run build:gjsify",
+        "build:gjsify": "gjsify build --library src/ts/**/*.{ts,js}",
+        "build:meson": "meson compile -C build",
+        "build:test": "gjsify build src/ts/test.ts --app gjs --outfile test.gjs.js",
+        "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:gjs",
+        "test:gjs": "LD_LIBRARY_PATH=build GI_TYPELIB_PATH=build gjs -m test.gjs.js"
+    },
+    "keywords": [
+        "gjs",
+        "WebGL"
+    ],
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^18.7.18",
+        "typescript": "^4.8.3"
+    },
+    "dependencies": {
+        "@gjsify/types": "workspace:^",
+        "@gjsify/utils": "workspace:^"
+    }
+}
