@@ -14517,6 +14517,29 @@ class Dir {
 
 interface Error {
 
+    // Own properties of GLib-2.0.GLib.Error
+
+    /**
+     * The stack trace of the error.
+     * @@field 
+     */
+    stack: string
+    /**
+     * The name of the file where is the source of the error.
+     * @@field 
+     */
+    source: string
+    /**
+     * The line number of the source of the error.
+     * @@field 
+     */
+    line: number
+    /**
+     * The column number of the source of the error.
+     * @@field 
+     */
+    column: number
+
     // Own fields of GLib-2.0.GLib.Error
 
     /**
@@ -14560,6 +14583,7 @@ interface Error {
      * @param code an error code
      */
     matches(domain: Quark, code: number): boolean
+    new(domain: Quark, code: number, message: string): Error
 }
 
 /**
@@ -14586,6 +14610,10 @@ class Error {
      * @param message error message
      */
     static new_literal(domain: Quark, code: number, message: string): Error
+
+    // Owm static methods of GLib-2.0.GLib.Error
+
+    constructor(domain: Quark, code: number, message: string) 
 }
 
 interface HashTable<A = symbol | string | number, B = string | number | boolean> {

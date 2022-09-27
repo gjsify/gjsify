@@ -2116,6 +2116,7 @@ const inheritanceTable: { [key: string]: string[] } = {
     'GObject.Object',
 ],
     'Gwebgl.WebGLRenderingContext': [
+    'Gwebgl.WebGLRenderingContextBase',
     'GObject.Object',
 ],
     'GObject.Binding': [

@@ -1,19 +1,20 @@
 // LD_LIBRARY_PATH=build GI_TYPELIB_PATH=build gjs -m test.js
 
 import Gwebgl from '@gjsify/types/Gwebgl-0.1';
-import GLib from '@gjsify/types/GLib-2.0';
-
+import { WebGLBuffer, WebGLProgram, WebGLRenderbuffer, WebGLShader, WebGLTexture, WebGLUniformLocation, WebGLActiveInfo, WebGLShaderPrecisionFormat } from './types/index.js';
 import { GjsifyHTMLCanvasElement } from './html-canvas-element.js';
+import { warnNotImplemented } from '@gjsify/utils';
+import { float32ListToArray } from './utils.js';
 
-export class GjsifyWebGLRenderingContextBase implements WebGLRenderingContextBase {
+
+export class GjsifyWebGLRenderingContextBase extends Gwebgl.WebGLRenderingContextBase implements WebGLRenderingContextBase {
     readonly canvas: HTMLCanvasElement = null as any as HTMLCanvasElement; // TODO
     readonly drawingBufferHeight: GLsizei = 0;
     readonly drawingBufferWidth: GLsizei = 0;
 
     constructor() {
-        this._initGLConstants();
-        console.log("COLOR_BUFFER_BIT", this.COLOR_BUFFER_BIT);
-        
+        super();
+        this._initGLConstants();        
     }
 
     _initGLConstants() {
@@ -25,175 +26,183 @@ export class GjsifyWebGLRenderingContextBase implements WebGLRenderingContextBas
     }
     
     activeTexture(texture: GLenum): void {
-
+        return super.activeTexture(texture);
     }
     attachShader(program: WebGLProgram, shader: WebGLShader): void {
-
+        return super.attachShader(program, shader);
     }
     bindAttribLocation(program: WebGLProgram, index: GLuint, name: string): void {
-
+        return super.bindAttribLocation(program, index, name);
     }
     bindBuffer(target: GLenum, buffer: WebGLBuffer | null): void {
-
+        return super.bindBuffer(target, buffer);
     }
-    bindFramebuffer(target: GLenum, framebuffer: WebGLFramebuffer | null): void {
-
+    bindFramebuffer(target: GLenum, framebuffer: WebGLShader | null): void {
+        return super.bindFramebuffer(target, framebuffer);
     }
     bindRenderbuffer(target: GLenum, renderbuffer: WebGLRenderbuffer | null): void {
-
+        return super.bindRenderbuffer(target, renderbuffer);
     }
     bindTexture(target: GLenum, texture: WebGLTexture | null): void {
-
+        return super.bindTexture(target, texture);
     }
     blendColor(red: GLclampf, green: GLclampf, blue: GLclampf, alpha: GLclampf): void {
-
+        return super.blendColor(red, green, blue, alpha);
     }
     blendEquation(mode: GLenum): void {
-
+        return super.blendEquation(mode);
     }
     blendEquationSeparate(modeRGB: GLenum, modeAlpha: GLenum): void {
-
+        return super.blendEquationSeparate(modeRGB, modeAlpha);
     }
     blendFunc(sfactor: GLenum, dfactor: GLenum): void {
-
+        return super.blendFunc(sfactor, dfactor);
     }
     blendFuncSeparate(srcRGB: GLenum, dstRGB: GLenum, srcAlpha: GLenum, dstAlpha: GLenum): void {
-
+        return super.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
     }
     checkFramebufferStatus(target: GLenum): GLenum {
-        return 0; // TODO
+        return super.checkFramebufferStatus(target);
     }
     clear(mask: GLbitfield): void {
-
+        return super.clear(mask);
     }
     clearColor(red: GLclampf, green: GLclampf, blue: GLclampf, alpha: GLclampf): void {
-
+        return super.clearColor(red, green, blue, alpha);
     }
     clearDepth(depth: GLclampf): void {
-
+        return super.clearDepth(depth);
     }
     clearStencil(s: GLint): void {
-
+        return super.clearStencil(s);
     }
     colorMask(red: GLboolean, green: GLboolean, blue: GLboolean, alpha: GLboolean): void {
-
+        return super.colorMask(red, green, blue, alpha);
     }
     compileShader(shader: WebGLShader): void {
-
+        return super.compileShader(shader);
     }
     copyTexImage2D(target: GLenum, level: GLint, internalformat: GLenum, x: GLint, y: GLint, width: GLsizei, height: GLsizei, border: GLint): void {
-
+        return super.copyTexImage2D(target, level, internalformat, x, y, width, height, border);
     }
     copyTexSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
-
+        return super.copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
     }
     createBuffer(): WebGLBuffer | null {
-        return null;
+        return super.createBuffer();
     }
-    createFramebuffer(): WebGLFramebuffer | null {
-        return null;
+    createFramebuffer(): WebGLShader | null {
+        return super.createFramebuffer();
     }
     createProgram(): WebGLProgram | null {
-        return null;
+        return super.createProgram();
     }
     createRenderbuffer(): WebGLRenderbuffer | null {
-        return null;
+        return super.createRenderbuffer();
     }
     createShader(type: GLenum): WebGLShader | null {
-        return null;
+        return super.createShader(type);
     }
     createTexture(): WebGLTexture | null {
-        return null;
+        return super.createTexture();
     }
     cullFace(mode: GLenum): void {
-
+        return super.cullFace(mode);
     }
     deleteBuffer(buffer: WebGLBuffer | null): void {
-
+        return super.deleteBuffer(buffer);
     }
-    deleteFramebuffer(framebuffer: WebGLFramebuffer | null): void {
-
+    deleteFramebuffer(framebuffer: WebGLShader | null): void {
+        return super.deleteFramebuffer(framebuffer);
     }
     deleteProgram(program: WebGLProgram | null): void {
-
+        return super.deleteProgram(program);
     }
     deleteRenderbuffer(renderbuffer: WebGLRenderbuffer | null): void {
-
+        return super.deleteRenderbuffer(renderbuffer);
     }
     deleteShader(shader: WebGLShader | null): void {
-
+        return super.deleteShader(shader);
     }
     deleteTexture(texture: WebGLTexture | null): void {
-
+        return super.deleteTexture(texture);
     }
     depthFunc(func: GLenum): void {
-
+        return super.depthFunc(func);
     }
     depthMask(flag: GLboolean): void {
-
+        return super.depthMask(flag);
     }
     depthRange(zNear: GLclampf, zFar: GLclampf): void {
-
+        return super.depthRange(zNear, zFar);
     }
     detachShader(program: WebGLProgram, shader: WebGLShader): void {
-
+        return super.detachShader(program, shader);
     }
     disable(cap: GLenum): void {
-
+        return super.disable(cap);
     }
     disableVertexAttribArray(index: GLuint): void {
-
+        return super.disableVertexAttribArray(index);
     }
     drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
-
+        return super.drawArrays(mode, first, count);
     }
     drawElements(mode: GLenum, count: GLsizei, type: GLenum, offset: GLintptr): void {
-
+        return super.drawElements(mode, count, type, offset);
     }
     enable(cap: GLenum): void {
-
+        return super.enable(cap);
     }
     enableVertexAttribArray(index: GLuint): void {
-
+        return super.enableVertexAttribArray(index);
     }
     finish(): void {
-
+        return super.finish();
     }
     flush(): void {
-
+        return super.flush();
     }
     framebufferRenderbuffer(target: GLenum, attachment: GLenum, renderbuffertarget: GLenum, renderbuffer: WebGLRenderbuffer | null): void {
-
+        return super.framebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
     }
     framebufferTexture2D(target: GLenum, attachment: GLenum, textarget: GLenum, texture: WebGLTexture | null, level: GLint): void {
-
+        return super.framebufferTexture2D(target, attachment, textarget, texture, level);
     }
     frontFace(mode: GLenum): void {
-
+        return super.frontFace(mode);
     }
     generateMipmap(target: GLenum): void {
-
+        return super.generateMipmap(target);
     }
     getActiveAttrib(program: WebGLProgram, index: GLuint): WebGLActiveInfo | null {
-        return null;
+        return super.getActiveAttrib(program, index);
     }
     getActiveUniform(program: WebGLProgram, index: GLuint): WebGLActiveInfo | null {
-        return null;
+        return super.getActiveUniform(program, index);
     }
     getAttachedShaders(program: WebGLProgram): WebGLShader[] | null {
-        return null;
+        return super.getAttachedShaders(program) as WebGLShader[] | null;
     }
     getAttribLocation(program: WebGLProgram, name: string): GLint {
-        return 0;
+        return super.getAttribLocation(program, name);
     }
     getBufferParameter(target: GLenum, pname: GLenum): any {
-
+        return super.getBufferParameter(target, pname);
     }
+    /**
+     * The `WebGLRenderingContext.getContextAttributes()` method returns a `WebGLContextAttributes` object that contains the actual context parameters.
+     * Might return `null`, if the context is lost. 
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/getContextAttributes
+     * @returns A `WebGLContextAttributes` object that contains the actual context parameters, or `null` if the context is lost. 
+     */
     getContextAttributes(): WebGLContextAttributes | null {
-        return null;
+        // TODO
+        warnNotImplemented('GjsifyWebGLRenderingContextBase.getContextAttributes');
+        return {}
     }
     getError(): GLenum {
-        return 0;
+        return super.getError();
     }
     getExtension(extensionName: "EXT_blend_minmax"): EXT_blend_minmax | null;
     getExtension(extensionName: "EXT_color_buffer_float"): EXT_color_buffer_float | null;
@@ -225,188 +234,194 @@ export class GjsifyWebGLRenderingContextBase implements WebGLRenderingContextBas
     getExtension(extensionName: "OES_element_index_uint"): OES_element_index_uint | null;
     getExtension(extensionName: "ANGLE_instanced_arrays"): ANGLE_instanced_arrays | null;
     getExtension(name: string): any {
-
+        warnNotImplemented('GjsifyWebGLRenderingContextBase.getExtension')
+        // return super.getExtension(name);
     }
     getFramebufferAttachmentParameter(target: GLenum, attachment: GLenum, pname: GLenum): any {
-
+        return super.getFramebufferAttachmentParameter(target, attachment, pname);
     }
     getParameter(pname: GLenum): any {
-
+        return super.getParameterx(pname)?.deepUnpack() || null;
     }
     getProgramInfoLog(program: WebGLProgram): string | null {
-        return null;
+        return super.getProgramInfoLog(program);
     }
     getProgramParameter(program: WebGLProgram, pname: GLenum): any {
-
+        return super.getProgramParameter(program, pname);
     }
     getRenderbufferParameter(target: GLenum, pname: GLenum): any {
-
+        return super.getProgramParameter(target, pname);
     }
     getShaderInfoLog(shader: WebGLShader): string | null {
-        return null;
+        return super.getShaderInfoLog(shader);
     }
     getShaderParameter(shader: WebGLShader, pname: GLenum): any {
-
+        return super.getShaderParameter(shader, pname);
     }
     getShaderPrecisionFormat(shadertype: GLenum, precisiontype: GLenum): WebGLShaderPrecisionFormat | null {
-        return null;
+        return super.getShaderPrecisionFormat(shadertype, precisiontype);
     }
     getShaderSource(shader: WebGLShader): string | null {
-        return null;
+        return super.getShaderSource(shader);
     }
     getSupportedExtensions(): string[] | null {
-        return null;
+        return super.getSupportedExtensions();
     }
     getTexParameter(target: GLenum, pname: GLenum): any {
-
+        return super.getTexParameterx(target, pname)?.unpack();
     }
     getUniform(program: WebGLProgram, location: WebGLUniformLocation): any {
-
+        return super.getUniform(program, location);
     }
     getUniformLocation(program: WebGLProgram, name: string): WebGLUniformLocation | null {
-        return null;
+        return super.getUniformLocation(program, name) as WebGLUniformLocation | null;
     }
     getVertexAttrib(index: GLuint, pname: GLenum): any {
-
+        return super.getVertexAttrib(index, pname);
     }
     getVertexAttribOffset(index: GLuint, pname: GLenum): GLintptr {
-        return 0;
+        return super.getVertexAttribOffset(index, pname);
     }
     hint(target: GLenum, mode: GLenum): void {
-
+        return super.hint(target, mode);
     }
     isBuffer(buffer: WebGLBuffer | null): GLboolean {
-        return false;
+        return super.isBuffer(buffer);
     }
     isContextLost(): boolean {
         return false;
     }
     isEnabled(cap: GLenum): GLboolean {
-        return false;
+        return super.isEnabled(cap);
     }
-    isFramebuffer(framebuffer: WebGLFramebuffer | null): GLboolean {
-        return false;
+    isFramebuffer(framebuffer: WebGLShader | null): GLboolean {
+        return super.isFramebuffer(framebuffer);
     }
     isProgram(program: WebGLProgram | null): GLboolean {
-        return false;
+        return super.isProgram(program);
     }
     isRenderbuffer(renderbuffer: WebGLRenderbuffer | null): GLboolean {
-        return false;
+        return super.isRenderbuffer(renderbuffer);
     }
     isShader(shader: WebGLShader | null): GLboolean {
-        return false;
+        return super.isShader(shader);
     }
     isTexture(texture: WebGLTexture | null): GLboolean {
-        return false;
+        return super.isTexture(texture);
     }
     lineWidth(width: GLfloat): void {
-
+        return super.lineWidth(width);
     }
     linkProgram(program: WebGLProgram): void {
-
+        return super.linkProgram(program);
     }
+    /** The `WebGLRenderingContext.pixelStorei()` method of the WebGL API specifies the pixel storage modes. */
     pixelStorei(pname: GLenum, param: GLint | GLboolean): void {
-
+        if(typeof param === 'boolean') {
+            param = param === false ? 0 : 1;
+        }
+        return super.pixelStorei(pname, param);
     }
     polygonOffset(factor: GLfloat, units: GLfloat): void {
-
+        return super.polygonOffset(factor, units);
     }
     renderbufferStorage(target: GLenum, internalformat: GLenum, width: GLsizei, height: GLsizei): void {
-
+        return super.renderbufferStorage(target, internalformat, width, height);
     }
     sampleCoverage(value: GLclampf, invert: GLboolean): void {
-
+        return super.sampleCoverage(value, invert);
     }
     scissor(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
-
+        return super.scissor(x, y, width, height);
     }
     shaderSource(shader: WebGLShader, source: string): void {
-
+        return super.shaderSource(shader, source);
     }
     stencilFunc(func: GLenum, ref: GLint, mask: GLuint): void {
-
+        return super.stencilFunc(func, ref, mask);
     }
     stencilFuncSeparate(face: GLenum, func: GLenum, ref: GLint, mask: GLuint): void {
-
+        return super.stencilFuncSeparate(func, func, ref, mask);
     }
     stencilMask(mask: GLuint): void {
-
+        return super.stencilMask(mask);
     }
     stencilMaskSeparate(face: GLenum, mask: GLuint): void {
-
+        return super.stencilMaskSeparate(face, mask);
     }
     stencilOp(fail: GLenum, zfail: GLenum, zpass: GLenum): void {
-
+        return super.stencilOp(fail, zfail, zpass);
     }
     stencilOpSeparate(face: GLenum, fail: GLenum, zfail: GLenum, zpass: GLenum): void {
-
+        return super.stencilOpSeparate(face, fail, zfail, zpass);
     }
     texParameterf(target: GLenum, pname: GLenum, param: GLfloat): void {
-
+        return super.texParameterf(target, pname, param);
     }
     texParameteri(target: GLenum, pname: GLenum, param: GLint): void {
-
+        return super.texParameteri(target, pname, param);
     }
     uniform1f(location: WebGLUniformLocation | null, x: GLfloat): void {
-
+        return super.uniform1f(location, x);
     }
     uniform1i(location: WebGLUniformLocation | null, x: GLint): void {
-
+        return super.uniform1i(location, x);
     }
     uniform2f(location: WebGLUniformLocation | null, x: GLfloat, y: GLfloat): void {
-
+        return super.uniform2f(location, x, y);
     }
     uniform2i(location: WebGLUniformLocation | null, x: GLint, y: GLint): void {
-
+        return super.uniform2i(location, x, y);
     }
     uniform3f(location: WebGLUniformLocation | null, x: GLfloat, y: GLfloat, z: GLfloat): void {
-
+        return super.uniform3f(location, x, y, z);
     }
     uniform3i(location: WebGLUniformLocation | null, x: GLint, y: GLint, z: GLint): void {
-
+        return super.uniform3i(location, x, y, z);
     }
     uniform4f(location: WebGLUniformLocation | null, x: GLfloat, y: GLfloat, z: GLfloat, w: GLfloat): void {
-
+        return super.uniform4f(location, x, y, z, w);
     }
     uniform4i(location: WebGLUniformLocation | null, x: GLint, y: GLint, z: GLint, w: GLint): void {
-
+        return super.uniform4i(location, x, y, z, w);
     }
     useProgram(program: WebGLProgram | null): void {
-
+        return super.useProgram(program);
     }
     validateProgram(program: WebGLProgram): void {
-
+        return super.validateProgram(program);
     }
     vertexAttrib1f(index: GLuint, x: GLfloat): void {
-
+        return super.vertexAttrib1f(index, x);
     }
     vertexAttrib1fv(index: GLuint, values: Float32List): void {
-
+        return super.vertexAttrib1fv(index, float32ListToArray(values));
     }
     vertexAttrib2f(index: GLuint, x: GLfloat, y: GLfloat): void {
-
+        return super.vertexAttrib2f(index, x, y);
     }
     vertexAttrib2fv(index: GLuint, values: Float32List): void {
-
+        return super.vertexAttrib2fv(index, float32ListToArray(values));
     }
     vertexAttrib3f(index: GLuint, x: GLfloat, y: GLfloat, z: GLfloat): void {
-
+        return super.vertexAttrib3f(index, x, y, z);
     }
     vertexAttrib3fv(index: GLuint, values: Float32List): void {
-
+        return super.vertexAttrib3fv(index, float32ListToArray(values));
     }
     vertexAttrib4f(index: GLuint, x: GLfloat, y: GLfloat, z: GLfloat, w: GLfloat): void {
-
+        return super.vertexAttrib4f(index, x, y, z, w);
     }
     vertexAttrib4fv(index: GLuint, values: Float32List): void {
-
+        return super.vertexAttrib4fv(index, float32ListToArray(values));
     }
     vertexAttribPointer(index: GLuint, size: GLint, type: GLenum, normalized: GLboolean, stride: GLsizei, offset: GLintptr): void {
-
+        return super.vertexAttribPointer(index, size, type, normalized, stride, offset);
     }
     viewport(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
-
+        return super.viewport(x, y, width, height);
     }
+
     readonly ACTIVE_ATTRIBUTES: GLenum = 0;
     readonly ACTIVE_TEXTURE: GLenum = 0;
     readonly ACTIVE_UNIFORMS: GLenum = 0;

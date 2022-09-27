@@ -15385,7 +15385,16 @@ interface Proxy {
 
     // Owm methods of Gio-2.0.Gio.Proxy
 
-    // Has conflict: connect(connection: IOStream, proxy_address: ProxyAddress, cancellable: Cancellable | null): IOStream
+    /**
+     * Given `connection` to communicate with a proxy (eg, a
+     * #GSocketConnection that is connected to the proxy server), this
+     * does the necessary handshake to connect to `proxy_address,` and if
+     * required, wraps the #GIOStream to handle proxy payload.
+     * @param connection a #GIOStream
+     * @param proxy_address a #GProxyAddress
+     * @param cancellable a #GCancellable
+     */
+    connect(connection: IOStream, proxy_address: ProxyAddress, cancellable: Cancellable | null): IOStream
     /**
      * Asynchronous version of g_proxy_connect().
      * @param connection a #GIOStream
@@ -19254,8 +19263,46 @@ interface Cancellable {
      * the application returns to the main loop.
      */
     cancel(): void
-    // Has conflict: connect(callback: GObject.Callback): number
-    // Has conflict: disconnect(handler_id: number): void
+    /**
+     * Convenience function to connect to the #GCancellable::cancelled
+     * signal. Also handles the race condition that may happen
+     * if the cancellable is cancelled right before connecting.
+     * 
+     * `callback` is called at most once, either directly at the
+     * time of the connect if `cancellable` is already cancelled,
+     * or when `cancellable` is cancelled in some thread.
+     * 
+     * `data_destroy_func` will be called when the handler is
+     * disconnected, or immediately if the cancellable is already
+     * cancelled.
+     * 
+     * See #GCancellable::cancelled for details on how to use this.
+     * 
+     * Since GLib 2.40, the lock protecting `cancellable` is not held when
+     * `callback` is invoked.  This lifts a restriction in place for
+     * earlier GLib versions which now makes it easier to write cleanup
+     * code that unconditionally invokes e.g. g_cancellable_cancel().
+     * @param callback The #GCallback to connect.
+     */
+    connect(callback: GObject.Callback): number
+    /**
+     * Disconnects a handler from a cancellable instance similar to
+     * g_signal_handler_disconnect().  Additionally, in the event that a
+     * signal handler is currently running, this call will block until the
+     * handler has finished.  Calling this function from a
+     * #GCancellable::cancelled signal handler will therefore result in a
+     * deadlock.
+     * 
+     * This avoids a race condition where a thread cancels at the
+     * same time as the cancellable operation is finished and the
+     * signal handler is removed. See #GCancellable::cancelled for
+     * details on how to use this.
+     * 
+     * If `cancellable` is %NULL or `handler_id` is `0` this function does
+     * nothing.
+     * @param handler_id Handler id of the handler to be disconnected, or `0`.
+     */
+    disconnect(handler_id: number): void
     /**
      * Gets the file descriptor for a cancellable job. This can be used to
      * implement cancellable operations on Unix systems. The returned fd will
@@ -34562,7 +34609,27 @@ interface Socket extends DatagramBased, Initable {
      * @param cancellable a #GCancellable
      */
     condition_wait(condition: GLib.IOCondition, timeout: number, cancellable: Cancellable | null): boolean
-    // Has conflict: connect(address: SocketAddress, cancellable: Cancellable | null): boolean
+    /**
+     * Connect the socket to the specified remote address.
+     * 
+     * For connection oriented socket this generally means we attempt to make
+     * a connection to the `address`. For a connection-less socket it sets
+     * the default address for g_socket_send() and discards all incoming datagrams
+     * from other sources.
+     * 
+     * Generally connection oriented sockets can only connect once, but
+     * connection-less sockets can connect multiple times to change the
+     * default address.
+     * 
+     * If the connect call needs to do network I/O it will block, unless
+     * non-blocking I/O is enabled. Then %G_IO_ERROR_PENDING is returned
+     * and the user can be notified of the connection finishing by waiting
+     * for the G_IO_OUT condition. The result of the connection must then be
+     * checked with g_socket_check_connect_result().
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     /**
      * Creates a #GSocketConnection subclass of the right type for
      * `socket`.
@@ -35880,7 +35947,29 @@ interface SocketClient {
      * @param protocol The proxy protocol
      */
     add_application_proxy(protocol: string): void
-    // Has conflict: connect(connectable: SocketConnectable, cancellable: Cancellable | null): SocketConnection
+    /**
+     * Tries to resolve the `connectable` and make a network connection to it.
+     * 
+     * Upon a successful connection, a new #GSocketConnection is constructed
+     * and returned.  The caller owns this new object and must drop their
+     * reference to it when finished with it.
+     * 
+     * The type of the #GSocketConnection object returned depends on the type of
+     * the underlying socket that is used. For instance, for a TCP/IP connection
+     * it will be a #GTcpConnection.
+     * 
+     * The socket created will be the same family as the address that the
+     * `connectable` resolves to, unless family is set with g_socket_client_set_family()
+     * or indirectly via g_socket_client_set_local_address(). The socket type
+     * defaults to %G_SOCKET_TYPE_STREAM but can be set with
+     * g_socket_client_set_socket_type().
+     * 
+     * If a local address is specified with g_socket_client_set_local_address() the
+     * socket will be bound to this address before connecting.
+     * @param connectable a #GSocketConnectable specifying the remote address.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     */
+    connect(connectable: SocketConnectable, cancellable: Cancellable | null): SocketConnection
     /**
      * This is the asynchronous version of g_socket_client_connect().
      * 
@@ -36308,7 +36397,12 @@ interface SocketConnection {
 
     // Owm methods of Gio-2.0.Gio.SocketConnection
 
-    // Has conflict: connect(address: SocketAddress, cancellable: Cancellable | null): boolean
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     /**
      * Asynchronously connect `connection` to the specified remote address.
      * 
@@ -38644,21 +38738,75 @@ interface TcpConnection {
     // Class property signals of Gio-2.0.Gio.TcpConnection
 
     connect(sigName: "notify::graceful-disconnect", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::graceful-disconnect", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::graceful-disconnect", ...args: any[]): void
     connect(sigName: "notify::socket", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::socket", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::socket", ...args: any[]): void
     connect(sigName: "notify::closed", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::closed", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::closed", ...args: any[]): void
     connect(sigName: "notify::input-stream", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::input-stream", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::input-stream", ...args: any[]): void
     connect(sigName: "notify::output-stream", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::output-stream", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::output-stream", ...args: any[]): void
     connect(sigName: string, callback: (...args: any[]) => void): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: string, callback: (...args: any[]) => void): number
     emit(sigName: string, ...args: any[]): void
     disconnect(id: number): void
@@ -38716,24 +38864,87 @@ interface TcpWrapperConnection {
     // Class property signals of Gio-2.0.Gio.TcpWrapperConnection
 
     connect(sigName: "notify::base-io-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::base-io-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::base-io-stream", ...args: any[]): void
     connect(sigName: "notify::graceful-disconnect", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::graceful-disconnect", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::graceful-disconnect", ...args: any[]): void
     connect(sigName: "notify::socket", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::socket", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::socket", ...args: any[]): void
     connect(sigName: "notify::closed", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::closed", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::closed", ...args: any[]): void
     connect(sigName: "notify::input-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::input-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::input-stream", ...args: any[]): void
     connect(sigName: "notify::output-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::output-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::output-stream", ...args: any[]): void
     connect(sigName: string, callback: (...args: any[]) => void): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: string, callback: (...args: any[]) => void): number
     emit(sigName: string, ...args: any[]): void
     disconnect(id: number): void
@@ -41569,18 +41780,63 @@ interface UnixConnection {
     // Class property signals of Gio-2.0.Gio.UnixConnection
 
     connect(sigName: "notify::socket", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::socket", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::socket", ...args: any[]): void
     connect(sigName: "notify::closed", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::closed", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::closed", ...args: any[]): void
     connect(sigName: "notify::input-stream", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::input-stream", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::input-stream", ...args: any[]): void
     connect(sigName: "notify::output-stream", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::output-stream", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::output-stream", ...args: any[]): void
     connect(sigName: string, callback: (...args: any[]) => void): number
+
+    // Overloads of connect
+
+    /**
+     * Connect `connection` to the specified remote address.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     */
+    connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: string, callback: (...args: any[]) => void): number
     emit(sigName: string, ...args: any[]): void
     disconnect(id: number): void

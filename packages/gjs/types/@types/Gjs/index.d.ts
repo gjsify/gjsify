@@ -551,41 +551,42 @@ declare global {
 
     const imports: typeof Gjs & {
         gi: {
-            Gio:              typeof Gio20
-            GLib:              typeof GLib20
-            Soup:              typeof Soup30
-            Gtk:              typeof Gtk40
-            Gwebgl:              typeof Gwebgl01
-            GObject:              typeof GObject20
-            Gsk:              typeof Gsk40
-            Gdk:              typeof Gdk40
-            Graphene:              typeof Graphene10
-            cairo:              typeof Cairo10
-            PangoCairo:              typeof PangoCairo10
-            Pango:              typeof Pango10
-            GdkPixbuf:              typeof GdkPixbuf20
-            HarfBuzz:              typeof HarfBuzz00
-            GModule:              typeof GModule20
-          versions: {
-              Gio:                '2.0'
-              GLib:                '2.0'
-              Soup:                '3.0'
-              Gtk:                '4.0'
-              Gwebgl:                '0.1'
-              GObject:                '2.0'
-              Gsk:                '4.0'
-              Gdk:                '4.0'
-              Graphene:                '1.0'
-              cairo:                '1.0'
-              PangoCairo:                '1.0'
-              Pango:                '1.0'
-              GdkPixbuf:                '2.0'
-              HarfBuzz:                '0.0'
-              GModule:                '2.0'
-          }
+              Gio:                typeof Gio20
+              GLib:                typeof GLib20
+              Soup:                typeof Soup30
+              Gtk:                typeof Gtk40
+              Gwebgl:                typeof Gwebgl01
+              GObject:                typeof GObject20
+              Gsk:                typeof Gsk40
+              Gdk:                typeof Gdk40
+              Graphene:                typeof Graphene10
+              cairo:                typeof Cairo10
+              PangoCairo:                typeof PangoCairo10
+              Pango:                typeof Pango10
+              GdkPixbuf:                typeof GdkPixbuf20
+              HarfBuzz:                typeof HarfBuzz00
+              GModule:                typeof GModule20
+            versions: {
+                  Gio:                    '2.0'
+                  GLib:                    '2.0'
+                  Soup:                    '3.0'
+                  Gtk:                    '4.0'
+                  Gwebgl:                    '0.1'
+                  GObject:                    '2.0'
+                  Gsk:                    '4.0'
+                  Gdk:                    '4.0'
+                  Graphene:                    '1.0'
+                  cairo:                    '1.0'
+                  PangoCairo:                    '1.0'
+                  Pango:                    '1.0'
+                  GdkPixbuf:                    '2.0'
+                  HarfBuzz:                    '0.0'
+                  GModule:                    '2.0'
+            }
         }
         lang: typeof Gjs.Lang
         system: typeof Gjs.System
+        signals: typeof Gjs.Signals
         package: typeof Gjs.Package
         mainloop: typeof Gjs.Mainloop
         searchPath: string[]

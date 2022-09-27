@@ -10,11 +10,28 @@
  */
 
 import type * as Gjs from './Gjs.js';
-import type GLib from './GLib-2.0.js';
+import type GdkPixbuf from './GdkPixbuf-2.0.js';
+import type Gio from './Gio-2.0.js';
 import type GObject from './GObject-2.0.js';
+import type GLib from './GLib-2.0.js';
+import type GModule from './GModule-2.0.js';
 
 export namespace Gwebgl {
 
+enum TypeError {
+    CODE,
+}
+const UNPACK_FLIP_Y_WEBGL: number
+const UNPACK_PREMULTIPLY_ALPHA_WEBGL: number
+const UNPACK_COLORSPACE_CONVERSION_WEBGL: number
+const CONTEXT_LOST_WEBGL: number
+const BROWSER_DEFAULT_WEBGL: number
+const VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE: number
+const UNMASKED_VENDOR_WEBGL: number
+const UNMASKED_RENDERER_WEBGL: number
+const MAX_DRAW_BUFFERS_WEBGL: number
+const MAX_TEXTURE_MAX_ANISOTROPY_EXT: number
+const TEXTURE_MAX_ANISOTROPY_EXT: number
 module WebGLRenderingContextBase {
 
     // Constructor properties interface
@@ -26,16 +43,23 @@ module WebGLRenderingContextBase {
 
 interface WebGLRenderingContextBase {
 
+    // Own fields of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
+
+    unpack_flip_y: boolean
+    unpack_premultiply_alpha: boolean
+    unpack_colorspace_conversion: number
+    unpack_alignment: number
+
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
 
     get_webgl_constants(): GLib.HashTable
     activeTexture(texture: any): void
-    attachShader(program: GwebglWebGLProgram, shader: any): void
-    bindAttribLocation(program: GwebglWebGLProgram, index: number, name: string): void
-    bindBuffer(target: any, buffer: GwebglWebGLBuffer): void
-    bindFramebuffer(target: any, framebuffer: GwebglWebGLFramebuffer): void
-    bindRenderbuffer(target: any, renderbuffer: any): void
-    bindTexture(target: any, texture: any): void
+    attachShader(program: WebGLProgram, shader: WebGLShader): void
+    bindAttribLocation(program: WebGLProgram, index: number, name: string): void
+    bindBuffer(target: any, buffer: WebGLBuffer | null): void
+    bindFramebuffer(target: any, framebuffer: WebGLFramebuffer | null): void
+    bindRenderbuffer(target: any, renderbuffer: WebGLRenderbuffer | null): void
+    bindTexture(target: any, texture: WebGLTexture | null): void
     blendColor(red: number, green: number, blue: number, alpha: number): void
     blendEquation(mode: any): void
     blendEquationSeparate(modeRGB: any, modeAlpha: any): void
@@ -47,87 +71,87 @@ interface WebGLRenderingContextBase {
     clearDepth(depth: any): void
     clearStencil(s: any): void
     colorMask(red: any, green: any, blue: any, alpha: any): void
-    compileShader(shader: any): void
+    compileShader(shader: WebGLShader): void
     copyTexImage2D(target: any, level: any, internalformat: any, x: any, y: any, width: any, height: any, border: any): void
     copyTexSubImage2D(target: any, level: any, xoffset: any, yoffset: any, x: any, y: any, width: any, height: any): void
-    createBuffer(): GwebglWebGLBuffer[]
-    createFramebuffer(): GwebglWebGLFramebuffer[]
-    createProgram(): GwebglWebGLProgram
-    createRenderbuffer(): any[]
+    createBuffer(): WebGLBuffer | null
+    createFramebuffer(): WebGLFramebuffer | null
+    createProgram(): WebGLProgram | null
+    createRenderbuffer(): WebGLRenderbuffer | null
     createShader(type: any): any
-    createTexture(): any
+    createTexture(): WebGLTexture | null
     cullFace(mode: any): void
-    deleteBuffer(buffers: GwebglWebGLBuffer[]): void
-    deleteFramebuffer(framebuffers: GwebglWebGLFramebuffer[]): void
-    deleteProgram(program: GwebglWebGLProgram): void
-    deleteRenderbuffer(renderbuffers: any[]): void
-    deleteShader(shader: any): void
-    deleteTexture(textures: any[]): void
+    deleteBuffer(buffer: WebGLBuffer | null): void
+    deleteFramebuffer(framebuffer: WebGLFramebuffer | null): void
+    deleteProgram(program: WebGLProgram | null): void
+    deleteRenderbuffer(renderbuffers: WebGLRenderbuffer | null): void
+    deleteShader(shader: WebGLShader | null): void
+    deleteTexture(texture: WebGLTexture | null): void
     depthFunc(func: any): void
     depthMask(flag: any): void
     depthRange(zNear: number, zFar: number): void
-    detachShader(program: GwebglWebGLProgram, shader: any): void
+    detachShader(program: WebGLProgram, shader: WebGLShader): void
     disable(cap: any): void
     disableVertexAttribArray(index: any): void
     drawArrays(mode: any, first: any, count: any): void
-    drawElements(mode: any, count: any, type: any, indices: any[] | null): void
+    drawElements(mode: any, count: any, type: any, offset: any): void
     enable(cap: any): void
     enableVertexAttribArray(index: number): void
     finish(): void
     flush(): void
-    framebufferRenderbuffer(target: any, attachment: any, renderbuffertarget: any, renderbuffer: any): void
-    framebufferTexture2D(target: any, attachment: any, textarget: any, texture: any, level: any): void
+    framebufferRenderbuffer(target: any, attachment: any, renderbuffertarget: any, renderbuffer: WebGLRenderbuffer | null): void
+    framebufferTexture2D(target: any, attachment: any, textarget: any, texture: WebGLTexture | null, level: any): void
     frontFace(mode: any): void
     generateMipmap(target: any): void
-    getActiveAttrib(program: GwebglWebGLProgram, index: number, size: any, type: any, name: any): void
-    getActiveUniform(program: GwebglWebGLProgram, index: number, size: any, type: any, name: any): void
-    getAttachedShaders(program: GwebglWebGLProgram): any[]
-    getAttribLocation(program: GwebglWebGLProgram, name: string): any
-    getBufferParameteriv(target: any, pname: any): any
+    getActiveAttrib(program: WebGLProgram, index: number): WebGLActiveInfo | null
+    getActiveUniform(program: WebGLProgram, index: number): WebGLActiveInfo | null
+    getAttachedShaders(program: WebGLProgram): WebGLShader[] | null
+    getAttribLocation(program: WebGLProgram, name: string): any
+    getBufferParameter(target: any, pname: any): any
     getError(): any
     getFramebufferAttachmentParameter(target: any, attachment: any, pname: any): any
+    getParameterx(pname: any): GLib.Variant | null
     getParameterb(pname: any): any
     getParameterbv(pname: any, resultSize: number): any
     getParameterf(pname: any): any
     getParameterfv(pname: any, resultSize: number): any
     getParameteri(pname: any): any
     getParameteriv(pname: any, resultSize: number): any
-    getProgramInfoLog(program: GwebglWebGLProgram): any[]
-    getProgramParameter(program: GwebglWebGLProgram, pname: any): any
+    getProgramInfoLog(program: WebGLProgram): string | null
+    getProgramParameter(program: WebGLProgram, pname: any): any
     getRenderbufferParameter(target: any, pname: any): any
-    getShaderInfoLog(shader: any): any[]
-    getShaderParameter(shader: any, pname: any): any
-    getShaderPrecisionFormat(shadertype: any, precisiontype: any, range_min: any, range_max: any, precision: any): void
-    getShaderSource(shader: any): any[]
+    getShaderInfoLog(shader: WebGLShader): string | null
+    getShaderParameter(shader: WebGLShader, pname: any): any
+    getShaderPrecisionFormat(shadertype: any, precisiontype: any): WebGLShaderPrecisionFormat | null
+    getShaderSource(shader: WebGLShader): string | null
     getString(pname: any): string
-    getSupportedExtensions(): string[]
-    getTexParameterfv(target: any, pname: any): any[]
-    getTexParameteriv(target: any, pname: any): any[]
-    getUniformLocation(program: GwebglWebGLProgram, name: string): GwebglWebGLUniformLocation
-    getUniformf(program: GwebglWebGLProgram, location: GwebglWebGLUniformLocation): any[]
-    getUniformfv(program: GwebglWebGLProgram, location: GwebglWebGLUniformLocation, resultSize: number): any[]
-    getUniformi(program: GwebglWebGLProgram, location: GwebglWebGLUniformLocation): any[]
-    getUniformiv(program: GwebglWebGLProgram, location: GwebglWebGLUniformLocation, resultSize: number): any[]
-    getVertexAttribOffset(index: number, pname: any): any[]
+    getSupportedExtensions(): string[] | null
+    getTexParameterx(target: any, pname: any): GLib.Variant
+    getUniformLocation(program: WebGLProgram, name: string): WebGLUniformLocation | null
+    getUniform(program: WebGLProgram, location: WebGLUniformLocation): any[]
+    getUniformi(program: WebGLProgram, location: WebGLUniformLocation): any[]
+    getUniformiv(program: WebGLProgram, location: WebGLUniformLocation, resultSize: number): any[]
+    getVertexAttribOffset(index: number, pname: any): any
+    getVertexAttrib(index: number, pname: any): GLib.Variant
     getVertexAttribf(index: number, pname: any): any[]
     getVertexAttribfv(index: number, pname: any, resultSize: number): any[]
     getVertexAttribi(index: any, pname: any): any[]
     hint(target: any, mode: any): void
-    isBuffer(buffer: GwebglWebGLBuffer): any
+    isBuffer(buffer: WebGLBuffer | null): any
     isEnabled(cap: any): any
-    isFramebuffer(framebuffer: GwebglWebGLFramebuffer): any
-    isProgram(program: GwebglWebGLProgram): any
-    isRenderbuffer(renderbuffer: any): any
-    isShader(shader: any): any
-    isTexture(texture: any): any
+    isFramebuffer(framebuffer: WebGLFramebuffer | null): any
+    isProgram(program: WebGLProgram | null): any
+    isRenderbuffer(renderbuffer: WebGLRenderbuffer | null): any
+    isShader(shader: WebGLShader | null): any
+    isTexture(texture: WebGLTexture | null): any
     lineWidth(width: number): void
-    linkProgram(program: GwebglWebGLProgram): void
+    linkProgram(program: WebGLProgram): void
     pixelStorei(pname: any, param: number): void
     polygonOffset(factor: number, units: number): void
     renderbufferStorage(target: any, internalformat: any, width: any, height: any): void
     sampleCoverage(value: any, invert: any): void
     scissor(x: number, y: number, width: number, height: number): void
-    shaderSource(shader: any, source: string[]): void
+    shaderSource(shader: WebGLShader, source: string): void
     stencilFunc(func: any, ref_: any, mask: any): void
     stencilFuncSeparate(face: any, func: any, ref_: any, mask: any): void
     stencilMask(mask: any): void
@@ -136,25 +160,25 @@ interface WebGLRenderingContextBase {
     stencilOpSeparate(face: any, fail: any, zfail: any, zpass: any): void
     texParameterf(target: any, pname: any, param: any): void
     texParameteri(target: any, pname: any, param: any): void
-    uniform1f(location: GwebglWebGLUniformLocation, x: number): void
-    uniform1i(location: GwebglWebGLUniformLocation, x: number): void
-    uniform2f(location: GwebglWebGLUniformLocation, x: number, y: number): void
-    uniform2i(location: GwebglWebGLUniformLocation, x: number, y: number): void
-    uniform3f(location: GwebglWebGLUniformLocation, x: number, y: number, z: number): void
-    uniform3i(location: GwebglWebGLUniformLocation, x: number, y: number, z: number): void
-    uniform4f(location: GwebglWebGLUniformLocation, x: number, y: number, z: number, w: number): void
-    uniform4i(location: GwebglWebGLUniformLocation, x: number, y: number, z: number, w: number): void
-    useProgram(program: GwebglWebGLProgram): void
-    validateProgram(program: GwebglWebGLProgram): void
-    vertexAttrib1f(index: number, x: number): void
-    vertexAttrib1fv(index: number, v: any[] | null): void
-    vertexAttrib2f(index: number, x: number, y: number): void
-    vertexAttrib2fv(index: number, v: any[] | null): void
+    uniform1f(location: WebGLUniformLocation | null, x: number): void
+    uniform1i(location: WebGLUniformLocation | null, x: number): void
+    uniform2f(location: WebGLUniformLocation | null, x: number, y: number): void
+    uniform2i(location: WebGLUniformLocation | null, x: number, y: number): void
+    uniform3f(location: WebGLUniformLocation | null, x: number, y: number, z: number): void
+    uniform3i(location: WebGLUniformLocation | null, x: number, y: number, z: number): void
+    uniform4f(location: WebGLUniformLocation | null, x: number, y: number, z: number, w: number): void
+    uniform4i(location: WebGLUniformLocation | null, x: number, y: number, z: number, w: number): void
+    useProgram(program: WebGLProgram | null): void
+    validateProgram(program: WebGLProgram | null): void
+    vertexAttrib1f(index: any, x: any): void
+    vertexAttrib1fv(index: any, v: any[]): void
+    vertexAttrib2f(index: any, x: any, y: any): void
+    vertexAttrib2fv(index: any, values: any[]): void
     vertexAttrib3f(index: any, x: any, y: any, z: any): void
-    vertexAttrib3fv(index: any, v: any[] | null): void
+    vertexAttrib3fv(index: any, values: any[]): void
     vertexAttrib4f(index: any, x: any, y: any, z: any, w: any): void
-    vertexAttrib4fv(index: any, v: any[] | null): void
-    vertexAttribPointer(index: any, size: any, type: any, normalized: any, stride: any, offset: any[] | null): void
+    vertexAttrib4fv(index: any, values: any[]): void
+    vertexAttribPointer(index: any, size: any, type: any, normalized: any, stride: any, offset: any): void
     viewport(x: any, y: any, width: any, height: any): void
 
     // Class property signals of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
@@ -184,7 +208,7 @@ module WebGLRenderingContext {
 
     // Constructor properties interface
 
-    interface ConstructorProperties extends GObject.Object.ConstructorProperties {
+    interface ConstructorProperties extends WebGLRenderingContextBase.ConstructorProperties {
     }
 
 }
@@ -193,27 +217,27 @@ interface WebGLRenderingContext {
 
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
-    bufferData(target: any, _data: object | null, usage: any): void
+    bufferData(target: any, _data: Uint8Array, usage: any): void
     bufferDataSizeOnly(target: any, size: any, usage: any): void
-    bufferSubData(target: any, offset: number, _data: object | null): void
-    compressedTexImage2D(target: any, level: any, internalformat: any, width: number, height: number, border: number, _data: object | null): void
-    compressedTexSubImage2D(target: any, level: any, xoffset: number, yoffset: number, width: number, height: number, format: any, _data: object | null): void
-    readPixels(x: any, y: any, width: any, height: any, format: any, type: any, _pixels: object | null): void
-    texImage2D(target: any, level: any, internalformat: any, width: any, height: any, border: any, format: any, type: any, _pixels: object | null): void
-    texImage2DFromPixbuf(target: any, level: any, internalformat: any, format: any, type: any, source: object | null): void
-    texSubImage2D(target: any, level: any, xoffset: any, yoffset: any, width: any, height: any, format: any, type: any, _pixels: object | null): void
-    texSubImage2DFromPixbuf(target: any, level: number, xoffset: number, yoffset: number, format: any, type: any, source: object | null): void
-    uniform1fv(location: GwebglWebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform1iv(location: GwebglWebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform2fv(location: GwebglWebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform2iv(location: GwebglWebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform3fv(location: GwebglWebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform3iv(location: GwebglWebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform4fv(location: GwebglWebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform4iv(location: GwebglWebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniformMatrix2fv(location: GwebglWebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
-    uniformMatrix3fv(location: GwebglWebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
-    uniformMatrix4fv(location: GwebglWebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
+    bufferSubData(target: any, offset: number, _data: Uint8Array): void
+    compressedTexImage2D(target: any, level: any, internalformat: any, width: number, height: number, border: number, _data: Uint8Array): void
+    compressedTexSubImage2D(target: any, level: any, xoffset: number, yoffset: number, width: number, height: number, format: any, _data: Uint8Array): void
+    readPixels(x: any, y: any, width: any, height: any, format: any, type: any, _pixels: Uint8Array): void
+    texImage2D(target: any, level: any, internalformat: any, width: any, height: any, border: any, format: any, type: any, _pixels: Uint8Array): void
+    texImage2DFromPixbuf(target: any, level: any, internalformat: any, format: any, type: any, source: GdkPixbuf.Pixbuf): void
+    texSubImage2D(target: any, level: any, xoffset: any, yoffset: any, width: any, height: any, format: any, type: any, _pixels: Uint8Array): void
+    texSubImage2DFromPixbuf(target: any, level: number, xoffset: number, yoffset: number, format: any, type: any, source: GdkPixbuf.Pixbuf): void
+    uniform1fv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
+    uniform1iv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
+    uniform2fv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
+    uniform2iv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
+    uniform3fv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
+    uniform3iv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
+    uniform4fv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
+    uniform4iv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
+    uniformMatrix2fv(location: WebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
+    uniformMatrix3fv(location: WebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
+    uniformMatrix4fv(location: WebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
 
     // Class property signals of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
@@ -223,7 +247,7 @@ interface WebGLRenderingContext {
     disconnect(id: number): void
 }
 
-class WebGLRenderingContext extends GObject.Object {
+class WebGLRenderingContext extends WebGLRenderingContextBase {
 
     // Own properties of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
@@ -235,6 +259,10 @@ class WebGLRenderingContext extends GObject.Object {
     constructor(config?: WebGLRenderingContext.ConstructorProperties) 
     constructor() 
     static new(): WebGLRenderingContext
+
+    // Overloads of new
+
+    static new(): WebGLRenderingContextBase
     _init(config?: WebGLRenderingContext.ConstructorProperties): void
 }
 
@@ -278,72 +306,104 @@ class WebGLRenderingContextPrivate {
     static name: string
 }
 
-interface GwebglWebGLProgram {
+interface WebGLProgram {
 }
 
-class GwebglWebGLProgram {
+class WebGLProgram {
 
-    // Own properties of Gwebgl-0.1.Gwebgl.GwebglWebGLProgram
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLProgram
 
     static name: string
 }
 
-interface GwebglWebGLShader {
+interface WebGLShader {
 }
 
-class GwebglWebGLShader {
+class WebGLShader {
 
-    // Own properties of Gwebgl-0.1.Gwebgl.GwebglWebGLShader
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLShader
 
     static name: string
 }
 
-interface GwebglWebGLBuffer {
+interface WebGLBuffer {
 }
 
-class GwebglWebGLBuffer {
+class WebGLBuffer {
 
-    // Own properties of Gwebgl-0.1.Gwebgl.GwebglWebGLBuffer
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLBuffer
 
     static name: string
 }
 
-interface GwebglWebGLFramebuffer {
+interface WebGLFramebuffer {
 }
 
-class GwebglWebGLFramebuffer {
+class WebGLFramebuffer {
 
-    // Own properties of Gwebgl-0.1.Gwebgl.GwebglWebGLFramebuffer
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLFramebuffer
 
     static name: string
 }
 
-interface GwebglWebGLRenderbuffer {
+interface WebGLRenderbuffer {
 }
 
-class GwebglWebGLRenderbuffer {
+class WebGLRenderbuffer {
 
-    // Own properties of Gwebgl-0.1.Gwebgl.GwebglWebGLRenderbuffer
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLRenderbuffer
 
     static name: string
 }
 
-interface GwebglWebGLTexture {
+interface WebGLTexture {
 }
 
-class GwebglWebGLTexture {
+class WebGLTexture {
 
-    // Own properties of Gwebgl-0.1.Gwebgl.GwebglWebGLTexture
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLTexture
 
     static name: string
 }
 
-interface GwebglWebGLUniformLocation {
+interface WebGLUniformLocation {
 }
 
-class GwebglWebGLUniformLocation {
+class WebGLUniformLocation {
 
-    // Own properties of Gwebgl-0.1.Gwebgl.GwebglWebGLUniformLocation
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLUniformLocation
+
+    static name: string
+}
+
+interface WebGLActiveInfo {
+
+    // Own fields of Gwebgl-0.1.Gwebgl.WebGLActiveInfo
+
+    name: string
+    size: number
+    type: number
+}
+
+class WebGLActiveInfo {
+
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLActiveInfo
+
+    static name: string
+}
+
+interface WebGLShaderPrecisionFormat {
+
+    // Own fields of Gwebgl-0.1.Gwebgl.WebGLShaderPrecisionFormat
+
+    precision: number
+    rangeMax: number
+    rangeMin: number
+}
+
+class WebGLShaderPrecisionFormat {
+
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLShaderPrecisionFormat
 
     static name: string
 }

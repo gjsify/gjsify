@@ -4538,7 +4538,17 @@ interface Server {
      * @param callback callback to invoke for successful WebSocket requests under `path`
      */
     add_websocket_handler(path: string | null, origin: string | null, protocols: string[] | null, callback: ServerWebsocketCallback): void
-    // Has conflict: disconnect(): void
+    /**
+     * Closes and frees `server'`s listening sockets.
+     * 
+     * Note that if there are currently requests in progress on `server,`
+     * that they will continue to be processed if `server'`s #GMainContext
+     * is still running.
+     * 
+     * You can call soup_server_listen(), etc, after calling this function
+     * if you want to start listening again.
+     */
+    disconnect(): void
     /**
      * Gets `server'`s list of listening sockets.
      * 
