@@ -536,7 +536,9 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
+    "@types/bit-twiddle": ^1.0.1
     "@types/node": ^18.7.18
+    bit-twiddle: ^1.0.2
     typescript: ^4.8.3
   languageName: unknown
   linkType: soft
@@ -673,6 +675,13 @@ __metadata:
     ts-for-gir: ./lib/start.js
   languageName: node
   linkType: soft
+
+"@types/bit-twiddle@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "@types/bit-twiddle@npm:1.0.1"
+  checksum: 81b4afa3897978d7fbacf4b0f109e656e2c718ccfbad732ebf1bbf133aad6cc3582209a5fd7752fe949be6145f869cc4aba90c5193fe000864314bed8066cd24
+  languageName: node
+  linkType: hard
 
 "@types/concat-stream@npm:^1.6.0":
   version: 1.6.1
@@ -1030,6 +1039,13 @@ __metadata:
   version: 2.2.0
   resolution: "binary-extensions@npm:2.2.0"
   checksum: ccd267956c58d2315f5d3ea6757cf09863c5fc703e50fbeb13a7dc849b812ef76e3cf9ca8f35a0c48498776a7478d7b4a0418e1e2b8cb9cb9731f2922aaad7f8
+  languageName: node
+  linkType: hard
+
+"bit-twiddle@npm:^1.0.2":
+  version: 1.0.2
+  resolution: "bit-twiddle@npm:1.0.2"
+  checksum: 2f97b47d755efac7bae5f49c2eb0929867dad2921a853a4507466b4fa5c5b97803fdf8b729ca56da35934888f50730888b8137614e9974b783f1023da908a1ea
   languageName: node
   linkType: hard
 

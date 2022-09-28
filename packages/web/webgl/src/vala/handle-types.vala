@@ -1,13 +1,13 @@
 namespace Gwebgl {
     using GLES2;
 
-    public struct WebGLProgram : uint {}
-    public struct WebGLShader : uint {}
-    public struct WebGLBuffer : uint {}
-    public struct WebGLFramebuffer : uint {}
-    public struct WebGLRenderbuffer : uint {}
-    public struct WebGLTexture : uint {}
-    public struct WebGLUniformLocation : int {}
+    //  public struct WebGLProgram : uint {}
+    //  public struct WebGLShader : uint {}
+    //  public struct WebGLBuffer : uint {}
+    //  public struct WebGLFramebuffer : uint {}
+    //  public struct WebGLRenderbuffer : uint {}
+    //  public struct WebGLTexture : uint {}
+    //  public struct WebGLUniformLocation : int {}
 
     public struct WebGLActiveInfo {
         public string name;

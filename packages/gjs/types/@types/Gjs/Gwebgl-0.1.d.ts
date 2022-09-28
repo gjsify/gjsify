@@ -49,17 +49,18 @@ interface WebGLRenderingContextBase {
     unpack_premultiply_alpha: boolean
     unpack_colorspace_conversion: number
     unpack_alignment: number
+    lastError: number
 
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
 
     get_webgl_constants(): GLib.HashTable
     activeTexture(texture: any): void
-    attachShader(program: WebGLProgram, shader: WebGLShader): void
-    bindAttribLocation(program: WebGLProgram, index: number, name: string): void
-    bindBuffer(target: any, buffer: WebGLBuffer | null): void
-    bindFramebuffer(target: any, framebuffer: WebGLFramebuffer | null): void
-    bindRenderbuffer(target: any, renderbuffer: WebGLRenderbuffer | null): void
-    bindTexture(target: any, texture: WebGLTexture | null): void
+    attachShader(program: number, shader: number): void
+    bindAttribLocation(program: number, index: number, name: string): void
+    bindBuffer(target: any, buffer: number | null): void
+    bindFramebuffer(target: any, framebuffer: number | null): void
+    bindRenderbuffer(target: any, renderbuffer: number | null): void
+    bindTexture(target: any, texture: number | null): void
     blendColor(red: number, green: number, blue: number, alpha: number): void
     blendEquation(mode: any): void
     blendEquationSeparate(modeRGB: any, modeAlpha: any): void
@@ -71,26 +72,26 @@ interface WebGLRenderingContextBase {
     clearDepth(depth: any): void
     clearStencil(s: any): void
     colorMask(red: any, green: any, blue: any, alpha: any): void
-    compileShader(shader: WebGLShader): void
+    compileShader(shader: number): void
     copyTexImage2D(target: any, level: any, internalformat: any, x: any, y: any, width: any, height: any, border: any): void
     copyTexSubImage2D(target: any, level: any, xoffset: any, yoffset: any, x: any, y: any, width: any, height: any): void
-    createBuffer(): WebGLBuffer | null
-    createFramebuffer(): WebGLFramebuffer | null
-    createProgram(): WebGLProgram | null
-    createRenderbuffer(): WebGLRenderbuffer | null
+    createBuffer(): number
+    createFramebuffer(): number
+    createProgram(): number
+    createRenderbuffer(): number
     createShader(type: any): any
-    createTexture(): WebGLTexture | null
+    createTexture(): number | null
     cullFace(mode: any): void
-    deleteBuffer(buffer: WebGLBuffer | null): void
-    deleteFramebuffer(framebuffer: WebGLFramebuffer | null): void
-    deleteProgram(program: WebGLProgram | null): void
-    deleteRenderbuffer(renderbuffers: WebGLRenderbuffer | null): void
-    deleteShader(shader: WebGLShader | null): void
-    deleteTexture(texture: WebGLTexture | null): void
+    deleteBuffer(buffer: number | null): void
+    deleteFramebuffer(framebuffer: number | null): void
+    deleteProgram(program: number | null): void
+    deleteRenderbuffer(renderbuffers: number | null): void
+    deleteShader(shader: number | null): void
+    deleteTexture(texture: number | null): void
     depthFunc(func: any): void
     depthMask(flag: any): void
     depthRange(zNear: number, zFar: number): void
-    detachShader(program: WebGLProgram, shader: WebGLShader): void
+    detachShader(program: number, shader: number): void
     disable(cap: any): void
     disableVertexAttribArray(index: any): void
     drawArrays(mode: any, first: any, count: any): void
@@ -99,16 +100,17 @@ interface WebGLRenderingContextBase {
     enableVertexAttribArray(index: number): void
     finish(): void
     flush(): void
-    framebufferRenderbuffer(target: any, attachment: any, renderbuffertarget: any, renderbuffer: WebGLRenderbuffer | null): void
-    framebufferTexture2D(target: any, attachment: any, textarget: any, texture: WebGLTexture | null, level: any): void
+    framebufferRenderbuffer(target: any, attachment: any, renderbuffertarget: any, renderbuffer: number | null): void
+    framebufferTexture2D(target: any, attachment: any, textarget: any, texture: number | null, level: any): void
     frontFace(mode: any): void
     generateMipmap(target: any): void
-    getActiveAttrib(program: WebGLProgram, index: number): WebGLActiveInfo | null
-    getActiveUniform(program: WebGLProgram, index: number): WebGLActiveInfo | null
-    getAttachedShaders(program: WebGLProgram): WebGLShader[] | null
-    getAttribLocation(program: WebGLProgram, name: string): any
+    getActiveAttrib(program: number, index: number): WebGLActiveInfo | null
+    getActiveUniform(program: number, index: number): WebGLActiveInfo | null
+    getAttachedShaders(program: number): number[] | null
+    getAttribLocation(program: number, name: string): any
     getBufferParameter(target: any, pname: any): any
     getError(): any
+    setError(_error_: any): void
     getFramebufferAttachmentParameter(target: any, attachment: any, pname: any): any
     getParameterx(pname: any): GLib.Variant | null
     getParameterb(pname: any): any
@@ -117,41 +119,41 @@ interface WebGLRenderingContextBase {
     getParameterfv(pname: any, resultSize: number): any
     getParameteri(pname: any): any
     getParameteriv(pname: any, resultSize: number): any
-    getProgramInfoLog(program: WebGLProgram): string | null
-    getProgramParameter(program: WebGLProgram, pname: any): any
+    getProgramInfoLog(program: number): string | null
+    getProgramParameter(program: number, pname: any): any
     getRenderbufferParameter(target: any, pname: any): any
-    getShaderInfoLog(shader: WebGLShader): string | null
-    getShaderParameter(shader: WebGLShader, pname: any): any
+    getShaderInfoLog(shader: number): string | null
+    getShaderParameter(shader: number, pname: any): any
     getShaderPrecisionFormat(shadertype: any, precisiontype: any): WebGLShaderPrecisionFormat | null
-    getShaderSource(shader: WebGLShader): string | null
+    getShaderSource(shader: number): string | null
     getString(pname: any): string
     getSupportedExtensions(): string[] | null
     getTexParameterx(target: any, pname: any): GLib.Variant
-    getUniformLocation(program: WebGLProgram, name: string): WebGLUniformLocation | null
-    getUniform(program: WebGLProgram, location: WebGLUniformLocation): any[]
-    getUniformi(program: WebGLProgram, location: WebGLUniformLocation): any[]
-    getUniformiv(program: WebGLProgram, location: WebGLUniformLocation, resultSize: number): any[]
+    getUniformLocation(program: number, name: string): number | null
+    getUniform(program: number, location: number): any[]
+    getUniformi(program: number, location: number): any[]
+    getUniformiv(program: number, location: number, resultSize: number): any[]
     getVertexAttribOffset(index: number, pname: any): any
     getVertexAttrib(index: number, pname: any): GLib.Variant
     getVertexAttribf(index: number, pname: any): any[]
     getVertexAttribfv(index: number, pname: any, resultSize: number): any[]
     getVertexAttribi(index: any, pname: any): any[]
     hint(target: any, mode: any): void
-    isBuffer(buffer: WebGLBuffer | null): any
+    isBuffer(buffer: number | null): any
     isEnabled(cap: any): any
-    isFramebuffer(framebuffer: WebGLFramebuffer | null): any
-    isProgram(program: WebGLProgram | null): any
-    isRenderbuffer(renderbuffer: WebGLRenderbuffer | null): any
-    isShader(shader: WebGLShader | null): any
-    isTexture(texture: WebGLTexture | null): any
+    isFramebuffer(framebuffer: number | null): any
+    isProgram(program: number | null): any
+    isRenderbuffer(renderbuffer: number | null): any
+    isShader(shader: number | null): any
+    isTexture(texture: number | null): any
     lineWidth(width: number): void
-    linkProgram(program: WebGLProgram): void
+    linkProgram(program: number): void
     pixelStorei(pname: any, param: number): void
     polygonOffset(factor: number, units: number): void
     renderbufferStorage(target: any, internalformat: any, width: any, height: any): void
     sampleCoverage(value: any, invert: any): void
     scissor(x: number, y: number, width: number, height: number): void
-    shaderSource(shader: WebGLShader, source: string): void
+    shaderSource(shader: number, source: string): void
     stencilFunc(func: any, ref_: any, mask: any): void
     stencilFuncSeparate(face: any, func: any, ref_: any, mask: any): void
     stencilMask(mask: any): void
@@ -160,16 +162,16 @@ interface WebGLRenderingContextBase {
     stencilOpSeparate(face: any, fail: any, zfail: any, zpass: any): void
     texParameterf(target: any, pname: any, param: any): void
     texParameteri(target: any, pname: any, param: any): void
-    uniform1f(location: WebGLUniformLocation | null, x: number): void
-    uniform1i(location: WebGLUniformLocation | null, x: number): void
-    uniform2f(location: WebGLUniformLocation | null, x: number, y: number): void
-    uniform2i(location: WebGLUniformLocation | null, x: number, y: number): void
-    uniform3f(location: WebGLUniformLocation | null, x: number, y: number, z: number): void
-    uniform3i(location: WebGLUniformLocation | null, x: number, y: number, z: number): void
-    uniform4f(location: WebGLUniformLocation | null, x: number, y: number, z: number, w: number): void
-    uniform4i(location: WebGLUniformLocation | null, x: number, y: number, z: number, w: number): void
-    useProgram(program: WebGLProgram | null): void
-    validateProgram(program: WebGLProgram | null): void
+    uniform1f(location: number | null, x: number): void
+    uniform1i(location: number | null, x: number): void
+    uniform2f(location: number | null, x: number, y: number): void
+    uniform2i(location: number | null, x: number, y: number): void
+    uniform3f(location: number | null, x: number, y: number, z: number): void
+    uniform3i(location: number | null, x: number, y: number, z: number): void
+    uniform4f(location: number | null, x: number, y: number, z: number, w: number): void
+    uniform4i(location: number | null, x: number, y: number, z: number, w: number): void
+    useProgram(program: number | null): void
+    validateProgram(program: number | null): void
     vertexAttrib1f(index: any, x: any): void
     vertexAttrib1fv(index: any, v: any[]): void
     vertexAttrib2f(index: any, x: any, y: any): void
@@ -209,11 +211,37 @@ module WebGLRenderingContext {
     // Constructor properties interface
 
     interface ConstructorProperties extends WebGLRenderingContextBase.ConstructorProperties {
+
+        // Own constructor properties of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
+
+        width?: number | null
+        height?: number | null
+        alpha?: boolean | null
+        depth?: boolean | null
+        stencil?: boolean | null
+        antialias?: boolean | null
+        premultipliedAlpha?: boolean | null
+        preserveDrawingBuffer?: boolean | null
+        preferLowPowerToHighPerformance?: boolean | null
+        failIfMajorPerformanceCaveat?: boolean | null
     }
 
 }
 
 interface WebGLRenderingContext {
+
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
+
+    readonly width: number
+    readonly height: number
+    readonly alpha: boolean
+    readonly depth: boolean
+    readonly stencil: boolean
+    readonly antialias: boolean
+    readonly premultipliedAlpha: boolean
+    readonly preserveDrawingBuffer: boolean
+    readonly preferLowPowerToHighPerformance: boolean
+    readonly failIfMajorPerformanceCaveat: boolean
 
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
@@ -223,24 +251,64 @@ interface WebGLRenderingContext {
     compressedTexImage2D(target: any, level: any, internalformat: any, width: number, height: number, border: number, _data: Uint8Array): void
     compressedTexSubImage2D(target: any, level: any, xoffset: number, yoffset: number, width: number, height: number, format: any, _data: Uint8Array): void
     readPixels(x: any, y: any, width: any, height: any, format: any, type: any, _pixels: Uint8Array): void
-    texImage2D(target: any, level: any, internalformat: any, width: any, height: any, border: any, format: any, type: any, _pixels: Uint8Array): void
+    texImage2D(target: any, level: any, internalformat: any, width: any, height: any, border: any, format: any, type: any, _pixels: Uint8Array | null): void
     texImage2DFromPixbuf(target: any, level: any, internalformat: any, format: any, type: any, source: GdkPixbuf.Pixbuf): void
     texSubImage2D(target: any, level: any, xoffset: any, yoffset: any, width: any, height: any, format: any, type: any, _pixels: Uint8Array): void
     texSubImage2DFromPixbuf(target: any, level: number, xoffset: number, yoffset: number, format: any, type: any, source: GdkPixbuf.Pixbuf): void
-    uniform1fv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform1iv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform2fv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform2iv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform3fv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform3iv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform4fv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniform4iv(location: WebGLUniformLocation, vLength: number, value: any[] | null): void
-    uniformMatrix2fv(location: WebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
-    uniformMatrix3fv(location: WebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
-    uniformMatrix4fv(location: WebGLUniformLocation, valueLength: number, transpose: any, value: any[] | null): void
+    uniform1fv(location: number, vLength: number, value: any[] | null): void
+    uniform1iv(location: number, vLength: number, value: any[] | null): void
+    uniform2fv(location: number, vLength: number, value: any[] | null): void
+    uniform2iv(location: number, vLength: number, value: any[] | null): void
+    uniform3fv(location: number, vLength: number, value: any[] | null): void
+    uniform3iv(location: number, vLength: number, value: any[] | null): void
+    uniform4fv(location: number, vLength: number, value: any[] | null): void
+    uniform4iv(location: number, vLength: number, value: any[] | null): void
+    uniformMatrix2fv(location: number, valueLength: number, transpose: any, value: any[] | null): void
+    uniformMatrix3fv(location: number, valueLength: number, transpose: any, value: any[] | null): void
+    uniformMatrix4fv(location: number, valueLength: number, transpose: any, value: any[] | null): void
+    get_width(): number
+    get_height(): number
+    get_alpha(): boolean
+    get_depth(): boolean
+    get_stencil(): boolean
+    get_antialias(): boolean
+    get_premultipliedAlpha(): boolean
+    get_preserveDrawingBuffer(): boolean
+    get_preferLowPowerToHighPerformance(): boolean
+    get_failIfMajorPerformanceCaveat(): boolean
 
     // Class property signals of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
+    connect(sigName: "notify::width", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::width", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::width", ...args: any[]): void
+    connect(sigName: "notify::height", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::height", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::height", ...args: any[]): void
+    connect(sigName: "notify::alpha", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::alpha", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::alpha", ...args: any[]): void
+    connect(sigName: "notify::depth", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::depth", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::depth", ...args: any[]): void
+    connect(sigName: "notify::stencil", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::stencil", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::stencil", ...args: any[]): void
+    connect(sigName: "notify::antialias", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::antialias", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::antialias", ...args: any[]): void
+    connect(sigName: "notify::premultipliedAlpha", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::premultipliedAlpha", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::premultipliedAlpha", ...args: any[]): void
+    connect(sigName: "notify::preserveDrawingBuffer", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::preserveDrawingBuffer", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::preserveDrawingBuffer", ...args: any[]): void
+    connect(sigName: "notify::preferLowPowerToHighPerformance", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::preferLowPowerToHighPerformance", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::preferLowPowerToHighPerformance", ...args: any[]): void
+    connect(sigName: "notify::failIfMajorPerformanceCaveat", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::failIfMajorPerformanceCaveat", callback: (($obj: WebGLRenderingContext, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::failIfMajorPerformanceCaveat", ...args: any[]): void
     connect(sigName: string, callback: (...args: any[]) => void): number
     connect_after(sigName: string, callback: (...args: any[]) => void): number
     emit(sigName: string, ...args: any[]): void
@@ -257,8 +325,8 @@ class WebGLRenderingContext extends WebGLRenderingContextBase {
     // Constructors of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
     constructor(config?: WebGLRenderingContext.ConstructorProperties) 
-    constructor() 
-    static new(): WebGLRenderingContext
+    constructor(width: number, height: number, alpha: boolean, depth: boolean, stencil: boolean, antialias: boolean, premultipliedAlpha: boolean, preserveDrawingBuffer: boolean, preferLowPowerToHighPerformance: boolean, failIfMajorPerformanceCaveat: boolean) 
+    static new(width: number, height: number, alpha: boolean, depth: boolean, stencil: boolean, antialias: boolean, premultipliedAlpha: boolean, preserveDrawingBuffer: boolean, preferLowPowerToHighPerformance: boolean, failIfMajorPerformanceCaveat: boolean): WebGLRenderingContext
 
     // Overloads of new
 
@@ -302,76 +370,6 @@ interface WebGLRenderingContextPrivate {
 class WebGLRenderingContextPrivate {
 
     // Own properties of Gwebgl-0.1.Gwebgl.WebGLRenderingContextPrivate
-
-    static name: string
-}
-
-interface WebGLProgram {
-}
-
-class WebGLProgram {
-
-    // Own properties of Gwebgl-0.1.Gwebgl.WebGLProgram
-
-    static name: string
-}
-
-interface WebGLShader {
-}
-
-class WebGLShader {
-
-    // Own properties of Gwebgl-0.1.Gwebgl.WebGLShader
-
-    static name: string
-}
-
-interface WebGLBuffer {
-}
-
-class WebGLBuffer {
-
-    // Own properties of Gwebgl-0.1.Gwebgl.WebGLBuffer
-
-    static name: string
-}
-
-interface WebGLFramebuffer {
-}
-
-class WebGLFramebuffer {
-
-    // Own properties of Gwebgl-0.1.Gwebgl.WebGLFramebuffer
-
-    static name: string
-}
-
-interface WebGLRenderbuffer {
-}
-
-class WebGLRenderbuffer {
-
-    // Own properties of Gwebgl-0.1.Gwebgl.WebGLRenderbuffer
-
-    static name: string
-}
-
-interface WebGLTexture {
-}
-
-class WebGLTexture {
-
-    // Own properties of Gwebgl-0.1.Gwebgl.WebGLTexture
-
-    static name: string
-}
-
-interface WebGLUniformLocation {
-}
-
-class WebGLUniformLocation {
-
-    // Own properties of Gwebgl-0.1.Gwebgl.WebGLUniformLocation
 
     static name: string
 }

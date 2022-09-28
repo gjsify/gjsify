@@ -5,8 +5,29 @@ namespace Gwebgl {
 
     public class WebGLRenderingContext: WebGLRenderingContextBase {
 
+        public int width { get; construct; }
+        public int height { get; construct; }
+        public bool alpha { get; construct; }
+        public bool depth { get; construct; }
+        public bool stencil { get; construct; }
+        public bool antialias { get; construct; }
+        public bool premultipliedAlpha { get; construct; }
+        public bool preserveDrawingBuffer { get; construct; }
+        public bool preferLowPowerToHighPerformance { get; construct; }
+        public bool failIfMajorPerformanceCaveat { get; construct; }
 
-        public WebGLRenderingContext() {
+        public WebGLRenderingContext(
+            int width,
+            int height,
+            bool alpha,
+            bool depth,
+            bool stencil,
+            bool antialias,
+            bool premultipliedAlpha,
+            bool preserveDrawingBuffer,
+            bool preferLowPowerToHighPerformance,
+            bool failIfMajorPerformanceCaveat
+        ) {
 
         }
 
@@ -17,6 +38,7 @@ namespace Gwebgl {
         public void bufferData(GLenum target, ByteArray _data, GLenum usage) {
             var data = _data != null ? _data.data : null;
             var size = _data != null ? _data.len : 0;
+
 
             glBufferData(target, size, data, usage);
         }
@@ -52,7 +74,7 @@ namespace Gwebgl {
             glReadPixels(x, y, width, height, format, type, pixels);
         }
 
-        public void texImage2D(GLenum target, GLint level, GLint internalformat, GLint width, GLint height, GLint border, GLenum format, GLenum type, ByteArray _pixels)
+        public void texImage2D(GLenum target, GLint level, GLint internalformat, GLint width, GLint height, GLint border, GLenum format, GLenum type, ByteArray? _pixels)
         {
             var pixels = _pixels != null ? _pixels.data : null;
 
@@ -80,48 +102,48 @@ namespace Gwebgl {
             glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, pixels);
         }
 
-        public void uniform1fv(WebGLUniformLocation location, int vLength, GLfloat[]? value) {
+        public void uniform1fv(/*WebGLUniformLocation*/ int location, int vLength, GLfloat[]? value) {
             
             glUniform1fv(location, vLength, value);
         }
 
-        public void uniform1iv(WebGLUniformLocation location, int vLength, GLint[]? value) {
+        public void uniform1iv(/*WebGLUniformLocation*/ int location, int vLength, GLint[]? value) {
             glUniform1iv(location, vLength, value);
         }
 
-        public void uniform2fv(WebGLUniformLocation location,int vLength,GLfloat[]? value) {
+        public void uniform2fv(/*WebGLUniformLocation*/ int location,int vLength,GLfloat[]? value) {
             glUniform2fv(location, vLength, value);
         }
 
-        public void uniform2iv(WebGLUniformLocation location, int vLength, GLint[]? value) {
+        public void uniform2iv(/*WebGLUniformLocation*/ int location, int vLength, GLint[]? value) {
             glUniform2iv(location, vLength, value);
         }
 
-        public void uniform3fv(WebGLUniformLocation location, int vLength, GLfloat[]? value) {
+        public void uniform3fv(/*WebGLUniformLocation*/ int location, int vLength, GLfloat[]? value) {
             glUniform3fv(location, vLength, value);
         }
 
-        public void uniform3iv(WebGLUniformLocation location, int vLength, GLint[]? value) {
+        public void uniform3iv(/*WebGLUniformLocation*/ int location, int vLength, GLint[]? value) {
             glUniform3iv(location, vLength, value);
         }
 
-        public void uniform4fv(WebGLUniformLocation location, int vLength, GLfloat[]? value) {
+        public void uniform4fv(/*WebGLUniformLocation*/ int location, int vLength, GLfloat[]? value) {
             glUniform4fv(location, vLength, value);
         }
 
-        public void uniform4iv(WebGLUniformLocation location, int vLength, GLint[]? value) {
+        public void uniform4iv(/*WebGLUniformLocation*/ int location, int vLength, GLint[]? value) {
             glUniform4iv(location, vLength, value);
         }
 
-        public void uniformMatrix2fv(WebGLUniformLocation location, int valueLength, GLboolean transpose, GLfloat[]? value) {
+        public void uniformMatrix2fv(/*WebGLUniformLocation*/ int location, int valueLength, GLboolean transpose, GLfloat[]? value) {
             glUniformMatrix2fv(location, valueLength / 4, transpose, value);
         }
 
-        public void uniformMatrix3fv(WebGLUniformLocation location, int valueLength, GLboolean transpose, GLfloat[]? value) {
+        public void uniformMatrix3fv(/*WebGLUniformLocation*/ int location, int valueLength, GLboolean transpose, GLfloat[]? value) {
             glUniformMatrix3fv(location, valueLength / 9, transpose, value);
         }
 
-        public void uniformMatrix4fv(WebGLUniformLocation location, int valueLength, GLboolean transpose, GLfloat[]? value) {
+        public void uniformMatrix4fv(/*WebGLUniformLocation*/ int location, int valueLength, GLboolean transpose, GLfloat[]? value) {
             glUniformMatrix4fv(location, valueLength / 16, transpose, value);
         }
     
