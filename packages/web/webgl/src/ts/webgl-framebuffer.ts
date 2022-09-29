@@ -11,7 +11,7 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
 
     _width = 0
     _height = 0
-    _status = null
+    _status: number | null = null
 
     _attachments: Record<GLenum, WebGLTexture | WebGLRenderbuffer | null>;
     _attachmentLevel: Record<GLenum, number | null>;
@@ -20,11 +20,6 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
     constructor(_: WebGLFramebuffer & number, ctx: GjsifyWebGLRenderingContext) {
         super(_)
         this._ctx = ctx
-        this._binding = 0
-
-        this._width = 0
-        this._height = 0
-        this._status = null
 
         this._attachments = {}
         this._attachments[gl.COLOR_ATTACHMENT0] = null

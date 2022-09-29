@@ -21,7 +21,7 @@ export class GjsifyWebGLRenderbuffer extends Linkable implements WebGLRenderbuff
   _performDelete () {
     const ctx = this._ctx
     delete ctx._renderbuffers[this._ | 0]
-    gl.deleteRenderbuffer.call(ctx, this._ | 0)
+    gl.deleteRenderbuffer.call(ctx, this._)
   }
 }
 

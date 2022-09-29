@@ -1,1 +1,1 @@
-export { WebGLRenderingContextBase, GjsifyWebGLRenderingContextBase } from './webgl-rendering-context-base.js';
+export * from './webgl-rendering-context.js';

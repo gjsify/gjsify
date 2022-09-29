@@ -31,6 +31,7 @@
         "@gjsify/types": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@types/bit-twiddle": "^1.0.1",
-        "bit-twiddle": "^1.0.2"
+        "bit-twiddle": "^1.0.2",
+        "glsl-tokenizer": "^2.1.5"
     }
 }

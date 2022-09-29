@@ -54,114 +54,114 @@ interface WebGLRenderingContextBase {
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
 
     get_webgl_constants(): GLib.HashTable
-    activeTexture(texture: any): void
+    activeTexture(texture: number): void
     attachShader(program: number, shader: number): void
     bindAttribLocation(program: number, index: number, name: string): void
-    bindBuffer(target: any, buffer: number | null): void
-    bindFramebuffer(target: any, framebuffer: number | null): void
-    bindRenderbuffer(target: any, renderbuffer: number | null): void
-    bindTexture(target: any, texture: number | null): void
+    bindBuffer(target: number, buffer: number | null): void
+    bindFramebuffer(target: number, framebuffer: number | null): void
+    bindRenderbuffer(target: number, renderbuffer: number | null): void
+    bindTexture(target: number, texture: number | null): void
     blendColor(red: number, green: number, blue: number, alpha: number): void
-    blendEquation(mode: any): void
-    blendEquationSeparate(modeRGB: any, modeAlpha: any): void
-    blendFunc(sfactor: any, dfactor: any): void
-    blendFuncSeparate(srcRGB: any, dstRGB: any, srcAlpha: any, dstAlpha: any): void
-    checkFramebufferStatus(target: any): any
-    clear(mask: any): void
-    clearColor(red: any, green: any, blue: any, alpha: any): void
-    clearDepth(depth: any): void
-    clearStencil(s: any): void
-    colorMask(red: any, green: any, blue: any, alpha: any): void
+    blendEquation(mode: number): void
+    blendEquationSeparate(modeRGB: number, modeAlpha: number): void
+    blendFunc(sfactor: number, dfactor: number): void
+    blendFuncSeparate(srcRGB: number, dstRGB: number, srcAlpha: number, dstAlpha: number): void
+    checkFramebufferStatus(target: number): number
+    clear(mask: number): void
+    clearColor(red: number, green: number, blue: number, alpha: number): void
+    clearDepth(depth: number): void
+    clearStencil(s: number): void
+    colorMask(red: boolean, green: boolean, blue: boolean, alpha: boolean): void
     compileShader(shader: number): void
-    copyTexImage2D(target: any, level: any, internalformat: any, x: any, y: any, width: any, height: any, border: any): void
-    copyTexSubImage2D(target: any, level: any, xoffset: any, yoffset: any, x: any, y: any, width: any, height: any): void
+    copyTexImage2D(target: number, level: number, internalFormat: number, x: number, y: number, width: number, height: number, border: number): void
+    copyTexSubImage2D(target: number, level: number, xoffset: number, yoffset: number, x: number, y: number, width: number, height: number): void
     createBuffer(): number
     createFramebuffer(): number
     createProgram(): number
     createRenderbuffer(): number
-    createShader(type: any): any
+    createShader(type: number): number
     createTexture(): number
-    cullFace(mode: any): void
+    cullFace(mode: number): void
     deleteBuffer(buffer: number | null): void
     deleteFramebuffer(framebuffer: number | null): void
     deleteProgram(program: number | null): void
     deleteRenderbuffer(renderbuffers: number | null): void
     deleteShader(shader: number | null): void
     deleteTexture(texture: number | null): void
-    depthFunc(func: any): void
-    depthMask(flag: any): void
+    depthFunc(func: number): void
+    depthMask(flag: boolean): void
     depthRange(zNear: number, zFar: number): void
     detachShader(program: number, shader: number): void
-    disable(cap: any): void
-    disableVertexAttribArray(index: any): void
-    drawArrays(mode: any, first: any, count: any): void
-    drawElements(mode: any, count: any, type: any, offset: any): void
+    disable(cap: number): void
+    disableVertexAttribArray(index: number): void
+    drawArrays(mode: number, first: number, count: number): void
+    drawElements(mode: number, count: number, type: number, offset: number): void
     enable(cap: any): void
     enableVertexAttribArray(index: number): void
     finish(): void
     flush(): void
-    framebufferRenderbuffer(target: any, attachment: any, renderbuffertarget: any, renderbuffer: number | null): void
-    framebufferTexture2D(target: any, attachment: any, textarget: any, texture: number | null, level: any): void
-    frontFace(mode: any): void
-    generateMipmap(target: any): void
+    framebufferRenderbuffer(target: number, attachment: number, renderbufferTarget: number, renderbuffer: number | null): void
+    framebufferTexture2D(target: number, attachment: number, textarget: number, texture: number | null, level: number): void
+    frontFace(mode: number): void
+    generateMipmap(target: number): void
     getActiveAttrib(program: number, index: number): /* result */ WebGLActiveInfo
     getActiveUniform(program: number, index: number): /* result */ WebGLActiveInfo
     getAttachedShaders(program: number): number[]
-    getAttribLocation(program: number, name: string): any
-    getBufferParameter(target: any, pname: any): any
-    getError(): any
+    getAttribLocation(program: number, name: string): number
+    getBufferParameter(target: number, pname: number): number
+    getError(): number
     setError(_error_: any): void
-    getFramebufferAttachmentParameter(target: any, attachment: any, pname: any): any
-    getParameterx(pname: any): GLib.Variant
-    getParameterb(pname: any): any
-    getParameterbv(pname: any, resultSize: number): any
-    getParameterf(pname: any): any
-    getParameterfv(pname: any, resultSize: number): any
-    getParameteri(pname: any): any
-    getParameteriv(pname: any, resultSize: number): any
+    getFramebufferAttachmentParameter(target: number, attachment: number, pname: number): number
+    getParameterx(pname: number): GLib.Variant
+    getParameterb(pname: number): boolean
+    getParameterbv(pname: number, resultSize: number): boolean
+    getParameterf(pname: number): number
+    getParameterfv(pname: number, resultSize: number): number
+    getParameteri(pname: number): number
+    getParameteriv(pname: number, resultSize: number): number
     getProgramInfoLog(program: number): string | null
-    getProgramParameter(program: number, pname: any): any
-    getRenderbufferParameter(target: any, pname: any): any
+    getProgramParameter(program: number, pname: number): number
+    getRenderbufferParameter(target: number, pname: number): number
     getShaderInfoLog(shader: number): string | null
-    getShaderParameter(shader: number, pname: any): any
+    getShaderParameter(shader: number, pname: number): number
     getShaderPrecisionFormat(shadertype: any, precisiontype: any): WebGLShaderPrecisionFormat | null
     getShaderSource(shader: number): string | null
-    getString(pname: any): string
+    getString(pname: number): string
     getSupportedExtensions(): string[] | null
-    getTexParameterx(target: any, pname: any): GLib.Variant
+    getTexParameterx(target: number, pname: number): GLib.Variant
     getUniformLocation(program: number, name: string): number | null
-    getUniform(program: number, location: number): any[]
-    getUniformi(program: number, location: number): any[]
-    getUniformiv(program: number, location: number, resultSize: number): any[]
-    getVertexAttribOffset(index: number, pname: any): any
-    getVertexAttrib(index: number, pname: any): GLib.Variant
-    getVertexAttribf(index: number, pname: any): any[]
-    getVertexAttribfv(index: number, pname: any, resultSize: number): any[]
-    getVertexAttribi(index: any, pname: any): any[]
-    hint(target: any, mode: any): void
-    isBuffer(buffer: number | null): any
-    isEnabled(cap: any): any
-    isFramebuffer(framebuffer: number | null): any
-    isProgram(program: number | null): any
-    isRenderbuffer(renderbuffer: number | null): any
-    isShader(shader: number | null): any
-    isTexture(texture: number | null): any
+    getUniform(program: number, location: number): number[]
+    getUniformi(program: number, location: number): number[]
+    getUniformiv(program: number, location: number, resultSize: number): number[]
+    getVertexAttribOffset(index: number, pname: number): number
+    getVertexAttrib(index: number, pname: number): GLib.Variant
+    getVertexAttribf(index: number, pname: number): number[]
+    getVertexAttribfv(index: number, pname: number, resultSize: number): number[]
+    getVertexAttribi(index: number, pname: number): number[]
+    hint(target: number, mode: number): void
+    isBuffer(buffer: number | null): boolean
+    isEnabled(cap: number): boolean
+    isFramebuffer(framebuffer: number | null): boolean
+    isProgram(program: number | null): boolean
+    isRenderbuffer(renderbuffer: number | null): boolean
+    isShader(shader: number | null): boolean
+    isTexture(texture: number | null): boolean
     lineWidth(width: number): void
     linkProgram(program: number): void
-    pixelStorei(pname: any, param: number): void
+    pixelStorei(pname: number, param: number): void
     polygonOffset(factor: number, units: number): void
-    renderbufferStorage(target: any, internalformat: any, width: any, height: any): void
-    sampleCoverage(value: any, invert: any): void
+    renderbufferStorage(target: number, internalFormat: number, width: number, height: number): void
+    sampleCoverage(value: number, invert: boolean): void
     scissor(x: number, y: number, width: number, height: number): void
     shaderSource(shader: number, source: string): void
-    stencilFunc(func: any, ref_: any, mask: any): void
-    stencilFuncSeparate(face: any, func: any, ref_: any, mask: any): void
-    stencilMask(mask: any): void
-    stencilMaskSeparate(face: any, mask: any): void
-    stencilOp(fail: any, zfail: any, zpass: any): void
-    stencilOpSeparate(face: any, fail: any, zfail: any, zpass: any): void
-    texParameterf(target: any, pname: any, param: any): void
-    texParameteri(target: any, pname: any, param: any): void
+    stencilFunc(func: number, ref_: number, mask: number): void
+    stencilFuncSeparate(face: number, func: number, ref_: number, mask: number): void
+    stencilMask(mask: number): void
+    stencilMaskSeparate(face: number, mask: number): void
+    stencilOp(fail: number, zfail: number, zpass: number): void
+    stencilOpSeparate(face: number, fail: number, zfail: number, zpass: number): void
+    texParameterf(target: number, pname: number, param: number): void
+    texParameteri(target: number, pname: number, param: number): void
     uniform1f(location: number | null, x: number): void
     uniform1i(location: number | null, x: number): void
     uniform2f(location: number | null, x: number, y: number): void
@@ -172,16 +172,16 @@ interface WebGLRenderingContextBase {
     uniform4i(location: number | null, x: number, y: number, z: number, w: number): void
     useProgram(program: number | null): void
     validateProgram(program: number | null): void
-    vertexAttrib1f(index: any, x: any): void
-    vertexAttrib1fv(index: any, v: any[]): void
-    vertexAttrib2f(index: any, x: any, y: any): void
-    vertexAttrib2fv(index: any, values: any[]): void
-    vertexAttrib3f(index: any, x: any, y: any, z: any): void
-    vertexAttrib3fv(index: any, values: any[]): void
-    vertexAttrib4f(index: any, x: any, y: any, z: any, w: any): void
-    vertexAttrib4fv(index: any, values: any[]): void
-    vertexAttribPointer(index: any, size: any, type: any, normalized: any, stride: any, offset: any): void
-    viewport(x: any, y: any, width: any, height: any): void
+    vertexAttrib1f(index: number, x: number): void
+    vertexAttrib1fv(index: number, v: number[]): void
+    vertexAttrib2f(index: number, x: number, y: number): void
+    vertexAttrib2fv(index: number, values: number[]): void
+    vertexAttrib3f(index: number, x: number, y: number, z: number): void
+    vertexAttrib3fv(index: number, values: number[]): void
+    vertexAttrib4f(index: number, x: number, y: number, z: number, w: number): void
+    vertexAttrib4fv(index: number, values: number[]): void
+    vertexAttribPointer(index: number, size: number, type: number, normalized: boolean, stride: any, offset: number): void
+    viewport(x: number, y: number, width: number, height: number): void
 
     // Class property signals of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
 
@@ -246,27 +246,28 @@ interface WebGLRenderingContext {
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
     extWEBGL_draw_buffers(): GLib.Variant
-    bufferData(target: any, _data: Uint8Array, usage: any): void
-    bufferDataSizeOnly(target: any, size: any, usage: any): void
-    bufferSubData(target: any, offset: number, _data: Uint8Array): void
-    compressedTexImage2D(target: any, level: any, internalformat: any, width: number, height: number, border: number, _data: Uint8Array): void
-    compressedTexSubImage2D(target: any, level: any, xoffset: number, yoffset: number, width: number, height: number, format: any, _data: Uint8Array): void
-    readPixels(x: any, y: any, width: any, height: any, format: any, type: any, _pixels: Uint8Array): void
-    texImage2D(target: any, level: any, internalformat: any, width: any, height: any, border: any, format: any, type: any, _pixels: Uint8Array | null): void
-    texImage2DFromPixbuf(target: any, level: any, internalformat: any, format: any, type: any, source: GdkPixbuf.Pixbuf): void
-    texSubImage2D(target: any, level: any, xoffset: any, yoffset: any, width: any, height: any, format: any, type: any, _pixels: Uint8Array): void
-    texSubImage2DFromPixbuf(target: any, level: number, xoffset: number, yoffset: number, format: any, type: any, source: GdkPixbuf.Pixbuf): void
-    uniform1fv(location: number, vLength: number, value: any[] | null): void
-    uniform1iv(location: number, vLength: number, value: any[] | null): void
-    uniform2fv(location: number, vLength: number, value: any[] | null): void
-    uniform2iv(location: number, vLength: number, value: any[] | null): void
-    uniform3fv(location: number, vLength: number, value: any[] | null): void
-    uniform3iv(location: number, vLength: number, value: any[] | null): void
-    uniform4fv(location: number, vLength: number, value: any[] | null): void
-    uniform4iv(location: number, vLength: number, value: any[] | null): void
-    uniformMatrix2fv(location: number, transpose: any, value: any[] | null): void
-    uniformMatrix3fv(location: number, transpose: any, value: any[] | null): void
-    uniformMatrix4fv(location: number, transpose: any, value: any[] | null): void
+    drawBuffersWEBGL(buffersArray: Uint8Array): void
+    bufferData(target: number, _data: Uint8Array, usage: number): void
+    bufferDataSizeOnly(target: number, size: any, usage: number): void
+    bufferSubData(target: number, offset: number, _data: Uint8Array): void
+    compressedTexImage2D(target: number, level: number, internalFormat: any, width: number, height: number, border: number, _data: Uint8Array): void
+    compressedTexSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, _data: Uint8Array): void
+    readPixels(x: number, y: number, width: number, height: number, format: number, type: number, _pixels: Uint8Array): void
+    texImage2D(target: number, level: number, internalFormat: number, width: number, height: number, border: any, format: number, type: number, _pixels: Uint8Array | null): void
+    texImage2DFromPixbuf(target: number, level: number, internalFormat: number, format: number, type: number, source: GdkPixbuf.Pixbuf): void
+    texSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, type: number, _pixels: Uint8Array): void
+    texSubImage2DFromPixbuf(target: number, level: number, xoffset: number, yoffset: number, format: number, type: number, source: GdkPixbuf.Pixbuf): void
+    uniform1fv(location: number, vLength: number, value: number[] | null): void
+    uniform1iv(location: number, vLength: number, value: number[] | null): void
+    uniform2fv(location: number, vLength: number, value: number[] | null): void
+    uniform2iv(location: number, vLength: number, value: number[] | null): void
+    uniform3fv(location: number, vLength: number, value: number[] | null): void
+    uniform3iv(location: number, vLength: number, value: number[] | null): void
+    uniform4fv(location: number, vLength: number, value: number[] | null): void
+    uniform4iv(location: number, vLength: number, value: number[] | null): void
+    uniformMatrix2fv(location: number, transpose: boolean, value: number[] | null): void
+    uniformMatrix3fv(location: number, transpose: boolean, value: any[] | null): void
+    uniformMatrix4fv(location: number, transpose: boolean, value: any[] | null): void
     get_width(): number
     get_height(): number
     get_alpha(): boolean

@@ -3,7 +3,6 @@ import tokenize from 'glsl-tokenizer/string';
 import Gwebgl from '@gjsify/types/Gwebgl-0.1';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
 import { gl } from './native-gl.js';
-import { warnNotImplemented } from '@gjsify/utils';
 import {
     extractImageData,
     checkObject,
@@ -47,7 +46,7 @@ import { WebGLTexture } from './webgl-texture.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLVertexArrayObjectState, WebGLVertexArrayGlobalState } from './webgl-vertex-attribute.js';
 
-import type { ExtensionFactory, TypedArray } from './types/index.js';
+import type { ExtensionFactory, TypedArray, WebGLConstants } from './types/index.js';
 
 const VERSION = '0.0.1';
 
@@ -105,6 +104,8 @@ function wrapContext(ctx: GjsifyWebGLRenderingContext) {
 
     return wrapper
 }
+
+export interface GjsifyWebGLRenderingContext extends WebGLConstants {}
 
 export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     canvas: HTMLCanvasElement = null as any as HTMLCanvasElement; // TODO
@@ -198,10 +199,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this._vertexGlobalState = new WebGLVertexArrayGlobalState(this)
 
         // Store limits
-        this._maxTextureSize = this.getParameter(gl.MAX_TEXTURE_SIZE)
-        this._maxTextureLevel = bits.log2(bits.nextPow2(gl._maxTextureSize))
-        this._maxCubeMapSize = this.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE)
-        this._maxCubeMapLevel = bits.log2(bits.nextPow2(gl._maxCubeMapSize))
+        this._maxTextureSize = this.getParameter(this.MAX_TEXTURE_SIZE)
+        this._maxTextureLevel = bits.log2(bits.nextPow2(this._maxTextureSize))
+        this._maxCubeMapSize = this.getParameter(this.MAX_CUBE_MAP_TEXTURE_SIZE)
+        this._maxCubeMapLevel = bits.log2(bits.nextPow2(this._maxCubeMapSize))
 
         // Unpack alignment
         this._unpackAlignment = 4
@@ -214,10 +215,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this._attrib0Buffer = attrib0Buffer
 
         // Initialize defaults
-        this.bindBuffer(gl.ARRAY_BUFFER, null)
-        this.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null)
-        this.bindFramebuffer(gl.FRAMEBUFFER, null)
-        this.bindRenderbuffer(gl.RENDERBUFFER, null)
+        this.bindBuffer(this.ARRAY_BUFFER, null)
+        this.bindBuffer(this.ELEMENT_ARRAY_BUFFER, null)
+        this.bindFramebuffer(this.FRAMEBUFFER, null)
+        this.bindRenderbuffer(this.RENDERBUFFER, null)
 
         // Set viewport and scissor
         this.viewport(0, 0, width, height)
@@ -227,7 +228,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this.clearDepth(1)
         this.clearColor(0, 0, 0, 0)
         this.clearStencil(0)
-        this.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
+        this.clear(this.COLOR_BUFFER_BIT | this.DEPTH_BUFFER_BIT | this.STENCIL_BUFFER_BIT)
 
         return wrapContext(this)
     }
@@ -248,25 +249,25 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         if (level < 0 ||
             width < 0 ||
             height < 0) {
-            this.setError(gl.INVALID_VALUE)
+            this.setError(this.INVALID_VALUE)
             return false
         }
-        if (target === gl.TEXTURE_2D) {
+        if (target === this.TEXTURE_2D) {
             if (width > this._maxTextureSize ||
                 height > this._maxTextureSize ||
                 level > this._maxTextureLevel) {
-                this.setError(gl.INVALID_VALUE)
+                this.setError(this.INVALID_VALUE)
                 return false
             }
         } else if (this._validCubeTarget(target)) {
             if (width > this._maxCubeMapSize ||
                 height > this._maxCubeMapSize ||
                 level > this._maxCubeMapLevel) {
-                this.setError(gl.INVALID_VALUE)
+                this.setError(this.INVALID_VALUE)
                 return false
             }
         } else {
-            this.setError(gl.INVALID_ENUM)
+            this.setError(this.INVALID_ENUM)
             return false
         }
         return true
@@ -274,11 +275,11 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
     _checkLocation(location: WebGLUniformLocation | null) {
         if (!(location instanceof WebGLUniformLocation)) {
-            this.setError(gl.INVALID_VALUE)
+            this.setError(this.INVALID_VALUE)
             return false
         } else if (location._program._ctx !== this ||
             location._linkCount !== location._program._linkCount) {
-            this.setError(gl.INVALID_OPERATION)
+            this.setError(this.INVALID_OPERATION)
             return false
         }
         return true
@@ -290,7 +291,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         } else if (!this._checkLocation(location)) {
             return false
         } else if (location._program !== this._activeProgram) {
-            this.setError(gl.INVALID_OPERATION)
+            this.setError(this.INVALID_OPERATION)
             return false
         }
         return true
@@ -732,39 +733,39 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
     _resizeDrawingBuffer(width: number, height: number) {
         const prevFramebuffer = this._activeFramebuffer
-        const prevTexture = this._getActiveTexture(gl.TEXTURE_2D)
+        const prevTexture = this._getActiveTexture(this.TEXTURE_2D)
         const prevRenderbuffer = this._activeRenderbuffer
 
         const contextAttributes = this._contextAttributes
 
         const drawingBuffer = this._drawingBuffer
-        this._native.bindFramebuffer(gl.FRAMEBUFFER, drawingBuffer?._framebuffer || null)
+        this._native.bindFramebuffer(this.FRAMEBUFFER, drawingBuffer?._framebuffer || null)
         const attachments = this._getAttachments()
         // Clear all attachments
         for (let i = 0; i < attachments.length; ++i) {
             this._native.framebufferTexture2D(
-                gl.FRAMEBUFFER,
+                this.FRAMEBUFFER,
                 attachments[i],
-                gl.TEXTURE_2D,
+                this.TEXTURE_2D,
                 0,
                 0)
         }
 
         // Update color attachment
-        this._native.bindTexture(gl.TEXTURE_2D, drawingBuffer?._color || null)
-        const colorFormat = contextAttributes.alpha ? gl.RGBA : gl.RGB
+        this._native.bindTexture(this.TEXTURE_2D, drawingBuffer?._color || null)
+        const colorFormat = contextAttributes.alpha ? this.RGBA : this.RGB
         this._native.texImage2D(
-            gl.TEXTURE_2D,
+            this.TEXTURE_2D,
             0,
             colorFormat,
             width,
             height,
             0,
             colorFormat,
-            gl.UNSIGNED_BYTE,
+            this.UNSIGNED_BYTE,
             null)
-        this._native.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-        this._native.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        this._native.texParameteri(this.TEXTURE_2D, this.TEXTURE_MIN_FILTER, this.NEAREST)
+        this._native.texParameteri(this.TEXTURE_2D, this.TEXTURE_MAG_FILTER, this.NEAREST)
         this._native.framebufferTexture2D(
             gl.FRAMEBUFFER,
             gl.COLOR_ATTACHMENT0,
@@ -776,41 +777,41 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         let storage = 0
         let attachment = 0
         if (contextAttributes.depth && contextAttributes.stencil) {
-            storage = gl.DEPTH_STENCIL
-            attachment = gl.DEPTH_STENCIL_ATTACHMENT
+            storage = this.DEPTH_STENCIL
+            attachment = this.DEPTH_STENCIL_ATTACHMENT
         } else if (contextAttributes.depth) {
             storage = 0x81A7
-            attachment = gl.DEPTH_ATTACHMENT
+            attachment = this.DEPTH_ATTACHMENT
         } else if (contextAttributes.stencil) {
-            storage = gl.STENCIL_INDEX8
-            attachment = gl.STENCIL_ATTACHMENT
+            storage = this.STENCIL_INDEX8
+            attachment = this.STENCIL_ATTACHMENT
         }
 
         if (storage) {
             this._native.bindRenderbuffer(
-                gl.RENDERBUFFER,
+                this.RENDERBUFFER,
                 drawingBuffer?._depthStencil || null)
             this._native.renderbufferStorage(
-                gl.RENDERBUFFER,
+                this.RENDERBUFFER,
                 storage,
                 width,
                 height)
             this._native.framebufferRenderbuffer(
-                gl.FRAMEBUFFER,
+                this.FRAMEBUFFER,
                 attachment,
-                gl.RENDERBUFFER,
+                this.RENDERBUFFER,
                 drawingBuffer?._depthStencil || null)
         }
 
         // Restore previous binding state
-        this.bindFramebuffer(gl.FRAMEBUFFER, prevFramebuffer)
-        this.bindTexture(gl.TEXTURE_2D, prevTexture)
-        this.bindRenderbuffer(gl.RENDERBUFFER, prevRenderbuffer)
+        this.bindFramebuffer(this.FRAMEBUFFER, prevFramebuffer)
+        this.bindTexture(this.TEXTURE_2D, prevTexture)
+        this.bindRenderbuffer(this.RENDERBUFFER, prevRenderbuffer)
     }
 
     _restoreError(lastError: GLenum) {
         const topError = this._errorStack.pop()
-        if (topError === gl.NO_ERROR) {
+        if (topError === this.NO_ERROR) {
             this.setError(lastError)
         } else if (topError) {
             this.setError(topError)
@@ -853,16 +854,16 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         const prevStatus = framebuffer._status
         const attachments = this._getAttachments()
         framebuffer._status = this._preCheckFramebufferStatus(framebuffer)
-        if (framebuffer._status !== gl.FRAMEBUFFER_COMPLETE) {
-            if (prevStatus === gl.FRAMEBUFFER_COMPLETE) {
+        if (framebuffer._status !== this.FRAMEBUFFER_COMPLETE) {
+            if (prevStatus === this.FRAMEBUFFER_COMPLETE) {
                 for (let i = 0; i < attachments.length; ++i) {
                     const attachmentEnum = attachments[i]
                     this._native.framebufferTexture2D(
-                        gl.FRAMEBUFFER,
+                        this.FRAMEBUFFER,
                         attachmentEnum,
-                        framebuffer._attachmentFace[attachmentEnum],
+                        framebuffer._attachmentFace[attachmentEnum] || 0,
                         0,
-                        framebuffer._attachmentLevel[attachmentEnum])
+                        framebuffer._attachmentLevel[attachmentEnum] || 0)
                 }
             }
             return
@@ -871,11 +872,11 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         for (let i = 0; i < attachments.length; ++i) {
             const attachmentEnum = attachments[i]
             this._native.framebufferTexture2D(
-                gl.FRAMEBUFFER,
+                this.FRAMEBUFFER,
                 attachmentEnum,
-                framebuffer._attachmentFace[attachmentEnum],
+                framebuffer._attachmentFace[attachmentEnum] || 0,
                 0,
-                framebuffer._attachmentLevel[attachmentEnum])
+                framebuffer._attachmentLevel[attachmentEnum] || 0)
         }
 
         for (let i = 0; i < attachments.length; ++i) {
@@ -883,63 +884,63 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const attachment = framebuffer._attachments[attachmentEnum]
             if (attachment instanceof WebGLTexture) {
                 this._native.framebufferTexture2D(
-                    gl.FRAMEBUFFER,
+                    this.FRAMEBUFFER,
                     attachmentEnum,
-                    framebuffer._attachmentFace[attachmentEnum],
+                    framebuffer._attachmentFace[attachmentEnum] || 0,
                     attachment._ | 0,
-                    framebuffer._attachmentLevel[attachmentEnum])
+                    framebuffer._attachmentLevel[attachmentEnum] || 0)
             } else if (attachment instanceof WebGLRenderbuffer) {
                 this._native.framebufferRenderbuffer(
-                    gl.FRAMEBUFFER,
+                    this.FRAMEBUFFER,
                     attachmentEnum,
-                    gl.RENDERBUFFER,
+                    this.RENDERBUFFER,
                     attachment._ | 0)
             }
         }
     }
 
     _validBlendFunc(factor: GLenum) {
-        return factor === gl.ZERO ||
-            factor === gl.ONE ||
-            factor === gl.SRC_COLOR ||
-            factor === gl.ONE_MINUS_SRC_COLOR ||
-            factor === gl.DST_COLOR ||
-            factor === gl.ONE_MINUS_DST_COLOR ||
-            factor === gl.SRC_ALPHA ||
-            factor === gl.ONE_MINUS_SRC_ALPHA ||
-            factor === gl.DST_ALPHA ||
-            factor === gl.ONE_MINUS_DST_ALPHA ||
-            factor === gl.SRC_ALPHA_SATURATE ||
-            factor === gl.CONSTANT_COLOR ||
-            factor === gl.ONE_MINUS_CONSTANT_COLOR ||
-            factor === gl.CONSTANT_ALPHA ||
-            factor === gl.ONE_MINUS_CONSTANT_ALPHA
+        return factor === this.ZERO ||
+            factor === this.ONE ||
+            factor === this.SRC_COLOR ||
+            factor === this.ONE_MINUS_SRC_COLOR ||
+            factor === this.DST_COLOR ||
+            factor === this.ONE_MINUS_DST_COLOR ||
+            factor === this.SRC_ALPHA ||
+            factor === this.ONE_MINUS_SRC_ALPHA ||
+            factor === this.DST_ALPHA ||
+            factor === this.ONE_MINUS_DST_ALPHA ||
+            factor === this.SRC_ALPHA_SATURATE ||
+            factor === this.CONSTANT_COLOR ||
+            factor === this.ONE_MINUS_CONSTANT_COLOR ||
+            factor === this.CONSTANT_ALPHA ||
+            factor === this.ONE_MINUS_CONSTANT_ALPHA
     }
 
     _validBlendMode(mode: GLenum) {
-        return mode === gl.FUNC_ADD ||
-            mode === gl.FUNC_SUBTRACT ||
-            mode === gl.FUNC_REVERSE_SUBTRACT ||
+        return mode === this.FUNC_ADD ||
+            mode === this.FUNC_SUBTRACT ||
+            mode === this.FUNC_REVERSE_SUBTRACT ||
             (this._extensions.ext_blend_minmax && (
                 mode === this._extensions.ext_blend_minmax.MIN_EXT ||
                 mode === this._extensions.ext_blend_minmax.MAX_EXT))
     }
 
     _validCubeTarget(target: GLenum) {
-        return target === gl.TEXTURE_CUBE_MAP_POSITIVE_X ||
-            target === gl.TEXTURE_CUBE_MAP_NEGATIVE_X ||
-            target === gl.TEXTURE_CUBE_MAP_POSITIVE_Y ||
-            target === gl.TEXTURE_CUBE_MAP_NEGATIVE_Y ||
-            target === gl.TEXTURE_CUBE_MAP_POSITIVE_Z ||
-            target === gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
+        return target === this.TEXTURE_CUBE_MAP_POSITIVE_X ||
+            target === this.TEXTURE_CUBE_MAP_NEGATIVE_X ||
+            target === this.TEXTURE_CUBE_MAP_POSITIVE_Y ||
+            target === this.TEXTURE_CUBE_MAP_NEGATIVE_Y ||
+            target === this.TEXTURE_CUBE_MAP_POSITIVE_Z ||
+            target === this.TEXTURE_CUBE_MAP_NEGATIVE_Z
     }
 
     _validFramebufferAttachment(attachment: GLenum) {
         switch (attachment) {
-            case gl.DEPTH_ATTACHMENT:
-            case gl.STENCIL_ATTACHMENT:
-            case gl.DEPTH_STENCIL_ATTACHMENT:
-            case gl.COLOR_ATTACHMENT0:
+            case this.DEPTH_ATTACHMENT:
+            case this.STENCIL_ATTACHMENT:
+            case this.DEPTH_STENCIL_ATTACHMENT:
+            case this.COLOR_ATTACHMENT0:
                 return true
         }
 
@@ -958,21 +959,21 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     }
 
     _validTextureTarget(target: GLenum) {
-        return target === gl.TEXTURE_2D ||
-            target === gl.TEXTURE_CUBE_MAP
+        return target === this.TEXTURE_2D ||
+            target === this.TEXTURE_CUBE_MAP
     }
 
     _verifyTextureCompleteness(target: GLenum, pname: GLenum, param: GLenum) {
         const unit = this._getActiveTextureUnit()
         let texture: WebGLTexture | null = null
-        if (target === gl.TEXTURE_2D) {
+        if (target === this.TEXTURE_2D) {
             texture = unit._bind2D
         } else if (this._validCubeTarget(target)) {
             texture = unit._bindCube
         }
 
         // oes_texture_float but not oes_texture_float_linear
-        if (this._extensions.oes_texture_float && !this._extensions.oes_texture_float_linear && texture && texture._type === gl.FLOAT && (pname === gl.TEXTURE_MAG_FILTER || pname === gl.TEXTURE_MIN_FILTER) && (param === gl.LINEAR || param === gl.LINEAR_MIPMAP_NEAREST || param === gl.NEAREST_MIPMAP_LINEAR || param === gl.LINEAR_MIPMAP_LINEAR)) {
+        if (this._extensions.oes_texture_float && !this._extensions.oes_texture_float_linear && texture && texture._type === this.FLOAT && (pname === this.TEXTURE_MAG_FILTER || pname === this.TEXTURE_MIN_FILTER) && (param === this.LINEAR || param === this.LINEAR_MIPMAP_NEAREST || param === this.NEAREST_MIPMAP_LINEAR || param === this.LINEAR_MIPMAP_LINEAR)) {
             texture._complete = false
             this.bindTexture(target, texture)
             return
@@ -996,23 +997,23 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     }
 
     _beginAttrib0Hack() {
-        this._native.bindBuffer(gl.ARRAY_BUFFER, this._attrib0Buffer?._ || null)
+        this._native.bindBuffer(this.ARRAY_BUFFER, this._attrib0Buffer?._ || null)
         const uInt8Data = new Uint8Array(this._vertexGlobalState._attribs[0]._data.buffer);
         this._native.bufferData(
-            gl.ARRAY_BUFFER,
+            this.ARRAY_BUFFER,
             uInt8Data,
-            gl.STREAM_DRAW)
+            this.STREAM_DRAW)
         this._native.enableVertexAttribArray(0)
-        this._native.vertexAttribPointer(0, 4, gl.FLOAT, false, 0, 0)
+        this._native.vertexAttribPointer(0, 4, this.FLOAT, false, 0, 0)
         // TODO: this._native._vertexAttribDivisor(0, 1)
     }
 
     _endAttrib0Hack() {
         const attrib = this._vertexObjectState._attribs[0]
         if (attrib._pointerBuffer) {
-            this._native.bindBuffer(gl.ARRAY_BUFFER, attrib._pointerBuffer._)
+            this._native.bindBuffer(this.ARRAY_BUFFER, attrib._pointerBuffer._)
         } else {
-            this._native.bindBuffer(gl.ARRAY_BUFFER, 0)
+            this._native.bindBuffer(this.ARRAY_BUFFER, 0)
         }
         this._native.vertexAttribPointer(
             0,
@@ -1024,9 +1025,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         // TODO: this._native._vertexAttribDivisor(0, attrib._divisor)
         this._native.disableVertexAttribArray(0)
         if (this._vertexGlobalState._arrayBufferBinding) {
-            this._native.bindBuffer(gl.ARRAY_BUFFER, this._vertexGlobalState._arrayBufferBinding._)
+            this._native.bindBuffer(this.ARRAY_BUFFER, this._vertexGlobalState._arrayBufferBinding._)
         } else {
-            this._native.bindBuffer(gl.ARRAY_BUFFER, 0)
+            this._native.bindBuffer(this.ARRAY_BUFFER, 0)
         }
     }
 
@@ -1075,22 +1076,22 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             data = dataOrSize;
         }
 
-        if (usage !== gl.STREAM_DRAW &&
-            usage !== gl.STATIC_DRAW &&
-            usage !== gl.DYNAMIC_DRAW) {
-            this.setError(gl.INVALID_ENUM)
+        if (usage !== this.STREAM_DRAW &&
+            usage !== this.STATIC_DRAW &&
+            usage !== this.DYNAMIC_DRAW) {
+            this.setError(this.INVALID_ENUM)
             return
         }
 
-        if (target !== gl.ARRAY_BUFFER &&
-            target !== gl.ELEMENT_ARRAY_BUFFER) {
-            this.setError(gl.INVALID_ENUM)
+        if (target !== this.ARRAY_BUFFER &&
+            target !== this.ELEMENT_ARRAY_BUFFER) {
+            this.setError(this.INVALID_ENUM)
             return
         }
 
         const active = this._getActiveBuffer(target)
         if (!active) {
-            this.setError(gl.INVALID_OPERATION)
+            this.setError(this.INVALID_OPERATION)
             return
         }
 
@@ -1101,7 +1102,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             } else if (data instanceof ArrayBuffer) {
                 u8Data = new Uint8Array(data)
             } else {
-                this.setError(gl.INVALID_VALUE)
+                this.setError(this.INVALID_VALUE)
                 return
             }
 
@@ -1112,17 +1113,17 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 usage)
             const error = this.getError()
             this._restoreError(error)
-            if (error !== gl.NO_ERROR) {
+            if (error !== this.NO_ERROR) {
                 return
             }
 
             active._size = u8Data.length
-            if (target === gl.ELEMENT_ARRAY_BUFFER) {
+            if (target === this.ELEMENT_ARRAY_BUFFER) {
                 active._elements = new Uint8Array(u8Data)
             }
         } else if (typeof dataOrSize === 'number') {
             if (size < 0) {
-                this.setError(gl.INVALID_VALUE)
+                this.setError(this.INVALID_VALUE)
                 return
             }
 
@@ -1133,22 +1134,22 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 usage)
             const error = this.getError()
             this._restoreError(error)
-            if (error !== gl.NO_ERROR) {
+            if (error !== this.NO_ERROR) {
                 return
             }
 
             active._size = size
-            if (target === gl.ELEMENT_ARRAY_BUFFER) {
+            if (target === this.ELEMENT_ARRAY_BUFFER) {
                 active._elements = new Uint8Array(size)
             }
         } else {
-            this.setError(gl.INVALID_VALUE)
+            this.setError(this.INVALID_VALUE)
         }
     }
     bufferSubData(target: GLenum = 0, offset: GLintptr = 0, data: BufferSource): void {
-        if (target !== gl.ARRAY_BUFFER &&
-            target !== gl.ELEMENT_ARRAY_BUFFER) {
-            this.setError(gl.INVALID_ENUM)
+        if (target !== this.ARRAY_BUFFER &&
+            target !== this.ELEMENT_ARRAY_BUFFER) {
+            this.setError(this.INVALID_ENUM)
             return
         }
 
@@ -1157,18 +1158,18 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
 
         if (!data || typeof data !== 'object') {
-            this.setError(gl.INVALID_VALUE)
+            this.setError(this.INVALID_VALUE)
             return
         }
 
         const active = this._getActiveBuffer(target)
         if (!active) {
-            this.setError(gl.INVALID_OPERATION)
+            this.setError(this.INVALID_OPERATION)
             return
         }
 
         if (offset < 0 || offset >= active._size) {
-            this.setError(gl.INVALID_VALUE)
+            this.setError(this.INVALID_VALUE)
             return
         }
 
@@ -1178,16 +1179,16 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         } else if (data instanceof ArrayBuffer) {
             u8Data = new Uint8Array(data)
         } else {
-            this.setError(gl.INVALID_VALUE)
+            this.setError(this.INVALID_VALUE)
             return
         }
 
         if (offset + u8Data.length > active._size) {
-            this.setError(gl.INVALID_VALUE)
+            this.setError(this.INVALID_VALUE)
             return
         }
 
-        if (target === gl.ELEMENT_ARRAY_BUFFER) {
+        if (target === this.ELEMENT_ARRAY_BUFFER) {
             active._elements.set(u8Data, offset)
         }
 
@@ -2984,7 +2985,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 return renderbuffer._width
             case gl.RENDERBUFFER_HEIGHT:
                 return renderbuffer._height
-            case gl.RENDERBUFFER_SIZE:
+            // TODO: case gl.RENDERBUFFER_SIZE:
             case gl.RENDERBUFFER_RED_SIZE:
             case gl.RENDERBUFFER_GREEN_SIZE:
             case gl.RENDERBUFFER_BLUE_SIZE:
@@ -3448,7 +3449,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             internalFormat !== gl.RGB565 &&
             internalFormat !== gl.RGB5_A1 &&
             internalFormat !== gl.DEPTH_COMPONENT16 &&
-            internalFormat !== gl.STENCIL_INDEX &&
+            // TODO: internalFormat !== gl.STENCIL_INDEX &&
             internalFormat !== gl.STENCIL_INDEX8 &&
             internalFormat !== gl.DEPTH_STENCIL) {
             this.setError(gl.INVALID_ENUM)
@@ -3653,301 +3654,6 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     viewport(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
         return this._native.viewport(x, y, width, height);
     }
-
-    readonly ACTIVE_ATTRIBUTES: GLenum = 0;
-    readonly ACTIVE_TEXTURE: GLenum = 0;
-    readonly ACTIVE_UNIFORMS: GLenum = 0;
-    readonly ALIASED_LINE_WIDTH_RANGE: GLenum = 0;
-    readonly ALIASED_POINT_SIZE_RANGE: GLenum = 0;
-    readonly ALPHA: GLenum = 0;
-    readonly ALPHA_BITS: GLenum = 0;
-    readonly ALWAYS: GLenum = 0;
-    readonly ARRAY_BUFFER: GLenum = 0;
-    readonly ARRAY_BUFFER_BINDING: GLenum = 0;
-    readonly ATTACHED_SHADERS: GLenum = 0;
-    readonly BACK: GLenum = 0;
-    readonly BLEND: GLenum = 0;
-    readonly BLEND_COLOR: GLenum = 0;
-    readonly BLEND_DST_ALPHA: GLenum = 0;
-    readonly BLEND_DST_RGB: GLenum = 0;
-    readonly BLEND_EQUATION: GLenum = 0;
-    readonly BLEND_EQUATION_ALPHA: GLenum = 0;
-    readonly BLEND_EQUATION_RGB: GLenum = 0;
-    readonly BLEND_SRC_ALPHA: GLenum = 0;
-    readonly BLEND_SRC_RGB: GLenum = 0;
-    readonly BLUE_BITS: GLenum = 0;
-    readonly BOOL: GLenum = 0;
-    readonly BOOL_VEC2: GLenum = 0;
-    readonly BOOL_VEC3: GLenum = 0;
-    readonly BOOL_VEC4: GLenum = 0;
-    readonly BROWSER_DEFAULT_WEBGL: GLenum = 0;
-    readonly BUFFER_SIZE: GLenum = 0;
-    readonly BUFFER_USAGE: GLenum = 0;
-    readonly BYTE: GLenum = 0;
-    readonly CCW: GLenum = 0;
-    readonly CLAMP_TO_EDGE: GLenum = 0;
-    readonly COLOR_ATTACHMENT0: GLenum = 0;
-    readonly COLOR_BUFFER_BIT: GLenum = 0;
-    readonly COLOR_CLEAR_VALUE: GLenum = 0;
-    readonly COLOR_WRITEMASK: GLenum = 0;
-    readonly COMPILE_STATUS: GLenum = 0;
-    readonly COMPRESSED_TEXTURE_FORMATS: GLenum = 0;
-    readonly CONSTANT_ALPHA: GLenum = 0;
-    readonly CONSTANT_COLOR: GLenum = 0;
-    readonly CONTEXT_LOST_WEBGL: GLenum = 0;
-    readonly CULL_FACE: GLenum = 0;
-    readonly CULL_FACE_MODE: GLenum = 0;
-    readonly CURRENT_PROGRAM: GLenum = 0;
-    readonly CURRENT_VERTEX_ATTRIB: GLenum = 0;
-    readonly CW: GLenum = 0;
-    readonly DECR: GLenum = 0;
-    readonly DECR_WRAP: GLenum = 0;
-    readonly DELETE_STATUS: GLenum = 0;
-    readonly DEPTH_ATTACHMENT: GLenum = 0;
-    readonly DEPTH_BITS: GLenum = 0;
-    readonly DEPTH_BUFFER_BIT: GLenum = 0;
-    readonly DEPTH_CLEAR_VALUE: GLenum = 0;
-    readonly DEPTH_COMPONENT: GLenum = 0;
-    readonly DEPTH_COMPONENT16: GLenum = 0;
-    readonly DEPTH_FUNC: GLenum = 0;
-    readonly DEPTH_RANGE: GLenum = 0;
-    readonly DEPTH_STENCIL: GLenum = 0;
-    readonly DEPTH_STENCIL_ATTACHMENT: GLenum = 0;
-    readonly DEPTH_TEST: GLenum = 0;
-    readonly DEPTH_WRITEMASK: GLenum = 0;
-    readonly DITHER: GLenum = 0;
-    readonly DONT_CARE: GLenum = 0;
-    readonly DST_ALPHA: GLenum = 0;
-    readonly DST_COLOR: GLenum = 0;
-    readonly DYNAMIC_DRAW: GLenum = 0;
-    readonly ELEMENT_ARRAY_BUFFER: GLenum = 0;
-    readonly ELEMENT_ARRAY_BUFFER_BINDING: GLenum = 0;
-    readonly EQUAL: GLenum = 0;
-    readonly FASTEST: GLenum = 0;
-    readonly FLOAT: GLenum = 0;
-    readonly FLOAT_MAT2: GLenum = 0;
-    readonly FLOAT_MAT3: GLenum = 0;
-    readonly FLOAT_MAT4: GLenum = 0;
-    readonly FLOAT_VEC2: GLenum = 0;
-    readonly FLOAT_VEC3: GLenum = 0;
-    readonly FLOAT_VEC4: GLenum = 0;
-    readonly FRAGMENT_SHADER: GLenum = 0;
-    readonly FRAMEBUFFER: GLenum = 0;
-    readonly FRAMEBUFFER_ATTACHMENT_OBJECT_NAME: GLenum = 0;
-    readonly FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE: GLenum = 0;
-    readonly FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE: GLenum = 0;
-    readonly FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL: GLenum = 0;
-    readonly FRAMEBUFFER_BINDING: GLenum = 0;
-    readonly FRAMEBUFFER_COMPLETE: GLenum = 0;
-    readonly FRAMEBUFFER_INCOMPLETE_ATTACHMENT: GLenum = 0;
-    readonly FRAMEBUFFER_INCOMPLETE_DIMENSIONS: GLenum = 0;
-    readonly FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: GLenum = 0;
-    readonly FRAMEBUFFER_UNSUPPORTED: GLenum = 0;
-    readonly FRONT: GLenum = 0;
-    readonly FRONT_AND_BACK: GLenum = 0;
-    readonly FRONT_FACE: GLenum = 0;
-    readonly FUNC_ADD: GLenum = 0;
-    readonly FUNC_REVERSE_SUBTRACT: GLenum = 0;
-    readonly FUNC_SUBTRACT: GLenum = 0;
-    readonly GENERATE_MIPMAP_HINT: GLenum = 0;
-    readonly GEQUAL: GLenum = 0;
-    readonly GREATER: GLenum = 0;
-    readonly GREEN_BITS: GLenum = 0;
-    readonly HIGH_FLOAT: GLenum = 0;
-    readonly HIGH_INT: GLenum = 0;
-    readonly IMPLEMENTATION_COLOR_READ_FORMAT: GLenum = 0;
-    readonly IMPLEMENTATION_COLOR_READ_TYPE: GLenum = 0;
-    readonly INCR: GLenum = 0;
-    readonly INCR_WRAP: GLenum = 0;
-    readonly INT: GLenum = 0;
-    readonly INT_VEC2: GLenum = 0;
-    readonly INT_VEC3: GLenum = 0;
-    readonly INT_VEC4: GLenum = 0;
-    readonly INVALID_ENUM: GLenum = 0;
-    readonly INVALID_FRAMEBUFFER_OPERATION: GLenum = 0;
-    readonly INVALID_OPERATION: GLenum = 0;
-    readonly INVALID_VALUE: GLenum = 0;
-    readonly INVERT: GLenum = 0;
-    readonly KEEP: GLenum = 0;
-    readonly LEQUAL: GLenum = 0;
-    readonly LESS: GLenum = 0;
-    readonly LINEAR: GLenum = 0;
-    readonly LINEAR_MIPMAP_LINEAR: GLenum = 0;
-    readonly LINEAR_MIPMAP_NEAREST: GLenum = 0;
-    readonly LINES: GLenum = 0;
-    readonly LINE_LOOP: GLenum = 0;
-    readonly LINE_STRIP: GLenum = 0;
-    readonly LINE_WIDTH: GLenum = 0;
-    readonly LINK_STATUS: GLenum = 0;
-    readonly LOW_FLOAT: GLenum = 0;
-    readonly LOW_INT: GLenum = 0;
-    readonly LUMINANCE: GLenum = 0;
-    readonly LUMINANCE_ALPHA: GLenum = 0;
-    readonly MAX_COMBINED_TEXTURE_IMAGE_UNITS: GLenum = 0;
-    readonly MAX_CUBE_MAP_TEXTURE_SIZE: GLenum = 0;
-    readonly MAX_FRAGMENT_UNIFORM_VECTORS: GLenum = 0;
-    readonly MAX_RENDERBUFFER_SIZE: GLenum = 0;
-    readonly MAX_TEXTURE_IMAGE_UNITS: GLenum = 0;
-    readonly MAX_TEXTURE_SIZE: GLenum = 0;
-    readonly MAX_VARYING_VECTORS: GLenum = 0;
-    readonly MAX_VERTEX_ATTRIBS: GLenum = 0;
-    readonly MAX_VERTEX_TEXTURE_IMAGE_UNITS: GLenum = 0;
-    readonly MAX_VERTEX_UNIFORM_VECTORS: GLenum = 0;
-    readonly MAX_VIEWPORT_DIMS: GLenum = 0;
-    readonly MEDIUM_FLOAT: GLenum = 0;
-    readonly MEDIUM_INT: GLenum = 0;
-    readonly MIRRORED_REPEAT: GLenum = 0;
-    readonly NEAREST: GLenum = 0;
-    readonly NEAREST_MIPMAP_LINEAR: GLenum = 0;
-    readonly NEAREST_MIPMAP_NEAREST: GLenum = 0;
-    readonly NEVER: GLenum = 0;
-    readonly NICEST: GLenum = 0;
-    readonly NONE: GLenum = 0;
-    readonly NOTEQUAL: GLenum = 0;
-    readonly NO_ERROR: GLenum = 0;
-    readonly ONE: GLenum = 0;
-    readonly ONE_MINUS_CONSTANT_ALPHA: GLenum = 0;
-    readonly ONE_MINUS_CONSTANT_COLOR: GLenum = 0;
-    readonly ONE_MINUS_DST_ALPHA: GLenum = 0;
-    readonly ONE_MINUS_DST_COLOR: GLenum = 0;
-    readonly ONE_MINUS_SRC_ALPHA: GLenum = 0;
-    readonly ONE_MINUS_SRC_COLOR: GLenum = 0;
-    readonly OUT_OF_MEMORY: GLenum = 0;
-    readonly PACK_ALIGNMENT: GLenum = 0;
-    readonly POINTS: GLenum = 0;
-    readonly POLYGON_OFFSET_FACTOR: GLenum = 0;
-    readonly POLYGON_OFFSET_FILL: GLenum = 0;
-    readonly POLYGON_OFFSET_UNITS: GLenum = 0;
-    readonly RED_BITS: GLenum = 0;
-    readonly RENDERBUFFER: GLenum = 0;
-    readonly RENDERBUFFER_ALPHA_SIZE: GLenum = 0;
-    readonly RENDERBUFFER_BINDING: GLenum = 0;
-    readonly RENDERBUFFER_BLUE_SIZE: GLenum = 0;
-    readonly RENDERBUFFER_DEPTH_SIZE: GLenum = 0;
-    readonly RENDERBUFFER_GREEN_SIZE: GLenum = 0;
-    readonly RENDERBUFFER_HEIGHT: GLenum = 0;
-    readonly RENDERBUFFER_INTERNAL_FORMAT: GLenum = 0;
-    readonly RENDERBUFFER_RED_SIZE: GLenum = 0;
-    readonly RENDERBUFFER_STENCIL_SIZE: GLenum = 0;
-    readonly RENDERBUFFER_WIDTH: GLenum = 0;
-    readonly RENDERER: GLenum = 0;
-    readonly REPEAT: GLenum = 0;
-    readonly REPLACE: GLenum = 0;
-    readonly RGB: GLenum = 0;
-    readonly RGB565: GLenum = 0;
-    readonly RGB5_A1: GLenum = 0;
-    readonly RGBA: GLenum = 0;
-    readonly RGBA4: GLenum = 0;
-    readonly SAMPLER_2D: GLenum = 0;
-    readonly SAMPLER_CUBE: GLenum = 0;
-    readonly SAMPLES: GLenum = 0;
-    readonly SAMPLE_ALPHA_TO_COVERAGE: GLenum = 0;
-    readonly SAMPLE_BUFFERS: GLenum = 0;
-    readonly SAMPLE_COVERAGE: GLenum = 0;
-    readonly SAMPLE_COVERAGE_INVERT: GLenum = 0;
-    readonly SAMPLE_COVERAGE_VALUE: GLenum = 0;
-    readonly SCISSOR_BOX: GLenum = 0;
-    readonly SCISSOR_TEST: GLenum = 0;
-    readonly SHADER_TYPE: GLenum = 0;
-    readonly SHADING_LANGUAGE_VERSION: GLenum = 0;
-    readonly SHORT: GLenum = 0;
-    readonly SRC_ALPHA: GLenum = 0;
-    readonly SRC_ALPHA_SATURATE: GLenum = 0;
-    readonly SRC_COLOR: GLenum = 0;
-    readonly STATIC_DRAW: GLenum = 0;
-    readonly STENCIL_ATTACHMENT: GLenum = 0;
-    readonly STENCIL_BACK_FAIL: GLenum = 0;
-    readonly STENCIL_BACK_FUNC: GLenum = 0;
-    readonly STENCIL_BACK_PASS_DEPTH_FAIL: GLenum = 0;
-    readonly STENCIL_BACK_PASS_DEPTH_PASS: GLenum = 0;
-    readonly STENCIL_BACK_REF: GLenum = 0;
-    readonly STENCIL_BACK_VALUE_MASK: GLenum = 0;
-    readonly STENCIL_BACK_WRITEMASK: GLenum = 0;
-    readonly STENCIL_BITS: GLenum = 0;
-    readonly STENCIL_BUFFER_BIT: GLenum = 0;
-    readonly STENCIL_CLEAR_VALUE: GLenum = 0;
-    readonly STENCIL_FAIL: GLenum = 0;
-    readonly STENCIL_FUNC: GLenum = 0;
-    readonly STENCIL_INDEX8: GLenum = 0;
-    readonly STENCIL_PASS_DEPTH_FAIL: GLenum = 0;
-    readonly STENCIL_PASS_DEPTH_PASS: GLenum = 0;
-    readonly STENCIL_REF: GLenum = 0;
-    readonly STENCIL_TEST: GLenum = 0;
-    readonly STENCIL_VALUE_MASK: GLenum = 0;
-    readonly STENCIL_WRITEMASK: GLenum = 0;
-    readonly STREAM_DRAW: GLenum = 0;
-    readonly SUBPIXEL_BITS: GLenum = 0;
-    readonly TEXTURE: GLenum = 0;
-    readonly TEXTURE0: GLenum = 0;
-    readonly TEXTURE1: GLenum = 0;
-    readonly TEXTURE10: GLenum = 0;
-    readonly TEXTURE11: GLenum = 0;
-    readonly TEXTURE12: GLenum = 0;
-    readonly TEXTURE13: GLenum = 0;
-    readonly TEXTURE14: GLenum = 0;
-    readonly TEXTURE15: GLenum = 0;
-    readonly TEXTURE16: GLenum = 0;
-    readonly TEXTURE17: GLenum = 0;
-    readonly TEXTURE18: GLenum = 0;
-    readonly TEXTURE19: GLenum = 0;
-    readonly TEXTURE2: GLenum = 0;
-    readonly TEXTURE20: GLenum = 0;
-    readonly TEXTURE21: GLenum = 0;
-    readonly TEXTURE22: GLenum = 0;
-    readonly TEXTURE23: GLenum = 0;
-    readonly TEXTURE24: GLenum = 0;
-    readonly TEXTURE25: GLenum = 0;
-    readonly TEXTURE26: GLenum = 0;
-    readonly TEXTURE27: GLenum = 0;
-    readonly TEXTURE28: GLenum = 0;
-    readonly TEXTURE29: GLenum = 0;
-    readonly TEXTURE3: GLenum = 0;
-    readonly TEXTURE30: GLenum = 0;
-    readonly TEXTURE31: GLenum = 0;
-    readonly TEXTURE4: GLenum = 0;
-    readonly TEXTURE5: GLenum = 0;
-    readonly TEXTURE6: GLenum = 0;
-    readonly TEXTURE7: GLenum = 0;
-    readonly TEXTURE8: GLenum = 0;
-    readonly TEXTURE9: GLenum = 0;
-    readonly TEXTURE_2D: GLenum = 0;
-    readonly TEXTURE_BINDING_2D: GLenum = 0;
-    readonly TEXTURE_BINDING_CUBE_MAP: GLenum = 0;
-    readonly TEXTURE_CUBE_MAP: GLenum = 0;
-    readonly TEXTURE_CUBE_MAP_NEGATIVE_X: GLenum = 0;
-    readonly TEXTURE_CUBE_MAP_NEGATIVE_Y: GLenum = 0;
-    readonly TEXTURE_CUBE_MAP_NEGATIVE_Z: GLenum = 0;
-    readonly TEXTURE_CUBE_MAP_POSITIVE_X: GLenum = 0;
-    readonly TEXTURE_CUBE_MAP_POSITIVE_Y: GLenum = 0;
-    readonly TEXTURE_CUBE_MAP_POSITIVE_Z: GLenum = 0;
-    readonly TEXTURE_MAG_FILTER: GLenum = 0;
-    readonly TEXTURE_MIN_FILTER: GLenum = 0;
-    readonly TEXTURE_WRAP_S: GLenum = 0;
-    readonly TEXTURE_WRAP_T: GLenum = 0;
-    readonly TRIANGLES: GLenum = 0;
-    readonly TRIANGLE_FAN: GLenum = 0;
-    readonly TRIANGLE_STRIP: GLenum = 0;
-    readonly UNPACK_ALIGNMENT: GLenum = 0;
-    readonly UNPACK_COLORSPACE_CONVERSION_WEBGL: GLenum = 0;
-    readonly UNPACK_FLIP_Y_WEBGL: GLenum = 0;
-    readonly UNPACK_PREMULTIPLY_ALPHA_WEBGL: GLenum = 0;
-    readonly UNSIGNED_BYTE: GLenum = 0;
-    readonly UNSIGNED_INT: GLenum = 0;
-    readonly UNSIGNED_SHORT: GLenum = 0;
-    readonly UNSIGNED_SHORT_4_4_4_4: GLenum = 0;
-    readonly UNSIGNED_SHORT_5_5_5_1: GLenum = 0;
-    readonly UNSIGNED_SHORT_5_6_5: GLenum = 0;
-    readonly VALIDATE_STATUS: GLenum = 0;
-    readonly VENDOR: GLenum = 0;
-    readonly VERSION: GLenum = 0;
-    readonly VERTEX_ATTRIB_ARRAY_BUFFER_BINDING: GLenum = 0;
-    readonly VERTEX_ATTRIB_ARRAY_ENABLED: GLenum = 0;
-    readonly VERTEX_ATTRIB_ARRAY_NORMALIZED: GLenum = 0;
-    readonly VERTEX_ATTRIB_ARRAY_POINTER: GLenum = 0;
-    readonly VERTEX_ATTRIB_ARRAY_SIZE: GLenum = 0;
-    readonly VERTEX_ATTRIB_ARRAY_STRIDE: GLenum = 0;
-    readonly VERTEX_ATTRIB_ARRAY_TYPE: GLenum = 0;
-    readonly VERTEX_SHADER: GLenum = 0;
-    readonly VIEWPORT: GLenum = 0;
-    readonly ZERO: GLenum = 0;
 }
+
+export { GjsifyWebGLRenderingContext as WebGLRenderingContext }

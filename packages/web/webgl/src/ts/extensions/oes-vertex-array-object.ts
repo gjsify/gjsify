@@ -7,9 +7,9 @@ import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js'
 
 export class WebGLVertexArrayObjectOES extends Linkable {
   _ctx: GjsifyWebGLRenderingContext;
-  _ext = undefined;
-  _vertexState: WebGLVertexArrayObjectState;
-  constructor (_, ctx: GjsifyWebGLRenderingContext, ext) {
+  _ext: OESVertexArrayObject;
+  _vertexState?: WebGLVertexArrayObjectState;
+  constructor (_: number, ctx: GjsifyWebGLRenderingContext, ext: OESVertexArrayObject) {
     super(_)
     this._ctx = ctx
     this._ext = ext
@@ -18,7 +18,7 @@ export class WebGLVertexArrayObjectOES extends Linkable {
 
   _performDelete () {
     // Clean up the vertex state to release references to buffers.
-    this._vertexState.cleanUp()
+    this._vertexState?.cleanUp()
 
     delete this._vertexState;
     delete this._ext._vaos[this._]
@@ -29,8 +29,8 @@ export class WebGLVertexArrayObjectOES extends Linkable {
 export class OESVertexArrayObject {
   VERTEX_ARRAY_BINDING_OES = 0x85B5;
   _ctx: GjsifyWebGLRenderingContext;
-  _vaos = {}
-  _activeVertexArrayObject = null
+  _vaos: Record<number, WebGLVertexArrayObjectOES> = {}
+  _activeVertexArrayObject: WebGLVertexArrayObjectOES | null = null
 
   constructor (ctx: GjsifyWebGLRenderingContext) {
     this.VERTEX_ARRAY_BINDING_OES = 0x85B5
@@ -47,7 +47,7 @@ export class OESVertexArrayObject {
     return array
   }
 
-  deleteVertexArrayOES (array) {
+  deleteVertexArrayOES (array: WebGLVertexArrayObjectOES | null) {
     const { _ctx: ctx } = this
     if (!checkObject(array)) {
       throw new TypeError('deleteVertexArrayOES(WebGLVertexArrayObjectOES)')
@@ -71,7 +71,7 @@ export class OESVertexArrayObject {
     array._checkDelete()
   }
 
-  bindVertexArrayOES (array) {
+  bindVertexArrayOES (array: WebGLVertexArrayObjectOES | null) {
     const { _ctx: ctx, _activeVertexArrayObject: activeVertexArrayObject } = this
     if (!checkObject(array)) {
       throw new TypeError('bindVertexArrayOES(WebGLVertexArrayObjectOES)')
@@ -102,7 +102,7 @@ export class OESVertexArrayObject {
 
     if (array === null) {
       ctx._vertexObjectState = ctx._defaultVertexObjectState
-    } else {
+    } else if(array._vertexState) {
       ctx._vertexObjectState = array._vertexState
     }
 
@@ -110,7 +110,7 @@ export class OESVertexArrayObject {
     this._activeVertexArrayObject = array
   }
 
-  isVertexArrayOES (object) {
+  isVertexArrayOES (object: WebGLVertexArrayObjectOES) {
     const { _ctx: ctx } = this
     if (!ctx._isObject(object, 'isVertexArrayOES', WebGLVertexArrayObjectOES)) return false
     return gl.isVertexArrayOES.call(ctx, object._ | 0)
