@@ -1,13 +1,27 @@
 {
     "cSpell.words": [
         "Abortable",
+        "behaviour",
+        "btok",
         "Deepkit's",
+        "dflt",
+        "DONT",
+        "drawingbuffer",
         "esbuild",
+        "framebuffers",
         "gjsify",
+        "glsl",
+        "Gwebgl",
+        "ioffset",
         "mainloop",
         "outdir",
         "outfile",
-        "tform"
+        "Parameterx",
+        "stackgl",
+        "tform",
+        "Toks",
+        "utype",
+        "xloc"
     ],
     "typescript.tsdk": "node_modules/typescript/lib"
 }

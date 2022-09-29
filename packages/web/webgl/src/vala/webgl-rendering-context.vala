@@ -35,6 +35,49 @@ namespace Gwebgl {
 
         }
 
+        public Variant extWEBGL_draw_buffers() {
+            var builder = new VariantBuilder(new VariantType("a{si}"));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT0_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT0_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT1_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT1_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT2_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT2_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT3_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT3_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT4_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT4_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT5_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT5_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT6_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT6_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT7_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT7_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT8_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT8_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT9_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT9_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT10_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT10_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT11_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT11_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT12_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT12_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT13_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT13_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT14_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT14_EXT));
+            //  builder.add ("{si}", "COLOR_ATTACHMENT15_WEBGL", new Variant.int32(GL_COLOR_ATTACHMENT15_EXT));
+
+            //  builder.add ("{si}", "DRAW_BUFFER0_WEBGL", new Variant.int32(GL_DRAW_BUFFER0_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER1_WEBGL", new Variant.int32(GL_DRAW_BUFFER1_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER2_WEBGL", new Variant.int32(GL_DRAW_BUFFER2_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER3_WEBGL", new Variant.int32(GL_DRAW_BUFFER3_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER4_WEBGL", new Variant.int32(GL_DRAW_BUFFER4_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER5_WEBGL", new Variant.int32(GL_DRAW_BUFFER5_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER6_WEBGL", new Variant.int32(GL_DRAW_BUFFER6_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER7_WEBGL", new Variant.int32(GL_DRAW_BUFFER7_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER8_WEBGL", new Variant.int32(GL_DRAW_BUFFER8_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER9_WEBGL", new Variant.int32(GL_DRAW_BUFFER9_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER10_WEBGL", new Variant.int32(GL_DRAW_BUFFER10_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER11_WEBGL", new Variant.int32(GL_DRAW_BUFFER11_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER12_WEBGL", new Variant.int32(GL_DRAW_BUFFER12_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER13_WEBGL", new Variant.int32(GL_DRAW_BUFFER13_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER14_WEBGL", new Variant.int32(GL_DRAW_BUFFER14_EXT));
+            //  builder.add ("{si}", "DRAW_BUFFER15_WEBGL", new Variant.int32(GL_DRAW_BUFFER15_EXT));
+
+            //  builder.add ("{si}", "MAX_COLOR_ATTACHMENTS_WEBGL", new Variant.int32(GL_MAX_COLOR_ATTACHMENTS_EXT));
+            //  builder.add ("{si}", "MAX_DRAW_BUFFERS_WEBGL", new Variant.int32(GL_MAX_DRAW_BUFFERS_EXT));
+
+            Variant result = builder.end();
+            return result;
+        }
+
         public void bufferData(GLenum target, ByteArray _data, GLenum usage) {
             var data = _data != null ? _data.data : null;
             var size = _data != null ? _data.len : 0;
@@ -135,17 +178,19 @@ namespace Gwebgl {
             glUniform4iv(location, vLength, value);
         }
 
-        public void uniformMatrix2fv(/*WebGLUniformLocation*/ int location, int valueLength, GLboolean transpose, GLfloat[]? value) {
-            glUniformMatrix2fv(location, valueLength / 4, transpose, value);
+        public void uniformMatrix2fv(/*WebGLUniformLocation*/ int location, GLboolean transpose, GLfloat[]? value) {
+            int length = value == null ? 0 : value.length;
+            glUniformMatrix2fv(location, length / 4, transpose, value);
         }
 
-        public void uniformMatrix3fv(/*WebGLUniformLocation*/ int location, int valueLength, GLboolean transpose, GLfloat[]? value) {
-            glUniformMatrix3fv(location, valueLength / 9, transpose, value);
+        public void uniformMatrix3fv(/*WebGLUniformLocation*/ int location, GLboolean transpose, GLfloat[]? value) {
+            int length = value == null ? 0 : value.length;
+            glUniformMatrix3fv(location, length / 9, transpose, value);
         }
 
-        public void uniformMatrix4fv(/*WebGLUniformLocation*/ int location, int valueLength, GLboolean transpose, GLfloat[]? value) {
-            glUniformMatrix4fv(location, valueLength / 16, transpose, value);
+        public void uniformMatrix4fv(/*WebGLUniformLocation*/ int location, GLboolean transpose, GLfloat[]? value) {
+            int length = value == null ? 0 : value.length;
+            glUniformMatrix4fv(location, length / 16, transpose, value);
         }
-    
     }
 }

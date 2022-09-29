@@ -80,7 +80,7 @@ interface WebGLRenderingContextBase {
     createProgram(): number
     createRenderbuffer(): number
     createShader(type: any): any
-    createTexture(): number | null
+    createTexture(): number
     cullFace(mode: any): void
     deleteBuffer(buffer: number | null): void
     deleteFramebuffer(framebuffer: number | null): void
@@ -104,15 +104,15 @@ interface WebGLRenderingContextBase {
     framebufferTexture2D(target: any, attachment: any, textarget: any, texture: number | null, level: any): void
     frontFace(mode: any): void
     generateMipmap(target: any): void
-    getActiveAttrib(program: number, index: number): WebGLActiveInfo | null
-    getActiveUniform(program: number, index: number): WebGLActiveInfo | null
-    getAttachedShaders(program: number): number[] | null
+    getActiveAttrib(program: number, index: number): /* result */ WebGLActiveInfo
+    getActiveUniform(program: number, index: number): /* result */ WebGLActiveInfo
+    getAttachedShaders(program: number): number[]
     getAttribLocation(program: number, name: string): any
     getBufferParameter(target: any, pname: any): any
     getError(): any
     setError(_error_: any): void
     getFramebufferAttachmentParameter(target: any, attachment: any, pname: any): any
-    getParameterx(pname: any): GLib.Variant | null
+    getParameterx(pname: any): GLib.Variant
     getParameterb(pname: any): any
     getParameterbv(pname: any, resultSize: number): any
     getParameterf(pname: any): any
@@ -245,6 +245,7 @@ interface WebGLRenderingContext {
 
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
+    extWEBGL_draw_buffers(): GLib.Variant
     bufferData(target: any, _data: Uint8Array, usage: any): void
     bufferDataSizeOnly(target: any, size: any, usage: any): void
     bufferSubData(target: any, offset: number, _data: Uint8Array): void
@@ -263,9 +264,9 @@ interface WebGLRenderingContext {
     uniform3iv(location: number, vLength: number, value: any[] | null): void
     uniform4fv(location: number, vLength: number, value: any[] | null): void
     uniform4iv(location: number, vLength: number, value: any[] | null): void
-    uniformMatrix2fv(location: number, valueLength: number, transpose: any, value: any[] | null): void
-    uniformMatrix3fv(location: number, valueLength: number, transpose: any, value: any[] | null): void
-    uniformMatrix4fv(location: number, valueLength: number, transpose: any, value: any[] | null): void
+    uniformMatrix2fv(location: number, transpose: any, value: any[] | null): void
+    uniformMatrix3fv(location: number, transpose: any, value: any[] | null): void
+    uniformMatrix4fv(location: number, transpose: any, value: any[] | null): void
     get_width(): number
     get_height(): number
     get_alpha(): boolean

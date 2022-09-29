@@ -5,7 +5,7 @@ export class GjsifyWebGLUniformLocation implements WebGLUniformLocation {
     _program: WebGLProgram;
     _linkCount = 0;
     _activeInfo: {size: GLsizei, type: GLenum, name: string };
-    _array = null
+    _array: Array<number | null> | null = null
     constructor (_: WebGLUniformLocation & number, program: WebGLProgram, info: {size: GLsizei, type: GLenum, name: string }) {
       this._ = _
       this._program = program

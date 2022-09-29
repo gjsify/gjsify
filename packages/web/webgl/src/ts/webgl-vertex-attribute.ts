@@ -58,7 +58,7 @@ export class WebGLVertexArrayObjectState {
         this._elementArrayBufferBinding = null
     }
 
-    setElementArrayBuffer(buffer: WebGLBuffer) {
+    setElementArrayBuffer(buffer: WebGLBuffer | null) {
         if (buffer !== null && !(buffer instanceof WebGLBuffer)) {
             throw new TypeError('setElementArrayBuffer(WebGLBuffer?)')
         }
@@ -150,7 +150,7 @@ export class WebGLVertexArrayGlobalState {
         this._arrayBufferBinding = null
     }
 
-    setArrayBuffer(buffer: WebGLBuffer) {
+    setArrayBuffer(buffer: WebGLBuffer | null) {
         if (buffer !== null && !(buffer instanceof WebGLBuffer)) {
             throw new TypeError('setArrayBuffer(WebGLBuffer?)')
         }

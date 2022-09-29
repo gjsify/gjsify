@@ -366,6 +366,11 @@ namespace Gwebgl {
             return this.webgl_constants;
         }
 
+        // TODO
+        //  public void vertexAttribDivisor(uint index, uint divisor) {
+        //      glVertexAttribDivisor(index, divisor);
+        //  }
+
         public void activeTexture(GLenum texture) {
             glActiveTexture(texture);
         }
@@ -700,7 +705,7 @@ namespace Gwebgl {
         // Credits
         // * https://github.com/stackgl/headless-gl/blob/ce1c08c0ef0c31d8c308cb828fd2f172c0bf5084/src/native/webgl.cc#L1745
         // * https://github.com/mikeseven/node-webgl/blob/a918e74acc7860db1bb63029934e8f54a2730ce2/src/webgl.cc#L1502
-        public Variant? getParameterx(GLenum pname) {
+        public Variant getParameterx(GLenum pname) {
             switch(pname) {
                 case UNPACK_FLIP_Y_WEBGL: {
                     return new Variant("b", unpack_flip_y);

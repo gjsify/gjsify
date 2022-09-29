@@ -5,14 +5,7 @@ import { WebGLProgram } from './webgl-program.js';
 
 import type Gwebgl from '@gjsify/types/Gwebgl-0.1';
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
-
-export const float32ListToArray = (values: Float32List) => {
-    const array: number[] = [];
-    for (const value of values.values()) {
-        array.push(value)
-    }
-    return array;
-}
+import type { TypedArray} from './types/index.js';
 
 export function bindPublics(props: Array<keyof GjsifyWebGLRenderingContext>, wrapper: GjsifyWebGLRenderingContext, privateInstance: GjsifyWebGLRenderingContext, privateMethods: string[]) {
     for (let i = 0; i < props.length; i++) {
@@ -46,7 +39,7 @@ export function checkUniform(program: WebGLProgram, location: WebGLUniformLocati
         location._linkCount === program._linkCount
 }
 
-export function isTypedArray(data: Uint8Array | Uint8ClampedArray | Int8Array | Uint16Array | Int16Array | Uint32Array | Int32Array | Float32Array | Float64Array) {
+export function isTypedArray(data: TypedArray) {
     return data instanceof Uint8Array ||
         data instanceof Uint8ClampedArray ||
         data instanceof Int8Array ||
@@ -135,10 +128,27 @@ export function uniformTypeSize(type: GLenum) {
     }
 }
 
-export function unpackTypedArray(array: Uint8Array | Uint16Array | Uint8ClampedArray | Float32Array) {
-    return (new Uint8Array(array.buffer)).subarray(
-        array.byteOffset,
-        array.byteLength + array.byteOffset)
+export const listToArray = (values: Float32List) => {
+    const array: number[] = [];
+    for (const value of values.values()) {
+        array.push(value)
+    }
+    return array;
+}
+
+export function unpackTypedArray(array: TypedArray | Float32List | Array<number>) {
+
+    if(Array.isArray(array)) {
+        return new Uint8Array(array);
+    }
+
+    if(typeof (array as Float32List).values === 'function') {
+        return new Uint8Array(listToArray(array as Float32List))
+    }
+
+    return (new Uint8Array((array as TypedArray).buffer)).subarray(
+        (array as TypedArray).byteOffset,
+        (array as TypedArray).byteLength + (array as TypedArray).byteOffset)
 }
 
 export const extractImageData = (pixels: TexImageSource): ImageData | null => {

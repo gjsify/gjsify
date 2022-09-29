@@ -2,9 +2,25 @@ import * as bits from 'bit-twiddle';
 import tokenize from 'glsl-tokenizer/string';
 import Gwebgl from '@gjsify/types/Gwebgl-0.1';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
-import { extractImageData, checkFormat, convertPixels, validCubeTarget, formatSize, isTypedArray, unpackTypedArray, flag, bindPublics, checkObject, float32ListToArray } from './utils.js';
 import { gl } from './native-gl.js';
 import { warnNotImplemented } from '@gjsify/utils';
+import {
+    extractImageData,
+    checkObject,
+    checkFormat,
+    checkUniform,
+    convertPixels,
+    validCubeTarget,
+    formatSize,
+    isTypedArray,
+    unpackTypedArray,
+    flag,
+    bindPublics,
+    listToArray,
+    isValidString,
+    uniformTypeSize,
+    vertexCount,
+} from './utils.js';
 
 import { getANGLEInstancedArrays } from './extensions/angle-instanced-arrays.js';
 import { getOESElementIndexUint } from './extensions/oes-element-index-unit.js';
@@ -13,7 +29,7 @@ import { getOESTextureFloat } from './extensions/oes-texture-float.js';
 import { getOESTextureFloatLinear } from './extensions/oes-texture-float-linear.js';
 import { getSTACKGLDestroyContext } from './extensions/stackgl-destroy-context.js';
 import { getSTACKGLResizeDrawingBuffer } from './extensions/stackgl-resize-drawing-buffer.js';
-import { getWebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
+// import { getWebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
 import { getEXTBlendMinMax } from './extensions/ext-blend-minmax.js';
 import { getEXTTextureFilterAnisotropic } from './extensions/ext-texture-filter-anisotropic.js';
 import { getOESVertexArrayObject } from './extensions/oes-vertex-array-object.js';
@@ -31,7 +47,9 @@ import { WebGLTexture } from './webgl-texture.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLVertexArrayObjectState, WebGLVertexArrayGlobalState } from './webgl-vertex-attribute.js';
 
-import type { ExtensionFactory } from './types/index.js';
+import type { ExtensionFactory, TypedArray } from './types/index.js';
+
+const VERSION = '0.0.1';
 
 let CONTEXT_COUNTER = 0;
 
@@ -57,7 +75,7 @@ const availableExtensions: Record<string, ExtensionFactory> = {
     oes_vertex_array_object: getOESVertexArrayObject,
     stackgl_destroy_context: getSTACKGLDestroyContext,
     stackgl_resize_drawingbuffer: getSTACKGLResizeDrawingBuffer,
-    webgl_draw_buffers: getWebGLDrawBuffers,
+    // webgl_draw_buffers: getWebGLDrawBuffers,
     ext_blend_minmax: getEXTBlendMinMax,
     ext_texture_filter_anisotropic: getEXTTextureFilterAnisotropic
 }
@@ -119,7 +137,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     _defaultVertexObjectState: WebGLVertexArrayObjectState;
     _vertexObjectState: WebGLVertexArrayObjectState;
 
-    // Vertex array attibures that are not in vertex array objects.
+    // Vertex array attributes that are not in vertex array objects.
     _vertexGlobalState: WebGLVertexArrayGlobalState;
 
     // Store limits
@@ -176,7 +194,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this._defaultVertexObjectState = new WebGLVertexArrayObjectState(this)
         this._vertexObjectState = this._defaultVertexObjectState
 
-        // Vertex array attibures that are not in vertex array objects.
+        // Vertex array attributes that are not in vertex array objects.
         this._vertexGlobalState = new WebGLVertexArrayGlobalState(this)
 
         // Store limits
@@ -220,6 +238,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         for (const [k, v] of Object.entries(hash)) {
             Object.defineProperty(this, k, { value: v });
         }
+    }
+
+    extWEBGL_draw_buffers() {
+        return this._native.extWEBGL_draw_buffers().deepUnpack<Record<string, number>>();
     }
 
     _checkDimensions(target: GLenum, width: GLsizei, height: GLsizei, level: number) {
@@ -566,7 +588,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return this._extensions.webgl_draw_buffers ? this._extensions.webgl_draw_buffers._ALL_COLOR_ATTACHMENTS : DEFAULT_COLOR_ATTACHMENTS
     }
 
-    _getParameterDirect(pname: GLenum) {
+    _getParameterDirect(pname: GLenum): any {
         return this._native.getParameterx(pname)?.deepUnpack();
     }
 
@@ -768,12 +790,12 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             this._native.bindRenderbuffer(
                 gl.RENDERBUFFER,
                 drawingBuffer?._depthStencil || null)
-                this._native.renderbufferStorage(
+            this._native.renderbufferStorage(
                 gl.RENDERBUFFER,
                 storage,
                 width,
                 height)
-                this._native.framebufferRenderbuffer(
+            this._native.framebufferRenderbuffer(
                 gl.FRAMEBUFFER,
                 attachment,
                 gl.RENDERBUFFER,
@@ -806,7 +828,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
     }
 
-    _tryDetachFramebuffer(framebuffer: WebGLFramebuffer, renderbuffer: WebGLRenderbuffer) {
+    _tryDetachFramebuffer(framebuffer: WebGLFramebuffer | null, renderbuffer: WebGLRenderbuffer) {
         // FIXME: Does the texture get unbound from *all* framebuffers, or just the
         // active FBO?
         if (framebuffer && framebuffer._linked(renderbuffer)) {
@@ -824,7 +846,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
     }
 
-    _updateFramebufferAttachments(framebuffer: WebGLFramebuffer) {
+    _updateFramebufferAttachments(framebuffer: WebGLFramebuffer | null) {
+        if (!framebuffer) {
+            return
+        }
         const prevStatus = framebuffer._status
         const attachments = this._getAttachments()
         framebuffer._status = this._preCheckFramebufferStatus(framebuffer)
@@ -918,9 +943,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 return true
         }
 
-        if (this._extensions.webgl_draw_buffers) { // eslint-disable-line
-            const { webgl_draw_buffers } = this._extensions; // eslint-disable-line
-            return attachment < (webgl_draw_buffers.COLOR_ATTACHMENT0_WEBGL + webgl_draw_buffers._maxDrawBuffers) // eslint-disable-line
+        if (this._extensions.webgl_draw_buffers) {
+            const { webgl_draw_buffers } = this._extensions;
+            return attachment < (webgl_draw_buffers.COLOR_ATTACHMENT0_WEBGL + webgl_draw_buffers._maxDrawBuffers)
         }
 
         return false
@@ -972,13 +997,14 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
     _beginAttrib0Hack() {
         this._native.bindBuffer(gl.ARRAY_BUFFER, this._attrib0Buffer?._ || null)
+        const uInt8Data = new Uint8Array(this._vertexGlobalState._attribs[0]._data.buffer);
         this._native.bufferData(
             gl.ARRAY_BUFFER,
-            this._vertexGlobalState._attribs[0]._data,
+            uInt8Data,
             gl.STREAM_DRAW)
         this._native.enableVertexAttribArray(0)
         this._native.vertexAttribPointer(0, 4, gl.FLOAT, false, 0, 0)
-        this._native._vertexAttribDivisor(0, 1)
+        // TODO: this._native._vertexAttribDivisor(0, 1)
     }
 
     _endAttrib0Hack() {
@@ -995,7 +1021,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             attrib._pointerNormal,
             attrib._inputStride,
             attrib._pointerOffset)
-        this._native._vertexAttribDivisor(0, attrib._divisor)
+        // TODO: this._native._vertexAttribDivisor(0, attrib._divisor)
         this._native.disableVertexAttribArray(0)
         if (this._vertexGlobalState._arrayBufferBinding) {
             this._native.bindBuffer(gl.ARRAY_BUFFER, this._vertexGlobalState._arrayBufferBinding._)
@@ -1038,24 +1064,88 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     }
 
     bufferData(target: GLenum, size: GLsizeiptr, usage: GLenum): void;
-    bufferData(target: GLenum, data: BufferSource | null, usage: GLenum): void;
-    bufferData(target: GLenum, dataOrSize: GLsizeiptr | BufferSource | null, usage: GLenum): void {
+    bufferData(target: GLenum, data: TypedArray | BufferSource | null, usage: GLenum): void;
+    bufferData(target: GLenum = 0, dataOrSize: GLsizeiptr | TypedArray | BufferSource | null, usage: GLenum = 0): void {
         let size = 0;
         let data: BufferSource | null = null;
+
         if (typeof dataOrSize === 'number') {
             size = dataOrSize;
-        } else if (dataOrSize && typeof dataOrSize === 'object') {
+        } else if (typeof dataOrSize === 'object') {
             data = dataOrSize;
         }
 
-        if (!data) {
-            return super.bufferDataSizeOnly(target, size, usage);
+        if (usage !== gl.STREAM_DRAW &&
+            usage !== gl.STATIC_DRAW &&
+            usage !== gl.DYNAMIC_DRAW) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        if (target !== gl.ARRAY_BUFFER &&
+            target !== gl.ELEMENT_ARRAY_BUFFER) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        const active = this._getActiveBuffer(target)
+        if (!active) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        if (data) {
+            let u8Data = null
+            if (isTypedArray(data as TypedArray)) {
+                u8Data = unpackTypedArray(data as TypedArray)
+            } else if (data instanceof ArrayBuffer) {
+                u8Data = new Uint8Array(data)
+            } else {
+                this.setError(gl.INVALID_VALUE)
+                return
+            }
+
+            this._saveError()
+            this._native.bufferData(
+                target,
+                u8Data,
+                usage)
+            const error = this.getError()
+            this._restoreError(error)
+            if (error !== gl.NO_ERROR) {
+                return
+            }
+
+            active._size = u8Data.length
+            if (target === gl.ELEMENT_ARRAY_BUFFER) {
+                active._elements = new Uint8Array(u8Data)
+            }
+        } else if (typeof dataOrSize === 'number') {
+            if (size < 0) {
+                this.setError(gl.INVALID_VALUE)
+                return
+            }
+
+            this._saveError()
+            this._native.bufferDataSizeOnly(
+                target,
+                size,
+                usage)
+            const error = this.getError()
+            this._restoreError(error)
+            if (error !== gl.NO_ERROR) {
+                return
+            }
+
+            active._size = size
+            if (target === gl.ELEMENT_ARRAY_BUFFER) {
+                active._elements = new Uint8Array(size)
+            }
+        } else {
+            this.setError(gl.INVALID_VALUE)
         }
     }
-    bufferSubData(target: GLenum, offset: GLintptr, data: BufferSource): void {
-        target |= 0
-        offset |= 0
-
+    bufferSubData(target: GLenum = 0, offset: GLintptr = 0, data: BufferSource): void {
         if (target !== gl.ARRAY_BUFFER &&
             target !== gl.ELEMENT_ARRAY_BUFFER) {
             this.setError(gl.INVALID_ENUM)
@@ -1101,19 +1191,136 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             active._elements.set(u8Data, offset)
         }
 
-        super.bufferSubData(target, offset, u8Data);
+        this._native.bufferSubData(target, offset, u8Data);
     }
-    compressedTexImage2D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, border: GLint, data: ArrayBufferView): void {
-        return super.compressedTexImage2D(target, level, internalformat, width, height, border, data);
+    compressedTexImage2D(target: GLenum, level: GLint, internalFormat: GLenum, width: GLsizei, height: GLsizei, border: GLint, data: TypedArray): void {
+        return this._native.compressedTexImage2D(target, level, internalFormat, width, height, border, unpackTypedArray(data));
     }
-    compressedTexSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, data: ArrayBufferView): void {
-        return super.compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, data);
+    compressedTexSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, data: TypedArray): void {
+        return this._native.compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, unpackTypedArray(data));
     }
-    readPixels(x: GLint, y: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void {
-        return super.readPixels(x, y, width, height, format, type, pixels);
+    readPixels(x: GLint = 0, y: GLint = 0, width: GLsizei = 0, height: GLsizei = 0, format: GLenum = 0, type: GLenum = 0, pixels: TypedArray | null): void {
+        if(!pixels) return;
+        // return this._native.readPixels(x, y, width, height, format, type, pixels);
+
+        if (!(this._extensions.oes_texture_float && type === gl.FLOAT && format === gl.RGBA)) {
+            if (format === gl.RGB ||
+                format === gl.ALPHA ||
+                type !== gl.UNSIGNED_BYTE) {
+                this.setError(gl.INVALID_OPERATION)
+                return
+            } else if (format !== gl.RGBA) {
+                this.setError(gl.INVALID_ENUM)
+                return
+            } else if (
+                width < 0 ||
+                height < 0 ||
+                !(pixels instanceof Uint8Array)) {
+                this.setError(gl.INVALID_VALUE)
+                return
+            }
+        }
+
+        if (!this._framebufferOk()) {
+            return
+        }
+
+        let rowStride = width * 4
+        if (rowStride % this._packAlignment !== 0) {
+            rowStride += this._packAlignment - (rowStride % this._packAlignment)
+        }
+
+        const imageSize = rowStride * (height - 1) + width * 4
+        if (imageSize <= 0) {
+            return
+        }
+        const pixelsLength = (pixels as any).length || pixels.byteLength || 0;
+        if (pixelsLength < imageSize) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+
+        // Handle reading outside the window
+        let viewWidth = this.drawingBufferWidth
+        let viewHeight = this.drawingBufferHeight
+
+        if (this._activeFramebuffer) {
+            viewWidth = this._activeFramebuffer._width
+            viewHeight = this._activeFramebuffer._height
+        }
+
+        const pixelData = unpackTypedArray(pixels)
+
+        if (x >= viewWidth || x + width <= 0 ||
+            y >= viewHeight || y + height <= 0) {
+            for (let i = 0; i < pixelData.length; ++i) {
+                pixelData[i] = 0
+            }
+        } else if (x < 0 || x + width > viewWidth ||
+            y < 0 || y + height > viewHeight) {
+            for (let i = 0; i < pixelData.length; ++i) {
+                pixelData[i] = 0
+            }
+
+            let nx = x
+            let nWidth = width
+            if (x < 0) {
+                nWidth += x
+                nx = 0
+            }
+            if (nx + width > viewWidth) {
+                nWidth = viewWidth - nx
+            }
+            let ny = y
+            let nHeight = height
+            if (y < 0) {
+                nHeight += y
+                ny = 0
+            }
+            if (ny + height > viewHeight) {
+                nHeight = viewHeight - ny
+            }
+
+            let nRowStride = nWidth * 4
+            if (nRowStride % this._packAlignment !== 0) {
+                nRowStride += this._packAlignment - (nRowStride % this._packAlignment)
+            }
+
+            if (nWidth > 0 && nHeight > 0) {
+                const subPixels = new Uint8Array(nRowStride * nHeight)
+                this._native.readPixels(
+                    nx,
+                    ny,
+                    nWidth,
+                    nHeight,
+                    format,
+                    type,
+                    subPixels)
+
+                const offset = 4 * (nx - x) + (ny - y) * rowStride
+                for (let j = 0; j < nHeight; ++j) {
+                    for (let i = 0; i < nWidth; ++i) {
+                        for (let k = 0; k < 4; ++k) {
+                            pixelData[offset + j * rowStride + 4 * i + k] =
+                                subPixels[j * nRowStride + 4 * i + k]
+                        }
+                    }
+                }
+            }
+        } else {
+            this._native.readPixels(
+                x,
+                y,
+                width,
+                height,
+                format,
+                type,
+                pixelData)
+        }
+
     }
-    texImage2D(target: GLenum, level: GLint, internalformat: GLint, width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
-    texImage2D(target: GLenum, level: GLint, internalformat: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
+    texImage2D(target: GLenum, level: GLint, internalFormat: GLint, width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
+    texImage2D(target: GLenum, level: GLint, internalFormat: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
     // https://github.com/stackgl/headless-gl/blob/ce1c08c0ef0c31d8c308cb828fd2f172c0bf5084/src/javascript/webgl-rendering-context.js#L3131
     texImage2D(target: GLenum, level: GLint, internalFormat: GLint, formatOrWidth: GLenum | GLsizei, typeOrHeight: GLenum | GLsizei, sourceOrBorder: TexImageSource | GLint, _format?: GLenum, _type?: GLenum, _pixels?: ArrayBufferView | null): void {
 
@@ -1207,7 +1414,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         // Need to check for out of memory error
         this._saveError()
-        super.texImage2D(
+        this._native.texImage2D(
             target,
             level,
             internalFormat,
@@ -1239,7 +1446,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                     break
                 }
             }
-            if (needsUpdate) {
+            if (needsUpdate && this._activeFramebuffer) {
                 this._updateFramebufferAttachments(this._activeFramebuffer)
             }
         }
@@ -1249,53 +1456,311 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, formatOrWidth: GLenum | GLsizei, typeOrHeight: GLenum | GLsizei, sourceOrFormat: TexImageSource | GLenum, type?: GLenum, pixels?: ArrayBufferView | null): void {
 
     }
-    uniform1fv(location: WebGLUniformLocation | null, v: Float32List): void {
-        super.uniform1fv(location, v);
+
+    _checkUniformValid(location: WebGLUniformLocation | null, v0: GLfloat, name: string, count: number, type: string) {
+        if (!checkObject(location)) {
+            throw new TypeError(`${name}(WebGLUniformLocation, ...)`)
+        } else if (!location) {
+            return false
+        } else if (this._checkLocationActive(location)) {
+            const utype = location._activeInfo.type
+            if (utype === gl.SAMPLER_2D || utype === gl.SAMPLER_CUBE) {
+                if (count !== 1) {
+                    this.setError(gl.INVALID_VALUE)
+                    return
+                }
+                if (type !== 'i') {
+                    this.setError(gl.INVALID_OPERATION)
+                    return
+                }
+                if (v0 < 0 || v0 >= this._textureUnits.length) {
+                    this.setError(gl.INVALID_VALUE)
+                    return false
+                }
+            }
+            if (uniformTypeSize(utype) > count) {
+                this.setError(gl.INVALID_OPERATION)
+                return false
+            }
+            return true
+        }
+        return false
     }
+
+    _checkUniformValueValid(location: WebGLUniformLocation | null, value: Float32List | Int32List, name: string, count: number, type: string) {
+        if (!checkObject(location) ||
+            !checkObject(value)) {
+            throw new TypeError(`${name}v(WebGLUniformLocation, Array)`)
+        } else if (!location) {
+            return false
+        } else if (!this._checkLocationActive(location)) {
+            return false
+        } else if (typeof value !== 'object' || !value || typeof value.length !== 'number') {
+            throw new TypeError(`Second argument to ${name} must be array`)
+        } else if (uniformTypeSize(location._activeInfo.type) > count) {
+            this.setError(gl.INVALID_OPERATION)
+            return false
+        } else if (value.length >= count && value.length % count === 0) {
+            if (location._array) {
+                return true
+            } else if (value.length === count) {
+                return true
+            } else {
+                this.setError(gl.INVALID_OPERATION)
+                return false
+            }
+        }
+        this.setError(gl.INVALID_VALUE)
+        return false
+    }
+
+    uniform1fv(location: WebGLUniformLocation | null, value: Float32List | Int32List): void {
+        if (!location || this._checkUniformValueValid(location, value, 'uniform1fv', 1, 'f')) return
+        if (location?._array) {
+            const locs = location._array
+            for (let i = 0; i < locs.length && i < value.length; ++i) {
+                const loc = locs[i]
+                this._native.uniform1f(loc, value[i])
+            }
+            return
+        }
+        this._native.uniform1f(location?._ | 0, value[0])
+    }
+
     uniform1iv(location: WebGLUniformLocation | null, v: Int32List): void {
-
+        if (!this._checkUniformValueValid(location, v, 'uniform1iv', 1, 'i')) return
+        if (location?._array) {
+            const locs = location._array
+            for (let i = 0; i < locs.length && i < v.length; ++i) {
+                const loc = locs[i]
+                this._native.uniform1i(loc, v[i])
+            }
+            return
+        }
+        this.uniform1i(location, v[0])
     }
+
     uniform2fv(location: WebGLUniformLocation | null, v: Float32List): void {
-
+        if (!this._checkUniformValueValid(location, v, 'uniform2fv', 2, 'f')) return
+        if (location?._array) {
+            const locs = location._array
+            for (let i = 0; i < locs.length && 2 * i < v.length; ++i) {
+                const loc = locs[i]
+                this._native.uniform2f(loc, v[2 * i], v[(2 * i) + 1])
+            }
+            return
+        }
+        this._native.uniform2f(location?._ || 0, v[0], v[1])
     }
+
     uniform2iv(location: WebGLUniformLocation | null, v: Int32List): void {
-
+        if (!this._checkUniformValueValid(location, v, 'uniform2iv', 2, 'i')) return
+        if (location?._array) {
+            const locs = location._array
+            for (let i = 0; i < locs.length && 2 * i < v.length; ++i) {
+                const loc = locs[i]
+                this._native.uniform2i(loc, v[2 * i], v[2 * i + 1])
+            }
+            return
+        }
+        this.uniform2i(location, v[0], v[1])
     }
-    uniform3fv(location: WebGLUniformLocation | null, v: Float32List): void {
 
+    uniform3fv(location: WebGLUniformLocation | null, v: Float32List): void {
+        if (!this._checkUniformValueValid(location, v, 'uniform3fv', 3, 'f')) return
+        if (location?._array) {
+            const locs = location._array
+            for (let i = 0; i < locs.length && 3 * i < v.length; ++i) {
+                const loc = locs[i]
+                this._native.uniform3f(loc, v[3 * i], v[3 * i + 1], v[3 * i + 2])
+            }
+            return
+        }
+        this._native.uniform3f(location?._ || 0, v[0], v[1], v[2])
     }
     uniform3iv(location: WebGLUniformLocation | null, v: Int32List): void {
-
+        if (!this._checkUniformValueValid(location, v, 'uniform3iv', 3, 'i')) return
+        if (location?._array) {
+            const locs = location._array
+            for (let i = 0; i < locs.length && 3 * i < v.length; ++i) {
+                const loc = locs[i]
+                this._native.uniform3i(loc, v[3 * i], v[3 * i + 1], v[3 * i + 2])
+            }
+            return
+        }
+        this.uniform3i(location, v[0], v[1], v[2])
     }
     uniform4fv(location: WebGLUniformLocation | null, v: Float32List): void {
-
+        if (!this._checkUniformValueValid(location, v, 'uniform4fv', 4, 'f')) return
+        if (location?._array) {
+            const locs = location._array
+            for (let i = 0; i < locs.length && 4 * i < v.length; ++i) {
+                const loc = locs[i]
+                this._native.uniform4f(loc, v[4 * i], v[4 * i + 1], v[4 * i + 2], v[4 * i + 3])
+            }
+            return
+        }
+        this._native.uniform4f(location?._ || 0, v[0], v[1], v[2], v[3])
     }
     uniform4iv(location: WebGLUniformLocation | null, v: Int32List): void {
-
+        if (!this._checkUniformValueValid(location, v, 'uniform4iv', 4, 'i')) return
+        if (location?._array) {
+            const locs = location._array
+            for (let i = 0; i < locs.length && 4 * i < v.length; ++i) {
+                const loc = locs[i]
+                this._native.uniform4i(loc, v[4 * i], v[4 * i + 1], v[4 * i + 2], v[4 * i + 3])
+            }
+            return
+        }
+        this.uniform4i(location, v[0], v[1], v[2], v[3])
     }
-    uniformMatrix2fv(location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List): void {
 
+    _checkUniformMatrix(location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List, name: string, count: number) {
+        if (!checkObject(location) ||
+            typeof value !== 'object') {
+            throw new TypeError(name + '(WebGLUniformLocation, Boolean, Array)')
+        } else if (!!transpose ||
+            typeof value !== 'object' ||
+            value === null ||
+            !value.length ||
+            value.length % count * count !== 0) {
+            this.setError(gl.INVALID_VALUE)
+            return false
+        }
+        if (!location) {
+            return false
+        }
+        if (!this._checkLocationActive(location)) {
+            return false
+        }
+
+        if (value.length === count * count) {
+            return true
+        } else if (location._array) {
+            return true
+        }
+        this.setError(gl.INVALID_VALUE)
+        return false
+    }
+
+    uniformMatrix2fv(location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List): void {
+        if (!this._checkUniformMatrix(location, transpose, value, 'uniformMatrix2fv', 2)) return
+        const data = new Float32Array(value)
+        this._native.uniformMatrix2fv(
+            location?._ || 0,
+            !!transpose,
+            listToArray(data))
     }
     uniformMatrix3fv(location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List): void {
-
+        if (!this._checkUniformMatrix(location, transpose, value, 'uniformMatrix3fv', 3)) return
+        const data = new Float32Array(value)
+        this._native.uniformMatrix3fv(
+            location?._ || 0,
+            !!transpose,
+            listToArray(data))
     }
     uniformMatrix4fv(location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List): void {
-
+        if (!this._checkUniformMatrix(location, transpose, value, 'uniformMatrix4fv', 4)) return
+        const data = new Float32Array(value)
+        this._native.uniformMatrix4fv(
+            location?._ || 0,
+            !!transpose,
+            listToArray(data))
     }
 
     //////////// BASE ////////////
 
-    activeTexture(texture: GLenum): void {
-        return this._native.activeTexture(texture);
+    activeTexture(texture: GLenum = 0): void {
+        // return this._native.activeTexture(texture);
+        const texNum = texture - gl.TEXTURE0
+        if (texNum >= 0 && texNum < this._textureUnits.length) {
+            this._activeTextureUnit = texNum
+            return this._native.activeTexture(texture)
+        }
+
+        this.setError(gl.INVALID_ENUM)
     }
     attachShader(program: WebGLProgram, shader: WebGLShader): void {
-        return this._native.attachShader(program._, shader._);
+        // return this._native.attachShader(program._, shader._);
+        if (!checkObject(program) ||
+            !checkObject(shader)) {
+            throw new TypeError('attachShader(WebGLProgram, WebGLShader)')
+        }
+        if (!program || !shader) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        } else if (program instanceof WebGLProgram &&
+            shader instanceof WebGLShader &&
+            this._checkOwns(program) &&
+            this._checkOwns(shader)) {
+            if (!program._linked(shader)) {
+                this._saveError()
+                this._native.attachShader(
+                    program._ | 0,
+                    shader._ | 0)
+                const error = this.getError()
+                this._restoreError(error)
+                if (error === gl.NO_ERROR) {
+                    program._link(shader)
+                }
+                return
+            }
+        }
+        this.setError(gl.INVALID_OPERATION)
     }
     bindAttribLocation(program: WebGLProgram, index: GLuint, name: string): void {
-        return this._native.bindAttribLocation(program._, index, name);
+        // return this._native.bindAttribLocation(program._, index, name);
+        if (!checkObject(program) ||
+            typeof name !== 'string') {
+            throw new TypeError('bindAttribLocation(WebGLProgram, GLint, String)')
+        }
+        name += ''
+        if (!isValidString(name) || name.length > MAX_ATTRIBUTE_LENGTH) {
+            this.setError(gl.INVALID_VALUE)
+        } else if (/^_?webgl_a/.test(name)) {
+            this.setError(gl.INVALID_OPERATION)
+        } else if (this._checkWrapper(program, WebGLProgram)) {
+            return this._native.bindAttribLocation(
+                program._ | 0,
+                index | 0,
+                name)
+        }
     }
-    bindBuffer(target: GLenum, buffer: WebGLBuffer | null): void {
-        return this._native.bindBuffer(target, buffer?._ || null);
+    bindBuffer(target: GLenum = 0, buffer: WebGLBuffer | null): void {
+        // return this._native.bindBuffer(target, buffer?._ || null);
+        if (!checkObject(buffer)) {
+            throw new TypeError('bindBuffer(GLenum, WebGLBuffer)')
+        }
+        if (target !== gl.ARRAY_BUFFER &&
+            target !== gl.ELEMENT_ARRAY_BUFFER) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        if (!buffer) {
+            buffer = null
+            this._native.bindBuffer(target, 0)
+        } else if (buffer._pendingDelete) {
+            return
+        } else if (this._checkWrapper(buffer, WebGLBuffer)) {
+            if (buffer._binding && buffer._binding !== target) {
+                this.setError(gl.INVALID_OPERATION)
+                return
+            }
+            buffer._binding = target | 0
+
+            this._native.bindBuffer(target, buffer._ | 0)
+        } else {
+            return
+        }
+
+        if (target === gl.ARRAY_BUFFER) {
+            // Buffers of type ARRAY_BUFFER are bound to the global vertex state.
+            this._vertexGlobalState.setArrayBuffer(buffer)
+        } else {
+            // Buffers of type ELEMENT_ARRAY_BUFFER are bound to vertex array object state.
+            this._vertexObjectState.setElementArrayBuffer(buffer)
+        }
     }
     bindFramebuffer(target: GLenum, framebuffer: WebGLFramebuffer | null): void {
         // return this._native.bindFramebuffer(target, framebuffer?._ || null);
@@ -1309,7 +1774,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         if (!framebuffer) {
             this._native.bindFramebuffer(
                 gl.FRAMEBUFFER,
-                this._drawingBuffer._framebuffer)
+                this._drawingBuffer?._framebuffer || null)
         } else if (framebuffer._pendingDelete) {
             return
         } else if (this._checkWrapper(framebuffer, WebGLFramebuffer)) {
@@ -1335,52 +1800,270 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
     }
     bindRenderbuffer(target: GLenum, renderbuffer: WebGLRenderbuffer | null): void {
-        return this._native.bindRenderbuffer(target, renderbuffer?._ || null);
+        // return this._native.bindRenderbuffer(target, renderbuffer?._ || null);
+        if (!checkObject(renderbuffer)) {
+            throw new TypeError('bindRenderbuffer(GLenum, WebGLRenderbuffer)')
+        }
+
+        if (target !== gl.RENDERBUFFER) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        if (!renderbuffer) {
+            this._native.bindRenderbuffer(
+                target | 0,
+                0)
+        } else if (renderbuffer._pendingDelete) {
+            return
+        } else if (this._checkWrapper(renderbuffer, WebGLRenderbuffer)) {
+            this._native.bindRenderbuffer(
+                target | 0,
+                renderbuffer._ | 0)
+        } else {
+            return
+        }
+        const active = this._activeRenderbuffer
+        if (active !== renderbuffer) {
+            if (active) {
+                active._refCount -= 1
+                active._checkDelete()
+            }
+            if (renderbuffer) {
+                renderbuffer._refCount += 1
+            }
+        }
+        this._activeRenderbuffer = renderbuffer
     }
-    bindTexture(target: GLenum, texture: WebGLTexture | null): void {
-        return this._native.bindTexture(target, texture?._ || null);
+    bindTexture(target: GLenum = 0, texture: WebGLTexture | null): void {
+        if (!checkObject(texture)) {
+            throw new TypeError('bindTexture(GLenum, WebGLTexture)')
+        }
+
+        if (!this._validTextureTarget(target)) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        // Get texture id
+        let textureId = 0
+        if (!texture) {
+            texture = null
+        } else if (texture instanceof WebGLTexture &&
+            texture._pendingDelete) {
+            // Special case: error codes for deleted textures don't get set for some dumb reason
+            return
+        } else if (this._checkWrapper(texture, WebGLTexture)) {
+            // Check binding mode of texture
+            if (texture._binding && texture._binding !== target) {
+                this.setError(gl.INVALID_OPERATION)
+                return
+            }
+            texture._binding = target
+
+            if (texture._complete) {
+                textureId = texture._ | 0
+            }
+        } else {
+            return
+        }
+
+        this._saveError()
+        this._native.bindTexture(
+            target,
+            textureId)
+        const error = this.getError()
+        this._restoreError(error)
+
+        if (error !== gl.NO_ERROR) {
+            return
+        }
+
+        const activeUnit = this._getActiveTextureUnit()
+        const activeTex = this._getActiveTexture(target)
+
+        // Update references
+        if (activeTex !== texture) {
+            if (activeTex) {
+                activeTex._refCount -= 1
+                activeTex._checkDelete()
+            }
+            if (texture) {
+                texture._refCount += 1
+            }
+        }
+
+        if (target === gl.TEXTURE_2D) {
+            activeUnit._bind2D = texture
+        } else if (target === gl.TEXTURE_CUBE_MAP) {
+            activeUnit._bindCube = texture
+        }
     }
-    blendColor(red: GLclampf, green: GLclampf, blue: GLclampf, alpha: GLclampf): void {
-        return this._native.blendColor(red, green, blue, alpha);
+    blendColor(red: GLclampf = 0, green: GLclampf = 0, blue: GLclampf = 0, alpha: GLclampf = 0): void {
+        return this._native.blendColor(+red, +green, +blue, +alpha);
     }
-    blendEquation(mode: GLenum): void {
-        return this._native.blendEquation(mode);
+    blendEquation(mode: GLenum = 0): void {
+        if (this._validBlendMode(mode)) {
+            return this._native.blendEquation(mode)
+        }
+        this.setError(gl.INVALID_ENUM)
     }
-    blendEquationSeparate(modeRGB: GLenum, modeAlpha: GLenum): void {
-        return this._native.blendEquationSeparate(modeRGB, modeAlpha);
+    blendEquationSeparate(modeRGB: GLenum = 0, modeAlpha: GLenum = 0): void {
+        if (this._validBlendMode(modeRGB) && this._validBlendMode(modeAlpha)) {
+            return this._native.blendEquationSeparate(modeRGB, modeAlpha)
+        }
+        this.setError(gl.INVALID_ENUM)
     }
-    blendFunc(sfactor: GLenum, dfactor: GLenum): void {
-        return this._native.blendFunc(sfactor, dfactor);
+    blendFunc(sfactor: GLenum = 0, dfactor: GLenum = 0): void {
+        if (!this._validBlendFunc(sfactor) ||
+            !this._validBlendFunc(dfactor)) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+        if (this._isConstantBlendFunc(sfactor) && this._isConstantBlendFunc(dfactor)) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+        this._native.blendFunc(sfactor, dfactor)
     }
-    blendFuncSeparate(srcRGB: GLenum, dstRGB: GLenum, srcAlpha: GLenum, dstAlpha: GLenum): void {
-        return this._native.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+    blendFuncSeparate(srcRGB: GLenum = 0, dstRGB: GLenum = 0, srcAlpha: GLenum = 0, dstAlpha: GLenum = 0): void {
+        if (!(this._validBlendFunc(srcRGB) &&
+            this._validBlendFunc(dstRGB) &&
+            this._validBlendFunc(srcAlpha) &&
+            this._validBlendFunc(dstAlpha))) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        if ((this._isConstantBlendFunc(srcRGB) && this._isConstantBlendFunc(dstRGB)) ||
+            (this._isConstantBlendFunc(srcAlpha) && this._isConstantBlendFunc(dstAlpha))) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        this._native.blendFuncSeparate(
+            srcRGB,
+            dstRGB,
+            srcAlpha,
+            dstAlpha)
     }
     checkFramebufferStatus(target: GLenum): GLenum {
-        return this._native.checkFramebufferStatus(target);
+        if (target !== gl.FRAMEBUFFER) {
+            this.setError(gl.INVALID_ENUM)
+            return 0
+        }
+
+        const framebuffer = this._activeFramebuffer
+        if (!framebuffer) {
+            return gl.FRAMEBUFFER_COMPLETE
+        }
+
+        return this._preCheckFramebufferStatus(framebuffer)
+        // return this._native.checkFramebufferStatus(target);
     }
-    clear(mask: GLbitfield): void {
+    clear(mask: GLbitfield = 0): void {
+        if (!this._framebufferOk()) {
+            return
+        }
         return this._native.clear(mask);
     }
     clearColor(red: GLclampf, green: GLclampf, blue: GLclampf, alpha: GLclampf): void {
-        return this._native.clearColor(red, green, blue, alpha);
+        return this._native.clearColor(+red, +green, +blue, +alpha);
     }
     clearDepth(depth: GLclampf): void {
-        return this._native.clearDepth(depth);
+        return this._native.clearDepth(+depth);
     }
-    clearStencil(s: GLint): void {
+    clearStencil(s: GLint = 0): void {
+        this._checkStencil = false;
         return this._native.clearStencil(s);
     }
     colorMask(red: GLboolean, green: GLboolean, blue: GLboolean, alpha: GLboolean): void {
-        return this._native.colorMask(red, green, blue, alpha);
+        return this._native.colorMask(!!red, !!green, !!blue, !!alpha);
     }
     compileShader(shader: WebGLShader): void {
-        return this._native.compileShader(shader._);
+        if (!checkObject(shader)) {
+            throw new TypeError('compileShader(WebGLShader)')
+        }
+        if (this._checkWrapper(shader, WebGLShader) &&
+            this._checkShaderSource(shader)) {
+            const prevError = this.getError()
+            this._native.compileShader(shader._ | 0)
+            const error = this.getError()
+            shader._compileStatus = !!this._native.getShaderParameter(
+                shader._ | 0,
+                gl.COMPILE_STATUS)
+            shader._compileInfo = this._native.getShaderInfoLog(shader._ | 0) || 'null'
+            this.getError()
+            this.setError(prevError || error)
+        }
     }
-    copyTexImage2D(target: GLenum, level: GLint, internalformat: GLenum, x: GLint, y: GLint, width: GLsizei, height: GLsizei, border: GLint): void {
-        return this._native.copyTexImage2D(target, level, internalformat, x, y, width, height, border);
+    copyTexImage2D(target: GLenum = 0, level: GLint = 0, internalFormat: GLenum = 0, x: GLint = 0, y: GLint = 0, width: GLsizei = 0, height: GLsizei = 0, border: GLint = 0): void {
+        const texture = this._getTexImage(target)
+        if (!texture) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        if (internalFormat !== gl.RGBA &&
+            internalFormat !== gl.RGB &&
+            internalFormat !== gl.ALPHA &&
+            internalFormat !== gl.LUMINANCE &&
+            internalFormat !== gl.LUMINANCE_ALPHA) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        if (level < 0 || width < 0 || height < 0 || border !== 0) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+
+        if (level > 0 && !(bits.isPow2(width) && bits.isPow2(height))) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+
+        this._saveError()
+        this._native.copyTexImage2D(
+            target,
+            level,
+            internalFormat,
+            x,
+            y,
+            width,
+            height,
+            border)
+        const error = this.getError()
+        this._restoreError(error)
+
+        if (error === gl.NO_ERROR) {
+            texture._levelWidth[level] = width
+            texture._levelHeight[level] = height
+            texture._format = gl.RGBA
+            texture._type = gl.UNSIGNED_BYTE
+        }
     }
-    copyTexSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
-        return this._native.copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
+    copyTexSubImage2D(target: GLenum = 0, level: GLint = 0, xoffset: GLint = 0, yoffset: GLint = 0, x: GLint = 0, y: GLint = 0, width: GLsizei = 0, height: GLsizei = 0): void {
+        const texture = this._getTexImage(target)
+        if (!texture) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        if (width < 0 || height < 0 || xoffset < 0 || yoffset < 0 || level < 0) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+
+        this._native.copyTexSubImage2D(
+            target,
+            level,
+            xoffset,
+            yoffset,
+            x,
+            y,
+            width,
+            height)
     }
     createBuffer(): WebGLBuffer | null {
         const id = this._native.createBuffer()
@@ -1389,24 +2072,57 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this._buffers[id] = webGLBuffer
         return webGLBuffer
     }
-    createFramebuffer(): WebGLShader | null {
-        return this._native.createFramebuffer() as WebGLShader | null;
+    createFramebuffer(): WebGLFramebuffer | null {
+        const id = this._native.createFramebuffer()
+        if (id <= 0) return null
+        const webGLFramebuffer = new WebGLFramebuffer(id, this)
+        this._framebuffers[id] = webGLFramebuffer
+        return webGLFramebuffer
     }
     createProgram(): WebGLProgram | null {
-        return this._native.createProgram() as WebGLProgram | null;
+        const id = this._native.createProgram()
+        if (id <= 0) return null
+        const webGLProgram = new WebGLProgram(id, this)
+        this._programs[id] = webGLProgram
+        return webGLProgram
     }
     createRenderbuffer(): WebGLRenderbuffer | null {
-        return this._native.createRenderbuffer() as WebGLRenderbuffer | null;
+        // return this._native.createRenderbuffer() as WebGLRenderbuffer | null;
+        const id = this._native.createRenderbuffer();
+        if (id <= 0) return null
+        const webGLRenderbuffer = new WebGLRenderbuffer(id, this)
+        this._renderbuffers[id] = webGLRenderbuffer
+        return webGLRenderbuffer
+
     }
-    createShader(type: GLenum): WebGLShader | null {
-        return this._native.createShader(type);
+    createShader(type: GLenum = 0): WebGLShader | null {
+        // return this._native.createShader(type);
+        if (type !== gl.FRAGMENT_SHADER &&
+            type !== gl.VERTEX_SHADER) {
+            this.setError(gl.INVALID_ENUM)
+            return null
+        }
+        const id = this._native.createShader(type)
+        if (id < 0) {
+            return null
+        }
+        const result = new WebGLShader(id, this, type)
+        this._shaders[id] = result
+        return result
     }
+
     createTexture(): WebGLTexture | null {
-        return this._native.createTexture() as WebGLTexture | null;
+        const id = this._native.createTexture();
+        if (id <= 0) return null
+        const webGlTexture = new WebGLTexture(id, this)
+        this._textures[id] = webGlTexture
+        return webGlTexture;
     }
+
     cullFace(mode: GLenum): void {
-        return this._native.cullFace(mode);
+        return this._native.cullFace(mode | 0);
     }
+
     deleteBuffer(buffer: WebGLBuffer | null): void {
         // return this._native.deleteBuffer(buffer?._ || null);
 
@@ -1437,6 +2153,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         buffer._pendingDelete = true
         buffer._checkDelete()
     }
+
     deleteFramebuffer(framebuffer: WebGLFramebuffer | null): void {
         // return this._native.deleteFramebuffer(framebuffer?._ || null);
 
@@ -1457,18 +2174,125 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         framebuffer._pendingDelete = true
         framebuffer._checkDelete()
     }
+
+    _deleteLinkable(name: 'deleteProgram', object: WebGLProgram | null, Type: typeof WebGLProgram): void;
+    _deleteLinkable(name: 'deleteShader', object: WebGLShader | null, Type: typeof WebGLShader): void;
+    _deleteLinkable(name: string, object: any, Type: any): void {
+        if (!checkObject(object)) {
+            throw new TypeError(name + '(' + Type.name + ')')
+        }
+        if (object instanceof Type &&
+            this._checkOwns(object)) {
+            object._pendingDelete = true
+            object._checkDelete()
+            return
+        }
+        this.setError(gl.INVALID_OPERATION)
+    }
+
     deleteProgram(program: WebGLProgram | null): void {
-        return this._native.deleteProgram(program?._ || null);
+        // return this._native.deleteProgram(program?._ || null);
+        return this._deleteLinkable('deleteProgram', program, WebGLProgram)
     }
+
+    // Need to handle textures and render buffers as a special case:
+    // When a texture gets deleted, we need to do the following extra steps:
+    //  1. Is it bound to the current texture unit?
+    //     If so, then unbind it
+    //  2. Is it attached to the active fbo?
+    //     If so, then detach it
+    //
+    // For renderbuffers only need to do second step
+    //
+    // After this, proceed with the usual deletion algorithm
+    //
     deleteRenderbuffer(renderbuffer: WebGLRenderbuffer | null): void {
-        return this._native.deleteRenderbuffer(renderbuffer?._ || null);
+        // return this._native.deleteRenderbuffer(renderbuffer?._ || null);
+
+        if (!checkObject(renderbuffer)) {
+            throw new TypeError('deleteRenderbuffer(WebGLRenderbuffer)')
+        }
+
+        if (!(renderbuffer instanceof WebGLRenderbuffer &&
+            this._checkOwns(renderbuffer))) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        if (this._activeRenderbuffer === renderbuffer) {
+            this.bindRenderbuffer(gl.RENDERBUFFER, null)
+        }
+
+        const activeFramebuffer = this._activeFramebuffer
+
+        this._tryDetachFramebuffer(activeFramebuffer, renderbuffer)
+
+        renderbuffer._pendingDelete = true
+        renderbuffer._checkDelete()
     }
+
     deleteShader(shader: WebGLShader | null): void {
-        return this._native.deleteShader(shader?._ || null);
+        // return this._native.deleteShader(shader?._ || null);
+        return this._deleteLinkable('deleteShader', shader, WebGLShader)
     }
+
     deleteTexture(texture: WebGLTexture | null): void {
-        return this._native.deleteTexture(texture?._ || null);
+        // return this._native.deleteTexture(texture?._ || null);
+        if (!checkObject(texture)) {
+            throw new TypeError('deleteTexture(WebGLTexture)')
+        }
+
+        if (texture instanceof WebGLTexture) {
+            if (!this._checkOwns(texture)) {
+                this.setError(gl.INVALID_OPERATION)
+                return
+            }
+        } else {
+            return
+        }
+
+        // Unbind from all texture units
+        const curActive = this._activeTextureUnit
+
+        for (let i = 0; i < this._textureUnits.length; ++i) {
+            const unit = this._textureUnits[i]
+            if (unit._bind2D === texture) {
+                this.activeTexture(gl.TEXTURE0 + i)
+                this.bindTexture(gl.TEXTURE_2D, null)
+            } else if (unit._bindCube === texture) {
+                this.activeTexture(gl.TEXTURE0 + i)
+                this.bindTexture(gl.TEXTURE_CUBE_MAP, null)
+            }
+        }
+        this.activeTexture(gl.TEXTURE0 + curActive)
+
+        // FIXME: Does the texture get unbound from *all* framebuffers, or just the
+        // active FBO?
+        const ctx = this
+        const activeFramebuffer = this._activeFramebuffer
+        function tryDetach(framebuffer: WebGLFramebuffer | null) {
+            if (framebuffer && framebuffer._linked(texture)) {
+                const attachments = ctx._getAttachments()
+                for (let i = 0; i < attachments.length; ++i) {
+                    const attachment = attachments[i]
+                    if (framebuffer._attachments[attachment] === texture) {
+                        ctx.framebufferTexture2D(
+                            gl.FRAMEBUFFER,
+                            attachment,
+                            gl.TEXTURE_2D,
+                            null)
+                    }
+                }
+            }
+        }
+
+        tryDetach(activeFramebuffer)
+
+        // Mark texture for deletion
+        texture._pendingDelete = true
+        texture._checkDelete()
     }
+
     depthFunc(func: GLenum): void {
         func |= 0
         switch (func) {
@@ -1485,32 +2309,232 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 this.setError(gl.INVALID_ENUM)
         }
     }
+
     depthMask(flag: GLboolean): void {
         return this._native.depthMask(!!flag);
     }
+
     depthRange(zNear: GLclampf, zFar: GLclampf): void {
-        return this._native.depthRange(zNear, zFar);
+        zNear = +zNear
+        zFar = +zFar
+        // return this._native.depthRange(zNear, zFar);
+        if (zNear <= zFar) {
+            return this._native.depthRange(zNear, zFar)
+        }
+        this.setError(gl.INVALID_OPERATION)
     }
+
     detachShader(program: WebGLProgram, shader: WebGLShader): void {
-        return this._native.detachShader(program._, shader._);
+        //return this._native.detachShader(program._, shader._);
+        if (!checkObject(program) ||
+            !checkObject(shader)) {
+            throw new TypeError('detachShader(WebGLProgram, WebGLShader)')
+        }
+        if (this._checkWrapper(program, WebGLProgram) &&
+            this._checkWrapper(shader, WebGLShader)) {
+            if (program._linked(shader)) {
+                this._native.detachShader(program._, shader._)
+                program._unlink(shader)
+            } else {
+                this.setError(gl.INVALID_OPERATION)
+            }
+        }
     }
-    disable(cap: GLenum): void {
-        return this._native.disable(cap);
+
+    disable(cap: GLenum = 0): void {
+        this._native.disable(cap);
+        if (cap === gl.TEXTURE_2D ||
+            cap === gl.TEXTURE_CUBE_MAP) {
+            const active = this._getActiveTextureUnit()
+            if (active._mode === cap) {
+                active._mode = 0
+            }
+        }
     }
-    disableVertexAttribArray(index: GLuint): void {
-        return this._native.disableVertexAttribArray(index);
+
+    disableVertexAttribArray(index: GLuint = 0): void {
+        // return this._native.disableVertexAttribArray(index);
+        if (index < 0 || index >= this._vertexObjectState._attribs.length) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+        this._native.disableVertexAttribArray(index)
+        this._vertexObjectState._attribs[index]._isPointer = false
     }
-    drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
-        return this._native.drawArrays(mode, first, count);
+
+    drawArrays(mode: GLenum = 0, first: GLint = 0, count: GLsizei = 0): void {
+        // return this._native.drawArrays(mode, first, count);
+
+        if (first < 0 || count < 0) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+
+        if (!this._checkStencilState()) {
+            return
+        }
+
+        const reducedCount = vertexCount(mode, count)
+        if (reducedCount < 0) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        if (!this._framebufferOk()) {
+            return
+        }
+
+        if (count === 0) {
+            return
+        }
+
+        let maxIndex = first
+        if (count > 0) {
+            maxIndex = (count + first - 1) >>> 0
+        }
+        if (this._checkVertexAttribState(maxIndex)) {
+            if (
+                this._vertexObjectState._attribs[0]._isPointer || (
+                    this._extensions.webgl_draw_buffers &&
+                    this._extensions.webgl_draw_buffers._buffersState &&
+                    this._extensions.webgl_draw_buffers._buffersState.length > 0
+                )
+            ) {
+                return this._native.drawArrays(mode, first, reducedCount)
+            } else {
+                this._beginAttrib0Hack()
+                // TODO: this._native._drawArraysInstanced(mode, first, reducedCount, 1)
+                this._native.drawArrays(mode, first, reducedCount)
+                this._endAttrib0Hack()
+            }
+        }
     }
-    drawElements(mode: GLenum, count: GLsizei, type: GLenum, offset: GLintptr): void {
-        return this._native.drawElements(mode, count, type, offset);
+    drawElements(mode: GLenum = 0, count: GLsizei = 0, type: GLenum = 0, ioffset: GLintptr = 0): void {
+        // return this._native.drawElements(mode, count, type, offset);
+
+        if (count < 0 || ioffset < 0) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+
+        if (!this._checkStencilState()) {
+            return
+        }
+
+        const elementBuffer = this._vertexObjectState._elementArrayBufferBinding
+        if (!elementBuffer) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        // Unpack element data
+        let elementData = null
+        let offset = ioffset
+        if (type === gl.UNSIGNED_SHORT) {
+            if (offset % 2) {
+                this.setError(gl.INVALID_OPERATION)
+                return
+            }
+            offset >>= 1
+            elementData = new Uint16Array(elementBuffer._elements.buffer)
+        } else if (this._extensions.oes_element_index_uint && type === gl.UNSIGNED_INT) {
+            if (offset % 4) {
+                this.setError(gl.INVALID_OPERATION)
+                return
+            }
+            offset >>= 2
+            elementData = new Uint32Array(elementBuffer._elements.buffer)
+        } else if (type === gl.UNSIGNED_BYTE) {
+            elementData = elementBuffer._elements
+        } else {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        let reducedCount = count
+        switch (mode) {
+            case gl.TRIANGLES:
+                if (count % 3) {
+                    reducedCount -= (count % 3)
+                }
+                break
+            case gl.LINES:
+                if (count % 2) {
+                    reducedCount -= (count % 2)
+                }
+                break
+            case gl.POINTS:
+                break
+            case gl.LINE_LOOP:
+            case gl.LINE_STRIP:
+                if (count < 2) {
+                    this.setError(gl.INVALID_OPERATION)
+                    return
+                }
+                break
+            case gl.TRIANGLE_FAN:
+            case gl.TRIANGLE_STRIP:
+                if (count < 3) {
+                    this.setError(gl.INVALID_OPERATION)
+                    return
+                }
+                break
+            default:
+                this.setError(gl.INVALID_ENUM)
+                return
+        }
+
+        if (!this._framebufferOk()) {
+            return
+        }
+
+        if (count === 0) {
+            this._checkVertexAttribState(0)
+            return
+        }
+
+        if ((count + offset) >>> 0 > elementData.length) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        // Compute max index
+        let maxIndex = -1
+        for (let i = offset; i < offset + count; ++i) {
+            maxIndex = Math.max(maxIndex, elementData[i])
+        }
+
+        if (maxIndex < 0) {
+            this._checkVertexAttribState(0)
+            return
+        }
+
+        if (this._checkVertexAttribState(maxIndex)) {
+            if (reducedCount > 0) {
+                if (this._vertexObjectState._attribs[0]._isPointer) {
+                    return this._native.drawElements(mode, reducedCount, type, ioffset)
+                } else {
+                    this._beginAttrib0Hack()
+                    // TODO this._native._drawElementsInstanced(mode, reducedCount, type, ioffset, 1)
+                    this._native.drawElements(mode, reducedCount, type, ioffset);
+                    this._endAttrib0Hack()
+                }
+            }
+        }
     }
-    enable(cap: GLenum): void {
+    enable(cap: GLenum = 0): void {
         return this._native.enable(cap);
     }
     enableVertexAttribArray(index: GLuint): void {
-        return this._native.enableVertexAttribArray(index);
+        // return this._native.enableVertexAttribArray(index);
+        if (index < 0 || index >= this._vertexObjectState._attribs.length) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+
+        this._native.enableVertexAttribArray(index)
+
+        this._vertexObjectState._attribs[index]._isPointer = true
     }
     finish(): void {
         return this._native.finish();
@@ -1518,8 +2542,31 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     flush(): void {
         return this._native.flush();
     }
-    framebufferRenderbuffer(target: GLenum, attachment: GLenum, renderbuffertarget: GLenum, renderbuffer: WebGLRenderbuffer | null): void {
-        return this._native.framebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer?._ || null);
+    framebufferRenderbuffer(target: GLenum, attachment: GLenum, renderbufferTarget: GLenum, renderbuffer: WebGLRenderbuffer | null): void {
+        // return this._native.framebufferRenderbuffer(target, attachment, renderbufferTarget, renderbuffer?._ || null);
+        if (!checkObject(renderbuffer)) {
+            throw new TypeError('framebufferRenderbuffer(GLenum, GLenum, GLenum, WebGLRenderbuffer)')
+        }
+
+        if (target !== gl.FRAMEBUFFER ||
+            !this._validFramebufferAttachment(attachment) ||
+            renderbufferTarget !== gl.RENDERBUFFER) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        const framebuffer = this._activeFramebuffer
+        if (!framebuffer) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        if (renderbuffer && !this._checkWrapper(renderbuffer, WebGLRenderbuffer)) {
+            return
+        }
+
+        framebuffer._setAttachment(renderbuffer, attachment)
+        this._updateFramebufferAttachments(framebuffer)
     }
     framebufferTexture2D(target: GLenum, attachment: GLenum, textarget: GLenum, texture: WebGLTexture | null, level: GLint = 0): void {
         // return this._native.framebufferTexture2D(target, attachment, textarget, texture?._ || null, level);
@@ -1576,14 +2623,25 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         framebuffer._setAttachment(texture, attachment)
         this._updateFramebufferAttachments(framebuffer)
     }
-    frontFace(mode: GLenum): void {
+    frontFace(mode: GLenum = 0): void {
         return this._native.frontFace(mode);
     }
-    generateMipmap(target: GLenum): void {
+    generateMipmap(target: GLenum = 0): void {
         return this._native.generateMipmap(target);
     }
     getActiveAttrib(program: WebGLProgram, index: GLuint): WebGLActiveInfo | null {
-        return this._native.getActiveAttrib(program._, index);
+        // return this._native.getActiveAttrib(program._, index);
+        if (!checkObject(program)) {
+            throw new TypeError('getActiveAttrib(WebGLProgram)')
+        } else if (!program) {
+            this.setError(gl.INVALID_VALUE)
+        } else if (this._checkWrapper(program, WebGLProgram)) {
+            const info = this._native.getActiveAttrib(program._ | 0, index | 0)
+            if (info) {
+                return new WebGLActiveInfo(info)
+            }
+        }
+        return null
     }
     getActiveUniform(program: WebGLProgram, index: GLuint): WebGLActiveInfo | null {
         // return this._native.getActiveUniform(program._, index);
@@ -1600,13 +2658,57 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return null
     }
     getAttachedShaders(program: WebGLProgram): WebGLShader[] | null {
-        return this._native.getAttachedShaders(program._) as WebGLShader[] | null;
+        // return this._native.getAttachedShaders(program._) as WebGLShader[] | null;
+        if (!checkObject(program) ||
+            (typeof program === 'object' &&
+                program !== null &&
+                !(program instanceof WebGLProgram))) {
+            throw new TypeError('getAttachedShaders(WebGLProgram)')
+        }
+        if (!program) {
+            this.setError(gl.INVALID_VALUE)
+        } else if (this._checkWrapper(program, WebGLProgram)) {
+            const shaderArray = this._native.getAttachedShaders(program._ | 0)
+            if (!shaderArray) {
+                return null
+            }
+            const unboxedShaders = new Array(shaderArray.length)
+            for (let i = 0; i < shaderArray.length; ++i) {
+                unboxedShaders[i] = this._shaders[shaderArray[i]]
+            }
+            return unboxedShaders
+        }
+        return null
     }
     getAttribLocation(program: WebGLProgram, name: string): GLint {
-        return this._native.getAttribLocation(program._, name);
+        // return this._native.getAttribLocation(program._, name);
+        if (!checkObject(program)) {
+            throw new TypeError('getAttribLocation(WebGLProgram, String)')
+        }
+        name += ''
+        if (!isValidString(name) || name.length > MAX_ATTRIBUTE_LENGTH) {
+            this.setError(gl.INVALID_VALUE)
+        } else if (this._checkWrapper(program, WebGLProgram)) {
+            return this._native.getAttribLocation(program._ | 0, name + '')
+        }
+        return -1
     }
-    getBufferParameter(target: GLenum, pname: GLenum): any {
-        return this._native.getBufferParameter(target, pname);
+    getBufferParameter(target: GLenum = 0, pname: GLenum = 0): any {
+        // return this._native.getBufferParameter(target, pname);
+        if (target !== gl.ARRAY_BUFFER &&
+            target !== gl.ELEMENT_ARRAY_BUFFER) {
+            this.setError(gl.INVALID_ENUM)
+            return null
+        }
+
+        switch (pname) {
+            case gl.BUFFER_SIZE:
+            case gl.BUFFER_USAGE:
+                return this._native.getBufferParameter(target | 0, pname | 0)
+            default:
+                this.setError(gl.INVALID_ENUM)
+                return null
+        }
     }
 
     getError(): GLenum {
@@ -1617,32 +2719,338 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this._native.setError(error);
     }
 
-    getFramebufferAttachmentParameter(target: GLenum, attachment: GLenum, pname: GLenum): any {
-        return this._native.getFramebufferAttachmentParameter(target, attachment, pname);
+    getFramebufferAttachmentParameter(target: GLenum = 0, attachment: GLenum = 0, pname: GLenum = 0): any {
+        // return this._native.getFramebufferAttachmentParameter(target, attachment, pname);
+        if (target !== gl.FRAMEBUFFER ||
+            !this._validFramebufferAttachment(attachment)) {
+            this.setError(gl.INVALID_ENUM)
+            return null
+        }
+
+        const framebuffer = this._activeFramebuffer
+        if (!framebuffer) {
+            this.setError(gl.INVALID_OPERATION)
+            return null
+        }
+
+        const object = framebuffer._attachments[attachment]
+        if (object === null) {
+            if (pname === gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE) {
+                return gl.NONE
+            }
+        } else if (object instanceof WebGLTexture) {
+            switch (pname) {
+                case gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
+                    return object
+                case gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
+                    return gl.TEXTURE
+                case gl.FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:
+                    return framebuffer._attachmentLevel[attachment]
+                case gl.FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE: {
+                    const face = framebuffer._attachmentFace[attachment]
+                    if (face === gl.TEXTURE_2D) {
+                        return 0
+                    }
+                    return face
+                }
+            }
+        } else if (object instanceof WebGLRenderbuffer) {
+            switch (pname) {
+                case gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
+                    return object
+                case gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
+                    return gl.RENDERBUFFER
+            }
+        }
+
+        this.setError(gl.INVALID_ENUM)
+        return null
     }
-    getParameter(pname: GLenum): any {
-        return this._native.getParameterx(pname)?.deepUnpack() || null;
+
+    getParameter(pname: GLenum = 0): any {
+        // return this._native.getParameterx(pname)?.deepUnpack() || null;
+        switch (pname) {
+            case gl.ARRAY_BUFFER_BINDING:
+                return this._vertexGlobalState._arrayBufferBinding
+            case gl.ELEMENT_ARRAY_BUFFER_BINDING:
+                return this._vertexObjectState._elementArrayBufferBinding
+            case gl.CURRENT_PROGRAM:
+                return this._activeProgram
+            case gl.FRAMEBUFFER_BINDING:
+                return this._activeFramebuffer
+            case gl.RENDERBUFFER_BINDING:
+                return this._activeRenderbuffer
+            case gl.TEXTURE_BINDING_2D:
+                return this._getActiveTextureUnit()._bind2D
+            case gl.TEXTURE_BINDING_CUBE_MAP:
+                return this._getActiveTextureUnit()._bindCube
+            case gl.VERSION:
+                return 'WebGL 1.0 Gjsify ' + VERSION
+            case gl.VENDOR:
+                return 'Gjsify'
+            case gl.RENDERER:
+                return 'ANGLE'
+            case gl.SHADING_LANGUAGE_VERSION:
+                return 'WebGL GLSL ES 1.0 Gjsify'
+
+            case gl.COMPRESSED_TEXTURE_FORMATS:
+                return new Uint32Array(0)
+
+            // Int arrays
+            case gl.MAX_VIEWPORT_DIMS:
+            case gl.SCISSOR_BOX:
+            case gl.VIEWPORT:
+                return new Int32Array(this._getParameterDirect(pname))
+
+            // Float arrays
+            case gl.ALIASED_LINE_WIDTH_RANGE:
+            case gl.ALIASED_POINT_SIZE_RANGE:
+            case gl.DEPTH_RANGE:
+            case gl.BLEND_COLOR:
+            case gl.COLOR_CLEAR_VALUE:
+                return new Float32Array(this._getParameterDirect(pname))
+
+            case gl.COLOR_WRITEMASK:
+                return this._getParameterDirect(pname);
+
+            case gl.DEPTH_CLEAR_VALUE:
+            case gl.LINE_WIDTH:
+            case gl.POLYGON_OFFSET_FACTOR:
+            case gl.POLYGON_OFFSET_UNITS:
+            case gl.SAMPLE_COVERAGE_VALUE:
+                return +this._getParameterDirect(pname);
+
+            case gl.BLEND:
+            case gl.CULL_FACE:
+            case gl.DEPTH_TEST:
+            case gl.DEPTH_WRITEMASK:
+            case gl.DITHER:
+            case gl.POLYGON_OFFSET_FILL:
+            case gl.SAMPLE_COVERAGE_INVERT:
+            case gl.SCISSOR_TEST:
+            case gl.STENCIL_TEST:
+            case gl.UNPACK_FLIP_Y_WEBGL:
+            case gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL:
+                return !!this._getParameterDirect(pname);
+
+            case gl.ACTIVE_TEXTURE:
+            case gl.ALPHA_BITS:
+            case gl.BLEND_DST_ALPHA:
+            case gl.BLEND_DST_RGB:
+            case gl.BLEND_EQUATION_ALPHA:
+            case gl.BLEND_EQUATION_RGB:
+            case gl.BLEND_SRC_ALPHA:
+            case gl.BLEND_SRC_RGB:
+            case gl.BLUE_BITS:
+            case gl.CULL_FACE_MODE:
+            case gl.DEPTH_BITS:
+            case gl.DEPTH_FUNC:
+            case gl.FRONT_FACE:
+            case gl.GENERATE_MIPMAP_HINT:
+            case gl.GREEN_BITS:
+            case gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS:
+            case gl.MAX_CUBE_MAP_TEXTURE_SIZE:
+            case gl.MAX_FRAGMENT_UNIFORM_VECTORS:
+            case gl.MAX_RENDERBUFFER_SIZE:
+            case gl.MAX_TEXTURE_IMAGE_UNITS:
+            case gl.MAX_TEXTURE_SIZE:
+            case gl.MAX_VARYING_VECTORS:
+            case gl.MAX_VERTEX_ATTRIBS:
+            case gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS:
+            case gl.MAX_VERTEX_UNIFORM_VECTORS:
+            case gl.PACK_ALIGNMENT:
+            case gl.RED_BITS:
+            case gl.SAMPLE_BUFFERS:
+            case gl.SAMPLES:
+            case gl.STENCIL_BACK_FAIL:
+            case gl.STENCIL_BACK_FUNC:
+            case gl.STENCIL_BACK_PASS_DEPTH_FAIL:
+            case gl.STENCIL_BACK_PASS_DEPTH_PASS:
+            case gl.STENCIL_BACK_REF:
+            case gl.STENCIL_BACK_VALUE_MASK:
+            case gl.STENCIL_BACK_WRITEMASK:
+            case gl.STENCIL_BITS:
+            case gl.STENCIL_CLEAR_VALUE:
+            case gl.STENCIL_FAIL:
+            case gl.STENCIL_FUNC:
+            case gl.STENCIL_PASS_DEPTH_FAIL:
+            case gl.STENCIL_PASS_DEPTH_PASS:
+            case gl.STENCIL_REF:
+            case gl.STENCIL_VALUE_MASK:
+            case gl.STENCIL_WRITEMASK:
+            case gl.SUBPIXEL_BITS:
+            case gl.UNPACK_ALIGNMENT:
+            case gl.UNPACK_COLORSPACE_CONVERSION_WEBGL:
+                return this._getParameterDirect(pname) | 0;
+
+            case gl.IMPLEMENTATION_COLOR_READ_FORMAT:
+            case gl.IMPLEMENTATION_COLOR_READ_TYPE:
+                return this._getParameterDirect(pname);
+
+            default:
+                if (this._extensions.webgl_draw_buffers) {
+                    const ext = this._extensions.webgl_draw_buffers
+                    switch (pname) {
+                        case ext.DRAW_BUFFER0_WEBGL:
+                        case ext.DRAW_BUFFER1_WEBGL:
+                        case ext.DRAW_BUFFER2_WEBGL:
+                        case ext.DRAW_BUFFER3_WEBGL:
+                        case ext.DRAW_BUFFER4_WEBGL:
+                        case ext.DRAW_BUFFER5_WEBGL:
+                        case ext.DRAW_BUFFER6_WEBGL:
+                        case ext.DRAW_BUFFER7_WEBGL:
+                        case ext.DRAW_BUFFER8_WEBGL:
+                        case ext.DRAW_BUFFER9_WEBGL:
+                        case ext.DRAW_BUFFER10_WEBGL:
+                        case ext.DRAW_BUFFER11_WEBGL:
+                        case ext.DRAW_BUFFER12_WEBGL:
+                        case ext.DRAW_BUFFER13_WEBGL:
+                        case ext.DRAW_BUFFER14_WEBGL:
+                        case ext.DRAW_BUFFER15_WEBGL:
+                            if (ext._buffersState.length === 1 && ext._buffersState[0] === gl.BACK) {
+                                return gl.BACK
+                            }
+                            return this._getParameterDirect(pname);
+                        case ext.MAX_DRAW_BUFFERS_WEBGL:
+                        case ext.MAX_COLOR_ATTACHMENTS_WEBGL:
+                            return this._getParameterDirect(pname);
+                    }
+                }
+
+                if (this._extensions.oes_standard_derivatives && pname === this._extensions.oes_standard_derivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES) {
+                    return this._getParameterDirect(pname);
+                }
+
+                if (this._extensions.ext_texture_filter_anisotropic && pname === this._extensions.ext_texture_filter_anisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT) {
+                    return this._getParameterDirect(pname);
+                }
+
+                if (this._extensions.oes_vertex_array_object && pname === this._extensions.oes_vertex_array_object.VERTEX_ARRAY_BINDING_OES) {
+                    return this._extensions.oes_vertex_array_object._activeVertexArrayObject
+                }
+
+                this.setError(gl.INVALID_ENUM)
+                return null
+        }
     }
     getProgramInfoLog(program: WebGLProgram): string | null {
-        return this._native.getProgramInfoLog(program._);
+        // return this._native.getProgramInfoLog(program._);
+        if (!checkObject(program)) {
+            throw new TypeError('getProgramInfoLog(WebGLProgram)')
+        } else if (this._checkWrapper(program, WebGLProgram)) {
+            return program._linkInfoLog
+        }
+        return null
     }
-    getProgramParameter(program: WebGLProgram, pname: GLenum): any {
-        return this._native.getProgramParameter(program._, pname);
+    getProgramParameter(program: WebGLProgram, pname: GLenum = 0): any {
+        // return this._native.getProgramParameter(program._, pname);
+        if (!checkObject(program)) {
+            throw new TypeError('getProgramParameter(WebGLProgram, GLenum)')
+        } else if (this._checkWrapper(program, WebGLProgram)) {
+            switch (pname) {
+                case gl.DELETE_STATUS:
+                    return program._pendingDelete
+
+                case gl.LINK_STATUS:
+                    return program._linkStatus
+
+                case gl.VALIDATE_STATUS:
+                    return !!this._native.getProgramParameter(program._, pname)
+
+                case gl.ATTACHED_SHADERS:
+                case gl.ACTIVE_ATTRIBUTES:
+                case gl.ACTIVE_UNIFORMS:
+                    return this._native.getProgramParameter(program._, pname)
+            }
+            this.setError(gl.INVALID_ENUM)
+        }
+        return null
     }
-    getRenderbufferParameter(target: GLenum, pname: GLenum): any {
-        return this._native.getProgramParameter(target, pname);
+    getRenderbufferParameter(target: GLenum = 0, pname: GLenum = 0): any {
+        // return this._native.getProgramParameter(target, pname);
+        if (target !== gl.RENDERBUFFER) {
+            this.setError(gl.INVALID_ENUM)
+            return null
+        }
+        const renderbuffer = this._activeRenderbuffer
+        if (!renderbuffer) {
+            this.setError(gl.INVALID_OPERATION)
+            return null
+        }
+        switch (pname) {
+            case gl.RENDERBUFFER_INTERNAL_FORMAT:
+                return renderbuffer._format
+            case gl.RENDERBUFFER_WIDTH:
+                return renderbuffer._width
+            case gl.RENDERBUFFER_HEIGHT:
+                return renderbuffer._height
+            case gl.RENDERBUFFER_SIZE:
+            case gl.RENDERBUFFER_RED_SIZE:
+            case gl.RENDERBUFFER_GREEN_SIZE:
+            case gl.RENDERBUFFER_BLUE_SIZE:
+            case gl.RENDERBUFFER_ALPHA_SIZE:
+            case gl.RENDERBUFFER_DEPTH_SIZE:
+            case gl.RENDERBUFFER_STENCIL_SIZE:
+                return this._native.getRenderbufferParameter(target, pname)
+        }
+        this.setError(gl.INVALID_ENUM)
+        return null
     }
     getShaderInfoLog(shader: WebGLShader): string | null {
-        return this._native.getShaderInfoLog(shader._);
+        // return this._native.getShaderInfoLog(shader._);
+        if (!checkObject(shader)) {
+            throw new TypeError('getShaderInfoLog(WebGLShader)')
+        } else if (this._checkWrapper(shader, WebGLShader)) {
+            return shader._compileInfo
+        }
+        return null
     }
-    getShaderParameter(shader: WebGLShader, pname: GLenum): any {
-        return this._native.getShaderParameter(shader._, pname);
+    getShaderParameter(shader: WebGLShader, pname: GLenum = 0): any {
+        // return this._native.getShaderParameter(shader._, pname);
+        if (!checkObject(shader)) {
+            throw new TypeError('getShaderParameter(WebGLShader, GLenum)')
+        } else if (this._checkWrapper(shader, WebGLShader)) {
+            switch (pname) {
+                case gl.DELETE_STATUS:
+                    return shader._pendingDelete
+                case gl.COMPILE_STATUS:
+                    return shader._compileStatus
+                case gl.SHADER_TYPE:
+                    return shader._type
+            }
+            this.setError(gl.INVALID_ENUM)
+        }
+        return null
     }
-    getShaderPrecisionFormat(shadertype: GLenum, precisiontype: GLenum): WebGLShaderPrecisionFormat | null {
-        return this._native.getShaderPrecisionFormat(shadertype, precisiontype);
+    getShaderPrecisionFormat(shaderType: GLenum = 0, precisionType: GLenum = 0): WebGLShaderPrecisionFormat | null {
+        // return this._native.getShaderPrecisionFormat(shaderType, precisionType);
+        if (!(shaderType === gl.FRAGMENT_SHADER ||
+            shaderType === gl.VERTEX_SHADER) ||
+            !(precisionType === gl.LOW_FLOAT ||
+                precisionType === gl.MEDIUM_FLOAT ||
+                precisionType === gl.HIGH_FLOAT ||
+                precisionType === gl.LOW_INT ||
+                precisionType === gl.MEDIUM_INT ||
+                precisionType === gl.HIGH_INT)) {
+            this.setError(gl.INVALID_ENUM)
+            return null
+        }
+
+        const format = this._native.getShaderPrecisionFormat(shaderType, precisionType)
+        if (!format) {
+            return null
+        }
+
+        return new WebGLShaderPrecisionFormat(format)
     }
     getShaderSource(shader: WebGLShader): string | null {
-        return this._native.getShaderSource(shader._);
+        // return this._native.getShaderSource(shader._);
+        if (!checkObject(shader)) {
+            throw new TypeError('Input to getShaderSource must be an object')
+        } else if (this._checkWrapper(shader, WebGLShader)) {
+            return shader._source
+        }
+        return null
     }
     getSupportedExtensions() {
         const exts = [
@@ -1691,25 +3099,248 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         return exts
     }
-    getTexParameter(target: GLenum, pname: GLenum): any {
+
+    _getTexParameterDirect(target: GLenum = 0, pname: GLenum = 0) {
         return this._native.getTexParameterx(target, pname)?.unpack();
     }
+
+    getTexParameter(target: GLenum = 0, pname: GLenum = 0): any {
+        // return this._native.getTexParameterx(target, pname)?.unpack();
+        if (!this._checkTextureTarget(target)) {
+            return null
+        }
+
+        const unit = this._getActiveTextureUnit()
+        if ((target === gl.TEXTURE_2D && !unit._bind2D) ||
+            (target === gl.TEXTURE_CUBE_MAP && !unit._bindCube)) {
+            this.setError(gl.INVALID_OPERATION)
+            return null
+        }
+
+        switch (pname) {
+            case gl.TEXTURE_MAG_FILTER:
+            case gl.TEXTURE_MIN_FILTER:
+            case gl.TEXTURE_WRAP_S:
+            case gl.TEXTURE_WRAP_T:
+                return this._getTexParameterDirect(target, pname)
+        }
+
+        if (this._extensions.ext_texture_filter_anisotropic && pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT) {
+            return this._getTexParameterDirect(target, pname)
+        }
+
+        this.setError(gl.INVALID_ENUM)
+        return null
+    }
     getUniform(program: WebGLProgram, location: WebGLUniformLocation): any {
-        return this._native.getUniform(program._, location._);
+        // return this._native.getUniform(program._, location._);
+        if (!checkObject(program) ||
+            !checkObject(location)) {
+            throw new TypeError('getUniform(WebGLProgram, WebGLUniformLocation)')
+        } else if (!program) {
+            this.setError(gl.INVALID_VALUE)
+            return null
+        } else if (!location) {
+            return null
+        } else if (this._checkWrapper(program, WebGLProgram)) {
+            if (!checkUniform(program, location)) {
+                this.setError(gl.INVALID_OPERATION)
+                return null
+            }
+            const data = this._native.getUniform(program._ | 0, location._ | 0)
+            if (!data) {
+                return null
+            }
+            switch (location._activeInfo.type) {
+                case gl.FLOAT:
+                    return data[0]
+                case gl.FLOAT_VEC2:
+                    return new Float32Array(data.slice(0, 2))
+                case gl.FLOAT_VEC3:
+                    return new Float32Array(data.slice(0, 3))
+                case gl.FLOAT_VEC4:
+                    return new Float32Array(data.slice(0, 4))
+                case gl.INT:
+                    return data[0] | 0
+                case gl.INT_VEC2:
+                    return new Int32Array(data.slice(0, 2))
+                case gl.INT_VEC3:
+                    return new Int32Array(data.slice(0, 3))
+                case gl.INT_VEC4:
+                    return new Int32Array(data.slice(0, 4))
+                case gl.BOOL:
+                    return !!data[0]
+                case gl.BOOL_VEC2:
+                    return [!!data[0], !!data[1]]
+                case gl.BOOL_VEC3:
+                    return [!!data[0], !!data[1], !!data[2]]
+                case gl.BOOL_VEC4:
+                    return [!!data[0], !!data[1], !!data[2], !!data[3]]
+                case gl.FLOAT_MAT2:
+                    return new Float32Array(data.slice(0, 4))
+                case gl.FLOAT_MAT3:
+                    return new Float32Array(data.slice(0, 9))
+                case gl.FLOAT_MAT4:
+                    return new Float32Array(data.slice(0, 16))
+                case gl.SAMPLER_2D:
+                case gl.SAMPLER_CUBE:
+                    return data[0] | 0
+                default:
+                    return null
+            }
+        }
+        return null
     }
     getUniformLocation(program: WebGLProgram, name: string): WebGLUniformLocation | null {
-        return this._native.getUniformLocation(program._, name) as WebGLUniformLocation | null;
+        // return this._native.getUniformLocation(program._, name) as WebGLUniformLocation | null;
+        if (!checkObject(program)) {
+            throw new TypeError('getUniformLocation(WebGLProgram, String)')
+        }
+
+        name += ''
+        if (!isValidString(name)) {
+            this.setError(gl.INVALID_VALUE)
+            return null
+        }
+
+        if (this._checkWrapper(program, WebGLProgram)) {
+            const loc = this._native.getUniformLocation(program._ | 0, name)
+            if (loc && loc >= 0) {
+                let searchName = name
+                if (/\[\d+\]$/.test(name)) {
+                    searchName = name.replace(/\[\d+\]$/, '[0]')
+                }
+
+                let info = null
+                for (let i = 0; i < program._uniforms.length; ++i) {
+                    const infoItem = program._uniforms[i]
+                    if (infoItem.name === searchName) {
+                        info = {
+                            size: infoItem.size,
+                            type: infoItem.type,
+                            name: infoItem.name
+                        }
+                    }
+                }
+                if (!info) {
+                    return null
+                }
+
+                const result = new WebGLUniformLocation(
+                    loc,
+                    program,
+                    info)
+
+                // handle array case
+                if (/\[0\]$/.test(name)) {
+                    const baseName = name.replace(/\[0\]$/, '')
+                    const arrayLocs = []
+
+                    // if (offset < 0 || offset >= info.size) {
+                    //   return null
+                    // }
+
+                    this._saveError()
+                    for (let i = 0; this.getError() === gl.NO_ERROR; ++i) {
+                        const xloc = this._native.getUniformLocation(
+                            program._ | 0,
+                            baseName + '[' + i + ']')
+                        if (this.getError() !== gl.NO_ERROR || !xloc || xloc < 0) {
+                            break
+                        }
+                        arrayLocs.push(xloc)
+                    }
+                    this._restoreError(gl.NO_ERROR)
+
+                    result._array = arrayLocs
+                } else if (name && /\[(\d+)\]$/.test(name)) {
+                    const _regexExec = /\[(\d+)\]$/.exec(name);
+                    if (!_regexExec || _regexExec.length <= 0) {
+                        return null;
+                    }
+                    const offset = +(_regexExec)[1]
+                    if (offset < 0 || offset >= info.size) {
+                        return null
+                    }
+                }
+                return result
+            }
+        }
+        return null
     }
-    getVertexAttrib(index: GLuint, pname: GLenum): any {
-        return this._native.getVertexAttrib(index, pname);
+    getVertexAttrib(index: GLuint = 0, pname: GLenum = 0): any {
+        // return this._native.getVertexAttrib(index, pname);
+        if (index < 0 || index >= this._vertexObjectState._attribs.length) {
+            this.setError(gl.INVALID_VALUE)
+            return null
+        }
+        const attrib = this._vertexObjectState._attribs[index]
+        const vertexAttribValue = this._vertexGlobalState._attribs[index]._data
+
+        const extInstancing = this._extensions.angle_instanced_arrays
+        if (extInstancing) {
+            if (pname === extInstancing.VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE) {
+                return attrib._divisor
+            }
+        }
+
+        switch (pname) {
+            case gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING:
+                return attrib._pointerBuffer
+            case gl.VERTEX_ATTRIB_ARRAY_ENABLED:
+                return attrib._isPointer
+            case gl.VERTEX_ATTRIB_ARRAY_SIZE:
+                return attrib._inputSize
+            case gl.VERTEX_ATTRIB_ARRAY_STRIDE:
+                return attrib._inputStride
+            case gl.VERTEX_ATTRIB_ARRAY_TYPE:
+                return attrib._pointerType
+            case gl.VERTEX_ATTRIB_ARRAY_NORMALIZED:
+                return attrib._pointerNormal
+            case gl.CURRENT_VERTEX_ATTRIB:
+                return new Float32Array(vertexAttribValue)
+            default:
+                this.setError(gl.INVALID_ENUM)
+                return null
+        }
     }
-    getVertexAttribOffset(index: GLuint, pname: GLenum): GLintptr {
-        return this._native.getVertexAttribOffset(index, pname);
+    getVertexAttribOffset(index: GLuint = 0, pname: GLenum = 0): GLintptr {
+        // return this._native.getVertexAttribOffset(index, pname);
+        if (index < 0 || index >= this._vertexObjectState._attribs.length) {
+            this.setError(gl.INVALID_VALUE)
+            return -1
+        }
+        if (pname === gl.VERTEX_ATTRIB_ARRAY_POINTER) {
+            return this._vertexObjectState._attribs[index]._pointerOffset
+        } else {
+            this.setError(gl.INVALID_ENUM)
+            return -1
+        }
     }
-    hint(target: GLenum, mode: GLenum): void {
-        return this._native.hint(target, mode);
+    hint(target: GLenum = 0, mode: GLenum = 0): void {
+        // return this._native.hint(target, mode);
+        if (!(
+            target === gl.GENERATE_MIPMAP_HINT ||
+            (
+                this._extensions.oes_standard_derivatives && target === this._extensions.oes_standard_derivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES
+            )
+        )) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        if (mode !== gl.FASTEST &&
+            mode !== gl.NICEST &&
+            mode !== gl.DONT_CARE) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        return this._native.hint(target, mode)
     }
     isBuffer(buffer: WebGLBuffer | null): GLboolean {
+        // return this._native.isBuffer(buffer?._ || null);
+        if (!this._isObject(buffer, 'isBuffer', WebGLBuffer)) return false
         return this._native.isBuffer(buffer?._ || null);
     }
     isContextLost(): boolean {
@@ -1719,96 +3350,272 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return this._native.isEnabled(cap);
     }
     isFramebuffer(framebuffer: WebGLShader | null): GLboolean {
-        return this._native.isFramebuffer(framebuffer?._ || null);
+        if (!this._isObject(framebuffer, 'isFramebuffer', WebGLFramebuffer)) return false
+        return this._native.isFramebuffer(framebuffer?._ || null)
     }
     isProgram(program: WebGLProgram | null): GLboolean {
-        return this._native.isProgram(program?._ || null);
+        if (!this._isObject(program, 'isProgram', WebGLProgram)) return false
+        return this._native.isProgram(program?._ || null)
     }
     isRenderbuffer(renderbuffer: WebGLRenderbuffer | null): GLboolean {
+        if (!this._isObject(renderbuffer, 'isRenderbuffer', WebGLRenderbuffer)) return false
         return this._native.isRenderbuffer(renderbuffer?._ || null);
     }
     isShader(shader: WebGLShader | null): GLboolean {
+        if (!this._isObject(shader, 'isShader', WebGLShader)) return false
         return this._native.isShader(shader?._ || null);
     }
     isTexture(texture: WebGLTexture | null): GLboolean {
+        if (!this._isObject(texture, 'isTexture', WebGLTexture)) return false
         return this._native.isTexture(texture?._ || null);
     }
     lineWidth(width: GLfloat): void {
-        return this._native.lineWidth(width);
+        if (isNaN(width)) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+        return this._native.lineWidth(+width);
     }
     linkProgram(program: WebGLProgram): void {
-        if (!program) return;
-        return this._native.linkProgram(program._);
+        // return this._native.linkProgram(program._);
+        if (!checkObject(program)) {
+            throw new TypeError('linkProgram(WebGLProgram)')
+        }
+        if (this._checkWrapper(program, WebGLProgram)) {
+            program._linkCount += 1
+            program._attributes = []
+            const prevError = this.getError()
+            this._native.linkProgram(program._ | 0)
+            const error = this.getError()
+            if (error === gl.NO_ERROR) {
+                program._linkStatus = this._fixupLink(program)
+            }
+            this.getError()
+            this.setError(prevError || error)
+        }
     }
     /** The `WebGLRenderingContext.pixelStorei()` method of the WebGL API specifies the pixel storage modes. */
-    pixelStorei(pname: GLenum, param: GLint | GLboolean): void {
+    pixelStorei(pname: GLenum = 0, param: GLint | GLboolean = 0): void {
         if (typeof param === 'boolean') {
             param = param === false ? 0 : 1;
         }
-        return this._native.pixelStorei(pname, param);
+        // return this._native.pixelStorei(pname, param);
+        if (pname === gl.UNPACK_ALIGNMENT) {
+            if (param === 1 ||
+                param === 2 ||
+                param === 4 ||
+                param === 8) {
+                this._unpackAlignment = param
+            } else {
+                this.setError(gl.INVALID_VALUE)
+                return
+            }
+        } else if (pname === gl.PACK_ALIGNMENT) {
+            if (param === 1 ||
+                param === 2 ||
+                param === 4 ||
+                param === 8) {
+                this._packAlignment = param
+            } else {
+                this.setError(gl.INVALID_VALUE)
+                return
+            }
+        } else if (pname === gl.UNPACK_COLORSPACE_CONVERSION_WEBGL) {
+            if (!(param === gl.NONE || param === gl.BROWSER_DEFAULT_WEBGL)) {
+                this.setError(gl.INVALID_VALUE)
+                return
+            }
+        }
+        return this._native.pixelStorei(pname, param)
     }
     polygonOffset(factor: GLfloat, units: GLfloat): void {
-        return this._native.polygonOffset(factor, units);
+        return this._native.polygonOffset(+factor, +units);
     }
-    renderbufferStorage(target: GLenum, internalformat: GLenum, width: GLsizei, height: GLsizei): void {
-        return this._native.renderbufferStorage(target, internalformat, width, height);
+    renderbufferStorage(target: GLenum = 0, internalFormat: GLenum = 0, width: GLsizei = 0, height: GLsizei = 0): void {
+        // return this._native.renderbufferStorage(target, internalFormat, width, height);
+        if (target !== gl.RENDERBUFFER) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        const renderbuffer = this._activeRenderbuffer
+        if (!renderbuffer) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        if (internalFormat !== gl.RGBA4 &&
+            internalFormat !== gl.RGB565 &&
+            internalFormat !== gl.RGB5_A1 &&
+            internalFormat !== gl.DEPTH_COMPONENT16 &&
+            internalFormat !== gl.STENCIL_INDEX &&
+            internalFormat !== gl.STENCIL_INDEX8 &&
+            internalFormat !== gl.DEPTH_STENCIL) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        this._saveError()
+        this._native.renderbufferStorage(
+            target,
+            internalFormat,
+            width,
+            height)
+        const error = this.getError()
+        this._restoreError(error)
+        if (error !== gl.NO_ERROR) {
+            return
+        }
+
+        renderbuffer._width = width
+        renderbuffer._height = height
+        renderbuffer._format = internalFormat
+
+        const activeFramebuffer = this._activeFramebuffer
+        if (activeFramebuffer) {
+            let needsUpdate = false
+            const attachments = this._getAttachments()
+            for (let i = 0; i < attachments.length; ++i) {
+                if (activeFramebuffer._attachments[attachments[i]] === renderbuffer) {
+                    needsUpdate = true
+                    break
+                }
+            }
+            if (needsUpdate) {
+                this._updateFramebufferAttachments(this._activeFramebuffer)
+            }
+        }
     }
+
+    resize(width = 0, height = 0) {
+        width = width | 0
+        height = height | 0
+        if (!(width > 0 && height > 0)) {
+            throw new Error('Invalid surface dimensions')
+        } else if (width !== this.drawingBufferWidth ||
+            height !== this.drawingBufferHeight) {
+            this._resizeDrawingBuffer(width, height)
+            this.drawingBufferWidth = width
+            this.drawingBufferHeight = height
+        }
+    }
+
     sampleCoverage(value: GLclampf, invert: GLboolean): void {
-        return this._native.sampleCoverage(value, invert);
+        return this._native.sampleCoverage(+value, !!invert);
     }
     scissor(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
-        return this._native.scissor(x, y, width, height);
+        return this._native.scissor(x | 0, y | 0, width | 0, height | 0);
     }
     shaderSource(shader: WebGLShader, source: string): void {
-        return this._native.shaderSource(shader._, source);
+        // return this._native.shaderSource(shader._, source);
+        if (!checkObject(shader)) {
+            throw new TypeError('shaderSource(WebGLShader, String)')
+        }
+        if (!shader || (!source && typeof source !== 'string')) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+        source += ''
+        if (!isValidString(source)) {
+            this.setError(gl.INVALID_VALUE)
+        } else if (this._checkWrapper(shader, WebGLShader)) {
+            this._native.shaderSource(shader._ | 0, this._wrapShader(shader._type, source))
+            shader._source = source
+        }
     }
     stencilFunc(func: GLenum, ref: GLint, mask: GLuint): void {
-        return this._native.stencilFunc(func, ref, mask);
+        this._checkStencil = true
+        return this._native.stencilFunc(func | 0, ref | 0, mask | 0);
     }
     stencilFuncSeparate(face: GLenum, func: GLenum, ref: GLint, mask: GLuint): void {
-        return this._native.stencilFuncSeparate(func, func, ref, mask);
+        this._checkStencil = true
+        return this._native.stencilFuncSeparate(face | 0, func | 0, ref | 0, mask | 0);
     }
     stencilMask(mask: GLuint): void {
-        return this._native.stencilMask(mask);
+        this._checkStencil = true
+        return this._native.stencilMask(mask | 0);
     }
     stencilMaskSeparate(face: GLenum, mask: GLuint): void {
-        return this._native.stencilMaskSeparate(face, mask);
+        this._checkStencil = true
+        return this._native.stencilMaskSeparate(face | 0, mask | 0);
     }
     stencilOp(fail: GLenum, zfail: GLenum, zpass: GLenum): void {
-        return this._native.stencilOp(fail, zfail, zpass);
+        this._checkStencil = true
+        return this._native.stencilOp(fail | 0, zfail | 0, zpass | 0);
     }
     stencilOpSeparate(face: GLenum, fail: GLenum, zfail: GLenum, zpass: GLenum): void {
-        return this._native.stencilOpSeparate(face, fail, zfail, zpass);
+        this._checkStencil = true
+        return this._native.stencilOpSeparate(face | 0, fail | 0, zfail | 0, zpass | 0);
     }
-    texParameterf(target: GLenum, pname: GLenum, param: GLfloat): void {
-        return this._native.texParameterf(target, pname, param);
+    texParameterf(target: GLenum = 0, pname: GLenum = 0, param: GLfloat): void {
+        param = +param;
+        // return this._native.texParameterf(target, pname, param);
+        if (this._checkTextureTarget(target)) {
+            this._verifyTextureCompleteness(target, pname, param)
+            switch (pname) {
+                case gl.TEXTURE_MIN_FILTER:
+                case gl.TEXTURE_MAG_FILTER:
+                case gl.TEXTURE_WRAP_S:
+                case gl.TEXTURE_WRAP_T:
+                    return this._native.texParameterf(target, pname, param)
+            }
+
+            if (this._extensions.ext_texture_filter_anisotropic && pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT) {
+                return this._native.texParameterf(target, pname, param)
+            }
+
+            this.setError(gl.INVALID_ENUM)
+        }
     }
-    texParameteri(target: GLenum, pname: GLenum, param: GLint): void {
-        return this._native.texParameteri(target, pname, param);
+    texParameteri(target: GLenum = 0, pname: GLenum = 0, param: GLint = 0): void {
+        // return this._native.texParameteri(target, pname, param);
+        if (this._checkTextureTarget(target)) {
+            this._verifyTextureCompleteness(target, pname, param)
+            switch (pname) {
+                case gl.TEXTURE_MIN_FILTER:
+                case gl.TEXTURE_MAG_FILTER:
+                case gl.TEXTURE_WRAP_S:
+                case gl.TEXTURE_WRAP_T:
+                    return this._native.texParameteri(target, pname, param)
+            }
+
+            if (this._extensions.ext_texture_filter_anisotropic && pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT) {
+                return this._native.texParameteri(target, pname, param)
+            }
+
+            this.setError(gl.INVALID_ENUM)
+        }
     }
     uniform1f(location: WebGLUniformLocation | null, x: GLfloat): void {
-        return this._native.uniform1f(location?._ || null, x);
+        if (!this._checkUniformValid(location, x, 'uniform1f', 1, 'f')) return
+        return this._native.uniform1f(location?._ || 0, x);
     }
     uniform1i(location: WebGLUniformLocation | null, x: GLint): void {
-        return this._native.uniform1i(location?._ || null, x);
+        return this._native.uniform1i(location?._ || 0, x);
     }
     uniform2f(location: WebGLUniformLocation | null, x: GLfloat, y: GLfloat): void {
-        return this._native.uniform2f(location?._ || null, x, y);
+        if (!this._checkUniformValid(location, x, 'uniform2f', 2, 'f')) return
+        return this._native.uniform2f(location?._ || 0, x, y);
     }
     uniform2i(location: WebGLUniformLocation | null, x: GLint, y: GLint): void {
-        return this._native.uniform2i(location?._ || null, x, y);
+        if (!this._checkUniformValid(location, x, 'uniform2i', 2, 'i')) return
+        this._native.uniform2i(location?._ || 0, x, y);
     }
     uniform3f(location: WebGLUniformLocation | null, x: GLfloat, y: GLfloat, z: GLfloat): void {
-        return this._native.uniform3f(location?._ || null, x, y, z);
+        if (!this._checkUniformValid(location, x, 'uniform3f', 3, 'f')) return
+        return this._native.uniform3f(location?._ || 0, x, y, z);
     }
     uniform3i(location: WebGLUniformLocation | null, x: GLint, y: GLint, z: GLint): void {
-        return this._native.uniform3i(location?._ || null, x, y, z);
+        if (!this._checkUniformValid(location, x, 'uniform3i', 3, 'i')) return
+        return this._native.uniform3i(location?._ || 0, x, y, z);
     }
     uniform4f(location: WebGLUniformLocation | null, x: GLfloat, y: GLfloat, z: GLfloat, w: GLfloat): void {
-        return this._native.uniform4f(location?._ || null, x, y, z, w);
+        if (!this._checkUniformValid(location, x, 'uniform4f', 4, 'f')) return
+        return this._native.uniform4f(location?._ || 0, x, y, z, w);
     }
     uniform4i(location: WebGLUniformLocation | null, x: GLint, y: GLint, z: GLint, w: GLint): void {
-        return this._native.uniform4i(location?._ || null, x, y, z, w);
+        if (!this._checkUniformValid(location, x, 'uniform4i', 4, 'i')) return
+        return this._native.uniform4i(location?._ || 0, x, y, z, w);
     }
     useProgram(program: WebGLProgram | null): void {
         return this._native.useProgram(program?._ || null);
@@ -1820,25 +3627,25 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return this._native.vertexAttrib1f(index, x);
     }
     vertexAttrib1fv(index: GLuint, values: Float32List): void {
-        return this._native.vertexAttrib1fv(index, float32ListToArray(values));
+        return this._native.vertexAttrib1fv(index, listToArray(values));
     }
     vertexAttrib2f(index: GLuint, x: GLfloat, y: GLfloat): void {
         return this._native.vertexAttrib2f(index, x, y);
     }
     vertexAttrib2fv(index: GLuint, values: Float32List): void {
-        return this._native.vertexAttrib2fv(index, float32ListToArray(values));
+        return this._native.vertexAttrib2fv(index, listToArray(values));
     }
     vertexAttrib3f(index: GLuint, x: GLfloat, y: GLfloat, z: GLfloat): void {
         return this._native.vertexAttrib3f(index, x, y, z);
     }
     vertexAttrib3fv(index: GLuint, values: Float32List): void {
-        return this._native.vertexAttrib3fv(index, float32ListToArray(values));
+        return this._native.vertexAttrib3fv(index, listToArray(values));
     }
     vertexAttrib4f(index: GLuint, x: GLfloat, y: GLfloat, z: GLfloat, w: GLfloat): void {
         return this._native.vertexAttrib4f(index, x, y, z, w);
     }
     vertexAttrib4fv(index: GLuint, values: Float32List): void {
-        return this._native.vertexAttrib4fv(index, float32ListToArray(values));
+        return this._native.vertexAttrib4fv(index, listToArray(values));
     }
     vertexAttribPointer(index: GLuint, size: GLint, type: GLenum, normalized: GLboolean, stride: GLsizei, offset: GLintptr): void {
         return this._native.vertexAttribPointer(index, size, type, normalized, stride, offset);

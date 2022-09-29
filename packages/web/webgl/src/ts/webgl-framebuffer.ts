@@ -111,7 +111,7 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
         this._unlink(object)
     }
 
-    _setAttachment(object: WebGLTexture | WebGLRenderbuffer, attachment: GLenum) {
+    _setAttachment(object: WebGLTexture | WebGLRenderbuffer | null, attachment: GLenum) {
         const prevObject = this._attachments[attachment]
         if (prevObject === object) {
             return

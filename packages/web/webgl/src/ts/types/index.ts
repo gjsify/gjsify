@@ -1,5 +1,6 @@
 export * from './constructor.js';
 export * from './extension.js';
+export * from './typed-array.js';
 export * from './webgl-context-attribute-options.js';
 
 // type GjsifyWebGLProgram = Gwebgl.WebGLProgram & WebGLProgram & number;
