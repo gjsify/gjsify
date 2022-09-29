@@ -5,8 +5,10 @@
     "target": "ESNext",
     "moduleResolution": "node",
     "experimentalDecorators": true,
+    "declaration": true,
+    "declarationDir": "lib",
     "outDir": "lib",
-    "rootDir": "src",
+    "rootDir": "src/ts",
     "composite": true,
     "strict": true,
     "typeRoots": ["node_modules", "src/ts/@types"]
@@ -16,5 +18,5 @@
   "checkJs": false,
   "reflection": false,
   "include": ["src/ts/**/*.ts"],
-  "exclude": ["src/ts/test.ts", "src/ts/**/*.spec.ts"],
+  "exclude": ["src/ts/test.ts", "src/ts/**/*.spec.ts"]
 }

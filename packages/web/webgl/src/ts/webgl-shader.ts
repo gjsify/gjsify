@@ -11,7 +11,7 @@ export class GjsifyWebGLShader extends Linkable implements WebGLShader {
     _compileStatus = false
     _compileInfo = ''
 
-  constructor (_: WebGLShader, ctx: GjsifyWebGLRenderingContext, type: GLenum) {
+  constructor (_: WebGLShader & number, ctx: GjsifyWebGLRenderingContext, type: GLenum) {
     super(_)
     this._type = type
     this._ctx = ctx

@@ -2,7 +2,8 @@ import { Linkable } from './linkable.js'
 import { gl } from './native-gl.js'
 
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
-import type { WebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
+// import type { WebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
+type WebGLDrawBuffers = any;
 
 export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer {
 
@@ -40,7 +41,7 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
         this._attachmentFace[gl.DEPTH_STENCIL_ATTACHMENT] = 0
 
         if (ctx._extensions.webgl_draw_buffers) {
-            const webGLDrawBuffers: WebGLDrawBuffers = ctx._extensions.webgl_draw_buffers  // eslint-disable-line
+            const webGLDrawBuffers: WebGLDrawBuffers = ctx._extensions.webgl_draw_buffers;
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT1_WEBGL] = null
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT2_WEBGL] = null
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT3_WEBGL] = null

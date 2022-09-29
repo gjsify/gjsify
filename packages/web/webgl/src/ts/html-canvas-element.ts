@@ -9,7 +9,8 @@ export class GjsifyHTMLCanvasElement /*TODO implements HTMLCanvasElement*/ {
 
     /** Gets the height of a canvas element on a document. */
     get height() {
-        return this.gtkGlArea.get_height()
+        return this.gtkGlArea.get_allocated_height()
+        // return this.gtkGlArea.get_height()
     }
 
     /** Sets the height of a canvas element on a document. */
@@ -19,7 +20,8 @@ export class GjsifyHTMLCanvasElement /*TODO implements HTMLCanvasElement*/ {
 
     /** Gets the width of a canvas element on a document. */
     get width() {
-        return this.gtkGlArea.get_width()
+        return this.gtkGlArea.get_allocated_width()
+        // return this.gtkGlArea.get_width()
     }
 
     /** Sets the width of a canvas element on a document. */

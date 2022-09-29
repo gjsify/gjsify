@@ -12,7 +12,7 @@ export class GjsifyWebGLTexture extends Linkable implements WebGLTexture {
     _format = 0
     _type = 0
     _complete = true
-  constructor (_: WebGLTexture, ctx: GjsifyWebGLRenderingContext) {
+  constructor (_: WebGLTexture & number, ctx: GjsifyWebGLRenderingContext) {
     super(_)
     this._ctx = ctx
   }

@@ -1,7 +1,9 @@
 import * as bits from 'bit-twiddle';
 import tokenize from 'glsl-tokenizer/string';
 import Gwebgl from '@gjsify/types/Gwebgl-0.1';
+import GdkPixbuf from '@gjsify/types/GdkPixbuf-2.0';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
+import { GjsifyHTMLCanvasElement } from './html-canvas-element';
 import { gl } from './native-gl.js';
 import {
     extractImageData,
@@ -21,7 +23,7 @@ import {
     vertexCount,
 } from './utils.js';
 
-import { getANGLEInstancedArrays } from './extensions/angle-instanced-arrays.js';
+// import { getANGLEInstancedArrays } from './extensions/angle-instanced-arrays.js';
 import { getOESElementIndexUint } from './extensions/oes-element-index-unit.js';
 import { getOESStandardDerivatives } from './extensions/oes-standard-derivatives.js';
 import { getOESTextureFloat } from './extensions/oes-texture-float.js';
@@ -31,7 +33,7 @@ import { getSTACKGLResizeDrawingBuffer } from './extensions/stackgl-resize-drawi
 // import { getWebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
 import { getEXTBlendMinMax } from './extensions/ext-blend-minmax.js';
 import { getEXTTextureFilterAnisotropic } from './extensions/ext-texture-filter-anisotropic.js';
-import { getOESVertexArrayObject } from './extensions/oes-vertex-array-object.js';
+// import { getOESVertexArrayObject } from './extensions/oes-vertex-array-object.js';
 
 import { WebGLActiveInfo } from './webgl-active-info.js';
 import { WebGLFramebuffer } from './webgl-framebuffer.js';
@@ -47,6 +49,7 @@ import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLVertexArrayObjectState, WebGLVertexArrayGlobalState } from './webgl-vertex-attribute.js';
 
 import type { ExtensionFactory, TypedArray, WebGLConstants } from './types/index.js';
+import { warnNotImplemented } from '@gjsify/utils';
 
 const VERSION = '0.0.1';
 
@@ -66,12 +69,12 @@ const DEFAULT_ATTACHMENTS = [
 const DEFAULT_COLOR_ATTACHMENTS = [gl.COLOR_ATTACHMENT0]
 
 const availableExtensions: Record<string, ExtensionFactory> = {
-    angle_instanced_arrays: getANGLEInstancedArrays,
+    // angle_instanced_arrays: getANGLEInstancedArrays,
     oes_element_index_uint: getOESElementIndexUint,
     oes_texture_float: getOESTextureFloat,
     oes_texture_float_linear: getOESTextureFloatLinear,
     oes_standard_derivatives: getOESStandardDerivatives,
-    oes_vertex_array_object: getOESVertexArrayObject,
+    // oes_vertex_array_object: getOESVertexArrayObject,
     stackgl_destroy_context: getSTACKGLDestroyContext,
     stackgl_resize_drawingbuffer: getSTACKGLResizeDrawingBuffer,
     // webgl_draw_buffers: getWebGLDrawBuffers,
@@ -79,43 +82,51 @@ const availableExtensions: Record<string, ExtensionFactory> = {
     ext_texture_filter_anisotropic: getEXTTextureFilterAnisotropic
 }
 
-const privateMethods = [
-    'resize',
-    'destroy'
-]
+// const privateMethods = [
+//     'resize',
+//     'destroy'
+// ]
 
-function wrapContext(ctx: GjsifyWebGLRenderingContext) {
-    const wrapper = new GjsifyWebGLRenderingContext()
-    bindPublics(Object.keys(ctx) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-    bindPublics(Object.keys(ctx.constructor.prototype) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-    bindPublics(Object.getOwnPropertyNames(ctx) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-    bindPublics(Object.getOwnPropertyNames(ctx.constructor.prototype) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
+// function wrapContext(ctx: GjsifyWebGLRenderingContext) {
+//     const wrapper = new GjsifyWebGLRenderingContext()
+//     bindPublics(Object.keys(ctx) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.keys(ctx.constructor.prototype) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.getOwnPropertyNames(ctx) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.getOwnPropertyNames(ctx.constructor.prototype) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
 
-    Object.defineProperties(wrapper, {
-        drawingBufferWidth: {
-            get() { return ctx.drawingBufferWidth },
-            set(value) { ctx.drawingBufferWidth = value }
-        },
-        drawingBufferHeight: {
-            get() { return ctx.drawingBufferHeight },
-            set(value) { ctx.drawingBufferHeight = value }
-        }
-    })
+//     Object.defineProperties(wrapper, {
+//         drawingBufferWidth: {
+//             get() { return ctx.drawingBufferWidth },
+//             set(value) { ctx.drawingBufferWidth = value }
+//         },
+//         drawingBufferHeight: {
+//             get() { return ctx.drawingBufferHeight },
+//             set(value) { ctx.drawingBufferHeight = value }
+//         }
+//     })
 
-    return wrapper
-}
+//     return wrapper
+// }
 
-export interface GjsifyWebGLRenderingContext extends WebGLConstants {}
+export interface GjsifyWebGLRenderingContext extends WebGLConstants { }
 
 export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
-    canvas: HTMLCanvasElement = null as any as HTMLCanvasElement; // TODO
-    drawingBufferHeight: GLsizei = 0;
-    drawingBufferWidth: GLsizei = 0;
+    canvas: HTMLCanvasElement;
+    // drawingBufferHeight: GLsizei = 0;
+    // drawingBufferWidth: GLsizei = 0;
+
+    get drawingBufferHeight() {
+        return this.canvas.height || 0;
+    }
+
+    get drawingBufferWidth() {
+        return this.canvas.width || 0;
+    }
 
     /** context counter */
     _ = 0;
 
-    _native = new Gwebgl.WebGLRenderingContext();
+    _native: Gwebgl.WebGLRenderingContext;
 
     _contextAttributes: WebGLContextAttributes;
 
@@ -156,8 +167,11 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     _textureUnits: WebGLTextureUnit[] = [];
     _drawingBuffer: WebGLDrawingBufferWrapper | null = null;
 
-    constructor(options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {}) {
+    constructor(canvas: GjsifyHTMLCanvasElement | HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {}, ) {
+        this._native = new Gwebgl.WebGLRenderingContext(options); 
         this._initGLConstants();
+
+        this.canvas = canvas as Partial<GjsifyHTMLCanvasElement> & HTMLCanvasElement;
 
         this._contextAttributes = new WebGLContextAttributes(
             flag(options, 'alpha', true),
@@ -170,14 +184,14 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             flag(options, 'failIfMajorPerformanceCaveat', false)
         )
 
-        const width = options.width || 0;
-        const height = options.height || 0;
+        const width = this.drawingBufferWidth || options.width || 0;
+        const height = this.drawingBufferHeight || options.height || 0;
 
         // Can only use premultipliedAlpha if alpha is set
         this._contextAttributes.premultipliedAlpha = this._contextAttributes.premultipliedAlpha && this._contextAttributes.alpha;
 
-        this.drawingBufferWidth = width;
-        this.drawingBufferHeight = height;
+        // this.drawingBufferWidth = width;
+        // this.drawingBufferHeight = height;
 
         this._ = CONTEXT_COUNTER++;
 
@@ -230,7 +244,8 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this.clearStencil(0)
         this.clear(this.COLOR_BUFFER_BIT | this.DEPTH_BUFFER_BIT | this.STENCIL_BUFFER_BIT)
 
-        return wrapContext(this)
+        // return wrapContext(this)
+        return this;
     }
 
     _initGLConstants() {
@@ -1201,7 +1216,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return this._native.compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, unpackTypedArray(data));
     }
     readPixels(x: GLint = 0, y: GLint = 0, width: GLsizei = 0, height: GLsizei = 0, format: GLenum = 0, type: GLenum = 0, pixels: TypedArray | null): void {
-        if(!pixels) return;
+        if (!pixels) return;
         // return this._native.readPixels(x, y, width, height, format, type, pixels);
 
         if (!(this._extensions.oes_texture_float && type === gl.FLOAT && format === gl.RGBA)) {
@@ -1213,10 +1228,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             } else if (format !== gl.RGBA) {
                 this.setError(gl.INVALID_ENUM)
                 return
-            } else if (
-                width < 0 ||
-                height < 0 ||
-                !(pixels instanceof Uint8Array)) {
+            } else if (width < 0 || height < 0 || !(pixels instanceof Uint8Array)) {
                 this.setError(gl.INVALID_VALUE)
                 return
             }
@@ -1321,49 +1333,47 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
     }
     texImage2D(target: GLenum, level: GLint, internalFormat: GLint, width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
-    texImage2D(target: GLenum, level: GLint, internalFormat: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
+    texImage2D(target: GLenum, level: GLint, internalFormat: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf): void;
     // https://github.com/stackgl/headless-gl/blob/ce1c08c0ef0c31d8c308cb828fd2f172c0bf5084/src/javascript/webgl-rendering-context.js#L3131
-    texImage2D(target: GLenum, level: GLint, internalFormat: GLint, formatOrWidth: GLenum | GLsizei, typeOrHeight: GLenum | GLsizei, sourceOrBorder: TexImageSource | GLint, _format?: GLenum, _type?: GLenum, _pixels?: ArrayBufferView | null): void {
+    texImage2D(target: GLenum = 0, level: GLint = 0, internalFormat: GLint = 0, formatOrWidth: GLenum | GLsizei = 0, typeOrHeight: GLenum | GLsizei = 0, sourceOrBorder: TexImageSource | GdkPixbuf.Pixbuf | GLint = 0, _format: GLenum = 0, type: GLenum = 0, pixels?: ArrayBufferView | null): void {
 
         let width: number = 0;
         let height: number = 0;
         let format: number = 0;
-        let type: number = 0;
         let source: TexImageSource;
+        let pixbuf: GdkPixbuf.Pixbuf;
         let border: number = 0;
-        let pixels: ArrayBufferView | null = null;
 
         if (arguments.length === 6) {
-            source = sourceOrBorder as TexImageSource
             type = typeOrHeight;
             format = formatOrWidth;
 
-            let imageData = extractImageData(source);
+            if (sourceOrBorder instanceof GdkPixbuf.Pixbuf) {
+                pixbuf = sourceOrBorder;
 
-            if (imageData == null) {
-                throw new TypeError('texImage2D(GLenum, GLint, GLenum, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)')
+                width = pixbuf.get_width();
+                height = pixbuf.get_height();;
+                pixels = pixbuf.get_pixels();
+            } else {
+                source = sourceOrBorder as TexImageSource;
+                const imageData = extractImageData(source);
+
+                if (imageData == null) {
+                    throw new TypeError('texImage2D(GLenum, GLint, GLenum, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)')
+                }
+
+                width = imageData.width;
+                height = imageData.height;
+                pixels = imageData.data;
             }
-
-            width = imageData.width;
-            height = imageData.height;
-            pixels = imageData.data;
         } else if (arguments.length === 9) {
             width = formatOrWidth;
             height = typeOrHeight;
             border = sourceOrBorder as GLint;
             format = _format as GLenum;
-            type = _type as GLenum;
-            pixels = _pixels as ArrayBufferView | null;
+            type = type as GLenum;
+            pixels = pixels as ArrayBufferView | null;
         }
-
-        target |= 0
-        level |= 0
-        internalFormat |= 0
-        width |= 0
-        height |= 0
-        border |= 0
-        format |= 0
-        type |= 0
 
         if (typeof pixels !== 'object' && pixels !== undefined) {
             throw new TypeError('texImage2D(GLenum, GLint, GLenum, GLint, GLint, GLint, GLenum, GLenum, Uint8Array)')
@@ -1398,7 +1408,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             return
         }
 
-        const data = convertPixels(pixels)
+        const data = convertPixels(pixels as ArrayBufferView)
         const rowStride = this._computeRowStride(width, pixelSize)
         const imageSize = rowStride * height
 
@@ -1415,16 +1425,8 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         // Need to check for out of memory error
         this._saveError()
-        this._native.texImage2D(
-            target,
-            level,
-            internalFormat,
-            width,
-            height,
-            border,
-            format,
-            type,
-            data)
+
+        this._native.texImage2D(target, level, internalFormat, width, height, border, format, type, data)
         const error = this.getError()
         this._restoreError(error)
         if (error !== gl.NO_ERROR) {
@@ -1453,9 +1455,97 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
     }
     texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
-    texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
-    texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, formatOrWidth: GLenum | GLsizei, typeOrHeight: GLenum | GLsizei, sourceOrFormat: TexImageSource | GLenum, type?: GLenum, pixels?: ArrayBufferView | null): void {
+    texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf ): void;
+    texSubImage2D(target: GLenum = 0, level: GLint = 0, xoffset: GLint = 0, yoffset: GLint = 0, formatOrWidth: GLenum | GLsizei = 0, typeOrHeight: GLenum | GLsizei = 0, sourceOrFormat: TexImageSource | GdkPixbuf.Pixbuf | GLenum = 0, type: GLenum = 0, pixels?: ArrayBufferView | null): void {
+        
+        let width: number = 0;
+        let height: number = 0;
+        let format: number = 0;
+        let source: TexImageSource;
+        let pixbuf: GdkPixbuf.Pixbuf;
+        
+        if (arguments.length === 7) {
+            type = typeOrHeight
+            format = formatOrWidth
 
+            if (sourceOrFormat instanceof GdkPixbuf.Pixbuf) {
+                pixbuf = sourceOrFormat;
+
+                width = pixbuf.get_width();
+                height = pixbuf.get_height();;
+                pixels = pixbuf.get_pixels();
+            } else {
+                source = sourceOrFormat as TexImageSource;
+                const imageData = extractImageData(source)
+
+                if (imageData == null) {
+                    throw new TypeError('texSubImage2D(GLenum, GLint, GLint, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)')
+                }
+    
+                width = imageData.width
+                height = imageData.height
+                pixels = imageData.data
+            }
+
+
+        } else {
+            width = formatOrWidth;
+            height = typeOrHeight;
+            format = sourceOrFormat as GLenum;
+        }
+
+        if (typeof pixels !== 'object') {
+            throw new TypeError('texSubImage2D(GLenum, GLint, GLint, GLint, GLint, GLint, GLenum, GLenum, Uint8Array)')
+        }
+
+        const texture = this._getTexImage(target)
+        if (!texture) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        if (type === gl.FLOAT && !this._extensions.oes_texture_float) {
+            this.setError(gl.INVALID_ENUM)
+            return
+        }
+
+        const pixelSize = this._computePixelSize(type, format)
+        if (pixelSize === 0) {
+            return
+        }
+
+        if (!this._checkDimensions(
+            target,
+            width,
+            height,
+            level)) {
+            return
+        }
+
+        if (xoffset < 0 || yoffset < 0) {
+            this.setError(gl.INVALID_VALUE)
+            return
+        }
+
+        const data = convertPixels(pixels)
+        const rowStride = this._computeRowStride(width, pixelSize)
+        const imageSize = rowStride * height
+
+        if (!data || data.length < imageSize) {
+            this.setError(gl.INVALID_OPERATION)
+            return
+        }
+
+        this._native.texSubImage2D(
+            target,
+            level,
+            xoffset,
+            yoffset,
+            width,
+            height,
+            format,
+            type,
+            data)
     }
 
     _checkUniformValid(location: WebGLUniformLocation | null, v0: GLfloat, name: string, count: number, type: string) {
@@ -2323,6 +2413,11 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             return this._native.depthRange(zNear, zFar)
         }
         this.setError(gl.INVALID_OPERATION)
+    }
+
+    destroy () {
+        warnNotImplemented('destroy');
+        // this._native.destroy()
     }
 
     detachShader(program: WebGLProgram, shader: WebGLShader): void {
@@ -3496,8 +3591,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         } else if (width !== this.drawingBufferWidth ||
             height !== this.drawingBufferHeight) {
             this._resizeDrawingBuffer(width, height)
-            this.drawingBufferWidth = width
-            this.drawingBufferHeight = height
+            // this.drawingBufferWidth = width
+            // this.drawingBufferHeight = height
+            warnNotImplemented('resize');
         }
     }
 

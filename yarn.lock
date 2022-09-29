@@ -283,6 +283,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-webgl-demo-fade@workspace:examples/webgl-demo-fade":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-webgl-demo-fade@workspace:examples/webgl-demo-fade"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/types": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": ^18.7.18
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/fetch@workspace:packages/web/fetch":
   version: 0.0.0-use.local
   resolution: "@gjsify/fetch@workspace:packages/web/fetch"
@@ -528,7 +539,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/webgl@workspace:packages/web/webgl":
+"@gjsify/webgl@workspace:^, @gjsify/webgl@workspace:packages/web/webgl":
   version: 0.0.0-use.local
   resolution: "@gjsify/webgl@workspace:packages/web/webgl"
   dependencies:
