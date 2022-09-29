@@ -1,5 +1,5 @@
 // https://github.com/stackgl/headless-gl/blob/master/src/javascript/utils.js
-import { gl } from './native-gl.js';
+// import { gl } from './native-gl.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLProgram } from './webgl-program.js';
 
@@ -58,7 +58,7 @@ export function isValidString(str: string) {
     return !(/["$`@\\'\0]/.test(c))
 }
 
-export function vertexCount(primitive: GLenum, count: number) {
+export function vertexCount(gl: GjsifyWebGLRenderingContext, primitive: GLenum, count: number) {
     switch (primitive) {
         case gl.TRIANGLES:
             return count - (count % 3)
@@ -83,7 +83,7 @@ export function vertexCount(primitive: GLenum, count: number) {
     }
 }
 
-export function typeSize(type: GLenum) {
+export function typeSize(gl: GjsifyWebGLRenderingContext, type: GLenum) {
     switch (type) {
         case gl.UNSIGNED_BYTE:
         case gl.BYTE:
@@ -99,7 +99,7 @@ export function typeSize(type: GLenum) {
     return 0
 }
 
-export function uniformTypeSize(type: GLenum) {
+export function uniformTypeSize(gl: GjsifyWebGLRenderingContext, type: GLenum) {
     switch (type) {
         case gl.BOOL_VEC4:
         case gl.INT_VEC4:
@@ -183,7 +183,7 @@ export const extractImageData = (pixels: TexImageSource): ImageData | null => {
     return null
 }
 
-export function formatSize(internalFormat: number) {
+export function formatSize(gl: GjsifyWebGLRenderingContext, internalFormat: number) {
     switch (internalFormat) {
         case gl.ALPHA:
         case gl.LUMINANCE:
@@ -214,7 +214,7 @@ export function convertPixels(pixels: ArrayBuffer | Uint8Array | Uint16Array | U
     return null
 }
 
-export function checkFormat(format: GLenum) {
+export function checkFormat(gl: GjsifyWebGLRenderingContext, format: GLenum) {
     return (
         format === gl.ALPHA ||
         format === gl.LUMINANCE_ALPHA ||
@@ -223,7 +223,7 @@ export function checkFormat(format: GLenum) {
         format === gl.RGBA)
 }
 
-export function validCubeTarget(target: GLenum) {
+export function validCubeTarget(gl: GjsifyWebGLRenderingContext, target: GLenum) {
     return target === gl.TEXTURE_CUBE_MAP_POSITIVE_X ||
         target === gl.TEXTURE_CUBE_MAP_NEGATIVE_X ||
         target === gl.TEXTURE_CUBE_MAP_POSITIVE_Y ||

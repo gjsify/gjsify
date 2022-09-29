@@ -431,8 +431,8 @@ namespace Gwebgl {
             return glCheckFramebufferStatus(target);
         }
 
-        public void clear(uint8 mask) {
-            glClear(mask);
+        public void clear(uint mask) {
+            glClear((uint8) mask);
         }
 
         public void clearColor(float red, float green, float blue, float alpha) {
@@ -568,7 +568,7 @@ namespace Gwebgl {
             glDrawElements(mode, count, type, (GLvoid*) offset);
         }
 
-        public void enable(GLenum cap) {
+        public void enable(int cap) {
             glEnable(cap);
         }
 
@@ -682,7 +682,7 @@ namespace Gwebgl {
         }
 
         // https://github.com/stackgl/headless-gl/blob/ce1c08c0ef0c31d8c308cb828fd2f172c0bf5084/src/native/webgl.cc#L164
-        public void setError(GLenum error) {
+        public void setError(int error) {
             if (error == GL_NO_ERROR || this.lastError != GL_NO_ERROR) {
                 return;
             }
@@ -888,7 +888,7 @@ namespace Gwebgl {
             return result;
         }
 
-        public WebGLShaderPrecisionFormat? getShaderPrecisionFormat(GLenum shadertype, GLenum precisiontype) {
+        public WebGLShaderPrecisionFormat? getShaderPrecisionFormat(int shadertype, int precisiontype) {
             GLint precision = 0;
             GLint[] range = new GLint[2];
 

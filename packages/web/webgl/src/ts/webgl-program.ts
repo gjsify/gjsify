@@ -1,5 +1,4 @@
 import { Linkable } from './linkable.js'
-import { gl } from './native-gl.js'
 import { WebGLActiveInfo } from './webgl-active-info.js';
 
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
@@ -24,7 +23,7 @@ export class GjsifyWebGLProgram extends Linkable implements WebGLProgram {
     _performDelete() {
         const ctx = this._ctx
         delete ctx._programs[this._ | 0]
-        gl.deleteProgram.call(ctx, this._ | 0)
+        ctx._native.deleteProgram(this._ | 0)
     }
 }
 

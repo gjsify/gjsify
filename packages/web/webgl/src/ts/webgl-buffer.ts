@@ -1,5 +1,4 @@
 import { Linkable } from './linkable.js'
-import { gl } from './native-gl.js'
 
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
 
@@ -15,7 +14,7 @@ export class GjsifyWebGLBuffer extends Linkable implements WebGLBuffer {
     _performDelete() {
         const ctx = this._ctx
         delete ctx._buffers[this._ | 0]
-        ctx.deleteBuffer.call(ctx, this)
+        ctx._native.deleteBuffer(this._)
     }
 }
 

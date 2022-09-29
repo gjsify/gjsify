@@ -1,4 +1,3 @@
-import { gl } from './native-gl.js'
 import { Linkable } from './linkable.js'
 
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
@@ -23,7 +22,7 @@ export class GjsifyWebGLShader extends Linkable implements WebGLShader {
   _performDelete () {
     const ctx = this._ctx
     delete ctx._shaders[this._ | 0]
-    gl.deleteShader.call(ctx, this._ | 0)
+    ctx._native.deleteShader(this._ | 0)
   }
 }
 

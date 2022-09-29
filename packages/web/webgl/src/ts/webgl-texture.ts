@@ -1,6 +1,6 @@
 
 import { Linkable } from './linkable.js'
-import { gl } from './native-gl.js'
+// import { gl } from './native-gl.js'
 
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
 
@@ -20,7 +20,7 @@ export class GjsifyWebGLTexture extends Linkable implements WebGLTexture {
   _performDelete () {
     const ctx = this._ctx
     delete ctx._textures[this._ | 0]
-    gl.deleteTexture.call(ctx, this._ | 0)
+    ctx._native.deleteTexture(this._ | 0)
   }
 }
 

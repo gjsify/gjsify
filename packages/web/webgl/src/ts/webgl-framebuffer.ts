@@ -1,5 +1,5 @@
 import { Linkable } from './linkable.js'
-import { gl } from './native-gl.js'
+// import { gl } from './native-gl.js'
 
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
 // import type { WebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
@@ -23,22 +23,22 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
         this._ctx = ctx
 
         this._attachments = {}
-        this._attachments[gl.COLOR_ATTACHMENT0] = null
-        this._attachments[gl.DEPTH_ATTACHMENT] = null
-        this._attachments[gl.STENCIL_ATTACHMENT] = null
-        this._attachments[gl.DEPTH_STENCIL_ATTACHMENT] = null
+        this._attachments[ctx.COLOR_ATTACHMENT0] = null
+        this._attachments[ctx.DEPTH_ATTACHMENT] = null
+        this._attachments[ctx.STENCIL_ATTACHMENT] = null
+        this._attachments[ctx.DEPTH_STENCIL_ATTACHMENT] = null
 
         this._attachmentLevel = {}
-        this._attachmentLevel[gl.COLOR_ATTACHMENT0] = 0
-        this._attachmentLevel[gl.DEPTH_ATTACHMENT] = 0
-        this._attachmentLevel[gl.STENCIL_ATTACHMENT] = 0
-        this._attachmentLevel[gl.DEPTH_STENCIL_ATTACHMENT] = 0
+        this._attachmentLevel[ctx.COLOR_ATTACHMENT0] = 0
+        this._attachmentLevel[ctx.DEPTH_ATTACHMENT] = 0
+        this._attachmentLevel[ctx.STENCIL_ATTACHMENT] = 0
+        this._attachmentLevel[ctx.DEPTH_STENCIL_ATTACHMENT] = 0
 
         this._attachmentFace = {}
-        this._attachmentFace[gl.COLOR_ATTACHMENT0] = 0
-        this._attachmentFace[gl.DEPTH_ATTACHMENT] = 0
-        this._attachmentFace[gl.STENCIL_ATTACHMENT] = 0
-        this._attachmentFace[gl.DEPTH_STENCIL_ATTACHMENT] = 0
+        this._attachmentFace[ctx.COLOR_ATTACHMENT0] = 0
+        this._attachmentFace[ctx.DEPTH_ATTACHMENT] = 0
+        this._attachmentFace[ctx.STENCIL_ATTACHMENT] = 0
+        this._attachmentFace[ctx.DEPTH_STENCIL_ATTACHMENT] = 0
 
         if (ctx._extensions.webgl_draw_buffers) {
             const webGLDrawBuffers: WebGLDrawBuffers = ctx._extensions.webgl_draw_buffers;
@@ -57,8 +57,8 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT13_WEBGL] = null
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT14_WEBGL] = null
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT15_WEBGL] = null
-            this._attachments[gl.NONE] = null
-            this._attachments[gl.BACK] = null
+            this._attachments[ctx.NONE] = null
+            this._attachments[ctx.BACK] = null
 
             this._attachmentLevel[webGLDrawBuffers.COLOR_ATTACHMENT1_WEBGL] = 0
             this._attachmentLevel[webGLDrawBuffers.COLOR_ATTACHMENT2_WEBGL] = 0
@@ -75,8 +75,8 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
             this._attachmentLevel[webGLDrawBuffers.COLOR_ATTACHMENT13_WEBGL] = 0
             this._attachmentLevel[webGLDrawBuffers.COLOR_ATTACHMENT14_WEBGL] = 0
             this._attachmentLevel[webGLDrawBuffers.COLOR_ATTACHMENT15_WEBGL] = 0
-            this._attachmentLevel[gl.NONE] = null
-            this._attachmentLevel[gl.BACK] = null
+            this._attachmentLevel[ctx.NONE] = null
+            this._attachmentLevel[ctx.BACK] = null
 
             this._attachmentFace[webGLDrawBuffers.COLOR_ATTACHMENT1_WEBGL] = 0
             this._attachmentFace[webGLDrawBuffers.COLOR_ATTACHMENT2_WEBGL] = 0
@@ -93,8 +93,8 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
             this._attachmentFace[webGLDrawBuffers.COLOR_ATTACHMENT13_WEBGL] = 0
             this._attachmentFace[webGLDrawBuffers.COLOR_ATTACHMENT14_WEBGL] = 0
             this._attachmentFace[webGLDrawBuffers.COLOR_ATTACHMENT15_WEBGL] = 0
-            this._attachmentFace[gl.NONE] = null
-            this._attachmentFace[gl.BACK] = null
+            this._attachmentFace[ctx.NONE] = null
+            this._attachmentFace[ctx.BACK] = null
         }
     }
 

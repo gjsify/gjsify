@@ -1,4 +1,3 @@
-import { gl } from './native-gl.js'
 import { WebGLBuffer } from './webgl-buffer.js'
 
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
@@ -11,7 +10,7 @@ export class WebGLVertexArrayObjectAttribute {
     _pointerOffset = 0
     _pointerSize = 0
     _pointerStride = 0
-    _pointerType = gl.FLOAT
+    _pointerType = 0
     _pointerNormal = false
     _divisor = 0
     _inputSize = 4
@@ -20,6 +19,7 @@ export class WebGLVertexArrayObjectAttribute {
     constructor(ctx: GjsifyWebGLRenderingContext, idx: number) {
         this._ctx = ctx
         this._idx = idx
+        this._pointerType = ctx.FLOAT
         this._clear()
     }
 
@@ -29,7 +29,7 @@ export class WebGLVertexArrayObjectAttribute {
         this._pointerOffset = 0
         this._pointerSize = 0
         this._pointerStride = 0
-        this._pointerType = gl.FLOAT
+        this._pointerType = this._ctx.FLOAT
         this._pointerNormal = false
         this._divisor = 0
         this._inputSize = 4
@@ -50,7 +50,7 @@ export class WebGLVertexArrayObjectState {
     _attribs: WebGLVertexArrayObjectAttribute[];
     _elementArrayBufferBinding: WebGLBuffer | null = null;
     constructor(ctx: GjsifyWebGLRenderingContext) {
-        const numAttribs = ctx.getParameter(gl.MAX_VERTEX_ATTRIBS) as number;
+        const numAttribs = ctx.getParameter(ctx.MAX_VERTEX_ATTRIBS) as number;
         this._attribs = new Array(numAttribs)
         for (let i = 0; i < numAttribs; ++i) {
             this._attribs[i] = new WebGLVertexArrayObjectAttribute(ctx, i)
@@ -142,7 +142,7 @@ export class WebGLVertexArrayGlobalState {
     _arrayBufferBinding: WebGLBuffer | null = null;
     _attribs: WebGLVertexArrayGlobalAttribute[];
     constructor(ctx: GjsifyWebGLRenderingContext) {
-        const numAttribs = ctx.getParameter(gl.MAX_VERTEX_ATTRIBS)
+        const numAttribs = ctx.getParameter(ctx.MAX_VERTEX_ATTRIBS)
         this._attribs = new Array(numAttribs)
         for (let i = 0; i < numAttribs; ++i) {
             this._attribs[i] = new WebGLVertexArrayGlobalAttribute(i)
