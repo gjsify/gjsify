@@ -151,6 +151,17 @@ export function unpackTypedArray(array: TypedArray | Float32List | Array<number>
         (array as TypedArray).byteLength + (array as TypedArray).byteOffset)
 }
 
+/**
+ * Converts an ArrayBufferView to an array of bools. gjs returns
+ * Uint8Array, but the elements are actually 4 bytes each.
+ * @param array 
+ * @returns 
+ */
+export function boolArray(array: ArrayBufferView) {
+    return Array.from(new Int32Array(array.buffer)).map(
+        a => a ? true : false);
+}
+
 export const extractImageData = (pixels: TexImageSource): ImageData | null => {
     if (typeof pixels === 'object' && typeof pixels.width !== 'undefined' && typeof pixels.height !== 'undefined') {
         if (typeof (pixels as ImageData).data !== 'undefined') {

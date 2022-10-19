@@ -1,7 +1,14 @@
 import { warnNotImplemented } from '@gjsify/utils'
 import Gtk from '@gjsify/types/Gtk-4.0';
+import { GjsifyWebGLRenderingContextSimple } from './webgl-rendering-context-simple';
 
 export class GjsifyHTMLCanvasElement /*TODO implements HTMLCanvasElement*/ {
+
+    _webgl?: WebGLRenderingContext & GjsifyWebGLRenderingContextSimple
+
+    _getGlArea() {
+        return this.gtkGlArea;
+    }
 
     constructor(protected readonly gtkGlArea: Gtk.GLArea) {
 
@@ -38,9 +45,19 @@ export class GjsifyHTMLCanvasElement /*TODO implements HTMLCanvasElement*/ {
      */
     getContext(contextId: "2d", options?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D | null;
     getContext(contextId: "bitmaprenderer", options?: ImageBitmapRenderingContextSettings): ImageBitmapRenderingContext | null;
-    getContext(contextId: "webgl", options?: WebGLContextAttributes): WebGLRenderingContext | null;
+    getContext(contextId: "webgl", options?: WebGLContextAttributes): WebGLRenderingContext & GjsifyWebGLRenderingContextSimple | null;
     getContext(contextId: "webgl2", options?: WebGLContextAttributes): WebGL2RenderingContext | null;
     getContext(contextId: string, options?: any): RenderingContext | null {
+        switch (contextId) {
+            case "webgl":
+                if(this._webgl) {
+                    return this._webgl;
+                }
+                this._webgl = new GjsifyWebGLRenderingContextSimple(this, options) as WebGLRenderingContext & GjsifyWebGLRenderingContextSimple;
+                return this._webgl;
+            default:
+                warnNotImplemented(`GjsifyHTMLCanvasElement.getContext("${contextId}")`);
+        }
         return null;
     }
     toBlob(callback: BlobCallback, type?: string, quality?: any): void {

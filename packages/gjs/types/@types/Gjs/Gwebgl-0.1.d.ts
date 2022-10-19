@@ -10,11 +10,8 @@
  */
 
 import type * as Gjs from './Gjs.js';
-import type GdkPixbuf from './GdkPixbuf-2.0.js';
-import type Gio from './Gio-2.0.js';
-import type GObject from './GObject-2.0.js';
 import type GLib from './GLib-2.0.js';
-import type GModule from './GModule-2.0.js';
+import type GObject from './GObject-2.0.js';
 
 export namespace Gwebgl {
 
@@ -32,6 +29,10 @@ const UNMASKED_RENDERER_WEBGL: number
 const MAX_DRAW_BUFFERS_WEBGL: number
 const MAX_TEXTURE_MAX_ANISOTROPY_EXT: number
 const TEXTURE_MAX_ANISOTROPY_EXT: number
+const STENCIL_INDEX: number
+const VERSION: number
+const IMPLEMENTATION_COLOR_READ_TYPE: number
+const IMPLEMENTATION_COLOR_READ_FORMAT: number
 module WebGLRenderingContextBase {
 
     // Constructor properties interface
@@ -85,7 +86,7 @@ interface WebGLRenderingContextBase {
     deleteBuffer(buffer: number | null): void
     deleteFramebuffer(framebuffer: number | null): void
     deleteProgram(program: number | null): void
-    deleteRenderbuffer(renderbuffers: number | null): void
+    deleteRenderbuffer(renderbuffer: number | null): void
     deleteShader(shader: number | null): void
     deleteTexture(texture: number | null): void
     depthFunc(func: number): void
@@ -96,7 +97,7 @@ interface WebGLRenderingContextBase {
     disableVertexAttribArray(index: number): void
     drawArrays(mode: number, first: number, count: number): void
     drawElements(mode: number, count: number, type: number, offset: number): void
-    enable(cap: any): void
+    enable(cap: number): void
     enableVertexAttribArray(index: number): void
     finish(): void
     flush(): void
@@ -108,29 +109,33 @@ interface WebGLRenderingContextBase {
     getActiveUniform(program: number, index: number): /* result */ WebGLActiveInfo
     getAttachedShaders(program: number): number[]
     getAttribLocation(program: number, name: string): number
-    getBufferParameter(target: number, pname: number): number
+    getBufferParameteriv(target: number, pname: number): number[]
     getError(): number
-    setError(_error_: any): void
+    setError(_error_: number): void
     getFramebufferAttachmentParameter(target: number, attachment: number, pname: number): number
     getParameterx(pname: number): GLib.Variant
     getParameterb(pname: number): boolean
-    getParameterbv(pname: number, resultSize: number): boolean
+    getParameterbv(pname: number, resultSize: number): boolean[]
     getParameterf(pname: number): number
-    getParameterfv(pname: number, resultSize: number): number
+    getParameterfv(pname: number, resultSize: number): number[]
     getParameteri(pname: number): number
-    getParameteriv(pname: number, resultSize: number): number
+    getParameteriv(pname: number, resultSize: number): number[]
     getProgramInfoLog(program: number): string | null
     getProgramParameter(program: number, pname: number): number
     getRenderbufferParameter(target: number, pname: number): number
     getShaderInfoLog(shader: number): string | null
     getShaderParameter(shader: number, pname: number): number
-    getShaderPrecisionFormat(shadertype: any, precisiontype: any): WebGLShaderPrecisionFormat | null
+    getShaderPrecisionFormat(shadertype: number, precisiontype: number): WebGLShaderPrecisionFormat | null
     getShaderSource(shader: number): string | null
     getString(pname: number): string
     getSupportedExtensions(): string[] | null
     getTexParameterx(target: number, pname: number): GLib.Variant
+    getTexParameterfv(target: number, pname: number): number
+    getTexParameteriv(target: number, pname: number): number
     getUniformLocation(program: number, name: string): number | null
     getUniform(program: number, location: number): number[]
+    getUniformf(program: number, location: number): number[]
+    getUniformfv(program: number, location: number, resultSize: number): number[]
     getUniformi(program: number, location: number): number[]
     getUniformiv(program: number, location: number, resultSize: number): number[]
     getVertexAttribOffset(index: number, pname: number): number
@@ -180,7 +185,7 @@ interface WebGLRenderingContextBase {
     vertexAttrib3fv(index: number, values: number[]): void
     vertexAttrib4f(index: number, x: number, y: number, z: number, w: number): void
     vertexAttrib4fv(index: number, values: number[]): void
-    vertexAttribPointer(index: number, size: number, type: number, normalized: boolean, stride: any, offset: number): void
+    vertexAttribPointer(index: number, size: number, type: number, normalized: boolean, stride: number, offset: number): void
     viewport(x: number, y: number, width: number, height: number): void
 
     // Class property signals of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
@@ -245,29 +250,27 @@ interface WebGLRenderingContext {
 
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
-    extWEBGL_draw_buffers(): GLib.Variant
-    drawBuffersWEBGL(buffersArray: Uint8Array): void
-    bufferData(target: number, _data: Uint8Array, usage: number): void
+    bufferData(target: number, _data: object | null, usage: number): void
     bufferDataSizeOnly(target: number, size: any, usage: number): void
-    bufferSubData(target: number, offset: number, _data: Uint8Array): void
-    compressedTexImage2D(target: number, level: number, internalFormat: any, width: number, height: number, border: number, _data: Uint8Array): void
-    compressedTexSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, _data: Uint8Array): void
-    readPixels(x: number, y: number, width: number, height: number, format: number, type: number, _pixels: Uint8Array): void
-    texImage2D(target: number, level: number, internalFormat: number, width: number, height: number, border: any, format: number, type: number, _pixels: Uint8Array | null): void
-    texImage2DFromPixbuf(target: number, level: number, internalFormat: number, format: number, type: number, source: GdkPixbuf.Pixbuf): void
-    texSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, type: number, _pixels: Uint8Array): void
-    texSubImage2DFromPixbuf(target: number, level: number, xoffset: number, yoffset: number, format: number, type: number, source: GdkPixbuf.Pixbuf): void
-    uniform1fv(location: number, vLength: number, value: number[] | null): void
-    uniform1iv(location: number, vLength: number, value: number[] | null): void
-    uniform2fv(location: number, vLength: number, value: number[] | null): void
-    uniform2iv(location: number, vLength: number, value: number[] | null): void
-    uniform3fv(location: number, vLength: number, value: number[] | null): void
-    uniform3iv(location: number, vLength: number, value: number[] | null): void
-    uniform4fv(location: number, vLength: number, value: number[] | null): void
-    uniform4iv(location: number, vLength: number, value: number[] | null): void
-    uniformMatrix2fv(location: number, transpose: boolean, value: number[] | null): void
-    uniformMatrix3fv(location: number, transpose: boolean, value: any[] | null): void
-    uniformMatrix4fv(location: number, transpose: boolean, value: any[] | null): void
+    bufferSubData(target: number, offset: number, _data: object | null): void
+    compressedTexImage2D(target: number, level: number, internalFormat: any, width: number, height: number, border: number, _data: object | null): void
+    compressedTexSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, _data: object | null): void
+    readPixels(x: number, y: number, width: number, height: number, format: number, type: number, _pixels: object | null): Uint8Array
+    texImage2D(target: number, level: number, internalFormat: number, width: number, height: number, border: any, format: number, type: number, _pixels: object | null): void
+    texImage2DFromPixbuf(target: number, level: number, internalFormat: number, format: number, type: number, source: object | null): void
+    texSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, type: number, _pixels: object | null): void
+    texSubImage2DFromPixbuf(target: number, level: number, xoffset: number, yoffset: number, format: number, type: number, source: object | null): void
+    uniform1fv(location: number, vLength: number, value: number[]): void
+    uniform1iv(location: number, vLength: number, value: number[]): void
+    uniform2fv(location: number, vLength: number, value: number[]): void
+    uniform2iv(location: number, vLength: number, value: number[]): void
+    uniform3fv(location: number, vLength: number, value: number[]): void
+    uniform3iv(location: number, vLength: number, value: number[]): void
+    uniform4fv(location: number, vLength: number, value: number[]): void
+    uniform4iv(location: number, vLength: number, value: number[]): void
+    uniformMatrix2fv(location: number, transpose: boolean, value: number[]): void
+    uniformMatrix3fv(location: number, transpose: boolean, value: any[]): void
+    uniformMatrix4fv(location: number, transpose: boolean, value: any[]): void
     get_width(): number
     get_height(): number
     get_alpha(): boolean

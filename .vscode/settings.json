@@ -16,6 +16,8 @@
         "mainloop",
         "outdir",
         "outfile",
+        "Parameterfv",
+        "Parameteriv",
         "Parameterx",
         "stackgl",
         "tform",

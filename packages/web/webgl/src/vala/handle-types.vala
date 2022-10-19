@@ -1,5 +1,5 @@
 namespace Gwebgl {
-    using GLES2;
+    using GL;
 
     //  public struct WebGLProgram : uint {}
     //  public struct WebGLShader : uint {}

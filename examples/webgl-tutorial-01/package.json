@@ -1,0 +1,29 @@
+{
+  "name": "@gjsify/example-webgl-tutorial-01",
+  "private": true,
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "scripts": {
+    "clear": "rm -rf dist",
+    "start": "yarn run build && yarn run start:gjs",
+    "start:gjs": "LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/index.gjs.js",
+    "build": "yarn run build:gjs",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
+  },
+  "engines": {
+    "node": "16",
+    "gjs": "1.72.x"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@types/node": "^18.7.18"
+  },
+  "dependencies": {
+    "@gjsify/types": "workspace:^",
+    "@gjsify/webgl": "workspace:^"
+  }
+}

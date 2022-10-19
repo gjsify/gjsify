@@ -5,7 +5,7 @@ import GLib from '@gjsify/types/GLib-2.0';
 import Gio from '@gjsify/types/Gio-2.0';
 //import Gwebgl from 'gi://Gwebgl';
 //const WebGLRenderingContext = Gwebgl.WebGLRenderingContext;
-import { HTMLCanvasElement, WebGLRenderingContext } from '@gjsify/webgl';
+import { GjsifyHTMLCanvasElement, WebGLRenderingContext } from '@gjsify/webgl';
 
 
 let rendered = false;
@@ -92,15 +92,18 @@ function tick(glarea: Gtk.GLArea) {
 }
 
 function activate(app: Gtk.Application) {
-    print("activate");
     const win = Gtk.ApplicationWindow.new(app);
     win.set_default_size(800, 600);
     const glarea = Gtk.GLArea.new();
     // glarea.set_required_version(2, 0);
     // glarea.set_use_es(true);
-    const canvas = new HTMLCanvasElement(glarea);
-    const gl = new WebGLRenderingContext(canvas);
+
+    let gl: WebGLRenderingContext;
     glarea.connect('render', () => {
+        if(!gl) {
+            const canvas = new GjsifyHTMLCanvasElement(glarea);
+            gl = canvas.getContext("webgl");
+        }
         render(glarea, gl);
         return true;
     });
@@ -110,7 +113,8 @@ function activate(app: Gtk.Application) {
             const ctx = surface.create_gl_context();
             ctx.set_debug_enabled(true);
             ctx.set_use_es(1);
-            ctx.set_required_version(2, 0);
+            // ctx.set_required_version(3, 2);
+
             return ctx;
         } catch (e) {
             logError(e);
@@ -124,8 +128,7 @@ function activate(app: Gtk.Application) {
 }
 
 function main() {
-    print("main");
-    app = Gtk.Application.new('uk.co.realh.gwebgl.demo.js', Gio.ApplicationFlags.FLAGS_NONE);
+    app = Gtk.Application.new('gjsify.examples.webgl-demo-fade', Gio.ApplicationFlags.FLAGS_NONE);
     app.connect('activate', activate);
     app.run([]);
 }
@@ -139,23 +142,28 @@ function mozSetup(gl: WebGLRenderingContext) {
     // Vertex shader program
 
     const vsSource = `
-    attribute vec2 aVertexPosition;
-    void main() {
-      gl_Position = vec4(aVertexPosition.x, aVertexPosition.y, 0.0, 1.0);
-    }`;
+        attribute vec2 aVertexPosition;
+        void main() {
+            gl_Position = vec4(aVertexPosition.x, aVertexPosition.y, 0.0, 1.0);
+        }
+    `;
 
     // Fragment shader program
 
     const fsSource = `
-    uniform highp vec4 uColour;
-    void main() {
-      gl_FragColor = uColour;
-    }
-  `;
+        uniform highp vec4 uColour;
+        void main() {
+        gl_FragColor = uColour;
+        }
+    `;
 
     // Initialize a shader program; this is where all the lighting
     // for the vertices and so forth is established.
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+
+    const vertexPosition = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
+
+    const colour = gl.getUniformLocation(shaderProgram, 'uColour');
 
     // Collect all the info needed to use the shader program.
     // Look up which attribute our shader program is using
@@ -163,10 +171,10 @@ function mozSetup(gl: WebGLRenderingContext) {
     const programInfo = {
         program: shaderProgram,
         attribLocations: {
-            vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+            vertexPosition,
         },
         uniformLocations: {
-            colour: gl.getUniformLocation(shaderProgram, 'uColour'),
+            colour,
         },
     };
 
@@ -188,7 +196,6 @@ function initBuffers(gl: WebGLRenderingContext) {
     // Create a buffer for the square's positions.
 
     const positionBuffer = gl.createBuffer();
-    console.log("positionBuffer", positionBuffer)
 
     // Select the positionBuffer as the one to apply buffer
     // operations to from here out.
@@ -251,7 +258,6 @@ function drawScene(gl: WebGLRenderingContext, programInfo, buffers) {
     }
 
     // Tell WebGL to use our program when drawing
-
     gl.useProgram(programInfo.program);
 
     // Set the shader uniforms
@@ -272,7 +278,6 @@ function initShaderProgram(gl: WebGLRenderingContext, vsSource: string, fsSource
     const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
 
     // Create the shader program
-
     const shaderProgram = gl.createProgram();
     gl.attachShader(shaderProgram, vertexShader);
     gl.attachShader(shaderProgram, fragmentShader);
@@ -280,7 +285,8 @@ function initShaderProgram(gl: WebGLRenderingContext, vsSource: string, fsSource
 
     // If creating the shader program failed, alert
 
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+    const linkStatus = gl.getProgramParameter(shaderProgram, gl.LINK_STATUS);
+    if (!linkStatus) {
         alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
         return null;
     }
@@ -300,12 +306,11 @@ function loadShader(gl: WebGLRenderingContext, type: number, source: string) {
     gl.shaderSource(shader, source);
 
     // Compile the shader program
-    console.log("compileShader: ", source)
     gl.compileShader(shader);
 
     // See if it compiled successfully
-
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const compileStatus = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+    if (!compileStatus) {
         alert('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
         gl.deleteShader(shader);
         return null;
@@ -316,7 +321,7 @@ function loadShader(gl: WebGLRenderingContext, type: number, source: string) {
 
 
 function alert(m: string) {
-    printerr(m);
+    console.error(m);
     app.quit();
 }
 

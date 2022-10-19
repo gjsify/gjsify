@@ -21,6 +21,7 @@ import {
     isValidString,
     uniformTypeSize,
     vertexCount,
+    boolArray,
 } from './utils.js';
 
 // import { getANGLEInstancedArrays } from './extensions/angle-instanced-arrays.js';
@@ -102,9 +103,7 @@ const availableExtensions: Record<string, ExtensionFactory> = {
 export interface GjsifyWebGLRenderingContext extends WebGLConstants { }
 
 export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
-    canvas: HTMLCanvasElement;
-    // drawingBufferHeight: GLsizei = 0;
-    // drawingBufferWidth: GLsizei = 0;
+    canvas: GjsifyHTMLCanvasElement & HTMLCanvasElement;
 
     get drawingBufferHeight() {
         return this.canvas.height || 0;
@@ -175,7 +174,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         
         this.DEFAULT_COLOR_ATTACHMENTS = [this.COLOR_ATTACHMENT0]
 
-        this.canvas = canvas as Partial<GjsifyHTMLCanvasElement> & HTMLCanvasElement;
+        this.canvas = canvas as GjsifyHTMLCanvasElement & HTMLCanvasElement;
 
         this._contextAttributes = new WebGLContextAttributes(
             flag(options, 'alpha', true),
@@ -227,10 +226,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this._packAlignment = 4
 
         // Allocate framebuffer
-        this._allocateDrawingBuffer(width, height)
+        // this._allocateDrawingBuffer(width, height)
 
-        const attrib0Buffer = this.createBuffer()
-        this._attrib0Buffer = attrib0Buffer
+        // const attrib0Buffer = this.createBuffer()
+        // this._attrib0Buffer = attrib0Buffer
 
         // Initialize defaults
         this.bindBuffer(this.ARRAY_BUFFER, null)
@@ -260,9 +259,13 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
     }
 
-    extWEBGL_draw_buffers() {
-        return this._native.extWEBGL_draw_buffers().deepUnpack<Record<string, number>>();
+    _getGlslVersion(es: boolean) {
+        return es ? '100' : '120';
     }
+
+    // extWEBGL_draw_buffers() {
+    //     return this._native.extWEBGL_draw_buffers().deepUnpack<Record<string, number>>();
+    // }
 
     _checkDimensions(target: GLenum, width: GLsizei, height: GLsizei, level: number) {
         if (level < 0 ||
@@ -1015,43 +1018,44 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return this._extensions.webgl_draw_buffers ? source : '#define gl_MaxDrawBuffers 1\n' + source // eslint-disable-line
     }
 
-    _beginAttrib0Hack() {
-        this._native.bindBuffer(this.ARRAY_BUFFER, this._attrib0Buffer?._ || null)
-        const uInt8Data = new Uint8Array(this._vertexGlobalState._attribs[0]._data.buffer);
-        this._native.bufferData(
-            this.ARRAY_BUFFER,
-            uInt8Data,
-            this.STREAM_DRAW)
-        this._native.enableVertexAttribArray(0)
-        this._native.vertexAttribPointer(0, 4, this.FLOAT, false, 0, 0)
-        // TODO: this._native._vertexAttribDivisor(0, 1)
-    }
+    // _beginAttrib0Hack() {
+    //     this._native.bindBuffer(this.ARRAY_BUFFER, this._attrib0Buffer?._ || null)
+    //     const uInt8Data = new Uint8Array(this._vertexGlobalState._attribs[0]._data.buffer);
+    //     this._native.bufferData(
+    //         this.ARRAY_BUFFER,
+    //         uInt8Data,
+    //         this.STREAM_DRAW)
+    //     this._native.enableVertexAttribArray(0)
+    //     this._native.vertexAttribPointer(0, 4, this.FLOAT, false, 0, 0)
+    //     // TODO: this._native._vertexAttribDivisor(0, 1)
+    // }
 
-    _endAttrib0Hack() {
-        const attrib = this._vertexObjectState._attribs[0]
-        if (attrib._pointerBuffer) {
-            this._native.bindBuffer(this.ARRAY_BUFFER, attrib._pointerBuffer._)
-        } else {
-            this._native.bindBuffer(this.ARRAY_BUFFER, 0)
-        }
-        this._native.vertexAttribPointer(
-            0,
-            attrib._inputSize,
-            attrib._pointerType,
-            attrib._pointerNormal,
-            attrib._inputStride,
-            attrib._pointerOffset)
-        // TODO: this._native._vertexAttribDivisor(0, attrib._divisor)
-        this._native.disableVertexAttribArray(0)
-        if (this._vertexGlobalState._arrayBufferBinding) {
-            this._native.bindBuffer(this.ARRAY_BUFFER, this._vertexGlobalState._arrayBufferBinding._)
-        } else {
-            this._native.bindBuffer(this.ARRAY_BUFFER, 0)
-        }
-    }
+    // _endAttrib0Hack() {
+    //     const attrib = this._vertexObjectState._attribs[0]
+    //     if (attrib._pointerBuffer) {
+    //         this._native.bindBuffer(this.ARRAY_BUFFER, attrib._pointerBuffer._)
+    //     } else {
+    //         this._native.bindBuffer(this.ARRAY_BUFFER, 0)
+    //     }
+    //     this._native.vertexAttribPointer(
+    //         0,
+    //         attrib._inputSize,
+    //         attrib._pointerType,
+    //         attrib._pointerNormal,
+    //         attrib._inputStride,
+    //         attrib._pointerOffset)
+    //     // TODO: this._native._vertexAttribDivisor(0, attrib._divisor)
+    //     this._native.disableVertexAttribArray(0)
+    //     if (this._vertexGlobalState._arrayBufferBinding) {
+    //         this._native.bindBuffer(this.ARRAY_BUFFER, this._vertexGlobalState._arrayBufferBinding._)
+    //     } else {
+    //         this._native.bindBuffer(this.ARRAY_BUFFER, 0)
+    //     }
+    // }
 
     _allocateDrawingBuffer(width: number, height: number) {
-        const newFramebuffer = this._native.createFramebuffer();
+        console.log("_allocateDrawingBuffer", width, height)
+        // const newFramebuffer = this._native.createFramebuffer();
 
         this._drawingBuffer = new WebGLDrawingBufferWrapper(
             this._native.createFramebuffer(),
@@ -2502,10 +2506,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             ) {
                 return this._native.drawArrays(mode, first, reducedCount)
             } else {
-                this._beginAttrib0Hack()
+                // this._beginAttrib0Hack()
                 // TODO: this._native._drawArraysInstanced(mode, first, reducedCount, 1)
                 this._native.drawArrays(mode, first, reducedCount)
-                this._endAttrib0Hack()
+                // this._endAttrib0Hack()
             }
         }
     }
@@ -2614,10 +2618,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 if (this._vertexObjectState._attribs[0]._isPointer) {
                     return this._native.drawElements(mode, reducedCount, type, ioffset)
                 } else {
-                    this._beginAttrib0Hack()
+                    // this._beginAttrib0Hack()
                     // TODO this._native._drawElementsInstanced(mode, reducedCount, type, ioffset, 1)
                     this._native.drawElements(mode, reducedCount, type, ioffset);
-                    this._endAttrib0Hack()
+                    // this._endAttrib0Hack()
                 }
             }
         }
@@ -2804,7 +2808,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         switch (pname) {
             case this.BUFFER_SIZE:
             case this.BUFFER_USAGE:
-                return this._native.getBufferParameter(target | 0, pname | 0)
+                return this._native.getBufferParameteriv(target | 0, pname | 0)
             default:
                 this.setError(this.INVALID_ENUM)
                 return null
@@ -2911,7 +2915,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 return new Float32Array(this._getParameterDirect(pname))
 
             case this.COLOR_WRITEMASK:
-                return this._getParameterDirect(pname);
+                // return this._getParameterDirect(pname);
+                return this._native.getParameterbv(pname, 16)
+                // return boolArray(this._native.getParameterbv(pname, 16));
 
             case this.DEPTH_CLEAR_VALUE:
             case this.LINE_WIDTH:
@@ -3617,6 +3623,21 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             return
         }
         source += ''
+
+
+        if (this.canvas && !(source.startsWith('#version') || source.includes('\n#version'))) {
+            const glArea = this.canvas._getGlArea();
+            const es = glArea.get_use_es();
+            let version = this._getGlslVersion(es);
+            if (version) {
+                version = '#version ' + version;
+                if (!source.startsWith('\n')) {
+                    version += '\n';
+                }
+                source = version + source;
+            }
+        }
+
         if (!isValidString(source)) {
             this.setError(this.INVALID_VALUE)
         } else if (this._checkWrapper(shader, WebGLShader)) {

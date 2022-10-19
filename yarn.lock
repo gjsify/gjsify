@@ -294,6 +294,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-webgl-tutorial-01@workspace:examples/webgl-tutorial-01":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-webgl-tutorial-01@workspace:examples/webgl-tutorial-01"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/types": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": ^18.7.18
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/fetch@workspace:packages/web/fetch":
   version: 0.0.0-use.local
   resolution: "@gjsify/fetch@workspace:packages/web/fetch"

@@ -11,7 +11,7 @@ add_project_arguments(
     language: 'vala'
 )
 
-dependencies = [ dependency('glib-2.0'), dependency('gobject-2.0'), dependency('gdk-pixbuf-2.0'), dependency('glesv2')]
+dependencies = [ dependency('glib-2.0'), dependency('gobject-2.0'), dependency('gdk-pixbuf-2.0'), dependency('epoxy')]
 
 sources = files('src/vala/handle-types.vala', 'src/vala/webgl-rendering-context-base.vala', 'src/vala/webgl-rendering-context.vala')
 
