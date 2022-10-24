@@ -433,7 +433,7 @@ namespace Gwebgl {
         }
 
         public void clear(uint mask) {
-            glClear((uint8) mask);
+            glClear(mask);
         }
 
         public void clearColor(float red, float green, float blue, float alpha) {
@@ -951,7 +951,8 @@ namespace Gwebgl {
             return result[0];
         }
 
-        public /*WebGLUniformLocation*/ int? getUniformLocation(/*WebGLProgram*/ uint program, string name) {
+        public /*WebGLUniformLocation*/ int getUniformLocation(/*WebGLProgram*/ uint program, string name) {
+            print("getUniformLocation %u %s", program, name);
             return glGetUniformLocation(program, name);
         }
 
@@ -1242,9 +1243,10 @@ namespace Gwebgl {
             glVertexAttrib4fv(index, values);
         }
 
-        public void vertexAttribPointer(uint index, int size, int type, bool normalized, int stride, size_t offset) {
+        public void vertexAttribPointer(uint index, int size, int type, bool _normalized, int stride, long offset) {
+            uint8 normalized = (uint8) _normalized;
             // TODO offset should not be an array?!
-            glVertexAttribPointer(index, size, type, (GLboolean) normalized, stride, (GL.GLvoid[]?) &offset);
+            glVertexAttribPointer(index, size, type, normalized, stride, (void*) offset);
         }
 
         public void viewport(int x, int y, int width, int height) {

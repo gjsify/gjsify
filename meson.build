@@ -11,7 +11,7 @@ add_project_arguments(
     language: 'vala'
 )
 
-dependencies = [ dependency('glib-2.0'), dependency('gobject-2.0'), dependency('gdk-pixbuf-2.0'), dependency('epoxy')]
+dependencies = [ dependency('glib-2.0'), dependency('gobject-2.0'), dependency('gdk-pixbuf-2.0'), dependency('gtk4'), dependency('epoxy')]
 
 sources = files('packages/web/webgl/src/vala/handle-types.vala', 'packages/web/webgl/src/vala/webgl-rendering-context-base.vala', 'packages/web/webgl/src/vala/webgl-rendering-context.vala')
 
@@ -33,4 +33,6 @@ custom_target(meson.project_name() + '-0.1.typelib', command: [g_ir_compiler, '-
               install: true,
               install_dir: get_option('libdir') / 'girepository-1.0')
 
-              
+# Test app
+test_sources = files('packages/web/webgl/src/vala/handle-types.vala', 'packages/web/webgl/src/vala/webgl-rendering-context-base.vala', 'packages/web/webgl/src/vala/webgl-rendering-context.vala', 'packages/web/webgl/src/test/app.vala')
+executable('gwebgl_vala_app', test_sources, dependencies: dependencies)

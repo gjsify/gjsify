@@ -88,62 +88,103 @@ namespace Gwebgl {
         //      glDrawBuffersEXT(numBuffers, buffersArray.data);
         //  }
 
-        public void bufferData(int target, ByteArray *_data, int usage) {
-            var data = _data != null ? _data->data : null;
-            var size = _data != null ? _data->len : 0;
-
-            glBufferData(target, size, (GL.GLvoid[]) data, usage);
+        public bool isVariantOfByteArray(Variant variant) {
+            var type = variant.get_type();
+            return type.equal(new GLib.VariantType("ay"));
         }
 
-        public void bufferDataSizeOnly(int target, GLsizeiptr size, int usage) {
+        public void bufferData(int target, Variant variant, int usage) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[bufferData] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var size = bytes.get_size();
+            glBufferData(target, size, (GL.GLvoid[]) bytes.get_data(), usage);
+        }
+
+        public void bufferDataSizeOnly(int target, size_t size, int usage) {
+            print("\nbufferDataSizeOnly target: %i, size: %s", target, size.to_string());
             glBufferData(target, size, null, usage);
         }
 
-        public void bufferSubData(int target, long offset, ByteArray *_data) {
-            var data = _data != null ? _data->data : null;
-            var size = _data != null ? _data->len : 0;
+        public void bufferSubData(int target, long offset, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[bufferSubData] variant type must be 'ay'!");
+                return;
+            }
 
-            glBufferSubData(target, offset, size, (GL.GLvoid[]) data);
+            var bytes = variant.get_data_as_bytes ();
+            var size = bytes.get_size();
+            glBufferSubData(target, offset, size, (GL.GLvoid[]) bytes.get_data());
         }
 
-        public void compressedTexImage2D(int target, int level, GLenum internalFormat, int width, int height, int border, ByteArray *_data) {
-            var data = _data != null ? _data->data : null;
-            var imageSize = (_data != null ? _data->len : 0);
+        public void compressedTexImage2D(int target, int level, GLenum internalFormat, int width, int height, int border, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexImage2D] variant type must be 'ay'!");
+                return;
+            }
 
-            glCompressedTexImage2D(target, level, internalFormat, width, height, border, (GLsizei) imageSize, (GL.GLvoid[]) data);
+            var bytes = variant.get_data_as_bytes ();
+            int imageSize = (int) bytes.get_size();
+
+            glCompressedTexImage2D(target, level, internalFormat, width, height, border, imageSize, (GL.GLvoid[]) bytes.get_data());
         }
 
-        public void compressedTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, ByteArray *_data) {
-            var data = _data != null ? _data->data : null;
-            var imageSize = (_data != null ? _data->len : 0);
+        public void compressedTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexSubImage2D] variant type must be 'ay'!");
+                return;
+            }
 
-            glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, (GLsizei) imageSize, (GL.GLvoid[]) data);
+            var bytes = variant.get_data_as_bytes ();
+            int imageSize = (int) bytes.get_size();
+
+            glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, (GLsizei) imageSize, (GL.GLvoid[]) bytes.get_data());
         }
 
-        public uint8[] readPixels(int x, int y, int width, int height, int format, int type, ByteArray *_pixels) {
-            uint8[] pixels = _pixels != null ? _pixels->data : null;
+        public uint8[] readPixels(int x, int y, int width, int height, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexSubImage2D] variant type must be 'ay'!");
+                return new uint8[0];
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
 
             glReadPixels(x, y, width, height, format, type, (GL.GLvoid[]) pixels);
             return pixels;
         }
 
-        public void texImage2D(int target, int level, int internalFormat, int width, int height, GLint border, int format, int type, ByteArray *_pixels)
-        {
-            var pixels = _pixels != null ? _pixels->data : null;
+        public void texImage2D(int target, int level, int internalFormat, int width, int height, GLint border, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexSubImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
 
             glTexImage2D(target, level, internalFormat, width, height, border, format, type, (GL.GLvoid[]) pixels);
         }
 
-        public void texImage2DFromPixbuf(int target, int level, int internalFormat, int format, int type, Gdk.Pixbuf *source)
-        {
+        public void texImage2DFromPixbuf(int target, int level, int internalFormat, int format, int type, Gdk.Pixbuf *source) {
             int width  = source->get_width();
             int height = source->get_height();
             var pixels = source->get_pixels();
             glTexImage2D(target, level, internalFormat, width, height, 0, format, type, (GL.GLvoid[]) pixels);
         }
 
-        public void texSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, ByteArray *_pixels) {
-            var pixels = _pixels != null ? _pixels->data : null;
+        public void texSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexSubImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
+
             glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, (GL.GLvoid[]) pixels);
         }
 

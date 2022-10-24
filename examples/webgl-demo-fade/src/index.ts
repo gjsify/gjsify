@@ -1,15 +1,28 @@
 import '@gjsify/types/index';
 import Gtk from '@gjsify/types/Gtk-4.0';
 import GLib from '@gjsify/types/GLib-2.0';
-// import GObject from ''@gjsify/types/GObject';
 import Gio from '@gjsify/types/Gio-2.0';
-//import Gwebgl from 'gi://Gwebgl';
-//const WebGLRenderingContext = Gwebgl.WebGLRenderingContext;
-import { GjsifyHTMLCanvasElement, WebGLRenderingContext } from '@gjsify/webgl';
+import { GjsifyHTMLCanvasElement, WebGLRenderingContext, WebGLProgram, WebGLUniformLocation, WebGLBuffer } from '@gjsify/webgl';
 
+interface ProgramInfo {
+    program: WebGLProgram;
+    attribLocations: {
+        // [key: string]: number;
+        vertexPosition: number;
+    },
+    uniformLocations: {
+        // [key: string]: WebGLUniformLocation;
+        colour: WebGLUniformLocation | null
+    },
+}
+
+interface Buffers {
+    position: WebGLBuffer,
+}
 
 let rendered = false;
-let programInfo, buffers;
+let programInfo: ProgramInfo;
+let buffers: Buffers;
 let app: Gtk.Application;
 
 class ColourChanger {
@@ -75,11 +88,17 @@ function render(glarea: Gtk.GLArea, gl: WebGLRenderingContext) {
     if (!rendered) {
         rendered = true;
         const ctx = glarea.get_context();
-        printerr('Context: ' +
+        console.log('Context: ' +
             `${ctx.get_required_version()} ES ${ctx.get_use_es()}`);
         const setup = mozSetup(gl);
         programInfo = setup.programInfo;
         buffers = setup.buffers;
+    }
+
+    var error = glarea.get_error ();
+    if(error !== null) {
+        console.error (error.message);
+        return false;
     }
 
     // Draw the scene
@@ -95,8 +114,8 @@ function activate(app: Gtk.Application) {
     const win = Gtk.ApplicationWindow.new(app);
     win.set_default_size(800, 600);
     const glarea = Gtk.GLArea.new();
-    // glarea.set_required_version(2, 0);
-    // glarea.set_use_es(true);
+    glarea.set_required_version(2, 0);
+    glarea.set_use_es(true);
 
     let gl: WebGLRenderingContext;
     glarea.connect('render', () => {
@@ -115,9 +134,15 @@ function activate(app: Gtk.Application) {
             ctx.set_use_es(1);
             // ctx.set_required_version(3, 2);
 
+            var error = glarea.get_error ();
+            if(error !== null) {
+                console.error (error.message);
+                return false;
+            }
+
             return ctx;
         } catch (e) {
-            logError(e);
+            console.error(e);
             return null;
         }
     });
@@ -168,7 +193,7 @@ function mozSetup(gl: WebGLRenderingContext) {
     // Collect all the info needed to use the shader program.
     // Look up which attribute our shader program is using
     // for aVertexPosition and look up uniform locations.
-    const programInfo = {
+    const programInfo: ProgramInfo = {
         program: shaderProgram,
         attribLocations: {
             vertexPosition,
@@ -180,7 +205,7 @@ function mozSetup(gl: WebGLRenderingContext) {
 
     // Here's where we call the routine that builds all the
     // objects we'll be drawing.
-    const buffers = initBuffers(gl);
+    const buffers: Buffers = initBuffers(gl);
 
     return { programInfo, buffers };
 }
@@ -196,10 +221,12 @@ function initBuffers(gl: WebGLRenderingContext) {
     // Create a buffer for the square's positions.
 
     const positionBuffer = gl.createBuffer();
+    if(!positionBuffer) {
+        throw new Error("Error on create position buffer!");
+    }
 
     // Select the positionBuffer as the one to apply buffer
     // operations to from here out.
-
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
     // Now create an array of positions for the square.
@@ -227,7 +254,7 @@ function initBuffers(gl: WebGLRenderingContext) {
 //
 // Draw the scene.
 //
-function drawScene(gl: WebGLRenderingContext, programInfo, buffers) {
+function drawScene(gl: WebGLRenderingContext, programInfo: ProgramInfo, buffers: Buffers) {
     gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
     gl.clearDepth(1.0);                 // Clear everything
     gl.enable(gl.DEPTH_TEST);           // Enable depth testing
@@ -246,6 +273,7 @@ function drawScene(gl: WebGLRenderingContext, programInfo, buffers) {
         const stride = 0;
         const offset = 0;
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+
         gl.vertexAttribPointer(
             programInfo.attribLocations.vertexPosition,
             numComponents,
@@ -253,6 +281,7 @@ function drawScene(gl: WebGLRenderingContext, programInfo, buffers) {
             normalize,
             stride,
             offset);
+
         gl.enableVertexAttribArray(
             programInfo.attribLocations.vertexPosition);
     }
@@ -279,8 +308,13 @@ function initShaderProgram(gl: WebGLRenderingContext, vsSource: string, fsSource
 
     // Create the shader program
     const shaderProgram = gl.createProgram();
+    if(!shaderProgram || !shaderProgram._) {
+        throw new Error("Error on create program");
+    }
+
     gl.attachShader(shaderProgram, vertexShader);
     gl.attachShader(shaderProgram, fragmentShader);
+
     gl.linkProgram(shaderProgram);
 
     // If creating the shader program failed, alert

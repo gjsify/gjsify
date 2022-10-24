@@ -10,6 +10,7 @@
         "esbuild",
         "framebuffers",
         "gjsify",
+        "glarea",
         "glsl",
         "Gwebgl",
         "ioffset",

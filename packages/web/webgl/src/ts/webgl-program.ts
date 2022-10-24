@@ -7,7 +7,7 @@ export class GjsifyWebGLProgram extends Linkable implements WebGLProgram {
     _ctx: GjsifyWebGLRenderingContext;
     _linkCount = 0
     _linkStatus = false
-    _linkInfoLog = 'not linked'
+    _linkInfoLog: string | null = 'not linked'
     _attributes: number[] = []
     _uniforms: WebGLActiveInfo[] = []
     constructor(_: WebGLProgram & number, ctx: GjsifyWebGLRenderingContext) {

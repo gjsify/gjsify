@@ -2,6 +2,7 @@
 // import { gl } from './native-gl.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLProgram } from './webgl-program.js';
+import GLib from '@gjsify/types/GLib-2.0';
 
 import type Gwebgl from '@gjsify/types/Gwebgl-0.1';
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
@@ -136,9 +137,15 @@ export const listToArray = (values: Float32List) => {
     return array;
 }
 
-export function unpackTypedArray(array: TypedArray | Float32List | Array<number>) {
+export function arrayToUint8Array(array: TypedArray | Float32List | Array<number> | ArrayBuffer) {
 
-    if(Array.isArray(array)) {
+    if(isTypedArray(array as TypedArray)) {
+        return (new Uint8Array((array as TypedArray).buffer)).subarray(
+            (array as TypedArray).byteOffset,
+            (array as TypedArray).byteLength + (array as TypedArray).byteOffset)
+    }
+
+    if(Array.isArray(array) || array instanceof ArrayBuffer) {
         return new Uint8Array(array);
     }
 
@@ -146,9 +153,13 @@ export function unpackTypedArray(array: TypedArray | Float32List | Array<number>
         return new Uint8Array(listToArray(array as Float32List))
     }
 
-    return (new Uint8Array((array as TypedArray).buffer)).subarray(
-        (array as TypedArray).byteOffset,
-        (array as TypedArray).byteLength + (array as TypedArray).byteOffset)
+    throw new Error("Can't unpack typed array!");
+}
+
+export function Uint8ArrayToVariant(array: Uint8Array | null) {
+    const variant = new GLib.Variant("ay", Array.from(array || []));
+    console.log("Uint8ArrayToVariant n_children", variant.n_children());
+    return variant
 }
 
 /**
@@ -217,7 +228,7 @@ export function convertPixels(pixels: ArrayBuffer | Uint8Array | Uint16Array | U
             pixels instanceof Uint16Array ||
             pixels instanceof Uint8ClampedArray ||
             pixels instanceof Float32Array) {
-            return unpackTypedArray(pixels)
+            return arrayToUint8Array(pixels)
         } else if ((pixels as Buffer) instanceof Buffer) {
             return new Uint8Array(pixels as Buffer)
         }

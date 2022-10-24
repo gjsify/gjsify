@@ -14,7 +14,7 @@ import {
     validCubeTarget,
     formatSize,
     isTypedArray,
-    unpackTypedArray,
+    arrayToUint8Array,
     flag,
     bindPublics,
     listToArray,
@@ -22,6 +22,8 @@ import {
     uniformTypeSize,
     vertexCount,
     boolArray,
+    typeSize,
+    Uint8ArrayToVariant,
 } from './utils.js';
 
 // import { getANGLEInstancedArrays } from './extensions/angle-instanced-arrays.js';
@@ -114,7 +116,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     }
 
     DEFAULT_ATTACHMENTS: number[] = [];
-    
+
     DEFAULT_COLOR_ATTACHMENTS: number[] = [];
 
     /** context counter */
@@ -161,8 +163,8 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     _textureUnits: WebGLTextureUnit[] = [];
     _drawingBuffer: WebGLDrawingBufferWrapper | null = null;
 
-    constructor(canvas: GjsifyHTMLCanvasElement | HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {}, ) {
-        this._native = new Gwebgl.WebGLRenderingContext(options); 
+    constructor(canvas: GjsifyHTMLCanvasElement | HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {},) {
+        this._native = new Gwebgl.WebGLRenderingContext(options);
         this._initGLConstants();
 
         this.DEFAULT_ATTACHMENTS = [
@@ -171,7 +173,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             this.STENCIL_ATTACHMENT,
             this.DEPTH_STENCIL_ATTACHMENT
         ]
-        
+
         this.DEFAULT_COLOR_ATTACHMENTS = [this.COLOR_ATTACHMENT0]
 
         this.canvas = canvas as GjsifyHTMLCanvasElement & HTMLCanvasElement;
@@ -520,8 +522,8 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     }
 
     _fixupLink(program: WebGLProgram) {
-        if (!this.getProgramParameter(program, this.LINK_STATUS)) {
-            program._linkInfoLog = this.getProgramInfoLog(program) || 'null'
+        if (!this._native.getProgramParameter(program._, this.LINK_STATUS)) {
+            program._linkInfoLog = this._native.getProgramInfoLog(program._)
             return false
         }
 
@@ -760,8 +762,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         const contextAttributes = this._contextAttributes
 
-        const drawingBuffer = this._drawingBuffer
-        this._native.bindFramebuffer(this.FRAMEBUFFER, drawingBuffer?._framebuffer || null)
+        const drawingBuffer = this._drawingBuffer;
+        if (drawingBuffer?._framebuffer) {
+            this._native.bindFramebuffer(this.FRAMEBUFFER, drawingBuffer?._framebuffer)
+        }
         const attachments = this._getAttachments()
         // Clear all attachments
         for (let i = 0; i < attachments.length; ++i) {
@@ -774,7 +778,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
 
         // Update color attachment
-        this._native.bindTexture(this.TEXTURE_2D, drawingBuffer?._color || null)
+        if (drawingBuffer?._color) {
+            this._native.bindTexture(this.TEXTURE_2D, drawingBuffer?._color)
+        }
         const colorFormat = contextAttributes.alpha ? this.RGBA : this.RGB
         this._native.texImage2D(
             this.TEXTURE_2D,
@@ -785,15 +791,18 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             0,
             colorFormat,
             this.UNSIGNED_BYTE,
-            null)
+            Uint8ArrayToVariant(null))
         this._native.texParameteri(this.TEXTURE_2D, this.TEXTURE_MIN_FILTER, this.NEAREST)
         this._native.texParameteri(this.TEXTURE_2D, this.TEXTURE_MAG_FILTER, this.NEAREST)
-        this._native.framebufferTexture2D(
-            this.FRAMEBUFFER,
-            this.COLOR_ATTACHMENT0,
-            this.TEXTURE_2D,
-            drawingBuffer?._color || null,
-            0)
+        if (drawingBuffer?._color) {
+            this._native.framebufferTexture2D(
+                this.FRAMEBUFFER,
+                this.COLOR_ATTACHMENT0,
+                this.TEXTURE_2D,
+                drawingBuffer?._color,
+                0)
+        }
+
 
         // Update depth-stencil attachments if needed
         let storage = 0
@@ -810,19 +819,23 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
 
         if (storage) {
-            this._native.bindRenderbuffer(
-                this.RENDERBUFFER,
-                drawingBuffer?._depthStencil || null)
+            if (drawingBuffer?._depthStencil) {
+                this._native.bindRenderbuffer(
+                    this.RENDERBUFFER,
+                    drawingBuffer?._depthStencil)
+            }
             this._native.renderbufferStorage(
                 this.RENDERBUFFER,
                 storage,
                 width,
                 height)
-            this._native.framebufferRenderbuffer(
-                this.FRAMEBUFFER,
-                attachment,
-                this.RENDERBUFFER,
-                drawingBuffer?._depthStencil || null)
+            if (drawingBuffer?._depthStencil) {
+                this._native.framebufferRenderbuffer(
+                    this.FRAMEBUFFER,
+                    attachment,
+                    this.RENDERBUFFER,
+                    drawingBuffer?._depthStencil)
+            }
         }
 
         // Restore previous binding state
@@ -844,7 +857,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this._errorStack.push(this.getError())
     }
 
-    _switchActiveProgram(active: WebGLProgram) {
+    _switchActiveProgram(active: WebGLProgram | null) {
         if (active) {
             active._refCount -= 1
             active._checkDelete()
@@ -1015,7 +1028,23 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             source = '#undef GL_OES_standard_derivatives\n' + source
         }
 
-        return this._extensions.webgl_draw_buffers ? source : '#define gl_MaxDrawBuffers 1\n' + source // eslint-disable-line
+        source = this._extensions.webgl_draw_buffers ? source : '#define gl_MaxDrawBuffers 1\n' + source // eslint-disable-line
+
+        if (this.canvas && !(source.startsWith('#version') || source.includes('\n#version'))) {
+            const glArea = this.canvas._getGlArea();
+            const es = glArea.get_use_es();
+            let version = this._getGlslVersion(es);
+            if (version) {
+                version = '#version ' + version;
+                if (!source.startsWith('\n')) {
+                    version += '\n';
+                }
+                source = version + source;
+            }
+        }
+
+        return source;
+
     }
 
     // _beginAttrib0Hack() {
@@ -1054,7 +1083,6 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     // }
 
     _allocateDrawingBuffer(width: number, height: number) {
-        console.log("_allocateDrawingBuffer", width, height)
         // const newFramebuffer = this._native.createFramebuffer();
 
         this._drawingBuffer = new WebGLDrawingBufferWrapper(
@@ -1121,18 +1149,17 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         if (data) {
             let u8Data = null
             if (isTypedArray(data as TypedArray)) {
-                u8Data = unpackTypedArray(data as TypedArray)
-            } else if (data instanceof ArrayBuffer) {
-                u8Data = new Uint8Array(data)
+                u8Data = arrayToUint8Array(data as TypedArray)
             } else {
                 this.setError(this.INVALID_VALUE)
                 return
             }
 
-            this._saveError()
+            this._saveError();
+            console.log("bufferData", target, u8Data, usage);
             this._native.bufferData(
                 target,
-                u8Data,
+                Uint8ArrayToVariant(u8Data),
                 usage)
             const error = this.getError()
             this._restoreError(error)
@@ -1151,6 +1178,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             }
 
             this._saveError()
+            console.log("bufferDataSizeOnly", target, size, usage);
             this._native.bufferDataSizeOnly(
                 target,
                 size,
@@ -1198,9 +1226,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         let u8Data = null
         if (isTypedArray(data as any)) {
-            u8Data = unpackTypedArray(data as any)
-        } else if (data instanceof ArrayBuffer) {
-            u8Data = new Uint8Array(data)
+            u8Data = arrayToUint8Array(data as any)
         } else {
             this.setError(this.INVALID_VALUE)
             return
@@ -1215,13 +1241,13 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             active._elements.set(u8Data, offset)
         }
 
-        this._native.bufferSubData(target, offset, u8Data);
+        this._native.bufferSubData(target, offset, Uint8ArrayToVariant(u8Data));
     }
     compressedTexImage2D(target: GLenum, level: GLint, internalFormat: GLenum, width: GLsizei, height: GLsizei, border: GLint, data: TypedArray): void {
-        return this._native.compressedTexImage2D(target, level, internalFormat, width, height, border, unpackTypedArray(data));
+        return this._native.compressedTexImage2D(target, level, internalFormat, width, height, border, Uint8ArrayToVariant(arrayToUint8Array(data)));
     }
     compressedTexSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, data: TypedArray): void {
-        return this._native.compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, unpackTypedArray(data));
+        return this._native.compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, Uint8ArrayToVariant(arrayToUint8Array(data)));
     }
     readPixels(x: GLint = 0, y: GLint = 0, width: GLsizei = 0, height: GLsizei = 0, format: GLenum = 0, type: GLenum = 0, pixels: TypedArray | null): void {
         if (!pixels) return;
@@ -1243,6 +1269,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
 
         if (!this._framebufferOk()) {
+            console.error("framebuffer is not okay!");
             return
         }
 
@@ -1270,7 +1297,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             viewHeight = this._activeFramebuffer._height
         }
 
-        const pixelData = unpackTypedArray(pixels)
+        const pixelData = arrayToUint8Array(pixels)
 
         if (x >= viewWidth || x + width <= 0 ||
             y >= viewHeight || y + height <= 0) {
@@ -1316,7 +1343,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                     nHeight,
                     format,
                     type,
-                    subPixels)
+                    Uint8ArrayToVariant(subPixels))
 
                 const offset = 4 * (nx - x) + (ny - y) * rowStride
                 for (let j = 0; j < nHeight; ++j) {
@@ -1336,7 +1363,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 height,
                 format,
                 type,
-                pixelData)
+                Uint8ArrayToVariant(pixelData))
         }
 
     }
@@ -1434,7 +1461,8 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         // Need to check for out of memory error
         this._saveError()
 
-        this._native.texImage2D(target, level, internalFormat, width, height, border, format, type, data)
+        this._native.texImage2D(target, level, internalFormat, width, height, border, format, type, Uint8ArrayToVariant(data))
+
         const error = this.getError()
         this._restoreError(error)
         if (error !== this.NO_ERROR) {
@@ -1463,15 +1491,15 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
     }
     texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
-    texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf ): void;
+    texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf): void;
     texSubImage2D(target: GLenum = 0, level: GLint = 0, xoffset: GLint = 0, yoffset: GLint = 0, formatOrWidth: GLenum | GLsizei = 0, typeOrHeight: GLenum | GLsizei = 0, sourceOrFormat: TexImageSource | GdkPixbuf.Pixbuf | GLenum = 0, type: GLenum = 0, pixels?: ArrayBufferView | null): void {
-        
+
         let width: number = 0;
         let height: number = 0;
         let format: number = 0;
         let source: TexImageSource;
         let pixbuf: GdkPixbuf.Pixbuf;
-        
+
         if (arguments.length === 7) {
             type = typeOrHeight
             format = formatOrWidth
@@ -1489,7 +1517,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 if (imageData == null) {
                     throw new TypeError('texSubImage2D(GLenum, GLint, GLint, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)')
                 }
-    
+
                 width = imageData.width
                 height = imageData.height
                 pixels = imageData.data
@@ -1619,7 +1647,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const locs = location._array
             for (let i = 0; i < locs.length && i < value.length; ++i) {
                 const loc = locs[i]
-                this._native.uniform1f(loc, value[i])
+                if (loc) {
+                    this._native.uniform1f(loc, value[i])
+                }
             }
             return
         }
@@ -1632,7 +1662,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const locs = location._array
             for (let i = 0; i < locs.length && i < v.length; ++i) {
                 const loc = locs[i]
-                this._native.uniform1i(loc, v[i])
+                if (loc) {
+                    this._native.uniform1i(loc, v[i])
+                }
             }
             return
         }
@@ -1645,7 +1677,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const locs = location._array
             for (let i = 0; i < locs.length && 2 * i < v.length; ++i) {
                 const loc = locs[i]
-                this._native.uniform2f(loc, v[2 * i], v[(2 * i) + 1])
+                if (loc) {
+                    this._native.uniform2f(loc, v[2 * i], v[(2 * i) + 1])
+                }
             }
             return
         }
@@ -1658,7 +1692,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const locs = location._array
             for (let i = 0; i < locs.length && 2 * i < v.length; ++i) {
                 const loc = locs[i]
-                this._native.uniform2i(loc, v[2 * i], v[2 * i + 1])
+                if (loc) {
+                    this._native.uniform2i(loc, v[2 * i], v[2 * i + 1])
+                }
             }
             return
         }
@@ -1671,7 +1707,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const locs = location._array
             for (let i = 0; i < locs.length && 3 * i < v.length; ++i) {
                 const loc = locs[i]
-                this._native.uniform3f(loc, v[3 * i], v[3 * i + 1], v[3 * i + 2])
+                if (loc) {
+                    this._native.uniform3f(loc, v[3 * i], v[3 * i + 1], v[3 * i + 2])
+                }
             }
             return
         }
@@ -1683,7 +1721,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const locs = location._array
             for (let i = 0; i < locs.length && 3 * i < v.length; ++i) {
                 const loc = locs[i]
-                this._native.uniform3i(loc, v[3 * i], v[3 * i + 1], v[3 * i + 2])
+                if (loc) {
+                    this._native.uniform3i(loc, v[3 * i], v[3 * i + 1], v[3 * i + 2])
+                }
             }
             return
         }
@@ -1695,7 +1735,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const locs = location._array
             for (let i = 0; i < locs.length && 4 * i < v.length; ++i) {
                 const loc = locs[i]
-                this._native.uniform4f(loc, v[4 * i], v[4 * i + 1], v[4 * i + 2], v[4 * i + 3])
+                if (loc) {
+                    this._native.uniform4f(loc, v[4 * i], v[4 * i + 1], v[4 * i + 2], v[4 * i + 3])
+                }
             }
             return
         }
@@ -1707,7 +1749,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             const locs = location._array
             for (let i = 0; i < locs.length && 4 * i < v.length; ++i) {
                 const loc = locs[i]
-                this._native.uniform4i(loc, v[4 * i], v[4 * i + 1], v[4 * i + 2], v[4 * i + 3])
+                if (loc) {
+                    this._native.uniform4i(loc, v[4 * i], v[4 * i + 1], v[4 * i + 2], v[4 * i + 3])
+                }
             }
             return
         }
@@ -1779,6 +1823,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         this.setError(this.INVALID_ENUM)
     }
+
     attachShader(program: WebGLProgram, shader: WebGLShader): void {
         // return this._native.attachShader(program._, shader._);
         if (!checkObject(program) ||
@@ -1807,6 +1852,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
         this.setError(this.INVALID_OPERATION)
     }
+
     bindAttribLocation(program: WebGLProgram, index: GLuint, name: string): void {
         // return this._native.bindAttribLocation(program._, index, name);
         if (!checkObject(program) ||
@@ -1871,9 +1917,11 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             return
         }
         if (!framebuffer) {
-            this._native.bindFramebuffer(
-                this.FRAMEBUFFER,
-                this._drawingBuffer?._framebuffer || null)
+            if (this._drawingBuffer?._framebuffer) {
+                this._native.bindFramebuffer(
+                    this.FRAMEBUFFER,
+                    this._drawingBuffer._framebuffer)
+            }
         } else if (framebuffer._pendingDelete) {
             return
         } else if (this._checkWrapper(framebuffer, WebGLFramebuffer)) {
@@ -2423,7 +2471,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         this.setError(this.INVALID_OPERATION)
     }
 
-    destroy () {
+    destroy() {
         warnNotImplemented('destroy');
         // this._native.destroy()
     }
@@ -2917,7 +2965,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             case this.COLOR_WRITEMASK:
                 // return this._getParameterDirect(pname);
                 return this._native.getParameterbv(pname, 16)
-                // return boolArray(this._native.getParameterbv(pname, 16));
+            // return boolArray(this._native.getParameterbv(pname, 16));
 
             case this.DEPTH_CLEAR_VALUE:
             case this.LINE_WIDTH:
@@ -3310,8 +3358,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
 
         if (this._checkWrapper(program, WebGLProgram)) {
-            const loc = this._native.getUniformLocation(program._ | 0, name)
-            if (loc && loc >= 0) {
+            const loc = this._native.getUniformLocation(program._ | 0, name);
+            console.log("loc", loc);
+            if (loc !== null && loc >= 0) {
                 let searchName = name
                 if (/\[\d+\]$/.test(name)) {
                     searchName = name.replace(/\[\d+\]$/, '[0]')
@@ -3444,10 +3493,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         return this._native.hint(target, mode)
     }
-    isBuffer(buffer: WebGLBuffer | null): GLboolean {
+    isBuffer(buffer: WebGLBuffer): GLboolean {
         // return this._native.isBuffer(buffer?._ || null);
         if (!this._isObject(buffer, 'isBuffer', WebGLBuffer)) return false
-        return this._native.isBuffer(buffer?._ || null);
+        return this._native.isBuffer(buffer?._);
     }
     isContextLost(): boolean {
         return false;
@@ -3455,25 +3504,25 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     isEnabled(cap: GLenum): GLboolean {
         return this._native.isEnabled(cap);
     }
-    isFramebuffer(framebuffer: WebGLShader | null): GLboolean {
+    isFramebuffer(framebuffer: WebGLShader): GLboolean {
         if (!this._isObject(framebuffer, 'isFramebuffer', WebGLFramebuffer)) return false
-        return this._native.isFramebuffer(framebuffer?._ || null)
+        return this._native.isFramebuffer(framebuffer?._)
     }
-    isProgram(program: WebGLProgram | null): GLboolean {
+    isProgram(program: WebGLProgram): GLboolean {
         if (!this._isObject(program, 'isProgram', WebGLProgram)) return false
-        return this._native.isProgram(program?._ || null)
+        return this._native.isProgram(program?._)
     }
-    isRenderbuffer(renderbuffer: WebGLRenderbuffer | null): GLboolean {
+    isRenderbuffer(renderbuffer: WebGLRenderbuffer): GLboolean {
         if (!this._isObject(renderbuffer, 'isRenderbuffer', WebGLRenderbuffer)) return false
-        return this._native.isRenderbuffer(renderbuffer?._ || null);
+        return this._native.isRenderbuffer(renderbuffer?._);
     }
-    isShader(shader: WebGLShader | null): GLboolean {
+    isShader(shader: WebGLShader): GLboolean {
         if (!this._isObject(shader, 'isShader', WebGLShader)) return false
-        return this._native.isShader(shader?._ || null);
+        return this._native.isShader(shader?._);
     }
-    isTexture(texture: WebGLTexture | null): GLboolean {
+    isTexture(texture: WebGLTexture): GLboolean {
         if (!this._isObject(texture, 'isTexture', WebGLTexture)) return false
-        return this._native.isTexture(texture?._ || null);
+        return this._native.isTexture(texture?._);
     }
     lineWidth(width: GLfloat): void {
         if (isNaN(width)) {
@@ -3622,26 +3671,14 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             this.setError(this.INVALID_VALUE)
             return
         }
-        source += ''
-
-
-        if (this.canvas && !(source.startsWith('#version') || source.includes('\n#version'))) {
-            const glArea = this.canvas._getGlArea();
-            const es = glArea.get_use_es();
-            let version = this._getGlslVersion(es);
-            if (version) {
-                version = '#version ' + version;
-                if (!source.startsWith('\n')) {
-                    version += '\n';
-                }
-                source = version + source;
-            }
-        }
+        // source += ''
 
         if (!isValidString(source)) {
             this.setError(this.INVALID_VALUE)
         } else if (this._checkWrapper(shader, WebGLShader)) {
-            this._native.shaderSource(shader._ | 0, this._wrapShader(shader._type, source))
+            source = this._wrapShader(shader._type, source);
+            console.log("shaderSource", source);
+            this._native.shaderSource(shader._ | 0, source)
             shader._source = source
         }
     }
@@ -3732,18 +3769,43 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return this._native.uniform3i(location?._ || 0, x, y, z);
     }
     uniform4f(location: WebGLUniformLocation | null, x: GLfloat, y: GLfloat, z: GLfloat, w: GLfloat): void {
-        if (!this._checkUniformValid(location, x, 'uniform4f', 4, 'f')) return
+        if (!this._checkUniformValid(location, x, 'uniform4f', 4, 'f')) {
+            console.error("uniform4f is not valid!");
+            return
+        }
         return this._native.uniform4f(location?._ || 0, x, y, z, w);
     }
     uniform4i(location: WebGLUniformLocation | null, x: GLint, y: GLint, z: GLint, w: GLint): void {
         if (!this._checkUniformValid(location, x, 'uniform4i', 4, 'i')) return
         return this._native.uniform4i(location?._ || 0, x, y, z, w);
     }
-    useProgram(program: WebGLProgram | null): void {
-        return this._native.useProgram(program?._ || null);
+    useProgram(program: WebGLProgram): void {
+        // return this._native.useProgram(program._);
+        if (!checkObject(program)) {
+            throw new TypeError('useProgram(WebGLProgram)')
+        } else if (!program) {
+            this._switchActiveProgram(this._activeProgram)
+            this._activeProgram = null
+            return this._native.useProgram(0)
+        } else if (this._checkWrapper(program, WebGLProgram)) {
+            if (this._activeProgram !== program) {
+                this._switchActiveProgram(this._activeProgram)
+                this._activeProgram = program
+                program._refCount += 1
+            }
+            return this._native.useProgram(program._ | 0)
+        }
     }
     validateProgram(program: WebGLProgram): void {
-        return this._native.validateProgram(program._);
+        if (this._checkWrapper(program, WebGLProgram)) {
+            this._native.validateProgram(program._ | 0)
+            const error = this.getError()
+            if (error === this.NO_ERROR) {
+                program._linkInfoLog = this._native.getProgramInfoLog(program._ | 0)
+            }
+            this.getError()
+            this.setError(error)
+        }
     }
     vertexAttrib1f(index: GLuint, x: GLfloat): void {
         return this._native.vertexAttrib1f(index, x);
@@ -3769,8 +3831,62 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     vertexAttrib4fv(index: GLuint, values: Float32List): void {
         return this._native.vertexAttrib4fv(index, listToArray(values));
     }
-    vertexAttribPointer(index: GLuint, size: GLint, type: GLenum, normalized: GLboolean, stride: GLsizei, offset: GLintptr): void {
-        return this._native.vertexAttribPointer(index, size, type, normalized, stride, offset);
+    vertexAttribPointer(index: GLuint = 0, size: GLint = 0, type: GLenum = 0, normalized: GLboolean = false, stride: GLsizei = 0, offset: GLintptr = 0): void {
+
+        if (stride < 0 || offset < 0) {
+            this.setError(this.INVALID_VALUE)
+            return
+        }
+
+        if (stride < 0 ||
+            offset < 0 ||
+            index < 0 || index >= this._vertexObjectState._attribs.length ||
+            !(size === 1 || size === 2 || size === 3 || size === 4)) {
+            this.setError(this.INVALID_VALUE)
+            return
+        }
+
+        if (this._vertexGlobalState._arrayBufferBinding === null) {
+            this.setError(this.INVALID_OPERATION)
+            return
+        }
+
+        // fixed, int and unsigned int aren't allowed in WebGL
+        const byteSize = typeSize(this, type)
+        if (byteSize === 0 ||
+            type === this.INT ||
+            type === this.UNSIGNED_INT) {
+            this.setError(this.INVALID_ENUM)
+            return
+        }
+
+        if (stride > 255 || stride < 0) {
+            this.setError(this.INVALID_VALUE)
+            return
+        }
+
+        // stride and offset must be multiples of size
+        if ((stride % byteSize) !== 0 ||
+            (offset % byteSize) !== 0) {
+            this.setError(this.INVALID_OPERATION)
+            return
+        }
+
+        // Call vertex attrib pointer
+        this._native.vertexAttribPointer(index, size, type, normalized, stride, offset)
+
+        // Update the vertex state object and references.
+        this._vertexObjectState.setVertexAttribPointer(
+            /* buffer */ this._vertexGlobalState._arrayBufferBinding,
+            /* index */ index,
+            /* pointerSize */ size * byteSize,
+            /* pointerOffset */ offset,
+            /* pointerStride */ stride || (size * byteSize),
+            /* pointerType */ type,
+            /* pointerNormal */ normalized,
+            /* inputStride */ stride,
+            /* inputSize */ size
+        )
     }
     viewport(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
         return this._native.viewport(x, y, width, height);

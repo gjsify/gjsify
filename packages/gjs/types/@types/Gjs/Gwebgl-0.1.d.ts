@@ -58,10 +58,10 @@ interface WebGLRenderingContextBase {
     activeTexture(texture: number): void
     attachShader(program: number, shader: number): void
     bindAttribLocation(program: number, index: number, name: string): void
-    bindBuffer(target: number, buffer: number | null): void
-    bindFramebuffer(target: number, framebuffer: number | null): void
-    bindRenderbuffer(target: number, renderbuffer: number | null): void
-    bindTexture(target: number, texture: number | null): void
+    bindBuffer(target: number, buffer: number): void
+    bindFramebuffer(target: number, framebuffer: number): void
+    bindRenderbuffer(target: number, renderbuffer: number): void
+    bindTexture(target: number, texture: number): void
     blendColor(red: number, green: number, blue: number, alpha: number): void
     blendEquation(mode: number): void
     blendEquationSeparate(modeRGB: number, modeAlpha: number): void
@@ -83,12 +83,12 @@ interface WebGLRenderingContextBase {
     createShader(type: number): number
     createTexture(): number
     cullFace(mode: number): void
-    deleteBuffer(buffer: number | null): void
-    deleteFramebuffer(framebuffer: number | null): void
-    deleteProgram(program: number | null): void
-    deleteRenderbuffer(renderbuffer: number | null): void
-    deleteShader(shader: number | null): void
-    deleteTexture(texture: number | null): void
+    deleteBuffer(buffer: number): void
+    deleteFramebuffer(framebuffer: number): void
+    deleteProgram(program: number): void
+    deleteRenderbuffer(renderbuffer: number): void
+    deleteShader(shader: number): void
+    deleteTexture(texture: number): void
     depthFunc(func: number): void
     depthMask(flag: boolean): void
     depthRange(zNear: number, zFar: number): void
@@ -101,8 +101,8 @@ interface WebGLRenderingContextBase {
     enableVertexAttribArray(index: number): void
     finish(): void
     flush(): void
-    framebufferRenderbuffer(target: number, attachment: number, renderbufferTarget: number, renderbuffer: number | null): void
-    framebufferTexture2D(target: number, attachment: number, textarget: number, texture: number | null, level: number): void
+    framebufferRenderbuffer(target: number, attachment: number, renderbufferTarget: number, renderbuffer: number): void
+    framebufferTexture2D(target: number, attachment: number, textarget: number, texture: number, level: number): void
     frontFace(mode: number): void
     generateMipmap(target: number): void
     getActiveAttrib(program: number, index: number): /* result */ WebGLActiveInfo
@@ -132,7 +132,7 @@ interface WebGLRenderingContextBase {
     getTexParameterx(target: number, pname: number): GLib.Variant
     getTexParameterfv(target: number, pname: number): number
     getTexParameteriv(target: number, pname: number): number
-    getUniformLocation(program: number, name: string): number | null
+    getUniformLocation(program: number, name: string): number
     getUniform(program: number, location: number): number[]
     getUniformf(program: number, location: number): number[]
     getUniformfv(program: number, location: number, resultSize: number): number[]
@@ -144,13 +144,13 @@ interface WebGLRenderingContextBase {
     getVertexAttribfv(index: number, pname: number, resultSize: number): number[]
     getVertexAttribi(index: number, pname: number): number[]
     hint(target: number, mode: number): void
-    isBuffer(buffer: number | null): boolean
+    isBuffer(buffer: number): boolean
     isEnabled(cap: number): boolean
-    isFramebuffer(framebuffer: number | null): boolean
-    isProgram(program: number | null): boolean
-    isRenderbuffer(renderbuffer: number | null): boolean
-    isShader(shader: number | null): boolean
-    isTexture(texture: number | null): boolean
+    isFramebuffer(framebuffer: number): boolean
+    isProgram(program: number): boolean
+    isRenderbuffer(renderbuffer: number): boolean
+    isShader(shader: number): boolean
+    isTexture(texture: number): boolean
     lineWidth(width: number): void
     linkProgram(program: number): void
     pixelStorei(pname: number, param: number): void
@@ -167,16 +167,16 @@ interface WebGLRenderingContextBase {
     stencilOpSeparate(face: number, fail: number, zfail: number, zpass: number): void
     texParameterf(target: number, pname: number, param: number): void
     texParameteri(target: number, pname: number, param: number): void
-    uniform1f(location: number | null, x: number): void
-    uniform1i(location: number | null, x: number): void
-    uniform2f(location: number | null, x: number, y: number): void
-    uniform2i(location: number | null, x: number, y: number): void
-    uniform3f(location: number | null, x: number, y: number, z: number): void
-    uniform3i(location: number | null, x: number, y: number, z: number): void
-    uniform4f(location: number | null, x: number, y: number, z: number, w: number): void
-    uniform4i(location: number | null, x: number, y: number, z: number, w: number): void
-    useProgram(program: number | null): void
-    validateProgram(program: number | null): void
+    uniform1f(location: number, x: number): void
+    uniform1i(location: number, x: number): void
+    uniform2f(location: number, x: number, y: number): void
+    uniform2i(location: number, x: number, y: number): void
+    uniform3f(location: number, x: number, y: number, z: number): void
+    uniform3i(location: number, x: number, y: number, z: number): void
+    uniform4f(location: number, x: number, y: number, z: number, w: number): void
+    uniform4i(location: number, x: number, y: number, z: number, w: number): void
+    useProgram(program: number): void
+    validateProgram(program: number): void
     vertexAttrib1f(index: number, x: number): void
     vertexAttrib1fv(index: number, v: number[]): void
     vertexAttrib2f(index: number, x: number, y: number): void
@@ -185,7 +185,7 @@ interface WebGLRenderingContextBase {
     vertexAttrib3fv(index: number, values: number[]): void
     vertexAttrib4f(index: number, x: number, y: number, z: number, w: number): void
     vertexAttrib4fv(index: number, values: number[]): void
-    vertexAttribPointer(index: number, size: number, type: number, normalized: boolean, stride: number, offset: number): void
+    vertexAttribPointer(index: number, size: number, type: number, _normalized: boolean, stride: number, offset: number): void
     viewport(x: number, y: number, width: number, height: number): void
 
     // Class property signals of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
@@ -250,8 +250,8 @@ interface WebGLRenderingContext {
 
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
-    bufferData(target: number, _data: object | null, usage: number): void
-    bufferDataSizeOnly(target: number, size: any, usage: number): void
+    bufferData(target: number, variant: GLib.Variant, usage: number): void
+    bufferDataSizeOnly(target: number, size: number, usage: number): void
     bufferSubData(target: number, offset: number, _data: object | null): void
     compressedTexImage2D(target: number, level: number, internalFormat: any, width: number, height: number, border: number, _data: object | null): void
     compressedTexSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, _data: object | null): void
