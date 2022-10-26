@@ -111,13 +111,14 @@ function tick(glarea: Gtk.GLArea) {
 }
 
 function activate(app: Gtk.Application) {
-    const win = Gtk.ApplicationWindow.new(app);
+    const win = new Gtk.ApplicationWindow(app);
     win.set_default_size(800, 600);
-    const glarea = Gtk.GLArea.new();
-    glarea.set_required_version(2, 0);
+    
+    const glarea = new Gtk.GLArea();
     glarea.set_use_es(true);
 
     let gl: WebGLRenderingContext;
+
     glarea.connect('render', () => {
         if(!gl) {
             const canvas = new GjsifyHTMLCanvasElement(glarea);
@@ -126,26 +127,7 @@ function activate(app: Gtk.Application) {
         render(glarea, gl);
         return true;
     });
-    glarea.connect('create-context', () => {
-        try {
-            const surface = glarea.get_native().get_surface();
-            const ctx = surface.create_gl_context();
-            ctx.set_debug_enabled(true);
-            ctx.set_use_es(1);
-            // ctx.set_required_version(3, 2);
 
-            var error = glarea.get_error ();
-            if(error !== null) {
-                console.error (error.message);
-                return false;
-            }
-
-            return ctx;
-        } catch (e) {
-            console.error(e);
-            return null;
-        }
-    });
     win.set_child(glarea);
     win.present();
     // GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 1000, () => tick(glarea));

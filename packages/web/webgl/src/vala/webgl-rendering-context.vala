@@ -101,7 +101,13 @@ namespace Gwebgl {
 
             var bytes = variant.get_data_as_bytes ();
             var size = bytes.get_size();
-            glBufferData(target, size, (GL.GLvoid[]) bytes.get_data(), usage);
+            var data = bytes.get_data();
+
+            for (var i = 0; i < data.length; i++) {
+                print("\n%i: %u", i, data[i]);
+            }
+
+            glBufferData(target, size, (GL.GLvoid[]) data, usage);
         }
 
         public void bufferDataSizeOnly(int target, size_t size, int usage) {
@@ -157,7 +163,7 @@ namespace Gwebgl {
             return pixels;
         }
 
-        public void texImage2D(int target, int level, int internalFormat, int width, int height, GLint border, int format, int type, Variant variant) {
+        public void texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, Variant variant) {
             if (!this.isVariantOfByteArray(variant)) {
                 printerr("[compressedTexSubImage2D] variant type must be 'ay'!");
                 return;
@@ -165,6 +171,11 @@ namespace Gwebgl {
 
             var bytes = variant.get_data_as_bytes ();
             var pixels = bytes.get_data();
+
+
+            for (var i = 0; i < pixels.length; i++) {
+                print("\ntexImage2D %i: %u", i, pixels[i]);
+            }
 
             glTexImage2D(target, level, internalFormat, width, height, border, format, type, (GL.GLvoid[]) pixels);
         }
@@ -230,17 +241,17 @@ namespace Gwebgl {
         }
 
         public void uniformMatrix2fv(/*WebGLUniformLocation*/ int location, bool transpose, float[] value) {
-            int length = value == null ? 0 : value.length;
+            int length = value.length;
             glUniformMatrix2fv(location, length / 4, (uint8) transpose, value);
         }
 
-        public void uniformMatrix3fv(/*WebGLUniformLocation*/ int location, bool transpose, GLfloat[] value) {
-            int length = value == null ? 0 : value.length;
+        public void uniformMatrix3fv(/*WebGLUniformLocation*/ int location, bool transpose, float[] value) {
+            int length = value.length;
             glUniformMatrix3fv(location, length / 9, (uint8) transpose, value);
         }
 
-        public void uniformMatrix4fv(/*WebGLUniformLocation*/ int location, bool transpose, GLfloat[] value) {
-            int length = value == null ? 0 : value.length;
+        public void uniformMatrix4fv(/*WebGLUniformLocation*/ int location, bool transpose, float[] value) {
+            int length = value.length;
             glUniformMatrix4fv(location, length / 16, (uint8) transpose, value);
         }
     }

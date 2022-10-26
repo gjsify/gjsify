@@ -1,4 +1,5 @@
 // https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Getting_started_with_WebGL
+// https://github.com/mdn/dom-examples/tree/main/webgl-examples/tutorial/sample1
 
 import '@gjsify/types/index';
 import Gtk from '@gjsify/types/Gtk-4.0';
@@ -44,10 +45,11 @@ function activate(app: Gtk.Application) {
     const win = new Gtk.ApplicationWindow(app);
     win.set_default_size(800, 600);
     const glarea = new Gtk.GLArea();
+
     glarea.set_use_es(true);
     glarea.set_required_version(3, 2);
 
-    let gl: WebGLRenderingContext & WebGLRenderingContext;
+    let gl: WebGLRenderingContext;
     glarea.connect('render', () => {
         if(!gl) {
             const canvas = new GjsifyHTMLCanvasElement(glarea);

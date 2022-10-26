@@ -213,6 +213,7 @@ export interface WebGLConstants {
     readonly STENCIL_CLEAR_VALUE: GLenum;
     readonly STENCIL_FAIL: GLenum;
     readonly STENCIL_FUNC: GLenum;
+    readonly STENCIL_INDEX: GLenum;
     readonly STENCIL_INDEX8: GLenum;
     readonly STENCIL_PASS_DEPTH_FAIL: GLenum;
     readonly STENCIL_PASS_DEPTH_PASS: GLenum;

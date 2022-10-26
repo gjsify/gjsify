@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+      "module": "ESNext",
+      "types": [],
+      "target": "ESNext",
+      "moduleResolution": "node",
+      "experimentalDecorators": true,
+      "outDir": "dist"
+    },
+    "reflection": true,
+    "files": ["src/gjs.ts", "src/browser.ts"]
+}

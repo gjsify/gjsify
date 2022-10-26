@@ -1,8 +1,11 @@
-import { warnNotImplemented } from '@gjsify/utils'
+import { warnNotImplemented, notImplemented } from '@gjsify/utils'
 import Gtk from '@gjsify/types/Gtk-4.0';
 import { GjsifyWebGLRenderingContext } from './webgl-rendering-context';
 
-export class GjsifyHTMLCanvasElement /*TODO implements HTMLCanvasElement*/ {
+// TODO this fakes the implementation of HTMLCanvasElement, create a new package for a real implementation based on https://github.com/capricorn86/happy-dom/tree/master/packages/happy-dom/src/nodes/html-element
+export interface GjsifyHTMLCanvasElement extends HTMLCanvasElement {}
+
+export class GjsifyHTMLCanvasElement implements HTMLCanvasElement {
 
     _webgl?: WebGLRenderingContext & GjsifyWebGLRenderingContext
 
@@ -20,6 +23,10 @@ export class GjsifyHTMLCanvasElement /*TODO implements HTMLCanvasElement*/ {
         // return this.gtkGlArea.get_height()
     }
 
+    get clientHeight() {
+        return this.height;
+    }
+    
     /** Sets the height of a canvas element on a document. */
     set height(height: number) {
         warnNotImplemented('GjsifyHTMLCanvasElement.set_height');
@@ -36,9 +43,15 @@ export class GjsifyHTMLCanvasElement /*TODO implements HTMLCanvasElement*/ {
         warnNotImplemented('GjsifyHTMLCanvasElement.set_width');
     }
 
-    captureStream(frameRequestRate?: number): MediaStream {
-        return {} as any; // TODO
+    get clientWidth() {
+        return this.width;
     }
+
+    captureStream(frameRequestRate?: number): MediaStream {
+        notImplemented('HTMLCanvasElement.captureStream');
+        return new MediaStream();
+    }
+
     /**
      * Returns an object that provides methods and properties for drawing and manipulating images and graphics on a canvas element in a document. A context object includes information about colors, line widths, fonts, and other graphic parameters that can be drawn on a canvas.
      * @param contextId The identifier (ID) of the type of canvas to create. Internet Explorer 9 and Internet Explorer 10 support only a 2-D context using canvas.getContext("2d"); IE11 Preview also supports 3-D or WebGL context using canvas.getContext("experimental-webgl");
@@ -60,23 +73,25 @@ export class GjsifyHTMLCanvasElement /*TODO implements HTMLCanvasElement*/ {
         }
         return null;
     }
-    toBlob(callback: BlobCallback, type?: string, quality?: any): void {
 
+    toBlob(callback: BlobCallback, type?: string, quality?: any): void {
+        notImplemented('HTMLCanvasElement.toBlob');
     }
     /**
      * Returns the content of the current canvas as an image that you can use as a source for another canvas or an HTML element.
      * @param type The standard MIME type for the image format to return. If you do not specify this parameter, the default value is a PNG format image.
      */
     toDataURL(type?: string, quality?: any): string {
+        notImplemented('HTMLCanvasElement.toDataURL');
         return '';
     }
     addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
     addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void {
-
+        notImplemented('HTMLCanvasElement.addEventListener');
     }
     removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void {
-
+        notImplemented('HTMLCanvasElement.removeEventListener');
     }
 }
 

@@ -1,0 +1,64 @@
+import '@gjsify/types/index';
+import Gtk from '@gjsify/types/Gtk-4.0';
+import GLib from '@gjsify/types/GLib-2.0';
+import Gio from '@gjsify/types/Gio-2.0';
+import { GjsifyHTMLCanvasElement, WebGLRenderingContext } from '@gjsify/webgl';
+import { start } from './webgl-demo.js';
+
+let isFirstRenderCall = true;
+
+function render(glarea: Gtk.GLArea) {
+    if(isFirstRenderCall) {
+        console.log("first render call");
+        glarea.make_current();
+        const canvas = new GjsifyHTMLCanvasElement(glarea);
+        start(canvas);
+    }
+    isFirstRenderCall = false;
+}
+
+function tick(glarea: Gtk.GLArea) {
+    // glarea.queue_render();
+    return true;
+}
+
+function activate(app: Gtk.Application) {
+    const win = new Gtk.ApplicationWindow(app);
+    win.set_default_size(800, 600);
+    const glarea = new Gtk.GLArea();
+
+    glarea.set_use_es(true);
+    glarea.set_has_depth_buffer(true);
+    glarea.set_has_stencil_buffer(true);
+    glarea.make_current();
+    // glarea.set_required_version(3, 2);
+
+    // glarea.connect('realize', () => {
+    //     console.log("realize");
+
+    //     return true;
+    // })
+
+    glarea.connect('render', () => {
+        render(glarea);
+        return true;
+    });
+    
+    win.set_child(glarea);
+    win.present();
+
+    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => tick(glarea));
+}
+
+function main() {
+    console.log("main");
+    Gtk.init();
+    const app = new Gtk.Application({
+        application_id: 'gjsify.examples.webgl-tutorial-01',
+        flags: Gio.ApplicationFlags.FLAGS_NONE,
+    });
+    app.connect('activate', activate);
+    app.run([]);
+}
+
+main();

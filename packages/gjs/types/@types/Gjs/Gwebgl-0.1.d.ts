@@ -55,6 +55,7 @@ interface WebGLRenderingContextBase {
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContextBase
 
     get_webgl_constants(): GLib.HashTable
+    _vertexAttribDivisor(index: number, divisor: number): void
     activeTexture(texture: number): void
     attachShader(program: number, shader: number): void
     bindAttribLocation(program: number, index: number, name: string): void
@@ -96,7 +97,9 @@ interface WebGLRenderingContextBase {
     disable(cap: number): void
     disableVertexAttribArray(index: number): void
     drawArrays(mode: number, first: number, count: number): void
+    _drawArraysInstanced(mode: number, first: number, count: number, instancecount: number): void
     drawElements(mode: number, count: number, type: number, offset: number): void
+    _drawElementsInstanced(mode: number, count: number, type: number, offset: number, instancecount: number): void
     enable(cap: number): void
     enableVertexAttribArray(index: number): void
     finish(): void
@@ -250,15 +253,16 @@ interface WebGLRenderingContext {
 
     // Owm methods of Gwebgl-0.1.Gwebgl.WebGLRenderingContext
 
+    isVariantOfByteArray(variant: GLib.Variant): boolean
     bufferData(target: number, variant: GLib.Variant, usage: number): void
     bufferDataSizeOnly(target: number, size: number, usage: number): void
-    bufferSubData(target: number, offset: number, _data: object | null): void
-    compressedTexImage2D(target: number, level: number, internalFormat: any, width: number, height: number, border: number, _data: object | null): void
-    compressedTexSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, _data: object | null): void
-    readPixels(x: number, y: number, width: number, height: number, format: number, type: number, _pixels: object | null): Uint8Array
-    texImage2D(target: number, level: number, internalFormat: number, width: number, height: number, border: any, format: number, type: number, _pixels: object | null): void
+    bufferSubData(target: number, offset: number, variant: GLib.Variant): void
+    compressedTexImage2D(target: number, level: number, internalFormat: any, width: number, height: number, border: number, variant: GLib.Variant): void
+    compressedTexSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, variant: GLib.Variant): void
+    readPixels(x: number, y: number, width: number, height: number, format: number, type: number, variant: GLib.Variant): Uint8Array
+    texImage2D(target: number, level: number, internalFormat: number, width: number, height: number, border: number, format: number, type: number, variant: GLib.Variant): void
     texImage2DFromPixbuf(target: number, level: number, internalFormat: number, format: number, type: number, source: object | null): void
-    texSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, type: number, _pixels: object | null): void
+    texSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, type: number, variant: GLib.Variant): void
     texSubImage2DFromPixbuf(target: number, level: number, xoffset: number, yoffset: number, format: number, type: number, source: object | null): void
     uniform1fv(location: number, vLength: number, value: number[]): void
     uniform1iv(location: number, vLength: number, value: number[]): void
@@ -269,8 +273,8 @@ interface WebGLRenderingContext {
     uniform4fv(location: number, vLength: number, value: number[]): void
     uniform4iv(location: number, vLength: number, value: number[]): void
     uniformMatrix2fv(location: number, transpose: boolean, value: number[]): void
-    uniformMatrix3fv(location: number, transpose: boolean, value: any[]): void
-    uniformMatrix4fv(location: number, transpose: boolean, value: any[]): void
+    uniformMatrix3fv(location: number, transpose: boolean, value: number[]): void
+    uniformMatrix4fv(location: number, transpose: boolean, value: number[]): void
     get_width(): number
     get_height(): number
     get_alpha(): boolean

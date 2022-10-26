@@ -375,10 +375,9 @@ namespace Gwebgl {
             return this.webgl_constants;
         }
 
-        // TODO
-        //  public void vertexAttribDivisor(uint index, uint divisor) {
-        //      glVertexAttribDivisor(index, divisor);
-        //  }
+        public void _vertexAttribDivisor(uint index, uint divisor) {
+            glVertexAttribDivisor(index, divisor);
+        }
 
         public void activeTexture(int texture) {
             glActiveTexture(texture);
@@ -541,6 +540,10 @@ namespace Gwebgl {
             glDepthRangef(zNear, zFar);
         }
 
+        //  public void destroy() {
+        //      dispose();
+        //  }
+
         public void detachShader(/*WebGLProgram*/ uint program, /*WebGLShader*/ uint shader) {
             glDetachShader(program, shader);
         }
@@ -557,10 +560,18 @@ namespace Gwebgl {
             glDrawArrays(mode, first, count);
         }
 
+        public void _drawArraysInstanced(int mode, int first, int count, int instancecount) {
+            glDrawArraysInstanced(mode, first, count, instancecount);
+        }
+
         public void drawElements(int mode, int count, int type, size_t offset) {
             size_t[] offsets = new size_t[1]{offset};
-            // TODO: What type is that?
             glDrawElements(mode, count, type, (GL.GLvoid[]) offsets);
+        }
+
+        public void _drawElementsInstanced(int mode, int count, int type, size_t offset, int instancecount) {
+            size_t[] offsets = new size_t[1]{offset};
+            glDrawElementsInstanced(mode, count, type, (GL.GLvoid[]) offsets, instancecount);
         }
 
         public void enable(int cap) {
@@ -607,7 +618,7 @@ namespace Gwebgl {
 
 
             glGetProgramiv(program, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, bufSize);
-            GLubyte[] name = new GLubyte[bufSize[0] + 1];
+            uint8[] name = new uint8[bufSize[0] + 1];
             glGetActiveAttrib(program, index, bufSize[0], bufLength, size, type, name);
 
             var res = WebGLActiveInfo() {
@@ -664,7 +675,7 @@ namespace Gwebgl {
 
         public int[] getBufferParameteriv(int target, int pname) {
             // TODO this is not an array?
-            int[]? result = null;
+            int[] result = new int[0];
             glGetBufferParameteriv(target, pname, result);
             return result;
         }
@@ -838,7 +849,7 @@ namespace Gwebgl {
             return data;
         }
 
-        public string? getProgramInfoLog(/*WebGLProgram*/ uint program) {
+        public string getProgramInfoLog(/*WebGLProgram*/ uint program) {
             GL.GLint[] params = new GL.GLint[1];
             // TODO bufLength shoult not be an array?!
             GLsizei[] bufLength = new GLsizei[1];
@@ -866,7 +877,7 @@ namespace Gwebgl {
             return result[0];
         }
 
-        public string? getShaderInfoLog(/*WebGLShader*/ uint shader) {
+        public string getShaderInfoLog(/*WebGLShader*/ uint shader) {
             int[] bufSize = new int[1];
             GLsizei[] bufLength = new GLsizei[1];
             glGetShaderiv(shader, GL_INFO_LOG_LENGTH, bufSize);
@@ -888,7 +899,7 @@ namespace Gwebgl {
             return result[0];
         }
 
-        public WebGLShaderPrecisionFormat? getShaderPrecisionFormat(int shadertype, int precisiontype) {
+        public WebGLShaderPrecisionFormat getShaderPrecisionFormat(int shadertype, int precisiontype) {
             int[] precision = new int[2];
             int[] range = new int[2];
 
@@ -902,7 +913,7 @@ namespace Gwebgl {
             return res;
         }
 
-        public string? getShaderSource(/*WebGLShader*/ uint shader) {
+        public string getShaderSource(/*WebGLShader*/ uint shader) {
             int[] bufSize = new int[1];
             GLsizei[] bufLength = new GLsizei[1];
             glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, bufSize);
@@ -919,7 +930,7 @@ namespace Gwebgl {
             return glGetString(pname);
         }
 
-        public string[]? getSupportedExtensions() {
+        public string[] getSupportedExtensions() {
             string result = glGetString(GL_EXTENSIONS);
             string[] sp = result.split(" ", 0);
             // char **sp = strsplit((const char *) result, " ", 0);
@@ -964,37 +975,34 @@ namespace Gwebgl {
         }
         
         public float[] getUniformf(/*WebGLProgram*/ uint program, /*WebGLUniformLocation*/ int location) {
-            float[]? result = null;
+            float[] result = new float[0];
             glGetUniformfv(program, location, result);
             return result;
         }
 
         public float[] getUniformfv(/*WebGLProgram*/ uint program, /*WebGLUniformLocation*/ int location, int resultSize) {
-            // gpointer data = malloc(resultSize);
             float[] data = new float[resultSize];
             glGetUniformfv(program, location, data);
             return data;
         }
 
         public int[] getUniformi(/*WebGLProgram*/ uint program, /*WebGLUniformLocation*/ int location) {
-            int[]? result = null;
+            int[] result = new int[0];
             glGetUniformiv(program, location, result);
             return result;
         }
 
         public int[] getUniformiv(/*WebGLProgram*/ uint program, /*WebGLUniformLocation*/ int location, int resultSize) {
-            // gpointer data = malloc(resultSize);
             int[] data = new int[resultSize];
             glGetUniformiv(program, location, data);
-            // return new ByteArray.take(data);
             return data;
         }
 
         public intptr getVertexAttribOffset(uint index, int pname) {
-            long result = 1;
+            long[] result = new long[1];
             // TODO result should not be an array?!
-            glGetVertexAttribPointerv(index, pname, (GL.GLvoid[]) &result);
-            return (intptr) result;
+            glGetVertexAttribPointerv(index, pname, (GL.GLvoid[]) result);
+            return (intptr) result[0];
         }
 
         // https://github.com/stackgl/headless-gl/blob/ce1c08c0ef0c31d8c308cb828fd2f172c0bf5084/src/native/webgl.cc#L1993
@@ -1027,7 +1035,7 @@ namespace Gwebgl {
         }
 
         public float[] getVertexAttribf(uint index, int pname) {
-            float[]? result = null;
+            float[] result = new float[0];
             glGetVertexAttribfv(index, pname, result);
             return result;
         }
@@ -1039,7 +1047,7 @@ namespace Gwebgl {
         }
 
         public int[] getVertexAttribi(uint index, int pname) {
-            int[]? result = null;
+            int[] result = new int[0];
             glGetVertexAttribiv(index, pname, result);
             return result;
         }
@@ -1135,7 +1143,8 @@ namespace Gwebgl {
 
         public void shaderSource(/*WebGLShader*/ uint shader, string source) {
             string[] sources = new string[]{ source };
-            glShaderSource(shader, 1, sources, null);
+            int[] length = new int[1]{ source.length };
+            glShaderSource(shader, 1, sources, length);
         }
 
         public void stencilFunc(int func, int ref_, uint mask) {
@@ -1226,7 +1235,6 @@ namespace Gwebgl {
             glVertexAttrib2fv(index, values);
         }
         
-
         public void vertexAttrib3f(uint index, float x, float y, float z) {
             glVertexAttrib3f(index, x, y, z);
         }
