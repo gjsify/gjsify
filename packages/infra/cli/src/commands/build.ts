@@ -27,7 +27,7 @@ export const buildCommand: Command<any, CliBuildOptions> = {
             .option('app', {
                 description: "Use this if you want to build a application, the application platforms node and deno are usually only used for tests",
                 type: 'string',
-                choices: ['gjs', 'node', 'deno'],
+                choices: ['gjs', 'node', 'deno', 'browser'],
                 normalize: true,
                 default: 'gjs'
             })

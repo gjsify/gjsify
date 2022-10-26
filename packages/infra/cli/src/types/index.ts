@@ -1,4 +1,3 @@
-export * from './app.js';
 export * from './cli-build-options.js';
 export * from './command.js';
 export * from './config-data-library.js';

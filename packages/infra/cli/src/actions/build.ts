@@ -1,4 +1,5 @@
-import type { ConfigData, App } from '../types/index.js';
+import type { ConfigData } from '../types/index.js';
+import type { App } from '@gjsify/esbuild-plugin-gjsify';
 import { build } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
 import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';

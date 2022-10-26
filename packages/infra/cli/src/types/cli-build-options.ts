@@ -1,4 +1,4 @@
-import type { App } from './index.js';
+import type { App } from '@gjsify/esbuild-plugin-gjsify';
 
 export interface CliBuildOptions {
   /**

@@ -1,1 +1,0 @@
-export type App = 'gjs' | 'node' | 'deno';

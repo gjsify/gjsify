@@ -1,6 +1,8 @@
+import type { App } from './app.js';
+
 export interface PluginOptions {
     debug?: boolean;
-    app?: 'gjs' | 'node' | 'deno';
+    app?: App;
     aliases?: Record<string, string>;
     exclude?: string[];
     /** Override the format, only be considered if the target app platform is `'node'`, otherwise it is always `'esm'` */

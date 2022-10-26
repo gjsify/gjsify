@@ -1,7 +1,7 @@
 import type { Plugin } from "esbuild";
 import type { PluginOptions } from './types/plugin-options.js';
 import { setupCjsLib, setupEsmLib } from './lib/index.js';
-import { setupForGjs, setupForNode, setupForDeno } from './app/index.js';
+import { setupForGjs, setupForNode, setupForDeno, setupForBrowser } from './app/index.js';
 
 export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
     const plugin: Plugin = {
@@ -30,6 +30,8 @@ export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
                     return await setupForNode(build, pluginOptions);
                 case 'deno':
                     return await setupForDeno(build, pluginOptions);
+                case 'browser':
+                    return await setupForBrowser(build, pluginOptions);
                 default:
                     throw new TypeError('Unknown app platform: ' + pluginOptions.app);
             }
