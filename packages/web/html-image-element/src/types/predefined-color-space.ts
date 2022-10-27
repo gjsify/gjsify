@@ -1,0 +1,1 @@
+export type PredefinedColorSpace = "display-p3" | "srgb";

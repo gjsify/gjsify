@@ -3,6 +3,7 @@
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLProgram } from './webgl-program.js';
 import GLib from '@gjsify/types/GLib-2.0';
+import { HTMLImageElement as GjsifyHTMLImageElement } from "@gjsify/html-image-element";
 
 import type Gwebgl from '@gjsify/types/Gwebgl-0.1';
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
@@ -172,7 +173,7 @@ export function boolArray(array: ArrayBufferView) {
         a => a ? true : false);
 }
 
-export const extractImageData = (pixels: TexImageSource): ImageData | null => {
+export const extractImageData = (pixels: TexImageSource | GjsifyHTMLImageElement): ImageData | null => {
     if (typeof pixels === 'object' && typeof pixels.width !== 'undefined' && typeof pixels.height !== 'undefined') {
         if (typeof (pixels as ImageData).data !== 'undefined') {
             return pixels as ImageData
@@ -182,6 +183,8 @@ export const extractImageData = (pixels: TexImageSource): ImageData | null => {
 
         if (typeof (pixels as HTMLCanvasElement).getContext === 'function') {
             context = (pixels as HTMLCanvasElement).getContext('2d')
+        } else if (typeof (pixels as GjsifyHTMLImageElement).isPixbuf()) {
+            return (pixels as GjsifyHTMLImageElement).getImageData();
         } else if (typeof (pixels as HTMLImageElement).src !== 'undefined' && typeof document === 'object' && typeof document.createElement === 'function') {
             const canvas = document.createElement('canvas')
 

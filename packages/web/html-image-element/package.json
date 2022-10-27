@@ -1,13 +1,15 @@
 {
-    "name": "@gjsify/web-events",
+    "name": "@gjsify/html-image-element",
     "version": "0.0.1",
-    "description": "Web events module for Gjs",
-    "main": "lib/cjs/index.js",
-    "module": "lib/esm/index.js",
+    "description": "Web html-image-element module for Gjs",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
     "scripts": {
         "clear": "rm -rf lib",
-        "print:name": "echo '@gjsify/web-events'",
-        "build": "gjsify build --library src/**/*.{ts,js}",
+        "print:name": "echo '@gjsify/html-image-element'",
+        "build": "yarn run build:lib && yarn run build:types",
+        "build:lib": "gjsify build --library src/**/*.{ts,js}",
+        "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
@@ -23,6 +25,12 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.7.18"
+        "@types/node": "^18.7.18",
+        "typescript": "^4.8.4"
+    },
+    "dependencies": {
+        "@gjsify/events": "workspace:^",
+        "@gjsify/types": "workspace:^",
+        "happy-dom": "^7.6.6"
     }
 }

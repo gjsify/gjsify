@@ -4,7 +4,6 @@ import Gwebgl from '@gjsify/types/Gwebgl-0.1';
 import GdkPixbuf from '@gjsify/types/GdkPixbuf-2.0';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
 import { GjsifyHTMLCanvasElement } from './html-canvas-element';
-// import { gl } from './native-gl.js';
 import {
     extractImageData,
     checkObject,
@@ -16,12 +15,10 @@ import {
     isTypedArray,
     arrayToUint8Array,
     flag,
-    bindPublics,
     listToArray,
     isValidString,
     uniformTypeSize,
     vertexCount,
-    boolArray,
     typeSize,
     Uint8ArrayToVariant,
 } from './utils.js';
@@ -1030,7 +1027,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
     }
 
-    _wrapShader(type: GLenum, source: string) {
+    _wrapShader(_type: GLenum, source: string) {
         // the gl implementation seems to define `GL_OES_standard_derivatives` even when the extension is disabled
         // this behaviour causes one conformance test ('GL_OES_standard_derivatives defined in shaders when extension is disabled') to fail
         // by `undef`ing `GL_OES_standard_derivatives`, this appears to solve the issue
@@ -1626,7 +1623,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return false
     }
 
-    _checkUniformValueValid(location: WebGLUniformLocation | null, value: Float32List | Int32List, name: string, count: number, type: string) {
+    _checkUniformValueValid(location: WebGLUniformLocation | null, value: Float32List | Int32List, name: string, count: number, _type: string) {
         if (!checkObject(location) ||
             !checkObject(value)) {
             throw new TypeError(`${name}v(WebGLUniformLocation, Array)`)

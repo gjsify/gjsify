@@ -1,8 +1,9 @@
+// See https://github.com/capricorn86/happy-dom/blob/master/packages/happy-dom/tsconfig.json
 {
-  "compilerOptions": {
-    "rootDir": "src/ts",
+	"compilerOptions": {
 		"outDir": "lib",
-    "declarationDir": "lib",
+    	"declarationDir": "lib",
+		"rootDir": "src",
 		"tsBuildInfoFile": "tmp/.tsbuildinfo",
 		"target": "es2020",
 		"declaration": true,
@@ -21,21 +22,18 @@
 		"baseUrl": ".",
 		"composite": true,
 		"incremental": true,
-    "typeRoots": ["node_modules", "src/ts/@types"],
 		"types": [
 			"node"
 		],
 		"lib": [
 			"es2015",
 			"es2016",
-			"es2017",
-      "DOM"
+			"es2017"
 		]
-  },
-  "skipLibCheck": true,
-  "allowJs": true,
-  "checkJs": false,
-  "reflection": false,
-  "include": ["src/ts/**/*.ts"],
-  "exclude": ["src/ts/test.ts", "src/ts/**/*.spec.ts"]
+	},
+	"include": [
+		"@types/node",
+		"src"
+	],
+  "exclude": ["src/test.mts", "src/**/*.spec.ts"]
 }

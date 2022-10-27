@@ -28,7 +28,7 @@ export class GjsifyHTMLCanvasElement implements HTMLCanvasElement {
     }
     
     /** Sets the height of a canvas element on a document. */
-    set height(height: number) {
+    set height(_height: number) {
         warnNotImplemented('GjsifyHTMLCanvasElement.set_height');
     }
 
@@ -39,7 +39,7 @@ export class GjsifyHTMLCanvasElement implements HTMLCanvasElement {
     }
 
     /** Sets the width of a canvas element on a document. */
-    set width(width: number) {
+    set width(_width: number) {
         warnNotImplemented('GjsifyHTMLCanvasElement.set_width');
     }
 
@@ -47,7 +47,7 @@ export class GjsifyHTMLCanvasElement implements HTMLCanvasElement {
         return this.width;
     }
 
-    captureStream(frameRequestRate?: number): MediaStream {
+    captureStream(_frameRequestRate?: number): MediaStream {
         notImplemented('HTMLCanvasElement.captureStream');
         return new MediaStream();
     }
@@ -74,23 +74,23 @@ export class GjsifyHTMLCanvasElement implements HTMLCanvasElement {
         return null;
     }
 
-    toBlob(callback: BlobCallback, type?: string, quality?: any): void {
+    toBlob(_callback: BlobCallback, _type?: string, _quality?: any): void {
         notImplemented('HTMLCanvasElement.toBlob');
     }
     /**
      * Returns the content of the current canvas as an image that you can use as a source for another canvas or an HTML element.
-     * @param type The standard MIME type for the image format to return. If you do not specify this parameter, the default value is a PNG format image.
+     * @param _type The standard MIME type for the image format to return. If you do not specify this parameter, the default value is a PNG format image.
      */
-    toDataURL(type?: string, quality?: any): string {
+    toDataURL(_type?: string, _quality?: any): string {
         notImplemented('HTMLCanvasElement.toDataURL');
         return '';
     }
     addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-    addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void {
+    addEventListener(_type: string, _listener: EventListenerOrEventListenerObject, _options?: boolean | AddEventListenerOptions): void {
         notImplemented('HTMLCanvasElement.addEventListener');
     }
     removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
-    removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void {
+    removeEventListener(_type: string, _listener: EventListenerOrEventListenerObject, _options?: boolean | EventListenerOptions): void {
         notImplemented('HTMLCanvasElement.removeEventListener');
     }
 }

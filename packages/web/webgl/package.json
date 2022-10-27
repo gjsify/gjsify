@@ -29,6 +29,7 @@
         "typescript": "^4.8.3"
     },
     "dependencies": {
+        "@gjsify/html-image-element": "workspace:^",
         "@gjsify/types": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@types/bit-twiddle": "^1.0.1",
