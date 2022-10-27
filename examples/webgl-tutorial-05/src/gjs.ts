@@ -41,13 +41,11 @@ export function requestAnimationFrame(cb: FrameRequestCallback) {
 }
 
 function onActivate(app: Gtk.Application, firstRenderCb: (canvas: GjsifyHTMLCanvasElement) => void) {
-    console.log("onActivate");
     const win = new Gtk.ApplicationWindow(app);
     win.set_default_size(800, 600);
     const glarea = new Gtk.GLArea();
 
     glarea.connect('unrealize', () => {
-        console.log("unrealize");
         if (renderTag !== null) {
             glarea.disconnect(renderTag);
             renderTag = null;
@@ -60,7 +58,6 @@ function onActivate(app: Gtk.Application, firstRenderCb: (canvas: GjsifyHTMLCanv
     });
 
     const renderId = glarea.connect('render', () => {
-        console.log("render");
         try {            
             glarea.disconnect(renderId);
             glarea.make_current();
@@ -85,7 +82,6 @@ function onActivate(app: Gtk.Application, firstRenderCb: (canvas: GjsifyHTMLCanv
 }
 
 function onFirstRender(canvas: GjsifyHTMLCanvasElement) {
-    console.log("onFirstRender");
     const ctx = canvas._getGlArea().get_context()
     print(`Context version: OpenGL${ctx.get_use_es() ? ' ES' : ''} ` +
         ctx.get_version().join('.'));
@@ -93,7 +89,6 @@ function onFirstRender(canvas: GjsifyHTMLCanvasElement) {
 }
 
 function main() {
-    console.log("main");
     Gtk.init();
     const app = new Gtk.Application({
         application_id: 'gjsify.examples.webgl-tutorial-05',

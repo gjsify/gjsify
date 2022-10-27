@@ -392,7 +392,7 @@ namespace Gwebgl {
         }
         
         public void bindBuffer(uint target, /*WebGLBuffer*/ uint buffer) {
-            glBindBuffer((GL.GLenum) target, (GLuint) buffer);
+            glBindBuffer( target, buffer);
         }
 
         public void bindFramebuffer(int target, /*WebGLFramebuffer*/ uint framebuffer) {
@@ -564,14 +564,12 @@ namespace Gwebgl {
             glDrawArraysInstanced(mode, first, count, instancecount);
         }
 
-        public void drawElements(int mode, int count, int type, size_t offset) {
-            size_t[] offsets = new size_t[1]{offset};
-            glDrawElements(mode, count, type, (GL.GLvoid[]) offsets);
+        public void drawElements(int mode, int count, int type, long offset) {
+            glDrawElements(mode, count, type, (void*) offset);
         }
 
-        public void _drawElementsInstanced(int mode, int count, int type, size_t offset, int instancecount) {
-            size_t[] offsets = new size_t[1]{offset};
-            glDrawElementsInstanced(mode, count, type, (GL.GLvoid[]) offsets, instancecount);
+        public void _drawElementsInstanced(int mode, int count, int type, long offset, int instancecount) {
+            glDrawElementsInstanced(mode, count, type, (void*) offset, instancecount);
         }
 
         public void enable(int cap) {
@@ -963,7 +961,7 @@ namespace Gwebgl {
         }
 
         public /*WebGLUniformLocation*/ int getUniformLocation(/*WebGLProgram*/ uint program, string name) {
-            print("getUniformLocation %u %s", program, name);
+            // print("getUniformLocation %u %s\n", program, name);
             return glGetUniformLocation(program, name);
         }
 
@@ -1251,9 +1249,9 @@ namespace Gwebgl {
             glVertexAttrib4fv(index, values);
         }
 
-        public void vertexAttribPointer(uint index, int size, int type, bool _normalized, int stride, long offset) {
+        public void vertexAttribPointer(uint index, int size, uint type, bool _normalized, int stride, long offset) {
             uint8 normalized = (uint8) _normalized;
-            // TODO offset should not be an array?!
+            // print("\nVertexAttribPointer index %u size %i type %u normalized %i stride %i offset %f", index, size, type, normalized, stride, offset);
             glVertexAttribPointer(index, size, type, normalized, stride, (void*) offset);
         }
 

@@ -1186,7 +1186,6 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             }
 
             this._saveError()
-            console.log("bufferDataSizeOnly", target, size, usage);
             this._native.bufferDataSizeOnly(
                 target,
                 size,
@@ -3427,7 +3426,6 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         if (this._checkWrapper(program, WebGLProgram)) {
             const loc = this._native.getUniformLocation(program._ | 0, name);
-            console.log("loc", loc);
             if (loc !== null && loc >= 0) {
                 let searchName = name
                 if (/\[\d+\]$/.test(name)) {
@@ -3761,7 +3759,6 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             this.setError(this.INVALID_VALUE)
         } else if (this._checkWrapper(shader, WebGLShader)) {
             source = this._wrapShader(shader._type, source);
-            console.log("shaderSource", source);
             this._native.shaderSource(shader._ | 0, source)
             shader._source = source
         }

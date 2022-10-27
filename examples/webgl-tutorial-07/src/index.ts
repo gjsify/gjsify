@@ -53,7 +53,6 @@ function onActivate(app: Gtk.Application, firstRenderCb: (canvas: GjsifyHTMLCanv
 
         glarea.set_has_depth_buffer(true);
         glarea.set_use_es(true);
-        glarea.set_required_version(3, 2);
         glarea.connect('unrealize', () => {
             if (renderTag !== null) {
                 glarea.disconnect(renderTag);

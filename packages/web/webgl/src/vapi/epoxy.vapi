@@ -10258,13 +10258,15 @@ namespace GL {
 	[CCode (cheader_filename = "epoxy/gl.h", cname = "glDrawElementArrayATI")]
 	public static void glDrawElementArrayATI (GL.GLenum mode, GL.GLsizei count);
 	[CCode (cheader_filename = "epoxy/gl.h", cname = "glDrawElements")]
-	public static void glDrawElements (GL.GLenum mode, GL.GLsizei count, GL.GLenum type, [CCode (array_length = false)] GL.GLvoid[]? indices);
+	// GL.GLvoid[]? indices -> void* indices
+	public static void glDrawElements (GL.GLenum mode, GL.GLsizei count, GL.GLenum type, [CCode (array_length = false)] void* indices);
 	[CCode (cheader_filename = "epoxy/gl.h", cname = "glDrawElementsBaseVertex")]
 	public static void glDrawElementsBaseVertex (GL.GLenum mode, GL.GLsizei count, GL.GLenum type, [CCode (array_length = false)] GL.GLvoid[]? indices, GL.GLint basevertex);
 	[CCode (cheader_filename = "epoxy/gl.h", cname = "glDrawElementsIndirect")]
 	public static void glDrawElementsIndirect (GL.GLenum mode, GL.GLenum type, [CCode (array_length = false)] GL.GLvoid[]? indirect);
 	[CCode (cheader_filename = "epoxy/gl.h", cname = "glDrawElementsInstanced")]
-	public static void glDrawElementsInstanced (GL.GLenum mode, GL.GLsizei count, GL.GLenum type, [CCode (array_length = false)] GL.GLvoid[]? indices, GL.GLsizei instancecount);
+	// GL.GLvoid[]? indices -> void* indices
+	public static void glDrawElementsInstanced (GL.GLenum mode, GL.GLsizei count, GL.GLenum type, [CCode (array_length = false)] void* indices, GL.GLsizei instancecount);
 	[CCode (cheader_filename = "epoxy/gl.h", cname = "glDrawElementsInstancedARB")]
 	public static void glDrawElementsInstancedARB (GL.GLenum mode, GL.GLsizei count, GL.GLenum type, [CCode (array_length = false)] GL.GLvoid[]? indices, GL.GLsizei primcount);
 	[CCode (cheader_filename = "epoxy/gl.h", cname = "glDrawElementsInstancedBaseInstance")]
