@@ -1,0 +1,36 @@
+{
+  "name": "@gjsify/example-webgl-tutorial-07",
+  "private": true,
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "scripts": {
+    "clear": "rm -rf dist",
+    "start": "yarn run build && yarn run start:gjs",
+    "start:gjs": "LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/gjs.js",
+    "start:browser": "http-server dist",
+    "build": "yarn run clear && yarn run build:gjs && yarn run build:browser && yarn run build:assets",
+    "build:gjs": "gjsify build src/gjs.ts --app gjs --outfile dist/gjs.js",
+    "build:assets": "cp -f src/index.html dist/index.html && cp -f src/webgl.css dist/webgl.css && cp -f src/firefox.mp4 dist/firefox.mp4",
+    "build:browser": "gjsify build src/browser.ts --app browser --outfile dist/browser.js"
+  },
+  "engines": {
+    "node": "16",
+    "gjs": "1.72.x"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@types/gl-matrix": "^3.2.0",
+    "@types/node": "^18.7.18",
+    "http-server": "^14.1.1",
+    "open-cli": "^7.1.0"
+  },
+  "dependencies": {
+    "@gjsify/types": "workspace:^",
+    "@gjsify/webgl": "workspace:^",
+    "gl-matrix": "^3.4.3"
+  }
+}
