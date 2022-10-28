@@ -7,17 +7,18 @@ interface ProgramInfo {
   program: WebGLProgram;
   attribLocations: {
     vertexPosition: number;
-    vertexColor: number;
+    textureCoord: number;
   },
   uniformLocations: {
     projectionMatrix: WebGLUniformLocation;
     modelViewMatrix: WebGLUniformLocation;
+    uSampler: WebGLUniformLocation;
   },
 }
 
 interface Buffers {
   position: WebGLBuffer;
-  color: WebGLBuffer;
+  textureCoord: WebGLBuffer;
   indices: WebGLBuffer;
 }
 
@@ -70,7 +71,7 @@ export function start(canvas: HTMLCanvasElement) {
   // Look up which attributes our shader program is using
   // for aVertexPosition, aTextureCoord and also
   // look up uniform locations.
-  const programInfo = {
+  const programInfo: ProgramInfo = {
     program: shaderProgram,
     attribLocations: {
       vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
@@ -104,7 +105,7 @@ export function start(canvas: HTMLCanvasElement) {
   var then = 0;
 
   // Draw the scene repeatedly
-  function render(now) {
+  function render(now: number) {
     now *= 0.001; // convert to seconds
     const deltaTime = now - then;
     then = now;
@@ -122,7 +123,7 @@ export function start(canvas: HTMLCanvasElement) {
 // Initialize the buffers we'll need. For this demo, we just
 // have one object -- a simple three-dimensional cube.
 //
-function initBuffers(gl) {
+function initBuffers(gl: WebGLRenderingContext) {
   // Create a buffer for the cube's vertex positions.
 
   const positionBuffer = gl.createBuffer();
@@ -243,11 +244,13 @@ function initBuffers(gl) {
     gl.STATIC_DRAW
   );
 
-  return {
+  const buffers: Buffers = {
     position: positionBuffer,
     textureCoord: textureCoordBuffer,
     indices: indexBuffer,
   };
+
+  return buffers;
 }
 
 //
@@ -321,7 +324,7 @@ function isPowerOf2(value) {
 //
 // Draw the scene.
 //
-function drawScene(gl, programInfo, buffers, texture, deltaTime) {
+function drawScene(gl: WebGLRenderingContext, programInfo: ProgramInfo, buffers: Buffers, texture: WebGLTexture, deltaTime: number) {
   gl.clearColor(0.0, 0.0, 0.0, 1.0); // Clear to black, fully opaque
   gl.clearDepth(1.0); // Clear everything
   gl.enable(gl.DEPTH_TEST); // Enable depth testing
@@ -459,7 +462,7 @@ function drawScene(gl, programInfo, buffers, texture, deltaTime) {
 //
 // Initialize a shader program, so WebGL knows how to draw our data
 //
-function initShaderProgram(gl, vsSource, fsSource) {
+function initShaderProgram(gl: WebGLRenderingContext, vsSource: string, fsSource: string) {
   const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
   const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
 
@@ -487,7 +490,7 @@ function initShaderProgram(gl, vsSource, fsSource) {
 // creates a shader of the given type, uploads the source and
 // compiles it.
 //
-function loadShader(gl, type, source) {
+function loadShader(gl: WebGLRenderingContext, type: number, source: string) {
   const shader = gl.createShader(type);
 
   // Send the source to the shader object
