@@ -375,21 +375,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-webgl-tutorial-07@workspace:examples/webgl-tutorial-08":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-webgl-tutorial-07@workspace:examples/webgl-tutorial-08"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/types": "workspace:^"
-    "@gjsify/webgl": "workspace:^"
-    "@types/gl-matrix": ^3.2.0
-    "@types/node": ^18.7.18
-    gl-matrix: ^3.4.3
-    http-server: ^14.1.1
-    open-cli: ^7.1.0
-  languageName: unknown
-  linkType: soft
-
 "@gjsify/example-webgl-tutorial-08@workspace:examples/webgl-tutorial-07":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-tutorial-08@workspace:examples/webgl-tutorial-07"
