@@ -3,7 +3,7 @@ import { aliasPlugin } from '../alias-plugin.js';
 import { denoPlugin } from '../deno-plugin.js';
 import { globPlugin } from 'esbuild-plugin-glob';
 import { merge } from "lodash";
-import { resolvePackageByType } from "../alias";
+import { resolvePackageByType } from "../alias.js";
 import { EXTERNALS_NODE } from "@gjsify/resolve-npm";
 
 // Types

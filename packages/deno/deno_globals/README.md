@@ -1,2 +1,0 @@
-# @gjsify/deno_globals
-

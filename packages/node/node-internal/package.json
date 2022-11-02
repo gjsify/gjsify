@@ -20,8 +20,7 @@
     },
     "keywords": [
         "gjs",
-        "node",
-        "console"
+        "node"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

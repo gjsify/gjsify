@@ -1,13 +1,13 @@
 {
-    "name": "@gjsify/deno_globals",
+    "name": "@gjsify/deno_runtime",
     "version": "0.0.1",
-    "description": "Deno globals module for gjsify",
+    "description": "Deno runtime module for gjsify",
     "main": "lib/cjs/index.js",
     "module": "lib/mjs/index.js",
     "type": "module",
     "scripts": {
         "clear": "rm -rf lib",
-        "print:name": "echo '@gjsify/deno_globals'",
+        "print:name": "echo '@gjsify/deno_runtime'",
         "build": "gjsify build --library src/**/*.{ts,js}",
         "build:test": "yarn run build:test:gjs && yarn run build:test:deno",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
@@ -24,6 +24,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
+        "@tsconfig/deno": "^1.0.6",
         "@types/node": "^18.7.18"
     }
 }

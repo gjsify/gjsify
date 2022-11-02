@@ -2,7 +2,7 @@ import { aliasPlugin } from '../alias-plugin.js';
 import { denoPlugin } from '../deno-plugin.js';
 import { globPlugin } from 'esbuild-plugin-glob';
 import { merge } from "lodash";
-import { getAliasesNode, getAliasesWeb, resolvePackageByType } from "../alias";
+import { getAliasesNode, getAliasesWeb, resolvePackageByType } from "../alias.js";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -24,7 +24,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         'core-js/features/url/',
         'core-js/features/url-search-params/',
 
-        // '@gjsify/deno_globals/',
+        // '@gjsify/deno_runtime/',
     ].map(inj => resolvePackageByType(inj, 'module'));
 
     // Set default options
