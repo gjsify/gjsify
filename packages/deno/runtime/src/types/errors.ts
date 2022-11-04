@@ -1,0 +1,21 @@
+export interface Errors {
+    NotFound: Error;
+    PermissionDenied: Error;
+    ConnectionRefused: Error;
+    ConnectionReset: Error;
+    ConnectionAborted: Error;
+    NotConnected: Error;
+    AddrInUse: Error;
+    AddrNotAvailable: Error;
+    BrokenPipe: Error;
+    AlreadyExists: Error;
+    InvalidData: Error;
+    TimedOut: Error;
+    Interrupted: Error;
+    WriteZero: Error;
+    UnexpectedEof: Error;
+    BadResource: Error;
+    Http: Error;
+    Busy: Error;
+    NotSupported: Error;
+};

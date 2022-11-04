@@ -285,43 +285,43 @@ delete Intl.v8BreakIterator;
     core.registerErrorClass("NotSupported", errors.NotSupported);
     core.registerErrorBuilder(
       "DOMExceptionOperationError",
-      function DOMExceptionOperationError(msg) {
+      function DOMExceptionOperationError(msg: string) {
         return new domException.DOMException(msg, "OperationError");
       },
     );
     core.registerErrorBuilder(
       "DOMExceptionQuotaExceededError",
-      function DOMExceptionQuotaExceededError(msg) {
+      function DOMExceptionQuotaExceededError(msg: string) {
         return new domException.DOMException(msg, "QuotaExceededError");
       },
     );
     core.registerErrorBuilder(
       "DOMExceptionNotSupportedError",
-      function DOMExceptionNotSupportedError(msg) {
+      function DOMExceptionNotSupportedError(msg: string) {
         return new domException.DOMException(msg, "NotSupported");
       },
     );
     core.registerErrorBuilder(
       "DOMExceptionNetworkError",
-      function DOMExceptionNetworkError(msg) {
+      function DOMExceptionNetworkError(msg: string) {
         return new domException.DOMException(msg, "NetworkError");
       },
     );
     core.registerErrorBuilder(
       "DOMExceptionAbortError",
-      function DOMExceptionAbortError(msg) {
+      function DOMExceptionAbortError(msg: string) {
         return new domException.DOMException(msg, "AbortError");
       },
     );
     core.registerErrorBuilder(
       "DOMExceptionInvalidCharacterError",
-      function DOMExceptionInvalidCharacterError(msg) {
+      function DOMExceptionInvalidCharacterError(msg: string) {
         return new domException.DOMException(msg, "InvalidCharacterError");
       },
     );
     core.registerErrorBuilder(
       "DOMExceptionDataError",
-      function DOMExceptionDataError(msg) {
+      function DOMExceptionDataError(msg: string) {
         return new domException.DOMException(msg, "DataError");
       },
     );
@@ -332,7 +332,7 @@ delete Intl.v8BreakIterator;
       webidl.illegalConstructor();
     }
 
-    [SymbolFor("Deno.privateCustomInspect")](inspect) {
+    [SymbolFor("Deno.privateCustomInspect")](inspect: (obj: any) => void) {
       return `${this.constructor.name} ${inspect({})}`;
     }
   }

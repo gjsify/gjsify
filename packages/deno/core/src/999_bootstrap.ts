@@ -1,7 +1,7 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Forked from https://github.com/denoland/deno/blob/main/core/internal.d.ts
+// Based on https://github.com/denoland/deno/blob/main/core/00_primordials.js
 
-// Based on https://github.com/nodejs/node/blob/889ad35d3d41e376870f785b0c1b669cb732013d/typings/primordials.d.ts
+// Based on https://github.com/nodejs/node/blob/889ad35d3d41e376870f785b0c1b669cb732013d/lib/internal/per_context/primordials.js
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -26,33 +26,13 @@
 // so that Node.js's builtin modules do not need to later look these up from
 // the global proxy, which can be mutated by users.
 
-/// <reference no-default-lib="true" />
-/// <reference lib="esnext" />
+// Use of primordials have sometimes a dramatic impact on performance, please
+// benchmark all changes made in performance-sensitive areas of the codebase.
+// See: https://github.com/nodejs/node/pull/38248
 
-import type { Primordials } from '@gjsify/deno_core';
-import type { Build, Errors, Version } from './index.js';
+"use strict";
 
-export interface Bootstrap {
-    /**
-     * Primordials are a way to safely use globals without fear of global mutation
-     * Generally, this means removing `this` parameter usage and instead using
-     * a regular parameter:
-     *
-     * @example
-     *
-     * ```js
-     * 'thing'.startsWith('hello');
-     * ```
-     *
-     * becomes
-     *
-     * ```js
-     * primordials.StringPrototypeStartsWith('thing', 'hello')
-     * ```
-     */
-    primordials: Primordials;
-    build: Build;
-    errors: Errors;
-    version: Version;
-  }
-  
+import { primordials } from './00_primordials.js'
+
+// Provide bootstrap namespace
+export const __bootstrap = { primordials };

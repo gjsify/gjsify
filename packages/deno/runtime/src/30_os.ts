@@ -44,12 +44,13 @@
 
   // This is an internal only method used by the test harness to override the
   // behavior of exit when the exit sanitizer is enabled.
-  let exitHandler = null;
-  function setExitHandler(fn) {
+  let exitHandler: null | ((code: number) => void) = null;
+  
+  function setExitHandler(fn: null | ((code: number) => void)) {
     exitHandler = fn;
   }
 
-  function exit(code) {
+  function exit(code: number) {
     // Set exit code first so unload event listeners can override it.
     if (typeof code === "number") {
       ops.op_set_exit_code(code);

@@ -8,121 +8,121 @@
   const { BadResource, Interrupted } = core;
 
   class NotFound extends Error {
+    name = "NotFound"
     constructor(msg: string) {
       super(msg);
-      this.name = "NotFound";
     }
   }
 
   class PermissionDenied extends Error {
+    name = "PermissionDenied";
     constructor(msg: string) {
       super(msg);
-      this.name = "PermissionDenied";
     }
   }
 
   class ConnectionRefused extends Error {
+    name = "ConnectionRefused";
     constructor(msg: string) {
       super(msg);
-      this.name = "ConnectionRefused";
     }
   }
 
   class ConnectionReset extends Error {
+    name = "ConnectionReset";
     constructor(msg: string) {
       super(msg);
-      this.name = "ConnectionReset";
     }
   }
 
   class ConnectionAborted extends Error {
+    name = "ConnectionAborted";
     constructor(msg: string) {
       super(msg);
-      this.name = "ConnectionAborted";
     }
   }
 
   class NotConnected extends Error {
+    name = "NotConnected";
     constructor(msg: string) {
       super(msg);
-      this.name = "NotConnected";
     }
   }
 
   class AddrInUse extends Error {
+    name = "AddrInUse"
     constructor(msg: string) {
       super(msg);
-      this.name = "AddrInUse";
     }
   }
 
   class AddrNotAvailable extends Error {
+    name = "AddrNotAvailable"
     constructor(msg: string) {
       super(msg);
-      this.name = "AddrNotAvailable";
     }
   }
 
   class BrokenPipe extends Error {
+    name = "BrokenPipe"
     constructor(msg: string) {
       super(msg);
-      this.name = "BrokenPipe";
     }
   }
 
   class AlreadyExists extends Error {
+    name = "AlreadyExists"
     constructor(msg: string) {
       super(msg);
-      this.name = "AlreadyExists";
     }
   }
 
   class InvalidData extends Error {
+    name = "InvalidData"
     constructor(msg: string) {
       super(msg);
-      this.name = "InvalidData";
     }
   }
 
   class TimedOut extends Error {
+    name = "TimedOut"
     constructor(msg: string) {
       super(msg);
-      this.name = "TimedOut";
     }
   }
 
   class WriteZero extends Error {
+    name = "WriteZero"
     constructor(msg: string) {
       super(msg);
-      this.name = "WriteZero";
     }
   }
 
   class UnexpectedEof extends Error {
+    name = "UnexpectedEof"
     constructor(msg: string) {
       super(msg);
-      this.name = "UnexpectedEof";
     }
   }
 
   class Http extends Error {
+    name = "Http"
     constructor(msg: string) {
       super(msg);
-      this.name = "Http";
     }
   }
 
   class Busy extends Error {
+    name = "Busy"
     constructor(msg: string) {
       super(msg);
-      this.name = "Busy";
     }
   }
 
   class NotSupported extends Error {
+    name = "NotSupported"
     constructor(msg: string) {
       super(msg);
-      this.name = "NotSupported";
     }
   }
 

@@ -174,13 +174,37 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/deno_globals@workspace:packages/deno/deno_globals":
+"@gjsify/deno_core@workspace:^, @gjsify/deno_core@workspace:packages/deno/core":
   version: 0.0.0-use.local
-  resolution: "@gjsify/deno_globals@workspace:packages/deno/deno_globals"
+  resolution: "@gjsify/deno_core@workspace:packages/deno/core"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.7.18
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/deno_runtime@workspace:packages/deno/runtime":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/deno_runtime@workspace:packages/deno/runtime"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_core": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@tsconfig/deno": ^1.0.6
+    "@types/node": ^18.7.18
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/deno_std@workspace:packages/node/deno_std":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/deno_std@workspace:packages/node/deno_std"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@tsconfig/deno": ^1.0.6
+    "@types/node": ^18.7.18
+    typescript: ^4.8.3
   languageName: unknown
   linkType: soft
 
@@ -803,6 +827,13 @@ __metadata:
     ts-for-gir: ./lib/start.js
   languageName: node
   linkType: soft
+
+"@tsconfig/deno@npm:^1.0.6":
+  version: 1.0.6
+  resolution: "@tsconfig/deno@npm:1.0.6"
+  checksum: 993b35380d0470b8605652285f93acdb9bfc20ca3727c550402e0033de833e395535566109ad8970e6cfa6f5905ae197e2fd7a41bacffc7f9a94d329b5dd0c71
+  languageName: node
+  linkType: hard
 
 "@types/bit-twiddle@npm:^1.0.1":
   version: 1.0.1

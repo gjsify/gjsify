@@ -35,10 +35,34 @@ export interface Primordials {
     uncurryThis<T extends (...args: unknown[]) => unknown>(
         fn: T,
     ): (self: ThisType<T>, ...args: Parameters<T>) => ReturnType<T>;
+
+    applyBind: (...args: any[]) => void;
+
     makeSafe<T extends NewableFunction>(
         unsafe: NewableFunction,
         safe: T,
     ): T;
+
+    SafeMap: Map;
+    SafeWeakMap: WeakMap;
+    SafeSet: Set;
+    SafeWeakSet: WeakSet;
+    SafeFinalizationRegistry: FinalizationRegistry;
+    SafeWeakRef: WeakRef;
+    SafePromise: Promise;
+    SafePromiseAll: (values: unknown[]) => Promise<unknown>;
+    SafePromisePrototypeFinally: (thisPromise: Promise<any>, onFinally: (() => void) | undefined | null) => Promise<unknown>;
+
+    // TODO types
+    SafeArrayIterator: any;
+    SafeStringIterator: any;
+    ArrayPrototypeSymbolIterator: any;
+    ArrayIteratorPrototypeNext: any;
+    StringPrototypeSymbolIterator: any;
+    StringIteratorPrototypeNext: any;
+
+    setQueueMicrotask: (value: any) => void;
+    indirectEval: (x: string) => any;
 
     isNaN: typeof globalThis.isNaN;
     decodeURI: typeof globalThis.decodeURI;

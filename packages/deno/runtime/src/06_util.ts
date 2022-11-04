@@ -102,7 +102,7 @@
     pathFromURL,
   };
 
-  function writable(value) {
+  function writable(value: any) {
     return {
       value,
       writable: true,
@@ -111,7 +111,7 @@
     };
   }
 
-  function nonEnumerable(value) {
+  function nonEnumerable(value: any) {
     return {
       value,
       writable: true,
@@ -120,7 +120,7 @@
     };
   }
 
-  function readOnly(value) {
+  function readOnly(value: any) {
     return {
       value,
       enumerable: true,
