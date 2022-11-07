@@ -2,25 +2,21 @@
 // Forked from https://github.com/denoland/deno/blob/main/runtime/js/01_web_util.js
 "use strict";
 
-((window) => {
-  const { TypeError, Symbol } = window.__bootstrap.primordials;
-  const illegalConstructorKey = Symbol("illegalConstructorKey");
+import { primordials } from '@gjsify/deno_core';
 
-  function requiredArguments(
-    name: string,
-    length: number,
-    required: number,
-  ) {
-    if (length < required) {
-      const errMsg = `${name} requires at least ${required} argument${
-        required === 1 ? "" : "s"
-      }, but only ${length} present`;
-      throw new TypeError(errMsg);
-    }
+const { TypeError, Symbol } = primordials;
+export const illegalConstructorKey = Symbol("illegalConstructorKey");
+
+export function requiredArguments(
+  name: string,
+  length: number,
+  required: number,
+) {
+  if (length < required) {
+    const errMsg = `${name} requires at least ${required} argument${
+      required === 1 ? "" : "s"
+    }, but only ${length} present`;
+    throw new TypeError(errMsg);
   }
+}
 
-  window.__bootstrap.webUtil = {
-    illegalConstructorKey,
-    requiredArguments,
-  };
-})(this);

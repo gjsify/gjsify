@@ -6,3 +6,4 @@ Web and Node.js >= 18 fetch module for Gjs
 - https://github.com/sonnyp/troll/blob/main/src/std/fetch.js
 - https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node-fetch
 - https://github.com/node-fetch/node-fetch
+- https://github.com/denoland/deno/tree/main/ext/fetch

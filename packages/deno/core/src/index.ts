@@ -1,13 +1,9 @@
 console.debug("Inject deno_globals");
-import * as errors from './errors.js';
-import { env } from './env.js';
-import { build } from './build.js';
+export * from './types/index.js';
+export { primordials } from './00_primordials.js';
+export * as ops from './01__ops.js';
+export * as core from './01_core.js';
+export * as errors from './errors.js';
+export { env } from './env.js';
+export { build } from './build.js';
 
-const Deno = {
-    errors,
-    env,
-    build,
-    args: ARGV,
-};
-
-if (!(globalThis as any).Deno) Object.defineProperty(globalThis, 'Deno', { value: Deno });

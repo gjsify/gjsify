@@ -1,9 +1,13 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Based on https://github.com/denoland/deno/blob/main/cli/dts/lib.deno.ns.d.ts
+// Based on
+// - https://github.com/denoland/deno/blob/main/cli/dts/lib.deno.ns.d.ts
+
 
 /// <reference no-default-lib="true" />
 /// <reference lib="esnext" />
 // <reference lib="deno.net" />
+
+import type { Conn } from './net.js';
 
 import type { Errors } from "./index.js";
 
@@ -693,7 +697,8 @@ export interface SeekerSync {
  * @category File System
  */
 export interface FsFile
-    implements
+    /** implements */
+    extends
     Reader,
     ReaderSync,
     Writer,
@@ -734,10 +739,12 @@ export interface FsFile
      * ```
      */
     readonly writable: WritableStream<Uint8Array>;
+    
     /** The constructor which takes a resource ID. Generally `FsFile` should
      * not be constructed directly. Instead use {@linkcode Deno.open} or
      * {@linkcode Deno.openSync} to create a new instance of `FsFile`. */
-    constructor(rid: number);
+    // constructor(rid: number);
+    
     /** Write the contents of the array buffer (`p`) to the file.
      *
      * Resolves to the number of bytes written.
@@ -1053,8 +1060,8 @@ export interface ReadFileOptions {
      *
      * @category I/O
      */
- export interface Buffer implements Reader, ReaderSync, Writer, WriterSync {
-    constructor(ab?: ArrayBuffer);
+ export interface Buffer extends /* implements */ Reader, ReaderSync, Writer, WriterSync {
+    // constructor(ab?: ArrayBuffer);
     /** Returns a slice holding the unread portion of the buffer.
      *
      * The slice is valid for use only until the next buffer modification (that
@@ -1181,7 +1188,7 @@ export interface RemoveOptions {
  *
  * @category File System
  */
-    export interface FileInfo {
+export interface FileInfo {
     /** True if this is info for a regular file. Mutually exclusive to
      * `FileInfo.isDirectory` and `FileInfo.isSymlink`. */
     isFile: boolean;
@@ -1249,7 +1256,7 @@ export interface RemoveOptions {
  * and {@linkcode Deno.readDirSync}.
  *
  * @category File System */
-    export interface DirEntry {
+export interface DirEntry {
     /** The file name of the entry. It is just the entity name and does not
      * include the full path. */
     name: string;
@@ -1763,7 +1770,7 @@ export interface PermissionStatusEventMap {
  * API which can provide updates to any state changes of the permission.
  *
  * @category Permissions */
-export class PermissionStatus extends EventTarget {
+export interface PermissionStatus extends EventTarget {
     // deno-lint-ignore no-explicit-any
     onchange: ((this: PermissionStatus, ev: Event) => any) | null;
     readonly state: PermissionState;
@@ -1816,7 +1823,7 @@ export class PermissionStatus extends EventTarget {
  * user experience.
  *
  * @category Permissions */
-export class Permissions {
+export interface Permissions {
     /** Resolves to the current status of a permission.
      *
      * Note, if the permission is already granted, `request()` will not prompt
@@ -1873,7 +1880,7 @@ export interface SymlinkOptions {
  * request from a remote client.
  *
  * @category HTTP Server */
-    export interface RequestEvent {
+export interface RequestEvent {
     /** The request from the client in the form of the web platform
      * {@linkcode Request}. */
     readonly request: Request;
@@ -4139,7 +4146,7 @@ export interface Deno {
      *
      * @category Console and Debugging
      */
-    customInspect: unique symbol;
+    readonly customInspect: unique symbol;
 
     /** The URL of the entrypoint module entered from the command-line. It
      * requires read permission to the CWD.

@@ -3,7 +3,8 @@
 // Based on https://github.com/denoland/deno/blob/main/core/ops_builtin_v8.rs
 // Based on https://github.com/denoland/deno/blob/main/core/ops_metrics.rs
 
-import type { UncaughtExceptionCallback } from './types/index.js';
+import { stringify } from 'querystring';
+import type { UncaughtExceptionCallback, UrlComponent, UrlComponents, URLPatternInput } from './types/index.js';
 
 export const op_close = (...args: any[]) => {
     console.warn("Not implemented: ops.op_close");
@@ -50,24 +51,58 @@ export const op_metrics = (...args: any[]) => {
     console.warn("Not implemented: ops.op_metrics");
     return [];
 }
-export const op_url_parse = (...args: any[]) => {
+export const op_url_parse = (href: string, buf: ArrayBufferLike): number => {
     console.warn("Not implemented: ops.op_url_parse");
+    const status = -1;
+    return status;
 }
-export const op_url_reparse = (...args: any[]) => {
+
+export const op_url_parse_with_base = (href: string, maybeBase: string, buf: ArrayBufferLike): number => {
+    console.warn("Not implemented: ops.op_url_parse_with_base");
+    const status = -1;
+    return status;
+}
+
+export const op_url_reparse = (href: string, setter: number, value: any, buf: ArrayBufferLike): number => {
     console.warn("Not implemented: ops.op_url_reparse");
+    const status = -1;
+    return status;
 }
-export const op_url_parse_search_params = (...args: any[]) => {
+export const op_url_parse_search_params = (a?: string | null, bytes?: Uint8Array): [string, string][] => {
     console.warn("Not implemented: ops.op_url_parse_search_params");
+    return [];
 }
-export const op_url_stringify_search_params = (...args: any[]) => {
+export const op_url_stringify_search_params = (value: any): string => {
     console.warn("Not implemented: ops.op_url_stringify_search_params");
+    return "";
 }
-export const op_urlpattern_parse = (...args: any[]) => {
+export const op_urlpattern_parse = (input: URLPatternInput, baseURL: string): UrlComponents => {
     console.warn("Not implemented: ops.op_urlpattern_parse");
+    const emptyRes: UrlComponent = {
+        patternString: "",
+        regexp: new RegExp(""),
+        groupNameList: []
+    }
+
+    return {
+        protocol: emptyRes,
+        username: emptyRes,
+        password: emptyRes,
+        hostname: emptyRes,
+        port: emptyRes,
+        pathname: emptyRes,
+        search: emptyRes,
+        hash: emptyRes,
+    }
 }
-export const op_urlpattern_process_match_input = (...args: any[]) => {
+
+export const op_urlpattern_process_match_input = (...args: any[]): [values: {[key: string]: any}, inputs: Array<any>] => {
     console.warn("Not implemented: ops.op_urlpattern_process_match_input");
+    const values = {};
+    const inputs = [];
+    return [values, inputs];
 }
+
 export const op_base64_decode = (...args: any[]) => {
     console.warn("Not implemented: ops.op_base64_decode");
 }
@@ -557,8 +592,9 @@ export const op_spawn_wait = (...args: any[]) => {
 export const op_spawn_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_spawn_sync");
 }
-export const op_fs_events_open = (...args: any[]) => {
+export const op_fs_events_open = (...args: any[]): number => {
     console.warn("Not implemented: ops.op_fs_events_open");
+    return -1;
 }
 export const op_fs_events_poll = (...args: any[]) => {
     console.warn("Not implemented: ops.op_fs_events_poll");
@@ -985,8 +1021,9 @@ export const op_get_proxy_details = (proxy) => {
     console.warn("Not implemented: ops.op_get_proxy_details");
 }
 
-export const op_is_proxy = (value) => {
+export const op_is_proxy = (value): boolean => {
     console.warn("Not implemented: ops.op_is_proxy");
+    return false;
 }
 
 export const op_memory_usage = () => {
@@ -1021,5 +1058,10 @@ export const op_str_byte_length = (str: string): void  => {
 
 export const op_apply_source_map = (cse)  => {
     console.warn("Not implemented: ops.op_apply_source_map");
+    return {};
+}
+
+export const op_url_get_serialization = () => {
+    console.warn("Not implemented: ops.op_url_get_serialization");
     return {};
 }

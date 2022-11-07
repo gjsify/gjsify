@@ -180,7 +180,10 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+    "@tsconfig/deno": ^1.0.6
     "@types/node": ^18.7.18
+    typescript: ^4.8.4
   languageName: unknown
   linkType: soft
 

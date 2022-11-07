@@ -1,14 +1,21 @@
 {
     "extends": "@tsconfig/deno/tsconfig.json",
     "compilerOptions": {
+        "lib": ["DOM"],
         "module": "ESNext",
         "target": "ESNext",
+        "moduleResolution": "Node",
         "outDir": "lib",
         "declarationDir": "lib",
-        "rootDir": ".",
+        "rootDir": "src",
         "composite": true,
         "resolveJsonModule": false,
-        "typeRoots": ["node_modules", "./typings/"]
+        "strict": false
     },
-    "exclude": ["testing", "lib"]
-}
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false,
+    "reflection": false,
+    "include": ["src/**/*.ts"],
+    "exclude": ["src/test.ts", "src/**/*.spec.ts"]
+  }

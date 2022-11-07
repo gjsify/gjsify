@@ -2,29 +2,24 @@
 // Forked from https://raw.githubusercontent.com/denoland/deno/main/runtime/js/01_version.js
 "use strict";
 
-((window) => {
-  const { ObjectFreeze } = window.__bootstrap.primordials;
+import { primordials } from '@gjsify/deno_core';
 
-  const version = {
-    deno: "",
-    v8: "",
-    typescript: "",
-  };
+const { ObjectFreeze } = primordials;
 
-  function setVersions(
-    denoVersion: string,
-    v8Version: string,
-    tsVersion: string,
-  ) {
-    version.deno = denoVersion;
-    version.v8 = v8Version;
-    version.typescript = tsVersion;
+export const version = {
+  deno: "",
+  v8: "",
+  typescript: "",
+};
 
-    ObjectFreeze(version);
-  }
+export function setVersions(
+  denoVersion: string,
+  v8Version: string,
+  tsVersion: string,
+) {
+  version.deno = denoVersion;
+  version.v8 = v8Version;
+  version.typescript = tsVersion;
 
-  window.__bootstrap.version = {
-    version,
-    setVersions,
-  };
-})(this);
+  ObjectFreeze(version);
+}

@@ -15,7 +15,7 @@
 // <reference lib="deno.broadcast_channel" />
 
 /** @category WebAssembly */
-declare namespace WebAssembly {
+export namespace WebAssembly {
   /**
    * The `WebAssembly.CompileError` object indicates an error during WebAssembly decoding or validation.
    *
@@ -23,9 +23,9 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class CompileError extends Error {
+  export interface CompileError extends Error { // TODO class
     /** Creates a new `WebAssembly.CompileError` object. */
-    constructor(message?: string, options?: ErrorOptions);
+    // constructor(message?: string, options?: ErrorOptions);
   }
 
   /**
@@ -37,9 +37,9 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class Global {
+  export interface Global { // TODO class
     /** Creates a new `Global` object. */
-    constructor(descriptor: GlobalDescriptor, v?: any);
+    // constructor(descriptor: GlobalDescriptor, v?: any);
 
     /**
      * The value contained inside the global variable — this can be used to directly set
@@ -60,9 +60,9 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class Instance {
+  export interface Instance { // TODO class
     /** Creates a new Instance object. */
-    constructor(module: Module, importObject?: Imports);
+    // constructor(module: Module, importObject?: Imports);
 
     /**
      * Returns an object containing as its members all the functions exported from the
@@ -80,9 +80,9 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class LinkError extends Error {
+  export class LinkError extends Error { // TODO class
     /** Creates a new WebAssembly.LinkError object. */
-    constructor(message?: string, options?: ErrorOptions);
+    // constructor(message?: string, options?: ErrorOptions);
   }
 
   /**
@@ -96,9 +96,9 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class Memory {
+  export interface Memory { // TODO class
     /** Creates a new `Memory` object. */
-    constructor(descriptor: MemoryDescriptor);
+    // constructor(descriptor: MemoryDescriptor);
 
     /** An accessor property that returns the buffer contained in the memory. */
     readonly buffer: ArrayBuffer | SharedArrayBuffer;
@@ -118,24 +118,24 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class Module {
+  export interface Module { // TODO class
     /** Creates a new `Module` object. */
-    constructor(bytes: BufferSource);
+    // constructor(bytes: BufferSource);
 
     /**
      * Given a `Module` and string, returns a copy of the contents of all custom sections in the
      * module with the given string name.
      */
-    static customSections(
-      moduleObject: Module,
-      sectionName: string,
-    ): ArrayBuffer[];
+    // static customSections(
+    //   moduleObject: Module,
+    //   sectionName: string,
+    // ): ArrayBuffer[];
 
     /** Given a `Module`, returns an array containing descriptions of all the declared exports. */
-    static exports(moduleObject: Module): ModuleExportDescriptor[];
+    // static exports(moduleObject: Module): ModuleExportDescriptor[];
 
     /** Given a `Module`, returns an array containing descriptions of all the declared imports. */
-    static imports(moduleObject: Module): ModuleImportDescriptor[];
+    // static imports(moduleObject: Module): ModuleImportDescriptor[];
   }
 
   /**
@@ -146,9 +146,9 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class RuntimeError extends Error {
+  export interface RuntimeError extends Error { // TODO class
     /** Creates a new `WebAssembly.RuntimeError` object. */
-    constructor(message?: string, options?: ErrorOptions);
+    // constructor(message?: string, options?: ErrorOptions);
   }
 
   /**
@@ -161,9 +161,9 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class Table {
+  export interface Table { // TODO class
     /** Creates a new `Table` object. */
-    constructor(descriptor: TableDescriptor);
+    // constructor(descriptor: TableDescriptor);
 
     /** Returns the length of the table, i.e. the number of elements. */
     readonly length: number;
@@ -273,7 +273,7 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export function compile(bytes: BufferSource): Promise<Module>;
+  export type CompileFn = (bytes: BufferSource) => Promise<Module>; // TODO function compile
 
   /**
    * The `WebAssembly.compileStreaming()` function compiles a `WebAssembly.Module`
@@ -285,9 +285,9 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export function compileStreaming(
+  export type CompileStreamingFn = ( // TODO function compileStreaming
     source: Response | Promise<Response>,
-  ): Promise<Module>;
+  ) => Promise<Module>;
 
   /**
    * The WebAssembly.instantiate() function allows you to compile and instantiate
@@ -302,10 +302,10 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export function instantiate(
+  export type InstantiateFn1 = ( // TODO function instantiate(
     bytes: BufferSource,
     importObject?: Imports,
-  ): Promise<WebAssemblyInstantiatedSource>;
+  ) => Promise<WebAssemblyInstantiatedSource>;
 
   /**
    * The WebAssembly.instantiate() function allows you to compile and instantiate
@@ -319,10 +319,12 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export function instantiate(
+  export type InstantiateFn2 = ( // TODO function instantiate
     moduleObject: Module,
     importObject?: Imports,
-  ): Promise<Instance>;
+  ) => Promise<Instance>;
+
+  export type InstantiateFn = InstantiateFn1 | InstantiateFn2; // TODO overload function instantiate
 
   /**
    * The `WebAssembly.instantiateStreaming()` function compiles and instantiates a
@@ -333,10 +335,10 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export function instantiateStreaming(
+  export type InstantiateStreamingFn = ( // TODO function instantiateStreaming
     response: Response | PromiseLike<Response>,
     importObject?: Imports,
-  ): Promise<WebAssemblyInstantiatedSource>;
+  ) => Promise<WebAssemblyInstantiatedSource>;
 
   /**
    * The `WebAssembly.validate()` function validates a given typed array of
@@ -347,7 +349,7 @@ declare namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export function validate(bytes: BufferSource): boolean;
+  export type ValidateFn = (bytes: BufferSource) => boolean; // TODO function validate
 }
 
 /** Sets a timer which executes a function once after the timer expires. Returns

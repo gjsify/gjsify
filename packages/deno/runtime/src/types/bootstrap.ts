@@ -52,7 +52,9 @@ export interface Bootstrap {
      */
     primordials: Primordials;
     build: Build;
-    errors: Errors;
+    errors: {
+      errors: Errors;
+    }
     version: Version;
   }
   

@@ -2,7 +2,6 @@
 // Based on https://github.com/denoland/deno/blob/main/core/01_core.js
 "use strict";
 
-import { createBrotliCompress } from 'zlib';
 import { primordials } from './00_primordials.js';
 const {
   Error,
@@ -533,5 +532,4 @@ export const setUncaughtExceptionCallback = (
 }
 
 export const byteLength = (str: string) => ops.op_str_byte_length(str);
-
 

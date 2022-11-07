@@ -57,6 +57,7 @@ export interface Primordials {
     SafeArrayIterator: any;
     SafeStringIterator: any;
     ArrayPrototypeSymbolIterator: any;
+    ArrayIteratorPrototype: any;
     ArrayIteratorPrototypeNext: any;
     StringPrototypeSymbolIterator: any;
     StringIteratorPrototypeNext: any;

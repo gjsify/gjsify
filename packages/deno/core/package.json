@@ -2,13 +2,15 @@
     "name": "@gjsify/deno_core",
     "version": "0.0.1",
     "description": "Deno core module for gjsify",
-    "main": "lib/cjs/index.js",
-    "module": "lib/mjs/index.js",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
     "type": "module",
     "scripts": {
-        "clear": "rm -rf lib",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/deno_core'",
-        "build": "gjsify build --library src/**/*.{ts,js}",
+        "build": "yarn run build:gjsify && yarn run build:types",
+        "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
+        "build:types": "tsc --emitDeclarationOnly",
         "build:test": "yarn run build:test:gjs && yarn run build:test:deno",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "build:test:deno": "gjsify build src/test.ts --app deno --outfile test.deno.js",
@@ -24,6 +26,11 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.7.18"
+        "@tsconfig/deno": "^1.0.6",
+        "@types/node": "^18.7.18",
+        "typescript": "^4.8.4"
+    },
+    "dependencies": {
+        "@gjsify/utils": "workspace:^"
     }
 }
