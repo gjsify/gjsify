@@ -536,6 +536,7 @@ export interface Primordials {
     MapPrototypeClear: UncurryThis<typeof Map.prototype.clear>;
     MapPrototypeEntries: UncurryThis<typeof Map.prototype.entries>;
     MapPrototypeForEach: UncurryThis<typeof Map.prototype.forEach>;
+    MapPrototypeGetSize: UncurryThis<typeof Map.prototype.getSize>;
     MapPrototypeKeys: UncurryThis<typeof Map.prototype.keys>;
     MapPrototypeValues: UncurryThis<typeof Map.prototype.values>;
     Number: typeof globalThis.Number;
@@ -666,6 +667,7 @@ export interface Primordials {
     SetPrototypeDelete: UncurryThis<typeof Set.prototype.delete>;
     SetPrototypeClear: UncurryThis<typeof Set.prototype.clear>;
     SetPrototypeEntries: UncurryThis<typeof Set.prototype.entries>;
+    SetPrototypeGetSize: UncurryThis<typeof Set.prototype.getSize>;
     SetPrototypeForEach: UncurryThis<typeof Set.prototype.forEach>;
     SetPrototypeValues: UncurryThis<typeof Set.prototype.values>;
     SetPrototypeKeys: UncurryThis<typeof Set.prototype.keys>;

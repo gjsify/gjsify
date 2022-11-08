@@ -38,6 +38,86 @@ window.__bootstrap.url = {
 
 window.__bootstrap.util = util;
 
+// packages/deno/runtime/src/ext/web/00_infra.ts
+window.__bootstrap.infra = {
+  collectSequenceOfCodepoints,
+  ASCII_DIGIT,
+  ASCII_UPPER_ALPHA,
+  ASCII_LOWER_ALPHA,
+  ASCII_ALPHA,
+  ASCII_ALPHANUMERIC,
+  HTTP_TAB_OR_SPACE,
+  HTTP_WHITESPACE,
+  HTTP_TOKEN_CODE_POINT,
+  HTTP_TOKEN_CODE_POINT_RE,
+  HTTP_QUOTED_STRING_TOKEN_POINT,
+  HTTP_QUOTED_STRING_TOKEN_POINT_RE,
+  HTTP_TAB_OR_SPACE_PREFIX_RE,
+  HTTP_TAB_OR_SPACE_SUFFIX_RE,
+  HTTP_WHITESPACE_PREFIX_RE,
+  HTTP_WHITESPACE_SUFFIX_RE,
+  httpTrim,
+  regexMatcher,
+  byteUpperCase,
+  byteLowerCase,
+  collectHttpQuotedString,
+  forgivingBase64Encode,
+  forgivingBase64Decode,
+  AssertionError,
+  assert,
+  serializeJSValueToJSONString,
+};
+
+// packages/deno/runtime/src/ext/console/01_colors.ts
+window.__bootstrap.colors = {
+  bold,
+  italic,
+  yellow,
+  cyan,
+  red,
+  green,
+  bgRed,
+  white,
+  gray,
+  magenta,
+  stripColor,
+  maybeColor,
+  setNoColor,
+  getNoColor,
+};
+
+// packages/deno/runtime/src/ext/console/02_console.ts
+// Expose these fields to internalObject for tests.
+window.__bootstrap.internals = {
+  ...window.__bootstrap.internals ?? {},
+  Console,
+  cssToAnsi,
+  inspectArgs,
+  parseCss,
+  parseCssColor,
+};
+
+// packages/deno/runtime/src/ext/console/02_console.ts
+window.__bootstrap.console = {
+  CSI,
+  inspectArgs,
+  Console,
+  customInspect,
+  inspect,
+  wrapConsole,
+  createFilteredInspectProxy,
+  quoteString,
+};
+
+// packages/deno/runtime/src/ext/web/01_mimesniff.ts
+window.__bootstrap.mimesniff = {
+  parseMimeType,
+  essence,
+  serializeMimeType,
+  extractMimeType,
+};
+
+
 window.__bootstrap.fsEvents = {
     watchFs,
 };

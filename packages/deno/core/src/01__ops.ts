@@ -4,7 +4,7 @@
 // Based on https://github.com/denoland/deno/blob/main/core/ops_metrics.rs
 
 import { stringify } from 'querystring';
-import type { UncaughtExceptionCallback, UrlComponent, UrlComponents, URLPatternInput } from './types/index.js';
+import type { UncaughtExceptionCallback, UrlComponent, UrlComponents, URLPatternInput, PermissionState, PermissionDescriptor } from './types/index.js';
 
 export const op_close = (...args: any[]) => {
     console.warn("Not implemented: ops.op_close");
@@ -103,11 +103,13 @@ export const op_urlpattern_process_match_input = (...args: any[]): [values: {[ke
     return [values, inputs];
 }
 
-export const op_base64_decode = (...args: any[]) => {
+export const op_base64_decode = (data: string): Uint8Array => {
     console.warn("Not implemented: ops.op_base64_decode");
+    return new Uint8Array();
 }
-export const op_base64_encode = (...args: any[]) => {
+export const op_base64_encode = (data: Uint8Array): string => {
     console.warn("Not implemented: ops.op_base64_encode");
+    return "";
 }
 export const op_base64_atob = (...args: any[]) => {
     console.warn("Not implemented: ops.op_base64_atob");
@@ -860,14 +862,17 @@ export const op_set_exit_code = (...args: any[]) => {
 export const op_system_memory_info = (...args: any[]) => {
     console.warn("Not implemented: ops.op_system_memory_info");
 }
-export const op_query_permission = (...args: any[]) => {
+export const op_query_permission = (desc: PermissionDescriptor): PermissionState => {
     console.warn("Not implemented: ops.op_query_permission");
+    return "denied";
 }
-export const op_revoke_permission = (...args: any[]) => {
+export const op_revoke_permission = (desc: PermissionDescriptor): PermissionState => {
     console.warn("Not implemented: ops.op_revoke_permission");
+    return "denied";
 }
-export const op_request_permission = (...args: any[]) => {
+export const op_request_permission = (desc: PermissionDescriptor): PermissionState => {
     console.warn("Not implemented: ops.op_request_permission");
+    return "denied";
 }
 export const op_run = (...args: any[]) => {
     console.warn("Not implemented: ops.op_run");
@@ -1013,8 +1018,11 @@ export const op_deserialize = (buffer, options) => {
     console.warn("Not implemented: ops.op_deserialize");
 }
 
-export const op_get_promise_details = (promise: Promise<any>) => {
+export const op_get_promise_details = (promise: Promise<any>): [state: number, result: any] => {
     console.warn("Not implemented: ops.op_get_promise_details");
+    const state: number = -1;
+    const result: any = undefined; // TODO
+    return [state, result];
 }
 
 export const op_get_proxy_details = (proxy) => {
