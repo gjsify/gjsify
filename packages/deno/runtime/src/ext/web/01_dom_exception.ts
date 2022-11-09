@@ -12,6 +12,7 @@
 
 import { primordials } from '@gjsify/deno_core';
 import * as webidl from '../webidl/00_webidl.js';
+import * as consoleInternal from '../console/02_console.js';
 
 const {
   ArrayPrototypeSlice,
@@ -25,7 +26,6 @@ const {
   Symbol,
   SymbolFor,
 } = primordials;
-const consoleInternal = window.__bootstrap.console;
 
 const _name = Symbol("name");
 const _message = Symbol("message");
@@ -91,13 +91,17 @@ const nameToCodeMapping = ObjectCreate(null, {
 
 // Defined in WebIDL 4.3.
 // https://webidl.spec.whatwg.org/#idl-DOMException
-class DOMException {
-  [_message];
-  [_name];
-  [_code];
+/** @category DOM Events */
+export class DOMException {
+  // @ts-ignore
+  [_message]: string;
+  // @ts-ignore
+  [_name]: string;
+  // @ts-ignore
+  [_code]: number;
 
   // https://webidl.spec.whatwg.org/#dom-domexception-domexception
-  constructor(message = "", name = "Error") {
+  constructor(message: string = "", name: string = "Error") {
     message = webidl.converters.DOMString(message, {
       prefix: "Failed to construct 'DOMException'",
       context: "Argument 1",
@@ -125,22 +129,22 @@ class DOMException {
     // not called when accessing `.stack`, meaning our structured stack trace
     // hack doesn't apply. This patches it in.
     ObjectDefineProperty(this, "__callSiteEvals", {
-      value: ArrayPrototypeSlice(error.__callSiteEvals, 1),
+      value: ArrayPrototypeSlice((error as any).__callSiteEvals, 1),
       configurable: true,
     });
   }
 
-  get message() {
+  get message(): string {
     webidl.assertBranded(this, DOMExceptionPrototype);
     return this[_message];
   }
 
-  get name() {
+  get name(): string {
     webidl.assertBranded(this, DOMExceptionPrototype);
     return this[_name];
   }
 
-  get code() {
+  get code(): number {
     webidl.assertBranded(this, DOMExceptionPrototype);
     return this[_code];
   }
@@ -201,5 +205,4 @@ for (
   ObjectDefineProperty(DOMException.prototype, key, desc);
 }
 
-window.__bootstrap.domException = { DOMException };
 

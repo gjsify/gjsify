@@ -123,15 +123,15 @@ interface WebGLRenderingContextBase {
     getParameterfv(pname: number, resultSize: number): number[]
     getParameteri(pname: number): number
     getParameteriv(pname: number, resultSize: number): number[]
-    getProgramInfoLog(program: number): string | null
+    getProgramInfoLog(program: number): string
     getProgramParameter(program: number, pname: number): number
     getRenderbufferParameter(target: number, pname: number): number
-    getShaderInfoLog(shader: number): string | null
+    getShaderInfoLog(shader: number): string
     getShaderParameter(shader: number, pname: number): number
-    getShaderPrecisionFormat(shadertype: number, precisiontype: number): WebGLShaderPrecisionFormat | null
-    getShaderSource(shader: number): string | null
+    getShaderPrecisionFormat(shadertype: number, precisiontype: number): /* result */ WebGLShaderPrecisionFormat
+    getShaderSource(shader: number): string
     getString(pname: number): string
-    getSupportedExtensions(): string[] | null
+    getSupportedExtensions(): string[]
     getTexParameterx(target: number, pname: number): GLib.Variant
     getTexParameterfv(target: number, pname: number): number
     getTexParameteriv(target: number, pname: number): number

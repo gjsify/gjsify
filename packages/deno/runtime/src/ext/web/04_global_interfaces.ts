@@ -5,77 +5,72 @@
 
 // @ts-check
 // <reference path="../../core/internal.d.ts" />
+import { EventTarget } from './02_event.js';
+import { primordials } from '@gjsify/deno_core';
+const {
+  Symbol,
+  SymbolToStringTag,
+  TypeError,
+} = primordials;
 
-((window) => {
-  const { EventTarget } = window.__bootstrap.eventTarget;
-  const {
-    Symbol,
-    SymbolToStringTag,
-    TypeError,
-  } = window.__bootstrap.primordials;
+const illegalConstructorKey = Symbol("illegalConstructorKey");
 
-  const illegalConstructorKey = Symbol("illegalConstructorKey");
-
-  class Window extends EventTarget {
-    constructor(key = null) {
-      if (key !== illegalConstructorKey) {
-        throw new TypeError("Illegal constructor.");
-      }
-      super();
+export class Window extends EventTarget {
+  constructor(key = null) {
+    if (key !== illegalConstructorKey) {
+      throw new TypeError("Illegal constructor.");
     }
-
-    get [SymbolToStringTag]() {
-      return "Window";
-    }
+    super();
   }
 
-  class WorkerGlobalScope extends EventTarget {
-    constructor(key = null) {
-      if (key != illegalConstructorKey) {
-        throw new TypeError("Illegal constructor.");
-      }
-      super();
-    }
+  get [SymbolToStringTag]() {
+    return "Window";
+  }
+}
 
-    get [SymbolToStringTag]() {
-      return "WorkerGlobalScope";
+export class WorkerGlobalScope extends EventTarget {
+  constructor(key = null) {
+    if (key != illegalConstructorKey) {
+      throw new TypeError("Illegal constructor.");
     }
+    super();
   }
 
-  class DedicatedWorkerGlobalScope extends WorkerGlobalScope {
-    constructor(key = null) {
-      if (key != illegalConstructorKey) {
-        throw new TypeError("Illegal constructor.");
-      }
-      super();
-    }
+  get [SymbolToStringTag]() {
+    return "WorkerGlobalScope";
+  }
+}
 
-    get [SymbolToStringTag]() {
-      return "DedicatedWorkerGlobalScope";
+export class DedicatedWorkerGlobalScope extends WorkerGlobalScope {
+  constructor(key = null) {
+    if (key != illegalConstructorKey) {
+      throw new TypeError("Illegal constructor.");
     }
+    super();
   }
 
-  window.__bootstrap.globalInterfaces = {
-    DedicatedWorkerGlobalScope,
-    Window,
-    WorkerGlobalScope,
-    dedicatedWorkerGlobalScopeConstructorDescriptor: {
-      configurable: true,
-      enumerable: false,
-      value: DedicatedWorkerGlobalScope,
-      writable: true,
-    },
-    windowConstructorDescriptor: {
-      configurable: true,
-      enumerable: false,
-      value: Window,
-      writable: true,
-    },
-    workerGlobalScopeConstructorDescriptor: {
-      configurable: true,
-      enumerable: false,
-      value: WorkerGlobalScope,
-      writable: true,
-    },
-  };
-})(this);
+  get [SymbolToStringTag]() {
+    return "DedicatedWorkerGlobalScope";
+  }
+}
+
+export const dedicatedWorkerGlobalScopeConstructorDescriptor = {
+  configurable: true,
+  enumerable: false,
+  value: DedicatedWorkerGlobalScope,
+  writable: true,
+};
+
+export const windowConstructorDescriptor = {
+  configurable: true,
+  enumerable: false,
+  value: Window,
+  writable: true,
+};
+
+export const workerGlobalScopeConstructorDescriptor = {
+  configurable: true,
+  enumerable: false,
+  value: WorkerGlobalScope,
+  writable: true,
+};

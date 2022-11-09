@@ -31,6 +31,19 @@
 
 import type { Primordials } from '@gjsify/deno_core';
 import type { Build, Errors, Version } from './index.js';
+import type { 
+  Console,
+  cssToAnsi,
+  inspectArgs,
+  parseCss,
+  parseCssColor,
+  CSI,
+  customInspect,
+  inspect,
+  wrapConsole,
+  createFilteredInspectProxy,
+  quoteString,
+} from '../ext/console/02_console.js';
 
 export interface Bootstrap {
     /**
@@ -56,5 +69,23 @@ export interface Bootstrap {
       errors: Errors;
     }
     version: Version;
+    internals: {
+      // packages/deno/runtime/src/ext/console/02_console.ts
+      Console: typeof Console;
+      cssToAnsi: typeof cssToAnsi;
+      inspectArgs: typeof inspectArgs;
+      parseCss: typeof parseCss;
+      parseCssColor: typeof parseCssColor;
+    }
+    console: {
+      CS: typeof CSI;
+      inspectArg: typeof inspectArgs;
+      Consol: typeof Console;
+      customInspec: typeof customInspect;
+      inspec: typeof inspect;
+      wrapConsol: typeof wrapConsole;
+      createFilteredInspectProx: typeof createFilteredInspectProxy;
+      quoteStrin: typeof quoteString;
+    }
   }
   

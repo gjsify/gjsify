@@ -473,10 +473,10 @@ export const decode = (buffer: Uint8Array) => ops.op_decode(buffer);
 
 export const serialize = (
   value,
-  options,
-  errorCallback,
+  options?,
+  errorCallback?,
 ) => ops.op_serialize(value, options, errorCallback);
-export const deserialize = (buffer, options) => ops.op_deserialize(buffer, options);
+export const deserialize = (buffer, options?) => ops.op_deserialize(buffer, options);
 export const getPromiseDetails = (promise: Promise<any>) => ops.op_get_promise_details(promise);
 export const getProxyDetails = (proxy) => ops.op_get_proxy_details(proxy);
 export const isProxy = (value) => ops.op_is_proxy(value);

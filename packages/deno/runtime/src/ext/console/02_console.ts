@@ -240,10 +240,10 @@ function canRightAlign(value) {
 
 function cliTable(head, columns) {
   const rows = [];
-  const columnWidths = ArrayPrototypeMap(head, (h) => getStringWidth(h));
+  const columnWidths = ArrayPrototypeMap(head, (h) => getStringWidth(h)) as number[];
   const longestColumn = ArrayPrototypeReduce(
     columns,
-    (n, a) => MathMax(n, a.length),
+    (n: number, a) => MathMax(n, a.length),
     0,
   );
   const columnRightAlign = new Array(columnWidths.length).fill(true);
@@ -1969,7 +1969,7 @@ export class Console {
     return console;
   }
 
-  log = (...args) => {
+  log = (...args: any[]): void => {
     this.#printFunc(
       inspectArgs(args, {
         ...getConsoleInspectOptions(),
@@ -1979,7 +1979,7 @@ export class Console {
     );
   };
 
-  debug = (...args) => {
+  debug = (...args: any[]): void => {
     this.#printFunc(
       inspectArgs(args, {
         ...getConsoleInspectOptions(),
@@ -1989,7 +1989,7 @@ export class Console {
     );
   };
 
-  info = (...args) => {
+  info = (...args: any[]): void => {
     this.#printFunc(
       inspectArgs(args, {
         ...getConsoleInspectOptions(),
@@ -2009,7 +2009,7 @@ export class Console {
 
   dirxml = this.dir;
 
-  warn = (...args) => {
+  warn = (...args: any[]): void => {
     this.#printFunc(
       inspectArgs(args, {
         ...getConsoleInspectOptions(),
@@ -2019,7 +2019,7 @@ export class Console {
     );
   };
 
-  error = (...args) => {
+  error = (...args: any[]): void => {
     this.#printFunc(
       inspectArgs(args, {
         ...getConsoleInspectOptions(),
@@ -2231,7 +2231,7 @@ export class Console {
     this.#printFunc(CSI.kClearScreenDown, 1);
   };
 
-  trace = (...args) => {
+  trace = (...args: any[]): void => {
     const message = inspectArgs(
       args,
       { ...getConsoleInspectOptions(), indentLevel: 0 },
@@ -2249,7 +2249,7 @@ export class Console {
   }
 }
 
-const customInspect = SymbolFor("Deno.customInspect");
+export const customInspect = SymbolFor("Deno.customInspect");
 
 export function inspect(
   value,
@@ -2265,13 +2265,18 @@ export function inspect(
 /** Creates a proxy that represents a subset of the properties
  * of the original object optionally without evaluating the properties
  * in order to get the values. */
-export function createFilteredInspectProxy({ object, keys, evaluate }) {
+export function createFilteredInspectProxy<TObject>(
+  { object, keys, evaluate }: {
+    object: TObject;
+    keys: (keyof TObject)[];
+    evaluate: boolean;
+}): Record<string, unknown> {
   return new Proxy({}, {
     get(_target, key) {
       if (key === SymbolToStringTag) {
         return object.constructor?.name;
       } else if (ArrayPrototypeIncludes(keys, key)) {
-        return ReflectGet(object, key);
+        return ReflectGet(object as any, key);
       } else {
         return undefined;
       }
@@ -2290,7 +2295,7 @@ export function createFilteredInspectProxy({ object, keys, evaluate }) {
       return ArrayPrototypeIncludes(keys, key);
     },
     ownKeys() {
-      return keys;
+      return keys as any;
     },
   });
 

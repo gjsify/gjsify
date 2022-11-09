@@ -1,9 +1,11 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 // Based on https://github.com/denoland/deno/blob/main/ext/web/06_streams_types.d.ts
 
+import type { Deferred } from './06_streams.js';
+
 // ** Internal Interfaces **
 
-interface PendingAbortRequest {
+export interface PendingAbortRequest {
   deferred: Deferred<void>;
   // deno-lint-ignore no-explicit-any
   reason: any;
@@ -11,21 +13,21 @@ interface PendingAbortRequest {
 }
 
 // deno-lint-ignore no-explicit-any
-interface ReadRequest<R = any> {
+export interface ReadRequest<R = any> {
   chunkSteps: (chunk: R) => void;
   closeSteps: () => void;
   // deno-lint-ignore no-explicit-any
   errorSteps: (error: any) => void;
 }
 
-interface ReadIntoRequest {
+export interface ReadIntoRequest {
   chunkSteps: (chunk: ArrayBufferView) => void;
   closeSteps: (chunk?: ArrayBufferView) => void;
   // deno-lint-ignore no-explicit-any
   errorSteps: (error: any) => void;
 }
 
-interface PullIntoDescriptor {
+export interface PullIntoDescriptor {
   buffer: ArrayBuffer;
   bufferByteLength: number;
   byteOffset: number;
@@ -37,30 +39,30 @@ interface PullIntoDescriptor {
   readerType: "default" | "byob" | "none";
 }
 
-interface ReadableByteStreamQueueEntry {
+export interface ReadableByteStreamQueueEntry {
   buffer: ArrayBufferLike;
   byteOffset: number;
   byteLength: number;
 }
 
-interface ReadableStreamGetReaderOptions {
+export interface ReadableStreamGetReaderOptions {
   mode?: "byob";
 }
 
-interface ReadableStreamIteratorOptions {
+export interface ReadableStreamIteratorOptions {
   preventCancel?: boolean;
 }
 
-interface ValueWithSize<T> {
+export interface ValueWithSize<T> {
   value: T;
   size: number;
 }
 
-interface VoidFunction {
+export interface VoidFunction {
   (): void;
 }
 
-interface ReadableStreamGenericReader<T> {
+export interface ReadableStreamGenericReader<T> {
   readonly closed: Promise<void>;
   // deno-lint-ignore no-explicit-any
   cancel(reason?: any): Promise<void>;

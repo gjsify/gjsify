@@ -111,11 +111,13 @@ export const op_base64_encode = (data: Uint8Array): string => {
     console.warn("Not implemented: ops.op_base64_encode");
     return "";
 }
-export const op_base64_atob = (...args: any[]) => {
+export const op_base64_atob = (data: string): string => {
     console.warn("Not implemented: ops.op_base64_atob");
+    return "";
 }
-export const op_base64_btoa = (...args: any[]) => {
+export const op_base64_btoa = (data: string): string => {
     console.warn("Not implemented: ops.op_base64_btoa");
+    return "";
 }
 export const op_encoding_normalize_label = (...args: any[]) => {
     console.warn("Not implemented: ops.op_encoding_normalize_label");
@@ -1010,11 +1012,11 @@ export const op_decode = (buffer: Uint8Array) => {
     console.warn("Not implemented: ops.op_decode");
 }
 
-export const op_serialize = (value, options, errorCallback) => {
+export const op_serialize = (value, options = {}, errorCallback?) => {
     console.warn("Not implemented: ops.op_serialize");
 }
 
-export const op_deserialize = (buffer, options) => {
+export const op_deserialize = (buffer, options = {}) => {
     console.warn("Not implemented: ops.op_deserialize");
 }
 
@@ -1044,12 +1046,21 @@ export const op_set_wasm_streaming_callback = (
     console.warn("Not implemented: ops.op_set_wasm_streaming_callback");
 }
 
-export const op_abort_wasm_streaming = (rid: number, error): void  => {
+export const op_abort_wasm_streaming = (rid: number, error: Error): void  => {
     console.warn("Not implemented: ops.op_abort_wasm_streaming");
 }
 
-export const op_destructure_error = (error): void  => {
+export const op_destructure_error = (error: Error) => {
     console.warn("Not implemented: ops.op_destructure_error");
+    const frames = [];
+    return {
+        frames,
+        exceptionMessage: ""
+    }
+}
+
+export const op_dispatch_exception = (error: Error) => {
+    console.warn("Not implemented: ops.op_dispatch_exception");
 }
 
 export const op_event_loop_has_more_work = (): void  => {
@@ -1072,4 +1083,14 @@ export const op_apply_source_map = (cse)  => {
 export const op_url_get_serialization = () => {
     console.warn("Not implemented: ops.op_url_get_serialization");
     return {};
+}
+
+export const op_arraybuffer_was_detached = (O: ArrayBufferLike): boolean => {
+    console.warn("Not implemented: ops.op_arraybuffer_was_detached");
+    return false;
+}
+
+export const op_transfer_arraybuffer = (O: ArrayBufferLike): ArrayBufferLike => {
+    console.warn("Not implemented: ops.op_transfer_arraybuffer");
+    return new ArrayBuffer(0);
 }

@@ -2,6 +2,8 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 // Forked from https://github.com/denoland/deno/blob/main/core/internal.d.ts
 
+import { isTypedArray } from "util/types";
+
 export type UncurryThis<T extends (this: unknown, ...args: unknown[]) => unknown> =
 (self: ThisParameterType<T>, ...args: Parameters<T>) => ReturnType<T>;
 
@@ -976,4 +978,10 @@ export interface Primordials {
     PromisePrototypeFinally: UncurryThis<
         typeof Promise.prototype.finally
     >;
+
+    Proxy: typeof globalThis.Proxy;
+
+    TypedArrayPrototypeGetLength: (value: Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array) => number;
+
+    SharedArrayBuffer: typeof globalThis.SharedArrayBuffer;
 }

@@ -68,6 +68,9 @@ window.__bootstrap.infra = {
   serializeJSValueToJSONString,
 };
 
+// packages/deno/runtime/src/ext/web/01_dom_exception.ts
+window.__bootstrap.domException = { DOMException };
+
 // packages/deno/runtime/src/ext/console/01_colors.ts
 window.__bootstrap.colors = {
   bold,
@@ -117,6 +120,72 @@ window.__bootstrap.mimesniff = {
   extractMimeType,
 };
 
+
+// packages/deno/runtime/src/ext/web/02_event.ts
+window.__bootstrap.eventTarget = {
+  EventTarget,
+  setEventTargetData,
+  listenerCount,
+};
+
+// packages/deno/runtime/src/ext/web/02_event.ts
+window.__bootstrap.event = {
+  reportException,
+  setIsTrusted,
+  setTarget,
+  defineEventHandler,
+  Event,
+  ErrorEvent,
+  CloseEvent,
+  MessageEvent,
+  CustomEvent,
+  ProgressEvent,
+  PromiseRejectionEvent,
+  reportError,
+};
+
+// packages/deno/runtime/src/ext/web/02_timers.ts
+window.__bootstrap.timers = {
+  setTimeout,
+  setInterval,
+  clearTimeout,
+  clearInterval,
+  handleTimerMacrotask,
+  opNow,
+  refTimer,
+  unrefTimer,
+};
+
+// packages/deno/runtime/src/ext/web/03_abort_signal.ts
+window.__bootstrap.abortSignal = {
+  AbortSignal,
+  AbortController,
+  AbortSignalPrototype,
+  add,
+  signalAbort,
+  remove,
+  follow,
+  newSignal,
+};
+
+// packages/deno/runtime/src/ext/web/04_global_interfaces.ts
+window.__bootstrap.globalInterfaces = {
+  DedicatedWorkerGlobalScope,
+  Window,
+  WorkerGlobalScope,
+  dedicatedWorkerGlobalScopeConstructorDescriptor,
+  windowConstructorDescriptor,
+  workerGlobalScopeConstructorDescriptor,
+};
+
+// packages/deno/runtime/src/ext/web/02_structured_clone.ts
+window.__bootstrap.structuredClone = structuredClone;
+
+// packages/deno/runtime/src/ext/web/05_base64.ts
+window.__bootstrap.base64 = {
+  atob,
+  btoa,
+};
 
 window.__bootstrap.fsEvents = {
     watchFs,

@@ -89,7 +89,7 @@ export namespace WebIDL {
      * Convert a value into a `unsigned long long` (uint64).
      * **Note this is truncated to a JS number (53 bit precision).**
      */
-    ["unsigned long long"](v: any, opts?: IntConverterOpts): number;
+    ["unsigned long long"](v: any, opts?: Partial<IntConverterOpts>): number;
     /**
      * Convert a value into a `float` (f32).
      */
