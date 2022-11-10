@@ -13,11 +13,10 @@
 // <reference lib="esnext" />
 "use strict";
 
-const core = Deno.core;
-const ops = core.ops;
-const webidl = window.__bootstrap.webidl;
-const { getParts } = window.__bootstrap.file;
-const { URL } = window.__bootstrap.url;
+import { ops } from '@gjsify/deno_core';
+import * as webidl from '../webidl/00_webidl.js';
+import { getParts, Blob } from './09_file.js';
+import { URL } from '../url/00_url.js';
 
 export function createObjectURL(blob: Blob): string {
   const prefix = "Failed to execute 'createObjectURL' on 'URL'";

@@ -4,9 +4,9 @@
 "use strict";
 
 // <reference path="../../core/internal.d.ts" />
-
-const { URL } = window.__bootstrap.url;
-const { DOMException } = window.__bootstrap.domException;
+import { primordials } from '@gjsify/deno_core';
+import { URL } from '../url/00_url.js';
+import { DOMException } from './01_dom_exception.js';
 const {
   Error,
   ObjectDefineProperties,
@@ -17,7 +17,7 @@ const {
   WeakMap,
   WeakMapPrototypeGet,
   WeakMapPrototypeSet,
-} = window.__bootstrap.primordials;
+} = primordials;
 
 const locationConstructorKey = Symbol("locationConstuctorKey");
 
@@ -26,7 +26,7 @@ const locationConstructorKey = Symbol("locationConstuctorKey");
 // `Location`'s properties. See:
 // - https://html.spec.whatwg.org/multipage/history.html#the-location-interface
 // - https://heycam.github.io/webidl/#LegacyUnforgeable
-class Location {
+export class Location {
   constructor(href = null, key = null) {
     if (key != locationConstructorKey) {
       throw new TypeError("Illegal constructor.");
@@ -210,7 +210,7 @@ ObjectDefineProperties(Location.prototype, {
 
 const workerLocationUrls = new WeakMap();
 
-class WorkerLocation {
+export class WorkerLocation {
   constructor(href = null, key = null) {
     if (key != locationConstructorKey) {
       throw new TypeError("Illegal constructor.");
@@ -359,11 +359,12 @@ ObjectDefineProperties(WorkerLocation.prototype, {
 let location = undefined;
 let workerLocation = undefined;
 
-function setLocationHref(href) {
+export function setLocationHref(href) {
   location = new Location(href, locationConstructorKey);
   workerLocation = new WorkerLocation(href, locationConstructorKey);
 }
 
+// packages/deno/runtime/src/ext/web/12_location.ts
 window.__bootstrap.location = {
   locationConstructorDescriptor: {
     value: Location,

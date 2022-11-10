@@ -13,14 +13,14 @@
 
 "use strict";
 
-const core = window.Deno.core;
-const webidl = window.__bootstrap.webidl;
-const { forgivingBase64Encode } = window.__bootstrap.infra;
-const { ProgressEvent } = window.__bootstrap.event;
-const { EventTarget } = window.__bootstrap.eventTarget;
-const { decode, TextDecoder } = window.__bootstrap.encoding;
-const { parseMimeType } = window.__bootstrap.mimesniff;
-const { DOMException } = window.__bootstrap.domException;
+import { ops, primordials } from '@gjsify/deno_core';
+import * as webidl from '../webidl/00_webidl.js';
+import { forgivingBase64Encode } from './00_infra.js';
+import { ProgressEvent, EventTarget } from './02_event.js';
+import { decode, TextDecoder } from './08_text_encoding.js';
+import { Blob } from './09_file.js';
+import { parseMimeType } from './01_mimesniff.js';
+import { DOMException } from './01_dom_exception.js';
 const {
   ArrayPrototypePush,
   ArrayPrototypeReduce,
@@ -37,7 +37,7 @@ const {
   TypeError,
   Uint8Array,
   Uint8ArrayPrototype,
-} = window.__bootstrap.primordials;
+} = primordials;
 
 const state = Symbol("[[state]]");
 const result = Symbol("[[result]]");
@@ -45,21 +45,21 @@ const error = Symbol("[[error]]");
 const aborted = Symbol("[[aborted]]");
 const handlerSymbol = Symbol("eventHandlers");
 
-class FileReader extends EventTarget {
-  /** @type {"empty" | "loading" | "done"} */
-  [state] = "empty";
-  /** @type {null | string | ArrayBuffer} */
-  [result] = null;
-  /** @type {null | DOMException} */
-  [error] = null;
-  /** @type {null | {aborted: boolean}} */
-  [aborted] = null;
+export class FileReader extends EventTarget {
+  // @ts-ignore
+  [state]: "empty" | "loading" | "done" = "empty";
+  // @ts-ignore
+  [result]: null | string | ArrayBuffer = null;
+  // @ts-ignore
+  [error]: null | DOMException = null;
+  // @ts-ignore
+  [aborted]: null | {aborted: boolean} = null;
 
-  /**
-   * @param {Blob} blob
-   * @param {{kind: "ArrayBuffer" | "Text" | "DataUrl" | "BinaryString", encoding?: string}} readtype
-   */
-  #readOperation(blob, readtype) {
+  static readonly EMPTY: number = 0;
+  static readonly LOADING: number = 1;
+  static readonly DONE: number = 2;
+
+  #readOperation(blob: Blob, readtype: {kind: "ArrayBuffer" | "Text" | "DataUrl" | "BinaryString", encoding?: string}) {
     // 1. If fr’s state is "loading", throw an InvalidStateError DOMException.
     if (this[state] === "loading") {
       throw new DOMException(
@@ -81,14 +81,13 @@ class FileReader extends EventTarget {
     const abortedState = this[aborted] = { aborted: false };
 
     // 5. Let stream be the result of calling get stream on blob.
-    const stream /*: ReadableStream<ArrayBufferView>*/ = blob.stream();
+    const stream = blob.stream() as ReadableStream<ArrayBufferView>;
 
     // 6. Let reader be the result of getting a reader from stream.
     const reader = stream.getReader();
 
     // 7. Let bytes be an empty byte sequence.
-    /** @type {Uint8Array[]} */
-    const chunks = [];
+    const chunks: Uint8Array[] = [];
 
     // 8. Let chunkPromise be the result of reading a chunk from stream with reader.
     let chunkPromise = reader.read();
@@ -131,7 +130,7 @@ class FileReader extends EventTarget {
                 chunks,
                 (p, i) => p + i.byteLength,
                 0,
-              );
+              ) as number;
               const ev = new ProgressEvent("progress", {
                 loaded: size,
               });
@@ -155,7 +154,7 @@ class FileReader extends EventTarget {
                 chunks,
                 (p, i) => p + i.byteLength,
                 0,
-              );
+              ) as number;
               const bytes = new Uint8Array(size);
               let offs = 0;
               for (const chunk of chunks) {
@@ -168,7 +167,7 @@ class FileReader extends EventTarget {
                   break;
                 }
                 case "BinaryString":
-                  this[result] = core.ops.op_encode_binary_string(bytes);
+                  this[result] = ops.op_encode_binary_string(bytes);
                   break;
                 case "Text": {
                   let decoder = undefined;
@@ -290,8 +289,7 @@ class FileReader extends EventTarget {
     this[webidl.brand] = webidl.brand;
   }
 
-  /** @returns {number} */
-  get readyState() {
+  get readyState(): number {
     webidl.assertBranded(this, FileReaderPrototype);
     switch (this[state]) {
       case "empty":
@@ -347,16 +345,14 @@ class FileReader extends EventTarget {
     }
   }
 
-  /** @param {Blob} blob */
-  readAsArrayBuffer(blob) {
+  readAsArrayBuffer(blob: Blob) {
     webidl.assertBranded(this, FileReaderPrototype);
     const prefix = "Failed to execute 'readAsArrayBuffer' on 'FileReader'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
     this.#readOperation(blob, { kind: "ArrayBuffer" });
   }
 
-  /** @param {Blob} blob */
-  readAsBinaryString(blob) {
+  readAsBinaryString(blob: Blob) {
     webidl.assertBranded(this, FileReaderPrototype);
     const prefix = "Failed to execute 'readAsBinaryString' on 'FileReader'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -364,8 +360,7 @@ class FileReader extends EventTarget {
     this.#readOperation(blob, { kind: "BinaryString" });
   }
 
-  /** @param {Blob} blob */
-  readAsDataURL(blob) {
+  readAsDataURL(blob: Blob) {
     webidl.assertBranded(this, FileReaderPrototype);
     const prefix = "Failed to execute 'readAsDataURL' on 'FileReader'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -373,11 +368,7 @@ class FileReader extends EventTarget {
     this.#readOperation(blob, { kind: "DataUrl" });
   }
 
-  /**
-   * @param {Blob} blob
-   * @param {string} [encoding]
-   */
-  readAsText(blob, encoding = undefined) {
+  readAsText(blob: Blob, encoding: string = undefined) {
     webidl.assertBranded(this, FileReaderPrototype);
     const prefix = "Failed to execute 'readAsText' on 'FileReader'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -488,8 +479,3 @@ function makeWrappedHandler(handler) {
   wrappedHandler.handler = handler;
   return wrappedHandler;
 }
-
-window.__bootstrap.fileReader = {
-  FileReader,
-};
-

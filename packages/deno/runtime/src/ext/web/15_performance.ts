@@ -3,6 +3,7 @@
 
 "use strict";
 
+import { primordials } from '@gjsify/deno_core';
 const {
   ArrayPrototypeFilter,
   ArrayPrototypeFind,
@@ -15,13 +16,14 @@ const {
   Symbol,
   SymbolFor,
   TypeError,
-} = window.__bootstrap.primordials;
+} = primordials;
 
-const { webidl, structuredClone } = window.__bootstrap;
-const consoleInternal = window.__bootstrap.console;
-const { EventTarget } = window.__bootstrap.eventTarget;
-const { opNow } = window.__bootstrap.timers;
-const { DOMException } = window.__bootstrap.domException;
+import * as webidl from '../webidl/00_webidl.js';
+import { structuredClone } from './02_structured_clone.js';
+import * as consoleInternal from '../console/02_console.js';
+import { EventTarget } from './02_event.js';
+import { opNow } from './02_timers.js';
+import { DOMException } from './01_dom_exception.js';
 
 const illegalConstructorKey = Symbol("illegalConstructorKey");
 const customInspect = SymbolFor("Deno.customInspect");
@@ -112,8 +114,8 @@ function convertMarkToTimestamp(mark) {
 }
 
 function filterByNameType(
-  name,
-  type,
+  name?: string,
+  type?,
 ) {
   return ArrayPrototypeFilter(
     performanceEntries,
@@ -130,9 +132,13 @@ const _entryType = Symbol("[[entryType]]");
 const _startTime = Symbol("[[startTime]]");
 const _duration = Symbol("[[duration]]");
 class PerformanceEntry {
+  // @ts-ignore
   [_name] = "";
+  // @ts-ignore
   [_entryType] = "";
+  // @ts-ignore
   [_startTime] = 0;
+  // @ts-ignore
   [_duration] = 0;
 
   get name() {
@@ -204,6 +210,7 @@ const PerformanceEntryPrototype = PerformanceEntry.prototype;
 
 const _detail = Symbol("[[detail]]");
 class PerformanceMark extends PerformanceEntry {
+  // @ts-ignore
   [_detail] = null;
 
   get detail() {
@@ -271,6 +278,7 @@ class PerformanceMark extends PerformanceEntry {
 webidl.configurePrototype(PerformanceMark);
 const PerformanceMarkPrototype = PerformanceMark.prototype;
 class PerformanceMeasure extends PerformanceEntry {
+  // @ts-ignore
   [_detail] = null;
 
   get detail() {

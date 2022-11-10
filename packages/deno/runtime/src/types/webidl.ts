@@ -179,7 +179,7 @@ export namespace WebIDL {
      */
     BufferSource(
       v: any,
-      opts?: BufferConverterOpts,
+      opts?: Partial<BufferConverterOpts>,
     ): ArrayBuffer | ArrayBufferView;
     /**
      * Convert a value into a `DOMTimeStamp` (u64). Alias for unsigned long long

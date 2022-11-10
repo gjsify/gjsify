@@ -131,7 +131,10 @@ export function setPromiseIsHandledToTrue(promise: Promise<any>) {
   PromisePrototypeThen(promise, undefined, rethrowAssertionErrorRejection);
 }
 
-function transformPromiseWith<T, TResult1, TResult2>(promise: Promise<T>, fulfillmentHandler: (value: T) => TResult1 | PromiseLike<TResult1>, rejectionHandler: (reason: any) => TResult2 | PromiseLike<TResult2>): Promise<TResult1 | TResult2> {
+function transformPromiseWith<T, TResult1, TResult2>(
+  promise: Promise<T>,
+  fulfillmentHandler: (value: T) => TResult1 | PromiseLike<TResult1>,
+  rejectionHandler?: (reason: any) => TResult2 | PromiseLike<TResult2>): Promise<TResult1 | TResult2> {
   // @ts-ignore
   return PromisePrototypeThen(promise, fulfillmentHandler, rejectionHandler);
 }
@@ -254,8 +257,8 @@ function createReadableStream<R>(
   sizeAlgorithm: ((chunk: R) => number) = () => 1,
 ): ReadableStream<R> {
   assert(isNonNegativeNumber(highWaterMark));
-  /** @type {ReadableStream} */
-  const stream = webidl.createBranded(ReadableStream);
+
+  const stream: ReadableStream = webidl.createBranded(ReadableStream);
   initializeReadableStream(stream);
   const controller = webidl.createBranded(ReadableStreamDefaultController);
   setUpReadableStreamDefaultController(
@@ -295,6 +298,7 @@ function createWritableStream<W>(
   return stream;
 }
 
+// @ts-ignore
 function dequeueValue<T>(container: { [_queue]: Array<ValueWithSize<T>>, [_queueTotalSize]: number }): T {
   assert(
     ReflectHas(container, _queue) &&
@@ -309,7 +313,8 @@ function dequeueValue<T>(container: { [_queue]: Array<ValueWithSize<T>>, [_queue
   return valueWithSize.value;
 }
 
-function enqueueValueWithSize<T>(container: { [_queue]: Array<ValueWithSize<T | _close>>, [_queueTotalSize]: number }, value: T, size: number): void {
+// @ts-ignore
+function enqueueValueWithSize<T>(container: { [_queue]: Array<ValueWithSize<T>>, [_queueTotalSize]: number }, value: T, size: number): void {
   assert(
     ReflectHas(container, _queue) &&
       ReflectHas(container, _queueTotalSize),
@@ -337,12 +342,7 @@ function extractHighWaterMark(strategy: QueuingStrategy, defaultHWM: number) {
   return highWaterMark;
 }
 
-/**
- * @template T
- * @param {QueuingStrategy<T>} strategy
- * @return {(chunk: T) => number}
- */
-function extractSizeAlgorithm(strategy) {
+function extractSizeAlgorithm<T>(strategy: QueuingStrategy<T>): (chunk: T) => number {
   if (strategy.size === undefined) {
     return () => 1;
   }
@@ -356,17 +356,11 @@ function extractSizeAlgorithm(strategy) {
     );
 }
 
-/**
- * @param {() => void} startAlgorithm
- * @param {() => Promise<void>} pullAlgorithm
- * @param {(reason: any) => Promise<void>} cancelAlgorithm
- * @returns {ReadableStream}
- */
 function createReadableByteStream(
-  startAlgorithm,
-  pullAlgorithm,
-  cancelAlgorithm,
-) {
+  startAlgorithm: () => void,
+  pullAlgorithm: () => Promise<void>,
+  cancelAlgorithm: (reason: any) => Promise<void>,
+): ReadableStream {
   const stream = webidl.createBranded(ReadableStream);
   initializeReadableStream(stream);
   const controller = webidl.createBranded(ReadableByteStreamController);
@@ -382,11 +376,7 @@ function createReadableByteStream(
   return stream;
 }
 
-/**
- * @param {ReadableStream} stream
- * @returns {void}
- */
-function initializeReadableStream(stream) {
+function initializeReadableStream(stream: ReadableStream): void {
   stream[_state] = "readable";
   stream[_reader] = stream[_storedError] = undefined;
   stream[_disturbed] = false;
@@ -398,14 +388,14 @@ function initializeTransformStream<I, O>(
   writableHighWaterMark: number,
   writableSizeAlgorithm: (chunk: I) => number,
   readableHighWaterMark: number,
-  readableSizeAlgorithm: chunk: (O) => number,
+  readableSizeAlgorithm: (chunk: O) => number,
 ) {
   function startAlgorithm() {
     return startPromise.promise;
   }
 
   function writeAlgorithm(chunk) {
-    return transformStreamDefaultSinkWriteAlgorithm(stream, chunk);
+    return transformStreamDefaultSinkWriteAlgorithm(stream, chunk) as Promise<void>;
   }
 
   function abortAlgorithm(reason) {
@@ -504,7 +494,7 @@ export function isReadableStreamDisturbed(stream: ReadableStream): boolean {
 const DEFAULT_CHUNK_SIZE = 64 * 1024; // 64 KiB
 
 // A finalization registry to clean up underlying resources that are GC'ed.
-const RESOURCE_REGISTRY = new FinalizationRegistry((rid) => {
+const RESOURCE_REGISTRY = new FinalizationRegistry((rid: number) => {
   core.tryClose(rid);
 });
 
@@ -516,11 +506,11 @@ const _original = Symbol("[[original]]");
  * allow callers to bypass the JavaScript ReadableStream implementation and
  * read directly from the underlying resource if they so choose (FastStream).
  *
- * @param {number} rid The resource ID to read from.
- * @param {boolean=} autoClose If the resource should be auto-closed when the stream closes. Defaults to true.
- * @returns {ReadableStream<Uint8Array>}
+ * @param rid The resource ID to read from.
+ * @param autoClose If the resource should be auto-closed when the stream closes. Defaults to true.
+ * @returns
  */
-function readableStreamForRid(rid, autoClose = true) {
+export function readableStreamForRid(rid: number, autoClose: boolean = true): ReadableStream<Uint8Array> {
   const stream = webidl.createBranded(ReadableStream);
   stream[_resourceBacking] = { rid, autoClose };
 
@@ -534,9 +524,11 @@ function readableStreamForRid(rid, autoClose = true) {
     RESOURCE_REGISTRY.register(stream, rid, stream);
   }
 
-  const underlyingSource = {
+  const underlyingSource: UnderlyingSource<ArrayBuffer> = {
+    // @ts-ignore
     type: "bytes",
     async pull(controller) {
+      // @ts-ignore
       const v = controller.byobRequest.view;
       try {
         if (controller[_readAll] === true) {
@@ -554,8 +546,10 @@ function readableStreamForRid(rid, autoClose = true) {
         if (bytesRead === 0) {
           tryClose();
           controller.close();
+          // @ts-ignore
           controller.byobRequest.respond(0);
         } else {
+          // @ts-ignore
           controller.byobRequest.respond(bytesRead);
         }
       } catch (e) {
@@ -580,6 +574,7 @@ function readableStreamForRid(rid, autoClose = true) {
 
 const promiseIdSymbol = SymbolFor("Deno.core.internalPromiseId");
 const _isUnref = Symbol("isUnref");
+
 /**
  * Create a new ReadableStream object that is backed by a Resource that
  * implements `Resource::read_return`. This readable stream supports being
@@ -587,16 +582,18 @@ const _isUnref = Symbol("isUnref");
  * `readableStreamForRidUnrefableUnref` on it. Unrefable streams are not
  * FastStream compatible.
  *
- * @param {number} rid The resource ID to read from.
- * @returns {ReadableStream<Uint8Array>}
+ * @param rid The resource ID to read from.
+ * @returns
  */
-function readableStreamForRidUnrefable(rid) {
+export function readableStreamForRidUnrefable(rid: number): ReadableStream<Uint8Array> {
   const stream = webidl.createBranded(ReadableStream);
   stream[promiseIdSymbol] = undefined;
   stream[_isUnref] = false;
-  const underlyingSource = {
+  const underlyingSource: UnderlyingSource<ArrayBuffer> = {
+    // @ts-ignore
     type: "bytes",
     async pull(controller) {
+      // @ts-ignore
       const v = controller.byobRequest.view;
       try {
         const promise = core.read(rid, v);
@@ -607,8 +604,10 @@ function readableStreamForRidUnrefable(rid) {
         if (bytesRead === 0) {
           core.tryClose(rid);
           controller.close();
+          // @ts-ignore
           controller.byobRequest.respond(0);
         } else {
+          // @ts-ignore
           controller.byobRequest.respond(bytesRead);
         }
       } catch (e) {
@@ -631,7 +630,7 @@ function readableStreamForRidUnrefable(rid) {
   return stream;
 }
 
-function readableStreamForRidUnrefableRef(stream) {
+export function readableStreamForRidUnrefableRef(stream) {
   if (!(_isUnref in stream)) throw new TypeError("Not an unrefable stream");
   stream[_isUnref] = false;
   if (stream[promiseIdSymbol] !== undefined) {
@@ -639,7 +638,7 @@ function readableStreamForRidUnrefableRef(stream) {
   }
 }
 
-function readableStreamForRidUnrefableUnref(stream) {
+export function readableStreamForRidUnrefableUnref(stream) {
   if (!(_isUnref in stream)) throw new TypeError("Not an unrefable stream");
   stream[_isUnref] = true;
   if (stream[promiseIdSymbol] !== undefined) {
@@ -647,11 +646,11 @@ function readableStreamForRidUnrefableUnref(stream) {
   }
 }
 
-function getReadableStreamResourceBacking(stream) {
+export function getReadableStreamResourceBacking(stream) {
   return stream[_resourceBacking];
 }
 
-async function readableStreamCollectIntoUint8Array(stream) {
+export async function readableStreamCollectIntoUint8Array(stream) {
   const resourceBacking = getReadableStreamResourceBacking(stream);
   const reader = acquireReadableStreamDefaultReader(stream);
 
@@ -675,8 +674,7 @@ async function readableStreamCollectIntoUint8Array(stream) {
   }
 
   // slow path
-  /** @type {Uint8Array[]} */
-  const chunks = [];
+  const chunks: Uint8Array[] = [];
   let totalLength = 0;
 
   // tee'd stream
@@ -698,7 +696,7 @@ async function readableStreamCollectIntoUint8Array(stream) {
     }
 
     ArrayPrototypePush(chunks, chunk);
-    totalLength += chunk.byteLength;
+    totalLength += (chunk as Uint8Array).byteLength;
   }
 
   const finalBuffer = new Uint8Array(totalLength);
@@ -717,11 +715,11 @@ async function readableStreamCollectIntoUint8Array(stream) {
  * implementation and write directly to the underlying resource if they so
  * choose (FastStream).
  *
- * @param {number} rid The resource ID to write to.
- * @param {boolean=} autoClose If the resource should be auto-closed when the stream closes. Defaults to true.
- * @returns {ReadableStream<Uint8Array>}
+ * @param rid The resource ID to write to.
+ * @param autoClose If the resource should be auto-closed when the stream closes. Defaults to true.
+ * @returns
  */
-function writableStreamForRid(rid, autoClose = true) {
+export function writableStreamForRid(rid: number, autoClose: boolean = true): ReadableStream<Uint8Array> {
   const stream = webidl.createBranded(WritableStream);
   stream[_resourceBacking] = { rid, autoClose };
 
@@ -762,44 +760,30 @@ function writableStreamForRid(rid, autoClose = true) {
   return stream;
 }
 
-function getWritableStreamResourceBacking(stream) {
+export function getWritableStreamResourceBacking(stream) {
   return stream[_resourceBacking];
 }
 
-/*
-  * @param {ReadableStream} stream
-  */
-function readableStreamThrowIfErrored(stream) {
+export function readableStreamThrowIfErrored(stream: ReadableStream) {
   if (stream[_state] === "errored") {
     throw stream[_storedError];
   }
 }
 
-/**
- * @param {unknown} value
- * @returns {value is WritableStream}
- */
-function isWritableStream(value) {
+function isWritableStream(value: unknown): value is WritableStream {
   return !(typeof value !== "object" || value === null ||
     !ReflectHas(value, _controller));
 }
 
-/**
- * @param {WritableStream} stream
- * @returns {boolean}
- */
-function isWritableStreamLocked(stream) {
+function isWritableStreamLocked(stream: WritableStream): boolean {
   if (stream[_writer] === undefined) {
     return false;
   }
   return true;
 }
-/**
- * @template T
- * @param {{ [_queue]: Array<ValueWithSize<T | _close>>, [_queueTotalSize]: number }} container
- * @returns {T | _close}
- */
-function peekQueueValue(container) {
+
+// @ts-ignore
+function peekQueueValue<T>(container: { [_queue]: Array<ValueWithSize<T>>, [_queueTotalSize]: number }): T {
   assert(
     ReflectHas(container, _queue) &&
       ReflectHas(container, _queueTotalSize),
@@ -809,11 +793,7 @@ function peekQueueValue(container) {
   return valueWithSize.value;
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {void}
- */
-function readableByteStreamControllerCallPullIfNeeded(controller) {
+function readableByteStreamControllerCallPullIfNeeded(controller: ReadableByteStreamController): void {
   const shouldPull = readableByteStreamControllerShouldCallPull(controller);
   if (!shouldPull) {
     return;
@@ -824,8 +804,7 @@ function readableByteStreamControllerCallPullIfNeeded(controller) {
   }
   assert(controller[_pullAgain] === false);
   controller[_pulling] = true;
-  /** @type {Promise<void>} */
-  const pullPromise = controller[_pullAlgorithm](controller);
+  const pullPromise: Promise<void> = controller[_pullAlgorithm](controller);
   setPromiseIsHandledToTrue(
     PromisePrototypeThen(
       pullPromise,
@@ -843,22 +822,13 @@ function readableByteStreamControllerCallPullIfNeeded(controller) {
   );
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {void}
- */
-function readableByteStreamControllerClearAlgorithms(controller) {
+function readableByteStreamControllerClearAlgorithms(controller: ReadableByteStreamController): void {
   controller[_pullAlgorithm] = undefined;
   controller[_cancelAlgorithm] = undefined;
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {any} e
- */
-function readableByteStreamControllerError(controller, e) {
-  /** @type {ReadableStream<ArrayBuffer>} */
-  const stream = controller[_stream];
+function readableByteStreamControllerError(controller: ReadableByteStreamController, e: any) {
+  const stream: ReadableStream<ArrayBuffer> = controller[_stream];
   if (stream[_state] !== "readable") {
     return;
   }
@@ -868,22 +838,13 @@ function readableByteStreamControllerError(controller, e) {
   readableStreamError(stream, e);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {void}
- */
-function readableByteStreamControllerClearPendingPullIntos(controller) {
+function readableByteStreamControllerClearPendingPullIntos(controller: ReadableByteStreamController): void {
   readableByteStreamControllerInvalidateBYOBRequest(controller);
   controller[_pendingPullIntos] = [];
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {void}
- */
-function readableByteStreamControllerClose(controller) {
-  /** @type {ReadableStream<ArrayBuffer>} */
-  const stream = controller[_stream];
+function readableByteStreamControllerClose(controller: ReadableByteStreamController): void {
+  const stream: ReadableStream<ArrayBuffer> = controller[_stream];
   if (controller[_closeRequested] || stream[_state] !== "readable") {
     return;
   }
@@ -905,13 +866,8 @@ function readableByteStreamControllerClose(controller) {
   readableStreamClose(stream);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {ArrayBufferView} chunk
- */
-function readableByteStreamControllerEnqueue(controller, chunk) {
-  /** @type {ReadableStream<ArrayBuffer>} */
-  const stream = controller[_stream];
+function readableByteStreamControllerEnqueue(controller: ReadableByteStreamController, chunk: ArrayBufferView) {
+  const stream: ReadableStream<ArrayBuffer> = controller[_stream];
   if (
     controller[_closeRequested] ||
     controller[_stream][_state] !== "readable"
@@ -989,36 +945,22 @@ function readableByteStreamControllerEnqueue(controller, chunk) {
   readableByteStreamControllerCallPullIfNeeded(controller);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {ArrayBufferLike} buffer
- * @param {number} byteOffset
- * @param {number} byteLength
- * @returns {void}
- */
 function readableByteStreamControllerEnqueueChunkToQueue(
-  controller,
-  buffer,
-  byteOffset,
-  byteLength,
-) {
+  controller: ReadableByteStreamController,
+  buffer: ArrayBufferLike,
+  byteOffset: number,
+  byteLength: number,
+): void {
   ArrayPrototypePush(controller[_queue], { buffer, byteOffset, byteLength });
   controller[_queueTotalSize] += byteLength;
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {ArrayBufferLike} buffer
- * @param {number} byteOffset
- * @param {number} byteLength
- * @returns {void}
- */
 function readableByteStreamControllerEnqueueClonedChunkToQueue(
-  controller,
-  buffer,
-  byteOffset,
-  byteLength,
-) {
+  controller: ReadableByteStreamController,
+  buffer: ArrayBufferLike,
+  byteOffset: number,
+  byteLength: number,
+): void {
   let cloneResult;
   try {
     cloneResult = buffer.slice(byteOffset, byteOffset + byteLength);
@@ -1033,15 +975,10 @@ function readableByteStreamControllerEnqueueClonedChunkToQueue(
   );
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {PullIntoDescriptor} pullIntoDescriptor
- * @returns {void}
- */
 function readableByteStreamControllerEnqueueDetachedPullIntoToQueue(
-  controller,
-  pullIntoDescriptor,
-) {
+  controller: ReadableByteStreamController,
+  pullIntoDescriptor: PullIntoDescriptor,
+): void {
   assert(pullIntoDescriptor.readerType === "none");
   if (pullIntoDescriptor.bytesFilled > 0) {
     readableByteStreamControllerEnqueueClonedChunkToQueue(
@@ -1054,11 +991,7 @@ function readableByteStreamControllerEnqueueDetachedPullIntoToQueue(
   readableByteStreamControllerShiftPendingPullInto(controller);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {ReadableStreamBYOBRequest | null}
- */
-function readableByteStreamControllerGetBYOBRequest(controller) {
+function readableByteStreamControllerGetBYOBRequest(controller: ReadableByteStreamController): ReadableStreamBYOBRequest | null {
   if (
     controller[_byobRequest] === null &&
     controller[_pendingPullIntos].length !== 0
@@ -1077,11 +1010,7 @@ function readableByteStreamControllerGetBYOBRequest(controller) {
   return controller[_byobRequest];
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {number | null}
- */
-function readableByteStreamControllerGetDesiredSize(controller) {
+function readableByteStreamControllerGetDesiredSize(controller: ReadableByteStreamController): number | null {
   const state = controller[_stream][_state];
   if (state === "errored") {
     return null;
@@ -1092,20 +1021,13 @@ function readableByteStreamControllerGetDesiredSize(controller) {
   return controller[_strategyHWM] - controller[_queueTotalSize];
 }
 
-/**
- * @param {{ [_queue]: any[], [_queueTotalSize]: number }} container
- * @returns {void}
- */
-function resetQueue(container) {
+// @ts-ignore
+function resetQueue(container: { [_queue]: any[], [_queueTotalSize]: number }): void {
   container[_queue] = [];
   container[_queueTotalSize] = 0;
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {void}
- */
-function readableByteStreamControllerHandleQueueDrain(controller) {
+function readableByteStreamControllerHandleQueueDrain(controller: ReadableByteStreamController): void {
   assert(controller[_stream][_state] === "readable");
   if (
     controller[_queueTotalSize] === 0 && controller[_closeRequested]
@@ -1117,13 +1039,8 @@ function readableByteStreamControllerHandleQueueDrain(controller) {
   }
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {boolean}
- */
-function readableByteStreamControllerShouldCallPull(controller) {
-  /** @type {ReadableStream<ArrayBuffer>} */
-  const stream = controller[_stream];
+function readableByteStreamControllerShouldCallPull(controller: ReadableByteStreamController): boolean {
+  const stream: ReadableStream<ArrayBuffer> = controller[_stream];
   if (
     stream[_state] !== "readable" ||
     controller[_closeRequested] ||
@@ -1148,36 +1065,19 @@ function readableByteStreamControllerShouldCallPull(controller) {
   return desiredSize > 0;
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {ReadRequest<R>} readRequest
- * @returns {void}
- */
-function readableStreamAddReadRequest(stream, readRequest) {
+function readableStreamAddReadRequest<R>(stream: ReadableStream<R>, readRequest: ReadRequest<R>): void {
   assert(isReadableStreamDefaultReader(stream[_reader]));
   assert(stream[_state] === "readable");
   ArrayPrototypePush(stream[_reader][_readRequests], readRequest);
 }
 
-/**
- * @param {ReadableStream} stream
- * @param {ReadIntoRequest} readRequest
- * @returns {void}
- */
-function readableStreamAddReadIntoRequest(stream, readRequest) {
+function readableStreamAddReadIntoRequest(stream: ReadableStream, readRequest: ReadIntoRequest): void {
   assert(isReadableStreamBYOBReader(stream[_reader]));
   assert(stream[_state] === "readable" || stream[_state] === "closed");
   ArrayPrototypePush(stream[_reader][_readIntoRequests], readRequest);
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {any=} reason
- * @returns {Promise<void>}
- */
-function readableStreamCancel(stream, reason) {
+function readableStreamCancel<R>(stream: ReadableStream<R>, reason?: any): Promise<void> {
   stream[_disturbed] = true;
   if (stream[_state] === "closed") {
     return resolvePromiseWith(undefined);
@@ -1194,27 +1094,19 @@ function readableStreamCancel(stream, reason) {
       readIntoRequest.closeSteps(undefined);
     }
   }
-  /** @type {Promise<void>} */
-  const sourceCancelPromise = stream[_controller][_cancelSteps](reason);
-  return PromisePrototypeThen(sourceCancelPromise, () => undefined);
+  const sourceCancelPromise: Promise<void> = stream[_controller][_cancelSteps](reason);
+  return PromisePrototypeThen(sourceCancelPromise, () => undefined) as Promise<void>;
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @returns {void}
- */
-function readableStreamClose(stream) {
+export function readableStreamClose<R>(stream: ReadableStream<R>): void {
   assert(stream[_state] === "readable");
   stream[_state] = "closed";
-  /** @type {ReadableStreamDefaultReader<R> | undefined} */
-  const reader = stream[_reader];
+  const reader: ReadableStreamDefaultReader<R> | undefined = stream[_reader];
   if (!reader) {
     return;
   }
   if (isReadableStreamDefaultReader(reader)) {
-    /** @type {Array<ReadRequest<R>>} */
-    const readRequests = reader[_readRequests];
+    const readRequests: Array<ReadRequest<R>> = reader[_readRequests];
     reader[_readRequests] = [];
     for (const readRequest of readRequests) {
       readRequest.closeSteps();
@@ -1225,17 +1117,11 @@ function readableStreamClose(stream) {
   reader[_closedPromise].resolve(undefined);
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @returns {void}
- */
-function readableStreamDisturb(stream) {
+export function readableStreamDisturb<R>(stream: ReadableStream<R>): void {
   stream[_disturbed] = true;
 }
 
-/** @param {ReadableStreamDefaultController<any>} controller */
-function readableStreamDefaultControllerCallPullIfNeeded(controller) {
+function readableStreamDefaultControllerCallPullIfNeeded(controller: ReadableStreamDefaultController<any>) {
   const shouldPull = readableStreamDefaultcontrollerShouldCallPull(
     controller,
   );
@@ -1261,11 +1147,7 @@ function readableStreamDefaultControllerCallPullIfNeeded(controller) {
   });
 }
 
-/**
- * @param {ReadableStreamDefaultController<any>} controller
- * @returns {boolean}
- */
-function readableStreamDefaultControllerCanCloseOrEnqueue(controller) {
+function readableStreamDefaultControllerCanCloseOrEnqueue(controller: ReadableStreamDefaultController<any>): boolean {
   const state = controller[_stream][_state];
   if (controller[_closeRequested] === false && state === "readable") {
     return true;
@@ -1274,15 +1156,13 @@ function readableStreamDefaultControllerCanCloseOrEnqueue(controller) {
   }
 }
 
-/** @param {ReadableStreamDefaultController<any>} controller */
-function readableStreamDefaultControllerClearAlgorithms(controller) {
+function readableStreamDefaultControllerClearAlgorithms(controller: ReadableStreamDefaultController<any>) {
   controller[_pullAlgorithm] = undefined;
   controller[_cancelAlgorithm] = undefined;
   controller[_strategySizeAlgorithm] = undefined;
 }
 
-/** @param {ReadableStreamDefaultController<any>} controller */
-function readableStreamDefaultControllerClose(controller) {
+function readableStreamDefaultControllerClose(controller: ReadableStreamDefaultController<any>) {
   if (
     readableStreamDefaultControllerCanCloseOrEnqueue(controller) === false
   ) {
@@ -1296,13 +1176,7 @@ function readableStreamDefaultControllerClose(controller) {
   }
 }
 
-/**
- * @template R
- * @param {ReadableStreamDefaultController<R>} controller
- * @param {R} chunk
- * @returns {void}
- */
-function readableStreamDefaultControllerEnqueue(controller, chunk) {
+function readableStreamDefaultControllerEnqueue<R>(controller: ReadableStreamDefaultController<R>, chunk: R): void {
   if (
     readableStreamDefaultControllerCanCloseOrEnqueue(controller) === false
   ) {
@@ -1333,11 +1207,7 @@ function readableStreamDefaultControllerEnqueue(controller, chunk) {
   readableStreamDefaultControllerCallPullIfNeeded(controller);
 }
 
-/**
- * @param {ReadableStreamDefaultController<any>} controller
- * @param {any} e
- */
-function readableStreamDefaultControllerError(controller, e) {
+function readableStreamDefaultControllerError(controller: ReadableStreamDefaultController<any>, e: any) {
   const stream = controller[_stream];
   if (stream[_state] !== "readable") {
     return;
@@ -1347,11 +1217,7 @@ function readableStreamDefaultControllerError(controller, e) {
   readableStreamError(stream, e);
 }
 
-/**
- * @param {ReadableStreamDefaultController<any>} controller
- * @returns {number | null}
- */
-function readableStreamDefaultControllerGetDesiredSize(controller) {
+function readableStreamDefaultControllerGetDesiredSize(controller: ReadableStreamDefaultController<any>): number | null {
   const state = controller[_stream][_state];
   if (state === "errored") {
     return null;
@@ -1362,8 +1228,7 @@ function readableStreamDefaultControllerGetDesiredSize(controller) {
   return controller[_strategyHWM] - controller[_queueTotalSize];
 }
 
-/** @param {ReadableStreamDefaultController} controller */
-function readableStreamDefaultcontrollerHasBackpressure(controller) {
+function readableStreamDefaultcontrollerHasBackpressure(controller: ReadableStreamDefaultController) {
   if (readableStreamDefaultcontrollerShouldCallPull(controller) === true) {
     return false;
   } else {
@@ -1371,11 +1236,7 @@ function readableStreamDefaultcontrollerHasBackpressure(controller) {
   }
 }
 
-/**
- * @param {ReadableStreamDefaultController<any>} controller
- * @returns {boolean}
- */
-function readableStreamDefaultcontrollerShouldCallPull(controller) {
+function readableStreamDefaultcontrollerShouldCallPull(controller: ReadableStreamDefaultController<any>): boolean {
   const stream = controller[_stream];
   if (
     readableStreamDefaultControllerCanCloseOrEnqueue(controller) === false
@@ -1401,13 +1262,7 @@ function readableStreamDefaultcontrollerShouldCallPull(controller) {
   return false;
 }
 
-/**
- * @param {ReadableStreamBYOBReader} reader
- * @param {ArrayBufferView} view
- * @param {ReadIntoRequest} readIntoRequest
- * @returns {void}
- */
-function readableStreamBYOBReaderRead(reader, view, readIntoRequest) {
+function readableStreamBYOBReaderRead(reader: ReadableStreamBYOBReader, view: ArrayBufferView, readIntoRequest: ReadIntoRequest): void {
   const stream = reader[_stream];
   assert(stream);
   stream[_disturbed] = true;
@@ -1422,20 +1277,13 @@ function readableStreamBYOBReaderRead(reader, view, readIntoRequest) {
   }
 }
 
-/**
- * @param {ReadableStreamBYOBReader} reader
- */
-function readableStreamBYOBReaderRelease(reader) {
+function readableStreamBYOBReaderRelease(reader: ReadableStreamBYOBReader) {
   readableStreamReaderGenericRelease(reader);
   const e = new TypeError("The reader was released.");
   readableStreamBYOBReaderErrorReadIntoRequests(reader, e);
 }
 
-/**
- * @param {ReadableStreamBYOBReader} reader
- * @param {any} e
- */
-function readableStreamDefaultReaderErrorReadRequests(reader, e) {
+function readableStreamDefaultReaderErrorReadRequests(reader: ReadableStreamBYOBReader, e: any) {
   const readRequests = reader[_readRequests];
   reader[_readRequests] = [];
   for (const readRequest of readRequests) {
@@ -1443,11 +1291,8 @@ function readableStreamDefaultReaderErrorReadRequests(reader, e) {
   }
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- */
 function readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(
-  controller,
+  controller: ReadableByteStreamController,
 ) {
   assert(!controller[_closeRequested]);
   while (controller[_pendingPullIntos].length !== 0) {
@@ -1469,11 +1314,9 @@ function readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(
     }
   }
 }
-/**
- * @param {ReadableByteStreamController} controller
- */
+
 function readableByteStreamControllerProcessReadRequestsUsingQueue(
-  controller,
+  controller: ReadableByteStreamController,
 ) {
   const reader = controller[_stream][_reader];
   assert(isReadableStreamDefaultReader(reader));
@@ -1489,20 +1332,14 @@ function readableByteStreamControllerProcessReadRequestsUsingQueue(
   }
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {ArrayBufferView} view
- * @param {ReadIntoRequest} readIntoRequest
- * @returns {void}
- */
 function readableByteStreamControllerPullInto(
-  controller,
-  view,
-  readIntoRequest,
-) {
+  controller: ReadableByteStreamController,
+  view: ArrayBufferView,
+  readIntoRequest: ReadIntoRequest,
+): void {
   const stream = controller[_stream];
   let elementSize = 1;
-  let ctor = DataView;
+  let ctor: any = DataView;
 
   if (
     ObjectPrototypeIsPrototypeOf(Int8ArrayPrototype, view) ||
@@ -1515,14 +1352,13 @@ function readableByteStreamControllerPullInto(
     ObjectPrototypeIsPrototypeOf(BigInt64ArrayPrototype, view) ||
     ObjectPrototypeIsPrototypeOf(BigUint64ArrayPrototype, view)
   ) {
-    elementSize = view.constructor.BYTES_PER_ELEMENT;
+    elementSize = (view.constructor as any).BYTES_PER_ELEMENT;
     ctor = view.constructor;
   }
   const byteOffset = view.byteOffset;
   const byteLength = view.byteLength;
 
-  /** @type {ArrayBufferLike} */
-  let buffer;
+  let buffer: ArrayBufferLike;
 
   try {
     buffer = transferArrayBuffer(view.buffer);
@@ -1531,8 +1367,7 @@ function readableByteStreamControllerPullInto(
     return;
   }
 
-  /** @type {PullIntoDescriptor} */
-  const pullIntoDescriptor = {
+  const pullIntoDescriptor: PullIntoDescriptor = {
     buffer,
     bufferByteLength: buffer.byteLength,
     byteOffset,
@@ -1586,12 +1421,7 @@ function readableByteStreamControllerPullInto(
   readableByteStreamControllerCallPullIfNeeded(controller);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {number} bytesWritten
- * @returns {void}
- */
-function readableByteStreamControllerRespond(controller, bytesWritten) {
+function readableByteStreamControllerRespond(controller: ReadableByteStreamController, bytesWritten: number): void {
   assert(controller[_pendingPullIntos].length !== 0);
   const firstDescriptor = controller[_pendingPullIntos][0];
   const state = controller[_stream][_state];
@@ -1619,17 +1449,11 @@ function readableByteStreamControllerRespond(controller, bytesWritten) {
   readableByteStreamControllerRespondInternal(controller, bytesWritten);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {number} bytesWritten
- * @param {PullIntoDescriptor} pullIntoDescriptor
- * @returns {void}
- */
 function readableByteStreamControllerRespondInReadableState(
-  controller,
-  bytesWritten,
-  pullIntoDescriptor,
-) {
+  controller: ReadableByteStreamController,
+  bytesWritten: number,
+  pullIntoDescriptor: PullIntoDescriptor,
+): void {
   assert(
     (pullIntoDescriptor.bytesFilled + bytesWritten) <=
       pullIntoDescriptor.byteLength,
@@ -1675,15 +1499,10 @@ function readableByteStreamControllerRespondInReadableState(
   );
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {number} bytesWritten
- * @returns {void}
- */
 function readableByteStreamControllerRespondInternal(
-  controller,
-  bytesWritten,
-) {
+  controller: ReadableByteStreamController,
+  bytesWritten: number,
+): void {
   const firstDescriptor = controller[_pendingPullIntos][0];
   assert(canTransferArrayBuffer(firstDescriptor.buffer));
   readableByteStreamControllerInvalidateBYOBRequest(controller);
@@ -1706,10 +1525,7 @@ function readableByteStreamControllerRespondInternal(
   readableByteStreamControllerCallPullIfNeeded(controller);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- */
-function readableByteStreamControllerInvalidateBYOBRequest(controller) {
+function readableByteStreamControllerInvalidateBYOBRequest(controller: ReadableByteStreamController) {
   if (controller[_byobRequest] === null) {
     return;
   }
@@ -1718,13 +1534,9 @@ function readableByteStreamControllerInvalidateBYOBRequest(controller) {
   controller[_byobRequest] = null;
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {PullIntoDescriptor} firstDescriptor
- */
 function readableByteStreamControllerRespondInClosedState(
-  controller,
-  firstDescriptor,
+  controller: ReadableByteStreamController,
+  firstDescriptor: PullIntoDescriptor,
 ) {
   assert(firstDescriptor.bytesFilled === 0);
   if (firstDescriptor.readerType === "none") {
@@ -1743,14 +1555,9 @@ function readableByteStreamControllerRespondInClosedState(
   }
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {PullIntoDescriptor} pullIntoDescriptor
- */
-function readableByteStreamControllerCommitPullIntoDescriptor(
-  stream,
-  pullIntoDescriptor,
+function readableByteStreamControllerCommitPullIntoDescriptor<R>(
+  stream: ReadableStream<R>,
+  pullIntoDescriptor: PullIntoDescriptor,
 ) {
   assert(stream[_state] !== "errored");
   assert(pullIntoDescriptor.readerType !== "none");
@@ -1763,18 +1570,14 @@ function readableByteStreamControllerCommitPullIntoDescriptor(
     pullIntoDescriptor,
   );
   if (pullIntoDescriptor.readerType === "default") {
-    readableStreamFulfillReadRequest(stream, filledView, done);
+    readableStreamFulfillReadRequest(stream, filledView as R, done);
   } else {
     assert(pullIntoDescriptor.readerType === "byob");
-    readableStreamFulfillReadIntoRequest(stream, filledView, done);
+    readableStreamFulfillReadIntoRequest(stream, filledView as R, done);
   }
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {ArrayBufferView} view
- */
-function readableByteStreamControllerRespondWithNewView(controller, view) {
+function readableByteStreamControllerRespondWithNewView(controller: ReadableByteStreamController, view: ArrayBufferView) {
   assert(controller[_pendingPullIntos].length !== 0);
   assert(!isDetachedBuffer(view.buffer));
   const firstDescriptor = controller[_pendingPullIntos][0];
@@ -1819,24 +1622,15 @@ function readableByteStreamControllerRespondWithNewView(controller, view) {
   readableByteStreamControllerRespondInternal(controller, viewByteLength);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @returns {PullIntoDescriptor}
- */
-function readableByteStreamControllerShiftPendingPullInto(controller) {
+function readableByteStreamControllerShiftPendingPullInto(controller: ReadableByteStreamController): PullIntoDescriptor {
   assert(controller[_byobRequest] === null);
   return ArrayPrototypeShift(controller[_pendingPullIntos]);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {PullIntoDescriptor} pullIntoDescriptor
- * @returns {boolean}
- */
 function readableByteStreamControllerFillPullIntoDescriptorFromQueue(
-  controller,
-  pullIntoDescriptor,
-) {
+  controller: ReadableByteStreamController,
+  pullIntoDescriptor: PullIntoDescriptor,
+): boolean {
   const elementSize = pullIntoDescriptor.elementSize;
   const currentAlignedBytes = pullIntoDescriptor.bytesFilled -
     (pullIntoDescriptor.bytesFilled % elementSize);
@@ -1897,15 +1691,10 @@ function readableByteStreamControllerFillPullIntoDescriptorFromQueue(
   return ready;
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {ReadRequest} readRequest
- * @returns {void}
- */
 function readableByteStreamControllerFillReadRequestFromQueue(
-  controller,
-  readRequest,
-) {
+  controller: ReadableByteStreamController,
+  readRequest: ReadRequest,
+): void {
   assert(controller[_queueTotalSize] > 0);
   const entry = ArrayPrototypeShift(controller[_queue]);
   controller[_queueTotalSize] -= entry.byteLength;
@@ -1918,17 +1707,11 @@ function readableByteStreamControllerFillReadRequestFromQueue(
   readRequest.chunkSteps(view);
 }
 
-/**
- * @param {ReadableByteStreamController} controller
- * @param {number} size
- * @param {PullIntoDescriptor} pullIntoDescriptor
- * @returns {void}
- */
 function readableByteStreamControllerFillHeadPullIntoDescriptor(
-  controller,
-  size,
-  pullIntoDescriptor,
-) {
+  controller: ReadableByteStreamController,
+  size: number,
+  pullIntoDescriptor: PullIntoDescriptor,
+): void {
   assert(
     controller[_pendingPullIntos].length === 0 ||
       controller[_pendingPullIntos][0] === pullIntoDescriptor,
@@ -1937,13 +1720,9 @@ function readableByteStreamControllerFillHeadPullIntoDescriptor(
   pullIntoDescriptor.bytesFilled += size;
 }
 
-/**
- * @param {PullIntoDescriptor} pullIntoDescriptor
- * @returns {ArrayBufferView}
- */
 function readableByteStreamControllerConvertPullIntoDescriptor(
-  pullIntoDescriptor,
-) {
+  pullIntoDescriptor: PullIntoDescriptor,
+): ArrayBufferView {
   const bytesFilled = pullIntoDescriptor.bytesFilled;
   const elementSize = pullIntoDescriptor.elementSize;
   assert(bytesFilled <= pullIntoDescriptor.byteLength);
@@ -1956,13 +1735,7 @@ function readableByteStreamControllerConvertPullIntoDescriptor(
   );
 }
 
-/**
- * @template R
- * @param {ReadableStreamDefaultReader<R>} reader
- * @param {ReadRequest<R>} readRequest
- * @returns {void}
- */
-function readableStreamDefaultReaderRead(reader, readRequest) {
+function readableStreamDefaultReaderRead<R>(reader: ReadableStreamDefaultReader<R>, readRequest: ReadRequest<R>): void {
   const stream = reader[_stream];
   assert(stream);
   stream[_disturbed] = true;
@@ -1976,35 +1749,26 @@ function readableStreamDefaultReaderRead(reader, readRequest) {
   }
 }
 
-/**
- * @template R
- * @param {ReadableStreamDefaultReader<R>} reader
- */
-function readableStreamDefaultReaderRelease(reader) {
+function readableStreamDefaultReaderRelease<R>(reader: ReadableStreamDefaultReader<R>) {
   readableStreamReaderGenericRelease(reader);
   const e = new TypeError("The reader was released.");
+  // @ts-ignore
   readableStreamDefaultReaderErrorReadRequests(reader, e);
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {any} e
- */
-function readableStreamError(stream, e) {
+function readableStreamError<R>(stream: ReadableStream<R>, e: any) {
   assert(stream[_state] === "readable");
   stream[_state] = "errored";
   stream[_storedError] = e;
-  /** @type {ReadableStreamDefaultReader<R> | undefined} */
-  const reader = stream[_reader];
+  const reader: ReadableStreamDefaultReader<R> | undefined = stream[_reader];
   if (reader === undefined) {
     return;
   }
-  /** @type {Deferred<void>} */
-  const closedPromise = reader[_closedPromise];
+  const closedPromise: Deferred<void> = reader[_closedPromise];
   closedPromise.reject(e);
   setPromiseIsHandledToTrue(closedPromise.promise);
   if (isReadableStreamDefaultReader(reader)) {
+    // @ts-ignore
     readableStreamDefaultReaderErrorReadRequests(reader, e);
   } else {
     assert(isReadableStreamBYOBReader(reader));
@@ -2012,39 +1776,25 @@ function readableStreamError(stream, e) {
   }
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {R} chunk
- * @param {boolean} done
- */
-function readableStreamFulfillReadIntoRequest(stream, chunk, done) {
+function readableStreamFulfillReadIntoRequest<R>(stream: ReadableStream<R>, chunk: R, done: boolean) {
   assert(readableStreamHasBYOBReader(stream));
-  /** @type {ReadableStreamDefaultReader<R>} */
-  const reader = stream[_reader];
+  const reader: ReadableStreamDefaultReader<R> = stream[_reader];
   assert(reader[_readIntoRequests].length !== 0);
-  /** @type {ReadIntoRequest} */
-  const readIntoRequest = ArrayPrototypeShift(reader[_readIntoRequests]);
+  const readIntoRequest: ReadIntoRequest = ArrayPrototypeShift(reader[_readIntoRequests]);
   if (done) {
+    // @ts-ignore
     readIntoRequest.closeSteps(chunk);
   } else {
+    // @ts-ignore
     readIntoRequest.chunkSteps(chunk);
   }
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {R} chunk
- * @param {boolean} done
- */
-function readableStreamFulfillReadRequest(stream, chunk, done) {
+function readableStreamFulfillReadRequest<R>(stream: ReadableStream<R>, chunk: R, done: boolean) {
   assert(readableStreamHasDefaultReader(stream) === true);
-  /** @type {ReadableStreamDefaultReader<R>} */
-  const reader = stream[_reader];
+  const reader: ReadableStreamDefaultReader<R> = stream[_reader];
   assert(reader[_readRequests].length);
-  /** @type {ReadRequest<R>} */
-  const readRequest = ArrayPrototypeShift(reader[_readRequests]);
+  const readRequest: ReadRequest<R> = ArrayPrototypeShift(reader[_readRequests]);
   if (done) {
     readRequest.closeSteps();
   } else {
@@ -2052,29 +1802,17 @@ function readableStreamFulfillReadRequest(stream, chunk, done) {
   }
 }
 
-/**
- * @param {ReadableStream} stream
- * @return {number}
- */
-function readableStreamGetNumReadIntoRequests(stream) {
+function readableStreamGetNumReadIntoRequests(stream: ReadableStream): number {
   assert(readableStreamHasBYOBReader(stream) === true);
   return stream[_reader][_readIntoRequests].length;
 }
 
-/**
- * @param {ReadableStream} stream
- * @return {number}
- */
-function readableStreamGetNumReadRequests(stream) {
+function readableStreamGetNumReadRequests(stream: ReadableStream): number {
   assert(readableStreamHasDefaultReader(stream) === true);
   return stream[_reader][_readRequests].length;
 }
 
-/**
- * @param {ReadableStream} stream
- * @returns {boolean}
- */
-function readableStreamHasBYOBReader(stream) {
+function readableStreamHasBYOBReader(stream: ReadableStream): boolean {
   const reader = stream[_reader];
   if (reader === undefined) {
     return false;
@@ -2085,11 +1823,7 @@ function readableStreamHasBYOBReader(stream) {
   return false;
 }
 
-/**
- * @param {ReadableStream} stream
- * @returns {boolean}
- */
-function readableStreamHasDefaultReader(stream) {
+function readableStreamHasDefaultReader(stream: ReadableStream): boolean {
   const reader = stream[_reader];
   if (reader === undefined) {
     return false;
@@ -2100,24 +1834,14 @@ function readableStreamHasDefaultReader(stream) {
   return false;
 }
 
-/**
- * @template T
- * @param {ReadableStream<T>} source
- * @param {WritableStream<T>} dest
- * @param {boolean} preventClose
- * @param {boolean} preventAbort
- * @param {boolean} preventCancel
- * @param {AbortSignal=} signal
- * @returns {Promise<void>}
- */
-function readableStreamPipeTo(
-  source,
-  dest,
-  preventClose,
-  preventAbort,
-  preventCancel,
-  signal,
-) {
+function readableStreamPipeTo<T>(
+  source: ReadableStream<T>,
+  dest: WritableStream<T>,
+  preventClose: boolean,
+  preventAbort: boolean,
+  preventCancel: boolean,
+  signal?: AbortSignal,
+): Promise<void> {
   assert(isReadableStream(source));
   assert(isWritableStream(dest));
   assert(
@@ -2138,15 +1862,13 @@ function readableStreamPipeTo(
   source[_disturbed] = true;
   let shuttingDown = false;
   let currentWrite = resolvePromiseWith(undefined);
-  /** @type {Deferred<void>} */
-  const promise = new Deferred();
-  /** @type {() => void} */
-  let abortAlgorithm;
+
+  const promise: Deferred<void> = new Deferred();
+  let abortAlgorithm: () => void;
   if (signal) {
     abortAlgorithm = () => {
       const error = signal.reason;
-      /** @type {Array<() => Promise<void>>} */
-      const actions = [];
+      const actions: Array<() => Promise<void>> = [];
       if (preventAbort === false) {
         ArrayPrototypePush(actions, () => {
           if (dest[_state] === "writable") {
@@ -2167,6 +1889,7 @@ function readableStreamPipeTo(
       }
       shutdownWithAction(
         () =>
+          // @ts-ignore
           SafePromiseAll(ArrayPrototypeMap(actions, (action) => action())),
         true,
         error,
@@ -2279,10 +2002,9 @@ function readableStreamPipeTo(
 
   setPromiseIsHandledToTrue(pipeLoop());
 
-  return promise.promise;
+  return promise.promise as Promise<void>;
 
-  /** @returns {Promise<void>} */
-  function waitForWritesToFinish() {
+  function waitForWritesToFinish(): Promise<void> {
     const oldCurrentWrite = currentWrite;
     return transformPromiseWith(
       currentWrite,
@@ -2293,7 +2015,7 @@ function readableStreamPipeTo(
     );
   }
 
-  function isOrBecomesErrored(stream: ReadableStream | WritableStream, promise: Promise<any>, action: (e: any) => void}) {
+  function isOrBecomesErrored(stream: ReadableStream | WritableStream, promise: Promise<any>, action: (e: any) => void) {
     if (stream[_state] === "errored") {
       action(stream[_storedError]);
     } else {
@@ -2301,12 +2023,7 @@ function readableStreamPipeTo(
     }
   }
 
-  /**
-   * @param {ReadableStream} stream
-   * @param {Promise<any>} promise
-   * @param {() => void} action
-   */
-  function isOrBecomesClosed(stream, promise, action) {
+  function isOrBecomesClosed(stream: ReadableStream, promise: Promise<any>, action: () => void) {
     if (stream[_state] === "closed") {
       action();
     } else {
@@ -2314,12 +2031,7 @@ function readableStreamPipeTo(
     }
   }
 
-  /**
-   * @param {() => Promise<void[] | void>} action
-   * @param {boolean=} originalIsError
-   * @param {any=} originalError
-   */
-  function shutdownWithAction(action, originalIsError, originalError) {
+  function shutdownWithAction(action: () => Promise<void[] | void>, originalIsError?: boolean, originalError?: any) {
     function doTheRest() {
       uponPromise(
         action(),
@@ -2343,11 +2055,7 @@ function readableStreamPipeTo(
     }
   }
 
-  /**
-   * @param {boolean=} isError
-   * @param {any=} error
-   */
-  function shutdown(isError, error) {
+  function shutdown(isError?: boolean, error?: any) {
     if (shuttingDown) {
       return;
     }
@@ -2365,11 +2073,7 @@ function readableStreamPipeTo(
     }
   }
 
-  /**
-   * @param {boolean=} isError
-   * @param {any=} error
-   */
-  function finalize(isError, error) {
+  function finalize(isError?: boolean, error?: any) {
     writableStreamDefaultWriterRelease(writer);
     readableStreamDefaultReaderRelease(reader);
 
@@ -2384,23 +2088,13 @@ function readableStreamPipeTo(
   }
 }
 
-/**
- * @param {ReadableStreamGenericReader<any> | ReadableStreamBYOBReader} reader
- * @param {any} reason
- * @returns {Promise<void>}
- */
-function readableStreamReaderGenericCancel(reader, reason) {
+function readableStreamReaderGenericCancel(reader: ReadableStreamGenericReader<any> | ReadableStreamBYOBReader, reason: any): Promise<void> {
   const stream = reader[_stream];
   assert(stream !== undefined);
   return readableStreamCancel(stream, reason);
 }
 
-/**
- * @template R
- * @param {ReadableStreamDefaultReader<R> | ReadableStreamBYOBReader} reader
- * @param {ReadableStream<R>} stream
- */
-function readableStreamReaderGenericInitialize(reader, stream) {
+function readableStreamReaderGenericInitialize<R>(reader: ReadableStreamDefaultReader<R> | ReadableStreamBYOBReader, stream: ReadableStream<R>) {
   reader[_stream] = stream;
   stream[_reader] = reader;
   if (stream[_state] === "readable") {
@@ -2416,11 +2110,7 @@ function readableStreamReaderGenericInitialize(reader, stream) {
   }
 }
 
-/**
- * @template R
- * @param {ReadableStreamGenericReader<R> | ReadableStreamBYOBReader} reader
- */
-function readableStreamReaderGenericRelease(reader) {
+function readableStreamReaderGenericRelease<R>(reader: ReadableStreamGenericReader<R> | ReadableStreamBYOBReader) {
   const stream = reader[_stream];
   assert(stream !== undefined);
   assert(stream[_reader] === reader);
@@ -2444,11 +2134,7 @@ function readableStreamReaderGenericRelease(reader) {
   reader[_stream] = undefined;
 }
 
-/**
- * @param {ReadableStreamBYOBReader} reader
- * @param {any} e
- */
-function readableStreamBYOBReaderErrorReadIntoRequests(reader, e) {
+function readableStreamBYOBReaderErrorReadIntoRequests(reader: ReadableStreamBYOBReader, e: any) {
   const readIntoRequests = reader[_readIntoRequests];
   reader[_readIntoRequests] = [];
   for (const readIntoRequest of readIntoRequests) {
@@ -2456,13 +2142,7 @@ function readableStreamBYOBReaderErrorReadIntoRequests(reader, e) {
   }
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {boolean} cloneForBranch2
- * @returns {[ReadableStream<R>, ReadableStream<R>]}
- */
-function readableStreamTee(stream, cloneForBranch2) {
+function readableStreamTee<R>(stream: ReadableStream<R>, cloneForBranch2: boolean): [ReadableStream<R>, ReadableStream<R>] {
   assert(isReadableStream(stream));
   assert(typeof cloneForBranch2 === "boolean");
   if (
@@ -2477,33 +2157,22 @@ function readableStreamTee(stream, cloneForBranch2) {
   }
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {boolean} cloneForBranch2
- * @returns {[ReadableStream<R>, ReadableStream<R>]}
- */
-function readableStreamDefaultTee(stream, cloneForBranch2) {
+function readableStreamDefaultTee<R>(stream: ReadableStream<R>, cloneForBranch2: boolean): [ReadableStream<R>, ReadableStream<R>] {
   assert(isReadableStream(stream));
   assert(typeof cloneForBranch2 === "boolean");
   const reader = acquireReadableStreamDefaultReader(stream);
-  let reading = false;
-  let readAgain = false;
-  let canceled1 = false;
-  let canceled2 = false;
-  /** @type {any} */
-  let reason1;
-  /** @type {any} */
-  let reason2;
-  /** @type {ReadableStream<R>} */
+  let reading: boolean = false;
+  let readAgain: boolean = false;
+  let canceled1: boolean = false;
+  let canceled2: boolean = false;
+  let reason1: any;
+  let reason2: any;
   // deno-lint-ignore prefer-const
-  let branch1;
-  /** @type {ReadableStream<R>} */
+  let branch1: ReadableStream<R>;
   // deno-lint-ignore prefer-const
-  let branch2;
+  let branch2: ReadableStream<R>;
 
-  /** @type {Deferred<void>} */
-  const cancelPromise = new Deferred();
+  const cancelPromise: Deferred<void> = new Deferred();
 
   function pullAlgorithm() {
     if (reading === true) {
@@ -2511,8 +2180,7 @@ function readableStreamDefaultTee(stream, cloneForBranch2) {
       return resolvePromiseWith(undefined);
     }
     reading = true;
-    /** @type {ReadRequest<R>} */
-    const readRequest = {
+    const readRequest: ReadRequest<R> = {
       chunkSteps(value) {
         queueMicrotask(() => {
           readAgain = false;
@@ -2523,22 +2191,23 @@ function readableStreamDefaultTee(stream, cloneForBranch2) {
 
           if (canceled1 === false) {
             readableStreamDefaultControllerEnqueue(
-              /** @type {ReadableStreamDefaultController<any>} */ branch1[
+              branch1[
                 _controller
-              ],
+              ] as ReadableStreamDefaultController<any>,
               value1,
             );
           }
           if (canceled2 === false) {
             readableStreamDefaultControllerEnqueue(
-              /** @type {ReadableStreamDefaultController<any>} */ branch2[
+              branch2[
                 _controller
-              ],
+              ] as ReadableStreamDefaultController<any>,
               value2,
             );
           }
 
           reading = false;
+          // @ts-ignore
           if (readAgain === true) {
             pullAlgorithm();
           }
@@ -2548,16 +2217,16 @@ function readableStreamDefaultTee(stream, cloneForBranch2) {
         reading = false;
         if (canceled1 === false) {
           readableStreamDefaultControllerClose(
-            /** @type {ReadableStreamDefaultController<any>} */ branch1[
+            branch1[
               _controller
-            ],
+            ] as ReadableStreamDefaultController<any>,
           );
         }
         if (canceled2 === false) {
           readableStreamDefaultControllerClose(
-            /** @type {ReadableStreamDefaultController<any>} */ branch2[
+            branch2[
               _controller
-            ],
+            ] as ReadableStreamDefaultController<any>,
           );
         }
         if (canceled1 === false || canceled2 === false) {
@@ -2572,11 +2241,7 @@ function readableStreamDefaultTee(stream, cloneForBranch2) {
     return resolvePromiseWith(undefined);
   }
 
-  /**
-   * @param {any} reason
-   * @returns {Promise<void>}
-   */
-  function cancel1Algorithm(reason) {
+  function cancel1Algorithm(reason: any): Promise<void> {
     canceled1 = true;
     reason1 = reason;
     if (canceled2 === true) {
@@ -2587,11 +2252,7 @@ function readableStreamDefaultTee(stream, cloneForBranch2) {
     return cancelPromise.promise;
   }
 
-  /**
-   * @param {any} reason
-   * @returns {Promise<void>}
-   */
-  function cancel2Algorithm(reason) {
+  function cancel2Algorithm(reason: any): Promise<void> {
     canceled2 = true;
     reason2 = reason;
     if (canceled1 === true) {
@@ -2617,15 +2278,15 @@ function readableStreamDefaultTee(stream, cloneForBranch2) {
 
   uponRejection(reader[_closedPromise].promise, (r) => {
     readableStreamDefaultControllerError(
-      /** @type {ReadableStreamDefaultController<any>} */ branch1[
+      branch1[
         _controller
-      ],
+      ] as ReadableStreamDefaultController<any>,
       r,
     );
     readableStreamDefaultControllerError(
-      /** @type {ReadableStreamDefaultController<any>} */ branch2[
+      branch2[
         _controller
-      ],
+      ] as ReadableStreamDefaultController<any>,
       r,
     );
     if (canceled1 === false || canceled2 === false) {
@@ -2636,12 +2297,7 @@ function readableStreamDefaultTee(stream, cloneForBranch2) {
   return [branch1, branch2];
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @returns {[ReadableStream<R>, ReadableStream<R>]}
- */
-function readableByteStreamTee(stream) {
+function readableByteStreamTee<R>(stream: ReadableStream<R>): [ReadableStream<R>, ReadableStream<R>] {
   assert(isReadableStream(stream));
   assert(
     ObjectPrototypeIsPrototypeOf(
@@ -2659,13 +2315,10 @@ function readableByteStreamTee(stream) {
   let reason2 = undefined;
   let branch1 = undefined;
   let branch2 = undefined;
-  /** @type {Deferred<void>} */
-  const cancelPromise = new Deferred();
 
-  /**
-   * @param {ReadableStreamBYOBReader} thisReader
-   */
-  function forwardReaderError(thisReader) {
+  const cancelPromise: Deferred<void> = new Deferred();
+
+  function forwardReaderError(thisReader: ReadableStreamBYOBReader) {
     PromisePrototypeCatch(thisReader[_closedPromise].promise, (e) => {
       if (thisReader !== reader) {
         return;
@@ -2683,11 +2336,11 @@ function readableByteStreamTee(stream) {
       assert(reader[_readIntoRequests].length === 0);
       readableStreamBYOBReaderRelease(reader);
       reader = acquireReadableStreamDefaultReader(stream);
+      // @ts-ignore
       forwardReaderError(reader);
     }
 
-    /** @type {ReadRequest} */
-    const readRequest = {
+    const readRequest: ReadRequest = {
       chunkSteps(chunk) {
         queueMicrotask(() => {
           readAgainForBranch1 = false;
@@ -2747,14 +2400,15 @@ function readableByteStreamTee(stream) {
     if (isReadableStreamDefaultReader(reader)) {
       assert(reader[_readRequests].length === 0);
       readableStreamDefaultReaderRelease(reader);
+      // @ts-ignore
       reader = acquireReadableStreamBYOBReader(stream);
+      // @ts-ignore
       forwardReaderError(reader);
     }
     const byobBranch = forBranch2 ? branch2 : branch1;
     const otherBranch = forBranch2 ? branch1 : branch2;
 
-    /** @type {ReadIntoRequest} */
-    const readIntoRequest = {
+    const readIntoRequest: ReadIntoRequest = {
       chunkSteps(chunk) {
         queueMicrotask(() => {
           readAgainForBranch1 = false;
@@ -2828,6 +2482,7 @@ function readableByteStreamTee(stream) {
         reading = false;
       },
     };
+    // @ts-ignore
     readableStreamBYOBReaderRead(reader, view, readIntoRequest);
   }
 
@@ -2904,28 +2559,19 @@ function readableByteStreamTee(stream) {
 
   branch1[_original] = stream;
   branch2[_original] = stream;
-
+  // @ts-ignore
   forwardReaderError(reader);
   return [branch1, branch2];
 }
 
-/**
- * @param {ReadableStream<ArrayBuffer>} stream
- * @param {ReadableByteStreamController} controller
- * @param {() => void} startAlgorithm
- * @param {() => Promise<void>} pullAlgorithm
- * @param {(reason: any) => Promise<void>} cancelAlgorithm
- * @param {number} highWaterMark
- * @param {number | undefined} autoAllocateChunkSize
- */
 function setUpReadableByteStreamController(
-  stream,
-  controller,
-  startAlgorithm,
-  pullAlgorithm,
-  cancelAlgorithm,
-  highWaterMark,
-  autoAllocateChunkSize,
+  stream: ReadableStream<ArrayBuffer>,
+  controller: ReadableByteStreamController,
+  startAlgorithm: () => void,
+  pullAlgorithm: () => Promise<void>,
+  cancelAlgorithm: (reason: any) => Promise<void>,
+  highWaterMark: number,
+  autoAllocateChunkSize?: number,
 ) {
   assert(stream[_controller] === undefined);
   if (autoAllocateChunkSize !== undefined) {
@@ -2961,25 +2607,16 @@ function setUpReadableByteStreamController(
   );
 }
 
-/**
- * @param {ReadableStream<ArrayBuffer>} stream
- * @param {UnderlyingSource<ArrayBuffer>} underlyingSource
- * @param {UnderlyingSource<ArrayBuffer>} underlyingSourceDict
- * @param {number} highWaterMark
- */
 function setUpReadableByteStreamControllerFromUnderlyingSource(
-  stream,
-  underlyingSource,
-  underlyingSourceDict,
-  highWaterMark,
+  stream: ReadableStream<ArrayBuffer>,
+  underlyingSource: UnderlyingSource<ArrayBuffer>,
+  underlyingSourceDict: UnderlyingSource<ArrayBuffer>,
+  highWaterMark: number,
 ) {
   const controller = webidl.createBranded(ReadableByteStreamController);
-  /** @type {() => void} */
-  let startAlgorithm = () => undefined;
-  /** @type {() => Promise<void>} */
-  let pullAlgorithm = () => resolvePromiseWith(undefined);
-  /** @type {(reason: any) => Promise<void>} */
-  let cancelAlgorithm = (_reason) => resolvePromiseWith(undefined);
+  let startAlgorithm: () => void = () => undefined;
+  let pullAlgorithm: () => Promise<void> = () => resolvePromiseWith(undefined);
+  let cancelAlgorithm: (reason: any) => Promise<void> = (_reason) => resolvePromiseWith(undefined);
   if (underlyingSourceDict.start !== undefined) {
     startAlgorithm = () =>
       webidl.invokeCallbackFunction(
@@ -3036,24 +2673,14 @@ function setUpReadableByteStreamControllerFromUnderlyingSource(
   );
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {ReadableStreamDefaultController<R>} controller
- * @param {(controller: ReadableStreamDefaultController<R>) => void | Promise<void>} startAlgorithm
- * @param {(controller: ReadableStreamDefaultController<R>) => Promise<void>} pullAlgorithm
- * @param {(reason: any) => Promise<void>} cancelAlgorithm
- * @param {number} highWaterMark
- * @param {(chunk: R) => number} sizeAlgorithm
- */
-function setUpReadableStreamDefaultController(
-  stream,
-  controller,
-  startAlgorithm,
-  pullAlgorithm,
-  cancelAlgorithm,
-  highWaterMark,
-  sizeAlgorithm,
+function setUpReadableStreamDefaultController<R>(
+  stream: ReadableStream<R>,
+  controller: ReadableStreamDefaultController<R>,
+  startAlgorithm: (controller: ReadableStreamDefaultController<R>) => void | Promise<void>,
+  pullAlgorithm: (controller: ReadableStreamDefaultController<R>) => Promise<void>,
+  cancelAlgorithm: (reason: any) => Promise<void>,
+  highWaterMark: number,
+  sizeAlgorithm: (chunk: R) => number,
 ) {
   assert(stream[_controller] === undefined);
   controller[_stream] = stream;
@@ -3080,28 +2707,17 @@ function setUpReadableStreamDefaultController(
   });
 }
 
-/**
- * @template R
- * @param {ReadableStream<R>} stream
- * @param {UnderlyingSource<R>} underlyingSource
- * @param {UnderlyingSource<R>} underlyingSourceDict
- * @param {number} highWaterMark
- * @param {(chunk: R) => number} sizeAlgorithm
- */
-function setUpReadableStreamDefaultControllerFromUnderlyingSource(
-  stream,
-  underlyingSource,
-  underlyingSourceDict,
-  highWaterMark,
-  sizeAlgorithm,
+function setUpReadableStreamDefaultControllerFromUnderlyingSource<R>(
+  stream: ReadableStream<R>,
+  underlyingSource: UnderlyingSource<R>,
+  underlyingSourceDict: UnderlyingSource<R>,
+  highWaterMark: number,
+  sizeAlgorithm: (chunk: R) => number,
 ) {
   const controller = webidl.createBranded(ReadableStreamDefaultController);
-  /** @type {() => Promise<void>} */
-  let startAlgorithm = () => undefined;
-  /** @type {() => Promise<void>} */
-  let pullAlgorithm = () => resolvePromiseWith(undefined);
-  /** @type {(reason?: any) => Promise<void>} */
-  let cancelAlgorithm = () => resolvePromiseWith(undefined);
+  let startAlgorithm: () => Promise<void> = () => undefined;
+  let pullAlgorithm: () => Promise<void> = () => resolvePromiseWith(undefined);
+  let cancelAlgorithm: (reason?: any) => Promise<void> = () => resolvePromiseWith(undefined);
   if (underlyingSourceDict.start !== undefined) {
     startAlgorithm = () =>
       webidl.invokeCallbackFunction(
@@ -3154,12 +2770,7 @@ function setUpReadableStreamDefaultControllerFromUnderlyingSource(
   );
 }
 
-/**
- * @template R
- * @param {ReadableStreamBYOBReader} reader
- * @param {ReadableStream<R>} stream
- */
-function setUpReadableStreamBYOBReader(reader, stream) {
+function setUpReadableStreamBYOBReader<R>(reader: ReadableStreamBYOBReader, stream: ReadableStream<R>) {
   if (isReadableStreamLocked(stream)) {
     throw new TypeError("ReadableStream is locked.");
   }
@@ -3175,12 +2786,7 @@ function setUpReadableStreamBYOBReader(reader, stream) {
   reader[_readIntoRequests] = [];
 }
 
-/**
- * @template R
- * @param {ReadableStreamDefaultReader<R>} reader
- * @param {ReadableStream<R>} stream
- */
-function setUpReadableStreamDefaultReader(reader, stream) {
+function setUpReadableStreamDefaultReader<R>(reader: ReadableStreamDefaultReader<R>, stream: ReadableStream<R>) {
   if (isReadableStreamLocked(stream)) {
     throw new TypeError("ReadableStream is locked.");
   }
@@ -3188,18 +2794,11 @@ function setUpReadableStreamDefaultReader(reader, stream) {
   reader[_readRequests] = [];
 }
 
-/**
- * @template O
- * @param {TransformStream<any, O>} stream
- * @param {TransformStreamDefaultController<O>} controller
- * @param {(chunk: O, controller: TransformStreamDefaultController<O>) => Promise<void>} transformAlgorithm
- * @param {(controller: TransformStreamDefaultController<O>) => Promise<void>} flushAlgorithm
- */
-function setUpTransformStreamDefaultController(
-  stream,
-  controller,
-  transformAlgorithm,
-  flushAlgorithm,
+function setUpTransformStreamDefaultController<O>(
+  stream: TransformStream<any, O>,
+  controller: TransformStreamDefaultController<O>,
+  transformAlgorithm: (chunk: O, controller: TransformStreamDefaultController<O>) => Promise<void>,
+  flushAlgorithm: (controller: TransformStreamDefaultController<O>) => Promise<void>,
 ) {
   assert(ObjectPrototypeIsPrototypeOf(TransformStreamPrototype, stream));
   assert(stream[_controller] === undefined);
@@ -3209,22 +2808,13 @@ function setUpTransformStreamDefaultController(
   controller[_flushAlgorithm] = flushAlgorithm;
 }
 
-/**
- * @template I
- * @template O
- * @param {TransformStream<I, O>} stream
- * @param {Transformer<I, O>} transformer
- * @param {Transformer<I, O>} transformerDict
- */
-function setUpTransformStreamDefaultControllerFromTransformer(
-  stream,
-  transformer,
-  transformerDict,
+function setUpTransformStreamDefaultControllerFromTransformer<I, O>(
+  stream: TransformStream<I, O>,
+  transformer: Transformer<I, O>,
+  transformerDict: Transformer<I, O>,
 ) {
-  /** @type {TransformStreamDefaultController<O>} */
-  const controller = webidl.createBranded(TransformStreamDefaultController);
-  /** @type {(chunk: O, controller: TransformStreamDefaultController<O>) => Promise<void>} */
-  let transformAlgorithm = (chunk) => {
+  const controller: TransformStreamDefaultController<O> = webidl.createBranded(TransformStreamDefaultController);
+  let transformAlgorithm: (chunk: O, controller: TransformStreamDefaultController<O>) => Promise<void> = (chunk) => {
     try {
       transformStreamDefaultControllerEnqueue(controller, chunk);
     } catch (e) {
@@ -3232,8 +2822,8 @@ function setUpTransformStreamDefaultControllerFromTransformer(
     }
     return resolvePromiseWith(undefined);
   };
-  /** @type {(controller: TransformStreamDefaultController<O>) => Promise<void>} */
-  let flushAlgorithm = () => resolvePromiseWith(undefined);
+
+  let flushAlgorithm: (controller: TransformStreamDefaultController<O>) => Promise<void> = () => resolvePromiseWith(undefined);
   if (transformerDict.transform !== undefined) {
     transformAlgorithm = (chunk, controller) =>
       webidl.invokeCallbackFunction(
@@ -3270,26 +2860,15 @@ function setUpTransformStreamDefaultControllerFromTransformer(
   );
 }
 
-/**
- * @template W
- * @param {WritableStream<W>} stream
- * @param {WritableStreamDefaultController<W>} controller
- * @param {(controller: WritableStreamDefaultController<W>) => Promise<void>} startAlgorithm
- * @param {(chunk: W, controller: WritableStreamDefaultController<W>) => Promise<void>} writeAlgorithm
- * @param {() => Promise<void>} closeAlgorithm
- * @param {(reason?: any) => Promise<void>} abortAlgorithm
- * @param {number} highWaterMark
- * @param {(chunk: W) => number} sizeAlgorithm
- */
-function setUpWritableStreamDefaultController(
-  stream,
-  controller,
-  startAlgorithm,
-  writeAlgorithm,
-  closeAlgorithm,
-  abortAlgorithm,
-  highWaterMark,
-  sizeAlgorithm,
+function setUpWritableStreamDefaultController<W>(
+  stream: WritableStream<W>,
+  controller: WritableStreamDefaultController<W>,
+  startAlgorithm: (controller: WritableStreamDefaultController<W>) => Promise<void>,
+  writeAlgorithm: (chunk: W, controller: WritableStreamDefaultController<W>) => Promise<void>,
+  closeAlgorithm: () => Promise<void>,
+  abortAlgorithm: (reason?: any) => Promise<void>,
+  highWaterMark: number,
+  sizeAlgorithm: (chunk: W) => number,
 ) {
   assert(isWritableStream(stream));
   assert(stream[_controller] === undefined);
@@ -3320,29 +2899,18 @@ function setUpWritableStreamDefaultController(
   });
 }
 
-/**
- * @template W
- * @param {WritableStream<W>} stream
- * @param {UnderlyingSink<W>} underlyingSink
- * @param {UnderlyingSink<W>} underlyingSinkDict
- * @param {number} highWaterMark
- * @param {(chunk: W) => number} sizeAlgorithm
- */
-function setUpWritableStreamDefaultControllerFromUnderlyingSink(
-  stream,
-  underlyingSink,
-  underlyingSinkDict,
-  highWaterMark,
-  sizeAlgorithm,
+function setUpWritableStreamDefaultControllerFromUnderlyingSink<W>(
+  stream: WritableStream<W>,
+  underlyingSink: UnderlyingSink<W>,
+  underlyingSinkDict: UnderlyingSink<W>,
+  highWaterMark: number,
+  sizeAlgorithm: (chunk: W) => number,
 ) {
   const controller = webidl.createBranded(WritableStreamDefaultController);
-  /** @type {(controller: WritableStreamDefaultController<W>) => any} */
-  let startAlgorithm = () => undefined;
-  /** @type {(chunk: W, controller: WritableStreamDefaultController<W>) => Promise<void>} */
-  let writeAlgorithm = () => resolvePromiseWith(undefined);
+  let startAlgorithm: (controller: WritableStreamDefaultController<W>) => any = () => undefined;
+  let writeAlgorithm: (chunk: W, controller: WritableStreamDefaultController<W>) => Promise<void> = () => resolvePromiseWith(undefined);
   let closeAlgorithm = () => resolvePromiseWith(undefined);
-  /** @type {(reason?: any) => Promise<void>} */
-  let abortAlgorithm = () => resolvePromiseWith(undefined);
+  let abortAlgorithm: (reason?: any) => Promise<void> = () => resolvePromiseWith(undefined);
 
   if (underlyingSinkDict.start !== undefined) {
     startAlgorithm = () =>
@@ -3411,12 +2979,7 @@ function setUpWritableStreamDefaultControllerFromUnderlyingSink(
   );
 }
 
-/**
- * @template W
- * @param {WritableStreamDefaultWriter<W>} writer
- * @param {WritableStream<W>} stream
- */
-function setUpWritableStreamDefaultWriter(writer, stream) {
+function setUpWritableStreamDefaultWriter<W>(writer: WritableStreamDefaultWriter<W>, stream: WritableStream<W>) {
   if (isWritableStreamLocked(stream) === true) {
     throw new TypeError("The stream is already locked.");
   }
@@ -3456,30 +3019,24 @@ function setUpWritableStreamDefaultWriter(writer, stream) {
   }
 }
 
-/** @param {TransformStreamDefaultController} controller */
-function transformStreamDefaultControllerClearAlgorithms(controller) {
+function transformStreamDefaultControllerClearAlgorithms(controller: TransformStreamDefaultController) {
   controller[_transformAlgorithm] = undefined;
   controller[_flushAlgorithm] = undefined;
 }
 
-/**
- * @template O
- * @param {TransformStreamDefaultController<O>} controller
- * @param {O} chunk
- */
-function transformStreamDefaultControllerEnqueue(controller, chunk) {
+function transformStreamDefaultControllerEnqueue<O>(controller: TransformStreamDefaultController<O>, chunk: O) {
   const stream = controller[_stream];
-  const readableController = stream[_readable][_controller];
+  const readableController: ReadableStreamDefaultController<O> = stream[_readable][_controller];
   if (
     readableStreamDefaultControllerCanCloseOrEnqueue(
-      /** @type {ReadableStreamDefaultController<O>} */ readableController,
+      readableController,
     ) === false
   ) {
     throw new TypeError("Readable stream is unavailable.");
   }
   try {
     readableStreamDefaultControllerEnqueue(
-      /** @type {ReadableStreamDefaultController<O>} */ readableController,
+      readableController,
       chunk,
     );
   } catch (e) {
@@ -3487,7 +3044,7 @@ function transformStreamDefaultControllerEnqueue(controller, chunk) {
     throw stream[_readable][_storedError];
   }
   const backpressure = readableStreamDefaultcontrollerHasBackpressure(
-    /** @type {ReadableStreamDefaultController<O>} */ readableController,
+    readableController,
   );
   if (backpressure !== stream[_backpressure]) {
     assert(backpressure === true);
@@ -3495,21 +3052,11 @@ function transformStreamDefaultControllerEnqueue(controller, chunk) {
   }
 }
 
-/**
- * @param {TransformStreamDefaultController} controller
- * @param {any=} e
- */
-function transformStreamDefaultControllerError(controller, e) {
+function transformStreamDefaultControllerError(controller: TransformStreamDefaultController, e?: any) {
   transformStreamError(controller[_stream], e);
 }
 
-/**
- * @template O
- * @param {TransformStreamDefaultController<O>} controller
- * @param {any} chunk
- * @returns {Promise<void>}
- */
-function transformStreamDefaultControllerPerformTransform(controller, chunk) {
+function transformStreamDefaultControllerPerformTransform<O>(controller: TransformStreamDefaultController<O>, chunk: any): Promise<void> {
   const transformPromise = controller[_transformAlgorithm](chunk, controller);
   return transformPromiseWith(transformPromise, undefined, (r) => {
     transformStreamError(controller[_stream], r);
@@ -3517,34 +3064,22 @@ function transformStreamDefaultControllerPerformTransform(controller, chunk) {
   });
 }
 
-/** @param {TransformStreamDefaultController} controller */
-function transformStreamDefaultControllerTerminate(controller) {
+function transformStreamDefaultControllerTerminate(controller: TransformStreamDefaultController) {
   const stream = controller[_stream];
-  const readableController = stream[_readable][_controller];
+  const readableController: ReadableStreamDefaultController = stream[_readable][_controller];
   readableStreamDefaultControllerClose(
-    /** @type {ReadableStreamDefaultController} */ readableController,
+    readableController,
   );
   const error = new TypeError("The stream has been terminated.");
   transformStreamErrorWritableAndUnblockWrite(stream, error);
 }
 
-/**
- * @param {TransformStream} stream
- * @param {any=} reason
- * @returns {Promise<void>}
- */
-function transformStreamDefaultSinkAbortAlgorithm(stream, reason) {
+function transformStreamDefaultSinkAbortAlgorithm(stream: TransformStream, reason?: any): Promise<void> {
   transformStreamError(stream, reason);
   return resolvePromiseWith(undefined);
 }
 
-/**
- * @template I
- * @template O
- * @param {TransformStream<I, O>} stream
- * @returns {Promise<void>}
- */
-function transformStreamDefaultSinkCloseAlgorithm(stream) {
+function transformStreamDefaultSinkCloseAlgorithm<I, O>(stream: TransformStream<I, O>): Promise<void> {
   const readable = stream[_readable];
   const controller = stream[_controller];
   const flushPromise = controller[_flushAlgorithm](controller);
@@ -3554,7 +3089,7 @@ function transformStreamDefaultSinkCloseAlgorithm(stream) {
       throw readable[_storedError];
     }
     readableStreamDefaultControllerClose(
-      /** @type {ReadableStreamDefaultController} */ readable[_controller],
+      readable[_controller] as ReadableStreamDefaultController,
     );
   }, (r) => {
     transformStreamError(stream, r);
@@ -3562,14 +3097,7 @@ function transformStreamDefaultSinkCloseAlgorithm(stream) {
   });
 }
 
-/**
- * @template I
- * @template O
- * @param {TransformStream<I, O>} stream
- * @param {I} chunk
- * @returns {Promise<void>}
- */
-function transformStreamDefaultSinkWriteAlgorithm(stream, chunk) {
+function transformStreamDefaultSinkWriteAlgorithm<I, O>(stream: TransformStream<I, O>, chunk: I): Promise<void> {
   assert(stream[_writable][_state] === "writable");
   const controller = stream[_controller];
   if (stream[_backpressure] === true) {
@@ -3591,36 +3119,24 @@ function transformStreamDefaultSinkWriteAlgorithm(stream, chunk) {
   return transformStreamDefaultControllerPerformTransform(controller, chunk);
 }
 
-/**
- * @param {TransformStream} stream
- * @returns {Promise<void>}
- */
-function transformStreamDefaultSourcePullAlgorithm(stream) {
+function transformStreamDefaultSourcePullAlgorithm(stream: TransformStream): Promise<void> {
   assert(stream[_backpressure] === true);
   assert(stream[_backpressureChangePromise] !== undefined);
   transformStreamSetBackpressure(stream, false);
   return stream[_backpressureChangePromise].promise;
 }
 
-/**
- * @param {TransformStream} stream
- * @param {any=} e
- */
-function transformStreamError(stream, e) {
+function transformStreamError(stream: TransformStream, e?: any) {
   readableStreamDefaultControllerError(
-    /** @type {ReadableStreamDefaultController} */ stream[_readable][
+    stream[_readable][
       _controller
-    ],
+    ] as ReadableStreamDefaultController,
     e,
   );
   transformStreamErrorWritableAndUnblockWrite(stream, e);
 }
 
-/**
- * @param {TransformStream} stream
- * @param {any=} e
- */
-function transformStreamErrorWritableAndUnblockWrite(stream, e) {
+function transformStreamErrorWritableAndUnblockWrite(stream: TransformStream, e?: any) {
   transformStreamDefaultControllerClearAlgorithms(stream[_controller]);
   writableStreamDefaultControllerErrorIfNeeded(
     stream[_writable][_controller],
@@ -3631,11 +3147,7 @@ function transformStreamErrorWritableAndUnblockWrite(stream, e) {
   }
 }
 
-/**
- * @param {TransformStream} stream
- * @param {boolean} backpressure
- */
-function transformStreamSetBackpressure(stream, backpressure) {
+function transformStreamSetBackpressure(stream: TransformStream, backpressure: boolean) {
   assert(stream[_backpressure] !== backpressure);
   if (stream[_backpressureChangePromise] !== undefined) {
     stream[_backpressureChangePromise].resolve(undefined);
@@ -3644,12 +3156,7 @@ function transformStreamSetBackpressure(stream, backpressure) {
   stream[_backpressure] = backpressure;
 }
 
-/**
- * @param {WritableStream} stream
- * @param {any=} reason
- * @returns {Promise<void>}
- */
-function writableStreamAbort(stream, reason) {
+function writableStreamAbort(stream: WritableStream, reason?: any): Promise<void> {
   const state = stream[_state];
   if (state === "closed" || state === "errored") {
     return resolvePromiseWith(undefined);
@@ -3667,8 +3174,7 @@ function writableStreamAbort(stream, reason) {
     wasAlreadyErroring = true;
     reason = undefined;
   }
-  /** Deferred<void> */
-  const deferred = new Deferred();
+  const deferred: Deferred<void> = new Deferred();
   stream[_pendingAbortRequest] = {
     deferred,
     reason,
@@ -3680,24 +3186,15 @@ function writableStreamAbort(stream, reason) {
   return deferred.promise;
 }
 
-/**
- * @param {WritableStream} stream
- * @returns {Promise<void>}
- */
-function writableStreamAddWriteRequest(stream) {
+function writableStreamAddWriteRequest(stream: WritableStream): Promise<void> {
   assert(isWritableStreamLocked(stream) === true);
   assert(stream[_state] === "writable");
-  /** @type {Deferred<void>} */
-  const deferred = new Deferred();
+  const deferred: Deferred<void> = new Deferred();
   ArrayPrototypePush(stream[_writeRequests], deferred);
   return deferred.promise;
 }
 
-/**
- * @param {WritableStream} stream
- * @returns {Promise<void>}
- */
-function writableStreamClose(stream) {
+export function writableStreamClose(stream: WritableStream): Promise<void> {
   const state = stream[_state];
   if (state === "closed" || state === "errored") {
     return PromiseReject(
@@ -3706,8 +3203,7 @@ function writableStreamClose(stream) {
   }
   assert(state === "writable" || state === "erroring");
   assert(writableStreamCloseQueuedOrInFlight(stream) === false);
-  /** @type {Deferred<void>} */
-  const deferred = new Deferred();
+  const deferred: Deferred<void> = new Deferred();
   stream[_closeRequest] = deferred;
   const writer = stream[_writer];
   if (
@@ -3720,11 +3216,7 @@ function writableStreamClose(stream) {
   return deferred.promise;
 }
 
-/**
- * @param {WritableStream} stream
- * @returns {boolean}
- */
-function writableStreamCloseQueuedOrInFlight(stream) {
+function writableStreamCloseQueuedOrInFlight(stream: WritableStream): boolean {
   if (
     stream[_closeRequest] === undefined &&
     stream[_inFlightCloseRequest] === undefined
@@ -3734,11 +3226,7 @@ function writableStreamCloseQueuedOrInFlight(stream) {
   return true;
 }
 
-/**
- * @param {WritableStream} stream
- * @param {any=} error
- */
-function writableStreamDealWithRejection(stream, error) {
+function writableStreamDealWithRejection(stream: WritableStream, error?: any) {
   const state = stream[_state];
   if (state === "writable") {
     writableStreamStartErroring(stream, error);
@@ -3748,11 +3236,7 @@ function writableStreamDealWithRejection(stream, error) {
   writableStreamFinishErroring(stream);
 }
 
-/**
- * @template W
- * @param {WritableStreamDefaultController<W>} controller
- */
-function writableStreamDefaultControllerAdvanceQueueIfNeeded(controller) {
+function writableStreamDefaultControllerAdvanceQueueIfNeeded<W>(controller: WritableStreamDefaultController<W>) {
   const stream = controller[_stream];
   if (controller[_started] === false) {
     return;
@@ -3784,51 +3268,32 @@ function writableStreamDefaultControllerClearAlgorithms(controller) {
   controller[_strategySizeAlgorithm] = undefined;
 }
 
-/** @param {WritableStreamDefaultController} controller */
-function writableStreamDefaultControllerClose(controller) {
+function writableStreamDefaultControllerClose(controller: WritableStreamDefaultController) {
   enqueueValueWithSize(controller, _close, 0);
   writableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
 }
 
-/**
- * @param {WritableStreamDefaultController} controller
- * @param {any} error
- */
-function writableStreamDefaultControllerError(controller, error) {
+function writableStreamDefaultControllerError(controller: WritableStreamDefaultController, error: any) {
   const stream = controller[_stream];
   assert(stream[_state] === "writable");
   writableStreamDefaultControllerClearAlgorithms(controller);
   writableStreamStartErroring(stream, error);
 }
 
-/**
- * @param {WritableStreamDefaultController} controller
- * @param {any} error
- */
-function writableStreamDefaultControllerErrorIfNeeded(controller, error) {
+function writableStreamDefaultControllerErrorIfNeeded(controller: WritableStreamDefaultController, error: any) {
   if (controller[_stream][_state] === "writable") {
     writableStreamDefaultControllerError(controller, error);
   }
 }
 
-/**
- * @param {WritableStreamDefaultController} controller
- * @returns {boolean}
- */
-function writableStreamDefaultControllerGetBackpressure(controller) {
+function writableStreamDefaultControllerGetBackpressure(controller: WritableStreamDefaultController): boolean {
   const desiredSize = writableStreamDefaultControllerGetDesiredSize(
     controller,
   );
   return desiredSize <= 0;
 }
 
-/**
- * @template W
- * @param {WritableStreamDefaultController<W>} controller
- * @param {W} chunk
- * @returns {number}
- */
-function writableStreamDefaultControllerGetChunkSize(controller, chunk) {
+function writableStreamDefaultControllerGetChunkSize<W>(controller: WritableStreamDefaultController<W>, chunk: W): number {
   let value;
   try {
     value = controller[_strategySizeAlgorithm](chunk);
@@ -3839,16 +3304,11 @@ function writableStreamDefaultControllerGetChunkSize(controller, chunk) {
   return value;
 }
 
-/**
- * @param {WritableStreamDefaultController} controller
- * @returns {number}
- */
-function writableStreamDefaultControllerGetDesiredSize(controller) {
+function writableStreamDefaultControllerGetDesiredSize(controller: WritableStreamDefaultController): number {
   return controller[_strategyHWM] - controller[_queueTotalSize];
 }
 
-/** @param {WritableStreamDefaultController} controller */
-function writableStreamDefaultControllerProcessClose(controller) {
+function writableStreamDefaultControllerProcessClose(controller: WritableStreamDefaultController) {
   const stream = controller[_stream];
   writableStreamMarkCloseRequestInFlight(stream);
   dequeueValue(controller);
@@ -3862,12 +3322,7 @@ function writableStreamDefaultControllerProcessClose(controller) {
   });
 }
 
-/**
- * @template W
- * @param {WritableStreamDefaultController<W>} controller
- * @param {W} chunk
- */
-function writableStreamDefaultControllerProcessWrite(controller, chunk) {
+function writableStreamDefaultControllerProcessWrite<W>(controller: WritableStreamDefaultController<W>, chunk: W) {
   const stream = controller[_stream];
   writableStreamMarkFirstWriteRequestInFlight(stream);
   const sinkWritePromise = controller[_writeAlgorithm](chunk, controller);
@@ -3894,13 +3349,7 @@ function writableStreamDefaultControllerProcessWrite(controller, chunk) {
   });
 }
 
-/**
- * @template W
- * @param {WritableStreamDefaultController<W>} controller
- * @param {W} chunk
- * @param {number} chunkSize
- */
-function writableStreamDefaultControllerWrite(controller, chunk, chunkSize) {
+function writableStreamDefaultControllerWrite<W>(controller: WritableStreamDefaultController<W>, chunk: W, chunkSize: number) {
   try {
     enqueueValueWithSize(controller, chunk, chunkSize);
   } catch (e) {
@@ -3920,32 +3369,19 @@ function writableStreamDefaultControllerWrite(controller, chunk, chunkSize) {
   writableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
 }
 
-/**
- * @param {WritableStreamDefaultWriter} writer
- * @param {any=} reason
- * @returns {Promise<void>}
- */
-function writableStreamDefaultWriterAbort(writer, reason) {
+function writableStreamDefaultWriterAbort(writer: WritableStreamDefaultWriter, reason?: any): Promise<void> {
   const stream = writer[_stream];
   assert(stream !== undefined);
   return writableStreamAbort(stream, reason);
 }
 
-/**
- * @param {WritableStreamDefaultWriter} writer
- * @returns {Promise<void>}
- */
-function writableStreamDefaultWriterClose(writer) {
+function writableStreamDefaultWriterClose(writer: WritableStreamDefaultWriter): Promise<void> {
   const stream = writer[_stream];
   assert(stream !== undefined);
   return writableStreamClose(stream);
 }
 
-/**
- * @param {WritableStreamDefaultWriter} writer
- * @returns {Promise<void>}
- */
-function writableStreamDefaultWriterCloseWithErrorPropagation(writer) {
+function writableStreamDefaultWriterCloseWithErrorPropagation(writer: WritableStreamDefaultWriter): Promise<void> {
   const stream = writer[_stream];
   assert(stream !== undefined);
   const state = stream[_state];
@@ -3961,13 +3397,9 @@ function writableStreamDefaultWriterCloseWithErrorPropagation(writer) {
   return writableStreamDefaultWriterClose(writer);
 }
 
-/**
- * @param {WritableStreamDefaultWriter} writer
- * @param {any=} error
- */
 function writableStreamDefaultWriterEnsureClosedPromiseRejected(
-  writer,
-  error,
+  writer: WritableStreamDefaultWriter,
+  error?: any,
 ) {
   if (writer[_closedPromise].state === "pending") {
     writer[_closedPromise].reject(error);
@@ -3978,13 +3410,9 @@ function writableStreamDefaultWriterEnsureClosedPromiseRejected(
   setPromiseIsHandledToTrue(writer[_closedPromise].promise);
 }
 
-/**
- * @param {WritableStreamDefaultWriter} writer
- * @param {any=} error
- */
 function writableStreamDefaultWriterEnsureReadyPromiseRejected(
-  writer,
-  error,
+  writer: WritableStreamDefaultWriter,
+  error?: any,
 ) {
   if (writer[_readyPromise].state === "pending") {
     writer[_readyPromise].reject(error);
@@ -3995,11 +3423,7 @@ function writableStreamDefaultWriterEnsureReadyPromiseRejected(
   setPromiseIsHandledToTrue(writer[_readyPromise].promise);
 }
 
-/**
- * @param {WritableStreamDefaultWriter} writer
- * @returns {number | null}
- */
-function writableStreamDefaultWriterGetDesiredSize(writer) {
+function writableStreamDefaultWriterGetDesiredSize(writer: WritableStreamDefaultWriter): number | null {
   const stream = writer[_stream];
   const state = stream[_state];
   if (state === "errored" || state === "erroring") {
@@ -4011,8 +3435,7 @@ function writableStreamDefaultWriterGetDesiredSize(writer) {
   return writableStreamDefaultControllerGetDesiredSize(stream[_controller]);
 }
 
-/** @param {WritableStreamDefaultWriter} writer */
-function writableStreamDefaultWriterRelease(writer) {
+function writableStreamDefaultWriterRelease(writer: WritableStreamDefaultWriter) {
   const stream = writer[_stream];
   assert(stream !== undefined);
   assert(stream[_writer] === writer);
@@ -4031,13 +3454,7 @@ function writableStreamDefaultWriterRelease(writer) {
   writer[_stream] = undefined;
 }
 
-/**
- * @template W
- * @param {WritableStreamDefaultWriter<W>} writer
- * @param {W} chunk
- * @returns {Promise<void>}
- */
-function writableStreamDefaultWriterWrite(writer, chunk) {
+function writableStreamDefaultWriterWrite<W>(writer: WritableStreamDefaultWriter<W>, chunk: W): Promise<void> {
   const stream = writer[_stream];
   assert(stream !== undefined);
   const controller = stream[_controller];
@@ -4068,8 +3485,7 @@ function writableStreamDefaultWriterWrite(writer, chunk) {
   return promise;
 }
 
-/** @param {WritableStream} stream */
-function writableStreamFinishErroring(stream) {
+function writableStreamFinishErroring(stream: WritableStream) {
   assert(stream[_state] === "erroring");
   assert(writableStreamHasOperationMarkedInFlight(stream) === false);
   stream[_state] = "errored";
@@ -4100,8 +3516,7 @@ function writableStreamFinishErroring(stream) {
   });
 }
 
-/** @param {WritableStream} stream */
-function writableStreamFinishInFlightClose(stream) {
+function writableStreamFinishInFlightClose(stream: WritableStream) {
   assert(stream[_inFlightCloseRequest] !== undefined);
   stream[_inFlightCloseRequest].resolve(undefined);
   stream[_inFlightCloseRequest] = undefined;
@@ -4123,11 +3538,7 @@ function writableStreamFinishInFlightClose(stream) {
   assert(stream[_storedError] === undefined);
 }
 
-/**
- * @param {WritableStream} stream
- * @param {any=} error
- */
-function writableStreamFinishInFlightCloseWithError(stream, error) {
+function writableStreamFinishInFlightCloseWithError(stream: WritableStream, error?: any) {
   assert(stream[_inFlightCloseRequest] !== undefined);
   stream[_inFlightCloseRequest].reject(error);
   stream[_inFlightCloseRequest] = undefined;
@@ -4139,18 +3550,13 @@ function writableStreamFinishInFlightCloseWithError(stream, error) {
   writableStreamDealWithRejection(stream, error);
 }
 
-/** @param {WritableStream} stream */
-function writableStreamFinishInFlightWrite(stream) {
+function writableStreamFinishInFlightWrite(stream: WritableStream) {
   assert(stream[_inFlightWriteRequest] !== undefined);
   stream[_inFlightWriteRequest].resolve(undefined);
   stream[_inFlightWriteRequest] = undefined;
 }
 
-/**
- * @param {WritableStream} stream
- * @param {any=} error
- */
-function writableStreamFinishInFlightWriteWithError(stream, error) {
+function writableStreamFinishInFlightWriteWithError(stream: WritableStream, error?: any) {
   assert(stream[_inFlightWriteRequest] !== undefined);
   stream[_inFlightWriteRequest].reject(error);
   stream[_inFlightWriteRequest] = undefined;
@@ -4158,11 +3564,7 @@ function writableStreamFinishInFlightWriteWithError(stream, error) {
   writableStreamDealWithRejection(stream, error);
 }
 
-/**
- * @param {WritableStream} stream
- * @returns {boolean}
- */
-function writableStreamHasOperationMarkedInFlight(stream) {
+function writableStreamHasOperationMarkedInFlight(stream: WritableStream): boolean {
   if (
     stream[_inFlightWriteRequest] === undefined &&
     stream[_inFlightCloseRequest] === undefined
@@ -4172,27 +3574,21 @@ function writableStreamHasOperationMarkedInFlight(stream) {
   return true;
 }
 
-/** @param {WritableStream} stream */
-function writableStreamMarkCloseRequestInFlight(stream) {
+function writableStreamMarkCloseRequestInFlight(stream: WritableStream) {
   assert(stream[_inFlightCloseRequest] === undefined);
   assert(stream[_closeRequest] !== undefined);
   stream[_inFlightCloseRequest] = stream[_closeRequest];
   stream[_closeRequest] = undefined;
 }
 
-/**
- * @template W
- * @param {WritableStream<W>} stream
- */
-function writableStreamMarkFirstWriteRequestInFlight(stream) {
+function writableStreamMarkFirstWriteRequestInFlight<W>(stream: WritableStream<W>) {
   assert(stream[_inFlightWriteRequest] === undefined);
   assert(stream[_writeRequests].length);
   const writeRequest = stream[_writeRequests].shift();
   stream[_inFlightWriteRequest] = writeRequest;
 }
 
-/** @param {WritableStream} stream */
-function writableStreamRejectCloseAndClosedPromiseIfNeeded(stream) {
+function writableStreamRejectCloseAndClosedPromiseIfNeeded(stream: WritableStream) {
   assert(stream[_state] === "errored");
   if (stream[_closeRequest] !== undefined) {
     assert(stream[_inFlightCloseRequest] === undefined);
@@ -4206,11 +3602,7 @@ function writableStreamRejectCloseAndClosedPromiseIfNeeded(stream) {
   }
 }
 
-/**
- * @param {WritableStream} stream
- * @param {any=} reason
- */
-function writableStreamStartErroring(stream, reason) {
+function writableStreamStartErroring(stream: WritableStream, reason?: any) {
   assert(stream[_storedError] === undefined);
   assert(stream[_state] === "writable");
   const controller = stream[_controller];
@@ -4229,11 +3621,7 @@ function writableStreamStartErroring(stream, reason) {
   }
 }
 
-/**
- * @param {WritableStream} stream
- * @param {boolean} backpressure
- */
-function writableStreamUpdateBackpressure(stream, backpressure) {
+function writableStreamUpdateBackpressure(stream: WritableStream, backpressure: boolean) {
   assert(stream[_state] === "writable");
   assert(writableStreamCloseQueuedOrInFlight(stream) === false);
   const writer = stream[_writer];
@@ -4248,13 +3636,7 @@ function writableStreamUpdateBackpressure(stream, backpressure) {
   stream[_backpressure] = backpressure;
 }
 
-/**
- * @template T
- * @param {T} value
- * @param {boolean} done
- * @returns {IteratorResult<T>}
- */
-function createIteratorResult(value, done) {
+export function createIteratorResult<T>(value: T, done: boolean): IteratorResult<T> {
   const result = ObjectCreate(null);
   ObjectDefineProperties(result, {
     value: { value, writable: true, enumerable: true, configurable: true },
@@ -4268,17 +3650,14 @@ function createIteratorResult(value, done) {
   return result;
 }
 
-/** @type {AsyncIterator<unknown, unknown>} */
-const asyncIteratorPrototype = ObjectGetPrototypeOf(
+const asyncIteratorPrototype: AsyncIterator<unknown, unknown> = ObjectGetPrototypeOf(
   ObjectGetPrototypeOf(async function* () {}).prototype,
 );
 
-/** @type {AsyncIterator<unknown>} */
-const readableStreamAsyncIteratorPrototype = ObjectSetPrototypeOf({
-  /** @returns {Promise<IteratorResult<unknown>>} */
-  next() {
-    /** @type {ReadableStreamDefaultReader} */
-    const reader = this[_reader];
+const readableStreamAsyncIteratorPrototype: AsyncIterator<unknown> = ObjectSetPrototypeOf({
+
+  next(): Promise<IteratorResult<unknown>> {
+    const reader: ReadableStreamDefaultReader = this[_reader];
     if (reader[_stream] === undefined) {
       return PromiseReject(
         new TypeError(
@@ -4286,10 +3665,10 @@ const readableStreamAsyncIteratorPrototype = ObjectSetPrototypeOf({
         ),
       );
     }
-    /** @type {Deferred<IteratorResult<any>>} */
-    const promise = new Deferred();
-    /** @type {ReadRequest} */
-    const readRequest = {
+
+    const promise: Deferred<IteratorResult<any>> = new Deferred();
+
+    const readRequest: ReadRequest = {
       chunkSteps(chunk) {
         promise.resolve(createIteratorResult(chunk, false));
       },
@@ -4305,13 +3684,9 @@ const readableStreamAsyncIteratorPrototype = ObjectSetPrototypeOf({
     readableStreamDefaultReaderRead(reader, readRequest);
     return promise.promise;
   },
-  /**
-   * @param {unknown} arg
-   * @returns {Promise<IteratorResult<unknown>>}
-   */
-  async return(arg) {
-    /** @type {ReadableStreamDefaultReader} */
-    const reader = this[_reader];
+
+  async return(arg: unknown): Promise<IteratorResult<unknown>> {
+    const reader: ReadableStreamDefaultReader = this[_reader];
     if (reader[_stream] === undefined) {
       return createIteratorResult(undefined, true);
     }
@@ -4327,9 +3702,8 @@ const readableStreamAsyncIteratorPrototype = ObjectSetPrototypeOf({
   },
 }, asyncIteratorPrototype);
 
-class ByteLengthQueuingStrategy {
-  /** @param {{ highWaterMark: number }} init */
-  constructor(init) {
+export class ByteLengthQueuingStrategy {
+  constructor(init: { highWaterMark: number }) {
     const prefix = "Failed to construct 'ByteLengthQueuingStrategy'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
     init = webidl.converters.QueuingStrategyInit(init, {
@@ -4341,14 +3715,12 @@ class ByteLengthQueuingStrategy {
     this[_highWaterMark] = init.highWaterMark;
   }
 
-  /** @returns {number} */
-  get highWaterMark() {
+  get highWaterMark(): number {
     webidl.assertBranded(this, ByteLengthQueuingStrategyPrototype);
     return this[_highWaterMark];
   }
 
-  /** @returns {(chunk: ArrayBufferView) => number} */
-  get size() {
+  get size(): (chunk: ArrayBufferView) => number {
     webidl.assertBranded(this, ByteLengthQueuingStrategyPrototype);
     initializeByteLengthSizeFunction(this[_globalObject]);
     return WeakMapPrototypeGet(byteSizeFunctionWeakMap, this[_globalObject]);
@@ -4373,8 +3745,7 @@ webidl.configurePrototype(ByteLengthQueuingStrategy);
 const ByteLengthQueuingStrategyPrototype =
   ByteLengthQueuingStrategy.prototype;
 
-/** @type {WeakMap<typeof globalThis, (chunk: ArrayBufferView) => number>} */
-const byteSizeFunctionWeakMap = new WeakMap();
+const byteSizeFunctionWeakMap: WeakMap<typeof globalThis, (chunk: ArrayBufferView) => number> = new WeakMap();
 
 function initializeByteLengthSizeFunction(globalObject) {
   if (WeakMapPrototypeHas(byteSizeFunctionWeakMap, globalObject)) {
@@ -4384,9 +3755,8 @@ function initializeByteLengthSizeFunction(globalObject) {
   WeakMapPrototypeSet(byteSizeFunctionWeakMap, globalObject, size);
 }
 
-class CountQueuingStrategy {
-  /** @param {{ highWaterMark: number }} init */
-  constructor(init) {
+export class CountQueuingStrategy {
+  constructor(init: { highWaterMark: number }) {
     const prefix = "Failed to construct 'CountQueuingStrategy'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
     init = webidl.converters.QueuingStrategyInit(init, {
@@ -4398,14 +3768,12 @@ class CountQueuingStrategy {
     this[_highWaterMark] = init.highWaterMark;
   }
 
-  /** @returns {number} */
-  get highWaterMark() {
+  get highWaterMark(): number {
     webidl.assertBranded(this, CountQueuingStrategyPrototype);
     return this[_highWaterMark];
   }
 
-  /** @returns {(chunk: any) => 1} */
-  get size() {
+  get size(): (chunk: any) => 1 {
     webidl.assertBranded(this, CountQueuingStrategyPrototype);
     initializeCountSizeFunction(this[_globalObject]);
     return WeakMapPrototypeGet(countSizeFunctionWeakMap, this[_globalObject]);
@@ -4429,11 +3797,9 @@ class CountQueuingStrategy {
 webidl.configurePrototype(CountQueuingStrategy);
 const CountQueuingStrategyPrototype = CountQueuingStrategy.prototype;
 
-/** @type {WeakMap<typeof globalThis, () => 1>} */
-const countSizeFunctionWeakMap = new WeakMap();
+const countSizeFunctionWeakMap: WeakMap<typeof globalThis, () => 1> = new WeakMap();
 
-/** @param {typeof globalThis} globalObject */
-function initializeCountSizeFunction(globalObject) {
+function initializeCountSizeFunction(globalObject: typeof globalThis) {
   if (WeakMapPrototypeHas(countSizeFunctionWeakMap, globalObject)) {
     return;
   }
@@ -4442,13 +3808,20 @@ function initializeCountSizeFunction(globalObject) {
 }
 
 const _resourceBacking = Symbol("[[resourceBacking]]");
-class ReadableStream<R = any> {
+export class ReadableStream<R = any> {
+  // @ts-ignore
   [_controller]: ReadableStreamDefaultController | ReadableByteStreamController;
+  // @ts-ignore
   [_detached]: boolean;
+  // @ts-ignore
   [_disturbed]: boolean;
+  // @ts-ignore
   [_reader]: ReadableStreamDefaultReader<R> | ReadableStreamBYOBReader<R>;
+  // @ts-ignore
   [_state]: "readable" | "closed" | "errored";
+  // @ts-ignore
   [_storedError]: any;
+  // @ts-ignore
   [_resourceBacking]: { rid: number, autoClose: boolean } | null = null;
 
   constructor(underlyingSource: UnderlyingSource<R> = undefined, strategy: QueuingStrategy<R> = undefined) {
@@ -4470,7 +3843,7 @@ class ReadableStream<R = any> {
       strategy = {};
     }
     this[webidl.brand] = webidl.brand;
-    let underlyingSourceDict = {};
+    let underlyingSourceDict: any = {};
     if (underlyingSource !== undefined) {
       underlyingSourceDict = webidl.converters.UnderlyingSource(
         underlyingSource,
@@ -4616,8 +3989,7 @@ class ReadableStream<R = any> {
     ) as Promise<void>;
   }
 
-  /** @returns {[ReadableStream<R>, ReadableStream<R>]} */
-  tee() {
+  tee(): [ReadableStream<R>, ReadableStream<R>] {
     webidl.assertBranded(this, ReadableStreamPrototype);
     return readableStreamTee(this, false);
   }
@@ -4630,8 +4002,8 @@ class ReadableStream<R = any> {
       prefix,
       context: "Argument 1",
     });
-    /** @type {AsyncIterableIterator<R>} */
-    const iterator = ObjectCreate(readableStreamAsyncIteratorPrototype);
+
+    const iterator: AsyncIterableIterator<R> = ObjectCreate(readableStreamAsyncIteratorPrototype);
     const reader = acquireReadableStreamDefaultReader(this);
     iterator[_reader] = reader;
     iterator[_preventCancel] = options.preventCancel;
@@ -4653,14 +4025,17 @@ ObjectDefineProperty(ReadableStream.prototype, SymbolAsyncIterator, {
 });
 
 webidl.configurePrototype(ReadableStream);
-const ReadableStreamPrototype = ReadableStream.prototype;
+export const ReadableStreamPrototype = ReadableStream.prototype;
 
-function errorReadableStream(stream, e) {
+export function errorReadableStream(stream, e) {
   readableStreamDefaultControllerError(stream[_controller], e);
 }
-class ReadableStreamDefaultReader<R> {
+export class ReadableStreamDefaultReader<R = any> {
+  // @ts-ignore
   [_closedPromise]: Deferred<void>;
+  // @ts-ignore
   [_stream]: ReadableStream<R> | undefined;
+  // @ts-ignore
   [_readRequests]: ReadRequest[];
 
   constructor(stream: ReadableStream<R>) {
@@ -4747,9 +4122,12 @@ webidl.configurePrototype(ReadableStreamDefaultReader);
 const ReadableStreamDefaultReaderPrototype =
   ReadableStreamDefaultReader.prototype;
 
-class ReadableStreamBYOBReader<R> {
+export class ReadableStreamBYOBReader<R = any> {
+  // @ts-ignore
   [_closedPromise]: Deferred<void>;
+  // @ts-ignore
   [_stream]: ReadableStream<R> | undefined;
+  // @ts-ignore
   [_readIntoRequests]: ReadIntoRequest[];
 
   constructor(stream: ReadableStream<R>) {
@@ -4763,7 +4141,7 @@ class ReadableStreamBYOBReader<R> {
     setUpReadableStreamBYOBReader(this, stream);
   }
 
-  read(view: ArrayBufferView): Promise<ReadableStreamBYOBReadResult> {
+  read(view: ArrayBufferView): Promise<ReadableStreamBYOBReadResult<ArrayBufferView>> {
     try {
       webidl.assertBranded(this, ReadableStreamBYOBReaderPrototype);
       const prefix = "Failed to execute 'read' on 'ReadableStreamBYOBReader'";
@@ -4795,9 +4173,9 @@ class ReadableStreamBYOBReader<R> {
         new TypeError("Reader has no associated stream."),
       );
     }
-    const promise: Deferred<ReadableStreamBYOBReadResult> = new Deferred();
-    /** @type {ReadIntoRequest} */
-    const readIntoRequest = {
+    const promise: Deferred<ReadableStreamBYOBReadResult<ArrayBufferView>> = new Deferred();
+
+    const readIntoRequest: ReadIntoRequest = {
       chunkSteps(chunk) {
         promise.resolve({ value: chunk, done: false });
       },
@@ -4812,8 +4190,7 @@ class ReadableStreamBYOBReader<R> {
     return promise.promise;
   }
 
-  /** @returns {void} */
-  releaseLock() {
+  releaseLock(): void {
     webidl.assertBranded(this, ReadableStreamBYOBReaderPrototype);
     if (this[_stream] === undefined) {
       return;
@@ -4856,14 +4233,13 @@ class ReadableStreamBYOBReader<R> {
 webidl.configurePrototype(ReadableStreamBYOBReader);
 const ReadableStreamBYOBReaderPrototype = ReadableStreamBYOBReader.prototype;
 
-class ReadableStreamBYOBRequest {
-  /** @type {ReadableByteStreamController} */
-  [_controller];
-  /** @type {ArrayBufferView | null} */
-  [_view];
+export class ReadableStreamBYOBRequest {
+  // @ts-ignore
+  [_controller]: ReadableByteStreamController;
+  // @ts-ignore
+  [_view]: ArrayBufferView | null;
 
-  /** @returns {ArrayBufferView | null} */
-  get view() {
+  get view(): ArrayBufferView | null {
     webidl.assertBranded(this, ReadableStreamBYOBRequestPrototype);
     return this[_view];
   }
@@ -4922,46 +4298,44 @@ webidl.configurePrototype(ReadableStreamBYOBRequest);
 const ReadableStreamBYOBRequestPrototype =
   ReadableStreamBYOBRequest.prototype;
 
-class ReadableByteStreamController {
-  /** @type {number | undefined} */
-  [_autoAllocateChunkSize];
-  /** @type {ReadableStreamBYOBRequest | null} */
-  [_byobRequest];
-  /** @type {(reason: any) => Promise<void>} */
-  [_cancelAlgorithm];
-  /** @type {boolean} */
-  [_closeRequested];
-  /** @type {boolean} */
-  [_pullAgain];
-  /** @type {(controller: this) => Promise<void>} */
-  [_pullAlgorithm];
-  /** @type {boolean} */
-  [_pulling];
-  /** @type {PullIntoDescriptor[]} */
-  [_pendingPullIntos];
-  /** @type {ReadableByteStreamQueueEntry[]} */
-  [_queue];
-  /** @type {number} */
-  [_queueTotalSize];
-  /** @type {boolean} */
-  [_started];
-  /** @type {number} */
-  [_strategyHWM];
-  /** @type {ReadableStream<ArrayBuffer>} */
-  [_stream];
+export class ReadableByteStreamController {
+  // @ts-ignore
+  [_autoAllocateChunkSize]: number | undefined;
+  // @ts-ignore
+  [_byobRequest]: ReadableStreamBYOBRequest | null;
+  // @ts-ignore
+  [_cancelAlgorithm]: (reason: any) => Promise<void>;
+  // @ts-ignore
+  [_closeRequested]: boolean;
+  // @ts-ignore
+  [_pullAgain]: boolean;
+  // @ts-ignore
+  [_pullAlgorithm]: (controller: this) => Promise<void>;
+  // @ts-ignore
+  [_pulling]: boolean;
+  // @ts-ignore
+  [_pendingPullIntos]: PullIntoDescriptor[];
+  // @ts-ignore
+  [_queue]: ReadableByteStreamQueueEntry[];
+  // @ts-ignore
+  [_queueTotalSize]: number;
+  // @ts-ignore
+  [_started]: boolean;
+  // @ts-ignore
+  [_strategyHWM]: number;
+  // @ts-ignore
+  [_stream]: ReadableStream<ArrayBuffer>;
 
   constructor() {
     webidl.illegalConstructor();
   }
 
-  /** @returns {ReadableStreamBYOBRequest | null} */
-  get byobRequest() {
+  get byobRequest(): ReadableStreamBYOBRequest | null {
     webidl.assertBranded(this, ReadableByteStreamControllerPrototype);
     return readableByteStreamControllerGetBYOBRequest(this);
   }
 
-  /** @returns {number | null} */
-  get desiredSize() {
+  get desiredSize(): number | null {
     webidl.assertBranded(this, ReadableByteStreamControllerPrototype);
     return readableByteStreamControllerGetDesiredSize(this);
   }
@@ -5043,8 +4417,7 @@ class ReadableByteStreamController {
   }
 
   [_pullSteps](readRequest: ReadRequest<ArrayBuffer>): void {
-    /** @type {ReadableStream<ArrayBuffer>} */
-    const stream = this[_stream];
+    const stream: ReadableStream<ArrayBuffer> = this[_stream];
     assert(readableStreamHasDefaultReader(stream));
     if (this[_queueTotalSize] > 0) {
       assert(readableStreamGetNumReadRequests(stream) === 0);
@@ -5060,8 +4433,8 @@ class ReadableByteStreamController {
         readRequest.errorSteps(e);
         return;
       }
-      /** @type {PullIntoDescriptor} */
-      const pullIntoDescriptor = {
+
+      const pullIntoDescriptor: PullIntoDescriptor = {
         buffer,
         bufferByteLength: autoAllocateChunkSize,
         byteOffset: 0,
@@ -5079,8 +4452,7 @@ class ReadableByteStreamController {
 
   [_releaseSteps]() {
     if (this[_pendingPullIntos].length !== 0) {
-      /** @type {PullIntoDescriptor} */
-      const firstPendingPullInto = this[_pendingPullIntos][0];
+      const firstPendingPullInto: PullIntoDescriptor = this[_pendingPullIntos][0];
       firstPendingPullInto.readerType = "none";
       this[_pendingPullIntos] = [firstPendingPullInto];
     }
@@ -5091,17 +4463,28 @@ webidl.configurePrototype(ReadableByteStreamController);
 const ReadableByteStreamControllerPrototype =
   ReadableByteStreamController.prototype;
 
-class ReadableStreamDefaultController<R> {
+export class ReadableStreamDefaultController<R = any> {
+  // @ts-ignore
   [_cancelAlgorithm]: (reason: any) => Promise<void>;
+  // @ts-ignore
   [_closeRequested]: boolean;
+  // @ts-ignore
   [_pullAgain]: boolean;
+  // @ts-ignore
   [_pullAlgorithm]: (controller: this) => Promise<void>;
+  // @ts-ignore
   [_pulling]: boolean;
+  // @ts-ignore
   [_queue]: Array<ValueWithSize<R>>;
+  // @ts-ignore
   [_queueTotalSize]: number;
+  // @ts-ignore
   [_started]: boolean;
+  // @ts-ignore
   [_strategyHWM]: number;
+  // @ts-ignore
   [_strategySizeAlgorithm]: (chunk: R) => number;
+  // @ts-ignore
   [_stream]: ReadableStream<R>;
 
   constructor() {
@@ -5161,7 +4544,7 @@ class ReadableStreamDefaultController<R> {
   [_pullSteps](readRequest: ReadRequest<R>): void {
     const stream = this[_stream];
     if (this[_queue].length) {
-      const chunk = dequeueValue(this);
+      const chunk: R = dequeueValue(this);
       if (this[_closeRequested] && this[_queue].length === 0) {
         readableStreamDefaultControllerClearAlgorithms(this);
         readableStreamClose(stream);
@@ -5184,16 +4567,18 @@ webidl.configurePrototype(ReadableStreamDefaultController);
 const ReadableStreamDefaultControllerPrototype =
   ReadableStreamDefaultController.prototype;
 
-/**
- * @template I
- * @template O
- */
-class TransformStream<I, O> {
+export class TransformStream<I = any, O = any> {
+  // @ts-ignore
   [_backpressure]: boolean;
+  // @ts-ignore
   [_backpressureChangePromise]: Deferred<void>;
+  // @ts-ignore
   [_controller]: TransformStreamDefaultController<O>;
+  // @ts-ignore
   [_detached]: boolean;
+  // @ts-ignore
   [_readable]: ReadableStream<O>;
+  // @ts-ignore
   [_writable]: WritableStream<I>;
 
   constructor(
@@ -5270,14 +4655,12 @@ class TransformStream<I, O> {
     }
   }
 
-  /** @returns {ReadableStream<O>} */
-  get readable() {
+  get readable(): ReadableStream<O> {
     webidl.assertBranded(this, TransformStreamPrototype);
     return this[_readable];
   }
 
-  /** @returns {WritableStream<I>} */
-  get writable() {
+  get writable(): WritableStream<I> {
     webidl.assertBranded(this, TransformStreamPrototype);
     return this[_writable];
   }
@@ -5292,9 +4675,12 @@ class TransformStream<I, O> {
 webidl.configurePrototype(TransformStream);
 const TransformStreamPrototype = TransformStream.prototype;
 
-class TransformStreamDefaultController<O> {
+export class TransformStreamDefaultController<O = any> {
+  // @ts-ignore
   [_flushAlgorithm]: (controller: this) => Promise<void>;
+  // @ts-ignore
   [_stream]: TransformStream<O>;
+  // @ts-ignore
   [_transformAlgorithm]: (chunk: O, controller: this) => Promise<void>;
 
   constructor() {
@@ -5303,9 +4689,9 @@ class TransformStreamDefaultController<O> {
 
   get desiredSize(): number | null {
     webidl.assertBranded(this, TransformStreamDefaultController.prototype);
-    const readableController = this[_stream][_readable][_controller];
+    const readableController: ReadableStreamDefaultController<O> = this[_stream][_readable][_controller];
     return readableStreamDefaultControllerGetDesiredSize(
-      /** @type {ReadableStreamDefaultController<O>} */ readableController,
+      readableController,
     );
   }
 
@@ -5314,7 +4700,7 @@ class TransformStreamDefaultController<O> {
     if (chunk !== undefined) {
       chunk = webidl.converters.any(chunk);
     }
-    transformStreamDefaultControllerEnqueue(this, chunk);
+    transformStreamDefaultControllerEnqueue(this, chunk as O);
   }
 
   error(reason: any = undefined): void {
@@ -5346,17 +4732,28 @@ webidl.configurePrototype(TransformStreamDefaultController);
 const TransformStreamDefaultControllerPrototype =
   TransformStreamDefaultController.prototype;
 
-class WritableStream<W = any> {
+export class WritableStream<W = any> {
+  // @ts-ignore
   [_backpressure]: boolean;
+  // @ts-ignore
   [_closeRequest]: Deferred<void> | undefined;
+  // @ts-ignore
   [_controller]: WritableStreamDefaultController<W>;
+  // @ts-ignore
   [_detached]: boolean;
+  // @ts-ignore
   [_inFlightWriteRequest]: Deferred<void> | undefined;
+  // @ts-ignore
   [_inFlightCloseRequest]: Deferred<void> | undefined;
+  // @ts-ignore
   [_pendingAbortRequest]: PendingAbortRequest | undefined;
+  // @ts-ignore
   [_state]: "writable" | "closed" | "erroring" | "errored";
+  // @ts-ignore
   [_storedError]: WritableStreamDefaultWriter<W>;
+  // @ts-ignore
   [_writer];
+  // @ts-ignore
   [_writeRequests]: Deferred<void>[];
 
   constructor(underlyingSink: UnderlyingSink<W> = undefined, strategy: QueuingStrategy<W> = {}) {
@@ -5396,17 +4793,12 @@ class WritableStream<W = any> {
     );
   }
 
-  /** @returns {boolean} */
-  get locked() {
+  get locked(): boolean {
     webidl.assertBranded(this, WritableStreamPrototype);
     return isWritableStreamLocked(this);
   }
 
-  /**
-   * @param {any=} reason
-   * @returns {Promise<void>}
-   */
-  abort(reason = undefined) {
+  abort(reason: any = undefined): Promise<void> {
     try {
       webidl.assertBranded(this, WritableStreamPrototype);
     } catch (err) {
@@ -5425,8 +4817,7 @@ class WritableStream<W = any> {
     return writableStreamAbort(this, reason);
   }
 
-  /** @returns {Promise<void>} */
-  close() {
+  close(): Promise<void> {
     try {
       webidl.assertBranded(this, WritableStreamPrototype);
     } catch (err) {
@@ -5447,8 +4838,7 @@ class WritableStream<W = any> {
     return writableStreamClose(this);
   }
 
-  /** @returns {WritableStreamDefaultWriter<W>} */
-  getWriter() {
+  getWriter(): WritableStreamDefaultWriter<W> {
     webidl.assertBranded(this, WritableStreamPrototype);
     return acquireWritableStreamDefaultWriter(this);
   }
@@ -5461,12 +4851,12 @@ class WritableStream<W = any> {
 webidl.configurePrototype(WritableStream);
 const WritableStreamPrototype = WritableStream.prototype;
 
-/** @template W */
-class WritableStreamDefaultWriter<W> {
+export class WritableStreamDefaultWriter<W = any> {
+  // @ts-ignore
   [_closedPromise]: Deferred<void>;
-
+  // @ts-ignore
   [_readyPromise]: Deferred<void>;
-
+  // @ts-ignore
   [_stream]: WritableStream<W>;
 
   constructor(stream: WritableStream<W>) {
@@ -5592,16 +4982,26 @@ webidl.configurePrototype(WritableStreamDefaultWriter);
 const WritableStreamDefaultWriterPrototype =
   WritableStreamDefaultWriter.prototype;
 
-class WritableStreamDefaultController<W> {
+export class WritableStreamDefaultController<W = any> {
+  // @ts-ignore
   [_abortAlgorithm]: (reason?: any) => Promise<void>;
+  // @ts-ignore
   [_closeAlgorithm]: () => Promise<void>;
+  // @ts-ignore
   [_queue]: ValueWithSize<W>[];
+  // @ts-ignore
   [_queueTotalSize]: number;
+  // @ts-ignore
   [_started]: boolean;
+  // @ts-ignore
   [_strategyHWM]: number;
+  // @ts-ignore
   [_strategySizeAlgorithm]: (chunk: W) => number;
+  // @ts-ignore
   [_stream]: WritableStream<W>;
+  // @ts-ignore
   [_writeAlgorithm]: (chunk: W, controller: this) => Promise<void>;
+  // @ts-ignore
   [_signal]: AbortSignal;
 
   get signal() {
@@ -5651,7 +5051,7 @@ webidl.configurePrototype(WritableStreamDefaultController);
 const WritableStreamDefaultControllerPrototype =
   WritableStreamDefaultController.prototype;
 
-function createProxy(stream: ReadableStream) {
+export function createProxy(stream: ReadableStream) {
   return stream.pipeThrough(new TransformStream());
 }
 
@@ -5807,40 +5207,3 @@ webidl.converters.StreamPipeOptions = webidl
     },
     { key: "signal", converter: webidl.converters.AbortSignal },
   ]);
-
-// packages/deno/runtime/src/ext/web/06_streams.ts
-window.__bootstrap.streams = {
-  // Non-Public
-  _state,
-  isReadableStreamDisturbed,
-  errorReadableStream,
-  createProxy,
-  writableStreamClose,
-  readableStreamClose,
-  readableStreamCollectIntoUint8Array,
-  readableStreamDisturb,
-  readableStreamForRid,
-  readableStreamForRidUnrefable,
-  readableStreamForRidUnrefableRef,
-  readableStreamForRidUnrefableUnref,
-  readableStreamThrowIfErrored,
-  getReadableStreamResourceBacking,
-  writableStreamForRid,
-  getWritableStreamResourceBacking,
-  Deferred,
-  // Exposed in global runtime scope
-  ByteLengthQueuingStrategy,
-  CountQueuingStrategy,
-  ReadableStream,
-  ReadableStreamPrototype,
-  ReadableStreamDefaultReader,
-  TransformStream,
-  WritableStream,
-  WritableStreamDefaultWriter,
-  WritableStreamDefaultController,
-  ReadableByteStreamController,
-  ReadableStreamBYOBReader,
-  ReadableStreamBYOBRequest,
-  ReadableStreamDefaultController,
-  TransformStreamDefaultController,
-};

@@ -1603,4 +1603,3 @@ export function reportError(error: any): void {
   webidl.requiredArguments(arguments.length, 1, { prefix });
   reportException(error);
 }
-

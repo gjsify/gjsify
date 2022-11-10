@@ -37,7 +37,7 @@ interface MimeType {
   parameters: Map<string,string>;
 }
 
-function parseMimeType(input: string): MimeType | null {
+export function parseMimeType(input: string): MimeType | null {
   // 1.
   input = StringPrototypeReplaceAll(input, HTTP_WHITESPACE_PREFIX_RE, "" as any);
   input = StringPrototypeReplaceAll(input, HTTP_WHITESPACE_SUFFIX_RE, "" as any);
@@ -178,11 +178,11 @@ function parseMimeType(input: string): MimeType | null {
   return mimeType;
 }
 
-function essence(mimeType: MimeType): string {
+export function essence(mimeType: MimeType): string {
   return `${mimeType.type}/${mimeType.subtype}`;
 }
 
-function serializeMimeType(mimeType: MimeType): string {
+export function serializeMimeType(mimeType: MimeType): string {
   let serialization = essence(mimeType);
   for (const param of mimeType.parameters) {
     serialization += `;${param[0]}=`;
@@ -203,7 +203,7 @@ function serializeMimeType(mimeType: MimeType): string {
  * @param headerValues The result of getting, decoding and
  * splitting the "Content-Type" header.
  */
-function extractMimeType(headerValues: string[] | null): MimeType | null {
+export function extractMimeType(headerValues: string[] | null): MimeType | null {
   if (headerValues === null) return null;
 
   let charset = null;
@@ -236,5 +236,3 @@ function extractMimeType(headerValues: string[] | null): MimeType | null {
   }
   return mimeType;
 }
-
-

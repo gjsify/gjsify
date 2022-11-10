@@ -8,13 +8,11 @@
 // <reference path="./lib.deno_web.d.ts" />
 
 "use strict";
-
-const core = window.Deno.core;
-const { InterruptedPrototype, ops } = core;
-const webidl = window.__bootstrap.webidl;
-const { EventTarget, setEventTargetData } = window.__bootstrap.eventTarget;
-const { MessageEvent, defineEventHandler } = window.__bootstrap.event;
-const { DOMException } = window.__bootstrap.domException;
+import { core, ops, primordials } from '@gjsify/deno_core';
+const { InterruptedPrototype } = core;
+import * as webidl from '../webidl/00_webidl.js';
+import { EventTarget, setEventTargetData, MessageEvent, defineEventHandler } from './02_event.js';
+import { DOMException } from './01_dom_exception.js';
 const {
   ArrayBufferPrototype,
   ArrayPrototypeFilter,
@@ -26,7 +24,7 @@ const {
   SymbolFor,
   SymbolIterator,
   TypeError,
-} = window.__bootstrap.primordials;
+} = primordials;
 
 /** The MessageChannel interface of the Channel Messaging API allows us to
  * create a new message channel and send data through it via its two MessagePort
@@ -34,7 +32,7 @@ const {
  *
  * @category DOM APIs
  */
-class MessageChannel {
+export class MessageChannel {
   #port1: MessagePort;
   #port2: MessagePort;
 
@@ -231,7 +229,7 @@ defineEventHandler(MessagePort.prototype, "message", function (self) {
 defineEventHandler(MessagePort.prototype, "messageerror");
 
 webidl.configurePrototype(MessagePort);
-const MessagePortPrototype = MessagePort.prototype;
+export const MessagePortPrototype = MessagePort.prototype;
 
 /**
  * @returns {[number, number]}
@@ -244,7 +242,7 @@ function opCreateEntangledMessagePort() {
  * @param {globalThis.__bootstrap.messagePort.MessageData} messageData
  * @returns {[any, object[]]}
  */
-function deserializeJsMessageData(messageData) {
+export function deserializeJsMessageData(messageData: MessageData): [any, object[]] {
   /** @type {object[]} */
   const transferables = [];
   const hostObjects = [];
@@ -288,7 +286,7 @@ function deserializeJsMessageData(messageData) {
  * @param {object[]} transferables
  * @returns {globalThis.__bootstrap.messagePort.MessageData}
  */
-function serializeJsMessageData(data, transferables) {
+export function serializeJsMessageData(data: any, transferables: object[]): MessageData {
   const transferredArrayBuffers = [];
   for (let i = 0, j = 0; i < transferables.length; i++) {
     const ab = transferables[i];
@@ -406,6 +404,7 @@ export function structuredClone(value: any, options?: StructuredSerializeOptions
   return data;
 }
 
+// packages/deno/runtime/src/ext/web/13_message_port.ts
 window.__bootstrap.messagePort = {
   MessageChannel,
   MessagePort,

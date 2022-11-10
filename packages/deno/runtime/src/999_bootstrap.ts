@@ -187,6 +187,67 @@ window.__bootstrap.base64 = {
   btoa,
 };
 
+// packages/deno/runtime/src/ext/web/06_streams.ts
+window.__bootstrap.streams = {
+  // Non-Public
+  _state,
+  isReadableStreamDisturbed,
+  errorReadableStream,
+  createProxy,
+  writableStreamClose,
+  readableStreamClose,
+  readableStreamCollectIntoUint8Array,
+  readableStreamDisturb,
+  readableStreamForRid,
+  readableStreamForRidUnrefable,
+  readableStreamForRidUnrefableRef,
+  readableStreamForRidUnrefableUnref,
+  readableStreamThrowIfErrored,
+  getReadableStreamResourceBacking,
+  writableStreamForRid,
+  getWritableStreamResourceBacking,
+  Deferred,
+  // Exposed in global runtime scope
+  ByteLengthQueuingStrategy,
+  CountQueuingStrategy,
+  ReadableStream,
+  ReadableStreamPrototype,
+  ReadableStreamDefaultReader,
+  TransformStream,
+  WritableStream,
+  WritableStreamDefaultWriter,
+  WritableStreamDefaultController,
+  ReadableByteStreamController,
+  ReadableStreamBYOBReader,
+  ReadableStreamBYOBRequest,
+  ReadableStreamDefaultController,
+  TransformStreamDefaultController,
+};
+
+// packages/deno/runtime/src/ext/web/08_text_encoding.ts
+window.__bootstrap.encoding = {
+  TextEncoder,
+  TextDecoder,
+  TextEncoderStream,
+  TextDecoderStream,
+  decode,
+};
+
+// packages/deno/runtime/src/ext/web/09_file.ts
+window.__bootstrap.file = {
+  blobFromObjectUrl,
+  getParts,
+  Blob,
+  BlobPrototype,
+  File,
+  FilePrototype,
+};
+
+// packages/deno/runtime/src/ext/web/10_filereader.ts
+window.__bootstrap.fileReader = {
+  FileReader,
+};
+
 window.__bootstrap.fsEvents = {
     watchFs,
 };

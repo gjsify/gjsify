@@ -34,8 +34,9 @@ export const op_read = async (rid: number, buffer: Uint8Array): Promise<number> 
     console.warn("Not implemented: ops.op_read");
     return -1;
 }
-export const op_read_all = async (rid: number) => {
+export const op_read_all = async (rid: number): Promise<Uint8Array> => {
     console.warn("Not implemented: ops.op_read_all");
+    return new Uint8Array();
 }
 export const op_write = async (rid: number, buffer: Uint8Array): Promise<number> => {
     console.warn("Not implemented: ops.op_write");
@@ -119,23 +120,32 @@ export const op_base64_btoa = (data: string): string => {
     console.warn("Not implemented: ops.op_base64_btoa");
     return "";
 }
-export const op_encoding_normalize_label = (...args: any[]) => {
+export const op_encoding_normalize_label = (label: string): string => {
     console.warn("Not implemented: ops.op_encoding_normalize_label");
+    return "";
 }
-export const op_encoding_new_decoder = (...args: any[]) => {
+export const op_encoding_new_decoder = (encoding: string, fatal: boolean, ignoreBOM: boolean): number => {
     console.warn("Not implemented: ops.op_encoding_new_decoder");
+    return -1;
 }
-export const op_encoding_decode = (...args: any[]) => {
+export const op_encoding_decode = (input: BufferSource, rid: number, stream: boolean): string => {
     console.warn("Not implemented: ops.op_encoding_decode");
+    return "";
+}
+export const op_encoding_decode_single = (input: BufferSource, encoding: string, fatal: boolean, ignoreBOM: boolean): string => {
+    console.warn("Not implemented: ops.op_encoding_decode_single");
+    return "";
 }
 export const op_encoding_encode_into = (...args: any[]) => {
     console.warn("Not implemented: ops.op_encoding_encode_into");
 }
-export const op_blob_create_part = (...args: any[]) => {
+export const op_blob_create_part = (data: Uint8Array): string => {
     console.warn("Not implemented: ops.op_blob_create_part");
+    return "";
 }
-export const op_blob_slice_part = (...args: any[]) => {
+export const op_blob_slice_part = (id: string, data: { start: number, len: number}): string => {
     console.warn("Not implemented: ops.op_blob_slice_part");
+    return "";
 }
 export const op_blob_read_part = (...args: any[]) => {
     console.warn("Not implemented: ops.op_blob_read_part");
@@ -143,14 +153,16 @@ export const op_blob_read_part = (...args: any[]) => {
 export const op_blob_remove_part = (...args: any[]) => {
     console.warn("Not implemented: ops.op_blob_remove_part");
 }
-export const op_blob_create_object_url = (...args: any[]) => {
+export const op_blob_create_object_url = (type: string, parts: string[]): string => {
     console.warn("Not implemented: ops.op_blob_create_object_url");
+    return "";
 }
 export const op_blob_revoke_object_url = (...args: any[]) => {
     console.warn("Not implemented: ops.op_blob_revoke_object_url");
 }
-export const op_blob_from_object_url = (...args: any[]) => {
+export const op_blob_from_object_url = (url: string): { parts: [], media_type: string } | null => {
     console.warn("Not implemented: ops.op_blob_from_object_url");
+    return null;
 }
 export const op_message_port_create_entangled = (...args: any[]) => {
     console.warn("Not implemented: ops.op_message_port_create_entangled");
@@ -1004,12 +1016,19 @@ export const op_create_host_object = () => {
     console.warn("Not implemented: ops.op_create_host_object");
 }
 
-export const op_encode = (text: string) => {
+export const op_encode = (text: string): Uint8Array => {
     console.warn("Not implemented: ops.op_encode");
+    return new Uint8Array();
 }
 
-export const op_decode = (buffer: Uint8Array) => {
+export const op_encode_binary_string = (bytes: Uint8Array): string => {
+    console.warn("Not implemented: ops.op_encode_binary_string");
+    return "";
+}
+
+export const op_decode = (buffer: Uint8Array): string => {
     console.warn("Not implemented: ops.op_decode");
+    return "";
 }
 
 export const op_serialize = (value, options = {}, errorCallback?) => {

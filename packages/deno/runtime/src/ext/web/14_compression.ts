@@ -8,11 +8,9 @@
 
 "use strict";
 
-
-const core = window.Deno.core;
-const ops = core.ops;
-const webidl = window.__bootstrap.webidl;
-const { TransformStream } = window.__bootstrap.streams;
+import { ops } from '@gjsify/deno_core';
+import * as webidl from '../webidl/00_webidl.js';
+import { TransformStream } from './06_streams.js';
 
 webidl.converters.CompressionFormat = webidl.createEnumConverter(
   "CompressionFormat",
@@ -166,6 +164,7 @@ function maybeEnqueue(controller, output) {
 webidl.configurePrototype(DecompressionStream);
 const DecompressionStreamPrototype = DecompressionStream.prototype;
 
+// packages/deno/runtime/src/ext/web/14_compression.ts
 window.__bootstrap.compression = {
   CompressionStream,
   DecompressionStream,

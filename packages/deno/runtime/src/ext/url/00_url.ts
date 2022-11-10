@@ -30,6 +30,8 @@ const {
   TypeError,
 } = primordials;
 
+import type { Blob } from '../web/09_file.js';
+
 const _list = Symbol("list");
 const _urlObject = Symbol("url object");
 
@@ -369,6 +371,10 @@ export class URL {
   #pathStart;
   #queryStart;
   #fragmentStart;
+
+  // Declared in packages/deno/runtime/src/ext/web/11_blob_url.ts
+  static createObjectURL?: (blob: Blob) => string;
+  static revokeObjectURL?: (url: string) => void
 
   [_updateUrlSearch](value) {
     this.#serialization = opUrlReparse(

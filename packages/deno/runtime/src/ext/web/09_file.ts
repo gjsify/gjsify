@@ -12,9 +12,9 @@
 // <reference lib="esnext" />
 "use strict";
 
-const core = window.Deno.core;
-const ops = core.ops;
-const webidl = window.__bootstrap.webidl;
+import { core, ops, primordials } from '@gjsify/deno_core';
+import * as webidl from '../webidl/00_webidl.js';
+import * as consoleInternal from '../console/02_console.js';
 const {
   ArrayBufferPrototype,
   ArrayBufferPrototypeSlice,
@@ -34,19 +34,13 @@ const {
   TypedArrayPrototypeSet,
   TypeError,
   Uint8Array,
-} = window.__bootstrap.primordials;
-const consoleInternal = window.__bootstrap.console;
+} = primordials;
 
 // TODO(lucacasonato): this needs to not be hardcoded and instead depend on
 // host os.
 const isWindows = false;
 
-/**
- * @param {string} input
- * @param {number} position
- * @returns {{result: string, position: number}}
- */
-function collectCodepointsNotCRLF(input, position) {
+function collectCodepointsNotCRLF(input: string, position: number): {result: string, position: number} {
   // See https://w3c.github.io/FileAPI/#convert-line-endings-to-native and
   // https://infra.spec.whatwg.org/#collect-a-sequence-of-code-points
   const start = position;
@@ -58,11 +52,7 @@ function collectCodepointsNotCRLF(input, position) {
   return { result: StringPrototypeSlice(input, start, position), position };
 }
 
-/**
- * @param {string} s
- * @returns {string}
- */
-function convertLineEndingsToNative(s) {
+function convertLineEndingsToNative(s: string): string {
   const nativeLineEnding = isWindows ? "\r\n" : "\n";
 
   let { result, position } = collectCodepointsNotCRLF(s, 0);
@@ -92,29 +82,22 @@ function convertLineEndingsToNative(s) {
   return result;
 }
 
-/** @param {(BlobReference | Blob)[]} parts */
-async function* toIterator(parts) {
+async function* toIterator(parts: (BlobReference | Blob)[]) {
   for (const part of parts) {
-    yield* part.stream();
+    yield* part.stream() as AsyncGenerator<any, void, unknown>;
   }
 }
 
-/** @typedef {BufferSource | Blob | string} BlobPart */
+type BlobPart = BufferSource | Blob | string;
 
-/**
- * @param {BlobPart[]} parts
- * @param {string} endings
- * @returns {{ parts: (BlobReference|Blob)[], size: number }}
- */
-function processBlobParts(parts, endings) {
-  /** @type {(BlobReference|Blob)[]} */
-  const processedParts = [];
+function processBlobParts(parts: BlobPart[], endings: string): { parts: (BlobReference|Blob)[], size: number } {
+  const processedParts: (BlobReference|Blob)[] = [];
   let size = 0;
   for (const element of parts) {
     if (ObjectPrototypeIsPrototypeOf(ArrayBufferPrototype, element)) {
       const chunk = new Uint8Array(ArrayBufferPrototypeSlice(element, 0));
       ArrayPrototypePush(processedParts, BlobReference.fromUint8Array(chunk));
-      size += element.byteLength;
+      size += (element as BufferSource).byteLength;
     } else if (ArrayBufferIsView(element)) {
       const chunk = new Uint8Array(
         element.buffer,
@@ -125,6 +108,7 @@ function processBlobParts(parts, endings) {
       ArrayPrototypePush(processedParts, BlobReference.fromUint8Array(chunk));
     } else if (ObjectPrototypeIsPrototypeOf(BlobPrototype, element)) {
       ArrayPrototypePush(processedParts, element);
+      // @ts-ignore
       size += element.size;
     } else if (typeof element === "string") {
       const chunk = core.encode(
@@ -139,11 +123,7 @@ function processBlobParts(parts, endings) {
   return { parts: processedParts, size };
 }
 
-/**
- * @param {string} str
- * @returns {string}
- */
-function normalizeType(str) {
+function normalizeType(str: string): string {
   let normalizedType = str;
   if (!RegExpPrototypeTest(/^[\x20-\x7E]*$/, str)) {
     normalizedType = "";
@@ -153,11 +133,8 @@ function normalizeType(str) {
 
 /**
  * Get all Parts as a flat array containing all references
- * @param {Blob} blob
- * @param {string[]} bag
- * @returns {string[]}
  */
-function getParts(blob, bag = []) {
+export function getParts(blob: Blob, bag: string[] = []): string[] {
   for (const part of blob[_parts]) {
     if (ObjectPrototypeIsPrototypeOf(BlobPrototype, part)) {
       getParts(part, bag);
@@ -180,14 +157,13 @@ const _parts = Symbol("Parts");
  * @category Web File API
  */
 export class Blob {
-  [_type] = "";
-  [_size] = 0;
-  [_parts];
+  // @ts-ignore
+  [_type]: string = "";
+  // @ts-ignore
+  [_size]: number = 0;
+  // @ts-ignore
+  [_parts]: (BlobReference | Blob)[];
 
-  /**
-   * @param {BlobPart[]} blobParts
-   * @param {BlobPropertyBag} options
-   */
   constructor(blobParts: BlobPart[] = [], options: BlobPropertyBag = {}) {
     const prefix = "Failed to construct 'Blob'";
     blobParts = webidl.converters["sequence<BlobPart>"](blobParts, {
@@ -247,8 +223,7 @@ export class Blob {
 
     // deno-lint-ignore no-this-alias
     const O = this;
-    /** @type {number} */
-    let relativeStart;
+    let relativeStart: number;
     if (start === undefined) {
       relativeStart = 0;
     } else {
@@ -258,8 +233,8 @@ export class Blob {
         relativeStart = MathMin(start, O.size);
       }
     }
-    /** @type {number} */
-    let relativeEnd;
+
+    let relativeEnd: number;
     if (end === undefined) {
       relativeEnd = O.size;
     } else {
@@ -299,8 +274,7 @@ export class Blob {
       }
     }
 
-    /** @type {string} */
-    let relativeContentType;
+    let relativeContentType: string;
     if (contentType === undefined) {
       relativeContentType = "";
     } else {
@@ -317,9 +291,9 @@ export class Blob {
     webidl.assertBranded(this, BlobPrototype);
     const partIterator = toIterator(this[_parts]);
     const stream = new ReadableStream({
+      // @ts-ignore
       type: "bytes",
-      /** @param {ReadableByteStreamController} controller */
-      async pull(controller) {
+      async pull(controller: ReadableByteStreamController) {
         while (true) {
           const { value, done } = await partIterator.next();
           if (done) return controller.close();
@@ -338,7 +312,7 @@ export class Blob {
     return core.decode(buffer);
   }
 
-  async #u8Array(size) {
+  async #u8Array(size: number) {
     const bytes = new Uint8Array(size);
     const partIterator = toIterator(this[_parts]);
     let offset = 0;
@@ -371,7 +345,7 @@ export class Blob {
 }
 
 webidl.configurePrototype(Blob);
-const BlobPrototype = Blob.prototype;
+export const BlobPrototype = Blob.prototype;
 
 webidl.converters["Blob"] = webidl.createInterfaceConverter(
   "Blob",
@@ -459,13 +433,10 @@ export class File extends Blob {
 
     super(fileBits, options);
 
-    /** @type {string} */
     this[_Name] = fileName;
     if (options.lastModified === undefined) {
-      /** @type {number} */
       this[_LastModified] = DatePrototypeGetTime(new Date());
     } else {
-      /** @type {number} */
       this[_LastModified] = options.lastModified;
     }
   }
@@ -482,7 +453,7 @@ export class File extends Blob {
 }
 
 webidl.configurePrototype(File);
-const FilePrototype = File.prototype;
+export const FilePrototype = File.prototype;
 
 webidl.converters["FilePropertyBag"] = webidl.createDictionaryConverter(
   "FilePropertyBag",
@@ -508,12 +479,12 @@ const registry = new FinalizationRegistry((uuid) => {
  * in memory storage, or something else.
  */
 class BlobReference {
+  _id: string;
+  size: number;
   /**
    * Don't use directly. Use `BlobReference.fromUint8Array`.
-   * @param {string} id
-   * @param {number} size
    */
-  constructor(id, size) {
+  constructor(id: string, size: number) {
     this._id = id;
     this.size = size;
     registry.register(this, id);
@@ -521,11 +492,8 @@ class BlobReference {
 
   /**
    * Create a new blob part from a Uint8Array.
-   *
-   * @param {Uint8Array} data
-   * @returns {BlobReference}
    */
-  static fromUint8Array(data) {
+  static fromUint8Array(data: Uint8Array): BlobReference {
     const id = ops.op_blob_create_part(data);
     return new BlobReference(id, data.byteLength);
   }
@@ -534,12 +502,8 @@ class BlobReference {
    * Create a new BlobReference by slicing this BlobReference. This is a copy
    * free operation - the sliced reference will still reference the original
    * underlying bytes.
-   *
-   * @param {number} start
-   * @param {number} end
-   * @returns {BlobReference}
    */
-  slice(start, end) {
+  slice(start: number, end: number): BlobReference {
     const size = end - start;
     const id = ops.op_blob_slice_part(this._id, {
       start,
@@ -550,9 +514,8 @@ class BlobReference {
 
   /**
    * Read the entire contents of the reference blob.
-   * @returns {AsyncGenerator<Uint8Array>}
    */
-  async *stream() {
+  async *stream(): AsyncGenerator<Uint8Array> {
     yield core.opAsync("op_blob_read_part", this._id);
 
     // let position = 0;
@@ -576,18 +539,14 @@ class BlobReference {
  * The object returned from this function will not be a File object, even if
  * the original object from which the object URL was constructed was one. This
  * means that the `name` and `lastModified` properties are lost.
- *
- * @param {string} url
- * @returns {Blob | null}
  */
-function blobFromObjectUrl(url) {
+export function blobFromObjectUrl(url: string): Blob | null {
   const blobData = ops.op_blob_from_object_url(url);
   if (blobData === null) {
     return null;
   }
 
-  /** @type {BlobReference[]} */
-  const parts = [];
+  const parts: BlobReference[] = [];
   let totalSize = 0;
 
   for (const { uuid, size } of blobData.parts) {
@@ -602,11 +561,4 @@ function blobFromObjectUrl(url) {
   return blob;
 }
 
-window.__bootstrap.file = {
-  blobFromObjectUrl,
-  getParts,
-  Blob,
-  BlobPrototype,
-  File,
-  FilePrototype,
-};
+
