@@ -164,8 +164,3 @@ function maybeEnqueue(controller, output) {
 webidl.configurePrototype(DecompressionStream);
 const DecompressionStreamPrototype = DecompressionStream.prototype;
 
-// packages/deno/runtime/src/ext/web/14_compression.ts
-window.__bootstrap.compression = {
-  CompressionStream,
-  DecompressionStream,
-};

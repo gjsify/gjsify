@@ -13,6 +13,7 @@ const { InterruptedPrototype } = core;
 import * as webidl from '../webidl/00_webidl.js';
 import { EventTarget, setEventTargetData, MessageEvent, defineEventHandler } from './02_event.js';
 import { DOMException } from './01_dom_exception.js';
+import { messagePort } from '../../types/index.js';
 const {
   ArrayBufferPrototype,
   ArrayPrototypeFilter,
@@ -74,7 +75,7 @@ function createMessagePort(id: number): MessagePort {
   port[webidl.brand] = webidl.brand;
   setEventTargetData(port);
   port[_id] = id;
-  return port;
+  return port as MessagePort;
 }
 
 /** The MessagePort interface of the Channel Messaging API represents one of the
@@ -231,18 +232,11 @@ defineEventHandler(MessagePort.prototype, "messageerror");
 webidl.configurePrototype(MessagePort);
 export const MessagePortPrototype = MessagePort.prototype;
 
-/**
- * @returns {[number, number]}
- */
-function opCreateEntangledMessagePort() {
+function opCreateEntangledMessagePort(): [number, number] {
   return ops.op_message_port_create_entangled();
 }
 
-/**
- * @param {globalThis.__bootstrap.messagePort.MessageData} messageData
- * @returns {[any, object[]]}
- */
-export function deserializeJsMessageData(messageData: MessageData): [any, object[]] {
+export function deserializeJsMessageData(messageData: messagePort.MessageData): [any, object[]] {
   /** @type {object[]} */
   const transferables = [];
   const hostObjects = [];
@@ -281,17 +275,12 @@ export function deserializeJsMessageData(messageData: MessageData): [any, object
   return [data, transferables];
 }
 
-/**
- * @param {any} data
- * @param {object[]} transferables
- * @returns {globalThis.__bootstrap.messagePort.MessageData}
- */
-export function serializeJsMessageData(data: any, transferables: object[]): MessageData {
+export function serializeJsMessageData(data: any, transferables: object[]): messagePort.MessageData {
   const transferredArrayBuffers = [];
   for (let i = 0, j = 0; i < transferables.length; i++) {
     const ab = transferables[i];
     if (ObjectPrototypeIsPrototypeOf(ArrayBufferPrototype, ab)) {
-      if (ab.byteLength === 0 && core.ops.op_arraybuffer_was_detached(ab)) {
+      if ((ab as ArrayBuffer).byteLength === 0 && ops.op_arraybuffer_was_detached(ab as ArrayBuffer)) {
         throw new DOMException(
           `ArrayBuffer at index ${j} is already detached`,
           "DataCloneError",
@@ -312,8 +301,7 @@ export function serializeJsMessageData(data: any, transferables: object[]): Mess
     throw new DOMException(err, "DataCloneError");
   });
 
-  /** @type {globalThis.__bootstrap.messagePort.Transferable[]} */
-  const serializedTransferables = [];
+  const serializedTransferables: messagePort.Transferable[] = [];
 
   let arrayBufferI = 0;
   for (const transferable of transferables) {
@@ -403,13 +391,3 @@ export function structuredClone(value: any, options?: StructuredSerializeOptions
   const [data] = deserializeJsMessageData(messageData);
   return data;
 }
-
-// packages/deno/runtime/src/ext/web/13_message_port.ts
-window.__bootstrap.messagePort = {
-  MessageChannel,
-  MessagePort,
-  MessagePortPrototype,
-  deserializeJsMessageData,
-  serializeJsMessageData,
-  structuredClone,
-};

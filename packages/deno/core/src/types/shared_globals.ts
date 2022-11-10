@@ -80,7 +80,7 @@ export namespace WebAssembly {
    *
    * @category WebAssembly
    */
-  export class LinkError extends Error { // TODO class
+  declare class LinkError extends Error { // TODO class
     /** Creates a new WebAssembly.LinkError object. */
     // constructor(message?: string, options?: ErrorOptions);
   }
@@ -131,10 +131,10 @@ export namespace WebAssembly {
     //   sectionName: string,
     // ): ArrayBuffer[];
 
-    /** Given a `Module`, returns an array containing descriptions of all the declared exports. */
+    /** Given a `Module`, returns an array containing descriptions of all the exportd exports. */
     // static exports(moduleObject: Module): ModuleExportDescriptor[];
 
-    /** Given a `Module`, returns an array containing descriptions of all the declared imports. */
+    /** Given a `Module`, returns an array containing descriptions of all the exportd imports. */
     // static imports(moduleObject: Module): ModuleImportDescriptor[];
   }
 
@@ -199,7 +199,7 @@ export namespace WebAssembly {
     shared?: boolean;
   }
 
-  /** A `ModuleExportDescriptor` is the description of a declared export in a
+  /** A `ModuleExportDescriptor` is the description of a exportd export in a
    * `WebAssembly.Module`.
    *
    * @category WebAssembly
@@ -209,7 +209,7 @@ export namespace WebAssembly {
     name: string;
   }
 
-  /** A `ModuleImportDescriptor` is the description of a declared import in a
+  /** A `ModuleImportDescriptor` is the description of a exportd import in a
    * `WebAssembly.Module`.
    *
    * @category WebAssembly
@@ -460,7 +460,7 @@ interface DOMStringList {
 type BufferSource = ArrayBufferView | ArrayBuffer;
 
 /** @category Console and Debugging */
-declare var console: Console;
+export var console: Console;
 
 /** @category DOM Events */
 interface ErrorEventInit extends EventInit {
@@ -506,7 +506,7 @@ interface WorkerEventMap extends AbstractWorkerEventMap {
 }
 
 /** @category Web Workers */
-interface WorkerOptions {
+export interface WorkerOptions {
   type?: "classic" | "module";
   name?: string;
 }
@@ -546,84 +546,10 @@ declare class Worker extends EventTarget {
 }
 
 /** @category Performance */
-declare type PerformanceEntryList = PerformanceEntry[];
+export type PerformanceEntryList = PerformanceEntry[];
 
 /** @category Performance */
-declare class Performance extends EventTarget {
-  /** Returns a timestamp representing the start of the performance measurement. */
-  readonly timeOrigin: number;
-  constructor();
-
-  /** Removes the stored timestamp with the associated name. */
-  clearMarks(markName?: string): void;
-
-  /** Removes stored timestamp with the associated name. */
-  clearMeasures(measureName?: string): void;
-
-  getEntries(): PerformanceEntryList;
-  getEntriesByName(name: string, type?: string): PerformanceEntryList;
-  getEntriesByType(type: string): PerformanceEntryList;
-
-  /** Stores a timestamp with the associated name (a "mark"). */
-  mark(markName: string, options?: PerformanceMarkOptions): PerformanceMark;
-
-  /** Stores the `DOMHighResTimeStamp` duration between two marks along with the
-   * associated name (a "measure"). */
-  measure(
-    measureName: string,
-    options?: PerformanceMeasureOptions,
-  ): PerformanceMeasure;
-  /** Stores the `DOMHighResTimeStamp` duration between two marks along with the
-   * associated name (a "measure"). */
-  measure(
-    measureName: string,
-    startMark?: string,
-    endMark?: string,
-  ): PerformanceMeasure;
-
-  /** Returns a current time from Deno's start in milliseconds.
-   *
-   * Use the permission flag `--allow-hrtime` return a precise value.
-   *
-   * ```ts
-   * const t = performance.now();
-   * console.log(`${t} ms since start!`);
-   * ```
-   *
-   * @tags allow-hrtime
-   */
-  now(): number;
-
-  /** Returns a JSON representation of the performance object. */
-  toJSON(): any;
-}
-
-/** @category Performance */
-declare var performance: Performance;
-
-/** @category Performance */
-declare interface PerformanceMarkOptions {
-  /** Metadata to be included in the mark. */
-  detail?: any;
-
-  /** Timestamp to be used as the mark time. */
-  startTime?: number;
-}
-
-declare interface PerformanceMeasureOptions {
-  /** Metadata to be included in the measure. */
-  detail?: any;
-
-  /** Timestamp to be used as the start time or string to be used as start
-   * mark. */
-  start?: string | number;
-
-  /** Duration between the start and end times. */
-  duration?: number;
-
-  /** Timestamp to be used as the end time or string to be used as end mark. */
-  end?: string | number;
-}
+export var performance: Performance;
 
 /** Encapsulates a single performance metric that is part of the performance
  * timeline. A performance entry can be directly created by making a performance
@@ -640,19 +566,6 @@ declare class PerformanceEntry {
   toJSON(): any;
 }
 
-/** `PerformanceMark` is an abstract interface for `PerformanceEntry` objects
- * with an entryType of `"mark"`. Entries of this type are created by calling
- * `performance.mark()` to add a named `DOMHighResTimeStamp` (the mark) to the
- * performance timeline.
- *
- * @category Performance
- */
-declare class PerformanceMark extends PerformanceEntry {
-  readonly detail: any;
-  readonly entryType: "mark";
-  constructor(name: string, options?: PerformanceMarkOptions);
-}
-
 /** `PerformanceMeasure` is an abstract interface for `PerformanceEntry` objects
  * with an entryType of `"measure"`. Entries of this type are created by calling
  * `performance.measure()` to add a named `DOMHighResTimeStamp` (the measure)
@@ -666,7 +579,7 @@ declare class PerformanceMeasure extends PerformanceEntry {
 }
 
 /** @category DOM Events */
-declare interface CustomEventInit<T = any> extends EventInit {
+export interface CustomEventInit<T = any> extends EventInit {
   detail?: T;
 }
 
@@ -679,7 +592,7 @@ declare class CustomEvent<T = any> extends Event {
 }
 
 /** @category DOM APIs */
-interface ErrorConstructor {
+export interface ErrorConstructor {
   /** See https://v8.dev/docs/stack-trace-api#stack-trace-collection-for-custom-exceptions. */
   captureStackTrace(error: Object, constructor?: Function): void;
   // TODO(nayeemrmn): Support `Error.prepareStackTrace()`. We currently use this

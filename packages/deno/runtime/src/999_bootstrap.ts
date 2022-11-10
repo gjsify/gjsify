@@ -248,7 +248,83 @@ window.__bootstrap.fileReader = {
   FileReader,
 };
 
+// packages/deno/runtime/src/ext/web/12_location.ts
+window.__bootstrap.location = {
+  locationConstructorDescriptor,
+  workerLocationConstructorDescriptor,
+  locationDescriptor,
+  workerLocationDescriptor,
+  setLocationHref,
+  getLocationHref,
+};
+
+// packages/deno/runtime/src/ext/web/13_message_port.ts
+window.__bootstrap.messagePort = {
+  MessageChannel,
+  MessagePort,
+  MessagePortPrototype,
+  deserializeJsMessageData,
+  serializeJsMessageData,
+  structuredClone,
+};
+
+// packages/deno/runtime/src/ext/web/14_compression.ts
+window.__bootstrap.compression = {
+  CompressionStream,
+  DecompressionStream,
+};
+
+// packages/deno/runtime/src/ext/web/15_performance.ts
+window.__bootstrap.performance = {
+  PerformanceEntry,
+  PerformanceMark,
+  PerformanceMeasure,
+  Performance,
+  performance,
+  setTimeOrigin,
+};
+
+// packages/deno/runtime/src/10_permissions.ts
+window.__bootstrap.permissions = {
+  serializePermissions,
+  permissions,
+  Permissions,
+  PermissionStatus,
+};
+
+// packages/deno/runtime/src/11_workers.ts
+window.__bootstrap.worker = {
+  Worker,
+};
+
+// packages/deno/runtime/src/12_io.ts
+window.__bootstrap.io = {
+  iterSync,
+  iter,
+  copy,
+  SeekMode,
+  read,
+  readSync,
+  write,
+  writeSync,
+  readAll,
+  readAllInner,
+  readAllSync,
+  readAllSyncSized,
+  readAllInnerSized,
+};
+
+// packages/deno/runtime/src/13_buffer.ts
+window.__bootstrap.buffer = {
+  writeAll,
+  writeAllSync,
+  readAll,
+  readAllSync,
+  Buffer,
+};
+
+// packages/deno/runtime/src/40_fs_events.ts
 window.__bootstrap.fsEvents = {
-    watchFs,
+  watchFs,
 };
 

@@ -36,12 +36,12 @@ export const ASCII_DIGIT = ["\u0030-\u0039"];
 export const ASCII_UPPER_ALPHA = ["\u0041-\u005A"];
 export const ASCII_LOWER_ALPHA = ["\u0061-\u007A"];
 export const ASCII_ALPHA = [
-  ...new SafeArrayIterator(ASCII_UPPER_ALPHA),
-  ...new SafeArrayIterator(ASCII_LOWER_ALPHA),
+  ...new SafeArrayIterator(ASCII_UPPER_ALPHA) as string,
+  ...new SafeArrayIterator(ASCII_LOWER_ALPHA) as string,
 ];
 export const ASCII_ALPHANUMERIC = [
-  ...new SafeArrayIterator(ASCII_DIGIT),
-  ...new SafeArrayIterator(ASCII_ALPHA),
+  ...new SafeArrayIterator(ASCII_DIGIT) as string,
+  ...new SafeArrayIterator(ASCII_ALPHA) as string,
 ];
 
 export const HTTP_TAB_OR_SPACE = ["\u0009", "\u0020"];

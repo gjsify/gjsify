@@ -5,10 +5,9 @@
 import { primordials, ops } from '@gjsify/deno_core';
 import { illegalConstructorKey } from './01_web_util.js';
 import { pathFromURL } from './06_util.js';
-const { Event } = window.__bootstrap.event;
-const { EventTarget } = window.__bootstrap.eventTarget;
+import { Event, EventTarget } from './ext/web/02_event.js';
 
-import type { PermissionDescriptor, PermissionState, PermissionStatus } from '@gjsify/deno_core';
+import type { PermissionDescriptor, PermissionState, PermissionStatus as TPermissionStatus } from '@gjsify/deno_core';
 
 const {
   ArrayIsArray,
@@ -56,7 +55,7 @@ function opRequest(desc: PermissionDescriptor): PermissionState {
   return ops.op_request_permission(desc);
 }
 
-class PermissionStatus extends EventTarget {
+export class PermissionStatus extends EventTarget {
   #state: { state: PermissionState };
 
   onchange: ((this: PermissionStatus, event: Event) => any) | null = null;
@@ -128,7 +127,7 @@ function isValidDescriptor(desc: unknown): desc is PermissionDescriptor {
     ArrayPrototypeIncludes(permissionNames, (desc as any).name);
 }
 
-class Permissions {
+export class Permissions {
   constructor(key = null) {
     if (key != illegalConstructorKey) {
       throw new TypeError("Illegal constructor.");
@@ -195,10 +194,10 @@ class Permissions {
   }
 }
 
-const permissions = new Permissions(illegalConstructorKey);
+export const permissions = new Permissions(illegalConstructorKey);
 
 /** Converts all file URLs in FS allowlists to paths. */
-function serializePermissions(permissions) {
+export function serializePermissions(permissions) {
   if (typeof permissions == "object" && permissions != null) {
     const serializedPermissions = {};
     for (const key of ["read", "write", "run", "ffi"]) {
@@ -223,10 +222,4 @@ function serializePermissions(permissions) {
   return permissions;
 }
 
-window.__bootstrap.permissions = {
-  serializePermissions,
-  permissions,
-  Permissions,
-  PermissionStatus,
-};
 

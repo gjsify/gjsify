@@ -86,15 +86,15 @@ export function pathFromURLPosix(url: URL) {
   );
 }
 
-export function pathFromURL(pathOrUrl: URL) {
+export function pathFromURL(pathOrUrl: URL | string) {
   if (ObjectPrototypeIsPrototypeOf(URLPrototype, pathOrUrl)) {
-    if (pathOrUrl.protocol != "file:") {
+    if ((pathOrUrl as URL).protocol != "file:") {
       throw new TypeError("Must be a file URL.");
     }
 
     return build.os == "windows"
-      ? pathFromURLWin32(pathOrUrl)
-      : pathFromURLPosix(pathOrUrl);
+      ? pathFromURLWin32(pathOrUrl as URL)
+      : pathFromURLPosix(pathOrUrl as URL);
   }
   return pathOrUrl;
 }

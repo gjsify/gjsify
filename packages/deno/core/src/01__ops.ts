@@ -32,7 +32,7 @@ export const op_void_async = (...args: any[]) => {
 }
 export const op_read = async (rid: number, buffer: Uint8Array): Promise<number> => {
     console.warn("Not implemented: ops.op_read");
-    return -1;
+    return 0;
 }
 export const op_read_all = async (rid: number): Promise<Uint8Array> => {
     console.warn("Not implemented: ops.op_read_all");
@@ -40,7 +40,7 @@ export const op_read_all = async (rid: number): Promise<Uint8Array> => {
 }
 export const op_write = async (rid: number, buffer: Uint8Array): Promise<number> => {
     console.warn("Not implemented: ops.op_write");
-    return -1;
+    return 0;
 }
 export const op_write_all = async (rid: number, buffer: Uint8Array): Promise<void> => {
     console.warn("Not implemented: ops.op_write_all");
@@ -126,7 +126,7 @@ export const op_encoding_normalize_label = (label: string): string => {
 }
 export const op_encoding_new_decoder = (encoding: string, fatal: boolean, ignoreBOM: boolean): number => {
     console.warn("Not implemented: ops.op_encoding_new_decoder");
-    return -1;
+    return 0;
 }
 export const op_encoding_decode = (input: BufferSource, rid: number, stream: boolean): string => {
     console.warn("Not implemented: ops.op_encoding_decode");
@@ -164,8 +164,9 @@ export const op_blob_from_object_url = (url: string): { parts: [], media_type: s
     console.warn("Not implemented: ops.op_blob_from_object_url");
     return null;
 }
-export const op_message_port_create_entangled = (...args: any[]) => {
+export const op_message_port_create_entangled = (): [number, number] => {
     console.warn("Not implemented: ops.op_message_port_create_entangled");
+    return [-1, -1];
 }
 export const op_message_port_post_message = (...args: any[]) => {
     console.warn("Not implemented: ops.op_message_port_post_message");
@@ -584,8 +585,9 @@ export const op_ffi_read_f64 = (...args: any[]) => {
 export const op_main_module = (...args: any[]) => {
     console.warn("Not implemented: ops.op_main_module");
 }
-export const op_create_worker = (...args: any[]) => {
+export const op_create_worker = (...args: any[]): number => {
     console.warn("Not implemented: ops.op_create_worker");
+    return 0;
 }
 export const op_host_terminate_worker = (...args: any[]) => {
     console.warn("Not implemented: ops.op_host_terminate_worker");
@@ -610,7 +612,7 @@ export const op_spawn_sync = (...args: any[]) => {
 }
 export const op_fs_events_open = (...args: any[]): number => {
     console.warn("Not implemented: ops.op_fs_events_open");
-    return -1;
+    return 0;
 }
 export const op_fs_events_poll = (...args: any[]) => {
     console.warn("Not implemented: ops.op_fs_events_poll");
@@ -792,8 +794,9 @@ export const op_readfile_async = (...args: any[]) => {
 export const op_readfile_text_async = (...args: any[]) => {
     console.warn("Not implemented: ops.op_readfile_text_async");
 }
-export const op_read_sync = (...args: any[]) => {
+export const op_read_sync = (...args: any[]): number => {
     console.warn("Not implemented: ops.op_read_sync");
+    return 0;
 }
 export const op_write_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_write_sync");
@@ -1012,8 +1015,9 @@ export const op_eval_context = (source, specifier) => {
     console.warn("Not implemented: ops.op_eval_context");
 }
 
-export const op_create_host_object = () => {
+export const op_create_host_object = (): object => {
     console.warn("Not implemented: ops.op_create_host_object");
+    return new Object();
 }
 
 export const op_encode = (text: string): Uint8Array => {
@@ -1031,7 +1035,7 @@ export const op_decode = (buffer: Uint8Array): string => {
     return "";
 }
 
-export const op_serialize = (value, options = {}, errorCallback?) => {
+export const op_serialize = (value, options = {}, errorCallback?): any => {
     console.warn("Not implemented: ops.op_serialize");
 }
 

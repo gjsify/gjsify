@@ -82,7 +82,7 @@ webidl.converters["DOMString or PerformanceMeasureOptions"] = (V, opts) => {
   return webidl.converters.DOMString(V, opts);
 };
 
-function setTimeOrigin(origin) {
+export function setTimeOrigin(origin) {
   timeOrigin = origin;
 }
 
@@ -131,7 +131,8 @@ const _name = Symbol("[[name]]");
 const _entryType = Symbol("[[entryType]]");
 const _startTime = Symbol("[[startTime]]");
 const _duration = Symbol("[[duration]]");
-class PerformanceEntry {
+
+export class PerformanceEntry {
   // @ts-ignore
   [_name] = "";
   // @ts-ignore
@@ -209,11 +210,19 @@ webidl.configurePrototype(PerformanceEntry);
 const PerformanceEntryPrototype = PerformanceEntry.prototype;
 
 const _detail = Symbol("[[detail]]");
-class PerformanceMark extends PerformanceEntry {
+
+/** `PerformanceMark` is an abstract interface for `PerformanceEntry` objects
+ * with an entryType of `"mark"`. Entries of this type are created by calling
+ * `performance.mark()` to add a named `DOMHighResTimeStamp` (the mark) to the
+ * performance timeline.
+ *
+ * @category Performance
+ */
+export class PerformanceMark extends PerformanceEntry {
   // @ts-ignore
   [_detail] = null;
 
-  get detail() {
+  get detail(): any {
     webidl.assertBranded(this, PerformanceMarkPrototype);
     return this[_detail];
   }
@@ -224,8 +233,8 @@ class PerformanceMark extends PerformanceEntry {
   }
 
   constructor(
-    name,
-    options = {},
+    name: string,
+    options: PerformanceMarkOptions = {},
   ) {
     const prefix = "Failed to construct 'PerformanceMark'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -277,7 +286,7 @@ class PerformanceMark extends PerformanceEntry {
 }
 webidl.configurePrototype(PerformanceMark);
 const PerformanceMarkPrototype = PerformanceMark.prototype;
-class PerformanceMeasure extends PerformanceEntry {
+export class PerformanceMeasure extends PerformanceEntry {
   // @ts-ignore
   [_detail] = null;
 
@@ -337,7 +346,9 @@ class PerformanceMeasure extends PerformanceEntry {
 }
 webidl.configurePrototype(PerformanceMeasure);
 const PerformanceMeasurePrototype = PerformanceMeasure.prototype;
-class Performance extends EventTarget {
+
+/** @category Performance */
+export class Performance extends EventTarget {
   constructor(key = null) {
     if (key != illegalConstructorKey) {
       webidl.illegalConstructor();
@@ -347,12 +358,14 @@ class Performance extends EventTarget {
     this[webidl.brand] = webidl.brand;
   }
 
-  get timeOrigin() {
+  /** Returns a timestamp representing the start of the performance measurement. */
+  get timeOrigin(): number {
     webidl.assertBranded(this, PerformancePrototype);
     return timeOrigin;
   }
 
-  clearMarks(markName = undefined) {
+  /** Removes the stored timestamp with the associated name. */
+  clearMarks(markName: string = undefined): void {
     webidl.assertBranded(this, PerformancePrototype);
     if (markName !== undefined) {
       markName = webidl.converters.DOMString(markName, {
@@ -372,7 +385,8 @@ class Performance extends EventTarget {
     }
   }
 
-  clearMeasures(measureName = undefined) {
+  /** Removes stored timestamp with the associated name. */
+  clearMeasures(measureName: string = undefined): void {
     webidl.assertBranded(this, PerformancePrototype);
     if (measureName !== undefined) {
       measureName = webidl.converters.DOMString(measureName, {
@@ -393,15 +407,15 @@ class Performance extends EventTarget {
     }
   }
 
-  getEntries() {
+  getEntries(): PerformanceEntryList {
     webidl.assertBranded(this, PerformancePrototype);
     return filterByNameType();
   }
 
   getEntriesByName(
-    name,
-    type = undefined,
-  ) {
+    name: string,
+    type: string = undefined,
+  ): PerformanceEntryList {
     webidl.assertBranded(this, PerformancePrototype);
     const prefix = "Failed to execute 'getEntriesByName' on 'Performance'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -421,7 +435,7 @@ class Performance extends EventTarget {
     return filterByNameType(name, type);
   }
 
-  getEntriesByType(type) {
+  getEntriesByType(type: string): PerformanceEntryList {
     webidl.assertBranded(this, PerformancePrototype);
     const prefix = "Failed to execute 'getEntriesByName' on 'Performance'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -434,10 +448,11 @@ class Performance extends EventTarget {
     return filterByNameType(undefined, type);
   }
 
+  /** Stores a timestamp with the associated name (a "mark"). */
   mark(
-    markName,
-    markOptions = {},
-  ) {
+    markName: string,
+    markOptions: PerformanceMarkOptions = {},
+  ): PerformanceMark {
     webidl.assertBranded(this, PerformancePrototype);
     const prefix = "Failed to execute 'mark' on 'Performance'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -461,10 +476,25 @@ class Performance extends EventTarget {
     return entry;
   }
 
+  /** Stores the `DOMHighResTimeStamp` duration between two marks along with the
+   * associated name (a "measure"). */
+   measure(
+    measureName: string,
+    options?: PerformanceMeasureOptions,
+  ): PerformanceMeasure;
+
+  /** Stores the `DOMHighResTimeStamp` duration between two marks along with the
+   * associated name (a "measure"). */
+   measure(
+    measureName: string,
+    startMark?: string,
+    endMark?: string,
+  ): PerformanceMeasure;
+
   measure(
-    measureName,
-    startOrMeasureOptions = {},
-    endMark = undefined,
+    measureName: string,
+    startOrMeasureOptions: PerformanceMeasureOptions | string = {},
+    endMark: string = undefined,
   ) {
     webidl.assertBranded(this, PerformancePrototype);
     const prefix = "Failed to execute 'measure' on 'Performance'";
@@ -564,12 +594,24 @@ class Performance extends EventTarget {
     return entry;
   }
 
-  now() {
+  /** Returns a current time from Deno's start in milliseconds.
+   *
+   * Use the permission flag `--allow-hrtime` return a precise value.
+   *
+   * ```ts
+   * const t = performance.now();
+   * console.log(`${t} ms since start!`);
+   * ```
+   *
+   * @tags allow-hrtime
+   */
+  now(): number {
     webidl.assertBranded(this, PerformancePrototype);
     return now();
   }
 
-  toJSON() {
+  /** Returns a JSON representation of the performance object. */
+  toJSON(): any {
     webidl.assertBranded(this, PerformancePrototype);
     return {
       timeOrigin: this.timeOrigin,
@@ -592,11 +634,5 @@ webidl.converters["Performance"] = webidl.createInterfaceConverter(
   PerformancePrototype,
 );
 
-window.__bootstrap.performance = {
-  PerformanceEntry,
-  PerformanceMark,
-  PerformanceMeasure,
-  Performance,
-  performance: new Performance(illegalConstructorKey),
-  setTimeOrigin,
-};
+export const performance = new Performance(illegalConstructorKey);
+

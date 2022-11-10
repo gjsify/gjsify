@@ -364,41 +364,41 @@ export function setLocationHref(href) {
   workerLocation = new WorkerLocation(href, locationConstructorKey);
 }
 
-// packages/deno/runtime/src/ext/web/12_location.ts
-window.__bootstrap.location = {
-  locationConstructorDescriptor: {
-    value: Location,
-    configurable: true,
-    writable: true,
+export const locationConstructorDescriptor = {
+  value: Location,
+  configurable: true,
+  writable: true,
+};
+
+export const workerLocationConstructorDescriptor = {
+  value: WorkerLocation,
+  configurable: true,
+  writable: true,
+};
+
+export const locationDescriptor = {
+  get() {
+    return location;
   },
-  workerLocationConstructorDescriptor: {
-    value: WorkerLocation,
-    configurable: true,
-    writable: true,
+  set() {
+    throw new DOMException(`Cannot set "location".`, "NotSupportedError");
   },
-  locationDescriptor: {
-    get() {
-      return location;
-    },
-    set() {
-      throw new DOMException(`Cannot set "location".`, "NotSupportedError");
-    },
-    enumerable: true,
+  enumerable: true,
+}
+
+export const workerLocationDescriptor = {
+  get() {
+    if (workerLocation == null) {
+      throw new Error(
+        `Assertion: "globalThis.location" must be defined in a worker.`,
+      );
+    }
+    return workerLocation;
   },
-  workerLocationDescriptor: {
-    get() {
-      if (workerLocation == null) {
-        throw new Error(
-          `Assertion: "globalThis.location" must be defined in a worker.`,
-        );
-      }
-      return workerLocation;
-    },
-    configurable: true,
-    enumerable: true,
-  },
-  setLocationHref,
-  getLocationHref() {
-    return location?.href;
-  },
+  configurable: true,
+  enumerable: true,
+}
+
+export const getLocationHref = () => {
+  return location?.href;
 };
