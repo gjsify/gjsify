@@ -41,6 +41,23 @@ export interface Listener extends AsyncIterable<Conn> {
     [Symbol.asyncIterator](): AsyncIterableIterator<Conn>;
 }
 
+/** @category Network */
+export interface Listener extends AsyncIterable<Conn> {
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * Make the listener block the event loop from finishing.
+     *
+     * Note: the listener blocks the event loop from finishing by default.
+     * This method is only meaningful after `.unref()` is called.
+     */
+    ref(): void;
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * Make the listener not block the event loop from finishing.
+     */
+    unref(): void;
+}
+
 /** Specialized listener that accepts TLS connections.
  *
  * @category Network
@@ -71,11 +88,38 @@ export interface Conn extends Reader, Writer, Closer {
 // deno-lint-ignore no-empty-interface
 export interface TlsHandshakeInfo {}
 
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * @category Network
+ */
+export interface TlsHandshakeInfo {
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * Contains the ALPN protocol selected during negotiation with the server.
+     * If no ALPN protocol selected, returns `null`.
+     */
+    alpnProtocol: string | null;
+}
+
 /** @category Network */
 export interface TlsConn extends Conn {
     /** Runs the client or server handshake protocol to completion if that has
      * not happened yet. Calling this method is optional; the TLS handshake
      * will be completed automatically as soon as data is sent or received. */
+    handshake(): Promise<TlsHandshakeInfo>;
+}
+
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * @category Network
+ */
+ export interface TlsConn extends Conn {
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * Runs the client or server handshake protocol to completion if that has
+     * not happened yet. Calling this method is optional; the TLS handshake
+     * will be completed automatically as soon as data is sent or received.
+     */
     handshake(): Promise<TlsHandshakeInfo>;
 }
 
@@ -98,6 +142,22 @@ export interface ListenOptions {
 export interface TcpListenOptions extends ListenOptions {
 }
 
+/**
+ * @category Network
+ */
+ export interface TcpListenOptions extends ListenOptions {
+    /** When `true` the SO_REUSEPORT flag will be set on the listener. This
+     * allows multiple processes to listen on the same address and port.
+     *
+     * On Linux this will cause the kernel to distribute incoming connections
+     * across the different processes that are listening on the same address and
+     * port.
+     *
+     * This flag is only supported on Linux. It is silently ignored on other
+     * platforms. Defaults to `false`. */
+    reusePort?: boolean;
+}
+
 /** Listen announces on the local transport address.
  *
  * ```ts
@@ -112,7 +172,7 @@ export interface TcpListenOptions extends ListenOptions {
  * @tags allow-net
  * @category Network
  */
-export type ListenFn = ( // TODO function listen
+export type ListenFn1 = ( // TODO function listen
     options: TcpListenOptions & { transport?: "tcp" },
 ) => Listener;
 
@@ -137,6 +197,20 @@ export interface ListenTlsOptions extends TcpListenOptions {
     keyFile?: string;
 
     transport?: "tcp";
+}
+
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * @category Network
+ */
+ export interface ListenTlsOptions {
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * Application-Layer Protocol Negotiation (ALPN) protocols to announce to
+     * the client. If not specified, no ALPN extension will be included in the
+     * TLS handshake.
+     */
+    alpnProtocols?: string[];
 }
 
 /** Listen announces on the local transport address over TLS (transport layer
@@ -222,6 +296,30 @@ export interface ConnectTlsOptions {
     caCerts?: string[];
 }
 
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * @category Network
+ */
+ export interface ConnectTlsOptions {
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * PEM formatted client certificate chain.
+     */
+    certChain?: string;
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * PEM formatted (RSA or PKCS8) private key of client certificate.
+     */
+    privateKey?: string;
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * Application-Layer Protocol Negotiation (ALPN) protocols supported by
+     * the client. If not specified, no ALPN extension will be included in the
+     * TLS handshake.
+     */
+    alpnProtocols?: string[];
+}
+
 /** Establishes a secure connection over TLS (transport layer security) using
  * an optional cert file, hostname (default is "127.0.0.1") and port.  The
  * cert file is optional and if not included Mozilla's root certificates will
@@ -240,7 +338,27 @@ export interface ConnectTlsOptions {
  * @tags allow-net
  * @category Network
  */
-export type ConnectTlsFn = (options: ConnectTlsOptions) => Promise<TlsConn>; // TODO function connectTls
+export type ConnectTlsFn1 = (options: ConnectTlsOptions) => Promise<TlsConn>; // TODO function connectTls
+
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * Create a TLS connection with an attached client certificate.
+ *
+ * ```ts
+ * const conn = await Deno.connectTls({
+ *   hostname: "deno.land",
+ *   port: 443,
+ *   certChain: "---- BEGIN CERTIFICATE ----\n ...",
+ *   privateKey: "---- BEGIN PRIVATE KEY ----\n ...",
+ * });
+ * ```
+ *
+ * Requires `allow-net` permission.
+ *
+ * @tags allow-net
+ * @category Network
+ */
+export type ConnectTlsFn2 = (options: ConnectTlsOptions) => Promise<TlsConn>; // TODO function connectTls
 
 /** @category Network */
 export interface StartTlsOptions {
@@ -252,6 +370,20 @@ export interface StartTlsOptions {
      *
      * Must be in PEM format. */
     caCerts?: string[];
+}
+
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * @category Network
+ */
+export interface StartTlsOptions {
+    /** **UNSTABLE**: New API, yet to be vetted.
+     *
+     * Application-Layer Protocol Negotiation (ALPN) protocols to announce to
+     * the client. If not specified, no ALPN extension will be included in the
+     * TLS handshake.
+     */
+    alpnProtocols?: string[];
 }
 
 /** Start TLS handshake from an existing connection using an optional list of

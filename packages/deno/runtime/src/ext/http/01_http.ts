@@ -3,6 +3,7 @@
 
 "use strict";
 
+import { core, ops, primordials } from '@gjsify/deno_core';
 import * as webidl from '../webidl/00_webidl.js';
 import { InnerBody } from '../fetch/22_body.js';
 import { Event, setEventTargetData } from '../web/02_event.js';
@@ -17,8 +18,8 @@ const {
   fromInnerResponse,
   _flash,
 } = window.__bootstrap.fetch;
-const core = window.Deno.core;
-const { BadResourcePrototype, InterruptedPrototype, ops } = core;
+
+const { BadResourcePrototype, InterruptedPrototype } = core;
 const { ReadableStreamPrototype } = window.__bootstrap.streams;
 const abortSignal = window.__bootstrap.abortSignal;
 const {
@@ -58,7 +59,7 @@ const {
   TypeError,
   Uint8Array,
   Uint8ArrayPrototype,
-} = window.__bootstrap.primordials;
+} = primordials;
 
 const connErrorSymbol = Symbol("connError");
 const _deferred = Symbol("upgradeHttpDeferred");

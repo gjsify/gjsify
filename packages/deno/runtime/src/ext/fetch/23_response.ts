@@ -12,508 +12,442 @@
 /// <reference lib="esnext" />
 "use strict";
 
-((window) => {
-  const { isProxy } = Deno.core;
-  const webidl = window.__bootstrap.webidl;
-  const consoleInternal = window.__bootstrap.console;
-  const {
-    byteLowerCase,
-  } = window.__bootstrap.infra;
-  const { HTTP_TAB_OR_SPACE, regexMatcher, serializeJSValueToJSONString } =
-    window.__bootstrap.infra;
-  const { extractBody, mixinBody } = window.__bootstrap.fetchBody;
-  const { getLocationHref } = window.__bootstrap.location;
-  const { extractMimeType } = window.__bootstrap.mimesniff;
-  const { URL } = window.__bootstrap.url;
-  const {
-    getDecodeSplitHeader,
-    headerListFromHeaders,
-    headersFromHeaderList,
-    guardFromHeaders,
-    fillHeaders,
-  } = window.__bootstrap.headers;
-  const {
-    ArrayPrototypeMap,
-    ArrayPrototypePush,
-    ObjectDefineProperties,
-    ObjectPrototypeIsPrototypeOf,
-    RangeError,
-    RegExp,
-    RegExpPrototypeTest,
-    SafeArrayIterator,
-    Symbol,
-    SymbolFor,
-    TypeError,
-  } = window.__bootstrap.primordials;
+import { core, primordials } from '@gjsify/deno_core';
+const { isProxy } = core;
+import * as webidl from '../webidl/00_webidl.js';
+import * as consoleInternal from '../console/02_console.js';
+import { byteLowerCase, HTTP_TAB_OR_SPACE, regexMatcher, serializeJSValueToJSONString } from '../web/00_infra.js';
+import { extractBody, mixinBody, InnerBody } from './22_body.js';
+import { getLocationHref } from '../web/12_location.js';
+import { extractMimeType } from '../web/01_mimesniff.js';
+import { URL } from '../url/00_url.js';
+import {
+  getDecodeSplitHeader,
+  headerListFromHeaders,
+  headersFromHeaderList,
+  guardFromHeaders,
+  fillHeaders,
+} from './20_headers.js';
+const {
+  getDecodeSplitHeader,
+  headerListFromHeaders,
+  headersFromHeaderList,
+  guardFromHeaders,
+  fillHeaders,
+} = window.__bootstrap.headers;
+const {
+  ArrayPrototypeMap,
+  ArrayPrototypePush,
+  ObjectDefineProperties,
+  ObjectPrototypeIsPrototypeOf,
+  RangeError,
+  RegExp,
+  RegExpPrototypeTest,
+  SafeArrayIterator,
+  Symbol,
+  SymbolFor,
+  TypeError,
+} = primordials;
 
-  const VCHAR = ["\x21-\x7E"];
-  const OBS_TEXT = ["\x80-\xFF"];
+const VCHAR = ["\x21-\x7E"];
+const OBS_TEXT = ["\x80-\xFF"];
 
-  const REASON_PHRASE = [
-    ...new SafeArrayIterator(HTTP_TAB_OR_SPACE),
-    ...new SafeArrayIterator(VCHAR),
-    ...new SafeArrayIterator(OBS_TEXT),
-  ];
-  const REASON_PHRASE_MATCHER = regexMatcher(REASON_PHRASE);
-  const REASON_PHRASE_RE = new RegExp(`^[${REASON_PHRASE_MATCHER}]*$`);
+const REASON_PHRASE = [
+  ...new SafeArrayIterator(HTTP_TAB_OR_SPACE),
+  ...new SafeArrayIterator(VCHAR),
+  ...new SafeArrayIterator(OBS_TEXT),
+];
+const REASON_PHRASE_MATCHER = regexMatcher(REASON_PHRASE);
+const REASON_PHRASE_RE = new RegExp(`^[${REASON_PHRASE_MATCHER}]*$`);
 
-  const _response = Symbol("response");
-  const _headers = Symbol("headers");
-  const _mimeType = Symbol("mime type");
-  const _body = Symbol("body");
+const _response = Symbol("response");
+const _headers = Symbol("headers");
+const _mimeType = Symbol("mime type");
+const _body = Symbol("body");
 
-  /**
-   * @typedef InnerResponse
-   * @property {"basic" | "cors" | "default" | "error" | "opaque" | "opaqueredirect"} type
-   * @property {() => string | null} url
-   * @property {string[]} urlList
-   * @property {number} status
-   * @property {string} statusMessage
-   * @property {[string, string][]} headerList
-   * @property {null | typeof __window.bootstrap.fetchBody.InnerBody} body
-   * @property {boolean} aborted
-   * @property {string} [error]
-   */
+interface InnerResponse {
+  type: "basic" | "cors" | "default" | "error" | "opaque" | "opaqueredirect";
+  url: () => string | null;
+  urlList: string[];
+  status: number;
+  statusMessage: string;
+  headerList: [string, string][];
+  body: null | typeof InnerBody;
+  aborted: boolean;
+  error?: string;
+}
 
-  /**
-   * @param {number} status
-   * @returns {boolean}
-   */
-  function nullBodyStatus(status) {
-    return status === 101 || status === 204 || status === 205 || status === 304;
-  }
+export function nullBodyStatus(status: number): boolean {
+  return status === 101 || status === 204 || status === 205 || status === 304;
+}
 
-  /**
-   * @param {number} status
-   * @returns {boolean}
-   */
-  function redirectStatus(status) {
-    return status === 301 || status === 302 || status === 303 ||
-      status === 307 || status === 308;
-  }
+export function redirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 ||
+    status === 307 || status === 308;
+}
 
-  /**
-   * https://fetch.spec.whatwg.org/#concept-response-clone
-   * @param {InnerResponse} response
-   * @returns {InnerResponse}
-   */
-  function cloneInnerResponse(response) {
-    const urlList = [...new SafeArrayIterator(response.urlList)];
-    const headerList = ArrayPrototypeMap(
-      response.headerList,
-      (x) => [x[0], x[1]],
-    );
-
-    let body = null;
-    if (response.body !== null) {
-      body = response.body.clone();
-    }
-
-    return {
-      type: response.type,
-      body,
-      headerList,
-      urlList,
-      status: response.status,
-      statusMessage: response.statusMessage,
-      aborted: response.aborted,
-      url() {
-        if (this.urlList.length == 0) return null;
-        return this.urlList[this.urlList.length - 1];
-      },
-    };
-  }
-
-  /**
-   * @returns {InnerResponse}
-   */
-  function newInnerResponse(status = 200, statusMessage = "") {
-    return {
-      type: "default",
-      body: null,
-      headerList: [],
-      urlList: [],
-      status,
-      statusMessage,
-      aborted: false,
-      url() {
-        if (this.urlList.length == 0) return null;
-        return this.urlList[this.urlList.length - 1];
-      },
-    };
-  }
-
-  /**
-   * @param {string} error
-   * @returns {InnerResponse}
-   */
-  function networkError(error) {
-    const resp = newInnerResponse(0);
-    resp.type = "error";
-    resp.error = error;
-    return resp;
-  }
-
-  /**
-   * @returns {InnerResponse}
-   */
-  function abortedNetworkError() {
-    const resp = networkError("aborted");
-    resp.aborted = true;
-    return resp;
-  }
-
-  /**
-   * https://fetch.spec.whatwg.org#initialize-a-response
-   * @param {Response} response
-   * @param {ResponseInit} init
-   * @param {{ body: __bootstrap.fetchBody.InnerBody, contentType: string | null } | null} bodyWithType
-   */
-  function initializeAResponse(response, init, bodyWithType) {
-    // 1.
-    if ((init.status < 200 || init.status > 599) && init.status != 101) {
-      throw new RangeError(
-        `The status provided (${init.status}) is not equal to 101 and outside the range [200, 599].`,
-      );
-    }
-
-    // 2.
-    if (
-      init.statusText &&
-      !RegExpPrototypeTest(REASON_PHRASE_RE, init.statusText)
-    ) {
-      throw new TypeError("Status text is not valid.");
-    }
-
-    // 3.
-    response[_response].status = init.status;
-
-    // 4.
-    response[_response].statusMessage = init.statusText;
-    // 5.
-    /** @type {__bootstrap.headers.Headers} */
-    const headers = response[_headers];
-    if (init.headers) {
-      fillHeaders(headers, init.headers);
-    }
-
-    // 6.
-    if (bodyWithType !== null) {
-      if (nullBodyStatus(response[_response].status)) {
-        throw new TypeError(
-          "Response with null body status cannot have body",
-        );
-      }
-
-      const { body, contentType } = bodyWithType;
-      response[_response].body = body;
-
-      if (contentType !== null) {
-        let hasContentType = false;
-        const list = headerListFromHeaders(headers);
-        for (let i = 0; i < list.length; i++) {
-          if (byteLowerCase(list[i][0]) === "content-type") {
-            hasContentType = true;
-            break;
-          }
-        }
-        if (!hasContentType) {
-          ArrayPrototypePush(list, ["Content-Type", contentType]);
-        }
-      }
-    }
-  }
-
-  class Response {
-    get [_mimeType]() {
-      const values = getDecodeSplitHeader(
-        headerListFromHeaders(this[_headers]),
-        "Content-Type",
-      );
-      return extractMimeType(values);
-    }
-    get [_body]() {
-      return this[_response].body;
-    }
-
-    /**
-     * @returns {Response}
-     */
-    static error() {
-      const inner = newInnerResponse(0);
-      inner.type = "error";
-      const response = webidl.createBranded(Response);
-      response[_response] = inner;
-      response[_headers] = headersFromHeaderList(
-        response[_response].headerList,
-        "immutable",
-      );
-      return response;
-    }
-
-    /**
-     * @param {string} url
-     * @param {number} status
-     * @returns {Response}
-     */
-    static redirect(url, status = 302) {
-      const prefix = "Failed to call 'Response.redirect'";
-      url = webidl.converters["USVString"](url, {
-        prefix,
-        context: "Argument 1",
-      });
-      status = webidl.converters["unsigned short"](status, {
-        prefix,
-        context: "Argument 2",
-      });
-
-      const baseURL = getLocationHref();
-      const parsedURL = new URL(url, baseURL);
-      if (!redirectStatus(status)) {
-        throw new RangeError("Invalid redirect status code.");
-      }
-      const inner = newInnerResponse(status);
-      inner.type = "default";
-      ArrayPrototypePush(inner.headerList, ["Location", parsedURL.href]);
-      const response = webidl.createBranded(Response);
-      response[_response] = inner;
-      response[_headers] = headersFromHeaderList(
-        response[_response].headerList,
-        "immutable",
-      );
-      return response;
-    }
-
-    /**
-     * @param {any} data
-     * @param {ResponseInit} init
-     * @returns {Response}
-     */
-    static json(data = undefined, init = {}) {
-      const prefix = "Failed to call 'Response.json'";
-      data = webidl.converters.any(data);
-      init = webidl.converters["ResponseInit_fast"](init, {
-        prefix,
-        context: "Argument 2",
-      });
-
-      const str = serializeJSValueToJSONString(data);
-      const res = extractBody(str);
-      res.contentType = "application/json";
-      const response = webidl.createBranded(Response);
-      response[_response] = newInnerResponse();
-      response[_headers] = headersFromHeaderList(
-        response[_response].headerList,
-        "response",
-      );
-      initializeAResponse(response, init, res);
-      return response;
-    }
-
-    /**
-     * @param {BodyInit | null} body
-     * @param {ResponseInit} init
-     */
-    constructor(body = null, init = undefined) {
-      const prefix = "Failed to construct 'Response'";
-      body = webidl.converters["BodyInit_DOMString?"](body, {
-        prefix,
-        context: "Argument 1",
-      });
-      init = webidl.converters["ResponseInit_fast"](init, {
-        prefix,
-        context: "Argument 2",
-      });
-
-      this[_response] = newInnerResponse();
-      this[_headers] = headersFromHeaderList(
-        this[_response].headerList,
-        "response",
-      );
-
-      let bodyWithType = null;
-      if (body !== null) {
-        bodyWithType = extractBody(body);
-      }
-      initializeAResponse(this, init, bodyWithType);
-      this[webidl.brand] = webidl.brand;
-    }
-
-    /**
-     * @returns {"basic" | "cors" | "default" | "error" | "opaque" | "opaqueredirect"}
-     */
-    get type() {
-      webidl.assertBranded(this, ResponsePrototype);
-      return this[_response].type;
-    }
-
-    /**
-     * @returns {string}
-     */
-    get url() {
-      webidl.assertBranded(this, ResponsePrototype);
-      const url = this[_response].url();
-      if (url === null) return "";
-      const newUrl = new URL(url);
-      newUrl.hash = "";
-      return newUrl.href;
-    }
-
-    /**
-     * @returns {boolean}
-     */
-    get redirected() {
-      webidl.assertBranded(this, ResponsePrototype);
-      return this[_response].urlList.length > 1;
-    }
-
-    /**
-     * @returns {number}
-     */
-    get status() {
-      webidl.assertBranded(this, ResponsePrototype);
-      return this[_response].status;
-    }
-
-    /**
-     * @returns {boolean}
-     */
-    get ok() {
-      webidl.assertBranded(this, ResponsePrototype);
-      const status = this[_response].status;
-      return status >= 200 && status <= 299;
-    }
-
-    /**
-     * @returns {string}
-     */
-    get statusText() {
-      webidl.assertBranded(this, ResponsePrototype);
-      return this[_response].statusMessage;
-    }
-
-    /**
-     * @returns {Headers}
-     */
-    get headers() {
-      webidl.assertBranded(this, ResponsePrototype);
-      return this[_headers];
-    }
-
-    /**
-     * @returns {Response}
-     */
-    clone() {
-      webidl.assertBranded(this, ResponsePrototype);
-      if (this[_body] && this[_body].unusable()) {
-        throw new TypeError("Body is unusable.");
-      }
-      const second = webidl.createBranded(Response);
-      const newRes = cloneInnerResponse(this[_response]);
-      second[_response] = newRes;
-      second[_headers] = headersFromHeaderList(
-        newRes.headerList,
-        guardFromHeaders(this[_headers]),
-      );
-      return second;
-    }
-
-    [SymbolFor("Deno.customInspect")](inspect) {
-      return inspect(consoleInternal.createFilteredInspectProxy({
-        object: this,
-        evaluate: ObjectPrototypeIsPrototypeOf(ResponsePrototype, this),
-        keys: [
-          "body",
-          "bodyUsed",
-          "headers",
-          "ok",
-          "redirected",
-          "status",
-          "statusText",
-          "url",
-        ],
-      }));
-    }
-  }
-
-  webidl.configurePrototype(Response);
-  ObjectDefineProperties(Response, {
-    json: { enumerable: true },
-    redirect: { enumerable: true },
-    error: { enumerable: true },
-  });
-  const ResponsePrototype = Response.prototype;
-  mixinBody(ResponsePrototype, _body, _mimeType);
-
-  webidl.converters["Response"] = webidl.createInterfaceConverter(
-    "Response",
-    ResponsePrototype,
+/**
+ * https://fetch.spec.whatwg.org/#concept-response-clone
+ * @param {InnerResponse} response
+ * @returns {InnerResponse}
+ */
+function cloneInnerResponse(response: InnerResponse): InnerResponse {
+  const urlList = [...new SafeArrayIterator(response.urlList)];
+  const headerList = ArrayPrototypeMap(
+    response.headerList,
+    (x) => [x[0], x[1]],
   );
-  webidl.converters["ResponseInit"] = webidl.createDictionaryConverter(
-    "ResponseInit",
-    [{
-      key: "status",
-      defaultValue: 200,
-      converter: webidl.converters["unsigned short"],
-    }, {
-      key: "statusText",
-      defaultValue: "",
-      converter: webidl.converters["ByteString"],
-    }, {
-      key: "headers",
-      converter: webidl.converters["HeadersInit"],
-    }],
-  );
-  webidl.converters["ResponseInit_fast"] = function (init, opts) {
-    if (init === undefined || init === null) {
-      return { status: 200, statusText: "", headers: undefined };
-    }
-    // Fast path, if not a proxy
-    if (typeof init === "object" && !isProxy(init)) {
-      // Not a proxy fast path
-      const status = init.status !== undefined
-        ? webidl.converters["unsigned short"](init.status)
-        : 200;
-      const statusText = init.statusText !== undefined
-        ? webidl.converters["ByteString"](init.statusText)
-        : "";
-      const headers = init.headers !== undefined
-        ? webidl.converters["HeadersInit"](init.headers)
-        : undefined;
-      return { status, statusText, headers };
-    }
-    // Slow default path
-    return webidl.converters["ResponseInit"](init, opts);
+
+  let body = null;
+  if (response.body !== null) {
+    body = response.body.clone();
+  }
+
+  return {
+    type: response.type,
+    body,
+    headerList,
+    urlList,
+    status: response.status,
+    statusMessage: response.statusMessage,
+    aborted: response.aborted,
+    url() {
+      if (this.urlList.length == 0) return null;
+      return this.urlList[this.urlList.length - 1];
+    },
   };
+}
 
-  /**
-   * @param {Response} response
-   * @returns {InnerResponse}
-   */
-  function toInnerResponse(response) {
-    return response[_response];
+/**
+ * @returns {InnerResponse}
+ */
+export function newInnerResponse(status = 200, statusMessage = ""): InnerResponse {
+  return {
+    type: "default",
+    body: null,
+    headerList: [],
+    urlList: [],
+    status,
+    statusMessage,
+    aborted: false,
+    url() {
+      if (this.urlList.length == 0) return null;
+      return this.urlList[this.urlList.length - 1];
+    },
+  };
+}
+
+export function networkError(error: string): InnerResponse {
+  const resp = newInnerResponse(0);
+  resp.type = "error";
+  resp.error = error;
+  return resp;
+}
+
+export function abortedNetworkError(): InnerResponse {
+  const resp = networkError("aborted");
+  resp.aborted = true;
+  return resp;
+}
+
+/**
+ * https://fetch.spec.whatwg.org#initialize-a-response
+ */
+function initializeAResponse(response: Response, init: ResponseInit, bodyWithType: { body: __bootstrap.fetchBody.InnerBody, contentType: string | null } | null) {
+  // 1.
+  if ((init.status < 200 || init.status > 599) && init.status != 101) {
+    throw new RangeError(
+      `The status provided (${init.status}) is not equal to 101 and outside the range [200, 599].`,
+    );
   }
 
-  /**
-   * @param {InnerResponse} inner
-   * @param {"request" | "immutable" | "request-no-cors" | "response" | "none"} guard
-   * @returns {Response}
-   */
-  function fromInnerResponse(inner, guard) {
+  // 2.
+  if (
+    init.statusText &&
+    !RegExpPrototypeTest(REASON_PHRASE_RE, init.statusText)
+  ) {
+    throw new TypeError("Status text is not valid.");
+  }
+
+  // 3.
+  response[_response].status = init.status;
+
+  // 4.
+  response[_response].statusMessage = init.statusText;
+  // 5.
+  /** @type {__bootstrap.headers.Headers} */
+  const headers: __bootstrap.headers.Headers = response[_headers];
+  if (init.headers) {
+    fillHeaders(headers, init.headers);
+  }
+
+  // 6.
+  if (bodyWithType !== null) {
+    if (nullBodyStatus(response[_response].status)) {
+      throw new TypeError(
+        "Response with null body status cannot have body",
+      );
+    }
+
+    const { body, contentType } = bodyWithType;
+    response[_response].body = body;
+
+    if (contentType !== null) {
+      let hasContentType = false;
+      const list = headerListFromHeaders(headers);
+      for (let i = 0; i < list.length; i++) {
+        if (byteLowerCase(list[i][0]) === "content-type") {
+          hasContentType = true;
+          break;
+        }
+      }
+      if (!hasContentType) {
+        ArrayPrototypePush(list, ["Content-Type", contentType]);
+      }
+    }
+  }
+}
+
+export class Response {
+  get [_mimeType]() {
+    const values = getDecodeSplitHeader(
+      headerListFromHeaders(this[_headers]),
+      "Content-Type",
+    );
+    return extractMimeType(values);
+  }
+  get [_body]() {
+    return this[_response].body;
+  }
+
+  static error(): Response {
+    const inner = newInnerResponse(0);
+    inner.type = "error";
     const response = webidl.createBranded(Response);
     response[_response] = inner;
-    response[_headers] = headersFromHeaderList(inner.headerList, guard);
+    response[_headers] = headersFromHeaderList(
+      response[_response].headerList,
+      "immutable",
+    );
     return response;
   }
 
-  window.__bootstrap.fetch ??= {};
-  window.__bootstrap.fetch.Response = Response;
-  window.__bootstrap.fetch.ResponsePrototype = ResponsePrototype;
-  window.__bootstrap.fetch.newInnerResponse = newInnerResponse;
-  window.__bootstrap.fetch.toInnerResponse = toInnerResponse;
-  window.__bootstrap.fetch.fromInnerResponse = fromInnerResponse;
-  window.__bootstrap.fetch.redirectStatus = redirectStatus;
-  window.__bootstrap.fetch.nullBodyStatus = nullBodyStatus;
-  window.__bootstrap.fetch.networkError = networkError;
-  window.__bootstrap.fetch.abortedNetworkError = abortedNetworkError;
-})(globalThis);
+  static redirect(url: string, status: number = 302): Response {
+    const prefix = "Failed to call 'Response.redirect'";
+    url = webidl.converters["USVString"](url, {
+      prefix,
+      context: "Argument 1",
+    });
+    status = webidl.converters["unsigned short"](status, {
+      prefix,
+      context: "Argument 2",
+    });
+
+    const baseURL = getLocationHref();
+    const parsedURL = new URL(url, baseURL);
+    if (!redirectStatus(status)) {
+      throw new RangeError("Invalid redirect status code.");
+    }
+    const inner = newInnerResponse(status);
+    inner.type = "default";
+    ArrayPrototypePush(inner.headerList, ["Location", parsedURL.href]);
+    const response = webidl.createBranded(Response);
+    response[_response] = inner;
+    response[_headers] = headersFromHeaderList(
+      response[_response].headerList,
+      "immutable",
+    );
+    return response;
+  }
+
+  static json(data: any | undefined = undefined, init: ResponseInit = {}): Response {
+    const prefix = "Failed to call 'Response.json'";
+    data = webidl.converters.any(data);
+    init = webidl.converters["ResponseInit_fast"](init, {
+      prefix,
+      context: "Argument 2",
+    });
+
+    const str = serializeJSValueToJSONString(data);
+    const res = extractBody(str);
+    res.contentType = "application/json";
+    const response = webidl.createBranded(Response);
+    response[_response] = newInnerResponse();
+    response[_headers] = headersFromHeaderList(
+      response[_response].headerList,
+      "response",
+    );
+    initializeAResponse(response, init, res);
+    return response;
+  }
+
+  constructor(body: BodyInit | null = null, init: ResponseInit = undefined) {
+    const prefix = "Failed to construct 'Response'";
+    body = webidl.converters["BodyInit_DOMString?"](body, {
+      prefix,
+      context: "Argument 1",
+    });
+    init = webidl.converters["ResponseInit_fast"](init, {
+      prefix,
+      context: "Argument 2",
+    });
+
+    this[_response] = newInnerResponse();
+    this[_headers] = headersFromHeaderList(
+      this[_response].headerList,
+      "response",
+    );
+
+    let bodyWithType = null;
+    if (body !== null) {
+      bodyWithType = extractBody(body);
+    }
+    initializeAResponse(this, init, bodyWithType);
+    this[webidl.brand] = webidl.brand;
+  }
+
+  get type(): "basic" | "cors" | "default" | "error" | "opaque" | "opaqueredirect" {
+    webidl.assertBranded(this, ResponsePrototype);
+    return this[_response].type;
+  }
+
+  get url(): string {
+    webidl.assertBranded(this, ResponsePrototype);
+    const url = this[_response].url();
+    if (url === null) return "";
+    const newUrl = new URL(url);
+    newUrl.hash = "";
+    return newUrl.href;
+  }
+
+  get redirected(): boolean {
+    webidl.assertBranded(this, ResponsePrototype);
+    return this[_response].urlList.length > 1;
+  }
+
+  get status(): number {
+    webidl.assertBranded(this, ResponsePrototype);
+    return this[_response].status;
+  }
+
+  get ok(): boolean {
+    webidl.assertBranded(this, ResponsePrototype);
+    const status = this[_response].status;
+    return status >= 200 && status <= 299;
+  }
+
+  get statusText(): string {
+    webidl.assertBranded(this, ResponsePrototype);
+    return this[_response].statusMessage;
+  }
+
+  get headers(): Headers {
+    webidl.assertBranded(this, ResponsePrototype);
+    return this[_headers];
+  }
+
+  clone(): Response {
+    webidl.assertBranded(this, ResponsePrototype);
+    if (this[_body] && this[_body].unusable()) {
+      throw new TypeError("Body is unusable.");
+    }
+    const second = webidl.createBranded(Response);
+    const newRes = cloneInnerResponse(this[_response]);
+    second[_response] = newRes;
+    second[_headers] = headersFromHeaderList(
+      newRes.headerList,
+      guardFromHeaders(this[_headers]),
+    );
+    return second;
+  }
+
+  [SymbolFor("Deno.customInspect")](inspect) {
+    return inspect(consoleInternal.createFilteredInspectProxy({
+      object: this,
+      evaluate: ObjectPrototypeIsPrototypeOf(ResponsePrototype, this),
+      keys: [
+        "body",
+        "bodyUsed",
+        "headers",
+        "ok",
+        "redirected",
+        "status",
+        "statusText",
+        "url",
+      ],
+    }));
+  }
+}
+
+webidl.configurePrototype(Response);
+ObjectDefineProperties(Response, {
+  json: { enumerable: true },
+  redirect: { enumerable: true },
+  error: { enumerable: true },
+});
+export const ResponsePrototype = Response.prototype;
+mixinBody(ResponsePrototype, _body, _mimeType);
+
+webidl.converters["Response"] = webidl.createInterfaceConverter(
+  "Response",
+  ResponsePrototype,
+);
+webidl.converters["ResponseInit"] = webidl.createDictionaryConverter(
+  "ResponseInit",
+  [{
+    key: "status",
+    defaultValue: 200,
+    converter: webidl.converters["unsigned short"],
+  }, {
+    key: "statusText",
+    defaultValue: "",
+    converter: webidl.converters["ByteString"],
+  }, {
+    key: "headers",
+    converter: webidl.converters["HeadersInit"],
+  }],
+);
+webidl.converters["ResponseInit_fast"] = function (init, opts) {
+  if (init === undefined || init === null) {
+    return { status: 200, statusText: "", headers: undefined };
+  }
+  // Fast path, if not a proxy
+  if (typeof init === "object" && !isProxy(init)) {
+    // Not a proxy fast path
+    const status = init.status !== undefined
+      ? webidl.converters["unsigned short"](init.status)
+      : 200;
+    const statusText = init.statusText !== undefined
+      ? webidl.converters["ByteString"](init.statusText)
+      : "";
+    const headers = init.headers !== undefined
+      ? webidl.converters["HeadersInit"](init.headers)
+      : undefined;
+    return { status, statusText, headers };
+  }
+  // Slow default path
+  return webidl.converters["ResponseInit"](init, opts);
+};
+
+export function toInnerResponse(response: Response): InnerResponse {
+  return response[_response];
+}
+
+function fromInnerResponse(inner: InnerResponse, guard: "request" | "immutable" | "request-no-cors" | "response" | "none"): Response {
+  const response = webidl.createBranded(Response);
+  response[_response] = inner;
+  response[_headers] = headersFromHeaderList(inner.headerList, guard);
+  return response;
+}
+
+// packages/deno/runtime/src/ext/fetch/23_response.ts
+window.__bootstrap.fetch ??= {};
+window.__bootstrap.fetch.Response = Response;
+window.__bootstrap.fetch.ResponsePrototype = ResponsePrototype;
+window.__bootstrap.fetch.newInnerResponse = newInnerResponse;
+window.__bootstrap.fetch.toInnerResponse = toInnerResponse;
+window.__bootstrap.fetch.fromInnerResponse = fromInnerResponse;
+window.__bootstrap.fetch.redirectStatus = redirectStatus;
+window.__bootstrap.fetch.nullBodyStatus = nullBodyStatus;
+window.__bootstrap.fetch.networkError = networkError;
+window.__bootstrap.fetch.abortedNetworkError = abortedNetworkError;

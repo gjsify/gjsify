@@ -14,6 +14,8 @@
 // <reference lib="deno.crypto" />
 // <reference lib="deno.broadcast_channel" />
 
+import type { PermissionOptions } from './index.js'
+
 /** @category WebAssembly */
 export namespace WebAssembly {
   /**
@@ -509,6 +511,40 @@ interface WorkerEventMap extends AbstractWorkerEventMap {
 export interface WorkerOptions {
   type?: "classic" | "module";
   name?: string;
+
+  /** **UNSTABLE**: New API, yet to be vetted.
+   *
+   * Configure permissions options to change the level of access the worker will
+   * have. By default it will have no permissions. Note that the permissions
+   * of a worker can't be extended beyond its parent's permissions reach.
+   *
+   * - `"inherit"` will take the permissions of the thread the worker is created
+   *   in.
+   * - `"none"` will use the default behavior and have no permission
+   * - A list of routes can be provided that are relative to the file the worker
+   *   is created in to limit the access of the worker (read/write permissions
+   *   only)
+   *
+   * Example:
+   *
+   * ```ts
+   * // mod.ts
+   * const worker = new Worker(
+   *   new URL("deno_worker.ts", import.meta.url).href, {
+   *     type: "module",
+   *     deno: {
+   *       permissions: {
+   *         read: true,
+   *       },
+   *     },
+   *   }
+   * );
+   * ```
+   */
+  deno?: {
+    /** Set to `"none"` to disable all the permissions in the worker. */
+    permissions?: PermissionOptions;
+  };
 }
 
 /** @category Web Workers */

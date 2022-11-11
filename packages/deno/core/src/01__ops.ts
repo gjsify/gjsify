@@ -13,6 +13,7 @@ import type {
     MakeTempOptions,
     SeekMode,
     OpenOptions,
+    CreateHttpClientOptions,
 } from './types/index.js';
 
 export const op_close = (...args: any[]) => {
@@ -213,8 +214,10 @@ export const op_fetch = (...args: any[]) => {
 export const op_fetch_send = (...args: any[]) => {
     console.warn("Not implemented: ops.op_fetch_send");
 }
-export const op_fetch_custom_client = (...args: any[]) => {
+export const op_fetch_custom_client = (options: CreateHttpClientOptions) => {
     console.warn("Not implemented: ops.op_fetch_custom_client");
+    const rid = 0;
+    return rid;
 }
 export const op_ws_check_permission_and_cancel_handle = (...args: any[]) => {
     console.warn("Not implemented: ops.op_ws_check_permission_and_cancel_handle");

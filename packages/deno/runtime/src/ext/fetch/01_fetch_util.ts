@@ -3,22 +3,18 @@
 
 "use strict";
 
-((window) => {
-  const { TypeError } = window.__bootstrap.primordials;
-  function requiredArguments(
-    name,
-    length,
-    required,
-  ) {
-    if (length < required) {
-      const errMsg = `${name} requires at least ${required} argument${
-        required === 1 ? "" : "s"
-      }, but only ${length} present`;
-      throw new TypeError(errMsg);
-    }
-  }
+import { primordials } from '@gjsify/deno_core';
+const { TypeError } = primordials;
 
-  window.__bootstrap.fetchUtil = {
-    requiredArguments,
-  };
-})(this);
+export function requiredArguments(
+  name: string,
+  length: number,
+  required: number,
+) {
+  if (length < required) {
+    const errMsg = `${name} requires at least ${required} argument${
+      required === 1 ? "" : "s"
+    }, but only ${length} present`;
+    throw new TypeError(errMsg);
+  }
+}

@@ -418,5 +418,4 @@ webidl.converters["BodyInit_DOMString?"] = webidl.createNullableConverter(
   webidl.converters["BodyInit_DOMString"],
 );
 
-// packages/deno/runtime/src/ext/fetch/22_body.ts
-window.__bootstrap.fetchBody = { mixinBody, InnerBody, extractBody };
+

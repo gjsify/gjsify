@@ -2,13 +2,14 @@
 // Based on https://github.com/denoland/deno/blob/main/ext/fetch/21_formdata.js
 
 // @ts-check
-/// <reference path="../webidl/internal.d.ts" />
-/// <reference path="../web/internal.d.ts" />
-/// <reference path="../web/lib.deno_web.d.ts" />
-/// <reference path="./internal.d.ts" />
-/// <reference path="../web/06_streams_types.d.ts" />
-/// <reference path="./lib.deno_fetch.d.ts" />
-/// <reference lib="esnext" />
+// <reference path="../webidl/internal.d.ts" />
+// <reference path="../web/internal.d.ts" />
+// <reference path="../web/lib.deno_web.d.ts" />
+// <reference path="./internal.d.ts" />
+// <reference path="../web/06_streams_types.d.ts" />
+// <reference path="./lib.deno_fetch.d.ts" />
+// <reference lib="esnext" />
+
 "use strict";
 
 import { core, primordials } from '@gjsify/deno_core';
@@ -260,12 +261,13 @@ export function formDataToBlob(formData: FormData) {
   const chunks = [];
   const prefix = `--${boundary}\r\nContent-Disposition: form-data; name="`;
 
+  // @ts-ignore
   for (const [name, value] of formData) {
     if (typeof value === "string") {
       ArrayPrototypePush(
         chunks,
         prefix + escape(name) + '"' + CRLF + CRLF +
-          StringPrototypeReplace(value, /\r(?!\n)|(?<!\r)\n/g, CRLF) + CRLF,
+          StringPrototypeReplace(value, /\r(?!\n)|(?<!\r)\n/g, CRLF as any) + CRLF,
       );
     } else {
       ArrayPrototypePush(
@@ -290,14 +292,14 @@ function parseContentDisposition(value: string): Map<string, string> {
   /** @type {Map<string, string>} */
   const params = new Map();
   // Forced to do so for some Map constructor param mismatch
-  const values = ArrayPrototypeSlice(StringPrototypeSplit(value, ";"), 1);
+  const values = ArrayPrototypeSlice(StringPrototypeSplit(value, ";" as any), 1);
   for (let i = 0; i < values.length; i++) {
-    const entries = StringPrototypeSplit(StringPrototypeTrim(values[i]), "=");
+    const entries = StringPrototypeSplit(StringPrototypeTrim(values[i]), "=" as any);
     if (entries.length > 1) {
       MapPrototypeSet(
         params,
         entries[0],
-        StringPrototypeReplace(entries[1], /^"([^"]*)"$/, "$1"),
+        StringPrototypeReplace(entries[1], /^"([^"]*)"$/, "$1" as any),
       );
     }
   }
@@ -447,12 +449,3 @@ export function formDataFromEntries(entries: FormDataEntry[]): FormData {
 
 webidl.converters["FormData"] = webidl
   .createInterfaceConverter("FormData", FormDataPrototype);
-
-// packages/deno/runtime/src/ext/fetch/21_formdata.ts
-globalThis.__bootstrap.formData = {
-  FormData,
-  FormDataPrototype,
-  formDataToBlob,
-  parseFormData,
-  formDataFromEntries,
-};
