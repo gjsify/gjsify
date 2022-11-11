@@ -1,4 +1,4 @@
-// Forked from https://github.com/philipphoffmann/gjsunit
+// Based on https://github.com/philipphoffmann/gjsunit
 
 import type GLib from '@gjsify/types/GLib-2.0';
 export * from './spy.js';

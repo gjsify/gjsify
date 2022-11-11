@@ -323,8 +323,97 @@ window.__bootstrap.buffer = {
   Buffer,
 };
 
+// packages/deno/runtime/src/30_fs.ts
+window.__bootstrap.fs = {
+  cwd,
+  chdir,
+  chmodSync,
+  chmod,
+  chown,
+  chownSync,
+  copyFile,
+  copyFileSync,
+  makeTempFile,
+  makeTempDir,
+  makeTempFileSync,
+  makeTempDirSync,
+  mkdir,
+  mkdirSync,
+  readDir,
+  readDirSync,
+  readLinkSync,
+  readLink,
+  realPathSync,
+  realPath,
+  remove,
+  removeSync,
+  renameSync,
+  rename,
+  lstat,
+  lstatSync,
+  stat,
+  statSync,
+  ftruncate,
+  ftruncateSync,
+  truncate,
+  truncateSync,
+  umask,
+  link,
+  linkSync,
+  fstatSync,
+  fstat,
+  futime,
+  futimeSync,
+  utime,
+  utimeSync,
+  symlink,
+  symlinkSync,
+  fdatasync,
+  fdatasyncSync,
+  fsync,
+  fsyncSync,
+  flock,
+  flockSync,
+  funlock,
+  funlockSync,
+};
+
+// packages/deno/runtime/src/30_os.ts
+window.__bootstrap.os = {
+  env,
+  execPath,
+  exit,
+  gid,
+  hostname,
+  loadavg,
+  networkInterfaces,
+  osRelease,
+  setExitHandler,
+  systemMemoryInfo,
+  uid,
+};
+
+// packages/deno/runtime/src/40_diagnostics.ts
+window.__bootstrap.diagnostics = {
+  DiagnosticCategory,
+};
+
 // packages/deno/runtime/src/40_fs_events.ts
 window.__bootstrap.fsEvents = {
   watchFs,
 };
 
+// packages/deno/runtime/src/40_files.ts
+window.__bootstrap.files = {
+  stdin,
+  stdout,
+  stderr,
+  File: FsFile,
+  FsFile,
+  create,
+  createSync,
+  open,
+  openSync,
+  seek,
+  seekSync,
+};

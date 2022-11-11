@@ -1,4 +1,4 @@
-// Forked from https://github.com/browserify/node-util
+// Based on https://github.com/browserify/node-util
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a

@@ -1,5 +1,5 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Forked from https://github.com/denoland/deno/blob/main/runtime/js/11_workers.js
+// Based on https://github.com/denoland/deno/blob/main/runtime/js/11_workers.js
 "use strict";
 
 import { core, ops, primordials } from '@gjsify/deno_core';

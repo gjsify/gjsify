@@ -719,7 +719,7 @@ export async function readableStreamCollectIntoUint8Array(stream) {
  * @param autoClose If the resource should be auto-closed when the stream closes. Defaults to true.
  * @returns
  */
-export function writableStreamForRid(rid: number, autoClose: boolean = true): ReadableStream<Uint8Array> {
+export function writableStreamForRid(rid: number, autoClose: boolean = true): WritableStream<Uint8Array> {
   const stream = webidl.createBranded(WritableStream);
   stream[_resourceBacking] = { rid, autoClose };
 

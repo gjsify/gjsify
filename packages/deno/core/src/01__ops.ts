@@ -3,8 +3,17 @@
 // Based on https://github.com/denoland/deno/blob/main/core/ops_builtin_v8.rs
 // Based on https://github.com/denoland/deno/blob/main/core/ops_metrics.rs
 
-import { stringify } from 'querystring';
-import type { UncaughtExceptionCallback, UrlComponent, UrlComponents, URLPatternInput, PermissionState, PermissionDescriptor } from './types/index.js';
+import type {
+    UncaughtExceptionCallback,
+    UrlComponent,
+    UrlComponents,
+    URLPatternInput,
+    PermissionState,
+    PermissionDescriptor,
+    MakeTempOptions,
+    SeekMode,
+    OpenOptions,
+} from './types/index.js';
 
 export const op_close = (...args: any[]) => {
     console.warn("Not implemented: ops.op_close");
@@ -27,7 +36,7 @@ export const op_wasm_streaming_set_url = (...args: any[]) => {
 export const op_void_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_void_sync");
 }
-export const op_void_async = (...args: any[]) => {
+export const op_void_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_void_async");
 }
 export const op_read = async (rid: number, buffer: Uint8Array): Promise<number> => {
@@ -312,7 +321,7 @@ export const op_webgpu_buffer_get_mapped_range = (...args: any[]) => {
 export const op_webgpu_buffer_unmap = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_buffer_unmap");
 }
-export const op_webgpu_buffer_get_map_async = (...args: any[]) => {
+export const op_webgpu_buffer_get_map_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_buffer_get_map_async");
 }
 export const op_webgpu_create_texture = (...args: any[]) => {
@@ -610,59 +619,63 @@ export const op_spawn_wait = (...args: any[]) => {
 export const op_spawn_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_spawn_sync");
 }
-export const op_fs_events_open = (...args: any[]): number => {
+export const op_fs_events_open = (options: { recursive: boolean, paths: string[] }): number => {
     console.warn("Not implemented: ops.op_fs_events_open");
     return 0;
 }
 export const op_fs_events_poll = (...args: any[]) => {
     console.warn("Not implemented: ops.op_fs_events_poll");
 }
-export const op_open_sync = (...args: any[]) => {
+export const op_open_sync = (path: string, options: OpenOptions, mode: number): number => {
     console.warn("Not implemented: ops.op_open_sync");
+    return 0;
 }
-export const op_open_async = (...args: any[]) => {
+export const op_open_async = async (path: string, options: OpenOptions, mode: number): Promise<number> => {
     console.warn("Not implemented: ops.op_open_async");
+    return 0;
 }
 export const op_write_file_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_write_file_sync");
 }
-export const op_write_file_async = (...args: any[]) => {
+export const op_write_file_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_write_file_async");
 }
-export const op_seek_sync = (...args: any[]) => {
+export const op_seek_sync = (options: { rid: number, offset: number, whence: SeekMode }): number => {
     console.warn("Not implemented: ops.op_seek_sync");
+    return 0;
 }
-export const op_seek_async = (...args: any[]) => {
+export const op_seek_async = async (options: { rid: number, offset: number, whence: SeekMode }): Promise<number> => {
     console.warn("Not implemented: ops.op_seek_async");
+    return 0;
 }
-export const op_fdatasync_sync = (...args: any[]) => {
+export const op_fdatasync_sync = (rid: number): void => {
     console.warn("Not implemented: ops.op_fdatasync_sync");
 }
-export const op_fdatasync_async = (...args: any[]) => {
+export const op_fdatasync_async = async (rid: number): Promise<void> => {
     console.warn("Not implemented: ops.op_fdatasync_async");
 }
 export const op_fsync_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_fsync_sync");
 }
-export const op_fsync_async = (...args: any[]) => {
+export const op_fsync_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_fsync_async");
 }
 export const op_fstat_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_fstat_sync");
 }
-export const op_fstat_async = (...args: any[]) => {
+export const op_fstat_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_fstat_async");
 }
-export const op_flock_sync = (...args: any[]) => {
+export const op_flock_sync = (rid: number, exclusive: boolean) => {
     console.warn("Not implemented: ops.op_flock_sync");
 }
-export const op_flock_async = (...args: any[]) => {
+export const op_flock_async = async (rid: number, exclusive: boolean) => {
     console.warn("Not implemented: ops.op_flock_async");
 }
-export const op_funlock_sync = (...args: any[]) => {
+export const op_funlock_sync = (rid: number) => {
     console.warn("Not implemented: ops.op_funlock_sync");
 }
-export const op_funlock_async = (...args: any[]) => {
+export const op_funlock_async = async (rid: number) => {
     console.warn("Not implemented: ops.op_funlock_async");
 }
 export const op_umask = (...args: any[]) => {
@@ -671,115 +684,122 @@ export const op_umask = (...args: any[]) => {
 export const op_chdir = (...args: any[]) => {
     console.warn("Not implemented: ops.op_chdir");
 }
-export const op_mkdir_sync = (...args: any[]) => {
+export const op_mkdir_sync = (args: { path: string; recursive: boolean; mode?: number; }): void => {
     console.warn("Not implemented: ops.op_mkdir_sync");
 }
-export const op_mkdir_async = (...args: any[]) => {
+export const op_mkdir_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_mkdir_async");
 }
 export const op_chmod_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_chmod_sync");
 }
-export const op_chmod_async = (...args: any[]) => {
+export const op_chmod_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_chmod_async");
 }
 export const op_chown_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_chown_sync");
 }
-export const op_chown_async = (...args: any[]) => {
+export const op_chown_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_chown_async");
 }
 export const op_remove_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_remove_sync");
 }
-export const op_remove_async = (...args: any[]) => {
+export const op_remove_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_remove_async");
 }
 export const op_copy_file_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_copy_file_sync");
 }
-export const op_copy_file_async = (...args: any[]) => {
+export const op_copy_file_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_copy_file_async");
 }
 export const op_stat_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_stat_sync");
 }
-export const op_stat_async = (...args: any[]) => {
+export const op_stat_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_stat_async");
 }
-export const op_realpath_sync = (...args: any[]) => {
+export const op_realpath_sync = (path: string): string => {
     console.warn("Not implemented: ops.op_realpath_sync");
+    return "";
 }
-export const op_realpath_async = (...args: any[]) => {
+export const op_realpath_async = async (path: string): Promise<string> => {
     console.warn("Not implemented: ops.op_realpath_async");
+    return "";
 }
 export const op_read_dir_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_read_dir_sync");
 }
-export const op_read_dir_async = (...args: any[]) => {
+export const op_read_dir_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_read_dir_async");
 }
 export const op_rename_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_rename_sync");
 }
-export const op_rename_async = (...args: any[]) => {
+export const op_rename_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_rename_async");
 }
-export const op_link_sync = (...args: any[]) => {
+export const op_link_sync = (oldpath: string, newpath: string): void => {
     console.warn("Not implemented: ops.op_link_sync");
 }
-export const op_link_async = (...args: any[]) => {
+export const op_link_async = async (oldpath: string, newpath: string): Promise<void> => {
     console.warn("Not implemented: ops.op_link_async");
 }
 export const op_symlink_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_symlink_sync");
 }
-export const op_symlink_async = (...args: any[]) => {
+export const op_symlink_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_symlink_async");
 }
-export const op_read_link_sync = (...args: any[]) => {
+export const op_read_link_sync = (path: string): string => {
     console.warn("Not implemented: ops.op_read_link_sync");
+    return "";
 }
-export const op_read_link_async = (...args: any[]) => {
+export const op_read_link_async = async (path: string): Promise<string> => {
     console.warn("Not implemented: ops.op_read_link_async");
+    return "";
 }
 export const op_ftruncate_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_ftruncate_sync");
 }
-export const op_ftruncate_async = (...args: any[]) => {
+export const op_ftruncate_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_ftruncate_async");
 }
 export const op_truncate_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_truncate_sync");
 }
-export const op_truncate_async = (...args: any[]) => {
+export const op_truncate_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_truncate_async");
 }
-export const op_make_temp_dir_sync = (...args: any[]) => {
+export const op_make_temp_dir_sync = (options: MakeTempOptions): string => {
     console.warn("Not implemented: ops.op_make_temp_dir_sync");
+    return "";
 }
-export const op_make_temp_dir_async = (...args: any[]) => {
+export const op_make_temp_dir_async = async (options: MakeTempOptions): Promise<string> => {
     console.warn("Not implemented: ops.op_make_temp_dir_async");
+    return "";
 }
 export const op_make_temp_file_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_make_temp_file_sync");
 }
-export const op_make_temp_file_async = (...args: any[]) => {
+export const op_make_temp_file_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_make_temp_file_async");
 }
-export const op_cwd = (...args: any[]) => {
+export const op_cwd = (): string => {
     console.warn("Not implemented: ops.op_cwd");
+    return "";
 }
 export const op_futime_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_futime_sync");
 }
-export const op_futime_async = (...args: any[]) => {
+export const op_futime_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_futime_async");
 }
 export const op_utime_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_utime_sync");
 }
-export const op_utime_async = (...args: any[]) => {
+export const op_utime_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_utime_async");
 }
 export const op_readfile_sync = (...args: any[]) => {
@@ -788,18 +808,19 @@ export const op_readfile_sync = (...args: any[]) => {
 export const op_readfile_text_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_readfile_text_sync");
 }
-export const op_readfile_async = (...args: any[]) => {
+export const op_readfile_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_readfile_async");
 }
-export const op_readfile_text_async = (...args: any[]) => {
+export const op_readfile_text_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_readfile_text_async");
 }
 export const op_read_sync = (...args: any[]): number => {
     console.warn("Not implemented: ops.op_read_sync");
     return 0;
 }
-export const op_write_sync = (...args: any[]) => {
+export const op_write_sync = (rid: number, data: Uint8Array): number => {
     console.warn("Not implemented: ops.op_write_sync");
+    return 0;
 }
 export const op_net_accept = (...args: any[]) => {
     console.warn("Not implemented: ops.op_net_accept");
@@ -840,8 +861,9 @@ export const op_tls_accept = (...args: any[]) => {
 export const op_tls_handshake = (...args: any[]) => {
     console.warn("Not implemented: ops.op_tls_handshake");
 }
-export const op_env = (...args: any[]) => {
+export const op_env = (): { [index: string]: string } => {
     console.warn("Not implemented: ops.op_env");
+    return {};
 }
 export const op_exec_path = (...args: any[]) => {
     console.warn("Not implemented: ops.op_exec_path");
@@ -849,28 +871,32 @@ export const op_exec_path = (...args: any[]) => {
 export const op_exit = (...args: any[]) => {
     console.warn("Not implemented: ops.op_exit");
 }
-export const op_delete_env = (...args: any[]) => {
+export const op_delete_env = (key: string): void => {
     console.warn("Not implemented: ops.op_delete_env");
 }
-export const op_get_env = (...args: any[]) => {
+export const op_get_env = (key: string): string | undefined => {
     console.warn("Not implemented: ops.op_get_env");
+    return undefined;
 }
 export const op_getuid = (...args: any[]) => {
     console.warn("Not implemented: ops.op_getuid");
 }
-export const op_hostname = (...args: any[]) => {
+export const op_hostname = (): string => {
     console.warn("Not implemented: ops.op_hostname");
+    return "";
 }
-export const op_loadavg = (...args: any[]) => {
+export const op_loadavg = (): number[] => {
     console.warn("Not implemented: ops.op_loadavg");
+    return [];
 }
 export const op_network_interfaces = (...args: any[]) => {
     console.warn("Not implemented: ops.op_network_interfaces");
 }
-export const op_os_release = (...args: any[]) => {
+export const op_os_release = (): string => {
     console.warn("Not implemented: ops.op_os_release");
+    return "";
 }
-export const op_set_env = (...args: any[]) => {
+export const op_set_env = (key: string, value: string): void => {
     console.warn("Not implemented: ops.op_set_env");
 }
 export const op_set_exit_code = (...args: any[]) => {
@@ -942,8 +968,9 @@ export const op_http_websocket_accept_header = (...args: any[]) => {
 export const op_http_upgrade_websocket = (...args: any[]) => {
     console.warn("Not implemented: ops.op_http_upgrade_websocket");
 }
-export const op_http_start = (...args: any[]) => {
+export const op_http_start = (rid: number): number => {
     console.warn("Not implemented: ops.op_http_start");
+    return 0;
 }
 export const op_http_upgrade = (...args: any[]) => {
     console.warn("Not implemented: ops.op_http_upgrade");
@@ -1116,4 +1143,18 @@ export const op_arraybuffer_was_detached = (O: ArrayBufferLike): boolean => {
 export const op_transfer_arraybuffer = (O: ArrayBufferLike): ArrayBufferLike => {
     console.warn("Not implemented: ops.op_transfer_arraybuffer");
     return new ArrayBuffer(0);
+}
+
+export const op_gid = (): number => {
+    console.warn("Not implemented: ops.op_gid");
+    return 0;
+}
+
+export const op_uid = (): number => {
+    console.warn("Not implemented: ops.op_uid");
+    return 0;
+}
+
+export const op_stdin_set_raw = (mode: boolean, cbreak: boolean): void => {
+    console.warn("Not implemented: ops.op_stdin_set_raw");
 }

@@ -1,5 +1,5 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Forked from https://github.com/denoland/deno/blob/main/runtime/js/06_util.js
+// Based on https://github.com/denoland/deno/blob/main/runtime/js/06_util.js
 "use strict";
 
 import { primordials } from '@gjsify/deno_core';
@@ -86,7 +86,7 @@ export function pathFromURLPosix(url: URL) {
   );
 }
 
-export function pathFromURL(pathOrUrl: URL | string) {
+export function pathFromURL(pathOrUrl: URL | string): string {
   if (ObjectPrototypeIsPrototypeOf(URLPrototype, pathOrUrl)) {
     if ((pathOrUrl as URL).protocol != "file:") {
       throw new TypeError("Must be a file URL.");
@@ -96,7 +96,7 @@ export function pathFromURL(pathOrUrl: URL | string) {
       ? pathFromURLWin32(pathOrUrl as URL)
       : pathFromURLPosix(pathOrUrl as URL);
   }
-  return pathOrUrl;
+  return pathOrUrl as string;
 }
 
 export function writable(value: any) {

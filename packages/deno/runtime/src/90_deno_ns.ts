@@ -1,8 +1,9 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Forked from https://github.com/denoland/deno/blob/main/runtime/js/90_deno_ns.js
+// Based on https://github.com/denoland/deno/blob/main/runtime/js/90_deno_ns.js
 "use strict";
 
-const core = window.Deno.core;
+import { core } from '@gjsify/deno_core';
+
 const __bootstrap = window.__bootstrap;
 __bootstrap.denoNs = {
   metrics: core.metrics,

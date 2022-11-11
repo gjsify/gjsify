@@ -141,7 +141,7 @@ function propertyIsEnumerable(obj, prop) {
 }
 
 // Copyright Joyent, Inc. and other Node contributors. MIT license.
-// Forked from Node's lib/internal/cli_table.js
+// Based on Node's lib/internal/cli_table.js
 
 function isTypedArray(x) {
   return ArrayBufferIsView(x) &&

@@ -15,6 +15,7 @@
         "Gwebgl",
         "ioffset",
         "mainloop",
+        "mimesniff",
         "outdir",
         "outfile",
         "Parameterfv",

@@ -696,7 +696,7 @@ export interface SeekerSync {
  *
  * @category File System
  */
-export interface FsFile
+export interface FsFile // TODO remove
     /** implements */
     extends
     Reader,
@@ -743,7 +743,7 @@ export interface FsFile
     /** The constructor which takes a resource ID. Generally `FsFile` should
      * not be constructed directly. Instead use {@linkcode Deno.open} or
      * {@linkcode Deno.openSync} to create a new instance of `FsFile`. */
-    // constructor(rid: number);
+    constructor(rid: number);
     
     /** Write the contents of the array buffer (`p`) to the file.
      *
@@ -1376,7 +1376,7 @@ export interface FsWatcher extends AsyncIterable<FsEvent> {
 /** Options which can be used with {@linkcode Deno.run}.
  *
  * @category Sub Process */
-    export interface RunOptions {
+export interface RunOptions {
     /** Arguments to pass.
      *
      * _Note_: the first element needs to be a path to the executable that is

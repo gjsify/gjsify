@@ -248,7 +248,7 @@ export function handleOpCallTracing(opName: string, promiseId: number, p: Promis
 /**
  * Call an op in Rust, and asynchronously receive the result.
  */
-export async function opAsync(opName: string, ...args: any[]): Promise<any> {
+export async function opAsync<T = any>(opName: string, ...args: any[]): Promise<T> {
   return ops[opName](...args);
 }
 

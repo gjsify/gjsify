@@ -1,4 +1,4 @@
-// Forked from https://github.com/igoradamenko/esbuild-plugin-alias
+// Based on https://github.com/igoradamenko/esbuild-plugin-alias
 
 import type { Plugin } from "esbuild";
 

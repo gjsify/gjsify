@@ -1,5 +1,5 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Forked from https://github.com/denoland/deno/blob/main/runtime/js/13_buffer.js
+// Based on https://github.com/denoland/deno/blob/main/runtime/js/13_buffer.js
 
 // This code has been ported almost directly from Go's src/bytes/buffer.go
 // Copyright 2009 The Go Authors. All rights reserved. BSD license.

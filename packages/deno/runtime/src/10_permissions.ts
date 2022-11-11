@@ -1,5 +1,5 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Forked from https://raw.githubusercontent.com/denoland/deno/main/runtime/js/10_permissions.js
+// Based on https://raw.githubusercontent.com/denoland/deno/main/runtime/js/10_permissions.js
 "use strict";
 
 import { primordials, ops } from '@gjsify/deno_core';

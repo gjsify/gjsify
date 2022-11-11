@@ -1,8 +1,7 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 "use strict";
 
-const core = window.Deno.core;
-const ops = core.ops;
+import { core, ops, primordials } from '@gjsify/deno_core';
 const { setExitHandler } = window.__bootstrap.os;
 const { Console } = window.__bootstrap.console;
 const { serializePermissions } = window.__bootstrap.permissions;
@@ -31,7 +30,7 @@ const {
   Set,
   SymbolToStringTag,
   TypeError,
-} = window.__bootstrap.primordials;
+} = primordials;
 
 const opSanitizerDelayResolveQueue = [];
 

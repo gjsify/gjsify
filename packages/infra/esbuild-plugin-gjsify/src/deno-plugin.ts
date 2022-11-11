@@ -1,4 +1,4 @@
-// Forked from https://github.com/jed/esbuild-plugin-deno
+// Based on https://github.com/jed/esbuild-plugin-deno
 // TODO fork https://github.com/lucacasonato/esbuild_deno_loader instead?
 
 import type {

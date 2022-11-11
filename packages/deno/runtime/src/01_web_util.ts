@@ -1,5 +1,5 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Forked from https://github.com/denoland/deno/blob/main/runtime/js/01_web_util.js
+// Based on https://github.com/denoland/deno/blob/main/runtime/js/01_web_util.js
 "use strict";
 
 import { primordials } from '@gjsify/deno_core';

@@ -1,5 +1,5 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
-// Forked from https://github.com/denoland/deno/blob/main/core/internal.d.ts
+// Based on https://github.com/denoland/deno/blob/main/core/internal.d.ts
 
 // Based on https://github.com/nodejs/node/blob/889ad35d3d41e376870f785b0c1b669cb732013d/typings/primordials.d.ts
 // Copyright Joyent, Inc. and other Node contributors.
