@@ -3,14 +3,14 @@
 "use strict";
 
 import { core, ops } from '@gjsify/deno_core';
-const { pathFromURL } = window.__bootstrap.util;
-const { abortSignal } = window.__bootstrap;
+import { pathFromURL } from './06_util.js';
+import * as abortSignal from './ext/web/03_abort_signal.js';
 
-function readFileSync(path) {
+export function readFileSync(path) {
   return ops.op_readfile_sync(pathFromURL(path));
 }
 
-async function readFile(path, options) {
+export async function readFile(path, options) {
   let cancelRid;
   let abortHandler;
   if (options?.signal) {
@@ -37,11 +37,11 @@ async function readFile(path, options) {
   }
 }
 
-function readTextFileSync(path) {
+export function readTextFileSync(path) {
   return ops.op_readfile_text_sync(pathFromURL(path));
 }
 
-async function readTextFile(path, options) {
+export async function readTextFile(path, options) {
   let cancelRid;
   let abortHandler;
   if (options?.signal) {
@@ -67,10 +67,3 @@ async function readTextFile(path, options) {
     }
   }
 }
-
-window.__bootstrap.readFile = {
-  readFile,
-  readFileSync,
-  readTextFileSync,
-  readTextFile,
-};

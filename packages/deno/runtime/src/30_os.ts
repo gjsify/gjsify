@@ -88,7 +88,7 @@ function uid(): number {
 // behavior of exit when the exit sanitizer is enabled.
 let exitHandler: null | ((code: number) => void) = null;
 
-function setExitHandler(fn: null | ((code: number) => void)) {
+export function setExitHandler(fn: null | ((code: number) => void)) {
   exitHandler = fn;
 }
 

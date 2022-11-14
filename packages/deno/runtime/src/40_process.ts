@@ -2,11 +2,12 @@
 // https://github.com/denoland/deno/blob/main/runtime/js/40_process.js
 "use strict";
 
-import { core, ops, primordials } from '@gjsify/deno_core'
-const { FsFile } = window.__bootstrap.files;
-const { readAll } = window.__bootstrap.io;
-const { pathFromURL } = window.__bootstrap.util;
-const { assert } = window.__bootstrap.infra;
+import { core, ops, primordials } from '@gjsify/deno_core';
+import { readAll } from './12_io.js';
+import { pathFromURL } from './06_util.js';
+import { FsFile } from './40_files.js';
+import { assert } from './ext/web/00_infra.js';
+
 const {
   ArrayPrototypeMap,
   ArrayPrototypeSlice,
@@ -15,15 +16,15 @@ const {
   String,
 } = primordials;
 
-function opKill(pid, signo, apiName) {
+function opKill(pid: number, signo: "SIGTERM" | string, apiName: string) {
   ops.op_kill(pid, signo, apiName);
 }
 
-function kill(pid, signo = "SIGTERM") {
+export function kill(pid: number, signo = "SIGTERM") {
   opKill(pid, signo, "Deno.kill()");
 }
 
-function opRunStatus(rid) {
+function opRunStatus(rid: number) {
   return core.opAsync("op_run_status", rid);
 }
 
@@ -45,9 +46,12 @@ async function runStatus(rid) {
   }
 }
 
-class Process {
+export class Process {
   rid: number;
   pid: number;
+  stdin: FsFile;
+  stdout: FsFile;
+  stderr: FsFile;
   constructor(res) {
     this.rid = res.rid;
     this.pid = res.pid;
@@ -100,7 +104,7 @@ class Process {
   }
 }
 
-function run({
+export function run({
   cmd,
   cwd = undefined,
   clearEnv = false,
@@ -127,9 +131,3 @@ function run({
   });
   return new Process(res);
 }
-
-window.__bootstrap.process = {
-  run,
-  Process,
-  kill,
-};

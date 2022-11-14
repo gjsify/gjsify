@@ -1377,7 +1377,7 @@ export interface Child { // TODO class
     /** Waits for the child to exit completely, returning all its output and
      * status. */
     output(): Promise<SpawnOutput>;
-    /** Kills the process with given {@linkcode Deno.Signal}. Defaults to
+    /** Kills the process with given {@linkcode Signal}. Defaults to
      * `"SIGTERM"`. */
     kill(signo?: Signal): void;
 

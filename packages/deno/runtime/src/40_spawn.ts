@@ -3,9 +3,12 @@
 "use strict";
 
 import { core, ops, primordials } from '@gjsify/deno_core';
-const { pathFromURL } = window.__bootstrap.util;
-const { illegalConstructorKey } = window.__bootstrap.webUtil;
-const { add, remove } = window.__bootstrap.abortSignal;
+import { pathFromURL } from './06_util.js';
+import { illegalConstructorKey } from './01_web_util.js';
+import { add, remove } from './ext/web/03_abort_signal.js';
+
+import type { SpawnOptions, ChildStatus, SpawnOutput, Signal, AbortSignal } from '@gjsify/deno_core';
+
 const {
   ArrayPrototypeMap,
   ObjectEntries,
@@ -16,16 +19,17 @@ const {
   SafePromiseAll,
   SymbolFor,
 } = primordials;
-const {
+import {
   readableStreamForRidUnrefable,
   readableStreamForRidUnrefableRef,
   readableStreamForRidUnrefableUnref,
   writableStreamForRid,
-} = window.__bootstrap.streams;
+  ReadableStream,
+} from './ext/web/06_streams.js';
 
 const promiseIdSymbol = SymbolFor("Deno.core.internalPromiseId");
 
-function spawnChildInner(command, apiName, {
+function spawnChildInner(command: string | URL, apiName: string, {
   args = [],
   cwd = undefined,
   clearEnv = false,
@@ -37,10 +41,10 @@ function spawnChildInner(command, apiName, {
   stderr = "piped",
   signal = undefined,
   windowsRawArguments = false,
-} = {}) {
+}: SpawnOptions = {}) {
   const child = ops.op_spawn_child({
     cmd: pathFromURL(command),
-    args: ArrayPrototypeMap(args, String),
+    args: ArrayPrototypeMap(args, String) as string[],
     cwd: pathFromURL(cwd),
     clearEnv,
     env: ObjectEntries(env),
@@ -57,7 +61,36 @@ function spawnChildInner(command, apiName, {
   });
 }
 
-function spawnChild(command, options = {}) {
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * Spawns a child process.
+ *
+ * If any stdio options are not set to `"piped"`, accessing the corresponding
+ * field on the `Child` or its `SpawnOutput` will throw a `TypeError`.
+ *
+ * If `stdin` is set to `"piped"`, the `stdin` {@linkcode WritableStream}
+ * needs to be closed manually.
+ *
+ * ```ts
+ * const child = Deno.spawnChild(Deno.execPath(), {
+ *   args: [
+ *     "eval",
+ *     "console.log('Hello World')",
+ *   ],
+ *   stdin: "piped",
+ * });
+ *
+ * // open a file and pipe the subprocess output to it.
+ * child.stdout.pipeTo(Deno.openSync("output").writable);
+ *
+ * // manually close stdin
+ * child.stdin.close();
+ * const status = await child.status;
+ * ```
+ *
+ * @category Sub Process
+ */
+export function spawnChild(command: string | URL, options: SpawnOptions = {}) {
   return spawnChildInner(command, "Deno.spawnChild()", options);
 }
 
@@ -68,6 +101,7 @@ async function collectOutput(readableStream: ReadableStream) {
 
   const bufs = [];
   let size = 0;
+  // @ts-ignore
   for await (const chunk of readableStream) {
     bufs.push(chunk);
     size += chunk.byteLength;
@@ -83,18 +117,25 @@ async function collectOutput(readableStream: ReadableStream) {
   return buffer;
 }
 
-class Child {
-  #rid;
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * The interface for handling a child process returned from
+ * {@linkcode Deno.spawnChild}.
+ *
+ * @category Sub Process
+ */
+export class Child {
+  #rid: number;
   #waitPromiseId;
   #unrefed = false;
 
-  #pid;
+  #pid: number;
   get pid() {
     return this.#pid;
   }
 
   #stdin = null;
-  get stdin() {
+  get stdin(): WritableStream<Uint8Array> {
     if (this.#stdin == null) {
       throw new TypeError("stdin is not piped");
     }
@@ -102,9 +143,9 @@ class Child {
   }
 
   #stdoutPromiseId;
-  #stdoutRid;
-  #stdout = null;
-  get stdout() {
+  #stdoutRid: number;
+  #stdout: ReadableStream<Uint8Array> | null = null;
+  get stdout(): ReadableStream<Uint8Array> {
     if (this.#stdout == null) {
       throw new TypeError("stdout is not piped");
     }
@@ -112,23 +153,30 @@ class Child {
   }
 
   #stderrPromiseId;
-  #stderrRid;
-  #stderr = null;
-  get stderr() {
+  #stderrRid: number;
+  #stderr: ReadableStream<Uint8Array> | null = null;
+  get stderr(): ReadableStream<Uint8Array> {
     if (this.#stderr == null) {
       throw new TypeError("stderr is not piped");
     }
     return this.#stderr;
   }
 
-  constructor(key = null, {
+  constructor(key: symbol | null = null, {
     signal,
     rid,
     pid,
     stdinRid,
     stdoutRid,
     stderrRid,
-  } = null) {
+  }: {
+    signal: AbortSignal;
+    rid: number;
+    pid: number;
+    stdinRid: number,
+    stdoutRid: number,
+    stderrRid: number,
+  } | null = null) {
     if (key !== illegalConstructorKey) {
       throw new TypeError("Illegal constructor.");
     }
@@ -159,15 +207,19 @@ class Child {
       this.#rid = null;
       signal?.[remove](onAbort);
       return res;
-    });
+    }) as Promise<ChildStatus>;
   }
 
-  #status;
-  get status() {
+  #status: Promise<ChildStatus>;
+
+  /** Get the status of the child. */
+  get status(): Promise<ChildStatus> {
     return this.#status;
   }
 
-  async output() {
+  /** Waits for the child to exit completely, returning all its output and
+   * status. */
+  async output(): Promise<SpawnOutput> {
     if (this.#stdout?.locked) {
       throw new TypeError(
         "Can't collect output because stdout is locked",
@@ -179,46 +231,52 @@ class Child {
       );
     }
 
-    const [status, stdout, stderr] = await SafePromiseAll([
+    const [status, _stdout, _stderr] = await SafePromiseAll([
       this.#status,
       collectOutput(this.#stdout),
       collectOutput(this.#stderr),
-    ]);
+    ]) as [ ChildStatus, Uint8Array, Uint8Array ];
 
     return {
       success: status.success,
       code: status.code,
       signal: status.signal,
       get stdout() {
-        if (stdout == null) {
+        if (_stdout == null) {
           throw new TypeError("stdout is not piped");
         }
-        return stdout;
+        return _stdout;
       },
       get stderr() {
-        if (stderr == null) {
+        if (_stderr == null) {
           throw new TypeError("stderr is not piped");
         }
-        return stderr;
+        return _stderr;
       },
     };
   }
 
-  kill(signo = "SIGTERM") {
+  /** Kills the process with given {@linkcode Deno.Signal}. Defaults to
+   * `"SIGTERM"`. */
+  kill(signo: Signal = "SIGTERM"): void {
     if (this.#rid === null) {
       throw new TypeError("Child process has already terminated.");
     }
     ops.op_kill(this.#pid, signo, "Deno.Child.kill()");
   }
 
-  ref() {
+  /** Ensure that the status of the child process prevents the Deno process
+   * from exiting. */
+  ref(): void {
     this.#unrefed = false;
     core.refOp(this.#waitPromiseId);
     if (this.#stdout) readableStreamForRidUnrefableRef(this.#stdout);
     if (this.#stderr) readableStreamForRidUnrefableRef(this.#stderr);
   }
 
-  unref() {
+  /** Ensure that the status of the child process does not block the Deno
+   * process from exiting. */
+  unref(): void {
     this.#unrefed = true;
     core.unrefOp(this.#waitPromiseId);
     if (this.#stdout) readableStreamForRidUnrefableUnref(this.#stdout);
@@ -226,7 +284,7 @@ class Child {
   }
 }
 
-function spawn(command, options) {
+export function spawn(command, options) {
   if (options?.stdin === "piped") {
     throw new TypeError(
       "Piped stdin is not supported for this function, use 'Deno.spawnChild()' instead",
@@ -235,7 +293,31 @@ function spawn(command, options) {
   return spawnChildInner(command, "Deno.spawn()", options).output();
 }
 
-function spawnSync(command, {
+/** **UNSTABLE**: New API, yet to be vetted.
+ *
+ * Synchronously executes a subprocess, waiting for it to finish and
+ * collecting all of its output.
+ *
+ * Will throw an error if `stdin: "piped"` is passed.
+ *
+ * If options `stdout` or `stderr` are not set to `"piped"`, accessing the
+ * corresponding field on `SpawnOutput` will throw a `TypeError`.
+ *
+ * ```ts
+ * const { code, stdout, stderr } = Deno.spawnSync(Deno.execPath(), {
+ *   args: [
+ *     "eval",
+ *       "console.log('hello'); console.error('world')",
+ *   ],
+ * });
+ * console.assert(code === 0);
+ * console.assert("hello\n" === new TextDecoder().decode(stdout));
+ * console.assert("world\n" === new TextDecoder().decode(stderr));
+ * ```
+ *
+ * @category Sub Process
+ */
+export function spawnSync(command: string | URL, {
   args = [],
   cwd = undefined,
   clearEnv = false,
@@ -246,7 +328,7 @@ function spawnSync(command, {
   stdout = "piped",
   stderr = "piped",
   windowsRawArguments = false,
-} = {}) {
+}: SpawnOptions = {}): SpawnOutput {
   if (stdin === "piped") {
     throw new TypeError(
       "Piped stdin is not supported for this function, use 'Deno.spawnChild()' instead",
@@ -284,9 +366,3 @@ function spawnSync(command, {
   };
 }
 
-window.__bootstrap.spawn = {
-  Child,
-  spawnChild,
-  spawn,
-  spawnSync,
-};

@@ -45,15 +45,15 @@ function createEntry(name: string, value: string | Blob, filename: string | unde
     ObjectPrototypeIsPrototypeOf(BlobPrototype, value) &&
     !ObjectPrototypeIsPrototypeOf(FilePrototype, value)
   ) {
-    value = new File([value], "blob", { type: value.type });
+    value = new File([value], "blob", { type: (value as Blob).type });
   }
   if (
     ObjectPrototypeIsPrototypeOf(FilePrototype, value) &&
     filename !== undefined
   ) {
     value = new File([value], filename, {
-      type: value.type,
-      lastModified: value.lastModified,
+      type: (value as File).type,
+      lastModified: (value as File).lastModified,
     });
   }
   return {

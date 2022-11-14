@@ -2,10 +2,22 @@
 "use strict";
 
 import { core, ops, primordials } from '@gjsify/deno_core';
-const { setExitHandler } = window.__bootstrap.os;
-const { Console } = window.__bootstrap.console;
-const { serializePermissions } = window.__bootstrap.permissions;
-const { assert } = window.__bootstrap.infra;
+import { setExitHandler } from './30_os.js';
+import { Console } from './ext/console/02_console.js';
+import { serializePermissions } from './10_permissions.js';
+import { assert } from './ext/web/00_infra.js';
+
+import type {
+  PermissionOptions,
+  TestContext,
+  TestStepDefinition,
+} from '@gjsify/deno_core';
+
+// TODO
+type TestLocation = any;
+type TestFunction = any;
+type BenchFunction = any;
+
 const {
   ArrayFrom,
   ArrayPrototypeFilter,
@@ -137,8 +149,7 @@ const OP_DETAILS = {
 // ops. Note that "unref" ops are ignored since in nature that are
 // optional.
 function assertOps(fn) {
-  /** @param desc {TestDescription | TestStepDescription} */
-  return async function asyncOpSanitizer(desc) {
+  return async function asyncOpSanitizer(desc: TestDescription | TestStepDescription) {
     const pre = core.metrics();
     const preTraces = new Map(core.opCallTraces);
     try {
@@ -367,7 +378,7 @@ function resourceCloseHint(name) {
 // the test has exactly the same contents as before the test.
 function assertResources(fn) {
   /** @param desc {TestDescription | TestStepDescription} */
-  return async function resourceSanitizer(desc) {
+  return async function resourceSanitizer(desc: TestDescription | TestStepDescription) {
     const pre = core.resources();
     await fn(desc);
 
@@ -436,8 +447,7 @@ function assertExit(fn, isTest) {
 }
 
 function assertTestStepScopes(fn) {
-  /** @param desc {TestDescription | TestStepDescription} */
-  return async function testStepSanitizer(desc) {
+  return async function testStepSanitizer(desc: TestDescription | TestStepDescription) {
     preValidation();
     // only report waiting after pre-validation
     if (canStreamReporting(desc) && "parent" in desc) {
@@ -471,9 +481,9 @@ function assertTestStepScopes(fn) {
 
       function getRunningStepDescs() {
         const results = [];
-        let childDesc = desc;
-        while (childDesc.parent != null) {
-          const state = MapPrototypeGet(testStates, childDesc.parent.id);
+        let childDesc = desc as TestDescription | TestStepDescription;
+        while ((childDesc as TestStepDescription).parent != null) {
+          const state = MapPrototypeGet(testStates, (childDesc as TestStepDescription).parent.id);
           for (const siblingDesc of state.children) {
             if (siblingDesc.id == childDesc.id) {
               continue;
@@ -483,7 +493,7 @@ function assertTestStepScopes(fn) {
               ArrayPrototypePush(results, siblingDesc);
             }
           }
-          childDesc = childDesc.parent;
+          childDesc = (childDesc as TestStepDescription).parent;
         }
         return results;
       }
@@ -491,7 +501,7 @@ function assertTestStepScopes(fn) {
   };
 }
 
-function testStepPostValidation(desc) {
+function testStepPostValidation(desc: TestDescription | TestStepDescription) {
   // check for any running steps
   for (const childDesc of MapPrototypeGet(testStates, desc.id).children) {
     if (MapPrototypeGet(testStates, childDesc.id).status == "pending") {
@@ -502,24 +512,24 @@ function testStepPostValidation(desc) {
   }
 
   // check if an ancestor already completed
-  let currentDesc = desc.parent;
+  let currentDesc = (desc as TestStepDescription).parent;
   while (currentDesc != null) {
     if (MapPrototypeGet(testStates, currentDesc.id).finalized) {
       throw new Error(
         "Parent scope completed before test step finished execution. Ensure all steps are awaited (ex. `await t.step(...)`).",
       );
     }
-    currentDesc = currentDesc.parent;
+    currentDesc = (currentDesc as TestStepDescription).parent;
   }
 }
 
-function pledgePermissions(permissions) {
+function pledgePermissions(permissions: PermissionOptions) {
   return ops.op_pledge_test_permissions(
     serializePermissions(permissions),
   );
 }
 
-function restorePermissions(token) {
+function restorePermissions(token: string) {
   ops.op_restore_test_permissions(token);
 }
 
@@ -535,79 +545,78 @@ function withPermissions(fn, permissions) {
   };
 }
 
-/**
- * @typedef {{
- *   id: number,
- *   name: string,
- *   fn: TestFunction
- *   origin: string,
- *   location: TestLocation,
- *   filteredOut: boolean,
- *   ignore: boolean,
- *   only: boolean.
- *   sanitizeOps: boolean,
- *   sanitizeResources: boolean,
- *   sanitizeExit: boolean,
- *   permissions: PermissionOptions,
- * }} TestDescription
- *
- * @typedef {{
- *   id: number,
- *   name: string,
- *   fn: TestFunction
- *   origin: string,
- *   location: TestLocation,
- *   ignore: boolean,
- *   level: number,
- *   parent: TestDescription | TestStepDescription,
- *   rootId: number,
- *   rootName: String,
- *   sanitizeOps: boolean,
- *   sanitizeResources: boolean,
- *   sanitizeExit: boolean,
- * }} TestStepDescription
- *
- * @typedef {{
- *   context: TestContext,
- *   children: TestStepDescription[],
- *   finalized: boolean,
- * }} TestState
- *
- * @typedef {{
- *   context: TestContext,
- *   children: TestStepDescription[],
- *   finalized: boolean,
- *   status: "pending" | "ok" | ""failed" | ignored",
- *   error: unknown,
- *   elapsed: number | null,
- *   reportedWait: boolean,
- *   reportedResult: boolean,
- * }} TestStepState
- *
- * @typedef {{
- *   id: number,
- *   name: string,
- *   fn: BenchFunction
- *   origin: string,
- *   filteredOut: boolean,
- *   ignore: boolean,
- *   only: boolean.
- *   sanitizeExit: boolean,
- *   permissions: PermissionOptions,
- * }} BenchDescription
- */
+
+interface TestDescription {
+  id: number;
+  name: string;
+  fn: TestFunction;
+  origin: string;
+  location: TestLocation;
+  filteredOut: boolean;
+  ignore: boolean;
+  only: boolean;
+  sanitizeOps: boolean;
+  sanitizeResources: boolean;
+  sanitizeExit: boolean;
+  permissions: PermissionOptions;
+}
+
+interface TestStepDescription {
+  id: number;
+  name: string;
+  fn: TestFunction;
+  origin: string;
+  location: TestLocation;
+  ignore: boolean;
+  level: number;
+  parent: TestDescription | TestStepDescription;
+  rootId: number;
+  rootName: String;
+  sanitizeOps: boolean;
+  sanitizeResources: boolean;
+  sanitizeExit: boolean;
+}
+
+interface TestState {
+  context: TestContext;
+  children: TestStepDescription[];
+  finalized: boolean;
+}
+
+interface TestStepState {
+  context: TestContext;
+  children: TestStepDescription[];
+  finalized: boolean;
+  status: "pending" | "ok" | "failed" | "ignored";
+  error: unknown;
+  elapsed: number | null;
+  reportedWait: boolean;
+  reportedResult: boolean;
+}
+
+interface BenchDescription {
+  id: number;
+  name: string;
+  fn: BenchFunction;
+  origin: string;
+  filteredOut: boolean;
+  ignore: boolean;
+  only: boolean;
+  sanitizeExit: boolean;
+  permissions: PermissionOptions;
+}
 
 /** @type {TestDescription[]} */
-const testDescs = [];
+const testDescs: TestDescription[] = [];
 /** @type {Map<number, TestState | TestStepState>} */
-const testStates = new Map();
+const testStates: Map<number, TestState | TestStepState> = new Map();
 /** @type {BenchDescription[]} */
-const benchDescs = [];
+const benchDescs: BenchDescription[] = [];
 let isTestSubcommand = false;
 let isBenchSubcommand = false;
 
 // Main test function provided by Deno.
-function test(
+export function test(
   nameOrFnOrOptions,
   optionsOrFn,
   maybeFn,
@@ -616,7 +625,7 @@ function test(
     return;
   }
 
-  let testDesc;
+  let testDesc: Partial<TestStepDescription> & { permissions?: null | PermissionOptions; filteredOut?: boolean};
   const defaults = {
     ignore: false,
     only: false,
@@ -706,7 +715,7 @@ function test(
     );
   }
   testDesc.origin = getTestOrigin();
-  const jsError = Deno.core.destructureError(new Error());
+  const jsError = core.destructureError(new Error());
   testDesc.location = {
     fileName: jsError.frames[1].fileName,
     lineNumber: jsError.frames[1].lineNumber,
@@ -719,14 +728,14 @@ function test(
 
   ArrayPrototypePush(testDescs, testDesc);
   MapPrototypeSet(testStates, testDesc.id, {
-    context: createTestContext(testDesc),
+    context: createTestContext(testDesc as TestStepDescription),
     children: [],
     finalized: false,
   });
 }
 
 // Main bench function provided by Deno.
-function bench(
+export function bench(
   nameOrFnOrOptions,
   optionsOrFn,
   maybeFn,
@@ -736,7 +745,7 @@ function bench(
   }
 
   ops.op_bench_check_unstable();
-  let benchDesc;
+  let benchDesc: Partial<TestDescription> & { [key: string]: any /* TODO */ };
   const defaults = {
     ignore: false,
     baseline: false,
@@ -1011,6 +1020,7 @@ async function runBench(desc) {
   } catch (error) {
     return { failed: core.destructureError(error) };
   } finally {
+    // @ts-ignore
     if (bench.sanitizeExit) setExitHandler(null);
     if (token !== null) restorePermissions(token);
   }
@@ -1036,15 +1046,15 @@ function benchNow() {
   return ops.op_bench_now();
 }
 
-function enableTest() {
+export function enableTest() {
   isTestSubcommand = true;
 }
 
-function enableBench() {
+export function enableBench() {
   isBenchSubcommand = true;
 }
 
-async function runTests({
+export async function runTests({
   shuffle = null,
 } = {}) {
   core.setMacrotaskCallback(handleOpSanitizerDelayMacrotask);
@@ -1073,13 +1083,14 @@ async function runTests({
       const a = 1103515245n;
       const c = 12345n;
 
-      return function (max) {
+      return function (max: number) {
         return state = ((a * state + c) % m) % BigInt(max);
       };
     }(BigInt(shuffle)));
 
     for (let i = filtered.length - 1; i > 0; i--) {
       const j = nextInt(i);
+      // @ts-ignore
       [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
     }
   }
@@ -1095,13 +1106,14 @@ async function runTests({
   }
 }
 
-async function runBenchmarks() {
+export async function runBenchmarks() {
   core.setMacrotaskCallback(handleOpSanitizerDelayMacrotask);
 
   const origin = getBenchOrigin();
   const originalConsole = globalThis.console;
 
-  globalThis.console = new Console((s) => {
+  // @ts-ignore
+  globalThis.console = new Console((s: string) => {
     ops.op_dispatch_bench_event({ output: s });
   });
 
@@ -1111,7 +1123,7 @@ async function runBenchmarks() {
     (desc) => !desc.filteredOut && !desc.ignore,
   );
 
-  let groups = new Set();
+  let groups: Set<any> | any[] = new Set(); // TODO type
   // make sure ungrouped benchmarks are placed above grouped
   groups.add(undefined);
 
@@ -1123,7 +1135,7 @@ async function runBenchmarks() {
   groups = ArrayFrom(groups);
   ArrayPrototypeSort(
     filtered,
-    (a, b) => groups.indexOf(a.group) - groups.indexOf(b.group),
+    (a, b) => (groups as any[]).indexOf(a.group) - (groups as any[]).indexOf(b.group),
   );
 
   ops.op_dispatch_bench_event({
@@ -1146,7 +1158,7 @@ async function runBenchmarks() {
   globalThis.console = originalConsole;
 }
 
-function getFullName(desc) {
+function getFullName(desc: TestDescription | TestStepDescription) {
   if ("parent" in desc) {
     return `${desc.parent.name} > ${desc.name}`;
   }
@@ -1216,7 +1228,7 @@ function failedChildStepsCount(desc) {
 /** If a test validation error already occurred then don't bother checking
  * the sanitizers as that will create extra noise.
  */
-function shouldSkipSanitizers(desc) {
+function shouldSkipSanitizers(desc: TestDescription | TestStepDescription) {
   try {
     testStepPostValidation(desc);
     return false;
@@ -1225,8 +1237,8 @@ function shouldSkipSanitizers(desc) {
   }
 }
 
-/** @param desc {TestDescription | TestStepDescription} */
-function createTestContext(desc) {
+
+function createTestContext(desc: TestDescription | TestStepDescription): TestContext {
   let parent;
   let level;
   let rootId;
@@ -1256,11 +1268,8 @@ function createTestContext(desc) {
      * File Uri of the test code.
      */
     origin: desc.origin,
-    /**
-     * @param nameOrTestDefinition {string | TestStepDefinition}
-     * @param fn {(t: TestContext) => void | Promise<void>}
-     */
-    async step(nameOrTestDefinition, fn) {
+
+    async step(nameOrTestDefinition: string | TestStepDefinition, fn?: (t: TestContext) => void | Promise<void> | Promise<boolean>) {
       if (MapPrototypeGet(testStates, desc.id).finalized) {
         throw new Error(
           "Cannot run test step after parent scope has finished execution. " +
@@ -1268,7 +1277,7 @@ function createTestContext(desc) {
         );
       }
 
-      let stepDesc;
+      let stepDesc: Partial<TestStepDefinition & TestStepDescription>; // TODO
       if (typeof nameOrTestDefinition === "string") {
         if (!(ObjectPrototypeIsPrototypeOf(FunctionPrototype, fn))) {
           throw new TypeError("Expected function for second argument.");
@@ -1289,7 +1298,7 @@ function createTestContext(desc) {
       stepDesc.sanitizeResources ??= desc.sanitizeResources;
       stepDesc.sanitizeExit ??= desc.sanitizeExit;
       stepDesc.origin = getTestOrigin();
-      const jsError = Deno.core.destructureError(new Error());
+      const jsError = core.destructureError(new Error());
       stepDesc.location = {
         fileName: jsError.frames[1].fileName,
         lineNumber: jsError.frames[1].lineNumber,
@@ -1299,10 +1308,10 @@ function createTestContext(desc) {
       stepDesc.parent = desc;
       stepDesc.rootId = rootId;
       stepDesc.rootName = rootName;
-      const { id } = ops.op_register_test_step(stepDesc);
+      const { id } = ops.op_register_test_step(stepDesc as TestStepDescription);
       stepDesc.id = id;
       const state = {
-        context: createTestContext(stepDesc),
+        context: createTestContext(stepDesc as TestStepDescription),
         children: [],
         finalized: false,
         status: "pending",
@@ -1371,36 +1380,21 @@ function createTestContext(desc) {
   };
 }
 
-/**
- * @template T {Function}
- * @param testFn {T}
- * @param opts {{
- *   sanitizeOps: boolean,
- *   sanitizeResources: boolean,
- *   sanitizeExit: boolean,
- * }}
- * @returns {T}
- */
-function wrapTestFnWithSanitizers(testFn, opts) {
-  testFn = assertTestStepScopes(testFn);
+function wrapTestFnWithSanitizers<T>(testFn: T, opts: {
+    sanitizeOps?: boolean;
+    sanitizeResources?: boolean;
+    sanitizeExit?: boolean;
+  }): T {
+  testFn = assertTestStepScopes(testFn) as T;
 
   if (opts.sanitizeOps) {
-    testFn = assertOps(testFn);
+    testFn = assertOps(testFn) as T;
   }
   if (opts.sanitizeResources) {
-    testFn = assertResources(testFn);
+    testFn = assertResources(testFn) as T;
   }
   if (opts.sanitizeExit) {
-    testFn = assertExit(testFn, true);
+    testFn = assertExit(testFn, true) as T;
   }
   return testFn;
 }
-
-window.__bootstrap.testing = {
-  bench,
-  enableBench,
-  enableTest,
-  runBenchmarks,
-  runTests,
-  test,
-};

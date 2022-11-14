@@ -182,7 +182,7 @@ export function copyFileSync(
  * @tags allow-read, allow-write
  * @category File System
  */
-async function copyFile(
+export async function copyFile(
   fromPath: string | URL,
   toPath: string | URL,
 ): Promise<void> {
@@ -283,7 +283,7 @@ export function makeTempDirSync(options: MakeTempOptions = {}) {
  * @tags allow-write
  * @category File System
  */
-function makeTempDir(options: MakeTempOptions = {}): Promise<string> {
+export function makeTempDir(options: MakeTempOptions = {}): Promise<string> {
   return core.opAsync<string>("op_make_temp_dir_async", options);
 }
 

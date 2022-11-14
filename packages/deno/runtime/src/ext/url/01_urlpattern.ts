@@ -59,7 +59,7 @@ const _components = Symbol("components");
  *
  * @category Web APIs
  */
-class URLPattern {
+export class URLPattern {
   /** @type {Components} */
   [_components: symbol]: UrlComponents;
   

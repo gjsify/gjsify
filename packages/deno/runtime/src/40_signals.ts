@@ -41,7 +41,7 @@ function checkSignalListenerType(listener) {
   }
 }
 
-function addSignalListener(signo, listener) {
+export function addSignalListener(signo, listener) {
   checkSignalListenerType(listener);
 
   const sigData = getSignalData(signo);
@@ -55,7 +55,7 @@ function addSignalListener(signo, listener) {
   }
 }
 
-function removeSignalListener(signo, listener) {
+export function removeSignalListener(signo, listener) {
   checkSignalListenerType(listener);
 
   const sigData = getSignalData(signo);
@@ -78,7 +78,3 @@ async function loop(sigData) {
   }
 }
 
-window.__bootstrap.signals = {
-  addSignalListener,
-  removeSignalListener,
-};

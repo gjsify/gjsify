@@ -3,9 +3,9 @@
 "use strict";
 
 import { core } from '@gjsify/deno_core';
+import { __bootstrap } from './80_bootstrap.js';
 
-const __bootstrap = window.__bootstrap;
-__bootstrap.denoNs = {
+export const denoNs = {
   metrics: core.metrics,
   test: __bootstrap.testing.test,
   bench: __bootstrap.testing.bench,

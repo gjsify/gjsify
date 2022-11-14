@@ -7,7 +7,7 @@ import { illegalConstructorKey } from './01_web_util.js';
 import { pathFromURL } from './06_util.js';
 import { Event, EventTarget } from './ext/web/02_event.js';
 
-import type { PermissionDescriptor, PermissionState, PermissionStatus as TPermissionStatus } from '@gjsify/deno_core';
+import type { PermissionDescriptor, PermissionState, PermissionOptions } from '@gjsify/deno_core';
 
 const {
   ArrayIsArray,
@@ -197,7 +197,7 @@ export class Permissions {
 export const permissions = new Permissions(illegalConstructorKey);
 
 /** Converts all file URLs in FS allowlists to paths. */
-export function serializePermissions(permissions) {
+export function serializePermissions(permissions: PermissionOptions) {
   if (typeof permissions == "object" && permissions != null) {
     const serializedPermissions = {};
     for (const key of ["read", "write", "run", "ffi"]) {

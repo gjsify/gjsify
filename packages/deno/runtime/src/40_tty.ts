@@ -10,18 +10,13 @@ const {
 } = primordials;
 
 const size = new Uint32Array(2);
-function consoleSize() {
+export function consoleSize() {
   ops.op_console_size(size);
   return { columns: size[0], rows: size[1] };
 }
 
 const isattyBuffer = new Uint8Array(1);
-function isatty(rid: number) {
+export function isatty(rid: number) {
   ops.op_isatty(rid, isattyBuffer);
   return !!isattyBuffer[0];
 }
-
-window.__bootstrap.tty = {
-  consoleSize,
-  isatty,
-};

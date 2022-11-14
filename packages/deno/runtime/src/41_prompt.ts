@@ -3,13 +3,13 @@
 "use strict";
 
 import { core, primordials } from '@gjsify/deno_core';
-const { stdin } = window.__bootstrap.files;
+import { stdin } from './40_files.js';
 const { ArrayPrototypePush, StringPrototypeCharCodeAt, Uint8Array } = primordials;
-const { isatty } = window.__bootstrap.tty;
+import { isatty } from './40_tty.js';
 const LF = StringPrototypeCharCodeAt("\n", 0);
 const CR = StringPrototypeCharCodeAt("\r", 0);
 
-function alert(message = "Alert") {
+export function alert(message = "Alert") {
   if (!isatty(stdin.rid)) {
     return;
   }
@@ -19,7 +19,7 @@ function alert(message = "Alert") {
   readLineFromStdinSync();
 }
 
-function confirm(message = "Confirm") {
+export function confirm(message = "Confirm") {
   if (!isatty(stdin.rid)) {
     return false;
   }
@@ -31,7 +31,7 @@ function confirm(message = "Confirm") {
   return answer === "Y" || answer === "y";
 }
 
-function prompt(message = "Prompt", defaultValue) {
+export function prompt(message = "Prompt", defaultValue) {
   defaultValue ??= null;
 
   if (!isatty(stdin.rid)) {
@@ -73,9 +73,3 @@ function readLineFromStdinSync() {
   }
   return core.decode(new Uint8Array(buf));
 }
-
-window.__bootstrap.prompt = {
-  alert,
-  confirm,
-  prompt,
-};

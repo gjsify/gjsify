@@ -14,6 +14,11 @@ import type {
     SeekMode,
     OpenOptions,
     CreateHttpClientOptions,
+    Signal,
+    ChildStatus,
+    PermissionOptions,
+    TestStepDefinition,
+    PointerValue,
 } from './types/index.js';
 
 export const op_close = (...args: any[]) => {
@@ -540,8 +545,11 @@ export const op_webgpu_write_texture = (...args: any[]) => {
 export const op_webgpu_create_shader_module = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_create_shader_module");
 }
-export const op_ffi_load = (...args: any[]) => {
+export const op_ffi_load = (options: { path: string, symbols: {} }) => {
     console.warn("Not implemented: ops.op_ffi_load");
+    const rid = 0;
+    const symbols = {};
+    return [rid, symbols];
 }
 export const op_ffi_get_static = (...args: any[]) => {
     console.warn("Not implemented: ops.op_ffi_get_static");
@@ -564,36 +572,74 @@ export const op_ffi_ptr_of = (...args: any[]) => {
 export const op_ffi_buf_copy_into = (...args: any[]) => {
     console.warn("Not implemented: ops.op_ffi_buf_copy_into");
 }
-export const op_ffi_cstr_read = (...args: any[]) => {
+
+export const op_ffi_cstr_read = (pointer: PointerValue, offset: number): string => {
     console.warn("Not implemented: ops.op_ffi_cstr_read");
+    return "";
 }
-export const op_ffi_read_u8 = (...args: any[]) => {
+
+export const op_ffi_get_buf = (pointer: PointerValue, offset: number, byteLength: number): ArrayBuffer => {
+    console.warn("Not implemented: ops.op_ffi_get_buf");
+    return new ArrayBuffer(byteLength);
+}
+
+export const op_ffi_read_bool = (pointer: PointerValue, offset: number): boolean => {
+    console.warn("Not implemented: ops.op_ffi_read_bool");
+    return false;
+}
+
+export const op_ffi_read_u8 = (pointer: PointerValue, offset: number): number => {
     console.warn("Not implemented: ops.op_ffi_read_u8");
+    return 0;
 }
-export const op_ffi_read_i8 = (...args: any[]) => {
+export const op_ffi_read_i8 = (pointer: PointerValue, offset: number): number => {
     console.warn("Not implemented: ops.op_ffi_read_i8");
+    return 0;
 }
-export const op_ffi_read_u16 = (...args: any[]) => {
+export const op_ffi_read_u16 = (pointer: PointerValue, offset: number): number => {
     console.warn("Not implemented: ops.op_ffi_read_u16");
+    return 0;
 }
-export const op_ffi_read_i16 = (...args: any[]) => {
+export const op_ffi_read_i16 = (pointer: PointerValue, offset: number): number => {
     console.warn("Not implemented: ops.op_ffi_read_i16");
+    return 0;
 }
-export const op_ffi_read_u32 = (...args: any[]) => {
+export const op_ffi_read_u32 = (pointer: PointerValue, offset: number): number => {
     console.warn("Not implemented: ops.op_ffi_read_u32");
+    return 0;
 }
-export const op_ffi_read_i32 = (...args: any[]) => {
+export const op_ffi_read_i32 = (pointer: PointerValue, offset: number): number => {
     console.warn("Not implemented: ops.op_ffi_read_i32");
+    return 0;
 }
-export const op_ffi_read_u64 = (...args: any[]) => {
+export const op_ffi_read_u64 = (pointer: PointerValue, offset: number, buffer: Uint32Array): void => {
     console.warn("Not implemented: ops.op_ffi_read_u64");
 }
-export const op_ffi_read_f32 = (...args: any[]) => {
+
+export const op_ffi_read_i64 = (pointer: PointerValue, offset: number, buffer: Uint32Array): void => {
+    console.warn("Not implemented: ops.op_ffi_read_i64");
+}
+
+export const op_ffi_read_f32 = (pointer: PointerValue, offset: number): number => {
     console.warn("Not implemented: ops.op_ffi_read_f32");
+    return 0;
 }
-export const op_ffi_read_f64 = (...args: any[]) => {
+export const op_ffi_read_f64 = (pointer: PointerValue, offset: number): number => {
     console.warn("Not implemented: ops.op_ffi_read_f64");
+    return 0;
 }
+
+export const op_ffi_unsafe_callback_create = (definition: any, callback: any): [number, PointerValue] => {
+    console.warn("Not implemented: ops.op_ffi_unsafe_callback_create");
+    const rid = 0;
+    const pointer: PointerValue = 0;
+    return [rid, pointer];
+}
+
+export const op_ffi_unsafe_callback_unref = (rid: number) => {
+    console.warn("Not implemented: ops.op_ffi_unsafe_callback_unref");
+}
+
 export const op_main_module = (...args: any[]) => {
     console.warn("Not implemented: ops.op_main_module");
 }
@@ -613,14 +659,56 @@ export const op_host_recv_ctrl = (...args: any[]) => {
 export const op_host_recv_message = (...args: any[]) => {
     console.warn("Not implemented: ops.op_host_recv_message");
 }
-export const op_spawn_child = (...args: any[]) => {
+export const op_spawn_child = (
+    options: {
+        cmd: string;
+        args: string[];
+        cwd: string;
+        clearEnv: boolean;
+        env: [string, string][];
+        uid: number;
+        gid: number;
+        stdin: "piped" | "inherit" | "null";
+        stdout: "piped" | "inherit" | "null";
+        stderr: "piped" | "inherit" | "null"
+        windowsRawArguments: boolean;
+    },
+    apiName: string,
+): {
+    rid: number;
+    pid: number;
+    stdinRid: number,
+    stdoutRid: number,
+    stderrRid: number,
+  } => {
     console.warn("Not implemented: ops.op_spawn_child");
+    return {
+        rid: 0,
+        pid: 0,
+        stdinRid: 0,
+        stdoutRid: 0,
+        stderrRid: 0,
+    }
 }
 export const op_spawn_wait = (...args: any[]) => {
     console.warn("Not implemented: ops.op_spawn_wait");
 }
-export const op_spawn_sync = (...args: any[]) => {
+export const op_spawn_sync = (...args: any[]): {
+    status: ChildStatus;
+    stdout: Uint8Array | null;
+    stderr: Uint8Array | null;
+} => {
     console.warn("Not implemented: ops.op_spawn_sync");
+    const status: ChildStatus = {
+        code: 0,
+        signal: null,
+        success: false,
+    }
+    return {
+        status,
+        stdout: new Uint8Array(),
+        stderr: new Uint8Array(),
+    }
 }
 export const op_fs_events_open = (options: { recursive: boolean, paths: string[] }): number => {
     console.warn("Not implemented: ops.op_fs_events_open");
@@ -926,7 +1014,7 @@ export const op_run = (...args: any[]) => {
 export const op_run_status = (...args: any[]) => {
     console.warn("Not implemented: ops.op_run_status");
 }
-export const op_kill = (...args: any[]) => {
+export const op_kill = (pid: number, signo: Signal, parent: string) => {
     console.warn("Not implemented: ops.op_kill");
 }
 export const op_signal_bind = (...args: any[]) => {
@@ -1160,4 +1248,81 @@ export const op_uid = (): number => {
 
 export const op_stdin_set_raw = (mode: boolean, cbreak: boolean): void => {
     console.warn("Not implemented: ops.op_stdin_set_raw");
+}
+
+export const op_pledge_test_permissions = (permissions: PermissionOptions) => {
+    console.warn("Not implemented: ops.op_pledge_test_permissions");
+    const token = "";
+    return token;
+}
+
+export const op_restore_test_permissions = (token: string) => {
+    console.warn("Not implemented: ops.op_restore_test_permissions");
+}
+
+export const op_dispatch_test_event = (
+    options: {
+        stepWait?: number;
+        stepResult?: any[];
+        wait?: number; 
+        plan?: any; // TODO
+        result?: any[]; // TODO
+    }
+) => {
+    console.warn("Not implemented: ops.op_dispatch_test_event");
+}
+
+export const op_dispatch_bench_event = (options: {
+    output?: string;
+    wait?: number; 
+    plan?: any; // TODO
+    result?: any[]; // TODO
+}) => {
+    console.warn("Not implemented: ops.op_dispatch_bench_event");
+}
+
+export const op_register_test = (desc: /*TestDescription*/ any) => {
+    console.warn("Not implemented: ops.op_register_test");
+    const id: number = 0;
+    const filteredOut: boolean = false;
+    return {
+        id,
+        filteredOut
+    }
+}
+
+export const op_bench_check_unstable = () => {
+    console.warn("Not implemented: ops.op_bench_check_unstable");
+}
+
+export const op_register_bench = (benchDesc: any) => {
+    console.warn("Not implemented: ops.op_register_bench");
+    const id: number = 0;
+    const filteredOut: boolean = false;
+    return {
+        id,
+        filteredOut
+    }
+}
+
+export const op_bench_now = () => {
+    console.warn("Not implemented: ops.op_bench_now");
+    return 0;
+}
+
+export const op_get_test_origin = () => {
+    console.warn("Not implemented: ops.op_get_test_origin");
+    return "";
+}
+
+export const op_get_bench_origin = () => {
+    console.warn("Not implemented: ops.op_get_bench_origin");
+    return "";
+}
+
+export const op_register_test_step = (stepDesc: TestStepDefinition) => {
+    console.warn("Not implemented: ops.op_register_test_step");
+    return {
+        id: 0
+    };
 }

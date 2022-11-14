@@ -3,11 +3,10 @@
 "use strict";
 
 import { ops } from '@gjsify/deno_core';
-const { HttpConn } = window.__bootstrap.http;
+import { HttpConn } from './ext/http/01_http.js';
 
 import type {
   Conn,
-  HttpConn,
 } from '@gjsify/deno_core';
 
 /**
@@ -62,4 +61,3 @@ export function serveHttp(conn: Conn): HttpConn {
   return new HttpConn(rid, conn.remoteAddr, conn.localAddr);
 }
 
-window.__bootstrap.http.serveHttp = serveHttp;

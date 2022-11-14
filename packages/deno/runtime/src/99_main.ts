@@ -2,14 +2,22 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/99_main.js
 "use strict";
 
+import { core, ops, primordials } from '@gjsify/deno_core';
+import { __bootstrap } from './80_bootstrap.js';
+
 // Removes the `__proto__` for security reasons.
 // https://tc39.es/ecma262/#sec-get-object.prototype.__proto__
-delete Object.prototype.__proto__;
+if ((Object.prototype as any).__proto__ !== undefined) {
+  // @ts-ignore
+  delete Object.prototype.__proto__;
+}
+
 
 // Remove Intl.v8BreakIterator because it is a non-standard API.
-delete Intl.v8BreakIterator;
-
-import { core, ops, primordials } from '@gjsify/deno_core';
+if ((Intl as any)?.v8BreakIterator !== undefined) {
+  // @ts-ignore
+  delete Intl.v8BreakIterator;
+}
 
 const {
   ArrayPrototypeIndexOf,
@@ -38,51 +46,52 @@ const {
   WeakMapPrototypeGet,
   WeakMapPrototypeSet,
 } = primordials;
-const util = window.__bootstrap.util;
-const event = window.__bootstrap.event;
-const eventTarget = window.__bootstrap.eventTarget;
-const globalInterfaces = window.__bootstrap.globalInterfaces;
-const location = window.__bootstrap.location;
-const build = window.__bootstrap.build;
-const version = window.__bootstrap.version;
-const os = window.__bootstrap.os;
-const timers = window.__bootstrap.timers;
-const base64 = window.__bootstrap.base64;
-const encoding = window.__bootstrap.encoding;
-const colors = window.__bootstrap.colors;
-const Console = window.__bootstrap.console.Console;
-const caches = window.__bootstrap.caches;
-const inspectArgs = window.__bootstrap.console.inspectArgs;
-const quoteString = window.__bootstrap.console.quoteString;
-const compression = window.__bootstrap.compression;
-const worker = window.__bootstrap.worker;
-const internals = window.__bootstrap.internals;
-const performance = window.__bootstrap.performance;
-const net = window.__bootstrap.net;
-const crypto = window.__bootstrap.crypto;
-const url = window.__bootstrap.url;
-const urlPattern = window.__bootstrap.urlPattern;
-const headers = window.__bootstrap.headers;
-const streams = window.__bootstrap.streams;
-const fileReader = window.__bootstrap.fileReader;
-const webgpu = window.__bootstrap.webgpu;
-const webSocket = window.__bootstrap.webSocket;
-const webStorage = window.__bootstrap.webStorage;
-const broadcastChannel = window.__bootstrap.broadcastChannel;
-const file = window.__bootstrap.file;
-const formData = window.__bootstrap.formData;
-const fetch = window.__bootstrap.fetch;
-const prompt = window.__bootstrap.prompt;
-const messagePort = window.__bootstrap.messagePort;
-const denoNs = window.__bootstrap.denoNs;
-const denoNsUnstable = window.__bootstrap.denoNsUnstable;
-const errors = window.__bootstrap.errors.errors;
-const webidl = window.__bootstrap.webidl;
-const domException = window.__bootstrap.domException;
-const abortSignal = window.__bootstrap.abortSignal;
-const { defineEventHandler, reportException } = window.__bootstrap.event;
+
+const util = __bootstrap.util;
+const event = __bootstrap.event;
+const eventTarget = __bootstrap.eventTarget;
+const globalInterfaces = __bootstrap.globalInterfaces;
+const location = __bootstrap.location;
+const build = __bootstrap.build;
+const version = __bootstrap.version;
+const os = __bootstrap.os;
+const timers = __bootstrap.timers;
+const base64 = __bootstrap.base64;
+const encoding = __bootstrap.encoding;
+const colors = __bootstrap.colors;
+const Console = __bootstrap.console.Console;
+const caches = __bootstrap.caches;
+const inspectArgs = __bootstrap.console.inspectArgs;
+const quoteString = __bootstrap.console.quoteString;
+const compression = __bootstrap.compression;
+const worker = __bootstrap.worker;
+const internals = __bootstrap.internals;
+const performance = __bootstrap.performance;
+const net = __bootstrap.net;
+const crypto = __bootstrap.crypto;
+const url = __bootstrap.url;
+const urlPattern = __bootstrap.urlPattern;
+const headers = __bootstrap.headers;
+const streams = __bootstrap.streams;
+const fileReader = __bootstrap.fileReader;
+const webgpu = __bootstrap.webgpu;
+const webSocket = __bootstrap.webSocket;
+const webStorage = __bootstrap.webStorage;
+const broadcastChannel = __bootstrap.broadcastChannel;
+const file = __bootstrap.file;
+const formData = __bootstrap.formData;
+const fetch = __bootstrap.fetch;
+const prompt = __bootstrap.prompt;
+const messagePort = __bootstrap.messagePort;
+const denoNs = __bootstrap.denoNs;
+const denoNsUnstable = __bootstrap.denoNsUnstable;
+const errors = __bootstrap.errors.errors;
+const webidl = __bootstrap.webidl;
+const domException = __bootstrap.domException;
+const abortSignal = __bootstrap.abortSignal;
+const { defineEventHandler, reportException } = __bootstrap.event;
 const { deserializeJsMessageData, serializeJsMessageData } =
-  window.__bootstrap.messagePort;
+  __bootstrap.messagePort;
 
 let windowIsClosing = false;
 
@@ -697,7 +706,7 @@ function bootstrapMainRuntime(runtimeOptions) {
   net.setup(runtimeOptions.unstableFlag);
 
   const consoleFromV8 = window.console;
-  const wrapConsole = window.__bootstrap.console.wrapConsole;
+  const wrapConsole = __bootstrap.console.wrapConsole;
 
   // Remove bootstrapping data from the global scope
   delete globalThis.__bootstrap;
@@ -797,7 +806,7 @@ function bootstrapWorkerRuntime(
   net.setup(runtimeOptions.unstableFlag);
 
   const consoleFromV8 = window.console;
-  const wrapConsole = window.__bootstrap.console.wrapConsole;
+  const wrapConsole = __bootstrap.console.wrapConsole;
 
   // Remove bootstrapping data from the global scope
   delete globalThis.__bootstrap;
