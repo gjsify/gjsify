@@ -22,9 +22,11 @@ import {
   formDataFromEntries,
   formDataToBlob,
   FormDataPrototype,
+  FormData,
 } from './21_formdata.js';
 import * as mimesniff from '../web/01_mimesniff.js';
-import { BlobPrototype } from '../web/09_file.js';
+import { MimeType } from '../web/01_mimesniff.js';
+import { BlobPrototype, Blob } from '../web/09_file.js';
 
 import {
   isReadableStreamDisturbed,
@@ -35,7 +37,11 @@ import {
   readableStreamThrowIfErrored,
   createProxy,
   ReadableStreamPrototype,
+  ReadableStream,
 } from '../web/06_streams.js';
+
+import type { BodyInit } from './lib.deno_fetch.js';
+
 const {
   ArrayBufferPrototype,
   ArrayBufferIsView,
@@ -57,13 +63,15 @@ function chunkToString(chunk: Uint8Array | string): string {
   return typeof chunk === "string" ? chunk : core.decode(chunk);
 }
 
+type InnerBodyStatic = { body: Uint8Array | string, consumed: boolean }
+
 export class InnerBody {
 
-  streamOrStatic: ReadableStream<Uint8Array> | { body: Uint8Array | string, consumed: boolean };
+  streamOrStatic: ReadableStream<Uint8Array> | InnerBodyStatic;
   source: null | Uint8Array | string | Blob | FormData = null;
   length: number | null = null;
 
-  constructor(stream: ReadableStream<Uint8Array> | { body: Uint8Array | string, consumed: boolean }) {
+  constructor(stream: ReadableStream<Uint8Array> | InnerBodyStatic) {
     this.streamOrStatic = stream ??
       { body: new Uint8Array(), consumed: false };
     this.source = null;
@@ -77,12 +85,12 @@ export class InnerBody {
         this.streamOrStatic,
       )
     ) {
-      const { body, consumed } = this.streamOrStatic;
+      const { body, consumed } = (this.streamOrStatic as { body: string | Uint8Array; consumed: boolean;} );
       if (consumed) {
         this.streamOrStatic = new ReadableStream();
         this.streamOrStatic.getReader();
-        readableStreamDisturb(this.streamOrStatic);
-        readableStreamClose(this.streamOrStatic);
+        readableStreamDisturb(this.streamOrStatic as ReadableStream);
+        readableStreamClose(this.streamOrStatic as ReadableStream);
       } else {
         this.streamOrStatic = new ReadableStream({
           start(controller) {
@@ -105,10 +113,10 @@ export class InnerBody {
         this.streamOrStatic,
       )
     ) {
-      return this.streamOrStatic.locked ||
-        isReadableStreamDisturbed(this.streamOrStatic);
+      return (this.streamOrStatic as ReadableStream).locked ||
+        isReadableStreamDisturbed(this.streamOrStatic as ReadableStream);
     }
-    return this.streamOrStatic.consumed;
+    return (this.streamOrStatic as InnerBodyStatic).consumed;
   }
 
   consumed(): boolean {
@@ -118,15 +126,15 @@ export class InnerBody {
         this.streamOrStatic,
       )
     ) {
-      return isReadableStreamDisturbed(this.streamOrStatic);
+      return isReadableStreamDisturbed(this.streamOrStatic as ReadableStream);
     }
-    return this.streamOrStatic.consumed;
+    return (this.streamOrStatic as InnerBodyStatic).consumed;
   }
 
   /**
    * https://fetch.spec.whatwg.org/#concept-body-consume-body
    */
-  consume(): Promise<Uint8Array> {
+  async consume(): Promise<Uint8Array> {
     if (this.unusable()) throw new TypeError("Body already consumed.");
     if (
       ObjectPrototypeIsPrototypeOf(
@@ -134,11 +142,11 @@ export class InnerBody {
         this.streamOrStatic,
       )
     ) {
-      readableStreamThrowIfErrored(this.stream);
+      readableStreamThrowIfErrored(this.stream as ReadableStream);
       return readableStreamCollectIntoUint8Array(this.stream);
     } else {
-      this.streamOrStatic.consumed = true;
-      return this.streamOrStatic.body;
+      (this.streamOrStatic as InnerBodyStatic).consumed = true;
+      return (this.streamOrStatic as InnerBodyStatic).body as Uint8Array;
     }
   }
 
@@ -149,9 +157,9 @@ export class InnerBody {
         this.streamOrStatic,
       )
     ) {
-      this.streamOrStatic.cancel(error);
+      (this.streamOrStatic as ReadableStream).cancel(error);
     } else {
-      this.streamOrStatic.consumed = true;
+      (this.streamOrStatic as InnerBodyStatic).consumed = true;
     }
   }
 
@@ -164,12 +172,12 @@ export class InnerBody {
     ) {
       errorReadableStream(this.streamOrStatic, error);
     } else {
-      this.streamOrStatic.consumed = true;
+      (this.streamOrStatic as InnerBodyStatic).consumed = true;
     }
   }
 
   clone(): InnerBody {
-    const [out1, out2] = this.stream.tee();
+    const [out1, out2] = (this.stream as ReadableStream).tee();
     this.streamOrStatic = out1;
     const second = new InnerBody(out2);
     second.source = core.deserialize(core.serialize(this.source));
@@ -185,10 +193,10 @@ export class InnerBody {
         this.streamOrStatic,
       )
     ) {
-      proxyStreamOrStatic = createProxy(this.streamOrStatic);
+      proxyStreamOrStatic = createProxy(this.streamOrStatic as ReadableStream);
     } else {
       proxyStreamOrStatic = { ...this.streamOrStatic };
-      this.streamOrStatic.consumed = true;
+      (this.streamOrStatic as InnerBodyStatic).consumed = true;
     }
     const proxy = new InnerBody(proxyStreamOrStatic);
     proxy.source = this.source;
@@ -305,6 +313,7 @@ function packageData(bytes: Uint8Array | string, type: "ArrayBuffer" | "Blob" | 
           // TODO(@AaronO): pass as-is with StringOrBuffer in op-layer
           const entries = parseUrlEncoded(chunkToU8(bytes));
           return formDataFromEntries(
+            // @ts-ignore
             ArrayPrototypeMap(
               entries,
               (x) => ({ name: x[0], value: x[1] }),
@@ -331,15 +340,15 @@ export function extractBody(object: BodyInit): {body: InnerBody, contentType: st
     source = object;
     contentType = "text/plain;charset=UTF-8";
   } else if (ObjectPrototypeIsPrototypeOf(BlobPrototype, object)) {
-    stream = object.stream();
+    stream = (object as Blob).stream() as any as ReadableStream<Uint8Array>;
     source = object;
-    length = object.size;
-    if (object.type.length !== 0) {
-      contentType = object.type;
+    length = (object as Blob).size;
+    if ((object as Blob).type.length !== 0) {
+      contentType = (object as Blob).type;
     }
   } else if (ObjectPrototypeIsPrototypeOf(Uint8ArrayPrototype, object)) {
     // Fast(er) path for common case of Uint8Array
-    const copy = TypedArrayPrototypeSlice(object, 0, object.byteLength);
+    const copy = TypedArrayPrototypeSlice(object, 0, (object as Uint8Array).byteLength);
     source = copy;
   } else if (
     ArrayBufferIsView(object) ||
@@ -351,11 +360,11 @@ export function extractBody(object: BodyInit): {body: InnerBody, contentType: st
         object.byteOffset,
         object.byteLength,
       )
-      : new Uint8Array(object);
+      : new Uint8Array(object as ArrayBuffer);
     const copy = TypedArrayPrototypeSlice(u8, 0, u8.byteLength);
     source = copy;
   } else if (ObjectPrototypeIsPrototypeOf(FormDataPrototype, object)) {
-    const res = formDataToBlob(object);
+    const res = formDataToBlob(object as FormData);
     stream = res.stream();
     source = res;
     length = res.size;
@@ -367,8 +376,8 @@ export function extractBody(object: BodyInit): {body: InnerBody, contentType: st
     source = object.toString();
     contentType = "application/x-www-form-urlencoded;charset=UTF-8";
   } else if (ObjectPrototypeIsPrototypeOf(ReadableStreamPrototype, object)) {
-    stream = object;
-    if (object.locked || isReadableStreamDisturbed(object)) {
+    stream = object as ReadableStream;
+    if ((object as ReadableStream).locked || isReadableStreamDisturbed(object as ReadableStream)) {
       throw new TypeError("ReadableStream is locked or disturbed");
     }
   }

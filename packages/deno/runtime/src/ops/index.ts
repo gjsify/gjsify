@@ -1158,7 +1158,7 @@ export const op_serialize = (value, options = {}, errorCallback?): any => {
     console.warn("Not implemented: ops.op_serialize");
 }
 
-export const op_deserialize = (buffer, options = {}) => {
+export const op_deserialize = (buffer, options = {}): any => {
     console.warn("Not implemented: ops.op_deserialize");
 }
 
@@ -1326,4 +1326,30 @@ export const op_register_test_step = (stepDesc: TestStepDefinition) => {
     return {
         id: 0
     };
+}
+
+export const op_net_listen_tcp = (options: {
+    hostname: string;
+    port: number;
+  }, reusePort: number): [number, {transport: string}] => {
+    console.warn("Not implemented: ops.op_net_listen_tcp");
+    const rid: number = 0;
+    const addr: {
+        transport: string
+    } = {
+        transport: ""
+    }
+    return [rid, addr];
+}
+
+export const op_net_listen_unix = (path: string): [number, string] => {
+    console.warn("Not implemented: ops.op_net_listen_unix");
+    const rid = 0;
+    return [rid, path];
+}
+
+export const op_net_listen_tls = (addr: { hostname: string, port: number }, cert: { cert, certFile, key, keyFile, alpnProtocols, reusePort }): [number, any] => {
+    console.warn("Not implemented: ops.op_net_listen_tls");
+    const rid = 0;
+    return [rid, addr];
 }

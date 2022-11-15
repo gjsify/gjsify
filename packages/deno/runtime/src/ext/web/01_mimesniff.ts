@@ -31,7 +31,7 @@ const {
   StringPrototypeToLowerCase,
 } = primordials;
 
-interface MimeType {
+export interface MimeType {
   type: string;
   subtype: string;
   parameters: Map<string,string>;

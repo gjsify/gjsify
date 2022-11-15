@@ -1,34 +1,20 @@
+import * as fetchUtil from './01_fetch_util.js';
+import * as headers from './20_headers.js';
+import * as formData from './21_formdata.js';
+import * as fetchBody from './22_body.js';
+import * as fetchHttpClient from './22_http_client.js';
+import * as fetchRequest from './23_request.js';
+import * as _fetch from './26_fetch.js';
 
-// packages/deno/runtime/src/ext/fetch/01_fetch_util.ts
-window.__bootstrap.fetchUtil = {
-    requiredArguments,
+const fetch = {
+    // packages/deno/runtime/src/ext/fetch/22_http_client.ts
+    ...fetchHttpClient,
+
+    // packages/deno/runtime/src/ext/fetch/23_request.ts
+    ...fetchRequest,
+
+    // packages/deno/runtime/src/ext/fetch/26_fetch.ts
+    ..._fetch,
 };
 
-// packages/deno/runtime/src/ext/fetch/20_headers.ts
-window.__bootstrap.headers = {
-    headersFromHeaderList,
-    headerListFromHeaders,
-    getDecodeSplitHeader,
-    guardFromHeaders,
-    fillHeaders,
-    getHeader,
-    Headers,
-};
-
-// packages/deno/runtime/src/ext/fetch/21_formdata.ts
-globalThis.__bootstrap.formData = {
-    FormData,
-    FormDataPrototype,
-    formDataToBlob,
-    parseFormData,
-    formDataFromEntries,
-};
-
-// packages/deno/runtime/src/ext/fetch/22_body.ts
-window.__bootstrap.fetchBody = { mixinBody, InnerBody, extractBody };
-
-// packages/deno/runtime/src/ext/fetch/22_http_client.ts
-window.__bootstrap.fetch ??= {};
-window.__bootstrap.fetch.createHttpClient = createHttpClient;
-window.__bootstrap.fetch.HttpClient = HttpClient;
-window.__bootstrap.fetch.HttpClientPrototype = HttpClientPrototype;
+export { fetchUtil, headers, formData, fetchBody, fetch}

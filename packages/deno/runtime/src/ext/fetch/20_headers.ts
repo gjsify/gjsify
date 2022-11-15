@@ -42,6 +42,8 @@ const {
   TypeError,
 } = primordials;
 
+import type { DomIterable } from './lib.deno_fetch';
+
 const _headerList = Symbol("header list");
 const _iterableHeaders = Symbol("iterable headers");
 const _guard = Symbol("guard");
@@ -175,6 +177,36 @@ export function getDecodeSplitHeader(list: HeaderList, name: string): string[] |
   return values;
 }
 
+export interface Headers extends DomIterable<string, string> {
+  /** Returns an iterator allowing to go through all key/value pairs
+   * contained in this Headers object. The both the key and value of each pairs
+   * are ByteString objects.
+   */
+  entries(): IterableIterator<[string, string]>;
+  /** Returns an iterator allowing to go through all values contained in
+   * this Headers object. The values are ByteString objects.
+   */
+  values(): IterableIterator<string>;
+  forEach(
+    callbackfn: (value: string, key: string, parent: this) => void,
+    thisArg?: any,
+  ): void;
+  /** The Symbol.iterator well-known symbol specifies the default
+  * iterator for this Headers object
+  */
+  [Symbol.iterator](): IterableIterator<[string, string]>;
+}
+
+/** This Fetch API export interface allows you to perform various actions on HTTP
+ * request and response headers. These actions include retrieving, setting,
+ * adding to, and removing. A Headers object has an associated header list,
+ * which is initially empty and consists of zero or more name and value pairs.
+ * You can add to this using methods like append() (see Examples). In all
+ * methods of this export interface, header names are matched by case-insensitive byte
+ * sequence.
+ *
+ * @category Fetch API
+ */
 export class Headers {
   // @ts-ignore
   [_headerList]: HeaderList = [];
@@ -244,7 +276,10 @@ export class Headers {
     }
   }
 
-  append(name: string, value: string) {
+  /** Appends a new value onto an existing header inside a `Headers` object, or
+   * adds the header if it does not already exist.
+   */
+  append(name: string, value: string): void {
     webidl.assertBranded(this, HeadersPrototype);
     const prefix = "Failed to execute 'append' on 'Headers'";
     webidl.requiredArguments(arguments.length, 2, { prefix });
@@ -259,7 +294,8 @@ export class Headers {
     appendHeader(this, name, value);
   }
 
-  delete(name: string) {
+  /** Deletes a header from a `Headers` object. */
+  delete(name: string): void {
     const prefix = "Failed to execute 'delete' on 'Headers'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
     name = webidl.converters["ByteString"](name, {
@@ -284,7 +320,10 @@ export class Headers {
     }
   }
 
-  get(name: string) {
+  /** Returns a `ByteString` sequence of all the values of a header within a
+   * `Headers` object with a given name.
+   */
+  get(name: string): string | null {
     const prefix = "Failed to execute 'get' on 'Headers'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
     name = webidl.converters["ByteString"](name, {
@@ -300,7 +339,10 @@ export class Headers {
     return getHeader(list, name);
   }
 
-  has(name: string) {
+  /** Returns a boolean stating whether a `Headers` object contains a certain
+   * header.
+   */
+  has(name: string): boolean {
     const prefix = "Failed to execute 'has' on 'Headers'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
     name = webidl.converters["ByteString"](name, {
@@ -322,7 +364,10 @@ export class Headers {
     return false;
   }
 
-  set(name: string, value: string) {
+  /** Sets a new value for an existing header inside a Headers object, or adds
+   * the header if it does not already exist.
+   */
+  set(name: string, value: string): void {
     webidl.assertBranded(this, HeadersPrototype);
     const prefix = "Failed to execute 'set' on 'Headers'";
     webidl.requiredArguments(arguments.length, 2, { prefix });

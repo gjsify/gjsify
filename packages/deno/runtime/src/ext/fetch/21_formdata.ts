@@ -39,6 +39,8 @@ const {
   TypedArrayPrototypeSubarray,
 } = primordials;
 
+import type { BodyInit } from './lib.deno_fetch';
+
 const entryList = Symbol("entry list");
 
 function createEntry(name: string, value: string | Blob, filename: string | undefined): FormDataEntry {
@@ -69,6 +71,37 @@ interface FormDataEntry {
   value: FormDataEntryValue;
 }
 
+/** Provides a way to easily construct a set of key/value pairs representing
+ * form fields and their values, which can then be easily sent using the
+ * XMLHttpRequest.send() method. It uses the same format a form would use if the
+ * encoding type were set to "multipart/form-data".
+ *
+ * @category Fetch API
+ */
+ export interface FormData {
+  append(name: string, value: string | Blob, fileName?: string): void;
+  delete(name: string): void;
+  get(name: string): FormDataEntryValue | null;
+  getAll(name: string): FormDataEntryValue[];
+  has(name: string): boolean;
+  set(name: string, value: string | Blob, fileName?: string): void;
+  keys(): IterableIterator<string>;
+  values(): IterableIterator<string>;
+  entries(): IterableIterator<[string, FormDataEntryValue]>;
+  [Symbol.iterator](): IterableIterator<[string, FormDataEntryValue]>;
+  forEach(
+    callback: (value: FormDataEntryValue, key: string, parent: this) => void,
+    thisArg?: any,
+  ): void;
+}
+
+/** Provides a way to easily construct a set of key/value pairs representing
+ * form fields and their values, which can then be easily sent using the
+ * XMLHttpRequest.send() method. It uses the same format a form would use if the
+ * encoding type were set to "multipart/form-data".
+ *
+ * @category Fetch API
+ */
 export class FormData {
   // @ts-ignore
   [entryList]: FormDataEntry[] = [];

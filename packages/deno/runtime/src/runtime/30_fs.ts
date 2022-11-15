@@ -1300,7 +1300,7 @@ export function fdatasyncSync(rid: number): void {
  *
  * @category I/O
  */
-async function fdatasync(rid: number): Promise<void> {
+export async function fdatasync(rid: number): Promise<void> {
   await core.opAsync("op_fdatasync_async", rid);
 }
 

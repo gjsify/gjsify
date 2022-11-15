@@ -2,14 +2,14 @@
 // Based on https://github.com/denoland/deno/blob/main/ext/fetch/23_response.js
 
 // @ts-check
-/// <reference path="../webidl/internal.d.ts" />
-/// <reference path="../web/internal.d.ts" />
-/// <reference path="../url/internal.d.ts" />
-/// <reference path="../web/lib.deno_web.d.ts" />
-/// <reference path="./internal.d.ts" />
+// <reference path="../webidl/internal.d.ts" />
+// <reference path="../web/internal.d.ts" />
+// <reference path="../url/internal.d.ts" />
+// <reference path="../web/lib.deno_web.d.ts" />
+// <reference path="./internal.d.ts" />
 // <reference path="../web/06_streams_types.d.ts" />
-/// <reference path="./lib.deno_fetch.d.ts" />
-/// <reference lib="esnext" />
+// <reference path="./lib.deno_fetch.d.ts" />
+// <reference lib="esnext" />
 "use strict";
 
 import { primordials } from '../../core/00_primordials.js';
@@ -30,13 +30,6 @@ import {
   fillHeaders,
 } from './20_headers.js';
 const {
-  getDecodeSplitHeader,
-  headerListFromHeaders,
-  headersFromHeaderList,
-  guardFromHeaders,
-  fillHeaders,
-} = window.__bootstrap.headers;
-const {
   ArrayPrototypeMap,
   ArrayPrototypePush,
   ObjectDefineProperties,
@@ -49,6 +42,15 @@ const {
   SymbolFor,
   TypeError,
 } = primordials;
+
+import {
+  ReadableStream,
+} from '../web/06_streams.js';
+
+import type { Blob } from '../web/09_file.js';
+
+import type { Body, BodyInit } from './lib.deno_fetch';
+import type { FormData } from './21_formdata.js';
 
 const VCHAR = ["\x21-\x7E"];
 const OBS_TEXT = ["\x80-\xFF"];
@@ -66,7 +68,7 @@ const _headers = Symbol("headers");
 const _mimeType = Symbol("mime type");
 const _body = Symbol("body");
 
-interface InnerResponse {
+export interface InnerResponse {
   type: "basic" | "cors" | "default" | "error" | "opaque" | "opaqueredirect";
   url: () => string | null;
   urlList: string[];
@@ -101,12 +103,14 @@ function cloneInnerResponse(response: InnerResponse): InnerResponse {
 
   let body = null;
   if (response.body !== null) {
+    // @ts-ignore TODO: CHECKME
     body = response.body.clone();
   }
 
   return {
     type: response.type,
     body,
+    // @ts-ignore TODO: CHECKME
     headerList,
     urlList,
     status: response.status,
@@ -154,7 +158,7 @@ export function abortedNetworkError(): InnerResponse {
 /**
  * https://fetch.spec.whatwg.org#initialize-a-response
  */
-function initializeAResponse(response: Response, init: ResponseInit, bodyWithType: { body: __bootstrap.fetchBody.InnerBody, contentType: string | null } | null) {
+function initializeAResponse(response: Response, init: ResponseInit, bodyWithType: { body: InnerBody, contentType: string | null } | null) {
   // 1.
   if ((init.status < 200 || init.status > 599) && init.status != 101) {
     throw new RangeError(
@@ -176,8 +180,8 @@ function initializeAResponse(response: Response, init: ResponseInit, bodyWithTyp
   // 4.
   response[_response].statusMessage = init.statusText;
   // 5.
-  /** @type {__bootstrap.headers.Headers} */
-  const headers: __bootstrap.headers.Headers = response[_headers];
+  /** @type {Headers} */
+  const headers: Headers = response[_headers];
   if (init.headers) {
     fillHeaders(headers, init.headers);
   }
@@ -209,6 +213,45 @@ function initializeAResponse(response: Response, init: ResponseInit, bodyWithTyp
   }
 }
 
+/** This Fetch API export interface represents the response to a request.
+ *
+ * @category Fetch API
+ */
+ export interface Response extends Body {
+
+  readonly trailer: Promise<Headers>;
+  clone(): Response;
+
+  /** Stores a `Boolean` that declares whether the body has been used in a
+   * response yet.
+   */
+  readonly bodyUsed: boolean;
+  /** Takes a `Response` stream and reads it to completion. It returns a promise
+   * that resolves with an `ArrayBuffer`.
+   */
+  arrayBuffer(): Promise<ArrayBuffer>;
+  /** Takes a `Response` stream and reads it to completion. It returns a promise
+   * that resolves with a `Blob`.
+   */
+  blob(): Promise<Blob>;
+  /** Takes a `Response` stream and reads it to completion. It returns a promise
+   * that resolves with a `FormData` object.
+   */
+  formData(): Promise<FormData>;
+  /** Takes a `Response` stream and reads it to completion. It returns a promise
+   * that resolves with the result of parsing the body text as JSON.
+   */
+  json(): Promise<any>;
+  /** Takes a `Response` stream and reads it to completion. It returns a promise
+   * that resolves with a `USVString` (text).
+   */
+  text(): Promise<string>;
+}
+
+/** This Fetch API export interface represents the response to a request.
+ *
+ * @category Fetch API
+ */
 export class Response {
   get [_mimeType]() {
     const values = getDecodeSplitHeader(
@@ -217,7 +260,9 @@ export class Response {
     );
     return extractMimeType(values);
   }
-  get [_body]() {
+
+  /** A simple getter used to expose a `ReadableStream` of the body contents. */
+  get [_body](): ReadableStream<Uint8Array> | null {
     return this[_response].body;
   }
 
@@ -307,7 +352,7 @@ export class Response {
     this[webidl.brand] = webidl.brand;
   }
 
-  get type(): "basic" | "cors" | "default" | "error" | "opaque" | "opaqueredirect" {
+  get type(): ResponseType {
     webidl.assertBranded(this, ResponsePrototype);
     return this[_response].type;
   }
@@ -434,21 +479,9 @@ export function toInnerResponse(response: Response): InnerResponse {
   return response[_response];
 }
 
-function fromInnerResponse(inner: InnerResponse, guard: "request" | "immutable" | "request-no-cors" | "response" | "none"): Response {
+export function fromInnerResponse(inner: InnerResponse, guard: "request" | "immutable" | "request-no-cors" | "response" | "none"): Response {
   const response = webidl.createBranded(Response);
   response[_response] = inner;
   response[_headers] = headersFromHeaderList(inner.headerList, guard);
   return response;
 }
-
-// packages/deno/runtime/src/ext/fetch/23_response.ts
-window.__bootstrap.fetch ??= {};
-window.__bootstrap.fetch.Response = Response;
-window.__bootstrap.fetch.ResponsePrototype = ResponsePrototype;
-window.__bootstrap.fetch.newInnerResponse = newInnerResponse;
-window.__bootstrap.fetch.toInnerResponse = toInnerResponse;
-window.__bootstrap.fetch.fromInnerResponse = fromInnerResponse;
-window.__bootstrap.fetch.redirectStatus = redirectStatus;
-window.__bootstrap.fetch.nullBodyStatus = nullBodyStatus;
-window.__bootstrap.fetch.networkError = networkError;
-window.__bootstrap.fetch.abortedNetworkError = abortedNetworkError;

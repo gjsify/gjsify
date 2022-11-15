@@ -7,8 +7,7 @@ import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
 const { BadResourcePrototype, InterruptedPrototype } = core;
-const { readableStreamForRid, writableStreamForRid } =
-  window.__bootstrap.streams;
+import { readableStreamForRid, writableStreamForRid  } from '../../ext//web/06_streams.js'
 const {
   Error,
   ObjectPrototypeIsPrototypeOf,
@@ -23,7 +22,7 @@ const {
 const promiseIdSymbol = SymbolFor("Deno.core.internalPromiseId");
 
 async function read(
-  rid,
+  rid: number,
   buffer,
 ) {
   if (buffer.length === 0) {
@@ -33,19 +32,19 @@ async function read(
   return nread === 0 ? null : nread;
 }
 
-async function write(rid, data) {
+async function write(rid: number, data) {
   return await core.write(rid, data);
 }
 
-function shutdown(rid) {
+export function shutdown(rid) {
   return core.shutdown(rid);
 }
 
-function resolveDns(query, recordType, options) {
+export function resolveDns(query, recordType, options) {
   return core.opAsync("op_dns_resolve", { query, recordType, options });
 }
 
-class Conn {
+export class Conn {
   #rid = 0;
   #remoteAddr = null;
   #localAddr = null;
@@ -53,7 +52,7 @@ class Conn {
   #readable;
   #writable;
 
-  constructor(rid, remoteAddr, localAddr) {
+  constructor(rid: number, remoteAddr, localAddr) {
     this.#rid = rid;
     this.#remoteAddr = remoteAddr;
     this.#localAddr = localAddr;
@@ -102,7 +101,7 @@ class Conn {
   }
 }
 
-class TcpConn extends Conn {
+export class TcpConn extends Conn {
   setNoDelay(nodelay = true) {
     return ops.op_set_nodelay(this.rid, nodelay);
   }
@@ -112,15 +111,15 @@ class TcpConn extends Conn {
   }
 }
 
-class UnixConn extends Conn {}
+export class UnixConn extends Conn {}
 
-class Listener {
+export class Listener {
   #rid = 0;
   #addr = null;
   #unref = false;
   #promiseId = null;
 
-  constructor(rid, addr) {
+  constructor(rid: number, addr) {
     this.#rid = rid;
     this.#addr = addr;
   }
@@ -208,11 +207,12 @@ class Listener {
   }
 }
 
-class Datagram {
+export class Datagram {
   #rid = 0;
   #addr = null;
+  bufSize;
 
-  constructor(rid, addr, bufSize = 1024) {
+  constructor(rid: number, addr, bufSize = 1024) {
     this.#rid = rid;
     this.#addr = addr;
     this.bufSize = bufSize;
@@ -226,7 +226,7 @@ class Datagram {
     return this.#addr;
   }
 
-  async receive(p) {
+  async receive(p?: Uint8Array) {
     const buf = p || new Uint8Array(this.bufSize);
     let nread;
     let remoteAddr;
@@ -299,7 +299,7 @@ class Datagram {
   }
 }
 
-function listen(args) {
+export function listen(args) {
   switch (args.transport ?? "tcp") {
     case "tcp": {
       const [rid, addr] = ops.op_net_listen_tcp({
@@ -318,11 +318,11 @@ function listen(args) {
       return new Listener(rid, addr);
     }
     default:
-      throw new TypeError(`Unsupported transport: '${transport}'`);
+      throw new TypeError(`Unsupported transport: '${args.transport}'`);
   }
 }
 
-function createListenDatagram(udpOpFn, unixOpFn) {
+export function createListenDatagram(udpOpFn, unixOpFn) {
   return function listenDatagram(args) {
     switch (args.transport) {
       case "udp": {
@@ -345,12 +345,12 @@ function createListenDatagram(udpOpFn, unixOpFn) {
         return new Datagram(rid, addr);
       }
       default:
-        throw new TypeError(`Unsupported transport: '${transport}'`);
+        throw new TypeError(`Unsupported transport: '${args.transport}'`);
     }
   };
 }
 
-async function connect(args) {
+export async function connect(args) {
   switch (args.transport ?? "tcp") {
     case "tcp": {
       const [rid, localAddr, remoteAddr] = await core.opAsync(
@@ -376,27 +376,13 @@ async function connect(args) {
       );
     }
     default:
-      throw new TypeError(`Unsupported transport: '${transport}'`);
+      throw new TypeError(`Unsupported transport: '${args.transport}'`);
   }
 }
 
-function setup(unstable) {
+export function setup(unstable) {
   if (!unstable) {
     delete Listener.prototype.ref;
     delete Listener.prototype.unref;
   }
 }
-
-window.__bootstrap.net = {
-  setup,
-  connect,
-  Conn,
-  TcpConn,
-  UnixConn,
-  listen,
-  createListenDatagram,
-  Listener,
-  shutdown,
-  Datagram,
-  resolveDns,
-};

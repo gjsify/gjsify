@@ -47,10 +47,13 @@ import * as testing from './40_testing.js';
 import * as tty from './40_tty.js';
 import * as writeFile from './40_write_file.js';
 import * as prompt from './41_prompt.js';
+
 import * as ffi from '../ext/ffi/00_ffi.js';
+import * as net from '../ext/net/01_net.js';
+import * as tls from '../ext/net/02_tls.js';
+import * as extHttp from '../ext/http/01_http.js';
 
-
-
+import { fetchUtil, headers, formData, fetchBody, fetch } from '../ext/fetch/99_bootstrap';
 
 export const __bootstrap = {
   // https://github.com/denoland/deno/blob/main/core/00_primordials.js
@@ -140,8 +143,12 @@ export const __bootstrap = {
   files,
   // packages/deno/runtime/src/40_fs_events.ts
   fsEvents,
-  // packages/deno/runtime/src/40_http.ts
-  http,
+  http: {
+      // packages/deno/runtime/src/40_http.ts
+    ...http,
+    // packages/deno/runtime/src/ext/http/01_http.ts
+    ...extHttp,
+  },
   // packages/deno/runtime/src/40_process.ts
   process,
   // packages/deno/runtime/src/40_read_file.ts
@@ -160,6 +167,23 @@ export const __bootstrap = {
   prompt,
   // packages/deno/runtime/src/ext/ffi/00_ffi.ts
   ffi,
+  // packages/deno/runtime/src/ext/net/01_net.ts
+  net,
+  // packages/deno/runtime/src/ext/net/02_tls.ts
+  tls,
+
+  // packages/deno/runtime/src/ext/fetch/01_fetch_util.ts
+  fetchUtil,
+  // packages/deno/runtime/src/ext/fetch/20_headers.ts
+  headers,
+  // packages/deno/runtime/src/ext/fetch/21_formdata.ts
+  formData,
+  // packages/deno/runtime/src/ext/fetch/22_body.ts
+  fetchBody,
+  // packages/deno/runtime/src/ext/fetch/22_http_client.ts
+  // packages/deno/runtime/src/ext/fetch/23_request.ts
+  // packages/deno/runtime/src/ext/fetch/26_fetch.ts
+  fetch,
 };
 
 // packages/deno/runtime/src/core/02_error.ts

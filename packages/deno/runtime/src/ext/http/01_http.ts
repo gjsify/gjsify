@@ -463,10 +463,3 @@ export function upgradeHttp(req) {
   return req[_deferred].promise;
 }
 
-// packages/deno/runtime/src/ext/http/01_http.ts
-window.__bootstrap.http = {
-  HttpConn,
-  upgradeWebSocket,
-  upgradeHttp,
-  _ws,
-};

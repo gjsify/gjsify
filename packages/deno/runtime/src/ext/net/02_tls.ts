@@ -6,7 +6,7 @@
 import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
-const { Listener, Conn } = window.__bootstrap.net;
+import { Listener, Conn } from './01_net.js';
 const { TypeError } = primordials;
 
 function opStartTls(args) {
@@ -17,13 +17,13 @@ function opTlsHandshake(rid) {
   return core.opAsync("op_tls_handshake", rid);
 }
 
-class TlsConn extends Conn {
+export class TlsConn extends Conn {
   handshake() {
     return opTlsHandshake(this.rid);
   }
 }
 
-async function connectTls({
+export async function connectTls({
   port,
   hostname = "127.0.0.1",
   transport = "tcp",
@@ -46,7 +46,7 @@ async function connectTls({
   return new TlsConn(rid, remoteAddr, localAddr);
 }
 
-class TlsListener extends Listener {
+export class TlsListener extends Listener {
   async accept() {
     const [rid, localAddr, remoteAddr] = await core.opAsync(
       "op_net_accept_tls",
@@ -58,7 +58,7 @@ class TlsListener extends Listener {
   }
 }
 
-function listenTls({
+export function listenTls({
   port,
   cert,
   certFile,
@@ -79,7 +79,7 @@ function listenTls({
   return new TlsListener(rid, localAddr);
 }
 
-async function startTls(
+export async function startTls(
   conn,
   {
     hostname = "127.0.0.1",
@@ -97,11 +97,3 @@ async function startTls(
   });
   return new TlsConn(rid, remoteAddr, localAddr);
 }
-
-window.__bootstrap.tls = {
-  startTls,
-  listenTls,
-  connectTls,
-  TlsConn,
-  TlsListener,
-};

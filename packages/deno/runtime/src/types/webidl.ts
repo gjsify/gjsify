@@ -196,7 +196,7 @@ export namespace WebIDL {
     ["UVString?"](v: any, opts?: ValueConverterOpts): string | null;
     ["sequence<double>"](v: any, opts?: ValueConverterOpts): number[];
 
-    [type: string]: (v: any, opts: ValueConverterOpts) => any;
+    [type: string]: (v: any, opts?: ValueConverterOpts) => any;
   };
 
   export type Dictionary = DictionaryMember[];

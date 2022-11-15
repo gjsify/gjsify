@@ -17,6 +17,11 @@ import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
 import * as webidl from '../webidl/00_webidl.js';
 import * as consoleInternal from '../console/02_console.js';
+
+import {
+  ReadableStream,
+} from '../web/06_streams.js';
+
 const {
   ArrayBufferPrototype,
   ArrayBufferPrototypeSlice,

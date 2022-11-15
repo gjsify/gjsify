@@ -2,13 +2,13 @@
 // Based on https://github.com/denoland/deno/blob/main/ext/fetch/23_request.js
 
 // @ts-check
-/// <reference path="../webidl/internal.d.ts" />
-/// <reference path="../web/internal.d.ts" />
-/// <reference path="../web/lib.deno_web.d.ts" />
-/// <reference path="./internal.d.ts" />
+// <reference path="../webidl/internal.d.ts" />
+// <reference path="../web/internal.d.ts" />
+// <reference path="../web/lib.deno_web.d.ts" />
+// <reference path="./internal.d.ts" />
 // <reference path="../web/06_streams_types.d.ts" />
-/// <reference path="./lib.deno_fetch.d.ts" />
-/// <reference lib="esnext" />
+// <reference path="./lib.deno_fetch.d.ts" />
+// <reference lib="esnext" />
 "use strict";
 
 import { primordials } from '../../core/00_primordials.js';
@@ -18,22 +18,28 @@ import {
   HTTP_TOKEN_CODE_POINT_RE,
   byteUpperCase,
 } from '../web/00_infra.js';
+import { URL } from '../url/00_url.js';
 import {
-  URL,
-} from '../url/00_url.js';
-const { guardFromHeaders } = window.__bootstrap.headers;
-const { mixinBody, extractBody, InnerBody } = window.__bootstrap.fetchBody;
-const { getLocationHref } = window.__bootstrap.location;
-const { extractMimeType } = window.__bootstrap.mimesniff;
-const { blobFromObjectUrl } = window.__bootstrap.file;
-const {
+  guardFromHeaders,
   headersFromHeaderList,
   headerListFromHeaders,
   fillHeaders,
   getDecodeSplitHeader,
-} = window.__bootstrap.headers;
-const { HttpClientPrototype } = window.__bootstrap.fetch;
-const abortSignal = window.__bootstrap.abortSignal;
+} from './20_headers.js';
+import { mixinBody, extractBody, InnerBody } from './22_body.js';
+import { getLocationHref } from '../web/12_location.js';
+import { extractMimeType } from '../web/01_mimesniff.js';
+import { blobFromObjectUrl, Blob } from '../web/09_file.js';
+import { HttpClientPrototype } from './22_http_client.js';
+import * as abortSignal from '../web/03_abort_signal.js';
+
+import type { RequestInfo, RequestInit, Body } from './lib.deno_fetch';
+import type { FormData } from './21_formdata.js';
+
+import {
+  ReadableStream,
+} from '../web/06_streams.js';
+
 const {
   ArrayPrototypeMap,
   ArrayPrototypeSlice,
@@ -53,7 +59,7 @@ const _headersCache = Symbol("headers cache");
 const _signal = Symbol("signal");
 const _mimeType = Symbol("mime type");
 const _body = Symbol("body");
-const _flash = Symbol("flash");
+export const _flash = Symbol("flash");
 const _url = Symbol("url");
 const _method = Symbol("method");
 
@@ -61,7 +67,7 @@ const _method = Symbol("method");
  * @param {(() => string)[]} urlList
  * @param {string[]} urlListProcessed
  */
-function processUrlList(urlList, urlListProcessed) {
+export function processUrlList(urlList: (() => string)[], urlListProcessed: string[]) {
   for (let i = 0; i < urlList.length; i++) {
     if (urlListProcessed[i] === undefined) {
       urlListProcessed[i] = urlList[i]();
@@ -70,35 +76,28 @@ function processUrlList(urlList, urlListProcessed) {
   return urlListProcessed;
 }
 
-/**
- * @typedef InnerRequest
- * @property {() => string} method
- * @property {() => string} url
- * @property {() => string} currentUrl
- * @property {() => [string, string][]} headerList
- * @property {null | typeof __window.bootstrap.fetchBody.InnerBody} body
- * @property {"follow" | "error" | "manual"} redirectMode
- * @property {number} redirectCount
- * @property {(() => string)[]} urlList
- * @property {string[]} urlListProcessed
- * @property {number | null} clientRid NOTE: non standard extension for `Deno.HttpClient`.
- * @property {Blob | null} blobUrlEntry
- */
+export interface InnerRequest {
+  method: () => string;
+  url: () => string;
+  currentUrl: () => string;
+  headerList: () => [string, string][];
+  body: null | typeof InnerBody;
+  redirectMode: "follow" | "error" | "manual";
+  redirectCount: number;
+  urlList: (() => string)[];
+  urlListProcessed: string[];
+  // NOTE: non standard extension for `Deno.HttpClient`.
+  clientRid: number | null
+  blobUrlEntry: Blob | null;
+}
 
-/**
- * @param {() => string} method
- * @param {string | () => string} url
- * @param {() => [string, string][]} headerList
- * @param {typeof __window.bootstrap.fetchBody.InnerBody} body
- * @param {boolean} maybeBlob
- * @returns {InnerRequest}
- */
-function newInnerRequest(method, url, headerList, body, maybeBlob) {
+export function newInnerRequest(method: () => string, url: string | (() => string), headerList: () => [string, string][], body: typeof InnerBody, maybeBlob: boolean): InnerRequest {
   let blobUrlEntry = null;
   if (maybeBlob && typeof url === "string" && url.startsWith("blob:")) {
     blobUrlEntry = blobFromObjectUrl(url);
   }
   return {
+    // @ts-ignore
     methodInner: null,
     get method() {
       if (this.methodInner === null) {
@@ -163,7 +162,7 @@ function newInnerRequest(method, url, headerList, body, maybeBlob) {
  * @param {InnerRequest} request
  * @returns {InnerRequest}
  */
-function cloneInnerRequest(request) {
+function cloneInnerRequest(request: InnerRequest): InnerRequest {
   const headerList = ArrayPrototypeMap(
     request.headerList,
     (x) => [x[0], x[1]],
@@ -171,11 +170,13 @@ function cloneInnerRequest(request) {
 
   let body = null;
   if (request.body !== null) {
+    // @ts-ignore
     body = request.body.clone();
   }
 
   return {
     method: request.method,
+    // @ts-ignore TODO: CHECKME
     headerList,
     body,
     redirectMode: request.redirectMode,
@@ -212,7 +213,7 @@ function cloneInnerRequest(request) {
  * @param {string} m
  * @returns {boolean}
  */
-function isKnownMethod(m) {
+function isKnownMethod(m: string): boolean {
   return (
     m === "DELETE" ||
     m === "GET" ||
@@ -226,7 +227,7 @@ function isKnownMethod(m) {
  * @param {string} m
  * @returns {string}
  */
-function validateAndNormalizeMethod(m) {
+function validateAndNormalizeMethod(m: string): string {
   // Fast path for well-known methods
   if (isKnownMethod(m)) {
     return m;
@@ -245,15 +246,113 @@ function validateAndNormalizeMethod(m) {
   return upperCase;
 }
 
-class Request {
-  /** @type {InnerRequest} */
-  [_request];
-  /** @type {Headers} */
-  [_headersCache];
+/** This Fetch API export interface represents a resource request.
+ *
+ * @category Fetch API
+ */
+ export interface Request extends Body {
+
+  /**
+   * Returns the cache mode associated with request, which is a string
+   * indicating how the request will interact with the browser's cache when
+   * fetching.
+   */
+  readonly cache: RequestCache;
+  /**
+   * Returns the credentials mode associated with request, which is a string
+   * indicating whether credentials will be sent with the request always, never,
+   * or only when sent to a same-origin URL.
+   */
+  readonly credentials: RequestCredentials;
+  /**
+   * Returns the kind of resource requested by request, e.g., "document" or "script".
+   */
+  readonly destination: RequestDestination;
+
+  /**
+   * Returns request's subresource integrity metadata, which is a cryptographic
+   * hash of the resource being fetched. Its value consists of multiple hashes
+   * separated by whitespace. [SRI]
+   */
+  readonly integrity: string;
+  /**
+   * Returns a boolean indicating whether or not request is for a history
+   * navigation (a.k.a. back-forward navigation).
+   */
+  readonly isHistoryNavigation: boolean;
+  /**
+   * Returns a boolean indicating whether or not request is for a reload
+   * navigation.
+   */
+  readonly isReloadNavigation: boolean;
+  /**
+   * Returns a boolean indicating whether or not request can outlive the global
+   * in which it was created.
+   */
+  readonly keepalive: boolean;
+  /**
+   * Returns the mode associated with request, which is a string indicating
+   * whether the request will use CORS, or will be restricted to same-origin
+   * URLs.
+   */
+  readonly mode: RequestMode;
+  /**
+   * Returns the referrer of request. Its value can be a same-origin URL if
+   * explicitly set in init, the empty string to indicate no referrer, and
+   * "about:client" when defaulting to the global's default. This is used during
+   * fetching to determine the value of the `Referer` header of the request
+   * being made.
+   */
+  readonly referrer: string;
+  /**
+   * Returns the referrer policy associated with request. This is used during
+   * fetching to compute the value of the request's referrer.
+   */
+  readonly referrerPolicy: ReferrerPolicy;
+
+  /** A simple getter used to expose a `ReadableStream` of the body contents. */
+  readonly body: ReadableStream<Uint8Array> | null;
+  /** Stores a `Boolean` that declares whether the body has been used in a
+   * request yet.
+   */
+  readonly bodyUsed: boolean;
+  /** Takes a `Request` stream and reads it to completion. It returns a promise
+   * that resolves with an `ArrayBuffer`.
+   */
+  arrayBuffer(): Promise<ArrayBuffer>;
+  /** Takes a `Request` stream and reads it to completion. It returns a promise
+   * that resolves with a `Blob`.
+   */
+  blob(): Promise<Blob>;
+  /** Takes a `Request` stream and reads it to completion. It returns a promise
+   * that resolves with a `FormData` object.
+   */
+  formData(): Promise<FormData>;
+  /** Takes a `Request` stream and reads it to completion. It returns a promise
+   * that resolves with the result of parsing the body text as JSON.
+   */
+  json(): Promise<any>;
+  /** Takes a `Request` stream and reads it to completion. It returns a promise
+   * that resolves with a `USVString` (text).
+   */
+  text(): Promise<string>;
+}
+
+
+/** This Fetch API export interface represents a resource request.
+ *
+ * @category Fetch API
+ */
+export class Request implements Body {
+  // @ts-ignore
+  [_request]: InnerRequest;
+  // @ts-ignore
+  [_headersCache]: Headers;
+  // @ts-ignore
   [_getHeaders];
 
   /** @type {Headers} */
-  get [_headers]() {
+  get [_headers](): Headers {
     if (this[_headersCache] === undefined) {
       this[_headersCache] = this[_getHeaders]();
     }
@@ -264,8 +363,8 @@ class Request {
     this[_headersCache] = value;
   }
 
-  /** @type {AbortSignal} */
-  [_signal];
+  // @ts-ignore
+  [_signal]: AbortSignal;
   get [_mimeType]() {
     const values = getDecodeSplitHeader(
       headerListFromHeaders(this[_headers]),
@@ -283,10 +382,8 @@ class Request {
 
   /**
    * https://fetch.spec.whatwg.org/#dom-request
-   * @param {RequestInfo} input
-   * @param {RequestInit} init
    */
-  constructor(input, init = {}) {
+  constructor(input: RequestInfo | URL, init: RequestInit = {}) {
     const prefix = "Failed to construct 'Request'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
     input = webidl.converters["RequestInfo_DOMString"](input, {
@@ -301,7 +398,7 @@ class Request {
     this[webidl.brand] = webidl.brand;
 
     /** @type {InnerRequest} */
-    let request;
+    let request: InnerRequest;
     const baseURL = getLocationHref();
 
     // 4.
@@ -335,7 +432,7 @@ class Request {
 
     // 25.
     if (init.method !== undefined) {
-      let method = init.method;
+      let method: any = init.method;
       method = validateAndNormalizeMethod(method);
       request.method = method;
     }
@@ -346,10 +443,10 @@ class Request {
     }
 
     // NOTE: non standard extension. This handles Deno.HttpClient parameter
-    if (init.client !== undefined) {
+    if ((init as any).client !== undefined) {
       if (
-        init.client !== null &&
-        !ObjectPrototypeIsPrototypeOf(HttpClientPrototype, init.client)
+        (init as any).client !== null &&
+        !ObjectPrototypeIsPrototypeOf(HttpClientPrototype, (init as any).client)
       ) {
         throw webidl.makeException(
           TypeError,
@@ -357,7 +454,7 @@ class Request {
           { prefix, context: "Argument 2" },
         );
       }
-      request.clientRid = init.client?.rid ?? null;
+      request.clientRid = (init as any).client?.rid ?? null;
     }
 
     // 27.
@@ -372,7 +469,7 @@ class Request {
     }
 
     // 30.
-    this[_headers] = headersFromHeaderList(request.headerList, "request");
+    this[_headers] = headersFromHeaderList(request.headerList(), "request");
 
     // 32.
     if (ObjectKeys(init).length > 0) {
@@ -382,7 +479,7 @@ class Request {
         headerListFromHeaders(this[_headers]).length,
       );
       if (init.headers !== undefined) {
-        headers = init.headers;
+        headers = init.headers as any;
       }
       ArrayPrototypeSplice(
         headerListFromHeaders(this[_headers]),
@@ -400,7 +497,7 @@ class Request {
 
     // 34.
     if (
-      (request.method === "GET" || request.method === "HEAD") &&
+      (request.method() === "GET" || request.method() === "HEAD") &&
       ((init.body !== undefined && init.body !== null) ||
         inputBody !== null)
     ) {
@@ -437,7 +534,10 @@ class Request {
     request.body = finalBody;
   }
 
-  get method() {
+  /**
+   * Returns request's HTTP method, which is "GET" by default.
+   */
+  get method(): string {
     webidl.assertBranded(this, RequestPrototype);
     if (this[_method]) {
       return this[_method];
@@ -451,7 +551,10 @@ class Request {
     }
   }
 
-  get url() {
+  /**
+   * Returns the URL of request as a string.
+   */
+  get url(): string {
     webidl.assertBranded(this, RequestPrototype);
     if (this[_url]) {
       return this[_url];
@@ -466,12 +569,22 @@ class Request {
     }
   }
 
-  get headers() {
+  /**
+   * Returns a Headers object consisting of the headers associated with request.
+   * Note that headers added in the network layer by the user agent will not be
+   * accounted for in this object, e.g., the "Host" header.
+   */
+  get headers(): Headers {
     webidl.assertBranded(this, RequestPrototype);
     return this[_headers];
   }
 
-  get redirect() {
+  /**
+   * Returns the redirect mode associated with request, which is a string
+   * indicating how redirects for the request will be handled during fetching. A
+   * request will follow redirects by default.
+   */
+  get redirect(): RequestRedirect {
     webidl.assertBranded(this, RequestPrototype);
     if (this[_flash]) {
       return this[_flash].redirectMode;
@@ -479,12 +592,17 @@ class Request {
     return this[_request].redirectMode;
   }
 
-  get signal() {
+  /**
+   * Returns the signal associated with request, which is an AbortSignal object
+   * indicating whether or not request has been aborted, and its abort event
+   * handler.
+   */
+  get signal(): AbortSignal {
     webidl.assertBranded(this, RequestPrototype);
     return this[_signal];
   }
 
-  clone() {
+  clone(): Request {
     webidl.assertBranded(this, RequestPrototype);
     if (this[_body] && this[_body].unusable()) {
       throw new TypeError("Body is unusable.");
@@ -509,7 +627,7 @@ class Request {
       object: this,
       evaluate: ObjectPrototypeIsPrototypeOf(RequestPrototype, this),
       keys: [
-        "bodyUsed",
+        "bodyUsed" as any,
         "headers",
         "method",
         "redirect",
@@ -571,7 +689,7 @@ webidl.converters["RequestInit"] = webidl.createDictionaryConverter(
  * @param {Request} request
  * @returns {InnerRequest}
  */
-function toInnerRequest(request) {
+export function toInnerRequest(request: Request): InnerRequest {
   return request[_request];
 }
 
@@ -580,11 +698,11 @@ function toInnerRequest(request) {
  * @param {"request" | "immutable" | "request-no-cors" | "response" | "none"} guard
  * @returns {Request}
  */
-function fromInnerRequest(inner, signal, guard) {
+export function fromInnerRequest(inner: InnerRequest, signal, guard: "request" | "immutable" | "request-no-cors" | "response" | "none"): Request {
   const request = webidl.createBranded(Request);
   request[_request] = inner;
   request[_signal] = signal;
-  request[_getHeaders] = () => headersFromHeaderList(inner.headerList, guard);
+  request[_getHeaders] = () => headersFromHeaderList(inner.headerList(), guard);
   return request;
 }
 
@@ -597,14 +715,14 @@ function fromInnerRequest(inner, signal, guard) {
  * @param {() => [string, string][]} headersCb
  * @returns {Request}
  */
-function fromFlashRequest(
-  serverId,
-  streamRid,
-  body,
-  methodCb,
-  urlCb,
-  headersCb,
-) {
+export function fromFlashRequest(
+  serverId: number,
+  streamRid: number,
+  body: ReadableStream,
+  methodCb: () => string,
+  urlCb: () => string,
+  headersCb: () => [string, string][],
+): Request {
   const request = webidl.createBranded(Request);
   request[_flash] = {
     body: body !== null ? new InnerBody(body) : null,
@@ -618,13 +736,3 @@ function fromFlashRequest(
   request[_getHeaders] = () => headersFromHeaderList(headersCb(), "request");
   return request;
 }
-
-// packages/deno/runtime/src/ext/fetch/23_request.ts
-window.__bootstrap.fetch ??= {};
-window.__bootstrap.fetch.Request = Request;
-window.__bootstrap.fetch.toInnerRequest = toInnerRequest;
-window.__bootstrap.fetch.fromFlashRequest = fromFlashRequest;
-window.__bootstrap.fetch.fromInnerRequest = fromInnerRequest;
-window.__bootstrap.fetch.newInnerRequest = newInnerRequest;
-window.__bootstrap.fetch.processUrlList = processUrlList;
-window.__bootstrap.fetch._flash = _flash;

@@ -15,23 +15,21 @@
 import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
-const webidl = window.__bootstrap.webidl;
-const { byteLowerCase } = window.__bootstrap.infra;
-const { BlobPrototype } = window.__bootstrap.file;
-const { errorReadableStream, ReadableStreamPrototype, readableStreamForRid } =
-  window.__bootstrap.streams;
-const { InnerBody, extractBody } = window.__bootstrap.fetchBody;
-const {
-  toInnerRequest,
+import * as webidl from '../webidl/00_webidl.js';
+import { byteLowerCase } from '../web/00_infra.js';
+import { BlobPrototype } from '../web/09_file.js';
+import { errorReadableStream, ReadableStreamPrototype, readableStreamForRid } from '../web/06_streams.js';
+import { InnerBody, extractBody } from './22_body.js';
+import { toInnerRequest, processUrlList, InnerRequest } from './23_request.js';
+import {
   toInnerResponse,
   fromInnerResponse,
   redirectStatus,
   nullBodyStatus,
   networkError,
-  abortedNetworkError,
-  processUrlList,
-} = window.__bootstrap.fetch;
-const abortSignal = window.__bootstrap.abortSignal;
+  abortedNetworkError
+} from './23_response.js';
+import * as abortSignal from '../web/03_abort_signal.js';
 const {
   ArrayPrototypePush,
   ArrayPrototypeSplice,
@@ -64,12 +62,7 @@ const REQUEST_BODY_HEADER_NAMES = [
 
 const requestBodyReaders = new WeakMap();
 
-/**
- * @param {{ method: string, url: string, headers: [string, string][], clientRid: number | null, hasBody: boolean }} args
- * @param {Uint8Array | null} body
- * @returns {{ requestRid: number, requestBodyRid: number | null }}
- */
-function opFetch(method, url, headers, clientRid, hasBody, bodyLength, body) {
+function opFetch(method: string, url: string, headers: [string, string][], clientRid: number | null, hasBody: boolean, bodyLength: number, body: Uint8Array | null): { requestRid: number; requestBodyRid: number | null; } {
   return ops.op_fetch(
     method,
     url,
@@ -85,7 +78,7 @@ function opFetch(method, url, headers, clientRid, hasBody, bodyLength, body) {
  * @param {number} rid
  * @returns {Promise<{ status: number, statusText: string, headers: [string, string][], url: string, responseRid: number }>}
  */
-function opFetchSend(rid) {
+function opFetchSend(rid: number): Promise<{ status: number; statusText: string; headers: [string, string][]; url: string; responseRid: number; }> {
   return core.opAsync("op_fetch_send", rid);
 }
 
@@ -94,7 +87,7 @@ function opFetchSend(rid) {
  * @param {AbortSignal} [terminator]
  * @returns {ReadableStream<Uint8Array>}
  */
-function createResponseBodyStream(responseBodyRid, terminator) {
+function createResponseBodyStream(responseBodyRid: number, terminator: AbortSignal): ReadableStream<Uint8Array> {
   const readable = readableStreamForRid(responseBodyRid);
 
   function onAbort() {
@@ -114,7 +107,7 @@ function createResponseBodyStream(responseBodyRid, terminator) {
  * @param {AbortSignal} terminator
  * @returns {Promise<InnerResponse>}
  */
-async function mainFetch(req, recursive, terminator) {
+async function mainFetch(req: InnerRequest, recursive: boolean, terminator: AbortSignal): Promise<InnerResponse> {
   if (req.blobUrlEntry !== null) {
     if (req.method !== "GET") {
       throw new TypeError("Blob URL fetch only supports GET method.");
@@ -144,7 +137,7 @@ async function mainFetch(req, recursive, terminator) {
   }
 
   /** @type {ReadableStream<Uint8Array> | Uint8Array | null} */
-  let reqBody = null;
+  let reqBody: ReadableStream<Uint8Array> | Uint8Array | null = null;
 
   if (req.body !== null) {
     if (
@@ -259,7 +252,7 @@ async function mainFetch(req, recursive, terminator) {
   processUrlList(req.urlList, req.urlListProcessed);
 
   /** @type {InnerResponse} */
-  const response = {
+  const response: InnerResponse = {
     headerList: resp.headers,
     status: resp.status,
     body: null,
@@ -315,7 +308,7 @@ async function mainFetch(req, recursive, terminator) {
  * @param {AbortSignal} terminator
  * @returns {Promise<InnerResponse>}
  */
-function httpRedirectFetch(request, response, terminator) {
+function httpRedirectFetch(request: InnerRequest, response: InnerResponse, terminator: AbortSignal): Promise<InnerResponse> {
   const locationHeaders = ArrayPrototypeFilter(
     response.headerList,
     (entry) => byteLowerCase(entry[0]) === "location",
@@ -379,7 +372,7 @@ function httpRedirectFetch(request, response, terminator) {
  * @param {RequestInfo} input
  * @param {RequestInit} init
  */
-function fetch(input, init = {}) {
+export function fetch(input: RequestInfo, init: RequestInit = {}) {
   // There is an async dispatch later that causes a stack trace disconnect.
   // We reconnect it by assigning the result of that dispatch to `opPromise`,
   // awaiting `opPromise` in an inner function also named `fetch()` and
@@ -494,7 +487,7 @@ function abortFetch(request, responseObject, error) {
  * value of that promise.
  * @param {number} rid An rid that represents the wasm streaming resource.
  */
-function handleWasmStreaming(source, rid) {
+export function handleWasmStreaming(source: any, rid: number) {
   // This implements part of
   // https://webassembly.github.io/spec/web-api/#compile-a-potential-webassembly-response
   try {
@@ -553,7 +546,3 @@ function handleWasmStreaming(source, rid) {
     core.abortWasmStreaming(rid, err);
   }
 }
-
-window.__bootstrap.fetch ??= {};
-window.__bootstrap.fetch.fetch = fetch;
-window.__bootstrap.fetch.handleWasmStreaming = handleWasmStreaming;
