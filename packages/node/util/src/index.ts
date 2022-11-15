@@ -25,10 +25,25 @@ export * from './is-buffer.js';
 
 // NOTE: These type checking functions intentionally don't use `instanceof`
 // because it is fragile and can be easily faked with `Object.create()`.
-import * as _types from './types.js';
+export * as types from './types.js';
 export { inherits } from './inherits.js';
 
 export * from './get-system-error-name.js';
+
+import {
+  isArray,
+  isBoolean,
+  isNull,
+  isNullOrUndefined,
+  isNumber,
+  isString,
+  isSymbol,
+  isUndefined,
+  isRegExp,
+  isObject,
+  isDate,
+  isError,
+} from './types.js';
 
 var getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors ||
   function getOwnPropertyDescriptors(obj) {
@@ -497,57 +512,6 @@ function reduceToSingleString(output, base, braces) {
   return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
 }
 
-export function isArray(ar) {
-  return Array.isArray(ar);
-}
-
-export function isBoolean(arg) {
-  return typeof arg === 'boolean';
-}
-
-export function isNull(arg) {
-  return arg === null;
-}
-
-export function isNullOrUndefined(arg) {
-  return arg == null;
-}
-
-export function isNumber(arg) {
-  return typeof arg === 'number';
-}
-
-export function isString(arg) {
-  return typeof arg === 'string';
-}
-
-export function isSymbol(arg) {
-  return typeof arg === 'symbol';
-}
-
-export function isUndefined(arg) {
-  return arg === void 0;
-}
-
-export function isRegExp(re) {
-  return isObject(re) && objectToString(re) === '[object RegExp]';
-}
-
-export function isObject(arg) {
-  return typeof arg === 'object' && arg !== null;
-}
-
-export function isDate(d) {
-  return isObject(d) && objectToString(d) === '[object Date]';
-}
-
-export function isError(e) {
-  return isObject(e) &&
-      (objectToString(e) === '[object Error]' || e instanceof Error);
-}
-
-export const types = {..._types, isRegExp, isDate, isNativeError: isError}
-
 export function isFunction(arg) {
   return typeof arg === 'function';
 }
@@ -561,9 +525,7 @@ export function isPrimitive(arg) {
          typeof arg === 'undefined';
 }
 
-function objectToString(o) {
-  return Object.prototype.toString.call(o);
-}
+
 
 
 function pad(n) {
@@ -715,3 +677,18 @@ export function callbackify(original) {
 // Build in Gjs
 export const TextDecoder = globalThis.TextDecoder;
 export const TextEncoder = globalThis.TextEncoder;
+
+export {
+  isArray,
+  isBoolean,
+  isNull,
+  isNullOrUndefined,
+  isNumber,
+  isString,
+  isSymbol,
+  isUndefined,
+  isRegExp,
+  isObject,
+  isDate,
+  isError,
+}

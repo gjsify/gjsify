@@ -238,7 +238,8 @@ export default async () => {
 			const os = globalThis.process?.platform || (globalThis as any).Deno?.build?.os || 'linux';
 
 			switch (os) {
-			  case "windows":
+			  case "win32":
+			  case "windows" as any:
 				expect(util.getSystemErrorName(-4091)).toBe("EADDRINUSE");
 				break;
 		

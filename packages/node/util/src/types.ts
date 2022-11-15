@@ -42,11 +42,67 @@ function checkBoxedPrimitive(value, prototypeValueOf) {
   }
 }
 
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
 export { isArgumentsObject, isGeneratorFunction, isTypedArray }
+
+
+export function isArray(ar: any) {
+  return Array.isArray(ar);
+}
+
+export function isBoolean(arg: any) {
+  return typeof arg === 'boolean';
+}
+
+export function isNull(arg: any) {
+  return arg === null;
+}
+
+export function isNullOrUndefined(arg: any) {
+  return arg == null;
+}
+
+export function isNumber(arg: any) {
+  return typeof arg === 'number';
+}
+
+export function isString(arg: any) {
+  return typeof arg === 'string';
+}
+
+export function isSymbol(arg: any) {
+  return typeof arg === 'symbol';
+}
+
+export function isUndefined(arg: any) {
+  return arg === void 0;
+}
+
+export function isRegExp(re: any) {
+  return isObject(re) && objectToString(re) === '[object RegExp]';
+}
+
+export function isObject(arg: any) {
+  return typeof arg === 'object' && arg !== null;
+}
+
+export function isDate(d: any) {
+  return isObject(d) && objectToString(d) === '[object Date]';
+}
+
+export function isError(e: any) {
+  return isObject(e) &&
+      (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+
+export const isNativeError = isError;
 
 // Taken from here and modified for better browser support
 // https://github.com/sindresorhus/p-is-promise/blob/cda35a513bda03f977ad5cde3a079d237e82d7ef/index.js
-export function isPromise(input) {
+export function isPromise(input: any) {
 	return (
 		(
 			typeof Promise !== 'undefined' &&

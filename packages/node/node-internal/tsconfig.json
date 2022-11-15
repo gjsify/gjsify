@@ -8,13 +8,13 @@
     "allowSyntheticDefaultImports": true,
     "outDir": "lib",
     "declarationDir": "lib",
-    "rootDir": "src",
-    "composite": true
+    "declaration": true,
+    "rootDir": "src"
   },
   "skipLibCheck": true,
   "allowJs": true,
-  "checkJs": false,
+  "checkJs": true,
   "reflection": false,
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.js"],
   "exclude": ["src/test.mts", "src/**/*.spec.ts"]
 }
