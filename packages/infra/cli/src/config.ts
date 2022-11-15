@@ -59,6 +59,7 @@ export class Config {
 
         tsConfig.reflection ||= cliArgs.reflection;
 
+        // TODO replace with `cliArgs.logLevel`
         configData.verbose = cliArgs.verbose || false;
 
         merge(configData.library, pkg, configData.library);
@@ -67,6 +68,7 @@ export class Config {
             entryPoints: cliArgs.entryPoints,
             outfile: cliArgs.outfile,
             outdir: cliArgs.outdir,
+            logLevel: cliArgs.logLevel || 'warning'
         });
 
         if(configData.verbose) console.debug("configData", configData);

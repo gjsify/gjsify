@@ -53,6 +53,13 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
                 default: false
             })
+            .option('log-level', {
+                description: "The log level can be changed to prevent esbuild from printing warning and/or error messages to the terminal",
+                type: 'string',
+                choices: ['silent', 'error', 'warning', 'info', 'debug', 'verbose'],
+                normalize: true,
+                default: 'warning'
+            })
     },
     handler: async (args) => {
         const config = new Config();

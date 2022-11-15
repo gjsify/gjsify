@@ -1,6 +1,6 @@
 import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
-import { build } from 'esbuild';
+import { build, BuildOptions } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
 import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
 import { dirname } from 'path';
@@ -8,6 +8,13 @@ import { dirname } from 'path';
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {
 
+    }
+
+    getEsBuildDefaults() {
+        const defaults: BuildOptions = {
+            allowOverwrite: true
+        }
+        return defaults;
     }
 
     /** Library mode */
@@ -25,6 +32,7 @@ export class BuildAction {
         if(multipleBuilds) {
             const moduleFormat = moduleOutdir.includes('/cjs') ? 'cjs' : 'esm';
             await build({
+                ...this.getEsBuildDefaults(),
                 ...esbuild,
                 format: moduleFormat,
                 outdir: moduleOutdir,
@@ -36,6 +44,7 @@ export class BuildAction {
     
             const mainFormat = mainOutdir.includes('/cjs') ? 'cjs' : 'esm';
             await build({
+                ...this.getEsBuildDefaults(),
                 ...esbuild,
                 format: moduleFormat,
                 outdir: mainOutdir,
@@ -49,6 +58,7 @@ export class BuildAction {
             const outdir = esbuild?.outdir || (outfile ? dirname(outfile) : undefined);
             const format = esbuild?.format || outdir?.includes('/cjs') ? 'cjs' : 'esm';
             await build({
+                ...this.getEsBuildDefaults(),
                 ...esbuild,
                 format,
                 outdir,
@@ -68,6 +78,7 @@ export class BuildAction {
         const format: 'cjs' | 'esm' = esbuild?.format || esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm';
 
         await build({
+            ...this.getEsBuildDefaults(),
             ...esbuild,
             format,
             plugins: [

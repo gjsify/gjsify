@@ -26,4 +26,9 @@ export interface CliBuildOptions {
   outdir?: string;
   /** Enables TypeScript types on runtime using Deepkit's type compiler */
   reflection?: boolean;
+  /**
+   * The log level can be changed to prevent esbuild from printing warning and/or error messages to the terminal
+   * @see https://esbuild.github.io/api/#log-level
+   */
+  logLevel: 'silent' | 'error' | 'warning' | 'info' | 'debug' | 'verbose';
 }
