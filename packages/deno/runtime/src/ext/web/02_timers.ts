@@ -2,7 +2,10 @@
 // Based on https://github.com/denoland/deno/blob/main/ext/web/02_timers.js
 "use strict";
 
-import { core, ops, primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
+
 const {
   ArrayPrototypePush,
   ArrayPrototypeShift,

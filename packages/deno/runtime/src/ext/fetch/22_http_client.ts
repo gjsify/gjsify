@@ -12,7 +12,10 @@
 // <reference lib="esnext" />
 "use strict";
 
-import { core, ops, CreateHttpClientOptions } from '@gjsify/deno_core';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
+
+import type { CreateHttpClientOptions } from '../../types/index.js';
 
 export function createHttpClient(options: CreateHttpClientOptions): HttpClient {
   options.caCerts ??= [];

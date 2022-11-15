@@ -10,7 +10,7 @@
 
 "use strict";
 
-import { primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
 import * as webidl from '../webidl/00_webidl.js';
 import * as consoleInternal from '../console/02_console.js';
 

@@ -12,7 +12,8 @@
 
 "use strict";
 
-import { core, primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
 import * as webidl from '../webidl/00_webidl.js';
 import { Blob, BlobPrototype, File, FilePrototype } from '../web/09_file.js';
 const {

@@ -27,9 +27,6 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@tsconfig/deno": "^1.0.6",
-        "@types/node": "^18.7.18"
-    },
-    "dependencies": {
-        "@gjsify/deno_core": "workspace:^"
+        "@types/node": "^18.11.9"
     }
 }

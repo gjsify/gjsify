@@ -8,7 +8,7 @@
 
 "use strict";
 
-import { ops } from '@gjsify/deno_core';
+import * as ops from '../../ops/index.js';
 import * as webidl from '../webidl/00_webidl.js';
 import { TransformStream } from './06_streams.js';
 

@@ -8,7 +8,9 @@
 // <reference lib="esnext" />
 "use strict";
 
-import { core, ops, primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 import { add, remove, signalAbort, newSignal, AbortSignalPrototype } from './03_abort_signal.js';
 const {
   ArrayBuffer,
@@ -73,7 +75,7 @@ import type {
   ValueWithSize,
   VoidFunction
 } from './06_streams_types.js';
-import type { ReadableStreamBYOBReadResult, PipeOptions } from '@gjsify/deno_core';
+import type { ReadableStreamBYOBReadResult, PipeOptions } from '../../types/index.js';
 
 export class Deferred<T> {
   #promise: Promise<T>;

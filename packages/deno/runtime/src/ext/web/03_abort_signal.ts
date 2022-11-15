@@ -6,7 +6,7 @@
 // @ts-check
 // <reference path="../../core/internal.d.ts" />
 
-import { primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
 import * as webidl from '../webidl/00_webidl.js';
 import { Event, setIsTrusted, defineEventHandler, EventTarget, listenerCount } from './02_event.js';
 

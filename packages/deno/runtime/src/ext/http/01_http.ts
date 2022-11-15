@@ -3,7 +3,9 @@
 
 "use strict";
 
-import { core, ops, primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 import * as webidl from '../webidl/00_webidl.js';
 import { InnerBody } from '../fetch/22_body.js';
 import { Event, setEventTargetData } from '../web/02_event.js';

@@ -1,4 +1,5 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
+// Based on https://github.com/denoland/deno/blob/main/ext/console/lib.deno_console.d.ts
 
 // deno-lint-ignore-file no-explicit-any
 
@@ -27,4 +28,3 @@ export interface Console {
     trace(...data: any[]): void;
     warn(...data: any[]): void;
   }
-  

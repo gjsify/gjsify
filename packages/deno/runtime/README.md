@@ -2,6 +2,11 @@
 
 Forked from [deno/runtime/js](https://github.com/denoland/deno/tree/main/runtime/js).
 
+## TODO
+* https://github.com/denoland/deno/blob/main/core/lib.deno_core.d.ts
+* https://github.com/denoland/deno/tree/main/cli/dts
+* https://github.com/denoland/deno/tree/main/core
+
 # Original README
 
 # Runtime JavaScript Code

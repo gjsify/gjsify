@@ -30,7 +30,7 @@
 /// <reference lib="esnext" />
 
 import type { Primordials } from '@gjsify/deno_core';
-import type { Build, Errors, Version } from './index.js';
+import type { Build, Errors, Version } from './_index.js';
 import type { 
   Console,
   cssToAnsi,

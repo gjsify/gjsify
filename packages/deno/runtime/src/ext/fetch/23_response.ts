@@ -7,12 +7,13 @@
 /// <reference path="../url/internal.d.ts" />
 /// <reference path="../web/lib.deno_web.d.ts" />
 /// <reference path="./internal.d.ts" />
-/// <reference path="../web/06_streams_types.d.ts" />
+// <reference path="../web/06_streams_types.d.ts" />
 /// <reference path="./lib.deno_fetch.d.ts" />
 /// <reference lib="esnext" />
 "use strict";
 
-import { core, primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
 const { isProxy } = core;
 import * as webidl from '../webidl/00_webidl.js';
 import * as consoleInternal from '../console/02_console.js';

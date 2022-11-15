@@ -3,7 +3,7 @@
 
 "use strict";
 
-import { primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
 const {
   ArrayPrototypeFilter,
   ArrayPrototypeFind,

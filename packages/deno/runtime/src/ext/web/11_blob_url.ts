@@ -13,7 +13,7 @@
 // <reference lib="esnext" />
 "use strict";
 
-import { ops } from '@gjsify/deno_core';
+import * as ops from '../../ops/index.js';
 import * as webidl from '../webidl/00_webidl.js';
 import { getParts, Blob } from './09_file.js';
 import { URL } from '../url/00_url.js';

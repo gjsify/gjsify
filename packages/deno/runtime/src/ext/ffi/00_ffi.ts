@@ -1,8 +1,10 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 "use strict";
 
-import { core, ops, primordials } from '@gjsify/deno_core';
-import * as util from '../../06_util.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
+import * as util from '../../runtime/06_util.js';
 
 import type {
   PointerValue,
@@ -13,7 +15,7 @@ import type {
   ToNativeParameterTypes,
   ForeignLibraryInterface,
   StaticForeignLibraryInterface,
-} from '@gjsify/deno_core';
+} from '../../types/index.js';
 
 const {
   ObjectDefineProperty,

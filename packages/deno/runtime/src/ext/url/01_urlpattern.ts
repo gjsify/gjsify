@@ -10,10 +10,10 @@
 
 "use strict";
 
-
-import { primordials, ops } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
+import * as ops from '../../ops/index.js';
 import * as webidl from '../webidl/00_webidl.js';
-import type { URLPatternInput, UrlComponents, URLPatternResult } from '@gjsify/deno_core';
+import type { URLPatternInput, UrlComponents, URLPatternResult } from '../../types/index.js';
 
 const {
   ArrayPrototypeMap,

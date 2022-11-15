@@ -9,7 +9,8 @@
 
 "use strict";
 
-import { core, primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
 import { DOMException } from './01_dom_exception.js';
 const {
   ArrayBuffer,

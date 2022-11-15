@@ -3,14 +3,15 @@
 
 "use strict";
 
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
 
-const core = window.__bootstrap.core;
 const webidl = window.__bootstrap.webidl;
 const {
   Symbol,
   TypeError,
   ObjectPrototypeIsPrototypeOf,
-} = window.__bootstrap.primordials;
+} = primordials;
 const {
   Request,
   toInnerResponse,

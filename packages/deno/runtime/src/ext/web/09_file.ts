@@ -12,7 +12,9 @@
 // <reference lib="esnext" />
 "use strict";
 
-import { core, ops, primordials } from '@gjsify/deno_core';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 import * as webidl from '../webidl/00_webidl.js';
 import * as consoleInternal from '../console/02_console.js';
 const {

@@ -1,12 +1,13 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 // Based on https://github.com/denoland/deno/blob/main/ext/broadcast_channel/01_broadcast_channel.js
 
-/// <reference path="../../core/internal.d.ts" />
+// <reference path="../../core/internal.d.ts" />
 
 "use strict";
 
-const core = window.Deno.core;
-const ops = core.ops;
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
+
 const webidl = window.__bootstrap.webidl;
 const { MessageEvent, defineEventHandler, setTarget } =
   window.__bootstrap.event;

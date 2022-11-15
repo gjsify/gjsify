@@ -5,8 +5,8 @@
 
 // @ts-check
 // <reference path="../../core/internal.d.ts" />
+import { primordials } from '../../core/00_primordials.js';
 import { EventTarget } from './02_event.js';
-import { primordials } from '@gjsify/deno_core';
 const {
   Symbol,
   SymbolToStringTag,
