@@ -27,15 +27,15 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
-        "@types/node": "^18.7.18",
-        "typescript": "^4.8.3"
+        "@types/node": "^18.11.9",
+        "typescript": "^4.8.4"
     },
     "dependencies": {
         "@gjsify/node-internal": "workspace:^",
         "is-arguments": "^1.1.1",
         "is-generator-function": "^1.0.10",
-        "is-typed-array": "^1.1.9",
-        "util": "^0.12.4",
-        "which-typed-array": "^1.1.8"
+        "is-typed-array": "^1.1.10",
+        "util": "^0.12.5",
+        "which-typed-array": "^1.1.9"
     }
 }

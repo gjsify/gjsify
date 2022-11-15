@@ -23,9 +23,9 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.7.18"
+        "@types/node": "^18.11.9"
     },
     "dependencies": {
-        "fflate": "^0.7.3"
+        "fflate": "^0.7.4"
     }
 }

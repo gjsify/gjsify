@@ -23,7 +23,7 @@
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@types/gl-matrix": "^3.2.0",
-    "@types/node": "^18.7.18",
+    "@types/node": "^18.11.9",
     "open-cli": "^7.1.0"
   },
   "dependencies": {
