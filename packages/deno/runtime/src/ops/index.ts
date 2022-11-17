@@ -3,6 +3,7 @@
 // Based on https://github.com/denoland/deno/blob/main/core/ops_builtin_v8.rs
 // Based on https://github.com/denoland/deno/blob/main/core/ops_metrics.rs
 
+import { stringify } from 'querystring';
 import type {
     UncaughtExceptionCallback,
     UrlComponent,
@@ -19,6 +20,8 @@ import type {
     PermissionOptions,
     TestStepDefinition,
     PointerValue,
+    GPUSamplerDescriptor,
+    GPUBindGroupLayoutEntry,
 } from '../types/index.js';
 
 export const op_close = (...args: any[]) => {
@@ -320,8 +323,17 @@ export const op_webgpu_request_device = (...args: any[]) => {
 export const op_webgpu_create_query_set = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_create_query_set");
 }
-export const op_webgpu_create_buffer = (...args: any[]) => {
+export const op_webgpu_create_buffer = (
+    rid: number,
+    label: string,
+    size: number,
+    usage: number,
+    mappedAtCreation?: boolean,
+) => {
     console.warn("Not implemented: ops.op_webgpu_create_buffer");
+    rid = -1;
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_buffer"};
+    return { rid, err };
 }
 export const op_webgpu_buffer_get_mapped_range = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_buffer_get_mapped_range");
@@ -338,17 +350,38 @@ export const op_webgpu_create_texture = (...args: any[]) => {
 export const op_webgpu_create_texture_view = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_create_texture_view");
 }
-export const op_webgpu_create_sampler = (...args: any[]) => {
+export const op_webgpu_create_sampler = (desc: GPUSamplerDescriptor & {deviceRid: number}) => {
     console.warn("Not implemented: ops.op_webgpu_create_sampler");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_sampler"};
+    return { rid: desc.deviceRid, err };
 }
-export const op_webgpu_create_bind_group_layout = (...args: any[]) => {
+export const op_webgpu_create_bind_group_layout = (
+    rid: number,
+    label: string,
+    entries: GPUBindGroupLayoutEntry[],
+) => {
     console.warn("Not implemented: ops.op_webgpu_create_bind_group_layout");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_bind_group_layout"};
+    return { rid, err };
 }
-export const op_webgpu_create_pipeline_layout = (...args: any[]) => {
+export const op_webgpu_create_pipeline_layout = (
+    rid: number,
+    label: string,
+    entries: number[],
+) => {
     console.warn("Not implemented: ops.op_webgpu_create_pipeline_layout");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_pipeline_layout"};
+    return { rid, err };
 }
-export const op_webgpu_create_bind_group = (...args: any[]) => {
+export const op_webgpu_create_bind_group = (
+    rid: number,
+    label: string,
+    layout: number,
+) => {
     console.warn("Not implemented: ops.op_webgpu_create_bind_group");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_bind_group"};
+    return { rid, err };
+}
 }
 export const op_webgpu_create_compute_pipeline = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_create_compute_pipeline");

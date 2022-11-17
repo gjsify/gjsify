@@ -52,6 +52,7 @@ import * as ffi from '../ext/ffi/00_ffi.js';
 import * as net from '../ext/net/01_net.js';
 import * as tls from '../ext/net/02_tls.js';
 import * as extHttp from '../ext/http/01_http.js';
+import * as caches from '../ext/cache/01_cache.js';
 
 import { fetchUtil, headers, formData, fetchBody, fetch } from '../ext/fetch/99_bootstrap';
 
@@ -184,6 +185,8 @@ export const __bootstrap = {
   // packages/deno/runtime/src/ext/fetch/23_request.ts
   // packages/deno/runtime/src/ext/fetch/26_fetch.ts
   fetch,
+  // packages/deno/runtime/src/ext/cache/01_cache.ts
+  caches,
 };
 
 // packages/deno/runtime/src/core/02_error.ts

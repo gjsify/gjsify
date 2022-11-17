@@ -6,23 +6,23 @@
 import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 
-const webidl = window.__bootstrap.webidl;
+import * as webidl from '../webidl/00_webidl.js';
 const {
   Symbol,
   TypeError,
   ObjectPrototypeIsPrototypeOf,
 } = primordials;
-const {
-  Request,
-  toInnerResponse,
-  toInnerRequest,
-} = window.__bootstrap.fetch;
-const { URLPrototype } = window.__bootstrap.url;
-const RequestPrototype = Request.prototype;
-const { getHeader } = window.__bootstrap.headers;
-const { readableStreamForRid } = window.__bootstrap.streams;
 
-class CacheStorage {
+import { Request, toInnerRequest } from '../fetch/23_request.js';
+import { toInnerResponse } from '../fetch/23_response.js';
+import { URLPrototype } from '../url/00_url.js';
+const RequestPrototype = Request.prototype;
+import { getHeader } from '../fetch/20_headers.js';
+import { readableStreamForRid } from '../web/06_streams.js';
+
+import type { ReadableStream } from '../web/06_streams';
+
+export class CacheStorage {
   constructor() {
     webidl.illegalConstructor();
   }
@@ -67,9 +67,9 @@ class CacheStorage {
 const _matchAll = Symbol("[[matchAll]]");
 const _id = Symbol("id");
 
-class Cache {
-  /** @type {number} */
-  [_id];
+export class Cache {
+  // @ts-ignore
+  [_id]: number;
 
   constructor() {
     webidl.illegalConstructor();
@@ -129,7 +129,7 @@ class Cache {
       throw new TypeError("Response body is already used");
     }
     // acquire lock before async op
-    const reader = innerResponse.body?.stream.getReader();
+    const reader = (innerResponse.body?.stream as ReadableStream<Uint8Array>).getReader();
 
     // Remove fragment from request URL before put.
     reqUrl.hash = "";
@@ -284,16 +284,12 @@ webidl.configurePrototype(Cache);
 const CacheStoragePrototype = CacheStorage.prototype;
 const CachePrototype = Cache.prototype;
 
-let cacheStorage;
+let _cacheStorage;
 
-// packages/deno/runtime/src/ext/cache/01_cache.ts
-window.__bootstrap.caches = {
-  CacheStorage,
-  Cache,
-  cacheStorage() {
-    if (!cacheStorage) {
-      cacheStorage = webidl.createBranded(CacheStorage);
-    }
-    return cacheStorage;
-  },
+export function cacheStorage() {
+  if (!_cacheStorage) {
+    _cacheStorage = webidl.createBranded(CacheStorage);
+  }
+  return _cacheStorage;
 };
+

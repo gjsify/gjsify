@@ -75,7 +75,7 @@ export interface InnerResponse {
   status: number;
   statusMessage: string;
   headerList: [string, string][];
-  body: null | typeof InnerBody;
+  body: null | InnerBody;
   aborted: boolean;
   error?: string;
 }

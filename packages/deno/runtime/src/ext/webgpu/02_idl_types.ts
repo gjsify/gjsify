@@ -7,8 +7,9 @@
 "use strict";
 
 import { primordials } from '../../core/00_primordials.js';
-const webidl = window.__bootstrap.webidl;
-const {
+import * as webidl from '../webidl/00_webidl.js';
+
+import {
   GPU,
   GPUAdapter,
   GPUSupportedLimits,
@@ -39,7 +40,7 @@ const {
   GPUQuerySet,
   GPUOutOfMemoryError,
   GPUValidationError,
-} = window.__bootstrap.webgpu;
+} from './01_webgpu.js';
 const { SymbolIterator, TypeError } = primordials;
 
 // This needs to be initialized after all of the base classes are implemented,

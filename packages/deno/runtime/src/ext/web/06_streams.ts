@@ -4143,7 +4143,7 @@ export class ReadableStreamBYOBReader<R = any> {
     setUpReadableStreamBYOBReader(this, stream);
   }
 
-  read(view: ArrayBufferView): Promise<ReadableStreamBYOBReadResult<ArrayBufferView>> {
+  read(view?: ArrayBufferView): Promise<ReadableStreamBYOBReadResult<ArrayBufferView>> {
     try {
       webidl.assertBranded(this, ReadableStreamBYOBReaderPrototype);
       const prefix = "Failed to execute 'read' on 'ReadableStreamBYOBReader'";
