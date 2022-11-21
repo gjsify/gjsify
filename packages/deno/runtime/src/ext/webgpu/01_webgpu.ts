@@ -39,13 +39,14 @@ import type {
   GPUDeviceDescriptor,
   GPUBindGroupEntry,
   GPUImageDataLayout,
-  // GPUDeviceLostInfo,
   GPUQuerySetDescriptor,
   GPURenderBundleEncoderDescriptor,
   GPURenderPipelineDescriptor,
   GPUSamplerDescriptor,
   GPUShaderModuleDescriptor,
   GPUTextureDescriptor,
+  GPUErrorFilter,
+  StaticForeignSymbol,
 } from '../../types/index.js';
 
 type GPUSize64 = number;
@@ -216,14 +217,16 @@ function normalizeGPUColor(data: number[] | GPUColor): GPUColor {
 }
 
 class GPUError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.[_message] = message;
-    webidl.illegalConstructor();
-  }
 
   // @ts-ignore
   [_message]: string;
+
+  constructor(message: string) {
+    super(message);
+    this[_message] = message;
+    webidl.illegalConstructor();
+  }
+
   get message() {
     webidl.assertBranded(this, GPUErrorPrototype);
     return this[_message];
@@ -261,6 +264,7 @@ export class GPUValidationError extends GPUError {
 const GPUValidationErrorPrototype = GPUValidationError.prototype;
 
 export class GPU {
+  // @ts-ignore
   [webidl.brand] = webidl.brand;
 
   constructor() {
@@ -326,7 +330,7 @@ function createGPUAdapter(inner: InnerGPUAdapter): GPUAdapter {
 }
 
 export class GPUAdapter {
-  /** @type {InnerGPUAdapter} */
+  // @ts-ignore
   [_adapter]: InnerGPUAdapter;
 
   /** @returns {GPUSupportedFeatures} */
@@ -443,32 +447,32 @@ export class GPUAdapter {
 const GPUAdapterPrototype = GPUAdapter.prototype;
 
 class GPUAdapterInfo {
-  /** @type {string} */
-  [_vendor];
+  // @ts-ignore
+  [_vendor]: string;
   /** @returns {string} */
   get vendor(): string {
     webidl.assertBranded(this, GPUAdapterInfoPrototype);
     return this[_vendor];
   }
 
-  /** @type {string} */
-  [_architecture];
+  // @ts-ignore
+  [_architecture]: string;
   /** @returns {string} */
   get architecture(): string {
     webidl.assertBranded(this, GPUAdapterInfoPrototype);
     return this[_architecture];
   }
 
-  /** @type {string} */
-  [_device];
+  // @ts-ignore
+  [_device]: string;
   /** @returns {string} */
   get device(): string {
     webidl.assertBranded(this, GPUAdapterInfoPrototype);
     return this[_device];
   }
 
-  /** @type {string} */
-  [_description];
+  // @ts-ignore
+  [_description]: string;
   /** @returns {string} */
   get description(): string {
     webidl.assertBranded(this, GPUAdapterInfoPrototype);
@@ -553,7 +557,7 @@ interface InnerAdapterLimits {
   maxComputeWorkgroupsPerDimension: number;
 }
 export class GPUSupportedLimits {
-  /** @type {InnerAdapterLimits} */
+  // @ts-ignore
   [_limits]: InnerAdapterLimits;
   constructor() {
     webidl.illegalConstructor();
@@ -678,7 +682,7 @@ function createGPUSupportedFeatures(features) {
 }
 
 export class GPUSupportedFeatures {
-  /** @type {Set<string>} */
+  // @ts-ignore
   [_features]: Set<string>;
 
   constructor() {
@@ -749,10 +753,10 @@ function createGPUDeviceLostInfo(reason: string | undefined, message: string): G
 }
 
 class GPUDeviceLostInfo {
-  /** @type {string | undefined} */
-  [_reason];
-  /** @type {string} */
-  [_message];
+  // @ts-ignore
+  [_reason]?: string;
+  // @ts-ignore
+  [_message]: string;
 
   constructor() {
     webidl.illegalConstructor();
@@ -962,11 +966,12 @@ function createGPUDevice(label: string | null, inner: InnerGPUDevice, queue: GPU
 }
 
 export class GPUDevice extends EventTarget {
-  /** @type {InnerGPUDevice} */
-  [_device];
 
-  /** @type {GPUQueue} */
-  [_queue];
+  // @ts-ignore
+  [_device]: InnerGPUDevice;
+
+  // @ts-ignore
+  [_queue]: GPUQueue;
 
   [_cleanup]() {
     const device = this[_device];
@@ -1198,8 +1203,8 @@ export class GPUDevice extends EventTarget {
   }
 
   /**
-   * @param {GPUBindGroupDescriptor} descriptor
-   * @returns {GPUBindGroup}
+   * @param descriptor
+   * @returns
    */
   createBindGroup(descriptor: GPUBindGroupDescriptor): GPUBindGroup {
     webidl.assertBranded(this, GPUDevicePrototype);
@@ -1277,7 +1282,13 @@ export class GPUDevice extends EventTarget {
           size: entry.resource.size,
         };
       }
-    });
+    }) as Array<{
+      binding: number;
+      kind: "GPUTextureView" | "GPUSampler" | "GPUBufferBinding";
+      resource: number;
+      offset?: any; // TODO
+      size?: any; // TODO
+    }>;
 
     const { rid, err } = ops.op_webgpu_create_bind_group(
       device.rid,
@@ -1338,7 +1349,8 @@ export class GPUDevice extends EventTarget {
       context: "Argument 1",
     });
     const device = assertDevice(this, { prefix, context: "this" });
-    let layout = descriptor.layout;
+    // TODO:
+    let layout: any = descriptor.layout;
     if (typeof descriptor.layout !== "string") {
       const context = "layout";
       layout = assertResource(descriptor.layout, { prefix, context });
@@ -1365,6 +1377,7 @@ export class GPUDevice extends EventTarget {
       {
         module,
         entryPoint: descriptor.compute.entryPoint,
+        // @ts-ignore TODO:
         constants: descriptor.compute.constants,
       },
     );
@@ -1392,7 +1405,8 @@ export class GPUDevice extends EventTarget {
       context: "Argument 1",
     });
     const device = assertDevice(this, { prefix, context: "this" });
-    let layout = descriptor.layout;
+    // TODO:
+    let layout: any = descriptor.layout;
     if (typeof descriptor.layout !== "string") {
       const context = "layout";
       layout = assertResource(descriptor.layout, { prefix, context });
@@ -1587,7 +1601,6 @@ export class GPUDevice extends EventTarget {
   /**
    * @returns {Promise<GPUError | null>}
    */
-  // deno-lint-ignore require-await
   async popErrorScope(): Promise<GPUError | null> {
     webidl.assertBranded(this, GPUDevicePrototype);
     const prefix = "Failed to execute 'popErrorScope' on 'GPUDevice'";
@@ -1607,13 +1620,14 @@ export class GPUDevice extends EventTarget {
       operations,
       () => PromiseResolve(null),
       (err) => PromiseResolve(err),
-    );
+    ) as Promise<GPUError | null>;
   }
 
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
         features: this.features,
+        // @ts-ignore
         label: this.label,
         limits: this.limits,
         queue: this.queue,
@@ -1638,8 +1652,8 @@ function createGPUQueue(label: string | null, device: InnerGPUDevice): GPUQueue 
 }
 
 export class GPUQueue {
-  /** @type {InnerGPUDevice} */
-  [_device];
+  // @ts-ignore
+  [_device]: InnerGPUDevice;
 
   constructor() {
     webidl.illegalConstructor();
@@ -1801,6 +1815,7 @@ export class GPUQueue {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -1846,29 +1861,29 @@ function createGPUBuffer(label: string | null, device: InnerGPUDevice, rid: numb
 }
 
 export class GPUBuffer {
-  /** @type {InnerGPUDevice} */
-  [_device];
+  // @ts-ignore
+  [_device]: InnerGPUDevice;
 
-  /** @type {number} */
-  [_rid];
+  // @ts-ignore
+  [_rid]: number;
 
-  /** @type {number} */
-  [_size];
+  // @ts-ignore
+  [_size]: number;
 
-  /** @type {number} */
-  [_usage];
+  // @ts-ignore
+  [_usage]: number;
 
-  /** @type {"mapped" | "mapped at creation" | "mapped pending" | "unmapped" | "destroy"} */
-  [_state];
+  // @ts-ignore
+  [_state]: "mapped" | "mapped at creation" | "mapped pending" | "unmapped" | "destroy";
 
-  /** @type {[number, number] | null} */
-  [_mappingRange];
+  // @ts-ignore
+  [_mappingRange]: [number, number] | null;
 
-  /** @type {[ArrayBuffer, number, number][] | null} */
-  [_mappedRanges];
+  // @ts-ignore
+  [_mappedRanges]: [ArrayBuffer, number, number][] | null;
 
-  /** @type {number} */
-  [_mapMode];
+  // @ts-ignore
+  [_mapMode]: number;
 
   [_cleanup]() {
     const mappedRanges = this[_mappedRanges];
@@ -1983,7 +1998,7 @@ export class GPUBuffer {
       ),
       ({ err }) => err,
     );
-    device.pushErrorPromise(promise);
+    device.pushErrorPromise(promise as Promise<any>);
     const err = await promise;
     if (err) {
       throw new DOMException("validation error occured", "OperationError");
@@ -2117,6 +2132,7 @@ export class GPUBuffer {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2191,11 +2207,11 @@ function createGPUTexture(label: string | null, device: InnerGPUDevice, rid: num
 }
 
 export class GPUTexture {
-  /** @type {InnerGPUDevice} */
+  // @ts-ignore
   [_device]: InnerGPUDevice;
-  /** @type {number | undefined} */
+  // @ts-ignore
   [_rid]: number | undefined;
-  /** @type {WeakRef<GPUTextureView>[]} */
+  // @ts-ignore
   [_views]: WeakRef<GPUTextureView>[];
 
   [_cleanup]() {
@@ -2254,6 +2270,7 @@ export class GPUTexture {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2298,10 +2315,10 @@ function createGPUTextureView(label: string | null, texture: GPUTexture, rid: nu
   return textureView;
 }
 export class GPUTextureView {
+  // @ts-ignore
   [_texture]: GPUTexture;
+  // @ts-ignore
   [_rid]: number | undefined;
-
-  label: string;
 
   [_cleanup]() {
     const rid = this[_rid];
@@ -2319,6 +2336,7 @@ export class GPUTextureView {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2340,11 +2358,10 @@ function createGPUSampler(label: string | null, device: InnerGPUDevice, rid: num
   return sampler;
 }
 export class GPUSampler {
-
+  // @ts-ignore
   [_device]: InnerGPUDevice;
+  // @ts-ignore
   [_rid]: number | undefined;
-
-  label: string;
 
   [_cleanup]() {
     const rid = this[_rid];
@@ -2362,6 +2379,7 @@ export class GPUSampler {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2384,10 +2402,10 @@ function createGPUBindGroupLayout(label: string | null, device: InnerGPUDevice, 
   return bindGroupLayout;
 }
 export class GPUBindGroupLayout {
-  /** @type {InnerGPUDevice} */
-  [_device];
-  /** @type {number | undefined} */
-  [_rid];
+  // @ts-ignore
+  [_device]: InnerGPUDevice;
+  // @ts-ignore
+  [_rid]?: number;
 
   [_cleanup]() {
     const rid = this[_rid];
@@ -2405,6 +2423,7 @@ export class GPUBindGroupLayout {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2427,10 +2446,10 @@ function createGPUPipelineLayout(label: string | null, device: InnerGPUDevice, r
   return pipelineLayout;
 }
 export class GPUPipelineLayout {
+  // @ts-ignore
   [_device]: InnerGPUDevice;
+  // @ts-ignore
   [_rid]: number | undefined;
-
-  label: string;
 
   [_cleanup]() {
     const rid = this[_rid];
@@ -2447,6 +2466,7 @@ export class GPUPipelineLayout {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2469,16 +2489,15 @@ function createGPUBindGroup(label: string | null, device: InnerGPUDevice, rid: n
   return bindGroup;
 }
 export class GPUBindGroup {
-  /** @type {InnerGPUDevice} */
+  // @ts-ignore
   [_device]: InnerGPUDevice;
-  /** @type {number | undefined} */
+  // @ts-ignore
   [_rid]: number | undefined;
 
   [_cleanup]() {
     const rid = this[_rid];
     if (rid !== undefined) {
       core.close(rid);
-      /** @type {number | undefined} */
       this[_rid] = undefined;
     }
   }
@@ -2490,6 +2509,7 @@ export class GPUBindGroup {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2512,9 +2532,9 @@ function createGPUShaderModule(label: string | null, device: InnerGPUDevice, rid
   return bindGroup;
 }
 export class GPUShaderModule {
-  /** @type {InnerGPUDevice} */
+  // @ts-ignore
   [_device]: InnerGPUDevice;
-  /** @type {number | undefined} */
+  // @ts-ignore
   [_rid]: number | undefined;
 
   [_cleanup]() {
@@ -2537,6 +2557,7 @@ export class GPUShaderModule {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2577,16 +2598,15 @@ function createGPUComputePipeline(label: string | null, device: InnerGPUDevice, 
   return pipeline;
 }
 export class GPUComputePipeline {
-  /** @type {InnerGPUDevice} */
+  // @ts-ignore
   [_device]: InnerGPUDevice;
-  /** @type {number | undefined} */
+  // @ts-ignore
   [_rid]: number | undefined;
 
   [_cleanup]() {
     const rid = this[_rid];
     if (rid !== undefined) {
       core.close(rid);
-      /** @type {number | undefined} */
       this[_rid] = undefined;
     }
   }
@@ -2632,6 +2652,7 @@ export class GPUComputePipeline {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2655,16 +2676,15 @@ function createGPURenderPipeline(label: string | null, device: InnerGPUDevice, r
   return pipeline;
 }
 export class GPURenderPipeline {
-  /** @type {InnerGPUDevice} */
-  [_device];
-  /** @type {number | undefined} */
-  [_rid];
+  // @ts-ignore
+  [_device]: InnerGPUDevice;
+  // @ts-ignore
+  [_rid]: number | undefined;
 
   [_cleanup]() {
     const rid = this[_rid];
     if (rid !== undefined) {
       core.close(rid);
-      /** @type {number | undefined} */
       this[_rid] = undefined;
     }
   }
@@ -2709,6 +2729,7 @@ export class GPURenderPipeline {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -2755,12 +2776,12 @@ function createGPUCommandEncoder(label: string | null, device: InnerGPUDevice, r
   return encoder;
 }
 export class GPUCommandEncoder {
-  /** @type {InnerGPUDevice} */
-  [_device];
-  /** @type {number | undefined} */
-  [_rid];
-  /** @type {WeakRef<GPURenderPassEncoder | GPUComputePassEncoder>[]} */
-  [_encoders];
+  // @ts-ignore
+  [_device]: InnerGPUDevice;
+  // @ts-ignore
+  [_rid]: number | undefined;
+  // @ts-ignore
+  [_encoders]: WeakRef<GPURenderPassEncoder | GPUComputePassEncoder>[];
 
   [_cleanup]() {
     const encoders = this[_encoders];
@@ -3450,6 +3471,7 @@ export class GPUCommandEncoder {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -3474,10 +3496,10 @@ function createGPURenderPassEncoder(label: string | null, encoder: GPUCommandEnc
 }
 
 export class GPURenderPassEncoder {
-  /** @type {GPUCommandEncoder} */
-  [_encoder];
-  /** @type {number | undefined} */
-  [_rid];
+  // @ts-ignore
+  [_encoder]: GPUCommandEncoder;
+  // @ts-ignore
+  [_rid]: number | undefined;
 
   [_cleanup]() {
     const rid = this[_rid];
@@ -4261,6 +4283,7 @@ export class GPURenderPassEncoder {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -4285,10 +4308,10 @@ function createGPUComputePassEncoder(label: string | null, encoder: GPUCommandEn
 }
 
 export class GPUComputePassEncoder {
-  /** @type {GPUCommandEncoder} */
+  // @ts-ignore
   [_encoder]: GPUCommandEncoder;
 
-  /** @type {number | undefined} */
+  // @ts-ignore
   [_rid]: number | undefined;
 
   [_cleanup]() {
@@ -4669,6 +4692,7 @@ export class GPUComputePassEncoder {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -4693,10 +4717,10 @@ function createGPUCommandBuffer(label: string | null, device: InnerGPUDevice, ri
 }
 
 export class GPUCommandBuffer {
-  /** @type {InnerGPUDevice} */
-  [_device];
-  /** @type {number | undefined} */
-  [_rid];
+  // @ts-ignore
+  [_device]: InnerGPUDevice;
+  // @ts-ignore
+  [_rid]: number | undefined;
 
   [_cleanup]() {
     const rid = this[_rid];
@@ -4714,6 +4738,7 @@ export class GPUCommandBuffer {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -4737,9 +4762,9 @@ function createGPURenderBundleEncoder(label: string | null, device: InnerGPUDevi
 }
 
 export class GPURenderBundleEncoder {
-  /** @type {InnerGPUDevice} */
+  // @ts-ignore
   [_device]: InnerGPUDevice;
-  /** @type {number | undefined} */
+  // @ts-ignore
   [_rid]: number | undefined;
 
   [_cleanup]() {
@@ -5161,6 +5186,7 @@ export class GPURenderBundleEncoder {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -5184,10 +5210,10 @@ function createGPURenderBundle(label: string | null, device: InnerGPUDevice, rid
 }
 
 export class GPURenderBundle {
-  /** @type {InnerGPUDevice} */
-  [_device];
-  /** @type {number | undefined} */
-  [_rid];
+  // @ts-ignore
+  [_device]: InnerGPUDevice;
+  // @ts-ignore
+  [_rid]: number | undefined;
 
   [_cleanup]() {
     const rid = this[_rid];
@@ -5205,6 +5231,7 @@ export class GPURenderBundle {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -5229,11 +5256,11 @@ function createGPUQuerySet(label: string | null, device: InnerGPUDevice, rid: nu
 }
 
 export class GPUQuerySet {
-  /** @type {InnerGPUDevice} */
+  // @ts-ignore
   [_device]: InnerGPUDevice;
-  /** @type {number | undefined} */
+  // @ts-ignore
   [_rid]: number | undefined;
-  /** @type {GPUQuerySetDescriptor} */
+  // @ts-ignore
   [_descriptor]: GPUQuerySetDescriptor;
 
   [_cleanup]() {
@@ -5257,6 +5284,7 @@ export class GPUQuerySet {
   [SymbolFor("Deno.privateCustomInspect")](inspect) {
     return `${this.constructor.name} ${
       inspect({
+        // @ts-ignore
         label: this.label,
       })
     }`;
@@ -5266,38 +5294,3 @@ GPUObjectBaseMixin("GPUQuerySet", GPUQuerySet);
 const GPUQuerySetPrototype = GPUQuerySet.prototype;
 
 export const gpu = webidl.createBranded(GPU);
-
-window.__bootstrap.webgpu = {
-  gpu,
-  GPU,
-  GPUAdapter,
-  GPUSupportedLimits,
-  GPUSupportedFeatures,
-  GPUDevice,
-  GPUQueue,
-  GPUBuffer,
-  GPUBufferUsage,
-  GPUMapMode,
-  GPUTextureUsage,
-  GPUTexture,
-  GPUTextureView,
-  GPUSampler,
-  GPUBindGroupLayout,
-  GPUPipelineLayout,
-  GPUBindGroup,
-  GPUShaderModule,
-  GPUShaderStage,
-  GPUComputePipeline,
-  GPURenderPipeline,
-  GPUColorWrite,
-  GPUCommandEncoder,
-  GPURenderPassEncoder,
-  GPUComputePassEncoder,
-  GPUCommandBuffer,
-  GPURenderBundleEncoder,
-  GPURenderBundle,
-  GPUQuerySet,
-  GPUError,
-  GPUOutOfMemoryError,
-  GPUValidationError,
-};

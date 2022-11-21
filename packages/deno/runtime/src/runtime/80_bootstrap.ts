@@ -56,6 +56,8 @@ import * as caches from '../ext/cache/01_cache.js';
 
 import { fetchUtil, headers, formData, fetchBody, fetch } from '../ext/fetch/99_bootstrap';
 
+import * as webgpu from '../ext/webgpu/01_webgpu.js';
+
 export const __bootstrap = {
   // https://github.com/denoland/deno/blob/main/core/00_primordials.js
   // Provide bootstrap namespace
@@ -187,6 +189,9 @@ export const __bootstrap = {
   fetch,
   // packages/deno/runtime/src/ext/cache/01_cache.ts
   caches,
+  // packages/deno/runtime/src/ext/webgpu/01_webgpu.ts
+  webgpu
+
 };
 
 // packages/deno/runtime/src/core/02_error.ts

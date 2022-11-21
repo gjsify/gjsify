@@ -3,7 +3,6 @@
 // Based on https://github.com/denoland/deno/blob/main/core/ops_builtin_v8.rs
 // Based on https://github.com/denoland/deno/blob/main/core/ops_metrics.rs
 
-import { stringify } from 'querystring';
 import type {
     UncaughtExceptionCallback,
     UrlComponent,
@@ -22,6 +21,14 @@ import type {
     PointerValue,
     GPUSamplerDescriptor,
     GPUBindGroupLayoutEntry,
+    GPUTextureDescriptor,
+    GPUExtent3DDict,
+    GPUVertexBufferLayout,
+    GPUPrimitiveState,
+    GPUMultisampleState,
+    GPUDepthStencilState,
+    GPURenderBundleEncoderDescriptor,
+    GPUQuerySetDescriptor,
 } from '../types/index.js';
 
 export const op_close = (...args: any[]) => {
@@ -320,8 +327,10 @@ export const op_webgpu_request_adapter = (...args: any[]) => {
 export const op_webgpu_request_device = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_request_device");
 }
-export const op_webgpu_create_query_set = (...args: any[]) => {
+export const op_webgpu_create_query_set = (data: GPUQuerySetDescriptor & { deviceRid: number }) => {
     console.warn("Not implemented: ops.op_webgpu_create_query_set");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_query_set"};
+    return { rid: data.deviceRid, err };
 }
 export const op_webgpu_create_buffer = (
     rid: number,
@@ -335,20 +344,27 @@ export const op_webgpu_create_buffer = (
     const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_buffer"};
     return { rid, err };
 }
-export const op_webgpu_buffer_get_mapped_range = (...args: any[]) => {
+export const op_webgpu_buffer_get_mapped_range = (bufferRid: number, offset: number, size: number, data: Uint8Array) => {
     console.warn("Not implemented: ops.op_webgpu_buffer_get_mapped_range");
+    return { rid: bufferRid }
 }
 export const op_webgpu_buffer_unmap = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_buffer_unmap");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_buffer_unmap"};
+    return { err };
 }
 export const op_webgpu_buffer_get_map_async = async (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_buffer_get_map_async");
 }
-export const op_webgpu_create_texture = (...args: any[]) => {
+export const op_webgpu_create_texture = (options: GPUTextureDescriptor & { deviceRid: number; size: GPUExtent3DDict }) => {
     console.warn("Not implemented: ops.op_webgpu_create_texture");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_sampler"};
+    return { rid: options.deviceRid, err };
 }
 export const op_webgpu_create_texture_view = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_create_texture_view");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_texture_view"};
+    return { rid: -1, err };
 }
 export const op_webgpu_create_sampler = (desc: GPUSamplerDescriptor & {deviceRid: number}) => {
     console.warn("Not implemented: ops.op_webgpu_create_sampler");
@@ -377,65 +393,121 @@ export const op_webgpu_create_bind_group = (
     rid: number,
     label: string,
     layout: number,
+    entries?: unknown[], // TODO
 ) => {
     console.warn("Not implemented: ops.op_webgpu_create_bind_group");
     const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_bind_group"};
     return { rid, err };
 }
-}
-export const op_webgpu_create_compute_pipeline = (...args: any[]) => {
+export const op_webgpu_create_compute_pipeline = (rid: number, label: string, layout: string | number, data: { module: number, entryPoint: string, constants: any }) => {
     console.warn("Not implemented: ops.op_webgpu_create_compute_pipeline");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_compute_pipeline"};
+    return { rid, err };
 }
-export const op_webgpu_compute_pipeline_get_bind_group_layout = (...args: any[]) => {
+export const op_webgpu_compute_pipeline_get_bind_group_layout = (computePipelineRid: number, index: number) => {
     console.warn("Not implemented: ops.op_webgpu_compute_pipeline_get_bind_group_layout");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_compute_pipeline_get_bind_group_layout"};
+    return { rid: computePipelineRid, err, label: "NotImplemented" };
 }
-export const op_webgpu_create_render_pipeline = (...args: any[]) => {
+export const op_webgpu_create_render_pipeline = (data: {
+    deviceRid: number;
+    label: string;
+    layout: any;
+    vertex: {
+      module: number;
+      entryPoint: string;
+      buffers: GPUVertexBufferLayout[];
+    },
+    primitive: GPUPrimitiveState;
+    depthStencil: GPUDepthStencilState;
+    multisample: GPUMultisampleState;
+    fragment: any;
+}) => {
     console.warn("Not implemented: ops.op_webgpu_create_render_pipeline");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_render_pipeline"};
+    return { rid: data.deviceRid, err, label: data.label };
 }
-export const op_webgpu_render_pipeline_get_bind_group_layout = (...args: any[]) => {
+export const op_webgpu_render_pipeline_get_bind_group_layout = (renderPipelineRid: number, index: number) => {
     console.warn("Not implemented: ops.op_webgpu_render_pipeline_get_bind_group_layout");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_render_pipeline"};
+    return { rid: renderPipelineRid, err, label: "TODO"};
 }
-export const op_webgpu_create_command_encoder = (...args: any[]) => {
+export const op_webgpu_create_command_encoder = (rid: number, label: string) => {
     console.warn("Not implemented: ops.op_webgpu_create_command_encoder");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_command_encoder"};
+    return { rid, err };
 }
-export const op_webgpu_command_encoder_begin_render_pass = (...args: any[]) => {
+
+export const op_webgpu_render_pass_end = (...args: any[]) => {
+    console.warn("Not implemented: ops.op_webgpu_render_pass_end");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_render_pass_end"};
+    return { err };
+}
+
+export const op_webgpu_command_encoder_begin_render_pass = (commandEncoderRid: number, label: string, colorAttachments: unknown[], depthStencilAttachment: any) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_begin_render_pass");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_begin_render_pass"};
+    return { rid: commandEncoderRid, err };
 }
-export const op_webgpu_command_encoder_begin_compute_pass = (...args: any[]) => {
+export const op_webgpu_command_encoder_begin_compute_pass = (commandEncoderRid: number, label: string) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_begin_compute_pass");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_begin_compute_pass"};
+    return { rid: commandEncoderRid, err };
 }
 export const op_webgpu_command_encoder_copy_buffer_to_buffer = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_copy_buffer_to_buffer");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_copy_buffer_to_buffer"};
+    return { err };
 }
 export const op_webgpu_command_encoder_copy_buffer_to_texture = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_copy_buffer_to_texture");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_copy_buffer_to_texture"};
+    return { err };
 }
 export const op_webgpu_command_encoder_copy_texture_to_buffer = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_copy_texture_to_buffer");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_copy_texture_to_buffer"};
+    return { err };
 }
 export const op_webgpu_command_encoder_copy_texture_to_texture = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_copy_texture_to_texture");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_copy_texture_to_texture"};
+    return { err };
 }
 export const op_webgpu_command_encoder_clear_buffer = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_clear_buffer");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_clear_buffer"};
+    return { err };
 }
 export const op_webgpu_command_encoder_push_debug_group = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_push_debug_group");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_push_debug_group"};
+    return { err };
 }
 export const op_webgpu_command_encoder_pop_debug_group = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_pop_debug_group");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_pop_debug_group"};
+    return { err };
 }
 export const op_webgpu_command_encoder_insert_debug_marker = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_insert_debug_marker");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_insert_debug_marker"};
+    return { err };
 }
 export const op_webgpu_command_encoder_write_timestamp = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_write_timestamp");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_write_timestamp"};
+    return { err };
 }
 export const op_webgpu_command_encoder_resolve_query_set = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_resolve_query_set");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_resolve_query_set"};
+    return { rid: -1, err };
 }
 export const op_webgpu_command_encoder_finish = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_command_encoder_finish");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_command_encoder_finish"};
+    return { rid: -1, err };
 }
 export const op_webgpu_render_pass_set_viewport = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_render_pass_set_viewport");
@@ -530,11 +602,15 @@ export const op_webgpu_compute_pass_pop_debug_group = (...args: any[]) => {
 export const op_webgpu_compute_pass_insert_debug_marker = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_compute_pass_insert_debug_marker");
 }
-export const op_webgpu_create_render_bundle_encoder = (...args: any[]) => {
+export const op_webgpu_create_render_bundle_encoder = (desc: GPURenderBundleEncoderDescriptor & { deviceRid: number }) => {
     console.warn("Not implemented: ops.op_webgpu_create_render_bundle_encoder");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_render_bundle_encoder"};
+    return { rid: desc.deviceRid, err };
 }
-export const op_webgpu_render_bundle_encoder_finish = (...args: any[]) => {
+export const op_webgpu_render_bundle_encoder_finish = (renderBundleEncoderRid: number, label: string) => {
     console.warn("Not implemented: ops.op_webgpu_render_bundle_encoder_finish");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_render_bundle_encoder_finish"};
+    return { rid: renderBundleEncoderRid, err };
 }
 export const op_webgpu_render_bundle_encoder_set_bind_group = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_render_bundle_encoder_set_bind_group");
@@ -568,16 +644,44 @@ export const op_webgpu_render_bundle_encoder_draw_indirect = (...args: any[]) =>
 }
 export const op_webgpu_queue_submit = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_queue_submit");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_queue_submit"};
+    return { err }
 }
 export const op_webgpu_write_buffer = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_write_buffer");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_write_buffer"};
+    return { err }
 }
 export const op_webgpu_write_texture = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_write_texture");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_write_texture"};
+    return { err }
 }
-export const op_webgpu_create_shader_module = (...args: any[]) => {
+
+export const op_webgpu_create_shader_module = (rid: number, label: string, code: string, sourceMap: any) => {
     console.warn("Not implemented: ops.op_webgpu_create_shader_module");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_create_shader_module"};
+    return { rid, err };
 }
+
+export const op_webgpu_compute_pass_dispatch_workgroups = (computePassRid: number, workgroupCountX: number, workgroupCountY: number, workgroupCountZ: number) => {
+    console.warn("Not implemented: ops.op_webgpu_compute_pass_dispatch_workgroups");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_compute_pass_dispatch_workgroups"};
+    return { rid: computePassRid, err };
+}
+
+export const op_webgpu_compute_pass_dispatch_workgroups_indirect = (computePassRid: number, indirectBufferRid: number, indirectOffset: number) => {
+    console.warn("Not implemented: ops.op_webgpu_compute_pass_dispatch_workgroups_indirect");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_compute_pass_dispatch_workgroups_indirect"};
+    return { err };
+}
+
+export const op_webgpu_compute_pass_end = (commandEncoderRid: number, computePassRid: number) => {
+    console.warn("Not implemented: ops.op_webgpu_compute_pass_end");
+    const err: { type: string, value: string} = { type: 'NotImplemented', value: "Not implemented: ops.op_webgpu_compute_pass_end"};
+    return { rid: computePassRid, err };
+}
+
 export const op_ffi_load = (options: { path: string, symbols: {} }) => {
     console.warn("Not implemented: ops.op_ffi_load");
     const rid = 0;
