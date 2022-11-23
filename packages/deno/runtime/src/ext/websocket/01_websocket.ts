@@ -8,14 +8,15 @@
 import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
-const { URL } = window.__bootstrap.url;
-const webidl = window.__bootstrap.webidl;
-const { HTTP_TOKEN_CODE_POINT_RE } = window.__bootstrap.infra;
-const { DOMException } = window.__bootstrap.domException;
-const { Event, ErrorEvent, CloseEvent, MessageEvent, defineEventHandler } =
-  window.__bootstrap.event;
-const { EventTarget } = window.__bootstrap.eventTarget;
-const { Blob, BlobPrototype } = globalThis.__bootstrap.file;
+import { URL } from '../url/00_url.js';
+import * as webidl from '../webidl/00_webidl.js';
+import { HTTP_TOKEN_CODE_POINT_RE } from '../web/00_infra.js';
+import { DOMException } from '../web/01_dom_exception.js';
+import { Event, ErrorEvent, CloseEvent, MessageEvent, defineEventHandler, EventTarget } from '../web/02_event.js';
+import { Blob, BlobPrototype } from '../web/09_file.js';
+
+import type { TypedArray } from '../../types/index.js';
+
 const {
   ArrayBufferPrototype,
   ArrayBufferIsView,
@@ -73,22 +74,24 @@ const OPEN = 1;
 const CLOSING = 2;
 const CLOSED = 3;
 
-const _readyState = Symbol("[[readyState]]");
+export const _readyState = Symbol("[[readyState]]");
 const _url = Symbol("[[url]]");
-const _rid = Symbol("[[rid]]");
+export const _rid = Symbol("[[rid]]");
 const _extensions = Symbol("[[extensions]]");
-const _protocol = Symbol("[[protocol]]");
+export const _protocol = Symbol("[[protocol]]");
 const _binaryType = Symbol("[[binaryType]]");
 const _bufferedAmount = Symbol("[[bufferedAmount]]");
-const _eventLoop = Symbol("[[eventLoop]]");
+export const _eventLoop = Symbol("[[eventLoop]]");
 
-const _server = Symbol("[[server]]");
-const _idleTimeoutDuration = Symbol("[[idleTimeout]]");
-const _idleTimeoutTimeout = Symbol("[[idleTimeoutTimeout]]");
-const _serverHandleIdleTimeout = Symbol("[[serverHandleIdleTimeout]]");
-class WebSocket extends EventTarget {
-  [_rid];
+export const _server = Symbol("[[server]]");
+export const _idleTimeoutDuration = Symbol("[[idleTimeout]]");
+export const _idleTimeoutTimeout = Symbol("[[idleTimeoutTimeout]]");
+export const _serverHandleIdleTimeout = Symbol("[[serverHandleIdleTimeout]]");
 
+export class WebSocket extends EventTarget {
+  // @ts-ignore
+  [_rid]: number;
+  // @ts-ignore
   [_readyState] = CONNECTING;
   get readyState() {
     webidl.assertBranded(this, WebSocketPrototype);
@@ -112,25 +115,29 @@ class WebSocket extends EventTarget {
     return CLOSED;
   }
 
-  [_extensions] = "";
+  // @ts-ignore
+  [_extensions]: string = "";
   get extensions() {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_extensions];
   }
 
-  [_protocol] = "";
+  // @ts-ignore
+  [_protocol]: string = "";
   get protocol() {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_protocol];
   }
 
-  [_url] = "";
+  // @ts-ignore
+  [_url]: string = "";
   get url() {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_url];
   }
 
-  [_binaryType] = "blob";
+  // @ts-ignore
+  [_binaryType]: "blob" | "arraybuffer" = "blob";
   get binaryType() {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_binaryType];
@@ -145,7 +152,8 @@ class WebSocket extends EventTarget {
     }
   }
 
-  [_bufferedAmount] = 0;
+  // @ts-ignore
+  [_bufferedAmount]: number = 0;
   get bufferedAmount() {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_bufferedAmount];
@@ -170,7 +178,7 @@ class WebSocket extends EventTarget {
       },
     );
 
-    let wsURL;
+    let wsURL: URL;
 
     try {
       wsURL = new URL(url);
@@ -317,7 +325,7 @@ class WebSocket extends EventTarget {
       return;
     }
 
-    const sendTypedArray = (ta) => {
+    const sendTypedArray = (ta: TypedArray) => {
       // try to send in one go!
       const sent = ops.op_ws_try_send_binary(this[_rid], ta);
       this[_bufferedAmount] += ta.byteLength;
@@ -574,16 +582,4 @@ defineEventHandler(WebSocket.prototype, "close");
 defineEventHandler(WebSocket.prototype, "open");
 
 webidl.configurePrototype(WebSocket);
-const WebSocketPrototype = WebSocket.prototype;
-
-window.__bootstrap.webSocket = {
-  WebSocket,
-  _rid,
-  _readyState,
-  _eventLoop,
-  _protocol,
-  _server,
-  _idleTimeoutDuration,
-  _idleTimeoutTimeout,
-  _serverHandleIdleTimeout,
-};
+export const WebSocketPrototype = WebSocket.prototype;

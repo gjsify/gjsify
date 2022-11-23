@@ -52,7 +52,7 @@ export class Conn {
   #readable;
   #writable;
 
-  constructor(rid: number, remoteAddr, localAddr) {
+  constructor(rid: number, remoteAddr?, localAddr?) {
     this.#rid = rid;
     this.#remoteAddr = remoteAddr;
     this.#localAddr = localAddr;

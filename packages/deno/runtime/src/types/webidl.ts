@@ -109,7 +109,7 @@ export namespace WebIDL {
     /**
      * Convert a value into a `DOMString` (string).
      */
-    DOMString(v: any, opts?: StringConverterOpts): string;
+    DOMString(v: any, opts?: Partial<StringConverterOpts>): string;
     /**
      * Convert a value into a `ByteString` (string with only u8 codepoints).
      */

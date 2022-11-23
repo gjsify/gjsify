@@ -328,6 +328,7 @@ Definition extends UnsafeCallbackDefinition = UnsafeCallbackDefinition,
     Definition["parameters"],
     Definition["result"]
   >) {
+    // @ts-ignore
     if (definition.nonblocking) {
       throw new TypeError(
         "Invalid UnsafeCallback, cannot be nonblocking",

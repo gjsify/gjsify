@@ -77,11 +77,11 @@ export function networkInterfaces() {
   return ops.op_network_interfaces();
 }
 
-function gid(): number {
+export function gid(): number {
   return ops.op_gid();
 }
 
-function uid(): number {
+export function uid(): number {
   return ops.op_uid();
 }
 

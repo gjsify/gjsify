@@ -399,6 +399,6 @@ export const workerLocationDescriptor = {
   enumerable: true,
 }
 
-export const getLocationHref = () => {
+export const getLocationHref = (): string => {
   return location?.href;
 };

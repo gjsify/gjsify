@@ -124,7 +124,7 @@ function sourceMapCallSiteEval(cse) {
 }
 
 /** A function that can be used as `Error.prepareStackTrace`. */
-function prepareStackTrace(error, callSites) {
+export function prepareStackTrace(error, callSites) {
   let callSiteEvals = ArrayPrototypeMap(callSites, evaluateCallSite);
   callSiteEvals = ArrayPrototypeMap(callSiteEvals, sourceMapCallSiteEval);
   ObjectDefineProperties(error, {
@@ -152,3 +152,7 @@ function prepareStackTrace(error, callSites) {
       "",
     );
 }
+
+// packages/deno/runtime/src/core/02_error.ts
+// ObjectAssign(globalThis.__bootstrap.core, { prepareStackTrace });
+// ObjectFreeze(globalThis.__bootstrap.core);

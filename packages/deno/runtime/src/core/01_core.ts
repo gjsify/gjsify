@@ -533,3 +533,7 @@ export const setUncaughtExceptionCallback = (
 
 export const byteLength = (str: string) => ops.op_str_byte_length(str);
 
+// packages/deno/runtime/src/core/02_error.ts
+export { prepareStackTrace } from './02_error.js';
+// ObjectAssign(globalThis.__bootstrap.core, { prepareStackTrace });
+// ObjectFreeze(globalThis.__bootstrap.core);

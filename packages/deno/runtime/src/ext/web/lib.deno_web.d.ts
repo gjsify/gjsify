@@ -7,15 +7,15 @@
 /// <reference lib="esnext" />
 
 /** @category DOM Events */
-declare class DOMException extends Error {
-  constructor(message?: string, name?: string);
+export interface DOMException extends Error { // TODO class DOMException
+  // constructor(message?: string, name?: string);
   readonly name: string;
   readonly message: string;
   readonly code: number;
 }
 
 /** @category DOM Events */
-interface EventInit {
+export interface EventInit {
   bubbles?: boolean;
   cancelable?: boolean;
   composed?: boolean;
@@ -25,8 +25,8 @@ interface EventInit {
  *
  * @category DOM Events
  */
-declare class Event {
-  constructor(type: string, eventInitDict?: EventInit);
+export interface Event { // TODO class Event
+  // constructor(type: string, eventInitDict?: EventInit);
   /** Returns true or false depending on how event was initialized. True if
    * event goes through its target's ancestors in reverse tree order, and
    * false otherwise. */
@@ -81,10 +81,10 @@ declare class Event {
   readonly BUBBLING_PHASE: number;
   readonly CAPTURING_PHASE: number;
   readonly NONE: number;
-  static readonly AT_TARGET: number;
-  static readonly BUBBLING_PHASE: number;
-  static readonly CAPTURING_PHASE: number;
-  static readonly NONE: number;
+  // static readonly AT_TARGET: number;
+  // static readonly BUBBLING_PHASE: number;
+  // static readonly CAPTURING_PHASE: number;
+  // static readonly NONE: number;
 }
 
 /**
@@ -93,7 +93,7 @@ declare class Event {
  *
  * @category DOM Events
  */
-declare class EventTarget {
+export interface EventTarget { // TODO class EventTarget
   /** Appends an event listener for events whose type attribute value is type.
    * The callback argument sets the callback that will be invoked when the event
    * is dispatched.
@@ -136,34 +136,34 @@ declare class EventTarget {
 }
 
 /** @category DOM Events */
-interface EventListener {
+export interface EventListener {
   (evt: Event): void | Promise<void>;
 }
 
 /** @category DOM Events */
-interface EventListenerObject {
+export interface EventListenerObject {
   handleEvent(evt: Event): void | Promise<void>;
 }
 
 /** @category DOM Events */
-declare type EventListenerOrEventListenerObject =
+export type EventListenerOrEventListenerObject =
   | EventListener
   | EventListenerObject;
 
 /** @category DOM Events */
-interface AddEventListenerOptions extends EventListenerOptions {
+export interface AddEventListenerOptions extends EventListenerOptions {
   once?: boolean;
   passive?: boolean;
   signal?: AbortSignal;
 }
 
 /** @category DOM Events */
-interface EventListenerOptions {
+export interface EventListenerOptions {
   capture?: boolean;
 }
 
 /** @category DOM Events */
-interface ProgressEventInit extends EventInit {
+export interface ProgressEventInit extends EventInit {
   lengthComputable?: boolean;
   loaded?: number;
   total?: number;
@@ -204,18 +204,18 @@ declare function atob(s: string): string;
 declare function btoa(s: string): string;
 
 /** @category Encoding API */
-declare interface TextDecoderOptions {
+export interface TextDecoderOptions {
   fatal?: boolean;
   ignoreBOM?: boolean;
 }
 
 /** @category Encoding API */
-declare interface TextDecodeOptions {
+export interface TextDecodeOptions {
   stream?: boolean;
 }
 
 /** @category Encoding API */
-interface TextDecoder {
+export interface TextDecoder {
   /** Returns encoding's name, lowercased. */
   readonly encoding: string;
   /** Returns `true` if error mode is "fatal", and `false` otherwise. */
@@ -234,13 +234,13 @@ declare var TextDecoder: {
 };
 
 /** @category Encoding API */
-declare interface TextEncoderEncodeIntoResult {
+export interface TextEncoderEncodeIntoResult {
   read: number;
   written: number;
 }
 
 /** @category Encoding API */
-interface TextEncoder {
+export interface TextEncoder {
   /** Returns "utf-8". */
   readonly encoding: "utf-8";
   /** Returns the result of running UTF-8's encoder. */
@@ -255,7 +255,7 @@ declare var TextEncoder: {
 };
 
 /** @category Encoding API */
-interface TextDecoderStream {
+export interface TextDecoderStream {
   /** Returns encoding's name, lowercased. */
   readonly encoding: string;
   /** Returns `true` if error mode is "fatal", and `false` otherwise. */
@@ -274,7 +274,7 @@ declare var TextDecoderStream: {
 };
 
 /** @category Encoding API */
-interface TextEncoderStream {
+export interface TextEncoderStream {
   /** Returns "utf-8". */
   readonly encoding: "utf-8";
   readonly readable: ReadableStream<Uint8Array>;
@@ -344,12 +344,12 @@ interface AbortSignal extends EventTarget {
 }
 
 /** @category Web APIs */
-declare var AbortSignal: {
-  prototype: AbortSignal;
-  new (): AbortSignal;
-  abort(reason?: any): AbortSignal;
-  timeout(milliseconds: number): AbortSignal;
-};
+// declare var AbortSignal: {
+//   prototype: AbortSignal;
+//   new (): AbortSignal;
+//   abort(reason?: any): AbortSignal;
+//   timeout(milliseconds: number): AbortSignal;
+// };
 
 /** @category Web File API */
 interface FileReaderEventMap {

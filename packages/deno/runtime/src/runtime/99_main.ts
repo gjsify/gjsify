@@ -85,8 +85,11 @@ const formData = __bootstrap.formData;
 const fetch = __bootstrap.fetch;
 const prompt = __bootstrap.prompt;
 const messagePort = __bootstrap.messagePort;
-const denoNs = __bootstrap.denoNs;
-const denoNsUnstable = __bootstrap.denoNsUnstable;
+
+// const denoNs = __bootstrap.denoNs;
+// const denoNsUnstable = __bootstrap.denoNsUnstable;
+import { denoNs, denoNsUnstable } from './90_deno_ns.js';
+
 const errors = __bootstrap.errors.errors;
 const webidl = __bootstrap.webidl;
 const domException = __bootstrap.domException;
@@ -199,7 +202,7 @@ async function pollForMessages() {
 
 let loadedMainWorkerScript = false;
 
-function importScripts(...urls) {
+function importScripts(...urls: Array<string|URL>) {
   if (ops.op_worker_get_type() === "module") {
     throw new TypeError("Can't import scripts in a module worker.");
   }
@@ -214,7 +217,7 @@ function importScripts(...urls) {
         "SyntaxError",
       );
     }
-  });
+  }) as string[];
 
   // A classic worker's main script has looser MIME type checks than any
   // imported scripts, so we use `loadedMainWorkerScript` to distinguish them.
@@ -238,7 +241,7 @@ function opMainModule() {
   return ops.op_main_module();
 }
 
-function formatException(error) {
+function formatException(error: Error | string) {
   if (error instanceof Error) {
     return null;
   } else if (typeof error == "string") {
@@ -423,6 +426,7 @@ ObjectDefineProperties(WorkerNavigator.prototype, {
       webidl.assertBranded(this, WorkerNavigatorPrototype);
       return numCpus;
     },
+    // @ts-ignore
     language: {
       configurable: true,
       enumerable: true,

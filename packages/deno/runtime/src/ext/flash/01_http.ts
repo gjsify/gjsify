@@ -6,19 +6,20 @@
 import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
-const { BlobPrototype } = window.__bootstrap.file;
-const { TcpConn } = window.__bootstrap.net;
-const { fromFlashRequest, toInnerResponse, _flash } =
-  window.__bootstrap.fetch;
-const { Event } = window.__bootstrap.event;
-const {
+import { BlobPrototype } from '../web/09_file.js';
+import { TcpConn } from '../net/01_net.js';
+import { fromFlashRequest, _flash } from '../fetch/23_request.js';
+import { toInnerResponse } from '../fetch/23_response.js';
+import { Event } from '../web/02_event.js';
+import {
   ReadableStream,
   ReadableStreamPrototype,
   getReadableStreamResourceBacking,
   readableStreamClose,
   _state,
-} = window.__bootstrap.streams;
-const {
+} from '../web/06_streams.js';
+
+import {
   WebSocket,
   _rid,
   _readyState,
@@ -27,8 +28,12 @@ const {
   _idleTimeoutDuration,
   _idleTimeoutTimeout,
   _serverHandleIdleTimeout,
-} = window.__bootstrap.webSocket;
-const { _ws } = window.__bootstrap.http;
+} from '../websocket/01_websocket.js';
+
+import { _ws } from '../http/01_http.js';
+
+import type { InnerBodyStatic } from '../fetch/22_body.js';
+
 const {
   Function,
   ObjectPrototypeIsPrototypeOf,
@@ -191,7 +196,8 @@ function http1Response(
   return str;
 }
 
-function prepareFastCalls() {
+// TODO return type
+function prepareFastCalls(): any {
   return ops.op_flash_make_request();
 }
 
@@ -256,15 +262,15 @@ async function handleResponse(
   // single op, in other case a "response body" resource will be created and
   // we'll be streaming it.
   /** @type {ReadableStream<Uint8Array> | Uint8Array | null} */
-  let respBody = null;
+  let respBody: ReadableStream<Uint8Array> | Uint8Array | null | string = null;
   let isStreamingResponseBody = false;
   if (innerResp.body !== null) {
-    if (typeof innerResp.body.streamOrStatic?.body === "string") {
-      if (innerResp.body.streamOrStatic.consumed === true) {
+    if (typeof (innerResp.body.streamOrStatic as InnerBodyStatic)?.body === "string") {
+      if ((innerResp.body.streamOrStatic as InnerBodyStatic).consumed === true) {
         throw new TypeError("Body is unusable.");
       }
-      innerResp.body.streamOrStatic.consumed = true;
-      respBody = innerResp.body.streamOrStatic.body;
+      (innerResp.body.streamOrStatic as InnerBodyStatic).consumed = true;
+      respBody = (innerResp.body.streamOrStatic as InnerBodyStatic).body as Uint8Array;
       isStreamingResponseBody = false;
     } else if (
       ObjectPrototypeIsPrototypeOf(
@@ -282,9 +288,9 @@ async function handleResponse(
           innerResp.body.source,
         )
       ) {
-        respBody = innerResp.body.stream;
+        respBody = innerResp.body.stream as ReadableStream;
       } else {
-        const reader = innerResp.body.stream.getReader();
+        const reader = (innerResp.body.stream as ReadableStream).getReader();
         const r1 = await reader.read();
         if (r1.done) {
           respBody = new Uint8Array(0);
@@ -299,11 +305,11 @@ async function handleResponse(
         ObjectPrototypeIsPrototypeOf(Uint8ArrayPrototype, respBody)
       );
     } else {
-      if (innerResp.body.streamOrStatic.consumed === true) {
+      if ((innerResp.body.streamOrStatic as InnerBodyStatic).consumed === true) {
         throw new TypeError("Body is unusable.");
       }
-      innerResp.body.streamOrStatic.consumed = true;
-      respBody = innerResp.body.streamOrStatic.body;
+      (innerResp.body.streamOrStatic as InnerBodyStatic).consumed = true;
+      respBody = (innerResp.body.streamOrStatic as InnerBodyStatic).body;
     }
   } else {
     respBody = new Uint8Array(0);
@@ -311,7 +317,8 @@ async function handleResponse(
 
   const ws = resp[_ws];
   if (isStreamingResponseBody === false) {
-    const length = respBody.byteLength || core.byteLength(respBody);
+    // @ts-ignore
+    const length: number = respBody.byteLength || core.byteLength(respBody);
     const responseStr = http1Response(
       method,
       innerResp.status ?? 200,
@@ -342,10 +349,10 @@ async function handleResponse(
     if (isStreamingResponseBody === true) {
       const resourceBacking = getReadableStreamResourceBacking(respBody);
       if (resourceBacking) {
-        if (respBody.locked) {
+        if ((respBody as ReadableStream).locked) {
           throw new TypeError("ReadableStream is locked.");
         }
-        const reader = respBody.getReader(); // Aquire JS lock.
+        const reader = (respBody as ReadableStream).getReader(); // Aquire JS lock.
         try {
           PromisePrototypeThen(
             core.opAsync(
@@ -365,7 +372,7 @@ async function handleResponse(
             ),
             () => {
               // Release JS lock.
-              readableStreamClose(respBody);
+              readableStreamClose(respBody as ReadableStream);
             },
           );
         } catch (error) {
@@ -373,7 +380,7 @@ async function handleResponse(
           throw error;
         }
       } else {
-        const reader = respBody.getReader();
+        const reader = (respBody as ReadableStream).getReader();
         writeFixedResponse(
           serverId,
           i,
@@ -381,10 +388,10 @@ async function handleResponse(
             method,
             innerResp.status ?? 200,
             innerResp.headerList,
-            respBody.byteLength,
+            (respBody as Uint8Array).byteLength,
             null,
           ),
-          respBody.byteLength,
+          (respBody as Uint8Array).byteLength,
           false,
           respondFast,
         );
@@ -409,6 +416,7 @@ async function handleResponse(
       ws[_rid] = wsRid;
       ws[_protocol] = resp.headers.get("sec-websocket-protocol");
 
+      // @ts-ignore
       ws[_readyState] = WebSocket.OPEN;
       const event = new Event("open");
       ws.dispatchEvent(event);
@@ -425,7 +433,7 @@ async function handleResponse(
   })();
 }
 
-function createServe(opFn) {
+export function createServe(opFn) {
   return async function serve(arg1, arg2) {
     let options = undefined;
     let handler = undefined;
@@ -468,7 +476,13 @@ function createServe(opFn) {
       );
     };
 
-    const listenOpts = {
+    const listenOpts: {
+      hostname: string;
+      port: number;
+      reuseport: boolean;
+      cert?: string;
+      key?: string;
+    } = {
       hostname: options.hostname ?? "127.0.0.1",
       port: options.port ?? 9000,
       reuseport: options.reusePort ?? false,
@@ -672,6 +686,7 @@ function createRequestBodyStream(serverId, token) {
   let firstEnqueued = firstRead.byteLength == 0;
 
   return new ReadableStream({
+    // @ts-ignore
     type: "bytes",
     async pull(controller) {
       try {
@@ -706,7 +721,7 @@ function createRequestBodyStream(serverId, token) {
   });
 }
 
-function upgradeHttpRaw(req) {
+export function upgradeHttpRaw(req) {
   if (!req[_flash]) {
     throw new TypeError(
       "Non-flash requests can not be upgraded with `upgradeHttpRaw`. Use `upgradeHttp` instead.",
@@ -725,8 +740,3 @@ function upgradeHttpRaw(req) {
   // TODO(@littledivy): return already read first packet too.
   return [new TcpConn(connRid), new Uint8Array()];
 }
-
-window.__bootstrap.flash = {
-  createServe,
-  upgradeHttpRaw,
-};

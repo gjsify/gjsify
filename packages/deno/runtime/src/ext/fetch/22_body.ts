@@ -63,7 +63,7 @@ function chunkToString(chunk: Uint8Array | string): string {
   return typeof chunk === "string" ? chunk : core.decode(chunk);
 }
 
-type InnerBodyStatic = { body: Uint8Array | string, consumed: boolean }
+export type InnerBodyStatic = { body: Uint8Array | string, consumed: boolean }
 
 export class InnerBody {
 

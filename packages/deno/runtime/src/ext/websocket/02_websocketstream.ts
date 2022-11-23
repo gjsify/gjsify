@@ -9,12 +9,11 @@ import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
 
-const webidl = window.__bootstrap.webidl;
-const { writableStreamClose, Deferred } = window.__bootstrap.streams;
-const { DOMException } = window.__bootstrap.domException;
-const { add, remove } = window.__bootstrap.abortSignal;
-const { headersFromHeaderList, headerListFromHeaders, fillHeaders } =
-  window.__bootstrap.headers;
+import * as webidl from '../webidl/00_webidl.js';
+import { writableStreamClose, Deferred, WritableStream } from '../web/06_streams.js';
+import { DOMException } from '../web/01_dom_exception.js';
+import { add, remove } from '../web/03_abort_signal.js';
+import { headersFromHeaderList, headerListFromHeaders, fillHeaders } from '../fetch/20_headers.js';
 
 const {
   ArrayPrototypeJoin,
@@ -75,16 +74,18 @@ const _connection = Symbol("[[connection]]");
 const _closed = Symbol("[[closed]]");
 const _earlyClose = Symbol("[[earlyClose]]");
 const _closeSent = Symbol("[[closeSent]]");
-class WebSocketStream {
-  [_rid];
+export class WebSocketStream {
+  // @ts-ignore
+  [_rid]: number;
 
-  [_url];
+  // @ts-ignore
+  [_url]: string;
   get url() {
     webidl.assertBranded(this, WebSocketStreamPrototype);
     return this[_url];
   }
 
-  constructor(url, options) {
+  constructor(url: string | URL, options) {
     this[webidl.brand] = webidl.brand;
     const prefix = "Failed to construct 'WebSocketStream'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -223,6 +224,7 @@ class WebSocketStream {
                   );
                 }
               },
+              // @ts-ignore
               close: async (reason) => {
                 try {
                   this.close(reason?.code !== undefined ? reason : {});
@@ -349,21 +351,25 @@ class WebSocketStream {
     }
   }
 
-  [_connection] = new Deferred();
+  // @ts-ignore
+  [_connection]: Deferred = new Deferred();
   get connection() {
     webidl.assertBranded(this, WebSocketStreamPrototype);
     return this[_connection].promise;
   }
 
-  [_earlyClose] = false;
-  [_closed] = new Deferred();
-  [_closeSent] = new Deferred();
+  // @ts-ignore
+  [_earlyClose]: boolean = false;
+  // @ts-ignore
+  [_closed]: Deferred = new Deferred();
+  // @ts-ignore
+  [_closeSent]: Deferred = new Deferred();
   get closed() {
     webidl.assertBranded(this, WebSocketStreamPrototype);
     return this[_closed].promise;
   }
 
-  close(closeInfo) {
+  close(closeInfo?) {
     webidl.assertBranded(this, WebSocketStreamPrototype);
     closeInfo = webidl.converters.WebSocketCloseInfo(closeInfo, {
       prefix: "Failed to execute 'close' on 'WebSocketStream'",
@@ -423,6 +429,4 @@ class WebSocketStream {
   }
 }
 
-const WebSocketStreamPrototype = WebSocketStream.prototype;
-
-window.__bootstrap.webSocket.WebSocketStream = WebSocketStream;
+export const WebSocketStreamPrototype = WebSocketStream.prototype;

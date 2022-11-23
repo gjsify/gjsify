@@ -57,6 +57,10 @@ import * as caches from '../ext/cache/01_cache.js';
 import { fetchUtil, headers, formData, fetchBody, fetch } from '../ext/fetch/99_bootstrap';
 
 import * as webgpu from '../ext/webgpu/01_webgpu.js';
+import * as webSocket from '../ext/websocket/01_websocket.js';
+import { WebSocketStream } from '../ext/websocket/02_websocketstream.js';
+import * as flash from '../ext/flash/01_http.js';
+import * as broadcastChannel from '../ext/broadcast_channel/01_broadcast_channel.js';
 
 export const __bootstrap = {
   // https://github.com/denoland/deno/blob/main/core/00_primordials.js
@@ -186,12 +190,26 @@ export const __bootstrap = {
   // packages/deno/runtime/src/ext/fetch/22_http_client.ts
   // packages/deno/runtime/src/ext/fetch/23_request.ts
   // packages/deno/runtime/src/ext/fetch/26_fetch.ts
-  fetch,
+  fetch: {
+    ...fetch,
+    Response,
+  },
   // packages/deno/runtime/src/ext/cache/01_cache.ts
   caches,
   // packages/deno/runtime/src/ext/webgpu/01_webgpu.ts
-  webgpu
+  webgpu,
 
+  // packages/deno/runtime/src/ext/websocket/01_websocket.ts
+  webSocket: {
+    ...webSocket,
+    WebSocketStream,
+  },
+
+  // packages/deno/runtime/src/ext/flash/01_http.ts
+  flash,
+
+  // packages/deno/runtime/src/ext/broadcast_channel/01_broadcast_channel.ts
+  broadcastChannel,
 };
 
 // packages/deno/runtime/src/core/02_error.ts

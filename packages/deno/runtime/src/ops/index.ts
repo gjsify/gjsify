@@ -29,6 +29,8 @@ import type {
     GPUDepthStencilState,
     GPURenderBundleEncoderDescriptor,
     GPUQuerySetDescriptor,
+    TypedArray,
+    messagePort,
 } from '../types/index.js';
 
 export const op_close = (...args: any[]) => {
@@ -236,6 +238,8 @@ export const op_fetch_custom_client = (options: CreateHttpClientOptions) => {
 }
 export const op_ws_check_permission_and_cancel_handle = (...args: any[]) => {
     console.warn("Not implemented: ops.op_ws_check_permission_and_cancel_handle");
+    const cancelRid = -1;
+    return cancelRid;
 }
 export const op_ws_create = (...args: any[]) => {
     console.warn("Not implemented: ops.op_ws_create");
@@ -1350,8 +1354,9 @@ export const op_set_promise_reject_callback = (fn: UncaughtExceptionCallback): v
     console.warn("Not implemented: ops.op_set_promise_reject_callback");
 }
 
-export const op_str_byte_length = (str: string): void  => {
+export const op_str_byte_length = (str: string): number  => {
     console.warn("Not implemented: ops.op_str_byte_length");
+    return str.length;
 }
 
 export const op_apply_source_map = (cse)  => {
@@ -1489,4 +1494,84 @@ export const op_net_listen_tls = (addr: { hostname: string, port: number }, cert
     console.warn("Not implemented: ops.op_net_listen_tls");
     const rid = 0;
     return [rid, addr];
+}
+
+export const op_ws_try_send_string = (rid: number, data: string) => {
+    console.warn("Not implemented: ops.op_ws_try_send_string");
+    const send = false;
+    return send;
+}
+
+export const op_ws_try_send_binary = (rid: number, data: TypedArray) => {
+    console.warn("Not implemented: ops.op_ws_try_send_binary");
+    const send = false;
+    return send;
+}
+
+export const op_flash_make_request = () => {
+    console.warn("Not implemented: ops.op_flash_make_request");
+}
+
+export const op_flash_respond = (server, requestId, response, end, shutdown?) => {
+    console.warn("Not implemented: ops.op_flash_respond");
+    const nwritten = -1;
+    return nwritten;
+}
+
+export const op_flash_upgrade_http = (streamRid: number, serverId: number) => {
+    console.warn("Not implemented: ops.op_flash_upgrade_http");
+    const connRid = -1;
+    return connRid;
+}
+
+export const op_flash_first_packet = (streamRid: number, token) => {
+    console.warn("Not implemented: ops.op_flash_first_packet");
+    const firstRead = null;
+    return firstRead;
+}
+
+export const op_flash_next_server = (serverId: number) => {
+    console.warn("Not implemented: ops.op_flash_next_server");
+}
+
+export const op_flash_path = (serverId: number, index: number) => {
+    console.warn("Not implemented: ops.op_flash_path");
+}
+
+export const op_flash_headers = (serverId: number, index: number): [string, string][] => {
+    console.warn("Not implemented: ops.op_flash_headers");
+    return []
+}
+
+export const op_flash_method = (serverId: number, token) => {
+    console.warn("Not implemented: ops.op_flash_method");
+    const firstRead = null;
+    return firstRead;
+}
+
+export const op_worker_close = () => {
+    console.warn("Not implemented: ops.op_worker_close");
+}
+
+export const op_worker_post_message = (data: messagePort.MessageData) => {
+    console.warn("Not implemented: ops.op_worker_post_message");
+}
+
+export const op_worker_get_type = () => {
+    console.warn("Not implemented: ops.op_worker_get_type");
+    return "";
+}
+
+export const op_worker_sync_fetch = (parsedUrls: string[], notLoadedMainWorkerScript: boolean) => {
+    console.warn("Not implemented: ops.op_worker_sync_fetch");
+    return [];
+}
+
+export const op_set_format_exception_callback = (cb: (error: Error | string) => string) => {
+    console.warn("Not implemented: ops.op_set_format_exception_callback");
+    return [];
+}
+
+export const op_store_pending_promise_exception = (promise, reason) => {
+    console.warn("Not implemented: ops.op_store_pending_promise_exception");
 }

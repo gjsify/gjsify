@@ -14,7 +14,7 @@ interface CloseEventInit extends EventInit {
 }
 
 /** @category Web Sockets */
-declare class CloseEvent extends Event {
+export interface CloseEvent extends Event { // TODO class CloseEvent
   constructor(type: string, eventInitDict?: CloseEventInit);
   /**
    * Returns the WebSocket connection close code provided by the server.
@@ -31,7 +31,7 @@ declare class CloseEvent extends Event {
 }
 
 /** @category Web Sockets */
-interface WebSocketEventMap {
+export interface WebSocketEventMap {
   close: CloseEvent;
   error: Event;
   message: MessageEvent;

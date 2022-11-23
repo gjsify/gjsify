@@ -129,9 +129,9 @@ export const denoNs = {
   uid: __bootstrap.os.uid,
 };
 
-__bootstrap.denoNsUnstable = {
+export const denoNsUnstable = {
   DiagnosticCategory: __bootstrap.diagnostics.DiagnosticCategory,
-  listenDatagram: __bootstrap.net.listenDatagram,
+  // TODO: listenDatagram: __bootstrap.net.listenDatagram,
   umask: __bootstrap.fs.umask,
   HttpClient: __bootstrap.fetch.HttpClient,
   createHttpClient: __bootstrap.fetch.createHttpClient,
@@ -149,7 +149,7 @@ __bootstrap.denoNsUnstable = {
   spawnChild: __bootstrap.spawn.spawnChild,
   spawn: __bootstrap.spawn.spawn,
   spawnSync: __bootstrap.spawn.spawnSync,
-  serve: __bootstrap.flash.serve,
+  // TODO: serve: __bootstrap.flash.serve,
   upgradeHttp: __bootstrap.http.upgradeHttp,
   upgradeHttpRaw: __bootstrap.flash.upgradeHttpRaw,
 };

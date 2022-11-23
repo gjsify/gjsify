@@ -4,13 +4,13 @@
 // <reference path="../../core/internal.d.ts" />
 
 "use strict";
-
+import { primordials } from '../../core/00_primordials.js'
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
 
-const webidl = window.__bootstrap.webidl;
-const { MessageEvent, defineEventHandler, setTarget } =
-  window.__bootstrap.event;
+import * as webidl from '../../ext/webidl/00_webidl.js';
+import { MessageEvent, defineEventHandler, setTarget } from '../../ext/web/02_event.js';
+
 const { EventTarget } = window.__bootstrap.eventTarget;
 const { DOMException } = window.__bootstrap.domException;
 const {
@@ -19,7 +19,7 @@ const {
   ArrayPrototypePush,
   Symbol,
   Uint8Array,
-} = window.__bootstrap.primordials;
+} = primordials;
 
 const _name = Symbol("[[name]]");
 const _closed = Symbol("[[closed]]");
@@ -70,9 +70,11 @@ function defer(go) {
   setTimeout(go, 1);
 }
 
-class BroadcastChannel extends EventTarget {
-  [_name];
-  [_closed] = false;
+export class BroadcastChannel extends EventTarget {
+  // @ts-ignore
+  [_name]: string;
+  // @ts-ignore
+  [_closed]: boolean = false;
 
   get name() {
     return this[_name];
@@ -140,6 +142,7 @@ class BroadcastChannel extends EventTarget {
 
 defineEventHandler(BroadcastChannel.prototype, "message");
 defineEventHandler(BroadcastChannel.prototype, "messageerror");
-const BroadcastChannelPrototype = BroadcastChannel.prototype;
 
-window.__bootstrap.broadcastChannel = { BroadcastChannel };
+export const BroadcastChannelPrototype = BroadcastChannel.prototype;
+
+

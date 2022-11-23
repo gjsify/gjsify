@@ -9,6 +9,7 @@ export * from './message-port.js';
 export * from './net.js';
 export * from './primordials.js';
 export * from './shared_globals.js';
+export * from './typed-array.js';
 export * from './unstable.js';
 export * from './url.js';
 export * from './version.js';
