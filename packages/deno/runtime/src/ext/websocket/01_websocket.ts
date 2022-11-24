@@ -88,12 +88,63 @@ export const _idleTimeoutDuration = Symbol("[[idleTimeout]]");
 export const _idleTimeoutTimeout = Symbol("[[idleTimeoutTimeout]]");
 export const _serverHandleIdleTimeout = Symbol("[[serverHandleIdleTimeout]]");
 
+/**
+ * Provides the API for creating and managing a WebSocket connection to a
+ * server, as well as for sending and receiving data on the connection.
+ *
+ * If you are looking to create a WebSocket server, please take a look at
+ * `Deno.upgradeWebSocket()`.
+ *
+ * @tags allow-net
+ * @category Web Sockets
+ */
 export class WebSocket extends EventTarget {
+
+  static readonly CLOSED: number;
+  static readonly CLOSING: number;
+  static readonly CONNECTING: number;
+  static readonly OPEN: number;
+
+  onclose: ((this: WebSocket, ev: CloseEvent) => any) | null = null;
+  //@ts-ignore
+  onerror: ((this: WebSocket, ev: Event | ErrorEvent) => any) | null = null;
+  onmessage: ((this: WebSocket, ev: MessageEvent) => any) | null = null;
+  onopen: ((this: WebSocket, ev: Event) => any) | null = null;
+
+  addEventListener<K extends keyof WebSocketEventMap>(
+    type: K,
+    listener: (this: WebSocket, ev: WebSocketEventMap[K]) => any,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    return super.addEventListener(type, listener, options);
+  }
+  removeEventListener<K extends keyof WebSocketEventMap>(
+    type: K,
+    listener: (this: WebSocket, ev: WebSocketEventMap[K]) => any,
+    options?: boolean | EventListenerOptions,
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | EventListenerOptions,
+  ): void {
+    return super.removeEventListener(type, listener, options);
+  }
+
   // @ts-ignore
   [_rid]: number;
   // @ts-ignore
   [_readyState] = CONNECTING;
-  get readyState() {
+
+  /**
+   * Returns the state of the WebSocket object's connection. It can have the values described below.
+   */
+  get readyState(): number {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_readyState];
   }
@@ -117,6 +168,10 @@ export class WebSocket extends EventTarget {
 
   // @ts-ignore
   [_extensions]: string = "";
+
+  /**
+   * Returns the extensions selected by the server, if any.
+   */
   get extensions() {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_extensions];
@@ -124,26 +179,41 @@ export class WebSocket extends EventTarget {
 
   // @ts-ignore
   [_protocol]: string = "";
-  get protocol() {
+
+  /**
+   * Returns the subprotocol selected by the server, if any. It can be used in conjunction with the array form of the constructor's second argument to perform subprotocol negotiation.
+   */
+  get protocol(): string {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_protocol];
   }
 
   // @ts-ignore
   [_url]: string = "";
-  get url() {
+
+  /**
+   * Returns the URL that was used to establish the WebSocket connection.
+   */
+  get url(): string {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_url];
   }
 
   // @ts-ignore
   [_binaryType]: "blob" | "arraybuffer" = "blob";
+
+  /**
+   * Returns a string that indicates how binary data from the WebSocket object is exposed to scripts:
+   *
+   * Can be set, to change how binary data is returned. The default is "blob".
+   */
   get binaryType() {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_binaryType];
   }
   set binaryType(value) {
     webidl.assertBranded(this, WebSocketPrototype);
+    // @ts-ignore
     value = webidl.converters.DOMString(value, {
       prefix: "Failed to set 'binaryType' on 'WebSocket'",
     });
@@ -154,12 +224,18 @@ export class WebSocket extends EventTarget {
 
   // @ts-ignore
   [_bufferedAmount]: number = 0;
+
+  /**
+   * Returns the number of bytes of application data (UTF-8 text and binary data) that have been queued using send() but not yet been transmitted to the network.
+   *
+   * If the WebSocket connection is closed, this attribute's value will only increase with each call to the send() method. (The number does not reset to zero once the connection closes.)
+   */
   get bufferedAmount() {
     webidl.assertBranded(this, WebSocketPrototype);
     return this[_bufferedAmount];
   }
 
-  constructor(url, protocols = []) {
+  constructor(url: string | URL, protocols: string | string[] = []) {
     super();
     this[webidl.brand] = webidl.brand;
     const prefix = "Failed to construct 'WebSocket'";
@@ -286,7 +362,10 @@ export class WebSocket extends EventTarget {
     );
   }
 
-  send(data) {
+  /**
+   * Transmits data using the WebSocket connection. data can be a string, a Blob, an ArrayBuffer, or an ArrayBufferView.
+   */
+   send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
     webidl.assertBranded(this, WebSocketPrototype);
     const prefix = "Failed to execute 'send' on 'WebSocket'";
 
@@ -347,18 +426,21 @@ export class WebSocket extends EventTarget {
     };
 
     if (ObjectPrototypeIsPrototypeOf(ArrayBufferPrototype, data)) {
-      sendTypedArray(new Uint8Array(data));
+      sendTypedArray(new Uint8Array(data as ArrayBuffer));
     } else if (ArrayBufferIsView(data)) {
       sendTypedArray(data);
     } else if (ObjectPrototypeIsPrototypeOf(BlobPrototype, data)) {
       PromisePrototypeThen(
-        data.slice().arrayBuffer(),
+        (data.slice(0) as Blob).arrayBuffer(),
         (ab) => sendTypedArray(new Uint8Array(ab)),
       );
     }
   }
 
-  close(code = undefined, reason = undefined) {
+  /**
+   * Closes the WebSocket connection, optionally using code as the the WebSocket connection close code and reason as the the WebSocket connection close reason.
+   */
+   close(code?: number, reason?: string): void {
     webidl.assertBranded(this, WebSocketPrototype);
     const prefix = "Failed to execute 'close' on 'WebSocket'";
 

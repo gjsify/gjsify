@@ -7,7 +7,7 @@
 /// <reference lib="esnext" />
 
 /** @category Web APIs */
-declare class URLSearchParams {
+export class URLSearchParams {
   constructor(
     init?: string[][] | Record<string, string> | string | URLSearchParams,
   );
@@ -158,7 +158,7 @@ declare class URLSearchParams {
  *
  * @category Web APIs
  */
-declare class URL {
+export class URL {
   constructor(url: string | URL, base?: string | URL);
   static createObjectURL(blob: Blob): string;
   static revokeObjectURL(url: string): void;
@@ -180,7 +180,7 @@ declare class URL {
 }
 
 /** @category Web APIs */
-declare interface URLPatternInit {
+export interface URLPatternInit {
   protocol?: string;
   username?: string;
   password?: string;
@@ -193,10 +193,10 @@ declare interface URLPatternInit {
 }
 
 /** @category Web APIs */
-declare type URLPatternInput = string | URLPatternInit;
+export type URLPatternInput = string | URLPatternInit;
 
 /** @category Web APIs */
-declare interface URLPatternComponentResult {
+export interface URLPatternComponentResult {
   input: string;
   groups: Record<string, string>;
 }
@@ -205,7 +205,7 @@ declare interface URLPatternComponentResult {
  *
  * @category Web APIs
  */
-declare interface URLPatternResult {
+export interface URLPatternResult {
   /** The inputs provided when matching. */
   inputs: [URLPatternInit] | [URLPatternInit, string];
 
@@ -257,7 +257,7 @@ declare interface URLPatternResult {
  *
  * @category Web APIs
  */
-declare class URLPattern {
+export class URLPattern {
   constructor(input: URLPatternInput, baseURL?: string);
 
   /**

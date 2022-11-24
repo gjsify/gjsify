@@ -7,24 +7,35 @@ import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
 import * as webidl from '../webidl/00_webidl.js';
-import { InnerBody } from '../fetch/22_body.js';
+import { InnerBody, InnerBodyStatic } from '../fetch/22_body.js';
 import { Event, setEventTargetData } from '../web/02_event.js';
 import { BlobPrototype } from '../web/09_file.js';
-
-const {
+import { 
   ResponsePrototype,
-  fromInnerRequest,
   toInnerResponse,
-  newInnerRequest,
   newInnerResponse,
   fromInnerResponse,
+} from '../fetch/23_response.js';
+
+import { 
   _flash,
-} = window.__bootstrap.fetch;
+  newInnerRequest,
+  fromInnerRequest,
+} from '../fetch/23_request.js';
 
 const { BadResourcePrototype, InterruptedPrototype } = core;
-const { ReadableStreamPrototype } = window.__bootstrap.streams;
-const abortSignal = window.__bootstrap.abortSignal;
-const {
+
+import { 
+  ReadableStreamPrototype,
+  Deferred,
+  getReadableStreamResourceBacking,
+  readableStreamForRid,
+  readableStreamClose,
+} from '../web/06_streams.js';
+
+import * as abortSignal from '../web/03_abort_signal.js';
+
+import {
   WebSocket,
   _rid,
   _readyState,
@@ -34,15 +45,13 @@ const {
   _idleTimeoutDuration,
   _idleTimeoutTimeout,
   _serverHandleIdleTimeout,
-} = window.__bootstrap.webSocket;
-const { TcpConn, UnixConn } = window.__bootstrap.net;
-const { TlsConn } = window.__bootstrap.tls;
-const {
-  Deferred,
-  getReadableStreamResourceBacking,
-  readableStreamForRid,
-  readableStreamClose,
-} = window.__bootstrap.streams;
+} from '../websocket/01_websocket.js';
+
+import { TcpConn, UnixConn } from '../net/01_net.js';
+import { TlsConn } from '../net/02_tls.js';
+
+import type { UpgradeWebSocketOptions } from '../../types/index.js';
+
 const {
   ArrayPrototypeIncludes,
   ArrayPrototypePush,
@@ -219,7 +228,7 @@ function createRespondWith(
           ) {
             respBody = innerResp.body.stream;
           } else {
-            const reader = innerResp.body.stream.getReader();
+            const reader = (innerResp.body.stream as ReadableStream<Uint8Array>).getReader();
             const r1 = await reader.read();
             if (r1.done) {
               respBody = new Uint8Array(0);
@@ -230,8 +239,8 @@ function createRespondWith(
             }
           }
         } else {
-          innerResp.body.streamOrStatic.consumed = true;
-          respBody = innerResp.body.streamOrStatic.body;
+          (innerResp.body.streamOrStatic as InnerBodyStatic).consumed = true;
+          respBody = (innerResp.body.streamOrStatic as InnerBodyStatic).body;
         }
       } else {
         respBody = new Uint8Array(0);
@@ -384,7 +393,7 @@ function createRespondWith(
 
 export const _ws = Symbol("[[associated_ws]]");
 
-export function upgradeWebSocket(request, options = {}) {
+export function upgradeWebSocket(request, options: UpgradeWebSocketOptions = {}) {
   const upgrade = request.headers.get("upgrade");
   const upgradeHasWebSocketOption = upgrade !== null &&
     ArrayPrototypeSome(
@@ -426,7 +435,7 @@ export function upgradeWebSocket(request, options = {}) {
   ];
 
   const protocolsStr = request.headers.get("sec-websocket-protocol") || "";
-  const protocols = StringPrototypeSplit(protocolsStr, ", ");
+  const protocols = StringPrototypeSplit(protocolsStr, ", " as any);
   if (protocols && options.protocol) {
     if (ArrayPrototypeIncludes(protocols, options.protocol)) {
       ArrayPrototypePush(r.headerList, [

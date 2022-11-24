@@ -9,10 +9,9 @@ import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
 
 import * as webidl from '../../ext/webidl/00_webidl.js';
-import { MessageEvent, defineEventHandler, setTarget } from '../../ext/web/02_event.js';
+import { MessageEvent, defineEventHandler, setTarget, EventTarget } from '../../ext/web/02_event.js';
+import { DOMException } from '../../ext/web/01_dom_exception.js';
 
-const { EventTarget } = window.__bootstrap.eventTarget;
-const { DOMException } = window.__bootstrap.domException;
 const {
   ArrayPrototypeIndexOf,
   ArrayPrototypeSplice,

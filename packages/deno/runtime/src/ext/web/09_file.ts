@@ -297,7 +297,7 @@ export class Blob {
   stream(): ReadableStream<Uint8Array> {
     webidl.assertBranded(this, BlobPrototype);
     const partIterator = toIterator(this[_parts]);
-    const stream = new ReadableStream({
+    const stream = new ReadableStream<Uint8Array>({
       // @ts-ignore
       type: "bytes",
       async pull(controller: ReadableByteStreamController) {

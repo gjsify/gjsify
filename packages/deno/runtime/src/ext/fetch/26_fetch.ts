@@ -18,10 +18,11 @@ import * as ops from '../../ops/index.js';
 import * as webidl from '../webidl/00_webidl.js';
 import { byteLowerCase } from '../web/00_infra.js';
 import { BlobPrototype } from '../web/09_file.js';
-import { errorReadableStream, ReadableStreamPrototype, readableStreamForRid } from '../web/06_streams.js';
-import { InnerBody, extractBody } from './22_body.js';
-import { toInnerRequest, processUrlList, InnerRequest } from './23_request.js';
+import { errorReadableStream, ReadableStreamPrototype, readableStreamForRid, ReadableStream } from '../web/06_streams.js';
+import { InnerBody, extractBody, InnerBodyStatic } from './22_body.js';
+import { toInnerRequest, processUrlList, InnerRequest, Request } from './23_request.js';
 import {
+  InnerResponse,
   toInnerResponse,
   fromInnerResponse,
   redirectStatus,
@@ -30,6 +31,7 @@ import {
   abortedNetworkError
 } from './23_response.js';
 import * as abortSignal from '../web/03_abort_signal.js';
+import { URL } from '../url/00_url.js';
 const {
   ArrayPrototypePush,
   ArrayPrototypeSplice,
@@ -53,6 +55,8 @@ const {
   WeakMapPrototypeSet,
 } = primordials;
 
+import type { RequestInit } from '../../types/index.js';
+
 const REQUEST_BODY_HEADER_NAMES = [
   "content-encoding",
   "content-language",
@@ -62,7 +66,7 @@ const REQUEST_BODY_HEADER_NAMES = [
 
 const requestBodyReaders = new WeakMap();
 
-function opFetch(method: string, url: string, headers: [string, string][], clientRid: number | null, hasBody: boolean, bodyLength: number, body: Uint8Array | null): { requestRid: number; requestBodyRid: number | null; } {
+function opFetch(method: string, url: string | URL, headers: [string, string][], clientRid: number | null, hasBody: boolean, bodyLength: number, body: Uint8Array | null) {
   return ops.op_fetch(
     method,
     url,
@@ -137,7 +141,7 @@ async function mainFetch(req: InnerRequest, recursive: boolean, terminator: Abor
   }
 
   /** @type {ReadableStream<Uint8Array> | Uint8Array | null} */
-  let reqBody: ReadableStream<Uint8Array> | Uint8Array | null = null;
+  let reqBody: ReadableStream<Uint8Array> | Uint8Array | ArrayBufferView | string | InnerBodyStatic = null;
 
   if (req.body !== null) {
     if (
@@ -152,7 +156,7 @@ async function mainFetch(req: InnerRequest, recursive: boolean, terminator: Abor
       ) {
         reqBody = req.body.stream;
       } else {
-        const reader = req.body.stream.getReader();
+        const reader = (req.body.stream as ReadableStream<Uint8Array>).getReader();
         WeakMapPrototypeSet(requestBodyReaders, req, reader);
         const r1 = await reader.read();
         if (r1.done) {
@@ -165,8 +169,8 @@ async function mainFetch(req: InnerRequest, recursive: boolean, terminator: Abor
         WeakMapPrototypeDelete(requestBodyReaders, req);
       }
     } else {
-      req.body.streamOrStatic.consumed = true;
-      reqBody = req.body.streamOrStatic.body;
+      (req.body.streamOrStatic as InnerBodyStatic).consumed = true;
+      reqBody = (req.body.streamOrStatic as InnerBodyStatic).body;
       // TODO(@AaronO): plumb support for StringOrBuffer all the way
       reqBody = typeof reqBody === "string" ? core.encode(reqBody) : reqBody;
     }
@@ -180,7 +184,7 @@ async function mainFetch(req: InnerRequest, recursive: boolean, terminator: Abor
     reqBody !== null,
     req.body?.length,
     ObjectPrototypeIsPrototypeOf(Uint8ArrayPrototype, reqBody)
-      ? reqBody
+      ? reqBody as Uint8Array
       : null,
   );
 
@@ -201,7 +205,7 @@ async function mainFetch(req: InnerRequest, recursive: boolean, terminator: Abor
     ) {
       throw new TypeError("Unreachable");
     }
-    const reader = reqBody.getReader();
+    const reader = (reqBody as ReadableStream<Uint8Array>).getReader();
     WeakMapPrototypeSet(requestBodyReaders, req, reader);
     (async () => {
       while (true) {
@@ -251,7 +255,7 @@ async function mainFetch(req: InnerRequest, recursive: boolean, terminator: Abor
 
   processUrlList(req.urlList, req.urlListProcessed);
 
-  /** @type {InnerResponse} */
+
   const response: InnerResponse = {
     headerList: resp.headers,
     status: resp.status,
@@ -308,7 +312,7 @@ async function mainFetch(req: InnerRequest, recursive: boolean, terminator: Abor
  * @param {AbortSignal} terminator
  * @returns {Promise<InnerResponse>}
  */
-function httpRedirectFetch(request: InnerRequest, response: InnerResponse, terminator: AbortSignal): Promise<InnerResponse> {
+async function httpRedirectFetch(request: InnerRequest, response: InnerResponse, terminator: AbortSignal): Promise<InnerResponse> {
   const locationHeaders = ArrayPrototypeFilter(
     response.headerList,
     (entry) => byteLowerCase(entry[0]) === "location",

@@ -6,7 +6,7 @@
 import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
-const webidl = window.__bootstrap.webidl;
+import * as webidl from '../../ext/webidl/00_webidl.js';
 const {
   SafeArrayIterator,
   Symbol,

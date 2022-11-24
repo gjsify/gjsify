@@ -77,11 +77,15 @@ export function processUrlList(urlList: (() => string)[], urlListProcessed: stri
 }
 
 export interface InnerRequest {
-  method: () => string;
-  url: () => string;
-  currentUrl: () => string;
-  headerList: () => [string, string][];
-  body: null | typeof InnerBody;
+
+  // TODO: what type is right?
+  method: string;
+  // method: () => string;
+  url: () => URL;
+  currentUrl: () => URL;
+  headerList: [string, string][];
+  // headerList: () => [string, string][];
+  body: null | InnerBody;
   redirectMode: "follow" | "error" | "manual";
   redirectCount: number;
   urlList: (() => string)[];
@@ -91,12 +95,12 @@ export interface InnerRequest {
   blobUrlEntry: Blob | null;
 }
 
-export function newInnerRequest(method: () => string, url: string | (() => string), headerList: () => [string, string][], body: typeof InnerBody, maybeBlob: boolean): InnerRequest {
+export function newInnerRequest(method: () => string, url: string | (() => string), headerList: () => [string, string][], body: InnerBody, maybeBlob: boolean): InnerRequest {
   let blobUrlEntry = null;
   if (maybeBlob && typeof url === "string" && url.startsWith("blob:")) {
     blobUrlEntry = blobFromObjectUrl(url);
   }
-  return {
+  const innerRequest: InnerRequest = {
     // @ts-ignore
     methodInner: null,
     get method() {
@@ -155,6 +159,7 @@ export function newInnerRequest(method: () => string, url: string | (() => strin
       return this.urlListProcessed[currentIndex];
     },
   };
+  return innerRequest;
 }
 
 /**
@@ -174,7 +179,7 @@ function cloneInnerRequest(request: InnerRequest): InnerRequest {
     body = request.body.clone();
   }
 
-  return {
+  const result: InnerRequest = {
     method: request.method,
     // @ts-ignore TODO: CHECKME
     headerList,
@@ -207,6 +212,8 @@ function cloneInnerRequest(request: InnerRequest): InnerRequest {
       return this.urlListProcessed[currentIndex];
     },
   };
+
+  return result;
 }
 
 /**
@@ -469,7 +476,7 @@ export class Request implements Body {
     }
 
     // 30.
-    this[_headers] = headersFromHeaderList(request.headerList(), "request");
+    this[_headers] = headersFromHeaderList(request.headerList, "request");
 
     // 32.
     if (ObjectKeys(init).length > 0) {
@@ -497,7 +504,7 @@ export class Request implements Body {
 
     // 34.
     if (
-      (request.method() === "GET" || request.method() === "HEAD") &&
+      (request.method === "GET" || request.method === "HEAD") &&
       ((init.body !== undefined && init.body !== null) ||
         inputBody !== null)
     ) {
@@ -702,7 +709,7 @@ export function fromInnerRequest(inner: InnerRequest, signal, guard: "request" |
   const request = webidl.createBranded(Request);
   request[_request] = inner;
   request[_signal] = signal;
-  request[_getHeaders] = () => headersFromHeaderList(inner.headerList(), guard);
+  request[_getHeaders] = () => headersFromHeaderList(inner.headerList, guard);
   return request;
 }
 

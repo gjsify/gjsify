@@ -48,8 +48,8 @@ const _headerList = Symbol("header list");
 const _iterableHeaders = Symbol("iterable headers");
 const _guard = Symbol("guard");
 
-type Header = [string, string];
-type HeaderList = Header[];
+export type Header = [string, string];
+export type HeaderList = Header[];
 
 function normalizeHeaderValue(potentialValue: string): string {
   return httpTrim(potentialValue);

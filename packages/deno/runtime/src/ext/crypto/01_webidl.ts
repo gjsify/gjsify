@@ -8,8 +8,8 @@
 "use strict";
 
 import { primordials } from '../../core/00_primordials.js';
-const webidl = window.__bootstrap.webidl;
-const { CryptoKey } = window.__bootstrap.crypto;
+import * as webidl from '../webidl/00_webidl.js';
+import { CryptoKey } from './00_crypto.js';
 const {
   ArrayBufferIsView,
   ArrayBufferPrototype,

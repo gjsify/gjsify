@@ -66,7 +66,7 @@ function createEntry(name: string, value: string | Blob, filename: string | unde
   };
 }
 
-interface FormDataEntry {
+export interface FormDataEntry {
   name: string;
   value: FormDataEntryValue;
 }
@@ -78,7 +78,7 @@ interface FormDataEntry {
  *
  * @category Fetch API
  */
- export interface FormData {
+export interface FormData {
   append(name: string, value: string | Blob, fileName?: string): void;
   delete(name: string): void;
   get(name: string): FormDataEntryValue | null;

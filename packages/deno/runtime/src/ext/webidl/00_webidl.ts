@@ -14,7 +14,7 @@
 import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
-import type { WebIDL } from '../../types/index.js';
+import type { webidl } from '../../types/index.js';
 
 const {
   ArrayBufferPrototype,
@@ -83,7 +83,7 @@ const {
   DataViewPrototype,
 } = primordials;
 
-export function makeException(ErrorType: any, message: string, opts: Partial<WebIDL.ValueConverterOpts> = {}): any {
+export function makeException(ErrorType: any, message: string, opts: Partial<webidl.ValueConverterOpts> = {}): any {
   return new ErrorType(
     `${opts.prefix ? opts.prefix + ": " : ""}${
       opts.context ? opts.context : "Value"
@@ -174,7 +174,7 @@ export function censorNegativeZero(x: number) {
   return x === 0 ? 0 : x;
 }
 
-export function createIntegerConversion(bitLength: number, typeOpts: Partial<WebIDL.IntConverterOpts>) {
+export function createIntegerConversion(bitLength: number, typeOpts: Partial<webidl.IntConverterOpts>) {
   const isSigned = !typeOpts.unsigned;
 
   let lowerBound;
@@ -193,7 +193,7 @@ export function createIntegerConversion(bitLength: number, typeOpts: Partial<Web
   const twoToTheBitLength = MathPow(2, bitLength);
   const twoToOneLessThanTheBitLength = MathPow(2, bitLength - 1);
 
-  return (V: any, opts: Partial<WebIDL.IntConverterOpts> = {}) => {
+  return (V: any, opts: Partial<webidl.IntConverterOpts> = {}) => {
     let x = toNumber(V);
     x = censorNegativeZero(x);
 
@@ -246,7 +246,7 @@ export function createLongLongConversion(bitLength, { unsigned }: { unsigned?: b
   const lowerBound = unsigned ? 0 : NumberMIN_SAFE_INTEGER;
   const asBigIntN = unsigned ? BigIntAsUintN : BigIntAsIntN;
 
-  return (V, opts: Partial<WebIDL.IntConverterOpts> = {}) => {
+  return (V, opts: Partial<webidl.IntConverterOpts> = {}) => {
     let x = toNumber(V);
     x = censorNegativeZero(x);
 
@@ -284,7 +284,7 @@ export function createLongLongConversion(bitLength, { unsigned }: { unsigned?: b
   };
 }
 
-const converters = {} as WebIDL.Converters;
+const converters = {} as webidl.converters;
 
 converters.any = (V: any): any => {
   return V;
@@ -375,7 +375,7 @@ converters["unrestricted double"] = (V, _opts) => {
   return x;
 };
 
-converters.DOMString = function (V, opts: Partial<WebIDL.StringConverterOpts> = {}) {
+converters.DOMString = function (V, opts: Partial<webidl.StringConverterOpts> = {}) {
   if (typeof V === "string") {
     return V;
   } else if (V === null && opts.treatNullAsEmptyString) {
@@ -455,7 +455,7 @@ function isSharedArrayBuffer(V: any) {
   return ObjectPrototypeIsPrototypeOf(SharedArrayBuffer.prototype, V);
 }
 
-converters.ArrayBuffer = (V: any, opts: Partial<WebIDL.BufferConverterOpts> = {}) => {
+converters.ArrayBuffer = (V: any, opts: Partial<webidl.BufferConverterOpts> = {}) => {
   if (!isNonSharedArrayBuffer(V)) {
     if (opts.allowShared && !isSharedArrayBuffer(V)) {
       throw makeException(
@@ -470,7 +470,7 @@ converters.ArrayBuffer = (V: any, opts: Partial<WebIDL.BufferConverterOpts> = {}
   return V;
 };
 
-converters.DataView = (V: any, opts: Partial<WebIDL.BufferConverterOpts> = {}) => {
+converters.DataView = (V: any, opts: Partial<webidl.BufferConverterOpts> = {}) => {
   if (!(ObjectPrototypeIsPrototypeOf(DataViewPrototype, V))) {
     throw makeException(TypeError, "is not a DataView", opts);
   }
@@ -509,7 +509,7 @@ ArrayPrototypeForEach(
   (func) => {
     const name = func.name;
     const article = RegExpPrototypeTest(/^[AEIOU]/, name) ? "an" : "a";
-    converters[name] = (V, opts: Partial<WebIDL.BufferConverterOpts> = {}) => {
+    converters[name] = (V, opts: Partial<webidl.BufferConverterOpts> = {}) => {
       if (!ArrayBufferIsView(V) || typedArrayNameGetter.call(V) !== name) {
         throw makeException(
           TypeError,
@@ -532,7 +532,7 @@ ArrayPrototypeForEach(
 
 // Common definitions
 
-converters.ArrayBufferView = (V, opts: Partial<WebIDL.BufferConverterOpts> = {}) => {
+converters.ArrayBufferView = (V, opts: Partial<webidl.BufferConverterOpts> = {}) => {
   if (!ArrayBufferIsView(V)) {
     throw makeException(
       TypeError,
@@ -552,7 +552,7 @@ converters.ArrayBufferView = (V, opts: Partial<WebIDL.BufferConverterOpts> = {})
   return V;
 };
 
-converters.BufferSource = (V, opts: Partial<WebIDL.BufferConverterOpts> = {}) => {
+converters.BufferSource = (V, opts: Partial<webidl.BufferConverterOpts> = {}) => {
   if (ArrayBufferIsView(V)) {
     if (!opts.allowShared && isSharedArrayBuffer(V.buffer)) {
       throw makeException(
@@ -634,7 +634,7 @@ converters["sequence<DOMString>"] = createSequenceConverter(
 /**
  * Assert that the a function has at least a required amount of arguments.
  */
-export function requiredArguments(length: number, required: number, opts: Partial<WebIDL.ConverterOpts> = {}) {
+export function requiredArguments(length: number, required: number, opts: Partial<webidl.ConverterOpts> = {}) {
   if (length < required) {
     const errMsg = `${
       opts.prefix ? opts.prefix + ": " : ""
@@ -648,7 +648,7 @@ export function requiredArguments(length: number, required: number, opts: Partia
 /**
  * Create a converter for dictionaries.
  */
-export function createDictionaryConverter<T>(name: string, ...dictionaries: WebIDL.Dictionary[]): (v: any, opts: Partial<WebIDL.ValueConverterOpts>) => T {
+export function createDictionaryConverter<T>(name: string, ...dictionaries: webidl.Dictionary[]): (v: any, opts: Partial<webidl.ValueConverterOpts>) => T {
   let hasRequiredKey = false;
   const allMembers = [];
   for (const members of dictionaries) {
@@ -690,7 +690,7 @@ export function createDictionaryConverter<T>(name: string, ...dictionaries: WebI
     }
   }
 
-  return function (V, opts: Partial<WebIDL.ValueConverterOpts> = {}): T {
+  return function (V, opts: Partial<webidl.ValueConverterOpts> = {}): T {
     const typeV = type(V);
     switch (typeV) {
       case "Undefined":
@@ -747,10 +747,10 @@ export function createDictionaryConverter<T>(name: string, ...dictionaries: WebI
  * Create a converter for enums.
  * @see https://heycam.github.io/webidl/#es-enumeration
  */
-export function createEnumConverter(name: string, values: string[]): (v: any, opts: WebIDL.ValueConverterOpts) => string {
+export function createEnumConverter(name: string, values: string[]): (v: any, opts: webidl.ValueConverterOpts) => string {
   const E = new Set(values);
 
-  return function (V, opts: Partial<WebIDL.ValueConverterOpts> = {}) {
+  return function (V, opts: Partial<webidl.ValueConverterOpts> = {}) {
     const S = String(V);
 
     if (!E.has(S)) {
@@ -768,8 +768,8 @@ export function createEnumConverter(name: string, values: string[]): (v: any, op
 /**
  * Create a converter that makes the contained type nullable.
  */
-export function createNullableConverter<T>(converter: (v: any, opts: Partial<WebIDL.ValueConverterOpts>) => T): (v: any, opts: Partial<WebIDL.ValueConverterOpts>) => T | null {
-  return (V, opts: Partial<WebIDL.ValueConverterOpts> = {}) => {
+export function createNullableConverter<T>(converter: (v: any, opts: Partial<webidl.ValueConverterOpts>) => T): (v: any, opts: Partial<webidl.ValueConverterOpts>) => T | null {
+  return (V, opts: Partial<webidl.ValueConverterOpts> = {}) => {
     // FIXME: If Type(V) is not Object, and the conversion to an IDL value is
     // being performed due to V being assigned to an attribute whose type is a
     // nullable callback function that is annotated with
@@ -785,7 +785,7 @@ export function createNullableConverter<T>(converter: (v: any, opts: Partial<Web
  * Create a converter that converts a sequence of the inner type.
  * @see https://heycam.github.io/webidl/#es-sequence
  */
-export function createSequenceConverter<T>(converter: (v: any, opts: Partial<WebIDL.ValueConverterOpts>) => T): (v: any, opts: Partial<WebIDL.ValueConverterOpts>) => T[] {
+export function createSequenceConverter<T>(converter: (v: any, opts: Partial<webidl.ValueConverterOpts>) => T): (v: any, opts: Partial<webidl.ValueConverterOpts>) => T[] {
   return function (V, opts = {}) {
     if (type(V) !== "Object") {
       throw makeException(
@@ -827,13 +827,13 @@ export function createRecordConverter<
   K extends string | number | symbol,
   V,
 >(
-  keyConverter: (v: any, opts: WebIDL.ValueConverterOpts) => K,
-  valueConverter: (v: any, opts: WebIDL.ValueConverterOpts) => V,
+  keyConverter: (v: any, opts: webidl.ValueConverterOpts) => K,
+  valueConverter: (v: any, opts: webidl.ValueConverterOpts) => V,
 ): (
   v: Record<K, V>,
-  opts: WebIDL.ValueConverterOpts,
+  opts: webidl.ValueConverterOpts,
 ) => any {
-  return (V: Record<K, V>, opts: WebIDL.ValueConverterOpts) => {
+  return (V: Record<K, V>, opts: webidl.ValueConverterOpts) => {
     if (type(V) !== "Object") {
       throw makeException(
         TypeError,
@@ -873,8 +873,8 @@ export function createRecordConverter<
 /**
  * Create a converter that converts a Promise of the inner type.
  */
-export function createPromiseConverter<T>(converter: (v: any, opts: WebIDL.ValueConverterOpts) => T): (v: any, opts: WebIDL.ValueConverterOpts) => Promise<T> {
-  return (V: any, opts: WebIDL.ValueConverterOpts) =>
+export function createPromiseConverter<T>(converter: (v: any, opts: webidl.ValueConverterOpts) => T): (v: any, opts: webidl.ValueConverterOpts) => Promise<T> {
+  return (V: any, opts: webidl.ValueConverterOpts) =>
     PromisePrototypeThen(PromiseResolve(V), (V) => converter(V, opts)) as Promise<T>;
 }
 
@@ -885,8 +885,8 @@ export function invokeCallbackFunction<T>(
   callable: (...args: any) => any,
   args: any[],
   thisArg: any,
-  returnValueConverter: (v: any, opts: WebIDL.ValueConverterOpts) => T,
-  opts: WebIDL.ConverterOpts & { returnsPromise?: boolean },
+  returnValueConverter: (v: any, opts: webidl.ValueConverterOpts) => T,
+  opts: webidl.ConverterOpts & { returnsPromise?: boolean },
 ): T {
   try {
     const rv = ReflectApply(callable, thisArg, args);
@@ -905,12 +905,12 @@ export function invokeCallbackFunction<T>(
 /**
  * The branding symbol.
  */
-export const brand = Symbol("[[WebIDL.brand]]");
+export const brand = Symbol("[[webidl.brand]]");
 
 /**
  * Create a converter for interfaces.
  */
-export function createInterfaceConverter(name: string, prototype: any): (v: any, opts: WebIDL.ValueConverterOpts) => any {
+export function createInterfaceConverter(name: string, prototype: any): (v: any, opts: webidl.ValueConverterOpts) => any {
   return (V, opts) => {
     if (!ObjectPrototypeIsPrototypeOf(prototype, V) || V[brand] !== brand) {
       throw makeException(TypeError, `is not of type ${name}.`, opts);
@@ -961,7 +961,7 @@ const _iteratorInternal = Symbol("iterator internal");
 const globalIteratorPrototype = ObjectGetPrototypeOf(ArrayIteratorPrototype);
 
 /**
- * Mix in the iterable declarations defined in WebIDL.
+ * Mix in the iterable declarations defined in webidl.
  * https://heycam.github.io/webidl/#es-iterable
  */
 export function mixinPairIterable(

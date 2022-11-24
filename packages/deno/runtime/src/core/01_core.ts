@@ -427,7 +427,7 @@ export const write = (rid: number, buffer: Uint8Array): Promise<number> => ops.o
 /**
  * Write to a (stream) resource that implements write()
  */
-export const writeAll = (rid: number, buffer: Uint8Array): Promise<void> => ops.op_write_all(rid, buffer);
+export const writeAll = (rid: number, buffer: Uint8Array | ArrayBufferView): Promise<void> => ops.op_write_all(rid, buffer);
 
 /**
  * Shutdown a resource

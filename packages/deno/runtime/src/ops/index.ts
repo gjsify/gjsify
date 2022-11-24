@@ -36,6 +36,9 @@ import type {
     messagePort,
 } from '../types/index.js';
 
+import type { URL } from '../ext/url/00_url.js';
+import type { HeaderList } from '../ext/fetch/20_headers.js';
+
 export const op_close = (...args: any[]) => {
     console.warn("Not implemented: ops.op_close");
 }
@@ -72,7 +75,7 @@ export const op_write = async (rid: number, buffer: Uint8Array): Promise<number>
     console.warn("Not implemented: ops.op_write");
     return 0;
 }
-export const op_write_all = async (rid: number, buffer: Uint8Array): Promise<void> => {
+export const op_write_all = async (rid: number, buffer: Uint8Array | ArrayBufferView): Promise<void> => {
     console.warn("Not implemented: ops.op_write_all");
 }
 export const op_shutdown = async (rid: number): Promise<void> => {
@@ -228,8 +231,10 @@ export const op_sleep = (...args: any[]) => {
 export const op_sleep_sync = (...args: any[]) => {
     console.warn("Not implemented: ops.op_sleep_sync");
 }
-export const op_fetch = (...args: any[]) => {
+export const op_fetch = (method: string, url: string | URL, headers: [string, string][], clientRid: number | null, hasBody: boolean, bodyLength: number, body: Uint8Array | null) => {
     console.warn("Not implemented: ops.op_fetch");
+    const result: { requestRid: number; requestBodyRid: number | null; cancelHandleRid: number; } = {requestRid: -1, requestBodyRid: -1, cancelHandleRid: -1}
+    return result;
 }
 export const op_fetch_send = (...args: any[]) => {
     console.warn("Not implemented: ops.op_fetch_send");
@@ -1142,6 +1147,7 @@ export const op_http_shutdown = (...args: any[]) => {
 }
 export const op_http_websocket_accept_header = (...args: any[]) => {
     console.warn("Not implemented: ops.op_http_websocket_accept_header");
+    return "";
 }
 export const op_http_upgrade_websocket = (...args: any[]) => {
     console.warn("Not implemented: ops.op_http_upgrade_websocket");
@@ -1530,3 +1536,7 @@ export const op_has_pending_promise_exception = (promise) => {
     return false;
 }
 
+export const op_http_headers = (rid: number): HeaderList => {
+    console.warn("Not implemented: ops.op_http_headers");
+    return [];
+}
