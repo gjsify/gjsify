@@ -3,8 +3,11 @@
 // Based on https://github.com/denoland/deno/blob/main/core/ops_builtin_v8.rs
 // Based on https://github.com/denoland/deno/blob/main/core/ops_metrics.rs
 
+export * from './webstorage.js';
+export * from './crypto.js';
+
 import type {
-    UncaughtExceptionCallback,
+    PromiseRejectCallback,
     UrlComponent,
     UrlComponents,
     URLPatternInput,
@@ -253,27 +256,7 @@ export const op_ws_close = (...args: any[]) => {
 export const op_ws_next_event = (...args: any[]) => {
     console.warn("Not implemented: ops.op_ws_next_event");
 }
-export const op_webstorage_length = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_webstorage_length");
-}
-export const op_webstorage_key = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_webstorage_key");
-}
-export const op_webstorage_set = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_webstorage_set");
-}
-export const op_webstorage_get = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_webstorage_get");
-}
-export const op_webstorage_remove = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_webstorage_remove");
-}
-export const op_webstorage_clear = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_webstorage_clear");
-}
-export const op_webstorage_iterate_keys = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_webstorage_iterate_keys");
-}
+
 export const op_broadcast_subscribe = (...args: any[]) => {
     console.warn("Not implemented: ops.op_broadcast_subscribe");
 }
@@ -286,45 +269,7 @@ export const op_broadcast_send = (...args: any[]) => {
 export const op_broadcast_recv = (...args: any[]) => {
     console.warn("Not implemented: ops.op_broadcast_recv");
 }
-export const op_crypto_get_random_values = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_get_random_values");
-}
-export const op_crypto_generate_key = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_generate_key");
-}
-export const op_crypto_sign_key = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_sign_key");
-}
-export const op_crypto_verify_key = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_verify_key");
-}
-export const op_crypto_derive_bits = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_derive_bits");
-}
-export const op_crypto_import_key = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_import_key");
-}
-export const op_crypto_export_key = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_export_key");
-}
-export const op_crypto_encrypt = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_encrypt");
-}
-export const op_crypto_decrypt = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_decrypt");
-}
-export const op_crypto_subtle_digest = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_subtle_digest");
-}
-export const op_crypto_random_uuid = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_random_uuid");
-}
-export const op_crypto_wrap_key = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_wrap_key");
-}
-export const op_crypto_unwrap_key = (...args: any[]) => {
-    console.warn("Not implemented: ops.op_crypto_unwrap_key");
-}
+
 export const op_webgpu_request_adapter = (...args: any[]) => {
     console.warn("Not implemented: ops.op_webgpu_request_adapter");
 }
@@ -1350,7 +1295,7 @@ export const op_event_loop_has_more_work = (): void  => {
     console.warn("Not implemented: ops.op_event_loop_has_more_work");
 }
 
-export const op_set_promise_reject_callback = (fn: UncaughtExceptionCallback): void  => {
+export const op_set_promise_reject_callback = (fn: PromiseRejectCallback): void  => {
     console.warn("Not implemented: ops.op_set_promise_reject_callback");
 }
 
@@ -1575,3 +1520,13 @@ export const op_set_format_exception_callback = (cb: (error: Error | string) => 
 export const op_store_pending_promise_exception = (promise, reason) => {
     console.warn("Not implemented: ops.op_store_pending_promise_exception");
 }
+
+export const op_remove_pending_promise_exception = (promise) => {
+    console.warn("Not implemented: ops.op_remove_pending_promise_exception");
+}
+
+export const op_has_pending_promise_exception = (promise) => {
+    console.warn("Not implemented: ops.op_has_pending_promise_exception");
+    return false;
+}
+

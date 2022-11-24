@@ -7,26 +7,26 @@
 /// <reference lib="esnext" />
 
 /** @category Web Crypto API */
-declare var crypto: Crypto;
+// declare var crypto: Crypto;
 
 /** @category Web Crypto API */
-interface Algorithm {
+export interface Algorithm {
   name: string;
 }
 
 /** @category Web Crypto API */
-interface KeyAlgorithm {
+export interface KeyAlgorithm {
   name: string;
 }
 
 /** @category Web Crypto API */
-type AlgorithmIdentifier = string | Algorithm;
+export type AlgorithmIdentifier = string | Algorithm;
 /** @category Web Crypto API */
-type HashAlgorithmIdentifier = AlgorithmIdentifier;
+export type HashAlgorithmIdentifier = AlgorithmIdentifier;
 /** @category Web Crypto API */
-type KeyType = "private" | "public" | "secret";
+export type KeyType = "private" | "public" | "secret";
 /** @category Web Crypto API */
-type KeyUsage =
+export type KeyUsage =
   | "decrypt"
   | "deriveBits"
   | "deriveKey"
@@ -36,19 +36,19 @@ type KeyUsage =
   | "verify"
   | "wrapKey";
 /** @category Web Crypto API */
-type KeyFormat = "jwk" | "pkcs8" | "raw" | "spki";
+export type KeyFormat = "jwk" | "pkcs8" | "raw" | "spki";
 /** @category Web Crypto API */
-type NamedCurve = string;
+export type NamedCurve = string;
 
 /** @category Web Crypto API */
-interface RsaOtherPrimesInfo {
+export interface RsaOtherPrimesInfo {
   d?: string;
   r?: string;
   t?: string;
 }
 
 /** @category Web Crypto API */
-interface JsonWebKey {
+export interface JsonWebKey {
   alg?: string;
   crv?: string;
   d?: string;
@@ -71,129 +71,129 @@ interface JsonWebKey {
 }
 
 /** @category Web Crypto API */
-interface AesCbcParams extends Algorithm {
+export interface AesCbcParams extends Algorithm {
   iv: BufferSource;
 }
 
 /** @category Web Crypto API */
-interface AesGcmParams extends Algorithm {
+export interface AesGcmParams extends Algorithm {
   iv: BufferSource;
   additionalData?: BufferSource;
   tagLength?: number;
 }
 
 /** @category Web Crypto API */
-interface AesCtrParams extends Algorithm {
+export interface AesCtrParams extends Algorithm {
   counter: BufferSource;
   length: number;
 }
 
 /** @category Web Crypto API */
-interface HmacKeyGenParams extends Algorithm {
+export interface HmacKeyGenParams extends Algorithm {
   hash: HashAlgorithmIdentifier;
   length?: number;
 }
 
 /** @category Web Crypto API */
-interface EcKeyGenParams extends Algorithm {
+export interface EcKeyGenParams extends Algorithm {
   namedCurve: NamedCurve;
 }
 
 /** @category Web Crypto API */
-interface EcKeyImportParams extends Algorithm {
+export interface EcKeyImportParams extends Algorithm {
   namedCurve: NamedCurve;
 }
 
 /** @category Web Crypto API */
-interface EcdsaParams extends Algorithm {
+export interface EcdsaParams extends Algorithm {
   hash: HashAlgorithmIdentifier;
 }
 
 /** @category Web Crypto API */
-interface RsaHashedImportParams extends Algorithm {
+export interface RsaHashedImportParams extends Algorithm {
   hash: HashAlgorithmIdentifier;
 }
 
 /** @category Web Crypto API */
-interface RsaHashedKeyGenParams extends RsaKeyGenParams {
+export interface RsaHashedKeyGenParams extends RsaKeyGenParams {
   hash: HashAlgorithmIdentifier;
 }
 
 /** @category Web Crypto API */
-interface RsaKeyGenParams extends Algorithm {
+export interface RsaKeyGenParams extends Algorithm {
   modulusLength: number;
   publicExponent: Uint8Array;
 }
 
 /** @category Web Crypto API */
-interface RsaPssParams extends Algorithm {
+export interface RsaPssParams extends Algorithm {
   saltLength: number;
 }
 
 /** @category Web Crypto API */
-interface RsaOaepParams extends Algorithm {
+export interface RsaOaepParams extends Algorithm {
   label?: Uint8Array;
 }
 
 /** @category Web Crypto API */
-interface HmacImportParams extends Algorithm {
+export interface HmacImportParams extends Algorithm {
   hash: HashAlgorithmIdentifier;
   length?: number;
 }
 
 /** @category Web Crypto API */
-interface EcKeyAlgorithm extends KeyAlgorithm {
+export interface EcKeyAlgorithm extends KeyAlgorithm {
   namedCurve: NamedCurve;
 }
 
 /** @category Web Crypto API */
-interface HmacKeyAlgorithm extends KeyAlgorithm {
+export interface HmacKeyAlgorithm extends KeyAlgorithm {
   hash: KeyAlgorithm;
   length: number;
 }
 
 /** @category Web Crypto API */
-interface RsaHashedKeyAlgorithm extends RsaKeyAlgorithm {
+export interface RsaHashedKeyAlgorithm extends RsaKeyAlgorithm {
   hash: KeyAlgorithm;
 }
 
 /** @category Web Crypto API */
-interface RsaKeyAlgorithm extends KeyAlgorithm {
+export interface RsaKeyAlgorithm extends KeyAlgorithm {
   modulusLength: number;
   publicExponent: Uint8Array;
 }
 
 /** @category Web Crypto API */
-interface HkdfParams extends Algorithm {
+export interface HkdfParams extends Algorithm {
   hash: HashAlgorithmIdentifier;
   info: BufferSource;
   salt: BufferSource;
 }
 
 /** @category Web Crypto API */
-interface Pbkdf2Params extends Algorithm {
+export interface Pbkdf2Params extends Algorithm {
   hash: HashAlgorithmIdentifier;
   iterations: number;
   salt: BufferSource;
 }
 
 /** @category Web Crypto API */
-interface AesDerivedKeyParams extends Algorithm {
+export interface AesDerivedKeyParams extends Algorithm {
   length: number;
 }
 
 /** @category Web Crypto API */
-interface EcdhKeyDeriveParams extends Algorithm {
+export interface EcdhKeyDeriveParams extends Algorithm {
   public: CryptoKey;
 }
 
 /** @category Web Crypto API */
-interface AesKeyGenParams extends Algorithm {
+export interface AesKeyGenParams extends Algorithm {
   length: number;
 }
 
 /** @category Web Crypto API */
-interface AesKeyAlgorithm extends KeyAlgorithm {
+export interface AesKeyAlgorithm extends KeyAlgorithm {
   length: number;
 }
 
@@ -202,7 +202,7 @@ interface AesKeyAlgorithm extends KeyAlgorithm {
  *
  * @category Web Crypto API
  */
-interface CryptoKey {
+export interface CryptoKey {
   readonly algorithm: KeyAlgorithm;
   readonly extractable: boolean;
   readonly type: KeyType;
@@ -210,34 +210,34 @@ interface CryptoKey {
 }
 
 /** @category Web Crypto API */
-declare var CryptoKey: {
-  prototype: CryptoKey;
-  new (): CryptoKey;
-};
+// declare var CryptoKey: {
+//   prototype: CryptoKey;
+//   new (): CryptoKey;
+// };
 
 /** The CryptoKeyPair dictionary of the Web Crypto API represents a key pair for
  * an asymmetric cryptography algorithm, also known as a public-key algorithm.
  *
  * @category Web Crypto API
  */
-interface CryptoKeyPair {
+export interface CryptoKeyPair {
   privateKey: CryptoKey;
   publicKey: CryptoKey;
 }
 
 /** @category Web Crypto API */
-declare var CryptoKeyPair: {
-  prototype: CryptoKeyPair;
-  new (): CryptoKeyPair;
-};
+// declare var CryptoKeyPair: {
+//   prototype: CryptoKeyPair;
+//   new (): CryptoKeyPair;
+// };
 
-/** This Web Crypto API interface provides a number of low-level cryptographic
+/** This Web Crypto API export interface provides a number of low-level cryptographic
  * functions. It is accessed via the Crypto.subtle properties available in a
  * window context (via Window.crypto).
  *
  * @category Web Crypto API
  */
-interface SubtleCrypto {
+export interface SubtleCrypto {
   generateKey(
     algorithm: RsaHashedKeyGenParams | EcKeyGenParams,
     extractable: boolean,
@@ -370,27 +370,27 @@ interface SubtleCrypto {
 }
 
 /** @category Web Crypto API */
-declare interface Crypto {
-  readonly subtle: SubtleCrypto;
-  getRandomValues<
-    T extends
-      | Int8Array
-      | Int16Array
-      | Int32Array
-      | Uint8Array
-      | Uint16Array
-      | Uint32Array
-      | Uint8ClampedArray
-      | BigInt64Array
-      | BigUint64Array,
-  >(
-    array: T,
-  ): T;
-  randomUUID(): string;
-}
+// declare interface Crypto {
+//   readonly subtle: SubtleCrypto;
+//   getRandomValues<
+//     T extends
+//       | Int8Array
+//       | Int16Array
+//       | Int32Array
+//       | Uint8Array
+//       | Uint16Array
+//       | Uint32Array
+//       | Uint8ClampedArray
+//       | BigInt64Array
+//       | BigUint64Array,
+//   >(
+//     array: T,
+//   ): T;
+//   randomUUID(): string;
+// }
 
 /** @category Web Crypto API */
-declare var SubtleCrypto: {
-  prototype: SubtleCrypto;
-  new (): SubtleCrypto;
-};
+// declare var SubtleCrypto: {
+//   prototype: SubtleCrypto;
+//   new (): SubtleCrypto;
+// };

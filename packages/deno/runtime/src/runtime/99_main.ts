@@ -14,7 +14,6 @@ if ((Object.prototype as any).__proto__ !== undefined) {
   delete Object.prototype.__proto__;
 }
 
-
 // Remove Intl.v8BreakIterator because it is a non-standard API.
 if ((Intl as any)?.v8BreakIterator !== undefined) {
   // @ts-ignore
@@ -177,7 +176,7 @@ async function pollForMessages() {
       data: message,
       ports: transferables.filter((t) =>
         ObjectPrototypeIsPrototypeOf(messagePort.MessagePortPrototype, t)
-      ),
+      ) as MessagePort[],
     });
 
     try {
@@ -257,7 +256,7 @@ function formatException(error: Error | string) {
   }
 }
 
-function runtimeStart(runtimeOptions, source) {
+function runtimeStart(runtimeOptions, source?: string) {
   core.setMacrotaskCallback(timers.handleTimerMacrotask);
   core.setMacrotaskCallback(promiseRejectMacrotaskCallback);
   core.setWasmStreamingCallback(fetch.handleWasmStreaming);
@@ -530,7 +529,7 @@ const windowOrWorkerGlobalScope = {
   CacheStorage: util.nonEnumerable(caches.CacheStorage),
   Cache: util.nonEnumerable(caches.Cache),
   console: util.nonEnumerable(
-    new Console((msg, level) => core.print(msg, level > 1)),
+    new Console((msg: string, level: number) => core.print(msg, level > 1)),
   ),
   crypto: util.readOnly(crypto.crypto),
   Crypto: util.nonEnumerable(crypto.Crypto),
@@ -688,7 +687,7 @@ function promiseRejectMacrotaskCallback() {
     // if error is thrown during dispatch of "unhandledrejection"
     // event.
     globalThis.addEventListener("error", errorEventCb);
-    globalThis.dispatchEvent(rejectionEvent);
+    globalThis.dispatchEvent(rejectionEvent as any as globalThis.Event); // TODO
     globalThis.removeEventListener("error", errorEventCb);
 
     // If event was not prevented (or "unhandledrejection" listeners didn't
@@ -725,6 +724,7 @@ function bootstrapMainRuntime(runtimeOptions) {
   // set, define `globalThis.location`, using the provided value.
   if (runtimeOptions.location == null) {
     mainRuntimeGlobalProperties.location = {
+      // @ts-ignore
       writable: true,
     };
   } else {
@@ -793,7 +793,7 @@ function bootstrapMainRuntime(runtimeOptions) {
   // Setup `Deno` global - we're actually overriding already existing global
   // `Deno` with `Deno` namespace from "./deno.ts".
   ObjectDefineProperty(globalThis, "Deno", util.readOnly(finalDenoNs));
-  ObjectFreeze(globalThis.Deno.core);
+  ObjectFreeze((globalThis.Deno as any as typeof finalDenoNs).core);
 
   util.log("args", runtimeOptions.args);
 }
@@ -832,7 +832,7 @@ function bootstrapWorkerRuntime(
       util.writable(importScripts),
     );
   }
-  ObjectSetPrototypeOf(globalThis, DedicatedWorkerGlobalScope.prototype);
+  ObjectSetPrototypeOf(globalThis, __bootstrap.globalInterfaces.DedicatedWorkerGlobalScope.prototype);
 
   const consoleFromDeno = globalThis.console;
   wrapConsole(consoleFromDeno, consoleFromV8);
@@ -883,7 +883,7 @@ function bootstrapWorkerRuntime(
   // Setup `Deno` global - we're actually overriding already
   // existing global `Deno` with `Deno` namespace from "./deno.ts".
   ObjectDefineProperty(globalThis, "Deno", util.readOnly(finalDenoNs));
-  ObjectFreeze(globalThis.Deno.core);
+  ObjectFreeze((globalThis.Deno as any as typeof finalDenoNs).core);
 }
 
 ObjectDefineProperties(globalThis, {

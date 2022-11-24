@@ -7,6 +7,43 @@
 /// <reference path="../webidl/internal.d.ts" />
 /// <reference path="../web/lib.deno_web.d.ts" />
 
+import {
+  AesCbcParams,
+  AesCtrParams,
+  AesDerivedKeyParams,
+  AesGcmParams,
+  AesKeyAlgorithm,
+  AesKeyGenParams,
+  Algorithm,
+  AlgorithmIdentifier,
+  CryptoKeyPair,
+  EcKeyAlgorithm,
+  EcKeyGenParams,
+  EcKeyImportParams,
+  EcdhKeyDeriveParams,
+  EcdsaParams,
+  HashAlgorithmIdentifier,
+  HkdfParams,
+  HmacImportParams,
+  HmacKeyAlgorithm,
+  HmacKeyGenParams,
+  JsonWebKey,
+  KeyAlgorithm,
+  KeyFormat,
+  KeyType,
+  KeyUsage,
+  NamedCurve,
+  Pbkdf2Params,
+  RsaHashedImportParams,
+  RsaHashedKeyAlgorithm,
+  RsaHashedKeyGenParams,
+  RsaKeyAlgorithm,
+  RsaKeyGenParams,
+  RsaOaepParams,
+  RsaOtherPrimesInfo,
+  RsaPssParams,
+} from './lib.deno_crypto.js';
+
 "use strict";
 
 import { primordials } from '../../core/00_primordials.js';
@@ -231,7 +268,7 @@ function normalizeAlgorithm(algorithm, op) {
   }
 
   // 6.
-  const normalizedAlgorithm = webidl.converters[desiredType](algorithm, {
+  const normalizedAlgorithm: {prefix: string; context: string; name: string;} = webidl.converters[desiredType](algorithm, {
     prefix: "Failed to normalize algorithm",
     context: "passed algorithm",
   });
@@ -268,7 +305,7 @@ function normalizeAlgorithm(algorithm, op) {
  * @param {ArrayBufferView | ArrayBuffer} input
  * @returns {Uint8Array}
  */
-function copyBuffer(input) {
+function copyBuffer(input: ArrayBufferView | ArrayBuffer): Uint8Array {
   return TypedArrayPrototypeSlice(
     ArrayBufferIsView(input)
       ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
@@ -282,43 +319,43 @@ const _extractable = Symbol("[[extractable]]");
 const _usages = Symbol("[[usages]]");
 const _type = Symbol("[[type]]");
 
-class CryptoKey {
-  /** @type {string} */
-  [_type];
-  /** @type {boolean} */
-  [_extractable];
-  /** @type {object} */
-  [_algorithm];
-  /** @type {string[]} */
-  [_usages];
-  /** @type {object} */
-  [_handle];
+export class CryptoKey {
+  // @ts-ignore
+  [_type]: string;
+  // @ts-ignore
+  [_extractable]: boolean;
+  // @ts-ignore
+  [_algorithm]: object;
+  // @ts-ignore
+  [_usages]: string[];
+  // @ts-ignore
+  [_handle]: object;
 
   constructor() {
     webidl.illegalConstructor();
   }
 
   /** @returns {string} */
-  get type() {
+  get type(): KeyType {
     webidl.assertBranded(this, CryptoKeyPrototype);
     return this[_type];
   }
 
   /** @returns {boolean} */
-  get extractable() {
+  get extractable(): boolean {
     webidl.assertBranded(this, CryptoKeyPrototype);
     return this[_extractable];
   }
 
   /** @returns {string[]} */
-  get usages() {
+  get usages(): KeyUsage[] {
     webidl.assertBranded(this, CryptoKeyPrototype);
     // TODO(lucacasonato): return a SameObject copy
     return this[_usages];
   }
 
   /** @returns {object} */
-  get algorithm() {
+  get algorithm(): KeyAlgorithm {
     webidl.assertBranded(this, CryptoKeyPrototype);
     // TODO(lucacasonato): return a SameObject copy
     return this[_algorithm];
@@ -347,7 +384,7 @@ const CryptoKeyPrototype = CryptoKey.prototype;
  * @param {object} handle
  * @returns
  */
-function constructKey(type, extractable, usages, algorithm, handle) {
+function constructKey(type: string, extractable: boolean, usages: string[], algorithm: object, handle: object) {
   const key = webidl.createBranded(CryptoKey);
   key[_type] = type;
   key[_extractable] = extractable;
@@ -363,13 +400,13 @@ function constructKey(type, extractable, usages, algorithm, handle) {
  * @param {string[]} b
  * @returns
  */
-function usageIntersection(a, b) {
+function usageIntersection(a: string[], b: string[]) {
   return a.filter((i) => b.includes(i));
 }
 
 // TODO(lucacasonato): this should be moved to rust
 /** @type {WeakMap<object, object>} */
-const KEY_STORE = new WeakMap();
+const KEY_STORE: WeakMap<object, object> = new WeakMap();
 
 function getKeyLength(algorithm) {
   switch (algorithm.name) {
@@ -433,17 +470,18 @@ function getKeyLength(algorithm) {
   }
 }
 
-class SubtleCrypto {
+/** This Web Crypto API export interface provides a number of low-level cryptographic
+ * functions. It is accessed via the Crypto.subtle properties available in a
+ * window context (via Window.crypto).
+ *
+ * @category Web Crypto API
+ */
+export class SubtleCrypto {
   constructor() {
     webidl.illegalConstructor();
   }
 
-  /**
-   * @param {string} algorithm
-   * @param {BufferSource} data
-   * @returns {Promise<Uint8Array>}
-   */
-  async digest(algorithm, data) {
+  async digest(algorithm: AlgorithmIdentifier, data: BufferSource): Promise<ArrayBuffer> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'digest' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 2, { prefix });
@@ -462,20 +500,23 @@ class SubtleCrypto {
 
     const result = await core.opAsync(
       "op_crypto_subtle_digest",
-      algorithm.name,
+      (algorithm as Algorithm).name,
       data,
     );
 
     return result.buffer;
   }
 
-  /**
-   * @param {string} algorithm
-   * @param {CryptoKey} key
-   * @param {BufferSource} data
-   * @returns {Promise<any>}
-   */
-  async encrypt(algorithm, key, data) {
+  async encrypt(
+    algorithm:
+      | AlgorithmIdentifier
+      | RsaOaepParams
+      | AesCbcParams
+      | AesGcmParams
+      | AesCtrParams,
+    key: CryptoKey,
+    data: BufferSource,
+  ): Promise<ArrayBuffer> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'encrypt' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 3, { prefix });
@@ -517,13 +558,16 @@ class SubtleCrypto {
     return await encrypt(normalizedAlgorithm, key, data);
   }
 
-  /**
-   * @param {string} algorithm
-   * @param {CryptoKey} key
-   * @param {BufferSource} data
-   * @returns {Promise<any>}
-   */
-  async decrypt(algorithm, key, data) {
+  async decrypt(
+    algorithm:
+      | AlgorithmIdentifier
+      | RsaOaepParams
+      | AesCbcParams
+      | AesGcmParams
+      | AesCtrParams,
+    key: CryptoKey,
+    data: BufferSource,
+  ): Promise<ArrayBuffer> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'decrypt' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 3, { prefix });
@@ -719,13 +763,7 @@ class SubtleCrypto {
     }
   }
 
-  /**
-   * @param {string} algorithm
-   * @param {CryptoKey} key
-   * @param {BufferSource} data
-   * @returns {Promise<any>}
-   */
-  async sign(algorithm, key, data) {
+  async sign(algorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'sign' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 3, { prefix });
@@ -868,16 +906,30 @@ class SubtleCrypto {
     throw new TypeError("unreachable");
   }
 
-  /**
-   * @param {string} format
-   * @param {BufferSource} keyData
-   * @param {string} algorithm
-   * @param {boolean} extractable
-   * @param {KeyUsages[]} keyUsages
-   * @returns {Promise<any>}
-   */
-  // deno-lint-ignore require-await
-  async importKey(format, keyData, algorithm, extractable, keyUsages) {
+  importKey(
+    format: "jwk",
+    keyData: JsonWebKey,
+    algorithm:
+      | AlgorithmIdentifier
+      | HmacImportParams
+      | RsaHashedImportParams
+      | EcKeyImportParams,
+    extractable: boolean,
+    keyUsages: KeyUsage[],
+  ): Promise<CryptoKey>;
+  importKey(
+    format: Exclude<KeyFormat, "jwk">,
+    keyData: BufferSource,
+    algorithm:
+      | AlgorithmIdentifier
+      | HmacImportParams
+      | RsaHashedImportParams
+      | EcKeyImportParams,
+    extractable: boolean,
+    keyUsages: KeyUsage[],
+  ): Promise<CryptoKey>;
+
+  async importKey(format: KeyFormat, keyData: JsonWebKey | BufferSource, algorithm: string, extractable: boolean, keyUsages: KeyUsage[]): Promise<any> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'importKey' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 4, { prefix });
@@ -908,7 +960,7 @@ class SubtleCrypto {
         ArrayBufferIsView(keyData) ||
         ObjectPrototypeIsPrototypeOf(ArrayBufferPrototype, keyData)
       ) {
-        keyData = copyBuffer(keyData);
+        keyData = copyBuffer(keyData as ArrayBuffer | ArrayBufferView);
       } else {
         throw new TypeError("keyData is a JsonWebKey");
       }
@@ -1005,13 +1057,13 @@ class SubtleCrypto {
     }
   }
 
-  /**
-   * @param {string} format
-   * @param {CryptoKey} key
-   * @returns {Promise<any>}
-   */
-  // deno-lint-ignore require-await
-  async exportKey(format, key) {
+  exportKey(format: "jwk", key: CryptoKey): Promise<JsonWebKey>;
+  exportKey(
+    format: Exclude<KeyFormat, "jwk">,
+    key: CryptoKey,
+  ): Promise<ArrayBuffer>;
+
+  async exportKey(format: KeyFormat, key: CryptoKey): Promise<JsonWebKey | ArrayBuffer> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'exportKey' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 2, { prefix });
@@ -1077,13 +1129,15 @@ class SubtleCrypto {
     return result;
   }
 
-  /**
-   * @param {AlgorithmIdentifier} algorithm
-   * @param {CryptoKey} baseKey
-   * @param {number | null} length
-   * @returns {Promise<ArrayBuffer>}
-   */
-  async deriveBits(algorithm, baseKey, length) {
+  async deriveBits(
+    algorithm:
+      | AlgorithmIdentifier
+      | HkdfParams
+      | Pbkdf2Params
+      | EcdhKeyDeriveParams,
+    baseKey: CryptoKey,
+    length: number,
+  ): Promise<ArrayBuffer> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'deriveBits' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 3, { prefix });
@@ -1121,19 +1175,22 @@ class SubtleCrypto {
     return result;
   }
 
-  /**
-   * @param {AlgorithmIdentifier} algorithm
-   * @param {CryptoKey} baseKey
-   * @param {number} length
-   * @returns {Promise<ArrayBuffer>}
-   */
   async deriveKey(
-    algorithm,
-    baseKey,
-    derivedKeyType,
-    extractable,
-    keyUsages,
-  ) {
+    algorithm:
+      | AlgorithmIdentifier
+      | HkdfParams
+      | Pbkdf2Params
+      | EcdhKeyDeriveParams,
+    baseKey: CryptoKey,
+    derivedKeyType:
+      | AlgorithmIdentifier
+      | AesDerivedKeyParams
+      | HmacImportParams
+      | HkdfParams
+      | Pbkdf2Params,
+    extractable: boolean,
+    keyUsages: KeyUsage[],
+  ): Promise<CryptoKey> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'deriveKey' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 5, { prefix });
@@ -1221,14 +1278,7 @@ class SubtleCrypto {
     return result;
   }
 
-  /**
-   * @param {string} algorithm
-   * @param {CryptoKey} key
-   * @param {BufferSource} signature
-   * @param {BufferSource} data
-   * @returns {Promise<boolean>}
-   */
-  async verify(algorithm, key, signature, data) {
+  async verify(algorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams, key: CryptoKey, signature: BufferSource, data: BufferSource): Promise<boolean> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'verify' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 4, { prefix });
@@ -1354,13 +1404,16 @@ class SubtleCrypto {
     throw new TypeError("unreachable");
   }
 
-  /**
-   * @param {string} algorithm
-   * @param {boolean} extractable
-   * @param {KeyUsage[]} keyUsages
-   * @returns {Promise<any>}
-   */
-  async wrapKey(format, key, wrappingKey, wrapAlgorithm) {
+  async wrapKey(
+    format: KeyFormat,
+    key: CryptoKey,
+    wrappingKey: CryptoKey,
+    wrapAlgorithm:
+      | AlgorithmIdentifier
+      | RsaOaepParams
+      | AesCbcParams
+      | AesCtrParams,
+  ): Promise<ArrayBuffer> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'wrapKey' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 4, { prefix });
@@ -1417,12 +1470,12 @@ class SubtleCrypto {
     }
 
     // 12.
-    const exportedKey = await this.exportKey(format, key);
+    const exportedKey = await this.exportKey(format as any, key);
 
     let bytes;
     // 13.
     if (format !== "jwk") {
-      bytes = new Uint8Array(exportedKey);
+      bytes = new Uint8Array(exportedKey as ArrayBuffer);
     } else {
       const jwk = JSONStringify(exportedKey);
       const ret = new Uint8Array(jwk.length);
@@ -1478,25 +1531,24 @@ class SubtleCrypto {
       );
     }
   }
-  /**
-   * @param {string} format
-   * @param {BufferSource} wrappedKey
-   * @param {CryptoKey} unwrappingKey
-   * @param {AlgorithmIdentifier} unwrapAlgorithm
-   * @param {AlgorithmIdentifier} unwrappedKeyAlgorithm
-   * @param {boolean} extractable
-   * @param {KeyUsage[]} keyUsages
-   * @returns {Promise<CryptoKey>}
-   */
+
   async unwrapKey(
-    format,
-    wrappedKey,
-    unwrappingKey,
-    unwrapAlgorithm,
-    unwrappedKeyAlgorithm,
-    extractable,
-    keyUsages,
-  ) {
+    format: KeyFormat,
+    wrappedKey: BufferSource,
+    unwrappingKey: CryptoKey,
+    unwrapAlgorithm:
+      | AlgorithmIdentifier
+      | RsaOaepParams
+      | AesCbcParams
+      | AesCtrParams,
+    unwrappedKeyAlgorithm:
+      | AlgorithmIdentifier
+      | HmacImportParams
+      | RsaHashedImportParams
+      | EcKeyImportParams,
+    extractable: boolean,
+    keyUsages: KeyUsage[],
+  ): Promise<CryptoKey> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'unwrapKey' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 7, { prefix });
@@ -1630,7 +1682,7 @@ class SubtleCrypto {
 
     // 15.
     const result = await this.importKey(
-      format,
+      format as any,
       bytes,
       normalizedKeyAlgorithm,
       extractable,
@@ -1651,13 +1703,29 @@ class SubtleCrypto {
     return result;
   }
 
+  generateKey(
+    algorithm: RsaHashedKeyGenParams | EcKeyGenParams,
+    extractable: boolean,
+    keyUsages: KeyUsage[],
+  ): Promise<CryptoKeyPair>;
+  generateKey(
+    algorithm: AesKeyGenParams | HmacKeyGenParams,
+    extractable: boolean,
+    keyUsages: KeyUsage[],
+  ): Promise<CryptoKey>;
+  generateKey(
+    algorithm: AlgorithmIdentifier,
+    extractable: boolean,
+    keyUsages: KeyUsage[],
+  ): Promise<CryptoKeyPair | CryptoKey>;
+
   /**
-   * @param {string} algorithm
+   * @param algorithm
    * @param {boolean} extractable
    * @param {KeyUsage[]} keyUsages
    * @returns {Promise<any>}
    */
-  async generateKey(algorithm, extractable, keyUsages) {
+  async generateKey(algorithm: AlgorithmIdentifier | RsaHashedKeyGenParams | EcKeyGenParams | AesKeyGenParams | HmacKeyGenParams, extractable: boolean, keyUsages: KeyUsage[]): Promise<any> {
     webidl.assertBranded(this, SubtleCryptoPrototype);
     const prefix = "Failed to execute 'generateKey' on 'SubtleCrypto'";
     webidl.requiredArguments(arguments.length, 3, { prefix });
@@ -2569,7 +2637,7 @@ function exportKeyAES(
     }
     case "jwk": {
       // 1-2.
-      const jwk = {
+      const jwk: JsonWebKey = {
         kty: "oct",
       };
 
@@ -3840,7 +3908,7 @@ function exportKeyHMAC(format, key, innerKey) {
     }
     case "jwk": {
       // 1-2.
-      const jwk = {
+      const jwk: JsonWebKey = {
         kty: "oct",
       };
 
@@ -3927,7 +3995,7 @@ function exportKeyRSA(format, key, innerKey) {
     }
     case "jwk": {
       // 1-2.
-      const jwk = {
+      const jwk: JsonWebKey = {
         kty: "RSA",
       };
 
@@ -4062,7 +4130,7 @@ function exportKeyEd25519(format, key, innerKey) {
       const x = key[_type] === "private"
         ? ops.op_jwk_x_ed25519(innerKey)
         : ops.op_crypto_base64url_encode(innerKey);
-      const jwk = {
+      const jwk: JsonWebKey = {
         kty: "OKP",
         alg: "EdDSA",
         crv: "Ed25519",
@@ -4140,7 +4208,7 @@ function exportKeyX25519(format, key, innerKey) {
   }
 }
 
-function exportKeyEC(format, key, innerKey) {
+function exportKeyEC(format: string, key: CryptoKey, innerKey) {
   switch (format) {
     case "raw": {
       // 1.
@@ -4199,7 +4267,7 @@ function exportKeyEC(format, key, innerKey) {
     case "jwk": {
       if (key[_algorithm].name == "ECDSA") {
         // 1-2.
-        const jwk = {
+        const jwk: JsonWebKey = {
           kty: "EC",
         };
 
@@ -4207,7 +4275,7 @@ function exportKeyEC(format, key, innerKey) {
         jwk.crv = key[_algorithm].namedCurve;
 
         // Missing from spec
-        let algNamedCurve;
+        let algNamedCurve: "ES256" | "ES384" | "ES512";
 
         switch (key[_algorithm].namedCurve) {
           case "P-256": {
@@ -4248,7 +4316,7 @@ function exportKeyEC(format, key, innerKey) {
         return jwk;
       } else { // ECDH
         // 1-2.
-        const jwk = {
+        const jwk: JsonWebKey = {
           kty: "EC",
         };
 
@@ -4644,12 +4712,25 @@ async function encrypt(normalizedAlgorithm, key, data) {
 webidl.configurePrototype(SubtleCrypto);
 const subtle = webidl.createBranded(SubtleCrypto);
 
-class Crypto {
+/** @category Web Crypto API */
+export class Crypto {
+
   constructor() {
     webidl.illegalConstructor();
   }
 
-  getRandomValues(arrayBufferView) {
+  getRandomValues<
+  T extends
+    | Int8Array
+    | Int16Array
+    | Int32Array
+    | Uint8Array
+    | Uint16Array
+    | Uint32Array
+    | Uint8ClampedArray
+    | BigInt64Array
+    | BigUint64Array,
+  >(arrayBufferView: T): T {
     webidl.assertBranded(this, CryptoPrototype);
     const prefix = "Failed to execute 'getRandomValues' on 'Crypto'";
     webidl.requiredArguments(arguments.length, 1, { prefix });
@@ -4661,7 +4742,7 @@ class Crypto {
     arrayBufferView = webidl.converters.ArrayBufferView(arrayBufferView, {
       prefix,
       context: "Argument 1",
-    });
+    }) as T;
     if (
       !(
         ObjectPrototypeIsPrototypeOf(Int8ArrayPrototype, arrayBufferView) ||
@@ -4695,12 +4776,12 @@ class Crypto {
     return arrayBufferView;
   }
 
-  randomUUID() {
+  randomUUID(): string {
     webidl.assertBranded(this, CryptoPrototype);
     return ops.op_crypto_random_uuid();
   }
 
-  get subtle() {
+  get subtle(): SubtleCrypto {
     webidl.assertBranded(this, CryptoPrototype);
     return subtle;
   }
@@ -4711,11 +4792,6 @@ class Crypto {
 }
 
 webidl.configurePrototype(Crypto);
-const CryptoPrototype = Crypto.prototype;
+export const CryptoPrototype = Crypto.prototype;
 
-window.__bootstrap.crypto = {
-  SubtleCrypto,
-  crypto: webidl.createBranded(Crypto),
-  Crypto,
-  CryptoKey,
-};
+export const crypto = webidl.createBranded(Crypto);

@@ -1,66 +1,68 @@
-import { primordials } from '../core/00_primordials.js'
-
-import * as build from './01_build.js';
-import * as errors from './01_errors.js';
-import * as version from './01_version.js';
-import * as webUtil from './01_web_util.js';
-import * as util from './06_util.js';
-
-import * as webidl from '../ext/webidl/00_webidl.js';
-import * as url from '../ext/url/00_url.js';
-import * as urlPattern from '../ext/url/01_urlpattern.js';
-import * as infra from '../ext/web/00_infra.js';
-import * as domException from '../ext/web/01_dom_exception.js';
-import * as colors from '../ext/console/01_colors.js';
-import * as console from '../ext/console/02_console.js';
-import * as mimesniff from '../ext/web/01_mimesniff.js';
-import * as event from '../ext/web/02_event.js';
-import * as timers from '../ext/web/02_timers.js';
-import * as abortSignal from '../ext/web/03_abort_signal.js';
-import * as globalInterfaces from '../ext/web/04_global_interfaces.js';
-import * as structuredClone from '../ext/web/02_structured_clone.js';
-import * as base64 from '../ext/web/05_base64.js';
-import * as streams from '../ext/web/06_streams.js';
-import * as encoding from '../ext/web/08_text_encoding.js';
-import * as file from '../ext/web/09_file.js';
-import * as fileReader from '../ext/web/10_filereader.js';
-import * as location from '../ext/web/12_location.js';
-import * as messagePort from '../ext/web/13_message_port.js';
-import * as compression from '../ext/web/14_compression.js';
-import * as performance from '../ext/web/15_performance.js';
-
-import * as permissions from './10_permissions.js';
-import * as worker from './11_workers.js';
-import * as io from './12_io.js';
-import * as buffer from './13_buffer.js';
-import * as fs from './30_fs.js';
-import * as os from './30_os.js';
-import * as diagnostics from './40_diagnostics.js';
-import * as files from './40_files.js';
-import * as fsEvents from './40_fs_events.js';
-import * as http from './40_http.js';
-import * as process from './40_process.js';
-import * as readFile from './40_read_file.js';
-import * as signals from './40_signals.js';
-import * as spawn from './40_spawn.js';
-import * as testing from './40_testing.js';
-import * as tty from './40_tty.js';
-import * as writeFile from './40_write_file.js';
-import * as prompt from './41_prompt.js';
-
-import * as ffi from '../ext/ffi/00_ffi.js';
-import * as net from '../ext/net/01_net.js';
-import * as tls from '../ext/net/02_tls.js';
-import * as extHttp from '../ext/http/01_http.js';
-import * as caches from '../ext/cache/01_cache.js';
-
-import { fetchUtil, headers, formData, fetchBody, fetch } from '../ext/fetch/99_bootstrap';
-
-import * as webgpu from '../ext/webgpu/01_webgpu.js';
-import * as webSocket from '../ext/websocket/01_websocket.js';
-import { WebSocketStream } from '../ext/websocket/02_websocketstream.js';
-import * as flash from '../ext/flash/01_http.js';
-import * as broadcastChannel from '../ext/broadcast_channel/01_broadcast_channel.js';
+import {
+  primordials,
+  build,
+  errors,
+  version,
+  webUtil,
+  util,
+  webidl,
+  url,
+  urlPattern,
+  infra,
+  domException,
+  colors,
+  console,
+  mimesniff,
+  event,
+  timers,
+  abortSignal,
+  globalInterfaces,
+  structuredClone,
+  base64,
+  streams,
+  encoding,
+  file,
+  fileReader,
+  location,
+  messagePort,
+  compression,
+  performance,
+  permissions,
+  worker,
+  io,
+  buffer,
+  fs,
+  os,
+  diagnostics,
+  files,
+  fsEvents,
+  http,
+  process,
+  readFile,
+  signals,
+  spawn,
+  testing,
+  tty,
+  writeFile,
+  prompt,
+  ffi,
+  net,
+  tls,
+  extHttp,
+  caches,
+  fetchUtil,
+  headers,
+  formData,
+  fetchBody,
+  fetch,
+  webgpu,
+  webSocket,
+  WebSocketStream,
+  flash,
+  broadcastChannel,
+  webStorage,
+  crypto,
+} from './index.js';
 
 export const __bootstrap = {
   // https://github.com/denoland/deno/blob/main/core/00_primordials.js
@@ -210,8 +212,10 @@ export const __bootstrap = {
 
   // packages/deno/runtime/src/ext/broadcast_channel/01_broadcast_channel.ts
   broadcastChannel,
-};
 
-// packages/deno/runtime/src/core/02_error.ts
-// ObjectAssign(globalThis.__bootstrap.core, { prepareStackTrace });
-// ObjectFreeze(globalThis.__bootstrap.core);
+  // packages/deno/runtime/src/ext/webstorage/01_webstorage.ts
+  webStorage,
+
+  // packages/deno/runtime/src/ext/crypto/00_crypto.ts
+  crypto,
+};

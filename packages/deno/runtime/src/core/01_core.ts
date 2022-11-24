@@ -32,7 +32,7 @@ const {
 
 import * as ops from '../ops/index.js';
 
-import type { OpCallTrace, UncaughtExceptionCallback } from '../types/index.js';
+import type { OpCallTrace, UncaughtExceptionCallback, PromiseRejectCallback } from '../types/index.js';
 
 const errorMap = {};
 // Builtin v8 / JS errors
@@ -516,7 +516,7 @@ export const eventLoopHasMoreWork = () => ops.op_event_loop_has_more_work();
  * Set a callback that will be called when a promise without a .catch
  * handler is rejected. Returns the old handler or undefined.
  */
-export const setPromiseRejectCallback = (fn: UncaughtExceptionCallback) => ops.op_set_promise_reject_callback(fn);
+export const setPromiseRejectCallback = (fn: PromiseRejectCallback) => ops.op_set_promise_reject_callback(fn);
 
 /**
  * Set a callback that will be called when an exception isn't caught
