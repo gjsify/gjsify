@@ -2,8 +2,6 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/40_http.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
 import * as ops from '../ops/index.js';
 import { HttpConn } from '../ext/http/01_http.js';
 

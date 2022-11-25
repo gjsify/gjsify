@@ -8,7 +8,6 @@
 // <reference lib="deno.net" />
 
 import type { Conn } from './net.js';
-
 import type { Errors } from "./index.js";
 
 /** An interface containing methods to interact with the process environment

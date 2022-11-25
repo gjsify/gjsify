@@ -82,12 +82,28 @@ function getSerialization(status: number, href: string) {
   }
 }
 
+export interface URLSearchParams {
+  /** Returns an iterator allowing to go through all key/value
+   * pairs contained in this object.
+   *
+   * ```ts
+   * const params = new URLSearchParams([["a", "b"], ["c", "d"]]);
+   * for (const [key, value] of params) {
+   *   console.log(key, value);
+   * }
+   * ```
+   */
+   [Symbol.iterator](): IterableIterator<[string, string]>;
+}
+
 /** @category Web APIs */
 export class URLSearchParams {
   //@ts-ignore TODO
   [_list];
   //@ts-ignore TODO
   [_urlObject] = null;
+
+  // static toString(): string;
 
   constructor(init: string[][] | Record<string, string> | string | URLSearchParams = "") {
     const prefix = "Failed to construct 'URL'";
