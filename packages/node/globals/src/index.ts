@@ -1,3 +1,4 @@
+import "@gjsify/require";
 import './errors.js';
 
 import process from 'process';

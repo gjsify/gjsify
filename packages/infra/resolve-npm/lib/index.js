@@ -114,3 +114,12 @@ export const ALIASES_WEB = {
     'abort-controller': '@gjsify/abort-controller',
     'event-target-shim': '@gjsify/event-target',
 }
+
+/** Record of Deno modules and his replacement */
+export const ALIASES_DENO = {
+    '@gjsify/deno_runtime/global': '@gjsify/empty',
+    '@gjsify/deno_runtime': '@gjsify/empty',
+
+    // Node packages
+    'assert': 'https://deno.land/std/node/assert.ts', // TODO not working?
+}

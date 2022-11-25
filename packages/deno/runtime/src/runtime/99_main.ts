@@ -7,6 +7,8 @@ import * as core from '../core/01_core.js';
 import * as ops from '../ops/index.js';
 import { __bootstrap } from './80_bootstrap.js';
 
+import { cli } from '@gjsify/utils';
+
 // Removes the `__proto__` for security reasons.
 // https://tc39.es/ecma262/#sec-get-object.prototype.__proto__
 if ((Object.prototype as any).__proto__ !== undefined) {
@@ -84,6 +86,23 @@ const formData = __bootstrap.formData;
 const fetch = __bootstrap.fetch;
 const prompt = __bootstrap.prompt;
 const messagePort = __bootstrap.messagePort;
+
+/**
+ * Custom version of `ObjectConstructor.defineProperties` / `ObjectDefineProperties` to avoid errors when a property has already been set
+ * @category Gjsify
+ */
+const GjsifyObjectDefinePropertiesSafe = <T>(o: T, properties: PropertyDescriptorMap & ThisType<any>) => {
+  const keys = [...Object.keys(properties), ...Object.getOwnPropertySymbols(properties)];
+  for (const key of keys) {
+    if(o.hasOwnProperty(key)) {
+      console.warn(`Property "${key.toString()}" is already defined!`);
+    } else {
+      ObjectDefineProperty(o, key, properties[key]);
+    }
+  }
+}
+
+
 
 // const denoNs = __bootstrap.denoNs;
 // const denoNsUnstable = __bootstrap.denoNsUnstable;
@@ -256,7 +275,21 @@ function formatException(error: Error | string) {
   }
 }
 
-function runtimeStart(runtimeOptions, source?: string) {
+function runtimeStart(runtimeOptions: RuntimeOptions, source?: string) {
+
+  if(!runtimeOptions.target) {
+    const machineType = cli('uname -m');
+    let os = cli('uname -o');
+
+    if(os.includes("Linux")) {
+      os = "unknown-linux-gnu";
+    } else {
+      os = "apple-darwin"
+    }
+
+    runtimeOptions.target = `${machineType}-${os}`;
+  }
+
   core.setMacrotaskCallback(timers.handleTimerMacrotask);
   core.setMacrotaskCallback(promiseRejectMacrotaskCallback);
   core.setWasmStreamingCallback(fetch.handleWasmStreaming);
@@ -701,7 +734,27 @@ function promiseRejectMacrotaskCallback() {
 
 let hasBootstrapped = false;
 
-function bootstrapMainRuntime(runtimeOptions) {
+export interface RuntimeOptions {
+  unstableFlag?: boolean;
+  inspectFlag?: boolean;
+  debugFlag?: boolean;
+  /** Value of 'globalThis.location' used by some web APIs */
+  location: string | null;
+  cpuCount: number;
+  userAgent: string;
+  locale: string;
+  args: string[];
+  pid: number;
+  ppid: number;
+  noColor?: boolean;
+  denoVersion: string;
+  v8Version: string;
+  tsVersion: string;
+  target?: string;
+  isTty: boolean;
+}
+
+function bootstrapMainRuntime(runtimeOptions: RuntimeOptions) {
   if (hasBootstrapped) {
     throw new Error("Worker runtime already bootstrapped");
   }
@@ -731,11 +784,11 @@ function bootstrapMainRuntime(runtimeOptions) {
     location.setLocationHref(runtimeOptions.location);
   }
 
-  ObjectDefineProperties(globalThis, windowOrWorkerGlobalScope);
+  GjsifyObjectDefinePropertiesSafe(globalThis, windowOrWorkerGlobalScope);
   if (runtimeOptions.unstableFlag) {
-    ObjectDefineProperties(globalThis, unstableWindowOrWorkerGlobalScope);
+    GjsifyObjectDefinePropertiesSafe(globalThis, unstableWindowOrWorkerGlobalScope);
   }
-  ObjectDefineProperties(globalThis, mainRuntimeGlobalProperties);
+  GjsifyObjectDefinePropertiesSafe(globalThis, mainRuntimeGlobalProperties);
   ObjectSetPrototypeOf(globalThis, Window.prototype);
 
   if (runtimeOptions.inspectFlag) {
@@ -886,12 +939,15 @@ function bootstrapWorkerRuntime(
   ObjectFreeze((globalThis.Deno as any as typeof finalDenoNs).core);
 }
 
-ObjectDefineProperties(globalThis, {
-  bootstrap: {
-    value: {
-      mainRuntime: bootstrapMainRuntime,
-      workerRuntime: bootstrapWorkerRuntime,
-    },
-    configurable: true,
-  },
-});
+export const mainRuntime = bootstrapMainRuntime;
+export const workerRuntime = bootstrapWorkerRuntime;
+
+// ObjectDefineProperties(globalThis, {
+//   bootstrap: {
+//     value: {
+//       mainRuntime: bootstrapMainRuntime,
+//       workerRuntime: bootstrapWorkerRuntime,
+//     },
+//     configurable: true,
+//   },
+// });

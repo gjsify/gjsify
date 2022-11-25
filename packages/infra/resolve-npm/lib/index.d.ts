@@ -6,3 +6,5 @@ export declare const EXTERNALS_NPM: string[];
 export declare const ALIASES_NODE: {[alias:string]: string}; 
 /** Record of Web modules and his replacement */
 export declare const ALIASES_WEB: {[alias:string]: string}; 
+/** Record of Deno modules and his replacement */
+export declare const ALIASES_DENO: {[alias:string]: string}; 

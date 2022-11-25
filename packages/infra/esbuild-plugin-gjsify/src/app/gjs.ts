@@ -14,15 +14,13 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     pluginOptions.exclude ||= [];
 
     const inject = [
-        '@gjsify/globals',
-        '@gjsify/web-events',
-        '@gjsify/abort-controller',
+        // '@gjsify/node_globals',
+        // '@gjsify/web-events',
+        // '@gjsify/abort-controller',
 
-        '@gjsify/require',
-
-        // TODO: Move to web
-        'core-js/features/url/',
-        'core-js/features/url-search-params/',
+        // // TODO: Move to web globals
+        // 'core-js/features/url/',
+        // 'core-js/features/url-search-params/',
 
         // '@gjsify/deno_runtime/',
     ].map(inj => resolvePackageByType(inj, 'module'));

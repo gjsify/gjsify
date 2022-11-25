@@ -85,8 +85,8 @@ export const op_metrics = (...args: any[]) => {
     console.warn("Not implemented: ops.op_metrics");
     return [];
 }
-export const op_url_parse = (href: string, buf: ArrayBufferLike): number => {
-    console.warn("Not implemented: ops.op_url_parse");
+export const op_url_parse = function (href: string, buf: ArrayBufferLike): number {
+    console.warn("Not implemented: ops.op_url_parse", arguments);
     const status = -1;
     return status;
 }

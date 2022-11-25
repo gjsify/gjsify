@@ -11,9 +11,20 @@ export const aliasPlugin = (options: Record<string, string>) => {
       setup(build) {
         // we do not register 'file' namespace here, because the root file won't be processed
         // https://github.com/evanw/esbuild/issues/791
-        build.onResolve({ filter: re }, args => ({
-          path: options[args.path],
-        }));
+        build.onResolve({ filter: re }, (args) => {
+          const resolvedAlias = options[args.path];
+
+          if(resolvedAlias.startsWith("http://") || resolvedAlias.startsWith("https://")) {
+            return {
+              path: resolvedAlias,
+              external: true // TODO use deno plugin?
+            }
+          }
+
+          return {
+            path: resolvedAlias,
+          }
+        });
       },
     };
 

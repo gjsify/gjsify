@@ -6,6 +6,7 @@ import { merge } from "lodash";
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
+import { getAliasesDeno } from "../alias.js";
 
 export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -22,7 +23,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         platform: "neutral",
         mainFields: ['module', 'main'],
         conditions: ['import'],
-        external: [],
+        external: ['https://*', 'http://*'],
         loader: {
             '.ts': 'ts',
             '.mts': 'ts',
@@ -38,13 +39,13 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         },
         plugins: [
             globPlugin(),
-            denoPlugin()
+            // denoPlugin()
         ]
     };
 
     merge(build.initialOptions, esbuildOptions);
 
-    const aliases = {...pluginOptions.aliases};
+    const aliases = {...getAliasesDeno(), ...pluginOptions.aliases};
 
     for (const aliasKey of Object.keys(aliases)) {
         if(pluginOptions.exclude.includes(aliasKey)) {

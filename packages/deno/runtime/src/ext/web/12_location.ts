@@ -26,8 +26,15 @@ const locationConstructorKey = Symbol("locationConstuctorKey");
 // `Location`'s properties. See:
 // - https://html.spec.whatwg.org/multipage/history.html#the-location-interface
 // - https://heycam.github.io/webidl/#LegacyUnforgeable
+
+/** The location (URL) of the object it is linked to. Changes done on it are
+ * reflected on the object it relates to. Accessible via
+ * `globalThis.location`.
+ *
+ * @category Web APIs
+ */
 export class Location {
-  constructor(href = null, key = null) {
+  constructor(href: string | null = null, key: symbol | null = null) {
     if (key != locationConstructorKey) {
       throw new TypeError("Illegal constructor.");
     }

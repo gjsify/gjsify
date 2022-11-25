@@ -1,5 +1,5 @@
 {
-  "name": "@gjsify/globals",
+  "name": "@gjsify/node_globals",
   "version": "0.0.1",
   "description": "Node.js globals module for Gjs",
   "keywords": [
@@ -12,7 +12,7 @@
   "module": "lib/esm/index.js",
   "scripts": {
     "clear": "rm -rf lib",
-    "print:name": "echo '@gjsify/globals'",
+    "print:name": "echo '@gjsify/node_globals'",
     "build": "gjsify build --library src/**/*.{ts,js}",
     "build:test": "yarn run build:test:gjs && yarn run build:test:node",
     "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",

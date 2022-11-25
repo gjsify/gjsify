@@ -192,10 +192,7 @@ export const __bootstrap = {
   // packages/deno/runtime/src/ext/fetch/22_http_client.ts
   // packages/deno/runtime/src/ext/fetch/23_request.ts
   // packages/deno/runtime/src/ext/fetch/26_fetch.ts
-  fetch: {
-    ...fetch,
-    Response,
-  },
+  fetch,
   // packages/deno/runtime/src/ext/cache/01_cache.ts
   caches,
   // packages/deno/runtime/src/ext/webgpu/01_webgpu.ts

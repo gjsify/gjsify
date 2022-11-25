@@ -1,0 +1,17 @@
+{
+    "name": "@gjsify/empty",
+    "version": "0.0.1",
+    "description": "Empty module for Gjs",
+    "main": "index.js",
+    "module": "index.js",
+    "scripts": {
+        "clear": "echo 'Noting to do'",
+        "print:name": "echo '@gjsify/empty'",
+        "build": "echo 'Noting to do'",
+        "test": "echo 'Noting to do'"
+    },
+    "keywords": [
+        "gjs",
+        "empty"
+    ]
+}

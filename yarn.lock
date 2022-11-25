@@ -180,6 +180,7 @@ __metadata:
   resolution: "@gjsify/deno_runtime@workspace:packages/deno/runtime"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/empty": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@tsconfig/deno": ^1.0.6
     "@types/node": ^18.11.9
@@ -196,6 +197,12 @@ __metadata:
     "@tsconfig/deno": ^1.0.6
     "@types/node": ^18.11.9
     typescript: ^4.8.4
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/empty@workspace:^, @gjsify/empty@workspace:packages/infra/empty":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/empty@workspace:packages/infra/empty"
   languageName: unknown
   linkType: soft
 
@@ -219,8 +226,8 @@ __metadata:
     "@gjsify/assert": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/fs": "workspace:^"
-    "@gjsify/globals": "workspace:^"
     "@gjsify/node-internal": "workspace:^"
+    "@gjsify/node_globals": "workspace:^"
     "@gjsify/os": "workspace:^"
     "@gjsify/process": "workspace:^"
     "@gjsify/require": "workspace:^"
@@ -443,17 +450,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/globals@workspace:^, @gjsify/globals@workspace:packages/node/globals":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/globals@workspace:packages/node/globals"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/process": "workspace:^"
-    "@gjsify/unit": "workspace:^"
-    "@gjsify/utils": "workspace:^"
-  languageName: unknown
-  linkType: soft
-
 "@gjsify/html-image-element@workspace:^, @gjsify/html-image-element@workspace:packages/web/html-image-element":
   version: 0.0.0-use.local
   resolution: "@gjsify/html-image-element@workspace:packages/web/html-image-element"
@@ -497,6 +493,17 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.11.9
     typescript: ^4.8.4
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/node_globals@workspace:^, @gjsify/node_globals@workspace:packages/node/globals":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/node_globals@workspace:packages/node/globals"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/process": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
   languageName: unknown
   linkType: soft
 

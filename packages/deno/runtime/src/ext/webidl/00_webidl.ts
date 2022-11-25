@@ -936,6 +936,10 @@ export function assertBranded(self: any, prototype: any): void {
   if (
     !ObjectPrototypeIsPrototypeOf(prototype, self) || self[brand] !== brand
   ) {
+    console.error("Brand", brand);
+    console.error("self[brand]", self[brand]);
+    console.error("self.constructor.name", self.constructor.name);
+    console.error("prototype.constructor.name", prototype.constructor.name);
     throw new TypeError("Illegal invocation");
   }
 }

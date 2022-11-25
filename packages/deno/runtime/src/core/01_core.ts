@@ -230,7 +230,8 @@ export function initializeAsyncOps() {
     const [name, argc] = ele;
     const op = ops[name];
     const args = Array.from({ length: argc as number }, (_, i) => `arg${i}`).join(", ");
-    ops[name] = genAsyncOp(op, name, args);
+    console.log("TODO ops[name]", op, name, args);
+    // ops[name] = genAsyncOp(op, name, args);
   }
 }
 
