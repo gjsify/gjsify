@@ -17,7 +17,7 @@ export const aliasPlugin = (options: Record<string, string>) => {
           if(resolvedAlias.startsWith("http://") || resolvedAlias.startsWith("https://")) {
             return {
               path: resolvedAlias,
-              external: true // TODO use deno plugin?
+              external: true // TODO use deno plugin if target is not deno?
             }
           }
 

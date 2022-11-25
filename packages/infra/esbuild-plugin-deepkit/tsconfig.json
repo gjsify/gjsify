@@ -2,7 +2,9 @@
     "compilerOptions": {
       "outDir": "dist",
       "declarationDir": "dist",
-      "declaration": true
+      "declaration": true,
+      "target": "ESNext",
+      "moduleResolution": "node"
     },
     "files": ["src/index.ts"]
 }

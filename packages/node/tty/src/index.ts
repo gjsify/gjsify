@@ -3,7 +3,7 @@
  * - https://github.com/jvilk/bfs-process/blob/master/ts/tty.ts
  * - https://github.com/geut/brode/blob/main/packages/browser-node-core/src/tty.js
  */
-// import '@gjsify/node_globals';
+// import '@gjsify/node-globals';
 import { Writable, Readable } from 'stream';
 import { warnNotImplemented } from '@gjsify/utils';
 export class ReadStream extends Readable {

@@ -38,7 +38,8 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
         },
         plugins: [
             globPlugin(),
-            denoPlugin()
+            // TODO: denoPlugin breaks deepkit plugin
+            // denoPlugin()
         ]
     };
 

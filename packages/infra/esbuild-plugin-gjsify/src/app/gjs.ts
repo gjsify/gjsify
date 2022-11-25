@@ -14,15 +14,9 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     pluginOptions.exclude ||= [];
 
     const inject = [
-        // '@gjsify/node_globals',
-        // '@gjsify/web-events',
-        // '@gjsify/abort-controller',
-
-        // // TODO: Move to web globals
-        // 'core-js/features/url/',
-        // 'core-js/features/url-search-params/',
-
-        // '@gjsify/deno_runtime/',
+        // '@gjsify/deno-globals',
+        // '@gjsify/node-globals',
+        // '@gjsify/web-globals',
     ].map(inj => resolvePackageByType(inj, 'module'));
 
     // Set default options
@@ -58,7 +52,8 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         },
         plugins: [
             globPlugin(),
-            denoPlugin()
+            // TODO: denoPlugin breaks deepkit plugin
+            // denoPlugin()
         ]
     };
 

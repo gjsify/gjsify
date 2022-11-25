@@ -175,9 +175,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/deno_runtime@workspace:packages/deno/runtime":
+"@gjsify/deno-globals@workspace:packages/deno/globals":
   version: 0.0.0-use.local
-  resolution: "@gjsify/deno_runtime@workspace:packages/deno/runtime"
+  resolution: "@gjsify/deno-globals@workspace:packages/deno/globals"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/deno-runtime": "workspace:^"
+    "@gjsify/process": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/deno-runtime@workspace:^, @gjsify/deno-runtime@workspace:packages/deno/runtime":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/deno-runtime@workspace:packages/deno/runtime"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/empty": "workspace:^"
@@ -226,8 +238,8 @@ __metadata:
     "@gjsify/assert": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/fs": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
     "@gjsify/node-internal": "workspace:^"
-    "@gjsify/node_globals": "workspace:^"
     "@gjsify/os": "workspace:^"
     "@gjsify/process": "workspace:^"
     "@gjsify/require": "workspace:^"
@@ -282,6 +294,7 @@ __metadata:
     "@deepkit/injector": ^1.0.1-alpha.75
     "@deepkit/type": ^1.0.1-alpha.75
     "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
     "@types/node": ^18.11.9
   languageName: unknown
   linkType: soft
@@ -485,6 +498,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/node-globals@workspace:^, @gjsify/node-globals@workspace:packages/node/globals":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/node-globals@workspace:packages/node/globals"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/process": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/node-internal@workspace:^, @gjsify/node-internal@workspace:packages/node/node-internal":
   version: 0.0.0-use.local
   resolution: "@gjsify/node-internal@workspace:packages/node/node-internal"
@@ -493,17 +517,6 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@types/node": ^18.11.9
     typescript: ^4.8.4
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/node_globals@workspace:^, @gjsify/node_globals@workspace:packages/node/globals":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/node_globals@workspace:packages/node/globals"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/process": "workspace:^"
-    "@gjsify/unit": "workspace:^"
-    "@gjsify/utils": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -664,6 +677,16 @@ __metadata:
 "@gjsify/web-events@workspace:packages/web/events":
   version: 0.0.0-use.local
   resolution: "@gjsify/web-events@workspace:packages/web/events"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": ^18.11.9
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/web-globals@workspace:packages/web/globals":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/web-globals@workspace:packages/web/globals"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"

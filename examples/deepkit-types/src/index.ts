@@ -1,3 +1,4 @@
+import '@gjsify/node-globals';
 import { serialize, deserialize } from '@deepkit/type';
 
 const log = globalThis.print || console.log;

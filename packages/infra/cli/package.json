@@ -3,7 +3,6 @@
     "version": "0.0.1",
     "description": "CLI for Gjsify",
     "type": "module",
-    "main": "lib/cjs/index.js",
     "module": "lib/index.js",
     "types": "lib/index.d.ts",
     "bin": {

@@ -1,6 +1,6 @@
 
 import { run } from '@gjsify/unit';
 
-import testSuite from './globals.spec.js';
+import testSuite from './index.spec.js';
 
 run({testSuite});

@@ -48,7 +48,8 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         },
         plugins: [
             globPlugin(),
-            denoPlugin()
+            // TODO: denoPlugin breaks deepkit plugin
+            // denoPlugin()
         ]
     };
 

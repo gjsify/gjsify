@@ -1,5 +1,5 @@
 {
-    "name": "@gjsify/deno_runtime",
+    "name": "@gjsify/deno-runtime",
     "version": "0.0.1",
     "description": "Deno runtime module for gjsify",
     "main": "lib/index.js",
@@ -24,7 +24,7 @@
     },
     "scripts": {
         "clear": "rm -rf lib",
-        "print:name": "echo '@gjsify/deno_runtime'",
+        "print:name": "echo '@gjsify/deno-runtime'",
         "build": "yarn run build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
         "build:types": "tsc --emitDeclarationOnly || exit 0",

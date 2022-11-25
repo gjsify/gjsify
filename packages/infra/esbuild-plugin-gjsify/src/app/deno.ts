@@ -39,7 +39,6 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         },
         plugins: [
             globPlugin(),
-            // denoPlugin()
         ]
     };
 

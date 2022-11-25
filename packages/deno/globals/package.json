@@ -1,15 +1,16 @@
 {
-  "name": "@gjsify/node-globals",
+  "name": "@gjsify/deno-globals",
   "version": "0.0.1",
-  "description": "Node.js globals module for Gjs",
+  "description": "Deno globals core and runtime module for Gjs",
   "keywords": [
     "gjs",
-    "node",
+    "deno",
     "globals"
   ],
   "author": "Pascal Garber",
-  "main": "lib/cjs/index.js",
-  "module": "lib/esm/index.js",
+  "type": "module",
+  "main": "lib/index.js",
+  "module": "lib/index.js",
   "scripts": {
     "clear": "rm -rf lib",
     "print:name": "echo '@gjsify/node-globals'",
@@ -22,6 +23,7 @@
     "test:node": "node test.node.mjs"
   },
   "dependencies": {
+    "@gjsify/deno-runtime": "workspace:^",
     "@gjsify/process": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },

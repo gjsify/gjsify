@@ -1,3 +1,5 @@
+import '@gjsify/node-globals';
+
 import { InjectorContext } from '@deepkit/injector';
 
 const log = globalThis.print || console.log;
@@ -39,4 +41,4 @@ const run = async () => {
     log("users", users);
 }
 
-run();
+run().catch(console.error);

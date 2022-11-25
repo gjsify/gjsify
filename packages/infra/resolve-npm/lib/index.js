@@ -117,9 +117,9 @@ export const ALIASES_WEB = {
 
 /** Record of Deno modules and his replacement */
 export const ALIASES_DENO = {
-    '@gjsify/deno_runtime/global': '@gjsify/empty',
-    '@gjsify/deno_runtime': '@gjsify/empty',
+    '@gjsify/deno-runtime/globals': '@gjsify/empty',
+    '@gjsify/deno-globals': '@gjsify/empty',
 
     // Node packages
-    'assert': 'https://deno.land/std/node/assert.ts', // TODO not working?
+    'assert': 'https://deno.land/std/node/assert.ts',
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import '@gjsify/deno_runtime/global';
+import '@gjsify/deno-runtime/globals';
 
 export default async () => {
 
