@@ -13,6 +13,7 @@ import type * as Gjs from './Gjs.js';
 import type cairo from './cairo-1.0.js';
 import type Pango from './Pango-1.0.js';
 import type HarfBuzz from './HarfBuzz-0.0.js';
+import type freetype2 from './freetype2-2.0.js';
 import type GObject from './GObject-2.0.js';
 import type GLib from './GLib-2.0.js';
 import type Gio from './Gio-2.0.js';

@@ -875,6 +875,10 @@ enum IOErrorEnum {
      * Message too large. Since 2.48.
      */
     MESSAGE_TOO_LARGE,
+    /**
+     * No such device found. Since 2.74
+     */
+    NO_SUCH_DEVICE,
 }
 /**
  * Flags for use with g_io_module_scope_new().
@@ -1355,7 +1359,7 @@ enum TlsChannelBindingError {
 }
 /**
  * The type of TLS channel binding data to retrieve from #GTlsConnection
- * or #GDtlsConnection, as documented by RFC 5929. The
+ * or #GDtlsConnection, as documented by RFC 5929 or RFC 9266. The
  * [`tls-unique-for-telnet`](https://tools.ietf.org/html/rfc5929#section-5)
  * binding type is not currently implemented.
  */
@@ -1370,6 +1374,11 @@ enum TlsChannelBindingType {
      *    binding type
      */
     SERVER_END_POINT,
+    /**
+     * [`tls-exporter`](https://www.rfc-editor.org/rfc/rfc9266.html) binding
+     *    type. Since: 2.74
+     */
+    EXPORTER,
 }
 /**
  * Flags for g_tls_database_lookup_certificate_for_handle(),
@@ -1607,9 +1616,14 @@ enum AppInfoCreateFlags {
  */
 enum ApplicationFlags {
     /**
-     * Default
+     * Default. Deprecated in 2.74, use
+     *   %G_APPLICATION_DEFAULT_FLAGS instead
      */
     FLAGS_NONE,
+    /**
+     * Default flags. Since: 2.74
+     */
+    DEFAULT_FLAGS,
     /**
      * Run as a service. In this mode, registration
      *      fails if the service is already running, and the application
@@ -1838,6 +1852,15 @@ enum DBusConnectionFlags {
      * as a server, require the UID of the peer to be the same as the UID of the server. (Since: 2.68)
      */
     AUTHENTICATION_REQUIRE_SAME_USER,
+    /**
+     * When authenticating, try to use
+     *  protocols that work across a Linux user namespace boundary, even if this
+     *  reduces interoperability with older D-Bus implementations. This currently
+     *  affects client-side `EXTERNAL` authentication, for which this flag makes
+     *  connections to a server in another user namespace succeed, but causes
+     *  a deadlock when connecting to a GDBus server older than 2.73.3. Since: 2.74
+     */
+    CROSS_NAMESPACE,
 }
 /**
  * Flags describing the behavior of a #GDBusInterfaceSkeleton instance.
@@ -2482,6 +2505,10 @@ enum TestDBusFlags {
  * @bitfield 
  */
 enum TlsCertificateFlags {
+    /**
+     * No flags set. Since: 2.74
+     */
+    NO_FLAGS,
     /**
      * The signing certificate authority is
      *   not known.
@@ -3134,6 +3161,13 @@ const FILE_ATTRIBUTE_THUMBNAIL_PATH: string
  */
 const FILE_ATTRIBUTE_TIME_ACCESS: string
 /**
+ * A key in the "time" namespace for getting the nanoseconds of the time
+ * the file was last accessed. This should be used in conjunction with
+ * #G_FILE_ATTRIBUTE_TIME_ACCESS. Corresponding #GFileAttributeType is
+ * %G_FILE_ATTRIBUTE_TYPE_UINT32.
+ */
+const FILE_ATTRIBUTE_TIME_ACCESS_NSEC: string
+/**
  * A key in the "time" namespace for getting the microseconds of the time
  * the file was last accessed.
  * 
@@ -3153,6 +3187,13 @@ const FILE_ATTRIBUTE_TIME_ACCESS_USEC: string
  * This corresponds to the traditional UNIX ctime.
  */
 const FILE_ATTRIBUTE_TIME_CHANGED: string
+/**
+ * A key in the "time" namespace for getting the nanoseconds of the time
+ * the file was last changed. This should be used in conjunction with
+ * #G_FILE_ATTRIBUTE_TIME_CHANGED. Corresponding #GFileAttributeType is
+ * %G_FILE_ATTRIBUTE_TYPE_UINT32.
+ */
+const FILE_ATTRIBUTE_TIME_CHANGED_NSEC: string
 /**
  * A key in the "time" namespace for getting the microseconds of the time
  * the file was last changed.
@@ -3174,6 +3215,13 @@ const FILE_ATTRIBUTE_TIME_CHANGED_USEC: string
  */
 const FILE_ATTRIBUTE_TIME_CREATED: string
 /**
+ * A key in the "time" namespace for getting the nanoseconds of the time
+ * the file was created. This should be used in conjunction with
+ * #G_FILE_ATTRIBUTE_TIME_CREATED. Corresponding #GFileAttributeType is
+ * %G_FILE_ATTRIBUTE_TYPE_UINT32.
+ */
+const FILE_ATTRIBUTE_TIME_CREATED_NSEC: string
+/**
  * A key in the "time" namespace for getting the microseconds of the time
  * the file was created.
  * 
@@ -3191,6 +3239,13 @@ const FILE_ATTRIBUTE_TIME_CREATED_USEC: string
  * epoch.
  */
 const FILE_ATTRIBUTE_TIME_MODIFIED: string
+/**
+ * A key in the "time" namespace for getting the nanoseconds of the time
+ * the file was last modified. This should be used in conjunction with
+ * #G_FILE_ATTRIBUTE_TIME_MODIFIED. Corresponding #GFileAttributeType is
+ * %G_FILE_ATTRIBUTE_TYPE_UINT32.
+ */
+const FILE_ATTRIBUTE_TIME_MODIFIED_NSEC: string
 /**
  * A key in the "time" namespace for getting the microseconds of the time
  * the file was last modified.
@@ -3551,6 +3606,22 @@ function app_info_get_all_for_type(content_type: string): AppInfo[]
  */
 function app_info_get_default_for_type(content_type: string, must_support_uris: boolean): AppInfo | null
 /**
+ * Asynchronously gets the default #GAppInfo for a given content type.
+ * @param content_type the content type to find a #GAppInfo for
+ * @param must_support_uris if %TRUE, the #GAppInfo is expected to     support URIs
+ * @param cancellable optional #GCancellable object, %NULL to ignore
+ * @param callback a #GAsyncReadyCallback to call when the request is done
+ */
+function app_info_get_default_for_type_async<Z = unknown>(content_type: string, must_support_uris: boolean, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+/**
+ * Finishes a default #GAppInfo lookup started by
+ * g_app_info_get_default_for_type_async().
+ * 
+ * If no #GAppInfo is found, then `error` will be set to %G_IO_ERROR_NOT_FOUND.
+ * @param result a #GAsyncResult
+ */
+function app_info_get_default_for_type_finish(result: AsyncResult): AppInfo
+/**
  * Gets the default application for handling URIs with
  * the given URI scheme. A URI scheme is the initial part
  * of the URI, up to but not including the ':', e.g. "http",
@@ -3558,6 +3629,24 @@ function app_info_get_default_for_type(content_type: string, must_support_uris: 
  * @param uri_scheme a string containing a URI scheme.
  */
 function app_info_get_default_for_uri_scheme(uri_scheme: string): AppInfo | null
+/**
+ * Asynchronously gets the default application for handling URIs with
+ * the given URI scheme. A URI scheme is the initial part
+ * of the URI, up to but not including the ':', e.g. "http",
+ * "ftp" or "sip".
+ * @param uri_scheme a string containing a URI scheme.
+ * @param cancellable optional #GCancellable object, %NULL to ignore
+ * @param callback a #GAsyncReadyCallback to call when the request is done
+ */
+function app_info_get_default_for_uri_scheme_async<Z = unknown>(uri_scheme: string, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+/**
+ * Finishes a default #GAppInfo lookup started by
+ * g_app_info_get_default_for_uri_scheme_async().
+ * 
+ * If no #GAppInfo is found, then `error` will be set to %G_IO_ERROR_NOT_FOUND.
+ * @param result a #GAsyncResult
+ */
+function app_info_get_default_for_uri_scheme_finish(result: AsyncResult): AppInfo
 /**
  * Gets a list of fallback #GAppInfos for a given content type, i.e.
  * those applications which claim to support the given content type
@@ -4285,6 +4374,43 @@ function file_new_for_uri(uri: string): File
  */
 function file_new_tmp(tmpl: string | null): [ /* returnType */ File, /* iostream */ FileIOStream ]
 /**
+ * Asynchronously opens a file in the preferred directory for temporary files
+ *  (as returned by g_get_tmp_dir()) as g_file_new_tmp().
+ * 
+ * `tmpl` should be a string in the GLib file name encoding
+ * containing a sequence of six 'X' characters, and containing no
+ * directory components. If it is %NULL, a default template is used.
+ * @param tmpl Template for the file   name, as in g_file_open_tmp(), or %NULL for a default template
+ * @param io_priority the [I/O priority][io-priority] of the request
+ * @param cancellable optional #GCancellable object, %NULL to ignore
+ * @param callback a #GAsyncReadyCallback to call when the request is done
+ */
+function file_new_tmp_async<Z = unknown>(tmpl: string | null, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+/**
+ * Asynchronously creates a directory in the preferred directory for
+ * temporary files (as returned by g_get_tmp_dir()) as g_dir_make_tmp().
+ * 
+ * `tmpl` should be a string in the GLib file name encoding
+ * containing a sequence of six 'X' characters, and containing no
+ * directory components. If it is %NULL, a default template is used.
+ * @param tmpl Template for the file   name, as in g_dir_make_tmp(), or %NULL for a default template
+ * @param io_priority the [I/O priority][io-priority] of the request
+ * @param cancellable optional #GCancellable object, %NULL to ignore
+ * @param callback a #GAsyncReadyCallback to call when the request is done
+ */
+function file_new_tmp_dir_async<Z = unknown>(tmpl: string | null, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+/**
+ * Finishes a temporary directory creation started by
+ * g_file_new_tmp_dir_async().
+ * @param result a #GAsyncResult
+ */
+function file_new_tmp_dir_finish(result: AsyncResult): File
+/**
+ * Finishes a temporary file creation started by g_file_new_tmp_async().
+ * @param result a #GAsyncResult
+ */
+function file_new_tmp_finish(result: AsyncResult): [ /* returnType */ File, /* iostream */ FileIOStream ]
+/**
  * Constructs a #GFile with the given `parse_name` (i.e. something
  * given by g_file_get_parse_name()). This operation never fails,
  * but the returned object might not support any I/O operation if
@@ -4332,6 +4458,11 @@ function initable_newv(object_type: GObject.GType, parameters: GObject.Parameter
  * @param err_no Error number as defined in errno.h.
  */
 function io_error_from_errno(err_no: number): IOErrorEnum
+/**
+ * Converts #GFileError error codes into GIO error codes.
+ * @param file_error a #GFileError.
+ */
+function io_error_from_file_error(file_error: GLib.FileError): IOErrorEnum
 /**
  * Gets the GIO Error Quark.
  */
@@ -6637,7 +6768,9 @@ interface AppInfo {
      * Launches the application. This passes the `uris` to the launched application
      * as arguments, using the optional `context` to get information
      * about the details of the launcher (like what screen it is on).
-     * On error, `error` will be set accordingly.
+     * On error, `error` will be set accordingly. If the application only supports
+     * one URI per invocation as part of their command-line, multiple instances
+     * of the application will be spawned.
      * 
      * To launch the application without arguments pass a %NULL `uris` list.
      * 
@@ -6837,7 +6970,9 @@ interface AppInfo {
      * Launches the application. This passes the `uris` to the launched application
      * as arguments, using the optional `context` to get information
      * about the details of the launcher (like what screen it is on).
-     * On error, `error` will be set accordingly.
+     * On error, `error` will be set accordingly. If the application only supports
+     * one URI per invocation as part of their command-line, multiple instances
+     * of the application will be spawned.
      * 
      * To launch the application without arguments pass a %NULL `uris` list.
      * 
@@ -7023,6 +7158,22 @@ class AppInfo extends GObject.Object {
      */
     static get_default_for_type(content_type: string, must_support_uris: boolean): AppInfo | null
     /**
+     * Asynchronously gets the default #GAppInfo for a given content type.
+     * @param content_type the content type to find a #GAppInfo for
+     * @param must_support_uris if %TRUE, the #GAppInfo is expected to     support URIs
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @param callback a #GAsyncReadyCallback to call when the request is done
+     */
+    static get_default_for_type_async(content_type: string, must_support_uris: boolean, cancellable: Cancellable | null, callback: AsyncReadyCallback<AppInfo> | null): void
+    /**
+     * Finishes a default #GAppInfo lookup started by
+     * g_app_info_get_default_for_type_async().
+     * 
+     * If no #GAppInfo is found, then `error` will be set to %G_IO_ERROR_NOT_FOUND.
+     * @param result a #GAsyncResult
+     */
+    static get_default_for_type_finish(result: AsyncResult): AppInfo
+    /**
      * Gets the default application for handling URIs with
      * the given URI scheme. A URI scheme is the initial part
      * of the URI, up to but not including the ':', e.g. "http",
@@ -7030,6 +7181,24 @@ class AppInfo extends GObject.Object {
      * @param uri_scheme a string containing a URI scheme.
      */
     static get_default_for_uri_scheme(uri_scheme: string): AppInfo | null
+    /**
+     * Asynchronously gets the default application for handling URIs with
+     * the given URI scheme. A URI scheme is the initial part
+     * of the URI, up to but not including the ':', e.g. "http",
+     * "ftp" or "sip".
+     * @param uri_scheme a string containing a URI scheme.
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @param callback a #GAsyncReadyCallback to call when the request is done
+     */
+    static get_default_for_uri_scheme_async(uri_scheme: string, cancellable: Cancellable | null, callback: AsyncReadyCallback<AppInfo> | null): void
+    /**
+     * Finishes a default #GAppInfo lookup started by
+     * g_app_info_get_default_for_uri_scheme_async().
+     * 
+     * If no #GAppInfo is found, then `error` will be set to %G_IO_ERROR_NOT_FOUND.
+     * @param result a #GAsyncResult
+     */
+    static get_default_for_uri_scheme_finish(result: AsyncResult): AppInfo
     /**
      * Gets a list of fallback #GAppInfos for a given content type, i.e.
      * those applications which claim to support the given content type
@@ -9185,6 +9354,18 @@ module DtlsClientConnection {
          * a server. Server certificates that fail to validate in any of the
          * ways indicated here will be rejected unless the application
          * overrides the default via #GDtlsConnection::accept-certificate.
+         * 
+         * GLib guarantees that if certificate verification fails, at least one
+         * flag will be set, but it does not guarantee that all possible flags
+         * will be set. Accordingly, you may not safely decide to ignore any
+         * particular type of error. For example, it would be incorrect to mask
+         * %G_TLS_CERTIFICATE_EXPIRED if you want to allow expired certificates,
+         * because this could potentially be the only error flag set even if
+         * other problems exist with the certificate. Therefore, there is no
+         * safe way to use this property. This is not a horrible problem,
+         * though, because you should not be attempting to ignore validation
+         * errors anyway. If you really must ignore TLS certificate errors,
+         * connect to #GDtlsConnection::accept-certificate.
          */
         validation_flags?: TlsCertificateFlags | null
     }
@@ -9227,6 +9408,18 @@ interface DtlsClientConnection extends DatagramBased, DtlsConnection {
      * a server. Server certificates that fail to validate in any of the
      * ways indicated here will be rejected unless the application
      * overrides the default via #GDtlsConnection::accept-certificate.
+     * 
+     * GLib guarantees that if certificate verification fails, at least one
+     * flag will be set, but it does not guarantee that all possible flags
+     * will be set. Accordingly, you may not safely decide to ignore any
+     * particular type of error. For example, it would be incorrect to mask
+     * %G_TLS_CERTIFICATE_EXPIRED if you want to allow expired certificates,
+     * because this could potentially be the only error flag set even if
+     * other problems exist with the certificate. Therefore, there is no
+     * safe way to use this property. This is not a horrible problem,
+     * though, because you should not be attempting to ignore validation
+     * errors anyway. If you really must ignore TLS certificate errors,
+     * connect to #GDtlsConnection::accept-certificate.
      */
     validation_flags: TlsCertificateFlags
 
@@ -9248,6 +9441,10 @@ interface DtlsClientConnection extends DatagramBased, DtlsConnection {
     get_server_identity(): SocketConnectable
     /**
      * Gets `conn'`s validation flags
+     * 
+     * This function does not work as originally designed and is impossible
+     * to use correctly. See #GDtlsClientConnection:validation-flags for more
+     * information.
      */
     get_validation_flags(): TlsCertificateFlags
     /**
@@ -9262,6 +9459,10 @@ interface DtlsClientConnection extends DatagramBased, DtlsConnection {
      * Sets `conn'`s validation flags, to override the default set of
      * checks performed when validating a server certificate. By default,
      * %G_TLS_CERTIFICATE_VALIDATE_ALL is used.
+     * 
+     * This function does not work as originally designed and is impossible
+     * to use correctly. See #GDtlsClientConnection:validation-flags for more
+     * information.
      * @param flags the #GTlsCertificateFlags to use
      */
     set_validation_flags(flags: TlsCertificateFlags): void
@@ -10873,6 +11074,21 @@ interface File {
      */
     make_symbolic_link(symlink_value: string, cancellable: Cancellable | null): boolean
     /**
+     * Asynchronously creates a symbolic link named `file` which contains the
+     * string `symlink_value`.
+     * @param symlink_value a string with the path for the target   of the new symlink
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
+     */
+    make_symbolic_link_async(symlink_value: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+    /**
+     * Finishes an asynchronous symbolic link creation, started with
+     * g_file_make_symbolic_link_async().
+     * @param result a #GAsyncResult
+     */
+    make_symbolic_link_finish(result: AsyncResult): boolean
+    /**
      * Collects the results from an earlier call to
      * g_file_measure_disk_usage_async().  See g_file_measure_disk_usage() for
      * more information.
@@ -12453,6 +12669,23 @@ interface File {
      */
     vfunc_make_symbolic_link(symlink_value: string, cancellable: Cancellable | null): boolean
     /**
+     * Asynchronously creates a symbolic link named `file` which contains the
+     * string `symlink_value`.
+     * @virtual 
+     * @param symlink_value a string with the path for the target   of the new symlink
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
+     */
+    vfunc_make_symbolic_link_async(symlink_value: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+    /**
+     * Finishes an asynchronous symbolic link creation, started with
+     * g_file_make_symbolic_link_async().
+     * @virtual 
+     * @param result a #GAsyncResult
+     */
+    vfunc_make_symbolic_link_finish(result: AsyncResult): boolean
+    /**
      * Collects the results from an earlier call to
      * g_file_measure_disk_usage_async().  See g_file_measure_disk_usage() for
      * more information.
@@ -13279,6 +13512,8 @@ interface File {
  * - g_file_new_for_uri() if you have a URI.
  * - g_file_new_for_commandline_arg() for a command line argument.
  * - g_file_new_tmp() to create a temporary file from a template.
+ * - g_file_new_tmp_async() to asynchronously create a temporary file.
+ * - g_file_new_tmp_dir_async() to asynchronously create a temporary directory.
  * - g_file_parse_name() from a UTF-8 string gotten from g_file_get_parse_name().
  * - g_file_new_build_filename() to create a file from path elements.
  * 
@@ -13424,6 +13659,43 @@ class File extends GObject.Object {
      * @param tmpl Template for the file   name, as in g_file_open_tmp(), or %NULL for a default template
      */
     static new_tmp(tmpl: string | null): [ /* returnType */ File, /* iostream */ FileIOStream ]
+    /**
+     * Asynchronously opens a file in the preferred directory for temporary files
+     *  (as returned by g_get_tmp_dir()) as g_file_new_tmp().
+     * 
+     * `tmpl` should be a string in the GLib file name encoding
+     * containing a sequence of six 'X' characters, and containing no
+     * directory components. If it is %NULL, a default template is used.
+     * @param tmpl Template for the file   name, as in g_file_open_tmp(), or %NULL for a default template
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @param callback a #GAsyncReadyCallback to call when the request is done
+     */
+    static new_tmp_async(tmpl: string | null, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<File> | null): void
+    /**
+     * Asynchronously creates a directory in the preferred directory for
+     * temporary files (as returned by g_get_tmp_dir()) as g_dir_make_tmp().
+     * 
+     * `tmpl` should be a string in the GLib file name encoding
+     * containing a sequence of six 'X' characters, and containing no
+     * directory components. If it is %NULL, a default template is used.
+     * @param tmpl Template for the file   name, as in g_dir_make_tmp(), or %NULL for a default template
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @param callback a #GAsyncReadyCallback to call when the request is done
+     */
+    static new_tmp_dir_async(tmpl: string | null, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<File> | null): void
+    /**
+     * Finishes a temporary directory creation started by
+     * g_file_new_tmp_dir_async().
+     * @param result a #GAsyncResult
+     */
+    static new_tmp_dir_finish(result: AsyncResult): File
+    /**
+     * Finishes a temporary file creation started by g_file_new_tmp_async().
+     * @param result a #GAsyncResult
+     */
+    static new_tmp_finish(result: AsyncResult): [ /* returnType */ File, /* iostream */ FileIOStream ]
     /**
      * Constructs a #GFile with the given `parse_name` (i.e. something
      * given by g_file_get_parse_name()). This operation never fails,
@@ -13976,6 +14248,23 @@ interface ListModel {
  * implementation, but typically it will be from the thread that owns
  * the [thread-default main context][g-main-context-push-thread-default]
  * in effect at the time that the model was created.
+ * 
+ * Over time, it has established itself as good practice for listmodel
+ * implementations to provide properties `item-type` and `n-items` to
+ * ease working with them. While it is not required, it is recommended
+ * that implementations provide these two properties. They should return
+ * the values of g_list_model_get_item_type() and g_list_model_get_n_items()
+ * respectively and be defined as such:
+ * 
+ * ```c
+ * properties[PROP_ITEM_TYPE] =
+ *   g_param_spec_gtype ("item-type", "", "", G_TYPE_OBJECT,
+ *                       G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+ * properties[PROP_N_ITEMS] =
+ *   g_param_spec_uint ("n-items", "", "", 0, G_MAXUINT, 0,
+ *                      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ * ```
+ * 
  * @interface 
  */
 class ListModel extends GObject.Object {
@@ -15337,10 +15626,10 @@ interface PowerProfileMonitor extends Initable {
  * some systems).
  * 
  * When in “Low Power” mode, it is recommended that applications:
- * - disabling automatic downloads
+ * - disable automatic downloads;
  * - reduce the rate of refresh from online sources such as calendar or
- *   email synchronisation
- * - if the application has expensive visual effects, reduce them
+ *   email synchronisation;
+ * - reduce the use of expensive visual effects.
  * 
  * It is also likely that OS components providing services to applications will
  * lower their own background activity, for the sake of the system.
@@ -25302,6 +25591,9 @@ interface FileInfo {
      * This requires the %G_FILE_ATTRIBUTE_TIME_ACCESS attribute. If
      * %G_FILE_ATTRIBUTE_TIME_ACCESS_USEC is provided, the resulting #GDateTime
      * will have microsecond precision.
+     * 
+     * If nanosecond precision is needed, %G_FILE_ATTRIBUTE_TIME_ACCESS_NSEC must
+     * be queried separately using g_file_info_get_attribute_uint32().
      */
     get_access_date_time(): GLib.DateTime | null
     /**
@@ -25395,6 +25687,9 @@ interface FileInfo {
      * This requires the %G_FILE_ATTRIBUTE_TIME_CREATED attribute. If
      * %G_FILE_ATTRIBUTE_TIME_CREATED_USEC is provided, the resulting #GDateTime
      * will have microsecond precision.
+     * 
+     * If nanosecond precision is needed, %G_FILE_ATTRIBUTE_TIME_CREATED_NSEC must
+     * be queried separately using g_file_info_get_attribute_uint32().
      */
     get_creation_date_time(): GLib.DateTime | null
     /**
@@ -25444,6 +25739,9 @@ interface FileInfo {
      * This requires the %G_FILE_ATTRIBUTE_TIME_MODIFIED attribute. If
      * %G_FILE_ATTRIBUTE_TIME_MODIFIED_USEC is provided, the resulting #GDateTime
      * will have microsecond precision.
+     * 
+     * If nanosecond precision is needed, %G_FILE_ATTRIBUTE_TIME_MODIFIED_NSEC must
+     * be queried separately using g_file_info_get_attribute_uint32().
      */
     get_modification_date_time(): GLib.DateTime | null
     /**
@@ -25499,6 +25797,8 @@ interface FileInfo {
      * Sets the %G_FILE_ATTRIBUTE_TIME_ACCESS and
      * %G_FILE_ATTRIBUTE_TIME_ACCESS_USEC attributes in the file info to the
      * given date/time value.
+     * 
+     * %G_FILE_ATTRIBUTE_TIME_ACCESS_NSEC will be cleared.
      * @param atime a #GDateTime.
      */
     set_access_date_time(atime: GLib.DateTime): void
@@ -25601,6 +25901,8 @@ interface FileInfo {
      * Sets the %G_FILE_ATTRIBUTE_TIME_CREATED and
      * %G_FILE_ATTRIBUTE_TIME_CREATED_USEC attributes in the file info to the
      * given date/time value.
+     * 
+     * %G_FILE_ATTRIBUTE_TIME_CREATED_NSEC will be cleared.
      * @param creation_time a #GDateTime.
      */
     set_creation_date_time(creation_time: GLib.DateTime): void
@@ -25644,6 +25946,8 @@ interface FileInfo {
      * Sets the %G_FILE_ATTRIBUTE_TIME_MODIFIED and
      * %G_FILE_ATTRIBUTE_TIME_MODIFIED_USEC attributes in the file info to the
      * given date/time value.
+     * 
+     * %G_FILE_ATTRIBUTE_TIME_MODIFIED_NSEC will be cleared.
      * @param mtime a #GDateTime.
      */
     set_modification_date_time(mtime: GLib.DateTime): void
@@ -25651,6 +25955,8 @@ interface FileInfo {
      * Sets the %G_FILE_ATTRIBUTE_TIME_MODIFIED and
      * %G_FILE_ATTRIBUTE_TIME_MODIFIED_USEC attributes in the file info to the
      * given time value.
+     * 
+     * %G_FILE_ATTRIBUTE_TIME_MODIFIED_NSEC will be cleared.
      * @param mtime a #GTimeVal.
      */
     set_modification_time(mtime: GLib.TimeVal): void
@@ -27732,6 +28038,10 @@ interface ListStore<A extends GObject.Object = GObject.Object> extends ListModel
      * subclasses of #GObject.
      */
     readonly item_type: GObject.GType
+    /**
+     * The number of items contained in this list store.
+     */
+    readonly n_items: number
 
     // Owm methods of Gio-2.0.Gio.ListStore
 
@@ -27757,13 +28067,20 @@ interface ListStore<A extends GObject.Object = GObject.Object> extends ListModel
     find(item: GObject.Object): [ /* returnType */ boolean, /* position */ number ]
     /**
      * Looks up the given `item` in the list store by looping over the items and
-     * comparing them with `compare_func` until the first occurrence of `item` which
+     * comparing them with `equal_func` until the first occurrence of `item` which
      * matches. If `item` was not found, then `position` will not be set, and this
      * method will return %FALSE.
      * @param item an item
      * @param equal_func A custom equality check function
      */
     find_with_equal_func(item: GObject.Object, equal_func: GLib.EqualFunc): [ /* returnType */ boolean, /* position */ number ]
+    /**
+     * Like g_list_store_find_with_equal_func() but with an additional `user_data`
+     * that is passed to `equal_func`.
+     * @param item an item
+     * @param equal_func A custom equality check function
+     */
+    find_with_equal_func_full(item: GObject.Object, equal_func: GLib.EqualFuncFull): [ /* returnType */ boolean, /* position */ number ]
     /**
      * Inserts `item` into `store` at `position`. `item` must be of type
      * #GListStore:item-type or derived from it. `position` must be smaller
@@ -27835,6 +28152,9 @@ interface ListStore<A extends GObject.Object = GObject.Object> extends ListModel
     connect(sigName: "notify::item-type", callback: (($obj: ListStore, pspec: GObject.ParamSpec) => void)): number
     connect_after(sigName: "notify::item-type", callback: (($obj: ListStore, pspec: GObject.ParamSpec) => void)): number
     emit(sigName: "notify::item-type", ...args: any[]): void
+    connect(sigName: "notify::n-items", callback: (($obj: ListStore, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::n-items", callback: (($obj: ListStore, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::n-items", ...args: any[]): void
     connect(sigName: string, callback: (...args: any[]) => void): number
     connect_after(sigName: string, callback: (...args: any[]) => void): number
     emit(sigName: string, ...args: any[]): void
@@ -34306,7 +34626,7 @@ interface SimpleProxyResolver extends ProxyResolver {
      * the socks5, socks4a, and socks4 proxy types.
      * @param default_proxy the default proxy to use
      */
-    set_default_proxy(default_proxy: string): void
+    set_default_proxy(default_proxy: string | null): void
     /**
      * Sets the list of ignored hosts.
      * 
@@ -35731,7 +36051,7 @@ interface SocketAddressEnumerator {
      * ignored.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
      */
-    next(cancellable: Cancellable | null): SocketAddress
+    next(cancellable: Cancellable | null): SocketAddress | null
     /**
      * Asynchronously retrieves the next #GSocketAddress from `enumerator`
      * and then calls `callback,` which must call
@@ -35749,7 +36069,7 @@ interface SocketAddressEnumerator {
      * error handling.
      * @param result a #GAsyncResult
      */
-    next_finish(result: AsyncResult): SocketAddress
+    next_finish(result: AsyncResult): SocketAddress | null
 
     // Own virtual methods of Gio-2.0.Gio.SocketAddressEnumerator
 
@@ -35770,7 +36090,7 @@ interface SocketAddressEnumerator {
      * @virtual 
      * @param cancellable optional #GCancellable object, %NULL to ignore.
      */
-    vfunc_next(cancellable: Cancellable | null): SocketAddress
+    vfunc_next(cancellable: Cancellable | null): SocketAddress | null
     /**
      * Asynchronously retrieves the next #GSocketAddress from `enumerator`
      * and then calls `callback,` which must call
@@ -35790,7 +36110,7 @@ interface SocketAddressEnumerator {
      * @virtual 
      * @param result a #GAsyncResult
      */
-    vfunc_next_finish(result: AsyncResult): SocketAddress
+    vfunc_next_finish(result: AsyncResult): SocketAddress | null
 
     // Class property signals of Gio-2.0.Gio.SocketAddressEnumerator
 
@@ -39771,6 +40091,8 @@ interface TlsCertificate {
      * check a certificate against a CA that is not part of the system
      * CA database.
      * 
+     * If `cert` is valid, %G_TLS_CERTIFICATE_NO_FLAGS is returned.
+     * 
      * If `identity` is not %NULL, `cert'`s name(s) will be compared against
      * it, and %G_TLS_CERTIFICATE_BAD_IDENTITY will be set in the return
      * value if it does not match. If `identity` is %NULL, that bit will
@@ -39809,6 +40131,8 @@ interface TlsCertificate {
      * certificate outside the context of making a connection, or to
      * check a certificate against a CA that is not part of the system
      * CA database.
+     * 
+     * If `cert` is valid, %G_TLS_CERTIFICATE_NO_FLAGS is returned.
      * 
      * If `identity` is not %NULL, `cert'`s name(s) will be compared against
      * it, and %G_TLS_CERTIFICATE_BAD_IDENTITY will be set in the return
@@ -40433,7 +40757,7 @@ interface TlsConnection {
      * #GTlsClientConnection:validation-flags).
      * 
      * There are nonintuitive security implications when using a non-default
-     * database. See #GDtlsConnection:database for details.
+     * database. See #GTlsConnection:database for details.
      * @param database a #GTlsDatabase
      */
     set_database(database: TlsDatabase | null): void
@@ -42082,9 +42406,11 @@ interface UnixFDList {
  * the %G_SOCKET_FAMILY_UNIX family by using g_socket_send_message()
  * and received using g_socket_receive_message().
  * 
- * Note that `<gio/gunixfdlist.h>` belongs to the UNIX-specific GIO
- * interfaces, thus you have to use the `gio-unix-2.0.pc` pkg-config
- * file when using it.
+ * Before 2.74, `<gio/gunixfdlist.h>` belonged to the UNIX-specific GIO
+ * interfaces, thus you had to use the `gio-unix-2.0.pc` pkg-config file when
+ * using it.
+ * 
+ * Since 2.74, the API is available for Windows.
  * @class 
  */
 class UnixFDList extends GObject.Object {
@@ -45492,6 +45818,8 @@ interface FileIface {
     make_directory_async: (file: File, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback | null) => void
     make_directory_finish: (file: File, result: AsyncResult) => boolean
     make_symbolic_link: (file: File, symlink_value: string, cancellable: Cancellable | null) => boolean
+    make_symbolic_link_async: (file: File, symlink_value: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback | null) => void
+    make_symbolic_link_finish: (file: File, result: AsyncResult) => boolean
     copy: (source: File, destination: File, flags: FileCopyFlags, cancellable: Cancellable | null, progress_callback: FileProgressCallback | null) => boolean
     copy_async: (source: File, destination: File, flags: FileCopyFlags, io_priority: number, cancellable: Cancellable | null) => void
     copy_finish: (file: File, res: AsyncResult) => boolean
@@ -47804,9 +48132,9 @@ interface SocketAddressEnumeratorClass {
 
     // Own fields of Gio-2.0.Gio.SocketAddressEnumeratorClass
 
-    next: (enumerator: SocketAddressEnumerator, cancellable: Cancellable | null) => SocketAddress
+    next: (enumerator: SocketAddressEnumerator, cancellable: Cancellable | null) => SocketAddress | null
     next_async: (enumerator: SocketAddressEnumerator, cancellable: Cancellable | null, callback: AsyncReadyCallback | null) => void
-    next_finish: (enumerator: SocketAddressEnumerator, result: AsyncResult) => SocketAddress
+    next_finish: (enumerator: SocketAddressEnumerator, result: AsyncResult) => SocketAddress | null
 }
 
 /**

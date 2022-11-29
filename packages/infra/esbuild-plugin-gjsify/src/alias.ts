@@ -1,6 +1,18 @@
 import { extname, join, dirname } from "path";
 import {readFileSync } from "fs";
-import { ALIASES_NODE, ALIASES_WEB, EXTERNALS_NODE, EXTERNALS_NPM, ALIASES_DENO } from "@gjsify/resolve-npm";
+import {
+    EXTERNALS_NODE,
+    EXTERNALS_NPM,
+    ALIASES_GENERAL_FOR_DENO,
+    ALIASES_NODE_FOR_DENO,
+    ALIASES_GJS_FOR_DENO,
+    ALIASES_GENERAL_FOR_GJS,
+    ALIASES_NODE_FOR_GJS,
+    ALIASES_WEB_FOR_GJS,
+    ALIASES_GENERAL_FOR_NODE,
+    ALIASES_GJS_FOR_NODE,
+    ALIASES_WEB_FOR_NODE
+} from "@gjsify/resolve-npm";
 
 export const setNodeAliasPrefix = (ALIASES: Record<string, string>) => {
     // Also resolve alias names with `npm:${ALIAS}`
@@ -57,11 +69,32 @@ export const resolvePackageByType = (pkgName: string, resolveBy: 'main' | 'modul
     return result;
 }
 
-export const getAliasesNode = () => resolveAliasesByType(setNodeAliasPrefix(ALIASES_NODE));
 
-export const getAliasesWeb = () => resolveAliasesByType(ALIASES_WEB);
 
-export const getAliasesDeno = () => resolveAliasesByType(ALIASES_DENO);
+const getAliasesGeneralForGjs = () => resolveAliasesByType(ALIASES_GENERAL_FOR_GJS);
+const getAliasesNodeForGjs = () => resolveAliasesByType(setNodeAliasPrefix(ALIASES_NODE_FOR_GJS));
+const getAliasesWebForGjs = () => resolveAliasesByType(ALIASES_WEB_FOR_GJS);
+
+const getAliasesGeneralForDeno = () => resolveAliasesByType(ALIASES_GENERAL_FOR_DENO);
+const getAliasesNodeForDeno = () => resolveAliasesByType(setNodeAliasPrefix(ALIASES_NODE_FOR_DENO));
+const getAliasesGjsForDeno = () => resolveAliasesByType(ALIASES_GJS_FOR_DENO);
+
+const getAliasesGeneralForNode = () => resolveAliasesByType(ALIASES_GENERAL_FOR_NODE);
+const getAliasesGjsForNode = () => resolveAliasesByType(ALIASES_GJS_FOR_NODE);
+const getAliasesWebForNode = () => resolveAliasesByType(ALIASES_WEB_FOR_NODE);
+
+
+export const getAliasesForGjs = () => {
+    return {...getAliasesGeneralForGjs(), ...getAliasesNodeForGjs(), ...getAliasesWebForGjs() }
+}
+
+export const getAliasesForDeno = () => {
+    return {...getAliasesGeneralForDeno(), ...getAliasesNodeForDeno(), ...getAliasesGjsForDeno() }
+}
+
+export const getAliasesForNode = () => {
+    return {...getAliasesGeneralForNode(), ...getAliasesGjsForNode(), ...getAliasesWebForNode() }
+}
 
 /** Array of Node.js build in module names (also with node: prefix) */
 export const externalNode = [...EXTERNALS_NODE, ...EXTERNALS_NODE.map(E => `node:${E}`)];

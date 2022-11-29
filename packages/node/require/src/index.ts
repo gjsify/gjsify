@@ -4,7 +4,7 @@ const { searchPath } = imports;
 import { resolve as _resolve, readJSON, getNodeModulesPath } from '@gjsify/utils';
 import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
-import { ALIASES_NODE, ALIASES_WEB } from "@gjsify/resolve-npm";
+import { ALIASES_NODE_FOR_GJS, ALIASES_WEB_FOR_GJS } from "@gjsify/resolve-npm";
 // import { URL } from 'url';
 
 // See https://gjs-docs.gnome.org/gjs/esmodules.md
@@ -14,7 +14,7 @@ let __dirname = GLib.path_get_dirname(__filename);
 const NODE_MODULES_PATH = getNodeModulesPath().get_path();
 
 // This should be defined with esbuild.define, but currently this leads to an error in esbuild
-const RESOLVE_ALIASES = {...ALIASES_NODE, ...ALIASES_WEB};
+const RESOLVE_ALIASES = {...ALIASES_NODE_FOR_GJS, ...ALIASES_WEB_FOR_GJS};
 
 const cache = Object.create(null);
 

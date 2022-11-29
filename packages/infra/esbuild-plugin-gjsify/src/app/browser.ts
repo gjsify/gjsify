@@ -1,5 +1,6 @@
 import { aliasPlugin } from '../alias-plugin.js';
-import { denoPlugin } from '../deno-plugin.js';
+import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
+import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
 import { globPlugin } from 'esbuild-plugin-glob';
 import { merge } from "lodash";
 
@@ -37,9 +38,9 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
             window: 'globalThis',
         },
         plugins: [
-            globPlugin(),
-            // TODO: denoPlugin breaks deepkit plugin
-            // denoPlugin()
+            // globPlugin(),
+            // deepkitPlugin({reflection: pluginOptions.reflection}),
+            // denoPlugin({reflection: pluginOptions.reflection}),
         ]
     };
 
@@ -56,4 +57,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
+    await globPlugin().setup(build);
+    await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
+    await deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 }

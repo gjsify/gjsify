@@ -1,6 +1,7 @@
 import type { App } from './app.js';
+import type { DeepkitPluginOptions } from '@gjsify/esbuild-plugin-deepkit';
 
-export interface PluginOptions {
+export interface PluginOptions extends DeepkitPluginOptions {
     debug?: boolean;
     app?: App;
     aliases?: Record<string, string>;

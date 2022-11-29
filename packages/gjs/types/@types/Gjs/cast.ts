@@ -1325,6 +1325,14 @@ const inheritanceTable: { [key: string]: string[] } = {
     'GObject.InitiallyUnowned',
     'GObject.Object',
 ],
+    'Gtk.Inscription': [
+    'Gtk.Widget',
+    'Gtk.Accessible',
+    'Gtk.Buildable',
+    'Gtk.ConstraintTarget',
+    'GObject.InitiallyUnowned',
+    'GObject.Object',
+],
     'Gtk.KeyvalTrigger': [
     'Gtk.ShortcutTrigger',
     'GObject.Object',

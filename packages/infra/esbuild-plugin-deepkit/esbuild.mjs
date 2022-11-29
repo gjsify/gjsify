@@ -19,6 +19,9 @@ const baseConfig = {
         'util',
         'typescript',
         '@deepkit/type-compiler',
+        // '@gjsify/resolve-npm',
+        '@gjsify/esbuild-plugin-deno-loader',
+        '@gjsify/esbuild-plugin-gjsify',
     ]
 }
 

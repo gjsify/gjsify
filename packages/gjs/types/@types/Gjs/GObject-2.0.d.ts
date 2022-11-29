@@ -55,12 +55,17 @@ enum BindingFlags {
  */
 enum ConnectFlags {
     /**
-     * whether the handler should be called before or after the
-     *  default handler of the signal.
+     * Default behaviour (no special flags). Since: 2.74
+     */
+    DEFAULT,
+    /**
+     * If set, the handler should be called after the
+     *  default handler of the signal. Normally, the handler is called before
+     *  the default handler.
      */
     AFTER,
     /**
-     * whether the instance and data should be swapped when
+     * If set, the instance and data should be swapped when
      *  calling the handler; see g_signal_connect_swapped() for an example.
      */
     SWAPPED,
@@ -265,6 +270,10 @@ enum TypeDebugFlags {
  */
 enum TypeFlags {
     /**
+     * No special flags. Since: 2.74
+     */
+    NONE,
+    /**
      * Indicates an abstract type. No instances can be
      *  created for an abstract type
      */
@@ -310,6 +319,12 @@ enum TypeFundamentalFlags {
 const PARAM_MASK: number
 /**
  * #GParamFlags value alias for %G_PARAM_STATIC_NAME | %G_PARAM_STATIC_NICK | %G_PARAM_STATIC_BLURB.
+ * 
+ * It is recommended to use this for all properties by default, as it allows for
+ * internal performance improvements in GObject.
+ * 
+ * It is very rare that a property would have a dynamically constructed name,
+ * nickname or blurb.
  * 
  * Since 2.13.0
  */
@@ -784,7 +799,7 @@ function gtype_get_type(): GType
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_boolean(name: string, nick: string, blurb: string, default_value: boolean, flags: ParamFlags): ParamSpec
+function param_spec_boolean(name: string, nick: string | null, blurb: string | null, default_value: boolean, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecBoxed instance specifying a %G_TYPE_BOXED
  * derived property.
@@ -796,7 +811,7 @@ function param_spec_boolean(name: string, nick: string, blurb: string, default_v
  * @param boxed_type %G_TYPE_BOXED derived type of this property
  * @param flags flags for the property specified
  */
-function param_spec_boxed(name: string, nick: string, blurb: string, boxed_type: GType, flags: ParamFlags): ParamSpec
+function param_spec_boxed(name: string, nick: string | null, blurb: string | null, boxed_type: GType, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecChar instance specifying a %G_TYPE_CHAR property.
  * @param name canonical name of the property specified
@@ -807,7 +822,7 @@ function param_spec_boxed(name: string, nick: string, blurb: string, boxed_type:
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_char(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_char(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecDouble instance specifying a %G_TYPE_DOUBLE
  * property.
@@ -821,7 +836,7 @@ function param_spec_char(name: string, nick: string, blurb: string, minimum: num
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_double(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_double(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecEnum instance specifying a %G_TYPE_ENUM
  * property.
@@ -834,7 +849,7 @@ function param_spec_double(name: string, nick: string, blurb: string, minimum: n
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_enum(name: string, nick: string, blurb: string, enum_type: GType, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_enum(name: string, nick: string | null, blurb: string | null, enum_type: GType, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecFlags instance specifying a %G_TYPE_FLAGS
  * property.
@@ -847,7 +862,7 @@ function param_spec_enum(name: string, nick: string, blurb: string, enum_type: G
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_flags(name: string, nick: string, blurb: string, flags_type: GType, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_flags(name: string, nick: string | null, blurb: string | null, flags_type: GType, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecFloat instance specifying a %G_TYPE_FLOAT property.
  * 
@@ -860,7 +875,7 @@ function param_spec_flags(name: string, nick: string, blurb: string, flags_type:
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_float(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_float(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecGType instance specifying a
  * %G_TYPE_GTYPE property.
@@ -872,7 +887,7 @@ function param_spec_float(name: string, nick: string, blurb: string, minimum: nu
  * @param is_a_type a #GType whose subtypes are allowed as values  of the property (use %G_TYPE_NONE for any type)
  * @param flags flags for the property specified
  */
-function param_spec_gtype(name: string, nick: string, blurb: string, is_a_type: GType, flags: ParamFlags): ParamSpec
+function param_spec_gtype(name: string, nick: string | null, blurb: string | null, is_a_type: GType, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecInt instance specifying a %G_TYPE_INT property.
  * 
@@ -885,7 +900,7 @@ function param_spec_gtype(name: string, nick: string, blurb: string, is_a_type: 
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_int(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_int(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecInt64 instance specifying a %G_TYPE_INT64 property.
  * 
@@ -898,7 +913,7 @@ function param_spec_int(name: string, nick: string, blurb: string, minimum: numb
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_int64(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_int64(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecLong instance specifying a %G_TYPE_LONG property.
  * 
@@ -911,7 +926,7 @@ function param_spec_int64(name: string, nick: string, blurb: string, minimum: nu
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_long(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_long(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecBoxed instance specifying a %G_TYPE_OBJECT
  * derived property.
@@ -923,7 +938,7 @@ function param_spec_long(name: string, nick: string, blurb: string, minimum: num
  * @param object_type %G_TYPE_OBJECT derived type of this property
  * @param flags flags for the property specified
  */
-function param_spec_object(name: string, nick: string, blurb: string, object_type: GType, flags: ParamFlags): ParamSpec
+function param_spec_object(name: string, nick: string | null, blurb: string | null, object_type: GType, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecParam instance specifying a %G_TYPE_PARAM
  * property.
@@ -935,7 +950,7 @@ function param_spec_object(name: string, nick: string, blurb: string, object_typ
  * @param param_type a #GType derived from %G_TYPE_PARAM
  * @param flags flags for the property specified
  */
-function param_spec_param(name: string, nick: string, blurb: string, param_type: GType, flags: ParamFlags): ParamSpec
+function param_spec_param(name: string, nick: string | null, blurb: string | null, param_type: GType, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecPointer instance specifying a pointer property.
  * Where possible, it is better to use g_param_spec_object() or
@@ -947,7 +962,7 @@ function param_spec_param(name: string, nick: string, blurb: string, param_type:
  * @param blurb description of the property specified
  * @param flags flags for the property specified
  */
-function param_spec_pointer(name: string, nick: string, blurb: string, flags: ParamFlags): ParamSpec
+function param_spec_pointer(name: string, nick: string | null, blurb: string | null, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecString instance.
  * 
@@ -958,7 +973,7 @@ function param_spec_pointer(name: string, nick: string, blurb: string, flags: Pa
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_string(name: string, nick: string, blurb: string, default_value: string | null, flags: ParamFlags): ParamSpec
+function param_spec_string(name: string, nick: string | null, blurb: string | null, default_value: string | null, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecUChar instance specifying a %G_TYPE_UCHAR property.
  * @param name canonical name of the property specified
@@ -969,7 +984,7 @@ function param_spec_string(name: string, nick: string, blurb: string, default_va
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_uchar(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_uchar(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecUInt instance specifying a %G_TYPE_UINT property.
  * 
@@ -982,7 +997,7 @@ function param_spec_uchar(name: string, nick: string, blurb: string, minimum: nu
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_uint(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_uint(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecUInt64 instance specifying a %G_TYPE_UINT64
  * property.
@@ -996,7 +1011,7 @@ function param_spec_uint(name: string, nick: string, blurb: string, minimum: num
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_uint64(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_uint64(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecULong instance specifying a %G_TYPE_ULONG
  * property.
@@ -1010,7 +1025,7 @@ function param_spec_uint64(name: string, nick: string, blurb: string, minimum: n
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_ulong(name: string, nick: string, blurb: string, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
+function param_spec_ulong(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecUnichar instance specifying a %G_TYPE_UINT
  * property. #GValue structures for this property can be accessed with
@@ -1023,7 +1038,7 @@ function param_spec_ulong(name: string, nick: string, blurb: string, minimum: nu
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
  */
-function param_spec_unichar(name: string, nick: string, blurb: string, default_value: string, flags: ParamFlags): ParamSpec
+function param_spec_unichar(name: string, nick: string | null, blurb: string | null, default_value: string, flags: ParamFlags): ParamSpec
 /**
  * Creates a new #GParamSpecVariant instance specifying a #GVariant
  * property.
@@ -1038,7 +1053,7 @@ function param_spec_unichar(name: string, nick: string, blurb: string, default_v
  * @param default_value a #GVariant of type `type` to                 use as the default value, or %NULL
  * @param flags flags for the property specified
  */
-function param_spec_variant(name: string, nick: string, blurb: string, type: GLib.VariantType, default_value: GLib.Variant | null, flags: ParamFlags): ParamSpec
+function param_spec_variant(name: string, nick: string | null, blurb: string | null, type: GLib.VariantType, default_value: GLib.Variant | null, flags: ParamFlags): ParamSpec
 /**
  * Registers `name` as the name of a new static type derived
  * from %G_TYPE_PARAM.
@@ -1070,6 +1085,13 @@ function param_value_convert(pspec: ParamSpec, src_value: any, dest_value: any, 
  * @param value a #GValue of correct type for `pspec`
  */
 function param_value_defaults(pspec: ParamSpec, value: any): boolean
+/**
+ * Return whether the contents of `value` comply with the specifications
+ * set out by `pspec`.
+ * @param pspec a valid #GParamSpec
+ * @param value a #GValue of correct type for `pspec`
+ */
+function param_value_is_valid(pspec: ParamSpec, value: any): boolean
 /**
  * Sets `value` to its default value as specified in `pspec`.
  * @param pspec a valid #GParamSpec
@@ -2053,10 +2075,9 @@ interface ClassInitFunc {
  * @param return_value a #GValue to store the return  value. May be %NULL if the callback of `closure` doesn't return a  value.
  * @param param_values an array of  #GValues holding the arguments on which to invoke the  callback of `closure`
  * @param invocation_hint the invocation hint given as the  last argument to g_closure_invoke()
- * @param marshal_data additional data specified when  registering the marshaller, see g_closure_set_marshal() and  g_closure_set_meta_marshal()
  */
 interface ClosureMarshal {
-    (closure: TClosure, return_value: any | null, param_values: any[], invocation_hint: object | null, marshal_data: object | null): void
+    (closure: TClosure, return_value: any | null, param_values: any[], invocation_hint: object | null): void
 }
 /**
  * The type used for the various notification callbacks which can be registered
@@ -2160,10 +2181,9 @@ interface ObjectSetPropertyFunc {
  * @param ihint Signal invocation hint, see #GSignalInvocationHint.
  * @param return_accu Accumulator to collect callback return values in, this  is the return value of the current signal emission.
  * @param handler_return A #GValue holding the return value of the signal handler.
- * @param data Callback data that was specified when creating the signal.
  */
 interface SignalAccumulator {
-    (ihint: SignalInvocationHint, return_accu: any, handler_return: any, data: object | null): boolean
+    (ihint: SignalInvocationHint, return_accu: any, handler_return: any): boolean
 }
 /**
  * A simple function pointer to get invoked when the signal is emitted.
@@ -2175,10 +2195,9 @@ interface SignalAccumulator {
  * @callback 
  * @param ihint Signal invocation hint, see #GSignalInvocationHint.
  * @param param_values the instance on which  the signal was emitted, followed by the parameters of the emission.
- * @param data user data associated with the hook.
  */
 interface SignalEmissionHook {
-    (ihint: SignalInvocationHint, param_values: any[], data: object | null): boolean
+    (ihint: SignalInvocationHint, param_values: any[]): boolean
 }
 /**
  * A callback function used for notification when the state
@@ -3251,12 +3270,11 @@ interface Object {
      * 
      * 
      * ```c
-     *   enum
+     *   typedef enum
      *   {
-     *     PROP_0,
-     *     PROP_FOO,
+     *     PROP_FOO = 1,
      *     PROP_LAST
-     *   };
+     *   } MyObjectProperty;
      * 
      *   static GParamSpec *properties[PROP_LAST];
      * 
@@ -3266,7 +3284,7 @@ interface Object {
      *     properties[PROP_FOO] = g_param_spec_int ("foo", "Foo", "The foo",
      *                                              0, 100,
      *                                              50,
-     *                                              G_PARAM_READWRITE);
+     *                                              G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
      *     g_object_class_install_property (gobject_class,
      *                                      PROP_FOO,
      *                                      properties[PROP_FOO]);
@@ -3639,6 +3657,7 @@ interface ParamSpec {
     // Own virtual methods of GObject-2.0.GObject.ParamSpec
 
     vfunc_finalize(): void
+    vfunc_value_is_valid(value: any): boolean
     vfunc_value_set_default(value: any): void
     vfunc_value_validate(value: any): boolean
     vfunc_values_cmp(value1: any, value2: any): number
@@ -4524,6 +4543,15 @@ interface SignalGroup {
      * This blocked state will be kept across changes of the target instance.
      */
     block(): void
+    /**
+     * Connects `closure` to the signal `detailed_signal` on #GSignalGroup:target.
+     * 
+     * You cannot connect a signal handler after #GSignalGroup:target has been set.
+     * @param detailed_signal a string of the form `signal-name` with optional `::signal-detail`
+     * @param closure the closure to connect.
+     * @param after whether the handler should be called before or after the  default handler of the signal.
+     */
+    connect_closure(detailed_signal: string, closure: TClosure, after: boolean): void
     /**
      * Connects `c_handler` to the signal `detailed_signal`
      * on the target instance of `self`.
@@ -5603,9 +5631,11 @@ interface ObjectClass {
      * 
      * 
      * ```c
-     * enum {
-     *   PROP_0, PROP_FOO, PROP_BAR, N_PROPERTIES
-     * };
+     * typedef enum {
+     *   PROP_FOO = 1,
+     *   PROP_BAR,
+     *   N_PROPERTIES
+     * } MyObjectProperty;
      * 
      * static GParamSpec *obj_properties[N_PROPERTIES] = { NULL, };
      * 
@@ -5618,17 +5648,17 @@ interface ObjectClass {
      *     g_param_spec_int ("foo", "Foo", "Foo",
      *                       -1, G_MAXINT,
      *                       0,
-     *                       G_PARAM_READWRITE);
+     *                       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
      * 
      *   obj_properties[PROP_BAR] =
      *     g_param_spec_string ("bar", "Bar", "Bar",
      *                          NULL,
-     *                          G_PARAM_READWRITE);
+     *                          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
      * 
      *   gobject_class->set_property = my_object_set_property;
      *   gobject_class->get_property = my_object_get_property;
      *   g_object_class_install_properties (gobject_class,
-     *                                      N_PROPERTIES,
+     *                                      G_N_ELEMENTS (obj_properties),
      *                                      obj_properties);
      * }
      * ```
@@ -5778,6 +5808,7 @@ interface ParamSpecClass {
     value_set_default: (pspec: ParamSpec, value: any) => void
     value_validate: (pspec: ParamSpec, value: any) => boolean
     values_cmp: (pspec: ParamSpec, value1: any, value2: any) => number
+    value_is_valid: (pspec: ParamSpec, value: any) => boolean
 }
 
 /**

@@ -1,12 +1,13 @@
 import { aliasPlugin } from '../alias-plugin.js';
-import { denoPlugin } from '../deno-plugin.js';
+import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
+// import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import { globPlugin } from 'esbuild-plugin-glob';
 import { merge } from "lodash";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
-import { getAliasesDeno } from "../alias.js";
+import { getAliasesForDeno } from "../alias.js";
 
 export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -38,13 +39,14 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
             window: 'globalThis',
         },
         plugins: [
-            globPlugin(),
+            // globPlugin(),
+            // deepkitPlugin({reflection: pluginOptions.reflection}),
         ]
     };
 
     merge(build.initialOptions, esbuildOptions);
 
-    const aliases = {...getAliasesDeno(), ...pluginOptions.aliases};
+    const aliases = {...getAliasesForDeno(), ...pluginOptions.aliases};
 
     for (const aliasKey of Object.keys(aliases)) {
         if(pluginOptions.exclude.includes(aliasKey)) {
@@ -55,4 +57,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
+    await globPlugin().setup(build);
+    // await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
+    await deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 }

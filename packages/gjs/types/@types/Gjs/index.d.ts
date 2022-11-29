@@ -21,6 +21,7 @@ import type Pango10 from "./Pango-1.0.js";
 import type GdkPixbuf20 from "./GdkPixbuf-2.0.js";
 import type HarfBuzz00 from "./HarfBuzz-0.0.js";
 import type GModule20 from "./GModule-2.0.js";
+import type Freetype220 from "./freetype2-2.0.js";
 
 // See also https://github.com/microsoft/TypeScript/blob/main/lib/lib.dom.d.ts
 declare global {
@@ -566,6 +567,7 @@ declare global {
               GdkPixbuf:                typeof GdkPixbuf20
               HarfBuzz:                typeof HarfBuzz00
               GModule:                typeof GModule20
+              freetype2:                typeof Freetype220
             versions: {
                   Gio:                    '2.0'
                   GLib:                    '2.0'
@@ -582,6 +584,7 @@ declare global {
                   GdkPixbuf:                    '2.0'
                   HarfBuzz:                    '0.0'
                   GModule:                    '2.0'
+                  freetype2:                    '2.0'
             }
         }
         lang: typeof Gjs.Lang

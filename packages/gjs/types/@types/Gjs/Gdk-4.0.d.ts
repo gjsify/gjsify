@@ -14,6 +14,7 @@ import type cairo from './cairo-1.0.js';
 import type PangoCairo from './PangoCairo-1.0.js';
 import type Pango from './Pango-1.0.js';
 import type HarfBuzz from './HarfBuzz-0.0.js';
+import type freetype2 from './freetype2-2.0.js';
 import type GObject from './GObject-2.0.js';
 import type GLib from './GLib-2.0.js';
 import type Gio from './Gio-2.0.js';
@@ -643,6 +644,35 @@ enum ScrollDirection {
     SMOOTH,
 }
 /**
+ * Specifies the unit of scroll deltas.
+ * 
+ * When you get %GDK_SCROLL_UNIT_WHEEL, a delta of 1.0 means 1 wheel detent
+ * click in the south direction, 2.0 means 2 wheel detent clicks in the south
+ * direction... This is the same logic for negative values but in the north
+ * direction.
+ * 
+ * If you get %GDK_SCROLL_UNIT_SURFACE, are managing a scrollable view and get a
+ * value of 123, you have to scroll 123 surface logical pixels right if it's
+ * `delta_x` or down if it's `delta_y`. This is the same logic for negative values
+ * but you have to scroll left instead of right if it's `delta_x` and up instead
+ * of down if it's `delta_y`.
+ * 
+ * 1 surface logical pixel is equal to 1 real screen pixel multiplied by the
+ * final scale factor of your graphical interface (the product of the desktop
+ * scale factor and eventually a custom scale factor in your app).
+ */
+enum ScrollUnit {
+    /**
+     * The delta is in number of wheel clicks.
+     */
+    WHEEL,
+    /**
+     * The delta is in surface pixels to scroll directly
+     *   on screen.
+     */
+    SURFACE,
+}
+/**
  * This enumeration describes how the red, green and blue components
  * of physical pixels on an output device are laid out.
  */
@@ -946,7 +976,7 @@ enum FrameClockPhase {
      */
     UPDATE,
     /**
-     * corresponds to GdkFrameClock::layout. Should not be handled by applicatiosn.
+     * corresponds to GdkFrameClock::layout. Should not be handled by applications.
      */
     LAYOUT,
     /**
@@ -8227,7 +8257,10 @@ interface GLContext {
      */
     get_forward_compatible(): boolean
     /**
-     * Retrieves required OpenGL version.
+     * Retrieves required OpenGL version set as a requirement for the `context`
+     * realization. It will not change even if a greater OpenGL version is supported
+     * and used after the `context` is realized. See
+     * [method`Gdk`.GLContext.get_version] for the real version in use.
      * 
      * See [method`Gdk`.GLContext.set_required_version].
      */
@@ -8251,6 +8284,9 @@ interface GLContext {
      * Retrieves the OpenGL version of the `context`.
      * 
      * The `context` must be realized prior to calling this function.
+     * 
+     * If the `context` has never been made current, the version cannot
+     * be known and it will return 0 for both `major` and `minor`.
      */
     get_version(): [ /* major */ number, /* minor */ number ]
     /**
@@ -8338,7 +8374,10 @@ interface GLContext {
      * 
      * Setting `major` and `minor` to zero will use the default values.
      * 
-     * The `GdkGLContext` must not be realized or made current prior to calling
+     * Setting `major` and `minor` lower than the minimum versions required
+     * by GTK will result in the context choosing the minimum version.
+     * 
+     * The `context` must not be realized or made current prior to calling
      * this function.
      * @param major the major version to request
      * @param minor the minor version to request
@@ -8983,12 +9022,22 @@ interface ScrollEvent {
      * 
      * The deltas will be zero unless the scroll direction
      * is %GDK_SCROLL_SMOOTH.
+     * 
+     * For the representation unit of these deltas, see
+     * [method`Gdk`.ScrollEvent.get_unit].
      */
     get_deltas(): [ /* delta_x */ number, /* delta_y */ number ]
     /**
      * Extracts the direction of a scroll event.
      */
     get_direction(): ScrollDirection
+    /**
+     * Extracts the scroll delta unit of a scroll event.
+     * 
+     * The unit will always be %GDK_SCROLL_UNIT_WHEEL if the scroll direction is not
+     * %GDK_SCROLL_SMOOTH.
+     */
+    get_unit(): ScrollUnit
     /**
      * Check whether a scroll event is a stop scroll event.
      * 
@@ -10313,6 +10362,26 @@ class FileList {
     // Own properties of Gdk-4.0.Gdk.FileList
 
     static name: string
+
+    // Constructors of Gdk-4.0.Gdk.FileList
+
+    /**
+     * Creates a new `GdkFileList` for the given array of files.
+     * 
+     * This function is meant to be used by language bindings.
+     * @constructor 
+     * @param files the files to add to the list
+     */
+    static new_from_array(files: Gio.File[]): FileList
+    /**
+     * Creates a new files list container from a singly linked list of
+     * `GFile` instances.
+     * 
+     * This function is meant to be used by language bindings
+     * @constructor 
+     * @param files a list of files
+     */
+    static new_from_list(files: Gio.File[]): FileList
 }
 
 interface FrameClockClass {
@@ -10961,12 +11030,12 @@ interface TimeCoord {
      */
     time: number
     /**
-     * Flags indicating what axes are present
+     * Flags indicating what axes are present, see [flags`Gdk`.AxisFlags]
      * @field 
      */
     flags: AxisFlags
     /**
-     * axis values
+     * axis values, indexed by [enum`Gdk`.AxisUse]
      * @field 
      */
     axes: number[]
@@ -10974,6 +11043,11 @@ interface TimeCoord {
 
 /**
  * A `GdkTimeCoord` stores a single event in a motion history.
+ * 
+ * To check whether an axis is present, check whether the corresponding
+ * flag from the [flags`Gdk`.AxisFlags] enumeration is set in the `flags`
+ * To access individual axis values, use the values of the values of
+ * the [enum`Gdk`.AxisUse] enumerations as indices.
  * @record 
  */
 class TimeCoord {

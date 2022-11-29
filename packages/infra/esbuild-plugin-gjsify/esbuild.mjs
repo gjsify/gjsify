@@ -22,7 +22,10 @@ const baseConfig = {
         ...EXTERNALS_NODE,
         'typescript',
         '@deepkit/type-compiler',
-        'esbuild'
+        'esbuild',
+        // '@gjsify/resolve-npm',
+        '@gjsify/esbuild-plugin-deno-loader',
+        '@gjsify/esbuild-plugin-deepkit',
     ],
     plugins: [
         globPlugin(),

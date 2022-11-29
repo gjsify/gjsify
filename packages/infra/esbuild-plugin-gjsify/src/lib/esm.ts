@@ -1,5 +1,6 @@
 import { aliasPlugin } from '../alias-plugin.js';
 import { globPlugin } from 'esbuild-plugin-glob';
+import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "lodash";
 
 // Types
@@ -34,7 +35,8 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
         conditions: ['import'],
         format: 'esm',
         plugins: [
-            globPlugin()
+            globPlugin(),
+            deepkitPlugin({reflection: pluginOptions.reflection}),
         ]
     };
 

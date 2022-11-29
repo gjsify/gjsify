@@ -37,8 +37,7 @@ export class BuildAction {
                 format: moduleFormat,
                 outdir: moduleOutdir,
                 plugins: [
-                    gjsifyPlugin({debug: verbose, library: moduleFormat}),
-                    deepkitPlugin({reflection: typescript?.reflection})
+                    gjsifyPlugin({debug: verbose, library: moduleFormat, reflection: typescript?.reflection}),
                 ]
             });
     
@@ -49,8 +48,7 @@ export class BuildAction {
                 format: moduleFormat,
                 outdir: mainOutdir,
                 plugins: [
-                    gjsifyPlugin({debug: verbose, library: mainFormat}),
-                    deepkitPlugin({reflection: typescript?.reflection})
+                    gjsifyPlugin({debug: verbose, library: mainFormat, reflection: typescript?.reflection})
                 ]
             });
         } else {
@@ -63,8 +61,7 @@ export class BuildAction {
                 format,
                 outdir,
                 plugins: [
-                    gjsifyPlugin({debug: verbose, library: format}),
-                    deepkitPlugin({reflection: typescript?.reflection})
+                    gjsifyPlugin({debug: verbose, library: format, reflection: typescript?.reflection})
                 ]
             });
         }
@@ -82,8 +79,7 @@ export class BuildAction {
             ...esbuild,
             format,
             plugins: [
-                gjsifyPlugin({debug: verbose, app, format}),
-                deepkitPlugin({reflection: typescript?.reflection})
+                gjsifyPlugin({debug: verbose, app, format, reflection: typescript?.reflection}),
             ]
         });
 

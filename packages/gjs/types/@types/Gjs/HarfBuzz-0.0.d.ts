@@ -10,6 +10,7 @@
  */
 
 import type * as Gjs from './Gjs.js';
+import type freetype2 from './freetype2-2.0.js';
 import type GObject from './GObject-2.0.js';
 import type GLib from './GLib-2.0.js';
 
@@ -2457,6 +2458,14 @@ enum script_t {
      */
     MATH,
     /**
+     * `Kawi`, Since: 5.2.0
+     */
+    KAWI,
+    /**
+     * `Nagm`, Since: 5.2.0
+     */
+    NAG_MUNDARI,
+    /**
      * No script set
      */
     INVALID,
@@ -2984,6 +2993,16 @@ enum buffer_flags_t {
      *                      it will not be produced since it incurs a cost. Since: 4.0.0
      */
     PRODUCE_UNSAFE_TO_CONCAT,
+    /**
+     * flag indicating that the `HB_GLYPH_FLAG_SAFE_TO_INSERT_TATWEEL`
+     *                      glyph-flag should be produced by the shaper. By default
+     *                      it will not be produced. Since: 5.1.0
+     */
+    PRODUCE_SAFE_TO_INSERT_TATWEEL,
+    /**
+     * All currently defined flags: Since: 4.4.0
+     */
+    DEFINED,
 }
 /**
  * Flags that control what glyph information are serialized in hb_buffer_serialize_glyphs().
@@ -3019,6 +3038,10 @@ enum buffer_serialize_flags_t {
      *  glyph offsets will reflect absolute glyph positions. Since: 1.8.0
      */
     NO_ADVANCES,
+    /**
+     * All currently defined flags. Since: 4.4.0
+     */
+    DEFINED,
 }
 /**
  * Flags for #hb_glyph_info_t.
@@ -3073,7 +3096,7 @@ enum glyph_flags_t {
      * 				   from there, and repeat.
      * 				   At the start of next line a similar algorithm can
      * 				   be implemented. That is: 1. Iterate forward from
-     * 				   the line-break position untill the first cluster
+     * 				   the line-break position until the first cluster
      * 				   start position that is NOT unsafe-to-concat, 2.
      * 				   shape the segment from beginning of the line to
      * 				   that position, 3. check whether the resulting
@@ -3100,6 +3123,18 @@ enum glyph_flags_t {
      * 				   Since: 4.0.0
      */
     UNSAFE_TO_CONCAT,
+    /**
+     * In scripts that use elongation (Arabic,
+     * 				   Mongolian, Syriac, etc.), this flag signifies
+     * 				   that it is safe to insert a U+0640 TATWEEL
+     * 				   character before this cluster for elongation.
+     * 				   This flag does not determine the
+     * 				   script-specific elongation places, but only
+     * 				   when it is safe to do the elongation without
+     * 				   interrupting text shaping.
+     * 				   Since: 5.1.0
+     */
+    SAFE_TO_INSERT_TATWEEL,
     /**
      * All the currently defined flags.
      */
@@ -3305,7 +3340,7 @@ function blob_create_sub_blob(parent: blob_t, offset: number, length: number): b
  * Fetches the data from a blob.
  * @param blob a blob.
  */
-function blob_get_data(blob: blob_t): string[]
+function blob_get_data(blob: blob_t): string[] | null
 /**
  * Tries to make blob data writable (possibly copying it) and
  * return pointer to data.
@@ -3366,7 +3401,7 @@ function buffer_add(buffer: buffer_t, codepoint: codepoint_t, cluster: number): 
  * @param buffer a #hb_buffer_t to append characters to.
  * @param text an array of Unicode code points to append.
  * @param item_offset the offset of the first code point to add to the `buffer`.
- * @param item_length the number of code points to add to the `buffer,` or -1 for the               end of `text` (assuming it is %NULL terminated).
+ * @param item_length the number of code points to add to the `buffer,` or -1 for the               end of `text` (assuming it is `NULL` terminated).
  */
 function buffer_add_codepoints(buffer: buffer_t, text: codepoint_t[], item_offset: number, item_length: number): void
 /**
@@ -3377,7 +3412,7 @@ function buffer_add_codepoints(buffer: buffer_t, text: codepoint_t[], item_offse
  * @param buffer An #hb_buffer_t
  * @param text an array of UTF-8               characters to append
  * @param item_offset the offset of the first character to add to the `buffer`
- * @param item_length the number of characters to add to the `buffer,` or -1 for the               end of `text` (assuming it is %NULL terminated)
+ * @param item_length the number of characters to add to the `buffer,` or -1 for the               end of `text` (assuming it is `NULL` terminated)
  */
 function buffer_add_latin1(buffer: buffer_t, text: Uint8Array, item_offset: number, item_length: number): void
 /**
@@ -3388,7 +3423,7 @@ function buffer_add_latin1(buffer: buffer_t, text: Uint8Array, item_offset: numb
  * @param buffer An #hb_buffer_t
  * @param text An array of UTF-16 characters to append
  * @param item_offset The offset of the first character to add to the `buffer`
- * @param item_length The number of characters to add to the `buffer,` or -1 for the               end of `text` (assuming it is %NULL terminated)
+ * @param item_length The number of characters to add to the `buffer,` or -1 for the               end of `text` (assuming it is `NULL` terminated)
  */
 function buffer_add_utf16(buffer: buffer_t, text: number[], item_offset: number, item_length: number): void
 /**
@@ -3399,7 +3434,7 @@ function buffer_add_utf16(buffer: buffer_t, text: number[], item_offset: number,
  * @param buffer An #hb_buffer_t
  * @param text An array of UTF-32 characters to append
  * @param item_offset The offset of the first character to add to the `buffer`
- * @param item_length The number of characters to add to the `buffer,` or -1 for the               end of `text` (assuming it is %NULL terminated)
+ * @param item_length The number of characters to add to the `buffer,` or -1 for the               end of `text` (assuming it is `NULL` terminated)
  */
 function buffer_add_utf32(buffer: buffer_t, text: number[], item_offset: number, item_length: number): void
 /**
@@ -3410,7 +3445,7 @@ function buffer_add_utf32(buffer: buffer_t, text: number[], item_offset: number,
  * @param buffer An #hb_buffer_t
  * @param text An array of UTF-8               characters to append.
  * @param item_offset The offset of the first character to add to the `buffer`.
- * @param item_length The number of characters to add to the `buffer,` or -1 for the               end of `text` (assuming it is %NULL terminated).
+ * @param item_length The number of characters to add to the `buffer,` or -1 for the               end of `text` (assuming it is `NULL` terminated).
  */
 function buffer_add_utf8(buffer: buffer_t, text: Uint8Array, item_offset: number, item_length: number): void
 /**
@@ -3509,7 +3544,7 @@ function buffer_get_glyph_infos(buffer: buffer_t): glyph_info_t[]
  * If buffer did not have positions before, the positions will be
  * initialized to zeros, unless this function is called from
  * within a buffer message callback (see hb_buffer_set_message_func()),
- * in which case %NULL is returned.
+ * in which case `NULL` is returned.
  * @param buffer An #hb_buffer_t
  */
 function buffer_get_glyph_positions(buffer: buffer_t): glyph_position_t[]
@@ -3634,7 +3669,7 @@ function buffer_reverse_range(buffer: buffer_t, start: number, end: number): voi
  * @param buffer an #hb_buffer_t buffer.
  * @param start the first item in `buffer` to serialize.
  * @param end the last item in `buffer` to serialize.
- * @param font the #hb_font_t used to shape this buffer, needed to        read glyph names and extents. If %NULL, and empty font will be used.
+ * @param font the #hb_font_t used to shape this buffer, needed to        read glyph names and extents. If `NULL`, an empty font will be used.
  * @param format the #hb_buffer_serialize_format_t to use for formatting the output.
  * @param flags the #hb_buffer_serialize_flags_t that control what glyph properties         to serialize.
  */
@@ -3647,7 +3682,7 @@ function buffer_serialize(buffer: buffer_t, start: number, end: number, font: fo
  */
 function buffer_serialize_format_from_string(str: Uint8Array): buffer_serialize_format_t
 /**
- * Converts `format` to the string corresponding it, or %NULL if it is not a valid
+ * Converts `format` to the string corresponding it, or `NULL` if it is not a valid
  * #hb_buffer_serialize_format_t.
  * @param format an #hb_buffer_serialize_format_t to convert.
  */
@@ -3698,7 +3733,7 @@ function buffer_serialize_format_to_string(format: buffer_serialize_format_t): s
  * @param buffer an #hb_buffer_t buffer.
  * @param start the first item in `buffer` to serialize.
  * @param end the last item in `buffer` to serialize.
- * @param font the #hb_font_t used to shape this buffer, needed to        read glyph names and extents. If %NULL, and empty font will be used.
+ * @param font the #hb_font_t used to shape this buffer, needed to        read glyph names and extents. If `NULL`, an empty font will be used.
  * @param format the #hb_buffer_serialize_format_t to use for formatting the output.
  * @param flags the #hb_buffer_serialize_flags_t that control what glyph properties         to serialize.
  */
@@ -4179,7 +4214,7 @@ function face_set_upem(face: face_t, upem: number): void
  */
 function feature_from_string(str: Uint8Array): [ /* returnType */ bool_t, /* feature */ feature_t ]
 /**
- * Converts a #hb_feature_t into a %NULL-terminated string in the format
+ * Converts a #hb_feature_t into a `NULL`-terminated string in the format
  * understood by hb_feature_from_string(). The client in responsible for
  * allocating big enough size for `buf,` 128 bytes is more than enough.
  * @param feature an #hb_feature_t to convert
@@ -4198,6 +4233,13 @@ function feature_to_string(feature: feature_t): /* buf */ string[]
  * @param y Input = The original Y coordinate     Output = The Y coordinate plus the Y-coordinate of the origin
  */
 function font_add_glyph_origin_for_direction(font: font_t, glyph: codepoint_t, direction: direction_t, x: position_t, y: position_t): [ /* x */ position_t, /* y */ position_t ]
+/**
+ * Notifies the `font` that underlying font data has changed.
+ * This has the effect of increasing the serial as returned
+ * by hb_font_get_serial(), which invalidates internal caches.
+ * @param font #hb_font_t to work upon
+ */
+function font_changed(font: font_t): void
 /**
  * Constructs a new font object from the specified face.
  * 
@@ -4607,6 +4649,13 @@ function font_get_ptem(font: font_t): number
  */
 function font_get_scale(font: font_t): [ /* x_scale */ number, /* y_scale */ number ]
 /**
+ * Returns the internal serial number of the font. The serial
+ * number is increased every time a setting on the font is
+ * changed, using a setter function.
+ * @param font #hb_font_t to work upon
+ */
+function font_get_serial(font: font_t): number
+/**
  * Fetches the "synthetic slant" of a font.
  * @param font #hb_font_t to work upon
  */
@@ -4801,12 +4850,93 @@ function font_set_variations(font: font_t, variations: variation_t[]): void
  */
 function font_subtract_glyph_origin_for_direction(font: font_t, glyph: codepoint_t, direction: direction_t, x: position_t, y: position_t): [ /* x */ position_t, /* y */ position_t ]
 /**
+ * Creates an #hb_face_t face object from the specified FT_Face.
+ * 
+ * This variant of the function does not provide any life-cycle management.
+ * 
+ * Most client programs should use hb_ft_face_create_referenced()
+ * (or, perhaps, hb_ft_face_create_cached()) instead.
+ * 
+ * If you know you have valid reasons not to use hb_ft_face_create_referenced(),
+ * then it is the client program's responsibility to destroy `ft_face`
+ * after the #hb_face_t face object has been destroyed.
+ * @param ft_face FT_Face to work upon
+ */
+function ft_face_create(ft_face: freetype2.Face): face_t
+/**
+ * Creates an #hb_face_t face object from the specified FT_Face.
+ * 
+ * This variant of the function caches the newly created #hb_face_t
+ * face object, using the `generic` pointer of `ft_face`. Subsequent function
+ * calls that are passed the same `ft_face` parameter will have the same
+ * #hb_face_t returned to them, and that #hb_face_t will be correctly
+ * reference counted.
+ * 
+ * However, client programs are still responsible for destroying
+ * `ft_face` after the last #hb_face_t face object has been destroyed.
+ * @param ft_face FT_Face to work upon
+ */
+function ft_face_create_cached(ft_face: freetype2.Face): face_t
+/**
+ * Creates an #hb_face_t face object from the specified FT_Face.
+ * 
+ * This is the preferred variant of the hb_ft_face_create*
+ * function family, because it calls FT_Reference_Face() on `ft_face,`
+ * ensuring that `ft_face` remains alive as long as the resulting
+ * #hb_face_t face object remains alive. Also calls FT_Done_Face()
+ * when the #hb_face_t face object is destroyed.
+ * 
+ * Use this version unless you know you have good reasons not to.
+ * @param ft_face FT_Face to work upon
+ */
+function ft_face_create_referenced(ft_face: freetype2.Face): face_t
+/**
  * Refreshes the state of `font` when the underlying FT_Face has changed.
  * This function should be called after changing the size or
  * variation-axis settings on the FT_Face.
  * @param font #hb_font_t to work upon
  */
 function ft_font_changed(font: font_t): void
+/**
+ * Creates an #hb_font_t font object from the specified FT_Face.
+ * 
+ * <note>Note: You must set the face size on `ft_face` before calling
+ * hb_ft_font_create() on it. HarfBuzz assumes size is always set and will
+ * access `size` member of FT_Face unconditionally.</note>
+ * 
+ * This variant of the function does not provide any life-cycle management.
+ * 
+ * Most client programs should use hb_ft_font_create_referenced()
+ * instead.
+ * 
+ * If you know you have valid reasons not to use hb_ft_font_create_referenced(),
+ * then it is the client program's responsibility to destroy `ft_face`
+ * after the #hb_font_t font object has been destroyed.
+ * 
+ * HarfBuzz will use the `destroy` callback on the #hb_font_t font object
+ * if it is supplied when you use this function. However, even if `destroy`
+ * is provided, it is the client program's responsibility to destroy `ft_face,`
+ * and it is the client program's responsibility to ensure that `ft_face` is
+ * destroyed only after the #hb_font_t font object has been destroyed.
+ * @param ft_face FT_Face to work upon
+ */
+function ft_font_create(ft_face: freetype2.Face): font_t
+/**
+ * Creates an #hb_font_t font object from the specified FT_Face.
+ * 
+ * <note>Note: You must set the face size on `ft_face` before calling
+ * hb_ft_font_create_referenced() on it. HarfBuzz assumes size is always set
+ * and will access `size` member of FT_Face unconditionally.</note>
+ * 
+ * This is the preferred variant of the hb_ft_font_create*
+ * function family, because it calls FT_Reference_Face() on `ft_face,`
+ * ensuring that `ft_face` remains alive as long as the resulting
+ * #hb_font_t font object remains alive.
+ * 
+ * Use this version unless you know you have good reasons not to.
+ * @param ft_face FT_Face to work upon
+ */
+function ft_font_create_referenced(ft_face: freetype2.Face): font_t
 /**
  * Fetches the FT_Load_Glyph load flags of the specified #hb_font_t.
  * 
@@ -4844,10 +4974,14 @@ function ft_font_set_funcs(font: font_t): void
  */
 function ft_font_set_load_flags(font: font_t, load_flags: number): void
 /**
- * Releases an FT_Face previously obtained with hb_ft_font_lock_face().
+ * Refreshes the state of the underlying FT_Face of `font` when the hb_font_t
+ * `font` has changed.
+ * This function should be called after changing the size or
+ * variation-axis settings on the `font`.
+ * This call is fast if nothing has changed on `font`.
  * @param font #hb_font_t to work upon
  */
-function ft_font_unlock_face(font: font_t): void
+function ft_hb_font_changed(font: font_t): bool_t
 /**
  * Creates an #hb_blob_t blob from the specified
  * GBytes data structure.
@@ -4894,6 +5028,14 @@ function language_from_string(str: Uint8Array): language_t
  */
 function language_get_default(): language_t
 /**
+ * Check whether a second language tag is the same or a more
+ * specific version of the provided language tag.  For example,
+ * "fa_IR.utf8" is a more specific tag for "fa" or for "fa_IR".
+ * @param language The #hb_language_t to work on
+ * @param specific Another #hb_language_t
+ */
+function language_matches(language: language_t, specific: language_t): bool_t
+/**
  * Converts an #hb_language_t to a string.
  * @param language The #hb_language_t to convert
  */
@@ -4908,6 +5050,11 @@ function map_allocation_successful(map: map_t): bool_t
  * @param map A map
  */
 function map_clear(map: map_t): void
+/**
+ * Allocate a copy of `map`.
+ * @param map A map
+ */
+function map_copy(map: map_t): map_t
 /**
  * Creates a new, initially empty map.
  */
@@ -4940,10 +5087,22 @@ function map_get_population(map: map_t): number
  */
 function map_has(map: map_t, key: codepoint_t): bool_t
 /**
+ * Creates a hash representing `map`.
+ * @param map A map
+ */
+function map_hash(map: map_t): number
+/**
  * Tests whether `map` is empty (contains no elements).
  * @param map A map
  */
 function map_is_empty(map: map_t): bool_t
+/**
+ * Tests whether `map` and `other` are equal (contain the same
+ * elements).
+ * @param map A map
+ * @param other Another map
+ */
+function map_is_equal(map: map_t, other: map_t): bool_t
 /**
  * Stores `key:``value` in the map.
  * @param map A map
@@ -5054,11 +5213,11 @@ function ot_font_set_funcs(font: font_t): void
  * features is provided, all features will be queried.
  * @param face #hb_face_t to work upon
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
- * @param scripts The array of scripts to collect features for
- * @param languages The array of languages to collect features for
- * @param features The array of features to collect
+ * @param scripts The array of scripts to collect features for,   terminated by %HB_TAG_NONE
+ * @param languages The array of languages to collect features for,   terminated by %HB_TAG_NONE
+ * @param features The array of features to collect,   terminated by %HB_TAG_NONE
  */
-function ot_layout_collect_features(face: face_t, table_tag: tag_t, scripts: tag_t, languages: tag_t, features: tag_t): /* feature_indexes */ set_t
+function ot_layout_collect_features(face: face_t, table_tag: tag_t, scripts: tag_t[] | null, languages: tag_t[] | null, features: tag_t[] | null): /* feature_indexes */ set_t
 /**
  * Fetches a list of all feature-lookup indexes in the specified face's GSUB
  * table or GPOS table, underneath the specified scripts, languages, and
@@ -5067,11 +5226,11 @@ function ot_layout_collect_features(face: face_t, table_tag: tag_t, scripts: tag
  * list of features is provided, all features will be queried.
  * @param face #hb_face_t to work upon
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
- * @param scripts The array of scripts to collect lookups for
- * @param languages The array of languages to collect lookups for
- * @param features The array of features to collect lookups for
+ * @param scripts The array of scripts to collect lookups for,   terminated by %HB_TAG_NONE
+ * @param languages The array of languages to collect lookups for,   terminated by %HB_TAG_NONE
+ * @param features The array of features to collect lookups for,   terminated by %HB_TAG_NONE
  */
-function ot_layout_collect_lookups(face: face_t, table_tag: tag_t, scripts: tag_t, languages: tag_t, features: tag_t): /* lookup_indexes */ set_t
+function ot_layout_collect_lookups(face: face_t, table_tag: tag_t, scripts: tag_t[] | null, languages: tag_t[] | null, features: tag_t[] | null): /* lookup_indexes */ set_t
 /**
  * Fetches a list of the characters defined as having a variant under the specified
  * "Character Variant" ("cvXX") feature tag.
@@ -5314,7 +5473,7 @@ function ot_layout_script_get_language_tags(face: face_t, table_tag: tag_t, scri
  * in the specified face's GSUB or GPOS table, underneath the specified script
  * index.
  * 
- * If none of the given language tags is found, %false is returned and
+ * If none of the given language tags is found, `false` is returned and
  * `language_index` is set to the default language index.
  * @param face #hb_face_t to work upon
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
@@ -5349,6 +5508,8 @@ function ot_layout_table_find_feature_variations(face: face_t, table_tag: tag_t,
 function ot_layout_table_find_script(face: face_t, table_tag: tag_t, script_tag: tag_t): [ /* returnType */ bool_t, /* script_index */ number ]
 /**
  * Fetches a list of all feature tags in the given face's GSUB or GPOS table.
+ * Note that there might be duplicate feature tags, belonging to different
+ * script/language-system pairs of the table.
  * @param face #hb_face_t to work upon
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param start_offset offset of the first feature tag to retrieve
@@ -5785,6 +5946,14 @@ function set_add(set: set_t, codepoint: codepoint_t): void
  */
 function set_add_range(set: set_t, first: codepoint_t, last: codepoint_t): void
 /**
+ * Adds `num_codepoints` codepoints to a set at once.
+ * The codepoints array must be in increasing order,
+ * with size at least `num_codepoints`.
+ * @param set A set
+ * @param sorted_codepoints Array of codepoints to add
+ */
+function set_add_sorted_array(set: set_t, sorted_codepoints: codepoint_t[]): void
+/**
  * Tests whether memory allocation for a set was successful.
  * @param set A set
  */
@@ -5846,6 +6015,11 @@ function set_get_population(set: set_t): number
  */
 function set_has(set: set_t, codepoint: codepoint_t): bool_t
 /**
+ * Creates a hash representing `set`.
+ * @param set A set
+ */
+function set_hash(set: set_t): number
+/**
  * Makes `set` the intersection of `set` and `other`.
  * @param set A set
  * @param other Another set
@@ -5882,6 +6056,15 @@ function set_is_subset(set: set_t, larger_set: set_t): bool_t
  * @param codepoint Input = Code point to query             Output = Code point retrieved
  */
 function set_next(set: set_t, codepoint: codepoint_t): [ /* returnType */ bool_t, /* codepoint */ codepoint_t ]
+/**
+ * Finds the next element in `set` that is greater than `codepoint`. Writes out
+ * codepoints to `out,` until either the set runs out of elements, or `size`
+ * codepoints are written, whichever comes first.
+ * @param set A set
+ * @param codepoint Outputting codepoints starting after this one.             Use #HB_SET_VALUE_INVALID to get started.
+ * @param out An array of codepoints to write to.
+ */
+function set_next_many(set: set_t, codepoint: codepoint_t, out: codepoint_t[]): number
 /**
  * Fetches the next consecutive range of elements in `set` that
  * are greater than current value of `last`.
@@ -5935,23 +6118,23 @@ function set_symmetric_difference(set: set_t, other: set_t): void
 function set_union(set: set_t, other: set_t): void
 /**
  * Shapes `buffer` using `font` turning its Unicode characters content to
- * positioned glyphs. If `features` is not %NULL, it will be used to control the
+ * positioned glyphs. If `features` is not `NULL`, it will be used to control the
  * features applied during shaping. If two `features` have the same tag but
  * overlapping ranges the value of the feature with the higher index takes
  * precedence.
  * @param font an #hb_font_t to use for shaping
  * @param buffer an #hb_buffer_t to shape
- * @param features an array of user    specified #hb_feature_t or %NULL
+ * @param features an array of user    specified #hb_feature_t or `NULL`
  */
 function shape(font: font_t, buffer: buffer_t, features: feature_t[] | null): void
 /**
- * See hb_shape() for details. If `shaper_list` is not %NULL, the specified
+ * See hb_shape() for details. If `shaper_list` is not `NULL`, the specified
  * shapers will be used in the given order, otherwise the default shapers list
  * will be used.
  * @param font an #hb_font_t to use for shaping
  * @param buffer an #hb_buffer_t to shape
- * @param features an array of user    specified #hb_feature_t or %NULL
- * @param shaper_list a %NULL-terminated    array of shapers to use or %NULL
+ * @param features an array of user    specified #hb_feature_t or `NULL`
+ * @param shaper_list a `NULL`-terminated    array of shapers to use or `NULL`
  */
 function shape_full(font: font_t, buffer: buffer_t, features: feature_t[] | null, shaper_list: string[] | null): bool_t
 /**
@@ -6193,7 +6376,7 @@ function unicode_script(ufuncs: unicode_funcs_t, unicode: codepoint_t): script_t
  */
 function variation_from_string(str: Uint8Array): [ /* returnType */ bool_t, /* variation */ variation_t ]
 /**
- * Converts an #hb_variation_t into a %NULL-terminated string in the format
+ * Converts an #hb_variation_t into a `NULL`-terminated string in the format
  * understood by hb_variation_from_string(). The client in responsible for
  * allocating big enough size for `buf,` 128 bytes is more than enough.
  * @param variation an #hb_variation_t to convert
@@ -6219,12 +6402,12 @@ function version_string(): string
  * A callback method for #hb_buffer_t. The method gets called with the
  * #hb_buffer_t it was set on, the #hb_font_t the buffer is shaped with and a
  * message describing what step of the shaping process will be performed.
- * Returning %false from this method will skip this shaping step and move to
+ * Returning `false` from this method will skip this shaping step and move to
  * the next one.
  * @callback 
  * @param buffer An #hb_buffer_t to work upon
  * @param font The #hb_font_t the `buffer` is shaped with
- * @param message %NULL-terminated message passed to the function
+ * @param message `NULL`-terminated message passed to the function
  */
 interface buffer_message_func_t {
     (buffer: buffer_t, font: font_t, message: string): bool_t
@@ -6778,7 +6961,7 @@ interface feature_t {
     // Owm methods of HarfBuzz-0.0.HarfBuzz.feature_t
 
     /**
-     * Converts a #hb_feature_t into a %NULL-terminated string in the format
+     * Converts a #hb_feature_t into a `NULL`-terminated string in the format
      * understood by hb_feature_from_string(). The client in responsible for
      * allocating big enough size for `buf,` 128 bytes is more than enough.
      */
@@ -7045,6 +7228,10 @@ interface ot_color_layer_t {
 
 /**
  * Pairs of glyph and color index.
+ * 
+ * A color index of 0xFFFF does not refer to a palette
+ * color, but indicates that the foreground color should
+ * be used.
  * @record 
  */
 class ot_color_layer_t {
@@ -7404,7 +7591,7 @@ interface variation_t {
     // Owm methods of HarfBuzz-0.0.HarfBuzz.variation_t
 
     /**
-     * Converts an #hb_variation_t into a %NULL-terminated string in the format
+     * Converts an #hb_variation_t into a `NULL`-terminated string in the format
      * understood by hb_variation_from_string(). The client in responsible for
      * allocating big enough size for `buf,` 128 bytes is more than enough.
      */

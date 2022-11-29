@@ -53,8 +53,11 @@ export const EXTERNALS_NPM = [
     'node-fetch'
 ]
 
-/** Record of Node.js modules (build in or not) and his replacement */
-export const ALIASES_NODE = {
+/** General record of modules for Gjs */
+export const ALIASES_GENERAL_FOR_GJS = {}
+
+/** Record of Node.js modules (build in or not) and his replacement for Gjs */
+export const ALIASES_NODE_FOR_GJS = {
     // 'cluster': '@gjsify/deno_std/node/cluster',
     // 'domain': '@gjsify/deno_std/node/domain',
     // 'stream': '@gjsify/deno_std/node/stream',
@@ -109,17 +112,39 @@ export const ALIASES_NODE = {
     'stream/web': 'web-streams-polyfill/ponyfill',
 }
 
-/** Record of Web modules and his replacement */
-export const ALIASES_WEB = {
+/** Record of Web modules and his replacement for Gjs */
+export const ALIASES_WEB_FOR_GJS = {
     'abort-controller': '@gjsify/abort-controller',
     'event-target-shim': '@gjsify/event-target',
 }
 
-/** Record of Deno modules and his replacement */
-export const ALIASES_DENO = {
+/** General record of modules for Deno */
+export const ALIASES_GENERAL_FOR_DENO = {
     '@gjsify/deno-runtime/globals': '@gjsify/empty',
     '@gjsify/deno-globals': '@gjsify/empty',
+}
 
+/** Record of Node.js modules (build in or not) and his replacement for Deno */
+export const ALIASES_NODE_FOR_DENO = {
     // Node packages
     'assert': 'https://deno.land/std/node/assert.ts',
 }
+
+/** Record of Gjs modules (build in or not) and his replacement for Deno */
+export const ALIASES_GJS_FOR_DENO = {}
+
+/** Record of Web modules and his replacement for Deno */
+export const ALIASES_WEB_FOR_DENO = {}
+
+
+/** General record of modules for Node */
+export const ALIASES_GENERAL_FOR_NODE = {
+    '@gjsify/node-globals': '@gjsify/empty',
+}
+
+/** Record of Gjs modules (build in or not) and his replacement for Node */
+export const ALIASES_GJS_FOR_NODE = {}
+
+/** Record of Web modules and his replacement for Node */
+export const ALIASES_WEB_FOR_NODE = {}
+

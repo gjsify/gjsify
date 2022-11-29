@@ -2,8 +2,8 @@
 
 import type { Plugin } from "esbuild";
 
-export const aliasPlugin = (options: Record<string, string>) => {
-    const aliases = Object.keys(options);
+export const aliasPlugin = (aliasObj: Record<string, string>) => {
+    const aliases = Object.keys(aliasObj);
     const re = new RegExp(`^(${aliases.map(x => escapeRegExp(x)).join('|')})$`);
   
     const plugin: Plugin = {
@@ -12,18 +12,18 @@ export const aliasPlugin = (options: Record<string, string>) => {
         // we do not register 'file' namespace here, because the root file won't be processed
         // https://github.com/evanw/esbuild/issues/791
         build.onResolve({ filter: re }, (args) => {
-          const resolvedAlias = options[args.path];
+          const resolvedAlias = aliasObj[args.path];
 
-          if(resolvedAlias.startsWith("http://") || resolvedAlias.startsWith("https://")) {
+          // console.debug(`aliasPlugin: ${args.path} -> ${resolvedAlias}`);
+
+          if (resolvedAlias) {
             return {
               path: resolvedAlias,
-              external: true // TODO use deno plugin if target is not deno?
+              namespace: args.namespace,
             }
           }
 
-          return {
-            path: resolvedAlias,
-          }
+          return null;
         });
       },
     };

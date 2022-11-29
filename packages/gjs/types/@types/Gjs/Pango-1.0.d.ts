@@ -12,6 +12,7 @@
 import type * as Gjs from './Gjs.js';
 import type cairo from './cairo-1.0.js';
 import type HarfBuzz from './HarfBuzz-0.0.js';
+import type freetype2 from './freetype2-2.0.js';
 import type GObject from './GObject-2.0.js';
 import type GLib from './GLib-2.0.js';
 import type Gio from './Gio-2.0.js';
@@ -2169,7 +2170,7 @@ function language_get_default(): Language
  * you should first try the default language, followed by the
  * languages returned by this function.
  */
-function language_get_preferred(): Language | null
+function language_get_preferred(): Language[] | null
 function layout_deserialize_error_quark(): GLib.Quark
 /**
  * Return the bidirectional embedding levels of the input paragraph.
@@ -2425,6 +2426,10 @@ function script_get_sample_language(script: Script): Language | null
  * that API allows for shaping interaction happening across text item
  * boundaries.
  * 
+ * Some aspects of hyphen insertion and text transformation (in particular,
+ * capitalization) require log attrs, and thus can only be handled by
+ * [func`Pango`.shape_item].
+ * 
  * Note that the extra attributes in the `analyis` that is returned from
  * [func`Pango`.itemize] have indices that are relative to the entire paragraph,
  * so you need to subtract the item offset from their indices before
@@ -2448,6 +2453,10 @@ function shape(text: string, length: number, analysis: Analysis, glyphs: GlyphSt
  * text of which `item_text` is part of, provide the broader text as
  * `paragraph_text`. If `paragraph_text` is %NULL, item text is used instead.
  * 
+ * Some aspects of hyphen insertion and text transformation (in particular,
+ * capitalization) require log attrs, and thus can only be handled by
+ * [func`Pango`.shape_item].
+ * 
  * Note that the extra attributes in the `analyis` that is returned from
  * [func`Pango`.itemize] have indices that are relative to the entire paragraph,
  * so you do not pass the full paragraph text as `paragraph_text,` you need
@@ -2466,8 +2475,9 @@ function shape_full(item_text: string, item_length: number, paragraph_text: stri
  * 
  * This is similar to [func`Pango`.shape_with_flags], except it takes a
  * `PangoItem` instead of separate `item_text` and `analysis` arguments.
- * It also takes `log_attrs,` which may be used in implementing text
- * transforms.
+ * 
+ * It also takes `log_attrs,` which are needed for implementing some aspects
+ * of hyphen insertion and text transforms (in particular, capitalization).
  * 
  * Note that the extra attributes in the `analyis` that is returned from
  * [func`Pango`.itemize] have indices that are relative to the entire paragraph,
@@ -2491,6 +2501,10 @@ function shape_item(item: Item, paragraph_text: string | null, paragraph_length:
  * 
  * This is similar to [func`Pango`.shape_full], except it also takes flags
  * that can influence the shaping process.
+ * 
+ * Some aspects of hyphen insertion and text transformation (in particular,
+ * capitalization) require log attrs, and thus can only be handled by
+ * [func`Pango`.shape_item].
  * 
  * Note that the extra attributes in the `analyis` that is returned from
  * [func`Pango`.itemize] have indices that are relative to the entire paragraph,
@@ -2677,11 +2691,11 @@ interface Context {
     /**
      * Retrieve the default font description for the context.
      */
-    get_font_description(): FontDescription
+    get_font_description(): FontDescription | null
     /**
      * Gets the `PangoFontMap` used to look up fonts for this context.
      */
-    get_font_map(): FontMap
+    get_font_map(): FontMap | null
     /**
      * Retrieves the gravity for the context.
      * 
@@ -2784,7 +2798,7 @@ interface Context {
      * Set the default font description for the context
      * @param desc the new pango font description
      */
-    set_font_description(desc: FontDescription): void
+    set_font_description(desc: FontDescription | null): void
     /**
      * Sets the font map to be searched when fonts are looked-up
      * in this context.
@@ -2794,7 +2808,7 @@ interface Context {
      * suitable font map.
      * @param font_map the `PangoFontMap` to set.
      */
-    set_font_map(font_map: FontMap): void
+    set_font_map(font_map: FontMap | null): void
     /**
      * Sets the gravity hint for the context.
      * 
@@ -2812,7 +2826,7 @@ interface Context {
      * can be found using [func`Pango`.Language.get_default].
      * @param language the new language tag.
      */
-    set_language(language: Language): void
+    set_language(language: Language | null): void
     /**
      * Sets the transformation matrix that will be applied when rendering
      * with this context.
@@ -4216,7 +4230,7 @@ interface Layout {
      * Converts from an index within a `PangoLayout` to the onscreen position
      * corresponding to the grapheme at that index.
      * 
-     * The return value is represented as rectangle. Note that `pos->x` is
+     * The returns is represented as rectangle. Note that `pos->x` is
      * always the leading edge of the grapheme and `pos->x + pos->width` the
      * trailing edge of the grapheme. If the directionality of the grapheme
      * is right-to-left, then `pos->width` will be negative.
@@ -5487,12 +5501,38 @@ interface AttrList {
     /**
      * Serializes a `PangoAttrList` to a string.
      * 
-     * No guarantees are made about the format of the string,
-     * it may change between Pango versions.
+     * In the resulting string, serialized attributes are separated by newlines or commas.
+     * Individual attributes are serialized to a string of the form
      * 
-     * The intended use of this function is testing and
-     * debugging. The format is not meant as a permanent
-     * storage format.
+     *   START END TYPE VALUE
+     * 
+     * Where START and END are the indices (with -1 being accepted in place
+     * of MAXUINT), TYPE is the nickname of the attribute value type, e.g.
+     * _weight_ or _stretch_, and the value is serialized according to its type:
+     * 
+     * - enum values as nick or numeric value
+     * - boolean values as _true_ or _false_
+     * - integers and floats as numbers
+     * - strings as string, optionally quoted
+     * - font features as quoted string
+     * - PangoLanguage as string
+     * - PangoFontDescription as serialized by [method`Pango`.FontDescription.to_string], quoted
+     * - PangoColor as serialized by [method`Pango`.Color.to_string]
+     * 
+     * Examples:
+     * 
+     * ```
+     * 0 10 foreground red, 5 15 weight bold, 0 200 font-desc "Sans 10"
+     * ```
+     * 
+     * ```
+     * 0 -1 weight 700
+     * 0 100 family Times
+     * ```
+     * 
+     * To parse the returned value, use [func`Pango`.AttrList.from_string].
+     * 
+     * Note that shape attributes can not be serialized.
      */
     to_string(): string
     /**
@@ -6235,7 +6275,7 @@ interface FontDescription {
      * instead of characters that are untypical in filenames, and in
      * lower case only.
      */
-    to_filename(): string
+    to_filename(): string | null
     /**
      * Creates a string representation of a font description.
      * 
@@ -6728,7 +6768,7 @@ interface GlyphItem {
      * @param text text to which positions in `orig` apply
      * @param split_index byte index of position to split item, relative to the   start of the item
      */
-    split(text: string, split_index: number): GlyphItem
+    split(text: string, split_index: number): GlyphItem | null
 }
 
 /**
@@ -7309,7 +7349,7 @@ class Language {
      * you should first try the default language, followed by the
      * languages returned by this function.
      */
-    static get_preferred(): Language | null
+    static get_preferred(): Language[] | null
 }
 
 interface LayoutClass {
@@ -7372,7 +7412,7 @@ interface LayoutIter {
     /**
      * Gets the layout associated with a `PangoLayoutIter`.
      */
-    get_layout(): Layout
+    get_layout(): Layout | null
     /**
      * Obtains the extents of the `PangoLayout` being iterated over.
      */
@@ -7384,7 +7424,7 @@ interface LayoutIter {
      * you do not plan to modify the contents of the line (glyphs,
      * glyph widths, etc.).
      */
-    get_line(): LayoutLine
+    get_line(): LayoutLine | null
     /**
      * Obtains the extents of the current line.
      * 
@@ -7401,7 +7441,7 @@ interface LayoutIter {
      * but the user is not expected to modify the contents of the line
      * (glyphs, glyph widths, etc.).
      */
-    get_line_readonly(): LayoutLine
+    get_line_readonly(): LayoutLine | null
     /**
      * Divides the vertical space in the `PangoLayout` being iterated over
      * between the lines in the layout, and returns the space belonging to
@@ -7596,7 +7636,7 @@ interface LayoutLine {
     /**
      * Increase the reference count of a `PangoLayoutLine` by one.
      */
-    ref(): LayoutLine
+    ref(): LayoutLine | null
     /**
      * Decrease the reference count of a `PangoLayoutLine` by one.
      * 

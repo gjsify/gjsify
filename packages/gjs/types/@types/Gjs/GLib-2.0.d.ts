@@ -690,7 +690,7 @@ enum OnceStatus {
  */
 enum OptionArg {
     /**
-     * No extra argument. This is useful for simple flags.
+     * No extra argument. This is useful for simple flags or booleans.
      */
     NONE,
     /**
@@ -2720,6 +2720,18 @@ enum FormatSizeFlags {
      *     bytes, and return units in bits. For example, ‘Mb’ rather than ‘MB’.
      */
     BITS,
+    /**
+     * return only value, without unit; this should
+     *     not be used together with `G_FORMAT_SIZE_LONG_FORMAT`
+     *     nor `G_FORMAT_SIZE_ONLY_UNIT`. Since: 2.74
+     */
+    ONLY_VALUE,
+    /**
+     * return only unit, without value; this should
+     *     not be used together with `G_FORMAT_SIZE_LONG_FORMAT`
+     *     nor `G_FORMAT_SIZE_ONLY_VALUE`. Since: 2.74
+     */
+    ONLY_UNIT,
 }
 /**
  * Flags used internally in the #GHook implementation.
@@ -2779,6 +2791,10 @@ enum IOCondition {
  * @bitfield 
  */
 enum IOFlags {
+    /**
+     * no special flags set. Since: 2.74
+     */
+    NONE,
     /**
      * turns on append mode, corresponds to %O_APPEND
      *     (see the documentation of the UNIX open() syscall)
@@ -2974,6 +2990,10 @@ enum MarkupCollectType {
  */
 enum MarkupParseFlags {
     /**
+     * No special behaviour. Since: 2.74
+     */
+    DEFAULT_FLAGS,
+    /**
      * flag you should not use
      */
     DO_NOT_USE_THIS_UNSUPPORTED_FLAG,
@@ -3021,7 +3041,8 @@ enum OptionFlags {
     IN_MAIN,
     /**
      * For options of the %G_OPTION_ARG_NONE kind, this
-     *     flag indicates that the sense of the option is reversed.
+     *     flag indicates that the sense of the option is reversed. i.e. %FALSE will
+     *     be stored into the argument rather than %TRUE.
      */
     REVERSE,
     /**
@@ -3058,6 +3079,10 @@ enum OptionFlags {
  * @bitfield 
  */
 enum RegexCompileFlags {
+    /**
+     * No special options set. Since: 2.74
+     */
+    DEFAULT,
     /**
      * Letters in the pattern match both upper- and
      *     lowercase letters. This option can be changed within a pattern
@@ -3129,9 +3154,13 @@ enum RegexCompileFlags {
      */
     NO_AUTO_CAPTURE,
     /**
-     * Optimize the regular expression. If the pattern will
-     *     be used many times, then it may be worth the effort to optimize it
-     *     to improve the speed of matches.
+     * Since 2.74 and the port to pcre2, requests JIT
+     *     compilation, which, if the just-in-time compiler is available, further
+     *     processes a compiled pattern into machine code that executes much
+     *     faster. However, it comes at the cost of extra processing before the
+     *     match is performed, so it is most beneficial to use this when the same
+     *     compiled pattern is used for matching many times. Before 2.74 this
+     *     option used the built-in non-JIT optimizations in pcre1.
      */
     OPTIMIZE,
     /**
@@ -3178,7 +3207,8 @@ enum RegexCompileFlags {
     BSR_ANYCRLF,
     /**
      * Changes behaviour so that it is compatible with
-     *     JavaScript rather than PCRE. Since: 2.34
+     *     JavaScript rather than PCRE. Since GLib 2.74 this is no longer supported,
+     *     as libpcre2 does not support it. Since: 2.34 Deprecated: 2.74
      */
     JAVASCRIPT_COMPAT,
 }
@@ -3187,6 +3217,10 @@ enum RegexCompileFlags {
  * @bitfield 
  */
 enum RegexMatchFlags {
+    /**
+     * No special options set. Since: 2.74
+     */
+    DEFAULT,
     /**
      * The pattern is forced to be "anchored", that is,
      *     it is constrained to match only at the first matching point in the
@@ -3350,6 +3384,18 @@ enum SpawnFlags {
      *     Since: 2.40
      */
     CLOEXEC_PIPES,
+    /**
+     * The child will inherit the parent's standard output.
+     */
+    CHILD_INHERITS_STDOUT,
+    /**
+     * The child will inherit the parent's standard error.
+     */
+    CHILD_INHERITS_STDERR,
+    /**
+     * The child's standard input is attached to `/dev/null`.
+     */
+    STDIN_FROM_DEV_NULL,
 }
 /**
  * Flags to pass to g_test_trap_subprocess() to control input and output.
@@ -3360,25 +3406,29 @@ enum SpawnFlags {
  */
 enum TestSubprocessFlags {
     /**
+     * Default behaviour. Since: 2.74
+     */
+    DEFAULT,
+    /**
      * If this flag is given, the child
      *     process will inherit the parent's stdin. Otherwise, the child's
      *     stdin is redirected to `/dev/null`.
      */
-    STDIN,
+    INHERIT_STDIN,
     /**
      * If this flag is given, the child
      *     process will inherit the parent's stdout. Otherwise, the child's
      *     stdout will not be visible, but it will be captured to allow
      *     later tests with g_test_trap_assert_stdout().
      */
-    STDOUT,
+    INHERIT_STDOUT,
     /**
      * If this flag is given, the child
      *     process will inherit the parent's stderr. Otherwise, the child's
      *     stderr will not be visible, but it will be captured to allow
      *     later tests with g_test_trap_assert_stderr().
      */
-    STDERR,
+    INHERIT_STDERR,
 }
 /**
  * Test traps are guards around forked tests.
@@ -3386,6 +3436,10 @@ enum TestSubprocessFlags {
  * @bitfield 
  */
 enum TestTrapFlags {
+    /**
+     * Default behaviour. Since: 2.74
+     */
+    DEFAULT,
     /**
      * Redirect stdout of the test child to
      *     `/dev/null` so it cannot be observed on the console during test
@@ -4297,6 +4351,9 @@ function access(filename: string, mode: number): number
  * alignment value. Additionally, it will detect possible overflow during
  * multiplication.
  * 
+ * If the allocation fails (because the system is out of memory),
+ * the program is terminated.
+ * 
  * Aligned memory allocations returned by this function can only be
  * freed using g_aligned_free().
  * @param n_blocks the number of blocks to allocate
@@ -4665,6 +4722,24 @@ function atomic_int_and(atomic: number, val: number): number
  */
 function atomic_int_compare_and_exchange(atomic: number, oldval: number, newval: number): boolean
 /**
+ * Compares `atomic` to `oldval` and, if equal, sets it to `newval`.
+ * If `atomic` was not equal to `oldval` then no change occurs.
+ * In any case the value of `atomic` before this operation is stored in `preval`.
+ * 
+ * This compare and exchange is done atomically.
+ * 
+ * Think of this operation as an atomic version of
+ * `{ *preval = *atomic; if (*atomic == oldval) { *atomic = newval; return TRUE; } else return FALSE; }`.
+ * 
+ * This call acts as a full compiler and hardware memory barrier.
+ * 
+ * See also g_atomic_int_compare_and_exchange()
+ * @param atomic a pointer to a #gint or #guint
+ * @param oldval the value to compare with
+ * @param newval the value to conditionally replace with
+ */
+function atomic_int_compare_and_exchange_full(atomic: number, oldval: number, newval: number): [ /* returnType */ boolean, /* preval */ number ]
+/**
  * Decrements the value of `atomic` by 1.
  * 
  * Think of this operation as an atomic version of
@@ -4677,6 +4752,19 @@ function atomic_int_compare_and_exchange(atomic: number, oldval: number, newval:
  * @param atomic a pointer to a #gint or #guint
  */
 function atomic_int_dec_and_test(atomic: number): boolean
+/**
+ * Sets the `atomic` to `newval` and returns the old value from `atomic`.
+ * 
+ * This exchange is done atomically.
+ * 
+ * Think of this operation as an atomic version of
+ * `{ tmp = *atomic; *atomic = val; return tmp; }`.
+ * 
+ * This call acts as a full compiler and hardware memory barrier.
+ * @param atomic a pointer to a #gint or #guint
+ * @param newval the value to replace with
+ */
+function atomic_int_exchange(atomic: number, newval: number): number
 /**
  * This function existed before g_atomic_int_add() returned the prior
  * value of the integer (which it now does).  It is retained only for
@@ -4797,6 +4885,37 @@ function atomic_pointer_and(atomic: object, val: number): number
  * @param newval the value to conditionally replace with
  */
 function atomic_pointer_compare_and_exchange(atomic: object, oldval: object | null, newval: object | null): boolean
+/**
+ * Compares `atomic` to `oldval` and, if equal, sets it to `newval`.
+ * If `atomic` was not equal to `oldval` then no change occurs.
+ * In any case the value of `atomic` before this operation is stored in `preval`.
+ * 
+ * This compare and exchange is done atomically.
+ * 
+ * Think of this operation as an atomic version of
+ * `{ *preval = *atomic; if (*atomic == oldval) { *atomic = newval; return TRUE; } else return FALSE; }`.
+ * 
+ * This call acts as a full compiler and hardware memory barrier.
+ * 
+ * See also g_atomic_pointer_compare_and_exchange()
+ * @param atomic a pointer to a #gpointer-sized value
+ * @param oldval the value to compare with
+ * @param newval the value to conditionally replace with
+ */
+function atomic_pointer_compare_and_exchange_full(atomic: object, oldval: object | null, newval: object | null): [ /* returnType */ boolean, /* preval */ object ]
+/**
+ * Sets the `atomic` to `newval` and returns the old value from `atomic`.
+ * 
+ * This exchange is done atomically.
+ * 
+ * Think of this operation as an atomic version of
+ * `{ tmp = *atomic; *atomic = val; return tmp; }`.
+ * 
+ * This call acts as a full compiler and hardware memory barrier.
+ * @param atomic a pointer to a #gpointer-sized value
+ * @param newval the value to replace with
+ */
+function atomic_pointer_exchange(atomic: object | null, newval: object | null): object | null
 /**
  * Gets the current value of `atomic`.
  * 
@@ -5418,6 +5537,15 @@ function datalist_get_flags(datalist: Data): number
  * @param key_id the #GQuark identifying a data element.
  */
 function datalist_id_get_data(datalist: Data, key_id: Quark): object | null
+/**
+ * Removes multiple keys from a datalist.
+ * 
+ * This is more efficient than calling g_datalist_id_remove_data()
+ * multiple times in a row.
+ * @param datalist a datalist
+ * @param keys keys to remove
+ */
+function datalist_id_remove_multiple(datalist: Data, keys: Quark[]): void
 /**
  * Turns on flag values for a data list. This function is used
  * to keep a small number of boolean flags in an object with
@@ -7417,18 +7545,27 @@ function main_depth(): number
 /**
  * Allocates `n_bytes` bytes of memory.
  * If `n_bytes` is 0 it returns %NULL.
+ * 
+ * If the allocation fails (because the system is out of memory),
+ * the program is terminated.
  * @param n_bytes the number of bytes to allocate
  */
 function malloc(n_bytes: number): object | null
 /**
  * Allocates `n_bytes` bytes of memory, initialized to 0's.
  * If `n_bytes` is 0 it returns %NULL.
+ * 
+ * If the allocation fails (because the system is out of memory),
+ * the program is terminated.
  * @param n_bytes the number of bytes to allocate
  */
 function malloc0(n_bytes: number): object | null
 /**
  * This function is similar to g_malloc0(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
+ * 
+ * If the allocation fails (because the system is out of memory),
+ * the program is terminated.
  * @param n_blocks the number of blocks to allocate
  * @param n_block_bytes the size of each block in bytes
  */
@@ -7436,6 +7573,9 @@ function malloc0_n(n_blocks: number, n_block_bytes: number): object | null
 /**
  * This function is similar to g_malloc(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
+ * 
+ * If the allocation fails (because the system is out of memory),
+ * the program is terminated.
  * @param n_blocks the number of blocks to allocate
  * @param n_block_bytes the size of each block in bytes
  */
@@ -7933,6 +8073,9 @@ function rc_box_release_full(mem_block: object, clear_func: DestroyNotify): void
  * have been moved. `mem` may be %NULL, in which case it's considered to
  * have zero-length. `n_bytes` may be 0, in which case %NULL will be returned
  * and `mem` will be freed unless it is %NULL.
+ * 
+ * If the allocation fails (because the system is out of memory),
+ * the program is terminated.
  * @param mem the memory to reallocate
  * @param n_bytes new size of the memory in bytes
  */
@@ -7940,6 +8083,9 @@ function realloc(mem: object | null, n_bytes: number): object | null
 /**
  * This function is similar to g_realloc(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
+ * 
+ * If the allocation fails (because the system is out of memory),
+ * the program is terminated.
  * @param mem the memory to reallocate
  * @param n_blocks the number of blocks to allocate
  * @param n_block_bytes the size of each block in bytes
@@ -8596,17 +8742,23 @@ function spawn_async_with_pipes(working_directory: string | null, argv: string[]
  * `envp`. If both %G_SPAWN_SEARCH_PATH and %G_SPAWN_SEARCH_PATH_FROM_ENVP
  * are used, the value from `envp` takes precedence over the environment.
  * 
- * %G_SPAWN_STDOUT_TO_DEV_NULL means that the child's standard output
- * will be discarded, instead of going to the same location as the parent's
- * standard output. If you use this flag, `stdout_pipe_out` must be %NULL.
- * 
- * %G_SPAWN_STDERR_TO_DEV_NULL means that the child's standard error
- * will be discarded, instead of going to the same location as the parent's
- * standard error. If you use this flag, `stderr_pipe_out` must be %NULL.
- * 
  * %G_SPAWN_CHILD_INHERITS_STDIN means that the child will inherit the parent's
  * standard input (by default, the child's standard input is attached to
- * `/dev/null`). If you use this flag, `stdin_pipe_out` must be %NULL.
+ * `/dev/null`). %G_SPAWN_STDIN_FROM_DEV_NULL explicitly imposes the default
+ * behavior. Both flags cannot be enabled at the same time and, in both cases,
+ * the `stdin_pipe_out` argument is ignored.
+ * 
+ * %G_SPAWN_STDOUT_TO_DEV_NULL means that the child's standard output
+ * will be discarded (by default, it goes to the same location as the parent's
+ * standard output). %G_SPAWN_CHILD_INHERITS_STDOUT explicitly imposes the
+ * default behavior. Both flags cannot be enabled at the same time and, in
+ * both cases, the `stdout_pipe_out` argument is ignored.
+ * 
+ * %G_SPAWN_STDERR_TO_DEV_NULL means that the child's standard error
+ * will be discarded (by default, it goes to the same location as the parent's
+ * standard error). %G_SPAWN_CHILD_INHERITS_STDERR explicitly imposes the
+ * default behavior. Both flags cannot be enabled at the same time and, in
+ * both cases, the `stderr_pipe_out` argument is ignored.
  * 
  * It is valid to pass the same FD in multiple parameters (e.g. you can pass
  * a single FD for both `stdout_fd` and `stderr_fd,` and include it in
@@ -9767,7 +9919,7 @@ function test_trap_reached_timeout(): boolean
  *       }
  * 
  *     // Reruns this same test in a subprocess
- *     g_test_trap_subprocess (NULL, 0, 0);
+ *     g_test_trap_subprocess (NULL, 0, G_TEST_SUBPROCESS_DEFAULT);
  *     g_test_trap_assert_failed ();
  *     g_test_trap_assert_stderr ("*ERROR*too large*");
  *   }
@@ -10467,7 +10619,7 @@ function unix_get_passwd_entry(user_name: string): object | null
  * @param fds Array of two integers
  * @param flags Bitfield of file descriptor flags, as for fcntl()
  */
-function unix_open_pipe(fds: number, flags: number): boolean
+function unix_open_pipe(fds: number[], flags: number): boolean
 /**
  * Control the non-blocking state of the given file descriptor,
  * according to `nonblock`. On most systems this uses %O_NONBLOCK, but
@@ -10497,11 +10649,11 @@ function unix_signal_add(priority: number, signum: number, handler: SourceFunc):
  * 
  * For example, an effective use of this function is to handle `SIGTERM`
  * cleanly; flushing any outstanding files, and then calling
- * g_main_loop_quit ().  It is not safe to do any of this a regular
- * UNIX signal handler; your handler may be invoked while malloc() or
- * another library function is running, causing reentrancy if you
- * attempt to use it from the handler.  None of the GLib/GObject API
- * is safe against this kind of reentrancy.
+ * g_main_loop_quit().  It is not safe to do any of this from a regular
+ * UNIX signal handler; such a handler may be invoked while malloc() or
+ * another library function is running, causing reentrancy issues if the
+ * handler attempts to use those functions.  None of the GLib/GObject
+ * API is safe against this kind of reentrancy.
  * 
  * The interaction of this source when combined with native UNIX
  * functions like sigprocmask() is not defined.
@@ -11111,7 +11263,7 @@ function utf8_strlen(p: string, max: number): number
  * must be valid UTF-8 encoded text. (Use g_utf8_validate() on all
  * text before trying to use UTF-8 utility functions with it.)
  * 
- * Note you must ensure `dest` is at least 4 * `n` to fit the
+ * Note you must ensure `dest` is at least 4 * `n` + 1 to fit the
  * largest possible UTF-8 characters
  * @param dest buffer to fill with characters from `src`
  * @param src UTF-8 encoded string
@@ -11424,10 +11576,9 @@ interface CompareFunc {
  * when doing a deep-copy of a tree.
  * @callback 
  * @param src A pointer to the data which should be copied
- * @param data Additional data
  */
 interface CopyFunc {
-    (src: object, data: object | null): object
+    (src: object): object
 }
 /**
  * Specifies the type of function passed to g_dataset_foreach(). It is
@@ -11470,6 +11621,20 @@ interface DuplicateFunc {
  * @param b a value to compare with
  */
 interface EqualFunc {
+    (a: object | null, b: object | null): boolean
+}
+/**
+ * Specifies the type of a function used to test two values for
+ * equality. The function should return %TRUE if both values are equal
+ * and %FALSE otherwise.
+ * 
+ * This is a version of #GEqualFunc which provides a `user_data` closure from
+ * the caller.
+ * @callback 
+ * @param a a value
+ * @param b a value to compare with
+ */
+interface EqualFuncFull {
     (a: object | null, b: object | null): boolean
 }
 /**
@@ -11608,10 +11773,9 @@ interface HookCheckFunc {
  * Defines the type of function used by g_hook_list_marshal_check().
  * @callback 
  * @param hook a #GHook
- * @param marshal_data user data
  */
 interface HookCheckMarshaller {
-    (hook: Hook, marshal_data: object | null): boolean
+    (hook: Hook): boolean
 }
 /**
  * Defines the type of function used to compare #GHook elements in
@@ -11637,10 +11801,9 @@ interface HookFinalizeFunc {
  * Defines the type of the function passed to g_hook_find().
  * @callback 
  * @param hook a #GHook
- * @param data user data passed to g_hook_find_func()
  */
 interface HookFindFunc {
-    (hook: Hook, data: object | null): boolean
+    (hook: Hook): boolean
 }
 /**
  * Defines the type of a hook function that can be invoked
@@ -11655,10 +11818,9 @@ interface HookFunc {
  * Defines the type of function used by g_hook_list_marshal().
  * @callback 
  * @param hook a #GHook
- * @param marshal_data user data
  */
 interface HookMarshaller {
-    (hook: Hook, marshal_data: object | null): void
+    (hook: Hook): void
 }
 /**
  * Specifies the type of function passed to g_io_add_watch() or
@@ -11667,10 +11829,9 @@ interface HookMarshaller {
  * @callback 
  * @param source the #GIOChannel event source
  * @param condition the condition which has been satisfied
- * @param data user data set in g_io_add_watch() or g_io_add_watch_full()
  */
 interface IOFunc {
-    (source: IOChannel, condition: IOCondition, data: object | null): boolean
+    (source: IOChannel, condition: IOCondition): boolean
 }
 /**
  * Specifies the prototype of log handler functions.
@@ -11723,10 +11884,9 @@ interface LogWriterFunc {
  * data passed to g_node_children_foreach().
  * @callback 
  * @param node a #GNode.
- * @param data user data passed to g_node_children_foreach().
  */
 interface NodeForeachFunc {
-    (node: Node, data: object | null): void
+    (node: Node): void
 }
 /**
  * Specifies the type of function passed to g_node_traverse(). The
@@ -11735,10 +11895,9 @@ interface NodeForeachFunc {
  * %TRUE, then the traversal is stopped.
  * @callback 
  * @param node a #GNode.
- * @param data user data passed to g_node_traverse().
  */
 interface NodeTraverseFunc {
-    (node: Node, data: object | null): boolean
+    (node: Node): boolean
 }
 /**
  * The type of function to be passed as callback for %G_OPTION_ARG_CALLBACK
@@ -11746,30 +11905,27 @@ interface NodeTraverseFunc {
  * @callback 
  * @param option_name The name of the option being parsed. This will be either a  single dash followed by a single letter (for a short name) or two dashes  followed by a long option name.
  * @param value The value to be parsed.
- * @param data User data added to the #GOptionGroup containing the option when it  was created with g_option_group_new()
  */
 interface OptionArgFunc {
-    (option_name: string, value: string, data: object | null): boolean
+    (option_name: string, value: string): boolean
 }
 /**
  * The type of function to be used as callback when a parse error occurs.
  * @callback 
  * @param context The active #GOptionContext
  * @param group The group to which the function belongs
- * @param data User data added to the #GOptionGroup containing the option when it  was created with g_option_group_new()
  */
 interface OptionErrorFunc {
-    (context: OptionContext, group: OptionGroup, data: object | null): void
+    (context: OptionContext, group: OptionGroup): void
 }
 /**
  * The type of function that can be called before and after parsing.
  * @callback 
  * @param context The active #GOptionContext
  * @param group The group to which the function belongs
- * @param data User data added to the #GOptionGroup containing the option when it  was created with g_option_group_new()
  */
 interface OptionParseFunc {
-    (context: OptionContext, group: OptionGroup, data: object | null): boolean
+    (context: OptionContext, group: OptionGroup): boolean
 }
 /**
  * Specifies the type of function passed to g_main_context_set_poll_func().
@@ -11820,10 +11976,9 @@ interface ScannerMsgFunc {
  * @callback 
  * @param a a #GSequenceIter
  * @param b a #GSequenceIter
- * @param data user data
  */
 interface SequenceIterCompareFunc {
-    (a: SequenceIter, b: SequenceIter, data: object | null): number
+    (a: SequenceIter, b: SequenceIter): number
 }
 /**
  * Dispose function for `source`. See g_source_set_dispose_function() for
@@ -11853,6 +12008,16 @@ interface SourceDummyMarshal {
  */
 interface SourceFunc {
     (): boolean
+}
+/**
+ * A source function that is only called once before being removed from the main
+ * context automatically.
+ * 
+ * See: g_idle_add_once(), g_timeout_add_once()
+ * @callback 
+ */
+interface SourceOnceFunc {
+    (): void
 }
 /**
  * Specifies the type of the setup function passed to g_spawn_async(),
@@ -11936,20 +12101,18 @@ interface TestLogFatalFunc {
  * Specifies the type of the `func` functions passed to g_thread_new()
  * or g_thread_try_new().
  * @callback 
- * @param data data passed to the thread
  */
 interface ThreadFunc {
-    (data: object | null): object | null
+    (): object | null
 }
 /**
  * The type of functions which are used to translate user-visible
  * strings, for <option>--help</option> output.
  * @callback 
  * @param str the untranslated string
- * @param data user data specified when installing the function, e.g.  in g_option_group_set_translate_func()
  */
 interface TranslateFunc {
-    (str: string, data: object | null): string
+    (str: string): string
 }
 /**
  * Specifies the type of function passed to g_tree_traverse(). It is
@@ -11959,10 +12122,9 @@ interface TranslateFunc {
  * @callback 
  * @param key a key of a #GTree node
  * @param value the value corresponding to the key
- * @param data user data passed to g_tree_traverse()
  */
 interface TraverseFunc {
-    (key: object | null, value: object | null, data: object | null): boolean
+    (key: object | null, value: object | null): boolean
 }
 /**
  * Specifies the type of function passed to g_tree_foreach_node(). It is
@@ -11971,10 +12133,9 @@ interface TraverseFunc {
  * stopped.
  * @callback 
  * @param node a #GTreeNode
- * @param data user data passed to g_tree_foreach_node()
  */
 interface TraverseNodeFunc {
-    (node: TreeNode, data: object | null): boolean
+    (node: TreeNode): boolean
 }
 /**
  * The type of functions to be called when a UNIX fd watch source
@@ -13876,7 +14037,8 @@ interface DateTime {
      * - \%c: the preferred date and time representation for the current locale
      * - \%C: the century number (year/100) as a 2-digit integer (00-99)
      * - \%d: the day of the month as a decimal number (range 01 to 31)
-     * - \%e: the day of the month as a decimal number (range  1 to 31)
+     * - \%e: the day of the month as a decimal number (range 1 to 31);
+     *   single digits are preceded by a figure space
      * - \%F: equivalent to `%Y-%m-%d` (the ISO 8601 date format)
      * - \%g: the last two digits of the ISO 8601 week-based year as a
      *   decimal number (00-99). This works well with \%V and \%u.
@@ -13887,9 +14049,9 @@ interface DateTime {
      * - \%I: the hour as a decimal number using a 12-hour clock (range 01 to 12)
      * - \%j: the day of the year as a decimal number (range 001 to 366)
      * - \%k: the hour (24-hour clock) as a decimal number (range 0 to 23);
-     *   single digits are preceded by a blank
+     *   single digits are preceded by a figure space
      * - \%l: the hour (12-hour clock) as a decimal number (range 1 to 12);
-     *   single digits are preceded by a blank
+     *   single digits are preceded by a figure space
      * - \%m: the month as a decimal number (range 01 to 12)
      * - \%M: the minute as a decimal number (range 00 to 59)
      * - \%f: the microsecond as a decimal number (range 000000 to 999999)
@@ -17983,8 +18145,6 @@ interface RWLock {
      * 
      * Calling g_rw_lock_clear() when any thread holds the lock
      * leads to undefined behaviour.
-     * 
-     * Sine: 2.32
      */
     clear(): void
     /**
@@ -18221,8 +18381,6 @@ interface RecMutex {
      * 
      * Calling g_rec_mutex_clear() on a locked recursive mutex leads
      * to undefined behaviour.
-     * 
-     * Sine: 2.32
      */
     clear(): void
     /**
@@ -18375,7 +18533,7 @@ interface Regex {
      *   GRegex *regex;
      *   GMatchInfo *match_info;
      *  
-     *   regex = g_regex_new ("[A-Z]+", 0, 0, NULL);
+     *   regex = g_regex_new ("[A-Z]+", G_REGEX_DEFAULT, G_REGEX_MATCH_DEFAULT, NULL);
      *   g_regex_match (regex, string, 0, &match_info);
      *   while (g_match_info_matches (match_info))
      *     {
@@ -18495,7 +18653,7 @@ interface Regex {
      *   GMatchInfo *match_info;
      *   GError *error = NULL;
      *   
-     *   regex = g_regex_new ("[A-Z]+", 0, 0, NULL);
+     *   regex = g_regex_new ("[A-Z]+", G_REGEX_DEFAULT, G_REGEX_MATCH_DEFAULT, NULL);
      *   g_regex_match_full (regex, string, -1, 0, 0, &match_info, &error);
      *   while (g_match_info_matches (match_info))
      *     {
@@ -21259,6 +21417,11 @@ class TimeZone {
      * 
      * This is equivalent to calling g_time_zone_new() with a string in the form
      * `[+|-]hh[:mm[:ss]]`.
+     * 
+     * It is possible for this function to fail if `seconds` is too big (greater than
+     * 24 hours), in which case this function will return the UTC timezone for
+     * backwards compatibility. To detect failures like this, use
+     * g_time_zone_new_identifier() directly.
      * @constructor 
      * @param seconds offset to UTC, in seconds
      */
@@ -23684,7 +23847,7 @@ interface VariantDict {
      * @param key the key to look up in the dictionary
      * @param expected_type a #GVariantType, or %NULL
      */
-    lookup_value(key: string, expected_type: VariantType | null): Variant
+    lookup_value(key: string, expected_type: VariantType | null): Variant | null
     /**
      * Increases the reference count on `dict`.
      * 
@@ -24423,8 +24586,6 @@ interface Mutex {
      * 
      * Calling g_mutex_clear() on a locked mutex leads to undefined
      * behaviour.
-     * 
-     * Sine: 2.32
      */
     clear(): void
     /**

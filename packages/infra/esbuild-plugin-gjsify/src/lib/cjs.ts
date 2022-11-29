@@ -1,5 +1,6 @@
 import { aliasPlugin } from '../alias-plugin.js';
 import { globPlugin } from 'esbuild-plugin-glob';
+import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "lodash";
 
 // Types
@@ -29,7 +30,8 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
         conditions: ['require'],
         format: 'cjs',
         plugins: [
-            globPlugin()
+            globPlugin(),
+            deepkitPlugin({reflection: pluginOptions.reflection}),
         ]
     };
 

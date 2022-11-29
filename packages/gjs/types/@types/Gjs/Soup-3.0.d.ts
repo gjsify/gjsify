@@ -44,38 +44,38 @@ enum CookieJarAcceptPolicy {
      */
     NEVER,
     /**
-     * accept all cookies set by
-     * the main document loaded in the application using libsoup. An
-     * example of the most common case, web browsers, would be: If
-     * http://www.example.com is the page loaded, accept all cookies set
-     * by example.com, but if a resource from http://www.third-party.com
-     * is loaded from that page reject any cookie that it could try to
-     * set. For libsoup to be able to tell apart first party cookies from
-     * the rest, the application must call soup_message_set_first_party()
-     * on each outgoing #SoupMessage, setting the #GUri of the main
-     * document. If no first party is set in a message when this policy is
-     * in effect, cookies will be assumed to be third party by default.
+     * accept all cookies set by the main
+     *   document loaded in the application using libsoup. An example of the most
+     *   common case, web browsers, would be: If http://www.example.com is the page
+     *   loaded, accept all cookies set by example.com, but if a resource from
+     *   http://www.third-party.com is loaded from that page reject any cookie that
+     *   it could try to set. For libsoup to be able to tell apart first party
+     *   cookies from the rest, the application must call
+     *   [method`Message`.set_first_party] on each outgoing [class`Message]`, setting
+     *   the [struct`GLib`.Uri] of the main document. If no first party is set in a
+     *   message when this policy is in effect, cookies will be assumed to be third
+     *   party by default.
      */
     NO_THIRD_PARTY,
     /**
-     * accept all cookies
-     * set by the main document loaded in the application using libsoup, and
-     * from domains that have previously set at least one cookie when loaded
-     * as the main document. An example of the most common case, web browsers,
-     * would be: if http://www.example.com is the page loaded, accept all
-     * cookies set by example.com, but if a resource from http://www.third-party.com
-     * is loaded from that page, reject any cookie that it could try to
-     * set unless it already has a cookie in the cookie jar. For libsoup to
-     * be able to tell apart first party cookies from the rest, the
-     * application must call soup_message_set_first_party() on each outgoing
-     * #SoupMessage, setting the #GUri of the main document. If no first
-     * party is set in a message when this policy is in effect, cookies will
-     * be assumed to be third party by default.
+     * accept all cookies set by
+     *   the main document loaded in the application using libsoup, and from domains
+     *   that have previously set at least one cookie when loaded as the main
+     *   document. An example of the most common case, web browsers, would be: if
+     *   http://www.example.com is the page loaded, accept all cookies set by
+     *   example.com, but if a resource from http://www.third-party.com is loaded
+     *   from that page, reject any cookie that it could try to set unless it
+     *   already has a cookie in the cookie jar. For libsoup to be able to tell
+     *   apart first party cookies from the rest, the application must call
+     *   [method`Message`.set_first_party] on each outgoing #SoupMessage, setting the
+     *   [struct`GLib`.Uri] of the main document. If no first party is set in a
+     *   message when this policy is in effect, cookies will be assumed to be third
+     *   party by default.
      */
     GRANDFATHERED_THIRD_PARTY,
 }
 /**
- * Date formats that soup_date_time_to_string() can use.
+ * Date formats that [func`date_time_to_string]` can use.
  * 
  * `SOUP_DATE_HTTP` and `SOUP_DATE_COOKIE` always coerce the time to
  * UTC.
@@ -85,12 +85,12 @@ enum CookieJarAcceptPolicy {
 enum DateFormat {
     /**
      * RFC 1123 format, used by the HTTP "Date" header. Eg
-     * "Sun, 06 Nov 1994 08:49:37 GMT"
+     *   "Sun, 06 Nov 1994 08:49:37 GMT".
      */
     HTTP,
     /**
      * The format for the "Expires" timestamp in the
-     * Netscape cookie specification. Eg, "Sun, 06-Nov-1994 08:49:37 GMT".
+     *   Netscape cookie specification. Eg, "Sun, 06-Nov-1994 08:49:37 GMT".
      */
     COOKIE,
 }
@@ -104,7 +104,7 @@ enum Encoding {
     UNRECOGNIZED,
     /**
      * no body is present (which is not the same as a
-     * 0-length body, and only occurs in certain places)
+     *   0-length body, and only occurs in certain places)
      */
     NONE,
     /**
@@ -117,12 +117,12 @@ enum Encoding {
     EOF,
     /**
      * chunked encoding (currently only supported
-     * for response)
+     *   for response)
      */
     CHUNKED,
     /**
      * multipart/byteranges (Reserved for future
-     * use: NOT CURRENTLY IMPLEMENTED)
+     *   use: NOT CURRENTLY IMPLEMENTED)
      */
     BYTERANGES,
 }
@@ -153,7 +153,7 @@ enum LoggerLogLevel {
     NONE,
     /**
      * Log the Request-Line or Status-Line and
-     * the Soup-Debug pseudo-headers
+     *   the Soup-Debug pseudo-headers
      */
     MINIMAL,
     /**
@@ -171,24 +171,24 @@ enum LoggerLogLevel {
 enum MemoryUse {
     /**
      * The memory is statically allocated and
-     * constant; libsoup can use the passed-in buffer directly and not
-     * need to worry about it being modified or freed.
+     *   constant; libsoup can use the passed-in buffer directly and not
+     *   need to worry about it being modified or freed.
      */
     STATIC,
     /**
      * The caller has allocated the memory and libsoup
-     * will assume ownership of it and free it with g_free().
+     *   will assume ownership of it and free it with [func`GLib`.free].
      */
     TAKE,
     /**
      * The passed-in data belongs to the caller and
-     * libsoup will copy it into new memory leaving the caller free
-     * to reuse the original memory.
+     *   libsoup will copy it into new memory leaving the caller free
+     *   to reuse the original memory.
      */
     COPY,
 }
 /**
- * Value passed to soup_message_headers_new() to set certain default
+ * Value passed to [ctor`MessageHeaders`.new] to set certain default
  * behaviors.
  */
 enum MessageHeadersType {
@@ -206,9 +206,8 @@ enum MessageHeadersType {
     MULTIPART,
 }
 /**
- * Priorities that can be set on a #SoupMessage to instruct the
- * message queue to process it before any other message with lower
- * priority.
+ * Priorities that can be set on a [class`Message]` to instruct the message queue
+ * to process it before any other message with lower priority.
  */
 enum MessagePriority {
     /**
@@ -554,7 +553,7 @@ enum TLDError {
     /**
      * The passed-in hostname
      *   did not have enough components. Eg, calling
-     *   soup_tld_get_base_domain() on <literal>"co.uk"</literal>.
+     *   [func`tld_get_base_domain]` on <literal>"co.uk"</literal>.
      */
     NOT_ENOUGH_DOMAINS,
     /**
@@ -569,7 +568,7 @@ enum TLDError {
     NO_PSL_DATA,
 }
 /**
- * Enum values passed to soup_uri_copy() to indicate the components of
+ * Enum values passed to [func`uri_copy]` to indicate the components of
  * the URI that should be updated with the given values.
  */
 enum URIComponent {
@@ -616,9 +615,10 @@ enum URIComponent {
 }
 /**
  * Pre-defined close codes that can be passed to
- * soup_websocket_connection_close() or received from
- * soup_websocket_connection_get_close_code(). (However, other codes
- * are also allowed.)
+ * [method`WebsocketConnection`.close] or received from
+ * [method`WebsocketConnection`.get_close_code].
+ * 
+ * However, other codes are also allowed.
  */
 enum WebsocketCloseCode {
     /**
@@ -681,7 +681,7 @@ enum WebsocketCloseCode {
     TLS_HANDSHAKE,
 }
 /**
- * The type of a #SoupWebsocketConnection.
+ * The type of a [class`WebsocketConnection]`.
  */
 enum WebsocketConnectionType {
     /**
@@ -698,8 +698,7 @@ enum WebsocketConnectionType {
     SERVER,
 }
 /**
- * The type of data contained in a #SoupWebsocketConnection::message
- * signal.
+ * The type of data contained in a [signal`WebsocketConnection:`:message] signal.
  */
 enum WebsocketDataType {
     /**
@@ -753,10 +752,26 @@ enum WebsocketState {
      */
     CLOSED,
 }
+/**
+ * Indicates if a message should or shouldn't be cached.
+ * @bitfield 
+ */
 enum Cacheability {
+    /**
+     * The message should be cached
+     */
     CACHEABLE,
+    /**
+     * The message shouldn't be cached
+     */
     UNCACHEABLE,
+    /**
+     * The messages cache should be invalidated
+     */
     INVALIDATES,
+    /**
+     * The messages cache should be updated
+     */
     VALIDATES,
 }
 /**
@@ -788,25 +803,25 @@ enum MessageFlags {
      * Requests that the message should be
      *   sent on a newly-created connection, not reusing an existing
      *   persistent connection. Note that messages with non-idempotent
-     *   #SoupMessage:method<!-- -->s behave this way by default, unless
+     *   [property`Message:`method]s behave this way by default, unless
      *   #SOUP_MESSAGE_IDEMPOTENT is set.
      */
     NEW_CONNECTION,
     /**
      * The message is considered idempotent,
-     *   regardless its #SoupMessage:method, and allows reuse of existing
+     *   regardless its [property`Message:`method], and allows reuse of existing
      *   idle connections, instead of always requiring a new one, unless
      *   #SOUP_MESSAGE_NEW_CONNECTION is set.
      */
     IDEMPOTENT,
     /**
-     * The #SoupAuthManager should not use
+     * The [class`AuthManager]` should not use
      *   the credentials cache for this message, neither to use cached credentials
      *   to automatically authenticate this message nor to cache the credentials
      *   after the message is successfully authenticated. This applies to both server
-     *   and proxy authentication. Note that #SoupMessage::authenticate signal will
+     *   and proxy authentication. Note that [signal`Message:`:authenticate] signal will
      *   be emitted, if you want to disable authentication for a message use
-     *   soup_message_disable_feature() passing #SOUP_TYPE_AUTH_MANAGER instead.
+     *   [method`Message`.disable_feature] passing #SOUP_TYPE_AUTH_MANAGER instead.
      */
     DO_NOT_USE_AUTH_CACHE,
     /**
@@ -815,11 +830,11 @@ enum MessageFlags {
     COLLECT_METRICS,
 }
 /**
- * Options to pass to soup_server_listen(), etc.
+ * Options to pass to [method`Server`.listen], etc.
  * 
  * %SOUP_SERVER_LISTEN_IPV4_ONLY and %SOUP_SERVER_LISTEN_IPV6_ONLY
- * only make sense with soup_server_listen_all() and
- * soup_server_listen_local(), not plain soup_server_listen() (which
+ * only make sense with [method`Server`.listen_all] and
+ * [method`Server`.listen_local], not plain [method`Server`.listen] (which
  * simply listens on whatever kind of socket you give it). And you
  * cannot specify both of them in a single call.
  * @bitfield 
@@ -840,34 +855,38 @@ enum ServerListenOptions {
     IPV6_ONLY,
 }
 /**
- * A constant corresponding to 1 day, for use with soup_cookie_new()
- * and soup_cookie_set_max_age().
+ * A constant corresponding to 1 day.
+ * 
+ * For use with [ctor`Cookie`.new] and [method`Cookie`.set_max_age].
  */
 const COOKIE_MAX_AGE_ONE_DAY: number
 /**
- * A constant corresponding to 1 hour, for use with soup_cookie_new()
- * and soup_cookie_set_max_age().
+ * A constant corresponding to 1 hour.
+ * 
+ * For use with [ctor`Cookie`.new] and [method`Cookie`.set_max_age].
  */
 const COOKIE_MAX_AGE_ONE_HOUR: number
 /**
- * A constant corresponding to 1 week, for use with soup_cookie_new()
- * and soup_cookie_set_max_age().
+ * A constant corresponding to 1 week.
+ * 
+ * For use with [ctor`Cookie`.new] and [method`Cookie`.set_max_age].
  */
 const COOKIE_MAX_AGE_ONE_WEEK: number
 /**
- * A constant corresponding to 1 year, for use with soup_cookie_new()
- * and soup_cookie_set_max_age().
+ * A constant corresponding to 1 year.
+ * 
+ * For use with [ctor`Cookie`.new] and [method`Cookie`.set_max_age].
  */
 const COOKIE_MAX_AGE_ONE_YEAR: number
 /**
  * A macro containing the value
- * <literal>"multipart/form-data"</literal>; the MIME type used for
+ * `multipart/form-data`; the MIME type used for
  * posting form data that contains files to be uploaded.
  */
 const FORM_MIME_TYPE_MULTIPART: string
 /**
  * A macro containing the value
- * <literal>"application/x-www-form-urlencoded"</literal>; the default
+ * `application/x-www-form-urlencoded`; the default
  * MIME type for POSTing HTML form data.
  */
 const FORM_MIME_TYPE_URLENCODED: string
@@ -880,26 +899,28 @@ const HSTS_POLICY_MAX_AGE_PAST: number
  */
 const HTTP_URI_FLAGS: number
 /**
- * Like soup_get_major_version(), but from the headers used at
- * application compile time, rather than from the library linked
- * against at application run time.
+ * Like [func`get_major_version]`, but from the headers used at application
+ * compile time, rather than from the library linked against at application run
+ * time.
  */
 const MAJOR_VERSION: number
 /**
- * Like soup_get_micro_version(), but from the headers used at
+ * Like [func`get_micro_version]`, but from the headers used at
  * application compile time, rather than from the library linked
  * against at application run time.
  */
 const MICRO_VERSION: number
 /**
- * Like soup_get_minor_version(), but from the headers used at
+ * Like [func`get_minor_version]`, but from the headers used at
  * application compile time, rather than from the library linked
  * against at application run time.
  */
 const MINOR_VERSION: number
 /**
  * A macro that should be defined by the user prior to including
- * libsoup.h. The definition should be one of the predefined libsoup
+ * `libsoup.h`.
+ * 
+ * The definition should be one of the predefined libsoup
  * version macros: %SOUP_VERSION_2_24, %SOUP_VERSION_2_26, ...
  * 
  * This macro defines the earliest version of libsoup that the package
@@ -912,18 +933,20 @@ const MINOR_VERSION: number
  */
 const VERSION_MIN_REQUIRED: number
 /**
- * Like SOUP_CHECK_VERSION, but the check for soup_check_version is
- * at runtime instead of compile time. This is useful for compiling
- * against older versions of libsoup, but using features from newer
- * versions.
+ * Like [func`CHECK_VERSION]`, but the check for soup_check_version is
+ * at runtime instead of compile time.
+ * 
+ * This is useful for compiling against older versions of libsoup, but using
+ * features from newer versions.
  * @param major the major version to check
  * @param minor the minor version to check
  * @param micro the micro version to check
  */
 function check_version(major: number, minor: number, micro: number): boolean
 /**
- * Parses `header` and returns a #SoupCookie. (If `header` contains
- * multiple cookies, only the first one will be parsed.)
+ * Parses `header` and returns a #SoupCookie.
+ * 
+ * If `header` contains multiple cookies, only the first one will be parsed.
  * 
  * If `header` does not have "path" or "domain" attributes, they will
  * be defaulted from `origin`. If `origin` is %NULL, path will default
@@ -932,55 +955,62 @@ function check_version(major: number, minor: number, micro: number): boolean
  * appropriate string for the domain if you want to actually make use
  * of the cookie.
  * @param header a cookie string (eg, the value of a Set-Cookie header)
- * @param origin origin of the cookie, or %NULL
+ * @param origin origin of the cookie
  */
 function cookie_parse(header: string, origin: GLib.Uri | null): Cookie | null
 /**
- * Parses `msg'`s Cookie request header and returns a #GSList of
- * #SoupCookie<!-- -->s. As the "Cookie" header, unlike "Set-Cookie",
- * only contains cookie names and values, none of the other
- * #SoupCookie fields will be filled in. (Thus, you can't generally
- * pass a cookie returned from this method directly to
- * soup_cookies_to_response().)
+ * Parses `msg'`s Cookie request header and returns a [struct`GLib`.SList] of
+ * `SoupCookie`s.
+ * 
+ * As the "Cookie" header, unlike "Set-Cookie", only contains cookie names and
+ * values, none of the other #SoupCookie fields will be filled in. (Thus, you
+ * can't generally pass a cookie returned from this method directly to
+ * [func`cookies_to_response]`.)
  * @param msg a #SoupMessage containing a "Cookie" request header
  */
 function cookies_from_request(msg: Message): Cookie[]
 /**
- * Parses `msg'`s Set-Cookie response headers and returns a #GSList of
- * #SoupCookie<!-- -->s. Cookies that do not specify "path" or
- * "domain" attributes will have their values defaulted from `msg`.
+ * Parses `msg'`s Set-Cookie response headers and returns a [struct`GLib`.SList]
+ * of `SoupCookie`s.
+ * 
+ * Cookies that do not specify "path" or "domain" attributes will have their
+ * values defaulted from `msg`.
  * @param msg a #SoupMessage containing a "Set-Cookie" response header
  */
 function cookies_from_response(msg: Message): Cookie[]
 /**
- * Serializes a #GSList of #SoupCookie into a string suitable for
+ * Serializes a [struct`GLib`.SList] of #SoupCookie into a string suitable for
  * setting as the value of the "Cookie" header.
  * @param cookies a #GSList of #SoupCookie
  */
 function cookies_to_cookie_header(cookies: Cookie[]): string
 /**
  * Adds the name and value of each cookie in `cookies` to `msg'`s
- * "Cookie" request. (If `msg` already has a "Cookie" request header,
- * these cookies will be appended to the cookies already present. Be
- * careful that you do not append the same cookies twice, eg, when
- * requeuing a message.)
+ * "Cookie" request.
+ * 
+ * If `msg` already has a "Cookie" request header, these cookies will be appended
+ * to the cookies already present. Be careful that you do not append the same
+ * cookies twice, eg, when requeuing a message.
  * @param cookies a #GSList of #SoupCookie
  * @param msg a #SoupMessage
  */
 function cookies_to_request(cookies: Cookie[], msg: Message): void
 /**
  * Appends a "Set-Cookie" response header to `msg` for each cookie in
- * `cookies`. (This is in addition to any other "Set-Cookie" headers
- * `msg` may already have.)
+ * `cookies`.
+ * 
+ * This is in addition to any other "Set-Cookie" headers
+ * `msg` may already have.
  * @param cookies a #GSList of #SoupCookie
  * @param msg a #SoupMessage
  */
 function cookies_to_response(cookies: Cookie[], msg: Message): void
 /**
- * Parses `date_string` and tries to extract a date from it. This
- * recognizes all of the "HTTP-date" formats from RFC 2616, RFC 2822
- * dates, and reasonable approximations thereof. (Eg, it is lenient about
- * whitespace, leading "0"s, etc.)
+ * Parses `date_string` and tries to extract a date from it.
+ * 
+ * This recognizes all of the "HTTP-date" formats from RFC 2616, RFC 2822 dates,
+ * and reasonable approximations thereof. (Eg, it is lenient about whitespace,
+ * leading "0"s, etc.)
  * @param date_string The date as a string
  */
 function date_time_new_from_http_string(date_string: string): GLib.DateTime | null
@@ -991,58 +1021,67 @@ function date_time_new_from_http_string(date_string: string): GLib.DateTime | nu
  */
 function date_time_to_string(date: GLib.DateTime, format: DateFormat): string
 /**
- * Decodes `form,` which is an urlencoded dataset as defined in the
- * HTML 4.01 spec.
+ * Decodes `form`.
+ * 
+ * which is an urlencoded dataset as defined in the HTML 4.01 spec.
  * @param encoded_form data of type "application/x-www-form-urlencoded"
  */
 function form_decode(encoded_form: string): GLib.HashTable
 /**
- * Decodes the "multipart/form-data" request in `multipart;` this is a
- * convenience method for the case when you have a single file upload
- * control in a form. (Or when you don't have any file upload
- * controls, but are still using "multipart/form-data" anyway.) Pass
- * the name of the file upload control in `file_control_name,` and
- * soup_form_decode_multipart() will extract the uploaded file data
- * into `filename,` `content_type,` and `file`. All of the other form
- * control data will be returned (as strings, as with
- * soup_form_decode()) in the returned #GHashTable.
+ * Decodes the "multipart/form-data" request in `multipart`.
+ * 
+ * this is a convenience method for the case when you have a single file upload
+ * control in a form. (Or when you don't have any file upload controls, but are
+ * still using "multipart/form-data" anyway.) Pass the name of the file upload
+ * control in `file_control_name,` and [func`form_decode_multipart]` will extract
+ * the uploaded file data into `filename,` `content_type,` and `file`. All of the
+ * other form control data will be returned (as strings, as with
+ * [func`form_decode]` in the returned [struct`GLib`.HashTable].
  * 
  * You may pass %NULL for `filename,` `content_type` and/or `file` if you do not
- * care about those fields. soup_form_decode_multipart() may also
+ * care about those fields. [func`form_decode_multipart]` may also
  * return %NULL in those fields if the client did not provide that
  * information. You must free the returned filename and content-type
- * with g_free(), and the returned file data with g_bytes_unref().
+ * with [func`GLib`.free], and the returned file data with [method`Glib`.Bytes.unref].
  * 
  * If you have a form with more than one file upload control, you will
- * need to decode it manually, using soup_multipart_new_from_message()
- * and soup_multipart_get_part().
+ * need to decode it manually, using [ctor`Multipart`.new_from_message]
+ * and [method`Multipart`.get_part].
  * @param multipart a #SoupMultipart
- * @param file_control_name the name of the HTML file upload control, or %NULL
+ * @param file_control_name the name of the HTML file upload control
  */
 function form_decode_multipart(multipart: Multipart, file_control_name: string | null): [ /* returnType */ GLib.HashTable | null, /* filename */ string, /* content_type */ string, /* file */ GLib.Bytes ]
 /**
  * Encodes `form_data_set` into a value of type
- * "application/x-www-form-urlencoded", as defined in the HTML 4.01
- * spec. Unlike soup_form_encode_hash(), this preserves the ordering
- * of the form elements, which may be required in some situations.
+ * "application/x-www-form-urlencoded".
+ * 
+ * Encodes as defined in the HTML 4.01 spec. Unlike [func`form_encode_hash]`,
+ * this preserves the ordering of the form elements, which may be required in
+ * some situations.
+ * 
+ * See also: [ctor`Message`.new_from_encoded_form].
  * @param form_data_set a datalist containing name/value pairs
  */
 function form_encode_datalist(form_data_set: GLib.Data): string
 /**
  * Encodes `form_data_set` into a value of type
- * "application/x-www-form-urlencoded", as defined in the HTML 4.01
- * spec.
+ * "application/x-www-form-urlencoded".
+ * 
+ * Encodes as defined in the HTML 4.01 spec.
  * 
  * Note that the HTML spec states that "The control names/values are
  * listed in the order they appear in the document." Since this method
  * takes a hash table, it cannot enforce that; if you care about the
- * ordering of the form fields, use soup_form_encode_datalist().
- * @param form_data_set a hash table containing name/value pairs (as strings)
+ * ordering of the form fields, use [func`form_encode_datalist]`.
+ * 
+ * See also: [ctor`Message`.new_from_encoded_form].
+ * @param form_data_set a hash table containing   name/value pairs (as strings)
  */
 function form_encode_hash(form_data_set: GLib.HashTable): string
 /**
  * Returns the major version number of the libsoup library.
- * (e.g. in libsoup version 2.42.0 this is 2.)
+ * 
+ * e.g. in libsoup version 2.42.0 this is 2.
  * 
  * This function is in the library, so it represents the libsoup library
  * your code is running against. Contrast with the #SOUP_MAJOR_VERSION
@@ -1052,7 +1091,8 @@ function form_encode_hash(form_data_set: GLib.HashTable): string
 function get_major_version(): number
 /**
  * Returns the micro version number of the libsoup library.
- * (e.g. in libsoup version 2.42.0 this is 0.)
+ * 
+ * e.g. in libsoup version 2.42.0 this is 0.
  * 
  * This function is in the library, so it represents the libsoup library
  * your code is running against. Contrast with the #SOUP_MICRO_VERSION
@@ -1062,7 +1102,8 @@ function get_major_version(): number
 function get_micro_version(): number
 /**
  * Returns the minor version number of the libsoup library.
- * (e.g. in libsoup version 2.42.0 this is 42.)
+ * 
+ * e.g. in libsoup version 2.42.0 this is 42.
  * 
  * This function is in the library, so it represents the libsoup library
  * your code is running against. Contrast with the #SOUP_MINOR_VERSION
@@ -1072,21 +1113,21 @@ function get_micro_version(): number
 function get_minor_version(): number
 /**
  * Parses `header` to see if it contains the token `token` (matched
- * case-insensitively). Note that this can't be used with lists
- * that have qvalues.
- * @param header An HTTP header suitable for parsing with soup_header_parse_list()
+ * case-insensitively).
+ * 
+ * Note that this can't be used with lists that have qvalues.
+ * @param header An HTTP header suitable for parsing with   [func`header_parse_list]`
  * @param token a token
  */
 function header_contains(header: string, token: string): boolean
 /**
  * Frees `param_list`.
- * @param param_list a #GHashTable returned from soup_header_parse_param_list() or soup_header_parse_semi_param_list()
+ * @param param_list a #GHashTable returned from   [func`header_parse_param_list]` or [func`header_parse_semi_param_list]`
  */
 function header_free_param_list(param_list: GLib.HashTable): void
 /**
- * Appends something like <literal>`name=``value<`/literal> to `string,`
- * taking care to quote `value` if needed, and if so, to escape any
- * quotes or backslashes in `value`.
+ * Appends something like `name=value` to `string,` taking care to quote `value`
+ * if needed, and if so, to escape any quotes or backslashes in `value`.
  * 
  * Alternatively, if `value` is a non-ASCII UTF-8 string, it will be
  * appended using RFC5987 syntax. Although in theory this is supposed
@@ -1101,26 +1142,26 @@ function header_free_param_list(param_list: GLib.HashTable): void
  */
 function header_g_string_append_param(string: GLib.String, name: string, value: string): void
 /**
- * Appends something like <literal>`name=`"`value"`</literal> to
+ * Appends something like `name="value"` to
  * `string,` taking care to escape any quotes or backslashes in `value`.
  * 
  * If `value` is (non-ASCII) UTF-8, this will instead use RFC 5987
- * encoding, just like soup_header_g_string_append_param().
+ * encoding, just like [func`header_g_string_append_param]`.
  * @param string a #GString being used to construct an HTTP header value
  * @param name a parameter name
  * @param value a parameter value
  */
 function header_g_string_append_param_quoted(string: GLib.String, name: string, value: string): void
 /**
- * Parses a header whose content is described by RFC2616 as
- * "#something", where "something" does not itself contain commas,
- * except as part of quoted-strings.
+ * Parses a header whose content is described by RFC2616 as `#something`.
+ * 
+ * "something" does not itself contain commas, except as part of quoted-strings.
  * @param header a header value
  */
 function header_parse_list(header: string): string[]
 /**
  * Parses a header which is a comma-delimited list of something like:
- * <literal>token [ "=" ( token | quoted-string ) ]</literal>.
+ * `token [ "=" ( token | quoted-string ) ]`.
  * 
  * Tokens that don't have an associated value will still be added to
  * the resulting hash table, but with a %NULL value.
@@ -1132,13 +1173,14 @@ function header_parse_list(header: string): string[]
  */
 function header_parse_param_list(header: string): GLib.HashTable
 /**
- * A strict version of soup_header_parse_param_list()
+ * A strict version of [func`header_parse_param_list]`
  * that bails out if there are duplicate parameters.
+ * 
  * Note that this function will treat RFC5987-encoded
  * parameters as duplicated if an ASCII version is also
  * present. For header fields that might contain
  * RFC5987-encoded parameters, use
- * soup_header_parse_param_list() instead.
+ * [func`header_parse_param_list]` instead.
  * @param header a header value
  */
 function header_parse_param_list_strict(header: string): GLib.HashTable | null
@@ -1155,7 +1197,7 @@ function header_parse_param_list_strict(header: string): GLib.HashTable | null
 function header_parse_quality_list(header: string): [ /* returnType */ string[], /* unacceptable */ string[] ]
 /**
  * Parses a header which is a semicolon-delimited list of something
- * like: <literal>token [ "=" ( token | quoted-string ) ]</literal>.
+ * like: `token [ "=" ( token | quoted-string ) ]`.
  * 
  * Tokens that don't have an associated value will still be added to
  * the resulting hash table, but with a %NULL value.
@@ -1167,23 +1209,25 @@ function header_parse_quality_list(header: string): [ /* returnType */ string[],
  */
 function header_parse_semi_param_list(header: string): GLib.HashTable
 /**
- * A strict version of soup_header_parse_semi_param_list()
+ * A strict version of [func`header_parse_semi_param_list]`
  * that bails out if there are duplicate parameters.
+ * 
  * Note that this function will treat RFC5987-encoded
  * parameters as duplicated if an ASCII version is also
  * present. For header fields that might contain
  * RFC5987-encoded parameters, use
- * soup_header_parse_semi_param_list() instead.
+ * [func`header_parse_semi_param_list]` instead.
  * @param header a header value
  */
 function header_parse_semi_param_list_strict(header: string): GLib.HashTable | null
 /**
  * Parses the headers of an HTTP request or response in `str` and
- * stores the results in `dest`. Beware that `dest` may be modified even
- * on failure.
+ * stores the results in `dest`.
+ * 
+ * Beware that `dest` may be modified even on failure.
  * 
  * This is a low-level method; normally you would use
- * soup_headers_parse_request() or soup_headers_parse_response().
+ * [func`headers_parse_request]` or [func`headers_parse_response]`.
  * @param str the header string (including the Request-Line or Status-Line,   but not the trailing blank line)
  * @param len length of `str`
  * @param dest #SoupMessageHeaders to store the header values in
@@ -1211,8 +1255,9 @@ function headers_parse_request(str: string, len: number, req_headers: MessageHea
 function headers_parse_response(str: string, len: number, headers: MessageHeaders): [ /* returnType */ boolean, /* ver */ HTTPVersion, /* status_code */ number, /* reason_phrase */ string ]
 /**
  * Parses the HTTP Status-Line string in `status_line` into `ver,`
- * `status_code,` and `reason_phrase`. `status_line` must be terminated by
- * either "\0" or "\r\n".
+ * `status_code,` and `reason_phrase`.
+ * 
+ * `status_line` must be terminated by either "\0" or "\r\n".
  * @param status_line an HTTP Status-Line
  */
 function headers_parse_status_line(status_line: string): [ /* returnType */ boolean, /* ver */ HTTPVersion, /* status_code */ number, /* reason_phrase */ string ]
@@ -1221,14 +1266,17 @@ function headers_parse_status_line(status_line: string): [ /* returnType */ bool
  * @param hdrs a %SoupMessageHeaders
  */
 function message_headers_iter_init(hdrs: MessageHeaders): /* iter */ MessageHeadersIter
+/**
+ * Registers error quark for SoupSession if needed.
+ */
 function session_error_quark(): GLib.Quark
 /**
  * Looks up the stock HTTP description of `status_code`.
  * 
- * <emphasis>There is no reason for you to ever use this
- * function.</emphasis> If you wanted the textual description for the
- * #SoupMessage:status_code of a given #SoupMessage, you should just
- * look at the message's #SoupMessage:reason_phrase. However, you
+ * *There is no reason for you to ever use this
+ * function.* If you wanted the textual description for the
+ * [property`Message:`status-code] of a given [class`Message]`, you should just
+ * look at the message's [property`Message:`reason-phrase]. However, you
  * should only do that for use in debugging messages; HTTP reason
  * phrases are not localized, and are not generally very descriptive
  * anyway, and so they should never be presented to the user directly.
@@ -1247,12 +1295,16 @@ function status_get_phrase(status_code: number): string
  * @param domain a domain name
  */
 function tld_domain_is_public_suffix(domain: string): boolean
+/**
+ * Registers error quark for soup_tld_get_base_domain() if needed.
+ */
 function tld_error_quark(): GLib.Quark
 /**
- * Finds the base domain for a given `hostname`. The base domain is
- * composed by the top level domain (such as .org, .com, .co.uk, etc)
- * plus the second level domain, for example for myhost.mydomain.com
- * it will return mydomain.com.
+ * Finds the base domain for a given `hostname`
+ * 
+ * The base domain is composed by the top level domain (such as .org, .com,
+ * .co.uk, etc) plus the second level domain, for example for
+ * myhost.mydomain.com it will return mydomain.com.
  * 
  * Note that %NULL will be returned for private URLs (those not ending
  * with any well known TLD) because choosing a base domain for them
@@ -1271,7 +1323,7 @@ function tld_get_base_domain(hostname: string): string
  */
 function uri_decode_data_uri(uri: string): [ /* returnType */ GLib.Bytes, /* content_type */ string | null ]
 /**
- * Tests whether or not `uri1` and `uri2` are equal in all parts
+ * Tests whether or not `uri1` and `uri2` are equal in all parts.
  * @param uri1 a #GUri
  * @param uri2 another #GUri
  */
@@ -1279,12 +1331,13 @@ function uri_equal(uri1: GLib.Uri, uri2: GLib.Uri): boolean
 /**
  * Adds the necessary headers to `msg` to request a WebSocket
  * handshake including supported WebSocket extensions.
+ * 
  * The message body and non-WebSocket-related headers are
  * not modified.
  * 
  * This is a low-level function; if you use
- * soup_session_websocket_connect_async() to create a WebSocket
- * connection, it will call this for you.
+ * [method`Session`.websocket_connect_async] to create a WebSocket connection, it
+ * will call this for you.
  * @param msg a #SoupMessage
  * @param origin the "Origin" header to set
  * @param protocols list of   protocols to offer
@@ -1301,12 +1354,15 @@ function websocket_client_prepare_handshake(msg: Message, origin: string | null,
  * extensions are returned in `accepted_extensions` parameter if non-%NULL.
  * 
  * This is a low-level function; if you use
- * soup_session_websocket_connect_async() to create a WebSocket
+ * [method`Session`.websocket_connect_async] to create a WebSocket
  * connection, it will call this for you.
  * @param msg #SoupMessage containing both client and server sides of a   WebSocket handshake
  * @param supported_extensions list   of supported extension types
  */
 function websocket_client_verify_handshake(msg: Message, supported_extensions: GObject.TypeClass[] | null): [ /* returnType */ boolean, /* accepted_extensions */ WebsocketExtension[] ]
+/**
+ * Registers error quark for SoupWebsocket if needed.
+ */
 function websocket_error_quark(): GLib.Quark
 /**
  * Examines the method and request headers in `msg` and determines
@@ -1319,9 +1375,9 @@ function websocket_error_quark(): GLib.Quark
  * only requests containing valid supported extensions in
  * "Sec-WebSocket-Extensions" header will be accepted.
  * 
- * Normally soup_websocket_server_process_handshake()
+ * Normally [func`websocket_server_process_handshake]`
  * will take care of this for you, and if you use
- * soup_server_add_websocket_handler() to handle accepting WebSocket
+ * [method`Server`.add_websocket_handler] to handle accepting WebSocket
  * connections, it will call that for you. However, this function may
  * be useful if you need to perform more complicated validation; eg,
  * accepting multiple different Origins, or handling different protocols
@@ -1346,7 +1402,7 @@ function websocket_server_check_handshake(msg: ServerMessage, origin: string | n
  * will be returned in `accepted_extensions` parameter if non-%NULL.
  * 
  * This is a low-level function; if you use
- * soup_server_add_websocket_handler() to handle accepting WebSocket
+ * [method`Server`.add_websocket_handler] to handle accepting WebSocket
  * connections, it will call this for you.
  * @param msg #SoupServerMessage containing the client side of a WebSocket handshake
  * @param expected_origin expected Origin header
@@ -1356,6 +1412,7 @@ function websocket_server_check_handshake(msg: ServerMessage, origin: string | n
 function websocket_server_process_handshake(msg: ServerMessage, expected_origin: string | null, protocols: string[] | null, supported_extensions: GObject.TypeClass[] | null): [ /* returnType */ boolean, /* accepted_extensions */ WebsocketExtension[] ]
 /**
  * Callback used by #SoupAuthDomainBasic for authentication purposes.
+ * 
  * The application should verify that `username` and `password` and valid
  * and return %TRUE or %FALSE.
  * 
@@ -1380,9 +1437,10 @@ interface AuthDomainBasicAuthCallback {
 }
 /**
  * Callback used by #SoupAuthDomainDigest for authentication purposes.
+ * 
  * The application should look up `username` in its password database,
  * and return the corresponding encoded password (see
- * soup_auth_domain_digest_encode_password()).
+ * [func`AuthDomainDigest`.encode_password].
  * @callback 
  * @param domain the domain
  * @param msg the message being authenticated
@@ -1392,8 +1450,9 @@ interface AuthDomainDigestAuthCallback {
     (domain: AuthDomainDigest, msg: ServerMessage, username: string): string | null
 }
 /**
- * The prototype for a #SoupAuthDomain filter; see
- * soup_auth_domain_set_filter() for details.
+ * The prototype for a #SoupAuthDomain filter.
+ * 
+ * See [method`AuthDomain`.set_filter] for details.
  * @callback 
  * @param domain a #SoupAuthDomain
  * @param msg a #SoupServerMessage
@@ -1405,18 +1464,18 @@ interface AuthDomainFilter {
  * The prototype for a #SoupAuthDomain generic authentication callback.
  * 
  * The callback should look up the user's password, call
- * soup_auth_domain_check_password(), and use the return value from
- * that method as its own return value.
+ * [method`AuthDomain`.check_password], and use the return value from that method
+ * as its own return value.
  * 
  * In general, for security reasons, it is preferable to use the
  * auth-domain-specific auth callbacks (eg,
- * #SoupAuthDomainBasicAuthCallback and
- * #SoupAuthDomainDigestAuthCallback), because they don't require
+ * [callback`AuthDomainBasicAuthCallback]` and
+ * [callback`AuthDomainDigestAuthCallback]`), because they don't require
  * keeping a cleartext password database. Most users will use the same
  * password for many different sites, meaning if any site with a
  * cleartext password database is compromised, accounts on other
  * servers might be compromised as well. For many of the cases where
- * #SoupServer is used, this is not really relevant, but it may still
+ * [class`Server]` is used, this is not really relevant, but it may still
  * be worth considering.
  * @callback 
  * @param domain a #SoupAuthDomain
@@ -1427,10 +1486,11 @@ interface AuthDomainGenericAuthCallback {
     (domain: AuthDomain, msg: ServerMessage, username: string): boolean
 }
 /**
- * The prototype for a logging filter. The filter callback will be
- * invoked for each request or response, and should analyze it and
- * return a #SoupLoggerLogLevel value indicating how much of the
- * message to log.
+ * The prototype for a logging filter.
+ * 
+ * The filter callback will be invoked for each request or response, and should
+ * analyze it and return a [enum`LoggerLogLevel]` value indicating how much of
+ * the message to log.
  * @callback 
  * @param logger the #SoupLogger
  * @param msg the message being logged
@@ -1449,9 +1509,9 @@ interface LoggerFilter {
  * 
  * To get the effect of the default printer, you would do:
  * 
- * <informalexample><programlisting>
+ * ```c
  * printf ("%c %s\n", direction, data);
- * </programlisting></informalexample>
+ * ```
  * @callback 
  * @param logger the #SoupLogger
  * @param level the level of the information being printed.
@@ -1462,7 +1522,7 @@ interface LoggerPrinter {
     (logger: Logger, level: LoggerLogLevel, direction: number, data: string): void
 }
 /**
- * The callback passed to soup_message_headers_foreach().
+ * The callback passed to [method`MessageHeaders`.foreach].
  * @callback 
  * @param name the header name
  * @param value the header value
@@ -1471,26 +1531,25 @@ interface MessageHeadersForeachFunc {
     (name: string, value: string): void
 }
 /**
- * A callback used to handle requests to a #SoupServer.
+ * A callback used to handle requests to a [class`Server]`.
  * 
  * `path` and `query` contain the likewise-named components of the
  * Request-URI, subject to certain assumptions. By default,
- * #SoupServer decodes all percent-encoding in the URI path, such that
- * "/foo%<!-- -->2Fbar" is treated the same as "/foo/bar". If your
+ * [class`Server]` decodes all percent-encoding in the URI path, such that
+ * `"/foo%2Fbar"` is treated the same as `"/foo/bar"`. If your
  * server is serving resources in some non-POSIX-filesystem namespace,
  * you may want to distinguish those as two distinct paths. In that
- * case, you can set the SoupServer:raw-paths property when creating
- * the #SoupServer, and it will leave those characters undecoded.
+ * case, you can set the [property`Server:`raw-paths] property when creating
+ * the [class`Server]`, and it will leave those characters undecoded.
  * 
- * `query` contains the query component of the Request-URI parsed
- * according to the rules for HTML form handling. Although this is the
- * only commonly-used query string format in HTTP, there is nothing
- * that actually requires that HTTP URIs use that format; if your
- * server needs to use some other format, you can just ignore `query,`
- * and call soup_message_get_uri() and parse the URI's query field
- * yourself.
+ * `query` contains the query component of the Request-URI parsed according to
+ * the rules for HTML form handling. Although this is the only commonly-used
+ * query string format in HTTP, there is nothing that actually requires that
+ * HTTP URIs use that format; if your server needs to use some other format, you
+ * can just ignore `query,` and call [method`Message`.get_uri] and parse the URI's
+ * query field yourself.
  * 
- * See soup_server_add_handler() and soup_server_add_early_handler()
+ * See [method`Server`.add_handler] and [method`Server`.add_early_handler]
  * for details of what handlers can/should do.
  * @callback 
  * @param server the #SoupServer
@@ -1502,13 +1561,13 @@ interface ServerCallback {
     (server: Server, msg: ServerMessage, path: string, query: GLib.HashTable | null): void
 }
 /**
- * A callback used to handle WebSocket requests to a #SoupServer. The
- * callback will be invoked after sending the handshake response back
- * to the client (and is only invoked if the handshake was
- * successful).
+ * A callback used to handle WebSocket requests to a #SoupServer.
+ * 
+ * The callback will be invoked after sending the handshake response back to the
+ * client (and is only invoked if the handshake was successful).
  * 
  * `path` contains the path of the Request-URI, subject to the same
- * rules as #SoupServerCallback (qv).
+ * rules as [callback`ServerCallback]` `(qv)`.
  * @callback 
  * @param server the #SoupServer
  * @param msg the #SoupServerMessage
@@ -1538,8 +1597,15 @@ interface SessionFeature {
 }
 
 /**
- * An object that implement some sort of optional feature for
- * #SoupSession.
+ * Interface for miscellaneous [class`Session]` features.
+ * 
+ * #SoupSessionFeature is the interface used by classes that extend
+ * the functionality of a [class`Session]`. Some features like HTTP
+ * authentication handling are implemented internally via
+ * `SoupSessionFeature`s. Other features can be added to the session
+ * by the application. (Eg, [class`Logger]`, [class`CookieJar]`.)
+ * 
+ * See [method`Session`.add_feature], etc, to add a feature to a session.
  * @interface 
  */
 class SessionFeature extends GObject.Object {
@@ -1592,8 +1658,7 @@ interface Auth {
      */
     readonly is_authenticated: boolean
     /**
-     * An alias for the #SoupAuth:is-cancelled property.
-     * (Whether or not the auth has been cancelled.)
+     * Whether or not the auth has been cancelled.
      */
     readonly is_cancelled: boolean
     /**
@@ -1616,21 +1681,24 @@ interface Auth {
     // Owm methods of Soup-3.0.Soup.Auth
 
     /**
-     * Call this on an auth to authenticate it; normally this will cause
-     * the auth's message to be requeued with the new authentication info.
+     * Call this on an auth to authenticate it.
+     * 
+     * Normally this will cause the auth's message to be requeued with the new
+     * authentication info.
      * @param username the username provided by the user or client
      * @param password the password provided by the user or client
      */
     authenticate(username: string, password: string): void
     /**
      * Tests if `auth` is able to authenticate by providing credentials to the
-     * soup_auth_authenticate().
+     * [method`Auth`.authenticate].
      */
     can_authenticate(): boolean
     /**
-     * Call this on an auth to cancel it. You need to cancel an auth to complete
-     * an asynchronous authenticate operation when no credentials are provided
-     * (soup_auth_authenticate() is not called).
+     * Call this on an auth to cancel it.
+     * 
+     * You need to cancel an auth to complete an asynchronous authenticate operation
+     * when no credentials are provided ([method`Auth`.authenticate] is not called).
      * The #SoupAuth will be cancelled on dispose if it hans't been authenticated.
      */
     cancel(): void
@@ -1639,41 +1707,48 @@ interface Auth {
      */
     get_authority(): string
     /**
-     * Generates an appropriate "Authorization" header for `msg`. (The
-     * session will only call this if soup_auth_is_authenticated()
-     * returned %TRUE.)
+     * Generates an appropriate "Authorization" header for `msg`.
+     * 
+     * (The session will only call this if [method`Auth`.is_authenticated] returned
+     * %TRUE.)
      * @param msg the #SoupMessage to be authorized
      */
     get_authorization(msg: Message): string
     /**
-     * Gets an opaque identifier for `auth,` for use as a hash key or the
-     * like. #SoupAuth objects from the same server with the same
-     * identifier refer to the same authentication domain (eg, the URLs
-     * associated with them take the same usernames and passwords).
+     * Gets an opaque identifier for `auth`.
+     * 
+     * The identifier can be used as a hash key or the like. #SoupAuth objects from
+     * the same server with the same identifier refer to the same authentication
+     * domain (eg, the URLs associated with them take the same usernames and
+     * passwords).
      */
     get_info(): string
     /**
      * Returns a list of paths on the server which `auth` extends over.
+     * 
      * (All subdirectories of these paths are also assumed to be part
      * of `auth'`s protection space, unless otherwise discovered not to
      * be.)
-     * @param source_uri the URI of the request that `auth` was generated in response to.
+     * @param source_uri the URI of the request that `auth` was generated in   response to.
      */
     get_protection_space(source_uri: GLib.Uri): string[]
     /**
-     * Returns `auth'`s realm. This is an identifier that distinguishes
-     * separate authentication spaces on a given server, and may be some
-     * string that is meaningful to the user. (Although it is probably not
-     * localized.)
+     * Returns `auth'`s realm.
+     * 
+     * This is an identifier that distinguishes separate authentication spaces on a
+     * given server, and may be some string that is meaningful to the user.
+     * (Although it is probably not localized.)
      */
     get_realm(): string
     /**
+     * soup_auth_get_scheme_name: (attributes org.gtk.Method.get_property=scheme-name)
      * Returns `auth'`s scheme name. (Eg, "Basic", "Digest", or "NTLM")
      */
     get_scheme_name(): string
     /**
-     * Tests if `auth` is ready to make a request for `msg` with. For most
-     * auths, this is equivalent to soup_auth_is_authenticated(), but for
+     * Tests if `auth` is ready to make a request for `msg` with.
+     * 
+     * For most auths, this is equivalent to [method`Auth`.is_authenticated], but for
      * some auth types (eg, NTLM), the auth may be sendable (eg, as an
      * authentication request) even before it is authenticated.
      * @param msg a #SoupMessage
@@ -1681,8 +1756,9 @@ interface Auth {
     is_ready(msg: Message): boolean
     /**
      * Updates `auth` with the information from `msg` and `auth_header,`
-     * possibly un-authenticating it. As with soup_auth_new(), this is
-     * normally only used by #SoupSession.
+     * possibly un-authenticating it.
+     * 
+     * As with [ctor`Auth`.new], this is normally only used by [class`Session]`.
      * @param msg the #SoupMessage `auth` is being updated for
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
      */
@@ -1691,8 +1767,10 @@ interface Auth {
     // Own virtual methods of Soup-3.0.Soup.Auth
 
     /**
-     * Call this on an auth to authenticate it; normally this will cause
-     * the auth's message to be requeued with the new authentication info.
+     * Call this on an auth to authenticate it.
+     * 
+     * Normally this will cause the auth's message to be requeued with the new
+     * authentication info.
      * @virtual 
      * @param username the username provided by the user or client
      * @param password the password provided by the user or client
@@ -1700,35 +1778,38 @@ interface Auth {
     vfunc_authenticate(username: string, password: string): void
     /**
      * Tests if `auth` is able to authenticate by providing credentials to the
-     * soup_auth_authenticate().
+     * [method`Auth`.authenticate].
      * @virtual 
      */
     vfunc_can_authenticate(): boolean
     /**
-     * Generates an appropriate "Authorization" header for `msg`. (The
-     * session will only call this if soup_auth_is_authenticated()
-     * returned %TRUE.)
+     * Generates an appropriate "Authorization" header for `msg`.
+     * 
+     * (The session will only call this if [method`Auth`.is_authenticated] returned
+     * %TRUE.)
      * @virtual 
      * @param msg the #SoupMessage to be authorized
      */
     vfunc_get_authorization(msg: Message): string
     /**
      * Returns a list of paths on the server which `auth` extends over.
+     * 
      * (All subdirectories of these paths are also assumed to be part
      * of `auth'`s protection space, unless otherwise discovered not to
      * be.)
      * @virtual 
-     * @param source_uri the URI of the request that `auth` was generated in response to.
+     * @param source_uri the URI of the request that `auth` was generated in   response to.
      */
     vfunc_get_protection_space(source_uri: GLib.Uri): string[]
     /**
-     * Tests if `auth` has been given a username and password
+     * Tests if `auth` has been given a username and password.
      * @virtual 
      */
     vfunc_is_authenticated(): boolean
     /**
-     * Tests if `auth` is ready to make a request for `msg` with. For most
-     * auths, this is equivalent to soup_auth_is_authenticated(), but for
+     * Tests if `auth` is ready to make a request for `msg` with.
+     * 
+     * For most auths, this is equivalent to [method`Auth`.is_authenticated], but for
      * some auth types (eg, NTLM), the auth may be sendable (eg, as an
      * authentication request) even before it is authenticated.
      * @virtual 
@@ -1737,8 +1818,9 @@ interface Auth {
     vfunc_is_ready(msg: Message): boolean
     /**
      * Updates `auth` with the information from `msg` and `auth_header,`
-     * possibly un-authenticating it. As with soup_auth_new(), this is
-     * normally only used by #SoupSession.
+     * possibly un-authenticating it.
+     * 
+     * As with [ctor`Auth`.new], this is normally only used by [class`Session]`.
      * @virtual 
      * @param msg the #SoupMessage `auth` is being updated for
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
@@ -1772,10 +1854,14 @@ interface Auth {
 }
 
 /**
- * The abstract base class for handling authentication. Specific HTTP
- * Authentication mechanisms are implemented by its subclasses, but
- * applications never need to be aware of the specific subclasses
- * being used.
+ * The abstract base class for handling authentication.
+ * 
+ * Specific HTTP Authentication mechanisms are implemented by its subclasses,
+ * but applications never need to be aware of the specific subclasses being
+ * used.
+ * 
+ * #SoupAuth objects store the authentication data associated with a given bit
+ * of web space. They are created automatically by [class`Session]`.
  * @class 
  */
 class Auth extends GObject.Object {
@@ -1792,7 +1878,7 @@ class Auth extends GObject.Object {
      * Creates a new #SoupAuth of type `type` with the information from
      * `msg` and `auth_header`.
      * 
-     * This is called by #SoupSession; you will normally not create auths
+     * This is called by [class`Session]`; you will normally not create auths
      * yourself.
      * @constructor 
      * @param type the type of auth to create (a subtype of #SoupAuth)
@@ -1804,7 +1890,7 @@ class Auth extends GObject.Object {
      * Creates a new #SoupAuth of type `type` with the information from
      * `msg` and `auth_header`.
      * 
-     * This is called by #SoupSession; you will normally not create auths
+     * This is called by [class`Session]`; you will normally not create auths
      * yourself.
      * @constructor 
      * @param type the type of auth to create (a subtype of #SoupAuth)
@@ -1852,6 +1938,14 @@ interface AuthBasic {
     disconnect(id: number): void
 }
 
+/**
+ * HTTP "Basic" authentication.
+ * 
+ * [class`Session]`s support this by default; if you want to disable
+ * support for it, call [method`Session`.remove_feature_by_type],
+ * passing %SOUP_TYPE_AUTH_BASIC.
+ * @class 
+ */
 class AuthBasic extends Auth {
 
     // Own properties of Soup-3.0.Soup.AuthBasic
@@ -1902,6 +1996,14 @@ interface AuthDigest {
     disconnect(id: number): void
 }
 
+/**
+ * HTTP "Digest" authentication.
+ * 
+ * [class`Session]`s support this by default; if you want to disable
+ * support for it, call [method`Session`.remove_feature_by_type]
+ * passing %SOUP_TYPE_AUTH_DIGEST.
+ * @class 
+ */
 class AuthDigest extends Auth {
 
     // Own properties of Soup-3.0.Soup.AuthDigest
@@ -1924,22 +2026,28 @@ module AuthDomain {
         // Own constructor properties of Soup-3.0.Soup.AuthDomain
 
         /**
-         * The #SoupAuthDomainFilter for the domain.
+         * The [callback`AuthDomainFilter]` for the domain.
          */
         filter?: AuthDomainFilter | null
         /**
-         * Data to pass to the #SoupAuthDomainFilter.
+         * Data to pass to the [callback`AuthDomainFilter]`.
          */
         filter_data?: object | null
         /**
-         * The #SoupAuthDomainGenericAuthCallback.
+         * The [callback`AuthDomainGenericAuthCallback]`.
          */
         generic_auth_callback?: AuthDomainGenericAuthCallback | null
         /**
-         * The data to pass to the #SoupAuthDomainGenericAuthCallback.
+         * The data to pass to the [callback`AuthDomainGenericAuthCallback]`.
          */
         generic_auth_data?: object | null
+        /**
+         * Whether or not this is a proxy auth domain.
+         */
         proxy?: boolean | null
+        /**
+         * The realm of this auth domain.
+         */
         realm?: string | null
     }
 
@@ -1950,22 +2058,28 @@ interface AuthDomain {
     // Own properties of Soup-3.0.Soup.AuthDomain
 
     /**
-     * The #SoupAuthDomainFilter for the domain.
+     * The [callback`AuthDomainFilter]` for the domain.
      */
     filter: AuthDomainFilter
     /**
-     * Data to pass to the #SoupAuthDomainFilter.
+     * Data to pass to the [callback`AuthDomainFilter]`.
      */
     filter_data: object
     /**
-     * The #SoupAuthDomainGenericAuthCallback.
+     * The [callback`AuthDomainGenericAuthCallback]`.
      */
     generic_auth_callback: AuthDomainGenericAuthCallback
     /**
-     * The data to pass to the #SoupAuthDomainGenericAuthCallback.
+     * The data to pass to the [callback`AuthDomainGenericAuthCallback]`.
      */
     generic_auth_data: object
+    /**
+     * Whether or not this is a proxy auth domain.
+     */
     readonly proxy: boolean
+    /**
+     * The realm of this auth domain.
+     */
     readonly realm: string
 
     // Own fields of Soup-3.0.Soup.AuthDomain
@@ -1976,40 +2090,41 @@ interface AuthDomain {
 
     /**
      * Checks if `msg` contains appropriate authorization for `domain` to
-     * accept it. Mirroring soup_auth_domain_covers(), this does not check
-     * whether or not `domain` <emphasis>cares</emphasis> if `msg` is
-     * authorized.
+     * accept it.
      * 
-     * This is used by #SoupServer internally and is probably of no use to
+     * Mirroring [method`AuthDomain`.covers], this does not check whether or not
+     * `domain` *cares* if `msg` is authorized.
+     * 
+     * This is used by [class`Server]` internally and is probably of no use to
      * anyone else.
      * @param msg a #SoupServerMessage
      */
     accepts(msg: ServerMessage): string | null
     /**
-     * Adds `path` to `domain,` such that requests under `path` on `domain'`s
-     * server will require authentication (unless overridden by
-     * soup_auth_domain_remove_path() or soup_auth_domain_set_filter()).
+     * Adds `path` to `domain`.
      * 
-     * You can also add paths by setting the SoupAuthDomain:add-path
-     * property, which can also be used to add one or more paths at
-     * construct time.
+     * Requests under `path` on `domain'`s server will require authentication (unless
+     * overridden by [method`AuthDomain`.remove_path] or
+     * [method`AuthDomain`.set_filter]).
      * @param path the path to add to `domain`
      */
     add_path(path: string): void
     /**
-     * Adds a "WWW-Authenticate" or "Proxy-Authenticate" header to `msg,`
-     * requesting that the client authenticate, and sets `msg'`s status
-     * accordingly.
+     * Adds a "WWW-Authenticate" or "Proxy-Authenticate" header to `msg`.
      * 
-     * This is used by #SoupServer internally and is probably of no use to
+     * It requests that the client authenticate, and sets `msg'`s status accordingly.
+     * 
+     * This is used by [class`Server]` internally and is probably of no use to
      * anyone else.
      * @param msg a #SoupServerMessage
      */
     challenge(msg: ServerMessage): void
     /**
      * Checks if `msg` authenticates to `domain` via `username` and
-     * `password`. This would normally be called from a
-     * #SoupAuthDomainGenericAuthCallback.
+     * `password`.
+     * 
+     * This would normally be called from a
+     * [callback`AuthDomainGenericAuthCallback]`.
      * @param msg a #SoupServerMessage
      * @param username a username
      * @param password a password
@@ -2017,43 +2132,43 @@ interface AuthDomain {
     check_password(msg: ServerMessage, username: string, password: string): boolean
     /**
      * Checks if `domain` requires `msg` to be authenticated (according to
-     * its paths and filter function). This does not actually look at
-     * whether `msg` <emphasis>is</emphasis> authenticated, merely whether
-     * or not it needs to be.
+     * its paths and filter function).
      * 
-     * This is used by #SoupServer internally and is probably of no use to
+     * This does not actually look at whether `msg` *is* authenticated, merely
+     * whether or not it needs to be.
+     * 
+     * This is used by [class`Server]` internally and is probably of no use to
      * anyone else.
      * @param msg a #SoupServerMessage
      */
     covers(msg: ServerMessage): boolean
     /**
-     * Gets the realm name associated with `domain`
+     * Gets the realm name associated with `domain`.
      */
     get_realm(): string
     /**
-     * Removes `path` from `domain,` such that requests under `path` on
-     * `domain'`s server will NOT require authentication.
+     * Removes `path` from `domain`.
      * 
-     * This is not simply an undo-er for soup_auth_domain_add_path(); it
+     * Requests under `path` on `domain'`s server will NOT require
+     * authentication.
+     * 
+     * This is not simply an undo-er for [method`AuthDomain`.add_path]; it
      * can be used to "carve out" a subtree that does not require
      * authentication inside a hierarchy that does. Note also that unlike
-     * with soup_auth_domain_add_path(), this cannot be overridden by
+     * with [method`AuthDomain`.add_path], this cannot be overridden by
      * adding a filter, as filters can only bypass authentication that
      * would otherwise be required, not require it where it would
      * otherwise be unnecessary.
-     * 
-     * You can also remove paths by setting the
-     * SoupAuthDomain:remove-path property, which can also be used to
-     * remove one or more paths at construct time.
      * @param path the path to remove from `domain`
      */
     remove_path(path: string): void
     /**
-     * Adds `filter` as an authentication filter to `domain`. The filter
-     * gets a chance to bypass authentication for certain requests that
-     * would otherwise require it. Eg, it might check the message's path
-     * in some way that is too complicated to do via the other methods, or
-     * it might check the message's method, and allow GETs but not PUTs.
+     * Adds `filter` as an authentication filter to `domain`.
+     * 
+     * The filter gets a chance to bypass authentication for certain requests that
+     * would otherwise require it. Eg, it might check the message's path in some way
+     * that is too complicated to do via the other methods, or it might check the
+     * message's method, and allow GETs but not PUTs.
      * 
      * The filter function returns %TRUE if the request should still
      * require authentication, or %FALSE if authentication is unnecessary
@@ -2071,18 +2186,19 @@ interface AuthDomain {
      * unauthenticated users.
      * 
      * You can also set the filter by setting the SoupAuthDomain:filter
-     * and SoupAuthDomain:filter-data properties, which can also be
+     * and [property`AuthDomain:`filter-data properties], which can also be
      * used to set the filter at construct time.
      * @param filter the auth filter for `domain`
      */
     set_filter(filter: AuthDomainFilter): void
     /**
-     * Sets `auth_callback` as an authentication-handling callback for
-     * `domain`. Whenever a request comes in to `domain` which cannot be
-     * authenticated via a domain-specific auth callback (eg,
-     * #SoupAuthDomainDigestAuthCallback), the generic auth callback
-     * will be invoked. See #SoupAuthDomainGenericAuthCallback for information
-     * on what the callback should do.
+     * Sets `auth_callback` as an authentication-handling callback for `domain`.
+     * 
+     * Whenever a request comes in to `domain` which cannot be authenticated via a
+     * domain-specific auth callback (eg, [callback`AuthDomainDigestAuthCallback]`),
+     * the generic auth callback will be invoked. See
+     * [callback`AuthDomainGenericAuthCallback]` for information on what the callback
+     * should do.
      * @param auth_callback the auth callback
      */
     set_generic_auth_callback(auth_callback: AuthDomainGenericAuthCallback): void
@@ -2091,11 +2207,11 @@ interface AuthDomain {
 
     vfunc_accepts(msg: ServerMessage, header: string): string
     /**
-     * Adds a "WWW-Authenticate" or "Proxy-Authenticate" header to `msg,`
-     * requesting that the client authenticate, and sets `msg'`s status
-     * accordingly.
+     * Adds a "WWW-Authenticate" or "Proxy-Authenticate" header to `msg`.
      * 
-     * This is used by #SoupServer internally and is probably of no use to
+     * It requests that the client authenticate, and sets `msg'`s status accordingly.
+     * 
+     * This is used by [class`Server]` internally and is probably of no use to
      * anyone else.
      * @virtual 
      * @param msg a #SoupServerMessage
@@ -2103,8 +2219,10 @@ interface AuthDomain {
     vfunc_challenge(msg: ServerMessage): string
     /**
      * Checks if `msg` authenticates to `domain` via `username` and
-     * `password`. This would normally be called from a
-     * #SoupAuthDomainGenericAuthCallback.
+     * `password`.
+     * 
+     * This would normally be called from a
+     * [callback`AuthDomainGenericAuthCallback]`.
      * @virtual 
      * @param msg a #SoupServerMessage
      * @param username a username
@@ -2139,7 +2257,23 @@ interface AuthDomain {
 }
 
 /**
- * Class managing authentication for #SoupServer.
+ * Server-side authentication.
+ * 
+ * A #SoupAuthDomain manages authentication for all or part of a
+ * [class`Server]`. To make a server require authentication, first create
+ * an appropriate subclass of #SoupAuthDomain, and then add it to the
+ * server with [method`Server`.add_auth_domain].
+ * 
+ * In order for an auth domain to have any effect, you must add one or more
+ * paths to it (via [method`AuthDomain`.add_path]). To require authentication for
+ * all ordinary requests, add the path `"/"`. (Note that this does not include
+ * the special `"*"` URI (eg, "OPTIONS *"), which must be added as a separate
+ * path if you want to cover it.)
+ * 
+ * If you need greater control over which requests should and shouldn't be
+ * authenticated, add paths covering everything you *might* want authenticated,
+ * and then use a filter ([method`AuthDomain`.set_filter] to bypass
+ * authentication for those requests that don't need it.
  * @class 
  */
 class AuthDomain extends GObject.Object {
@@ -2164,11 +2298,11 @@ module AuthDomainBasic {
         // Own constructor properties of Soup-3.0.Soup.AuthDomainBasic
 
         /**
-         * The #SoupAuthDomainBasicAuthCallback
+         * The [callback`AuthDomainBasicAuthCallback]`.
          */
         auth_callback?: AuthDomainBasicAuthCallback | null
         /**
-         * The data to pass to the #SoupAuthDomainBasicAuthCallback
+         * The data to pass to the [callback`AuthDomainBasicAuthCallback]`.
          */
         auth_data?: object | null
     }
@@ -2180,11 +2314,11 @@ interface AuthDomainBasic {
     // Own properties of Soup-3.0.Soup.AuthDomainBasic
 
     /**
-     * The #SoupAuthDomainBasicAuthCallback
+     * The [callback`AuthDomainBasicAuthCallback]`.
      */
     auth_callback: AuthDomainBasicAuthCallback
     /**
-     * The data to pass to the #SoupAuthDomainBasicAuthCallback
+     * The data to pass to the [callback`AuthDomainBasicAuthCallback]`.
      */
     auth_data: object
 
@@ -2192,14 +2326,16 @@ interface AuthDomainBasic {
 
     /**
      * Sets the callback that `domain` will use to authenticate incoming
-     * requests. For each request containing authorization, `domain` will
-     * invoke the callback, and then either accept or reject the request
-     * based on `callback'`s return value.
+     * requests.
+     * 
+     * For each request containing authorization, `domain` will invoke the callback,
+     * and then either accept or reject the request based on `callback'`s return
+     * value.
      * 
      * You can also set the auth callback by setting the
-     * SoupAuthDomainBasic:auth-callback and
-     * SoupAuthDomainBasic:auth-data properties, which can also be
-     * used to set the callback at construct time.
+     * [property`AuthDomainBasic:`auth-callback] and
+     * [property`AuthDomainBasic:`auth-data] properties, which can also be used to
+     * set the callback at construct time.
      * @param callback the callback
      */
     set_auth_callback(callback: AuthDomainBasicAuthCallback): void
@@ -2237,7 +2373,10 @@ interface AuthDomainBasic {
 }
 
 /**
- * Subclass of #SoupAuthDomain for Basic authentication.
+ * Server-side "Basic" authentication.
+ * 
+ * #SoupAuthDomainBasic handles the server side of HTTP "Basic" (ie,
+ * cleartext password) authentication.
  * @class 
  */
 class AuthDomainBasic extends AuthDomain {
@@ -2262,11 +2401,11 @@ module AuthDomainDigest {
         // Own constructor properties of Soup-3.0.Soup.AuthDomainDigest
 
         /**
-         * The #SoupAuthDomainDigestAuthCallback
+         * The [callback`AuthDomainDigestAuthCallback]`.
          */
         auth_callback?: AuthDomainDigestAuthCallback | null
         /**
-         * The data to pass to the #SoupAuthDomainDigestAuthCallback
+         * The data to pass to the [callback`AuthDomainDigestAuthCallback]`.
          */
         auth_data?: object | null
     }
@@ -2278,11 +2417,11 @@ interface AuthDomainDigest {
     // Own properties of Soup-3.0.Soup.AuthDomainDigest
 
     /**
-     * The #SoupAuthDomainDigestAuthCallback
+     * The [callback`AuthDomainDigestAuthCallback]`.
      */
     auth_callback: AuthDomainDigestAuthCallback
     /**
-     * The data to pass to the #SoupAuthDomainDigestAuthCallback
+     * The data to pass to the [callback`AuthDomainDigestAuthCallback]`.
      */
     auth_data: object
 
@@ -2290,14 +2429,16 @@ interface AuthDomainDigest {
 
     /**
      * Sets the callback that `domain` will use to authenticate incoming
-     * requests. For each request containing authorization, `domain` will
+     * requests.
+     * 
+     * For each request containing authorization, `domain` will
      * invoke the callback, and then either accept or reject the request
      * based on `callback'`s return value.
      * 
      * You can also set the auth callback by setting the
-     * SoupAuthDomainDigest:auth-callback and
-     * SoupAuthDomainDigest:auth-data properties, which can also be
-     * used to set the callback at construct time.
+     * [property`AuthDomainDigest:`auth-callback] and
+     * [property`AuthDomainDigest:`auth-data] properties, which can also be used to
+     * set the callback at construct time.
      * @param callback the callback
      */
     set_auth_callback(callback: AuthDomainDigestAuthCallback): void
@@ -2335,7 +2476,10 @@ interface AuthDomainDigest {
 }
 
 /**
- * Subclass of #SoupAuthDomain for Digest authentication.
+ * Server-side "Digest" authentication.
+ * 
+ * #SoupAuthDomainDigest handles the server side of HTTP "Digest"
+ * authentication.
  * @class 
  */
 class AuthDomainDigest extends AuthDomain {
@@ -2351,8 +2495,10 @@ class AuthDomainDigest extends AuthDomain {
     _init(config?: AuthDomainDigest.ConstructorProperties): void
     /**
      * Encodes the username/realm/password triplet for Digest
-     * authentication. (That is, it returns a stringified MD5 hash of
-     * `username,` `realm,` and `password` concatenated together). This is
+     * authentication.
+     * 
+     * That is, it returns a stringified MD5 hash of
+     * `username,` `realm,` and `password` concatenated together. This is
      * the form that is needed as the return value of
      * #SoupAuthDomainDigest's auth handler.
      * 
@@ -2372,16 +2518,6 @@ class AuthDomainDigest extends AuthDomain {
 
 module AuthManager {
 
-    // Signal callback interfaces
-
-    /**
-     * Signal callback interface for `authenticate`
-     */
-    interface AuthenticateSignalCallback {
-        ($obj: AuthManager, msg: Message, auth: Auth, retrying: boolean): void
-    }
-
-
     // Constructor properties interface
 
     interface ConstructorProperties extends SessionFeature.ConstructorProperties, GObject.Object.ConstructorProperties {
@@ -2394,15 +2530,16 @@ interface AuthManager extends SessionFeature {
     // Owm methods of Soup-3.0.Soup.AuthManager
 
     /**
-     * Clear all credentials cached by `manager`
+     * Clear all credentials cached by `manager`.
      */
     clear_cached_credentials(): void
     /**
      * Records that `auth` is to be used under `uri,` as though a
-     * WWW-Authenticate header had been received at that URI. This can be
-     * used to "preload" `manager'`s auth cache, to avoid an extra HTTP
-     * round trip in the case where you know ahead of time that a 401
-     * response will be returned.
+     * WWW-Authenticate header had been received at that URI.
+     * 
+     * This can be used to "preload" `manager'`s auth cache, to avoid an extra HTTP
+     * round trip in the case where you know ahead of time that a 401 response will
+     * be returned.
      * 
      * This is only useful for authentication types where the initial
      * Authorization header does not depend on any additional information
@@ -2411,12 +2548,6 @@ interface AuthManager extends SessionFeature {
      * @param auth the #SoupAuth to use
      */
     use_auth(uri: GLib.Uri, auth: Auth): void
-
-    // Own signals of Soup-3.0.Soup.AuthManager
-
-    connect(sigName: "authenticate", callback: AuthManager.AuthenticateSignalCallback): number
-    connect_after(sigName: "authenticate", callback: AuthManager.AuthenticateSignalCallback): number
-    emit(sigName: "authenticate", msg: Message, auth: Auth, retrying: boolean, ...args: any[]): void
 
     // Class property signals of Soup-3.0.Soup.AuthManager
 
@@ -2427,7 +2558,23 @@ interface AuthManager extends SessionFeature {
 }
 
 /**
- * Class for managing client-side HTTP authentication.
+ * HTTP client-side authentication handler.
+ * 
+ * #SoupAuthManager is the [iface`SessionFeature]` that handles HTTP
+ * authentication for a [class`Session]`.
+ * 
+ * A #SoupAuthManager is added to the session by default, and normally
+ * you don't need to worry about it at all. However, if you want to
+ * disable HTTP authentication, you can remove the feature from the
+ * session with [method`Session`.remove_feature_by_type] or disable it on
+ * individual requests with [method`Message`.disable_feature].
+ * 
+ * You can use this with [method`Session`.remove_feature_by_type] or
+ * [method`Message`.disable_feature].
+ * 
+ * (Although this type has only been publicly visible since libsoup 2.42, it has
+ * always existed in the background, and you can use `g_type_from_name
+ * ("SoupAuthManager")` to get its [alias`GLib`.Type] in earlier releases.)
  * @class 
  */
 class AuthManager extends GObject.Object {
@@ -2480,6 +2627,14 @@ interface AuthNTLM {
     disconnect(id: number): void
 }
 
+/**
+ * HTTP-based NTLM authentication.
+ * 
+ * [class`Session]`s do not support this type by default; if you want to
+ * enable support for it, call [method`Session`.add_feature_by_type],
+ * passing %SOUP_TYPE_AUTH_NTLM.
+ * @class 
+ */
 class AuthNTLM extends Auth {
 
     // Own properties of Soup-3.0.Soup.AuthNTLM
@@ -2530,6 +2685,19 @@ interface AuthNegotiate {
     disconnect(id: number): void
 }
 
+/**
+ * HTTP-based GSS-Negotiate authentication, as defined by
+ * [RFC 4559](https://datatracker.ietf.org/doc/html/rfc4559).
+ * 
+ * [class`Session]`s do not support this type by default; if you want to
+ * enable support for it, call [method`Session`.add_feature_by_type],
+ * passing %SOUP_TYPE_AUTH_NEGOTIATE.
+ * 
+ * This auth type will only work if libsoup was compiled with GSSAPI
+ * support; you can check [func`AuthNegotiate`.supported] to see if it
+ * was.
+ * @class 
+ */
 class AuthNegotiate extends Auth {
 
     // Own properties of Soup-3.0.Soup.AuthNegotiate
@@ -2542,9 +2710,10 @@ class AuthNegotiate extends Auth {
     constructor(config?: AuthNegotiate.ConstructorProperties) 
     _init(config?: AuthNegotiate.ConstructorProperties): void
     /**
-     * Indicates whether libsoup was built with GSSAPI support. If this is
-     * %FALSE, %SOUP_TYPE_AUTH_NEGOTIATE will still be defined and can
-     * still be added to a #SoupSession, but libsoup will never attempt to
+     * Indicates whether libsoup was built with GSSAPI support.
+     * 
+     * If this is %FALSE, %SOUP_TYPE_AUTH_NEGOTIATE will still be defined and can
+     * still be added to a [class`Session]`, but libsoup will never attempt to
      * actually use this auth type.
      */
     static supported(): boolean
@@ -2558,7 +2727,13 @@ module Cache {
 
         // Own constructor properties of Soup-3.0.Soup.Cache
 
+        /**
+         * The directory to store the cache files.
+         */
         cache_dir?: string | null
+        /**
+         * Whether the cache is private or shared.
+         */
         cache_type?: CacheType | null
     }
 
@@ -2568,7 +2743,13 @@ interface Cache extends SessionFeature {
 
     // Own properties of Soup-3.0.Soup.Cache
 
+    /**
+     * The directory to store the cache files.
+     */
     readonly cache_dir: string
+    /**
+     * Whether the cache is private or shared.
+     */
     readonly cache_type: CacheType
 
     // Own fields of Soup-3.0.Soup.Cache
@@ -2579,24 +2760,30 @@ interface Cache extends SessionFeature {
 
     /**
      * Will remove all entries in the `cache` plus all the cache files.
+     * 
+     * This is not thread safe and must be called only from the thread that created the #SoupCache
      */
     clear(): void
     /**
-     * Synchronously writes the cache index out to disk. Contrast with
-     * soup_cache_flush(), which writes pending cache
-     * <emphasis>entries</emphasis> to disk.
+     * Synchronously writes the cache index out to disk.
+     * 
+     * Contrast with [method`Cache`.flush], which writes pending cache *entries* to
+     * disk.
      * 
      * You must call this before exiting if you want your cache data to
      * persist between sessions.
+     * 
+     * This is not thread safe and must be called only from the thread that created the #SoupCache
      */
     dump(): void
     /**
-     * This function will force all pending writes in the `cache` to be
-     * committed to disk. For doing so it will iterate the #GMainContext
-     * associated with `cache'`s session as long as needed.
+     * Forces all pending writes in the `cache` to be
+     * committed to disk.
      * 
-     * Contrast with soup_cache_dump(), which writes out the cache index
-     * file.
+     * For doing so it will iterate the [struct`GLib`.MainContext] associated with
+     * `cache'`s session as long as needed.
+     * 
+     * Contrast with [method`Cache`.dump], which writes out the cache index file.
      */
     flush(): void
     /**
@@ -2605,6 +2792,8 @@ interface Cache extends SessionFeature {
     get_max_size(): number
     /**
      * Loads the contents of `cache'`s index into memory.
+     * 
+     * This is not thread safe and must be called only from the thread that created the #SoupCache
      */
     load(): void
     /**
@@ -2632,7 +2821,7 @@ interface Cache extends SessionFeature {
 }
 
 /**
- * Class implementing caching for HTTP resources.
+ * File-based cache for HTTP resources.
  * @class 
  */
 class Cache extends GObject.Object {
@@ -2682,7 +2871,30 @@ interface ContentDecoder extends SessionFeature {
 }
 
 /**
- * Class handling decoding of HTTP messages.
+ * Handles decoding of HTTP messages.
+ * 
+ * #SoupContentDecoder handles adding the "Accept-Encoding" header on
+ * outgoing messages, and processing the "Content-Encoding" header on
+ * incoming ones. Currently it supports the "gzip", "deflate", and "br"
+ * content codings.
+ * 
+ * A #SoupContentDecoder will automatically be
+ * added to the session by default. (You can use
+ * [method`Session`.remove_feature_by_type] if you don't
+ * want this.)
+ * 
+ * If #SoupContentDecoder successfully decodes the Content-Encoding,
+ * the message body will contain the decoded data; however, the message headers
+ * will be unchanged (and so "Content-Encoding" will still be present,
+ * "Content-Length" will describe the original encoded length, etc).
+ * 
+ * If "Content-Encoding" contains any encoding types that
+ * #SoupContentDecoder doesn't recognize, then none of the encodings
+ * will be decoded.
+ * 
+ * (Note that currently there is no way to (automatically) use
+ * Content-Encoding when sending a request body, or to pick specific
+ * encoding types to support.)
  * @class 
  */
 class ContentDecoder extends GObject.Object {
@@ -2712,9 +2924,10 @@ interface ContentSniffer extends SessionFeature {
     // Owm methods of Soup-3.0.Soup.ContentSniffer
 
     /**
-     * Sniffs `buffer` to determine its Content-Type. The result may also
-     * be influenced by the Content-Type declared in `msg'`s response
-     * headers.
+     * Sniffs `buffer` to determine its Content-Type.
+     * 
+     * The result may also be influenced by the Content-Type declared in `msg'`s
+     * response headers.
      * @param msg the message to sniff
      * @param buffer a buffer containing the start of `msg'`s response body
      */
@@ -2729,7 +2942,14 @@ interface ContentSniffer extends SessionFeature {
 }
 
 /**
- * Class that attempts to sniff the mime type of messages.
+ * Sniffs the mime type of messages.
+ * 
+ * A #SoupContentSniffer tries to detect the actual content type of
+ * the files that are being downloaded by looking at some of the data
+ * before the [class`Message]` emits its [signal`Message:`:got-headers] signal.
+ * #SoupContentSniffer implements [iface`SessionFeature]`, so you can add
+ * content sniffing to a session with [method`Session`.add_feature] or
+ * [method`Session`.add_feature_by_type].
  * @class 
  */
 class ContentSniffer extends GObject.Object {
@@ -2774,9 +2994,12 @@ module CookieJar {
         // Own constructor properties of Soup-3.0.Soup.CookieJar
 
         /**
-         * The policy the jar should follow to accept or reject cookies
+         * The policy the jar should follow to accept or reject cookies.
          */
         accept_policy?: CookieJarAcceptPolicy | null
+        /**
+         * Whether or not the cookie jar is read-only.
+         */
         read_only?: boolean | null
     }
 
@@ -2787,9 +3010,12 @@ interface CookieJar extends SessionFeature {
     // Own properties of Soup-3.0.Soup.CookieJar
 
     /**
-     * The policy the jar should follow to accept or reject cookies
+     * The policy the jar should follow to accept or reject cookies.
      */
     accept_policy: CookieJarAcceptPolicy
+    /**
+     * Whether or not the cookie jar is read-only.
+     */
     readonly read_only: boolean
 
     // Own fields of Soup-3.0.Soup.CookieJar
@@ -2799,7 +3025,9 @@ interface CookieJar extends SessionFeature {
     // Owm methods of Soup-3.0.Soup.CookieJar
 
     /**
-     * Adds `cookie` to `jar,` emitting the 'changed' signal if we are modifying
+     * Adds `cookie` to `jar`.
+     * 
+     * Emits the [signal`CookieJar:`:changed] signal if we are modifying
      * an existing cookie or adding a valid new cookie ('valid' means
      * that the cookie's expire date is not in the past).
      * 
@@ -2808,9 +3036,11 @@ interface CookieJar extends SessionFeature {
      */
     add_cookie(cookie: Cookie): void
     /**
-     * Adds `cookie` to `jar,` emitting the 'changed' signal if we are modifying
-     * an existing cookie or adding a valid new cookie ('valid' means
-     * that the cookie's expire date is not in the past).
+     * Adds `cookie` to `jar`.
+     * 
+     * Emits the [signal`CookieJar:`:changed] signal if we are modifying an existing
+     * cookie or adding a valid new cookie ('valid' means that the cookie's expire
+     * date is not in the past).
      * 
      * `first_party` will be used to reject cookies coming from third party
      * resources in case such a security policy is set in the `jar`.
@@ -2825,7 +3055,9 @@ interface CookieJar extends SessionFeature {
      */
     add_cookie_full(cookie: Cookie, uri: GLib.Uri | null, first_party: GLib.Uri | null): void
     /**
-     * Adds `cookie` to `jar,` emitting the 'changed' signal if we are modifying
+     * Adds `cookie` to `jar`.
+     * 
+     * Emits the [signal`CookieJar:`:changed] signal if we are modifying
      * an existing cookie or adding a valid new cookie ('valid' means
      * that the cookie's expire date is not in the past).
      * 
@@ -2835,29 +3067,32 @@ interface CookieJar extends SessionFeature {
      * `cookie` will be 'stolen' by the jar, so don't free it afterwards.
      * 
      * For secure cookies to work properly you may want to use
-     * soup_cookie_jar_add_cookie_full().
+     * [method`CookieJar`.add_cookie_full].
      * @param first_party the URI for the main document
      * @param cookie a #SoupCookie
      */
     add_cookie_with_first_party(first_party: GLib.Uri, cookie: Cookie): void
     /**
-     * Constructs a #GSList with every cookie inside the `jar`.
+     * Constructs a [struct`GLib`.List] with every cookie inside the `jar`.
+     * 
      * The cookies in the list are a copy of the original, so
      * you have to free them when you are done with them.
      */
     all_cookies(): Cookie[]
     /**
-     * Deletes `cookie` from `jar,` emitting the 'changed' signal.
+     * Deletes `cookie` from `jar`.
+     * 
+     * Emits the [signal`CookieJar:`:changed] signal.
      * @param cookie a #SoupCookie
      */
     delete_cookie(cookie: Cookie): void
     /**
-     * Gets `jar'`s #SoupCookieJarAcceptPolicy
+     * Gets `jar'`s [enum`CookieJarAcceptPolicy]`.
      */
     get_accept_policy(): CookieJarAcceptPolicy
     /**
      * Retrieves the list of cookies that would be sent with a request to `uri`
-     * as a #GSList of #SoupCookie objects.
+     * as a [struct`GLib`.List] of #SoupCookie objects.
      * 
      * If `for_http` is %TRUE, the return value will include cookies marked
      * "HttpOnly" (that is, cookies that the server wishes to keep hidden
@@ -2867,20 +3102,22 @@ interface CookieJar extends SessionFeature {
      * almost certainly be setting `for_http` to %FALSE if you are calling
      * this.
      * @param uri a #GUri
-     * @param for_http whether or not the return value is being passed directly to an HTTP operation
+     * @param for_http whether or not the return value is being passed directly   to an HTTP operation
      */
     get_cookie_list(uri: GLib.Uri, for_http: boolean): Cookie[]
     /**
-     * This is an extended version of soup_cookie_jar_get_cookie_list() that
-     * provides more information required to use SameSite cookies. See the
-     * [SameSite cookies spec](https://tools.ietf.org/html/draft-ietf-httpbis-cookie-same-site-00)
-     * for more detailed information.
+     * This is an extended version of [method`CookieJar`.get_cookie_list] that
+     * provides more information required to use SameSite cookies.
+     * 
+     * See the [SameSite cookies
+     * spec](https://tools.ietf.org/html/draft-ietf-httpbis-cookie-same-site-00) for
+     * more detailed information.
      * @param uri a #GUri
      * @param top_level a #GUri for the top level document
      * @param site_for_cookies a #GUri indicating the origin to get cookies for
-     * @param for_http whether or not the return value is being passed directly to an HTTP operation
+     * @param for_http whether or not the return value is being passed directly   to an HTTP operation
      * @param is_safe_method if the HTTP method is safe, as defined by RFC 7231, ignored when `for_http` is %FALSE
-     * @param is_top_level_navigation whether or not the HTTP request is part of top level navigation
+     * @param is_top_level_navigation whether or not the HTTP request is part of   top level navigation
      */
     get_cookie_list_with_same_site_info(uri: GLib.Uri, top_level: GLib.Uri | null, site_for_cookies: GLib.Uri | null, for_http: boolean, is_safe_method: boolean, is_top_level_navigation: boolean): Cookie[]
     /**
@@ -2895,7 +3132,7 @@ interface CookieJar extends SessionFeature {
      * almost certainly be setting `for_http` to %FALSE if you are calling
      * this.
      * @param uri a #GUri
-     * @param for_http whether or not the return value is being passed directly to an HTTP operation
+     * @param for_http whether or not the return value is being passed directly   to an HTTP operation
      */
     get_cookies(uri: GLib.Uri, for_http: boolean): string | null
     /**
@@ -2911,10 +3148,10 @@ interface CookieJar extends SessionFeature {
      * Adds `cookie` to `jar,` exactly as though it had appeared in a
      * Set-Cookie header returned from a request to `uri`.
      * 
-     * Keep in mind that if the #SoupCookieJarAcceptPolicy set is either
+     * Keep in mind that if the [enum`CookieJarAcceptPolicy]` set is either
      * %SOUP_COOKIE_JAR_ACCEPT_NO_THIRD_PARTY or
      * %SOUP_COOKIE_JAR_ACCEPT_GRANDFATHERED_THIRD_PARTY you'll need to use
-     * soup_cookie_jar_set_cookie_with_first_party(), otherwise the jar
+     * [method`CookieJar`.set_cookie_with_first_party], otherwise the jar
      * will have no way of knowing if the cookie is being set by a third
      * party or not.
      * @param uri the URI setting the cookie
@@ -2923,9 +3160,10 @@ interface CookieJar extends SessionFeature {
     set_cookie(uri: GLib.Uri, cookie: string): void
     /**
      * Adds `cookie` to `jar,` exactly as though it had appeared in a
-     * Set-Cookie header returned from a request to `uri`. `first_party`
-     * will be used to reject cookies coming from third party resources in
-     * case such a security policy is set in the `jar`.
+     * Set-Cookie header returned from a request to `uri`.
+     * 
+     * `first_party` will be used to reject cookies coming from third party resources
+     * in case such a security policy is set in the `jar`.
      * @param uri the URI setting the cookie
      * @param first_party the URI for the main document
      * @param cookie the stringified cookie to set
@@ -2963,7 +3201,15 @@ interface CookieJar extends SessionFeature {
 }
 
 /**
- * Class that stores cookies in memory.
+ * Automatic cookie handling for SoupSession.
+ * 
+ * A #SoupCookieJar stores [struct`Cookie]`s and arrange for them to be sent with
+ * the appropriate [class`Message]`s. #SoupCookieJar implements
+ * [iface`SessionFeature]`, so you can add a cookie jar to a session with
+ * [method`Session`.add_feature] or [method`Session`.add_feature_by_type].
+ * 
+ * Note that the base #SoupCookieJar class does not support any form
+ * of long-term cookie persistence.
  * @class 
  */
 class CookieJar extends GObject.Object {
@@ -2977,14 +3223,18 @@ class CookieJar extends GObject.Object {
 
     constructor(config?: CookieJar.ConstructorProperties) 
     /**
-     * Creates a new #SoupCookieJar. The base #SoupCookieJar class does
-     * not support persistent storage of cookies; use a subclass for that.
+     * Creates a new #SoupCookieJar.
+     * 
+     * The base #SoupCookieJar class does not support persistent storage of cookies;
+     * use a subclass for that.
      * @constructor 
      */
     constructor() 
     /**
-     * Creates a new #SoupCookieJar. The base #SoupCookieJar class does
-     * not support persistent storage of cookies; use a subclass for that.
+     * Creates a new #SoupCookieJar.
+     * 
+     * The base #SoupCookieJar class does not support persistent storage of cookies;
+     * use a subclass for that.
      * @constructor 
      */
     static new(): CookieJar
@@ -2999,6 +3249,9 @@ module CookieJarDB {
 
         // Own constructor properties of Soup-3.0.Soup.CookieJarDB
 
+        /**
+         * Cookie-storage filename.
+         */
         filename?: string | null
     }
 
@@ -3008,6 +3261,9 @@ interface CookieJarDB extends SessionFeature {
 
     // Own properties of Soup-3.0.Soup.CookieJarDB
 
+    /**
+     * Cookie-storage filename.
+     */
     readonly filename: string
 
     // Class property signals of Soup-3.0.Soup.CookieJarDB
@@ -3028,7 +3284,14 @@ interface CookieJarDB extends SessionFeature {
 }
 
 /**
- * Subclass of #SoupCookieJar that stores cookies in a sqlite database.
+ * Database-based Cookie Jar.
+ * 
+ * #SoupCookieJarDB is a [class`CookieJar]` that reads cookies from and writes
+ * them to a sqlite database in the new Mozilla format.
+ * 
+ * (This is identical to `SoupCookieJarSqlite` in
+ * libsoup-gnome; it has just been moved into libsoup proper, and
+ * renamed to avoid conflicting.)
  * @class 
  */
 class CookieJarDB extends CookieJar {
@@ -3044,12 +3307,11 @@ class CookieJarDB extends CookieJar {
     /**
      * Creates a #SoupCookieJarDB.
      * 
-     * `filename` will be read in at startup to create an initial set of
-     * cookies. If `read_only` is %FALSE, then the non-session cookies will
-     * be written to `filename` when the 'changed' signal is emitted from
-     * the jar. (If `read_only` is %TRUE, then the cookie jar will only be
-     * used for this session, and changes made to it will be lost when the
-     * jar is destroyed.)
+     * `filename` will be read in at startup to create an initial set of cookies. If
+     * `read_only` is %FALSE, then the non-session cookies will be written to
+     * `filename` when the [signal`CookieJar:`:changed] signal is emitted from the
+     * jar. (If `read_only` is %TRUE, then the cookie jar will only be used for this
+     * session, and changes made to it will be lost when the jar is destroyed.)
      * @constructor 
      * @param filename the filename to read to/write from, or %NULL
      * @param read_only %TRUE if `filename` is read-only
@@ -3058,12 +3320,11 @@ class CookieJarDB extends CookieJar {
     /**
      * Creates a #SoupCookieJarDB.
      * 
-     * `filename` will be read in at startup to create an initial set of
-     * cookies. If `read_only` is %FALSE, then the non-session cookies will
-     * be written to `filename` when the 'changed' signal is emitted from
-     * the jar. (If `read_only` is %TRUE, then the cookie jar will only be
-     * used for this session, and changes made to it will be lost when the
-     * jar is destroyed.)
+     * `filename` will be read in at startup to create an initial set of cookies. If
+     * `read_only` is %FALSE, then the non-session cookies will be written to
+     * `filename` when the [signal`CookieJar:`:changed] signal is emitted from the
+     * jar. (If `read_only` is %TRUE, then the cookie jar will only be used for this
+     * session, and changes made to it will be lost when the jar is destroyed.)
      * @constructor 
      * @param filename the filename to read to/write from, or %NULL
      * @param read_only %TRUE if `filename` is read-only
@@ -3073,8 +3334,10 @@ class CookieJarDB extends CookieJar {
     // Overloads of new
 
     /**
-     * Creates a new #SoupCookieJar. The base #SoupCookieJar class does
-     * not support persistent storage of cookies; use a subclass for that.
+     * Creates a new #SoupCookieJar.
+     * 
+     * The base #SoupCookieJar class does not support persistent storage of cookies;
+     * use a subclass for that.
      * @constructor 
      */
     static new(): CookieJar
@@ -3089,6 +3352,9 @@ module CookieJarText {
 
         // Own constructor properties of Soup-3.0.Soup.CookieJarText
 
+        /**
+         * Cookie-storage filename.
+         */
         filename?: string | null
     }
 
@@ -3098,6 +3364,9 @@ interface CookieJarText extends SessionFeature {
 
     // Own properties of Soup-3.0.Soup.CookieJarText
 
+    /**
+     * Cookie-storage filename.
+     */
     readonly filename: string
 
     // Class property signals of Soup-3.0.Soup.CookieJarText
@@ -3118,7 +3387,10 @@ interface CookieJarText extends SessionFeature {
 }
 
 /**
- * Subclass of #SoupCookieJar that stores cookies in a text file.
+ * Text-file-based ("cookies.txt") Cookie Jar
+ * 
+ * #SoupCookieJarText is a [class`CookieJar]` that reads cookies from and writes
+ * them to a text file in format similar to Mozilla's "cookies.txt".
  * @class 
  */
 class CookieJarText extends CookieJar {
@@ -3134,12 +3406,11 @@ class CookieJarText extends CookieJar {
     /**
      * Creates a #SoupCookieJarText.
      * 
-     * `filename` will be read in at startup to create an initial set of
-     * cookies. If `read_only` is %FALSE, then the non-session cookies will
-     * be written to `filename` when the 'changed' signal is emitted from
-     * the jar. (If `read_only` is %TRUE, then the cookie jar will only be
-     * used for this session, and changes made to it will be lost when the
-     * jar is destroyed.)
+     * `filename` will be read in at startup to create an initial set of cookies. If
+     * `read_only` is %FALSE, then the non-session cookies will be written to
+     * `filename` when the [signal`CookieJar:`:changed] signal is emitted from the
+     * jar. (If `read_only` is %TRUE, then the cookie jar will only be used for this
+     * session, and changes made to it will be lost when the jar is destroyed.)
      * @constructor 
      * @param filename the filename to read to/write from
      * @param read_only %TRUE if `filename` is read-only
@@ -3148,12 +3419,11 @@ class CookieJarText extends CookieJar {
     /**
      * Creates a #SoupCookieJarText.
      * 
-     * `filename` will be read in at startup to create an initial set of
-     * cookies. If `read_only` is %FALSE, then the non-session cookies will
-     * be written to `filename` when the 'changed' signal is emitted from
-     * the jar. (If `read_only` is %TRUE, then the cookie jar will only be
-     * used for this session, and changes made to it will be lost when the
-     * jar is destroyed.)
+     * `filename` will be read in at startup to create an initial set of cookies. If
+     * `read_only` is %FALSE, then the non-session cookies will be written to
+     * `filename` when the [signal`CookieJar:`:changed] signal is emitted from the
+     * jar. (If `read_only` is %TRUE, then the cookie jar will only be used for this
+     * session, and changes made to it will be lost when the jar is destroyed.)
      * @constructor 
      * @param filename the filename to read to/write from
      * @param read_only %TRUE if `filename` is read-only
@@ -3163,8 +3433,10 @@ class CookieJarText extends CookieJar {
     // Overloads of new
 
     /**
-     * Creates a new #SoupCookieJar. The base #SoupCookieJar class does
-     * not support persistent storage of cookies; use a subclass for that.
+     * Creates a new #SoupCookieJar.
+     * 
+     * The base #SoupCookieJar class does not support persistent storage of cookies;
+     * use a subclass for that.
      * @constructor 
      */
     static new(): CookieJar
@@ -3218,20 +3490,22 @@ interface HSTSEnforcer extends SessionFeature {
      */
     is_persistent(): boolean
     /**
-     * Sets `policy` to `hsts_enforcer`. If `policy` is expired, any
-     * existing HSTS policy for its host will be removed instead. If a
-     * policy existed for this host, it will be replaced. Otherwise, the
-     * new policy will be inserted. If the policy is a session policy, that
-     * is, one created with soup_hsts_policy_new_session_policy(), the policy
-     * will not expire and will be enforced during the lifetime of
-     * `hsts_enforcer'`s #SoupSession.
+     * Sets `policy` to `hsts_enforcer`.
+     * 
+     * If `policy` is expired, any existing HSTS policy for its host will be removed
+     * instead. If a policy existed for this host, it will be replaced. Otherwise,
+     * the new policy will be inserted. If the policy is a session policy, that is,
+     * one created with [ctor`HSTSPolicy`.new_session_policy], the policy will not
+     * expire and will be enforced during the lifetime of `hsts_enforcer'`s
+     * [class`Session]`.
      * @param policy the policy of the HSTS host
      */
     set_policy(policy: HSTSPolicy): void
     /**
-     * Sets a session policy for `domain`. A session policy is a policy
-     * that is permanent to the lifetime of `hsts_enforcer'`s #SoupSession
-     * and doesn't expire.
+     * Sets a session policy for `domain`.
+     * 
+     * A session policy is a policy that is permanent to the lifetime of
+     * `hsts_enforcer'`s [class`Session]` and doesn't expire.
      * @param domain policy domain or hostname
      * @param include_subdomains %TRUE if the policy applies on sub domains
      */
@@ -3267,7 +3541,28 @@ interface HSTSEnforcer extends SessionFeature {
 }
 
 /**
- * Class for storing and enforcing a #SoupHSTSPolicy.
+ * Automatic HTTP Strict Transport Security enforcing for [class`Session]`.
+ * 
+ * A #SoupHSTSEnforcer stores HSTS policies and enforces them when
+ * required. #SoupHSTSEnforcer implements [iface`SessionFeature]`, so you
+ * can add an HSTS enforcer to a session with
+ * [method`Session`.add_feature] or [method`Session`.add_feature_by_type].
+ * 
+ * #SoupHSTSEnforcer keeps track of all the HTTPS destinations that,
+ * when connected to, return the Strict-Transport-Security header with
+ * valid values. #SoupHSTSEnforcer will forget those destinations
+ * upon expiry or when the server requests it.
+ * 
+ * When the [class`Session]` the #SoupHSTSEnforcer is attached to queues or
+ * restarts a message, the #SoupHSTSEnforcer will rewrite the URI to HTTPS if
+ * the destination is a known HSTS host and is contacted over an insecure
+ * transport protocol (HTTP). Users of #SoupHSTSEnforcer are advised to listen
+ * to changes in the [property`Message:`uri] property in order to be aware of
+ * changes in the message URI.
+ * 
+ * Note that #SoupHSTSEnforcer does not support any form of long-term
+ * HSTS policy persistence. See [class`HSTSEnforcerDB]` for a persistent
+ * enforcer.
  * @class 
  */
 class HSTSEnforcer extends GObject.Object {
@@ -3281,16 +3576,18 @@ class HSTSEnforcer extends GObject.Object {
 
     constructor(config?: HSTSEnforcer.ConstructorProperties) 
     /**
-     * Creates a new #SoupHSTSEnforcer. The base #SoupHSTSEnforcer class
-     * does not support persistent storage of HSTS policies, see
-     * #SoupHSTSEnforcerDB for that.
+     * Creates a new #SoupHSTSEnforcer.
+     * 
+     * The base #SoupHSTSEnforcer class does not support persistent storage of HSTS
+     * policies, see [class`HSTSEnforcerDB]` for that.
      * @constructor 
      */
     constructor() 
     /**
-     * Creates a new #SoupHSTSEnforcer. The base #SoupHSTSEnforcer class
-     * does not support persistent storage of HSTS policies, see
-     * #SoupHSTSEnforcerDB for that.
+     * Creates a new #SoupHSTSEnforcer.
+     * 
+     * The base #SoupHSTSEnforcer class does not support persistent storage of HSTS
+     * policies, see [class`HSTSEnforcerDB]` for that.
      * @constructor 
      */
     static new(): HSTSEnforcer
@@ -3334,7 +3631,10 @@ interface HSTSEnforcerDB extends SessionFeature {
 }
 
 /**
- * Subclass of #SoupHSTSEnforcer using an sqlite database.
+ * Persistent HTTP Strict Transport Security enforcer.
+ * 
+ * #SoupHSTSEnforcerDB is a [class`HSTSEnforcer]` that uses a SQLite
+ * database as a backend for persistency.
  * @class 
  */
 class HSTSEnforcerDB extends HSTSEnforcer {
@@ -3355,7 +3655,7 @@ class HSTSEnforcerDB extends HSTSEnforcer {
      * policies. If the file doesn't exist, a new database will be created
      * and initialized. Changes to the policies during the lifetime of a
      * #SoupHSTSEnforcerDB will be written to `filename` when
-     * #SoupHSTSEnforcer::changed is emitted.
+     * [signal`HSTSEnforcer:`:changed] is emitted.
      * @constructor 
      * @param filename the filename of the database to read/write from.
      */
@@ -3368,7 +3668,7 @@ class HSTSEnforcerDB extends HSTSEnforcer {
      * policies. If the file doesn't exist, a new database will be created
      * and initialized. Changes to the policies during the lifetime of a
      * #SoupHSTSEnforcerDB will be written to `filename` when
-     * #SoupHSTSEnforcer::changed is emitted.
+     * [signal`HSTSEnforcer:`:changed] is emitted.
      * @constructor 
      * @param filename the filename of the database to read/write from.
      */
@@ -3377,9 +3677,10 @@ class HSTSEnforcerDB extends HSTSEnforcer {
     // Overloads of new
 
     /**
-     * Creates a new #SoupHSTSEnforcer. The base #SoupHSTSEnforcer class
-     * does not support persistent storage of HSTS policies, see
-     * #SoupHSTSEnforcerDB for that.
+     * Creates a new #SoupHSTSEnforcer.
+     * 
+     * The base #SoupHSTSEnforcer class does not support persistent storage of HSTS
+     * policies, see [class`HSTSEnforcerDB]` for that.
      * @constructor 
      */
     static new(): HSTSEnforcer
@@ -3395,11 +3696,11 @@ module Logger {
         // Own constructor properties of Soup-3.0.Soup.Logger
 
         /**
-         * The level of logging output
+         * The level of logging output.
          */
         level?: LoggerLogLevel | null
         /**
-         * If #SoupLogger:level is %SOUP_LOGGER_LOG_BODY, this gives
+         * If [property`Logger:`level] is %SOUP_LOGGER_LOG_BODY, this gives
          * the maximum number of bytes of the body that will be logged.
          * (-1 means "no limit".)
          */
@@ -3413,11 +3714,11 @@ interface Logger extends SessionFeature {
     // Own properties of Soup-3.0.Soup.Logger
 
     /**
-     * The level of logging output
+     * The level of logging output.
      */
     level: LoggerLogLevel
     /**
-     * If #SoupLogger:level is %SOUP_LOGGER_LOG_BODY, this gives
+     * If [property`Logger:`level] is %SOUP_LOGGER_LOG_BODY, this gives
      * the maximum number of bytes of the body that will be logged.
      * (-1 means "no limit".)
      */
@@ -3436,25 +3737,27 @@ interface Logger extends SessionFeature {
     set_max_body_size(max_body_size: number): void
     /**
      * Sets up an alternate log printing routine, if you don't want
-     * the log to go to <literal>stdout</literal>.
+     * the log to go to `stdout`.
      * @param printer the callback for printing logging output
      */
     set_printer(printer: LoggerPrinter): void
     /**
      * Sets up a filter to determine the log level for a given request.
+     * 
      * For each HTTP request `logger` will invoke `request_filter` to
      * determine how much (if any) of that request to log. (If you do not
      * set a request filter, `logger` will just always log requests at the
-     * level passed to soup_logger_new().)
+     * level passed to [ctor`Logger`.new].)
      * @param request_filter the callback for request debugging
      */
     set_request_filter(request_filter: LoggerFilter): void
     /**
      * Sets up a filter to determine the log level for a given response.
+     * 
      * For each HTTP response `logger` will invoke `response_filter` to
      * determine how much (if any) of that response to log. (If you do not
      * set a response filter, `logger` will just always log responses at
-     * the level passed to soup_logger_new().)
+     * the level passed to [ctor`Logger`.new].)
      * @param response_filter the callback for response debugging
      */
     set_response_filter(response_filter: LoggerFilter): void
@@ -3474,7 +3777,64 @@ interface Logger extends SessionFeature {
 }
 
 /**
- * Class implementing logging.
+ * Debug logging support
+ * 
+ * #SoupLogger watches a [class`Session]` and logs the HTTP traffic that
+ * it generates, for debugging purposes. Many applications use an
+ * environment variable to determine whether or not to use
+ * #SoupLogger, and to determine the amount of debugging output.
+ * 
+ * To use #SoupLogger, first create a logger with [ctor`Logger`.new], optionally
+ * configure it with [method`Logger`.set_request_filter],
+ * [method`Logger`.set_response_filter], and [method`Logger`.set_printer], and
+ * then attach it to a session (or multiple sessions) with
+ * [method`Session`.add_feature].
+ * 
+ * By default, the debugging output is sent to `stdout`, and looks something
+ * like:
+ * 
+ * ```
+ * > POST /unauth HTTP/1.1
+ * > Soup-Debug-Timestamp: 1200171744
+ * > Soup-Debug: SoupSession 1 (0x612190), SoupMessage 1 (0x617000), GSocket 1 (0x612220)
+ * > Host: localhost
+ * > Content-Type: text/plain
+ * > Connection: close
+ * 
+ * &lt; HTTP/1.1 201 Created
+ * &lt; Soup-Debug-Timestamp: 1200171744
+ * &lt; Soup-Debug: SoupMessage 1 (0x617000)
+ * &lt; Date: Sun, 12 Jan 2008 21:02:24 GMT
+ * &lt; Content-Length: 0
+ * ```
+ * 
+ * The `Soup-Debug-Timestamp` line gives the time (as a `time_t`) when the
+ * request was sent, or the response fully received.
+ * 
+ * The `Soup-Debug` line gives further debugging information about the
+ * [class`Session]`, [class`Message]`, and [class`Gio`.Socket] involved; the hex
+ * numbers are the addresses of the objects in question (which may be useful if
+ * you are running in a debugger). The decimal IDs are simply counters that
+ * uniquely identify objects across the lifetime of the #SoupLogger. In
+ * particular, this can be used to identify when multiple messages are sent
+ * across the same connection.
+ * 
+ * Currently, the request half of the message is logged just before
+ * the first byte of the request gets written to the network (from the
+ * [signal`Message:`:starting] signal).
+ * 
+ * The response is logged just after the last byte of the response body is read
+ * from the network (from the [signal`Message:`:got-body] or
+ * [signal`Message:`:got-informational] signal), which means that the
+ * [signal`Message:`:got-headers] signal, and anything triggered off it (such as
+ * #SoupMessage::authenticate) will be emitted *before* the response headers are
+ * actually logged.
+ * 
+ * If the response doesn't happen to trigger the [signal`Message:`:got-body] nor
+ * [signal`Message:`:got-informational] signals due to, for example, a
+ * cancellation before receiving the last byte of the response body, the
+ * response will still be logged on the event of the [signal`Message:`:finished]
+ * signal.
  * @class 
  */
 class Logger extends GObject.Object {
@@ -3491,8 +3851,8 @@ class Logger extends GObject.Object {
      * Creates a new #SoupLogger with the given debug level.
      * 
      * If you need finer control over what message parts are and aren't
-     * logged, use soup_logger_set_request_filter() and
-     * soup_logger_set_response_filter().
+     * logged, use [method`Logger`.set_request_filter] and
+     * [method`Logger`.set_response_filter].
      * @constructor 
      * @param level the debug level
      */
@@ -3501,8 +3861,8 @@ class Logger extends GObject.Object {
      * Creates a new #SoupLogger with the given debug level.
      * 
      * If you need finer control over what message parts are and aren't
-     * logged, use soup_logger_set_request_filter() and
-     * soup_logger_set_response_filter().
+     * logged, use [method`Logger`.set_request_filter] and
+     * [method`Logger`.set_response_filter].
      * @constructor 
      * @param level the debug level
      */
@@ -3634,29 +3994,43 @@ module Message {
         // Own constructor properties of Soup-3.0.Soup.Message
 
         /**
-         * The #GUri loaded in the application when the message was
+         * The [struct`GLib`.Uri] loaded in the application when the message was
          * queued.
          */
         first_party?: GLib.Uri | null
+        /**
+         * Various message options.
+         */
         flags?: MessageFlags | null
         /**
+         * Whether the message is an OPTIONS ping.
+         * 
          * The #SoupMessage is intended to be used to send
          * `OPTIONS *` to a server. When set to %TRUE, the
-         * path of #SoupMessage:uri will be ignored and
-         * #SoupMessage:method set to %SOUP_METHOD_OPTIONS.
+         * path of [property`Message:`uri] will be ignored and
+         * [property`Message:`method] set to %SOUP_METHOD_OPTIONS.
          */
         is_options_ping?: boolean | null
         /**
          * Set when the message is navigating between top level domains.
          */
         is_top_level_navigation?: boolean | null
+        /**
+         * The message's HTTP method.
+         */
         method?: string | null
         /**
          * Sets the priority of the #SoupMessage. See
-         * soup_message_set_priority() for further details.
+         * [method`Message`.set_priority] for further details.
          */
         priority?: MessagePriority | null
+        /**
+         * Site used to compare cookies against. Used for SameSite cookie support.
+         */
         site_for_cookies?: GLib.Uri | null
+        /**
+         * The message's Request-URI.
+         */
         uri?: GLib.Uri | null
     }
 
@@ -3667,66 +4041,97 @@ interface Message {
     // Own properties of Soup-3.0.Soup.Message
 
     /**
-     * The #GUri loaded in the application when the message was
+     * The [struct`GLib`.Uri] loaded in the application when the message was
      * queued.
      */
     first_party: GLib.Uri
+    /**
+     * Various message options.
+     */
     flags: MessageFlags
+    /**
+     * The HTTP protocol version to use.
+     */
     readonly http_version: HTTPVersion
     /**
+     * Whether the message is an OPTIONS ping.
+     * 
      * The #SoupMessage is intended to be used to send
      * `OPTIONS *` to a server. When set to %TRUE, the
-     * path of #SoupMessage:uri will be ignored and
-     * #SoupMessage:method set to %SOUP_METHOD_OPTIONS.
+     * path of [property`Message:`uri] will be ignored and
+     * [property`Message:`method] set to %SOUP_METHOD_OPTIONS.
      */
     is_options_ping: boolean
     /**
      * Set when the message is navigating between top level domains.
      */
     is_top_level_navigation: boolean
+    /**
+     * The message's HTTP method.
+     */
     method: string
     /**
      * Sets the priority of the #SoupMessage. See
-     * soup_message_set_priority() for further details.
+     * [method`Message`.set_priority] for further details.
      */
     priority: MessagePriority
+    /**
+     * The HTTP response reason phrase.
+     */
     readonly reason_phrase: string
     /**
-     * The remote #GSocketAddress of the connection associated with the message
+     * The remote [class`Gio`.SocketAddress] of the connection associated
+     * with the message.
      */
     readonly remote_address: Gio.SocketAddress
+    /**
+     * The HTTP request headers.
+     */
     readonly request_headers: MessageHeaders
+    /**
+     * The HTTP response headers.
+     */
     readonly response_headers: MessageHeaders
+    /**
+     * Site used to compare cookies against. Used for SameSite cookie support.
+     */
     site_for_cookies: GLib.Uri
+    /**
+     * The HTTP response status code.
+     */
     readonly status_code: number
     /**
      * The Name of TLS ciphersuite negotiated for this message connection.
      */
     readonly tls_ciphersuite_name: string
     /**
-     * The peer's #GTlsCertificate associated with the message
+     * The peer's [class`Gio`.TlsCertificate] associated with the message.
      */
     readonly tls_peer_certificate: Gio.TlsCertificate
     /**
-     * The verification errors on #SoupMessage:tls-peer-certificate
+     * The verification errors on [property`Message:`tls-peer-certificate].
      */
     readonly tls_peer_certificate_errors: Gio.TlsCertificateFlags
     /**
      * The TLS protocol version negotiated for the message connection.
      */
     readonly tls_protocol_version: Gio.TlsProtocolVersion
+    /**
+     * The message's Request-URI.
+     */
     uri: GLib.Uri
 
     // Owm methods of Soup-3.0.Soup.Message
 
     /**
-     * Adds `flags` to the set of `msg'`s flags
+     * Adds `flags` to the set of `msg'`s flags.
      * @param flags a set of #SoupMessageFlags values
      */
     add_flags(flags: MessageFlags): void
     /**
-     * This disables the actions of #SoupSessionFeature<!-- -->s with the
-     * given `feature_type` (or a subclass of that type) on `msg,` so that
+     * Disables the actions of [iface`SessionFeature]`s with the
+     * given `feature_type` (or a subclass of that type) on `msg`.
+     * 
      * `msg` is processed as though the feature(s) hadn't been added to the
      * session. Eg, passing #SOUP_TYPE_CONTENT_SNIFFER for `feature_type`
      * will disable Content-Type sniffing on the message.
@@ -3740,21 +4145,24 @@ interface Message {
     disable_feature(feature_type: GObject.GType): void
     /**
      * Returns the unique idenfier for the last connection used.
+     * 
      * This may be 0 if it was a cached resource or it has not gotten
      * a connection yet.
      */
     get_connection_id(): number
     /**
-     * Gets `msg'`s first-party #GUri
+     * Gets `msg'`s first-party [struct`GLib`.Uri].
      */
     get_first_party(): GLib.Uri
     /**
-     * Gets the flags on `msg`
+     * Gets the flags on `msg`.
      */
     get_flags(): MessageFlags
     /**
-     * Gets the HTTP version of `msg`. This is the minimum of the
-     * version from the request and the version from the response.
+     * Gets the HTTP version of `msg`.
+     * 
+     * This is the minimum of the version from the request and the version from the
+     * response.
      */
     get_http_version(): HTTPVersion
     /**
@@ -3763,6 +4171,7 @@ interface Message {
     get_is_options_ping(): boolean
     /**
      * Returns if this message is set as a top level navigation.
+     * 
      * Used for same-site policy checks.
      */
     get_is_top_level_navigation(): boolean
@@ -3771,13 +4180,16 @@ interface Message {
      */
     get_method(): string
     /**
-     * Get the #SoupMessageMetrics of `msg`. If the flag %SOUP_MESSAGE_COLLECT_METRICS is not
-     * enabled for `msg` this will return %NULL.
+     * Get the [struct`MessageMetrics]` of `msg`.
+     * 
+     * If the flag %SOUP_MESSAGE_COLLECT_METRICS is not enabled for `msg` this will
+     * return %NULL.
      */
     get_metrics(): MessageMetrics | null
     /**
-     * Retrieves the #SoupMessagePriority. If not set this value defaults
-     * to #SOUP_MESSAGE_PRIORITY_NORMAL.
+     * Retrieves the [enum`MessagePriority]`.
+     * 
+     * If not set this value defaults to #SOUP_MESSAGE_PRIORITY_NORMAL.
      */
     get_priority(): MessagePriority
     /**
@@ -3785,12 +4197,14 @@ interface Message {
      */
     get_reason_phrase(): string | null
     /**
-     * Get the remote #GSocketAddress of the connection associated with the message.
-     * The returned address can be %NULL if the connection hasn't been established yet,
-     * or the resource was loaded from the disk cache.
-     * In case of proxy connections, the remote address returned is a #GProxyAddress.
-     * If #SoupSession::remote-connetable is set the returned address id for the connection
-     * ot the session's remote connectable.
+     * Get the remote [class`Gio`.SocketAddress] of the connection associated with
+     * the message.
+     * 
+     * The returned address can be %NULL if the connection hasn't been established
+     * yet, or the resource was loaded from the disk cache. In case of proxy
+     * connections, the remote address returned is a [class`Gio`.ProxyAddress]. If
+     * [property`Session:`remote-connectable] is set the returned address id for the
+     * connection to the session's remote connectable.
      */
     get_remote_address(): Gio.SocketAddress | null
     /**
@@ -3802,7 +4216,7 @@ interface Message {
      */
     get_response_headers(): MessageHeaders
     /**
-     * Gets `msg'`s site for cookies #GUri
+     * Gets `msg'`s site for cookies #GUri.
      */
     get_site_for_cookies(): GLib.Uri
     /**
@@ -3814,53 +4228,58 @@ interface Message {
      */
     get_tls_ciphersuite_name(): string
     /**
-     * Gets the peer's #GTlsCertificate associated with `msg'`s connection.
+     * Gets the peer's [class`Gio`.TlsCertificate] associated with `msg'`s connection.
+     * 
      * Note that this is not set yet during the emission of
-     * SoupMessage::accept-certificate signal.
+     * [signal`Message:`:accept-certificate] signal.
      */
     get_tls_peer_certificate(): Gio.TlsCertificate | null
     /**
      * Gets the errors associated with validating `msg'`s TLS peer certificate.
      * Note that this is not set yet during the emission of
-     * SoupMessage::accept-certificate signal.
+     * [signal`Message:`:accept-certificate] signal.
      */
     get_tls_peer_certificate_errors(): Gio.TlsCertificateFlags
     /**
      * Gets the TLS protocol version negotiated for `msg'`s connection.
+     * 
      * If the message connection is not SSL, %G_TLS_PROTOCOL_VERSION_UNKNOWN is returned.
      */
     get_tls_protocol_version(): Gio.TlsProtocolVersion
     /**
-     * Gets `msg'`s URI
+     * Gets `msg'`s URI.
      */
     get_uri(): GLib.Uri
     /**
-     * Get whether #SoupSessionFeature<!-- -->s of the given `feature_type`
+     * Get whether [iface`SessionFeature]`s of the given `feature_type`
      * (or a subclass of that type) are disabled on `msg`.
-     * See soup_message_disable_feature().
+     * 
+     * See [method`Message`.disable_feature].
      * @param feature_type the #GType of a #SoupSessionFeature
      */
     is_feature_disabled(feature_type: GObject.GType): boolean
     /**
      * Determines whether or not `msg'`s connection can be kept alive for
-     * further requests after processing `msg,` based on the HTTP version,
-     * Connection header, etc.
+     * further requests after processing `msg`.
+     * 
+     * The result is based on the HTTP version, Connection header, etc.
      */
     is_keepalive(): boolean
     /**
-     * Queries if `flags` are present in the set of `msg'`s flags
+     * Queries if `flags` are present in the set of `msg'`s flags.
      * @param flags a set of #SoupMessageFlags values
      */
     query_flags(flags: MessageFlags): boolean
     /**
-     * Removes `flags` from the set of `msg'`s flags
+     * Removes `flags` from the set of `msg'`s flags.
      * @param flags a set of #SoupMessageFlags values
      */
     remove_flags(flags: MessageFlags): void
     /**
-     * Sets `first_party` as the main document #GUri for `msg`. For
-     * details of when and how this is used refer to the documentation for
-     * #SoupCookieJarAcceptPolicy.
+     * Sets `first_party` as the main document #GUri for `msg`.
+     * 
+     * For details of when and how this is used refer to the documentation for
+     * [enum`CookieJarAcceptPolicy]`.
      * @param first_party the #GUri for the `msg'`s first party
      */
     set_first_party(first_party: GLib.Uri): void
@@ -3871,12 +4290,15 @@ interface Message {
     set_flags(flags: MessageFlags): void
     /**
      * Set whether `msg` is intended to be used to send `OPTIONS *` to a server.
-     * When set to %TRUE, the path of #SoupMessage:uri will be ignored and
-     * #SoupMessage:method set to %SOUP_METHOD_OPTIONS.
+     * 
+     * When set to %TRUE, the path of [property`Message:`uri] will be ignored and
+     * [property`Message:`method] set to %SOUP_METHOD_OPTIONS.
      * @param is_options_ping the value to set
      */
     set_is_options_ping(is_options_ping: boolean): void
     /**
+     * Sets whether the current request is a top-level navitation.
+     * 
      * See the [same-site spec](https://tools.ietf.org/html/draft-ietf-httpbis-cookie-same-site-00)
      * for more information.
      * @param is_top_level_navigation if %TRUE indicate the current request is a top-level navigation
@@ -3888,9 +4310,10 @@ interface Message {
      */
     set_method(method: string): void
     /**
-     * Sets the priority of a message. Note that this won't have any
-     * effect unless used before the message is added to the session's
-     * message processing queue.
+     * Sets the priority of a message.
+     * 
+     * Note that this won't have any effect unless used before the message is added
+     * to the session's message processing queue.
      * 
      * The message will be placed just before any other previously added
      * message with lower priority (messages with the same priority are
@@ -3904,6 +4327,7 @@ interface Message {
     set_priority(priority: MessagePriority): void
     /**
      * Set the request body of a #SoupMessage.
+     * 
      * If `content_type` is %NULL and `stream` is not %NULL the Content-Type header will
      * not be changed if present.
      * The request body needs to be set again in case `msg` is restarted
@@ -3914,7 +4338,8 @@ interface Message {
      */
     set_request_body(content_type: string | null, stream: Gio.InputStream | null, content_length: number): void
     /**
-     * Set the request body of a #SoupMessage from #GBytes.
+     * Set the request body of a #SoupMessage from [struct`GLib`.Bytes].
+     * 
      * If `content_type` is %NULL and `bytes` is not %NULL the Content-Type header will
      * not be changed if present.
      * The request body needs to be set again in case `msg` is restarted
@@ -3926,9 +4351,10 @@ interface Message {
     /**
      * Sets `site_for_cookies` as the policy URL for same-site cookies for `msg`.
      * 
-     * It is either the URL of the top-level document or %NULL depending on whether the registrable
-     * domain of this document's URL matches the registrable domain of its parent's/opener's
-     * URL. For the top-level document it is set to the document's URL.
+     * It is either the URL of the top-level document or %NULL depending on whether
+     * the registrable domain of this document's URL matches the registrable domain
+     * of its parent's/opener's URL. For the top-level document it is set to the
+     * document's URL.
      * 
      * See the [same-site spec](https://tools.ietf.org/html/draft-ietf-httpbis-cookie-same-site-00)
      * for more information.
@@ -3938,25 +4364,29 @@ interface Message {
     /**
      * Sets the `certificate` to be used by `msg'`s connection when a
      * client certificate is requested during the TLS handshake.
-     * You can call this as a response to #SoupMessage::request-certificate
+     * 
+     * You can call this as a response to [signal`Message:`:request-certificate]
      * signal, or before the connection is started. If `certificate` is %NULL
      * the handshake will continue without providing a GTlsCertificate.
-     * Note that the #GTlsCertificate set by this function will be ignored if
-     * #SoupSession::tls-interaction is not %NULL.
+     * Note that the [class`Gio`.TlsCertificate] set by this function will be ignored if
+     * [property`Session:`tls-interaction] is not %NULL.
      * @param certificate the #GTlsCertificate to set, or %NULL
      */
     set_tls_client_certificate(certificate: Gio.TlsCertificate | null): void
     /**
-     * Sets `msg'`s URI to `uri`. If `msg` has already been sent and you want
-     * to re-send it with the new URI, you need to send it again.
+     * Sets `msg'`s URI to `uri`.
+     * 
+     * If `msg` has already been sent and you want to re-send it with the new URI,
+     * you need to send it again.
      * @param uri the new #GUri
      */
     set_uri(uri: GLib.Uri): void
     /**
      * Completes a certificate password request.
      * 
-     * You must call this as a response to #SoupMessage::request-certificate-password
-     * signal, to notify `msg` that the #GTlsPassword has already been updated.
+     * You must call this as a response to
+     * [signal`Message:`:request-certificate-password] signal, to notify `msg` that
+     * the [class`Gio`.TlsPassword] has already been updated.
      */
     tls_client_certificate_password_request_complete(): void
 
@@ -4076,16 +4506,26 @@ interface Message {
 /**
  * Represents an HTTP message being sent or received.
  * 
- * `status_code` will normally be a #SoupStatus value, eg,
- * %SOUP_STATUS_OK, though of course it might actually be an unknown
- * status code. `reason_phrase` is the actual text returned from the
- * server, which may or may not correspond to the "standard"
- * description of `status_code`. At any rate, it is almost certainly
- * not localized, and not very descriptive even if it is in the user's
- * language; you should not use `reason_phrase` in user-visible
- * messages. Rather, you should look at `status_code,` and determine an
- * end-user-appropriate message based on that and on what you were
- * trying to do.
+ * A #SoupMessage represents an HTTP message that is being sent or
+ * received.
+ * 
+ * You would create a #SoupMessage with [ctor`Message`.new] or
+ * [ctor`Message`.new_from_uri], set up its fields appropriately, and send it.
+ * 
+ * [property`Message:`status-code] will normally be a [enum`Status]` value, eg,
+ * %SOUP_STATUS_OK, though of course it might actually be an unknown status
+ * code. [property`Message:`reason-phrase] is the actual text returned from the
+ * server, which may or may not correspond to the "standard" description of
+ * `status_code`. At any rate, it is almost certainly not localized, and not very
+ * descriptive even if it is in the user's language; you should not use
+ * [property`Message:`reason-phrase] in user-visible messages. Rather, you should
+ * look at [property`Message:`status-code], and determine an end-user-appropriate
+ * message based on that and on what you were trying to do.
+ * 
+ * Note that libsoup's terminology here does not quite match the HTTP
+ * specification: in RFC 2616, an "HTTP-message" is *either* a Request, *or* a
+ * Response. In libsoup, a #SoupMessage combines both the request and the
+ * response.
  * @class 
  */
 class Message extends GObject.Object {
@@ -4099,14 +4539,14 @@ class Message extends GObject.Object {
 
     constructor(config?: Message.ConstructorProperties) 
     /**
-     * Creates a new empty #SoupMessage, which will connect to `uri`
+     * Creates a new empty #SoupMessage, which will connect to `uri`.
      * @constructor 
      * @param method the HTTP method for the created request
      * @param uri_string the destination endpoint (as a string)
      */
     constructor(method: string, uri_string: string) 
     /**
-     * Creates a new empty #SoupMessage, which will connect to `uri`
+     * Creates a new empty #SoupMessage, which will connect to `uri`.
      * @constructor 
      * @param method the HTTP method for the created request
      * @param uri_string the destination endpoint (as a string)
@@ -4117,9 +4557,10 @@ class Message extends GObject.Object {
      * to `uri` via `method`. If `method` is "GET", it will include the form data
      * into `uri'`s query field, and if `method` is "POST" or "PUT", it will be set as
      * request body.
+     * 
      * This function takes the ownership of `encoded_form,` that will be released
-     * with g_free() when no longer in use. See also soup_form_encode(),
-     * soup_form_encode_hash() and soup_form_encode_datalist().
+     * with [func`GLib`.free] when no longer in use. See also [func`form_encode]`,
+     * [func`form_encode_hash]` and [func`form_encode_datalist]`.
      * @constructor 
      * @param method the HTTP method for the created request (GET, POST or PUT)
      * @param uri_string the destination endpoint (as a string)
@@ -4130,22 +4571,22 @@ class Message extends GObject.Object {
      * Creates a new #SoupMessage and sets it up to send `multipart` to
      * `uri_string` via POST.
      * @constructor 
-     * @param uri_string the destination endpoint (as a string)
+     * @param uri_string the destination endpoint
      * @param multipart a #SoupMultipart
      */
     static new_from_multipart(uri_string: string, multipart: Multipart): Message
     /**
-     * Creates a new empty #SoupMessage, which will connect to `uri`
+     * Creates a new empty #SoupMessage, which will connect to `uri`.
      * @constructor 
      * @param method the HTTP method for the created request
-     * @param uri the destination endpoint (as a #GUri)
+     * @param uri the destination endpoint
      */
     static new_from_uri(method: string, uri: GLib.Uri): Message
     /**
-     * Creates a new #SoupMessage to send `OPTIONS *` to a server. The path of `base_uri`
-     * will be ignored.
+     * Creates a new #SoupMessage to send `OPTIONS *` to a server. The path of
+     * `base_uri` will be ignored.
      * @constructor 
-     * @param base_uri the destination endpoint (as a #GUri)
+     * @param base_uri the destination endpoint
      */
     static new_options_ping(base_uri: GLib.Uri): Message
     _init(config?: Message.ConstructorProperties): void
@@ -4159,6 +4600,9 @@ module MultipartInputStream {
 
         // Own constructor properties of Soup-3.0.Soup.MultipartInputStream
 
+        /**
+         * The [class`Message]`.
+         */
         message?: Message | null
     }
 
@@ -4168,6 +4612,9 @@ interface MultipartInputStream extends Gio.PollableInputStream {
 
     // Own properties of Soup-3.0.Soup.MultipartInputStream
 
+    /**
+     * The [class`Message]`.
+     */
     readonly message: Message
 
     // Conflicting properties
@@ -4177,26 +4624,26 @@ interface MultipartInputStream extends Gio.PollableInputStream {
     // Owm methods of Soup-3.0.Soup.MultipartInputStream
 
     /**
-     * Obtains the headers for the part currently being processed. Note
-     * that the #SoupMessageHeaders that are returned are owned by the
-     * #SoupMultipartInputStream and will be replaced when a call is made
-     * to soup_multipart_input_stream_next_part() or its async
-     * counterpart, so if keeping the headers is required, a copy must be
-     * made.
+     * Obtains the headers for the part currently being processed.
      * 
-     * Note that if a part had no headers at all an empty #SoupMessageHeaders
+     * Note that the [struct`MessageHeaders]` that are returned are owned by the
+     * #SoupMultipartInputStream and will be replaced when a call is made to
+     * [method`MultipartInputStream`.next_part] or its async counterpart, so if
+     * keeping the headers is required, a copy must be made.
+     * 
+     * Note that if a part had no headers at all an empty [struct`MessageHeaders]`
      * will be returned.
      */
     get_headers(): MessageHeaders | null
     /**
-     * Obtains an input stream for the next part. When dealing with a
-     * multipart response the input stream needs to be wrapped in a
-     * #SoupMultipartInputStream and this function or its async
-     * counterpart need to be called to obtain the first part for
-     * reading.
+     * Obtains an input stream for the next part.
+     * 
+     * When dealing with a multipart response the input stream needs to be wrapped
+     * in a #SoupMultipartInputStream and this function or its async counterpart
+     * need to be called to obtain the first part for reading.
      * 
      * After calling this function,
-     * soup_multipart_input_stream_get_headers() can be used to obtain the
+     * [method`MultipartInputStream`.get_headers] can be used to obtain the
      * headers for the first part. A read of 0 bytes indicates the end of
      * the part; a new call to this function should be done at that point,
      * to obtain the next part.
@@ -4204,9 +4651,9 @@ interface MultipartInputStream extends Gio.PollableInputStream {
      */
     next_part(cancellable: Gio.Cancellable | null): Gio.InputStream | null
     /**
-     * Obtains a #GInputStream for the next request. See
-     * soup_multipart_input_stream_next_part() for details on the
-     * workflow.
+     * Obtains a [class`Gio`.InputStream] for the next request.
+     * 
+     * See [method`MultipartInputStream`.next_part] for details on the workflow.
      * @param io_priority the I/O priority for the request.
      * @param cancellable a #GCancellable.
      * @param callback callback to call when request is satisfied.
@@ -4233,7 +4680,17 @@ interface MultipartInputStream extends Gio.PollableInputStream {
 }
 
 /**
- * Class for handling streams of multipart messages.
+ * Handles streams of multipart messages.
+ * 
+ * This adds support for the multipart responses. For handling the
+ * multiple parts the user needs to wrap the [class`Gio`.InputStream] obtained by
+ * sending the request with a [class`MultipartInputStream]` and use
+ * [method`MultipartInputStream`.next_part] before reading. Responses
+ * which are not wrapped will be treated like non-multipart responses.
+ * 
+ * Note that although #SoupMultipartInputStream is a [class`Gio`.InputStream],
+ * you should not read directly from it, and the results are undefined
+ * if you do.
  * @class 
  */
 class MultipartInputStream extends Gio.FilterInputStream {
@@ -4248,9 +4705,10 @@ class MultipartInputStream extends Gio.FilterInputStream {
     constructor(config?: MultipartInputStream.ConstructorProperties) 
     /**
      * Creates a new #SoupMultipartInputStream that wraps the
-     * #GInputStream obtained by sending the #SoupMessage. Reads should
-     * not be done directly through this object, use the input streams
-     * returned by soup_multipart_input_stream_next_part() or its async
+     * [class`Gio`.InputStream] obtained by sending the [class`Message]`.
+     * 
+     * Reads should not be done directly through this object, use the input streams
+     * returned by [method`MultipartInputStream`.next_part] or its async
      * counterpart instead.
      * @constructor 
      * @param msg the #SoupMessage the response is related to.
@@ -4259,9 +4717,10 @@ class MultipartInputStream extends Gio.FilterInputStream {
     constructor(msg: Message, base_stream: Gio.InputStream) 
     /**
      * Creates a new #SoupMultipartInputStream that wraps the
-     * #GInputStream obtained by sending the #SoupMessage. Reads should
-     * not be done directly through this object, use the input streams
-     * returned by soup_multipart_input_stream_next_part() or its async
+     * [class`Gio`.InputStream] obtained by sending the [class`Message]`.
+     * 
+     * Reads should not be done directly through this object, use the input streams
+     * returned by [method`MultipartInputStream`.next_part] or its async
      * counterpart instead.
      * @constructor 
      * @param msg the #SoupMessage the response is related to.
@@ -4310,10 +4769,16 @@ module Server {
 
         // Own constructor properties of Soup-3.0.Soup.Server
 
+        /**
+         * If %TRUE, percent-encoding in the Request-URI path will not be
+         * automatically decoded.
+         */
         raw_paths?: boolean | null
         /**
+         * Server header.
+         * 
          * If non-%NULL, the value to use for the "Server" header on
-         * #SoupServerMessage<!-- -->s processed by this server.
+         * [class`ServerMessage]`s processed by this server.
          * 
          * The Server header is the server equivalent of the
          * User-Agent header, and provides information about the
@@ -4331,25 +4796,27 @@ module Server {
          * end up advertising their vulnerability to specific security
          * holes.
          * 
-         * As with #SoupSession:user_agent, if you set a
-         * #SoupServer:server_header property that has trailing whitespace,
-         * #SoupServer will append its own product token (eg,
-         * "<literal>libsoup/2.3.2</literal>") to the end of the
-         * header for you.
+         * As with [property`Session:`user_agent], if you set a
+         * [property`Server:`server-header] property that has trailing
+         * whitespace, #SoupServer will append its own product token (eg,
+         * `libsoup/2.3.2`) to the end of the header for you.
          */
         server_header?: string | null
         /**
-         * A #GTlsAuthenticationMode for SSL/TLS client authentication
+         * A [enum`Gio`.TlsAuthenticationMode] for SSL/TLS client authentication.
          */
         tls_auth_mode?: Gio.TlsAuthenticationMode | null
         /**
-         * A #GTlsCertificate that has a #GTlsCertificate:private-key
-         * set. If this is set, then the server will be able to speak
+         * A [class`Gio`.TlsCertificate[] that has a
+         * [property`Gio`.TlsCertificate:private-key] set.
+         * 
+         * If this is set, then the server will be able to speak
          * https in addition to (or instead of) plain http.
          */
         tls_certificate?: Gio.TlsCertificate | null
         /**
-         * A #GTlsDatabase to use for validating SSL/TLS client certificates.
+         * A [class`Gio`.TlsDatabase] to use for validating SSL/TLS client
+         * certificates.
          */
         tls_database?: Gio.TlsDatabase | null
     }
@@ -4360,10 +4827,16 @@ interface Server {
 
     // Own properties of Soup-3.0.Soup.Server
 
+    /**
+     * If %TRUE, percent-encoding in the Request-URI path will not be
+     * automatically decoded.
+     */
     readonly raw_paths: boolean
     /**
+     * Server header.
+     * 
      * If non-%NULL, the value to use for the "Server" header on
-     * #SoupServerMessage<!-- -->s processed by this server.
+     * [class`ServerMessage]`s processed by this server.
      * 
      * The Server header is the server equivalent of the
      * User-Agent header, and provides information about the
@@ -4381,25 +4854,27 @@ interface Server {
      * end up advertising their vulnerability to specific security
      * holes.
      * 
-     * As with #SoupSession:user_agent, if you set a
-     * #SoupServer:server_header property that has trailing whitespace,
-     * #SoupServer will append its own product token (eg,
-     * "<literal>libsoup/2.3.2</literal>") to the end of the
-     * header for you.
+     * As with [property`Session:`user_agent], if you set a
+     * [property`Server:`server-header] property that has trailing
+     * whitespace, #SoupServer will append its own product token (eg,
+     * `libsoup/2.3.2`) to the end of the header for you.
      */
     server_header: string
     /**
-     * A #GTlsAuthenticationMode for SSL/TLS client authentication
+     * A [enum`Gio`.TlsAuthenticationMode] for SSL/TLS client authentication.
      */
     tls_auth_mode: Gio.TlsAuthenticationMode
     /**
-     * A #GTlsCertificate that has a #GTlsCertificate:private-key
-     * set. If this is set, then the server will be able to speak
+     * A [class`Gio`.TlsCertificate[] that has a
+     * [property`Gio`.TlsCertificate:private-key] set.
+     * 
+     * If this is set, then the server will be able to speak
      * https in addition to (or instead of) plain http.
      */
     tls_certificate: Gio.TlsCertificate
     /**
-     * A #GTlsDatabase to use for validating SSL/TLS client certificates.
+     * A [class`Gio`.TlsDatabase] to use for validating SSL/TLS client
+     * certificates.
      */
     tls_database: Gio.TlsDatabase
 
@@ -4410,114 +4885,113 @@ interface Server {
     // Owm methods of Soup-3.0.Soup.Server
 
     /**
-     * Add a new client stream to the `server`.
+     * Adds a new client stream to the `server`.
      * @param stream a #GIOStream
-     * @param local_addr the local #GSocketAddress associated with the `stream`
-     * @param remote_addr the remote #GSocketAddress associated with the `stream`
+     * @param local_addr the local #GSocketAddress associated with the   `stream`
+     * @param remote_addr the remote #GSocketAddress associated with the   `stream`
      */
     accept_iostream(stream: Gio.IOStream, local_addr: Gio.SocketAddress | null, remote_addr: Gio.SocketAddress | null): boolean
     /**
-     * Adds an authentication domain to `server`. Each auth domain will
-     * have the chance to require authentication for each request that
-     * comes in; normally auth domains will require authentication for
-     * requests on certain paths that they have been set up to watch, or
-     * that meet other criteria set by the caller. If an auth domain
-     * determines that a request requires authentication (and the request
-     * doesn't contain authentication), `server` will automatically reject
-     * the request with an appropriate status (401 Unauthorized or 407
-     * Proxy Authentication Required). If the request used the
+     * Adds an authentication domain to `server`.
+     * 
+     * Each auth domain will have the chance to require authentication for each
+     * request that comes in; normally auth domains will require authentication for
+     * requests on certain paths that they have been set up to watch, or that meet
+     * other criteria set by the caller. If an auth domain determines that a request
+     * requires authentication (and the request doesn't contain authentication),
+     * `server` will automatically reject the request with an appropriate status (401
+     * Unauthorized or 407 Proxy Authentication Required). If the request used the
      * SoupServer:100-continue Expectation, `server` will reject it before the
      * request body is sent.
      * @param auth_domain a #SoupAuthDomain
      */
     add_auth_domain(auth_domain: AuthDomain): void
     /**
-     * Adds an "early" handler to `server` for requests prefixed by `path`. Note
-     * that "normal" and "early" handlers are matched up together, so if
-     * you add a normal handler for "/foo" and an early handler for
-     * "/foo/bar", then a request to "/foo/bar" (or any path below it)
-     * will run only the early handler. (But if you add both handlers at
-     * the same path, then both will get run.)
+     * Adds an "early" handler to `server` for requests prefixed by `path`.
+     * 
+     * Note that "normal" and "early" handlers are matched up together, so if you
+     * add a normal handler for "/foo" and an early handler for "/foo/bar", then a
+     * request to "/foo/bar" (or any path below it) will run only the early handler.
+     * (But if you add both handlers at the same path, then both will get run.)
      * 
      * For requests under `path` (that have not already been assigned a
-     * status code by a #SoupAuthDomain or a signal handler), `callback`
+     * status code by a [class`AuthDomain]` or a signal handler), `callback`
      * will be invoked after receiving the request headers, but before
      * receiving the request body; the message's method and
      * request-headers properties will be set.
      * 
-     * Early handlers are generally used for processing requests with
-     * request bodies in a streaming fashion. If you determine that the
-     * request will contain a message body, normally you would call
-     * soup_message_body_set_accumulate() on the message's
-     * request-body to turn off request-body accumulation,
-     * and connect to the message's #SoupServerMessage::got-chunk signal to
-     * process each chunk as it comes in.
+     * Early handlers are generally used for processing requests with request bodies
+     * in a streaming fashion. If you determine that the request will contain a
+     * message body, normally you would call [method`MessageBody`.set_accumulate] on
+     * the message's request-body to turn off request-body accumulation, and connect
+     * to the message's [signal`ServerMessage:`:got-chunk] signal to process each
+     * chunk as it comes in.
      * 
      * To complete the message processing after the full message body has
-     * been read, you can either also connect to #SoupServerMessage::got-body,
+     * been read, you can either also connect to [signal`ServerMessage:`:got-body],
      * or else you can register a non-early handler for `path` as well. As
      * long as you have not set the status-code by the time
-     * #SoupServerMessage::got-body is emitted, the non-early handler will be
+     * [signal`ServerMessage:`:got-body] is emitted, the non-early handler will be
      * run as well.
      * @param path the toplevel path for the handler
-     * @param callback callback to invoke for requests under `path`
+     * @param callback callback to invoke for   requests under `path`
      */
     add_early_handler(path: string | null, callback: ServerCallback): void
     /**
-     * Adds a handler to `server` for requests prefixed by `path`. If `path` is
-     * %NULL or "/", then this will be the default handler for all
-     * requests that don't have a more specific handler. (Note though that
-     * if you want to handle requests to the special "*" URI, you must
-     * explicitly register a handler for "*"; the default handler will not
-     * be used for that case.)
+     * Adds a handler to `server` for requests prefixed by `path`.
+     * 
+     * If `path` is %NULL or "/", then this will be the default handler for all
+     * requests that don't have a more specific handler. (Note though that if you
+     * want to handle requests to the special "*" URI, you must explicitly register
+     * a handler for "*"; the default handler will not be used for that case.)
      * 
      * For requests under `path` (that have not already been assigned a
-     * status code by a #SoupAuthDomain, an early server handler, or a
+     * status code by a [class`AuthDomain]`, an early server handler, or a
      * signal handler), `callback` will be invoked after receiving the
-     * request body; the #SoupServerMessage<!-- -->'s method, request-headers,
+     * request body; the [class`ServerMessage]`'s method, request-headers,
      * and request-body properties will be set.
      * 
-     * After determining what to do with the request, the callback must at
-     * a minimum call soup_server_message_set_status() on the message to set the response
-     * status code. Additionally, it may set response headers and/or fill
-     * in the response body.
+     * After determining what to do with the request, the callback must at a minimum
+     * call [method`ServerMessage`.set_status] on the message to set the response
+     * status code. Additionally, it may set response headers and/or fill in the
+     * response body.
      * 
      * If the callback cannot fully fill in the response before returning
      * (eg, if it needs to wait for information from a database, or
-     * another network server), it should call soup_server_pause_message()
+     * another network server), it should call [method`ServerMessage`.pause]
      * to tell `server` to not send the response right away. When the
-     * response is ready, call soup_server_unpause_message() to cause it
+     * response is ready, call [method`ServerMessage`.unpause] to cause it
      * to be sent.
      * 
-     * To send the response body a bit at a time using "chunked" encoding,
-     * first call soup_message_headers_set_encoding() to set
-     * %SOUP_ENCODING_CHUNKED on the response-headers. Then call
-     * soup_message_body_append() (or soup_message_body_append_bytes))
-     * to append each chunk as it becomes ready, and
-     * soup_server_unpause_message() to make sure it's running. (The
-     * server will automatically pause the message if it is using chunked
-     * encoding but no more chunks are available.) When you are done, call
-     * soup_message_body_complete() to indicate that no more chunks are
-     * coming.
+     * To send the response body a bit at a time using "chunked" encoding, first
+     * call [method`MessageHeaders`.set_encoding] to set %SOUP_ENCODING_CHUNKED on
+     * the response-headers. Then call [method`MessageBody`.append] (or
+     * [method`MessageBody`.append_bytes])) to append each chunk as it becomes ready,
+     * and [method`ServerMessage`.unpause] to make sure it's running. (The server
+     * will automatically pause the message if it is using chunked encoding but no
+     * more chunks are available.) When you are done, call
+     * [method`MessageBody`.complete] to indicate that no more chunks are coming.
      * @param path the toplevel path for the handler
-     * @param callback callback to invoke for requests under `path`
+     * @param callback callback to invoke for   requests under `path`
      */
     add_handler(path: string | null, callback: ServerCallback): void
     /**
      * Add support for a WebSocket extension of the given `extension_type`.
+     * 
      * When a WebSocket client requests an extension of `extension_type,`
-     * a new #SoupWebsocketExtension of type `extension_type` will be created
+     * a new [class`WebsocketExtension]` of type `extension_type` will be created
      * to handle the request.
      * 
-     * Note that #SoupWebsocketExtensionDeflate is supported by default, use
-     * soup_server_remove_websocket_extension() if you want to disable it.
+     * Note that [class`WebsocketExtensionDeflate]` is supported by default, use
+     * [method`Server`.remove_websocket_extension] if you want to disable it.
      * @param extension_type a #GType
      */
     add_websocket_extension(extension_type: GObject.GType): void
     /**
-     * Adds a WebSocket handler to `server` for requests prefixed by `path`. (If
-     * `path` is %NULL or "/", then this will be the default handler for
-     * all requests that don't have a more specific handler.)
+     * Adds a WebSocket handler to `server` for requests prefixed by `path`.
+     * 
+     * If `path` is %NULL or "/", then this will be the default handler for all
+     * requests that don't have a more specific handler.
      * 
      * When a path has a WebSocket handler registered, `server` will check
      * incoming requests for WebSocket handshakes after all other handlers
@@ -4535,17 +5009,17 @@ interface Server {
      * @param path the toplevel path for the handler
      * @param origin the origin of the connection
      * @param protocols the protocols   supported by this handler
-     * @param callback callback to invoke for successful WebSocket requests under `path`
+     * @param callback callback to invoke for   successful WebSocket requests under `path`
      */
     add_websocket_handler(path: string | null, origin: string | null, protocols: string[] | null, callback: ServerWebsocketCallback): void
     /**
      * Closes and frees `server'`s listening sockets.
      * 
-     * Note that if there are currently requests in progress on `server,`
-     * that they will continue to be processed if `server'`s #GMainContext
-     * is still running.
+     * Note that if there are currently requests in progress on `server,` that they
+     * will continue to be processed if `server'`s [struct`GLib`.MainContext] is still
+     * running.
      * 
-     * You can call soup_server_listen(), etc, after calling this function
+     * You can call [method`Server`.listen], etc, after calling this function
      * if you want to start listening again.
      */
     disconnect(): void
@@ -4557,48 +5031,47 @@ interface Server {
      */
     get_listeners(): Gio.Socket[]
     /**
-     * Gets the `server` SSL/TLS client authentication mode
+     * Gets the `server` SSL/TLS client authentication mode.
      */
     get_tls_auth_mode(): Gio.TlsAuthenticationMode
     /**
-     * Gets the `server` SSL/TLS certificate
+     * Gets the `server` SSL/TLS certificate.
      */
     get_tls_certificate(): Gio.TlsCertificate | null
     /**
-     * Gets the `server` SSL/TLS database
+     * Gets the `server` SSL/TLS database.
      */
     get_tls_database(): Gio.TlsDatabase | null
     /**
      * Gets a list of URIs corresponding to the interfaces `server` is
-     * listening on. These will contain IP addresses, not hostnames, and
-     * will also indicate whether the given listener is http or https.
+     * listening on.
      * 
-     * Note that if you used soup_server_listen_all(), the returned URIs
-     * will use the addresses <literal>0.0.0.0</literal> and
-     * <literal>::</literal>, rather than actually returning separate URIs
-     * for each interface on the system.
+     * These will contain IP addresses, not hostnames, and will also indicate
+     * whether the given listener is http or https.
+     * 
+     * Note that if you used [method`Server`.listen_all] the returned URIs will use
+     * the addresses `0.0.0.0` and `::`, rather than actually returning separate
+     * URIs for each interface on the system.
      */
     get_uris(): GLib.Uri[]
     /**
      * Checks whether `server` is capable of https.
      * 
      * In order for a server to run https, you must call
-     * soup_server_set_ssl_cert_file(), or set the
-     * #SoupServer:tls-certificate property, to provide it with a
+     * [method`Server`.set_tls_certificate], or set the
+     * [property`Server:`tls-certificate] property, to provide it with a
      * certificate to use.
      * 
-     * If you are using the deprecated single-listener APIs, then a return
-     * value of %TRUE indicates that the #SoupServer serves https
-     * exclusively. If you are using soup_server_listen(), etc, then a
-     * %TRUE return value merely indicates that the server is
-     * <emphasis>able</emphasis> to do https, regardless of whether it
-     * actually currently is or not. Use soup_server_get_uris() to see if
-     * it currently has any https listeners.
+     * If you are using the deprecated single-listener APIs, then a return value of
+     * %TRUE indicates that the #SoupServer serves https exclusively. If you are
+     * using [method`Server`.listen], etc, then a %TRUE return value merely indicates
+     * that the server is *able* to do https, regardless of whether it actually
+     * currently is or not. Use [method`Server`.get_uris] to see if it currently has
+     * any https listeners.
      */
     is_https(): boolean
     /**
-     * This attempts to set up `server` to listen for connections on
-     * `address`.
+     * Attempts to set up `server` to listen for connections on `address`.
      * 
      * If `options` includes %SOUP_SERVER_LISTEN_HTTPS, and `server` has
      * been configured for TLS, then `server` will listen for https
@@ -4608,11 +5081,10 @@ interface Server {
      * any number of times on a server, if you want to listen on multiple
      * ports, or set up both http and https service.
      * 
-     * After calling this method, `server` will begin accepting and
-     * processing connections as soon as the appropriate #GMainContext is
-     * run.
+     * After calling this method, `server` will begin accepting and processing
+     * connections as soon as the appropriate [struct`GLib`.MainContext] is run.
      * 
-     * Note that #SoupServer never makes use of dual IPv4/IPv6 sockets; if
+     * Note that this API does not make use of dual IPv4/IPv6 sockets; if
      * `address` is an IPv6 address, it will only accept IPv6 connections.
      * You must configure IPv4 listening separately.
      * @param address the address of the interface to listen on
@@ -4620,52 +5092,54 @@ interface Server {
      */
     listen(address: Gio.SocketAddress, options: ServerListenOptions): boolean
     /**
-     * This attempts to set up `server` to listen for connections on all
-     * interfaces on the system. (That is, it listens on the addresses
-     * <literal>0.0.0.0</literal> and/or <literal>::</literal>, depending
-     * on whether `options` includes %SOUP_SERVER_LISTEN_IPV4_ONLY,
-     * %SOUP_SERVER_LISTEN_IPV6_ONLY, or neither.) If `port` is specified,
-     * `server` will listen on that port. If it is 0, `server` will find an
-     * unused port to listen on. (In that case, you can use
-     * soup_server_get_uris() to find out what port it ended up choosing.)
+     * Attempts to set up `server` to listen for connections on all interfaces
+     * on the system.
      * 
-     * See soup_server_listen() for more details.
+     * That is, it listens on the addresses `0.0.0.0` and/or `::`, depending on
+     * whether `options` includes %SOUP_SERVER_LISTEN_IPV4_ONLY,
+     * %SOUP_SERVER_LISTEN_IPV6_ONLY, or neither.) If `port` is specified, `server`
+     * will listen on that port. If it is 0, `server` will find an unused port to
+     * listen on. (In that case, you can use [method`Server`.get_uris] to find out
+     * what port it ended up choosing.
+     * 
+     * See [method`Server`.listen] for more details.
      * @param port the port to listen on, or 0
      * @param options listening options for this server
      */
     listen_all(port: number, options: ServerListenOptions): boolean
     /**
-     * This attempts to set up `server` to listen for connections on
-     * "localhost" (that is, <literal>127.0.0.1</literal> and/or
-     * <literal>::1</literal>, depending on whether `options` includes
-     * %SOUP_SERVER_LISTEN_IPV4_ONLY, %SOUP_SERVER_LISTEN_IPV6_ONLY, or
-     * neither). If `port` is specified, `server` will listen on that port.
-     * If it is 0, `server` will find an unused port to listen on. (In that
-     * case, you can use soup_server_get_uris() to find out what port it
-     * ended up choosing.)
+     * Attempts to set up `server` to listen for connections on "localhost".
      * 
-     * See soup_server_listen() for more details.
+     * That is, `127.0.0.1` and/or `::1`, depending on whether `options` includes
+     * %SOUP_SERVER_LISTEN_IPV4_ONLY, %SOUP_SERVER_LISTEN_IPV6_ONLY, or neither). If
+     * `port` is specified, `server` will listen on that port. If it is 0, `server`
+     * will find an unused port to listen on. (In that case, you can use
+     * [method`Server`.get_uris] to find out what port it ended up choosing.
+     * 
+     * See [method`Server`.listen] for more details.
      * @param port the port to listen on, or 0
      * @param options listening options for this server
      */
     listen_local(port: number, options: ServerListenOptions): boolean
     /**
-     * This attempts to set up `server` to listen for connections on
-     * `socket`.
+     * Attempts to set up `server` to listen for connections on `socket`.
      * 
-     * See soup_server_listen() for more details.
+     * See [method`Server`.listen] for more details.
      * @param socket a listening #GSocket
      * @param options listening options for this server
      */
     listen_socket(socket: Gio.Socket, options: ServerListenOptions): boolean
     /**
-     * Pauses I/O on `msg`. This can be used when you need to return from
-     * the server handler without having the full response ready yet. Use
-     * soup_server_unpause_message() to resume I/O.
+     * Pauses I/O on `msg`.
      * 
-     * This must only be called on a #SoupServerMessage which was created by the
+     * This can be used when you need to return from the server handler without
+     * having the full response ready yet. Use [method`Server`.unpause_message] to
+     * resume I/O.
+     * 
+     * This must only be called on a [class`ServerMessage]` which was created by the
      * #SoupServer and are currently doing I/O, such as those passed into a
-     * #SoupServerCallback or emitted in a #SoupServer::request-read signal.
+     * [callback`ServerCallback]` or emitted in a [signal`Server:`:request-read]
+     * signal.
      * @param msg a #SoupServerMessage associated with `server`.
      */
     pause_message(msg: ServerMessage): void
@@ -4686,7 +5160,7 @@ interface Server {
      */
     remove_websocket_extension(extension_type: GObject.GType): void
     /**
-     * Sets `server'`s #GTlsAuthenticationMode to use for SSL/TLS client authentication
+     * Sets `server'`s #GTlsAuthenticationMode to use for SSL/TLS client authentication.
      * @param mode a #GTlsAuthenticationMode
      */
     set_tls_auth_mode(mode: Gio.TlsAuthenticationMode): void
@@ -4696,20 +5170,22 @@ interface Server {
      */
     set_tls_certificate(certificate: Gio.TlsCertificate): void
     /**
-     * Sets `server'`s #GTlsDatabase to use for validating SSL/TLS client certificates
+     * Sets `server'`s #GTlsDatabase to use for validating SSL/TLS client certificates.
      * @param tls_database a #GTlsDatabase
      */
     set_tls_database(tls_database: Gio.TlsDatabase): void
     /**
-     * Resumes I/O on `msg`. Use this to resume after calling
-     * soup_server_pause_message(), or after adding a new chunk to a
-     * chunked response.
+     * Resumes I/O on `msg`.
+     * 
+     * Use this to resume after calling [method`Server`.pause_message], or after
+     * adding a new chunk to a chunked response.
      * 
      * I/O won't actually resume until you return to the main loop.
      * 
-     * This must only be called on a #SoupServerMessage which was created by the
+     * This must only be called on a [class`ServerMessage]` which was created by the
      * #SoupServer and are currently doing I/O, such as those passed into a
-     * #SoupServerCallback or emitted in a #SoupServer::request-read signal.
+     * [callback`ServerCallback]` or emitted in a [signal`Server:`:request-read]
+     * signal.
      * @param msg a #SoupServerMessage associated with `server`.
      */
     unpause_message(msg: ServerMessage): void
@@ -4760,7 +5236,90 @@ interface Server {
 }
 
 /**
- * Class implementing an HTTP server.
+ * A HTTP server.
+ * 
+ * #SoupServer implements a simple HTTP server.
+ * 
+ * To begin, create a server using [ctor`Server`.new]. Add at least one
+ * handler by calling [method`Server`.add_handler] or
+ * [method`Server`.add_early_handler]; the handler will be called to
+ * process any requests underneath the path you pass. (If you want all
+ * requests to go to the same handler, just pass "/" (or %NULL) for
+ * the path.)
+ * 
+ * When a new connection is accepted (or a new request is started on
+ * an existing persistent connection), the #SoupServer will emit
+ * [signal`Server:`:request-started] and then begin processing the request
+ * as described below, but note that once the message is assigned a
+ * status-code, then callbacks after that point will be
+ * skipped. Note also that it is not defined when the callbacks happen
+ * relative to various [class`ServerMessage]` signals.
+ * 
+ * Once the headers have been read, #SoupServer will check if there is
+ * a [class`AuthDomain]` `(qv)` covering the Request-URI; if so, and if the
+ * message does not contain suitable authorization, then the
+ * [class`AuthDomain]` will set a status of %SOUP_STATUS_UNAUTHORIZED on
+ * the message.
+ * 
+ * After checking for authorization, #SoupServer will look for "early"
+ * handlers (added with [method`Server`.add_early_handler]) matching the
+ * Request-URI. If one is found, it will be run; in particular, this
+ * can be used to connect to signals to do a streaming read of the
+ * request body.
+ * 
+ * (At this point, if the request headers contain `Expect:
+ * 100-continue`, and a status code has been set, then
+ * #SoupServer will skip the remaining steps and return the response.
+ * If the request headers contain `Expect:
+ * 100-continue` and no status code has been set,
+ * #SoupServer will return a %SOUP_STATUS_CONTINUE status before
+ * continuing.)
+ * 
+ * The server will then read in the response body (if present). At
+ * this point, if there are no handlers at all defined for the
+ * Request-URI, then the server will return %SOUP_STATUS_NOT_FOUND to
+ * the client.
+ * 
+ * Otherwise (assuming no previous step assigned a status to the
+ * message) any "normal" handlers (added with
+ * [method`Server`.add_handler]) for the message's Request-URI will be
+ * run.
+ * 
+ * Then, if the path has a WebSocket handler registered (and has
+ * not yet been assigned a status), #SoupServer will attempt to
+ * validate the WebSocket handshake, filling in the response and
+ * setting a status of %SOUP_STATUS_SWITCHING_PROTOCOLS or
+ * %SOUP_STATUS_BAD_REQUEST accordingly.
+ * 
+ * If the message still has no status code at this point (and has not
+ * been paused with [method`ServerMessage`.pause]), then it will be
+ * given a status of %SOUP_STATUS_INTERNAL_SERVER_ERROR (because at
+ * least one handler ran, but returned without assigning a status).
+ * 
+ * Finally, the server will emit [signal`Server:`:request-finished] (or
+ * [signal`Server:`:request-aborted] if an I/O error occurred before
+ * handling was completed).
+ * 
+ * If you want to handle the special "*" URI (eg, "OPTIONS *"), you
+ * must explicitly register a handler for "*"; the default handler
+ * will not be used for that case.
+ * 
+ * If you want to process https connections in addition to (or instead
+ * of) http connections, you can set the [property`Server:`tls-certificate]
+ * property.
+ * 
+ * Once the server is set up, make one or more calls to
+ * [method`Server`.listen], [method`Server`.listen_local], or
+ * [method`Server`.listen_all] to tell it where to listen for
+ * connections. (All ports on a #SoupServer use the same handlers; if
+ * you need to handle some ports differently, such as returning
+ * different data for http and https, you'll need to create multiple
+ * `SoupServer`s, or else check the passed-in URI in the handler
+ * function.).
+ * 
+ * #SoupServer will begin processing connections as soon as you return
+ * to (or start) the main loop for the current thread-default
+ * [struct`GLib`.MainContext].
  * @class 
  */
 class Server extends GObject.Object {
@@ -4785,6 +5344,13 @@ module ServerMessage {
      */
     interface AcceptCertificateSignalCallback {
         ($obj: ServerMessage, tls_peer_certificate: Gio.TlsCertificate, tls_peer_errors: Gio.TlsCertificateFlags): boolean
+    }
+
+    /**
+     * Signal callback interface for `connected`
+     */
+    interface ConnectedSignalCallback {
+        ($obj: ServerMessage): void
     }
 
     /**
@@ -4867,6 +5433,17 @@ module ServerMessage {
 
 interface ServerMessage {
 
+    // Own properties of Soup-3.0.Soup.ServerMessage
+
+    /**
+     * The peer's #GTlsCertificate associated with the message
+     */
+    readonly tls_peer_certificate: Gio.TlsCertificate
+    /**
+     * The verification errors on #SoupServerMessage:tls-peer-certificate
+     */
+    readonly tls_peer_certificate_errors: Gio.TlsCertificateFlags
+
     // Owm methods of Soup-3.0.Soup.ServerMessage
 
     /**
@@ -4874,7 +5451,7 @@ interface ServerMessage {
      */
     get_http_version(): HTTPVersion
     /**
-     * Retrieves the #GSocketAddress associated with the local end
+     * Retrieves the [class`Gio`.SocketAddress] associated with the local end
      * of a connection.
      */
     get_local_address(): Gio.SocketAddress | null
@@ -4883,11 +5460,11 @@ interface ServerMessage {
      */
     get_method(): string
     /**
-     * Get the HTTP reason phrase of `msg` or %NULL.
+     * Get the HTTP reason phrase of `msg`.
      */
     get_reason_phrase(): string | null
     /**
-     * Retrieves the #GSocketAddress associated with the remote end
+     * Retrieves the [class`Gio`.SocketAddress] associated with the remote end
      * of a connection.
      */
     get_remote_address(): Gio.SocketAddress | null
@@ -4913,7 +5490,7 @@ interface ServerMessage {
      */
     get_response_headers(): MessageHeaders
     /**
-     * Retrieves the #GSocket that `msg` is associated with.
+     * Retrieves the [class`Gio`.Socket] that `msg` is associated with.
      * 
      * If you are using this method to observe when multiple requests are
      * made on the same persistent HTTP connection (eg, as the ntlm-test
@@ -4928,6 +5505,18 @@ interface ServerMessage {
      */
     get_status(): number
     /**
+     * Gets the peer's #GTlsCertificate associated with `msg'`s connection.
+     * Note that this is not set yet during the emission of
+     * SoupServerMessage::accept-certificate signal.
+     */
+    get_tls_peer_certificate(): Gio.TlsCertificate | null
+    /**
+     * Gets the errors associated with validating `msg'`s TLS peer certificate.
+     * Note that this is not set yet during the emission of
+     * SoupServerMessage::accept-certificate signal.
+     */
+    get_tls_peer_certificate_errors(): Gio.TlsCertificateFlags
+    /**
      * Get `msg'`s URI.
      */
     get_uri(): GLib.Uri
@@ -4936,19 +5525,27 @@ interface ServerMessage {
      */
     is_options_ping(): boolean
     /**
+     * Pauses I/O on `msg`.
+     * 
+     * This can be used when you need to return from the server handler without
+     * having the full response ready yet. Use [method`ServerMessage`.unpause] to
+     * resume I/O.
+     */
+    pause(): void
+    /**
      * Set the HTTP version of `msg`.
      * @param version a #SoupHTTPVersion
      */
     set_http_version(version: HTTPVersion): void
     /**
      * Sets `msg'`s status_code to `status_code` and adds a Location header
-     * pointing to `redirect_uri`. Use this from a #SoupServer when you
+     * pointing to `redirect_uri`. Use this from a [class`Server]` when you
      * want to redirect the client to another URI.
      * 
      * `redirect_uri` can be a relative URI, in which case it is
      * interpreted relative to `msg'`s current URI. In particular, if
      * `redirect_uri` is just a path, it will replace the path
-     * <emphasis>and query</emphasis> of `msg'`s URI.
+     * *and query* of `msg'`s URI.
      * @param status_code a 3xx status code
      * @param redirect_uri the URI to redirect `msg` to
      */
@@ -4962,31 +5559,44 @@ interface ServerMessage {
      */
     set_response(content_type: string | null, resp_use: MemoryUse, resp_body: Uint8Array | null): void
     /**
-     * Sets `msg'`s status code to `status_code`. If `status_code` is a
-     * known value and `reason_phrase` is %NULL, the reason_phrase will
-     * be set automatically.
+     * Sets `msg'`s status code to `status_code`.
+     * 
+     * If `status_code` is a known value and `reason_phrase` is %NULL, the
+     * reason_phrase will be set automatically.
      * @param status_code an HTTP status code
      * @param reason_phrase a reason phrase
      */
     set_status(status_code: number, reason_phrase: string | null): void
     /**
-     * "Steals" the HTTP connection associated with `msg` from its
-     * #SoupServer. This happens immediately, regardless of the current
-     * state of the connection; if the response to `msg` has not yet finished
-     * being sent, then it will be discarded; you can steal the connection from a
-     * #SoupServerMessage::wrote-informational or #SoupServerMessage::wrote-body signal
-     * handler if you need to wait for part or all of the response to be sent.
+     * "Steals" the HTTP connection associated with `msg` from its #SoupServer. This
+     * happens immediately, regardless of the current state of the connection; if
+     * the response to `msg` has not yet finished being sent, then it will be
+     * discarded; you can steal the connection from a
+     * [signal`ServerMessage:`:wrote-informational] or
+     * [signal`ServerMessage:`:wrote-body] signal handler if you need to wait for
+     * part or all of the response to be sent.
      * 
      * Note that when calling this function from C, `msg` will most
      * likely be freed as a side effect.
      */
     steal_connection(): Gio.IOStream
+    /**
+     * Resumes I/O on `msg`.
+     * 
+     * Use this to resume after calling [method`ServerMessage`.pause], or after
+     * adding a new chunk to a chunked response. I/O won't actually resume until you
+     * return to the main loop.
+     */
+    unpause(): void
 
     // Own signals of Soup-3.0.Soup.ServerMessage
 
     connect(sigName: "accept-certificate", callback: ServerMessage.AcceptCertificateSignalCallback): number
     connect_after(sigName: "accept-certificate", callback: ServerMessage.AcceptCertificateSignalCallback): number
     emit(sigName: "accept-certificate", tls_peer_certificate: Gio.TlsCertificate, tls_peer_errors: Gio.TlsCertificateFlags, ...args: any[]): void
+    connect(sigName: "connected", callback: ServerMessage.ConnectedSignalCallback): number
+    connect_after(sigName: "connected", callback: ServerMessage.ConnectedSignalCallback): number
+    emit(sigName: "connected", ...args: any[]): void
     connect(sigName: "disconnected", callback: ServerMessage.DisconnectedSignalCallback): number
     connect_after(sigName: "disconnected", callback: ServerMessage.DisconnectedSignalCallback): number
     emit(sigName: "disconnected", ...args: any[]): void
@@ -5020,6 +5630,12 @@ interface ServerMessage {
 
     // Class property signals of Soup-3.0.Soup.ServerMessage
 
+    connect(sigName: "notify::tls-peer-certificate", callback: (($obj: ServerMessage, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::tls-peer-certificate", callback: (($obj: ServerMessage, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::tls-peer-certificate", ...args: any[]): void
+    connect(sigName: "notify::tls-peer-certificate-errors", callback: (($obj: ServerMessage, pspec: GObject.ParamSpec) => void)): number
+    connect_after(sigName: "notify::tls-peer-certificate-errors", callback: (($obj: ServerMessage, pspec: GObject.ParamSpec) => void)): number
+    emit(sigName: "notify::tls-peer-certificate-errors", ...args: any[]): void
     connect(sigName: string, callback: (...args: any[]) => void): number
     connect_after(sigName: string, callback: (...args: any[]) => void): number
     emit(sigName: string, ...args: any[]): void
@@ -5027,7 +5643,18 @@ interface ServerMessage {
 }
 
 /**
- * Class represnting an HTTP request and response pair for a server.
+ * An HTTP server request and response pair.
+ * 
+ * A SoupServerMessage represents an HTTP message that is being sent or
+ * received on a [class`Server]`.
+ * 
+ * [class`Server]` will create `SoupServerMessage`s automatically for
+ * incoming requests, which your application will receive via handlers.
+ * 
+ * Note that libsoup's terminology here does not quite match the HTTP
+ * specification: in RFC 2616, an "HTTP-message" is *either* a Request, *or* a
+ * Response. In libsoup, a #SoupServerMessage combines both the request and the
+ * response.
  * @class 
  */
 class ServerMessage extends GObject.Object {
@@ -5070,18 +5697,18 @@ module Session {
 
         /**
          * If non-%NULL, the value to use for the "Accept-Language" header
-         * on #SoupMessage<!-- -->s sent from this session.
+         * on [class`Message]`s sent from this session.
          * 
-         * Setting this will disable #SoupSession:accept-language-auto.
+         * Setting this will disable [property`Session:`accept-language-auto].
          */
         accept_language?: string | null
         /**
          * If %TRUE, #SoupSession will automatically set the string
-         * for the "Accept-Language" header on every #SoupMessage
-         * sent, based on the return value of g_get_language_names().
+         * for the "Accept-Language" header on every [class`Message]`
+         * sent, based on the return value of [func`GLib`.get_language_names].
          * 
          * Setting this will override any previous value of
-         * #SoupSession:accept-language.
+         * [property`Session:`accept-language].
          */
         accept_language_auto?: boolean | null
         /**
@@ -5090,13 +5717,13 @@ module Session {
          * 
          * Although you can change this property at any time, it will
          * only affect newly-created connections, not currently-open
-         * ones. You can call soup_session_abort() after setting this
+         * ones. You can call [method`Session`.abort] after setting this
          * if you want to ensure that all future connections will have
          * this timeout value.
          */
         idle_timeout?: number | null
         /**
-         * Sets the #GInetSocketAddress to use for the client side of
+         * Sets the [class`Gio`.InetSocketAddress] to use for the client side of
          * the connection.
          * 
          * Use this property if you want for instance to bind the
@@ -5108,16 +5735,17 @@ module Session {
          */
         max_conns?: number | null
         /**
-         * The maximum number of connections that the session can open at once to a given host.
+         * The maximum number of connections that the session can open at once
+         * to a given host.
          */
         max_conns_per_host?: number | null
         /**
-         * A #GProxyResolver to use with this session.
+         * A [iface`Gio`.ProxyResolver] to use with this session.
          * 
          * If no proxy resolver is set, then the default proxy resolver
-         * will be used. See g_proxy_resolver_get_default().
+         * will be used. See [func`Gio`.ProxyResolver.get_default].
          * You can set it to %NULL if you don't want to use proxies, or
-         * set it to your own #GProxyResolver if you want to control
+         * set it to your own [iface`Gio`.ProxyResolver] if you want to control
          * what proxies get used.
          */
         proxy_resolver?: Gio.ProxyResolver | null
@@ -5128,7 +5756,7 @@ module Session {
          * This function is not required for common HTTP usage, but only when connecting
          * to a HTTP service that is not using standard TCP/IP sockets. An example of
          * this is a local service that uses HTTP over UNIX-domain sockets, in that case
-         * a #GUnixSocketAddress can be passed to this function.
+         * a [class`Gio`.UnixSocketAddress] can be passed to this function.
          */
         remote_connectable?: Gio.SocketConnectable | null
         /**
@@ -5138,32 +5766,35 @@ module Session {
          * 
          * Although you can change this property at any time, it will
          * only affect newly-created connections, not currently-open
-         * ones. You can call soup_session_abort() after setting this
+         * ones. You can call [method`Session`.abort] after setting this
          * if you want to ensure that all future connections will have
          * this timeout value.
          * 
-         * Not to be confused with #SoupSession:idle-timeout (which is
+         * Not to be confused with [property`Session:`idle-timeout] (which is
          * the length of time that idle persistent connections will be
          * kept open).
          */
         timeout?: number | null
         /**
-         * Sets the #GTlsDatabase to use for validating SSL/TLS
+         * Sets the [class`Gio`.TlsDatabase] to use for validating SSL/TLS
          * certificates.
          * 
          * If no certificate database is set, then the default database will be
-         * used. See g_tls_backend_get_default_database().
+         * used. See [method`Gio`.TlsBackend.get_default_database].
          */
         tls_database?: Gio.TlsDatabase | null
         /**
-         * A #GTlsInteraction object that will be passed on to any
-         * #GTlsConnections created by the session. (This can be used to
-         * provide client-side certificates, for example.)
+         * A [class`Gio`.TlsInteraction] object that will be passed on to any
+         * [class`Gio`.TlsConnection]s created by the session.
+         * 
+         * This can be used to provide client-side certificates, for example.
          */
         tls_interaction?: Gio.TlsInteraction | null
         /**
+         * User-Agent string.
+         * 
          * If non-%NULL, the value to use for the "User-Agent" header
-         * on #SoupMessage<!-- -->s sent from this session.
+         * on [class`Message]`s sent from this session.
          * 
          * RFC 2616 says: "The User-Agent request-header field
          * contains information about the user agent originating the
@@ -5181,9 +5812,9 @@ module Session {
          * followed by a version string. You may also put comments,
          * enclosed in parentheses, between or after the tokens.
          * 
-         * If you set a #SoupSession:user_agent property that has trailing
+         * If you set a [property`Session:`user-agent] property that has trailing
          * whitespace, #SoupSession will append its own product token
-         * (eg, "<literal>libsoup/2.3.2</literal>") to the end of the
+         * (eg, `libsoup/2.3.2`) to the end of the
          * header for you.
          */
         user_agent?: string | null
@@ -5197,18 +5828,18 @@ interface Session {
 
     /**
      * If non-%NULL, the value to use for the "Accept-Language" header
-     * on #SoupMessage<!-- -->s sent from this session.
+     * on [class`Message]`s sent from this session.
      * 
-     * Setting this will disable #SoupSession:accept-language-auto.
+     * Setting this will disable [property`Session:`accept-language-auto].
      */
     accept_language: string
     /**
      * If %TRUE, #SoupSession will automatically set the string
-     * for the "Accept-Language" header on every #SoupMessage
-     * sent, based on the return value of g_get_language_names().
+     * for the "Accept-Language" header on every [class`Message]`
+     * sent, based on the return value of [func`GLib`.get_language_names].
      * 
      * Setting this will override any previous value of
-     * #SoupSession:accept-language.
+     * [property`Session:`accept-language].
      */
     accept_language_auto: boolean
     /**
@@ -5217,13 +5848,13 @@ interface Session {
      * 
      * Although you can change this property at any time, it will
      * only affect newly-created connections, not currently-open
-     * ones. You can call soup_session_abort() after setting this
+     * ones. You can call [method`Session`.abort] after setting this
      * if you want to ensure that all future connections will have
      * this timeout value.
      */
     idle_timeout: number
     /**
-     * Sets the #GInetSocketAddress to use for the client side of
+     * Sets the [class`Gio`.InetSocketAddress] to use for the client side of
      * the connection.
      * 
      * Use this property if you want for instance to bind the
@@ -5235,16 +5866,17 @@ interface Session {
      */
     readonly max_conns: number
     /**
-     * The maximum number of connections that the session can open at once to a given host.
+     * The maximum number of connections that the session can open at once
+     * to a given host.
      */
     readonly max_conns_per_host: number
     /**
-     * A #GProxyResolver to use with this session.
+     * A [iface`Gio`.ProxyResolver] to use with this session.
      * 
      * If no proxy resolver is set, then the default proxy resolver
-     * will be used. See g_proxy_resolver_get_default().
+     * will be used. See [func`Gio`.ProxyResolver.get_default].
      * You can set it to %NULL if you don't want to use proxies, or
-     * set it to your own #GProxyResolver if you want to control
+     * set it to your own [iface`Gio`.ProxyResolver] if you want to control
      * what proxies get used.
      */
     proxy_resolver: Gio.ProxyResolver
@@ -5255,7 +5887,7 @@ interface Session {
      * This function is not required for common HTTP usage, but only when connecting
      * to a HTTP service that is not using standard TCP/IP sockets. An example of
      * this is a local service that uses HTTP over UNIX-domain sockets, in that case
-     * a #GUnixSocketAddress can be passed to this function.
+     * a [class`Gio`.UnixSocketAddress] can be passed to this function.
      */
     readonly remote_connectable: Gio.SocketConnectable
     /**
@@ -5265,32 +5897,35 @@ interface Session {
      * 
      * Although you can change this property at any time, it will
      * only affect newly-created connections, not currently-open
-     * ones. You can call soup_session_abort() after setting this
+     * ones. You can call [method`Session`.abort] after setting this
      * if you want to ensure that all future connections will have
      * this timeout value.
      * 
-     * Not to be confused with #SoupSession:idle-timeout (which is
+     * Not to be confused with [property`Session:`idle-timeout] (which is
      * the length of time that idle persistent connections will be
      * kept open).
      */
     timeout: number
     /**
-     * Sets the #GTlsDatabase to use for validating SSL/TLS
+     * Sets the [class`Gio`.TlsDatabase] to use for validating SSL/TLS
      * certificates.
      * 
      * If no certificate database is set, then the default database will be
-     * used. See g_tls_backend_get_default_database().
+     * used. See [method`Gio`.TlsBackend.get_default_database].
      */
     tls_database: Gio.TlsDatabase
     /**
-     * A #GTlsInteraction object that will be passed on to any
-     * #GTlsConnections created by the session. (This can be used to
-     * provide client-side certificates, for example.)
+     * A [class`Gio`.TlsInteraction] object that will be passed on to any
+     * [class`Gio`.TlsConnection]s created by the session.
+     * 
+     * This can be used to provide client-side certificates, for example.
      */
     tls_interaction: Gio.TlsInteraction
     /**
+     * User-Agent string.
+     * 
      * If non-%NULL, the value to use for the "User-Agent" header
-     * on #SoupMessage<!-- -->s sent from this session.
+     * on [class`Message]`s sent from this session.
      * 
      * RFC 2616 says: "The User-Agent request-header field
      * contains information about the user agent originating the
@@ -5308,9 +5943,9 @@ interface Session {
      * followed by a version string. You may also put comments,
      * enclosed in parentheses, between or after the tokens.
      * 
-     * If you set a #SoupSession:user_agent property that has trailing
+     * If you set a [property`Session:`user-agent] property that has trailing
      * whitespace, #SoupSession will append its own product token
-     * (eg, "<literal>libsoup/2.3.2</literal>") to the end of the
+     * (eg, `libsoup/2.3.2`) to the end of the
      * header for you.
      */
     user_agent: string
@@ -5328,7 +5963,7 @@ interface Session {
     abort(): void
     /**
      * Adds `feature'`s functionality to `session`. You cannot add multiple
-     * features of the same #GType to a session.
+     * features of the same [alias`GLib`.Type] to a session.
      * 
      * See the main #SoupSession documentation for information on what
      * features are present in sessions by default.
@@ -5337,14 +5972,14 @@ interface Session {
     add_feature(feature: SessionFeature): void
     /**
      * If `feature_type` is the type of a class that implements
-     * #SoupSessionFeature, this creates a new feature of that type and
-     * adds it to `session` as with soup_session_add_feature(). You can use
+     * [iface`SessionFeature]`, this creates a new feature of that type and
+     * adds it to `session` as with [method`Session`.add_feature]. You can use
      * this when you don't need to customize the new feature in any way.
      * Adding multiple features of the same `feature_type` is not allowed.
      * 
-     * If `feature_type` is not a #SoupSessionFeature type, this gives each
+     * If `feature_type` is not a [iface`SessionFeature]` type, this gives each
      * existing feature on `session` the chance to accept `feature_type` as
-     * a "subfeature". This can be used to add new #SoupAuth types, for instance.
+     * a "subfeature". This can be used to add new [class`Auth]` types, for instance.
      * 
      * See the main #SoupSession documentation for information on what
      * features are present in sessions by default.
@@ -5352,17 +5987,19 @@ interface Session {
      */
     add_feature_by_type(feature_type: GObject.GType): void
     /**
-     * Get the value used by `session` for the "Accept-Language" header on new requests.
+     * Get the value used by `session` for the "Accept-Language" header on new
+     * requests.
      */
     get_accept_language(): string | null
     /**
-     * Get whether `session` automatically sets the "Accept-Language" header on new requests.
+     * Gets whether `session` automatically sets the "Accept-Language" header on new
+     * requests.
      */
     get_accept_language_auto(): boolean
     /**
-     * Gets the #SoupMessage of the `result` asynchronous operation
-     * This is useful to get the #SoupMessage of an asynchronous
-     * operation started by `session` from its #GAsyncReadyCallback.
+     * Gets the [class`Message]` of the `result` asynchronous operation This is useful
+     * to get the [class`Message]` of an asynchronous operation started by `session`
+     * from its [callback`Gio`.AsyncReadyCallback].
      * @param result the #GAsyncResult passed to your callback
      */
     get_async_result_message(result: Gio.AsyncResult): Message | null
@@ -5379,11 +6016,13 @@ interface Session {
      */
     get_feature_for_message(feature_type: GObject.GType, msg: Message): SessionFeature | null
     /**
-     * Get the timeout in seconds for idle connection lifetime currently used by `session`.
+     * Get the timeout in seconds for idle connection lifetime currently used by
+     * `session`.
      */
     get_idle_timeout(): number
     /**
-     * Get the #GInetSocketAddress to use for the client side of connections in `session`.
+     * Get the [class`Gio`.InetSocketAddress] to use for the client side of
+     * connections in `session`.
      */
     get_local_address(): Gio.InetSocketAddress | null
     /**
@@ -5391,27 +6030,29 @@ interface Session {
      */
     get_max_conns(): number
     /**
-     * Get the maximum number of connections that `session` can open at once to a given host.
+     * Get the maximum number of connections that `session` can open at once to a
+     * given host.
      */
     get_max_conns_per_host(): number
     /**
-     * Get the #GProxyResolver currently used by `session`.
+     * Get the [iface`Gio`.ProxyResolver] currently used by `session`.
      */
     get_proxy_resolver(): Gio.ProxyResolver | null
     /**
-     * Get the remote connectable if one set.
+     * Gets the remote connectable if one set.
      */
     get_remote_connectable(): Gio.SocketConnectable | null
     /**
-     * Get the timeout in seconds for socket I/O operations currently used by `session`.
+     * Get the timeout in seconds for socket I/O operations currently used by
+     * `session`.
      */
     get_timeout(): number
     /**
-     * Get the #GTlsDatabase currently used by `session`.
+     * Get the [class`Gio`.TlsDatabase] currently used by `session`.
      */
     get_tls_database(): Gio.TlsDatabase | null
     /**
-     * Get the #GTlsInteraction currently used by `session`.
+     * Get the [class`Gio`.TlsInteraction] currently used by `session`.
      */
     get_tls_interaction(): Gio.TlsInteraction | null
     /**
@@ -5420,18 +6061,21 @@ interface Session {
     get_user_agent(): string | null
     /**
      * Tests if `session` has at a feature of type `feature_type` (which can
-     * be the type of either a #SoupSessionFeature, or else a subtype of
-     * some class managed by another feature, such as #SoupAuth).
+     * be the type of either a [iface`SessionFeature]`, or else a subtype of
+     * some class managed by another feature, such as [class`Auth]`).
      * @param feature_type the #GType of the class of features to check for
      */
     has_feature(feature_type: GObject.GType): boolean
     /**
-     * Start a preconnection to `msg`. Once the connection is done, it will remain in idle state so that
-     * it can be reused by future requests. If there's already an idle connection for the given `msg`
-     * host, the operation finishes successfully without creating a new connection. If a new request
-     * for the given `msg` host is made while the preconnect is still ongoing, the request will take
-     * the ownership of the connection and the preconnect operation will finish successfully (if
-     * there's a connection error it will be handled by the request).
+     * Start a preconnection to `msg`.
+     * 
+     * Once the connection is done, it will remain in idle state so that it can be
+     * reused by future requests. If there's already an idle connection for the
+     * given `msg` host, the operation finishes successfully without creating a new
+     * connection. If a new request for the given `msg` host is made while the
+     * preconnect is still ongoing, the request will take the ownership of the
+     * connection and the preconnect operation will finish successfully (if there's
+     * a connection error it will be handled by the request).
      * 
      * The operation finishes when the connection is done or an error occurred.
      * @param msg a #SoupMessage
@@ -5441,7 +6085,7 @@ interface Session {
      */
     preconnect_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
     /**
-     * Complete a preconnect async operation started with soup_session_preconnect_async().
+     * Complete a preconnect async operation started with [method`Session`.preconnect_async].
      * @param result the #GAsyncResult passed to your callback
      */
     preconnect_finish(result: Gio.AsyncResult): boolean
@@ -5452,30 +6096,28 @@ interface Session {
     remove_feature(feature: SessionFeature): void
     /**
      * Removes all features of type `feature_type` (or any subclass of
-     * `feature_type)` from `session`. You can also remove standard features
-     * from the session at construct time by using the
-     * SoupSession:remove-feature-by-type property.
+     * `feature_type)` from `session`.
      * @param feature_type a #GType
      */
     remove_feature_by_type(feature_type: GObject.GType): void
     /**
      * Synchronously sends `msg` and waits for the beginning of a response.
-     * On success, a #GInputStream will be returned which you can use to
+     * 
+     * On success, a [class`Gio`.InputStream] will be returned which you can use to
      * read the response body. ("Success" here means only that an HTTP
      * response was received and understood; it does not necessarily mean
      * that a 2xx class status code was received.)
      * 
      * If non-%NULL, `cancellable` can be used to cancel the request;
-     * soup_session_send() will return a %G_IO_ERROR_CANCELLED error. Note
-     * that with requests that have side effects (eg,
-     * <literal>POST</literal>, <literal>PUT</literal>,
-     * <literal>DELETE</literal>) it is possible that you might cancel the
-     * request after the server acts on it, but before it returns a
-     * response, leaving the remote resource in an unknown state.
+     * [method`Session`.send] will return a %G_IO_ERROR_CANCELLED error. Note that
+     * with requests that have side effects (eg, `POST`, `PUT`, `DELETE`) it is
+     * possible that you might cancel the request after the server acts on it, but
+     * before it returns a response, leaving the remote resource in an unknown
+     * state.
      * 
      * If `msg` is requeued due to a redirect or authentication, the
-     * initial (3xx/401/407) response body will be suppressed, and
-     * soup_session_send() will only return once a final response has been
+     * initial (`3xx/401/407`) response body will be suppressed, and
+     * [method`Session`.send] will only return once a final response has been
      * received.
      * @param msg a #SoupMessage
      * @param cancellable a #GCancellable
@@ -5483,25 +6125,26 @@ interface Session {
     send(msg: Message, cancellable: Gio.Cancellable | null): Gio.InputStream
     /**
      * Synchronously sends `msg` and reads the response body.
-     * On success, a #GBytes will be returned with the response body.
+     * 
+     * On success, a [struct`GLib`.Bytes] will be returned with the response body.
      * This function should only be used when the resource to be retrieved
      * is not too long and can be stored in memory.
      * 
-     * See soup_session_send() for more details on the general semantics.
+     * See [method`Session`.send] for more details on the general semantics.
      * @param msg a #SoupMessage
      * @param cancellable a #GCancellable
      */
     send_and_read(msg: Message, cancellable: Gio.Cancellable | null): GLib.Bytes
     /**
      * Asynchronously sends `msg` and reads the response body.
-     * When `callback` is called, then either `msg` has been sent, and its response
-     * body read, or else an error has occurred.
-     * This function should only be used when the resource to be retrieved
-     * is not too long and can be stored in memory.
-     * Call soup_session_send_and_read_finish() to get a #GBytes with the
-     * response body.
      * 
-     * See soup_session_send() for more details on the general semantics.
+     * When `callback` is called, then either `msg` has been sent, and its response
+     * body read, or else an error has occurred. This function should only be used
+     * when the resource to be retrieved is not too long and can be stored in
+     * memory. Call [method`Session`.send_and_read_finish] to get a
+     * [struct`GLib`.Bytes] with the response body.
+     * 
+     * See [method`Session`.send] for more details on the general semantics.
      * @param msg a #SoupMessage
      * @param io_priority the I/O priority of the request
      * @param cancellable a #GCancellable
@@ -5509,19 +6152,21 @@ interface Session {
      */
     send_and_read_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
     /**
-     * Gets the response to a soup_session_send_and_read_async() call and (if
-     * successful), returns a #GBytes with the response body.
+     * Gets the response to a [method`Session`.send_and_read_async].
+     * 
+     * If successful, returns a [struct`GLib`.Bytes] with the response body.
      * @param result the #GAsyncResult passed to your callback
      */
     send_and_read_finish(result: Gio.AsyncResult): GLib.Bytes
     /**
-     * Asynchronously sends `msg` and waits for the beginning of a
-     * response. When `callback` is called, then either `msg` has been sent,
-     * and its response headers received, or else an error has occurred.
-     * Call soup_session_send_finish() to get a #GInputStream for reading
-     * the response body.
+     * Asynchronously sends `msg` and waits for the beginning of a response.
      * 
-     * See soup_session_send() for more details on the general semantics.
+     * When `callback` is called, then either `msg` has been sent, and its response
+     * headers received, or else an error has occurred. Call
+     * [method`Session`.send_finish] to get a [class`Gio`.InputStream] for reading the
+     * response body.
+     * 
+     * See [method`Session`.send] for more details on the general semantics.
      * @param msg a #SoupMessage
      * @param io_priority the I/O priority of the request
      * @param cancellable a #GCancellable
@@ -5529,70 +6174,87 @@ interface Session {
      */
     send_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
     /**
-     * Gets the response to a soup_session_send_async() call and (if
-     * successful), returns a #GInputStream that can be used to read the
+     * Gets the response to a [method`Session`.send_async] call.
+     * 
+     * If successful returns a [class`Gio`.InputStream] that can be used to read the
      * response body.
      * @param result the #GAsyncResult passed to your callback
      */
     send_finish(result: Gio.AsyncResult): Gio.InputStream
     /**
-     * Set the value to use for the "Accept-Language" header on #SoupMessage<!-- -->s sent from `session`.
-     * If `accept_language` is %NULL then no "Accept-Language" will be included in requests. See #SoupSession:accept-language
-     * for more information.
+     * Set the value to use for the "Accept-Language" header on [class`Message]`s
+     * sent from `session`.
+     * 
+     * If `accept_language` is %NULL then no "Accept-Language" will be included in
+     * requests. See [property`Session:`accept-language] for more information.
      * @param accept_language the languages string
      */
     set_accept_language(accept_language: string): void
     /**
-     * Set whether `session` will automatically set the "Accept-Language" header on requests using
-     * a value generated from system languages based on g_get_language_names(). See #SoupSession:accept-language-auto
-     * for more information.
+     * Set whether `session` will automatically set the "Accept-Language" header on
+     * requests using a value generated from system languages based on
+     * [func`GLib`.get_language_names].
+     * 
+     * See [property`Session:`accept-language-auto] for more information.
      * @param accept_language_auto the value to set
      */
     set_accept_language_auto(accept_language_auto: boolean): void
     /**
      * Set a timeout in seconds for idle connection lifetime to be used by `session`
-     * on new connections. See #SoupSession:idle-timeout for more information.
+     * on new connections.
+     * 
+     * See [property`Session:`idle-timeout] for more information.
      * @param timeout a timeout in seconds
      */
     set_idle_timeout(timeout: number): void
     /**
-     * Set a #GProxyResolver to be used by `session` on new connections. If `proxy_resolver`
-     * is %NULL then no proxies will be used. See #SoupSession:proxy-resolver for more information.
+     * Set a [iface`Gio`.ProxyResolver] to be used by `session` on new connections.
+     * 
+     * If `proxy_resolver` is %NULL then no proxies will be used. See
+     * [property`Session:`proxy-resolver] for more information.
      * @param proxy_resolver a #GProxyResolver or %NULL
      */
     set_proxy_resolver(proxy_resolver: Gio.ProxyResolver | null): void
     /**
      * Set a timeout in seconds for socket I/O operations to be used by `session`
-     * on new connections. See #SoupSession:timeout for more information.
+     * on new connections.
+     * 
+     * See [property`Session:`timeout] for more information.
      * @param timeout a timeout in seconds
      */
     set_timeout(timeout: number): void
     /**
-     * Set a #GTlsDatabase to be used by `session` on new connections. If `tls_database`
-     * is %NULL then certificate validation will always fail. See #SoupSession:tls-database
-     * for more information.
-     * @param tls_database a #GTlsDatabase or %NULL
+     * Set a [class`GIo`.TlsDatabase] to be used by `session` on new connections.
+     * 
+     * If `tls_database` is %NULL then certificate validation will always fail. See
+     * [property`Session:`tls-database] for more information.
+     * @param tls_database a #GTlsDatabase
      */
     set_tls_database(tls_database: Gio.TlsDatabase | null): void
     /**
-     * Set a #GTlsInteraction to be used by `session` on new connections. If `tls_interaction`
-     * is %NULL then client certificate validation will always fail. See #SoupSession:tls-interaction
-     * for more information.
-     * @param tls_interaction a #GTlsInteraction or %NULL
+     * Set a [class`Gio`.TlsInteraction] to be used by `session` on new connections.
+     * 
+     * If `tls_interaction` is %NULL then client certificate validation will always
+     * fail.
+     * 
+     * See [property`Session:`tls-interaction] for more information.
+     * @param tls_interaction a #GTlsInteraction
      */
     set_tls_interaction(tls_interaction: Gio.TlsInteraction | null): void
     /**
-     * Set the value to use for the "User-Agent" header on #SoupMessage<!-- -->s sent from `session`.
-     * If `user_agent` has trailing whitespace, `session` will append its own product token
-     * (eg, "<literal>libsoup/3.0.0</literal>") to the end of the header for you.
-     * If `user_agent` is %NULL then no "User-Agent" will be included in requests. See #SoupSession:user-agent
-     * for more information.
+     * Set the value to use for the "User-Agent" header on [class`Message]`s sent
+     * from `session`.
+     * 
+     * If `user_agent` has trailing whitespace, `session` will append its own product
+     * token (eg, `libsoup/3.0.0`) to the end of the header for you. If `user_agent`
+     * is %NULL then no "User-Agent" will be included in requests. See
+     * [property`Session:`user-agent] for more information.
      * @param user_agent the user agent string
      */
     set_user_agent(user_agent: string): void
     /**
-     * Asynchronously creates a #SoupWebsocketConnection to communicate
-     * with a remote server.
+     * Asynchronously creates a [class`WebsocketConnection]` to communicate with a
+     * remote server.
      * 
      * All necessary WebSocket-related headers will be added to `msg,` and
      * it will then be sent and asynchronously processed normally
@@ -5601,13 +6263,12 @@ interface Session {
      * If the server returns "101 Switching Protocols", then `msg'`s status
      * code and response headers will be updated, and then the WebSocket
      * handshake will be completed. On success,
-     * soup_session_websocket_connect_finish() will return a new
-     * #SoupWebsocketConnection. On failure it will return a #GError.
+     * [method`Session`.websocket_connect_finish] will return a new
+     * [class`WebsocketConnection]`. On failure it will return a #GError.
      * 
-     * If the server returns a status other than "101 Switching
-     * Protocols", then `msg` will contain the complete response headers
-     * and body from the server's response, and
-     * soup_session_websocket_connect_finish() will return
+     * If the server returns a status other than "101 Switching Protocols", then
+     * `msg` will contain the complete response headers and body from the server's
+     * response, and [method`Session`.websocket_connect_finish] will return
      * %SOUP_WEBSOCKET_ERROR_NOT_WEBSOCKET.
      * @param msg #SoupMessage indicating the WebSocket server to connect to
      * @param origin origin of the connection
@@ -5618,10 +6279,11 @@ interface Session {
      */
     websocket_connect_async(msg: Message, origin: string | null, protocols: string[] | null, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
     /**
-     * Gets the #SoupWebsocketConnection response to a
-     * soup_session_websocket_connect_async() call and (if successful),
-     * returns a #SoupWebsocketConnection that can be used to communicate
-     * with the server.
+     * Gets the [class`WebsocketConnection]` response to a
+     * [method`Session`.websocket_connect_async] call.
+     * 
+     * If successful, returns a [class`WebsocketConnection]` that can be used to
+     * communicate with the server.
      * @param result the #GAsyncResult passed to your callback
      */
     websocket_connect_finish(result: Gio.AsyncResult): WebsocketConnection
@@ -5685,7 +6347,40 @@ interface Session {
 }
 
 /**
- * Class managing options and state for #SoupMessage<!-- -->s.
+ * Soup session state object.
+ * 
+ * #SoupSession is the object that controls client-side HTTP. A
+ * #SoupSession encapsulates all of the state that libsoup is keeping
+ * on behalf of your program; cached HTTP connections, authentication
+ * information, etc. It also keeps track of various global options
+ * and features that you are using.
+ * 
+ * Most applications will only need a single #SoupSession; the primary
+ * reason you might need multiple sessions is if you need to have
+ * multiple independent authentication contexts. (Eg, you are
+ * connecting to a server and authenticating as two different users at
+ * different times; the easiest way to ensure that each [class`Message]`
+ * is sent with the authentication information you intended is to use
+ * one session for the first user, and a second session for the other
+ * user.)
+ * 
+ * Additional #SoupSession functionality is provided by
+ * [iface`SessionFeature]` objects, which can be added to a session with
+ * [method`Session`.add_feature] or [method`Session`.add_feature_by_type]
+ * For example, [class`Logger]` provides support for
+ * logging HTTP traffic, [class`ContentDecoder]` provides support for
+ * compressed response handling, and [class`ContentSniffer]` provides
+ * support for HTML5-style response body content sniffing.
+ * Additionally, subtypes of [class`Auth]` can be added
+ * as features, to add support for additional authentication types.
+ * 
+ * All `SoupSession`s are created with a [class`AuthManager]`, and support
+ * for %SOUP_TYPE_AUTH_BASIC and %SOUP_TYPE_AUTH_DIGEST. Additionally,
+ * sessions using the plain #SoupSession class (rather than one of its deprecated
+ * subtypes) have a [class`ContentDecoder]` by default.
+ * 
+ * Note that all async methods will invoke their callbacks on the thread-default
+ * context at the time of the function call.
  * @class 
  */
 class Session extends GObject.Object {
@@ -5762,7 +6457,7 @@ module WebsocketConnection {
          */
         connection_type?: WebsocketConnectionType | null
         /**
-         * List of #SoupWebsocketExtension objects that are active in the connection.
+         * List of [class`WebsocketExtension]` objects that are active in the connection.
          */
         extensions?: object | null
         /**
@@ -5774,13 +6469,15 @@ module WebsocketConnection {
         io_stream?: Gio.IOStream | null
         /**
          * Interval in seconds on when to send a ping message which will
-         * serve as a keepalive message. If set to 0 the keepalive message is
-         * disabled.
+         * serve as a keepalive message.
+         * 
+         * If set to 0 the keepalive message is disabled.
          */
         keepalive_interval?: number | null
         /**
-         * The maximum payload size for incoming packets the protocol expects
-         * or 0 to not limit it.
+         * The maximum payload size for incoming packets.
+         * 
+         * The protocol expects or 0 to not limit it.
          */
         max_incoming_payload_size?: number | null
         /**
@@ -5812,7 +6509,7 @@ interface WebsocketConnection {
      */
     readonly connection_type: WebsocketConnectionType
     /**
-     * List of #SoupWebsocketExtension objects that are active in the connection.
+     * List of [class`WebsocketExtension]` objects that are active in the connection.
      */
     readonly extensions: object
     /**
@@ -5824,13 +6521,15 @@ interface WebsocketConnection {
     readonly io_stream: Gio.IOStream
     /**
      * Interval in seconds on when to send a ping message which will
-     * serve as a keepalive message. If set to 0 the keepalive message is
-     * disabled.
+     * serve as a keepalive message.
+     * 
+     * If set to 0 the keepalive message is disabled.
      */
     keepalive_interval: number
     /**
-     * The maximum payload size for incoming packets the protocol expects
-     * or 0 to not limit it.
+     * The maximum payload size for incoming packets.
+     * 
+     * The protocol expects or 0 to not limit it.
      */
     max_incoming_payload_size: number
     /**
@@ -5859,7 +6558,7 @@ interface WebsocketConnection {
     /**
      * Close the connection in an orderly fashion.
      * 
-     * Note that until the #SoupWebsocketConnection::closed signal fires, the connection
+     * Note that until the [signal`WebsocketConnection:`:closed] signal fires, the connection
      * is not yet completely closed. The close message is not even sent until the
      * main loop runs.
      * 
@@ -5876,7 +6575,7 @@ interface WebsocketConnection {
      * 
      * This only becomes valid once the WebSocket is in the
      * %SOUP_WEBSOCKET_STATE_CLOSED state. The value will often be in the
-     * #SoupWebsocketCloseCode enumeration, but may also be an application
+     * [enum`WebsocketCloseCode]` enumeration, but may also be an application
      * defined close code.
      */
     get_close_code(): number
@@ -5928,7 +6627,9 @@ interface WebsocketConnection {
      */
     get_uri(): GLib.Uri
     /**
-     * Send a binary message to the peer. If `length` is 0, `data` may be %NULL.
+     * Send a binary message to the peer.
+     * 
+     * If `length` is 0, `data` may be %NULL.
      * 
      * The message is queued to be sent and will be sent when the main loop
      * is run.
@@ -5946,9 +6647,10 @@ interface WebsocketConnection {
      */
     send_message(type: WebsocketDataType, message: GLib.Bytes): void
     /**
-     * Send a %NULL-terminated text (UTF-8) message to the peer. If you need
-     * to send text messages containing %NULL characters use
-     * soup_websocket_connection_send_message() instead.
+     * Send a %NULL-terminated text (UTF-8) message to the peer.
+     * 
+     * If you need to send text messages containing %NULL characters use
+     * [method`WebsocketConnection`.send_message] instead.
      * 
      * The message is queued to be sent and will be sent when the main loop
      * is run.
@@ -5957,13 +6659,16 @@ interface WebsocketConnection {
     send_text(text: string): void
     /**
      * Sets the interval in seconds on when to send a ping message which will serve
-     * as a keepalive message. If set to 0 the keepalive message is disabled.
+     * as a keepalive message.
+     * 
+     * If set to 0 the keepalive message is disabled.
      * @param interval the interval to send a ping message or 0 to disable it
      */
     set_keepalive_interval(interval: number): void
     /**
-     * Sets the maximum payload size allowed for incoming packets. It
-     * does not limit the outgoing packet size.
+     * Sets the maximum payload size allowed for incoming packets.
+     * 
+     * It does not limit the outgoing packet size.
      * @param max_incoming_payload_size the maximum payload size
      */
     set_max_incoming_payload_size(max_incoming_payload_size: number): void
@@ -6022,7 +6727,27 @@ interface WebsocketConnection {
 }
 
 /**
- * A class representing a WebSocket connection.
+ * The WebSocket Protocol
+ * 
+ * Provides support for the [WebSocket](http://tools.ietf.org/html/rfc6455)
+ * protocol.
+ * 
+ * To connect to a WebSocket server, create a [class`Session]` and call
+ * [method`Session`.websocket_connect_async]. To accept WebSocket
+ * connections, create a [class`Server]` and add a handler to it with
+ * [method`Server`.add_websocket_handler].
+ * 
+ * (Lower-level support is available via
+ * [func`websocket_client_prepare_handshake]` and
+ * [func`websocket_client_verify_handshake]`, for handling the client side of the
+ * WebSocket handshake, and [func`websocket_server_process_handshake]` for
+ * handling the server side.)
+ * 
+ * #SoupWebsocketConnection handles the details of WebSocket communication. You
+ * can use [method`WebsocketConnection`.send_text] and
+ * [method`WebsocketConnection`.send_binary] to send data, and the
+ * [signal`WebsocketConnection:`:message] signal to receive data.
+ * (#SoupWebsocketConnection currently only supports asynchronous I/O.)
  * @class 
  */
 class WebsocketConnection extends GObject.Object {
@@ -6037,6 +6762,7 @@ class WebsocketConnection extends GObject.Object {
     constructor(config?: WebsocketConnection.ConstructorProperties) 
     /**
      * Creates a #SoupWebsocketConnection on `stream` with the given active `extensions`.
+     * 
      * This should be called after completing the handshake to begin using the WebSocket
      * protocol.
      * @constructor 
@@ -6050,6 +6776,7 @@ class WebsocketConnection extends GObject.Object {
     constructor(stream: Gio.IOStream, uri: GLib.Uri, type: WebsocketConnectionType, origin: string | null, protocol: string | null, extensions: WebsocketExtension[]) 
     /**
      * Creates a #SoupWebsocketConnection on `stream` with the given active `extensions`.
+     * 
      * This should be called after completing the handshake to begin using the WebSocket
      * protocol.
      * @constructor 
@@ -6082,25 +6809,31 @@ interface WebsocketExtension {
     // Owm methods of Soup-3.0.Soup.WebsocketExtension
 
     /**
-     * Configures `extension` with the given `params`
+     * Configures `extension` with the given `params`.
      * @param connection_type either %SOUP_WEBSOCKET_CONNECTION_CLIENT or %SOUP_WEBSOCKET_CONNECTION_SERVER
-     * @param params the parameters, or %NULL
+     * @param params the parameters
      */
     configure(connection_type: WebsocketConnectionType, params: GLib.HashTable | null): boolean
     /**
-     * Get the parameters strings to be included in the request header. If the extension
-     * doesn't include any parameter in the request, this function returns %NULL.
+     * Get the parameters strings to be included in the request header.
+     * 
+     * If the extension doesn't include any parameter in the request, this function
+     * returns %NULL.
      */
     get_request_params(): string | null
     /**
-     * Get the parameters strings to be included in the response header. If the extension
-     * doesn't include any parameter in the response, this function returns %NULL.
+     * Get the parameters strings to be included in the response header.
+     * 
+     * If the extension doesn't include any parameter in the response, this function
+     * returns %NULL.
      */
     get_response_params(): string | null
     /**
-     * Process a message after it's received. If the payload isn't changed the given
-     * `payload` is just returned, otherwise g_bytes_unref() is called on the given
-     * `payload` and a new #GBytes is returned with the new data.
+     * Process a message after it's received.
+     * 
+     * If the payload isn't changed the given `payload` is just returned, otherwise
+     * [method`GLib`.Bytes.unref] is called on the given `payload` and a new
+     * [struct`GLib`.Bytes] is returned with the new data.
      * 
      * Extensions using reserved bits of the header will reset them in `header`.
      * @param header the message header
@@ -6108,9 +6841,11 @@ interface WebsocketExtension {
      */
     process_incoming_message(header: number, payload: GLib.Bytes): [ /* returnType */ GLib.Bytes, /* header */ number ]
     /**
-     * Process a message before it's sent. If the payload isn't changed the given
-     * `payload` is just returned, otherwise g_bytes_unref() is called on the given
-     * `payload` and a new #GBytes is returned with the new data.
+     * Process a message before it's sent.
+     * 
+     * If the payload isn't changed the given `payload` is just returned, otherwise
+     * [method`Glib`.Bytes.unref] is called on the given `payload` and a new
+     * [struct`GLib`.Bytes] is returned with the new data.
      * 
      * Extensions using reserved bits of the header will change them in `header`.
      * @param header the message header
@@ -6121,28 +6856,34 @@ interface WebsocketExtension {
     // Own virtual methods of Soup-3.0.Soup.WebsocketExtension
 
     /**
-     * Configures `extension` with the given `params`
+     * Configures `extension` with the given `params`.
      * @virtual 
      * @param connection_type either %SOUP_WEBSOCKET_CONNECTION_CLIENT or %SOUP_WEBSOCKET_CONNECTION_SERVER
-     * @param params the parameters, or %NULL
+     * @param params the parameters
      */
     vfunc_configure(connection_type: WebsocketConnectionType, params: GLib.HashTable | null): boolean
     /**
-     * Get the parameters strings to be included in the request header. If the extension
-     * doesn't include any parameter in the request, this function returns %NULL.
+     * Get the parameters strings to be included in the request header.
+     * 
+     * If the extension doesn't include any parameter in the request, this function
+     * returns %NULL.
      * @virtual 
      */
     vfunc_get_request_params(): string | null
     /**
-     * Get the parameters strings to be included in the response header. If the extension
-     * doesn't include any parameter in the response, this function returns %NULL.
+     * Get the parameters strings to be included in the response header.
+     * 
+     * If the extension doesn't include any parameter in the response, this function
+     * returns %NULL.
      * @virtual 
      */
     vfunc_get_response_params(): string | null
     /**
-     * Process a message after it's received. If the payload isn't changed the given
-     * `payload` is just returned, otherwise g_bytes_unref() is called on the given
-     * `payload` and a new #GBytes is returned with the new data.
+     * Process a message after it's received.
+     * 
+     * If the payload isn't changed the given `payload` is just returned, otherwise
+     * [method`GLib`.Bytes.unref] is called on the given `payload` and a new
+     * [struct`GLib`.Bytes] is returned with the new data.
      * 
      * Extensions using reserved bits of the header will reset them in `header`.
      * @virtual 
@@ -6151,9 +6892,11 @@ interface WebsocketExtension {
      */
     vfunc_process_incoming_message(header: number, payload: GLib.Bytes): [ /* returnType */ GLib.Bytes, /* header */ number ]
     /**
-     * Process a message before it's sent. If the payload isn't changed the given
-     * `payload` is just returned, otherwise g_bytes_unref() is called on the given
-     * `payload` and a new #GBytes is returned with the new data.
+     * Process a message before it's sent.
+     * 
+     * If the payload isn't changed the given `payload` is just returned, otherwise
+     * [method`Glib`.Bytes.unref] is called on the given `payload` and a new
+     * [struct`GLib`.Bytes] is returned with the new data.
      * 
      * Extensions using reserved bits of the header will change them in `header`.
      * @virtual 
@@ -6171,7 +6914,9 @@ interface WebsocketExtension {
 }
 
 /**
- * Class for impelementing websocket extensions.
+ * A WebSocket extension
+ * 
+ * #SoupWebsocketExtension is the base class for WebSocket extension objects.
  * @class 
  */
 class WebsocketExtension extends GObject.Object {
@@ -6207,11 +6952,11 @@ interface WebsocketExtensionDeflate {
 }
 
 /**
- * A SoupWebsocketExtensionDeflate is a #SoupWebsocketExtension
+ * A SoupWebsocketExtensionDeflate is a [class`WebsocketExtension]`
  * implementing permessage-deflate (RFC 7692).
  * 
- * This extension is used by default in a #SoupSession when #SoupWebsocketExtensionManager
- * feature is present, and always used by #SoupServer.
+ * This extension is used by default in a [class`Session]` when [class`WebsocketExtensionManager]`
+ * feature is present, and always used by [class`Server]`.
  * @class 
  */
 class WebsocketExtensionDeflate extends WebsocketExtension {
@@ -6247,14 +6992,14 @@ interface WebsocketExtensionManager extends SessionFeature {
 }
 
 /**
- * SoupWebsocketExtensionManager is the #SoupSessionFeature that handles WebSockets
- * extensions for a #SoupSession.
+ * SoupWebsocketExtensionManager is the [iface`SessionFeature]` that handles WebSockets
+ * extensions for a [class`Session]`.
  * 
- * A SoupWebsocketExtensionManager is added to the session by default, and normally
+ * A #SoupWebsocketExtensionManager is added to the session by default, and normally
  * you don't need to worry about it at all. However, if you want to
  * disable WebSocket extensions, you can remove the feature from the
- * session with soup_session_remove_feature_by_type(), or disable it on
- * individual requests with soup_message_disable_feature().
+ * session with [method`Session`.remove_feature_by_type] or disable it on
+ * individual requests with [method`Message`.disable_feature].
  * @class 
  */
 class WebsocketExtensionManager extends GObject.Object {
@@ -6416,9 +7161,10 @@ interface Cookie {
      */
     copy(): Cookie
     /**
-     * Checks if the `cookie'`s domain and `host` match in the sense that
-     * `cookie` should be sent when making a request to `host,` or that
-     * `cookie` should be accepted when receiving a response from `host`.
+     * Checks if the `cookie'`s domain and `host` match.
+     * 
+     * The domains match if `cookie` should be sent when making a request to `host,`
+     * or that `cookie` should be accepted when receiving a response from `host`.
      * @param host a URI
      */
     domain_matches(host: string): boolean
@@ -6431,11 +7177,11 @@ interface Cookie {
      */
     equal(cookie2: Cookie): boolean
     /**
-     * Frees `cookie`
+     * Frees `cookie`.
      */
     free(): void
     /**
-     * Gets `cookie'`s domain
+     * Gets `cookie'`s domain.
      */
     get_domain(): string
     /**
@@ -6443,15 +7189,15 @@ interface Cookie {
      */
     get_expires(): GLib.DateTime | null
     /**
-     * Gets `cookie'`s HttpOnly attribute
+     * Gets `cookie'`s HttpOnly attribute.
      */
     get_http_only(): boolean
     /**
-     * Gets `cookie'`s name
+     * Gets `cookie'`s name.
      */
     get_name(): string
     /**
-     * Gets `cookie'`s path
+     * Gets `cookie'`s path.
      */
     get_path(): string
     /**
@@ -6459,90 +7205,100 @@ interface Cookie {
      */
     get_same_site_policy(): SameSitePolicy
     /**
-     * Gets `cookie'`s secure attribute
+     * Gets `cookie'`s secure attribute.
      */
     get_secure(): boolean
     /**
-     * Gets `cookie'`s value
+     * Gets `cookie'`s value.
      */
     get_value(): string
     /**
-     * Sets `cookie'`s domain to `domain`
+     * Sets `cookie'`s domain to `domain`.
      * @param domain the new domain
      */
     set_domain(domain: string): void
     /**
-     * Sets `cookie'`s expiration time to `expires`. If `expires` is %NULL,
-     * `cookie` will be a session cookie and will expire at the end of the
-     * client's session.
+     * Sets `cookie'`s expiration time to `expires`.
      * 
-     * (This sets the same property as soup_cookie_set_max_age().)
+     * If `expires` is %NULL, `cookie` will be a session cookie and will expire at the
+     * end of the client's session.
+     * 
+     * (This sets the same property as [method`Cookie`.set_max_age].)
      * @param expires the new expiration time, or %NULL
      */
     set_expires(expires: GLib.DateTime): void
     /**
-     * Sets `cookie'`s HttpOnly attribute to `http_only`. If %TRUE, `cookie`
-     * will be marked as "http only", meaning it should not be exposed to
-     * web page scripts or other untrusted code.
+     * Sets `cookie'`s HttpOnly attribute to `http_only`.
+     * 
+     * If %TRUE, `cookie` will be marked as "http only", meaning it should not be
+     * exposed to web page scripts or other untrusted code.
      * @param http_only the new value for the HttpOnly attribute
      */
     set_http_only(http_only: boolean): void
     /**
-     * Sets `cookie'`s max age to `max_age`. If `max_age` is -1, the cookie
-     * is a session cookie, and will expire at the end of the client's
-     * session. Otherwise, it is the number of seconds until the cookie
-     * expires. You can use the constants %SOUP_COOKIE_MAX_AGE_ONE_HOUR,
-     * %SOUP_COOKIE_MAX_AGE_ONE_DAY, %SOUP_COOKIE_MAX_AGE_ONE_WEEK and
-     * %SOUP_COOKIE_MAX_AGE_ONE_YEAR (or multiples thereof) to calculate
-     * this value. (A value of 0 indicates that the cookie should be
-     * considered already-expired.)
+     * Sets `cookie'`s max age to `max_age`.
      * 
-     * (This sets the same property as soup_cookie_set_expires().)
+     * If `max_age` is -1, the cookie is a session cookie, and will expire at the end
+     * of the client's session. Otherwise, it is the number of seconds until the
+     * cookie expires. You can use the constants %SOUP_COOKIE_MAX_AGE_ONE_HOUR,
+     * %SOUP_COOKIE_MAX_AGE_ONE_DAY, %SOUP_COOKIE_MAX_AGE_ONE_WEEK and
+     * %SOUP_COOKIE_MAX_AGE_ONE_YEAR (or multiples thereof) to calculate this value.
+     * (A value of 0 indicates that the cookie should be considered
+     * already-expired.)
+     * 
+     * This sets the same property as [method`Cookie`.set_expires].
      * @param max_age the new max age
      */
     set_max_age(max_age: number): void
     /**
-     * Sets `cookie'`s name to `name`
+     * Sets `cookie'`s name to `name`.
      * @param name the new name
      */
     set_name(name: string): void
     /**
-     * Sets `cookie'`s path to `path`
+     * Sets `cookie'`s path to `path`.
      * @param path the new path
      */
     set_path(path: string): void
     /**
-     * When used in conjunction with soup_cookie_jar_get_cookie_list_with_same_site_info() this
-     * sets the policy of when this cookie should be exposed.
+     * When used in conjunction with
+     * [method`CookieJar`.get_cookie_list_with_same_site_info] this sets the policy
+     * of when this cookie should be exposed.
      * @param policy a #SoupSameSitePolicy
      */
     set_same_site_policy(policy: SameSitePolicy): void
     /**
-     * Sets `cookie'`s secure attribute to `secure`. If %TRUE, `cookie` will
-     * only be transmitted from the client to the server over secure
-     * (https) connections.
+     * Sets `cookie'`s secure attribute to `secure`.
+     * 
+     * If %TRUE, `cookie` will only be transmitted from the client to the server over
+     * secure (https) connections.
      * @param secure the new value for the secure attribute
      */
     set_secure(secure: boolean): void
     /**
-     * Sets `cookie'`s value to `value`
+     * Sets `cookie'`s value to `value`.
      * @param value the new value
      */
     set_value(value: string): void
     /**
      * Serializes `cookie` in the format used by the Cookie header (ie, for
-     * returning a cookie from a #SoupSession to a server).
+     * returning a cookie from a [class`Session]` to a server).
      */
     to_cookie_header(): string
     /**
-     * Serializes `cookie` in the format used by the Set-Cookie header
-     * (ie, for sending a cookie from a #SoupServer to a client).
+     * Serializes `cookie` in the format used by the Set-Cookie header.
+     * 
+     * i.e. for sending a cookie from a [class`Server]` to a client.
      */
     to_set_cookie_header(): string
 }
 
 /**
- * An HTTP cookie.
+ * Implements HTTP cookies, as described by
+ * [RFC 6265](http://tools.ietf.org/html/rfc6265.txt).
+ * 
+ * To have a [class`Session]` handle cookies for your appliction
+ * automatically, use a [class`CookieJar]`.
  * 
  * `name` and `value` will be set for all cookies. If the cookie is
  * generated from a string that appears to have no name, then `name`
@@ -6573,9 +7329,10 @@ class Cookie {
     // Constructors of Soup-3.0.Soup.Cookie
 
     /**
-     * Creates a new #SoupCookie with the given attributes. (Use
-     * soup_cookie_set_secure() and soup_cookie_set_http_only() if you
-     * need to set those attributes on the returned cookie.)
+     * Creates a new #SoupCookie with the given attributes.
+     * 
+     * Use [method`Cookie`.set_secure] and [method`Cookie`.set_http_only] if you
+     * need to set those attributes on the returned cookie.
      * 
      * If `domain` starts with ".", that indicates a domain (which matches
      * the string after the ".", or any hostname that has `domain` as a
@@ -6589,7 +7346,7 @@ class Cookie {
      * %SOUP_COOKIE_MAX_AGE_ONE_WEEK and %SOUP_COOKIE_MAX_AGE_ONE_YEAR (or
      * multiples thereof) to calculate this value. (If you really care
      * about setting the exact time that the cookie will expire, use
-     * soup_cookie_set_expires().)
+     * [method`Cookie`.set_expires].)
      * @constructor 
      * @param name cookie name
      * @param value cookie value
@@ -6599,9 +7356,10 @@ class Cookie {
      */
     constructor(name: string, value: string, domain: string, path: string, max_age: number) 
     /**
-     * Creates a new #SoupCookie with the given attributes. (Use
-     * soup_cookie_set_secure() and soup_cookie_set_http_only() if you
-     * need to set those attributes on the returned cookie.)
+     * Creates a new #SoupCookie with the given attributes.
+     * 
+     * Use [method`Cookie`.set_secure] and [method`Cookie`.set_http_only] if you
+     * need to set those attributes on the returned cookie.
      * 
      * If `domain` starts with ".", that indicates a domain (which matches
      * the string after the ".", or any hostname that has `domain` as a
@@ -6615,7 +7373,7 @@ class Cookie {
      * %SOUP_COOKIE_MAX_AGE_ONE_WEEK and %SOUP_COOKIE_MAX_AGE_ONE_YEAR (or
      * multiples thereof) to calculate this value. (If you really care
      * about setting the exact time that the cookie will expire, use
-     * soup_cookie_set_expires().)
+     * [method`Cookie`.set_expires].)
      * @constructor 
      * @param name cookie name
      * @param value cookie value
@@ -6625,8 +7383,9 @@ class Cookie {
      */
     static new(name: string, value: string, domain: string, path: string, max_age: number): Cookie
     /**
-     * Parses `header` and returns a #SoupCookie. (If `header` contains
-     * multiple cookies, only the first one will be parsed.)
+     * Parses `header` and returns a #SoupCookie.
+     * 
+     * If `header` contains multiple cookies, only the first one will be parsed.
      * 
      * If `header` does not have "path" or "domain" attributes, they will
      * be defaulted from `origin`. If `origin` is %NULL, path will default
@@ -6635,7 +7394,7 @@ class Cookie {
      * appropriate string for the domain if you want to actually make use
      * of the cookie.
      * @param header a cookie string (eg, the value of a Set-Cookie header)
-     * @param origin origin of the cookie, or %NULL
+     * @param origin origin of the cookie
      */
     static parse(header: string, origin: GLib.Uri | null): Cookie | null
 }
@@ -6759,13 +7518,15 @@ interface HSTSPolicy {
      */
     includes_subdomains(): boolean
     /**
-     * Gets whether `policy` is expired. Permanent policies never
-     * expire.
+     * Gets whether `policy` is expired.
+     * 
+     * Permanent policies never expire.
      */
     is_expired(): boolean
     /**
      * Gets whether `policy` is a non-permanent, non-expirable session policy.
-     * see soup_hsts_policy_new_session_policy() for details.
+     * 
+     * See [ctor`HSTSPolicy`.new_session_policy] for details.
      */
     is_session_policy(): boolean
 }
@@ -6775,7 +7536,7 @@ interface HSTSPolicy {
  * [RFC 6797](http://tools.ietf.org/html/rfc6797).
  * 
  * `domain` represents the host that this policy applies to. The domain
- * must be IDNA-canonicalized. soup_hsts_policy_new() and related methods
+ * must be IDNA-canonicalized. [ctor`HSTSPolicy`.new] and related methods
  * will do this for you.
  * 
  * `max_age` contains the 'max-age' value from the Strict Transport
@@ -6805,7 +7566,7 @@ class HSTSPolicy {
      * represented by this object must be enforced.
      * 
      * `max_age` is used to set the "expires" attribute on the policy; pass
-     * SOUP_HSTS_POLICY_MAX_AGE_PAST for an already-expired policy, or a
+     * %SOUP_HSTS_POLICY_MAX_AGE_PAST for an already-expired policy, or a
      * lifetime in seconds.
      * 
      * If `include_subdomains` is %TRUE, the strict transport security policy
@@ -6823,7 +7584,7 @@ class HSTSPolicy {
      * represented by this object must be enforced.
      * 
      * `max_age` is used to set the "expires" attribute on the policy; pass
-     * SOUP_HSTS_POLICY_MAX_AGE_PAST for an already-expired policy, or a
+     * %SOUP_HSTS_POLICY_MAX_AGE_PAST for an already-expired policy, or a
      * lifetime in seconds.
      * 
      * If `include_subdomains` is %TRUE, the strict transport security policy
@@ -6842,8 +7603,10 @@ class HSTSPolicy {
      */
     static new_from_response(msg: Message): HSTSPolicy
     /**
-     * Full version of #soup_hsts_policy_new(), to use with an existing
-     * expiration date. See #soup_hsts_policy_new() for details.
+     * Full version of [ctor`HSTSPolicy`.new], to use with an existing
+     * expiration date.
+     * 
+     * See [ctor`HSTSPolicy`.new] for details.
      * @constructor 
      * @param domain policy domain or hostname
      * @param max_age max age of the policy
@@ -6853,8 +7616,9 @@ class HSTSPolicy {
     static new_full(domain: string, max_age: number, expires: GLib.DateTime, include_subdomains: boolean): HSTSPolicy
     /**
      * Creates a new session #SoupHSTSPolicy with the given attributes.
+     * 
      * A session policy is a policy that is valid during the lifetime of
-     * the #SoupHSTSEnforcer it is added to. Contrary to regular policies,
+     * the [class`HSTSEnforcer]` it is added to. Contrary to regular policies,
      * it has no expiration date and is not stored in persistent
      * enforcers. These policies are useful for user-agent to load their
      * own or user-defined rules.
@@ -6910,42 +7674,47 @@ interface MessageBody {
     /**
      * Appends `length` bytes from `data` to `body`.
      * 
-     * This function is exactly equivalent to soup_message_body_append()
+     * This function is exactly equivalent to [method`MessageBody`.append]
      * with %SOUP_MEMORY_TAKE as second argument; it exists mainly for
      * convenience and simplifying language bindings.
      * @param data data to append
      */
     append(data: Uint8Array): void
     /**
-     * Tags `body` as being complete; Call this when using chunked encoding
-     * after you have appended the last chunk.
+     * Tags `body` as being complete.
+     * 
+     * Call this when using chunked encoding after you have appended the last chunk.
      */
     complete(): void
     /**
      * Fills in `body'`s data field with a buffer containing all of the
-     * data in `body` (plus an additional '\0' byte not counted by `body'`s
-     * length field).
+     * data in `body`.
+     * 
+     * Adds an additional `\0` byte not counted by `body'`s
+     * length field.
      */
     flatten(): GLib.Bytes
     /**
-     * Gets the accumulate flag on `body;` see
-     * soup_message_body_set_accumulate() for details.
+     * Gets the accumulate flag on `body`.
+     * 
+     * See [method`MessageBody`.set_accumulate. for details.
      */
     get_accumulate(): boolean
     /**
-     * Gets a #GBytes containing data from `body` starting at `offset`.
+     * Gets a [struct`GLib`.Bytes] containing data from `body` starting at `offset`.
+     * 
      * The size of the returned chunk is unspecified. You can iterate
      * through the entire body by first calling
-     * soup_message_body_get_chunk() with an offset of 0, and then on each
+     * [method`MessageBody`.get_chunk] with an offset of 0, and then on each
      * successive call, increment the offset by the length of the
      * previously-returned chunk.
      * 
      * If `offset` is greater than or equal to the total length of `body,`
      * then the return value depends on whether or not
-     * soup_message_body_complete() has been called or not; if it has,
-     * then soup_message_body_get_chunk() will return a 0-length chunk
+     * [method`MessageBody`.complete] has been called or not; if it has,
+     * then [method`MessageBody`.get_chunk] will return a 0-length chunk
      * (indicating the end of `body)`. If it has not, then
-     * soup_message_body_get_chunk() will return %NULL (indicating that
+     * [method`MessageBody`.get_chunk] will return %NULL (indicating that
      * `body` may still potentially have more data, but that data is not
      * currently available).
      * @param offset an offset
@@ -6953,9 +7722,11 @@ interface MessageBody {
     get_chunk(offset: number): GLib.Bytes | null
     /**
      * Handles the #SoupMessageBody part of receiving a chunk of data from
-     * the network. Normally this means appending `chunk` to `body,` exactly
-     * as with soup_message_body_append_bytes(), but if you have set
-     * `body'`s accumulate flag to %FALSE, then that will not happen.
+     * the network.
+     * 
+     * Normally this means appending `chunk` to `body,` exactly as with
+     * [method`MessageBody`.append_bytes], but if you have set `body'`s accumulate
+     * flag to %FALSE, then that will not happen.
      * 
      * This is a low-level method which you should not normally need to
      * use.
@@ -6967,16 +7738,17 @@ interface MessageBody {
      */
     ref(): MessageBody
     /**
-     * Sets or clears the accumulate flag on `body`. (The default value is
-     * %TRUE.) If set to %FALSE, `body'`s data field will not be filled in
-     * after the body is fully sent/received, and the chunks that make up
-     * `body` may be discarded when they are no longer needed.
+     * Sets or clears the accumulate flag on `body`.
      * 
-     * If you set the flag to %FALSE on the #SoupMessage request_body of a
+     * (The default value is %TRUE.) If set to %FALSE, `body'`s data field will not
+     * be filled in after the body is fully sent/received, and the chunks that make
+     * up `body` may be discarded when they are no longer needed.
+     * 
+     * If you set the flag to %FALSE on the [class`Message]` request_body of a
      * client-side message, it will block the accumulation of chunks into
      * `body'`s data field, but it will not normally cause the chunks to
      * be discarded after being written like in the server-side
-     * #SoupMessage response_body case, because the request body needs to
+     * [class`Message]` response_body case, because the request body needs to
      * be kept around in case the request needs to be sent a second time
      * due to redirection or authentication.
      * @param accumulate whether or not to accumulate body chunks in `body`
@@ -6988,37 +7760,40 @@ interface MessageBody {
     truncate(): void
     /**
      * Atomically decrements the reference count of `body` by one.
+     * 
      * When the reference count reaches zero, the resources allocated by
      * `body` are freed
      */
     unref(): void
     /**
      * Handles the #SoupMessageBody part of writing a chunk of data to the
-     * network. Normally this is a no-op, but if you have set `body'`s
-     * accumulate flag to %FALSE, then this will cause `chunk` to be
-     * discarded to free up memory.
+     * network.
+     * 
+     * Normally this is a no-op, but if you have set `body'`s accumulate flag to
+     * %FALSE, then this will cause `chunk` to be discarded to free up memory.
      * 
      * This is a low-level method which you should not need to use, and
      * there are further restrictions on its proper use which are not
      * documented here.
-     * @param chunk a #GBytes returned from soup_message_body_get_chunk()
+     * @param chunk a #GBytes returned from [method`MessageBody`.get_chunk]
      */
     wrote_chunk(chunk: GLib.Bytes): void
 }
 
 /**
- * A #SoupMessage request or response body.
+ * #SoupMessageBody represents the request or response body of a
+ * [class`Message]`.
  * 
  * Note that while `length` always reflects the full length of the
  * message body, `data` is normally %NULL, and will only be filled in
- * after soup_message_body_flatten() is called. For client-side
+ * after [method`MessageBody`.flatten] is called. For client-side
  * messages, this automatically happens for the response body after it
  * has been fully read. Likewise, for server-side
  * messages, the request body is automatically filled in after being
  * read.
  * 
  * As an added bonus, when `data` is filled in, it is always terminated
- * with a '\0' byte (which is not reflected in `length)`.
+ * with a `\0` byte (which is not reflected in `length)`.
  * @record 
  */
 class MessageBody {
@@ -7030,13 +7805,17 @@ class MessageBody {
     // Constructors of Soup-3.0.Soup.MessageBody
 
     /**
-     * Creates a new #SoupMessageBody. #SoupMessage uses this internally; you
+     * Creates a new #SoupMessageBody.
+     * 
+     * [class`Message]` uses this internally; you
      * will not normally need to call it yourself.
      * @constructor 
      */
     constructor() 
     /**
-     * Creates a new #SoupMessageBody. #SoupMessage uses this internally; you
+     * Creates a new #SoupMessageBody.
+     * 
+     * [class`Message]` uses this internally; you
      * will not normally need to call it yourself.
      * @constructor 
      */
@@ -7062,10 +7841,11 @@ interface MessageHeaders {
     // Owm methods of Soup-3.0.Soup.MessageHeaders
 
     /**
-     * Appends a new header with name `name` and value `value` to `hdrs`. (If
-     * there is an existing header with name `name,` then this creates a
-     * second one, which is only allowed for list-valued headers; see also
-     * soup_message_headers_replace().)
+     * Appends a new header with name `name` and value `value` to `hdrs`.
+     * 
+     * (If there is an existing header with name `name,` then this creates a second
+     * one, which is only allowed for list-valued headers; see also
+     * [method`MessageHeaders`.replace].)
      * 
      * The caller is expected to make sure that `name` and `value` are
      * syntactically correct.
@@ -7084,11 +7864,11 @@ interface MessageHeaders {
     /**
      * Calls `func` once for each header value in `hdrs`.
      * 
-     * Beware that unlike soup_message_headers_get_list(), this processes the
+     * Beware that unlike [method`MessageHeaders`.get_list], this processes the
      * headers in exactly the way they were added, rather than
      * concatenating multiple same-named headers into a single value.
      * (This is intentional; it ensures that if you call
-     * soup_message_headers_append() multiple times with the same name,
+     * [method`MessageHeaders`.append] multiple times with the same name,
      * then the I/O code will output multiple copies of the header when
      * sending the message to the remote implementation, which may be
      * required for interoperability in some cases.)
@@ -7098,14 +7878,15 @@ interface MessageHeaders {
      */
     foreach(func: MessageHeadersForeachFunc): void
     /**
-     * Frees the array of ranges returned from soup_message_headers_get_ranges().
+     * Frees the array of ranges returned from [method`MessageHeaders`.get_ranges].
      * @param ranges an array of #SoupRange
      */
     free_ranges(ranges: Range): void
     /**
      * Looks up the "Content-Disposition" header in `hdrs,` parses it, and
-     * returns its value in *`disposition` and *`params`. `params` can be
-     * %NULL if you are only interested in the disposition-type.
+     * returns its value in *`disposition` and *`params`.
+     * 
+     * `params` can be %NULL if you are only interested in the disposition-type.
      * 
      * In HTTP, the most common use of this header is to set a
      * disposition-type of "attachment", to suggest to the browser that a
@@ -7117,13 +7898,14 @@ interface MessageHeaders {
      * test this yourself.)
      * 
      * Content-Disposition is also used in "multipart/form-data", however
-     * this is handled automatically by #SoupMultipart and the associated
+     * this is handled automatically by [struct`Multipart]` and the associated
      * form methods.
      */
     get_content_disposition(): [ /* returnType */ boolean, /* disposition */ string, /* params */ GLib.HashTable ]
     /**
-     * Gets the message body length that `hdrs` declare. This will only
-     * be non-0 if soup_message_headers_get_encoding() returns
+     * Gets the message body length that `hdrs` declare.
+     * 
+     * This will only be non-0 if [method`MessageHeaders`.get_encoding] returns
      * %SOUP_ENCODING_CONTENT_LENGTH.
      */
     get_content_length(): number
@@ -7135,19 +7917,22 @@ interface MessageHeaders {
     get_content_range(): [ /* returnType */ boolean, /* start */ number, /* end */ number, /* total_length */ number ]
     /**
      * Looks up the "Content-Type" header in `hdrs,` parses it, and returns
-     * its value in *`content_type` and *`params`. `params` can be %NULL if you
-     * are only interested in the content type itself.
+     * its value in *`content_type` and *`params`.
+     * 
+     * `params` can be %NULL if you are only interested in the content type itself.
      */
     get_content_type(): [ /* returnType */ string | null, /* params */ GLib.HashTable ]
     /**
-     * Gets the message body encoding that `hdrs` declare. This may not
-     * always correspond to the encoding used on the wire; eg, a HEAD
-     * response may declare a Content-Length or Transfer-Encoding, but
-     * it will never actually include a body.
+     * Gets the message body encoding that `hdrs` declare.
+     * 
+     * This may not always correspond to the encoding used on the wire; eg, a HEAD
+     * response may declare a Content-Length or Transfer-Encoding, but it will never
+     * actually include a body.
      */
     get_encoding(): Encoding
     /**
      * Gets the expectations declared by `hdrs'`s "Expect" header.
+     * 
      * Currently this will either be %SOUP_EXPECTATION_CONTINUE or
      * %SOUP_EXPECTATION_UNRECOGNIZED.
      */
@@ -7157,13 +7942,14 @@ interface MessageHeaders {
      */
     get_headers_type(): MessageHeadersType
     /**
-     * Gets the value of header `name` in `hdrs`. Use this for headers whose
-     * values are comma-delimited lists, and which are therefore allowed
-     * to appear multiple times in the headers. For non-list-valued
-     * headers, use soup_message_headers_get_one().
+     * Gets the value of header `name` in `hdrs`.
+     * 
+     * Use this for headers whose values are comma-delimited lists, and which are
+     * therefore allowed to appear multiple times in the headers. For
+     * non-list-valued headers, use [method`MessageHeaders`.get_one].
      * 
      * If `name` appears multiple times in `hdrs,`
-     * soup_message_headers_get_list() will concatenate all of the values
+     * [method`MessageHeaders`.get_list] will concatenate all of the values
      * together, separated by commas. This is sometimes awkward to parse
      * (eg, WWW-Authenticate, Set-Cookie), but you have to be able to deal
      * with it anyway, because the HTTP spec explicitly states that this
@@ -7173,10 +7959,11 @@ interface MessageHeaders {
      */
     get_list(name: string): string | null
     /**
-     * Gets the value of header `name` in `hdrs`. Use this for headers whose
-     * values are <emphasis>not</emphasis> comma-delimited lists, and
-     * which therefore can only appear at most once in the headers. For
-     * list-valued headers, use soup_message_headers_get_list().
+     * Gets the value of header `name` in `hdrs`.
+     * 
+     * Use this for headers whose values are *not* comma-delimited lists, and which
+     * therefore can only appear at most once in the headers. For list-valued
+     * headers, use [method`MessageHeaders`.get_list].
      * 
      * If `hdrs` does erroneously contain multiple copies of the header, it
      * is not defined which one will be returned. (Ideally, it will return
@@ -7187,20 +7974,20 @@ interface MessageHeaders {
     get_one(name: string): string | null
     /**
      * Parses `hdrs'`s Range header and returns an array of the requested
-     * byte ranges. The returned array must be freed with
-     * soup_message_headers_free_ranges().
+     * byte ranges.
+     * 
+     * The returned array must be freed with [method`MessageHeaders`.free_ranges].
      * 
      * If `total_length` is non-0, its value will be used to adjust the
      * returned ranges to have explicit start and end values, and the
      * returned ranges will be sorted and non-overlapping. If
      * `total_length` is 0, then some ranges may have an end value of -1,
-     * as described under #SoupRange, and some of the ranges may be
+     * as described under [struct`Range]`, and some of the ranges may be
      * redundant.
      * 
      * Beware that even if given a `total_length,` this function does not
      * check that the ranges are satisfiable.
      * 
-     * <note><para>
      * #SoupServer has built-in handling for range requests. If your
      * server handler returns a %SOUP_STATUS_OK response containing the
      * complete response body (rather than pausing the message and
@@ -7214,7 +8001,6 @@ interface MessageHeaders {
      * it all at once, or you do not already have the complete response
      * body available, and only want to generate the parts that were
      * actually requested by the client.
-     * </para></note>
      * @param total_length the total_length of the response body
      */
     get_ranges(total_length: number): [ /* returnType */ boolean, /* ranges */ Range[] ]
@@ -7223,7 +8009,7 @@ interface MessageHeaders {
      * and contains a case-insensitive match for `token`.
      * 
      * (If `name` is present in `hdrs,` then this is equivalent to calling
-     * soup_header_contains() on its value.)
+     * [func`header_contains]` on its value.)
      * @param name header name
      * @param token token to look for
      */
@@ -7240,14 +8026,16 @@ interface MessageHeaders {
      */
     ref(): MessageHeaders
     /**
-     * Removes `name` from `hdrs`. If there are multiple values for `name,`
-     * they are all removed.
+     * Removes `name` from `hdrs`.
+     * 
+     * If there are multiple values for `name,` they are all removed.
      * @param name the header name to remove
      */
     remove(name: string): void
     /**
-     * Replaces the value of the header `name` in `hdrs` with `value`. (See
-     * also soup_message_headers_append().)
+     * Replaces the value of the header `name` in `hdrs` with `value`.
+     * 
+     * See also [method`MessageHeaders`.append].
      * 
      * The caller is expected to make sure that `name` and `value` are
      * syntactically correct.
@@ -7259,10 +8047,10 @@ interface MessageHeaders {
      * Sets the "Content-Disposition" header in `hdrs` to `disposition,`
      * optionally with additional parameters specified in `params`.
      * 
-     * See soup_message_headers_get_content_disposition() for a discussion
+     * See [method`MessageHeaders`.get_content_disposition] for a discussion
      * of how Content-Disposition is used in HTTP.
      * @param disposition the disposition-type
-     * @param params additional parameters, or %NULL
+     * @param params additional parameters
      */
     set_content_disposition(disposition: string, params: GLib.HashTable | null): void
     /**
@@ -7274,7 +8062,7 @@ interface MessageHeaders {
      * Content-Length header for you immediately before sending the
      * headers. One situation in which this method is useful is when
      * generating the response to a HEAD request; Calling
-     * soup_message_headers_set_content_length() allows you to put the
+     * [method`MessageHeaders`.set_content_length] allows you to put the
      * correct content length into the response without needing to waste
      * memory by filling in a response body which won't actually be sent.
      * @param content_length the message body length
@@ -7282,30 +8070,31 @@ interface MessageHeaders {
     set_content_length(content_length: number): void
     /**
      * Sets `hdrs'`s Content-Range header according to the given values.
+     * 
      * (Note that `total_length` is the total length of the entire resource
      * that this is a range of, not simply `end` - `start` + 1.)
      * 
-     * <note><para>
-     * #SoupServer has built-in handling for range requests, and you do
+     * [class`Server]` has built-in handling for range requests, and you do
      * not normally need to call this function youself. See
-     * soup_message_headers_get_ranges() for more details.
-     * </para></note>
+     * [method`MessageHeaders`.get_ranges] for more details.
      * @param start the start of the range
      * @param end the end of the range
      * @param total_length the total length of the resource, or -1 if unknown
      */
     set_content_range(start: number, end: number, total_length: number): void
     /**
-     * Sets the "Content-Type" header in `hdrs` to `content_type,`
-     * optionally with additional parameters specified in `params`.
+     * Sets the "Content-Type" header in `hdrs` to `content_type`.
+     * 
+     * Accepts additional parameters specified in `params`.
      * @param content_type the MIME type
-     * @param params additional parameters, or %NULL
+     * @param params additional parameters
      */
     set_content_type(content_type: string, params: GLib.HashTable | null): void
     /**
-     * Sets the message body encoding that `hdrs` will declare. In particular,
-     * you should use this if you are going to send a request or response in
-     * chunked encoding.
+     * Sets the message body encoding that `hdrs` will declare.
+     * 
+     * In particular, you should use this if you are going to send a request or
+     * response in chunked encoding.
      * @param encoding a #SoupEncoding
      */
     set_encoding(encoding: Encoding): void
@@ -7325,24 +8114,27 @@ interface MessageHeaders {
     set_expectations(expectations: Expectation): void
     /**
      * Sets `hdrs'`s Range header to request the indicated range.
-     * `start` and `end` are interpreted as in a #SoupRange.
+     * 
+     * `start` and `end` are interpreted as in a [struct`Range]`.
      * 
      * If you need to request multiple ranges, use
-     * soup_message_headers_set_ranges().
+     * [method`MessageHeaders`.set_ranges].
      * @param start the start of the range to request
      * @param end the end of the range to request
      */
     set_range(start: number, end: number): void
     /**
-     * Sets `hdrs'`s Range header to request the indicated ranges. (If you
-     * only want to request a single range, you can use
-     * soup_message_headers_set_range().)
+     * Sets `hdrs'`s Range header to request the indicated ranges.
+     * 
+     * If you only want to request a single range, you can use
+     * [method`MessageHeaders`.set_range].
      * @param ranges an array of #SoupRange
      * @param length the length of `range`
      */
     set_ranges(ranges: Range, length: number): void
     /**
      * Atomically decrements the reference count of `hdrs` by one.
+     * 
      * When the reference count reaches zero, the resources allocated by
      * `hdrs` are freed
      */
@@ -7362,17 +8154,21 @@ class MessageHeaders {
     // Constructors of Soup-3.0.Soup.MessageHeaders
 
     /**
-     * Creates a #SoupMessageHeaders. (#SoupMessage does this
-     * automatically for its own headers. You would only need to use this
-     * method if you are manually parsing or generating message headers.)
+     * Creates a #SoupMessageHeaders.
+     * 
+     * ([class`Message]` does this automatically for its own headers. You would only
+     * need to use this method if you are manually parsing or generating message
+     * headers.)
      * @constructor 
      * @param type the type of headers
      */
     constructor(type: MessageHeadersType) 
     /**
-     * Creates a #SoupMessageHeaders. (#SoupMessage does this
-     * automatically for its own headers. You would only need to use this
-     * method if you are manually parsing or generating message headers.)
+     * Creates a #SoupMessageHeaders.
+     * 
+     * ([class`Message]` does this automatically for its own headers. You would only
+     * need to use this method if you are manually parsing or generating message
+     * headers.)
      * @constructor 
      * @param type the type of headers
      */
@@ -7384,10 +8180,12 @@ interface MessageHeadersIter {
     // Owm methods of Soup-3.0.Soup.MessageHeadersIter
 
     /**
-     * Yields the next name/value pair in the %SoupMessageHeaders being
-     * iterated by `iter`. If `iter` has already yielded the last header,
-     * then soup_message_headers_iter_next() will return %FALSE and `name`
-     * and `value` will be unchanged.
+     * Yields the next name/value pair in the [struct`MessageHeaders]` being
+     * iterated by `iter`.
+     * 
+     * If `iter` has already yielded the last header, then
+     * [method`MessageHeadersIter`.next] will return %FALSE and `name` and `value`
+     * will be unchanged.
      */
     next(): [ /* returnType */ boolean, /* name */ string, /* value */ string ]
 }
@@ -7396,9 +8194,8 @@ interface MessageHeadersIter {
  * An opaque type used to iterate over a %SoupMessageHeaders
  * structure.
  * 
- * After intializing the iterator with
- * soup_message_headers_iter_init(), call
- * soup_message_headers_iter_next() to fetch data from it.
+ * After intializing the iterator with [func`MessageHeadersIter`.init], call
+ * [method`MessageHeadersIter`.next] to fetch data from it.
  * 
  * You may not modify the headers while iterating over them.
  * @record 
@@ -7427,123 +8224,145 @@ interface MessageMetrics {
      */
     copy(): MessageMetrics
     /**
-     * Frees `metrics`
+     * Frees `metrics`.
      */
     free(): void
     /**
-     * Get the time immediately after the #SoupMessage completed the
+     * Get the time immediately after the [class`Message]` completed the
      * connection to the server. This includes the time for the proxy
-     * negotiation and TLS handshake. It will be 0 if no network connection
-     * was required to fetch the resource (a persistent connection was used
-     * or resource was loaded from the local disk cache).
+     * negotiation and TLS handshake.
+     * 
+     * It will be 0 if no network connection was required to fetch the resource (a
+     * persistent connection was used or resource was loaded from the local disk
+     * cache).
      */
     get_connect_end(): number
     /**
-     * Get the time immediately before the #SoupMessage started to
-     * establish the connection to the server. It will be 0 if no
-     * network connection was required to fetch the resource (a persistent
-     * connection was used or resource was loaded from the local disk cache).
+     * Get the time immediately before the [class`Message]` started to
+     * establish the connection to the server.
+     * 
+     * It will be 0 if no network connection was required to fetch the resource (a
+     * persistent connection was used or resource was loaded from the local disk
+     * cache).
      */
     get_connect_start(): number
     /**
-     * Get the time immediately after the #SoupMessage completed the
-     * domain lookup name for the resource. It will be 0 if no domain
-     * lookup was required to fetch the resource (a persistent connection
-     * was used or resource was loaded from the local disk cache).
+     * Get the time immediately after the [class`Message]` completed the
+     * domain lookup name for the resource.
+     * 
+     * It will be 0 if no domain lookup was required to fetch the resource (a
+     * persistent connection was used or resource was loaded from the local disk
+     * cache).
      */
     get_dns_end(): number
     /**
-     * Get the time immediately before the #SoupMessage started the
-     * domain lookup name for the resource. It will be 0 if no domain
-     * lookup was required to fetch the resource (a persistent connection
-     * was used or resource was loaded from the local disk cache).
+     * Get the time immediately before the [class`Message]` started the
+     * domain lookup name for the resource.
+     * 
+     * It will be 0 if no domain lookup was required to fetch the resource (a
+     * persistent connection was used or resource was loaded from the local disk
+     * cache).
      */
     get_dns_start(): number
     /**
-     * Get the time immediately before the #SoupMessage started to
+     * Get the time immediately before the [class`Message]` started to
      * fetch a resource either from a remote server or local disk cache.
      */
     get_fetch_start(): number
     /**
-     * Get the number of bytes sent to the network for the request body. This is
-     * the size of the body sent, after encodings are applied, so it might be
-     * greater than the value returned by soup_message_metrics_get_request_body_size().
-     * This value is available right before #SoupMessage::wrote-body signal is
-     * emitted, but you might get an intermediate value if called before.
+     * Get the number of bytes sent to the network for the request body.
+     * 
+     * This is the size of the body sent, after encodings are applied, so it might
+     * be greater than the value returned by
+     * [method`MessageMetrics`.get_request_body_size]. This value is available right
+     * before [signal`Message:`:wrote-body] signal is emitted, but you might get an
+     * intermediate value if called before.
      */
     get_request_body_bytes_sent(): number
     /**
      * Get the request body size in bytes. This is the size of the original body
-     * given to the request before any encoding is applied. This value is available
-     * right before #SoupMessage::wrote-body signal is emitted, but you might get
-     * an intermediate value if called before.
+     * given to the request before any encoding is applied.
+     * 
+     * This value is available right before [signal`Message:`:wrote-body] signal is
+     * emitted, but you might get an intermediate value if called before.
      */
     get_request_body_size(): number
     /**
      * Get the number of bytes sent to the network for the request headers.
-     * This value is available right before #SoupMessage::wrote-headers signal
+     * 
+     * This value is available right before [signal`Message:`:wrote-headers] signal
      * is emitted, but you might get an intermediate value if called before.
      */
     get_request_header_bytes_sent(): number
     /**
-     * Get the time immediately before the #SoupMessage started the
+     * Get the time immediately before the [class`Message]` started the
      * request of the resource from the server or the local disk cache.
      */
     get_request_start(): number
     /**
-     * Get the number of bytes received from the network for the response body. This value is
-     * available right before #SoupMessage::got-body signal is emitted, but you might get
-     * an intermediate value if called before.
-     * For resources loaded from the disk cache this value is always 0.
+     * Get the number of bytes received from the network for the response body.
+     * 
+     * This value is available right before [signal`Message:`:got-body] signal is
+     * emitted, but you might get an intermediate value if called before. For
+     * resources loaded from the disk cache this value is always 0.
      */
     get_response_body_bytes_received(): number
     /**
-     * Get the response body size in bytes. This is the size of the body as given to the
-     * user after all encodings are applied, so it might be greater than the value
-     * returned by soup_message_metrics_get_response_body_bytes_received(). This value is
-     * available right before #SoupMessage::got-body signal is emitted, but you might get
-     * an intermediate value if called before.
+     * Get the response body size in bytes.
+     * 
+     * This is the size of the body as given to the user after all encodings are
+     * applied, so it might be greater than the value returned by
+     * [method`MessageMetrics`.get_response_body_bytes_received]. This value is
+     * available right before [signal`Message:`:got-body] signal is emitted, but you
+     * might get an intermediate value if called before.
      */
     get_response_body_size(): number
     /**
-     * Get the time immediately after the #SoupMessage received the last
+     * Get the time immediately after the [class`Message]` received the last
      * bytes of the response from the server or the local disk cache.
+     * 
      * In case of load failure, this returns the time immediately before the
      * fetch is aborted.
      */
     get_response_end(): number
     /**
      * Get the number of bytes received from the network for the response headers.
-     * This value is available right before #SoupMessage::got-headers signal
+     * 
+     * This value is available right before [signal`Message:`:got-headers] signal
      * is emitted, but you might get an intermediate value if called before.
      * For resources loaded from the disk cache this value is always 0.
      */
     get_response_header_bytes_received(): number
     /**
-     * Get the time immediately after the #SoupMessage received the first
+     * Get the time immediately after the [class`Message]` received the first
      * bytes of the response from the server or the local disk cache.
      */
     get_response_start(): number
     /**
-     * Get the time immediately before the #SoupMessage started the
-     * TLS handshake. It will be 0 if no TLS handshake was required
-     * to fetch the resource (connection was not secure, a persistent
-     * connection was used or resource was loaded from the local disk cache).
+     * Get the time immediately before the [class`Message]` started the
+     * TLS handshake.
+     * 
+     * It will be 0 if no TLS handshake was required to fetch the resource
+     * (connection was not secure, a persistent connection was used or resource was
+     * loaded from the local disk cache).
      */
     get_tls_start(): number
 }
 
 /**
- * SoupMessageMetrics contains metrics collected while loading a #SoupMessage
- * either from the network or the disk cache.
+ * Contains metrics collected while loading a [class`Message]` either from the
+ * network or the disk cache.
+ * 
+ * Metrics are not collected by default for a [class`Message]`, you need to add the
+ * flag %SOUP_MESSAGE_COLLECT_METRICS to enable the feature.
  * 
  * Temporal metrics are expressed as a monotonic time and always start with a
  * fetch start event and finish with response end. All other events are optional.
  * An event can be 0 because it hasn't happened yet, because it's optional or
  * because the load failed before the event reached.
  * 
- * Size metrics are expressed in bytes and aree updated while the #SoupMessage is
- * being loaded. You can connect to different #SoupMessage signals to get the
+ * Size metrics are expressed in bytes and aree updated while the [class`Message]` is
+ * being loaded. You can connect to different [class`Message]` signals to get the
  * final result of every value.
  * @record 
  */
@@ -7559,9 +8378,9 @@ interface Multipart {
     // Owm methods of Soup-3.0.Soup.Multipart
 
     /**
-     * Adds a new MIME part containing `body` to `multipart,` using
-     * "Content-Disposition: form-data", as per the HTML forms
-     * specification.
+     * Adds a new MIME part containing `body` to `multipart`
+     * 
+     * Uses "Content-Disposition: form-data", as per the HTML forms specification.
      * @param control_name the name of the control associated with this file
      * @param filename the name of the file, or %NULL if not known
      * @param content_type the MIME type of the file, or %NULL if not known
@@ -7569,15 +8388,16 @@ interface Multipart {
      */
     append_form_file(control_name: string, filename: string, content_type: string, body: GLib.Bytes): void
     /**
-     * Adds a new MIME part containing `data` to `multipart,` using
-     * "Content-Disposition: form-data", as per the HTML forms
-     * specification.
+     * Adds a new MIME part containing `data` to `multipart`.
+     * 
+     * Uses "Content-Disposition: form-data", as per the HTML forms specification.
      * @param control_name the name of the control associated with `data`
      * @param data the body data
      */
     append_form_string(control_name: string, data: string): void
     /**
      * Adds a new MIME part to `multipart` with the given headers and body.
+     * 
      * (The multipart will make its own copies of `headers` and `body,` so
      * you should free your copies if you are not using them for anything
      * else.)
@@ -7586,11 +8406,11 @@ interface Multipart {
      */
     append_part(headers: MessageHeaders, body: GLib.Bytes): void
     /**
-     * Frees `multipart`
+     * Frees `multipart`.
      */
     free(): void
     /**
-     * Gets the number of body parts in `multipart`
+     * Gets the number of body parts in `multipart`.
      */
     get_length(): number
     /**
@@ -7607,9 +8427,10 @@ interface Multipart {
 
 /**
  * Represents a multipart HTTP message body, parsed according to the
- * syntax of RFC 2046. Of particular interest to HTTP are
- * <literal>multipart/byte-ranges</literal> and
- * <literal>multipart/form-data</literal>.
+ * syntax of RFC 2046.
+ * 
+ * Of particular interest to HTTP are `multipart/byte-ranges` and
+ * `multipart/form-data`,
  * 
  * Although the headers of a #SoupMultipart body part will contain the
  * full headers from that body part, libsoup does not interpret them
@@ -7629,16 +8450,22 @@ class Multipart {
 
     /**
      * Creates a new empty #SoupMultipart with a randomly-generated
-     * boundary string. Note that `mime_type` must be the full MIME type,
-     * including "multipart/".
+     * boundary string.
+     * 
+     * Note that `mime_type` must be the full MIME type, including "multipart/".
+     * 
+     * See also: [ctor`Message`.new_from_multipart].
      * @constructor 
      * @param mime_type the MIME type of the multipart to create.
      */
     constructor(mime_type: string) 
     /**
      * Creates a new empty #SoupMultipart with a randomly-generated
-     * boundary string. Note that `mime_type` must be the full MIME type,
-     * including "multipart/".
+     * boundary string.
+     * 
+     * Note that `mime_type` must be the full MIME type, including "multipart/".
+     * 
+     * See also: [ctor`Message`.new_from_multipart].
      * @constructor 
      * @param mime_type the MIME type of the multipart to create.
      */
@@ -7759,7 +8586,7 @@ interface SessionFeatureInterface {
 }
 
 /**
- * The interface implemented by #SoupSessionFeature<!-- -->s.
+ * The interface implemented by [iface`SessionFeature]`s.
  * @record 
  */
 abstract class SessionFeatureInterface {
@@ -7777,7 +8604,7 @@ interface WebsocketConnectionClass {
 }
 
 /**
- * The abstract base class for #SoupWebsocketConnection
+ * The abstract base class for [class`WebsocketConnection]`.
  * @record 
  */
 abstract class WebsocketConnectionClass {
@@ -7809,7 +8636,7 @@ interface WebsocketExtensionClass {
 }
 
 /**
- * The class structure for the SoupWebsocketExtension.
+ * The class structure for the #SoupWebsocketExtension.
  * @record 
  */
 abstract class WebsocketExtensionClass {
