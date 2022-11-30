@@ -2,12 +2,12 @@
 // Based on https://github.com/denoland/deno/blob/main/ext/webgpu/src/02_idl_types.js
 
 // @ts-check
-/// <reference path="../web/internal.d.ts" />
+/// <reference path="../../web/internal.d.ts" />
 
 "use strict";
 
-import { primordials } from '../../core/00_primordials.js';
-import * as webidl from '../webidl/00_webidl.js';
+import { primordials } from '../../../core/00_primordials.js';
+import * as webidl from '../../webidl/00_webidl.js';
 
 import {
   GPU,

@@ -2245,6 +2245,12 @@ export class Console {
     this.error(err.stack);
   };
 
+  // These methods are noops, but when the inspector is connected, they
+  // call into V8.
+  profile = (_label) => {};
+  profileEnd = (_label) => {};
+  timeStamp = (_label) => {};
+
   static [SymbolHasInstance](instance) {
     return instance[isConsoleInstance];
   }
@@ -2344,7 +2350,9 @@ export function wrapConsole(consoleFromDeno, consoleFromV8) {
         consoleFromV8[key],
         consoleFromDeno[key],
       );
+    } else {
+      // Add additional console APIs from the inspector
+      consoleFromDeno[key] = consoleFromV8[key];
     }
   }
 }
-

@@ -149,6 +149,7 @@ export const denoNsUnstable = {
   spawnChild: __bootstrap.spawn.spawnChild,
   spawn: __bootstrap.spawn.spawn,
   spawnSync: __bootstrap.spawn.spawnSync,
+  Command: __bootstrap.spawn.Command,
   // TODO: serve: __bootstrap.flash.serve,
   upgradeHttp: __bootstrap.http.upgradeHttp,
   upgradeHttpRaw: __bootstrap.flash.upgradeHttpRaw,

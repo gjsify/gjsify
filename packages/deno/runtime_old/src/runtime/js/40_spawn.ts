@@ -96,27 +96,12 @@ export function spawnChild(command: string | URL, options: SpawnOptions = {}) {
   return spawnChildInner(command, "Deno.spawnChild()", options);
 }
 
-async function collectOutput(readableStream: ReadableStream) {
+function collectOutput(readableStream) {
   if (!(readableStream instanceof ReadableStream)) {
     return null;
   }
 
-  const bufs = [];
-  let size = 0;
-  // @ts-ignore
-  for await (const chunk of readableStream) {
-    bufs.push(chunk);
-    size += chunk.byteLength;
-  }
-
-  const buffer = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of bufs) {
-    buffer.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  return buffer;
+  return readableStreamCollectIntoUint8Array(readableStream);
 }
 
 /** **UNSTABLE**: New API, yet to be vetted.

@@ -58,7 +58,7 @@ export * as caches from '../../ext/cache/01_cache.js';
 
 export { fetchUtil, headers, formData, fetchBody, fetch } from '../../ext/fetch/99_bootstrap';
 
-export * as webgpu from '../../ext/webgpu/01_webgpu.js';
+export * as webgpu from '../../ext/webgpu/src/01_webgpu.js';
 export * as webSocket from '../../ext/websocket/01_websocket.js';
 export { WebSocketStream } from '../../ext/websocket/02_websocketstream.js';
 export * as flash from '../../ext/flash/01_http.js';

@@ -16,6 +16,6 @@
     "allowJs": true,
     "checkJs": false,
     "reflection": false,
-    "include": ["src/**/*.ts", "src/**/*.mts", "src/**/*.js", "src/**/*.mjs"],
-    "exclude": ["src/test.ts", "src/**/*.spec.ts"]
+    "include": ["src/core/**/*.ts", "src/ext/**/*.ts", "src/ops/**/*.ts", "src/runtime/**/*.ts", "src/types/**/*.ts"],
+    "exclude": []
   }

@@ -16,3 +16,6 @@
 [submodule "packages/infra/esbuild-plugin-deno-loader"]
 	path = packages/infra/esbuild-plugin-deno-loader
 	url = git@github.com:gjsify/esbuild-plugin-deno-loader.git
+[submodule "packages/deno/runtime/src"]
+	path = packages/deno/runtime/src
+	url = git@github.com:gjsify/deno.git

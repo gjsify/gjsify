@@ -591,6 +591,7 @@ export function readableStreamForRidUnrefable(rid: number): ReadableStream<Uint8
   const stream = webidl.createBranded(ReadableStream);
   stream[promiseIdSymbol] = undefined;
   stream[_isUnref] = false;
+  stream[_resourceBackingUnrefable] = { rid, autoClose: true };
   const underlyingSource: UnderlyingSource<ArrayBuffer> = {
     // @ts-ignore
     type: "bytes",
@@ -632,6 +633,10 @@ export function readableStreamForRidUnrefable(rid: number): ReadableStream<Uint8
   return stream;
 }
 
+function readableStreamIsUnrefable(stream) {
+  return _isUnref in stream;
+}
+
 export function readableStreamForRidUnrefableRef(stream) {
   if (!(_isUnref in stream)) throw new TypeError("Not an unrefable stream");
   stream[_isUnref] = false;
@@ -641,7 +646,9 @@ export function readableStreamForRidUnrefableRef(stream) {
 }
 
 export function readableStreamForRidUnrefableUnref(stream) {
-  if (!(_isUnref in stream)) throw new TypeError("Not an unrefable stream");
+  if (!readableStreamIsUnrefable(stream)) {
+    throw new TypeError("Not an unrefable stream");
+  }
   stream[_isUnref] = true;
   if (stream[promiseIdSymbol] !== undefined) {
     core.unrefOp(stream[promiseIdSymbol]);
@@ -652,15 +659,25 @@ export function getReadableStreamResourceBacking(stream) {
   return stream[_resourceBacking];
 }
 
+function getReadableStreamResourceBackingUnrefable(stream) {
+  return stream[_resourceBackingUnrefable];
+}
+
 export async function readableStreamCollectIntoUint8Array(stream) {
-  const resourceBacking = getReadableStreamResourceBacking(stream);
+  const resourceBacking = getReadableStreamResourceBacking(stream) ||
+    getReadableStreamResourceBackingUnrefable(stream);
   const reader = acquireReadableStreamDefaultReader(stream);
 
   if (resourceBacking) {
     // fast path, read whole body in a single op call
     try {
       readableStreamDisturb(stream);
-      const buf = await core.opAsync("op_read_all", resourceBacking.rid);
+      const promise = core.opAsync("op_read_all", resourceBacking.rid);
+      if (readableStreamIsUnrefable(stream)) {
+        const promiseId = stream[promiseIdSymbol] = promise[promiseIdSymbol];
+        if (stream[_isUnref]) core.unrefOp(promiseId);
+      }
+      const buf = await promise;
       readableStreamThrowIfErrored(stream);
       readableStreamClose(stream);
       return buf;
@@ -3810,6 +3827,9 @@ function initializeCountSizeFunction(globalObject: typeof globalThis) {
 }
 
 const _resourceBacking = Symbol("[[resourceBacking]]");
+// This distinction exists to prevent unrefable streams being used in
+// regular fast streams that are unaware of refability
+const _resourceBackingUnrefable = Symbol("[[resourceBackingUnrefable]]");
 export class ReadableStream<R = any> {
   // @ts-ignore
   [_controller]: ReadableStreamDefaultController | ReadableByteStreamController;

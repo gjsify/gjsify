@@ -169,6 +169,12 @@ export const op_encoding_decode_single = (input: BufferSource, encoding: string,
     console.warn("Not implemented: ops.op_encoding_decode_single");
     return "";
 }
+
+export const op_encoding_decode_utf8 = (input: BufferSource, ignoreBOM: boolean): string => {
+    console.warn("Not implemented: ops.op_encoding_decode_single");
+    return "";
+}
+
 export const op_encoding_encode_into = (...args: any[]) => {
     console.warn("Not implemented: ops.op_encoding_encode_into");
 }

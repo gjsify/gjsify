@@ -852,7 +852,7 @@ function bootstrapMainRuntime(runtimeOptions: RuntimeOptions) {
 }
 
 function bootstrapWorkerRuntime(
-  runtimeOptions,
+  runtimeOptions: RuntimeOptions,
   name,
   internalName,
 ) {
