@@ -2,9 +2,9 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/11_workers.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 
 const {
   Error,
@@ -14,13 +14,13 @@ const {
   SymbolIterator,
   SymbolToStringTag,
 } = primordials;
-import * as webidl from '../ext/webidl/00_webidl.js';
-import { URL } from '../ext/url/00_url.js';
-import { getLocationHref } from '../ext/web/12_location.js';
+import * as webidl from '../../ext/webidl/00_webidl.js';
+import { URL } from '../../ext/url/00_url.js';
+import { getLocationHref } from '../../ext/web/12_location.js';
 import { serializePermissions } from './10_permissions.js';
 import { log } from './06_util.js';
-import { ErrorEvent, MessageEvent, defineEventHandler, EventTarget } from '../ext/web/02_event.js';
-import { deserializeJsMessageData, serializeJsMessageData, MessagePortPrototype } from '../ext/web/13_message_port.js';
+import { ErrorEvent, MessageEvent, defineEventHandler, EventTarget } from '../../ext/web/02_event.js';
+import { deserializeJsMessageData, serializeJsMessageData, MessagePortPrototype } from '../../ext/web/13_message_port.js';
 
 function createWorker(
   specifier,

@@ -2,9 +2,9 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/30_fs.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 import type {
   MkdirOptions,
   DirEntry,
@@ -12,7 +12,7 @@ import type {
   RemoveOptions,
   FileInfo,
   SymlinkOptions,
-} from '../types/index.js';
+} from '../../types/index.js';
 
 const {
   Date,

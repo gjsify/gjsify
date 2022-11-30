@@ -1,4 +1,4 @@
-import { mainRuntime } from './runtime/99_main.js';
+import { mainRuntime } from './runtime/js/99_main.js';
 
 mainRuntime({
     args: [],

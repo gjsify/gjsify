@@ -2,13 +2,13 @@
 // Based on https://raw.githubusercontent.com/denoland/deno/main/runtime/js/10_permissions.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as ops from '../../ops/index.js';
 import { illegalConstructorKey } from './01_web_util.js';
 import { pathFromURL } from './06_util.js';
-import { Event, EventTarget } from '../ext/web/02_event.js';
+import { Event, EventTarget } from '../../ext/web/02_event.js';
 
-import type { PermissionDescriptor, PermissionState, PermissionOptions } from '../types/index.js';
+import type { PermissionDescriptor, PermissionState, PermissionOptions } from '../../types/index.js';
 
 const {
   ArrayIsArray,

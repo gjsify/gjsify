@@ -2,9 +2,9 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/06_util.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
+import { primordials } from '../../core/00_primordials.js';
 import { build } from './01_build.js';
-import { URLPrototype } from '../ext/url/index.js';
+import { URLPrototype } from '../../ext/url/index.js';
 
 const {
   decodeURIComponent,

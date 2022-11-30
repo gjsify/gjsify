@@ -2,12 +2,12 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/30_os.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as ops from '../../ops/index.js';
 import type {
   Env,
-} from '../types/index.js';
-import { Event, EventTarget } from '../ext/web/02_event.js';
+} from '../../types/index.js';
+import { Event, EventTarget } from '../../ext/web/02_event.js';
 const {
   Error,
   SymbolFor,

@@ -2,7 +2,7 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/90_deno_ns.js
 "use strict";
 
-import * as core from '../core/01_core.js';
+import * as core from '../../core/01_core.js';
 import { __bootstrap } from './80_bootstrap.js';
 
 export const denoNs = {

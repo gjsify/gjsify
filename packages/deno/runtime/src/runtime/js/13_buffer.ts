@@ -6,8 +6,8 @@
 // https://github.com/golang/go/blob/master/LICENSE
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import { assert } from '../ext/web/00_infra.js';
+import { primordials } from '../../core/00_primordials.js';
+import { assert } from '../../ext/web/00_infra.js';
 const {
   TypedArrayPrototypeSubarray,
   TypedArrayPrototypeSlice,

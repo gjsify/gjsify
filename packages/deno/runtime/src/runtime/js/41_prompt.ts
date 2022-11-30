@@ -2,8 +2,8 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/41_prompt.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
 import { stdin } from './40_files.js';
 const { ArrayPrototypePush, StringPrototypeCharCodeAt, Uint8Array } = primordials;
 import { isatty } from './40_tty.js';

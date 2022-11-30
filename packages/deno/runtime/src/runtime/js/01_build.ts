@@ -2,7 +2,7 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/01_build.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
+import { primordials } from '../../core/00_primordials.js';
 
 const { ObjectFreeze, StringPrototypeSplit } = primordials;
 

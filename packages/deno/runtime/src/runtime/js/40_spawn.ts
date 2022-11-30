@@ -2,14 +2,14 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/40_spawn.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 import { pathFromURL } from './06_util.js';
 import { illegalConstructorKey } from './01_web_util.js';
-import { add, remove } from '../ext/web/03_abort_signal.js';
+import { add, remove } from '../../ext/web/03_abort_signal.js';
 
-import type { SpawnOptions, ChildStatus, SpawnOutput, Signal, AbortSignal } from '../types/index.js';
+import type { SpawnOptions, ChildStatus, SpawnOutput, Signal, AbortSignal } from '../../types/index.js';
 
 const {
   ArrayPrototypeMap,
@@ -27,7 +27,7 @@ import {
   readableStreamForRidUnrefableUnref,
   writableStreamForRid,
   ReadableStream,
-} from '../ext/web/06_streams.js';
+} from '../../ext/web/06_streams.js';
 
 const promiseIdSymbol = SymbolFor("Deno.core.internalPromiseId");
 

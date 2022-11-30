@@ -2,12 +2,12 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/40_http.js
 "use strict";
 
-import * as ops from '../ops/index.js';
-import { HttpConn } from '../ext/http/01_http.js';
+import * as ops from '../../ops/index.js';
+import { HttpConn } from '../../ext/http/01_http.js';
 
 import type {
   Conn,
-} from '../types/index.js';
+} from '../../types/index.js';
 
 /**
  * Provides an interface to handle HTTP request and responses over TCP or TLS

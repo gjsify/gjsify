@@ -2,10 +2,10 @@
 // Based on https://github.com/denoland/deno/tree/main/runtime/js
 "use strict";
 
-import * as core from '../core/01_core.js';
-import * as ops from '../ops/index.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 import { pathFromURL } from './06_util.js';
-import * as abortSignal from '../ext/web/03_abort_signal.js';
+import * as abortSignal from '../../ext/web/03_abort_signal.js';
 
 export function readFileSync(path) {
   return ops.op_readfile_sync(pathFromURL(path));

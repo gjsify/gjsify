@@ -4,7 +4,7 @@
 import { primordials } from '../../core/00_primordials.js';
 import * as core from '../../core/01_core.js';
 import * as ops from '../../ops/index.js';
-import * as util from '../../runtime/06_util.js';
+import * as util from '../../runtime/js/06_util.js';
 
 import type {
   PointerValue,

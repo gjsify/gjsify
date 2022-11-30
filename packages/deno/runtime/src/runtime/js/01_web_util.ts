@@ -2,7 +2,7 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/01_web_util.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
+import { primordials } from '../../core/00_primordials.js';
 
 const { TypeError, Symbol } = primordials;
 export const illegalConstructorKey = Symbol("illegalConstructorKey");

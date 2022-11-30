@@ -2,15 +2,15 @@
 // https://github.com/denoland/deno/blob/main/runtime/js/40_process.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 import { readAll } from './12_io.js';
 import { pathFromURL } from './06_util.js';
 import { FsFile } from './40_files.js';
-import { assert } from '../ext/web/00_infra.js';
+import { assert } from '../../ext/web/00_infra.js';
 
-import type { Signal } from '../types/index.js';
+import type { Signal } from '../../types/index.js';
 
 const {
   ArrayPrototypeMap,

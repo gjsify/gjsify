@@ -2,8 +2,8 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/40_tty.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as ops from '../../ops/index.js';
 
 const {
   Uint32Array,

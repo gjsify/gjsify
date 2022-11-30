@@ -2,8 +2,8 @@
 // Based on https://github.com/denoland/deno/blob/main/runtime/js/01_errors.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
 
 const { Error } = primordials;
 const { BadResource, Interrupted } = core;

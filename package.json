@@ -23,7 +23,7 @@
     "@types/jsdom": "^20.0.1",
     "typescript": "^4.9.3"
   },
-  "packageManager": "yarn@3.2.3",
+  "packageManager": "yarn@4.0.0-rc.31",
   "disabled_resolutions": {
     "@deepkit/core": "portal:../deepkit-framework/packages/core",
     "@deepkit/event": "portal:../deepkit-framework/packages/event",

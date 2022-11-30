@@ -6,9 +6,9 @@
 // Thank you! We love Go! <3
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 
 const {
   Uint8Array,
@@ -22,7 +22,7 @@ import type {
   ReaderSync,
   Reader,
   Writer,
-} from '../types/index.js';
+} from '../../types/index.js';
 
 const DEFAULT_BUFFER_SIZE = 32 * 1024;
 // Seek whence values.

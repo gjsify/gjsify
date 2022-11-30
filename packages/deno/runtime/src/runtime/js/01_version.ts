@@ -2,7 +2,7 @@
 // Based on https://raw.githubusercontent.com/denoland/deno/main/runtime/js/01_version.js
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
+import { primordials } from '../../core/00_primordials.js';
 
 const { ObjectFreeze } = primordials;
 

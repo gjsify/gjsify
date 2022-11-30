@@ -1,19 +1,19 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 "use strict";
 
-import { primordials } from '../core/00_primordials.js';
-import * as core from '../core/01_core.js';
-import * as ops from '../ops/index.js';
+import { primordials } from '../../core/00_primordials.js';
+import * as core from '../../core/01_core.js';
+import * as ops from '../../ops/index.js';
 import { setExitHandler } from './30_os.js';
-import { Console } from '../ext/console/02_console.js';
+import { Console } from '../../ext/console/02_console.js';
 import { serializePermissions } from './10_permissions.js';
-import { assert } from '../ext/web/00_infra.js';
+import { assert } from '../../ext/web/00_infra.js';
 
 import type {
   PermissionOptions,
   TestContext,
   TestStepDefinition,
-} from '../types/index.js';
+} from '../../types/index.js';
 
 // TODO
 type TestLocation = any;
