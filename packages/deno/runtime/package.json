@@ -35,7 +35,8 @@
         "test:gjs": "gjs -m test.gjs.js",
         "test:deno": "deno run --unstable --allow-env test.deno.js",
         "git:upstream:init": "cd src && git remote add upstream https://github.com/denoland/deno.git || exit 0",
-        "git:upstream:merge": "cd src && yarn git:upstream:init && git fetch upstream && git merge upstream/main"
+        "git:upstream:merge": "cd src && git fetch upstream && git merge upstream/main",
+        "git:upstream": "yarn git:upstream:init && yarn git:upstream:merge"
     },
     "keywords": [
         "gjs",
