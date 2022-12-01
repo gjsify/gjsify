@@ -119,7 +119,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/event-target": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     typescript: "npm:^4.9.3"
   languageName: unknown
   linkType: soft
@@ -132,7 +132,7 @@ __metadata:
     "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/call-bind": "npm:^1.0.1"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     call-bind: "npm:^1.0.2"
     util: "npm:^0.12.5"
   languageName: unknown
@@ -144,7 +144,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -171,7 +171,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -195,7 +195,7 @@ __metadata:
     "@gjsify/empty": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@tsconfig/deno": "npm:^1.0.6"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     typescript: "npm:^4.9.3"
   languageName: unknown
   linkType: soft
@@ -207,7 +207,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@tsconfig/deno": "npm:^1.0.6"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     typescript: "npm:^4.9.3"
   languageName: unknown
   linkType: soft
@@ -259,7 +259,7 @@ __metadata:
     "@gjsify/resolve-npm": "workspace:^"
     "@gjsify/tty": "workspace:^"
     "@gjsify/zlib": "workspace:^"
-    "@types/lodash": "npm:^4.14.190"
+    "@types/lodash": "npm:^4.14.191"
     assert: "npm:^2.0.0"
     constants-browserify: "npm:^1.0.0"
     core-js: "npm:^3.26.1"
@@ -295,7 +295,7 @@ __metadata:
     "@gjsify/event-target": "workspace:^"
     "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -308,7 +308,7 @@ __metadata:
     "@deepkit/type": "npm:^1.0.1-alpha.75"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -319,7 +319,7 @@ __metadata:
     "@deepkit/core": "npm:^1.0.1-alpha.75"
     "@deepkit/type": "npm:^1.0.1-alpha.75"
     "@gjsify/cli": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -328,7 +328,7 @@ __metadata:
   resolution: "@gjsify/example-deno-module-jsonc@workspace:examples/deno-module-jsonc"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -339,7 +339,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -350,7 +350,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -362,7 +362,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -376,7 +376,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -390,7 +390,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -404,7 +404,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -418,7 +418,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -432,7 +432,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     gl-matrix: "npm:^3.4.3"
     http-server: "npm:^14.1.1"
     open-cli: "npm:^7.1.0"
@@ -448,7 +448,7 @@ __metadata:
     "@gjsify/http": "workspace:^"
     "@gjsify/soup-3.0": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     data-uri-to-buffer: "npm:^4.0.0"
     fetch-blob: "npm:^3.2.0"
     formdata-polyfill: "npm:^4.0.10"
@@ -461,7 +461,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -472,7 +472,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     typescript: "npm:^4.9.3"
   languageName: unknown
   linkType: soft
@@ -485,7 +485,7 @@ __metadata:
     "@gjsify/events": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     happy-dom: "npm:^7.7.0"
     typescript: "npm:^4.9.3"
   languageName: unknown
@@ -497,7 +497,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -508,7 +508,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -529,7 +529,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     typescript: "npm:^4.9.3"
   languageName: unknown
   linkType: soft
@@ -551,7 +551,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/utils": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -563,7 +563,7 @@ __metadata:
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/inherits": "npm:^0.0.30"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -607,7 +607,7 @@ __metadata:
     "@gjsify/gio-2.0": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     typescript: "npm:^4.9.3"
   languageName: unknown
   linkType: soft
@@ -618,7 +618,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     inherits: "npm:^2.0.4"
     readable-stream: "npm:^4.2.0"
   languageName: unknown
@@ -630,7 +630,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/utils": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -668,7 +668,7 @@ __metadata:
     "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/inherits": "npm:^0.0.30"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     is-arguments: "npm:^1.1.1"
     is-generator-function: "npm:^1.0.10"
     is-typed-array: "npm:^1.1.10"
@@ -694,7 +694,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -704,7 +704,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
   languageName: unknown
   linkType: soft
 
@@ -718,7 +718,7 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/bit-twiddle": "npm:^1.0.1"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     bit-twiddle: "npm:^1.0.2"
     glsl-tokenizer: "npm:^2.1.5"
     typescript: "npm:^4.9.3"
@@ -731,7 +731,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.9"
+    "@types/node": "npm:^18.11.10"
     fflate: "npm:^0.7.4"
   languageName: unknown
   linkType: soft
@@ -897,7 +897,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/lodash@npm:^4.14.190":
+"@types/lodash@npm:^4.14.191":
   version: 4.14.191
   resolution: "@types/lodash@npm:4.14.191"
   checksum: e8762fec34eec79828b6b1e08243e25703bfad1b53a7032c0293b69f51d222c0a36ae08d3588ab8147c6a3f478096e02186a860b909cdbe29c7c745cefea2442
@@ -918,7 +918,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:*, @types/node@npm:^18.11.9":
+"@types/node@npm:*, @types/node@npm:^18.11.10, @types/node@npm:^18.11.9":
   version: 18.11.10
   resolution: "@types/node@npm:18.11.10"
   checksum: 0d8720580234f3a2fcb22779d4ccf9b7b7b778cfcf6fd7f2a9ea778bb2d943354111913d41b3142a82731305c525777d01f5f3982bbdd690ad53dffaa01a7529

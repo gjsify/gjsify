@@ -18,18 +18,18 @@ jobs:
         with:
           submodules: true
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
       - name: Setup Deno
-        uses: denolib/setup-deno@v2
+        uses: denoland/setup-deno@v1
         with:
           deno-version: ${{ matrix.deno-version }}
       - run: sudo apt-get update
       - name: Setup Gjs
         run: sudo apt-get --yes install gjs libgda-5.0-dev libgirepository1.0-dev libgtk-4-dev libsoup-3.0-dev libwebkit2gtk-4.0-dev libadwaita-1-dev
       - name: Install NPM dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Build
         run: yarn run build
       - name: Test

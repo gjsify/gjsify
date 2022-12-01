@@ -25,6 +25,6 @@
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
-        "@types/node": "^18.11.9"
+        "@types/node": "^18.11.10"
     }
 }
