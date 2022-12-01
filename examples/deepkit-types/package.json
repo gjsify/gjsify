@@ -7,10 +7,11 @@
   "type": "module",
   "scripts": {
     "clear": "rm -rf dist",
+    "print:name": "echo '@gjsify/example-deepkit-types'",
     "start": "yarn run build && yarn run start:gjs",
     "start:gjs": "gjs -m dist/index.gjs.js",
     "start:node": "node dist/index.node.cjs",
-    "build": "yarn run build:gjs && yarn run build:node",
+    "build": "yarn print:name && yarn build:gjs && yarn run build:node",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.cjs"
   },

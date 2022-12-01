@@ -12,8 +12,8 @@
     "test": "yarn workspaces foreach --no-private --parallel run test",
     "clear": "yarn workspaces foreach --no-private --parallel run clear",
     "print:name": "echo 'gjsify (root)'",
-    "build": "yarn run build:infra && yarn run build:gjs && yarn run build:all",
-    "build:infra": "yarn workspace @gjsify/resolve-npm run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/cli run build",
+    "build": "yarn print:name && yarn build:infra && yarn run build:gjs && yarn run build:all",
+    "build:infra": "yarn workspace @gjsify/resolve-npm run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-deno-loader run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/cli run build",
     "build:gjs": "yarn workspace @gjsify/types run build && yarn workspace @gjsify/utils run build && yarn workspace @gjsify/unit run build",
     "build:all": "yarn workspaces foreach --no-private --parallel run build"
   },

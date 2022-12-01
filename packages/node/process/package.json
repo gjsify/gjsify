@@ -7,7 +7,7 @@
   "scripts": {
     "clear": "rm -rf lib",
     "print:name": "echo '@gjsify/process'",
-    "build": "gjsify build --library src/**/*.{ts,js}",
+    "build": "yarn print:name && gjsify build --library src/**/*.{ts,js}",
     "build:test": "yarn run build:test:gjs && yarn run build:test:node",
     "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
     "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",

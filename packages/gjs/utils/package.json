@@ -7,9 +7,9 @@
     "types": "lib/index.d.ts",
     "type": "module",
     "scripts": {
-        "clear": "rm -rf lib",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/utils'",
-        "build": "yarn run build:gjsify && yarn run build:types",
+        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs",

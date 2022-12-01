@@ -7,7 +7,7 @@
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/html-image-element'",
-        "build": "yarn run build:lib && yarn run build:types",
+        "build": "yarn print:name && yarn build:lib && yarn run build:types",
         "build:lib": "gjsify build --library src/**/*.{ts,js}",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",

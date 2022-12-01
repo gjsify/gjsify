@@ -1,5 +1,5 @@
 {
-  "name": "@gjsify/example-webgl-tutorial-08",
+  "name": "@gjsify/example-webgl-tutorial-07",
   "private": true,
   "version": "0.0.1",
   "description": "",
@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "clear": "rm -rf dist",
+    "print:name": "echo '@gjsify/example-webgl-tutorial-07'",
     "start": "yarn run build && yarn run start:gjs",
     "start:gjs": "LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/gjs.js",
     "start:browser": "http-server dist",

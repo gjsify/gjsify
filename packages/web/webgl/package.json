@@ -10,7 +10,7 @@
         "clear": "rm -rf lib tmp build test.gjs.js",
         "print:name": "echo '@gjsify/webgl'",
         "init:meson": "meson setup build .",
-        "build": "yarn run init:meson && yarn run build:meson && yarn run build:gjsify && yarn run build:types",
+        "build": "yarn print:name && yarn run init:meson && yarn run build:meson && yarn run build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/ts/**/*.{ts,js}",
         "build:meson": "meson compile -C build",
         "build:types": "tsc --emitDeclarationOnly || exit 0",

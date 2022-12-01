@@ -7,7 +7,7 @@
     "scripts": {
         "clear": "echo 'Noting to do'",
         "print:name": "echo '@gjsify/empty'",
-        "build": "echo 'Noting to do'",
+        "build": "yarn print:name && echo 'Noting to do'",
         "test": "echo 'Noting to do'"
     },
     "keywords": [

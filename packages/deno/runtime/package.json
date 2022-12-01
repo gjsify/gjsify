@@ -25,7 +25,7 @@
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/deno-runtime'",
-        "build": "yarn run build:gjsify && yarn run build:types",
+        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/{core,ext,ops,runtime,types}/*.{ts,js}",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:deno",

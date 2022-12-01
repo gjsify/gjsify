@@ -9,7 +9,7 @@
         "print:name": "echo '@gjsify/url'",
         "bundle:deno": "rm -f src/url.deno.js && deno bundle https://deno.land/std/node/url.ts src/url.deno.js",
         "patch:deno": "node ./patch-deno.mjs",
-        "build": "yarn run build:deno && gjsify build --library src/**/*.{ts,js}",
+        "build": "yarn print:name && yarn build:deno && gjsify build --library src/**/*.{ts,js}",
         "build:deno": "yarn run bundle:deno && yarn run patch:deno",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",

@@ -8,7 +8,7 @@
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/util'",
-        "build": "yarn run build:gjsify && yarn run build:types",
+        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",

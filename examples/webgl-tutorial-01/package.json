@@ -7,9 +7,10 @@
   "type": "module",
   "scripts": {
     "clear": "rm -rf dist",
+    "print:name": "echo '@gjsify/example-webgl-tutorial-01'",
     "start": "yarn run build && yarn run start:gjs",
     "start:gjs": "LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/index.gjs.js",
-    "build": "yarn run build:gjs",
+    "build": "yarn print:name && yarn build:gjs",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
   },
   "engines": {

@@ -3,7 +3,10 @@
     "outDir": "lib",
     "declarationDir": "lib/types",
     "declaration": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node"
   },
   "files": ["src/index.ts"]
 }

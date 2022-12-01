@@ -9,7 +9,7 @@
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/gio-2.0'",
-        "build": "yarn run build:gjsify && yarn run build:types",
+        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
         "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",

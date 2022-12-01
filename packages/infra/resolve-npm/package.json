@@ -9,7 +9,7 @@
     "scripts": {
         "clear": "echo 'nothing to do'",
         "print:name": "echo '@gjsify/resolve-npm'",
-        "build": "echo 'nothing to do'"
+        "build": "yarn print:name && echo 'nothing to do'"
     },
     "keywords": [
         "gjs",

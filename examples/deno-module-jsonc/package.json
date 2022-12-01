@@ -7,11 +7,12 @@
   "type": "module",
   "scripts": {
     "clear": "rm -rf dist",
+    "print:name": "echo '@gjsify/example-deno-module-jsonc'",
     "start": "yarn run build && yarn run start:gjs",
     "start:gjs": "gjs -m dist/index.gjs.js",
     "start:node": "node dist/index.node.js",
     "start:deno": "deno run dist/index.deno.js",
-    "build": "yarn run build:gjs && yarn run build:node && yarn run build:deno",
+    "build": "yarn print:name && yarn build:gjs && yarn run build:node && yarn run build:deno",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.js",
     "build:deno": "gjsify build src/index.ts --app deno --outfile dist/index.deno.js"
