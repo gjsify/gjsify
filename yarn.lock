@@ -424,9 +424,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-webgl-tutorial-08@workspace:examples/webgl-tutorial-07":
+"@gjsify/example-webgl-tutorial-07@workspace:examples/webgl-tutorial-07":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-webgl-tutorial-08@workspace:examples/webgl-tutorial-07"
+  resolution: "@gjsify/example-webgl-tutorial-07@workspace:examples/webgl-tutorial-07"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
