@@ -1,1 +1,0 @@
-export * from '../ext/console/lib.deno_console.d.js';

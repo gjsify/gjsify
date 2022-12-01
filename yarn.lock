@@ -200,19 +200,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/deno-runtime_old@workspace:packages/deno/runtime_old":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/deno-runtime_old@workspace:packages/deno/runtime_old"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/empty": "workspace:^"
-    "@gjsify/unit": "workspace:^"
-    "@tsconfig/deno": "npm:^1.0.6"
-    "@types/node": "npm:^18.11.9"
-    typescript: "npm:^4.9.3"
-  languageName: unknown
-  linkType: soft
-
 "@gjsify/deno_std@workspace:packages/node/deno_std":
   version: 0.0.0-use.local
   resolution: "@gjsify/deno_std@workspace:packages/node/deno_std"
