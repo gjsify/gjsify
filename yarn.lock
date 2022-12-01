@@ -316,6 +316,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-deepkit-types@workspace:examples/deepkit-types"
   dependencies:
+    "@deepkit/core": "npm:^1.0.1-alpha.75"
     "@deepkit/type": "npm:^1.0.1-alpha.75"
     "@gjsify/cli": "workspace:^"
     "@types/node": "npm:^18.11.9"
