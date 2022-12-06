@@ -35,7 +35,7 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
         conditions: ['import'],
         format: 'esm',
         plugins: [
-            globPlugin(),
+            globPlugin({ignore: pluginOptions.exclude}),
             deepkitPlugin({reflection: pluginOptions.reflection}),
         ]
     };

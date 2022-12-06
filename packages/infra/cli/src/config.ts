@@ -61,6 +61,7 @@ export class Config {
 
         // TODO replace with `cliArgs.logLevel`
         configData.verbose = cliArgs.verbose || false;
+        configData.exclude = cliArgs.exclude || [];
 
         merge(configData.library, pkg, configData.library);
         merge(configData.typescript, tsConfig, configData.typescript);

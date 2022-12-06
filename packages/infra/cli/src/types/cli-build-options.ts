@@ -31,4 +31,6 @@ export interface CliBuildOptions {
    * @see https://esbuild.github.io/api/#log-level
    */
   logLevel: 'silent' | 'error' | 'warning' | 'info' | 'debug' | 'verbose';
+  /** An array of glob patterns to exclude matches and aliases */
+  exclude?: string[];
 }

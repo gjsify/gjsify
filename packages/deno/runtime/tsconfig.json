@@ -1,7 +1,9 @@
 {
-    "extends": "@tsconfig/deno/tsconfig.json",
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "display": "Deno",
     "compilerOptions": {
-        "lib": ["DOM"],
+        "jsx": "react",
+        "lib": [],
         "module": "ESNext",
         "target": "ESNext",
         "moduleResolution": "Node",
@@ -16,6 +18,6 @@
     "allowJs": true,
     "checkJs": false,
     "reflection": false,
-    "include": ["src/core/**/*.ts", "src/ext/**/*.ts", "src/ops/**/*.ts", "src/runtime/**/*.ts", "src/types/**/*.ts"],
+    "include": ["src/core/**/*.ts", "src/ext/**/*.ts", "src/ops/**/*.ts", "src/runtime/**/*.ts", "src/types/**/*.ts", "src/cli/js/*.ts", "src/cli/ops/*.ts", "src/*.ts", "src/cli/tsc/dts/lib.deno.*.d.ts"],
     "exclude": []
-  }
+}

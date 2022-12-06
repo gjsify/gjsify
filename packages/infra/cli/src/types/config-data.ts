@@ -7,4 +7,6 @@ export interface ConfigData {
     esbuild?: EsbuildOptions;
     library?: ConfigDataLibrary;
     typescript?: ConfigDataTypescript;
+    /** An array of glob patterns to exclude matches and aliases */
+    exclude?: string[];
 }

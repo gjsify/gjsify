@@ -30,7 +30,7 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
         conditions: ['require'],
         format: 'cjs',
         plugins: [
-            globPlugin(),
+            globPlugin({ignore: pluginOptions.exclude}),
             deepkitPlugin({reflection: pluginOptions.reflection}),
         ]
     };

@@ -2,7 +2,6 @@ import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
 import { build, BuildOptions } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
-import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
 import { dirname } from 'path';
 
 export class BuildAction {

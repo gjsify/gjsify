@@ -39,7 +39,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
             window: 'globalThis',
         },
         plugins: [
-            // globPlugin(),
+            // globPlugin({ignore: pluginOptions.exclude}),
             // deepkitPlugin({reflection: pluginOptions.reflection}),
         ]
     };
@@ -57,7 +57,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
-    await globPlugin().setup(build);
+    await globPlugin({ignore: pluginOptions.exclude}).setup(build);
     // await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
     await deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 }

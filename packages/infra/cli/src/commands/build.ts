@@ -18,6 +18,13 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                     return [...new Set(arg)];
                 }
             })
+            .option('exclude', {
+                description: "An array of glob patterns to exclude entry-points and aliases",
+                array: true,
+                type: 'string',
+                normalize: true,
+                default: []
+            })
             .option('verbose', {
                 description: "Switch on the verbose mode",
                 type: 'boolean',

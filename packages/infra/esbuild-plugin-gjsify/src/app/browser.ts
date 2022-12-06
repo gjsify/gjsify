@@ -38,7 +38,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
             window: 'globalThis',
         },
         plugins: [
-            // globPlugin(),
+            // {ignore: pluginOptions.exclude}),
             // deepkitPlugin({reflection: pluginOptions.reflection}),
             // denoPlugin({reflection: pluginOptions.reflection}),
         ]
@@ -57,7 +57,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
-    await globPlugin().setup(build);
+    await globPlugin({ignore: pluginOptions.exclude}).setup(build);
     await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
     await deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 }

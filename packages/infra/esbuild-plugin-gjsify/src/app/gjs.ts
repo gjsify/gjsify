@@ -52,7 +52,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             'process.env.NODE_DEBUG': 'false',
         },
         plugins: [
-            // globPlugin(),
+            // globPlugin({ignore: pluginOptions.exclude}),
             // deepkitPlugin({reflection: pluginOptions.reflection}),
             // denoPlugin({reflection: pluginOptions.reflection}),
         ]
@@ -71,7 +71,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
-    await globPlugin().setup(build);
+    await globPlugin({ignore: pluginOptions.exclude}).setup(build);
     await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
     await deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 }

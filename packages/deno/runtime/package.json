@@ -23,11 +23,12 @@
         }
     },
     "scripts": {
-        "clear": "rm -rf lib",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/deno-runtime'",
         "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
-        "build:gjsify": "gjsify build --library src/{core,ext,ops,runtime,types}/*.{ts,js}",
+        "build:gjsify": "mkdir lib -p && gjsify build --library src/{core,ext,ops,runtime,types}/**/*.ts src/cli/{js,ops}/*.ts src/*.ts --exclude **/*.d.ts lib",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
+        "copy:types": "rm -rf lib/cli/tsc && mkdir -p lib/cli/tsc && cp -r src/cli/tsc/dts lib/cli/tsc/dts",
         "build:test": "yarn run build:test:gjs && yarn run build:test:deno",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "build:test:deno": "gjsify build src/test.ts --app deno --outfile test.deno.js",
@@ -35,8 +36,9 @@
         "test:gjs": "gjs -m test.gjs.js",
         "test:deno": "deno run --unstable --allow-env test.deno.js",
         "git:upstream:init": "cd src && git remote add upstream https://github.com/denoland/deno.git || exit 0",
-        "git:upstream:merge": "cd src && git fetch upstream && git merge upstream/main",
-        "git:upstream": "yarn git:upstream:init && yarn git:upstream:merge"
+        "git:upstream:diff": "open-cli https://github.com/gjsify/deno/compare/main...denoland:deno:main",
+        "git:upstream:_merge": "cd src && git fetch upstream && git merge upstream/main",
+        "git:upstream:merge": "yarn git:upstream:init && yarn git:upstream:diff && yarn git:upstream:_merge"
     },
     "keywords": [
         "gjs",
@@ -48,7 +50,8 @@
         "@gjsify/empty": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@tsconfig/deno": "^1.0.6",
-        "@types/node": "^18.11.10",
+        "@types/node": "^18.11.11",
+        "open-cli": "^7.1.0",
         "typescript": "^4.9.3"
     }
 }

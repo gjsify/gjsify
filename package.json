@@ -12,7 +12,8 @@
     "test": "yarn workspaces foreach --no-private --parallel run test",
     "clear": "yarn workspaces foreach --no-private --parallel run clear",
     "print:name": "echo 'gjsify (root)'",
-    "build": "yarn print:name && yarn build:infra && yarn run build:gjs && yarn run build:all",
+    "print:yarn": "echo 'Using yarn' && yarn --version",
+    "build": "yarn print:name && yarn print:yarn && yarn build:infra && yarn run build:gjs && yarn run build:all",
     "build:infra": "yarn workspace @gjsify/resolve-npm run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-deno-loader run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/cli run build",
     "build:gjs": "yarn workspace @gjsify/types run build && yarn workspace @gjsify/utils run build && yarn workspace @gjsify/unit run build",
     "build:all": "yarn workspaces foreach --no-private --parallel run build"
@@ -34,7 +35,8 @@
     "@deepkit/type": "portal:../deepkit-framework/packages/type",
     "@deepkit/type-compiler": "portal:../deepkit-framework/packages/type-compiler",
     "@deepkit/type-spec": "portal:../deepkit-framework/packages/type-spec",
-    "@ts-for-gir/cli": "portal:../../ts-for-gir/packages/cli/"
+    "@ts-for-gir/cli": "portal:../../ts-for-gir/packages/cli/",
+    "esbuild-plugin-glob": "portal:../../esbuild-plugin-glob"
   },
   "workspaces": [
     "packages/infra/*",
