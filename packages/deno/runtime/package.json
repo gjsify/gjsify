@@ -25,14 +25,15 @@
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/deno-runtime'",
-        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
+        "build": "yarn print:name && yarn build:gjsify && yarn build:types && yarn sync:dts",
         "build:gjsify": "mkdir lib -p && gjsify build --library src/{core,ext,ops,runtime,types}/**/*.ts src/cli/{js,ops}/*.ts src/*.ts --exclude **/*.d.ts lib",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "copy:types": "rm -rf lib/cli/tsc && mkdir -p lib/cli/tsc && cp -r src/cli/tsc/dts lib/cli/tsc/dts",
-        "build:test": "yarn run build:test:gjs && yarn run build:test:deno",
+        "build:test": "yarn run build:test:gjs && yarn build:test:deno",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "build:test:deno": "gjsify build src/test.ts --app deno --outfile test.deno.js",
-        "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:gjs && yarn run test:deno",
+        "sync:dts": "node copy-d-ts-files.mjs",
+        "test": "yarn run print:name && yarn build && yarn build:test && yarn test:gjs && yarn test:deno",
         "test:gjs": "gjs -m test.gjs.js",
         "test:deno": "deno run --unstable --allow-env test.deno.js",
         "git:upstream:init": "cd src && git remote add upstream https://github.com/denoland/deno.git || exit 0",
@@ -51,6 +52,7 @@
         "@gjsify/unit": "workspace:^",
         "@tsconfig/deno": "^1.0.6",
         "@types/node": "^18.11.11",
+        "fast-glob": "^3.2.12",
         "open-cli": "^7.1.0",
         "typescript": "^4.9.3"
     }

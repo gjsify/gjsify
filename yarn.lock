@@ -196,6 +196,7 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@tsconfig/deno": "npm:^1.0.6"
     "@types/node": "npm:^18.11.11"
+    fast-glob: "npm:^3.2.12"
     open-cli: "npm:^7.1.0"
     typescript: "npm:^4.9.3"
   languageName: unknown
