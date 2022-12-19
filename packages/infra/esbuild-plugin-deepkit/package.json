@@ -19,10 +19,10 @@
         "fs"
     ],
     "dependencies": {
-        "@deepkit/type-compiler": "^1.0.1-alpha.77"
+        "@deepkit/type-compiler": "^1.0.1-alpha.83"
     },
     "devDependencies": {
-        "esbuild": "^0.15.18",
-        "typescript": "^4.9.3"
+        "esbuild": "^0.16.9",
+        "typescript": "^4.9.4"
     }
 }

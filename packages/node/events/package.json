@@ -23,7 +23,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.11.11"
+        "@types/node": "^18.11.17"
     },
     "dependencies": {
         "@gjsify/event-target": "workspace:^",

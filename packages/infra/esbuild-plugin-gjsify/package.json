@@ -20,8 +20,8 @@
     ],
     "dependencies": {
         "@deepkit/core": "^1.0.1-alpha.77",
-        "@deepkit/injector": "^1.0.1-alpha.77",
-        "@deepkit/type": "^1.0.1-alpha.77",
+        "@deepkit/injector": "^1.0.1-alpha.85",
+        "@deepkit/type": "^1.0.1-alpha.85",
         "@gjsify/assert": "workspace:^",
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-deno-loader": "workspace:^",
@@ -48,8 +48,8 @@
     },
     "devDependencies": {
         "@types/lodash": "^4.14.191",
-        "esbuild": "^0.15.18",
+        "esbuild": "^0.16.9",
         "lodash": "^4.17.21",
-        "typescript": "^4.9.3"
+        "typescript": "^4.9.4"
     }
 }

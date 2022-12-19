@@ -51,9 +51,9 @@
         "@gjsify/empty": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@tsconfig/deno": "^1.0.6",
-        "@types/node": "^18.11.11",
+        "@types/node": "^18.11.17",
         "fast-glob": "^3.2.12",
         "open-cli": "^7.1.0",
-        "typescript": "^4.9.3"
+        "typescript": "^4.9.4"
     }
 }
