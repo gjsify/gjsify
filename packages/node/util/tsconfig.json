@@ -3,7 +3,7 @@
     "module": "ESNext",
     "types": ["node"],
     "target": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "NodeNext",
     "experimentalDecorators": true,
     "outDir": "lib",
     "declarationDir": "lib/types",

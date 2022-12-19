@@ -5,7 +5,7 @@
     "outDir": "dist",
     "declarationDir": "dist",
     "declaration": true,
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "allowSyntheticDefaultImports": true
   },
   "files": ["src/index.ts"]

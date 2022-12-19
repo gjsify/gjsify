@@ -6,7 +6,7 @@
         "lib": [],
         "module": "ESNext",
         "target": "ESNext",
-        "moduleResolution": "Node",
+        "moduleResolution": "NodeNext",
         "outDir": "lib",
         "declarationDir": "lib",
         "rootDir": "src",
