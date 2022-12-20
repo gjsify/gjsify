@@ -5,6 +5,7 @@
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
   "types": "lib/types/index.d.ts",
+  "type": "module",
   "scripts": {
     "print:name": "echo '@gjsify/unit'",
     "build": "yarn print:name && yarn build:gjsify && yarn run build:types",

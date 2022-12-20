@@ -1,4 +1,5 @@
 import { run } from '@gjsify/unit';
-import indexSuiteStreams from './index.spec.js';
+import processSuite from './process.spec.js';
+import ttdSuite from './tty.spec.js';
 
-run({indexSuiteStreams});
+run({ttdSuite, processSuite});

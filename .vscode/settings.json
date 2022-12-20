@@ -29,6 +29,7 @@
         "tform",
         "Toks",
         "utype",
+        "webgl",
         "webgpu",
         "webidl",
         "xloc"

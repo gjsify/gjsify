@@ -2,8 +2,9 @@
     "name": "@gjsify/fetch",
     "version": "0.0.1",
     "description": "Web and Node.js fetch module for Gjs",
-    "main": "lib/cjs/index.js",
+    "main": "lib/cjs/index.cjs",
     "module": "lib/esm/index.js",
+    "type": "module",
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/fetch'",

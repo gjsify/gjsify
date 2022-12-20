@@ -3,7 +3,11 @@ import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
 
 export * from './cli.js';
+export * from './fs.js';
 export * from './os.js';
+export * from './process.js';
+export * from './system.js';
+export * from './tty.js';
 
 const byteArray = imports.byteArray;
 const { File } = Gio;

@@ -1,9 +1,10 @@
 import GLib from '@gjsify/types/GLib-2.0';
 import Gio from '@gjsify/types/Gio-2.0';
+import { existsSync } from '@gjsify/utils';
 import { Buffer } from 'buffer';
 import { join } from 'path';
 
-import FSWatcher from './fs-watcher';
+import FSWatcher from './fs-watcher.js';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
 import { FileHandle } from './file-handle.js';
 import { Dirent } from './dirent.js';
@@ -12,15 +13,7 @@ import { tempDirPath } from './utils.js';
 import type { PathLike, Mode, OpenFlags, MakeDirectoryOptions, BufferEncodingOption, EncodingOption, RmOptions, RmDirOptions } from './types/index.js';
 import type { ObjectEncodingOptions } from 'fs'; // Types from @types/node
 
-export function existsSync(path: string) {
-  // TODO: accept buffer and URL too
-  if (typeof path !== 'string' || path === '') {
-    return false;
-  }
-
-  const file = Gio.File.new_for_path(path);
-  return file.query_exists(null);
-}
+export { existsSync }
 
 /**
  * Reads the contents of the directory.
