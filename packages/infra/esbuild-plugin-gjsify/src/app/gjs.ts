@@ -49,7 +49,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             global: 'globalThis',
             window: 'globalThis',
             // WORKAROUND
-            'process.env.NODE_DEBUG': 'false',
+            // 'process.env.NODE_DEBUG': 'false',
         },
         plugins: [
             // globPlugin({ignore: pluginOptions.exclude}),

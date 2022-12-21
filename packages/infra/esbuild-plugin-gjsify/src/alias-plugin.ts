@@ -12,14 +12,24 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
         // we do not register 'file' namespace here, because the root file won't be processed
         // https://github.com/evanw/esbuild/issues/791
         build.onResolve({ filter: re }, (args) => {
-          const resolvedAlias = aliasObj[args.path];
+          let resolvedAlias = aliasObj[args.path];
 
           // console.debug(`aliasPlugin: ${args.path} -> ${resolvedAlias}`);
+
+          let namespace = args.namespace;
+
+          if(resolvedAlias.startsWith('http://')) {
+            namespace = 'http';
+            resolvedAlias = resolvedAlias.slice(5)
+          } else if(resolvedAlias.startsWith('https://')) {
+            namespace = 'https';
+            resolvedAlias = resolvedAlias.slice(6)
+          } 
 
           if (resolvedAlias) {
             return {
               path: resolvedAlias,
-              namespace: args.namespace,
+              namespace: namespace,
             }
           }
 

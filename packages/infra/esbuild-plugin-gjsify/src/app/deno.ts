@@ -1,6 +1,6 @@
 import { aliasPlugin } from '../alias-plugin.js';
 import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
-// import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
+import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import { globPlugin } from 'esbuild-plugin-glob';
 import { merge } from "lodash";
 
@@ -58,6 +58,6 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
 
     await aliasPlugin(aliases).setup(build);
     await globPlugin({ignore: pluginOptions.exclude}).setup(build);
-    // await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
+    await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
     await deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 }
