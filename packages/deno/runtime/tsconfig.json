@@ -3,7 +3,9 @@
     "display": "Deno",
     "compilerOptions": {
         "jsx": "react",
-        "lib": [],
+        "noLib": true,
+        // "lib": [],
+        "types": [],
         "module": "ESNext",
         "target": "ESNext",
         "moduleResolution": "NodeNext",

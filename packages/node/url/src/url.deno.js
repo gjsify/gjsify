@@ -11,10 +11,8 @@ function hideStackFrames(fn) {
     return fn;
 }
 const _toString = Object.prototype.toString;
-const _isObjectLike = (value)=>value !== null && typeof value === "object"
-;
-const _isFunctionLike = (value)=>value !== null && typeof value === "function"
-;
+const _isObjectLike = (value)=>value !== null && typeof value === "object";
+const _isFunctionLike = (value)=>value !== null && typeof value === "function";
 function isAnyArrayBuffer(value) {
     return _isObjectLike(value) && (_toString.call(value) === "[object ArrayBuffer]" || _toString.call(value) === "[object SharedArrayBuffer]");
 }
@@ -143,11 +141,23 @@ const mod = {
     default: __default
 };
 Symbol("kHandle");
-Symbol("kKeyObject");
-Symbol("kKeyType");
+const kKeyObject = Symbol("kKeyObject");
+const kKeyType = Symbol("kKeyType");
+function isKeyObject(obj) {
+    return obj != null && obj[kKeyType] !== undefined;
+}
+function isCryptoKey(obj) {
+    return obj != null && obj[kKeyObject] !== undefined;
+}
 const _getTypedArrayToStringTag = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(Uint8Array).prototype, Symbol.toStringTag).get;
 function isArrayBufferView(value) {
     return ArrayBuffer.isView(value);
+}
+function isBigInt64Array(value) {
+    return _getTypedArrayToStringTag.call(value) === "BigInt64Array";
+}
+function isBigUint64Array(value) {
+    return _getTypedArrayToStringTag.call(value) === "BigUint64Array";
 }
 function isFloat32Array(value) {
     return _getTypedArrayToStringTag.call(value) === "Float32Array";
@@ -155,13 +165,73 @@ function isFloat32Array(value) {
 function isFloat64Array(value) {
     return _getTypedArrayToStringTag.call(value) === "Float64Array";
 }
+function isInt8Array(value) {
+    return _getTypedArrayToStringTag.call(value) === "Int8Array";
+}
+function isInt16Array(value) {
+    return _getTypedArrayToStringTag.call(value) === "Int16Array";
+}
+function isInt32Array(value) {
+    return _getTypedArrayToStringTag.call(value) === "Int32Array";
+}
 function isTypedArray(value) {
     return _getTypedArrayToStringTag.call(value) !== undefined;
 }
 function isUint8Array(value) {
     return _getTypedArrayToStringTag.call(value) === "Uint8Array";
 }
-const { isDate: isDate1 , isArgumentsObject: isArgumentsObject1 , isBigIntObject: isBigIntObject1 , isBooleanObject: isBooleanObject1 , isNumberObject: isNumberObject1 , isStringObject: isStringObject1 , isSymbolObject: isSymbolObject1 , isNativeError: isNativeError1 , isRegExp: isRegExp1 , isAsyncFunction: isAsyncFunction1 , isGeneratorFunction: isGeneratorFunction1 , isGeneratorObject: isGeneratorObject1 , isPromise: isPromise1 , isMap: isMap1 , isSet: isSet1 , isMapIterator: isMapIterator1 , isSetIterator: isSetIterator1 , isWeakMap: isWeakMap1 , isWeakSet: isWeakSet1 , isArrayBuffer: isArrayBuffer1 , isDataView: isDataView1 , isSharedArrayBuffer: isSharedArrayBuffer1 , isModuleNamespaceObject: isModuleNamespaceObject1 , isAnyArrayBuffer: isAnyArrayBuffer1 , isBoxedPrimitive: isBoxedPrimitive1 ,  } = mod;
+function isUint8ClampedArray(value) {
+    return _getTypedArrayToStringTag.call(value) === "Uint8ClampedArray";
+}
+function isUint16Array(value) {
+    return _getTypedArrayToStringTag.call(value) === "Uint16Array";
+}
+function isUint32Array(value) {
+    return _getTypedArrayToStringTag.call(value) === "Uint32Array";
+}
+const { isDate: isDate1 , isArgumentsObject: isArgumentsObject1 , isBigIntObject: isBigIntObject1 , isBooleanObject: isBooleanObject1 , isNumberObject: isNumberObject1 , isStringObject: isStringObject1 , isSymbolObject: isSymbolObject1 , isNativeError: isNativeError1 , isRegExp: isRegExp1 , isAsyncFunction: isAsyncFunction1 , isGeneratorFunction: isGeneratorFunction1 , isGeneratorObject: isGeneratorObject1 , isPromise: isPromise1 , isMap: isMap1 , isSet: isSet1 , isMapIterator: isMapIterator1 , isSetIterator: isSetIterator1 , isWeakMap: isWeakMap1 , isWeakSet: isWeakSet1 , isArrayBuffer: isArrayBuffer1 , isDataView: isDataView1 , isSharedArrayBuffer: isSharedArrayBuffer1 , isModuleNamespaceObject: isModuleNamespaceObject1 , isAnyArrayBuffer: isAnyArrayBuffer1 , isBoxedPrimitive: isBoxedPrimitive1  } = mod;
+const mod1 = {
+    isCryptoKey: isCryptoKey,
+    isKeyObject: isKeyObject,
+    isArrayBufferView: isArrayBufferView,
+    isBigInt64Array: isBigInt64Array,
+    isBigUint64Array: isBigUint64Array,
+    isFloat32Array: isFloat32Array,
+    isFloat64Array: isFloat64Array,
+    isInt8Array: isInt8Array,
+    isInt16Array: isInt16Array,
+    isInt32Array: isInt32Array,
+    isTypedArray: isTypedArray,
+    isUint8Array: isUint8Array,
+    isUint8ClampedArray: isUint8ClampedArray,
+    isUint16Array: isUint16Array,
+    isUint32Array: isUint32Array,
+    isDate: isDate1,
+    isArgumentsObject: isArgumentsObject1,
+    isBigIntObject: isBigIntObject1,
+    isBooleanObject: isBooleanObject1,
+    isNumberObject: isNumberObject1,
+    isStringObject: isStringObject1,
+    isSymbolObject: isSymbolObject1,
+    isNativeError: isNativeError1,
+    isRegExp: isRegExp1,
+    isAsyncFunction: isAsyncFunction1,
+    isGeneratorFunction: isGeneratorFunction1,
+    isGeneratorObject: isGeneratorObject1,
+    isPromise: isPromise1,
+    isMap: isMap1,
+    isSet: isSet1,
+    isMapIterator: isMapIterator1,
+    isSetIterator: isSetIterator1,
+    isWeakMap: isWeakMap1,
+    isWeakSet: isWeakSet1,
+    isArrayBuffer: isArrayBuffer1,
+    isDataView: isDataView1,
+    isSharedArrayBuffer: isSharedArrayBuffer1,
+    isModuleNamespaceObject: isModuleNamespaceObject1,
+    isAnyArrayBuffer: isAnyArrayBuffer1,
+    isBoxedPrimitive: isBoxedPrimitive1
+};
 function normalizeEncoding(enc) {
     if (enc == null || enc === "utf8" || enc === "utf-8") return "utf8";
     return slowCases(enc);
@@ -290,13 +360,12 @@ function validateString(value, name) {
 }
 hideStackFrames((value, name, oneOf)=>{
     if (!Array.prototype.includes.call(oneOf, value)) {
-        const allowed = Array.prototype.join.call(Array.prototype.map.call(oneOf, (v)=>typeof v === "string" ? `'${v}'` : String(v)
-        ), ", ");
+        const allowed = Array.prototype.join.call(Array.prototype.map.call(oneOf, (v)=>typeof v === "string" ? `'${v}'` : String(v)), ", ");
         const reason = "must be one of: " + allowed;
         throw new codes.ERR_INVALID_ARG_VALUE(name, value, reason);
     }
 });
-hideStackFrames((callback)=>{
+const validateCallback = hideStackFrames((callback)=>{
     if (typeof callback !== "function") {
         throw new codes.ERR_INVALID_CALLBACK(callback);
     }
@@ -339,33 +408,33 @@ function promisify(original) {
         });
     }
     const argumentNames = original[kCustomPromisifyArgsSymbol];
-    function fn(...args) {
-        return new Promise((resolve4, reject)=>{
+    function fn1(...args) {
+        return new Promise((resolve, reject)=>{
             args.push((err, ...values)=>{
                 if (err) {
                     return reject(err);
                 }
                 if (argumentNames !== undefined && values.length > 1) {
                     const obj = {};
-                    for(let i2 = 0; i2 < argumentNames.length; i2++){
-                        obj[argumentNames[i2]] = values[i2];
+                    for(let i = 0; i < argumentNames.length; i++){
+                        obj[argumentNames[i]] = values[i];
                     }
-                    resolve4(obj);
+                    resolve(obj);
                 } else {
-                    resolve4(values[0]);
+                    resolve(values[0]);
                 }
             });
             Reflect.apply(original, this, args);
         });
     }
-    Object.setPrototypeOf(fn, Object.getPrototypeOf(original));
-    Object.defineProperty(fn, kCustomPromisifiedSymbol, {
-        value: fn,
+    Object.setPrototypeOf(fn1, Object.getPrototypeOf(original));
+    Object.defineProperty(fn1, kCustomPromisifiedSymbol, {
+        value: fn1,
         enumerable: false,
         writable: false,
         configurable: true
     });
-    return Object.defineProperties(fn, Object.getOwnPropertyDescriptors(original));
+    return Object.defineProperties(fn1, Object.getOwnPropertyDescriptors(original));
 }
 promisify.custom = kCustomPromisifiedSymbol;
 let core;
@@ -385,6 +454,7 @@ if (false) {
         }
     };
 }
+let _exiting = false;
 const kSize = 2048;
 const kMask = 2048 - 1;
 class FixedCircularBuffer {
@@ -489,39 +559,710 @@ if (typeof core.setNextTickCallback !== "undefined") {
     }
     core.setNextTickCallback(processTicksAndRejections);
     core.setMacrotaskCallback(runNextTicks);
-} else {}
+    function __nextTickNative(callback, ...args) {
+        validateCallback(callback);
+        if (_exiting) {
+            return;
+        }
+        let args_;
+        switch(args.length){
+            case 0:
+                break;
+            case 1:
+                args_ = [
+                    args[0]
+                ];
+                break;
+            case 2:
+                args_ = [
+                    args[0],
+                    args[1]
+                ];
+                break;
+            case 3:
+                args_ = [
+                    args[0],
+                    args[1],
+                    args[2]
+                ];
+                break;
+            default:
+                args_ = new Array(args.length);
+                for(let i = 0; i < args.length; i++){
+                    args_[i] = args[i];
+                }
+        }
+        if (queue.isEmpty()) {
+            core.setHasTickScheduled(true);
+        }
+        const tickObject = {
+            callback,
+            args: args_
+        };
+        queue.push(tickObject);
+    }
+    __nextTickNative;
+} else {
+    function __nextTickQueueMicrotask(callback, ...args) {
+        if (args) {
+            queueMicrotask(()=>callback.call(this, ...args));
+        } else {
+            queueMicrotask(callback);
+        }
+    }
+    __nextTickQueueMicrotask;
+}
 var State;
-(function(State1) {
-    State1[State1["PASSTHROUGH"] = 0] = "PASSTHROUGH";
-    State1[State1["PERCENT"] = 1] = "PERCENT";
-    State1[State1["POSITIONAL"] = 2] = "POSITIONAL";
-    State1[State1["PRECISION"] = 3] = "PRECISION";
-    State1[State1["WIDTH"] = 4] = "WIDTH";
+(function(State) {
+    State[State["PASSTHROUGH"] = 0] = "PASSTHROUGH";
+    State[State["PERCENT"] = 1] = "PERCENT";
+    State[State["POSITIONAL"] = 2] = "POSITIONAL";
+    State[State["PRECISION"] = 3] = "PRECISION";
+    State[State["WIDTH"] = 4] = "WIDTH";
 })(State || (State = {}));
 var WorP;
-(function(WorP1) {
-    WorP1[WorP1["WIDTH"] = 0] = "WIDTH";
-    WorP1[WorP1["PRECISION"] = 1] = "PRECISION";
+(function(WorP) {
+    WorP[WorP["WIDTH"] = 0] = "WIDTH";
+    WorP[WorP["PRECISION"] = 1] = "PRECISION";
 })(WorP || (WorP = {}));
+class Flags {
+    plus;
+    dash;
+    sharp;
+    space;
+    zero;
+    lessthan;
+    width = -1;
+    precision = -1;
+}
+const min = Math.min;
+const UNICODE_REPLACEMENT_CHARACTER = "\ufffd";
+const FLOAT_REGEXP = /(-?)(\d)\.?(\d*)e([+-])(\d+)/;
 var F;
-(function(F1) {
-    F1[F1["sign"] = 1] = "sign";
-    F1[F1["mantissa"] = 2] = "mantissa";
-    F1[F1["fractional"] = 3] = "fractional";
-    F1[F1["esign"] = 4] = "esign";
-    F1[F1["exponent"] = 5] = "exponent";
+(function(F) {
+    F[F["sign"] = 1] = "sign";
+    F[F["mantissa"] = 2] = "mantissa";
+    F[F["fractional"] = 3] = "fractional";
+    F[F["esign"] = 4] = "esign";
+    F[F["exponent"] = 5] = "exponent";
 })(F || (F = {}));
+class Printf {
+    format;
+    args;
+    i;
+    state = State.PASSTHROUGH;
+    verb = "";
+    buf = "";
+    argNum = 0;
+    flags = new Flags();
+    haveSeen;
+    tmpError;
+    constructor(format, ...args){
+        this.format = format;
+        this.args = args;
+        this.haveSeen = Array.from({
+            length: args.length
+        });
+        this.i = 0;
+    }
+    doPrintf() {
+        for(; this.i < this.format.length; ++this.i){
+            const c = this.format[this.i];
+            switch(this.state){
+                case State.PASSTHROUGH:
+                    if (c === "%") {
+                        this.state = State.PERCENT;
+                    } else {
+                        this.buf += c;
+                    }
+                    break;
+                case State.PERCENT:
+                    if (c === "%") {
+                        this.buf += c;
+                        this.state = State.PASSTHROUGH;
+                    } else {
+                        this.handleFormat();
+                    }
+                    break;
+                default:
+                    throw Error("Should be unreachable, certainly a bug in the lib.");
+            }
+        }
+        let extras = false;
+        let err = "%!(EXTRA";
+        for(let i = 0; i !== this.haveSeen.length; ++i){
+            if (!this.haveSeen[i]) {
+                extras = true;
+                err += ` '${Deno.inspect(this.args[i])}'`;
+            }
+        }
+        err += ")";
+        if (extras) {
+            this.buf += err;
+        }
+        return this.buf;
+    }
+    handleFormat() {
+        this.flags = new Flags();
+        const flags = this.flags;
+        for(; this.i < this.format.length; ++this.i){
+            const c = this.format[this.i];
+            switch(this.state){
+                case State.PERCENT:
+                    switch(c){
+                        case "[":
+                            this.handlePositional();
+                            this.state = State.POSITIONAL;
+                            break;
+                        case "+":
+                            flags.plus = true;
+                            break;
+                        case "<":
+                            flags.lessthan = true;
+                            break;
+                        case "-":
+                            flags.dash = true;
+                            flags.zero = false;
+                            break;
+                        case "#":
+                            flags.sharp = true;
+                            break;
+                        case " ":
+                            flags.space = true;
+                            break;
+                        case "0":
+                            flags.zero = !flags.dash;
+                            break;
+                        default:
+                            if ("1" <= c && c <= "9" || c === "." || c === "*") {
+                                if (c === ".") {
+                                    this.flags.precision = 0;
+                                    this.state = State.PRECISION;
+                                    this.i++;
+                                } else {
+                                    this.state = State.WIDTH;
+                                }
+                                this.handleWidthAndPrecision(flags);
+                            } else {
+                                this.handleVerb();
+                                return;
+                            }
+                    }
+                    break;
+                case State.POSITIONAL:
+                    if (c === "*") {
+                        const worp = this.flags.precision === -1 ? WorP.WIDTH : WorP.PRECISION;
+                        this.handleWidthOrPrecisionRef(worp);
+                        this.state = State.PERCENT;
+                        break;
+                    } else {
+                        this.handleVerb();
+                        return;
+                    }
+                default:
+                    throw new Error(`Should not be here ${this.state}, library bug!`);
+            }
+        }
+    }
+    handleWidthOrPrecisionRef(wOrP) {
+        if (this.argNum >= this.args.length) {
+            return;
+        }
+        const arg = this.args[this.argNum];
+        this.haveSeen[this.argNum] = true;
+        if (typeof arg === "number") {
+            switch(wOrP){
+                case WorP.WIDTH:
+                    this.flags.width = arg;
+                    break;
+                default:
+                    this.flags.precision = arg;
+            }
+        } else {
+            const tmp = wOrP === WorP.WIDTH ? "WIDTH" : "PREC";
+            this.tmpError = `%!(BAD ${tmp} '${this.args[this.argNum]}')`;
+        }
+        this.argNum++;
+    }
+    handleWidthAndPrecision(flags) {
+        const fmt = this.format;
+        for(; this.i !== this.format.length; ++this.i){
+            const c = fmt[this.i];
+            switch(this.state){
+                case State.WIDTH:
+                    switch(c){
+                        case ".":
+                            this.flags.precision = 0;
+                            this.state = State.PRECISION;
+                            break;
+                        case "*":
+                            this.handleWidthOrPrecisionRef(WorP.WIDTH);
+                            break;
+                        default:
+                            {
+                                const val = parseInt(c);
+                                if (isNaN(val)) {
+                                    this.i--;
+                                    this.state = State.PERCENT;
+                                    return;
+                                }
+                                flags.width = flags.width == -1 ? 0 : flags.width;
+                                flags.width *= 10;
+                                flags.width += val;
+                            }
+                    }
+                    break;
+                case State.PRECISION:
+                    {
+                        if (c === "*") {
+                            this.handleWidthOrPrecisionRef(WorP.PRECISION);
+                            break;
+                        }
+                        const val1 = parseInt(c);
+                        if (isNaN(val1)) {
+                            this.i--;
+                            this.state = State.PERCENT;
+                            return;
+                        }
+                        flags.precision *= 10;
+                        flags.precision += val1;
+                        break;
+                    }
+                default:
+                    throw new Error("can't be here. bug.");
+            }
+        }
+    }
+    handlePositional() {
+        if (this.format[this.i] !== "[") {
+            throw new Error("Can't happen? Bug.");
+        }
+        let positional = 0;
+        const format = this.format;
+        this.i++;
+        let err = false;
+        for(; this.i !== this.format.length; ++this.i){
+            if (format[this.i] === "]") {
+                break;
+            }
+            positional *= 10;
+            const val = parseInt(format[this.i]);
+            if (isNaN(val)) {
+                this.tmpError = "%!(BAD INDEX)";
+                err = true;
+            }
+            positional += val;
+        }
+        if (positional - 1 >= this.args.length) {
+            this.tmpError = "%!(BAD INDEX)";
+            err = true;
+        }
+        this.argNum = err ? this.argNum : positional - 1;
+        return;
+    }
+    handleLessThan() {
+        const arg = this.args[this.argNum];
+        if ((arg || {}).constructor.name !== "Array") {
+            throw new Error(`arg ${arg} is not an array. Todo better error handling`);
+        }
+        let str = "[ ";
+        for(let i = 0; i !== arg.length; ++i){
+            if (i !== 0) str += ", ";
+            str += this._handleVerb(arg[i]);
+        }
+        return str + " ]";
+    }
+    handleVerb() {
+        const verb = this.format[this.i];
+        this.verb = verb;
+        if (this.tmpError) {
+            this.buf += this.tmpError;
+            this.tmpError = undefined;
+            if (this.argNum < this.haveSeen.length) {
+                this.haveSeen[this.argNum] = true;
+            }
+        } else if (this.args.length <= this.argNum) {
+            this.buf += `%!(MISSING '${verb}')`;
+        } else {
+            const arg = this.args[this.argNum];
+            this.haveSeen[this.argNum] = true;
+            if (this.flags.lessthan) {
+                this.buf += this.handleLessThan();
+            } else {
+                this.buf += this._handleVerb(arg);
+            }
+        }
+        this.argNum++;
+        this.state = State.PASSTHROUGH;
+    }
+    _handleVerb(arg) {
+        switch(this.verb){
+            case "t":
+                return this.pad(arg.toString());
+            case "b":
+                return this.fmtNumber(arg, 2);
+            case "c":
+                return this.fmtNumberCodePoint(arg);
+            case "d":
+                return this.fmtNumber(arg, 10);
+            case "o":
+                return this.fmtNumber(arg, 8);
+            case "x":
+                return this.fmtHex(arg);
+            case "X":
+                return this.fmtHex(arg, true);
+            case "e":
+                return this.fmtFloatE(arg);
+            case "E":
+                return this.fmtFloatE(arg, true);
+            case "f":
+            case "F":
+                return this.fmtFloatF(arg);
+            case "g":
+                return this.fmtFloatG(arg);
+            case "G":
+                return this.fmtFloatG(arg, true);
+            case "s":
+                return this.fmtString(arg);
+            case "T":
+                return this.fmtString(typeof arg);
+            case "v":
+                return this.fmtV(arg);
+            case "j":
+                return this.fmtJ(arg);
+            default:
+                return `%!(BAD VERB '${this.verb}')`;
+        }
+    }
+    pad(s) {
+        const padding = this.flags.zero ? "0" : " ";
+        if (this.flags.dash) {
+            return s.padEnd(this.flags.width, padding);
+        }
+        return s.padStart(this.flags.width, padding);
+    }
+    padNum(nStr, neg) {
+        let sign;
+        if (neg) {
+            sign = "-";
+        } else if (this.flags.plus || this.flags.space) {
+            sign = this.flags.plus ? "+" : " ";
+        } else {
+            sign = "";
+        }
+        const zero = this.flags.zero;
+        if (!zero) {
+            nStr = sign + nStr;
+        }
+        const pad = zero ? "0" : " ";
+        const len = zero ? this.flags.width - sign.length : this.flags.width;
+        if (this.flags.dash) {
+            nStr = nStr.padEnd(len, pad);
+        } else {
+            nStr = nStr.padStart(len, pad);
+        }
+        if (zero) {
+            nStr = sign + nStr;
+        }
+        return nStr;
+    }
+    fmtNumber(n, radix, upcase = false) {
+        let num = Math.abs(n).toString(radix);
+        const prec = this.flags.precision;
+        if (prec !== -1) {
+            this.flags.zero = false;
+            num = n === 0 && prec === 0 ? "" : num;
+            while(num.length < prec){
+                num = "0" + num;
+            }
+        }
+        let prefix = "";
+        if (this.flags.sharp) {
+            switch(radix){
+                case 2:
+                    prefix += "0b";
+                    break;
+                case 8:
+                    prefix += num.startsWith("0") ? "" : "0";
+                    break;
+                case 16:
+                    prefix += "0x";
+                    break;
+                default:
+                    throw new Error("cannot handle base: " + radix);
+            }
+        }
+        num = num.length === 0 ? num : prefix + num;
+        if (upcase) {
+            num = num.toUpperCase();
+        }
+        return this.padNum(num, n < 0);
+    }
+    fmtNumberCodePoint(n) {
+        let s = "";
+        try {
+            s = String.fromCodePoint(n);
+        } catch  {
+            s = UNICODE_REPLACEMENT_CHARACTER;
+        }
+        return this.pad(s);
+    }
+    fmtFloatSpecial(n) {
+        if (isNaN(n)) {
+            this.flags.zero = false;
+            return this.padNum("NaN", false);
+        }
+        if (n === Number.POSITIVE_INFINITY) {
+            this.flags.zero = false;
+            this.flags.plus = true;
+            return this.padNum("Inf", false);
+        }
+        if (n === Number.NEGATIVE_INFINITY) {
+            this.flags.zero = false;
+            return this.padNum("Inf", true);
+        }
+        return "";
+    }
+    roundFractionToPrecision(fractional, precision) {
+        let round = false;
+        if (fractional.length > precision) {
+            fractional = "1" + fractional;
+            let tmp = parseInt(fractional.substr(0, precision + 2)) / 10;
+            tmp = Math.round(tmp);
+            fractional = Math.floor(tmp).toString();
+            round = fractional[0] === "2";
+            fractional = fractional.substr(1);
+        } else {
+            while(fractional.length < precision){
+                fractional += "0";
+            }
+        }
+        return [
+            fractional,
+            round
+        ];
+    }
+    fmtFloatE(n, upcase = false) {
+        const special = this.fmtFloatSpecial(n);
+        if (special !== "") {
+            return special;
+        }
+        const m = n.toExponential().match(FLOAT_REGEXP);
+        if (!m) {
+            throw Error("can't happen, bug");
+        }
+        let fractional = m[F.fractional];
+        const precision = this.flags.precision !== -1 ? this.flags.precision : 6;
+        let rounding = false;
+        [fractional, rounding] = this.roundFractionToPrecision(fractional, precision);
+        let e = m[F.exponent];
+        let esign = m[F.esign];
+        let mantissa = parseInt(m[F.mantissa]);
+        if (rounding) {
+            mantissa += 1;
+            if (10 <= mantissa) {
+                mantissa = 1;
+                const r = parseInt(esign + e) + 1;
+                e = r.toString();
+                esign = r < 0 ? "-" : "+";
+            }
+        }
+        e = e.length == 1 ? "0" + e : e;
+        const val = `${mantissa}.${fractional}${upcase ? "E" : "e"}${esign}${e}`;
+        return this.padNum(val, n < 0);
+    }
+    fmtFloatF(n) {
+        const special = this.fmtFloatSpecial(n);
+        if (special !== "") {
+            return special;
+        }
+        function expandNumber(n) {
+            if (Number.isSafeInteger(n)) {
+                return n.toString() + ".";
+            }
+            const t = n.toExponential().split("e");
+            let m = t[0].replace(".", "");
+            const e = parseInt(t[1]);
+            if (e < 0) {
+                let nStr = "0.";
+                for(let i = 0; i !== Math.abs(e) - 1; ++i){
+                    nStr += "0";
+                }
+                return nStr += m;
+            } else {
+                const splIdx = e + 1;
+                while(m.length < splIdx){
+                    m += "0";
+                }
+                return m.substr(0, splIdx) + "." + m.substr(splIdx);
+            }
+        }
+        const val = expandNumber(Math.abs(n));
+        const arr = val.split(".");
+        let dig = arr[0];
+        let fractional = arr[1];
+        const precision = this.flags.precision !== -1 ? this.flags.precision : 6;
+        let round = false;
+        [fractional, round] = this.roundFractionToPrecision(fractional, precision);
+        if (round) {
+            dig = (parseInt(dig) + 1).toString();
+        }
+        return this.padNum(`${dig}.${fractional}`, n < 0);
+    }
+    fmtFloatG(n, upcase = false) {
+        const special = this.fmtFloatSpecial(n);
+        if (special !== "") {
+            return special;
+        }
+        let P = this.flags.precision !== -1 ? this.flags.precision : 6;
+        P = P === 0 ? 1 : P;
+        const m = n.toExponential().match(FLOAT_REGEXP);
+        if (!m) {
+            throw Error("can't happen");
+        }
+        const X = parseInt(m[F.exponent]) * (m[F.esign] === "-" ? -1 : 1);
+        let nStr = "";
+        if (P > X && X >= -4) {
+            this.flags.precision = P - (X + 1);
+            nStr = this.fmtFloatF(n);
+            if (!this.flags.sharp) {
+                nStr = nStr.replace(/\.?0*$/, "");
+            }
+        } else {
+            this.flags.precision = P - 1;
+            nStr = this.fmtFloatE(n);
+            if (!this.flags.sharp) {
+                nStr = nStr.replace(/\.?0*e/, upcase ? "E" : "e");
+            }
+        }
+        return nStr;
+    }
+    fmtString(s) {
+        if (this.flags.precision !== -1) {
+            s = s.substr(0, this.flags.precision);
+        }
+        return this.pad(s);
+    }
+    fmtHex(val, upper = false) {
+        switch(typeof val){
+            case "number":
+                return this.fmtNumber(val, 16, upper);
+            case "string":
+                {
+                    const sharp = this.flags.sharp && val.length !== 0;
+                    let hex = sharp ? "0x" : "";
+                    const prec = this.flags.precision;
+                    const end = prec !== -1 ? min(prec, val.length) : val.length;
+                    for(let i = 0; i !== end; ++i){
+                        if (i !== 0 && this.flags.space) {
+                            hex += sharp ? " 0x" : " ";
+                        }
+                        const c = (val.charCodeAt(i) & 0xff).toString(16);
+                        hex += c.length === 1 ? `0${c}` : c;
+                    }
+                    if (upper) {
+                        hex = hex.toUpperCase();
+                    }
+                    return this.pad(hex);
+                }
+            default:
+                throw new Error("currently only number and string are implemented for hex");
+        }
+    }
+    fmtV(val) {
+        if (this.flags.sharp) {
+            const options = this.flags.precision !== -1 ? {
+                depth: this.flags.precision
+            } : {};
+            return this.pad(Deno.inspect(val, options));
+        } else {
+            const p = this.flags.precision;
+            return p === -1 ? val.toString() : val.toString().substr(0, p);
+        }
+    }
+    fmtJ(val) {
+        return JSON.stringify(val);
+    }
+}
+function deferred() {
+    let methods;
+    let state = "pending";
+    const promise = new Promise((resolve, reject)=>{
+        methods = {
+            async resolve (value) {
+                await value;
+                state = "fulfilled";
+                resolve(value);
+            },
+            reject (reason) {
+                state = "rejected";
+                reject(reason);
+            }
+        };
+    });
+    Object.defineProperty(promise, "state", {
+        get: ()=>state
+    });
+    return Object.assign(promise, methods);
+}
+class MuxAsyncIterator {
+    #iteratorCount = 0;
+    #yields = [];
+    #throws = [];
+    #signal = deferred();
+    add(iterable) {
+        ++this.#iteratorCount;
+        this.#callIteratorNext(iterable[Symbol.asyncIterator]());
+    }
+    async #callIteratorNext(iterator) {
+        try {
+            const { value , done  } = await iterator.next();
+            if (done) {
+                --this.#iteratorCount;
+            } else {
+                this.#yields.push({
+                    iterator,
+                    value
+                });
+            }
+        } catch (e) {
+            this.#throws.push(e);
+        }
+        this.#signal.resolve();
+    }
+    async *iterate() {
+        while(this.#iteratorCount > 0){
+            await this.#signal;
+            for(let i = 0; i < this.#yields.length; i++){
+                const { iterator , value  } = this.#yields[i];
+                yield value;
+                this.#callIteratorNext(iterator);
+            }
+            if (this.#throws.length) {
+                for (const e of this.#throws){
+                    throw e;
+                }
+                this.#throws.length = 0;
+            }
+            this.#yields.length = 0;
+            this.#signal = deferred();
+        }
+    }
+    [Symbol.asyncIterator]() {
+        return this.iterate();
+    }
+}
 const { Deno: Deno1  } = globalThis;
 typeof Deno1?.noColor === "boolean" ? Deno1.noColor : true;
 new RegExp([
     "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)",
-    "(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))", 
+    "(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))"
 ].join("|"), "g");
 var DiffType;
-(function(DiffType1) {
-    DiffType1["removed"] = "removed";
-    DiffType1["common"] = "common";
-    DiffType1["added"] = "added";
+(function(DiffType) {
+    DiffType["removed"] = "removed";
+    DiffType["common"] = "common";
+    DiffType["added"] = "added";
 })(DiffType || (DiffType = {}));
 class AssertionError extends Error {
     name = "AssertionError";
@@ -551,11 +1292,11 @@ function indexOfNeedle(source, needle, start = 0) {
         start = Math.max(0, source.length + start);
     }
     const s = needle[0];
-    for(let i3 = start; i3 < source.length; i3++){
-        if (source[i3] !== s) continue;
-        const pin = i3;
+    for(let i = start; i < source.length; i++){
+        if (source[i] !== s) continue;
+        const pin = i;
         let matched = 1;
-        let j = i3;
+        let j = i;
         while(matched < needle.length){
             j++;
             if (source[j] !== needle[j - pin]) {
@@ -569,417 +1310,8 @@ function indexOfNeedle(source, needle, start = 0) {
     }
     return -1;
 }
-function copy(src, dst, off = 0) {
-    off = Math.max(0, Math.min(off, dst.byteLength));
-    const dstBytesAvailable = dst.byteLength - off;
-    if (src.byteLength > dstBytesAvailable) {
-        src = src.subarray(0, dstBytesAvailable);
-    }
-    dst.set(src, off);
-    return src.byteLength;
-}
-const MIN_BUF_SIZE = 16;
-const CR = "\r".charCodeAt(0);
-const LF = "\n".charCodeAt(0);
-class BufferFullError extends Error {
-    name;
-    constructor(partial){
-        super("Buffer full");
-        this.partial = partial;
-        this.name = "BufferFullError";
-    }
-    partial;
-}
-class PartialReadError extends Error {
-    name = "PartialReadError";
-    partial;
-    constructor(){
-        super("Encountered UnexpectedEof, data only partially read");
-    }
-}
-class BufReader {
-    #buf;
-    #rd;
-    #r = 0;
-    #w = 0;
-    #eof = false;
-    static create(r, size = 4096) {
-        return r instanceof BufReader ? r : new BufReader(r, size);
-    }
-    constructor(rd, size = 4096){
-        if (size < 16) {
-            size = MIN_BUF_SIZE;
-        }
-        this.#reset(new Uint8Array(size), rd);
-    }
-    size() {
-        return this.#buf.byteLength;
-    }
-    buffered() {
-        return this.#w - this.#r;
-    }
-    #fill = async ()=>{
-        if (this.#r > 0) {
-            this.#buf.copyWithin(0, this.#r, this.#w);
-            this.#w -= this.#r;
-            this.#r = 0;
-        }
-        if (this.#w >= this.#buf.byteLength) {
-            throw Error("bufio: tried to fill full buffer");
-        }
-        for(let i4 = 100; i4 > 0; i4--){
-            const rr = await this.#rd.read(this.#buf.subarray(this.#w));
-            if (rr === null) {
-                this.#eof = true;
-                return;
-            }
-            assert(rr >= 0, "negative read");
-            this.#w += rr;
-            if (rr > 0) {
-                return;
-            }
-        }
-        throw new Error(`No progress after ${100} read() calls`);
-    };
-    reset(r) {
-        this.#reset(this.#buf, r);
-    }
-    #reset = (buf, rd)=>{
-        this.#buf = buf;
-        this.#rd = rd;
-        this.#eof = false;
-    };
-    async read(p) {
-        let rr = p.byteLength;
-        if (p.byteLength === 0) return rr;
-        if (this.#r === this.#w) {
-            if (p.byteLength >= this.#buf.byteLength) {
-                const rr = await this.#rd.read(p);
-                const nread = rr ?? 0;
-                assert(nread >= 0, "negative read");
-                return rr;
-            }
-            this.#r = 0;
-            this.#w = 0;
-            rr = await this.#rd.read(this.#buf);
-            if (rr === 0 || rr === null) return rr;
-            assert(rr >= 0, "negative read");
-            this.#w += rr;
-        }
-        const copied = copy(this.#buf.subarray(this.#r, this.#w), p, 0);
-        this.#r += copied;
-        return copied;
-    }
-    async readFull(p) {
-        let bytesRead = 0;
-        while(bytesRead < p.length){
-            try {
-                const rr = await this.read(p.subarray(bytesRead));
-                if (rr === null) {
-                    if (bytesRead === 0) {
-                        return null;
-                    } else {
-                        throw new PartialReadError();
-                    }
-                }
-                bytesRead += rr;
-            } catch (err) {
-                if (err instanceof PartialReadError) {
-                    err.partial = p.subarray(0, bytesRead);
-                } else if (err instanceof Error) {
-                    const e = new PartialReadError();
-                    e.partial = p.subarray(0, bytesRead);
-                    e.stack = err.stack;
-                    e.message = err.message;
-                    e.cause = err.cause;
-                    throw err;
-                }
-                throw err;
-            }
-        }
-        return p;
-    }
-    async readByte() {
-        while(this.#r === this.#w){
-            if (this.#eof) return null;
-            await this.#fill();
-        }
-        const c = this.#buf[this.#r];
-        this.#r++;
-        return c;
-    }
-    async readString(delim) {
-        if (delim.length !== 1) {
-            throw new Error("Delimiter should be a single character");
-        }
-        const buffer = await this.readSlice(delim.charCodeAt(0));
-        if (buffer === null) return null;
-        return new TextDecoder().decode(buffer);
-    }
-    async readLine() {
-        let line = null;
-        try {
-            line = await this.readSlice(LF);
-        } catch (err) {
-            let partial;
-            if (err instanceof PartialReadError) {
-                partial = err.partial;
-                assert(partial instanceof Uint8Array, "bufio: caught error from `readSlice()` without `partial` property");
-            }
-            if (!(err instanceof BufferFullError)) {
-                throw err;
-            }
-            partial = err.partial;
-            if (!this.#eof && partial && partial.byteLength > 0 && partial[partial.byteLength - 1] === CR) {
-                assert(this.#r > 0, "bufio: tried to rewind past start of buffer");
-                this.#r--;
-                partial = partial.subarray(0, partial.byteLength - 1);
-            }
-            if (partial) {
-                return {
-                    line: partial,
-                    more: !this.#eof
-                };
-            }
-        }
-        if (line === null) {
-            return null;
-        }
-        if (line.byteLength === 0) {
-            return {
-                line,
-                more: false
-            };
-        }
-        if (line[line.byteLength - 1] == LF) {
-            let drop = 1;
-            if (line.byteLength > 1 && line[line.byteLength - 2] === CR) {
-                drop = 2;
-            }
-            line = line.subarray(0, line.byteLength - drop);
-        }
-        return {
-            line,
-            more: false
-        };
-    }
-    async readSlice(delim) {
-        let s = 0;
-        let slice;
-        while(true){
-            let i5 = this.#buf.subarray(this.#r + s, this.#w).indexOf(delim);
-            if (i5 >= 0) {
-                i5 += s;
-                slice = this.#buf.subarray(this.#r, this.#r + i5 + 1);
-                this.#r += i5 + 1;
-                break;
-            }
-            if (this.#eof) {
-                if (this.#r === this.#w) {
-                    return null;
-                }
-                slice = this.#buf.subarray(this.#r, this.#w);
-                this.#r = this.#w;
-                break;
-            }
-            if (this.buffered() >= this.#buf.byteLength) {
-                this.#r = this.#w;
-                const oldbuf = this.#buf;
-                const newbuf = this.#buf.slice(0);
-                this.#buf = newbuf;
-                throw new BufferFullError(oldbuf);
-            }
-            s = this.#w - this.#r;
-            try {
-                await this.#fill();
-            } catch (err) {
-                if (err instanceof PartialReadError) {
-                    err.partial = slice;
-                } else if (err instanceof Error) {
-                    const e = new PartialReadError();
-                    e.partial = slice;
-                    e.stack = err.stack;
-                    e.message = err.message;
-                    e.cause = err.cause;
-                    throw err;
-                }
-                throw err;
-            }
-        }
-        return slice;
-    }
-    async peek(n6) {
-        if (n6 < 0) {
-            throw Error("negative count");
-        }
-        let avail = this.#w - this.#r;
-        while(avail < n6 && avail < this.#buf.byteLength && !this.#eof){
-            try {
-                await this.#fill();
-            } catch (err) {
-                if (err instanceof PartialReadError) {
-                    err.partial = this.#buf.subarray(this.#r, this.#w);
-                } else if (err instanceof Error) {
-                    const e = new PartialReadError();
-                    e.partial = this.#buf.subarray(this.#r, this.#w);
-                    e.stack = err.stack;
-                    e.message = err.message;
-                    e.cause = err.cause;
-                    throw err;
-                }
-                throw err;
-            }
-            avail = this.#w - this.#r;
-        }
-        if (avail === 0 && this.#eof) {
-            return null;
-        } else if (avail < n6 && this.#eof) {
-            return this.#buf.subarray(this.#r, this.#r + avail);
-        } else if (avail < n6) {
-            throw new BufferFullError(this.#buf.subarray(this.#r, this.#w));
-        }
-        return this.#buf.subarray(this.#r, this.#r + n6);
-    }
-}
-class AbstractBufBase {
-    buf;
-    usedBufferBytes = 0;
-    err = null;
-    constructor(buf){
-        this.buf = buf;
-    }
-    size() {
-        return this.buf.byteLength;
-    }
-    available() {
-        return this.buf.byteLength - this.usedBufferBytes;
-    }
-    buffered() {
-        return this.usedBufferBytes;
-    }
-}
-class BufWriter extends AbstractBufBase {
-    #writer;
-    static create(writer, size = 4096) {
-        return writer instanceof BufWriter ? writer : new BufWriter(writer, size);
-    }
-    constructor(writer, size = 4096){
-        super(new Uint8Array(size <= 0 ? 4096 : size));
-        this.#writer = writer;
-    }
-    reset(w) {
-        this.err = null;
-        this.usedBufferBytes = 0;
-        this.#writer = w;
-    }
-    async flush() {
-        if (this.err !== null) throw this.err;
-        if (this.usedBufferBytes === 0) return;
-        try {
-            const p = this.buf.subarray(0, this.usedBufferBytes);
-            let nwritten = 0;
-            while(nwritten < p.length){
-                nwritten += await this.#writer.write(p.subarray(nwritten));
-            }
-        } catch (e) {
-            if (e instanceof Error) {
-                this.err = e;
-            }
-            throw e;
-        }
-        this.buf = new Uint8Array(this.buf.length);
-        this.usedBufferBytes = 0;
-    }
-    async write(data) {
-        if (this.err !== null) throw this.err;
-        if (data.length === 0) return 0;
-        let totalBytesWritten = 0;
-        let numBytesWritten = 0;
-        while(data.byteLength > this.available()){
-            if (this.buffered() === 0) {
-                try {
-                    numBytesWritten = await this.#writer.write(data);
-                } catch (e) {
-                    if (e instanceof Error) {
-                        this.err = e;
-                    }
-                    throw e;
-                }
-            } else {
-                numBytesWritten = copy(data, this.buf, this.usedBufferBytes);
-                this.usedBufferBytes += numBytesWritten;
-                await this.flush();
-            }
-            totalBytesWritten += numBytesWritten;
-            data = data.subarray(numBytesWritten);
-        }
-        numBytesWritten = copy(data, this.buf, this.usedBufferBytes);
-        this.usedBufferBytes += numBytesWritten;
-        totalBytesWritten += numBytesWritten;
-        return totalBytesWritten;
-    }
-}
-class BufWriterSync extends AbstractBufBase {
-    #writer;
-    static create(writer, size = 4096) {
-        return writer instanceof BufWriterSync ? writer : new BufWriterSync(writer, size);
-    }
-    constructor(writer, size = 4096){
-        super(new Uint8Array(size <= 0 ? 4096 : size));
-        this.#writer = writer;
-    }
-    reset(w) {
-        this.err = null;
-        this.usedBufferBytes = 0;
-        this.#writer = w;
-    }
-    flush() {
-        if (this.err !== null) throw this.err;
-        if (this.usedBufferBytes === 0) return;
-        try {
-            const p = this.buf.subarray(0, this.usedBufferBytes);
-            let nwritten = 0;
-            while(nwritten < p.length){
-                nwritten += this.#writer.writeSync(p.subarray(nwritten));
-            }
-        } catch (e) {
-            if (e instanceof Error) {
-                this.err = e;
-            }
-            throw e;
-        }
-        this.buf = new Uint8Array(this.buf.length);
-        this.usedBufferBytes = 0;
-    }
-    writeSync(data) {
-        if (this.err !== null) throw this.err;
-        if (data.length === 0) return 0;
-        let totalBytesWritten = 0;
-        let numBytesWritten = 0;
-        while(data.byteLength > this.available()){
-            if (this.buffered() === 0) {
-                try {
-                    numBytesWritten = this.#writer.writeSync(data);
-                } catch (e) {
-                    if (e instanceof Error) {
-                        this.err = e;
-                    }
-                    throw e;
-                }
-            } else {
-                numBytesWritten = copy(data, this.buf, this.usedBufferBytes);
-                this.usedBufferBytes += numBytesWritten;
-                this.flush();
-            }
-            totalBytesWritten += numBytesWritten;
-            data = data.subarray(numBytesWritten);
-        }
-        numBytesWritten = copy(data, this.buf, this.usedBufferBytes);
-        this.usedBufferBytes += numBytesWritten;
-        totalBytesWritten += numBytesWritten;
-        return totalBytesWritten;
-    }
-}
+TextDecoder;
+TextEncoder;
 const isNumericLookup = {};
 function isArrayIndex(value) {
     switch(typeof value){
@@ -996,10 +1328,10 @@ function isArrayIndex(value) {
                     return isNumericLookup[value] = false;
                 }
                 let ch = 0;
-                let i6 = 0;
-                for(; i6 < length; ++i6){
-                    ch = value.charCodeAt(i6);
-                    if (i6 === 0 && ch === 0x30 && length > 1 || ch < 0x30 || ch > 0x39) {
+                let i = 0;
+                for(; i < length; ++i){
+                    ch = value.charCodeAt(i);
+                    if (i === 0 && ch === 0x30 && length > 1 || ch < 0x30 || ch > 0x39) {
                         return isNumericLookup[value] = false;
                     }
                 }
@@ -1012,11 +1344,10 @@ function isArrayIndex(value) {
 function getOwnNonIndexProperties(obj, filter) {
     let allProperties = [
         ...Object.getOwnPropertyNames(obj),
-        ...Object.getOwnPropertySymbols(obj), 
+        ...Object.getOwnPropertySymbols(obj)
     ];
     if (Array.isArray(obj)) {
-        allProperties = allProperties.filter((k)=>!isArrayIndex(k)
-        );
+        allProperties = allProperties.filter((k)=>!isArrayIndex(k));
     }
     if (filter === 0) {
         return allProperties;
@@ -1211,8 +1542,7 @@ const meta = [
     '\\x9E',
     '\\x9F'
 ];
-const isUndetectableObject = (v)=>typeof v === "undefined" && v !== undefined
-;
+const isUndetectableObject = (v)=>typeof v === "undefined" && v !== undefined;
 const strEscapeSequencesRegExp = /[\x00-\x1f\x27\x5c\x7f-\x9f]/;
 const strEscapeSequencesReplacer = /[\x00-\x1f\x27\x5c\x7f-\x9f]/g;
 const strEscapeSequencesRegExpSingle = /[\x00-\x1f\x5c\x7f-\x9f]/;
@@ -1301,8 +1631,8 @@ function inspect(value, opts) {
             ctx.showHidden = opts;
         } else if (opts) {
             const optKeys = Object.keys(opts);
-            for(let i7 = 0; i7 < optKeys.length; ++i7){
-                const key = optKeys[i7];
+            for(let i = 0; i < optKeys.length; ++i){
+                const key = optKeys[i];
                 if (inspectDefaultOptions.hasOwnProperty(key) || key === "stylize") {
                     ctx[key] = opts[key];
                 } else if (ctx.userOptions === undefined) {
@@ -1553,8 +1883,7 @@ function addQuotes(str, quotes) {
     }
     return `'${str}'`;
 }
-const escapeFn = (str)=>meta[str.charCodeAt(0)]
-;
+const escapeFn = (str)=>meta[str.charCodeAt(0)];
 function strEscape(str) {
     let escapeTest = strEscapeSequencesRegExp;
     let escapeReplace = strEscapeSequencesReplacer;
@@ -1580,15 +1909,15 @@ function strEscape(str) {
     let result = "";
     let last = 0;
     const lastIndex = str.length;
-    for(let i8 = 0; i8 < lastIndex; i8++){
-        const point = str.charCodeAt(i8);
+    for(let i = 0; i < lastIndex; i++){
+        const point = str.charCodeAt(i);
         if (point === singleQuote || point === 92 || point < 32 || point > 126 && point < 160) {
-            if (last === i8) {
+            if (last === i) {
                 result += meta[point];
             } else {
-                result += `${str.slice(last, i8)}${meta[point]}`;
+                result += `${str.slice(last, i)}${meta[point]}`;
             }
-            last = i8 + 1;
+            last = i + 1;
         }
     }
     if (last !== lastIndex) {
@@ -1662,11 +1991,11 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
     if (typeof tag !== "string") {
         tag = "";
     }
-    let base1 = "";
+    let base = "";
     let formatter = getEmptyFormatArray;
     let braces;
     let noIterator = true;
-    let i9 = 0;
+    let i = 0;
     const filter = ctx.showHidden ? 0 : 2;
     let extrasType = 0;
     if (value[Symbol.iterator] || constructor === null) {
@@ -1685,42 +2014,43 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
             formatter = formatArray;
         } else if (isSet1(value)) {
             const size = value.size;
-            const prefix = getPrefix(constructor, tag, "Set", `(${size})`);
+            const prefix1 = getPrefix(constructor, tag, "Set", `(${size})`);
             keys = getKeys(value, ctx.showHidden);
             formatter = constructor !== null ? formatSet.bind(null, value) : formatSet.bind(null, value.values());
             if (size === 0 && keys.length === 0 && protoProps === undefined) {
-                return `${prefix}{}`;
+                return `${prefix1}{}`;
             }
             braces = [
-                `${prefix}{`,
+                `${prefix1}{`,
                 "}"
             ];
         } else if (isMap1(value)) {
-            const size = value.size;
-            const prefix = getPrefix(constructor, tag, "Map", `(${size})`);
+            const size1 = value.size;
+            const prefix2 = getPrefix(constructor, tag, "Map", `(${size1})`);
             keys = getKeys(value, ctx.showHidden);
             formatter = constructor !== null ? formatMap.bind(null, value) : formatMap.bind(null, value.entries());
-            if (size === 0 && keys.length === 0 && protoProps === undefined) {
-                return `${prefix}{}`;
+            if (size1 === 0 && keys.length === 0 && protoProps === undefined) {
+                return `${prefix2}{}`;
             }
             braces = [
-                `${prefix}{`,
+                `${prefix2}{`,
                 "}"
             ];
         } else if (isTypedArray(value)) {
             keys = getOwnNonIndexProperties(value, filter);
             const bound = value;
             const fallback = "";
-            const size = value.length;
-            const prefix = getPrefix(constructor, tag, fallback, `(${size})`);
+            if (constructor === null) {}
+            const size2 = value.length;
+            const prefix3 = getPrefix(constructor, tag, fallback, `(${size2})`);
             braces = [
-                `${prefix}[`,
+                `${prefix3}[`,
                 "]"
             ];
             if (value.length === 0 && keys.length === 0 && !ctx.showHidden) {
                 return `${braces[0]}]`;
             }
-            formatter = formatTypedArray.bind(null, bound, size);
+            formatter = formatTypedArray.bind(null, bound, size2);
             extrasType = kArrayExtrasType;
         } else if (isMapIterator1(value)) {
             keys = getKeys(value, ctx.showHidden);
@@ -1750,42 +2080,42 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
                 return `${braces[0]}}`;
             }
         } else if (typeof value === "function") {
-            base1 = getFunctionBase(value, constructor, tag);
+            base = getFunctionBase(value, constructor, tag);
             if (keys.length === 0 && protoProps === undefined) {
-                return ctx.stylize(base1, "special");
+                return ctx.stylize(base, "special");
             }
         } else if (isRegExp1(value)) {
-            base1 = RegExp(constructor !== null ? value : new RegExp(value)).toString();
-            const prefix = getPrefix(constructor, tag, "RegExp");
-            if (prefix !== "RegExp ") {
-                base1 = `${prefix}${base1}`;
+            base = RegExp(constructor !== null ? value : new RegExp(value)).toString();
+            const prefix4 = getPrefix(constructor, tag, "RegExp");
+            if (prefix4 !== "RegExp ") {
+                base = `${prefix4}${base}`;
             }
             if (keys.length === 0 && protoProps === undefined || recurseTimes > ctx.depth && ctx.depth !== null) {
-                return ctx.stylize(base1, "regexp");
+                return ctx.stylize(base, "regexp");
             }
         } else if (isDate1(value)) {
-            base1 = Number.isNaN(value.getTime()) ? value.toString() : value.toISOString();
-            const prefix = getPrefix(constructor, tag, "Date");
-            if (prefix !== "Date ") {
-                base1 = `${prefix}${base1}`;
+            base = Number.isNaN(value.getTime()) ? value.toString() : value.toISOString();
+            const prefix5 = getPrefix(constructor, tag, "Date");
+            if (prefix5 !== "Date ") {
+                base = `${prefix5}${base}`;
             }
             if (keys.length === 0 && protoProps === undefined) {
-                return ctx.stylize(base1, "date");
+                return ctx.stylize(base, "date");
             }
         } else if (value instanceof Error) {
-            base1 = formatError(value, constructor, tag, ctx, keys);
+            base = formatError(value, constructor, tag, ctx, keys);
             if (keys.length === 0 && protoProps === undefined) {
-                return base1;
+                return base;
             }
         } else if (isAnyArrayBuffer1(value)) {
             const arrayType = isArrayBuffer1(value) ? "ArrayBuffer" : "SharedArrayBuffer";
-            const prefix = getPrefix(constructor, tag, arrayType);
+            const prefix6 = getPrefix(constructor, tag, arrayType);
             if (typedArray === undefined) {
                 formatter = formatArrayBuffer;
             } else if (keys.length === 0 && protoProps === undefined) {
-                return prefix + `{ byteLength: ${formatNumber(ctx.stylize, value.byteLength)} }`;
+                return prefix6 + `{ byteLength: ${formatNumber(ctx.stylize, value.byteLength)} }`;
             }
-            braces[0] = `${prefix}{`;
+            braces[0] = `${prefix6}{`;
             Array.prototype.unshift.call(keys, "byteLength");
         } else if (isDataView1(value)) {
             braces[0] = `${getPrefix(constructor, tag, "DataView")}{`;
@@ -1803,9 +2133,9 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
             braces[0] = `${getPrefix(constructor, tag, "Module")}{`;
             formatter = formatNamespaceObject.bind(null, keys);
         } else if (isBoxedPrimitive1(value)) {
-            base1 = getBoxedBase(value, ctx, keys, constructor, tag);
+            base = getBoxedBase(value, ctx, keys, constructor, tag);
             if (keys.length === 0 && protoProps === undefined) {
-                return base1;
+                return base;
             }
         } else {
             if (keys.length === 0 && protoProps === undefined) {
@@ -1828,22 +2158,22 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
     const indentationLvl = ctx.indentationLvl;
     try {
         output = formatter(ctx, value, recurseTimes);
-        for(i9 = 0; i9 < keys.length; i9++){
-            output.push(formatProperty(ctx, value, recurseTimes, keys[i9], extrasType));
+        for(i = 0; i < keys.length; i++){
+            output.push(formatProperty(ctx, value, recurseTimes, keys[i], extrasType));
         }
         if (protoProps !== undefined) {
             output.push(...protoProps);
         }
     } catch (err) {
-        const constructorName = getCtxStyle(value, constructor, tag).slice(0, -1);
-        return handleMaxCallStackSize(ctx, err, constructorName, indentationLvl);
+        const constructorName1 = getCtxStyle(value, constructor, tag).slice(0, -1);
+        return handleMaxCallStackSize(ctx, err, constructorName1, indentationLvl);
     }
     if (ctx.circular !== undefined) {
         const index = ctx.circular.get(value);
         if (index !== undefined) {
             const reference = ctx.stylize(`<ref *${index}>`, "special");
             if (ctx.compact !== true) {
-                base1 = base1 === "" ? reference : `${reference} ${base1}`;
+                base = base === "" ? reference : `${reference} ${base}`;
             } else {
                 braces[0] = `${reference} ${braces[0]}`;
             }
@@ -1859,7 +2189,7 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
             output.splice(output.length - keys.length, keys.length, ...sorted);
         }
     }
-    const res = reduceToSingleString(ctx, output, base1, braces, extrasType, recurseTimes, value);
+    const res = reduceToSingleString(ctx, output, base, braces, extrasType, recurseTimes, value);
     const budget = ctx.budget[ctx.indentationLvl] || 0;
     const newLength = budget + res.length;
     ctx.budget[ctx.indentationLvl] = newLength;
@@ -1868,8 +2198,7 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
     }
     return res;
 }
-const builtInObjects = new Set(Object.getOwnPropertyNames(globalThis).filter((e)=>/^[A-Z][a-zA-Z0-9]+$/.test(e)
-));
+const builtInObjects = new Set(Object.getOwnPropertyNames(globalThis).filter((e)=>/^[A-Z][a-zA-Z0-9]+$/.test(e)));
 function addPrototypeProperties(ctx, main, obj, recurseTimes, output) {
     let depth = 0;
     let keys;
@@ -1888,20 +2217,19 @@ function addPrototypeProperties(ctx, main, obj, recurseTimes, output) {
         if (depth === 0) {
             keySet = new Set();
         } else {
-            Array.prototype.forEach.call(keys, (key)=>keySet.add(key)
-            );
+            Array.prototype.forEach.call(keys, (key)=>keySet.add(key));
         }
         keys = Reflect.ownKeys(obj);
         Array.prototype.push.call(ctx.seen, main);
-        for (const key1 of keys){
-            if (key1 === "constructor" || main.hasOwnProperty(key1) || depth !== 0 && keySet.has(key1)) {
+        for (const key of keys){
+            if (key === "constructor" || main.hasOwnProperty(key) || depth !== 0 && keySet.has(key)) {
                 continue;
             }
-            const desc = Object.getOwnPropertyDescriptor(obj, key1);
+            const desc = Object.getOwnPropertyDescriptor(obj, key);
             if (typeof desc.value === "function") {
                 continue;
             }
-            const value = formatProperty(ctx, obj, recurseTimes, key1, 0, desc, main);
+            const value = formatProperty(ctx, obj, recurseTimes, key, 0, desc, main);
             if (ctx.colors) {
                 Array.prototype.push.call(output, `\u001b[2m${value}\u001b[22m`);
             } else {
@@ -1953,8 +2281,7 @@ function formatPrimitive(fn, value, ctx) {
             trailer = `... ${remaining} more character${remaining > 1 ? "s" : ""}`;
         }
         if (ctx.compact !== true && value.length > 16 && value.length > ctx.breakLength - ctx.indentationLvl - 4) {
-            return value.split(/(?<=\n)/).map((line)=>fn(strEscape(line), "string")
-            ).join(` +\n${" ".repeat(ctx.indentationLvl + 2)}`) + trailer;
+            return value.split(/(?<=\n)/).map((line)=>fn(strEscape(line), "string")).join(` +\n${" ".repeat(ctx.indentationLvl + 2)}`) + trailer;
         }
         return fn(strEscape(value), "string") + trailer;
     }
@@ -1999,11 +2326,11 @@ function formatArray(ctx, value, recurseTimes) {
     const len = Math.min(Math.max(0, ctx.maxArrayLength), valLen);
     const remaining = valLen - len;
     const output = [];
-    for(let i10 = 0; i10 < len; i10++){
-        if (!value.hasOwnProperty(i10)) {
-            return formatSpecialArray(ctx, value, recurseTimes, len, output, i10);
+    for(let i = 0; i < len; i++){
+        if (!value.hasOwnProperty(i)) {
+            return formatSpecialArray(ctx, value, recurseTimes, len, output, i);
         }
-        output.push(formatProperty(ctx, value, recurseTimes, i10, 1));
+        output.push(formatProperty(ctx, value, recurseTimes, i, 1));
     }
     if (remaining > 0) {
         output.push(`... ${remaining} more item${remaining > 1 ? "s" : ""}`);
@@ -2060,8 +2387,8 @@ function formatTypedArray(value, length, ctx, _ignored, recurseTimes) {
     const remaining = value.length - maxLength;
     const output = new Array(maxLength);
     const elementFormatter = value.length > 0 && typeof value[0] === "number" ? formatNumber : formatBigInt;
-    for(let i11 = 0; i11 < maxLength; ++i11){
-        output[i11] = elementFormatter(ctx.stylize, value[i11]);
+    for(let i = 0; i < maxLength; ++i){
+        output[i] = elementFormatter(ctx.stylize, value[i]);
     }
     if (remaining > 0) {
         output[maxLength] = `... ${remaining} more item${remaining > 1 ? "s" : ""}`;
@@ -2073,7 +2400,7 @@ function formatTypedArray(value, length, ctx, _ignored, recurseTimes) {
             "length",
             "byteLength",
             "byteOffset",
-            "buffer", 
+            "buffer"
         ]){
             const str = formatValue(ctx, value[key], recurseTimes, true);
             Array.prototype.push.call(output, `[${key}]: ${str}`);
@@ -2118,36 +2445,36 @@ function getFunctionBase(value, constructor, tag) {
     if (isAsyncFunction1(value)) {
         type = `Async${type}`;
     }
-    let base2 = `[${type}`;
+    let base = `[${type}`;
     if (constructor === null) {
-        base2 += " (null prototype)";
+        base += " (null prototype)";
     }
     if (value.name === "") {
-        base2 += " (anonymous)";
+        base += " (anonymous)";
     } else {
-        base2 += `: ${value.name}`;
+        base += `: ${value.name}`;
     }
-    base2 += "]";
+    base += "]";
     if (constructor !== type && constructor !== null) {
-        base2 += ` ${constructor}`;
+        base += ` ${constructor}`;
     }
     if (tag !== "" && constructor !== tag) {
-        base2 += ` [${tag}]`;
+        base += ` [${tag}]`;
     }
-    return base2;
+    return base;
 }
 function formatError(err, constructor, tag, ctx, keys) {
     const name = err.name != null ? String(err.name) : "Error";
     let len = name.length;
     let stack = err.stack ? String(err.stack) : err.toString();
     if (!ctx.showHidden && keys.length !== 0) {
-        for (const name of [
+        for (const name1 of [
             "name",
             "message",
             "stack"
         ]){
-            const index = keys.indexOf(name);
-            if (index !== -1 && stack.includes(err[name])) {
+            const index = keys.indexOf(name1);
+            if (index !== -1 && stack.includes(err[name1])) {
                 keys.splice(index, 1);
             }
         }
@@ -2186,13 +2513,13 @@ function formatError(err, constructor, tag, ctx, keys) {
         for (const line of lines){
             let nodeModule;
             newStack += "\n";
-            let pos = 0;
+            let pos1 = 0;
             while(nodeModule = nodeModulesRegExp.exec(line)){
-                newStack += line.slice(pos, nodeModule.index + 14);
+                newStack += line.slice(pos1, nodeModule.index + 14);
                 newStack += ctx.stylize(nodeModule[1], "module");
-                pos = nodeModule.index + nodeModule[0].length;
+                pos1 = nodeModule.index + nodeModule[0].length;
             }
-            newStack += pos === 0 ? line : line.slice(pos);
+            newStack += pos1 === 0 ? line : line.slice(pos1);
         }
         stack = newStack;
     }
@@ -2236,7 +2563,7 @@ function formatPromise(ctx, value, recurseTimes) {
         const str = formatValue(ctx, result, recurseTimes);
         ctx.indentationLvl -= 2;
         output = [
-            state === kRejected ? `${ctx.stylize("<rejected>", "special")} ${str}` : str, 
+            state === kRejected ? `${ctx.stylize("<rejected>", "special")} ${str}` : str
         ];
     }
     return output;
@@ -2302,13 +2629,13 @@ function formatProperty(ctx, value, recurseTimes, key, type, desc, original = va
         return str;
     }
     if (typeof key === "symbol") {
-        const tmp = key.toString().replace(strEscapeSequencesReplacer, escapeFn);
-        name = `[${ctx.stylize(tmp, "symbol")}]`;
+        const tmp1 = key.toString().replace(strEscapeSequencesReplacer, escapeFn);
+        name = `[${ctx.stylize(tmp1, "symbol")}]`;
     } else if (key === "__proto__") {
         name = "['__proto__']";
     } else if (desc.enumerable === false) {
-        const tmp = key.replace(strEscapeSequencesReplacer, escapeFn);
-        name = `[${tmp}]`;
+        const tmp2 = key.replace(strEscapeSequencesReplacer, escapeFn);
+        name = `[${tmp2}]`;
     } else if (keyStrRegExp.test(key)) {
         name = ctx.stylize(key, "name");
     } else {
@@ -2321,48 +2648,48 @@ const colorRegExp = /\u001b\[\d\d?m/g;
 function removeColors(str) {
     return str.replace(colorRegExp, "");
 }
-function isBelowBreakLength(ctx, output, start, base3) {
+function isBelowBreakLength(ctx, output, start, base) {
     let totalLength = output.length + start;
     if (totalLength + output.length > ctx.breakLength) {
         return false;
     }
-    for(let i12 = 0; i12 < output.length; i12++){
+    for(let i = 0; i < output.length; i++){
         if (ctx.colors) {
-            totalLength += removeColors(output[i12]).length;
+            totalLength += removeColors(output[i]).length;
         } else {
-            totalLength += output[i12].length;
+            totalLength += output[i].length;
         }
         if (totalLength > ctx.breakLength) {
             return false;
         }
     }
-    return base3 === "" || !base3.includes("\n");
+    return base === "" || !base.includes("\n");
 }
 function formatBigInt(fn, value) {
     return fn(`${value}n`, "bigint");
 }
 function formatNamespaceObject(keys, ctx, value, recurseTimes) {
     const output = new Array(keys.length);
-    for(let i13 = 0; i13 < keys.length; i13++){
+    for(let i = 0; i < keys.length; i++){
         try {
-            output[i13] = formatProperty(ctx, value, recurseTimes, keys[i13], kObjectType);
+            output[i] = formatProperty(ctx, value, recurseTimes, keys[i], kObjectType);
         } catch (_err) {
             const tmp = {
-                [keys[i13]]: ""
+                [keys[i]]: ""
             };
-            output[i13] = formatProperty(ctx, tmp, recurseTimes, keys[i13], kObjectType);
-            const pos = output[i13].lastIndexOf(" ");
-            output[i13] = output[i13].slice(0, pos + 1) + ctx.stylize("<uninitialized>", "special");
+            output[i] = formatProperty(ctx, tmp, recurseTimes, keys[i], kObjectType);
+            const pos = output[i].lastIndexOf(" ");
+            output[i] = output[i].slice(0, pos + 1) + ctx.stylize("<uninitialized>", "special");
         }
     }
     keys.length = 0;
     return output;
 }
-function formatSpecialArray(ctx, value, recurseTimes, maxLength, output, i14) {
+function formatSpecialArray(ctx, value, recurseTimes, maxLength, output, i) {
     const keys = Object.keys(value);
-    let index = i14;
-    for(; i14 < keys.length && output.length < maxLength; i14++){
-        const key = keys[i14];
+    let index = i;
+    for(; i < keys.length && output.length < maxLength; i++){
+        const key = keys[i];
         const tmp = +key;
         if (tmp > 2 ** 32 - 2) {
             break;
@@ -2386,9 +2713,9 @@ function formatSpecialArray(ctx, value, recurseTimes, maxLength, output, i14) {
     const remaining = value.length - index;
     if (output.length !== maxLength) {
         if (remaining > 0) {
-            const ending = remaining > 1 ? "s" : "";
-            const message = `<${remaining} empty item${ending}>`;
-            output.push(ctx.stylize(message, "undefined"));
+            const ending1 = remaining > 1 ? "s" : "";
+            const message1 = `<${remaining} empty item${ending1}>`;
+            output.push(ctx.stylize(message1, "undefined"));
         }
     } else if (remaining > 0) {
         output.push(`... ${remaining} more item${remaining > 1 ? "s" : ""}`);
@@ -2409,44 +2736,44 @@ function getBoxedBase(value, ctx, keys, constructor, tag) {
     } else {
         type = "Symbol";
     }
-    let base4 = `[${type}`;
+    let base = `[${type}`;
     if (type !== constructor) {
         if (constructor === null) {
-            base4 += " (null prototype)";
+            base += " (null prototype)";
         } else {
-            base4 += ` (${constructor})`;
+            base += ` (${constructor})`;
         }
     }
-    base4 += `: ${formatPrimitive(stylizeNoColor, value.valueOf(), ctx)}]`;
+    base += `: ${formatPrimitive(stylizeNoColor, value.valueOf(), ctx)}]`;
     if (tag !== "" && tag !== constructor) {
-        base4 += ` [${tag}]`;
+        base += ` [${tag}]`;
     }
     if (keys.length !== 0 || ctx.stylize === stylizeNoColor) {
-        return base4;
+        return base;
     }
-    return ctx.stylize(base4, type.toLowerCase());
+    return ctx.stylize(base, type.toLowerCase());
 }
 function getClassBase(value, constructor, tag) {
     const hasName = value.hasOwnProperty("name");
     const name = hasName && value.name || "(anonymous)";
-    let base5 = `class ${name}`;
+    let base = `class ${name}`;
     if (constructor !== "Function" && constructor !== null) {
-        base5 += ` [${constructor}]`;
+        base += ` [${constructor}]`;
     }
     if (tag !== "" && constructor !== tag) {
-        base5 += ` [${tag}]`;
+        base += ` [${tag}]`;
     }
     if (constructor !== null) {
         const superName = Object.getPrototypeOf(value).name;
         if (superName) {
-            base5 += ` extends ${superName}`;
+            base += ` extends ${superName}`;
         }
     } else {
-        base5 += " extends [null prototype]";
+        base += " extends [null prototype]";
     }
-    return `[${base5}]`;
+    return `[${base}]`;
 }
-function reduceToSingleString(ctx, output, base6, braces, extrasType, recurseTimes, value) {
+function reduceToSingleString(ctx, output, base, braces, extrasType, recurseTimes, value) {
     if (ctx.compact !== true) {
         if (typeof ctx.compact === "number" && ctx.compact >= 1) {
             const entries = output.length;
@@ -2454,28 +2781,28 @@ function reduceToSingleString(ctx, output, base6, braces, extrasType, recurseTim
                 output = groupArrayElements(ctx, output, value);
             }
             if (ctx.currentDepth - recurseTimes < ctx.compact && entries === output.length) {
-                const start = output.length + ctx.indentationLvl + braces[0].length + base6.length + 10;
-                if (isBelowBreakLength(ctx, output, start, base6)) {
-                    return `${base6 ? `${base6} ` : ""}${braces[0]} ${join(output, ", ")}` + ` ${braces[1]}`;
+                const start = output.length + ctx.indentationLvl + braces[0].length + base.length + 10;
+                if (isBelowBreakLength(ctx, output, start, base)) {
+                    return `${base ? `${base} ` : ""}${braces[0]} ${join(output, ", ")}` + ` ${braces[1]}`;
                 }
             }
         }
         const indentation = `\n${" ".repeat(ctx.indentationLvl)}`;
-        return `${base6 ? `${base6} ` : ""}${braces[0]}${indentation}  ` + `${join(output, `,${indentation}  `)}${indentation}${braces[1]}`;
+        return `${base ? `${base} ` : ""}${braces[0]}${indentation}  ` + `${join(output, `,${indentation}  `)}${indentation}${braces[1]}`;
     }
-    if (isBelowBreakLength(ctx, output, 0, base6)) {
-        return `${braces[0]}${base6 ? ` ${base6}` : ""} ${join(output, ", ")} ` + braces[1];
+    if (isBelowBreakLength(ctx, output, 0, base)) {
+        return `${braces[0]}${base ? ` ${base}` : ""} ${join(output, ", ")} ` + braces[1];
     }
-    const indentation = " ".repeat(ctx.indentationLvl);
-    const ln = base6 === "" && braces[0].length === 1 ? " " : `${base6 ? ` ${base6}` : ""}\n${indentation}  `;
-    return `${braces[0]}${ln}${join(output, `,\n${indentation}  `)} ${braces[1]}`;
+    const indentation1 = " ".repeat(ctx.indentationLvl);
+    const ln = base === "" && braces[0].length === 1 ? " " : `${base ? ` ${base}` : ""}\n${indentation1}  `;
+    return `${braces[0]}${ln}${join(output, `,\n${indentation1}  `)} ${braces[1]}`;
 }
 function join(output, separator) {
     let str = "";
     if (output.length !== 0) {
         const lastIndex = output.length - 1;
-        for(let i15 = 0; i15 < lastIndex; i15++){
-            str += output[i15];
+        for(let i = 0; i < lastIndex; i++){
+            str += output[i];
             str += separator;
         }
         str += output[lastIndex];
@@ -2485,16 +2812,16 @@ function join(output, separator) {
 function groupArrayElements(ctx, output, value) {
     let totalLength = 0;
     let maxLength = 0;
-    let i16 = 0;
+    let i = 0;
     let outputLength = output.length;
     if (ctx.maxArrayLength < output.length) {
         outputLength--;
     }
     const separatorSpace = 2;
     const dataLen = new Array(outputLength);
-    for(; i16 < outputLength; i16++){
-        const len = getStringWidth(output[i16], ctx.colors);
-        dataLen[i16] = len;
+    for(; i < outputLength; i++){
+        const len = getStringWidth(output[i], ctx.colors);
+        dataLen[i] = len;
         totalLength += len + separatorSpace;
         if (maxLength < len) {
             maxLength = len;
@@ -2510,38 +2837,38 @@ function groupArrayElements(ctx, output, value) {
         }
         const tmp = [];
         const maxLineLength = [];
-        for(let i17 = 0; i17 < columns; i17++){
+        for(let i1 = 0; i1 < columns; i1++){
             let lineMaxLength = 0;
-            for(let j = i17; j < output.length; j += columns){
+            for(let j = i1; j < output.length; j += columns){
                 if (dataLen[j] > lineMaxLength) {
                     lineMaxLength = dataLen[j];
                 }
             }
             lineMaxLength += separatorSpace;
-            maxLineLength[i17] = lineMaxLength;
+            maxLineLength[i1] = lineMaxLength;
         }
         let order = String.prototype.padStart;
         if (value !== undefined) {
-            for(let i18 = 0; i18 < output.length; i18++){
-                if (typeof value[i18] !== "number" && typeof value[i18] !== "bigint") {
+            for(let i2 = 0; i2 < output.length; i2++){
+                if (typeof value[i2] !== "number" && typeof value[i2] !== "bigint") {
                     order = String.prototype.padEnd;
                     break;
                 }
             }
         }
-        for(let i1 = 0; i1 < outputLength; i1 += columns){
-            const max = Math.min(i1 + columns, outputLength);
+        for(let i3 = 0; i3 < outputLength; i3 += columns){
+            const max = Math.min(i3 + columns, outputLength);
             let str = "";
-            let j = i1;
-            for(; j < max - 1; j++){
-                const padding = maxLineLength[j - i1] + output[j].length - dataLen[j];
-                str += `${output[j]}, `.padStart(padding, " ");
+            let j1 = i3;
+            for(; j1 < max - 1; j1++){
+                const padding = maxLineLength[j1 - i3] + output[j1].length - dataLen[j1];
+                str += `${output[j1]}, `.padStart(padding, " ");
             }
             if (order === String.prototype.padStart) {
-                const padding = maxLineLength[j - i1] + output[j].length - dataLen[j] - 2;
-                str += output[j].padStart(padding, " ");
+                const padding1 = maxLineLength[j1 - i3] + output[j1].length - dataLen[j1] - 2;
+                str += output[j1].padStart(padding1, " ");
             } else {
-                str += output[j];
+                str += output[j1];
             }
             Array.prototype.push.call(tmp, str);
         }
@@ -2558,24 +2885,24 @@ function formatMapIterInner(ctx, recurseTimes, entries, state) {
     const remaining = len - maxArrayLength;
     const maxLength = Math.min(maxArrayLength, len);
     let output = new Array(maxLength);
-    let i19 = 0;
+    let i = 0;
     ctx.indentationLvl += 2;
     if (state === 0) {
-        for(; i19 < maxLength; i19++){
-            const pos = i19 * 2;
-            output[i19] = `${formatValue(ctx, entries[pos], recurseTimes)} => ${formatValue(ctx, entries[pos + 1], recurseTimes)}`;
+        for(; i < maxLength; i++){
+            const pos = i * 2;
+            output[i] = `${formatValue(ctx, entries[pos], recurseTimes)} => ${formatValue(ctx, entries[pos + 1], recurseTimes)}`;
         }
         if (!ctx.sorted) {
             output = output.sort();
         }
     } else {
-        for(; i19 < maxLength; i19++){
-            const pos = i19 * 2;
+        for(; i < maxLength; i++){
+            const pos1 = i * 2;
             const res = [
-                formatValue(ctx, entries[pos], recurseTimes),
-                formatValue(ctx, entries[pos + 1], recurseTimes), 
+                formatValue(ctx, entries[pos1], recurseTimes),
+                formatValue(ctx, entries[pos1 + 1], recurseTimes)
             ];
-            output[i19] = reduceToSingleString(ctx, res, "", [
+            output[i] = reduceToSingleString(ctx, res, "", [
                 "[",
                 "]"
             ], kArrayExtrasType, recurseTimes);
@@ -2592,8 +2919,8 @@ function formatSetIterInner(ctx, recurseTimes, entries, state) {
     const maxLength = Math.min(maxArrayLength, entries.length);
     const output = new Array(maxLength);
     ctx.indentationLvl += 2;
-    for(let i20 = 0; i20 < maxLength; i20++){
-        output[i20] = formatValue(ctx, entries[i20], recurseTimes);
+    for(let i = 0; i < maxLength; i++){
+        output[i] = formatValue(ctx, entries[i], recurseTimes);
     }
     ctx.indentationLvl -= 2;
     if (state === 0 && !ctx.sorted) {
@@ -2634,28 +2961,31 @@ function stripVTControlCharacters(str) {
     return str.replace(ansi, "");
 }
 let debugImpls;
-function initializeDebugEnv(debugEnv1) {
+function initializeDebugEnv(debugEnv) {
     debugImpls = Object.create(null);
-    if (debugEnv1) {
-        debugEnv1 = debugEnv1.replace(/[|\\{}()[\]^$+?.]/g, "\\$&").replaceAll("*", ".*").replaceAll(",", "$|^");
-        new RegExp(`^${debugEnv1}$`, "i");
-    } else {}
+    if (debugEnv) {
+        debugEnv = debugEnv.replace(/[|\\{}()[\]^$+?.]/g, "\\$&").replaceAll("*", ".*").replaceAll(",", "$|^");
+        const debugEnvRegex = new RegExp(`^${debugEnv}$`, "i");
+        (str)=>debugEnvRegex.exec(str) !== null;
+    } else {
+        ()=>false;
+    }
 }
 let debugEnv;
 try {
     debugEnv = process.env.NODE_DEBUG ?? "";
-} catch (error1) {
-    if (error1 instanceof Error) {
+} catch (error) {
+    if (error instanceof Error) {
         debugEnv = "";
     } else {
-        throw error1;
+        throw error;
     }
 }
 initializeDebugEnv(debugEnv);
 const osType = (()=>{
-    const { process  } = globalThis;
-    if (typeof process?.platform === "string") {
-        return process.platform;
+    const { Deno: Deno1  } = globalThis;
+    if (typeof Deno1?.build?.os === "string") {
+        return Deno1.build.os;
     }
     const { navigator  } = globalThis;
     if (navigator?.appVersion?.includes?.("Win")) {
@@ -3367,13 +3697,12 @@ const codeToErrorWindows = [
             "EILSEQ",
             "illegal byte sequence"
         ]
-    ], 
-];
-const errorToCodeWindows = codeToErrorWindows.map(([status, [error2]])=>[
-        error2,
-        status
     ]
-);
+];
+const errorToCodeWindows = codeToErrorWindows.map(([status, [error]])=>[
+        error,
+        status
+    ]);
 const codeToErrorDarwin = [
     [
         -7,
@@ -3934,13 +4263,12 @@ const codeToErrorDarwin = [
             "EILSEQ",
             "illegal byte sequence"
         ]
-    ], 
+    ]
 ];
 const errorToCodeDarwin = codeToErrorDarwin.map(([status, [code]])=>[
         code,
         status
-    ]
-);
+    ]);
 const codeToErrorLinux = [
     [
         -7,
@@ -4501,13 +4829,12 @@ const codeToErrorLinux = [
             "EILSEQ",
             "illegal byte sequence"
         ]
-    ], 
+    ]
 ];
 const errorToCodeLinux = codeToErrorLinux.map(([status, [code]])=>[
         code,
         status
-    ]
-);
+    ]);
 const errorMap = new Map(osType === "win32" ? codeToErrorWindows : osType === "darwin" ? codeToErrorDarwin : osType === "linux" ? codeToErrorLinux : unreachable());
 const codeMap = new Map(osType === "win32" ? errorToCodeWindows : osType === "darwin" ? errorToCodeDarwin : osType === "linux" ? errorToCodeLinux : unreachable());
 codeMap.get("EAI_MEMORY");
@@ -4515,17 +4842,20 @@ codeMap.get("UNKNOWN");
 codeMap.get("EBADF");
 codeMap.get("EINVAL");
 codeMap.get("ENOTSOCK");
+({
+    ...mod1
+});
 var Encodings;
-(function(Encodings1) {
-    Encodings1[Encodings1["ASCII"] = 0] = "ASCII";
-    Encodings1[Encodings1["UTF8"] = 1] = "UTF8";
-    Encodings1[Encodings1["BASE64"] = 2] = "BASE64";
-    Encodings1[Encodings1["UCS2"] = 3] = "UCS2";
-    Encodings1[Encodings1["BINARY"] = 4] = "BINARY";
-    Encodings1[Encodings1["HEX"] = 5] = "HEX";
-    Encodings1[Encodings1["BUFFER"] = 6] = "BUFFER";
-    Encodings1[Encodings1["BASE64URL"] = 7] = "BASE64URL";
-    Encodings1[Encodings1["LATIN1"] = 4] = "LATIN1";
+(function(Encodings) {
+    Encodings[Encodings["ASCII"] = 0] = "ASCII";
+    Encodings[Encodings["UTF8"] = 1] = "UTF8";
+    Encodings[Encodings["BASE64"] = 2] = "BASE64";
+    Encodings[Encodings["UCS2"] = 3] = "UCS2";
+    Encodings[Encodings["BINARY"] = 4] = "BINARY";
+    Encodings[Encodings["HEX"] = 5] = "HEX";
+    Encodings[Encodings["BUFFER"] = 6] = "BUFFER";
+    Encodings[Encodings["BASE64URL"] = 7] = "BASE64URL";
+    Encodings[Encodings["LATIN1"] = 4] = "LATIN1";
 })(Encodings || (Encodings = {}));
 const encodings = [];
 encodings[Encodings.ASCII] = "ascii";
@@ -4667,27 +4997,27 @@ const base64abc = [
     "8",
     "9",
     "+",
-    "/", 
+    "/"
 ];
 function encode(data) {
     const uint8 = typeof data === "string" ? new TextEncoder().encode(data) : data instanceof Uint8Array ? data : new Uint8Array(data);
-    let result = "", i21;
+    let result = "", i;
     const l = uint8.length;
-    for(i21 = 2; i21 < l; i21 += 3){
-        result += base64abc[uint8[i21 - 2] >> 2];
-        result += base64abc[(uint8[i21 - 2] & 0x03) << 4 | uint8[i21 - 1] >> 4];
-        result += base64abc[(uint8[i21 - 1] & 0x0f) << 2 | uint8[i21] >> 6];
-        result += base64abc[uint8[i21] & 0x3f];
+    for(i = 2; i < l; i += 3){
+        result += base64abc[uint8[i - 2] >> 2];
+        result += base64abc[(uint8[i - 2] & 0x03) << 4 | uint8[i - 1] >> 4];
+        result += base64abc[(uint8[i - 1] & 0x0f) << 2 | uint8[i] >> 6];
+        result += base64abc[uint8[i] & 0x3f];
     }
-    if (i21 === l + 1) {
-        result += base64abc[uint8[i21 - 2] >> 2];
-        result += base64abc[(uint8[i21 - 2] & 0x03) << 4];
+    if (i === l + 1) {
+        result += base64abc[uint8[i - 2] >> 2];
+        result += base64abc[(uint8[i - 2] & 0x03) << 4];
         result += "==";
     }
-    if (i21 === l) {
-        result += base64abc[uint8[i21 - 2] >> 2];
-        result += base64abc[(uint8[i21 - 2] & 0x03) << 4 | uint8[i21 - 1] >> 4];
-        result += base64abc[(uint8[i21 - 1] & 0x0f) << 2];
+    if (i === l) {
+        result += base64abc[uint8[i - 2] >> 2];
+        result += base64abc[(uint8[i - 2] & 0x03) << 4 | uint8[i - 1] >> 4];
+        result += base64abc[(uint8[i - 1] & 0x0f) << 2];
         result += "=";
     }
     return result;
@@ -4696,8 +5026,8 @@ function decode(b64) {
     const binString = atob(b64);
     const size = binString.length;
     const bytes = new Uint8Array(size);
-    for(let i22 = 0; i22 < size; i22++){
-        bytes[i22] = binString.charCodeAt(i22);
+    for(let i = 0; i < size; i++){
+        bytes[i] = binString.charCodeAt(i);
     }
     return bytes;
 }
@@ -4726,8 +5056,8 @@ function decode1(b64url) {
 }
 function asciiToBytes(str) {
     const byteArray = [];
-    for(let i23 = 0; i23 < str.length; ++i23){
-        byteArray.push(str.charCodeAt(i23) & 255);
+    for(let i = 0; i < str.length; ++i){
+        byteArray.push(str.charCodeAt(i) & 255);
     }
     return new Uint8Array(byteArray);
 }
@@ -4753,25 +5083,25 @@ function base64UrlToBytes(str) {
 }
 function hexToBytes(str) {
     const byteArray = new Uint8Array(Math.floor((str || "").length / 2));
-    let i24;
-    for(i24 = 0; i24 < byteArray.length; i24++){
-        const a = Number.parseInt(str[i24 * 2], 16);
-        const b = Number.parseInt(str[i24 * 2 + 1], 16);
+    let i;
+    for(i = 0; i < byteArray.length; i++){
+        const a = Number.parseInt(str[i * 2], 16);
+        const b = Number.parseInt(str[i * 2 + 1], 16);
         if (Number.isNaN(a) && Number.isNaN(b)) {
             break;
         }
-        byteArray[i24] = a << 4 | b;
+        byteArray[i] = a << 4 | b;
     }
-    return new Uint8Array(i24 === byteArray.length ? byteArray : byteArray.slice(0, i24));
+    return new Uint8Array(i === byteArray.length ? byteArray : byteArray.slice(0, i));
 }
 function utf16leToBytes(str, units) {
     let c, hi, lo;
     const byteArray = [];
-    for(let i25 = 0; i25 < str.length; ++i25){
+    for(let i = 0; i < str.length; ++i){
         if ((units -= 2) < 0) {
             break;
         }
-        c = str.charCodeAt(i25);
+        c = str.charCodeAt(i);
         hi = c >> 8;
         lo = c % 256;
         byteArray.push(lo);
@@ -4781,15 +5111,15 @@ function utf16leToBytes(str, units) {
 }
 function bytesToAscii(bytes) {
     let ret = "";
-    for(let i26 = 0; i26 < bytes.length; ++i26){
-        ret += String.fromCharCode(bytes[i26] & 127);
+    for(let i = 0; i < bytes.length; ++i){
+        ret += String.fromCharCode(bytes[i] & 127);
     }
     return ret;
 }
 function bytesToUtf16le(bytes) {
     let res = "";
-    for(let i27 = 0; i27 < bytes.length - 1; i27 += 2){
-        res += String.fromCharCode(bytes[i27] + bytes[i27 + 1] * 256);
+    for(let i = 0; i < bytes.length - 1; i += 2){
+        res += String.fromCharCode(bytes[i] + bytes[i + 1] * 256);
     }
     return res;
 }
@@ -5056,90 +5386,67 @@ for(let i = 0; i < encodings.length; ++i){
 }
 const encodingOps = {
     ascii: {
-        byteLength: (string)=>string.length
-        ,
+        byteLength: (string)=>string.length,
         encoding: "ascii",
         encodingVal: encodingsMap.ascii,
-        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, asciiToBytes(val), byteOffset, encodingsMap.ascii, dir)
-        ,
-        slice: (buf, start, end)=>buf.asciiSlice(start, end)
-        ,
+        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, asciiToBytes(val), byteOffset, encodingsMap.ascii, dir),
+        slice: (buf, start, end)=>buf.asciiSlice(start, end),
         write: (buf, string, offset, len)=>buf.asciiWrite(string, offset, len)
     },
     base64: {
-        byteLength: (string)=>base64ByteLength(string, string.length)
-        ,
+        byteLength: (string)=>base64ByteLength(string, string.length),
         encoding: "base64",
         encodingVal: encodingsMap.base64,
-        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, base64ToBytes(val), byteOffset, encodingsMap.base64, dir)
-        ,
-        slice: (buf, start, end)=>buf.base64Slice(start, end)
-        ,
+        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, base64ToBytes(val), byteOffset, encodingsMap.base64, dir),
+        slice: (buf, start, end)=>buf.base64Slice(start, end),
         write: (buf, string, offset, len)=>buf.base64Write(string, offset, len)
     },
     base64url: {
-        byteLength: (string)=>base64ByteLength(string, string.length)
-        ,
+        byteLength: (string)=>base64ByteLength(string, string.length),
         encoding: "base64url",
         encodingVal: encodingsMap.base64url,
-        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, base64UrlToBytes(val), byteOffset, encodingsMap.base64url, dir)
-        ,
-        slice: (buf, start, end)=>buf.base64urlSlice(start, end)
-        ,
+        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, base64UrlToBytes(val), byteOffset, encodingsMap.base64url, dir),
+        slice: (buf, start, end)=>buf.base64urlSlice(start, end),
         write: (buf, string, offset, len)=>buf.base64urlWrite(string, offset, len)
     },
     hex: {
-        byteLength: (string)=>string.length >>> 1
-        ,
+        byteLength: (string)=>string.length >>> 1,
         encoding: "hex",
         encodingVal: encodingsMap.hex,
-        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, hexToBytes(val), byteOffset, encodingsMap.hex, dir)
-        ,
-        slice: (buf, start, end)=>buf.hexSlice(start, end)
-        ,
+        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, hexToBytes(val), byteOffset, encodingsMap.hex, dir),
+        slice: (buf, start, end)=>buf.hexSlice(start, end),
         write: (buf, string, offset, len)=>buf.hexWrite(string, offset, len)
     },
     latin1: {
-        byteLength: (string)=>string.length
-        ,
+        byteLength: (string)=>string.length,
         encoding: "latin1",
         encodingVal: encodingsMap.latin1,
-        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, asciiToBytes(val), byteOffset, encodingsMap.latin1, dir)
-        ,
-        slice: (buf, start, end)=>buf.latin1Slice(start, end)
-        ,
+        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, asciiToBytes(val), byteOffset, encodingsMap.latin1, dir),
+        slice: (buf, start, end)=>buf.latin1Slice(start, end),
         write: (buf, string, offset, len)=>buf.latin1Write(string, offset, len)
     },
     ucs2: {
-        byteLength: (string)=>string.length * 2
-        ,
+        byteLength: (string)=>string.length * 2,
         encoding: "ucs2",
         encodingVal: encodingsMap.utf16le,
-        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, utf16leToBytes(val), byteOffset, encodingsMap.utf16le, dir)
-        ,
-        slice: (buf, start, end)=>buf.ucs2Slice(start, end)
-        ,
+        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, utf16leToBytes(val), byteOffset, encodingsMap.utf16le, dir),
+        slice: (buf, start, end)=>buf.ucs2Slice(start, end),
         write: (buf, string, offset, len)=>buf.ucs2Write(string, offset, len)
     },
     utf8: {
         byteLength: byteLengthUtf8,
         encoding: "utf8",
         encodingVal: encodingsMap.utf8,
-        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, utf8Encoder.encode(val), byteOffset, encodingsMap.utf8, dir)
-        ,
-        slice: (buf, start, end)=>buf.utf8Slice(start, end)
-        ,
+        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, utf8Encoder.encode(val), byteOffset, encodingsMap.utf8, dir),
+        slice: (buf, start, end)=>buf.utf8Slice(start, end),
         write: (buf, string, offset, len)=>buf.utf8Write(string, offset, len)
     },
     utf16le: {
-        byteLength: (string)=>string.length * 2
-        ,
+        byteLength: (string)=>string.length * 2,
         encoding: "utf16le",
         encodingVal: encodingsMap.utf16le,
-        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, utf16leToBytes(val), byteOffset, encodingsMap.utf16le, dir)
-        ,
-        slice: (buf, start, end)=>buf.ucs2Slice(start, end)
-        ,
+        indexOf: (buf, val, byteOffset, dir)=>indexOfBuffer(buf, utf16leToBytes(val), byteOffset, encodingsMap.utf16le, dir),
+        slice: (buf, start, end)=>buf.ucs2Slice(start, end),
         write: (buf, string, offset, len)=>buf.ucs2Write(string, offset, len)
     }
 };
@@ -5212,28 +5519,28 @@ function validateNumber(value, name) {
         throw new codes.ERR_INVALID_ARG_TYPE(name, "number", value);
     }
 }
-function checkBounds(buf, offset, byteLength1) {
+function checkBounds(buf, offset, byteLength) {
     validateNumber(offset, "offset");
-    if (buf[offset] === undefined || buf[offset + byteLength1] === undefined) {
-        boundsError(offset, buf.length - (byteLength1 + 1));
+    if (buf[offset] === undefined || buf[offset + byteLength] === undefined) {
+        boundsError(offset, buf.length - (byteLength + 1));
     }
 }
-function checkInt(value, min, max, buf, offset, byteLength2) {
+function checkInt(value, min, max, buf, offset, byteLength) {
     if (value > max || value < min) {
         const n = typeof min === "bigint" ? "n" : "";
         let range;
-        if (byteLength2 > 3) {
+        if (byteLength > 3) {
             if (min === 0 || min === 0n) {
-                range = `>= 0${n} and < 2${n} ** ${(byteLength2 + 1) * 8}${n}`;
+                range = `>= 0${n} and < 2${n} ** ${(byteLength + 1) * 8}${n}`;
             } else {
-                range = `>= -(2${n} ** ${(byteLength2 + 1) * 8 - 1}${n}) and ` + `< 2${n} ** ${(byteLength2 + 1) * 8 - 1}${n}`;
+                range = `>= -(2${n} ** ${(byteLength + 1) * 8 - 1}${n}) and ` + `< 2${n} ** ${(byteLength + 1) * 8 - 1}${n}`;
             }
         } else {
             range = `>= ${min}${n} and <= ${max}${n}`;
         }
         throw new codes.ERR_OUT_OF_RANGE("value", range, value);
     }
-    checkBounds(buf, offset, byteLength2);
+    checkBounds(buf, offset, byteLength);
 }
 function toInteger(n, defaultVal) {
     n = +n;
@@ -5528,8 +5835,8 @@ function fromString(string, encoding) {
 function fromArrayLike(array) {
     const length = array.length < 0 ? 0 : checked(array.length) | 0;
     const buf = createBuffer(length);
-    for(let i28 = 0; i28 < length; i28 += 1){
-        buf[i28] = array[i28] & 255;
+    for(let i = 0; i < length; i += 1){
+        buf[i] = array[i] & 255;
     }
     return buf;
 }
@@ -5574,10 +5881,10 @@ Buffer.compare = function compare(a, b) {
     }
     let x = a.length;
     let y = b.length;
-    for(let i29 = 0, len = Math.min(x, y); i29 < len; ++i29){
-        if (a[i29] !== b[i29]) {
-            x = a[i29];
-            y = b[i29];
+    for(let i = 0, len = Math.min(x, y); i < len; ++i){
+        if (a[i] !== b[i]) {
+            x = a[i];
+            y = b[i];
             break;
         }
     }
@@ -5601,9 +5908,9 @@ Buffer.concat = function concat(list, length) {
     }
     if (length === undefined) {
         length = 0;
-        for(let i30 = 0; i30 < list.length; i30++){
-            if (list[i30].length) {
-                length += list[i30].length;
+        for(let i = 0; i < list.length; i++){
+            if (list[i].length) {
+                length += list[i].length;
             }
         }
     } else {
@@ -5611,13 +5918,13 @@ Buffer.concat = function concat(list, length) {
     }
     const buffer = Buffer.allocUnsafe(length);
     let pos = 0;
-    for(let i31 = 0; i31 < list.length; i31++){
-        const buf = list[i31];
+    for(let i1 = 0; i1 < list.length; i1++){
+        const buf = list[i1];
         if (!isUint8Array(buf)) {
-            throw new codes.ERR_INVALID_ARG_TYPE(`list[${i31}]`, [
+            throw new codes.ERR_INVALID_ARG_TYPE(`list[${i1}]`, [
                 "Buffer",
                 "Uint8Array"
-            ], list[i31]);
+            ], list[i1]);
         }
         pos += _copyActual(buf, buffer, pos, 0, buf.length);
     }
@@ -5654,17 +5961,17 @@ function byteLength(string, encoding) {
 Buffer.byteLength = byteLength;
 Buffer.prototype._isBuffer = true;
 function swap(b, n, m) {
-    const i32 = b[n];
+    const i = b[n];
     b[n] = b[m];
-    b[m] = i32;
+    b[m] = i;
 }
 Buffer.prototype.swap16 = function swap16() {
     const len = this.length;
     if (len % 2 !== 0) {
         throw new RangeError("Buffer size must be a multiple of 16-bits");
     }
-    for(let i33 = 0; i33 < len; i33 += 2){
-        swap(this, i33, i33 + 1);
+    for(let i = 0; i < len; i += 2){
+        swap(this, i, i + 1);
     }
     return this;
 };
@@ -5673,9 +5980,9 @@ Buffer.prototype.swap32 = function swap32() {
     if (len % 4 !== 0) {
         throw new RangeError("Buffer size must be a multiple of 32-bits");
     }
-    for(let i34 = 0; i34 < len; i34 += 4){
-        swap(this, i34, i34 + 3);
-        swap(this, i34 + 1, i34 + 2);
+    for(let i = 0; i < len; i += 4){
+        swap(this, i, i + 3);
+        swap(this, i + 1, i + 2);
     }
     return this;
 };
@@ -5684,11 +5991,11 @@ Buffer.prototype.swap64 = function swap64() {
     if (len % 8 !== 0) {
         throw new RangeError("Buffer size must be a multiple of 64-bits");
     }
-    for(let i35 = 0; i35 < len; i35 += 8){
-        swap(this, i35, i35 + 7);
-        swap(this, i35 + 1, i35 + 6);
-        swap(this, i35 + 2, i35 + 5);
-        swap(this, i35 + 3, i35 + 4);
+    for(let i = 0; i < len; i += 8){
+        swap(this, i, i + 7);
+        swap(this, i + 1, i + 6);
+        swap(this, i + 2, i + 5);
+        swap(this, i + 3, i + 4);
     }
     return this;
 };
@@ -5800,10 +6107,10 @@ Buffer.prototype.compare = function compare(target, start, end, thisStart, thisE
     const len = Math.min(x, y);
     const thisCopy = this.slice(thisStart, thisEnd);
     const targetCopy = target.slice(start, end);
-    for(let i36 = 0; i36 < len; ++i36){
-        if (thisCopy[i36] !== targetCopy[i36]) {
-            x = thisCopy[i36];
-            y = targetCopy[i36];
+    for(let i = 0; i < len; ++i){
+        if (thisCopy[i] !== targetCopy[i]) {
+            x = thisCopy[i];
+            y = targetCopy[i];
             break;
         }
     }
@@ -5993,12 +6300,12 @@ function fromArrayBuffer(obj, byteOffset, length) {
 function _utf8Slice(buf, start, end) {
     end = Math.min(buf.length, end);
     const res = [];
-    let i37 = start;
-    while(i37 < end){
-        const firstByte = buf[i37];
+    let i = start;
+    while(i < end){
+        const firstByte = buf[i];
         let codePoint = null;
         let bytesPerSequence = firstByte > 239 ? 4 : firstByte > 223 ? 3 : firstByte > 191 ? 2 : 1;
-        if (i37 + bytesPerSequence <= end) {
+        if (i + bytesPerSequence <= end) {
             let secondByte, thirdByte, fourthByte, tempCodePoint;
             switch(bytesPerSequence){
                 case 1:
@@ -6007,7 +6314,7 @@ function _utf8Slice(buf, start, end) {
                     }
                     break;
                 case 2:
-                    secondByte = buf[i37 + 1];
+                    secondByte = buf[i + 1];
                     if ((secondByte & 192) === 128) {
                         tempCodePoint = (firstByte & 31) << 6 | secondByte & 63;
                         if (tempCodePoint > 127) {
@@ -6016,8 +6323,8 @@ function _utf8Slice(buf, start, end) {
                     }
                     break;
                 case 3:
-                    secondByte = buf[i37 + 1];
-                    thirdByte = buf[i37 + 2];
+                    secondByte = buf[i + 1];
+                    thirdByte = buf[i + 2];
                     if ((secondByte & 192) === 128 && (thirdByte & 192) === 128) {
                         tempCodePoint = (firstByte & 15) << 12 | (secondByte & 63) << 6 | thirdByte & 63;
                         if (tempCodePoint > 2047 && (tempCodePoint < 55296 || tempCodePoint > 57343)) {
@@ -6026,9 +6333,9 @@ function _utf8Slice(buf, start, end) {
                     }
                     break;
                 case 4:
-                    secondByte = buf[i37 + 1];
-                    thirdByte = buf[i37 + 2];
-                    fourthByte = buf[i37 + 3];
+                    secondByte = buf[i + 1];
+                    thirdByte = buf[i + 2];
+                    fourthByte = buf[i + 3];
                     if ((secondByte & 192) === 128 && (thirdByte & 192) === 128 && (fourthByte & 192) === 128) {
                         tempCodePoint = (firstByte & 15) << 18 | (secondByte & 63) << 12 | (thirdByte & 63) << 6 | fourthByte & 63;
                         if (tempCodePoint > 65535 && tempCodePoint < 1114112) {
@@ -6046,7 +6353,7 @@ function _utf8Slice(buf, start, end) {
             codePoint = 56320 | codePoint & 1023;
         }
         res.push(codePoint);
-        i37 += bytesPerSequence;
+        i += bytesPerSequence;
     }
     return decodeCodePointsArray(res);
 }
@@ -6057,17 +6364,17 @@ function decodeCodePointsArray(codePoints) {
         return String.fromCharCode.apply(String, codePoints);
     }
     let res = "";
-    let i38 = 0;
-    while(i38 < len){
-        res += String.fromCharCode.apply(String, codePoints.slice(i38, i38 += MAX_ARGUMENTS_LENGTH));
+    let i = 0;
+    while(i < len){
+        res += String.fromCharCode.apply(String, codePoints.slice(i, i += MAX_ARGUMENTS_LENGTH));
     }
     return res;
 }
 function _latin1Slice(buf, start, end) {
     let ret = "";
     end = Math.min(buf.length, end);
-    for(let i39 = start; i39 < end; ++i39){
-        ret += String.fromCharCode(buf[i39]);
+    for(let i = start; i < end; ++i){
+        ret += String.fromCharCode(buf[i]);
     }
     return ret;
 }
@@ -6080,8 +6387,8 @@ function _hexSlice(buf, start, end) {
         end = len;
     }
     let out = "";
-    for(let i40 = start; i40 < end; ++i40){
-        out += hexSliceLookupTable[buf[i40]];
+    for(let i = start; i < end; ++i){
+        out += hexSliceLookupTable[buf[i]];
     }
     return out;
 }
@@ -6112,53 +6419,53 @@ Buffer.prototype.slice = function slice(start, end) {
     Object.setPrototypeOf(newBuf, Buffer.prototype);
     return newBuf;
 };
-Buffer.prototype.readUintLE = Buffer.prototype.readUIntLE = function readUIntLE(offset, byteLength1) {
+Buffer.prototype.readUintLE = Buffer.prototype.readUIntLE = function readUIntLE(offset, byteLength) {
     if (offset === undefined) {
         throw new codes.ERR_INVALID_ARG_TYPE("offset", "number", offset);
     }
-    if (byteLength1 === 6) {
+    if (byteLength === 6) {
         return readUInt48LE(this, offset);
     }
-    if (byteLength1 === 5) {
+    if (byteLength === 5) {
         return readUInt40LE(this, offset);
     }
-    if (byteLength1 === 3) {
+    if (byteLength === 3) {
         return readUInt24LE(this, offset);
     }
-    if (byteLength1 === 4) {
+    if (byteLength === 4) {
         return this.readUInt32LE(offset);
     }
-    if (byteLength1 === 2) {
+    if (byteLength === 2) {
         return this.readUInt16LE(offset);
     }
-    if (byteLength1 === 1) {
+    if (byteLength === 1) {
         return this.readUInt8(offset);
     }
-    boundsError(byteLength1, 6, "byteLength");
+    boundsError(byteLength, 6, "byteLength");
 };
-Buffer.prototype.readUintBE = Buffer.prototype.readUIntBE = function readUIntBE(offset, byteLength2) {
+Buffer.prototype.readUintBE = Buffer.prototype.readUIntBE = function readUIntBE(offset, byteLength) {
     if (offset === undefined) {
         throw new codes.ERR_INVALID_ARG_TYPE("offset", "number", offset);
     }
-    if (byteLength2 === 6) {
+    if (byteLength === 6) {
         return readUInt48BE(this, offset);
     }
-    if (byteLength2 === 5) {
+    if (byteLength === 5) {
         return readUInt40BE(this, offset);
     }
-    if (byteLength2 === 3) {
+    if (byteLength === 3) {
         return readUInt24BE(this, offset);
     }
-    if (byteLength2 === 4) {
+    if (byteLength === 4) {
         return this.readUInt32BE(offset);
     }
-    if (byteLength2 === 2) {
+    if (byteLength === 2) {
         return this.readUInt16BE(offset);
     }
-    if (byteLength2 === 1) {
+    if (byteLength === 1) {
         return this.readUInt8(offset);
     }
-    boundsError(byteLength2, 6, "byteLength");
+    boundsError(byteLength, 6, "byteLength");
 };
 Buffer.prototype.readUint8 = Buffer.prototype.readUInt8 = function readUInt8(offset = 0) {
     validateNumber(offset, "offset");
@@ -6212,53 +6519,53 @@ Buffer.prototype.readBigUint64BE = Buffer.prototype.readBigUInt64BE = defineBigI
     const lo = this[++offset] * 2 ** 24 + this[++offset] * 2 ** 16 + this[++offset] * 2 ** 8 + last;
     return (BigInt(hi) << BigInt(32)) + BigInt(lo);
 });
-Buffer.prototype.readIntLE = function readIntLE(offset, byteLength3) {
+Buffer.prototype.readIntLE = function readIntLE(offset, byteLength) {
     if (offset === undefined) {
         throw new codes.ERR_INVALID_ARG_TYPE("offset", "number", offset);
     }
-    if (byteLength3 === 6) {
+    if (byteLength === 6) {
         return readInt48LE(this, offset);
     }
-    if (byteLength3 === 5) {
+    if (byteLength === 5) {
         return readInt40LE(this, offset);
     }
-    if (byteLength3 === 3) {
+    if (byteLength === 3) {
         return readInt24LE(this, offset);
     }
-    if (byteLength3 === 4) {
+    if (byteLength === 4) {
         return this.readInt32LE(offset);
     }
-    if (byteLength3 === 2) {
+    if (byteLength === 2) {
         return this.readInt16LE(offset);
     }
-    if (byteLength3 === 1) {
+    if (byteLength === 1) {
         return this.readInt8(offset);
     }
-    boundsError(byteLength3, 6, "byteLength");
+    boundsError(byteLength, 6, "byteLength");
 };
-Buffer.prototype.readIntBE = function readIntBE(offset, byteLength4) {
+Buffer.prototype.readIntBE = function readIntBE(offset, byteLength) {
     if (offset === undefined) {
         throw new codes.ERR_INVALID_ARG_TYPE("offset", "number", offset);
     }
-    if (byteLength4 === 6) {
+    if (byteLength === 6) {
         return readInt48BE(this, offset);
     }
-    if (byteLength4 === 5) {
+    if (byteLength === 5) {
         return readInt40BE(this, offset);
     }
-    if (byteLength4 === 3) {
+    if (byteLength === 3) {
         return readInt24BE(this, offset);
     }
-    if (byteLength4 === 4) {
+    if (byteLength === 4) {
         return this.readInt32BE(offset);
     }
-    if (byteLength4 === 2) {
+    if (byteLength === 2) {
         return this.readInt16BE(offset);
     }
-    if (byteLength4 === 1) {
+    if (byteLength === 1) {
         return this.readInt8(offset);
     }
-    boundsError(byteLength4, 6, "byteLength");
+    boundsError(byteLength, 6, "byteLength");
 };
 Buffer.prototype.readInt8 = function readInt8(offset = 0) {
     validateNumber(offset, "offset");
@@ -6340,47 +6647,47 @@ Buffer.prototype.readDoubleLE = function readDoubleLE(offset) {
 Buffer.prototype.readDoubleBE = function readDoubleBE(offset) {
     return bigEndian ? readDoubleForwards(this, offset) : readDoubleBackwards(this, offset);
 };
-Buffer.prototype.writeUintLE = Buffer.prototype.writeUIntLE = function writeUIntLE(value, offset, byteLength5) {
-    if (byteLength5 === 6) {
+Buffer.prototype.writeUintLE = Buffer.prototype.writeUIntLE = function writeUIntLE(value, offset, byteLength) {
+    if (byteLength === 6) {
         return writeU_Int48LE(this, value, offset, 0, 0xffffffffffff);
     }
-    if (byteLength5 === 5) {
+    if (byteLength === 5) {
         return writeU_Int40LE(this, value, offset, 0, 0xffffffffff);
     }
-    if (byteLength5 === 3) {
+    if (byteLength === 3) {
         return writeU_Int24LE(this, value, offset, 0, 0xffffff);
     }
-    if (byteLength5 === 4) {
+    if (byteLength === 4) {
         return writeU_Int32LE(this, value, offset, 0, 0xffffffff);
     }
-    if (byteLength5 === 2) {
+    if (byteLength === 2) {
         return writeU_Int16LE(this, value, offset, 0, 0xffff);
     }
-    if (byteLength5 === 1) {
+    if (byteLength === 1) {
         return writeU_Int8(this, value, offset, 0, 0xff);
     }
-    boundsError(byteLength5, 6, "byteLength");
+    boundsError(byteLength, 6, "byteLength");
 };
-Buffer.prototype.writeUintBE = Buffer.prototype.writeUIntBE = function writeUIntBE(value, offset, byteLength6) {
-    if (byteLength6 === 6) {
+Buffer.prototype.writeUintBE = Buffer.prototype.writeUIntBE = function writeUIntBE(value, offset, byteLength) {
+    if (byteLength === 6) {
         return writeU_Int48BE(this, value, offset, 0, 0xffffffffffff);
     }
-    if (byteLength6 === 5) {
+    if (byteLength === 5) {
         return writeU_Int40BE(this, value, offset, 0, 0xffffffffff);
     }
-    if (byteLength6 === 3) {
+    if (byteLength === 3) {
         return writeU_Int24BE(this, value, offset, 0, 0xffffff);
     }
-    if (byteLength6 === 4) {
+    if (byteLength === 4) {
         return writeU_Int32BE(this, value, offset, 0, 0xffffffff);
     }
-    if (byteLength6 === 2) {
+    if (byteLength === 2) {
         return writeU_Int16BE(this, value, offset, 0, 0xffff);
     }
-    if (byteLength6 === 1) {
+    if (byteLength === 1) {
         return writeU_Int8(this, value, offset, 0, 0xff);
     }
-    boundsError(byteLength6, 6, "byteLength");
+    boundsError(byteLength, 6, "byteLength");
 };
 Buffer.prototype.writeUint8 = Buffer.prototype.writeUInt8 = function writeUInt8(value, offset = 0) {
     return writeU_Int8(this, value, offset, 0, 0xff);
@@ -6443,47 +6750,47 @@ Buffer.prototype.writeBigUint64LE = Buffer.prototype.writeBigUInt64LE = defineBi
 Buffer.prototype.writeBigUint64BE = Buffer.prototype.writeBigUInt64BE = defineBigIntMethod(function writeBigUInt64BE(value, offset = 0) {
     return wrtBigUInt64BE(this, value, offset, BigInt(0), BigInt("0xffffffffffffffff"));
 });
-Buffer.prototype.writeIntLE = function writeIntLE(value, offset, byteLength7) {
-    if (byteLength7 === 6) {
+Buffer.prototype.writeIntLE = function writeIntLE(value, offset, byteLength) {
+    if (byteLength === 6) {
         return writeU_Int48LE(this, value, offset, -0x800000000000, 0x7fffffffffff);
     }
-    if (byteLength7 === 5) {
+    if (byteLength === 5) {
         return writeU_Int40LE(this, value, offset, -0x8000000000, 0x7fffffffff);
     }
-    if (byteLength7 === 3) {
+    if (byteLength === 3) {
         return writeU_Int24LE(this, value, offset, -0x800000, 0x7fffff);
     }
-    if (byteLength7 === 4) {
+    if (byteLength === 4) {
         return writeU_Int32LE(this, value, offset, -0x80000000, 0x7fffffff);
     }
-    if (byteLength7 === 2) {
+    if (byteLength === 2) {
         return writeU_Int16LE(this, value, offset, -0x8000, 0x7fff);
     }
-    if (byteLength7 === 1) {
+    if (byteLength === 1) {
         return writeU_Int8(this, value, offset, -0x80, 0x7f);
     }
-    boundsError(byteLength7, 6, "byteLength");
+    boundsError(byteLength, 6, "byteLength");
 };
-Buffer.prototype.writeIntBE = function writeIntBE(value, offset, byteLength8) {
-    if (byteLength8 === 6) {
+Buffer.prototype.writeIntBE = function writeIntBE(value, offset, byteLength) {
+    if (byteLength === 6) {
         return writeU_Int48BE(this, value, offset, -0x800000000000, 0x7fffffffffff);
     }
-    if (byteLength8 === 5) {
+    if (byteLength === 5) {
         return writeU_Int40BE(this, value, offset, -0x8000000000, 0x7fffffffff);
     }
-    if (byteLength8 === 3) {
+    if (byteLength === 3) {
         return writeU_Int24BE(this, value, offset, -0x800000, 0x7fffff);
     }
-    if (byteLength8 === 4) {
+    if (byteLength === 4) {
         return writeU_Int32BE(this, value, offset, -0x80000000, 0x7fffffff);
     }
-    if (byteLength8 === 2) {
+    if (byteLength === 2) {
         return writeU_Int16BE(this, value, offset, -0x8000, 0x7fff);
     }
-    if (byteLength8 === 1) {
+    if (byteLength === 1) {
         return writeU_Int8(this, value, offset, -0x80, 0x7f);
     }
-    boundsError(byteLength8, 6, "byteLength");
+    boundsError(byteLength, 6, "byteLength");
 };
 Buffer.prototype.writeInt8 = function writeInt8(value, offset = 0) {
     return writeU_Int8(this, value, offset, -0x80, 0x7f);
@@ -6625,10 +6932,10 @@ Buffer.prototype.fill = function fill(val, start, end, encoding) {
     if (!val) {
         val = 0;
     }
-    let i41;
+    let i;
     if (typeof val === "number") {
-        for(i41 = start; i41 < end; ++i41){
-            this[i41] = val;
+        for(i = start; i < end; ++i){
+            this[i] = val;
         }
     } else {
         const bytes = Buffer.isBuffer(val) ? val : Buffer.from(val, encoding);
@@ -6636,8 +6943,8 @@ Buffer.prototype.fill = function fill(val, start, end, encoding) {
         if (len === 0) {
             throw new codes.ERR_INVALID_ARG_VALUE("value", val);
         }
-        for(i41 = 0; i41 < end - start; ++i41){
-            this[i41 + start] = bytes[i41 % len];
+        for(i = 0; i < end - start; ++i){
+            this[i + start] = bytes[i % len];
         }
     }
     return this;
@@ -6671,8 +6978,8 @@ function utf8ToBytes(string, units) {
     const length = string.length;
     let leadSurrogate = null;
     const bytes = [];
-    for(let i42 = 0; i42 < length; ++i42){
-        codePoint = string.charCodeAt(i42);
+    for(let i = 0; i < length; ++i){
+        codePoint = string.charCodeAt(i);
         if (codePoint > 55295 && codePoint < 57344) {
             if (!leadSurrogate) {
                 if (codePoint > 56319) {
@@ -6680,7 +6987,7 @@ function utf8ToBytes(string, units) {
                         bytes.push(239, 191, 189);
                     }
                     continue;
-                } else if (i42 + 1 === length) {
+                } else if (i + 1 === length) {
                     if ((units -= 3) > -1) {
                         bytes.push(239, 191, 189);
                     }
@@ -6729,16 +7036,16 @@ function utf8ToBytes(string, units) {
     }
     return bytes;
 }
-function blitBuffer(src, dst, offset, byteLength9) {
-    let i43;
-    const length = byteLength9 === undefined ? src.length : byteLength9;
-    for(i43 = 0; i43 < length; ++i43){
-        if (i43 + offset >= dst.length || i43 >= src.length) {
+function blitBuffer(src, dst, offset, byteLength) {
+    let i;
+    const length = byteLength === undefined ? src.length : byteLength;
+    for(i = 0; i < length; ++i){
+        if (i + offset >= dst.length || i >= src.length) {
             break;
         }
-        dst[i43 + offset] = src[i43];
+        dst[i + offset] = src[i];
     }
-    return i43;
+    return i;
 }
 function isInstance(obj, type) {
     return obj instanceof type || obj != null && obj.constructor != null && obj.constructor.name != null && obj.constructor.name === type.name;
@@ -6746,10 +7053,10 @@ function isInstance(obj, type) {
 const hexSliceLookupTable = function() {
     const alphabet = "0123456789abcdef";
     const table = new Array(256);
-    for(let i44 = 0; i44 < 16; ++i44){
-        const i16 = i44 * 16;
+    for(let i = 0; i < 16; ++i){
+        const i16 = i * 16;
         for(let j = 0; j < 16; ++j){
-            table[i16 + j] = alphabet[i44] + alphabet[j];
+            table[i16 + j] = alphabet[i] + alphabet[j];
         }
     }
     return table;
@@ -6764,393 +7071,12 @@ globalThis.atob;
 globalThis.Blob;
 globalThis.btoa;
 var valueType;
-(function(valueType1) {
-    valueType1[valueType1["noIterator"] = 0] = "noIterator";
-    valueType1[valueType1["isArray"] = 1] = "isArray";
-    valueType1[valueType1["isSet"] = 2] = "isSet";
-    valueType1[valueType1["isMap"] = 3] = "isMap";
+(function(valueType) {
+    valueType[valueType["noIterator"] = 0] = "noIterator";
+    valueType[valueType["isArray"] = 1] = "isArray";
+    valueType[valueType["isSet"] = 2] = "isSet";
+    valueType[valueType["isMap"] = 3] = "isMap";
 })(valueType || (valueType = {}));
-let memo;
-function innerDeepEqual(val1, val2, strict, memos = memo) {
-    if (val1 === val2) {
-        if (val1 !== 0) return true;
-        return strict ? Object.is(val1, val2) : true;
-    }
-    if (strict) {
-        if (typeof val1 !== "object") {
-            return typeof val1 === "number" && Number.isNaN(val1) && Number.isNaN(val2);
-        }
-        if (typeof val2 !== "object" || val1 === null || val2 === null) {
-            return false;
-        }
-        if (Object.getPrototypeOf(val1) !== Object.getPrototypeOf(val2)) {
-            return false;
-        }
-    } else {
-        if (val1 === null || typeof val1 !== "object") {
-            if (val2 === null || typeof val2 !== "object") {
-                return val1 == val2 || Number.isNaN(val1) && Number.isNaN(val2);
-            }
-            return false;
-        }
-        if (val2 === null || typeof val2 !== "object") {
-            return false;
-        }
-    }
-    const val1Tag = Object.prototype.toString.call(val1);
-    const val2Tag = Object.prototype.toString.call(val2);
-    if (val1Tag !== val2Tag) {
-        return false;
-    }
-    if (Array.isArray(val1)) {
-        if (!Array.isArray(val2) || val1.length !== val2.length) {
-            return false;
-        }
-        const filter = strict ? 2 : 2 | 16;
-        const keys1 = getOwnNonIndexProperties(val1, filter);
-        const keys2 = getOwnNonIndexProperties(val2, filter);
-        if (keys1.length !== keys2.length) {
-            return false;
-        }
-        return keyCheck(val1, val2, strict, memos, valueType.isArray, keys1);
-    } else if (val1Tag === "[object Object]") {
-        return keyCheck(val1, val2, strict, memos, valueType.noIterator);
-    } else if (val1 instanceof Date) {
-        if (!(val2 instanceof Date) || val1.getTime() !== val2.getTime()) {
-            return false;
-        }
-    } else if (val1 instanceof RegExp) {
-        if (!(val2 instanceof RegExp) || !areSimilarRegExps(val1, val2)) {
-            return false;
-        }
-    } else if (isNativeError1(val1) || val1 instanceof Error) {
-        if (!isNativeError1(val2) && !(val2 instanceof Error) || val1.message !== val2.message || val1.name !== val2.name) {
-            return false;
-        }
-    } else if (isArrayBufferView(val1)) {
-        const TypedArrayPrototypeGetSymbolToStringTag = (val)=>Object.getOwnPropertySymbols(val).map((item)=>item.toString()
-            ).toString()
-        ;
-        if (isTypedArray(val1) && isTypedArray(val2) && TypedArrayPrototypeGetSymbolToStringTag(val1) !== TypedArrayPrototypeGetSymbolToStringTag(val2)) {
-            return false;
-        }
-        if (!strict && (isFloat32Array(val1) || isFloat64Array(val1))) {
-            if (!areSimilarFloatArrays(val1, val2)) {
-                return false;
-            }
-        } else if (!areSimilarTypedArrays(val1, val2)) {
-            return false;
-        }
-        const filter = strict ? 2 : 2 | 16;
-        const keysVal1 = getOwnNonIndexProperties(val1, filter);
-        const keysVal2 = getOwnNonIndexProperties(val2, filter);
-        if (keysVal1.length !== keysVal2.length) {
-            return false;
-        }
-        return keyCheck(val1, val2, strict, memos, valueType.noIterator, keysVal1);
-    } else if (isSet1(val1)) {
-        if (!isSet1(val2) || val1.size !== val2.size) {
-            return false;
-        }
-        return keyCheck(val1, val2, strict, memos, valueType.isSet);
-    } else if (isMap1(val1)) {
-        if (!isMap1(val2) || val1.size !== val2.size) {
-            return false;
-        }
-        return keyCheck(val1, val2, strict, memos, valueType.isMap);
-    } else if (isAnyArrayBuffer1(val1)) {
-        if (!isAnyArrayBuffer1(val2) || !areEqualArrayBuffers(val1, val2)) {
-            return false;
-        }
-    } else if (isBoxedPrimitive1(val1)) {
-        if (!isEqualBoxedPrimitive(val1, val2)) {
-            return false;
-        }
-    } else if (Array.isArray(val2) || isArrayBufferView(val2) || isSet1(val2) || isMap1(val2) || isDate1(val2) || isRegExp1(val2) || isAnyArrayBuffer1(val2) || isBoxedPrimitive1(val2) || isNativeError1(val2) || val2 instanceof Error) {
-        return false;
-    }
-    return keyCheck(val1, val2, strict, memos, valueType.noIterator);
-}
-function keyCheck(val1, val2, strict, memos, iterationType, aKeys = []) {
-    if (arguments.length === 5) {
-        aKeys = Object.keys(val1);
-        const bKeys = Object.keys(val2);
-        if (aKeys.length !== bKeys.length) {
-            return false;
-        }
-    }
-    let i45 = 0;
-    for(; i45 < aKeys.length; i45++){
-        if (!val2.propertyIsEnumerable(aKeys[i45])) {
-            return false;
-        }
-    }
-    if (strict && arguments.length === 5) {
-        const symbolKeysA = Object.getOwnPropertySymbols(val1);
-        if (symbolKeysA.length !== 0) {
-            let count = 0;
-            for(i45 = 0; i45 < symbolKeysA.length; i45++){
-                const key = symbolKeysA[i45];
-                if (val1.propertyIsEnumerable(key)) {
-                    if (!val2.propertyIsEnumerable(key)) {
-                        return false;
-                    }
-                    aKeys.push(key.toString());
-                    count++;
-                } else if (val2.propertyIsEnumerable(key)) {
-                    return false;
-                }
-            }
-            const symbolKeysB = Object.getOwnPropertySymbols(val2);
-            if (symbolKeysA.length !== symbolKeysB.length && getEnumerables(val2, symbolKeysB).length !== count) {
-                return false;
-            }
-        } else {
-            const symbolKeysB = Object.getOwnPropertySymbols(val2);
-            if (symbolKeysB.length !== 0 && getEnumerables(val2, symbolKeysB).length !== 0) {
-                return false;
-            }
-        }
-    }
-    if (aKeys.length === 0 && (iterationType === valueType.noIterator || iterationType === valueType.isArray && val1.length === 0 || val1.size === 0)) {
-        return true;
-    }
-    if (memos === undefined) {
-        memos = {
-            val1: new Map(),
-            val2: new Map(),
-            position: 0
-        };
-    } else {
-        const val2MemoA = memos.val1.get(val1);
-        if (val2MemoA !== undefined) {
-            const val2MemoB = memos.val2.get(val2);
-            if (val2MemoB !== undefined) {
-                return val2MemoA === val2MemoB;
-            }
-        }
-        memos.position++;
-    }
-    memos.val1.set(val1, memos.position);
-    memos.val2.set(val2, memos.position);
-    const areEq = objEquiv(val1, val2, strict, aKeys, memos, iterationType);
-    memos.val1.delete(val1);
-    memos.val2.delete(val2);
-    return areEq;
-}
-function areSimilarRegExps(a, b) {
-    return a.source === b.source && a.flags === b.flags && a.lastIndex === b.lastIndex;
-}
-function areSimilarFloatArrays(arr1, arr2) {
-    if (arr1.byteLength !== arr2.byteLength) {
-        return false;
-    }
-    for(let i46 = 0; i46 < arr1.byteLength; i46++){
-        if (arr1[i46] !== arr2[i46]) {
-            return false;
-        }
-    }
-    return true;
-}
-function areSimilarTypedArrays(arr1, arr2) {
-    if (arr1.byteLength !== arr2.byteLength) {
-        return false;
-    }
-    return Buffer.compare(new Uint8Array(arr1.buffer, arr1.byteOffset, arr1.byteLength), new Uint8Array(arr2.buffer, arr2.byteOffset, arr2.byteLength)) === 0;
-}
-function areEqualArrayBuffers(buf1, buf2) {
-    return buf1.byteLength === buf2.byteLength && Buffer.compare(new Uint8Array(buf1), new Uint8Array(buf2)) === 0;
-}
-function isEqualBoxedPrimitive(a, b) {
-    if (Object.getOwnPropertyNames(a).length !== Object.getOwnPropertyNames(b).length) {
-        return false;
-    }
-    if (Object.getOwnPropertySymbols(a).length !== Object.getOwnPropertySymbols(b).length) {
-        return false;
-    }
-    if (isNumberObject1(a)) {
-        return isNumberObject1(b) && Object.is(Number.prototype.valueOf.call(a), Number.prototype.valueOf.call(b));
-    }
-    if (isStringObject1(a)) {
-        return isStringObject1(b) && String.prototype.valueOf.call(a) === String.prototype.valueOf.call(b);
-    }
-    if (isBooleanObject1(a)) {
-        return isBooleanObject1(b) && Boolean.prototype.valueOf.call(a) === Boolean.prototype.valueOf.call(b);
-    }
-    if (isBigIntObject1(a)) {
-        return isBigIntObject1(b) && BigInt.prototype.valueOf.call(a) === BigInt.prototype.valueOf.call(b);
-    }
-    if (isSymbolObject1(a)) {
-        return isSymbolObject1(b) && Symbol.prototype.valueOf.call(a) === Symbol.prototype.valueOf.call(b);
-    }
-    throw Error(`Unknown boxed type`);
-}
-function getEnumerables(val, keys) {
-    return keys.filter((key)=>val.propertyIsEnumerable(key)
-    );
-}
-function objEquiv(obj1, obj2, strict, keys, memos, iterationType) {
-    let i47 = 0;
-    if (iterationType === valueType.isSet) {
-        if (!setEquiv(obj1, obj2, strict, memos)) {
-            return false;
-        }
-    } else if (iterationType === valueType.isMap) {
-        if (!mapEquiv(obj1, obj2, strict, memos)) {
-            return false;
-        }
-    } else if (iterationType === valueType.isArray) {
-        for(; i47 < obj1.length; i47++){
-            if (obj1.hasOwnProperty(i47)) {
-                if (!obj2.hasOwnProperty(i47) || !innerDeepEqual(obj1[i47], obj2[i47], strict, memos)) {
-                    return false;
-                }
-            } else if (obj2.hasOwnProperty(i47)) {
-                return false;
-            } else {
-                const keys1 = Object.keys(obj1);
-                for(; i47 < keys1.length; i47++){
-                    const key = keys1[i47];
-                    if (!obj2.hasOwnProperty(key) || !innerDeepEqual(obj1[key], obj2[key], strict, memos)) {
-                        return false;
-                    }
-                }
-                if (keys1.length !== Object.keys(obj2).length) {
-                    return false;
-                }
-                if (keys1.length !== Object.keys(obj2).length) {
-                    return false;
-                }
-                return true;
-            }
-        }
-    }
-    for(i47 = 0; i47 < keys.length; i47++){
-        const key = keys[i47];
-        if (!innerDeepEqual(obj1[key], obj2[key], strict, memos)) {
-            return false;
-        }
-    }
-    return true;
-}
-function findLooseMatchingPrimitives(primitive) {
-    switch(typeof primitive){
-        case "undefined":
-            return null;
-        case "object":
-            return undefined;
-        case "symbol":
-            return false;
-        case "string":
-            primitive = +primitive;
-        case "number":
-            if (Number.isNaN(primitive)) {
-                return false;
-            }
-    }
-    return true;
-}
-function setMightHaveLoosePrim(set1, set2, primitive) {
-    const altValue = findLooseMatchingPrimitives(primitive);
-    if (altValue != null) return altValue;
-    return set2.has(altValue) && !set1.has(altValue);
-}
-function setHasEqualElement(set, val1, strict, memos) {
-    for (const val2 of set){
-        if (innerDeepEqual(val1, val2, strict, memos)) {
-            set.delete(val2);
-            return true;
-        }
-    }
-    return false;
-}
-function setEquiv(set1, set2, strict, memos) {
-    let set = null;
-    for (const item of set1){
-        if (typeof item === "object" && item !== null) {
-            if (set === null) {
-                set = new Set();
-            }
-            set.add(item);
-        } else if (!set2.has(item)) {
-            if (strict) return false;
-            if (!setMightHaveLoosePrim(set1, set2, item)) {
-                return false;
-            }
-            if (set === null) {
-                set = new Set();
-            }
-            set.add(item);
-        }
-    }
-    if (set !== null) {
-        for (const item of set2){
-            if (typeof item === "object" && item !== null) {
-                if (!setHasEqualElement(set, item, strict, memos)) return false;
-            } else if (!strict && !set1.has(item) && !setHasEqualElement(set, item, strict, memos)) {
-                return false;
-            }
-        }
-        return set.size === 0;
-    }
-    return true;
-}
-function mapMightHaveLoosePrimitive(map1, map2, primitive, item, memos) {
-    const altValue = findLooseMatchingPrimitives(primitive);
-    if (altValue != null) {
-        return altValue;
-    }
-    const curB = map2.get(altValue);
-    if (curB === undefined && !map2.has(altValue) || !innerDeepEqual(item, curB, false, memo)) {
-        return false;
-    }
-    return !map1.has(altValue) && innerDeepEqual(item, curB, false, memos);
-}
-function mapEquiv(map1, map2, strict, memos) {
-    let set = null;
-    for (const { 0: key , 1: item1  } of map1){
-        if (typeof key === "object" && key !== null) {
-            if (set === null) {
-                set = new Set();
-            }
-            set.add(key);
-        } else {
-            const item2 = map2.get(key);
-            if (item2 === undefined && !map2.has(key) || !innerDeepEqual(item1, item2, strict, memos)) {
-                if (strict) return false;
-                if (!mapMightHaveLoosePrimitive(map1, map2, key, item1, memos)) {
-                    return false;
-                }
-                if (set === null) {
-                    set = new Set();
-                }
-                set.add(key);
-            }
-        }
-    }
-    if (set !== null) {
-        for (const { 0: key , 1: item  } of map2){
-            if (typeof key === "object" && key !== null) {
-                if (!mapHasEqualEntry(set, map1, key, item, strict, memos)) {
-                    return false;
-                }
-            } else if (!strict && (!map1.has(key) || !innerDeepEqual(map1.get(key), item, false, memos)) && !mapHasEqualEntry(set, map1, key, item, false, memos)) {
-                return false;
-            }
-        }
-        return set.size === 0;
-    }
-    return true;
-}
-function mapHasEqualEntry(set, map, key1, item1, strict, memos) {
-    for (const key2 of set){
-        if (innerDeepEqual(key1, key2, strict, memos) && innerDeepEqual(item1, map.get(key2), strict, memos)) {
-            set.delete(key2);
-            return true;
-        }
-    }
-    return false;
-}
 const NumberIsSafeInteger = Number.isSafeInteger;
 function getSystemErrorName(code) {
     if (typeof code !== "number") {
@@ -7161,7 +7087,7 @@ function getSystemErrorName(code) {
     }
     return errorMap.get(code)?.[0];
 }
-const { errno: { ENOTDIR , ENOENT  } ,  } = os;
+const { errno: { ENOTDIR , ENOENT  }  } = os;
 const kIsNodeError = Symbol("kIsNodeError");
 const classRegExp1 = /^([A-Z][a-z0-9]*)+$/;
 const kTypes = [
@@ -7173,16 +7099,16 @@ const kTypes = [
     "Object",
     "boolean",
     "bigint",
-    "symbol", 
+    "symbol"
 ];
 function addNumericalSeparator(val) {
     let res = "";
-    let i48 = val.length;
+    let i = val.length;
     const start = val[0] === "-" ? 1 : 0;
-    for(; i48 >= start + 4; i48 -= 3){
-        res = `_${val.slice(i48 - 3, i48)}${res}`;
+    for(; i >= start + 4; i -= 3){
+        res = `_${val.slice(i - 3, i)}${res}`;
     }
-    return `${val.slice(0, i48)}${res}`;
+    return `${val.slice(0, i)}${res}`;
 }
 const captureLargerStackTrace = hideStackFrames(function captureLargerStackTrace(err) {
     Error.captureStackTrace(err);
@@ -7226,11 +7152,11 @@ const uvUnmappedError = [
 hideStackFrames(function uvException(ctx) {
     const { 0: code , 1: uvmsg  } = uvErrmapGet(ctx.errno) || uvUnmappedError;
     let message = `${code}: ${ctx.message || uvmsg}, ${ctx.syscall}`;
-    let path2;
+    let path;
     let dest;
     if (ctx.path) {
-        path2 = ctx.path.toString();
-        message += ` '${path2}'`;
+        path = ctx.path.toString();
+        message += ` '${path}'`;
     }
     if (ctx.dest) {
         dest = ctx.dest.toString();
@@ -7244,8 +7170,8 @@ hideStackFrames(function uvException(ctx) {
         err[prop] = ctx[prop];
     }
     err.code = code;
-    if (path2) {
-        err.path = path2;
+    if (path) {
+        err.path = path;
     }
     if (dest) {
         err.dest = dest;
@@ -7465,8 +7391,8 @@ function createInvalidArgType(name, expected) {
     }
     if (instances.length > 0) {
         if (instances.length > 2) {
-            const last = instances.pop();
-            msg += `an instance of ${instances.join(", ")}, or ${last}`;
+            const last1 = instances.pop();
+            msg += `an instance of ${instances.join(", ")}, or ${last1}`;
         } else {
             msg += `an instance of ${instances[0]}`;
             if (instances.length === 2) {
@@ -7479,8 +7405,8 @@ function createInvalidArgType(name, expected) {
     }
     if (other.length > 0) {
         if (other.length > 2) {
-            const last = other.pop();
-            msg += `one of ${other.join(", ")}, or ${last}`;
+            const last2 = other.pop();
+            msg += `one of ${other.join(", ")}, or ${last2}`;
         } else if (other.length === 2) {
             msg += `one of ${other[0]} or ${other[1]}`;
         } else {
@@ -7634,11 +7560,11 @@ hideStackFrames(function genericNodeError(message, errorProperties) {
 });
 const CHAR_FORWARD_SLASH = 47;
 const CHAR_FORWARD_SLASH1 = 47;
-function assertPath(path3) {
-    if (typeof path3 !== "string") {
+function assertPath(path) {
+    if (typeof path !== "string") {
         throw new ERR_INVALID_ARG_TYPE("path", [
             "string"
-        ], path3);
+        ], path);
     }
 }
 function isPosixPathSeparator(code) {
@@ -7650,18 +7576,18 @@ function isPathSeparator(code) {
 function isWindowsDeviceRoot(code) {
     return code >= 97 && code <= 122 || code >= 65 && code <= 90;
 }
-function normalizeString(path4, allowAboveRoot, separator, isPathSeparator1) {
+function normalizeString(path, allowAboveRoot, separator, isPathSeparator) {
     let res = "";
     let lastSegmentLength = 0;
     let lastSlash = -1;
     let dots = 0;
     let code;
-    for(let i49 = 0, len = path4.length; i49 <= len; ++i49){
-        if (i49 < len) code = path4.charCodeAt(i49);
-        else if (isPathSeparator1(code)) break;
+    for(let i = 0, len = path.length; i <= len; ++i){
+        if (i < len) code = path.charCodeAt(i);
+        else if (isPathSeparator(code)) break;
         else code = CHAR_FORWARD_SLASH1;
-        if (isPathSeparator1(code)) {
-            if (lastSlash === i49 - 1 || dots === 1) {} else if (lastSlash !== i49 - 1 && dots === 2) {
+        if (isPathSeparator(code)) {
+            if (lastSlash === i - 1 || dots === 1) {} else if (lastSlash !== i - 1 && dots === 2) {
                 if (res.length < 2 || lastSegmentLength !== 2 || res.charCodeAt(res.length - 1) !== 46 || res.charCodeAt(res.length - 2) !== 46) {
                     if (res.length > 2) {
                         const lastSlashIndex = res.lastIndexOf(separator);
@@ -7672,13 +7598,13 @@ function normalizeString(path4, allowAboveRoot, separator, isPathSeparator1) {
                             res = res.slice(0, lastSlashIndex);
                             lastSegmentLength = res.length - 1 - res.lastIndexOf(separator);
                         }
-                        lastSlash = i49;
+                        lastSlash = i;
                         dots = 0;
                         continue;
                     } else if (res.length === 2 || res.length === 1) {
                         res = "";
                         lastSegmentLength = 0;
-                        lastSlash = i49;
+                        lastSlash = i;
                         dots = 0;
                         continue;
                     }
@@ -7689,11 +7615,11 @@ function normalizeString(path4, allowAboveRoot, separator, isPathSeparator1) {
                     lastSegmentLength = 2;
                 }
             } else {
-                if (res.length > 0) res += separator + path4.slice(lastSlash + 1, i49);
-                else res = path4.slice(lastSlash + 1, i49);
-                lastSegmentLength = i49 - lastSlash - 1;
+                if (res.length > 0) res += separator + path.slice(lastSlash + 1, i);
+                else res = path.slice(lastSlash + 1, i);
+                lastSegmentLength = i - lastSlash - 1;
             }
-            lastSlash = i49;
+            lastSlash = i;
             dots = 0;
         } else if (code === 46 && dots !== -1) {
             ++dots;
@@ -7703,12 +7629,12 @@ function normalizeString(path4, allowAboveRoot, separator, isPathSeparator1) {
     }
     return res;
 }
-function _format(sep3, pathObject) {
+function _format(sep, pathObject) {
     const dir = pathObject.dir || pathObject.root;
-    const base7 = pathObject.base || (pathObject.name || "") + (pathObject.ext || "");
-    if (!dir) return base7;
-    if (dir === pathObject.root) return dir + base7;
-    return dir + sep3 + base7;
+    const base = pathObject.base || (pathObject.name || "") + (pathObject.ext || "");
+    if (!dir) return base;
+    if (dir === pathObject.root) return dir + base;
+    return dir + sep + base;
 }
 const WHITESPACE_ENCODINGS = {
     "\u0009": "%09",
@@ -7729,57 +7655,57 @@ function resolve(...pathSegments) {
     let resolvedDevice = "";
     let resolvedTail = "";
     let resolvedAbsolute = false;
-    for(let i50 = pathSegments.length - 1; i50 >= -1; i50--){
-        let path5;
-        const { process  } = globalThis;
-        if (i50 >= 0) {
-            path5 = pathSegments[i50];
+    for(let i = pathSegments.length - 1; i >= -1; i--){
+        let path;
+        const { Deno: Deno1  } = globalThis;
+        if (i >= 0) {
+            path = pathSegments[i];
         } else if (!resolvedDevice) {
-            if (typeof process?.cwd !== "function") {
+            if (typeof Deno1?.cwd !== "function") {
                 throw new TypeError("Resolved a drive-letter-less path without a CWD.");
             }
-            path5 = process.cwd();
+            path = Deno1.cwd();
         } else {
-            if (!process?.env || typeof process?.cwd !== "function") {
+            if (typeof Deno1?.env?.get !== "function" || typeof Deno1?.cwd !== "function") {
                 throw new TypeError("Resolved a relative path without a CWD.");
             }
-            path5 = process.cwd();
-            if (path5 === undefined || path5.slice(0, 3).toLowerCase() !== `${resolvedDevice.toLowerCase()}\\`) {
-                path5 = `${resolvedDevice}\\`;
+            path = Deno1.cwd();
+            if (path === undefined || path.slice(0, 3).toLowerCase() !== `${resolvedDevice.toLowerCase()}\\`) {
+                path = `${resolvedDevice}\\`;
             }
         }
-        assertPath(path5);
-        const len = path5.length;
+        assertPath(path);
+        const len = path.length;
         if (len === 0) continue;
         let rootEnd = 0;
         let device = "";
-        let isAbsolute1 = false;
-        const code = path5.charCodeAt(0);
+        let isAbsolute = false;
+        const code = path.charCodeAt(0);
         if (len > 1) {
             if (isPathSeparator(code)) {
-                isAbsolute1 = true;
-                if (isPathSeparator(path5.charCodeAt(1))) {
+                isAbsolute = true;
+                if (isPathSeparator(path.charCodeAt(1))) {
                     let j = 2;
                     let last = j;
                     for(; j < len; ++j){
-                        if (isPathSeparator(path5.charCodeAt(j))) break;
+                        if (isPathSeparator(path.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
-                        const firstPart = path5.slice(last, j);
+                        const firstPart = path.slice(last, j);
                         last = j;
                         for(; j < len; ++j){
-                            if (!isPathSeparator(path5.charCodeAt(j))) break;
+                            if (!isPathSeparator(path.charCodeAt(j))) break;
                         }
                         if (j < len && j !== last) {
                             last = j;
                             for(; j < len; ++j){
-                                if (isPathSeparator(path5.charCodeAt(j))) break;
+                                if (isPathSeparator(path.charCodeAt(j))) break;
                             }
                             if (j === len) {
-                                device = `\\\\${firstPart}\\${path5.slice(last)}`;
+                                device = `\\\\${firstPart}\\${path.slice(last)}`;
                                 rootEnd = j;
                             } else if (j !== last) {
-                                device = `\\\\${firstPart}\\${path5.slice(last, j)}`;
+                                device = `\\\\${firstPart}\\${path.slice(last, j)}`;
                                 rootEnd = j;
                             }
                         }
@@ -7788,12 +7714,12 @@ function resolve(...pathSegments) {
                     rootEnd = 1;
                 }
             } else if (isWindowsDeviceRoot(code)) {
-                if (path5.charCodeAt(1) === 58) {
-                    device = path5.slice(0, 2);
+                if (path.charCodeAt(1) === 58) {
+                    device = path.slice(0, 2);
                     rootEnd = 2;
                     if (len > 2) {
-                        if (isPathSeparator(path5.charCodeAt(2))) {
-                            isAbsolute1 = true;
+                        if (isPathSeparator(path.charCodeAt(2))) {
+                            isAbsolute = true;
                             rootEnd = 3;
                         }
                     }
@@ -7801,7 +7727,7 @@ function resolve(...pathSegments) {
             }
         } else if (isPathSeparator(code)) {
             rootEnd = 1;
-            isAbsolute1 = true;
+            isAbsolute = true;
         }
         if (device.length > 0 && resolvedDevice.length > 0 && device.toLowerCase() !== resolvedDevice.toLowerCase()) {
             continue;
@@ -7810,46 +7736,46 @@ function resolve(...pathSegments) {
             resolvedDevice = device;
         }
         if (!resolvedAbsolute) {
-            resolvedTail = `${path5.slice(rootEnd)}\\${resolvedTail}`;
-            resolvedAbsolute = isAbsolute1;
+            resolvedTail = `${path.slice(rootEnd)}\\${resolvedTail}`;
+            resolvedAbsolute = isAbsolute;
         }
         if (resolvedAbsolute && resolvedDevice.length > 0) break;
     }
     resolvedTail = normalizeString(resolvedTail, !resolvedAbsolute, "\\", isPathSeparator);
     return resolvedDevice + (resolvedAbsolute ? "\\" : "") + resolvedTail || ".";
 }
-function normalize(path6) {
-    assertPath(path6);
-    const len = path6.length;
+function normalize(path) {
+    assertPath(path);
+    const len = path.length;
     if (len === 0) return ".";
     let rootEnd = 0;
     let device;
-    let isAbsolute2 = false;
-    const code = path6.charCodeAt(0);
+    let isAbsolute = false;
+    const code = path.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator(code)) {
-            isAbsolute2 = true;
-            if (isPathSeparator(path6.charCodeAt(1))) {
+            isAbsolute = true;
+            if (isPathSeparator(path.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator(path6.charCodeAt(j))) break;
+                    if (isPathSeparator(path.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
-                    const firstPart = path6.slice(last, j);
+                    const firstPart = path.slice(last, j);
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator(path6.charCodeAt(j))) break;
+                        if (!isPathSeparator(path.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator(path6.charCodeAt(j))) break;
+                            if (isPathSeparator(path.charCodeAt(j))) break;
                         }
                         if (j === len) {
-                            return `\\\\${firstPart}\\${path6.slice(last)}\\`;
+                            return `\\\\${firstPart}\\${path.slice(last)}\\`;
                         } else if (j !== last) {
-                            device = `\\\\${firstPart}\\${path6.slice(last, j)}`;
+                            device = `\\\\${firstPart}\\${path.slice(last, j)}`;
                             rootEnd = j;
                         }
                     }
@@ -7858,12 +7784,12 @@ function normalize(path6) {
                 rootEnd = 1;
             }
         } else if (isWindowsDeviceRoot(code)) {
-            if (path6.charCodeAt(1) === 58) {
-                device = path6.slice(0, 2);
+            if (path.charCodeAt(1) === 58) {
+                device = path.slice(0, 2);
                 rootEnd = 2;
                 if (len > 2) {
-                    if (isPathSeparator(path6.charCodeAt(2))) {
-                        isAbsolute2 = true;
+                    if (isPathSeparator(path.charCodeAt(2))) {
+                        isAbsolute = true;
                         rootEnd = 3;
                     }
                 }
@@ -7874,16 +7800,16 @@ function normalize(path6) {
     }
     let tail;
     if (rootEnd < len) {
-        tail = normalizeString(path6.slice(rootEnd), !isAbsolute2, "\\", isPathSeparator);
+        tail = normalizeString(path.slice(rootEnd), !isAbsolute, "\\", isPathSeparator);
     } else {
         tail = "";
     }
-    if (tail.length === 0 && !isAbsolute2) tail = ".";
-    if (tail.length > 0 && isPathSeparator(path6.charCodeAt(len - 1))) {
+    if (tail.length === 0 && !isAbsolute) tail = ".";
+    if (tail.length > 0 && isPathSeparator(path.charCodeAt(len - 1))) {
         tail += "\\";
     }
     if (device === undefined) {
-        if (isAbsolute2) {
+        if (isAbsolute) {
             if (tail.length > 0) return `\\${tail}`;
             else return "\\";
         } else if (tail.length > 0) {
@@ -7891,7 +7817,7 @@ function normalize(path6) {
         } else {
             return "";
         }
-    } else if (isAbsolute2) {
+    } else if (isAbsolute) {
         if (tail.length > 0) return `${device}\\${tail}`;
         else return `${device}\\`;
     } else if (tail.length > 0) {
@@ -7900,16 +7826,16 @@ function normalize(path6) {
         return device;
     }
 }
-function isAbsolute(path7) {
-    assertPath(path7);
-    const len = path7.length;
+function isAbsolute(path) {
+    assertPath(path);
+    const len = path.length;
     if (len === 0) return false;
-    const code = path7.charCodeAt(0);
+    const code = path.charCodeAt(0);
     if (isPathSeparator(code)) {
         return true;
     } else if (isWindowsDeviceRoot(code)) {
-        if (len > 2 && path7.charCodeAt(1) === 58) {
-            if (isPathSeparator(path7.charCodeAt(2))) return true;
+        if (len > 2 && path.charCodeAt(1) === 58) {
+            if (isPathSeparator(path.charCodeAt(2))) return true;
         }
     }
     return false;
@@ -7919,12 +7845,12 @@ function join1(...paths) {
     if (pathsCount === 0) return ".";
     let joined;
     let firstPart = null;
-    for(let i51 = 0; i51 < pathsCount; ++i51){
-        const path8 = paths[i51];
-        assertPath(path8);
-        if (path8.length > 0) {
-            if (joined === undefined) joined = firstPart = path8;
-            else joined += `\\${path8}`;
+    for(let i = 0; i < pathsCount; ++i){
+        const path = paths[i];
+        assertPath(path);
+        if (path.length > 0) {
+            if (joined === undefined) joined = firstPart = path;
+            else joined += `\\${path}`;
         }
     }
     if (joined === undefined) return ".";
@@ -7984,37 +7910,37 @@ function relative(from, to) {
     const toLen = toEnd - toStart;
     const length = fromLen < toLen ? fromLen : toLen;
     let lastCommonSep = -1;
-    let i52 = 0;
-    for(; i52 <= length; ++i52){
-        if (i52 === length) {
+    let i = 0;
+    for(; i <= length; ++i){
+        if (i === length) {
             if (toLen > length) {
-                if (to.charCodeAt(toStart + i52) === 92) {
-                    return toOrig.slice(toStart + i52 + 1);
-                } else if (i52 === 2) {
-                    return toOrig.slice(toStart + i52);
+                if (to.charCodeAt(toStart + i) === 92) {
+                    return toOrig.slice(toStart + i + 1);
+                } else if (i === 2) {
+                    return toOrig.slice(toStart + i);
                 }
             }
             if (fromLen > length) {
-                if (from.charCodeAt(fromStart + i52) === 92) {
-                    lastCommonSep = i52;
-                } else if (i52 === 2) {
+                if (from.charCodeAt(fromStart + i) === 92) {
+                    lastCommonSep = i;
+                } else if (i === 2) {
                     lastCommonSep = 3;
                 }
             }
             break;
         }
-        const fromCode = from.charCodeAt(fromStart + i52);
-        const toCode = to.charCodeAt(toStart + i52);
+        const fromCode = from.charCodeAt(fromStart + i);
+        const toCode = to.charCodeAt(toStart + i);
         if (fromCode !== toCode) break;
-        else if (fromCode === 92) lastCommonSep = i52;
+        else if (fromCode === 92) lastCommonSep = i;
     }
-    if (i52 !== length && lastCommonSep === -1) {
+    if (i !== length && lastCommonSep === -1) {
         return toOrig;
     }
     let out = "";
     if (lastCommonSep === -1) lastCommonSep = 0;
-    for(i52 = fromStart + lastCommonSep + 1; i52 <= fromEnd; ++i52){
-        if (i52 === fromEnd || from.charCodeAt(i52) === 92) {
+    for(i = fromStart + lastCommonSep + 1; i <= fromEnd; ++i){
+        if (i === fromEnd || from.charCodeAt(i) === 92) {
             if (out.length === 0) out += "..";
             else out += "\\..";
         }
@@ -8027,10 +7953,10 @@ function relative(from, to) {
         return toOrig.slice(toStart, toEnd);
     }
 }
-function toNamespacedPath(path9) {
-    if (typeof path9 !== "string") return path9;
-    if (path9.length === 0) return "";
-    const resolvedPath = resolve(path9);
+function toNamespacedPath(path) {
+    if (typeof path !== "string") return path;
+    if (path.length === 0) return "";
+    const resolvedPath = resolve(path);
     if (resolvedPath.length >= 3) {
         if (resolvedPath.charCodeAt(0) === 92) {
             if (resolvedPath.charCodeAt(1) === 92) {
@@ -8045,38 +7971,38 @@ function toNamespacedPath(path9) {
             }
         }
     }
-    return path9;
+    return path;
 }
-function dirname(path10) {
-    assertPath(path10);
-    const len = path10.length;
+function dirname(path) {
+    assertPath(path);
+    const len = path.length;
     if (len === 0) return ".";
     let rootEnd = -1;
     let end = -1;
     let matchedSlash = true;
     let offset = 0;
-    const code = path10.charCodeAt(0);
+    const code = path.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator(code)) {
             rootEnd = offset = 1;
-            if (isPathSeparator(path10.charCodeAt(1))) {
+            if (isPathSeparator(path.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator(path10.charCodeAt(j))) break;
+                    if (isPathSeparator(path.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator(path10.charCodeAt(j))) break;
+                        if (!isPathSeparator(path.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator(path10.charCodeAt(j))) break;
+                            if (isPathSeparator(path.charCodeAt(j))) break;
                         }
                         if (j === len) {
-                            return path10;
+                            return path;
                         }
                         if (j !== last) {
                             rootEnd = offset = j + 1;
@@ -8085,20 +8011,20 @@ function dirname(path10) {
                 }
             }
         } else if (isWindowsDeviceRoot(code)) {
-            if (path10.charCodeAt(1) === 58) {
+            if (path.charCodeAt(1) === 58) {
                 rootEnd = offset = 2;
                 if (len > 2) {
-                    if (isPathSeparator(path10.charCodeAt(2))) rootEnd = offset = 3;
+                    if (isPathSeparator(path.charCodeAt(2))) rootEnd = offset = 3;
                 }
             }
         }
     } else if (isPathSeparator(code)) {
-        return path10;
+        return path;
     }
-    for(let i53 = len - 1; i53 >= offset; --i53){
-        if (isPathSeparator(path10.charCodeAt(i53))) {
+    for(let i = len - 1; i >= offset; --i){
+        if (isPathSeparator(path.charCodeAt(i))) {
             if (!matchedSlash) {
-                end = i53;
+                end = i;
                 break;
             }
         } else {
@@ -8109,45 +8035,45 @@ function dirname(path10) {
         if (rootEnd === -1) return ".";
         else end = rootEnd;
     }
-    return path10.slice(0, end);
+    return path.slice(0, end);
 }
-function basename(path11, ext = "") {
+function basename(path, ext = "") {
     if (ext !== undefined && typeof ext !== "string") {
         throw new ERR_INVALID_ARG_TYPE("ext", [
             "string"
         ], ext);
     }
-    assertPath(path11);
+    assertPath(path);
     let start = 0;
     let end = -1;
     let matchedSlash = true;
-    let i54;
-    if (path11.length >= 2) {
-        const drive = path11.charCodeAt(0);
+    let i;
+    if (path.length >= 2) {
+        const drive = path.charCodeAt(0);
         if (isWindowsDeviceRoot(drive)) {
-            if (path11.charCodeAt(1) === 58) start = 2;
+            if (path.charCodeAt(1) === 58) start = 2;
         }
     }
-    if (ext !== undefined && ext.length > 0 && ext.length <= path11.length) {
-        if (ext.length === path11.length && ext === path11) return "";
+    if (ext !== undefined && ext.length > 0 && ext.length <= path.length) {
+        if (ext.length === path.length && ext === path) return "";
         let extIdx = ext.length - 1;
         let firstNonSlashEnd = -1;
-        for(i54 = path11.length - 1; i54 >= start; --i54){
-            const code = path11.charCodeAt(i54);
+        for(i = path.length - 1; i >= start; --i){
+            const code = path.charCodeAt(i);
             if (isPathSeparator(code)) {
                 if (!matchedSlash) {
-                    start = i54 + 1;
+                    start = i + 1;
                     break;
                 }
             } else {
                 if (firstNonSlashEnd === -1) {
                     matchedSlash = false;
-                    firstNonSlashEnd = i54 + 1;
+                    firstNonSlashEnd = i + 1;
                 }
                 if (extIdx >= 0) {
                     if (code === ext.charCodeAt(extIdx)) {
                         if (--extIdx === -1) {
-                            end = i54;
+                            end = i;
                         }
                     } else {
                         extIdx = -1;
@@ -8157,50 +8083,50 @@ function basename(path11, ext = "") {
             }
         }
         if (start === end) end = firstNonSlashEnd;
-        else if (end === -1) end = path11.length;
-        return path11.slice(start, end);
+        else if (end === -1) end = path.length;
+        return path.slice(start, end);
     } else {
-        for(i54 = path11.length - 1; i54 >= start; --i54){
-            if (isPathSeparator(path11.charCodeAt(i54))) {
+        for(i = path.length - 1; i >= start; --i){
+            if (isPathSeparator(path.charCodeAt(i))) {
                 if (!matchedSlash) {
-                    start = i54 + 1;
+                    start = i + 1;
                     break;
                 }
             } else if (end === -1) {
                 matchedSlash = false;
-                end = i54 + 1;
+                end = i + 1;
             }
         }
         if (end === -1) return "";
-        return path11.slice(start, end);
+        return path.slice(start, end);
     }
 }
-function extname(path12) {
-    assertPath(path12);
+function extname(path) {
+    assertPath(path);
     let start = 0;
     let startDot = -1;
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
     let preDotState = 0;
-    if (path12.length >= 2 && path12.charCodeAt(1) === 58 && isWindowsDeviceRoot(path12.charCodeAt(0))) {
+    if (path.length >= 2 && path.charCodeAt(1) === 58 && isWindowsDeviceRoot(path.charCodeAt(0))) {
         start = startPart = 2;
     }
-    for(let i55 = path12.length - 1; i55 >= start; --i55){
-        const code = path12.charCodeAt(i55);
+    for(let i = path.length - 1; i >= start; --i){
+        const code = path.charCodeAt(i);
         if (isPathSeparator(code)) {
             if (!matchedSlash) {
-                startPart = i55 + 1;
+                startPart = i + 1;
                 break;
             }
             continue;
         }
         if (end === -1) {
             matchedSlash = false;
-            end = i55 + 1;
+            end = i + 1;
         }
         if (code === 46) {
-            if (startDot === -1) startDot = i55;
+            if (startDot === -1) startDot = i;
             else if (preDotState !== 1) preDotState = 1;
         } else if (startDot !== -1) {
             preDotState = -1;
@@ -8209,7 +8135,7 @@ function extname(path12) {
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         return "";
     }
-    return path12.slice(startDot, end);
+    return path.slice(startDot, end);
 }
 function format(pathObject) {
     if (pathObject === null || typeof pathObject !== "object") {
@@ -8219,8 +8145,8 @@ function format(pathObject) {
     }
     return _format("\\", pathObject);
 }
-function parse(path13) {
-    assertPath(path13);
+function parse(path) {
+    assertPath(path);
     const ret = {
         root: "",
         dir: "",
@@ -8228,28 +8154,28 @@ function parse(path13) {
         ext: "",
         name: ""
     };
-    const len = path13.length;
+    const len = path.length;
     if (len === 0) return ret;
     let rootEnd = 0;
-    let code = path13.charCodeAt(0);
+    let code = path.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator(code)) {
             rootEnd = 1;
-            if (isPathSeparator(path13.charCodeAt(1))) {
+            if (isPathSeparator(path.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator(path13.charCodeAt(j))) break;
+                    if (isPathSeparator(path.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator(path13.charCodeAt(j))) break;
+                        if (!isPathSeparator(path.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator(path13.charCodeAt(j))) break;
+                            if (isPathSeparator(path.charCodeAt(j))) break;
                         }
                         if (j === len) {
                             rootEnd = j;
@@ -8260,48 +8186,48 @@ function parse(path13) {
                 }
             }
         } else if (isWindowsDeviceRoot(code)) {
-            if (path13.charCodeAt(1) === 58) {
+            if (path.charCodeAt(1) === 58) {
                 rootEnd = 2;
                 if (len > 2) {
-                    if (isPathSeparator(path13.charCodeAt(2))) {
+                    if (isPathSeparator(path.charCodeAt(2))) {
                         if (len === 3) {
-                            ret.root = ret.dir = path13;
+                            ret.root = ret.dir = path;
                             return ret;
                         }
                         rootEnd = 3;
                     }
                 } else {
-                    ret.root = ret.dir = path13;
+                    ret.root = ret.dir = path;
                     return ret;
                 }
             }
         }
     } else if (isPathSeparator(code)) {
-        ret.root = ret.dir = path13;
+        ret.root = ret.dir = path;
         return ret;
     }
-    if (rootEnd > 0) ret.root = path13.slice(0, rootEnd);
+    if (rootEnd > 0) ret.root = path.slice(0, rootEnd);
     let startDot = -1;
     let startPart = rootEnd;
     let end = -1;
     let matchedSlash = true;
-    let i56 = path13.length - 1;
+    let i = path.length - 1;
     let preDotState = 0;
-    for(; i56 >= rootEnd; --i56){
-        code = path13.charCodeAt(i56);
+    for(; i >= rootEnd; --i){
+        code = path.charCodeAt(i);
         if (isPathSeparator(code)) {
             if (!matchedSlash) {
-                startPart = i56 + 1;
+                startPart = i + 1;
                 break;
             }
             continue;
         }
         if (end === -1) {
             matchedSlash = false;
-            end = i56 + 1;
+            end = i + 1;
         }
         if (code === 46) {
-            if (startDot === -1) startDot = i56;
+            if (startDot === -1) startDot = i;
             else if (preDotState !== 1) preDotState = 1;
         } else if (startDot !== -1) {
             preDotState = -1;
@@ -8309,15 +8235,15 @@ function parse(path13) {
     }
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         if (end !== -1) {
-            ret.base = ret.name = path13.slice(startPart, end);
+            ret.base = ret.name = path.slice(startPart, end);
         }
     } else {
-        ret.name = path13.slice(startPart, startDot);
-        ret.base = path13.slice(startPart, end);
-        ret.ext = path13.slice(startDot, end);
+        ret.name = path.slice(startPart, startDot);
+        ret.base = path.slice(startPart, end);
+        ret.ext = path.slice(startDot, end);
     }
     if (startPart > 0 && startPart !== rootEnd) {
-        ret.dir = path13.slice(0, startPart - 1);
+        ret.dir = path.slice(0, startPart - 1);
     } else ret.dir = ret.root;
     return ret;
 }
@@ -8326,17 +8252,17 @@ function fromFileUrl(url) {
     if (url.protocol != "file:") {
         throw new TypeError("Must be a file URL.");
     }
-    let path14 = decodeURIComponent(url.pathname.replace(/\//g, "\\").replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).replace(/^\\*([A-Za-z]:)(\\|$)/, "$1\\");
+    let path = decodeURIComponent(url.pathname.replace(/\//g, "\\").replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).replace(/^\\*([A-Za-z]:)(\\|$)/, "$1\\");
     if (url.hostname != "") {
-        path14 = `\\\\${url.hostname}${path14}`;
+        path = `\\\\${url.hostname}${path}`;
     }
-    return path14;
+    return path;
 }
-function toFileUrl(path15) {
-    if (!isAbsolute(path15)) {
+function toFileUrl(path) {
+    if (!isAbsolute(path)) {
         throw new TypeError("Must be an absolute path.");
     }
-    const [, hostname, pathname] = path15.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
+    const [, hostname, pathname] = path.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
     const url = new URL("file:///");
     url.pathname = encodeWhitespace(pathname.replace(/%/g, "%25"));
     if (hostname != null && hostname != "localhost") {
@@ -8364,7 +8290,7 @@ const __default1 = {
     toFileUrl,
     toNamespacedPath
 };
-const mod1 = {
+const mod2 = {
     sep: sep,
     delimiter: delimiter,
     resolve: resolve,
@@ -8387,22 +8313,22 @@ const delimiter1 = ":";
 function resolve1(...pathSegments) {
     let resolvedPath = "";
     let resolvedAbsolute = false;
-    for(let i57 = pathSegments.length - 1; i57 >= -1 && !resolvedAbsolute; i57--){
-        let path16;
-        if (i57 >= 0) path16 = pathSegments[i57];
+    for(let i = pathSegments.length - 1; i >= -1 && !resolvedAbsolute; i--){
+        let path;
+        if (i >= 0) path = pathSegments[i];
         else {
-            const { process  } = globalThis;
-            if (typeof process?.cwd !== "function") {
+            const { Deno: Deno1  } = globalThis;
+            if (typeof Deno1?.cwd !== "function") {
                 throw new TypeError("Resolved a relative path without a CWD.");
             }
-            path16 = process.cwd();
+            path = Deno1.cwd();
         }
-        assertPath(path16);
-        if (path16.length === 0) {
+        assertPath(path);
+        if (path.length === 0) {
             continue;
         }
-        resolvedPath = `${path16}/${resolvedPath}`;
-        resolvedAbsolute = path16.charCodeAt(0) === CHAR_FORWARD_SLASH1;
+        resolvedPath = `${path}/${resolvedPath}`;
+        resolvedAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH1;
     }
     resolvedPath = normalizeString(resolvedPath, !resolvedAbsolute, "/", isPosixPathSeparator);
     if (resolvedAbsolute) {
@@ -8411,30 +8337,30 @@ function resolve1(...pathSegments) {
     } else if (resolvedPath.length > 0) return resolvedPath;
     else return ".";
 }
-function normalize1(path17) {
-    assertPath(path17);
-    if (path17.length === 0) return ".";
-    const isAbsolute1 = path17.charCodeAt(0) === 47;
-    const trailingSeparator = path17.charCodeAt(path17.length - 1) === 47;
-    path17 = normalizeString(path17, !isAbsolute1, "/", isPosixPathSeparator);
-    if (path17.length === 0 && !isAbsolute1) path17 = ".";
-    if (path17.length > 0 && trailingSeparator) path17 += "/";
-    if (isAbsolute1) return `/${path17}`;
-    return path17;
+function normalize1(path) {
+    assertPath(path);
+    if (path.length === 0) return ".";
+    const isAbsolute = path.charCodeAt(0) === 47;
+    const trailingSeparator = path.charCodeAt(path.length - 1) === 47;
+    path = normalizeString(path, !isAbsolute, "/", isPosixPathSeparator);
+    if (path.length === 0 && !isAbsolute) path = ".";
+    if (path.length > 0 && trailingSeparator) path += "/";
+    if (isAbsolute) return `/${path}`;
+    return path;
 }
-function isAbsolute1(path18) {
-    assertPath(path18);
-    return path18.length > 0 && path18.charCodeAt(0) === 47;
+function isAbsolute1(path) {
+    assertPath(path);
+    return path.length > 0 && path.charCodeAt(0) === 47;
 }
 function join2(...paths) {
     if (paths.length === 0) return ".";
     let joined;
-    for(let i58 = 0, len = paths.length; i58 < len; ++i58){
-        const path19 = paths[i58];
-        assertPath(path19);
-        if (path19.length > 0) {
-            if (!joined) joined = path19;
-            else joined += `/${path19}`;
+    for(let i = 0, len = paths.length; i < len; ++i){
+        const path = paths[i];
+        assertPath(path);
+        if (path.length > 0) {
+            if (!joined) joined = path;
+            else joined += `/${path}`;
         }
     }
     if (!joined) return ".";
@@ -8461,32 +8387,32 @@ function relative1(from, to) {
     const toLen = toEnd - toStart;
     const length = fromLen < toLen ? fromLen : toLen;
     let lastCommonSep = -1;
-    let i59 = 0;
-    for(; i59 <= length; ++i59){
-        if (i59 === length) {
+    let i = 0;
+    for(; i <= length; ++i){
+        if (i === length) {
             if (toLen > length) {
-                if (to.charCodeAt(toStart + i59) === 47) {
-                    return to.slice(toStart + i59 + 1);
-                } else if (i59 === 0) {
-                    return to.slice(toStart + i59);
+                if (to.charCodeAt(toStart + i) === 47) {
+                    return to.slice(toStart + i + 1);
+                } else if (i === 0) {
+                    return to.slice(toStart + i);
                 }
             } else if (fromLen > length) {
-                if (from.charCodeAt(fromStart + i59) === 47) {
-                    lastCommonSep = i59;
-                } else if (i59 === 0) {
+                if (from.charCodeAt(fromStart + i) === 47) {
+                    lastCommonSep = i;
+                } else if (i === 0) {
                     lastCommonSep = 0;
                 }
             }
             break;
         }
-        const fromCode = from.charCodeAt(fromStart + i59);
-        const toCode = to.charCodeAt(toStart + i59);
+        const fromCode = from.charCodeAt(fromStart + i);
+        const toCode = to.charCodeAt(toStart + i);
         if (fromCode !== toCode) break;
-        else if (fromCode === 47) lastCommonSep = i59;
+        else if (fromCode === 47) lastCommonSep = i;
     }
     let out = "";
-    for(i59 = fromStart + lastCommonSep + 1; i59 <= fromEnd; ++i59){
-        if (i59 === fromEnd || from.charCodeAt(i59) === 47) {
+    for(i = fromStart + lastCommonSep + 1; i <= fromEnd; ++i){
+        if (i === fromEnd || from.charCodeAt(i) === 47) {
             if (out.length === 0) out += "..";
             else out += "/..";
         }
@@ -8498,19 +8424,19 @@ function relative1(from, to) {
         return to.slice(toStart);
     }
 }
-function toNamespacedPath1(path20) {
-    return path20;
+function toNamespacedPath1(path) {
+    return path;
 }
-function dirname1(path21) {
-    assertPath(path21);
-    if (path21.length === 0) return ".";
-    const hasRoot = path21.charCodeAt(0) === 47;
+function dirname1(path) {
+    assertPath(path);
+    if (path.length === 0) return ".";
+    const hasRoot = path.charCodeAt(0) === 47;
     let end = -1;
     let matchedSlash = true;
-    for(let i60 = path21.length - 1; i60 >= 1; --i60){
-        if (path21.charCodeAt(i60) === 47) {
+    for(let i = path.length - 1; i >= 1; --i){
+        if (path.charCodeAt(i) === 47) {
             if (!matchedSlash) {
-                end = i60;
+                end = i;
                 break;
             }
         } else {
@@ -8519,39 +8445,39 @@ function dirname1(path21) {
     }
     if (end === -1) return hasRoot ? "/" : ".";
     if (hasRoot && end === 1) return "//";
-    return path21.slice(0, end);
+    return path.slice(0, end);
 }
-function basename1(path22, ext = "") {
+function basename1(path, ext = "") {
     if (ext !== undefined && typeof ext !== "string") {
         throw new ERR_INVALID_ARG_TYPE("ext", [
             "string"
         ], ext);
     }
-    assertPath(path22);
+    assertPath(path);
     let start = 0;
     let end = -1;
     let matchedSlash = true;
-    let i61;
-    if (ext !== undefined && ext.length > 0 && ext.length <= path22.length) {
-        if (ext.length === path22.length && ext === path22) return "";
+    let i;
+    if (ext !== undefined && ext.length > 0 && ext.length <= path.length) {
+        if (ext.length === path.length && ext === path) return "";
         let extIdx = ext.length - 1;
         let firstNonSlashEnd = -1;
-        for(i61 = path22.length - 1; i61 >= 0; --i61){
-            const code = path22.charCodeAt(i61);
+        for(i = path.length - 1; i >= 0; --i){
+            const code = path.charCodeAt(i);
             if (code === 47) {
                 if (!matchedSlash) {
-                    start = i61 + 1;
+                    start = i + 1;
                     break;
                 }
             } else {
                 if (firstNonSlashEnd === -1) {
                     matchedSlash = false;
-                    firstNonSlashEnd = i61 + 1;
+                    firstNonSlashEnd = i + 1;
                 }
                 if (extIdx >= 0) {
                     if (code === ext.charCodeAt(extIdx)) {
                         if (--extIdx === -1) {
-                            end = i61;
+                            end = i;
                         }
                     } else {
                         extIdx = -1;
@@ -8561,46 +8487,46 @@ function basename1(path22, ext = "") {
             }
         }
         if (start === end) end = firstNonSlashEnd;
-        else if (end === -1) end = path22.length;
-        return path22.slice(start, end);
+        else if (end === -1) end = path.length;
+        return path.slice(start, end);
     } else {
-        for(i61 = path22.length - 1; i61 >= 0; --i61){
-            if (path22.charCodeAt(i61) === 47) {
+        for(i = path.length - 1; i >= 0; --i){
+            if (path.charCodeAt(i) === 47) {
                 if (!matchedSlash) {
-                    start = i61 + 1;
+                    start = i + 1;
                     break;
                 }
             } else if (end === -1) {
                 matchedSlash = false;
-                end = i61 + 1;
+                end = i + 1;
             }
         }
         if (end === -1) return "";
-        return path22.slice(start, end);
+        return path.slice(start, end);
     }
 }
-function extname1(path23) {
-    assertPath(path23);
+function extname1(path) {
+    assertPath(path);
     let startDot = -1;
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
     let preDotState = 0;
-    for(let i62 = path23.length - 1; i62 >= 0; --i62){
-        const code = path23.charCodeAt(i62);
+    for(let i = path.length - 1; i >= 0; --i){
+        const code = path.charCodeAt(i);
         if (code === 47) {
             if (!matchedSlash) {
-                startPart = i62 + 1;
+                startPart = i + 1;
                 break;
             }
             continue;
         }
         if (end === -1) {
             matchedSlash = false;
-            end = i62 + 1;
+            end = i + 1;
         }
         if (code === 46) {
-            if (startDot === -1) startDot = i62;
+            if (startDot === -1) startDot = i;
             else if (preDotState !== 1) preDotState = 1;
         } else if (startDot !== -1) {
             preDotState = -1;
@@ -8609,7 +8535,7 @@ function extname1(path23) {
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         return "";
     }
-    return path23.slice(startDot, end);
+    return path.slice(startDot, end);
 }
 function format1(pathObject) {
     if (pathObject === null || typeof pathObject !== "object") {
@@ -8619,8 +8545,8 @@ function format1(pathObject) {
     }
     return _format("/", pathObject);
 }
-function parse1(path24) {
-    assertPath(path24);
+function parse1(path) {
+    assertPath(path);
     const ret = {
         root: "",
         dir: "",
@@ -8628,10 +8554,10 @@ function parse1(path24) {
         ext: "",
         name: ""
     };
-    if (path24.length === 0) return ret;
-    const isAbsolute2 = path24.charCodeAt(0) === 47;
+    if (path.length === 0) return ret;
+    const isAbsolute = path.charCodeAt(0) === 47;
     let start;
-    if (isAbsolute2) {
+    if (isAbsolute) {
         ret.root = "/";
         start = 1;
     } else {
@@ -8641,23 +8567,23 @@ function parse1(path24) {
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
-    let i63 = path24.length - 1;
+    let i = path.length - 1;
     let preDotState = 0;
-    for(; i63 >= start; --i63){
-        const code = path24.charCodeAt(i63);
+    for(; i >= start; --i){
+        const code = path.charCodeAt(i);
         if (code === 47) {
             if (!matchedSlash) {
-                startPart = i63 + 1;
+                startPart = i + 1;
                 break;
             }
             continue;
         }
         if (end === -1) {
             matchedSlash = false;
-            end = i63 + 1;
+            end = i + 1;
         }
         if (code === 46) {
-            if (startDot === -1) startDot = i63;
+            if (startDot === -1) startDot = i;
             else if (preDotState !== 1) preDotState = 1;
         } else if (startDot !== -1) {
             preDotState = -1;
@@ -8665,24 +8591,24 @@ function parse1(path24) {
     }
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         if (end !== -1) {
-            if (startPart === 0 && isAbsolute2) {
-                ret.base = ret.name = path24.slice(1, end);
+            if (startPart === 0 && isAbsolute) {
+                ret.base = ret.name = path.slice(1, end);
             } else {
-                ret.base = ret.name = path24.slice(startPart, end);
+                ret.base = ret.name = path.slice(startPart, end);
             }
         }
     } else {
-        if (startPart === 0 && isAbsolute2) {
-            ret.name = path24.slice(1, startDot);
-            ret.base = path24.slice(1, end);
+        if (startPart === 0 && isAbsolute) {
+            ret.name = path.slice(1, startDot);
+            ret.base = path.slice(1, end);
         } else {
-            ret.name = path24.slice(startPart, startDot);
-            ret.base = path24.slice(startPart, end);
+            ret.name = path.slice(startPart, startDot);
+            ret.base = path.slice(startPart, end);
         }
-        ret.ext = path24.slice(startDot, end);
+        ret.ext = path.slice(startDot, end);
     }
-    if (startPart > 0) ret.dir = path24.slice(0, startPart - 1);
-    else if (isAbsolute2) ret.dir = "/";
+    if (startPart > 0) ret.dir = path.slice(0, startPart - 1);
+    else if (isAbsolute) ret.dir = "/";
     return ret;
 }
 function fromFileUrl1(url) {
@@ -8692,12 +8618,12 @@ function fromFileUrl1(url) {
     }
     return decodeURIComponent(url.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"));
 }
-function toFileUrl1(path25) {
-    if (!isAbsolute1(path25)) {
+function toFileUrl1(path) {
+    if (!isAbsolute1(path)) {
         throw new TypeError("Must be an absolute path.");
     }
     const url = new URL("file:///");
-    url.pathname = encodeWhitespace(path25.replace(/%/g, "%25").replace(/\\/g, "%5C"));
+    url.pathname = encodeWhitespace(path.replace(/%/g, "%25").replace(/\\/g, "%5C"));
     return url;
 }
 const __default2 = {
@@ -8717,7 +8643,7 @@ const __default2 = {
     toFileUrl: toFileUrl1,
     toNamespacedPath: toNamespacedPath1
 };
-const mod2 = {
+const mod3 = {
     sep: sep1,
     delimiter: delimiter1,
     resolve: resolve1,
@@ -8735,10 +8661,336 @@ const mod2 = {
     toFileUrl: toFileUrl1,
     default: __default2
 };
-const path = isWindows ? mod1 : mod2;
+const SEP = isWindows ? "\\" : "/";
+const SEP_PATTERN = isWindows ? /[\\/]+/ : /\/+/;
+function common(paths, sep = SEP) {
+    const [first = "", ...remaining] = paths;
+    if (first === "" || remaining.length === 0) {
+        return first.substring(0, first.lastIndexOf(sep) + 1);
+    }
+    const parts = first.split(sep);
+    let endOfPrefix = parts.length;
+    for (const path of remaining){
+        const compare = path.split(sep);
+        for(let i = 0; i < endOfPrefix; i++){
+            if (compare[i] !== parts[i]) {
+                endOfPrefix = i;
+            }
+        }
+        if (endOfPrefix === 0) {
+            return "";
+        }
+    }
+    const prefix = parts.slice(0, endOfPrefix).join(sep);
+    return prefix.endsWith(sep) ? prefix : `${prefix}${sep}`;
+}
+const path = isWindows ? mod2 : mod3;
 const { join: join3 , normalize: normalize2  } = path;
+const regExpEscapeChars = [
+    "!",
+    "$",
+    "(",
+    ")",
+    "*",
+    "+",
+    ".",
+    "=",
+    "?",
+    "[",
+    "\\",
+    "^",
+    "{",
+    "|"
+];
+const rangeEscapeChars = [
+    "-",
+    "\\",
+    "]"
+];
+function globToRegExp(glob, { extended =true , globstar: globstarOption = true , os =osType , caseInsensitive =false  } = {}) {
+    if (glob == "") {
+        return /(?!)/;
+    }
+    const sep = os == "win32" ? "(?:\\\\|/)+" : "/+";
+    const sepMaybe = os == "win32" ? "(?:\\\\|/)*" : "/*";
+    const seps = os == "win32" ? [
+        "\\",
+        "/"
+    ] : [
+        "/"
+    ];
+    const globstar = os == "win32" ? "(?:[^\\\\/]*(?:\\\\|/|$)+)*" : "(?:[^/]*(?:/|$)+)*";
+    const wildcard = os == "win32" ? "[^\\\\/]*" : "[^/]*";
+    const escapePrefix = os == "win32" ? "`" : "\\";
+    let newLength = glob.length;
+    for(; newLength > 1 && seps.includes(glob[newLength - 1]); newLength--);
+    glob = glob.slice(0, newLength);
+    let regExpString = "";
+    for(let j = 0; j < glob.length;){
+        let segment = "";
+        const groupStack = [];
+        let inRange = false;
+        let inEscape = false;
+        let endsWithSep = false;
+        let i = j;
+        for(; i < glob.length && !seps.includes(glob[i]); i++){
+            if (inEscape) {
+                inEscape = false;
+                const escapeChars = inRange ? rangeEscapeChars : regExpEscapeChars;
+                segment += escapeChars.includes(glob[i]) ? `\\${glob[i]}` : glob[i];
+                continue;
+            }
+            if (glob[i] == escapePrefix) {
+                inEscape = true;
+                continue;
+            }
+            if (glob[i] == "[") {
+                if (!inRange) {
+                    inRange = true;
+                    segment += "[";
+                    if (glob[i + 1] == "!") {
+                        i++;
+                        segment += "^";
+                    } else if (glob[i + 1] == "^") {
+                        i++;
+                        segment += "\\^";
+                    }
+                    continue;
+                } else if (glob[i + 1] == ":") {
+                    let k = i + 1;
+                    let value = "";
+                    while(glob[k + 1] != null && glob[k + 1] != ":"){
+                        value += glob[k + 1];
+                        k++;
+                    }
+                    if (glob[k + 1] == ":" && glob[k + 2] == "]") {
+                        i = k + 2;
+                        if (value == "alnum") segment += "\\dA-Za-z";
+                        else if (value == "alpha") segment += "A-Za-z";
+                        else if (value == "ascii") segment += "\x00-\x7F";
+                        else if (value == "blank") segment += "\t ";
+                        else if (value == "cntrl") segment += "\x00-\x1F\x7F";
+                        else if (value == "digit") segment += "\\d";
+                        else if (value == "graph") segment += "\x21-\x7E";
+                        else if (value == "lower") segment += "a-z";
+                        else if (value == "print") segment += "\x20-\x7E";
+                        else if (value == "punct") {
+                            segment += "!\"#$%&'()*+,\\-./:;<=>?@[\\\\\\]^_‘{|}~";
+                        } else if (value == "space") segment += "\\s\v";
+                        else if (value == "upper") segment += "A-Z";
+                        else if (value == "word") segment += "\\w";
+                        else if (value == "xdigit") segment += "\\dA-Fa-f";
+                        continue;
+                    }
+                }
+            }
+            if (glob[i] == "]" && inRange) {
+                inRange = false;
+                segment += "]";
+                continue;
+            }
+            if (inRange) {
+                if (glob[i] == "\\") {
+                    segment += `\\\\`;
+                } else {
+                    segment += glob[i];
+                }
+                continue;
+            }
+            if (glob[i] == ")" && groupStack.length > 0 && groupStack[groupStack.length - 1] != "BRACE") {
+                segment += ")";
+                const type = groupStack.pop();
+                if (type == "!") {
+                    segment += wildcard;
+                } else if (type != "@") {
+                    segment += type;
+                }
+                continue;
+            }
+            if (glob[i] == "|" && groupStack.length > 0 && groupStack[groupStack.length - 1] != "BRACE") {
+                segment += "|";
+                continue;
+            }
+            if (glob[i] == "+" && extended && glob[i + 1] == "(") {
+                i++;
+                groupStack.push("+");
+                segment += "(?:";
+                continue;
+            }
+            if (glob[i] == "@" && extended && glob[i + 1] == "(") {
+                i++;
+                groupStack.push("@");
+                segment += "(?:";
+                continue;
+            }
+            if (glob[i] == "?") {
+                if (extended && glob[i + 1] == "(") {
+                    i++;
+                    groupStack.push("?");
+                    segment += "(?:";
+                } else {
+                    segment += ".";
+                }
+                continue;
+            }
+            if (glob[i] == "!" && extended && glob[i + 1] == "(") {
+                i++;
+                groupStack.push("!");
+                segment += "(?!";
+                continue;
+            }
+            if (glob[i] == "{") {
+                groupStack.push("BRACE");
+                segment += "(?:";
+                continue;
+            }
+            if (glob[i] == "}" && groupStack[groupStack.length - 1] == "BRACE") {
+                groupStack.pop();
+                segment += ")";
+                continue;
+            }
+            if (glob[i] == "," && groupStack[groupStack.length - 1] == "BRACE") {
+                segment += "|";
+                continue;
+            }
+            if (glob[i] == "*") {
+                if (extended && glob[i + 1] == "(") {
+                    i++;
+                    groupStack.push("*");
+                    segment += "(?:";
+                } else {
+                    const prevChar = glob[i - 1];
+                    let numStars = 1;
+                    while(glob[i + 1] == "*"){
+                        i++;
+                        numStars++;
+                    }
+                    const nextChar = glob[i + 1];
+                    if (globstarOption && numStars == 2 && [
+                        ...seps,
+                        undefined
+                    ].includes(prevChar) && [
+                        ...seps,
+                        undefined
+                    ].includes(nextChar)) {
+                        segment += globstar;
+                        endsWithSep = true;
+                    } else {
+                        segment += wildcard;
+                    }
+                }
+                continue;
+            }
+            segment += regExpEscapeChars.includes(glob[i]) ? `\\${glob[i]}` : glob[i];
+        }
+        if (groupStack.length > 0 || inRange || inEscape) {
+            segment = "";
+            for (const c of glob.slice(j, i)){
+                segment += regExpEscapeChars.includes(c) ? `\\${c}` : c;
+                endsWithSep = false;
+            }
+        }
+        regExpString += segment;
+        if (!endsWithSep) {
+            regExpString += i < glob.length ? sep : sepMaybe;
+            endsWithSep = true;
+        }
+        while(seps.includes(glob[i]))i++;
+        if (!(i > j)) {
+            throw new Error("Assertion failure: i > j (potential infinite loop)");
+        }
+        j = i;
+    }
+    regExpString = `^${regExpString}$`;
+    return new RegExp(regExpString, caseInsensitive ? "i" : "");
+}
+function isGlob(str) {
+    const chars = {
+        "{": "}",
+        "(": ")",
+        "[": "]"
+    };
+    const regex = /\\(.)|(^!|\*|\?|[\].+)]\?|\[[^\\\]]+\]|\{[^\\}]+\}|\(\?[:!=][^\\)]+\)|\([^|]+\|[^\\)]+\))/;
+    if (str === "") {
+        return false;
+    }
+    let match;
+    while(match = regex.exec(str)){
+        if (match[2]) return true;
+        let idx = match.index + match[0].length;
+        const open = match[1];
+        const close = open ? chars[open] : null;
+        if (open && close) {
+            const n = str.indexOf(close, idx);
+            if (n !== -1) {
+                idx = n + 1;
+            }
+        }
+        str = str.slice(idx);
+    }
+    return false;
+}
+function normalizeGlob(glob, { globstar =false  } = {}) {
+    if (glob.match(/\0/g)) {
+        throw new Error(`Glob contains invalid characters: "${glob}"`);
+    }
+    if (!globstar) {
+        return normalize2(glob);
+    }
+    const s = SEP_PATTERN.source;
+    const badParentPattern = new RegExp(`(?<=(${s}|^)\\*\\*${s})\\.\\.(?=${s}|$)`, "g");
+    return normalize2(glob.replace(badParentPattern, "\0")).replace(/\0/g, "..");
+}
+function joinGlobs(globs, { extended =true , globstar =false  } = {}) {
+    if (!globstar || globs.length == 0) {
+        return join3(...globs);
+    }
+    if (globs.length === 0) return ".";
+    let joined;
+    for (const glob of globs){
+        const path = glob;
+        if (path.length > 0) {
+            if (!joined) joined = path;
+            else joined += `${SEP}${path}`;
+        }
+    }
+    if (!joined) return ".";
+    return normalizeGlob(joined, {
+        extended,
+        globstar
+    });
+}
 const path1 = isWindows ? __default1 : __default2;
-const { basename: basename2 , delimiter: delimiter2 , dirname: dirname2 , extname: extname2 , format: format2 , fromFileUrl: fromFileUrl2 , isAbsolute: isAbsolute2 , join: join4 , normalize: normalize3 , parse: parse2 , relative: relative2 , resolve: resolve2 , sep: sep2 , toFileUrl: toFileUrl2 , toNamespacedPath: toNamespacedPath2 ,  } = path1;
+const { basename: basename2 , delimiter: delimiter2 , dirname: dirname2 , extname: extname2 , format: format2 , fromFileUrl: fromFileUrl2 , isAbsolute: isAbsolute2 , join: join4 , normalize: normalize3 , parse: parse2 , relative: relative2 , resolve: resolve2 , sep: sep2 , toFileUrl: toFileUrl2 , toNamespacedPath: toNamespacedPath2  } = path1;
+const mod4 = {
+    SEP: SEP,
+    SEP_PATTERN: SEP_PATTERN,
+    win32: __default1,
+    posix: __default2,
+    basename: basename2,
+    delimiter: delimiter2,
+    dirname: dirname2,
+    extname: extname2,
+    format: format2,
+    fromFileUrl: fromFileUrl2,
+    isAbsolute: isAbsolute2,
+    join: join4,
+    normalize: normalize3,
+    parse: parse2,
+    relative: relative2,
+    resolve: resolve2,
+    sep: sep2,
+    toFileUrl: toFileUrl2,
+    toNamespacedPath: toNamespacedPath2,
+    common,
+    globToRegExp,
+    isGlob,
+    normalizeGlob,
+    joinGlobs
+};
+({
+    ...mod4
+});
 "use strict";
 const base = 36;
 const damp = 700;
@@ -8751,7 +9003,7 @@ const errors = {
     "invalid-input": "Invalid input"
 };
 const baseMinusTMin = 36 - 1;
-function error(type) {
+function error1(type) {
     throw new RangeError(errors[type]);
 }
 function mapDomain(str, fn) {
@@ -8817,22 +9069,22 @@ function encode2(str) {
     }
     while(handledCPCount < inputLength){
         let m = 2147483647;
-        for (const currentValue of input){
-            if (currentValue >= n && currentValue < m) {
-                m = currentValue;
+        for (const currentValue1 of input){
+            if (currentValue1 >= n && currentValue1 < m) {
+                m = currentValue1;
             }
         }
         const handledCPCountPlusOne = handledCPCount + 1;
         if (m - n > Math.floor((2147483647 - delta) / handledCPCountPlusOne)) {
-            error("overflow");
+            error1("overflow");
         }
         delta += (m - n) * handledCPCountPlusOne;
         n = m;
-        for (const currentValue1 of input){
-            if (currentValue1 < n && ++delta > 2147483647) {
-                error("overflow");
+        for (const currentValue2 of input){
+            if (currentValue2 < n && ++delta > 2147483647) {
+                error1("overflow");
             }
-            if (currentValue1 == n) {
+            if (currentValue2 == n) {
                 let q = delta;
                 for(let k = 36;; k += base){
                     const t = k <= bias ? 1 : k >= bias + 26 ? 26 : k - bias;
@@ -9122,37 +9374,37 @@ new Int8Array([
     0,
     0
 ]);
-function encodeStr(str, noEscapeTable, hexTable1) {
+function encodeStr(str, noEscapeTable, hexTable) {
     const len = str.length;
     if (len === 0) return "";
     let out = "";
     let lastPos = 0;
-    for(let i110 = 0; i110 < len; i110++){
-        let c = str.charCodeAt(i110);
+    for(let i = 0; i < len; i++){
+        let c = str.charCodeAt(i);
         if (c < 0x80) {
             if (noEscapeTable[c] === 1) continue;
-            if (lastPos < i110) out += str.slice(lastPos, i110);
-            lastPos = i110 + 1;
-            out += hexTable1[c];
+            if (lastPos < i) out += str.slice(lastPos, i);
+            lastPos = i + 1;
+            out += hexTable[c];
             continue;
         }
-        if (lastPos < i110) out += str.slice(lastPos, i110);
+        if (lastPos < i) out += str.slice(lastPos, i);
         if (c < 0x800) {
-            lastPos = i110 + 1;
-            out += hexTable1[0xc0 | c >> 6] + hexTable1[0x80 | c & 0x3f];
+            lastPos = i + 1;
+            out += hexTable[0xc0 | c >> 6] + hexTable[0x80 | c & 0x3f];
             continue;
         }
         if (c < 0xd800 || c >= 0xe000) {
-            lastPos = i110 + 1;
-            out += hexTable1[0xe0 | c >> 12] + hexTable1[0x80 | c >> 6 & 0x3f] + hexTable1[0x80 | c & 0x3f];
+            lastPos = i + 1;
+            out += hexTable[0xe0 | c >> 12] + hexTable[0x80 | c >> 6 & 0x3f] + hexTable[0x80 | c & 0x3f];
             continue;
         }
-        ++i110;
-        if (i110 >= len) throw new ERR_INVALID_URI();
-        const c2 = str.charCodeAt(i110) & 0x3ff;
-        lastPos = i110 + 1;
+        ++i;
+        if (i >= len) throw new ERR_INVALID_URI();
+        const c2 = str.charCodeAt(i) & 0x3ff;
+        lastPos = i + 1;
         c = 0x10000 + ((c & 0x3ff) << 10 | c2);
-        out += hexTable1[0xf0 | c >> 18] + hexTable1[0x80 | c >> 12 & 0x3f] + hexTable1[0x80 | c >> 6 & 0x3f] + hexTable1[0x80 | c & 0x3f];
+        out += hexTable[0xf0 | c >> 18] + hexTable[0x80 | c >> 12 & 0x3f] + hexTable[0x80 | c >> 6 & 0x3f] + hexTable[0x80 | c & 0x3f];
     }
     if (lastPos === 0) return str;
     if (lastPos < len) return out + str.slice(lastPos);
@@ -9431,17 +9683,17 @@ const isHexTable = new Int8Array([
 ]);
 function charCodes(str) {
     const ret = new Array(str.length);
-    for(let i64 = 0; i64 < str.length; ++i64){
-        ret[i64] = str.charCodeAt(i64);
+    for(let i = 0; i < str.length; ++i){
+        ret[i] = str.charCodeAt(i);
     }
     return ret;
 }
-function addKeyVal(obj, key, value, keyEncoded, valEncoded, decode11) {
+function addKeyVal(obj, key, value, keyEncoded, valEncoded, decode) {
     if (key.length > 0 && keyEncoded) {
-        key = decode11(key);
+        key = decode(key);
     }
     if (value.length > 0 && valEncoded) {
-        value = decode11(value);
+        value = decode(value);
     }
     if (obj[key] === undefined) {
         obj[key] = value;
@@ -9457,14 +9709,14 @@ function addKeyVal(obj, key, value, keyEncoded, valEncoded, decode11) {
         }
     }
 }
-function parse3(str, sep4 = "&", eq = "=", { decodeURIComponent =unescape , maxKeys =1000  } = {}) {
+function parse3(str, sep = "&", eq = "=", { decodeURIComponent: decodeURIComponent1 = unescape , maxKeys =1000  } = {}) {
     const obj = Object.create(null);
     if (typeof str !== "string" || str.length === 0) {
         return obj;
     }
-    const sepCodes = !sep4 ? [
+    const sepCodes = !sep ? [
         38
-    ] : charCodes(String(sep4));
+    ] : charCodes(String(sep));
     const eqCodes = !eq ? [
         61
     ] : charCodes(String(eq));
@@ -9474,11 +9726,11 @@ function parse3(str, sep4 = "&", eq = "=", { decodeURIComponent =unescape , maxK
     if (typeof maxKeys === "number") {
         pairs = maxKeys > 0 ? maxKeys : -1;
     }
-    let decode21 = unescape;
-    if (decodeURIComponent) {
-        decode21 = decodeURIComponent;
+    let decode = unescape;
+    if (decodeURIComponent1) {
+        decode = decodeURIComponent1;
     }
-    const customDecode = decode21 !== unescape;
+    const customDecode = decode !== unescape;
     let lastPos = 0;
     let sepIdx = 0;
     let eqIdx = 0;
@@ -9488,11 +9740,11 @@ function parse3(str, sep4 = "&", eq = "=", { decodeURIComponent =unescape , maxK
     let valEncoded = customDecode;
     const plusChar = customDecode ? "%20" : " ";
     let encodeCheck = 0;
-    for(let i65 = 0; i65 < str.length; ++i65){
-        const code = str.charCodeAt(i65);
+    for(let i = 0; i < str.length; ++i){
+        const code = str.charCodeAt(i);
         if (code === sepCodes[sepIdx]) {
             if (++sepIdx === sepLen) {
-                const end = i65 - sepIdx + 1;
+                const end = i - sepIdx + 1;
                 if (eqIdx < eqLen) {
                     if (lastPos < end) {
                         key += str.slice(lastPos, end);
@@ -9500,20 +9752,20 @@ function parse3(str, sep4 = "&", eq = "=", { decodeURIComponent =unescape , maxK
                         if (--pairs === 0) {
                             return obj;
                         }
-                        lastPos = i65 + 1;
+                        lastPos = i + 1;
                         sepIdx = eqIdx = 0;
                         continue;
                     }
                 } else if (lastPos < end) {
                     value += str.slice(lastPos, end);
                 }
-                addKeyVal(obj, key, value, keyEncoded, valEncoded, decode21);
+                addKeyVal(obj, key, value, keyEncoded, valEncoded, decode);
                 if (--pairs === 0) {
                     return obj;
                 }
                 key = value = "";
                 encodeCheck = 0;
-                lastPos = i65 + 1;
+                lastPos = i + 1;
                 sepIdx = eqIdx = 0;
             }
         } else {
@@ -9521,12 +9773,12 @@ function parse3(str, sep4 = "&", eq = "=", { decodeURIComponent =unescape , maxK
             if (eqIdx < eqLen) {
                 if (code === eqCodes[eqIdx]) {
                     if (++eqIdx === eqLen) {
-                        const end = i65 - eqIdx + 1;
-                        if (lastPos < end) {
-                            key += str.slice(lastPos, end);
+                        const end1 = i - eqIdx + 1;
+                        if (lastPos < end1) {
+                            key += str.slice(lastPos, end1);
                         }
                         encodeCheck = 0;
-                        lastPos = i65 + 1;
+                        lastPos = i + 1;
                     }
                     continue;
                 } else {
@@ -9548,20 +9800,20 @@ function parse3(str, sep4 = "&", eq = "=", { decodeURIComponent =unescape , maxK
                     }
                 }
                 if (code === 43) {
-                    if (lastPos < i65) {
-                        key += str.slice(lastPos, i65);
+                    if (lastPos < i) {
+                        key += str.slice(lastPos, i);
                     }
                     key += plusChar;
-                    lastPos = i65 + 1;
+                    lastPos = i + 1;
                     continue;
                 }
             }
             if (code === 43) {
-                if (lastPos < i65) {
-                    value += str.slice(lastPos, i65);
+                if (lastPos < i) {
+                    value += str.slice(lastPos, i);
                 }
                 value += plusChar;
-                lastPos = i65 + 1;
+                lastPos = i + 1;
             } else if (!valEncoded) {
                 if (code === 37) {
                     encodeCheck = 1;
@@ -9586,7 +9838,7 @@ function parse3(str, sep4 = "&", eq = "=", { decodeURIComponent =unescape , maxK
     } else if (eqIdx === 0 && key.length === 0) {
         return obj;
     }
-    addKeyVal(obj, key, value, keyEncoded, valEncoded, decode21);
+    addKeyVal(obj, key, value, keyEncoded, valEncoded, decode);
     return obj;
 }
 const noEscape = new Int8Array([
@@ -9734,15 +9986,15 @@ function stringifyPrimitive(v) {
     }
     return "";
 }
-function encodeStringifiedCustom(v, encode11) {
-    return encode11(stringifyPrimitive(v));
+function encodeStringifiedCustom(v, encode) {
+    return encode(stringifyPrimitive(v));
 }
-function encodeStringified(v, encode21) {
+function encodeStringified(v, encode) {
     if (typeof v === "string") {
-        return v.length ? encode21(v) : "";
+        return v.length ? encode(v) : "";
     }
     if (typeof v === "number" && isFinite(v)) {
-        return Math.abs(v) < 1e21 ? "" + v : encode21("" + v);
+        return Math.abs(v) < 1e21 ? "" + v : encode("" + v);
     }
     if (typeof v === "bigint") {
         return "" + v;
@@ -9752,39 +10004,39 @@ function encodeStringified(v, encode21) {
     }
     return "";
 }
-function stringify(obj, sep5, eq, options) {
-    sep5 ||= "&";
+function stringify(obj, sep, eq, options) {
+    sep ||= "&";
     eq ||= "=";
-    const encode31 = options ? options.encodeURIComponent : qsEscape;
+    const encode = options ? options.encodeURIComponent : qsEscape;
     const convert = options ? encodeStringifiedCustom : encodeStringified;
     if (obj !== null && typeof obj === "object") {
         const keys = Object.keys(obj);
         const len = keys.length;
         let fields = "";
-        for(let i66 = 0; i66 < len; ++i66){
-            const k = keys[i66];
+        for(let i = 0; i < len; ++i){
+            const k = keys[i];
             const v = obj[k];
-            let ks = convert(k, encode31);
+            let ks = convert(k, encode);
             ks += eq;
             if (Array.isArray(v)) {
                 const vlen = v.length;
                 if (vlen === 0) continue;
                 if (fields) {
-                    fields += sep5;
+                    fields += sep;
                 }
                 for(let j = 0; j < vlen; ++j){
                     if (j) {
-                        fields += sep5;
+                        fields += sep;
                     }
                     fields += ks;
-                    fields += convert(v[j], encode31);
+                    fields += convert(v[j], encode);
                 }
             } else {
                 if (fields) {
-                    fields += sep5;
+                    fields += sep;
                 }
                 fields += ks;
-                fields += convert(v, encode31);
+                fields += convert(v, encode);
             }
         }
         return fields;
@@ -10138,7 +10390,7 @@ const slashedProtocol = new Set([
     "ws",
     "ws:",
     "wss",
-    "wss:", 
+    "wss:"
 ]);
 const noEscapeAuth = new Int8Array([
     0,
@@ -10299,7 +10551,7 @@ class Url {
         this.path = null;
         this.href = null;
     }
-     #parseHost() {
+    #parseHost() {
         let host = this.host || "";
         let port = portPattern.exec(host);
         if (port) {
@@ -10311,14 +10563,14 @@ class Url {
         }
         if (host) this.hostname = host;
     }
-    resolve(relative3) {
-        return this.resolveObject(parse4(relative3, false, true)).format();
+    resolve(relative) {
+        return this.resolveObject(parse4(relative, false, true)).format();
     }
-    resolveObject(relative4) {
-        if (typeof relative4 === "string") {
+    resolveObject(relative) {
+        if (typeof relative === "string") {
             const rel = new Url();
-            rel.urlParse(relative4, false, true);
-            relative4 = rel;
+            rel.urlParse(relative, false, true);
+            relative = rel;
         }
         const result = new Url();
         const tkeys = Object.keys(this);
@@ -10326,16 +10578,16 @@ class Url {
             const tkey = tkeys[tk];
             result[tkey] = this[tkey];
         }
-        result.hash = relative4.hash;
-        if (relative4.href === "") {
+        result.hash = relative.hash;
+        if (relative.href === "") {
             result.href = result.format();
             return result;
         }
-        if (relative4.slashes && !relative4.protocol) {
-            const rkeys = Object.keys(relative4);
+        if (relative.slashes && !relative.protocol) {
+            const rkeys = Object.keys(relative);
             for(let rk = 0; rk < rkeys.length; rk++){
                 const rkey = rkeys[rk];
-                if (rkey !== "protocol") result[rkey] = relative4[rkey];
+                if (rkey !== "protocol") result[rkey] = relative[rkey];
             }
             if (result.protocol && slashedProtocol.has(result.protocol) && result.hostname && !result.pathname) {
                 result.path = result.pathname = "/";
@@ -10343,49 +10595,49 @@ class Url {
             result.href = result.format();
             return result;
         }
-        if (relative4.protocol && relative4.protocol !== result.protocol) {
-            if (!slashedProtocol.has(relative4.protocol)) {
-                const keys = Object.keys(relative4);
+        if (relative.protocol && relative.protocol !== result.protocol) {
+            if (!slashedProtocol.has(relative.protocol)) {
+                const keys = Object.keys(relative);
                 for(let v = 0; v < keys.length; v++){
                     const k = keys[v];
-                    result[k] = relative4[k];
+                    result[k] = relative[k];
                 }
                 result.href = result.format();
                 return result;
             }
-            result.protocol = relative4.protocol;
-            if (!relative4.host && !/^file:?$/.test(relative4.protocol) && !hostlessProtocol.has(relative4.protocol)) {
-                const relPath = (relative4.pathname || "").split("/");
-                while(relPath.length && !(relative4.host = relPath.shift() || null));
-                if (!relative4.host) relative4.host = "";
-                if (!relative4.hostname) relative4.hostname = "";
+            result.protocol = relative.protocol;
+            if (!relative.host && !/^file:?$/.test(relative.protocol) && !hostlessProtocol.has(relative.protocol)) {
+                const relPath = (relative.pathname || "").split("/");
+                while(relPath.length && !(relative.host = relPath.shift() || null));
+                if (!relative.host) relative.host = "";
+                if (!relative.hostname) relative.hostname = "";
                 if (relPath[0] !== "") relPath.unshift("");
                 if (relPath.length < 2) relPath.unshift("");
                 result.pathname = relPath.join("/");
             } else {
-                result.pathname = relative4.pathname;
+                result.pathname = relative.pathname;
             }
-            result.search = relative4.search;
-            result.query = relative4.query;
-            result.host = relative4.host || "";
-            result.auth = relative4.auth;
-            result.hostname = relative4.hostname || relative4.host;
-            result.port = relative4.port;
+            result.search = relative.search;
+            result.query = relative.query;
+            result.host = relative.host || "";
+            result.auth = relative.auth;
+            result.hostname = relative.hostname || relative.host;
+            result.port = relative.port;
             if (result.pathname || result.search) {
                 const p = result.pathname || "";
                 const s = result.search || "";
                 result.path = p + s;
             }
-            result.slashes = result.slashes || relative4.slashes;
+            result.slashes = result.slashes || relative.slashes;
             result.href = result.format();
             return result;
         }
         const isSourceAbs = result.pathname && result.pathname.charAt(0) === "/";
-        const isRelAbs = relative4.host || relative4.pathname && relative4.pathname.charAt(0) === "/";
-        let mustEndAbs = isRelAbs || isSourceAbs || result.host && relative4.pathname;
+        const isRelAbs = relative.host || relative.pathname && relative.pathname.charAt(0) === "/";
+        let mustEndAbs = isRelAbs || isSourceAbs || result.host && relative.pathname;
         const removeAllDots = mustEndAbs;
         let srcPath = result.pathname && result.pathname.split("/") || [];
-        const relPath = relative4.pathname && relative4.pathname.split("/") || [];
+        const relPath1 = relative.pathname && relative.pathname.split("/") || [];
         const noLeadingSlashes = result.protocol && !slashedProtocol.has(result.protocol);
         if (noLeadingSlashes) {
             result.hostname = "";
@@ -10395,38 +10647,38 @@ class Url {
                 else srcPath.unshift(result.host);
             }
             result.host = "";
-            if (relative4.protocol) {
-                relative4.hostname = null;
-                relative4.port = null;
+            if (relative.protocol) {
+                relative.hostname = null;
+                relative.port = null;
                 result.auth = null;
-                if (relative4.host) {
-                    if (relPath[0] === "") relPath[0] = relative4.host;
-                    else relPath.unshift(relative4.host);
+                if (relative.host) {
+                    if (relPath1[0] === "") relPath1[0] = relative.host;
+                    else relPath1.unshift(relative.host);
                 }
-                relative4.host = null;
+                relative.host = null;
             }
-            mustEndAbs = mustEndAbs && (relPath[0] === "" || srcPath[0] === "");
+            mustEndAbs = mustEndAbs && (relPath1[0] === "" || srcPath[0] === "");
         }
         if (isRelAbs) {
-            if (relative4.host || relative4.host === "") {
-                if (result.host !== relative4.host) result.auth = null;
-                result.host = relative4.host;
-                result.port = relative4.port;
+            if (relative.host || relative.host === "") {
+                if (result.host !== relative.host) result.auth = null;
+                result.host = relative.host;
+                result.port = relative.port;
             }
-            if (relative4.hostname || relative4.hostname === "") {
-                if (result.hostname !== relative4.hostname) result.auth = null;
-                result.hostname = relative4.hostname;
+            if (relative.hostname || relative.hostname === "") {
+                if (result.hostname !== relative.hostname) result.auth = null;
+                result.hostname = relative.hostname;
             }
-            result.search = relative4.search;
-            result.query = relative4.query;
-            srcPath = relPath;
-        } else if (relPath.length) {
+            result.search = relative.search;
+            result.query = relative.query;
+            srcPath = relPath1;
+        } else if (relPath1.length) {
             if (!srcPath) srcPath = [];
             srcPath.pop();
-            srcPath = srcPath.concat(relPath);
-            result.search = relative4.search;
-            result.query = relative4.query;
-        } else if (relative4.search !== null && relative4.search !== undefined) {
+            srcPath = srcPath.concat(relPath1);
+            result.search = relative.search;
+            result.query = relative.query;
+        } else if (relative.search !== null && relative.search !== undefined) {
             if (noLeadingSlashes) {
                 result.hostname = result.host = srcPath.shift() || null;
                 const authInHost = result.host && result.host.indexOf("@") > 0 && result.host.split("@");
@@ -10435,8 +10687,8 @@ class Url {
                     result.host = result.hostname = authInHost.shift() || null;
                 }
             }
-            result.search = relative4.search;
-            result.query = relative4.query;
+            result.search = relative.search;
+            result.query = relative.query;
             if (result.pathname !== null || result.search !== null) {
                 result.path = (result.pathname ? result.pathname : "") + (result.search ? result.search : "");
             }
@@ -10454,17 +10706,17 @@ class Url {
             return result;
         }
         let last = srcPath.slice(-1)[0];
-        const hasTrailingSlash = (result.host || relative4.host || srcPath.length > 1) && (last === "." || last === "..") || last === "";
+        const hasTrailingSlash = (result.host || relative.host || srcPath.length > 1) && (last === "." || last === "..") || last === "";
         let up = 0;
-        for(let i67 = srcPath.length - 1; i67 >= 0; i67--){
-            last = srcPath[i67];
+        for(let i = srcPath.length - 1; i >= 0; i--){
+            last = srcPath[i];
             if (last === ".") {
-                srcPath.splice(i67, 1);
+                srcPath.splice(i, 1);
             } else if (last === "..") {
-                srcPath.splice(i67, 1);
+                srcPath.splice(i, 1);
                 up++;
             } else if (up) {
-                srcPath.splice(i67, 1);
+                srcPath.splice(i, 1);
                 up--;
             }
         }
@@ -10479,17 +10731,17 @@ class Url {
         if (hasTrailingSlash && srcPath.join("/").substr(-1) !== "/") {
             srcPath.push("");
         }
-        const isAbsolute3 = srcPath[0] === "" || srcPath[0] && srcPath[0].charAt(0) === "/";
+        const isAbsolute = srcPath[0] === "" || srcPath[0] && srcPath[0].charAt(0) === "/";
         if (noLeadingSlashes) {
-            result.hostname = result.host = isAbsolute3 ? "" : srcPath.length ? srcPath.shift() || null : "";
-            const authInHost = result.host && result.host.indexOf("@") > 0 ? result.host.split("@") : false;
-            if (authInHost) {
-                result.auth = authInHost.shift() || null;
-                result.host = result.hostname = authInHost.shift() || null;
+            result.hostname = result.host = isAbsolute ? "" : srcPath.length ? srcPath.shift() || null : "";
+            const authInHost1 = result.host && result.host.indexOf("@") > 0 ? result.host.split("@") : false;
+            if (authInHost1) {
+                result.auth = authInHost1.shift() || null;
+                result.host = result.hostname = authInHost1.shift() || null;
             }
         }
         mustEndAbs = mustEndAbs || result.host && srcPath.length;
-        if (mustEndAbs && !isAbsolute3) {
+        if (mustEndAbs && !isAbsolute) {
             srcPath.unshift("");
         }
         if (!srcPath.length) {
@@ -10501,8 +10753,8 @@ class Url {
         if (result.pathname !== null || result.search !== null) {
             result.path = (result.pathname ? result.pathname : "") + (result.search ? result.search : "");
         }
-        result.auth = relative4.auth || result.auth;
-        result.slashes = result.slashes || relative4.slashes;
+        result.auth = relative.auth || result.auth;
+        result.slashes = result.slashes || relative.slashes;
         result.href = result.format();
         return result;
     }
@@ -10534,21 +10786,21 @@ class Url {
         }
         let newPathname = "";
         let lastPos = 0;
-        for(let i68 = 0; i68 < pathname.length; ++i68){
-            switch(pathname.charCodeAt(i68)){
+        for(let i = 0; i < pathname.length; ++i){
+            switch(pathname.charCodeAt(i)){
                 case 35:
-                    if (i68 - lastPos > 0) {
-                        newPathname += pathname.slice(lastPos, i68);
+                    if (i - lastPos > 0) {
+                        newPathname += pathname.slice(lastPos, i);
                     }
                     newPathname += "%23";
-                    lastPos = i68 + 1;
+                    lastPos = i + 1;
                     break;
                 case 63:
-                    if (i68 - lastPos > 0) {
-                        newPathname += pathname.slice(lastPos, i68);
+                    if (i - lastPos > 0) {
+                        newPathname += pathname.slice(lastPos, i);
                     }
                     newPathname += "%3F";
-                    lastPos = i68 + 1;
+                    lastPos = i + 1;
                     break;
             }
         }
@@ -10582,19 +10834,19 @@ class Url {
         let end = -1;
         let rest = "";
         let lastPos = 0;
-        for(let i69 = 0, inWs = false, split = false; i69 < url.length; ++i69){
-            const code = url.charCodeAt(i69);
+        for(let i = 0, inWs = false, split = false; i < url.length; ++i){
+            const code = url.charCodeAt(i);
             const isWs = code === 32 || code === 9 || code === 13 || code === 10 || code === 12 || code === 160 || code === 65279;
             if (start === -1) {
                 if (isWs) continue;
-                lastPos = start = i69;
+                lastPos = start = i;
             } else if (inWs) {
                 if (!isWs) {
                     end = -1;
                     inWs = false;
                 }
             } else if (isWs) {
-                end = i69;
+                end = i;
                 inWs = true;
             }
             if (!split) {
@@ -10605,9 +10857,9 @@ class Url {
                         split = true;
                         break;
                     case 92:
-                        if (i69 - lastPos > 0) rest += url.slice(lastPos, i69);
+                        if (i - lastPos > 0) rest += url.slice(lastPos, i);
                         rest += "/";
-                        lastPos = i69 + 1;
+                        lastPos = i + 1;
                         break;
                 }
             } else if (!hasHash && code === 35) {
@@ -10668,8 +10920,8 @@ class Url {
             let hostEnd = -1;
             let atSign = -1;
             let nonHost = -1;
-            for(let i70 = 0; i70 < rest.length; ++i70){
-                switch(rest.charCodeAt(i70)){
+            for(let i1 = 0; i1 < rest.length; ++i1){
+                switch(rest.charCodeAt(i1)){
                     case 9:
                     case 10:
                     case 13:
@@ -10686,16 +10938,16 @@ class Url {
                     case 123:
                     case 124:
                     case 125:
-                        if (nonHost === -1) nonHost = i70;
+                        if (nonHost === -1) nonHost = i1;
                         break;
                     case 35:
                     case 47:
                     case 63:
-                        if (nonHost === -1) nonHost = i70;
-                        hostEnd = i70;
+                        if (nonHost === -1) nonHost = i1;
+                        hostEnd = i1;
                         break;
                     case 64:
-                        atSign = i70;
+                        atSign = i1;
                         nonHost = -1;
                         break;
                 }
@@ -10743,14 +10995,14 @@ class Url {
         }
         let questionIdx = -1;
         let hashIdx = -1;
-        for(let i111 = 0; i111 < rest.length; ++i111){
-            const code = rest.charCodeAt(i111);
-            if (code === 35) {
-                this.hash = rest.slice(i111);
-                hashIdx = i111;
+        for(let i2 = 0; i2 < rest.length; ++i2){
+            const code1 = rest.charCodeAt(i2);
+            if (code1 === 35) {
+                this.hash = rest.slice(i2);
+                hashIdx = i2;
                 break;
-            } else if (code === 63 && questionIdx === -1) {
-                questionIdx = i111;
+            } else if (code1 === 63 && questionIdx === -1) {
+                questionIdx = i2;
             }
         }
         if (questionIdx !== -1) {
@@ -10779,9 +11031,9 @@ class Url {
             this.pathname = "/";
         }
         if (this.pathname || this.search) {
-            const p = this.pathname || "";
+            const p1 = this.pathname || "";
             const s = this.search || "";
-            this.path = p + s;
+            this.path = p1 + s;
         }
         this.href = this.format();
         return this;
@@ -10844,12 +11096,12 @@ function isIpv6Hostname(hostname) {
     return hostname.charCodeAt(0) === 91 && hostname.charCodeAt(hostname.length - 1) === 93;
 }
 function getHostname(self, rest, hostname) {
-    for(let i71 = 0; i71 < hostname.length; ++i71){
-        const code = hostname.charCodeAt(i71);
+    for(let i = 0; i < hostname.length; ++i){
+        const code = hostname.charCodeAt(i);
         const isValid = code >= 97 && code <= 122 || code === 46 || code >= 65 && code <= 90 || code >= 48 && code <= 57 || code === 45 || code === 43 || code === 95 || code > 127;
         if (!isValid) {
-            self.hostname = hostname.slice(0, i71);
-            return `/${hostname.slice(i71)}${rest}`;
+            self.hostname = hostname.slice(0, i);
+            return `/${hostname.slice(i)}${rest}`;
         }
     }
     return rest;
@@ -10985,14 +11237,14 @@ const escapedCodes = [
 function autoEscapeStr(rest) {
     let escaped = "";
     let lastEscapedPos = 0;
-    for(let i72 = 0; i72 < rest.length; ++i72){
-        const escapedChar = escapedCodes[rest.charCodeAt(i72)];
+    for(let i = 0; i < rest.length; ++i){
+        const escapedChar = escapedCodes[rest.charCodeAt(i)];
         if (escapedChar) {
-            if (i72 > lastEscapedPos) {
-                escaped += rest.slice(lastEscapedPos, i72);
+            if (i > lastEscapedPos) {
+                escaped += rest.slice(lastEscapedPos, i);
             }
             escaped += escapedChar;
-            lastEscapedPos = i72 + 1;
+            lastEscapedPos = i + 1;
         }
     }
     if (lastEscapedPos === 0) {
@@ -11012,22 +11264,22 @@ function parse4(url, parseQueryString, slashesDenoteHost) {
 function resolve3(from, to) {
     return parse4(from, false, true).resolve(to);
 }
-function resolveObject(source, relative5) {
-    if (!source) return relative5;
-    return parse4(source, false, true).resolveObject(relative5);
+function resolveObject(source, relative) {
+    if (!source) return relative;
+    return parse4(source, false, true).resolveObject(relative);
 }
-function fileURLToPath(path110) {
-    if (typeof path110 === "string") path110 = new URL(path110);
-    else if (!(path110 instanceof URL)) {
+function fileURLToPath(path) {
+    if (typeof path === "string") path = new URL(path);
+    else if (!(path instanceof URL)) {
         throw new ERR_INVALID_ARG_TYPE("path", [
             "string",
             "URL"
-        ], path110);
+        ], path);
     }
-    if (path110.protocol !== "file:") {
+    if (path.protocol !== "file:") {
         throw new ERR_INVALID_URL_SCHEME("file");
     }
-    return isWindows ? getPathFromURLWin(path110) : getPathFromURLPosix(path110);
+    return isWindows ? getPathFromURLWin(path) : getPathFromURLPosix(path);
 }
 function getPathFromURLWin(url) {
     const hostname = url.hostname;
@@ -11046,8 +11298,8 @@ function getPathFromURLWin(url) {
         return `\\\\${hostname}${pathname}`;
     } else {
         const letter = pathname.codePointAt(1) | 0x20;
-        const sep6 = pathname[2];
-        if (letter < 97 || letter > 122 || sep6 !== ":") {
+        const sep = pathname[2];
+        if (letter < 97 || letter > 122 || sep !== ":") {
             throw new ERR_INVALID_FILE_URL_PATH("must be absolute");
         }
         return pathname.slice(1);
