@@ -22,7 +22,7 @@
   "license": "MIT",
   "devDependencies": {
     "@types/jsdom": "^20.0.1",
-    "typescript": "next"
+    "typescript": "^5.0.0-dev.20221222"
   },
   "packageManager": "yarn@4.0.0-rc.33",
   "disabled_resolutions": {

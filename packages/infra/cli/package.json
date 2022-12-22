@@ -24,7 +24,7 @@
     "dependencies": {
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
-        "esbuild": "^0.16.9",
+        "esbuild": "^0.16.10",
         "lodash": "^4.17.21",
         "pkg-types": "^1.0.1",
         "yargs": "^17.6.2"

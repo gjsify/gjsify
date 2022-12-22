@@ -32,6 +32,6 @@
     "dependencies": {
         "@gjsify/events": "workspace:^",
         "@gjsify/types": "workspace:^",
-        "happy-dom": "^8.1.0"
+        "happy-dom": "^8.1.1"
     }
 }
