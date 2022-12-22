@@ -3,7 +3,7 @@ import tokenize from 'glsl-tokenizer/string';
 import Gwebgl from '@gjsify/types/Gwebgl-0.1';
 import GdkPixbuf from '@gjsify/types/GdkPixbuf-2.0';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
-import { GjsifyHTMLCanvasElement } from './html-canvas-element';
+import { GjsifyHTMLCanvasElement } from './html-canvas-element.js';
 import {
     extractImageData,
     checkObject,
@@ -1153,8 +1153,8 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         if (data) {
             let u8Data = null
-            if (isTypedArray(data as TypedArray)) {
-                u8Data = arrayToUint8Array(data as TypedArray)
+            if (isTypedArray(data as TypedArray) || data instanceof DataView) {
+                u8Data = arrayToUint8Array(data as TypedArray | DataView)
             } else {
                 this.setError(this.INVALID_VALUE)
                 return
@@ -1230,8 +1230,8 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
 
         let u8Data = null
-        if (isTypedArray(data as any)) {
-            u8Data = arrayToUint8Array(data as any)
+        if (isTypedArray(data as TypedArray) || data instanceof DataView) {
+            u8Data = arrayToUint8Array(data as TypedArray | DataView)
         } else {
             this.setError(this.INVALID_VALUE)
             return

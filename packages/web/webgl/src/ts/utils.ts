@@ -138,12 +138,12 @@ export const listToArray = (values: Float32List) => {
     return array;
 }
 
-export function arrayToUint8Array(array: TypedArray | Float32List | Array<number> | ArrayBuffer) {
+export function arrayToUint8Array(array: TypedArray | Float32List | Array<number> | ArrayBuffer | DataView) {
 
-    if(isTypedArray(array as TypedArray)) {
-        return (new Uint8Array((array as TypedArray).buffer)).subarray(
-            (array as TypedArray).byteOffset,
-            (array as TypedArray).byteLength + (array as TypedArray).byteOffset)
+    if(isTypedArray(array as TypedArray | DataView)) {
+        return (new Uint8Array((array as TypedArray | DataView).buffer)).subarray(
+            (array as TypedArray | DataView).byteOffset,
+            (array as TypedArray | DataView).byteLength + (array as TypedArray | DataView).byteOffset)
     }
 
     if(Array.isArray(array) || array instanceof ArrayBuffer) {
