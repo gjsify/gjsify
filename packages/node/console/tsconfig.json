@@ -3,11 +3,12 @@
     "module": "ESNext",
     "types": ["node"],
     "target": "ESNext",
-    "moduleResolution": "NodeNext",
     "experimentalDecorators": true,
     "outDir": "lib",
     "rootDir": "src",
-    "composite": true
+    "composite": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true
   },
   "skipLibCheck": true,
   "allowJs": true,

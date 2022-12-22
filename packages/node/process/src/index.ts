@@ -1,4 +1,4 @@
-import { arch as _arch, platform as _platform } from '@gjsify/utils';
+import { arch as _arch, os } from '@gjsify/utils';
 import { EventEmitter } from 'events';
 import { WriteStream, ReadStream } from 'tty';
 import { existsSync } from 'fs';
@@ -36,7 +36,7 @@ class Process extends EventEmitter {
   }
 
   get arch() {
-    return _arch();
+    return _arch;
   }
 
   get argv() {
@@ -75,7 +75,7 @@ class Process extends EventEmitter {
   }
 
   get platform() {
-    return _platform();
+    return os();
   }
 
   get title() {

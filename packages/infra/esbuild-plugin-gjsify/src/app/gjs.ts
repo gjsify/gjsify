@@ -43,6 +43,9 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             '.tsx': 'ts',
             '.mtsx': 'ts',
             '.ctsx': 'ts',
+            '.mjs': 'ts',
+            '.cjs': 'ts',
+            '.js': 'ts',
         },
         inject,
         define: {

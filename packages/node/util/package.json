@@ -28,7 +28,7 @@
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
         "@types/node": "^18.11.17",
-        "typescript": "^4.9.4"
+        "typescript": "^5.0.0-dev.20221222"
     },
     "dependencies": {
         "@gjsify/node-internal": "workspace:^",

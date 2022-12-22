@@ -41,6 +41,9 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
             '.tsx': 'ts',
             '.mtsx': 'ts',
             '.ctsx': 'ts',
+            '.mjs': 'ts',
+            '.cjs': 'ts',
+            '.js': 'ts',
         },
         inject,
         define: {

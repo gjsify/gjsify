@@ -26,8 +26,10 @@ jobs:
         with:
           deno-version: ${{ matrix.deno-version }}
       - run: sudo apt-get update
-      - name: Setup Gjs
+      - name: Install Gjs, Gtk and more...
         run: sudo apt-get --yes install gjs libgda-5.0-dev libgirepository1.0-dev libgtk-4-dev libsoup-3.0-dev libwebkit2gtk-4.0-dev libadwaita-1-dev
+      - name: Install meson
+        run: sudo apt-get --yes install meson
       - name: Install NPM dependencies
         run: yarn install --immutable
       - name: Build

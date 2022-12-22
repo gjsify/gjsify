@@ -24,6 +24,9 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
             '.tsx': 'ts',
             '.mtsx': 'ts',
             '.ctsx': 'ts',
+            '.mjs': 'ts',
+            '.cjs': 'ts',
+            '.js': 'ts',
         },
         // firefox60"  // Since GJS 1.53.90
         // firefox68"  // Since GJS 1.63.90

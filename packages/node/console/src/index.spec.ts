@@ -1,9 +1,10 @@
 import { describe, it, expect } from '@gjsify/unit';
+import console from "console"
 
 export default async () => {
-	await describe('true', async () => {
-		await it('should be true', async () => {
-			expect(true).toBeTruthy();
+	await describe('Default import', async () => {
+		await it('should be an object', async () => {
+			expect(console instanceof Object).toBeTruthy();
 		});
 	});
 }

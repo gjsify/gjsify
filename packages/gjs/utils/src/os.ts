@@ -1,15 +1,16 @@
 import { cli } from './cli.js'
 
-const UNAME_ALL = cli('uname -a');
-
-export const arch = () => {
-    if(/\bx86_64\b/.test(UNAME_ALL)) return 'x64';
-    if(/\bi686\b/.test(UNAME_ALL)) return 'ia32';
-    return 'arm';
-};
+export const arch = cli('uname -o');
   
-export const platform = () => {
-    if(/\bDarwin\b/i.test(UNAME_ALL)) return 'darwin';
-    if(/\bLinux\b/i.test(UNAME_ALL)) return 'linux';
+export const os = () => {
+    const os = cli('uname -o');
+    if(/\bDarwin\b/i.test(os)) return 'darwin';
+    if(/\bLinux\b/i.test(os)) return 'linux';
     return 'win32';
 };
+
+export const vendor = 'gjsify'
+
+export const env = 'gnu';
+
+export const target = `${arch}-${vendor}-${os()}-${env}`;

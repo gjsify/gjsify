@@ -200,7 +200,9 @@ export const ALIASES_GENERAL_FOR_NODE = {
 }
 
 /** Record of Gjs modules (build in or not) and his replacement for Node */
-export const ALIASES_GJS_FOR_NODE = {}
+export const ALIASES_GJS_FOR_NODE = {
+    '@gjsify/deno_std/node/console': 'console'
+}
 
 /** Record of Web modules and his replacement for Node */
 export const ALIASES_WEB_FOR_NODE = {}

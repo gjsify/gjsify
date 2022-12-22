@@ -4,6 +4,7 @@
     "description": "Node.js console module for Gjs",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
+    "type": "module",
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/console'",
@@ -24,5 +25,8 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.11.17"
+    },
+    "dependencies": {
+        "@gjsify/deno_std": "workspace:^"
     }
 }

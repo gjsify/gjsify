@@ -24,7 +24,7 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
           } else if(resolvedAlias.startsWith('https://')) {
             namespace = 'https';
             resolvedAlias = resolvedAlias.slice(6)
-          } 
+          }
 
           if (resolvedAlias) {
             return {

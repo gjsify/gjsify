@@ -31,6 +31,9 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
             '.tsx': 'ts',
             '.mtsx': 'ts',
             '.ctsx': 'ts',
+            '.mjs': 'ts',
+            '.cjs': 'ts',
+            '.js': 'ts',
         },
         inject: [],
         define: {
