@@ -257,7 +257,8 @@ __metadata:
   resolution: "@gjsify/abort-controller@workspace:packages/web/abort-controller"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@gjsify/event-target": "workspace:^"
+    "@gjsify/deno-runtime": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
     typescript: "npm:^5.0.0-dev.20221227"
@@ -461,7 +462,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/event-target@workspace:^, @gjsify/event-target@workspace:packages/web/event-target":
+"@gjsify/event-target@workspace:packages/web/event-target":
   version: 0.0.0-use.local
   resolution: "@gjsify/event-target@workspace:packages/web/event-target"
   dependencies:
@@ -749,19 +750,6 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@types/inherits": "npm:^0.0.30"
     "@types/node": "npm:^18.11.18"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/readable-stream@workspace:packages/node/readable-stream":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/readable-stream@workspace:packages/node/readable-stream"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-internal": "workspace:^"
-    abort-controller: "npm:^3.0.0"
-    buffer: "npm:^6.0.3"
-    events: "npm:^3.3.0"
-    process: "npm:^0.11.10"
   languageName: unknown
   linkType: soft
 
@@ -1164,15 +1152,6 @@ __metadata:
   version: 1.1.1
   resolution: "abbrev@npm:1.1.1"
   checksum: 76e7fb9283b13208d5cf55df46669f9cf5e72007cb66595849be2d5e96c0a43704132d030c5705f9447266183986e1e8a4fc3e9578cb60a1f19cf0157664f957
-  languageName: node
-  linkType: hard
-
-"abort-controller@npm:^3.0.0":
-  version: 3.0.0
-  resolution: "abort-controller@npm:3.0.0"
-  dependencies:
-    event-target-shim: "npm:^5.0.0"
-  checksum: 336c22d64efef7142681fc2944db3f448d10b2384d816fc90502ea8d32800c854bd9cd586b168e216ba2e5f4cd0bfb431650a6e5dbc18957e614966ca7649764
   languageName: node
   linkType: hard
 
@@ -2263,13 +2242,6 @@ __metadata:
   version: 5.0.0
   resolution: "escape-string-regexp@npm:5.0.0"
   checksum: 9c968d6e975030ef1349f1f011348de4b1fe5e13d5e0c407d38ab141d5e8a8b163ba727a9df22f3e796211aa340b73080455d3a1784af90409e2b8afaed02f76
-  languageName: node
-  linkType: hard
-
-"event-target-shim@npm:^5.0.0":
-  version: 5.0.1
-  resolution: "event-target-shim@npm:5.0.1"
-  checksum: 9bac81ec63b29e184fe5d10a8ea09a2957f39dc109a6f594c5e095beae88bf64c63b061ebb867fe883832ca4a8daefda8a92ed55a4f460cedbef25e574fb4466
   languageName: node
   linkType: hard
 
@@ -3867,13 +3839,6 @@ __metadata:
   bin:
     prettier: bin-prettier.js
   checksum: c95699326db607eac7f63274d38ca9c21462fa538fb69cf06cb3be2122f2d53daa02f96f69cffa985af852a95c6211472ddf3798dbdb2f20c520aded15f78684
-  languageName: node
-  linkType: hard
-
-"process@npm:^0.11.10":
-  version: 0.11.10
-  resolution: "process@npm:0.11.10"
-  checksum: e21687b0b8fe1c6812ea43858aa5c1234e05dc6b2c366b280c850fd09d644100cbcf2f3784feec4bc6f57002a465e7eea2901acf1462ffc94ba9ac98f105ede5
   languageName: node
   linkType: hard
 
