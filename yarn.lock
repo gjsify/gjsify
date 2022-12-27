@@ -283,8 +283,10 @@ __metadata:
   resolution: "@gjsify/buffer@workspace:packages/node/buffer"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -922,6 +924,7 @@ __metadata:
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 

@@ -1,3 +1,3 @@
-export * from './buffer.js';
-import buffer from './buffer.js';
+export * from '@gjsify/deno_std/node/buffer';
+import buffer from '@gjsify/deno_std/node/buffer';
 export default buffer;

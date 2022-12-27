@@ -7,10 +7,9 @@
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/buffer'",
-        "bundle:deno": "rm -f src/buffer.deno.js && deno bundle https://deno.land/std/node/buffer.ts src/buffer.deno.js",
-        "patch:deno": "node ./patch-deno.mjs",
-        "build": "yarn print:name && yarn build:deno && gjsify build --library src/**/*.{ts,js}",
-        "build:deno": "yarn run bundle:deno && yarn run patch:deno",
+        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
@@ -26,6 +25,10 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.11.18"
+        "@types/node": "^18.11.18",
+        "typescript": "^5.0.0-dev.20221227"
+    },
+    "dependencies": {
+        "@gjsify/deno_std": "workspace:^"
     }
 }
