@@ -91,156 +91,156 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@esbuild/android-arm64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/android-arm64@npm:0.16.10"
+"@esbuild/android-arm64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/android-arm64@npm:0.16.11"
   conditions: os=android & cpu=arm64
   languageName: node
   linkType: hard
 
-"@esbuild/android-arm@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/android-arm@npm:0.16.10"
+"@esbuild/android-arm@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/android-arm@npm:0.16.11"
   conditions: os=android & cpu=arm
   languageName: node
   linkType: hard
 
-"@esbuild/android-x64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/android-x64@npm:0.16.10"
+"@esbuild/android-x64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/android-x64@npm:0.16.11"
   conditions: os=android & cpu=x64
   languageName: node
   linkType: hard
 
-"@esbuild/darwin-arm64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/darwin-arm64@npm:0.16.10"
+"@esbuild/darwin-arm64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/darwin-arm64@npm:0.16.11"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@esbuild/darwin-x64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/darwin-x64@npm:0.16.10"
+"@esbuild/darwin-x64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/darwin-x64@npm:0.16.11"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@esbuild/freebsd-arm64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/freebsd-arm64@npm:0.16.10"
+"@esbuild/freebsd-arm64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/freebsd-arm64@npm:0.16.11"
   conditions: os=freebsd & cpu=arm64
   languageName: node
   linkType: hard
 
-"@esbuild/freebsd-x64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/freebsd-x64@npm:0.16.10"
+"@esbuild/freebsd-x64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/freebsd-x64@npm:0.16.11"
   conditions: os=freebsd & cpu=x64
   languageName: node
   linkType: hard
 
-"@esbuild/linux-arm64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-arm64@npm:0.16.10"
+"@esbuild/linux-arm64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-arm64@npm:0.16.11"
   conditions: os=linux & cpu=arm64
   languageName: node
   linkType: hard
 
-"@esbuild/linux-arm@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-arm@npm:0.16.10"
+"@esbuild/linux-arm@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-arm@npm:0.16.11"
   conditions: os=linux & cpu=arm
   languageName: node
   linkType: hard
 
-"@esbuild/linux-ia32@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-ia32@npm:0.16.10"
+"@esbuild/linux-ia32@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-ia32@npm:0.16.11"
   conditions: os=linux & cpu=ia32
   languageName: node
   linkType: hard
 
-"@esbuild/linux-loong64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-loong64@npm:0.16.10"
+"@esbuild/linux-loong64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-loong64@npm:0.16.11"
   conditions: os=linux & cpu=loong64
   languageName: node
   linkType: hard
 
-"@esbuild/linux-mips64el@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-mips64el@npm:0.16.10"
+"@esbuild/linux-mips64el@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-mips64el@npm:0.16.11"
   conditions: os=linux & cpu=mips64el
   languageName: node
   linkType: hard
 
-"@esbuild/linux-ppc64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-ppc64@npm:0.16.10"
+"@esbuild/linux-ppc64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-ppc64@npm:0.16.11"
   conditions: os=linux & cpu=ppc64
   languageName: node
   linkType: hard
 
-"@esbuild/linux-riscv64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-riscv64@npm:0.16.10"
+"@esbuild/linux-riscv64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-riscv64@npm:0.16.11"
   conditions: os=linux & cpu=riscv64
   languageName: node
   linkType: hard
 
-"@esbuild/linux-s390x@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-s390x@npm:0.16.10"
+"@esbuild/linux-s390x@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-s390x@npm:0.16.11"
   conditions: os=linux & cpu=s390x
   languageName: node
   linkType: hard
 
-"@esbuild/linux-x64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/linux-x64@npm:0.16.10"
+"@esbuild/linux-x64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/linux-x64@npm:0.16.11"
   conditions: os=linux & cpu=x64
   languageName: node
   linkType: hard
 
-"@esbuild/netbsd-x64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/netbsd-x64@npm:0.16.10"
+"@esbuild/netbsd-x64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/netbsd-x64@npm:0.16.11"
   conditions: os=netbsd & cpu=x64
   languageName: node
   linkType: hard
 
-"@esbuild/openbsd-x64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/openbsd-x64@npm:0.16.10"
+"@esbuild/openbsd-x64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/openbsd-x64@npm:0.16.11"
   conditions: os=openbsd & cpu=x64
   languageName: node
   linkType: hard
 
-"@esbuild/sunos-x64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/sunos-x64@npm:0.16.10"
+"@esbuild/sunos-x64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/sunos-x64@npm:0.16.11"
   conditions: os=sunos & cpu=x64
   languageName: node
   linkType: hard
 
-"@esbuild/win32-arm64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/win32-arm64@npm:0.16.10"
+"@esbuild/win32-arm64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/win32-arm64@npm:0.16.11"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
-"@esbuild/win32-ia32@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/win32-ia32@npm:0.16.10"
+"@esbuild/win32-ia32@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/win32-ia32@npm:0.16.11"
   conditions: os=win32 & cpu=ia32
   languageName: node
   linkType: hard
 
-"@esbuild/win32-x64@npm:0.16.10":
-  version: 0.16.10
-  resolution: "@esbuild/win32-x64@npm:0.16.10"
+"@esbuild/win32-x64@npm:0.16.11":
+  version: 0.16.11
+  resolution: "@esbuild/win32-x64@npm:0.16.11"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
@@ -259,8 +259,8 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/event-target": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
-    typescript: "npm:^5.0.0-dev.20221222"
+    "@types/node": "npm:^18.11.18"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -272,7 +272,7 @@ __metadata:
     "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/call-bind": "npm:^1.0.1"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     call-bind: "npm:^1.0.2"
     util: "npm:^0.12.5"
   languageName: unknown
@@ -284,7 +284,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -295,10 +295,10 @@ __metadata:
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@types/yargs": "npm:^17.0.17"
-    esbuild: "npm:^0.16.10"
+    esbuild: "npm:^0.16.11"
     lodash: "npm:^4.17.21"
     pkg-types: "npm:^1.0.1"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
     yargs: "npm:^17.6.2"
   bin:
     gjsify: ./lib/index.js
@@ -312,7 +312,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -336,10 +336,10 @@ __metadata:
     "@gjsify/empty": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@tsconfig/deno": "npm:^1.0.6"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     fast-glob: "npm:^3.2.12"
     open-cli: "npm:^7.1.0"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -350,9 +350,9 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno-runtime": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     open-cli: "npm:^7.1.0"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -367,8 +367,8 @@ __metadata:
   resolution: "@gjsify/esbuild-plugin-deepkit@workspace:packages/infra/esbuild-plugin-deepkit"
   dependencies:
     "@deepkit/type-compiler": "npm:^1.0.1-alpha.83"
-    esbuild: "npm:^0.16.10"
-    typescript: "npm:^5.0.0-dev.20221222"
+    esbuild: "npm:^0.16.11"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -377,9 +377,9 @@ __metadata:
   resolution: "@gjsify/esbuild-plugin-deno-loader@workspace:packages/infra/esbuild-plugin-deno-loader"
   dependencies:
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
-    deno-importmap: "github:gjsify/deno-importmap"
-    esbuild: "npm:^0.16.10"
-    typescript: "npm:^5.0.0-dev.20221222"
+    deno-importmap: "npm:^0.2.1"
+    esbuild: "npm:^0.16.11"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -404,18 +404,59 @@ __metadata:
     "@gjsify/tty": "workspace:^"
     "@gjsify/zlib": "workspace:^"
     "@types/lodash": "npm:^4.14.191"
+    "@types/micromatch": "npm:^4.0.2"
     assert: "npm:^2.0.0"
     constants-browserify: "npm:^1.0.0"
-    core-js: "npm:^3.26.1"
+    core-js: "npm:^3.27.0"
     crypto-browserify: "npm:^3.12.0"
-    esbuild: "npm:^0.16.10"
-    esbuild-plugin-glob: "npm:^2.2.0"
+    esbuild: "npm:^0.16.11"
+    fast-glob: "npm:^3.2.12"
     lodash: "npm:^4.17.21"
+    micromatch: "npm:^4.0.5"
     path-browserify: "npm:^1.0.1"
     punycode: "npm:^2.1.1"
     stream-browserify: "npm:^3.0.0"
     string_decoder: "npm:^1.3.0"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
+    web-streams-polyfill: "npm:^3.2.1"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/esbuild-plugin-transform-ext@workspace:packages/infra/esbuild-plugin-transform-ext":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/esbuild-plugin-transform-ext@workspace:packages/infra/esbuild-plugin-transform-ext"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.1-alpha.77"
+    "@deepkit/injector": "npm:^1.0.1-alpha.85"
+    "@deepkit/type": "npm:^1.0.1-alpha.85"
+    "@gjsify/assert": "workspace:^"
+    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
+    "@gjsify/esbuild-plugin-deno-loader": "workspace:^"
+    "@gjsify/events": "workspace:^"
+    "@gjsify/fs": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/node-internal": "workspace:^"
+    "@gjsify/os": "workspace:^"
+    "@gjsify/process": "workspace:^"
+    "@gjsify/require": "workspace:^"
+    "@gjsify/resolve-npm": "workspace:^"
+    "@gjsify/tty": "workspace:^"
+    "@gjsify/zlib": "workspace:^"
+    "@types/lodash": "npm:^4.14.191"
+    "@types/micromatch": "npm:^4.0.2"
+    assert: "npm:^2.0.0"
+    constants-browserify: "npm:^1.0.0"
+    core-js: "npm:^3.27.0"
+    crypto-browserify: "npm:^3.12.0"
+    esbuild: "npm:^0.16.11"
+    esbuild-plugin-glob: "npm:^2.2.0"
+    lodash: "npm:^4.17.21"
+    micromatch: "npm:^4.0.5"
+    path-browserify: "npm:^1.0.1"
+    punycode: "npm:^2.1.1"
+    stream-browserify: "npm:^3.0.0"
+    string_decoder: "npm:^1.3.0"
+    typescript: "npm:^5.0.0-dev.20221227"
     web-streams-polyfill: "npm:^3.2.1"
   languageName: unknown
   linkType: soft
@@ -427,7 +468,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -439,7 +480,7 @@ __metadata:
     "@gjsify/event-target": "workspace:^"
     "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -452,7 +493,7 @@ __metadata:
     "@deepkit/type": "npm:^1.0.1-alpha.85"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -463,7 +504,7 @@ __metadata:
     "@deepkit/core": "npm:^1.0.1-alpha.77"
     "@deepkit/type": "npm:^1.0.1-alpha.85"
     "@gjsify/cli": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -472,7 +513,7 @@ __metadata:
   resolution: "@gjsify/example-deno-module-jsonc@workspace:examples/deno-module-jsonc"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -483,7 +524,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -494,7 +535,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -506,7 +547,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -520,7 +561,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -534,7 +575,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -548,7 +589,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -562,7 +603,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     gl-matrix: "npm:^3.4.3"
     open-cli: "npm:^7.1.0"
   languageName: unknown
@@ -576,7 +617,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     gl-matrix: "npm:^3.4.3"
     http-server: "npm:^14.1.1"
     open-cli: "npm:^7.1.0"
@@ -592,7 +633,7 @@ __metadata:
     "@gjsify/http": "workspace:^"
     "@gjsify/soup-3.0": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     data-uri-to-buffer: "npm:^4.0.0"
     fetch-blob: "npm:^3.2.0"
     formdata-polyfill: "npm:^4.0.10"
@@ -605,7 +646,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -616,8 +657,8 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
-    typescript: "npm:^5.0.0-dev.20221222"
+    "@types/node": "npm:^18.11.18"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -629,9 +670,9 @@ __metadata:
     "@gjsify/events": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     happy-dom: "npm:^8.1.1"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -641,7 +682,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -652,7 +693,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -673,8 +714,8 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
-    typescript: "npm:^5.0.0-dev.20221222"
+    "@types/node": "npm:^18.11.18"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -695,7 +736,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/utils": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -707,7 +748,7 @@ __metadata:
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/inherits": "npm:^0.0.30"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -751,8 +792,8 @@ __metadata:
     "@gjsify/gio-2.0": "workspace:^"
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
-    typescript: "npm:^5.0.0-dev.20221222"
+    "@types/node": "npm:^18.11.18"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -762,7 +803,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     inherits: "npm:^2.0.4"
     readable-stream: "npm:^4.2.0"
   languageName: unknown
@@ -774,7 +815,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/utils": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -791,7 +832,7 @@ __metadata:
   resolution: "@gjsify/unit@workspace:packages/gjs/unit"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -812,11 +853,11 @@ __metadata:
     "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/inherits": "npm:^0.0.30"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     is-arguments: "npm:^1.1.1"
     is-generator-function: "npm:^1.0.10"
     is-typed-array: "npm:^1.1.10"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
     util: "npm:^0.12.5"
     which-typed-array: "npm:^1.1.9"
   languageName: unknown
@@ -828,7 +869,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -838,7 +879,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -848,7 +889,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
   languageName: unknown
   linkType: soft
 
@@ -862,10 +903,10 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/bit-twiddle": "npm:^1.0.1"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     bit-twiddle: "npm:^1.0.2"
     glsl-tokenizer: "npm:^2.1.5"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -875,7 +916,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^18.11.17"
+    "@types/node": "npm:^18.11.18"
     fflate: "npm:^0.7.4"
   languageName: unknown
   linkType: soft
@@ -989,6 +1030,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/braces@npm:*":
+  version: 3.0.1
+  resolution: "@types/braces@npm:3.0.1"
+  checksum: c0d610f2474b174dc87946b57a8a7ecf5a14a49ef4217fc1134bcd32bcbd8a07eeaee5ea88b861effeee554cf28dc62867008e39049a574a2162985a40586333
+  languageName: node
+  linkType: hard
+
 "@types/call-bind@npm:^1.0.1":
   version: 1.0.1
   resolution: "@types/call-bind@npm:1.0.1"
@@ -1041,6 +1089,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/micromatch@npm:^4.0.2":
+  version: 4.0.2
+  resolution: "@types/micromatch@npm:4.0.2"
+  dependencies:
+    "@types/braces": "npm:*"
+  checksum: ac7ec28d57ac61a85bd2859c69d096192e8ef66cc9d3c5fcb4531eeec3b090b1ff1be132e65eff6a16be14b9a30083cf488a402c094890c654db861aafee4669
+  languageName: node
+  linkType: hard
+
 "@types/minimist@npm:^1.2.2":
   version: 1.2.2
   resolution: "@types/minimist@npm:1.2.2"
@@ -1055,10 +1112,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^18.11.17":
-  version: 18.11.17
-  resolution: "@types/node@npm:18.11.17"
-  checksum: c344af96ffdcc429d8d79576de72061553cd083d06cde8209a82b3d927c62ecf2211f24c3b970194636833f9dcfd94228f2b019f2d796f1f20dfc0d12e6dcc2b
+"@types/node@npm:^18.11.18":
+  version: 18.11.18
+  resolution: "@types/node@npm:18.11.18"
+  checksum: bd39552701928d4a1613bc46adf8b65f8212064c2b5475a67161b6c4cef21ddb0a5c2ba062673213f8f5301ef6e171241a9e274a9b59c9fc1f5e2b69764740eb
   languageName: node
   linkType: hard
 
@@ -1758,10 +1815,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"core-js@npm:^3.26.1":
-  version: 3.26.1
-  resolution: "core-js@npm:3.26.1"
-  checksum: 74bf298c834701137b983f835e7fe8ac83febcbd4ae66a7adec68a85a076262c6b0c839bdd02ec5bd2f52f5e5f0feb55d66609be8594e1a3fba6e4f7885833a4
+"core-js@npm:^3.27.0":
+  version: 3.27.0
+  resolution: "core-js@npm:3.27.0"
+  checksum: aecaf0865386d73b1d9245739b437602af3cb883b9d8e5b66be82f44ee94e5cb895d621586e7787d9bf71d5be0c0b3287e79238e13b98d39fdc47f9f69c07e78
   languageName: node
   linkType: hard
 
@@ -1960,9 +2017,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"deno-importmap@github:gjsify/deno-importmap":
+"deno-importmap@npm:^0.2.1":
   version: 0.2.1
-  resolution: "deno-importmap@https://github.com/gjsify/deno-importmap.git#commit=57e9f102dfb0bf22e71130abbd617f9d0f2c37c5"
+  resolution: "deno-importmap@npm:0.2.1"
   dependencies:
     "@types/node": "npm:^18.11.9"
   checksum: db70e24b7f4cb7a39a29a449897b8d7ff077fa760b8366edee276fcb7e25604dc6934a02ecc0684a133d97dbf7dd936d0081b3a05deb5634779e5fa567066136
@@ -2123,32 +2180,32 @@ __metadata:
   languageName: node
   linkType: hard
 
-"esbuild@npm:^0.16.10":
-  version: 0.16.10
-  resolution: "esbuild@npm:0.16.10"
+"esbuild@npm:^0.16.11":
+  version: 0.16.11
+  resolution: "esbuild@npm:0.16.11"
   dependencies:
-    "@esbuild/android-arm": "npm:0.16.10"
-    "@esbuild/android-arm64": "npm:0.16.10"
-    "@esbuild/android-x64": "npm:0.16.10"
-    "@esbuild/darwin-arm64": "npm:0.16.10"
-    "@esbuild/darwin-x64": "npm:0.16.10"
-    "@esbuild/freebsd-arm64": "npm:0.16.10"
-    "@esbuild/freebsd-x64": "npm:0.16.10"
-    "@esbuild/linux-arm": "npm:0.16.10"
-    "@esbuild/linux-arm64": "npm:0.16.10"
-    "@esbuild/linux-ia32": "npm:0.16.10"
-    "@esbuild/linux-loong64": "npm:0.16.10"
-    "@esbuild/linux-mips64el": "npm:0.16.10"
-    "@esbuild/linux-ppc64": "npm:0.16.10"
-    "@esbuild/linux-riscv64": "npm:0.16.10"
-    "@esbuild/linux-s390x": "npm:0.16.10"
-    "@esbuild/linux-x64": "npm:0.16.10"
-    "@esbuild/netbsd-x64": "npm:0.16.10"
-    "@esbuild/openbsd-x64": "npm:0.16.10"
-    "@esbuild/sunos-x64": "npm:0.16.10"
-    "@esbuild/win32-arm64": "npm:0.16.10"
-    "@esbuild/win32-ia32": "npm:0.16.10"
-    "@esbuild/win32-x64": "npm:0.16.10"
+    "@esbuild/android-arm": "npm:0.16.11"
+    "@esbuild/android-arm64": "npm:0.16.11"
+    "@esbuild/android-x64": "npm:0.16.11"
+    "@esbuild/darwin-arm64": "npm:0.16.11"
+    "@esbuild/darwin-x64": "npm:0.16.11"
+    "@esbuild/freebsd-arm64": "npm:0.16.11"
+    "@esbuild/freebsd-x64": "npm:0.16.11"
+    "@esbuild/linux-arm": "npm:0.16.11"
+    "@esbuild/linux-arm64": "npm:0.16.11"
+    "@esbuild/linux-ia32": "npm:0.16.11"
+    "@esbuild/linux-loong64": "npm:0.16.11"
+    "@esbuild/linux-mips64el": "npm:0.16.11"
+    "@esbuild/linux-ppc64": "npm:0.16.11"
+    "@esbuild/linux-riscv64": "npm:0.16.11"
+    "@esbuild/linux-s390x": "npm:0.16.11"
+    "@esbuild/linux-x64": "npm:0.16.11"
+    "@esbuild/netbsd-x64": "npm:0.16.11"
+    "@esbuild/openbsd-x64": "npm:0.16.11"
+    "@esbuild/sunos-x64": "npm:0.16.11"
+    "@esbuild/win32-arm64": "npm:0.16.11"
+    "@esbuild/win32-ia32": "npm:0.16.11"
+    "@esbuild/win32-x64": "npm:0.16.11"
   dependenciesMeta:
     "@esbuild/android-arm":
       optional: true
@@ -2196,7 +2253,7 @@ __metadata:
       optional: true
   bin:
     esbuild: bin/esbuild
-  checksum: 61405cc48b3b5642d11e9ac39cce60357cbf574fc8676e9fdbf892eb7383752338252ce61b27ea182386fa69983ab3d7f4f64109fe5aa62f0cb11e6d75af5a17
+  checksum: 2978647982114a8d48352d3068797999d1c4b4d9e1c23073ed8925b97cefd5075acb6d77fb8636ed79da3ec8950f7d7ec9d7a3947e259d34f2bd57acf511c13a
   languageName: node
   linkType: hard
 
@@ -2468,7 +2525,7 @@ __metadata:
   resolution: "gjsify@workspace:."
   dependencies:
     "@types/jsdom": "npm:^20.0.1"
-    typescript: "npm:^5.0.0-dev.20221222"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -4528,13 +4585,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^5.0.0-dev.20221222":
-  version: 5.0.0-dev.20221222
-  resolution: "typescript@npm:5.0.0-dev.20221222"
+"typescript@npm:^5.0.0-dev.20221227":
+  version: 5.0.0-dev.20221227
+  resolution: "typescript@npm:5.0.0-dev.20221227"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 920e6d93dc431c913df4395b0ce47b210eff6aeee87475b39705d03907aa5334b4f77687ab3c2ea1e9e7da585fbb2f36f0e24849b4e0cf26b19c2814df4c6ab7
+  checksum: 0860b66c920104f40758a7b30891cc81d89d777b1cf9a09a8c76b98f238f699740e6251b399b17176fd2e5d78691e5356d2774d870e53656e9b786d6becf0d10
   languageName: node
   linkType: hard
 
@@ -4548,13 +4605,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3A^5.0.0-dev.20221222#optional!builtin<compat/typescript>":
-  version: 5.0.0-dev.20221222
-  resolution: "typescript@patch:typescript@npm%3A5.0.0-dev.20221222#optional!builtin<compat/typescript>::version=5.0.0-dev.20221222&hash=ad5954"
+"typescript@patch:typescript@npm%3A^5.0.0-dev.20221227#optional!builtin<compat/typescript>":
+  version: 5.0.0-dev.20221227
+  resolution: "typescript@patch:typescript@npm%3A5.0.0-dev.20221227#optional!builtin<compat/typescript>::version=5.0.0-dev.20221227&hash=ad5954"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 7596a619ac5e6b4238b76f194e5c7e37f37bc9365cdeec17ace5bf6bba5c3b677578c9cd67e2f45c80da5cb77840b60bfd528cbb4f5b5824426078171d6e4240
+  checksum: d5149338afeba98b95697e0e0757ad5c9c82a9cb69dc44f558aabee5ac0735b3fbb1d6874a0a367e2b816f81064316bd090ddb2d121fd8080801f10b8102cd89
   languageName: node
   linkType: hard
 

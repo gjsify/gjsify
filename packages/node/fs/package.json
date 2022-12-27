@@ -2,7 +2,7 @@
     "name": "@gjsify/fs",
     "version": "0.0.1",
     "description": "Node.js fs module for Gjs",
-    "main": "lib/cjs/index.cjs",
+    "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "type": "module",
     "scripts": {
@@ -24,6 +24,6 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.11.17"
+        "@types/node": "^18.11.18"
     }
 }

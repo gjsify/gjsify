@@ -25,6 +25,6 @@
   "license": "MIT",
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
-    "@types/node": "^18.11.17"
+    "@types/node": "^18.11.18"
   }
 }

@@ -8,7 +8,7 @@
     "require"
   ],
   "author": "Pascal Garber",
-  "main": "lib/cjs/index.cjs",
+  "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
   "type": "module",
   "scripts": {

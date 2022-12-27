@@ -1,7 +1,8 @@
 import { aliasPlugin } from '../alias-plugin.js';
-import { globPlugin } from 'esbuild-plugin-glob';
-import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
+import fastGlob from 'fast-glob';
+import { transformExtPlugin } from '@gjsify/esbuild-plugin-transform-ext';
 import { merge } from "lodash";
+import { getJsExtensions } from "../utils/index.js";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -31,16 +32,17 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
         target: ['node16'],
         platform: "browser",
         conditions: ['require'],
-        format: 'cjs',
-        plugins: [
-            globPlugin({ignore: pluginOptions.exclude}),
-            deepkitPlugin({reflection: pluginOptions.reflection}),
-        ]
+        format: 'cjs'
     };
 
     merge(build.initialOptions, esbuildOptions);
 
+    if(Array.isArray(build.initialOptions.entryPoints)) {
+        build.initialOptions.entryPoints = await fastGlob(build.initialOptions.entryPoints, {ignore: pluginOptions.exclude})
+    }
+
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(pluginOptions.aliases).setup(build);
+    await transformExtPlugin({ outExtension: getJsExtensions(pluginOptions.jsExtension) }).setup(build);
 }

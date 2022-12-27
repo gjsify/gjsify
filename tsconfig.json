@@ -3,8 +3,9 @@
     "module": "ESNext",
     "types": [],
     "target": "ESNext",
-    "moduleResolution": "NodeNext",
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true
   },
   "references": []
 }

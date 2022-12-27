@@ -23,7 +23,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.11.17"
+        "@types/node": "^18.11.18"
     },
     "dependencies": {
         "inherits": "^2.0.4",

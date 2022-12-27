@@ -1,0 +1,1 @@
+export interface ResolveAliasOptions { resolveBy?: 'main' | 'module', external: string[], debug?: boolean}

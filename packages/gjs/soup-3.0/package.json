@@ -24,8 +24,8 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.11.17",
-        "typescript": "^5.0.0-dev.20221222"
+        "@types/node": "^18.11.18",
+        "typescript": "^5.0.0-dev.20221227"
     },
     "dependencies": {
         "@gjsify/gio-2.0": "workspace:^",

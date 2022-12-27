@@ -22,9 +22,9 @@
   "license": "MIT",
   "devDependencies": {
     "@types/jsdom": "^20.0.1",
-    "typescript": "^5.0.0-dev.20221222"
+    "typescript": "^5.0.0-dev.20221227"
   },
-  "packageManager": "yarn@4.0.0-rc.33",
+  "packageManager": "yarn@4.0.0-rc.34",
   "disabled_resolutions": {
     "@deepkit/core": "portal:../deepkit-framework/packages/core",
     "@deepkit/event": "portal:../deepkit-framework/packages/event",

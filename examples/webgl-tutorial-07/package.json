@@ -25,7 +25,7 @@
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@types/gl-matrix": "^3.2.0",
-    "@types/node": "^18.11.17",
+    "@types/node": "^18.11.18",
     "http-server": "^14.1.1",
     "open-cli": "^7.1.0"
   },

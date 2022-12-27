@@ -1,11 +1,11 @@
 import { readFile } from 'fs/promises';
-import { DeepkitLoader } from '@deepkit/type-compiler';
+import * as DkType from '@deepkit/type-compiler';
 import { inspect } from 'util';
 import { Utf8ArrayToStr } from './utils.js';
 
 import type { Plugin, OnLoadArgs, OnLoadResult, OnLoadOptions } from 'esbuild';
 
-const loader = new DeepkitLoader();
+const loader = new DkType.DeepkitLoader();
 
 export interface DeepkitPluginOptions {
   reflection?: boolean;

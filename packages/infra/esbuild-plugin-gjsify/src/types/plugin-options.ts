@@ -7,6 +7,7 @@ export interface PluginOptions extends DeepkitPluginOptions {
     aliases?: Record<string, string>;
     /** An array of glob patterns to exclude matches and aliases */
     exclude?: string[];
+    jsExtension?: string;
     /** Override the format, only be considered if the target app platform is `'node'`, otherwise it is always `'esm'` */
     format?: 'esm' | 'cjs'
     /** 

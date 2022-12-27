@@ -1,7 +1,8 @@
 import { aliasPlugin } from '../alias-plugin.js';
-import { globPlugin } from 'esbuild-plugin-glob';
-import { deepkitPlugin } from '@gjsify/esbuild-plugin-deepkit';
+import fastGlob from 'fast-glob';
+import { transformExtPlugin } from '@gjsify/esbuild-plugin-transform-ext';
 import { merge } from "lodash";
+import { getJsExtensions } from "../utils/index.js";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -33,19 +34,18 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox78"  // Since GJS 1.65.90
         // firefox91 // Since GJS 1.71.1
         // firefox102" // Since GJS 1.73.2
-        target: [ "firefox91" ],
+        target: [ "firefox102" ],
         platform: "browser",
         conditions: ['import'],
-        format: 'esm',
-        plugins: [
-            globPlugin({ignore: pluginOptions.exclude}),
-            deepkitPlugin({reflection: pluginOptions.reflection}),
-        ]
+        format: 'esm'
     };
 
     merge(build.initialOptions, esbuildOptions);
 
-    if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
+    if(Array.isArray(build.initialOptions.entryPoints)) {
+        build.initialOptions.entryPoints = await fastGlob(build.initialOptions.entryPoints, {ignore: pluginOptions.exclude})
+    }
 
     await aliasPlugin(pluginOptions.aliases).setup(build);
+    await transformExtPlugin({ outExtension: getJsExtensions(pluginOptions.jsExtension) }).setup(build);
 }

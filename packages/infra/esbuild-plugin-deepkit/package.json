@@ -22,7 +22,7 @@
         "@deepkit/type-compiler": "^1.0.1-alpha.83"
     },
     "devDependencies": {
-        "esbuild": "^0.16.10",
-        "typescript": "^5.0.0-dev.20221222"
+        "esbuild": "^0.16.11",
+        "typescript": "^5.0.0-dev.20221227"
     }
 }
