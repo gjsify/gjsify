@@ -922,7 +922,6 @@ __metadata:
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    fflate: "npm:^0.7.4"
   languageName: unknown
   linkType: soft
 
@@ -2355,13 +2354,6 @@ __metadata:
     node-domexception: "npm:^1.0.0"
     web-streams-polyfill: "npm:^3.0.3"
   checksum: 114f3d29d46bf029fdc4753b3688295e9a917f37c81c124b3fcad7388ecffe234c29cd48259bed2319ca25aaf105ffd96a3e369c3ad1bcca5f94f410876f5b0d
-  languageName: node
-  linkType: hard
-
-"fflate@npm:^0.7.4":
-  version: 0.7.4
-  resolution: "fflate@npm:0.7.4"
-  checksum: 162d79df3bca9e118eeebb715934f13a0aba6f405c878fcc315e164a312e8d92aa8ba88c02b98a9b2cdc1685a93e67e14e753a177c62830490a5cb96f535f76e
   languageName: node
   linkType: hard
 

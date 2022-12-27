@@ -5,7 +5,7 @@ import type { PluginOptions, Extension } from './types/index.js';
 
 const IMPORT_PATTERN = /(import|from) ("|')\..*\.(js|ts|mjs|cjs|mts|cts)("|')/gm;
 const TS_EXT_PATTERN = /\.(ts|mts|cts|tsx)/;
-const JS_EXT_PATTERN = /\.(js|mjs|cjs)/;
+const JS_EXT_PATTERN = /\.(js|mjs|cjs|jsx)/;
 const DEFAULT_EXTENSIONS: Extension = {'.js': '.js', '.ts': '.js', '.mts': '.js', '.cts': '.js', '.cjs': '.js', '.mjs': '.js'};
 
 /**
@@ -31,7 +31,7 @@ export const transformImports = async (path: string, outExtension: Extension = {
     const importStr = match[0];
     let transformed = importStr;
     for (const ext of Object.keys(outExtension)) {
-      transformed = transformed.replace(ext, outExtension[ext])
+      transformed = transformed.replaceAll(ext, outExtension[ext])
     }
 
     if(importStr === transformed) {
