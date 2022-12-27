@@ -919,6 +919,7 @@ __metadata:
   resolution: "@gjsify/zlib@workspace:packages/node/zlib"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
     fflate: "npm:^0.7.4"

@@ -11,7 +11,7 @@
         "print:name": "echo '@gjsify/webgl'",
         "init:meson": "meson setup build .",
         "build": "yarn print:name && yarn run init:meson && yarn run build:meson && yarn run build:gjsify && yarn run build:types",
-        "build:gjsify": "gjsify build --library src/ts/**/*.{ts,js}",
+        "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
         "build:meson": "meson compile -C build",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "gjsify build src/ts/test.ts --app gjs --outfile test.gjs.js",

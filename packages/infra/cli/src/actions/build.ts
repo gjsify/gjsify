@@ -1,7 +1,7 @@
 import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
 import { build, BuildOptions } from 'esbuild';
-import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
+import * as gjsifyPlugin from '@gjsify/esbuild-plugin-gjsify';
 import { dirname, extname } from 'path';
 
 export class BuildAction {
@@ -40,7 +40,7 @@ export class BuildAction {
                 format: moduleFormat,
                 outdir: moduleOutdir,
                 plugins: [
-                    gjsifyPlugin({debug: verbose, library: moduleFormat, exclude, reflection: typescript?.reflection, jsExtension: moduleOutExt}),
+                    gjsifyPlugin.gjsifyPlugin({debug: verbose, library: moduleFormat, exclude, reflection: typescript?.reflection, jsExtension: moduleOutExt}),
                 ]
             });
     
@@ -51,7 +51,7 @@ export class BuildAction {
                 format: moduleFormat,
                 outdir: mainOutdir,
                 plugins: [
-                    gjsifyPlugin({debug: verbose, library: mainFormat, exclude, reflection: typescript?.reflection, jsExtension: mainOutdir})
+                    gjsifyPlugin.gjsifyPlugin({debug: verbose, library: mainFormat, exclude, reflection: typescript?.reflection, jsExtension: mainOutdir})
                 ]
             });
         } else {
@@ -65,7 +65,7 @@ export class BuildAction {
                 format,
                 outdir,
                 plugins: [
-                    gjsifyPlugin({debug: verbose, library: format, exclude, reflection: typescript?.reflection, jsExtension: outExt})
+                    gjsifyPlugin.gjsifyPlugin({debug: verbose, library: format, exclude, reflection: typescript?.reflection, jsExtension: outExt})
                 ]
             });
         }
@@ -83,7 +83,7 @@ export class BuildAction {
             ...esbuild,
             format,
             plugins: [
-                gjsifyPlugin({debug: verbose, app, format, exclude, reflection: typescript?.reflection}),
+                gjsifyPlugin.gjsifyPlugin({debug: verbose, app, format, exclude, reflection: typescript?.reflection}),
             ]
         });
 

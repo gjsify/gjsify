@@ -3,9 +3,9 @@
     "version": "0.0.1",
     "description": "Deepkit type compiler plugin for esbuild",
     "type": "module",
-    "main": "dist/index.cjs",
-    "module": "dist/index.mjs",
-    "types": "dist/index.d.ts",
+    "main": "dist/cjs/index.cjs",
+    "module": "dist/esm/index.mjs",
+    "types": "dist/types/index.d.ts",
     "scripts": {
         "clear": "rm -rf dist",
         "print:name": "echo '@gjsify/esbuild-plugin-gjsify'",

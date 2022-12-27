@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
       "outDir": "dist",
-      "declarationDir": "dist",
+      "declarationDir": "dist/types",
       "declaration": true,
       "target": "ESNext",
       "moduleResolution": "NodeNext"
