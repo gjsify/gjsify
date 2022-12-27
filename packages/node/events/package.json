@@ -21,7 +21,7 @@
     "keywords": [
         "gjs",
         "node",
-        "fs"
+        "events"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

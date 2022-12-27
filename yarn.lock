@@ -397,7 +397,6 @@ __metadata:
     "@gjsify/events": "workspace:^"
     "@gjsify/fs": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
-    "@gjsify/node-internal": "workspace:^"
     "@gjsify/os": "workspace:^"
     "@gjsify/process": "workspace:^"
     "@gjsify/require": "workspace:^"
@@ -803,10 +802,10 @@ __metadata:
   resolution: "@gjsify/stream@workspace:packages/node/stream"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    inherits: "npm:^2.0.4"
-    readable-stream: "npm:^4.2.0"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -4001,18 +4000,6 @@ __metadata:
     string_decoder: "npm:^1.1.1"
     util-deprecate: "npm:^1.0.1"
   checksum: bda7b24d3910bf0ec4a1df3c540e1b97b1ed3ca49ea0ddc0d2c6bf29d3997251a7244608de1d842555641d1c115d9b3566167fef9225ee6ef147c9e6a539395b
-  languageName: node
-  linkType: hard
-
-"readable-stream@npm:^4.2.0":
-  version: 4.2.0
-  resolution: "readable-stream@npm:4.2.0"
-  dependencies:
-    abort-controller: "npm:^3.0.0"
-    buffer: "npm:^6.0.3"
-    events: "npm:^3.3.0"
-    process: "npm:^0.11.10"
-  checksum: 3cfa3468ad24be26c093760a60b60d6ebbf3bb2f36b5def374d4c729792cd7aa0e3a40b6fed09f1e0ff3ced0aa298a6931e3445e795ec6517b6e0ef28a519486
   languageName: node
   linkType: hard
 

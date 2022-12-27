@@ -20,7 +20,7 @@
     "keywords": [
         "gjs",
         "node",
-        "fs"
+        "buffer"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

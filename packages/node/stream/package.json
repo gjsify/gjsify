@@ -1,13 +1,16 @@
 {
     "name": "@gjsify/stream",
     "version": "0.0.1",
-    "description": "node stream module for gjsify",
+    "description": "Node.js stream module for Gjs",
+    "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/stream'",
-        "build": "yarn print:name && gjsify build --library src/**/*.{ts,js}",
+        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
@@ -18,15 +21,15 @@
     "keywords": [
         "gjs",
         "node",
-        "fs"
+        "stream"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.11.18"
+        "@types/node": "^18.11.18",
+        "typescript": "^5.0.0-dev.20221227"
     },
     "dependencies": {
-        "inherits": "^2.0.4",
-        "readable-stream": "^4.2.0"
+        "@gjsify/deno_std": "workspace:^"
     }
 }

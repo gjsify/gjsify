@@ -28,7 +28,6 @@
         "@gjsify/events": "workspace:^",
         "@gjsify/fs": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
-        "@gjsify/node-internal": "workspace:^",
         "@gjsify/os": "workspace:^",
         "@gjsify/process": "workspace:^",
         "@gjsify/require": "workspace:^",
