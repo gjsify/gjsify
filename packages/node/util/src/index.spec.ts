@@ -48,7 +48,7 @@ export default async () => {
 
 		await it('should return the right results', async () => {
 			expect(util.isBoolean(true)).toBeTruthy();
-			// TODO: this is true in node but false in node
+			// TODO: this is true in Gjs / Deno but false in Node.js
 			// expect(util.isBoolean(new Boolean())).toBeTruthy();
 			// expect(util.isBoolean(new Boolean(true))).toBeTruthy();
 			expect(util.isBoolean(false)).toBeTruthy();
@@ -80,7 +80,7 @@ export default async () => {
 	await describe("[util] isNumber", async () => {
 		await it('should return the right results', async () => {
 			expect(util.isNumber(666)).toBeTruthy();
-			// TODO: this is true in node but false in node
+			// TODO: this is true in Gjs / Deno but false in Node.js
 			// expect(util.isNumber(new Number(666))).toBeTruthy();
 			expect(util.isNumber("999")).toBeFalsy();
 			expect(util.isNumber(null)).toBeFalsy();
@@ -90,7 +90,7 @@ export default async () => {
 	await describe("[util] isString", async () => {
 		await it('should return the right results', async () => {
 			expect(util.isString("deno")).toBeTruthy();
-			// TODO: this is true in node but false in node
+			// TODO: this is true in Gjs / Deno but false in Node.js
 			// expect(util.isString(new String("DIO"))).toBeTruthy();
 			expect(util.isString(1337)).toBeFalsy();
 		});
@@ -231,7 +231,7 @@ export default async () => {
 				expect(error instanceof RangeError).toBeTruthy();
 			}
 		
-			// FIXME: Returns undefined on Gjs / Deno
+			// FIXME: Returns undefined on Deno
 			expect(util.getSystemErrorName(-424242)).toBe('Unknown system error -424242');
 		
 			// TODO

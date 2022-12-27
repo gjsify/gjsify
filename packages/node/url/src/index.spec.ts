@@ -1,7 +1,7 @@
 // TODO port more tests from https://github.com/defunctzombie/node-url
 
 import { describe, it, expect } from '@gjsify/unit';
-import { fileURLToPath } from "url"
+import { fileURLToPath, URL } from "url"
 
 export default async () => {
   var fileURLToPathTestCases = [

@@ -349,6 +349,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno-runtime": "workspace:^"
+    "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
     open-cli: "npm:^7.1.0"
@@ -422,7 +423,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/esbuild-plugin-transform-ext@workspace:packages/infra/esbuild-plugin-transform-ext":
+"@gjsify/esbuild-plugin-transform-ext@workspace:^, @gjsify/esbuild-plugin-transform-ext@workspace:packages/infra/esbuild-plugin-transform-ext":
   version: 0.0.0-use.local
   resolution: "@gjsify/esbuild-plugin-transform-ext@workspace:packages/infra/esbuild-plugin-transform-ext"
   dependencies:
@@ -841,7 +842,9 @@ __metadata:
   resolution: "@gjsify/url@workspace:packages/node/url"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -850,6 +853,7 @@ __metadata:
   resolution: "@gjsify/util@workspace:packages/node/util"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/node-internal": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/inherits": "npm:^0.0.30"

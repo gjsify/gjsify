@@ -2,18 +2,18 @@
     "name": "@gjsify/url",
     "version": "0.0.1",
     "description": "Node.js url module for Gjs",
+    "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/url'",
-        "bundle:deno": "rm -f src/url.deno.js && deno bundle https://deno.land/std/node/url.ts src/url.deno.js",
-        "patch:deno": "node ./patch-deno.mjs",
-        "build": "yarn print:name && yarn build:deno && gjsify build --library src/**/*.{ts,js}",
-        "build:deno": "yarn run bundle:deno && yarn run patch:deno",
+        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.ts' 'src/test.ts'",
+        "build:types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "yarn run build:test:gjs && yarn run build:test:node",
-        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.ts --app node --outfile test.node.mjs",
         "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
         "test:gjs": "gjs -m test.gjs.mjs",
         "test:node": "node test.node.mjs"
@@ -25,6 +25,10 @@
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@gjsify/unit": "workspace:^"
+        "@gjsify/unit": "workspace:^",
+        "typescript": "^5.0.0-dev.20221227"
+    },
+    "dependencies": {
+        "@gjsify/deno_std": "workspace:^"
     }
 }

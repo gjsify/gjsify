@@ -8,11 +8,22 @@ const TS_EXT_PATTERN = /\.(ts|mts|cts|tsx)/;
 const JS_EXT_PATTERN = /\.(js|mjs|cjs)/;
 const DEFAULT_EXTENSIONS: Extension = {'.js': '.js', '.ts': '.js', '.mts': '.js', '.cts': '.js', '.cjs': '.js', '.mjs': '.js'};
 
-const transformImports = async (args: OnLoadArgs, options: PluginOptions, outExtension: Extension) => {
+/**
+ * You can use this method to transform the imports of a file by yourself without the need of the esbuild plugin
+ * @param path The file path you want to transform 
+ * @param outExtension The extension map you want to transform
+ * @param options 
+ * @returns The transformed file content
+ */
+export const transformImports = async (path: string, outExtension: Extension = {}, verbose = false) => {
 
   let changed = false;
 
-  let contents = await readFile(args.path, 'utf8');
+  let contents = await readFile(path, 'utf8');
+
+  if(Object.keys(outExtension).length <= 0) {
+    outExtension = DEFAULT_EXTENSIONS;
+  }
 
   const matches =  Array.from(contents.matchAll(IMPORT_PATTERN));
 
@@ -30,13 +41,13 @@ const transformImports = async (args: OnLoadArgs, options: PluginOptions, outExt
     changed = true;
 
     contents = contents.replace(importStr, transformed)
-    if(options.verbose) {
+    if(verbose) {
       console.debug(`[transform-ext] ${importStr} -> ${transformed}`);
     }
   }
 
-  if(changed && options.verbose) {
-    console.debug(`[transform-ext] in ${args.path}\n`);
+  if(changed && verbose) {
+    console.debug(`[transform-ext] in ${path}\n`);
   }
   
   return contents
@@ -61,7 +72,7 @@ export const transformExtPlugin = (pluginOptions: PluginOptions) => {
             let contents: string;
         
             try {
-              contents = await transformImports(args, pluginOptions, outExtension)
+              contents = await transformImports(args.path, outExtension, pluginOptions.verbose)
             } catch (error) {
               console.error(error);
               return null;
