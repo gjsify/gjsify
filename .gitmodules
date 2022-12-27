@@ -7,9 +7,6 @@
 [submodule "packages/web/abort-controller"]
 	path = packages/web/abort-controller
 	url = https://github.com/gjsify/abort-controller.git
-[submodule "packages/node/assert"]
-	path = packages/node/assert
-	url = https://github.com/gjsify/assert.git
 [submodule "packages/node/deno_std"]
 	path = packages/deno/std
 	url = git@github.com:gjsify/deno_std.git

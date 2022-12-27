@@ -264,9 +264,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/assert@workspace:^, @gjsify/assert@workspace:packages/node/assert":
+"@gjsify/assert-old@workspace:packages/node/assert-old":
   version: 0.0.0-use.local
-  resolution: "@gjsify/assert@workspace:packages/node/assert"
+  resolution: "@gjsify/assert-old@workspace:packages/node/assert-old"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-internal": "workspace:^"
@@ -275,6 +275,18 @@ __metadata:
     "@types/node": "npm:^18.11.18"
     call-bind: "npm:^1.0.2"
     util: "npm:^0.12.5"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/assert@workspace:^, @gjsify/assert@workspace:packages/node/assert":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/assert@workspace:packages/node/assert"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^18.11.18"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
