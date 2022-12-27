@@ -125,7 +125,7 @@ export default async () => {
 			expect(Buffer.byteLength("𠱸挶νξ#xx :)")).toBe(17);
 			expect(Buffer.byteLength("hello world", "" as any)).toBe(11);
 			// It should also be assumed with unrecognized encoding
-			expect(Buffer.byteLength("hello world", "abc")).toBe(11);
+			expect(Buffer.byteLength("hello world", "abc" as any)).toBe(11);
 			expect(Buffer.byteLength("ßœ∑≈", "unkn0wn enc0ding" as any)).toBe(10);
 
 			// base64

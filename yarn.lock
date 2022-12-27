@@ -264,20 +264,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/assert-old@workspace:packages/node/assert-old":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/assert-old@workspace:packages/node/assert-old"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-internal": "workspace:^"
-    "@gjsify/unit": "workspace:^"
-    "@types/call-bind": "npm:^1.0.1"
-    "@types/node": "npm:^18.11.18"
-    call-bind: "npm:^1.0.2"
-    util: "npm:^0.12.5"
-  languageName: unknown
-  linkType: soft
-
 "@gjsify/assert@workspace:^, @gjsify/assert@workspace:packages/node/assert":
   version: 0.0.0-use.local
   resolution: "@gjsify/assert@workspace:packages/node/assert"
@@ -492,10 +478,10 @@ __metadata:
   resolution: "@gjsify/events@workspace:packages/node/events"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@gjsify/event-target": "workspace:^"
-    "@gjsify/node-internal": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
+    typescript: "npm:^5.0.0-dev.20221227"
   languageName: unknown
   linkType: soft
 
@@ -1053,22 +1039,6 @@ __metadata:
   version: 3.0.1
   resolution: "@types/braces@npm:3.0.1"
   checksum: c0d610f2474b174dc87946b57a8a7ecf5a14a49ef4217fc1134bcd32bcbd8a07eeaee5ea88b861effeee554cf28dc62867008e39049a574a2162985a40586333
-  languageName: node
-  linkType: hard
-
-"@types/call-bind@npm:^1.0.1":
-  version: 1.0.1
-  resolution: "@types/call-bind@npm:1.0.1"
-  dependencies:
-    "@types/get-intrinsic": "npm:*"
-  checksum: 7b90c357a04521d5b37d40f67092869ea5d30ca55ba0f1fcb1fc99f730a9c663eb8d28aabb80859fb4ab54d9c4186dd3630cb0681402d614ef8681c53d9e25c3
-  languageName: node
-  linkType: hard
-
-"@types/get-intrinsic@npm:*":
-  version: 1.0.0
-  resolution: "@types/get-intrinsic@npm:1.0.0"
-  checksum: db34df066bd5603c4042b82ce03a54dc1cceb30655985dca17ba909d616f38dcecd24253b745d71986ad0ecb0b94bc2e789fca52f783ceaff7b6b0ac7a44cefb
   languageName: node
   linkType: hard
 

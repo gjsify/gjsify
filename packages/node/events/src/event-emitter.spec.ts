@@ -1,4 +1,4 @@
-import { describe, it, expect, on as onPlatform } from '@gjsify/unit';
+import { describe, it, expect } from '@gjsify/unit';
 
 import { EventEmitter } from 'events';
 
@@ -114,75 +114,32 @@ export default async () => {
 			expect(count).toBe(4);
 		});
 
-		await onPlatform('Node.js', async () => {
-			await it('6. Check return values of emit.', async () => {
-				let count = 0;
-				var emitter = new EventEmitter({ verbose: true } as any);
-	
-				function functionA() {
-					count++;
-					expect(true).toBeTruthy(); // 'The event was raised'
-				}
-	
-				emitter.on('test6', functionA);
-	
-				expect(emitter.emit('test6')).toBeTruthy(); // 'emit should return true after calling a listener'
-				expect(emitter.emit('other')).toBeFalsy(); // 'emit should return false when no listener was called'
-	
-				// The original implementation has no onAny method
-				expect(() => {
-					(emitter as any).onAny(functionA);
-				}).toThrow();
-	
-				expect(emitter.emit('other')).toBeFalsy(); // 'emit should return false without the onAny() listener'
-	
-				expect(count).toBe(1);
-			});
-		});
 
-		await onPlatform('Gjs', async () => {
-			await it('6. Check return values of emit.', async () => {
-				let count = 0;
-				var emitter = new EventEmitter({ verbose: true } as any);
+		await it('6. Check return values of emit.', async () => {
+			let count = 0;
+			var emitter = new EventEmitter({ verbose: true } as any);
 
-				function functionA() {
-					count++;
-					expect(true).toBeTruthy(); // 'The event was raised'
-				}
+			function functionA() {
+				count++;
+				expect(true).toBeTruthy(); // 'The event was raised'
+			}
 
-				emitter.on('test6', functionA);
+			emitter.on('test6', functionA);
 
-				expect(emitter.emit('test6')).toBeTruthy(); // 'emit should return true after calling a listener'
-				expect(emitter.emit('other')).toBeFalsy(); // 'emit should return false when no listener was called'
+			expect(emitter.emit('test6')).toBeTruthy(); // 'emit should return true after calling a listener'
+			expect(emitter.emit('other')).toBeFalsy(); // 'emit should return false when no listener was called'
 
+			// The original implementation has no onAny method
+			expect(() => {
 				(emitter as any).onAny(functionA);
-				expect(emitter.emit('other')).toBeTruthy(); // 'emit should return true after calling an onAny() listener'
+			}).toThrow();
 
-				expect(count).toBe(2);
-			});
+			expect(emitter.emit('other')).toBeFalsy(); // 'emit should return false without the onAny() listener'
+
+			expect(count).toBe(1);
 		});
 
-		await onPlatform('Gjs', async () => {
-			await it('7. Check return values of wildcardEmitter.emit.', async () => {
-				let count = 0;
-				var emitter = new EventEmitter({ verbose: true, wildcard: true } as any);
-				function functionA() {
-					count++;
-					expect(true).toBeTruthy(); // 'The event was raised'
-				}
-
-				emitter.on('test7', functionA);
-				emitter.on('wildcard.*', functionA);
-				expect(emitter.emit('test7')).toBeTruthy(); // 'emit should return true after calling a listener'
-				expect(emitter.emit('wildcard.7')).toBeTruthy(); // 'emit should return true after calling a wildcard listener'
-				expect(emitter.emit('other7')).toBeFalsy(); // 'emit should return false when no listener was called'
-				expect(emitter.emit('other.7')).toBeFalsy(); // 'emit should return false when no wildcard listener was called'
-
-				expect(count).toBe(2);
-			});
-		});
-
-		await it('8. Emit event with more than 2 arguments', async () => {
+		await it('7. Emit event with more than 2 arguments', async () => {
 			let count = 0;
 			var emitter = new EventEmitter({ verbose: true } as any);
 
