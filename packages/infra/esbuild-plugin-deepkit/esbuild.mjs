@@ -19,7 +19,7 @@ const baseConfig = {
         'util',
         'typescript',
         '@deepkit/type-compiler',
-        // '@gjsify/resolve-npm',
+        // '@gjsify/resolve-npm', can't be required in cjs builds
         '@gjsify/esbuild-plugin-transform-ext',
         '@gjsify/esbuild-plugin-deno-loader',
         '@gjsify/esbuild-plugin-gjsify',
