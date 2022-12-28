@@ -3,17 +3,17 @@
     "module": "ESNext",
     "types": ["node"],
     "target": "ESNext",
-    "moduleResolution": "NodeNext",
     "experimentalDecorators": true,
     "outDir": "lib",
     "rootDir": "src",
+    "declarationDir": "lib/types",
     "composite": true,
-    "allowSyntheticDefaultImports": true
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true
   },
   "skipLibCheck": true,
   "allowJs": true,
   "checkJs": false,
   "reflection": false,
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/test.mts", "src/**/*.spec.ts"]
+  "include": ["src/**/*.ts"]
 }

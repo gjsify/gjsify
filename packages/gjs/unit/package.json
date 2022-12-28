@@ -36,6 +36,6 @@
   "homepage": "https://github.com/gjsify/unit#readme",
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
-    "typescript": "^5.0.0-dev.20221227"
+    "typescript": "^5.0.0-dev.20221228"
   }
 }

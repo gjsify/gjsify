@@ -6,6 +6,26 @@
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./lib/esm/index.js",
+            "default": "./lib/esm/index.js",
+            "require": "./lib/cjs/index.js"
+        },
+        "./types": {
+            "import": "./lib/esm/types/index.js",
+            "default": "./lib/esm/types/index.js",
+            "require": "./lib/cjs/types/index.js"
+        }
+    },
+    "*": {
+        "": [
+            "lib/types/index.d.js"
+        ],
+        "types": [
+            "lib/types/types/index.d.js"
+        ]
+    },
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/util'",
@@ -29,7 +49,7 @@
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
         "@types/node": "^18.11.18",
-        "typescript": "^5.0.0-dev.20221227"
+        "typescript": "^5.0.0-dev.20221228"
     },
     "dependencies": {
         "@gjsify/deno_std": "workspace:^",

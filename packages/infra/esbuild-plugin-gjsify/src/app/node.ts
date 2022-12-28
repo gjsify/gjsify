@@ -57,11 +57,11 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
 
     const aliases = {...getAliasesForNode({external}), ...pluginOptions.aliases};
 
-    for (const aliasKey of Object.keys(aliases)) {
-        if(pluginOptions.exclude.includes(aliasKey)) {
-            delete aliases[aliasKey];
-        }
-    }
+    // for (const aliasKey of Object.keys(aliases)) {
+    //     if(pluginOptions.exclude.includes(aliasKey)) {
+    //         delete aliases[aliasKey];
+    //     }
+    // }
 
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 

@@ -4,11 +4,26 @@
   "description": "Node.js process module for Gjs",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
+  "types": "lib/types/index.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./lib/esm/index.js",
+      "default": "./lib/esm/index.js",
+      "require": "./lib/cjs/index.js"
+    }
+  },
+  "*": {
+    "": [
+      "lib/types/index.d.js"
+    ]
+  },
   "scripts": {
     "clear": "rm -rf lib",
     "print:name": "echo '@gjsify/process'",
-    "build": "yarn print:name && gjsify build --library src/**/*.{ts,js}",
+    "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
+    "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+    "build:types": "tsc --project tsconfig.types.json || exit 0",
     "build:test": "yarn run build:test:gjs && yarn run build:test:node",
     "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
     "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
@@ -27,6 +42,7 @@
   },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
-    "@types/node": "^18.11.18"
+    "@types/node": "^18.11.18",
+    "typescript": "^5.0.0-dev.20221228"
   }
 }

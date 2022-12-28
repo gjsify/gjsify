@@ -1,6 +1,8 @@
 import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
 
+const System = imports.system;
+
 /** Cached process id */
 let PID = 0;
 /** Cached parent process id */
@@ -40,3 +42,11 @@ export const getPpid = () => {
     return PPID;
 }
 
+export const getTitle = () => {
+    return GLib.get_prgname();
+}
+
+export const getGjsVersion = () => {
+    const v = System.version.toString();
+    return `${v[0]}.${+(v[1] + v[2])}.${+(v[3] + v[4])}`;
+}

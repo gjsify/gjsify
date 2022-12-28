@@ -14,8 +14,6 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
         build.onResolve({ filter: re }, (args) => {
           let resolvedAlias = aliasObj[args.path];
 
-          // console.debug(`aliasPlugin: ${args.path} -> ${resolvedAlias}`);
-
           let namespace = args.namespace;
 
           if(resolvedAlias.startsWith('http://')) {

@@ -70,7 +70,7 @@ export const ALIASES_GENERAL_FOR_GJS = {}
 /** Record of Node.js modules (build in or not) and his replacement for Gjs */
 export const ALIASES_NODE_FOR_GJS = {
     'assert': '@gjsify/assert',
-    'assert/strict': '@gjsify/assert/strict', // TODO
+    'assert/strict': '@gjsify/assert/strict',
     'async_hooks': '@gjsify/deno_std/node/async_hooks', // TODO
     'buffer': '@gjsify/buffer',
     'child_process': '@gjsify/deno_std/node/child_process', // TODO
@@ -112,14 +112,14 @@ export const ALIASES_NODE_FOR_GJS = {
     'stream/promises': '@gjsify/stream/promises', // TODO
     'string_decoder': '@gjsify/deno_std/node/string_decoder', // TODO
     'sys': '@gjsify/deno_std/node/sys', // TODO
-    'test': '@gjsify/deno_std/node/test', // TODO
+    // 'test': '@gjsify/deno_std/node/test', // TODO
     'timers': '@gjsify/deno_std/node/timers', // TODO
     'timers/promises': '@gjsify/deno_std/node/timers/promises', // TODO
     'tls': '@gjsify/deno_std/node/tls', // TODO
     'tty': '@gjsify/tty',
     'url': '@gjsify/url',
     'util': '@gjsify/util',
-    'util/types': '@gjsify/util/types', // TODO
+    'util/types': '@gjsify/util/types',
     'v8': '@gjsify/deno_std/node/v8', // TODO
     'vm': '@gjsify/deno_std/node/vm', // TODO
     'wasi': '@gjsify/deno_std/node/wasi', // TODO
@@ -220,7 +220,7 @@ export const ALIASES_NODE_FOR_DENO = {
     'stream/promises': 'https://deno.land/std/node/stream/promises.mjs',
     'string_decoder': 'https://deno.land/std/node/string_decoder.ts',
     'sys': 'https://deno.land/std/node/sys.ts',
-    'test': 'https://deno.land/std/node/test.ts',
+    // 'test': 'https://deno.land/std/node/test.ts',
     'timers': 'https://deno.land/std/node/timers.ts',
     'timers/promises': 'https://deno.land/std/node/timers/promises.ts',
     'tls': 'https://deno.land/std/node/tls.ts',
@@ -250,9 +250,14 @@ export const ALIASES_GENERAL_FOR_NODE = {
 }
 
 /** Record of Gjs modules (build in or not) and his replacement for Node */
-export const ALIASES_GJS_FOR_NODE = {
-    '@gjsify/deno_std/node/console': 'console'
+const ALIASES_GJS_FOR_NODE = {}
+
+// Revert the alias
+for (const ALIAS_NODE_FOR_GJS in ALIASES_NODE_FOR_GJS) {
+    ALIASES_GJS_FOR_NODE[ALIASES_NODE_FOR_GJS[ALIAS_NODE_FOR_GJS]] = ALIAS_NODE_FOR_GJS
 }
+
+export { ALIASES_GJS_FOR_NODE };
 
 /** Record of Web modules and his replacement for Node */
 export const ALIASES_WEB_FOR_NODE = {}

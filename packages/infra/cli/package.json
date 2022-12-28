@@ -25,13 +25,13 @@
     "dependencies": {
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
-        "esbuild": "^0.16.11",
+        "esbuild": "^0.16.12",
         "lodash": "^4.17.21",
         "pkg-types": "^1.0.1",
         "yargs": "^17.6.2"
     },
     "devDependencies": {
         "@types/yargs": "^17.0.17",
-        "typescript": "^5.0.0-dev.20221227"
+        "typescript": "^5.0.0-dev.20221228"
     }
 }

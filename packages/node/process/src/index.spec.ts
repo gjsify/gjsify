@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit'
 
-import * as process from 'process';
+import process from 'process';
 
 // process.on('exit', code => console.log('bye bye: ' + code));
 

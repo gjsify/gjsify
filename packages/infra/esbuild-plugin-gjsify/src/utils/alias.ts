@@ -19,6 +19,9 @@ import type { ResolveAliasOptions } from '../types/index.js';
 export const setNodeAliasPrefix = (ALIASES: Record<string, string>) => {
     // Also resolve alias names with `npm:${ALIAS}`
     for (const ALIAS in ALIASES) {
+        if(ALIAS.startsWith('node:')) {
+            continue
+        }
         const key = `node:${ALIAS}`;
         if(!ALIASES[key]) ALIASES[key] = ALIASES[ALIAS];
     }
@@ -28,22 +31,22 @@ export const setNodeAliasPrefix = (ALIASES: Record<string, string>) => {
 export const resolveAliasesByType = (ALIASES: Record<string, string>, options: ResolveAliasOptions) => {
     const aliases: Record<string, string> = {}
     for (const ALIAS in ALIASES) {
-        if(ALIASES[ALIAS].startsWith("http://") || ALIASES[ALIAS].startsWith("https://")) {
+        if(ALIASES[ALIAS].startsWith("http://") || ALIASES[ALIAS].startsWith("https://") || ALIASES[ALIAS].startsWith("file://")) {
             aliases[ALIAS] = ALIASES[ALIAS];
         } else {
-            aliases[ALIAS] = resolvePackageByType(ALIASES[ALIAS], options);
-        }
-        
+            aliases[ALIAS] = resolvePackage(ALIASES[ALIAS], options);
+        }        
     }
     return aliases
 }
 
-export const resolvePackageByType = (pkgName: string, options: ResolveAliasOptions): string => {
-    const resolveBy = options.resolveBy === 'main' ? 'main' : 'module';
-    const resolveByFallback = resolveBy === 'main' ? 'module' : 'main';
+const resolvePackage = (pkgName: string, options: ResolveAliasOptions): string => {
+    // const resolveBy = options.resolveBy === 'main' ? 'main' : 'module';
+    // const resolveByFallback = resolveBy === 'main' ? 'module' : 'main';
 
     // TODO: use micromatch here
     if(options.external.includes(pkgName)) {
+        if(options.debug) console.debug('[gjsify] external alias: ' + pkgName);
         return pkgName;
     }
 
@@ -52,9 +55,10 @@ export const resolvePackageByType = (pkgName: string, options: ResolveAliasOptio
 
     try {
         result = require.resolve(resolveTo);
+        if(options.debug) console.debug('[gjsify] resolve alias: ' + result);
         return result;
     } catch (error) {
-        console.warn('[gjsify]', error.message);
+        console.warn('[gjsify]', error.message, pkgName);
     }
 
     // FALLBACK maybe we can `pnpFallbackMode` to `all` instead? See https://yarnpkg.com/configuration/yarnrc#pnpFallbackMode
@@ -81,6 +85,8 @@ export const resolvePackageByType = (pkgName: string, options: ResolveAliasOptio
     // } catch (error) {
     //     console.warn('[gjsify]', error);
     // }
+
+    if(options.debug) console.debug('[gjsify] resolve alias: ' + result);
 
     return result;
 }
