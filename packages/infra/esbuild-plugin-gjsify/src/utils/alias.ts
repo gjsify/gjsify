@@ -47,35 +47,40 @@ export const resolvePackageByType = (pkgName: string, options: ResolveAliasOptio
         return pkgName;
     }
 
-    let result = pkgName;
-
     let resolveTo = pkgName;
-
-    if(!resolveTo.endsWith('/') && !extname(resolveTo) ) {
-        resolveTo = join(resolveTo, 'package.json')
-    }
-
-    if(resolveTo.endsWith('package.json')) {
-        const pkgPath = require.resolve(resolveTo);
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        if(pkg[resolveBy]) {
-            resolveTo = join(dirname(resolveTo), pkg[resolveBy]);
-        } else if(pkg[resolveByFallback]) {
-            resolveTo = join(dirname(resolveTo), pkg[resolveByFallback]);
-            if(options.debug) console.warn(`Package entry point type "${resolveBy}" not found for "${pkg.name}", use "${resolveByFallback}" instead!`)
-        } else {
-            resolveTo = join(dirname(resolveTo), 'index.js');
-            if(options.debug) console.warn(`Package entry point type "${resolveBy}" not found for "${pkg.name}", use index.js instead!`)
-        }
-
-
-    }
+    let result = resolveTo;
 
     try {
         result = require.resolve(resolveTo);
+        return result;
     } catch (error) {
-        console.warn(error.message);
+        console.warn('[gjsify]', error.message);
     }
+
+    // FALLBACK maybe we can `pnpFallbackMode` to `all` instead? See https://yarnpkg.com/configuration/yarnrc#pnpFallbackMode
+    // if(!resolveTo.endsWith('/') && !extname(resolveTo) ) {
+    //     resolveTo = join(resolveTo, 'package.json')
+    // }
+
+    // if(resolveTo.endsWith('package.json')) {
+    //     const pkgPath = require.resolve(resolveTo);
+    //     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    //     if(pkg[resolveBy]) {
+    //         resolveTo = join(dirname(resolveTo), pkg[resolveBy]);
+    //     } else if(pkg[resolveByFallback]) {
+    //         resolveTo = join(dirname(resolveTo), pkg[resolveByFallback]);
+    //         if(options.debug) console.warn(`Package entry point type "${resolveBy}" not found for "${pkg.name}", use "${resolveByFallback}" instead!`)
+    //     } else {
+    //         resolveTo = join(dirname(resolveTo), 'index.js');
+    //         if(options.debug) console.warn(`Package entry point type "${resolveBy}" not found for "${pkg.name}", use index.js instead!`)
+    //     }
+    // }
+
+    // try {
+    //     result = require.resolve(resolveTo);
+    // } catch (error) {
+    //     console.warn('[gjsify]', error);
+    // }
 
     return result;
 }

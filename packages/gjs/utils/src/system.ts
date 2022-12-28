@@ -4,21 +4,34 @@ import { existsSync } from './fs.js';
 
 const File = Gio.File;
 
+/** Cache the getArgs result */
+const args: string[] = [];
+
+export const getArgv = () => {
+
+  if(args.length) {
+    return args;
+  }
+
+  const [__filename] = GLib.filename_from_uri(import.meta.url);
+  args.push(__filename);
+  ARGV.forEach(arg => {
+      if (arg[0] !== '-') {
+        args.push(
+              existsSync(arg) ?
+                  File.new_for_path(arg).get_path() :
+                  arg
+          );
+      } else {
+        args.push(arg);
+      }
+  });
+
+  return args;
+}
+
 export const getArgs = () => {
-    const [__filename] = GLib.filename_from_uri(import.meta.url);
-    const arr: string[] = [__filename];
-    ARGV.forEach(arg => {
-        if (arg[0] !== '-') {
-            arr.push(
-                existsSync(arg) ?
-                    File.new_for_path(arg).get_path() :
-                    arg
-            );
-        } else {
-            arr.push(arg);
-        }
-    });
-    return arr;
+  return getArgv().splice(0, 2);
 }
 
 export const parseArgv = (argv: string[]): { [key: string]: string | boolean } => {

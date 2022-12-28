@@ -394,6 +394,8 @@ __metadata:
     "@deepkit/injector": "npm:^1.0.1-alpha.85"
     "@deepkit/type": "npm:^1.0.1-alpha.85"
     "@gjsify/assert": "workspace:^"
+    "@gjsify/deno-runtime": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-deno-loader": "workspace:^"
     "@gjsify/events": "workspace:^"
@@ -404,6 +406,7 @@ __metadata:
     "@gjsify/require": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
     "@gjsify/tty": "workspace:^"
+    "@gjsify/util": "workspace:^"
     "@gjsify/zlib": "workspace:^"
     "@types/lodash": "npm:^4.14.191"
     "@types/micromatch": "npm:^4.0.2"
@@ -420,7 +423,6 @@ __metadata:
     stream-browserify: "npm:^3.0.0"
     string_decoder: "npm:^1.3.0"
     typescript: "npm:^5.0.0-dev.20221227"
-    web-streams-polyfill: "npm:^3.2.1"
   languageName: unknown
   linkType: soft
 
@@ -459,7 +461,6 @@ __metadata:
     stream-browserify: "npm:^3.0.0"
     string_decoder: "npm:^1.3.0"
     typescript: "npm:^5.0.0-dev.20221227"
-    web-streams-polyfill: "npm:^3.2.1"
   languageName: unknown
   linkType: soft
 
@@ -836,7 +837,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/util@workspace:packages/node/util":
+"@gjsify/util@workspace:^, @gjsify/util@workspace:packages/node/util":
   version: 0.0.0-use.local
   resolution: "@gjsify/util@workspace:packages/node/util"
   dependencies:
@@ -4657,7 +4658,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"web-streams-polyfill@npm:^3.0.3, web-streams-polyfill@npm:^3.2.1":
+"web-streams-polyfill@npm:^3.0.3":
   version: 3.2.1
   resolution: "web-streams-polyfill@npm:3.2.1"
   checksum: d0b6246240d181d6e2d8de6ded04938581bc5807da33ccd6f6b4a431c1f3fa3c04ffe0dfb739c7172d1208141717b4c80e8df7b300998fa9287ddb69bbaa0c68
