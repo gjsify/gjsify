@@ -31,7 +31,7 @@ export const getArgv = () => {
 }
 
 export const getArgs = () => {
-  return getArgv().splice(0, 2);
+  return getArgv().slice(2);
 }
 
 export const parseArgv = (argv: string[]): { [key: string]: string | boolean } => {

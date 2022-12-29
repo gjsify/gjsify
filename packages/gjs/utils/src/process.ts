@@ -35,8 +35,9 @@ export const getPpid = () => {
             const contentStr = new TextDecoder().decode(contents);
             const numStr = contentStr.match(/^PPid:.*$/gm)[0]?.match(/(\d+)$/gm)[0]
             PPID = Number(numStr);
+        } else {
+            console.error(new Error("Failed to read file: " + path));
         }
-        console.error(new Error("Failed to read file: " + path));
     }
     
     return PPID;
