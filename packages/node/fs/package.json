@@ -5,6 +5,26 @@
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "type": "module",
+    "exports": {
+        ".": {
+            "import": "./lib/esm/index.js",
+            "default": "./lib/esm/index.js",
+            "require": "./lib/cjs/index.js"
+        },
+        "./promises": {
+            "import": "./lib/esm/promises.js",
+            "default": "./lib/esm/promises.js",
+            "require": "./lib/cjs/promises.js"
+        }
+    },
+    "*": {
+        "": [
+            "lib/types/index.d.js"
+        ],
+        "promises": [
+            "lib/types/promises.d.js"
+        ]
+    },
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/fs'",

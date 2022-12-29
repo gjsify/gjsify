@@ -2,7 +2,7 @@ import Gio from '@gjsify/types/Gio-2.0';
 import { Dirent } from './dirent.js';
 import { basename } from 'path';
 
-import type { Stats as OriginalStats } from 'fs';
+import type { Stats as NodeStats, PathLike } from 'fs';
 
 /**
  * A `fs.Stats` object provides information about a file.
@@ -64,7 +64,7 @@ import type { Stats as OriginalStats } from 'fs';
  * ```
  * @since v0.1.21
  */
-export class Stats extends Dirent implements OriginalStats {
+export class Stats extends Dirent implements NodeStats {
     dev: number;
     ino: number;
     mode: number;
@@ -94,9 +94,10 @@ export class Stats extends Dirent implements OriginalStats {
 
     protected _info: Gio.FileInfo;
 
-    constructor(path: string, filename?: string) {
-        if (!filename) filename = basename(path);
-        super(path, filename);
+    constructor(path: PathLike, filename?: string) {
+        const pathStr = path.toString();
+        if (!filename) filename = basename(pathStr);
+        super(pathStr, filename);
         if(!this._file) {
             throw new TypeError('this._file is not defined!');
         }

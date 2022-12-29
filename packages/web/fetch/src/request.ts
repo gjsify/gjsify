@@ -28,7 +28,7 @@ const INTERNALS = Symbol('Request internals');
 };
 
 /** This Fetch API interface represents a resource request. */
-export class GjsifyRequest extends Body implements Request {
+export class Request extends Body implements globalThis.Request {
   /** Returns the cache mode associated with request, which is a string indicating how the request will interact with the browser's cache when fetching. */
   readonly cache: RequestCache;
   /** Returns the credentials mode associated with request, which is a string indicating whether credentials will be sent with the request always, never, or only when sent to a same-origin URL. */
@@ -134,7 +134,7 @@ export class GjsifyRequest extends Body implements Request {
   highWaterMark = 16384;
   insecureHTTPParser = false;
 
-  constructor(input: RequestInfo | URL | GjsifyRequest, init?: RequestInit) {
+  constructor(input: RequestInfo | URL | Request, init?: RequestInit) {
     let parsedURL: URL;
     let requestObj: Partial<Request> = {};
 
@@ -154,18 +154,18 @@ export class GjsifyRequest extends Body implements Request {
       method = method.toUpperCase();
     }
 
-    if ((init.body != null || (isRequest(input) && (input as GjsifyRequest).body !== null)) &&
+    if ((init.body != null || (isRequest(input) && (input as Request).body !== null)) &&
       (method === 'GET' || method === 'HEAD')) {
       throw new TypeError('Request with GET/HEAD method cannot have body');
     }
 
-    const inputBody = init.body ? init.body : (isRequest(input) && (input as GjsifyRequest).body !== null ? clone(input as GjsifyRequest & Body) : null);
+    const inputBody = init.body ? init.body : (isRequest(input) && (input as Request).body !== null ? clone(input as Request & Body) : null);
 
     super(inputBody, {
-      size: (init as GjsifyRequest).size || (init as any).size || 0
+      size: (init as Request).size || (init as any).size || 0
     });
 
-    const headers = new Headers((init.headers || (input as GjsifyRequest).headers || {}) as HeadersInit);
+    const headers = new Headers((init.headers || (input as Request).headers || {}) as HeadersInit);
 
     if (inputBody !== null && !headers.has('Content-Type')) {
       const contentType = extractContentType(inputBody, this);
@@ -175,7 +175,7 @@ export class GjsifyRequest extends Body implements Request {
     }
 
     let signal = isRequest(input) ?
-      (input as GjsifyRequest).signal :
+      (input as Request).signal :
       null;
     if ('signal' in init) {
       signal = init.signal;
@@ -186,7 +186,7 @@ export class GjsifyRequest extends Body implements Request {
     }
 
     // §5.4, Request constructor steps, step 15.1
-    let referrer: string | URL = init.referrer == null ? (input as GjsifyRequest).referrer : init.referrer;
+    let referrer: string | URL = init.referrer == null ? (input as Request).referrer : init.referrer;
     if (referrer === '') {
       // §5.4, Request constructor steps, step 15.2
       referrer = 'no-referrer';
@@ -207,7 +207,7 @@ export class GjsifyRequest extends Body implements Request {
 
     this[INTERNALS] = {
       method,
-      redirect: init.redirect || (input as GjsifyRequest).redirect || 'follow',
+      redirect: init.redirect || (input as Request).redirect || 'follow',
       headers,
       parsedURL,
       signal,
@@ -218,16 +218,16 @@ export class GjsifyRequest extends Body implements Request {
     };
 
     // Node-fetch-only options
-    this.follow = (init as GjsifyRequest).follow === undefined ? ((input as GjsifyRequest).follow === undefined ? 20 : (input as GjsifyRequest).follow) : (init as GjsifyRequest).follow;
-    this.compress = (init as GjsifyRequest).compress === undefined ? ((input as GjsifyRequest).compress === undefined ? true : (input as GjsifyRequest).compress) : (init as GjsifyRequest).compress;
-    this.counter = (init as GjsifyRequest).counter || (input as GjsifyRequest).counter || 0;
-    this.agent = (init as GjsifyRequest).agent || (input as GjsifyRequest).agent;
-    this.highWaterMark = (init as GjsifyRequest).highWaterMark || (input as GjsifyRequest).highWaterMark || 16384;
-    this.insecureHTTPParser = (init as GjsifyRequest).insecureHTTPParser || (input as GjsifyRequest).insecureHTTPParser || false;
+    this.follow = (init as Request).follow === undefined ? ((input as Request).follow === undefined ? 20 : (input as Request).follow) : (init as Request).follow;
+    this.compress = (init as Request).compress === undefined ? ((input as Request).compress === undefined ? true : (input as Request).compress) : (init as Request).compress;
+    this.counter = (init as Request).counter || (input as Request).counter || 0;
+    this.agent = (init as Request).agent || (input as Request).agent;
+    this.highWaterMark = (init as Request).highWaterMark || (input as Request).highWaterMark || 16384;
+    this.insecureHTTPParser = (init as Request).insecureHTTPParser || (input as Request).insecureHTTPParser || false;
 
     // §5.4, Request constructor steps, step 16.
     // Default is empty string per https://fetch.spec.whatwg.org/#concept-request-referrer-policy
-    this.referrerPolicy = init.referrerPolicy || (input as GjsifyRequest).referrerPolicy || '';
+    this.referrerPolicy = init.referrerPolicy || (input as Request).referrerPolicy || '';
   }
 
   /**
@@ -254,8 +254,8 @@ export class GjsifyRequest extends Body implements Request {
   /**
    * Clone this request
    */
-  clone(): GjsifyRequest {
-    return new GjsifyRequest(this);
+  clone(): Request {
+    return new Request(this);
   }
 
   async arrayBuffer(): Promise<ArrayBuffer> {
@@ -286,7 +286,7 @@ Object.defineProperties(Request.prototype, {
 	referrerPolicy: {enumerable: true}
 });
 
-export default GjsifyRequest;
+export default Request;
 
 /**
  * Convert a Request to Soup request options.
@@ -294,7 +294,7 @@ export default GjsifyRequest;
  * @param request - A Request instance
  * @return The options object to be passed to http.request
  */
-export const getSoupRequestOptions = (request: GjsifyRequest) => {
+export const getSoupRequestOptions = (request: Request) => {
 	const { parsedURL } = request[INTERNALS];
 	const headers = new Headers(request[INTERNALS].headers);
 

@@ -69,6 +69,7 @@ export const ALIASES_GENERAL_FOR_GJS = {}
 
 /** Record of Node.js modules (build in or not) and his replacement for Gjs */
 export const ALIASES_NODE_FOR_GJS = {
+    // Internal Node.js modules
     'assert': '@gjsify/assert',
     'assert/strict': '@gjsify/assert/strict',
     'async_hooks': '@gjsify/deno_std/node/async_hooks', // TODO
@@ -85,7 +86,7 @@ export const ALIASES_NODE_FOR_GJS = {
     'domain': '@gjsify/deno_std/node/domain', // TODO
     'events': '@gjsify/events',
     'fs': '@gjsify/fs',
-    'fs/promises': '@gjsify/fs/lib/esm/promises.js', // TODO
+    'fs/promises': '@gjsify/fs/promises',
     'http': '@gjsify/http',
     'http2': '@gjsify/deno_std/node/http2', // TODO
     'https': '@gjsify/deno_std/node/https', // TODO
@@ -160,6 +161,9 @@ export const ALIASES_NODE_FOR_GJS = {
     // 'module_esm': '@gjsify/deno_std/node/module_esm',
     // 'perf_hooks': '@gjsify/deno_std/node/perf_hooks',
     // 'tls': '@gjsify/deno_std/node/tls',
+
+    // Third party Node Modules
+    'node-fetch': '@gjsify/fetch',
 }
 
 /** Record of Web modules and his replacement for Gjs */

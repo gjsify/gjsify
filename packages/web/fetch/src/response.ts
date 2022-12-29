@@ -4,7 +4,8 @@
  * Response class provides content decoding
  */
 
- import Gio from '@gjsify/types/Gio-2.0';
+import GLib from '@gjsify/types/GLib-2.0';
+import Gio from '@gjsify/types/Gio-2.0';
 
 import Headers from './headers.js';
 import Body, { clone, extractContentType } from './body.js';
@@ -13,7 +14,7 @@ import type { Readable } from 'stream';
 
 const INTERNALS = Symbol('Response internals');
 
-interface GjsifyResponseInit extends ResponseInit {
+interface ResponseInit extends globalThis.ResponseInit {
     type?: ResponseType;
     url?: string;
     counter?: number;
@@ -31,7 +32,7 @@ interface GjsifyResponseInit extends ResponseInit {
  * @param body Readable stream
  * @param opts Response options
  */
-export class GjsifyResponse extends Body implements Response {
+export class Response extends Body implements globalThis.Response {
 
     [INTERNALS]: {
         type: ResponseType;
@@ -43,7 +44,7 @@ export class GjsifyResponse extends Body implements Response {
         highWaterMark: number;
     };
 
-    constructor(body: BodyInit | Readable | Blob | Buffer | null = null, options: GjsifyResponseInit = {}) {
+    constructor(body: BodyInit | Readable | Blob | Buffer | null = null, options: ResponseInit = {}) {
         super(body, options);
 
         // eslint-disable-next-line no-eq-null, eqeqeq, no-negated-condition
@@ -110,7 +111,7 @@ export class GjsifyResponse extends Body implements Response {
      * @return  Response
      */
     clone() {
-        return new GjsifyResponse(clone(this, this.highWaterMark), {
+        return new Response(clone(this, this.highWaterMark), {
             type: this.type,
             url: this.url,
             status: this.status,
@@ -133,7 +134,7 @@ export class GjsifyResponse extends Body implements Response {
             throw new RangeError('Failed to execute "redirect" on "response": Invalid status code');
         }
 
-        return new GjsifyResponse(null, {
+        return new Response(null, {
             headers: {
                 location: new URL(url).toString()
             },
@@ -142,7 +143,7 @@ export class GjsifyResponse extends Body implements Response {
     }
 
     static error() {
-        const response = new GjsifyResponse(null, { status: 0, statusText: '' });
+        const response = new Response(null, { status: 0, statusText: '' });
         response[INTERNALS].type = 'error';
         return response;
     }
@@ -186,4 +187,4 @@ Object.defineProperties(Response.prototype, {
     clone: { enumerable: true }
 });
 
-export default GjsifyResponse;
+export default Response;

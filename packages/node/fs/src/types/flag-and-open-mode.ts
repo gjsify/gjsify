@@ -1,4 +1,4 @@
-import type { Mode, OpenMode } from './index.js';
+import type { Mode, OpenMode } from 'fs';
 
 export interface FlagAndOpenMode {
     mode?: Mode | undefined;

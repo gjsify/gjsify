@@ -9,9 +9,20 @@ import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js'
 import { FileHandle } from './file-handle.js';
 import { Dirent } from './dirent.js';
 import { tempDirPath } from './utils.js';
+import { Stats } from './stats.js';
 
-import type { PathLike, Mode, OpenFlags, MakeDirectoryOptions, BufferEncodingOption, EncodingOption, RmOptions, RmDirOptions } from './types/index.js';
-import type { ObjectEncodingOptions } from 'fs'; // Types from @types/node
+import type { OpenFlags, EncodingOption } from './types/index.js';
+import type {
+  PathLike,
+  Mode,
+  MakeDirectoryOptions,
+  ObjectEncodingOptions,
+  BufferEncodingOption,
+  RmOptions,
+  RmDirOptions,
+  StatSyncOptions,
+  BigIntStats,
+} from 'fs'; // Types from @types/node
 
 export { existsSync }
 
@@ -235,6 +246,60 @@ export function rmdirSync(path: PathLike, options?: RmDirOptions): void {
     throw new Error(`Failed to remove ${path} directory`);
   }
 }
+
+// statSync
+export function StatSyncFn (path: PathLike, options?: undefined): Stats;
+export function StatSyncFn (
+  path: PathLike,
+  options?: StatSyncOptions & {
+      bigint?: false | undefined;
+      throwIfNoEntry: false;
+  }
+): Stats | undefined;
+export function StatSyncFn (
+  path: PathLike,
+  options: StatSyncOptions & {
+      bigint: true;
+      throwIfNoEntry: false;
+  }
+): BigIntStats | undefined;
+export function StatSyncFn   (
+  path: PathLike,
+  options?: StatSyncOptions & {
+      bigint?: false | undefined;
+  }
+): Stats;
+export function StatSyncFn(
+  path: PathLike,
+  options: StatSyncOptions & {
+      bigint: true;
+  }
+): BigIntStats;
+export function StatSyncFn(
+  path: PathLike,
+  options: StatSyncOptions & {
+      bigint: boolean;
+      throwIfNoEntry?: false | undefined;
+  }
+): Stats | BigIntStats;
+export function StatSyncFn(path: PathLike, options?: StatSyncOptions): Stats | BigIntStats | undefined;
+
+export function StatSyncFn(path: PathLike, options?: StatSyncOptions & {
+  bigint?: boolean;
+  throwIfNoEntry?: boolean;
+}): Stats | BigIntStats | undefined {
+  if(options.bigint) {
+    throw new Error("[StatSyncFn] The bigint is currently not supported")
+  }
+  const stats = new Stats(path);
+  return stats;
+}
+
+/**
+ * Synchronous stat(2) - Get file status.
+ * @param path A path to a file. If a URL is provided, it must use the `file:` protocol.
+ */
+export const statSync = StatSyncFn;
 
 export function unlinkSync(path: string) {
   GLib.unlink(path);

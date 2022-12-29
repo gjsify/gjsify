@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, rmdirSync, unlinkSync, watch, mkdtempSync, rmSync } from './sync.js';
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, rmdirSync, unlinkSync, watch, mkdtempSync, rmSync, statSync } from './sync.js';
 import { open, close, read, write, rm } from './callback.js';
-import FSWatcher from './fs-watcher';
+import FSWatcher from './fs-watcher.js';
 import { createReadStream, ReadStream } from './read-stream.js';
 import * as promises from './promises.js';
 
@@ -15,6 +15,7 @@ export {
   unlinkSync,
   mkdtempSync,
   rmSync,
+  statSync,
   watch,
   createReadStream,
   ReadStream,
@@ -37,6 +38,7 @@ export default {
   unlinkSync,
   mkdtempSync,
   rmSync,
+  statSync,
   watch,
   createReadStream,
   ReadStream,

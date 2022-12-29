@@ -5,6 +5,18 @@
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "type": "module",
+    "exports": {
+        ".": {
+            "import": "./lib/esm/index.js",
+            "default": "./lib/esm/index.js",
+            "require": "./lib/cjs/index.js"
+        }
+    },
+    "*": {
+        "": [
+            "lib/types/index.d.js"
+        ]
+    },
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/fetch'",
@@ -28,10 +40,13 @@
         "@types/node": "^18.11.18"
     },
     "dependencies": {
+        "@gjsify/deno-runtime": "workspace:^",
         "@gjsify/gio-2.0": "workspace:^",
         "@gjsify/soup-3.0": "workspace:^",
+        "@types/node-fetch": "^2.6.2",
         "data-uri-to-buffer": "^4.0.0",
         "fetch-blob": "^3.2.0",
-        "formdata-polyfill": "^4.0.10"
+        "formdata-polyfill": "^4.0.10",
+        "node-fetch": "^3.3.0"
     }
 }

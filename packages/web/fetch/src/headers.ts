@@ -3,18 +3,17 @@
  *
  * Headers class offers convenient helpers
  */
-
+import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
 import { types } from 'util';
-import http from 'http';
+import * as http from 'http';
 import type { IncomingMessage } from 'http';
 import Soup from '@gjsify/types/Soup-3.0';
 
 
 /* c8 ignore next 9 */
 
-// TODO: Add types to @types/node
-const validateHeaderName: (name: string) => void = (http as any).validateHeaderName;
-const validateHeaderValue: (name: string, value: any) => void = (http as any).validateHeaderValue;
+const validateHeaderName = http.validateHeaderName;
+const validateHeaderValue = http.validateHeaderValue;
 
 /**
  * This Fetch API interface allows you to perform various actions on HTTP request and response headers.
@@ -24,7 +23,7 @@ const validateHeaderValue: (name: string, value: any) => void = (http as any).va
  * In all methods of this interface, header names are matched by case-insensitive byte sequence.
  *
  */
-export default class GjsifyHeaders extends URLSearchParams implements Headers, Iterable<[string, string]> {
+export default class Headers extends URLSearchParams implements globalThis.Headers, Iterable<[string, string]> {
     /**
      * Headers class
      *
@@ -34,7 +33,7 @@ export default class GjsifyHeaders extends URLSearchParams implements Headers, I
     constructor(init?: HeadersInit) {
         // Validate and normalize init object in [name, value(s)][]
         let result: string[][] = [];
-        if (init instanceof GjsifyHeaders) {
+        if (init instanceof Headers) {
             const raw = init.raw();
             for (const [name, values] of Object.entries(raw)) {
                 result.push(...values.map(value => [name, value]));
@@ -146,9 +145,9 @@ export default class GjsifyHeaders extends URLSearchParams implements Headers, I
     }
 
 
-    static _newFromSoupMessage(message: Soup.Message, type = Soup.MessageHeadersType.RESPONSE) {
+    static _newFromSoupMessage(message: Soup.Message, type: Soup.MessageHeadersType = Soup.MessageHeadersType.RESPONSE) {
         let soupHeaders: Soup.MessageHeaders;
-        const headers = new GjsifyHeaders();
+        const headers = new Headers();
         
         if (type === Soup.MessageHeadersType.RESPONSE) {
             soupHeaders = message.get_response_headers();

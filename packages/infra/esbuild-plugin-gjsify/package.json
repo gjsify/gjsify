@@ -28,6 +28,7 @@
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-deno-loader": "workspace:^",
         "@gjsify/events": "workspace:^",
+        "@gjsify/fetch": "workspace:^",
         "@gjsify/fs": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/os": "workspace:^",
