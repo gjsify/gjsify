@@ -1,4 +1,4 @@
-import {File} from 'fetch-blob/from.js';
+import {File} from './blob-from.js';
 import {FormData} from 'formdata-polyfill/esm.min.js';
 
 // let s = 0;

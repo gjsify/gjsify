@@ -3,6 +3,7 @@ import GLib from '@gjsify/types/GLib-2.0';
 import { notImplemented } from "@gjsify/utils";
 import { Buffer } from "buffer";
 import { Readable } from "stream";
+import { URL } from "url";
 
 import type { CreateReadStreamOptions } from 'fs/promises'; // Types from @types/node
 import type { PathLike, ReadStream as IReadStream } from 'fs'; // Types from @types/node

@@ -8,18 +8,18 @@
 import { PassThrough, pipeline as pipelineCb, Readable, Stream, Writable } from 'stream';
 import { ReadableStream as StreamWebReadableStream } from "stream/web";
 import { types, deprecate, promisify } from 'util';
-import {Buffer} from 'buffer';
+import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
+import { Buffer } from 'buffer';
 
-import Blob from 'fetch-blob';
 import { FormData, formDataToBlob } from 'formdata-polyfill/esm.min.js';
 
 import { FetchError } from './errors/fetch-error.js';
 import { FetchBaseError } from './errors/base.js';
 import { isBlob, isURLSearchParameters } from './utils/is.js';
-import type { GjsifyRequest } from './request.js';
-import type { GjsifyResponse } from './response.js';
-import Soup from '@gjsify/types/Soup-3.0';
-import Gio from '@gjsify/types/Gio-2.0';
+import { Blob } from "@gjsify/deno-runtime/ext/web/09_file";
+
+import type { Request } from './request.js';
+import type { Response } from './response.js';
 
 const pipeline = promisify(pipelineCb);
 const INTERNALS = Symbol('Body internals');
@@ -32,7 +32,7 @@ const INTERNALS = Symbol('Body internals');
   * @param body Readable stream
   * @param opts Response options
   */
-export default class GjsifyBody implements Body {
+export default class Body implements globalThis.Body {
 
     [INTERNALS]: {
         body: null | Buffer | Readable | Blob;
@@ -76,7 +76,7 @@ export default class GjsifyBody implements Body {
             this[INTERNALS].body = Readable.fromWeb(body as StreamWebReadableStream); // TODO check compatibility between ReadableStream (from lib.dom.d.ts) and StreamWebReadableStream (from stream/web)
         } else if (body instanceof FormData) {
             // Body is FormData
-            this[INTERNALS].body = formDataToBlob(body);
+            this[INTERNALS].body = formDataToBlob(body) as Blob & globalThis.Blob;
             this[INTERNALS].boundary = this[INTERNALS].body.type.split('=')[1];
         } else if (typeof body === 'string'){
             // None of the above
@@ -91,12 +91,12 @@ export default class GjsifyBody implements Body {
             this[INTERNALS].body = Readable.from(typeof (body as any).toString === 'function' ? (body as any).toString() : body as any); // TODO
         }
 
-        // this[INTERNALS].stream = body;
+        // ´this[INTERNALS].stream = body;
 
         if (Buffer.isBuffer(body)) {
             this[INTERNALS].stream = Readable.from(body);
         } else if (isBlob(body)) {
-            this[INTERNALS].stream = Readable.from((body).stream());
+            this[INTERNALS].stream = Readable.from(body.stream());
         } else if (body instanceof Readable) {
             this[INTERNALS].stream = body;
         }
@@ -134,7 +134,7 @@ export default class GjsifyBody implements Body {
     }
 
     async formData() {
-        const ct = (this as unknown as GjsifyRequest).headers?.get('content-type');
+        const ct = (this as unknown as Request).headers?.get('content-type');
 
         if (ct.startsWith('application/x-www-form-urlencoded')) {
             const formData = new FormData();
@@ -157,7 +157,7 @@ export default class GjsifyBody implements Body {
      * @return Promise
      */
     async blob() {
-        const ct = ((this as unknown as GjsifyRequest).headers?.get('content-type')) || (this[INTERNALS].body && (this[INTERNALS].body as Blob).type) || '';
+        const ct = ((this as unknown as Request).headers?.get('content-type')) || (this[INTERNALS].body && (this[INTERNALS].body as Blob).type) || '';
         const buf = await this.arrayBuffer();
 
         return new Blob([buf], {
@@ -187,7 +187,7 @@ export default class GjsifyBody implements Body {
 }
   
 // In browsers, all properties are enumerable.
-Object.defineProperties(GjsifyBody.prototype, {
+Object.defineProperties(Body.prototype, {
     body: {enumerable: true},
     bodyUsed: {enumerable: true},
     arrayBuffer: {enumerable: true},
@@ -206,7 +206,7 @@ Object.defineProperties(GjsifyBody.prototype, {
   *
   * @return Promise
   */
-async function consumeBody(data: GjsifyBody & Partial<GjsifyRequest>) {
+async function consumeBody(data: Body & Partial<Request>) {
     if (data[INTERNALS].disturbed) {
         throw new TypeError(`body used already for: ${data.url}`);
     }
@@ -272,7 +272,7 @@ async function consumeBody(data: GjsifyBody & Partial<GjsifyRequest>) {
   * @param highWaterMark highWaterMark for both PassThrough body streams
   * @return Mixed
   */
-export const clone = <T extends GjsifyRequest | GjsifyResponse>(instance: T, highWaterMark?: number) => {
+export const clone = <T extends Request | Response>(instance: T, highWaterMark?: number) => {
     let p1: PassThrough;
     let p2: PassThrough;
     let {body} = instance[INTERNALS];
@@ -313,7 +313,7 @@ export const clone = <T extends GjsifyRequest | GjsifyResponse>(instance: T, hig
   *
   * @param body Any options.body input
   */
-export const extractContentType = (body: BodyInit | string | ArrayBuffer | Readable | Blob | ArrayBufferView | Buffer | FormData | globalThis.ReadableStream<any> | null, request: GjsifyRequest | GjsifyResponse): string | null => {
+export const extractContentType = (body: BodyInit | string | ArrayBuffer | Readable | Blob | ArrayBufferView | Buffer | FormData | globalThis.ReadableStream<any> | null, request: Request | Response): string | null => {
     // Body is null or undefined
     if (body === null) {
         return null;
@@ -331,7 +331,7 @@ export const extractContentType = (body: BodyInit | string | ArrayBuffer | Reada
 
     // Body is blob
     if (isBlob(body)) {
-        return (body as Blob).type || null;
+        return (body as Blob & globalThis.Blob).type || null;
     }
 
     // Body is a Buffer (Buffer, ArrayBuffer or ArrayBufferView)
@@ -365,7 +365,7 @@ export const extractContentType = (body: BodyInit | string | ArrayBuffer | Reada
   *
   * @param request Request object with the body property.
   */
-export const getTotalBytes = (request: GjsifyRequest): number | null => {
+export const getTotalBytes = (request: Request): number | null => {
     const { body } = request[INTERNALS];
 
     // Body is null or undefined

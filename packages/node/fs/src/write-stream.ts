@@ -1,6 +1,5 @@
 import { Writable } from "stream";
-import { fileURLToPath } from "url";
-import { notImplemented } from "@gjsify/utils";
+import { fileURLToPath, URL } from "url";
 import { open, write, close } from "./callback.js";
 
 import type { OpenFlags } from './types/index.js';

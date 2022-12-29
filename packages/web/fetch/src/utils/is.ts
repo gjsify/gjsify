@@ -1,3 +1,6 @@
+import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
+import { Blob } from "@gjsify/deno-runtime/ext/web/09_file";
+
 /**
  * Is.js
  *

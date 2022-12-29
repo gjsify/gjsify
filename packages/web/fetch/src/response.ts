@@ -10,6 +10,9 @@ import Gio from '@gjsify/types/Gio-2.0';
 import Headers from './headers.js';
 import Body, { clone, extractContentType } from './body.js';
 import { isRedirect } from './utils/is-redirect.js';
+
+import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
+
 import type { Readable } from 'stream';
 
 const INTERNALS = Symbol('Response internals');

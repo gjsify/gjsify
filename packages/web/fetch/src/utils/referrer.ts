@@ -1,5 +1,6 @@
 import { isIP } from 'net';
-import GjsifyRequest from '../request';
+import Request from '../request.js';
+import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
 
 /**
  * @external URL
@@ -194,7 +195,7 @@ export function isUrlPotentiallyTrustworthy(url: URL | 'no-referrer') {
  * @param {module:utils/referrer~referrerOriginCallback} o.referrerOriginCallback
  * @returns {external:URL} Request's referrer
  */
-export function determineRequestsReferrer(request: GjsifyRequest, obj: {referrerURLCallback?: (url: URL | 'no-referrer') => URL, referrerOriginCallback?: (url: URL | 'no-referrer') => URL} = {}): URL | string {
+export function determineRequestsReferrer(request: Request, obj: {referrerURLCallback?: (url: URL | 'no-referrer') => URL, referrerOriginCallback?: (url: URL | 'no-referrer') => URL} = {}): URL | string {
 
     const {referrerURLCallback, referrerOriginCallback} = obj;
 

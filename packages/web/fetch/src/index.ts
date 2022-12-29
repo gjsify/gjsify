@@ -1,6 +1,6 @@
 import Soup from '@gjsify/types/Soup-3.0';
 import Gio from '@gjsify/types/Gio-2.0';
-import GjsifyRequest from './request.js';
+import Request from './request.js';
 
 /**
  * Index.js
@@ -17,8 +17,8 @@ import dataUriToBuffer from 'data-uri-to-buffer';
 
 import { writeToStream, clone } from './body.js';
 import Response from './response.js';
-import Headers, { fromRawHeaders } from './headers.js';
-import Request, { getSoupRequestOptions } from './request.js';
+import Headers from './headers.js';
+import { getSoupRequestOptions } from './request.js';
 import { FetchError } from './errors/fetch-error.js';
 import { AbortError } from './errors/abort-error.js';
 import { isRedirect } from './utils/is-redirect.js';
@@ -32,7 +32,8 @@ import {
   fileFrom,
   blobFromSync,
   blobFrom
-} from 'fetch-blob/from.js';
+} from './utils/blob-from.js';
+import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
 
 export { FormData, Headers, Request, Response, FetchError, AbortError, isRedirect };
 export { Blob, File, fileFromSync, fileFrom, blobFromSync, blobFrom };
@@ -225,7 +226,7 @@ export default async function fetch(url: RequestInfo | URL, init: RequestInit = 
             }
 
             // HTTP-redirect fetch step 15
-            resolve(fetch(new GjsifyRequest(locationURL, requestOptions)));
+            resolve(fetch(new Request(locationURL, requestOptions)));
             finalize();
             return;
           }
