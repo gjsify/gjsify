@@ -11,7 +11,6 @@ import Headers from './headers.js';
 import Body, {clone, extractContentType, getTotalBytes} from './body.js';
 import {isAbortSignal} from './utils/is.js';
 import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
-
 // import { getSearch } from './utils/get-search.js';
 import {
 	validateReferrerPolicy, determineRequestsReferrer, DEFAULT_REFERRER_POLICY

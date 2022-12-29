@@ -643,7 +643,6 @@ __metadata:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.2"
     data-uri-to-buffer: "npm:^4.0.0"
-    fetch-blob: "npm:^3.2.0"
     formdata-polyfill: "npm:^4.0.10"
     node-fetch: "npm:^3.3.0"
   languageName: unknown
@@ -2389,7 +2388,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fetch-blob@npm:^3.1.2, fetch-blob@npm:^3.1.4, fetch-blob@npm:^3.2.0":
+"fetch-blob@npm:^3.1.2, fetch-blob@npm:^3.1.4":
   version: 3.2.0
   resolution: "fetch-blob@npm:3.2.0"
   dependencies:
