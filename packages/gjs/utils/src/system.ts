@@ -35,24 +35,22 @@ export const getArgs = () => {
 }
 
 export const parseArgv = (argv: string[]): { [key: string]: string | boolean } => {
-    let result: { [key: string]: string | boolean } = {};
-    let currentKey: string | null = null;
-  
-    for (let i = 0; i < argv.length; i++) {
-      let arg = argv[i];
-  
-      if (arg.startsWith("--")) {
-        currentKey = arg.substring(2);
-        result[currentKey] = true;
-      } else if (currentKey !== null) {
-        result[currentKey] = arg;
-        currentKey = null;
-      } else {
-        result[arg] = true;
-      }
+  let result: { [key: string]: string | boolean } = {};
+  let currentKey: string | null = null;
+
+  for (let i = 0; i < argv.length; i++) {
+    let arg = argv[i];
+
+    if (arg.startsWith("--")) {
+      currentKey = arg.substring(2);
+      result[currentKey] = true;
+    } else if (currentKey !== null) {
+      result[currentKey] = arg;
+      currentKey = null;
+    } else {
+      result[arg] = true;
     }
-  
-    return result;
   }
-  
-  
+
+  return result;
+}

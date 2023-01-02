@@ -10,7 +10,7 @@
         "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/utils'",
         "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
-        "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "yarn run build:test:gjs",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
