@@ -3,15 +3,16 @@ import GLib from '@gjsify/types/GLib-2.0';
 import { warnNotImplemented } from '@gjsify/utils';
 import { join } from 'path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
-import { readdirSync, writeFileSync, mkdirSync, rmdirSync, unlinkSync } from './sync.js';
+import { writeFileSync, mkdirSync, rmdirSync, unlinkSync } from './sync.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath } from './utils.js';
 import { Dirent } from './dirent.js';
 
-export { realpathPromise as realpath } from '@gjsify/deno_std/node/_fs/_fs_realpath';
-export { symlinkPromise as symlink } from '@gjsify/deno_std/node/_fs/_fs_symlink';
-export { lstatPromise as lstat } from '@gjsify/deno_std/node/_fs/_fs_lstat';
-export { statPromise as stat } from '@gjsify/deno_std/node/_fs/_fs_stat';
+import { realpathPromise as realpath } from '@gjsify/deno_std/node/_fs/_fs_realpath';
+import { readdirPromise as readdir } from '@gjsify/deno_std/node/_fs/_fs_readdir';
+import { symlinkPromise as symlink } from '@gjsify/deno_std/node/_fs/_fs_symlink';
+import { lstatPromise as lstat } from '@gjsify/deno_std/node/_fs/_fs_lstat';
+import { statPromise as stat } from '@gjsify/deno_std/node/_fs/_fs_stat';
 
 import type { 
   OpenFlags,
@@ -84,11 +85,6 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
     mode
   });
   return firstPath;
-}
-
-async function readdir(path: string) {
-  // TODO async
-  return readdirSync(path);
 }
 
 async function readFile(path: PathLike | FileHandle, options: ReadOptions = { encoding: null, flag: 'r' }) {
@@ -281,7 +277,7 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
   const dirent = new Dirent(path.toString());
 
   if (dirent.isDirectory()) {
-    const childFiles = readdirSync(path, { withFileTypes: true });
+    const childFiles = await readdir(path, { withFileTypes: true });
 
     if (!recursive && childFiles.length) {
       throw new Error('Dir is not empty!');
@@ -322,6 +318,7 @@ export {
   readFile,
   mkdir,
   mkdtemp,
+  realpath,
   readdir,
   writeFile,
   rmdir,
@@ -329,12 +326,16 @@ export {
   open,
   write,
   rm,
+  lstat,
+  symlink,
+  stat,
 };
 
 export default {
   readFile,
   mkdir,
   mkdtemp,
+  realpath,
   readdir,
   writeFile,
   rmdir,
@@ -342,4 +343,7 @@ export default {
   open,
   write,
   rm,
+  lstat,
+  symlink,
+  stat,
 };

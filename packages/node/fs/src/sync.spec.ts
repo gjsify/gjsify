@@ -11,7 +11,7 @@ import { Buffer } from 'buffer';
 export default async () => {
 	await describe('fs.existsSync', async () => {
 
-		const existingFiles = ['tsconfig.json', 'package.json', 'test.gjs.js'];
+		const existingFiles = ['tsconfig.json', 'package.json', 'README.md'];
 		const nonExistingFiles = ['asdasd', '/asdasd', ''];
 
 		await it('should return true for existing files', () => {

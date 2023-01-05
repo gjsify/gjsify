@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { promises, existsSync } from 'fs';
-import { mkdir } from 'fs/promises';
+import { mkdir, readdir, mkdtemp, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { Buffer } from 'buffer';
 
@@ -9,6 +9,79 @@ export default async () => {
 	await describe('fs/promises', async () => {
 		await it('import over "fs/should" should be work', async () => {
 			expect(typeof mkdir).toBe("function");
+		});
+	});
+
+	await describe('fs.promises.readdir', async () => {
+		await it('should return no files for an empty directory', async () => {
+			const dir = await mkdtemp('fs-test-');
+			const files = await readdir(dir);
+			expect(files.length).toBe(0);
+
+			// Clear
+			await mkdir(dir);
+		});
+
+		await it('should return the files for non-empty directory', async () => {
+			const dir = await mkdtemp('fs-test-');
+			const txt1 = join(dir, 'test1.txt');
+			const txt2 = join(dir, 'test2.txt');
+			const dir1 = join(dir, 'empty-dir');
+			await writeFile(txt1, '');
+			await writeFile(txt2, '');
+			await mkdir(dir1);
+			const files = await readdir(dir);
+			expect(files.length).toEqual(3);
+
+			// Clear
+			await rm(txt1);
+			await rm(txt2);
+			await mkdir(dir1);
+			await mkdir(dir);
+		});
+
+		await it('should return the file with the name "file.txt"', async () => {
+			const dir = await mkdtemp('fs-test-');
+			const expectedFileName = 'file.txt';
+			const file = join(dir, expectedFileName);
+
+			await writeFile(file, '');
+
+			const files = await readdir(dir);
+			expect(files[0]).toEqual(expectedFileName);
+
+			// Clear
+			await rm(file);
+			await mkdir(dir);
+		});
+
+		await it('should return with file types if option "withFileTypes" is `true`', async () => {
+			const dir = await mkdtemp('fs-test-');
+			const expectedFile = 'file.txt';
+			const expectedDir = 'subdir';
+			const file = join(dir, expectedFile);
+			const subdir = join(dir, expectedDir);
+
+			await writeFile(file, '');
+			await mkdir(subdir);
+
+			const files = await readdir(dir, { withFileTypes: true });
+
+			expect(files.length).toBe(2);
+
+			const fileWithTypes = files.find((f) => f.name === expectedFile);
+			const dirWithTypes = files.find((f) => f.name === expectedDir);
+
+			expect(fileWithTypes.isFile()).toBeTruthy();
+			expect(fileWithTypes.isDirectory()).toBeFalsy();
+
+			expect(dirWithTypes.isFile()).toBeFalsy();
+			expect(dirWithTypes.isDirectory()).toBeTruthy();
+
+			// Clear
+			await rm(file);
+			await mkdir(subdir);
+			await mkdir(dir);
 		});
 	});
 

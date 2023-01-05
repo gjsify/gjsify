@@ -11,122 +11,24 @@ import { Dirent } from './dirent.js';
 import { tempDirPath } from './utils.js';
 
 export { realpathSync } from '@gjsify/deno_std/node/_fs/_fs_realpath';
+import { readdirSync } from '@gjsify/deno_std/node/_fs/_fs_readdir';
 export { symlinkSync } from '@gjsify/deno_std/node/_fs/_fs_symlink';
 export { lstatSync } from '@gjsify/deno_std/node/_fs/_fs_lstat';
 export { statSync } from '@gjsify/deno_std/node/_fs/_fs_stat';
+
+
 
 import type { OpenFlags, EncodingOption } from './types/index.js';
 import type {
   PathLike,
   Mode,
   MakeDirectoryOptions,
-  ObjectEncodingOptions,
   BufferEncodingOption,
   RmOptions,
   RmDirOptions,
 } from 'fs'; // Types from @types/node
 
-export { existsSync }
-
-/**
- * Reads the contents of the directory.
- *
- * See the POSIX [`readdir(3)`](http://man7.org/linux/man-pages/man3/readdir.3.html) documentation for more details.
- *
- * The optional `options` argument can be a string specifying an encoding, or an
- * object with an `encoding` property specifying the character encoding to use for
- * the filenames returned. If the `encoding` is set to `'buffer'`,
- * the filenames returned will be passed as `Buffer` objects.
- *
- * If `options.withFileTypes` is set to `true`, the result will contain `fs.Dirent` objects.
- * @since v0.1.21
- */
-export function readdirSync(
-  path: PathLike,
-  options?:
-      | {
-            encoding: BufferEncoding | null;
-            withFileTypes?: false | undefined;
-        }
-      | BufferEncoding
-      | null
-): string[];
-/**
- * Synchronous readdir(3) - read a directory.
- * @param path A path to a file. If a URL is provided, it must use the `file:` protocol.
- * @param options The encoding (or an object specifying the encoding), used as the encoding of the result. If not provided, `'utf8'` is used.
- */
-export function readdirSync(
-  path: PathLike,
-  options:
-      | {
-            encoding: 'buffer';
-            withFileTypes?: false | undefined;
-        }
-      | 'buffer'
-): Buffer[];
-/**
- * Synchronous readdir(3) - read a directory.
- * @param path A path to a file. If a URL is provided, it must use the `file:` protocol.
- * @param options The encoding (or an object specifying the encoding), used as the encoding of the result. If not provided, `'utf8'` is used.
- */
-export function readdirSync(
-  path: PathLike,
-  options?:
-      | (ObjectEncodingOptions & {
-            withFileTypes?: false | undefined;
-        })
-      | BufferEncoding
-      | null
-): string[] | Buffer[];
-/**
- * Synchronous readdir(3) - read a directory.
- * @param path A path to a file. If a URL is provided, it must use the `file:` protocol.
- * @param options If called with `withFileTypes: true` the result data will be an array of Dirent.
- */
-export function readdirSync(
-  path: PathLike,
-  options: ObjectEncodingOptions & {
-      withFileTypes: true;
-  }
-): Dirent[];
-
-export function readdirSync(path: string, options: (BufferEncodingOption | ObjectEncodingOptions) & { withFileTypes?: boolean } | BufferEncoding = 'utf8'): Buffer[] | Dirent[] | string[] {
-  const encoding = getEncodingFromOptions(options);
-  const withFileTypes = typeof options === 'object' ? options.withFileTypes: false;
-  const dir = Gio.File.new_for_path(path);
-  let list: any[] = [];
-
-  const enumerator = dir.enumerate_children('standard::*', 0, null);
-  let info = enumerator.next_file(null);
-
-  while (info) {
-    const child = enumerator.get_child(info);
-    const fileName = child.get_basename();
-
-    if (encoding === 'buffer') {
-      const encodedName = Buffer.from(fileName);
-      list.push(encodedName);
-    } else {
-      const encodedName = Buffer.from(fileName).toString(encoding);
-      list.push(encodedName);
-    }
-
-    info = enumerator.next_file(null);    
-  }
-
-
-  if (withFileTypes) {
-    list = list.map((filename: string | Buffer) => {
-      if (filename instanceof Buffer) {
-        filename = filename.toString();
-      }
-      return new Dirent(join(path, filename), filename);
-    });
-  }
-
-  return list;
-}
+export { existsSync, readdirSync }
 
 export function readFileSync(path: string, options = { encoding: null, flag: 'r' }) {
   const file = Gio.File.new_for_path(path);

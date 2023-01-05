@@ -1,5 +1,6 @@
 import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
+import { ExtFileEnumerator } from './file-enumerator.js';
 
 export class ExtFile extends Gio.File {
 
@@ -13,6 +14,8 @@ export class ExtFile extends Gio.File {
         extFile.makeSymbolicLinkAsync = ExtFile.prototype.makeSymbolicLinkAsync.bind(extFile);
         extFile.queryInfoAsync = ExtFile.prototype.queryInfoAsync.bind(extFile);
         extFile.queryFilesystemInfoAsync = ExtFile.prototype.queryFilesystemInfoAsync.bind(extFile);
+        extFile.enumerateChildren = ExtFile.prototype.enumerateChildren.bind(extFile);
+        extFile.enumerateChildrenAsync = ExtFile.prototype.enumerateChildrenAsync.bind(extFile);
         
         return extFile;
     }
@@ -237,6 +240,91 @@ export class ExtFile extends Gio.File {
                 try {
                     const fileInfo = this.query_filesystem_info_finish(asyncRes);
                     return resolve(fileInfo);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    /**
+     * Gets the requested information about the files in a directory.
+     * The result is a #GFileEnumerator object that will give out
+     * #GFileInfo objects for all the files in the directory.
+     * 
+     * The `attributes` value is a string that specifies the file
+     * attributes that should be gathered. It is not an error if
+     * it's not possible to read a particular requested attribute
+     * from a file - it just won't be set. `attributes` should
+     * be a comma-separated list of attributes or attribute wildcards.
+     * The wildcard "*" means all attributes, and a wildcard like
+     * "standard::*" means all attributes in the standard namespace.
+     * An example attribute query be "standard::*,owner::user".
+     * The standard attributes are available as defines, like
+     * %G_FILE_ATTRIBUTE_STANDARD_NAME. %G_FILE_ATTRIBUTE_STANDARD_NAME should
+     * always be specified if you plan to call g_file_enumerator_get_child() or
+     * g_file_enumerator_iterate() on the returned enumerator.
+     * 
+     * If `cancellable` is not %NULL, then the operation can be cancelled
+     * by triggering the cancellable object from another thread. If the
+     * operation was cancelled, the error %G_IO_ERROR_CANCELLED will be
+     * returned.
+     * 
+     * If the file does not exist, the %G_IO_ERROR_NOT_FOUND error will
+     * be returned. If the file is not a directory, the %G_IO_ERROR_NOT_DIRECTORY
+     * error will be returned. Other errors are possible too.
+     * @param attributes an attribute query string
+     * @param flags a set of #GFileQueryInfoFlags
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     */
+    enumerateChildren(attributes: string = 'standard::*', flags = Gio.FileQueryInfoFlags.NONE, cancellable: Gio.Cancellable | null = null) {
+        let list: ExtFile[] = [];
+      
+        const enumerator = this.enumerate_children(attributes, flags, cancellable);
+        let info = enumerator.next_file(null);
+      
+        while (info) {
+            const child = enumerator.get_child(info);    
+            list.push(ExtFile.extend(child));
+            info = enumerator.next_file(null);
+        }
+      
+        return list;
+    }
+
+    /**
+     * Asynchronously gets the requested information about the files
+     * in a directory. The result is a #GFileEnumerator object that will
+     * give out #GFileInfo objects for all the files in the directory.
+     * 
+     * For more details, see g_file_enumerate_children() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called. You can
+     * then call g_file_enumerate_children_finish() to get the result of
+     * the operation.
+     * @param attributes an attribute query string
+     * @param flags a set of #GFileQueryInfoFlags
+     * @param ioPriority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     */
+    enumerateChildrenAsync(attributes: string = 'standard::*', flags = Gio.FileQueryInfoFlags.NONE, ioPriority = GLib.PRIORITY_DEFAULT, cancellable: Gio.Cancellable | null = null) {
+        return new Promise<ExtFile[]>((resolve, reject) => {
+            this.enumerate_children_async(attributes, flags, ioPriority, cancellable, async (self, asyncRes) => {
+                try {
+                    let list: ExtFile[] = [];
+                    const enumerator = this.enumerate_children_finish(asyncRes);
+                    const extEnumerator = ExtFileEnumerator.extend(enumerator);
+ 
+                    let info = await extEnumerator.nextFileAsync();
+      
+                    while (info) {
+                        const child = extEnumerator.get_child(info);
+                        list.push(ExtFile.extend(child));
+                        info = await extEnumerator.nextFileAsync();
+                    }
+
+                    return resolve(list);
                 } catch (error) {
                     reject(error);
                 }

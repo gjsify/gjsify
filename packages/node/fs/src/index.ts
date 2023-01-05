@@ -21,6 +21,7 @@ import { open,
   write,
   rm,
   realpath,
+  readdir,
   symlink,
   lstat,
 } from './callback.js';
@@ -57,6 +58,7 @@ export {
   write,
   rm,
   realpath,
+  readdir,
   symlink,
   lstat,
 };
@@ -87,6 +89,7 @@ export default {
   write,
   rm,
   realpath,
+  readdir,
   symlink,
   lstat,
 };

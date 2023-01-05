@@ -654,6 +654,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno_std": "workspace:^"
+    "@gjsify/gio-2.0": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
   languageName: unknown

@@ -5,6 +5,7 @@ import { FileHandle } from './file-handle.js';
 import { Buffer } from 'buffer';
 
 export { realpath } from '@gjsify/deno_std/node/_fs/_fs_realpath';
+export { readdir } from '@gjsify/deno_std/node/_fs/_fs_readdir';
 export { symlink } from '@gjsify/deno_std/node/_fs/_fs_symlink';
 export { lstat } from '@gjsify/deno_std/node/_fs/_fs_lstat';
 export { stat } from '@gjsify/deno_std/node/_fs/_fs_stat';

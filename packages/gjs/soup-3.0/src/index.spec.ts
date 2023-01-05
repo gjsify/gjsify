@@ -8,7 +8,7 @@ export default async () => {
 	await describe('SoupExt.ExtSession.sendAsync', async () => {
 
 		await it('Should be able to successfully perform a get request using its own helper methods', async () => {
-			const url = 'https://zelda-api.apius.cc/api/games?limit=10';
+			const url = 'https://zelda.fanapis.com/api/games?limit=2';
 			const session = SoupExt.ExtSession.new();
 			const method = 'GET'
 			const uri = GLib.Uri.parse(url, GLib.UriFlags.NONE);
