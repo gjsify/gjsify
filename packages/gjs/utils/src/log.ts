@@ -79,7 +79,7 @@ const extractErrorData = (errorMessage: string) => {
 const reconstructErrorFromMessage = (errorMessage: string) => {
   const { errorType, message, stackTrace } = extractErrorData(errorMessage);
   const ErrorType = globalThis[errorType] as typeof Error;
-  const error = new ErrorType(message + "\n" + stackTrace.join("\n"));
+  const error = new ErrorType(message);
   // error.message = message;
   error.stack = stackTrace.join("\n");
 
