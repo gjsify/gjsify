@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { open, write, close, rm } from 'fs';
+import { Buffer } from 'buffer';
 
 export default async () => {
 	await describe('fs.open', async () => {

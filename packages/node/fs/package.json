@@ -45,5 +45,8 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.11.18"
+    },
+    "dependencies": {
+        "@gjsify/deno_std": "workspace:^"
     }
 }

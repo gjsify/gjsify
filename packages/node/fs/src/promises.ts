@@ -8,6 +8,11 @@ import { FileHandle } from './file-handle.js';
 import { tempDirPath } from './utils.js';
 import { Dirent } from './dirent.js';
 
+export { realpathPromise as realpath } from '@gjsify/deno_std/node/_fs/_fs_realpath';
+export { symlinkPromise as symlink } from '@gjsify/deno_std/node/_fs/_fs_symlink';
+export { lstatPromise as lstat } from '@gjsify/deno_std/node/_fs/_fs_lstat';
+export { statPromise as stat } from '@gjsify/deno_std/node/_fs/_fs_stat';
+
 import type { 
   OpenFlags,
   ReadOptions,

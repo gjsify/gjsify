@@ -61,6 +61,5 @@ export class ExtSession<T extends Soup.Session = Soup.Session> {
             });
         });
     }
-
 }
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { promises, existsSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { join } from 'path';
+import { Buffer } from 'buffer';
 
 export default async () => {
 

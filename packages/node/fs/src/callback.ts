@@ -2,6 +2,12 @@ import { open as openP, rm as rmP } from './promises.js'
 import { warnNotImplemented } from '@gjsify/utils';
 import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions } from 'fs';
 import { FileHandle } from './file-handle.js';
+import { Buffer } from 'buffer';
+
+export { realpath } from '@gjsify/deno_std/node/_fs/_fs_realpath';
+export { symlink } from '@gjsify/deno_std/node/_fs/_fs_symlink';
+export { lstat } from '@gjsify/deno_std/node/_fs/_fs_lstat';
+export { stat } from '@gjsify/deno_std/node/_fs/_fs_stat';
 
 type OpenCallback = (err: NodeJS.ErrnoException | null, fd: number) => void;
 

@@ -48,8 +48,17 @@ const extractErrorData = (errorMessage: string) => {
   }
 
   const endOfErrorType = lines[0].indexOf(': ');
-  const errorType = lines[0].slice(0, endOfErrorType);
-  lines[0] = lines[0].slice(endOfErrorType + 2);
+  let errorType = "Error";
+
+  if(endOfErrorType > 0) {
+    errorType = lines[0].slice(0, endOfErrorType);
+    // If error type exists
+    if(globalThis[errorType]) {
+      lines[0] = lines[0].slice(endOfErrorType + 2);
+    } else {
+      errorType = "Error";
+    }
+  }
 
   let stackTraceLineIndex = getStackTraceStartLineIndex(lines);
 
@@ -69,19 +78,11 @@ const extractErrorData = (errorMessage: string) => {
  */
 const reconstructErrorFromMessage = (errorMessage: string) => {
   const { errorType, message, stackTrace } = extractErrorData(errorMessage);
-  let ErrorType: typeof Error;
-
-  if(globalThis[errorType]) {
-    ErrorType = globalThis[errorType] as typeof Error;
-  } else {
-    printerr(`[reconstructErrorFromMessage] No Error class "${errorType}" found!`);
-    ErrorType = Error;
-  }
-
-
-  const error = new ErrorType(message);
+  const ErrorType = globalThis[errorType] as typeof Error;
+  const error = new ErrorType(message + "\n" + stackTrace.join("\n"));
   // error.message = message;
   error.stack = stackTrace.join("\n");
+
   return error;
 }
 
@@ -147,8 +148,13 @@ export class LogSignals {
     */
   handler(level: GLib.LogLevelFlags, data: StructuredLogData) {
     if(level === GLib.LogLevelFlags.LEVEL_WARNING && data.domain === "Gjs" && data.message.startsWith('Unhandled promise rejection')) {
-      const reason = reconstructErrorFromMessage(data.message);
-      logSignals.emit("unhandledRejection", data, { reason });
+      try {
+        const reason = reconstructErrorFromMessage(data.message);
+        logSignals.emit("unhandledRejection", data, { reason });
+      } catch (error) {
+        printerr(error)
+      }
+
     } else if (level === GLib.LogLevelFlags.LEVEL_CRITICAL) {
       const error = reconstructErrorFromMessage(data.message);
       logSignals.emit("uncaughtException", data, error);

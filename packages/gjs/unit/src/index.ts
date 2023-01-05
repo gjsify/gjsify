@@ -270,7 +270,7 @@ export const it = async function(expectation: string, callback: () => void | Pro
 	catch(e) {
 		print(`  ${RED}❌${RESET} ${GRAY}${expectation}${RESET}`);
 		print(`${RED}${e.message}${RESET}`);
-		// if (e.stack) print(e.stack);
+		if (e.stack) print(e.stack);
 	}
 }
 
@@ -391,7 +391,7 @@ const getRuntime = async () => {
 
 const printRuntime = async () => {
 	const runtime = await getRuntime()
-	print(`Running on ${runtime}`);	
+	print(`\nRunning on ${runtime}`);	
 }
 
 export const run = async (namespaces: Namespaces) => {

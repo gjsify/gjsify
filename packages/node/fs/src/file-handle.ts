@@ -1,10 +1,11 @@
-import { warnNotImplemented } from '@gjsify/utils';
+import { warnNotImplemented, notImplemented } from '@gjsify/utils';
 import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
 import { Stats } from "./stats.js";
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import GLib from '@gjsify/types/GLib-2.0';
 import { ReadableStream } from "stream/web";
+import { Buffer } from "buffer";
 
 import type { Abortable } from 'events';
 import type {
@@ -23,8 +24,9 @@ import type {
     BigIntStats,
     WriteVResult,
     ReadVResult,
-    ReadPosition
+    ReadPosition,
 } from 'fs';
+import type { Interface as ReadlineInterface } from 'node:readline';
 
 export class FileHandle implements IFileHandle {
 
@@ -348,6 +350,25 @@ export class FileHandle implements IFileHandle {
         const res = encodeUint8Array(encoding, buf);
 
         return res;
+    }
+    /**
+     * Convenience method to create a `readline` interface and stream over the file. For example:
+     *
+     * ```js
+     * import { open } from 'node:fs/promises';
+     *
+     * const file = await open('./some/file/to/read');
+     *
+     * for await (const line of file.readLines()) {
+     *   console.log(line);
+     * }
+     * ```
+     *
+     * @since v18.11.0
+     * @param options See `filehandle.createReadStream()` for the options.
+     */
+    readLines(options?: CreateReadStreamOptions): ReadlineInterface {
+        notImplemented('fs.FileHandle.readLines');
     }
     /**
      * @since v10.0.0

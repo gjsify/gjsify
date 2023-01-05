@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { promises, rm } from 'fs';
+import { promises } from 'fs';
+import { Buffer } from 'buffer';
 
 export default async () => {
 	await describe('FileHandle', async () => {

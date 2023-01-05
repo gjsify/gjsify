@@ -1,3 +1,5 @@
+import { Buffer } from 'buffer';
+
 import type { ReadOptions } from './types/index.js';
 import type { ObjectEncodingOptions, BufferEncodingOption } from 'fs'; // Types from @types/node
 

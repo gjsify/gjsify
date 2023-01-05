@@ -5,7 +5,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync, realpathSync, symlinkSync } from 'fs';
+import { Buffer } from 'buffer';
 
 export default async () => {
 	await describe('fs.existsSync', async () => {
@@ -179,4 +180,27 @@ export default async () => {
 		});
 	});
 
+	await describe('fs.realpathSync', async () => {
+
+		await it('should be a function', () => {
+			expect(typeof realpathSync).toBe("function");
+		});
+
+		await it('should return the real and absolute path', () => {
+			const tsConfig = "./tsconfig.json";
+			const tsConfigSymlink = "./symlink_tsconfig.json";
+
+			if(!existsSync(tsConfigSymlink)) {
+				symlinkSync(tsConfig, tsConfigSymlink);
+
+				const realPath = realpathSync(tsConfig);
+				const realSymLinkPath = realpathSync(tsConfigSymlink);
+
+				// Should point to the real file, not the symlink
+				expect(realSymLinkPath).toBe(realPath);
+			}
+
+			unlinkSync(tsConfigSymlink);
+		});
+	});
 }

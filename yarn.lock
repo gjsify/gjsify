@@ -653,6 +653,7 @@ __metadata:
   resolution: "@gjsify/fs@workspace:packages/node/fs"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
   languageName: unknown

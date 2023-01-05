@@ -13,7 +13,7 @@ const sleep = (ms: number) => {
 export default async () => {
 	await describe('logSignals', async () => {
         await it("should emit an uncaughtException event on a top level throw", async () => {
-            const onUnhandledRejection = spy((_data: StructuredLogData) => {});
+            const onUnhandledRejection = spy((_self, _data: StructuredLogData, _promiseData) => {});
 
             const signalHandlerId = logSignals.connect("unhandledRejection", onUnhandledRejection);
 
@@ -23,7 +23,7 @@ export default async () => {
 
             logSignals.disconnect(signalHandlerId)
 
-            assert.strictEqual(onUnhandledRejection.calls.length, 1, "f should be called.")
+            assert.strictEqual(onUnhandledRejection.calls.length, 1, "onUnhandledRejection should be called.")
             // assert.strictEqual(onUnhandledRejection.calls[0].arguments[0], error)
         })
 	});
