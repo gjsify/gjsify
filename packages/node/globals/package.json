@@ -22,6 +22,7 @@
     "test:node": "node test.node.mjs"
   },
   "dependencies": {
+    "@gjsify/deno_std": "workspace:^",
     "@gjsify/process": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },

@@ -712,6 +712,7 @@ __metadata:
   resolution: "@gjsify/node-globals@workspace:packages/node/globals"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/process": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
