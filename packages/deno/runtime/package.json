@@ -54,5 +54,8 @@
         "fast-glob": "^3.2.12",
         "open-cli": "^7.1.0",
         "typescript": "^5.0.0-dev.20230105"
+    },
+    "dependencies": {
+        "@gjsify/utils": "workspace:^"
     }
 }

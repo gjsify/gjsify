@@ -87,10 +87,10 @@ const reconstructErrorFromMessage = (errorMessage: string) => {
 }
 
 export interface LogSignals extends SignalMethods {
-  connect(sigName: "unhandledRejection", callback: (self: LogSignals, data: StructuredLogData, promiseData: { reason: any }) => void): number;
+  connect(sigName: "unhandledRejection", callback: (self: LogSignals, data: StructuredLogData, promiseData: { reason: any, promise: Promise<any> }) => void): number;
   connect(sigName: "uncaughtException", callback: (self: LogSignals, data: StructuredLogData, error: Error) => void): number;
 
-  emit(sigName: "unhandledRejection", data: StructuredLogData, promiseData: { reason: any }): void;
+  emit(sigName: "unhandledRejection", data: StructuredLogData, promiseData: { reason: any, promise: Promise<any> }): void;
   emit(sigName: "uncaughtException", data: StructuredLogData, error: Error): void;
 }
 
@@ -150,7 +150,9 @@ export class LogSignals {
     if(level === GLib.LogLevelFlags.LEVEL_WARNING && data.domain === "Gjs" && data.message.startsWith('Unhandled promise rejection')) {
       try {
         const reason = reconstructErrorFromMessage(data.message);
-        logSignals.emit("unhandledRejection", data, { reason });
+        // TODO we need a way to get the promise of the unhandled rejection
+        const fakePromise = new Promise<any>(() => {});
+        logSignals.emit("unhandledRejection", data, { reason, promise: fakePromise });
       } catch (error) {
         printerr(error)
       }
