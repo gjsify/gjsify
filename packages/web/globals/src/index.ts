@@ -1,4 +1,4 @@
-import '@gjsify/web-events';
+import '@gjsify/dom-events';
 import '@gjsify/abort-controller';
 
 // TODO: Use url module from deno

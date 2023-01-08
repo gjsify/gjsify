@@ -1,0 +1,34 @@
+{
+    "name": "@gjsify/dom-events",
+    "version": "0.0.1",
+    "description": "Web events module for Gjs",
+    "main": "lib/cjs/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.js",
+    "type": "module",
+    "scripts": {
+        "clear": "rm -rf lib",
+        "print:name": "echo '@gjsify/dom-events'",
+        "build": "yarn print:name && yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc --project tsconfig.types.json || exit 0",
+        "build:test": "yarn run build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:gjs",
+        "test:gjs": "gjs -m test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "node",
+        "event"
+    ],
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^18.11.18",
+        "typescript": "^5.0.0-dev.20230107"
+    },
+    "dependencies": {
+        "@gjsify/deno-runtime": "workspace:^"
+    }
+}

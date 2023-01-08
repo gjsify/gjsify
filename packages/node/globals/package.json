@@ -10,6 +10,7 @@
   "author": "Pascal Garber",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
+  "type": "module",
   "scripts": {
     "clear": "rm -rf lib",
     "print:name": "echo '@gjsify/node-globals'",

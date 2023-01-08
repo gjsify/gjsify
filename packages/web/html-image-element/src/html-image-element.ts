@@ -1,4 +1,4 @@
-import { Event } from '@gjsify/event-target';
+import { Event } from '@gjsify/dom-events';
 import { notImplemented, warnNotImplemented } from '@gjsify/utils';
 import GLib from '@gjsify/types/GLib-2.0';
 import GdkPixbuf from '@gjsify/types/GdkPixbuf-2.0';

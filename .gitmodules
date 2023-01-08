@@ -1,6 +1,3 @@
-[submodule "packages/web/event-target"]
-	path = packages/web/event-target
-	url = https://github.com/gjsify/event-target
 [submodule "packages/node/deno_std"]
 	path = packages/deno/std
 	url = git@github.com:gjsify/deno_std.git

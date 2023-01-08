@@ -1,7 +1,14 @@
 import GLib from '@gjsify/types/GLib-2.0';
-const Signals = imports.signals;
+import { Signals } from '@gjsify/types/Gjs';
 
-import type { StructuredLogData, SignalMethods } from './types/index.js';
+import type {
+  StructuredLogData,
+  SignalMethods,
+  StackTraceFrame,
+  ErrorData,
+  UncaughtExceptionData,
+  UnhandledRejectionData,
+} from './types/index.js';
 
 export const logLevelToString = (logLevel: GLib.LogLevelFlags) => {
   switch (logLevel) {
@@ -28,7 +35,17 @@ export const logLevelToString = (logLevel: GLib.LogLevelFlags) => {
   }
 }
 
-const STACK_TRACE_REGEX = /^.*@.*:\d+:\d+/
+const STACK_TRACE_REGEX = /^.*@(.*):(\d+):(\d+)/;
+
+export const parseStackTrace = (stackTraceLine: string): StackTraceFrame | null => {
+  const match = stackTraceLine.match(STACK_TRACE_REGEX);
+  if (match) {
+    const [, fileName, lineNumber, columnNumber] = match;
+    return { fileName, lineNumber: Number(lineNumber), columnNumber: Number(columnNumber), line: stackTraceLine };
+  }
+  // console.warn("Can't parse stack trace line: " + stackTraceLine);
+  return null;
+}
 
 const getStackTraceStartLineIndex = (lines: string[]) => {
   for (let i = 1; i < lines.length; i++) {
@@ -40,7 +57,7 @@ const getStackTraceStartLineIndex = (lines: string[]) => {
   return -1;
 }
 
-const extractErrorData = (errorMessage: string) => {
+export const extractErrorData = (errorMessage: string): ErrorData => {
   const lines = errorMessage.split('\n');
 
   for (let line of lines) {
@@ -63,11 +80,21 @@ const extractErrorData = (errorMessage: string) => {
   let stackTraceLineIndex = getStackTraceStartLineIndex(lines);
 
   const message = lines.slice(0, stackTraceLineIndex).join('\n');
-  const stackTrace = lines.slice(stackTraceLineIndex);
+  const stackTraceLines = lines.slice(stackTraceLineIndex);
+  const frames: StackTraceFrame[] = [];
+
+  for (const stackTraceLine of stackTraceLines) {
+    const frame = parseStackTrace(stackTraceLine);
+    if(frame) {
+      frames.push(frame)
+    }
+  }
+
   return {
     errorType,
     message,
-    stackTrace
+    frames,
+    stackTraceLines,
   }
 }
 
@@ -76,22 +103,27 @@ const extractErrorData = (errorMessage: string) => {
  * @param errorMessage The original error message
  * @returns The extracted error type, error message and stack trace
  */
-const reconstructErrorFromMessage = (errorMessage: string) => {
-  const { errorType, message, stackTrace } = extractErrorData(errorMessage);
+const reconstructErrorFromMessage = (errorMessage: string): UncaughtExceptionData => {
+  const { errorType, frames, message, stackTraceLines } = extractErrorData(errorMessage);
   const ErrorType = globalThis[errorType] as typeof Error;
   const error = new ErrorType(message);
-  // error.message = message;
-  error.stack = stackTrace.join("\n");
+  error.stack = stackTraceLines.join("\n");
 
-  return error;
+  return {
+    error,
+    errorType,
+    frames,
+    message,
+    stackTraceLines,
+  };
 }
 
 export interface LogSignals extends SignalMethods {
-  connect(sigName: "unhandledRejection", callback: (self: LogSignals, data: StructuredLogData, promiseData: { reason: any, promise: Promise<any> }) => void): number;
-  connect(sigName: "uncaughtException", callback: (self: LogSignals, data: StructuredLogData, error: Error) => void): number;
+  connect(sigName: "unhandledRejection", callback: (self: LogSignals, structuredData: StructuredLogData, promiseData: UnhandledRejectionData) => void): number;
+  connect(sigName: "uncaughtException", callback: (self: LogSignals, structuredData: StructuredLogData, errorData: UncaughtExceptionData) => void): number;
 
-  emit(sigName: "unhandledRejection", data: StructuredLogData, promiseData: { reason: any, promise: Promise<any> }): void;
-  emit(sigName: "uncaughtException", data: StructuredLogData, error: Error): void;
+  emit(sigName: "unhandledRejection", structuredData: StructuredLogData, promiseData: UnhandledRejectionData): void;
+  emit(sigName: "uncaughtException", structuredData: StructuredLogData, errorData: UncaughtExceptionData): void;
 }
 
 export class LogSignals {
@@ -146,24 +178,31 @@ export class LogSignals {
    * @param data The structured log data
    * @returns `true` to catch the log or `false` to output the error to the console as usual
     */
-  handler(level: GLib.LogLevelFlags, data: StructuredLogData) {
-    if(level === GLib.LogLevelFlags.LEVEL_WARNING && data.domain === "Gjs" && data.message.startsWith('Unhandled promise rejection')) {
+  handler(level: GLib.LogLevelFlags, structuredData: StructuredLogData) {
+    if(level === GLib.LogLevelFlags.LEVEL_WARNING && structuredData.domain === "Gjs" && structuredData.message.startsWith('Unhandled promise rejection')) {
       try {
-        const reason = reconstructErrorFromMessage(data.message);
-        // TODO we need a way to get the promise of the unhandled rejection
+        const errorData = reconstructErrorFromMessage(structuredData.message);
+        // TODO we need a way to get the promise of the unhandled rejection, see https://gitlab.gnome.org/GNOME/gjs/-/issues/523
         const fakePromise = new Promise<any>(() => {});
-        logSignals.emit("unhandledRejection", data, { reason, promise: fakePromise });
+        logSignals.emit("unhandledRejection", structuredData, {
+          reason: errorData.error,
+          promise: fakePromise,
+          errorType: errorData.errorType,
+          frames: errorData.frames,
+          message: errorData.message,
+          stackTraceLines: errorData.stackTraceLines,
+        });
       } catch (error) {
         printerr(error)
       }
 
     } else if (level === GLib.LogLevelFlags.LEVEL_CRITICAL) {
-      const error = reconstructErrorFromMessage(data.message);
-      logSignals.emit("uncaughtException", data, error);
+      const errorData = reconstructErrorFromMessage(structuredData.message);
+      logSignals.emit("uncaughtException", structuredData, errorData);
     }
 
     // Debug
-    // print("\n\n[log_set_writer_func] \nmessage:", data.message, "\nlogDomain:", data.domain, `\nlevel: ${level} (${logLevelToString(level)})`, );
+    // print("\n\n[log_set_writer_func] \nmessage:", structuredData.message, "\nlogDomain:", structuredData.domain, `\nlevel: ${level} (${logLevelToString(level)})`, );
 
     return false;
   }

@@ -30,7 +30,7 @@
         "typescript": "^5.0.0-dev.20230105"
     },
     "dependencies": {
-        "@gjsify/events": "workspace:^",
+        "@gjsify/dom-events": "workspace:^",
         "@gjsify/types": "workspace:^",
         "happy-dom": "^8.1.2"
     }
