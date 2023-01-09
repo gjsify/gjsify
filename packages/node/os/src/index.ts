@@ -1,6 +1,6 @@
-import { cli, getPathSeparator, arch, platform } from '@gjsify/utils';
+import { cli, getPathSeparator, arch, os } from '@gjsify/utils';
 
-export { constants, arch, platform }
+export { constants, arch, os as platform }
 
 import * as linux from './linux.js';
 import * as darwin from './darwin.js';
@@ -10,16 +10,22 @@ import constants from './constants.js';
 
 export const EOL = getPathSeparator() === '/' ? '\n' : '\r\n';
 
+// Ported to packages/deno/std/node/os.ts
 export const homedir = () => GLib.get_home_dir();
 
+// Ported to deno runtime
 export const hostname = () => GLib.get_host_name();
 
+// Ported to deno runtime
 export const release = () => cli('uname -r');
 
+// Ported to packages/deno/std/node/os.ts
 export const tmpdir = () => GLib.get_tmp_dir();
 
+// Existing replacement in packages/deno/std/node/os.ts
 export const type = () => cli('uname');
 
+// Ported to packages/deno/std/node/os.ts
 export const userInfo = () => ({
   uid: 1000,
   gid: 100,
@@ -27,9 +33,10 @@ export const userInfo = () => ({
   homedir: GLib.get_home_dir()
 });
 
+// Ported to packages/deno/std/node/os.ts
 export const cpus = () => {
-  const os = platform();
-  switch (os) {
+  const _os = os();
+  switch (_os) {
     case "darwin":
       return darwin.cpus();
     case "linux":
@@ -40,9 +47,10 @@ export const cpus = () => {
   }
 };
 
+// Existing replacement in packages/deno/std/node/os.ts
 export const endianness = () => {
-  const os = platform();
-  switch (os) {
+  const _os = os();
+  switch (_os) {
     case "darwin":
       return darwin.endianness();
     case "linux":
@@ -53,9 +61,10 @@ export const endianness = () => {
   }
 };
 
+// Ported to packages/deno/std/node/os.ts
 export const freemem = () => {
-  const os = platform();
-  switch (os) {
+  const _os = os();
+  switch (_os) {
     case "darwin":
       return darwin.freemem();
     case "linux":
@@ -66,9 +75,10 @@ export const freemem = () => {
   }
 };
 
+// Ported to packages/deno/std/node/os.ts
 export const loadavg = () => {
-  const os = platform();
-  switch (os) {
+  const _os = os();
+  switch (_os) {
     case "darwin":
       return darwin.loadavg();
     case "linux":
@@ -80,8 +90,8 @@ export const loadavg = () => {
 }
 
 export const networkInterfaces = () => {
-  const os = platform();
-  switch (os) {
+  const _os = os();
+  switch (_os) {
     case "darwin":
       return darwin.networkInterfaces();
     case "linux":

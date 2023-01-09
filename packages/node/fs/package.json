@@ -28,11 +28,12 @@
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/fs'",
-        "build": "yarn print:name && gjsify build --library src/**/*.{ts,js}",
-        "build:test": "yarn run build:test:gjs && yarn run build:test:node",
+        "build": "yarn print:name && yarn build:gjsify",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:test": "yarn build:test:gjs && yarn build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
-        "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:node && yarn run test:gjs",
+        "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
         "test:gjs": "gjs -m test.gjs.mjs",
         "test:node": "node test.node.mjs"
     },

@@ -38,12 +38,13 @@ function parseInterfaces(info) {
   if (mac) this[info.slice(0, info.indexOf(':'))] = iface;
 };
 
+// PORTED TO deno runtime
 export const cpus = () => {
   const PROCESSOR = /^processor\s*:\s*(\d+)/i;
   const NAME = /^model[\s_]+name\s*:([^\r\n]+)/i;
   const FREQ = /^cpu[\s_]+MHz\s*:\s*(\d+)/i;
   const cpus = [];
-  let cpu;
+  let cpu: { model: string, speed: number, times: {} };
   cli('cat /proc/cpuinfo').split(EOL).forEach(line => {
     switch (true) {
       case PROCESSOR.test(line):
@@ -66,12 +67,14 @@ export const cpus = () => {
 
 export const endianness = () => 'LE';
 
+// PORTED TO deno runtime
 export const freemem = () => {
   let I, mem = cli('free -b').split(EOL);
   mem[0].split(/\s+/).some((info, i) => info === 'free' && (I = i));
   return parseFloat(mem[1].split(/\s+/)[I + 1]);
 };
 
+// PORTED TO deno runtime
 export const loadavg = () =>
   /(\d+(?:\.\d+))\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))/.test(
     cli('cat /proc/loadavg')
@@ -87,12 +90,14 @@ export const networkInterfaces = () => {
   return ifaces;
 };
 
+// PORTED TO deno runtime
 export const totalmem = () => {
   let I, mem = cli('free -b').split(EOL);
   mem[0].split(/\s+/).some((info, i) => info === 'total' && (I = i));
   return parseFloat(mem[1].split(/\s+/)[I + 1]);
 };
 
+// PORTED TO deno runtime
 export const uptime = () => (
   Date.now() -
   Date.parse(cli('uptime -s').replace(' ', 'T'))

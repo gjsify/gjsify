@@ -47,6 +47,7 @@ const parseInterfaces = function(info) {
   this[info.slice(0, info.indexOf(':'))] = iface;
 };
 
+// PORTED TO deno runtime
 export const cpus = () => {
   let cores = parseFloat(cli('sysctl -n hw.ncpu'));
   const cpus = [];
@@ -65,9 +66,11 @@ export const cpus = () => {
 
 export const endianness = () => 'LE';
 
+// PORTED TO deno runtime
 export const freemem = () =>  parseFloat(cli('sysctl -n hw.memsize')) -
                       parseFloat(cli('sysctl -n hw.physmem'));
 
+// PORTED TO deno runtime          
 export const loadavg = () => /load\s+averages:\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))/.test(
     cli('uptime')
   ) && [
@@ -100,12 +103,14 @@ export const networkInterfaces = () => {
   return ifaces;
 };
 
+// PORTED TO deno runtime
 export const totalmem = () => {
-  let I, mem = cli('free -b').split(EOL);
+  let I: number, mem = cli('free -b').split(EOL);
   mem[0].split(/\s+/).some((info, i) => info === 'total' && (I = i));
   return parseFloat(mem[1].split(/\s+/)[I + 1]);
 };
 
+// PORTED TO deno runtime
 export const uptime = () => {
   const uptime = cli('uptime');
   const up = /up\s+([^,]+)?,/.test(uptime) && RegExp.$1;

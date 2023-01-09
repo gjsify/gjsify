@@ -8,10 +8,10 @@
   "scripts": {
     "clear": "rm -rf dist",
     "print:name": "echo '@gjsify/example-webgl-tutorial-02'",
-    "start": "yarn run start:gjs",
-    "start:gjs": "yarn run build:gjs && LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/gjs.js",
-    "start:browser": "yarn run build:browser && open-cli index.html",
-    "build": "yarn print:name && yarn build:gjs && yarn run build:browser",
+    "start": "yarn start:gjs",
+    "start:gjs": "yarn build:gjs && LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/gjs.js",
+    "start:browser": "yarn build:browser && open-cli index.html",
+    "build": "yarn print:name && yarn build:gjs && yarn build:browser",
     "build:gjs": "gjsify build src/gjs.ts --app gjs --outfile dist/gjs.js",
     "build:browser": "gjsify build src/browser.ts --app browser --outfile dist/browser.js"
   },

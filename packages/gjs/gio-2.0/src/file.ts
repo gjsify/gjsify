@@ -11,12 +11,15 @@ export class ExtFile extends Gio.File {
      */
     static extend(file: Gio.File) {
         const extFile = file as Gio.File & ExtFile;
+
         extFile.makeSymbolicLinkAsync = ExtFile.prototype.makeSymbolicLinkAsync.bind(extFile);
         extFile.queryInfoAsync = ExtFile.prototype.queryInfoAsync.bind(extFile);
         extFile.queryFilesystemInfoAsync = ExtFile.prototype.queryFilesystemInfoAsync.bind(extFile);
         extFile.enumerateChildren = ExtFile.prototype.enumerateChildren.bind(extFile);
         extFile.enumerateChildrenAsync = ExtFile.prototype.enumerateChildrenAsync.bind(extFile);
-        
+        extFile.loadContents = ExtFile.prototype.loadContents.bind(extFile);
+        extFile.loadContentsAsync = ExtFile.prototype.loadContentsAsync.bind(extFile);
+
         return extFile;
     }
 
@@ -57,7 +60,7 @@ export class ExtFile extends Gio.File {
      * @param arg a command line string
      * @param cwd the current working directory of the commandline
      */
-    static newForCommandlineArgAndCwd(arg: string, cwd: string) {
+    static newForCommandlineArgAndCwd(arg: string, cwd: string): ExtFile {
         const file = super.new_for_commandline_arg_and_cwd(arg, cwd);
         return this.extend(file);
     }
@@ -68,7 +71,7 @@ export class ExtFile extends Gio.File {
      * operation if `path` is malformed.
      * @param path a string containing a relative or absolute path. The string must be encoded in the glib filename encoding.
      */
-    static newForPath(path: string) {
+    static newForPath(path: string): ExtFile {
         const file = super.new_for_path(path);
         return this.extend(file);
     }
@@ -80,7 +83,7 @@ export class ExtFile extends Gio.File {
      * not supported.
      * @param uri a UTF-8 string containing a URI
      */
-    static newForUri(uri: string) {
+    static newForUri(uri: string): ExtFile {
         const file = super.new_for_uri(uri);
         return this.extend(file);
     }
@@ -325,6 +328,49 @@ export class ExtFile extends Gio.File {
                     }
 
                     return resolve(list);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    loadContents(options?: { encoding?: "binary", cancellable?: Gio.Cancellable }): Uint8Array
+    loadContents(options: { encoding: "utf8" | "utf-8", cancellable?: Gio.Cancellable }): string
+    loadContents(options: { encoding?: "binary" | "utf8" | "utf-8", cancellable?: Gio.Cancellable } = {}): Uint8Array | string {
+        const [success, contents, etagOut] = this.load_contents(options.cancellable || null);
+
+        if (!success) {
+            throw new Error(`Failed to read ${this.get_path()}`);
+        }
+
+        if(options.encoding?.startsWith('utf')) {
+            const decoder = new TextDecoder();
+            const contentStr = decoder.decode(contents);
+            return contentStr;
+        }
+        return contents;
+    }
+
+    loadContentsAsync(options?: { encoding?: "binary", cancellable?: Gio.Cancellable }): Promise<Uint8Array>
+    loadContentsAsync(options: { encoding: "utf8" | "utf-8", cancellable?: Gio.Cancellable }): Promise<string>
+    loadContentsAsync(options: { encoding?: "binary" | "utf8" | "utf-8", cancellable?: Gio.Cancellable } = {}): Promise<Uint8Array | string> {
+        return new Promise<Uint8Array | string>((resolve, reject) => {
+            this.load_contents_async(options.cancellable || null, (self, asyncRes) => {
+                try {
+                    const [success, contents, etagOut] = this.load_contents_finish(asyncRes);
+
+                    if (!success) {
+                        return reject(new Error(`Failed to read ${this.get_path()}`));
+                    }
+
+                    if(options.encoding?.startsWith('utf')) {
+                        const decoder = new TextDecoder();
+                        const contentStr = decoder.decode(contents);
+                        return resolve(contentStr);
+                    }
+
+                    return resolve(contents);
                 } catch (error) {
                     reject(error);
                 }

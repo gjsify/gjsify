@@ -3,8 +3,9 @@
       "module": "ESNext",
       "types": ["node"],
       "target": "ESNext",
-      "moduleResolution": "NodeNext",
       "experimentalDecorators": true,
+      "moduleResolution": "bundler",
+      "allowImportingTsExtensions": true,
       "outDir": "lib",
       "rootDir": "src",
       "composite": true

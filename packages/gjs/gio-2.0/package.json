@@ -9,11 +9,11 @@
     "scripts": {
         "clear": "rm -rf lib",
         "print:name": "echo '@gjsify/gio-2.0'",
-        "build": "yarn print:name && yarn build:gjsify && yarn run build:types",
-        "build:gjsify": "gjsify build --library src/**/*.{ts,js}",
+        "build": "yarn print:name && yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
         "build:test": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
-        "test": "yarn run print:name && yarn run build && yarn run build:test && yarn run test:gjs",
+        "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:gjs",
         "test:gjs": "gjs -m test.gjs.js"
     },
     "keywords": [
