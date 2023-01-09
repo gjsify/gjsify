@@ -49,11 +49,10 @@
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
         "@types/node": "^18.11.18",
-        "typescript": "^5.0.0-dev.20230105"
+        "typescript": "^5.0.0-dev.20230109"
     },
     "dependencies": {
         "@gjsify/deno_std": "workspace:^",
-        "@gjsify/node-internal": "workspace:^",
         "is-arguments": "^1.1.1",
         "is-generator-function": "^1.0.10",
         "is-typed-array": "^1.1.10",

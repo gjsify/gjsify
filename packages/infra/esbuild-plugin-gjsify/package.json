@@ -25,6 +25,7 @@
         "@gjsify/assert": "workspace:^",
         "@gjsify/deno-runtime": "workspace:^",
         "@gjsify/deno_std": "workspace:^",
+        "@gjsify/dom-events": "workspace:^",
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-deno-loader": "workspace:^",
         "@gjsify/events": "workspace:^",
@@ -54,8 +55,8 @@
     "devDependencies": {
         "@types/lodash": "^4.14.191",
         "@types/micromatch": "^4.0.2",
-        "esbuild": "^0.16.14",
+        "esbuild": "^0.16.16",
         "lodash": "^4.17.21",
-        "typescript": "^5.0.0-dev.20230105"
+        "typescript": "^5.0.0-dev.20230109"
     }
 }

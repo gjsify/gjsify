@@ -169,7 +169,7 @@ export const ALIASES_NODE_FOR_GJS = {
 /** Record of Web modules and his replacement for Gjs */
 export const ALIASES_WEB_FOR_GJS = {
     'abort-controller': '@gjsify/abort-controller',
-    'event-target-shim': '@gjsify/event-target',
+    'event-target-shim': '@gjsify/dom-events',
 }
 
 /** General record of modules for Deno */

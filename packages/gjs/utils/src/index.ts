@@ -6,6 +6,7 @@ export * from './types/index.js';
 
 export * from './cancel-handler.js';
 export * from './cli.js';
+export * from './error.js';
 export * from './fs.js';
 export * from './os.js';
 export * from './process.js';

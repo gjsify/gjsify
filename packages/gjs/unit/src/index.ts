@@ -409,3 +409,15 @@ export const run = async (namespaces: Namespaces) => {
 	// Run the GJS mainloop for async operations
 	mainloop?.run();
 }
+
+export default {
+	run,
+	assert,
+	expect,
+	it,
+	afterEach,
+	beforeEach,
+	on,
+	describe,
+	print,	
+}
