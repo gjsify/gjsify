@@ -7,7 +7,7 @@
     "module": "dist/esm/index.mjs",
     "types": "dist/types/index.d.ts",
     "scripts": {
-        "clear": "rm -rf dist",
+        "clear": "rm -rf dist tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/esbuild-plugin-gjsify'",
         "build": "yarn print:name && yarn build:js && yarn build:types",
         "build:js": "node esbuild.mjs",
@@ -57,6 +57,6 @@
         "@types/micromatch": "^4.0.2",
         "esbuild": "^0.16.16",
         "lodash": "^4.17.21",
-        "typescript": "^5.0.0-dev.20230109"
+        "typescript": "^5.0.0-dev.20230110"
     }
 }

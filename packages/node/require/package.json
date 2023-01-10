@@ -12,7 +12,7 @@
   "module": "lib/esm/index.js",
   "type": "module",
   "scripts": {
-    "clear": "rm -rf lib",
+    "clear": "rm -rf lib tsconfig.tsbuildinfo",
     "print:name": "echo '@gjsify/require'",
     "build": "yarn print:name && yarn build:gjsify",
     "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",

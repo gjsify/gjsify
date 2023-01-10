@@ -10,7 +10,7 @@
         "gjsify": "./lib/index.js"
     },
     "scripts": {
-        "clear": "rm -rf lib",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/cli'",
         "start": "node lib/index.js",
         "build": "yarn print:name && tsc && yarn chmod",
@@ -32,6 +32,6 @@
     },
     "devDependencies": {
         "@types/yargs": "^17.0.19",
-        "typescript": "^5.0.0-dev.20230109"
+        "typescript": "^5.0.0-dev.20230110"
     }
 }

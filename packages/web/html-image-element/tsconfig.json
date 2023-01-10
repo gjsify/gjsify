@@ -4,10 +4,11 @@
 		"outDir": "lib",
     	"declarationDir": "lib",
 		"rootDir": "src",
-		"tsBuildInfoFile": "tmp/.tsbuildinfo",
+		"tsBuildInfoFile": "tsconfig.tsbuildinfo",
 		"target": "es2020",
 		"declaration": true,
-		"module": "CommonJS",
+		"emitDeclarationOnly": true,
+		"module": "ESNext",
 		"moduleResolution": "NodeNext",
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
@@ -35,5 +36,5 @@
 		"@types/node",
 		"src"
 	],
-  "exclude": ["src/test.mts", "src/**/*.spec.ts"]
+  	"exclude": ["src/test.mts", "src/**/*.spec.ts"]
 }

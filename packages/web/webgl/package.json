@@ -7,7 +7,7 @@
     "types": "lib/index.d.ts",
     "type": "module",
     "scripts": {
-        "clear": "rm -rf lib tmp build test.gjs.js",
+        "clear": "rm -rf lib tmp build test.gjs.js tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/webgl'",
         "init:meson": "meson setup build .",
         "build": "yarn print:name && yarn build:meson && yarn build:gjsify && yarn build:types",
@@ -26,7 +26,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.11.18",
-        "typescript": "^5.0.0-dev.20230109"
+        "typescript": "^5.0.0-dev.20230110"
     },
     "dependencies": {
         "@gjsify/html-image-element": "workspace:^",

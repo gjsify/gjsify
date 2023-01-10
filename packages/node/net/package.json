@@ -5,7 +5,7 @@
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "scripts": {
-        "clear": "rm -rf lib",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/net'",
         "build": "yarn print:name && yarn build:gjsify",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",

@@ -6,7 +6,7 @@
   "main": "dist/index.gjs.js",
   "type": "module",
   "scripts": {
-    "clear": "rm -rf dist",
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "print:name": "echo '@gjsify/example-webgl-demo-fade'",
     "start": "yarn build && yarn start:gjs",
     "start:gjs": "LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/index.gjs.js",

@@ -2,7 +2,7 @@
   "compilerOptions": {
     "rootDir": "src/ts",
 		"outDir": "lib",
-    "declarationDir": "lib",
+    	"declarationDir": "lib",
 		"tsBuildInfoFile": "tmp/.tsbuildinfo",
 		"target": "es2020",
 		"declaration": true,
@@ -21,7 +21,7 @@
 		"baseUrl": ".",
 		"composite": true,
 		"incremental": true,
-    "typeRoots": ["node_modules", "src/ts/@types"],
+    	"typeRoots": ["node_modules", "src/ts/@types"],
 		"types": [
 			"node"
 		],
@@ -29,13 +29,16 @@
 			"es2015",
 			"es2016",
 			"es2017",
-      "DOM"
+			"DOM"
 		]
-  },
-  "skipLibCheck": true,
-  "allowJs": true,
-  "checkJs": false,
-  "reflection": false,
-  "include": ["src/ts/**/*.ts"],
-  "exclude": ["src/ts/test.ts", "src/ts/**/*.spec.ts"]
+	},
+	"skipLibCheck": true,
+	"allowJs": true,
+	"checkJs": false,
+	"reflection": false,
+	"include": ["src/ts/**/*.ts"],
+	"exclude": ["src/ts/test.ts", "src/ts/**/*.spec.ts"],
+	"references": [
+		{ "path": "../html-image-element/tsconfig.json" }
+	]
 }

@@ -6,7 +6,7 @@
     "types": "lib/index.d.ts",
     "type": "module",
     "scripts": {
-        "clear": "rm -rf lib",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
         "print:name": "echo '@gjsify/html-image-element'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
@@ -27,7 +27,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.11.18",
-        "typescript": "^5.0.0-dev.20230109"
+        "typescript": "^5.0.0-dev.20230110"
     },
     "dependencies": {
         "@gjsify/dom-events": "workspace:^",

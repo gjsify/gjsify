@@ -19,7 +19,7 @@
     ]
   },
   "scripts": {
-    "clear": "rm -rf lib",
+    "clear": "rm -rf lib tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs",
     "print:name": "echo '@gjsify/process'",
     "build": "yarn print:name && yarn build:gjsify && yarn build:types",
     "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
@@ -43,6 +43,6 @@
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@types/node": "^18.11.18",
-    "typescript": "^5.0.0-dev.20230109"
+    "typescript": "^5.0.0-dev.20230110"
   }
 }

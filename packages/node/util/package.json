@@ -27,7 +27,7 @@
         ]
     },
     "scripts": {
-        "clear": "rm -rf lib",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/util'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
@@ -49,7 +49,7 @@
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
         "@types/node": "^18.11.18",
-        "typescript": "^5.0.0-dev.20230109"
+        "typescript": "^5.0.0-dev.20230110"
     },
     "dependencies": {
         "@gjsify/deno_std": "workspace:^",

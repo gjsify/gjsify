@@ -12,7 +12,7 @@
   "module": "lib/esm/index.js",
   "type": "module",
   "scripts": {
-    "clear": "rm -rf lib",
+    "clear": "rm -rf lib tsconfig.tsbuildinfo test.node.mjs test.gjs.mjs",
     "print:name": "echo '@gjsify/node-globals'",
     "build": "yarn print:name && yarn build:gjsify",
     "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",

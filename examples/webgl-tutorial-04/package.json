@@ -6,7 +6,7 @@
   "main": "dist/index.gjs.js",
   "type": "module",
   "scripts": {
-    "clear": "rm -rf dist",
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "print:name": "echo '@gjsify/example-webgl-tutorial-04'",
     "start": "yarn start:gjs",
     "start:gjs": "yarn build:gjs && LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/gjs.js",
