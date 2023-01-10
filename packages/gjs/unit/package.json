@@ -2,7 +2,7 @@
   "name": "@gjsify/unit",
   "version": "0.0.1",
   "description": "A BDD-style testing framework for Gjs",
-  "main": "lib/cjs/index.js",
+  "main": "lib/esm/index.js",
   "module": "lib/esm/index.js",
   "types": "lib/types/index.d.ts",
   "type": "module",

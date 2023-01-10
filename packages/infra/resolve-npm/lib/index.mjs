@@ -251,6 +251,7 @@ export const ALIASES_WEB_FOR_DENO = {}
 /** General record of modules for Node */
 export const ALIASES_GENERAL_FOR_NODE = {
     '@gjsify/node-globals': '@gjsify/empty',
+    '@gjsify/require': '@gjsify/empty',
 
     // TODO we need a real replacement for this in the future
     '@gjsify/deno-runtime/globals': '@gjsify/empty',

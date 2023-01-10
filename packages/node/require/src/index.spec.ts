@@ -1,4 +1,7 @@
 import { describe, on, it, expect } from '@gjsify/unit';
+import '@gjsify/require';
+
+// TODO Add 'cowsay2' in esbuild to external
 
 export async function testSuite() {
 	await describe('require.resolve', async () => {
@@ -6,7 +9,7 @@ export async function testSuite() {
 		await it('should return the path to the @gjsify/unit entry file', async () => {
 			const path = require.resolve('@gjsify/unit');
 			expect(typeof path).toBe('string');
-			expect(path.endsWith("packages/gjs/unit/dist/index.cjs")).toBeTruthy();
+			expect(path.includes("packages/gjs/unit/lib/")).toBeTruthy();
 		});
 
 		await on('Gjs', async () => {
