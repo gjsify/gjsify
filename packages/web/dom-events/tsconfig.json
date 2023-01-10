@@ -15,5 +15,5 @@
   "allowJs": true,
   "checkJs": false,
   "reflection": false,
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts"]
 }

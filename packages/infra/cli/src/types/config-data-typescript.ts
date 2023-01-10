@@ -1,6 +1,6 @@
-import type { TSConfig } from 'pkg-types';
+import type { TsConfigJsonResolved } from 'get-tsconfig';
 
-export interface ConfigDataTypescript extends TSConfig {
+export interface ConfigDataTypescript extends TsConfigJsonResolved {
     /** Enables TypeScript types on runtime using Deepkit's type compiler */
     reflection?: boolean;
 }

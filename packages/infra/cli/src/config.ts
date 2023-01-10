@@ -1,6 +1,7 @@
 import { APP_NAME } from  './constants.js';
 import { cosmiconfig, Options as LoadOptions } from 'cosmiconfig';
 import { readPackageJSON, resolvePackageJSON, readTSConfig, resolveTSConfig } from 'pkg-types';
+import { getTsconfig } from 'get-tsconfig';
 import lodash from "lodash";
 const { merge } = lodash;
 
@@ -44,9 +45,8 @@ export class Config {
     }
 
     /** Loads tsconfig.json of the current project */
-    private async readTSConfig(dirPath?: string) {   
-        dirPath = await resolveTSConfig(dirPath)     
-        const tsconfig = await readTSConfig(dirPath);
+    private async readTSConfig(dirPath?: string) {     
+        const tsconfig = getTsconfig(dirPath)?.config || {};
         return tsconfig;
     }
 
