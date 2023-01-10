@@ -25,5 +25,8 @@
   "dependencies": {
     "@gjsify/types": "workspace:^",
     "@gjsify/utils": "workspace:^"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^"
   }
 }
