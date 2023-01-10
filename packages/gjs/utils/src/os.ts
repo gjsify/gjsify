@@ -1,12 +1,30 @@
 import { cli } from './cli.js';
-import { ExtFile } from '@gjsify/gio-2.0';
+import GLib from '@gjsify/types/GLib-2.0';
+import Gio from '@gjsify/types/Gio-2.0';
 
-export const arch = cli('uname -m').trim();
+import type { UserInfo } from './types/index.js';
+
+/** Cache the arch detection */
+let _arch: string = "";
 
 /** Cache the os detection */
 let _os: string = "";
+
+/** Cache the target detection */
+let _target: string = "";
+
+/** Cache the userInfo */
+const userInfo: {[username: string]: UserInfo} = {};
+
+export const getArch = () => {
+    if(_arch) {
+        return _arch;
+    }
+    _arch = cli('uname -m').trim();
+    return _arch;
+}
   
-export const os = () => {
+export const getOs = () => {
     if(_os) {
         return _os;
     }
@@ -23,11 +41,17 @@ export const os = () => {
     return _os;
 };
 
-export const vendor = 'gjsify'
+export const getVendor = () => 'gjsify';
 
-export const env = 'gnu';
+export const getEnv = () => 'gnu';
 
-export const target = `${arch}-${vendor}-${os()}-${env}`;
+export const getTarget = () => {
+    if(_target) {
+        return _target;
+    }
+    _target = `${getArch()}-${getVendor()}-${getOs()}-${getEnv()}`;
+    return _target;
+}
 
 /** Extract user info from passwd by username */
 const extractUserInfo = (passwd: string, username: string) => {
@@ -49,14 +73,22 @@ const extractUserInfo = (passwd: string, username: string) => {
     return null;
 }
 
-export const getUserInfo = (username: string) => {
-    const file: ExtFile = ExtFile.newForPath('/etc/passwd');
-    const contents = file.loadContents({ encoding: 'utf-8' });
-    return extractUserInfo(contents, username);
-}
+export const getUserInfo = (username?: string) => {
+    const file = Gio.File.new_for_path('/etc/passwd');
+    if(!username) {
+        username = GLib.get_user_name();
+    }
 
-export const getUserInfoAsync = async (username: string) => {
-    const file: ExtFile = ExtFile.newForPath('/etc/passwd');
-    const contents = await file.loadContentsAsync({ encoding: 'utf-8' });
-    return extractUserInfo(contents, username);
+    if(userInfo[username]) {
+        return userInfo[username];
+    }
+    const [success, contents] = file.load_contents(null);
+    if(!success) {
+        throw new Error(`Failed to load ${file.get_path()}`);
+    }
+
+    const contentStr = new TextDecoder().decode(contents);
+
+    userInfo[username] = extractUserInfo(contentStr, username);
+    return userInfo[username];
 }

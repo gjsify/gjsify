@@ -1,6 +1,6 @@
-import { cli, getPathSeparator, arch, os } from '@gjsify/utils';
+import { cli, getPathSeparator, getOs } from '@gjsify/utils';
 
-export { constants, arch, os as platform }
+export { constants }
 
 import * as linux from './linux.js';
 import * as darwin from './darwin.js';
@@ -35,69 +35,69 @@ export const userInfo = () => ({
 
 // Ported to packages/deno/std/node/os.ts
 export const cpus = () => {
-  const _os = os();
+  const _os = getOs();
   switch (_os) {
     case "darwin":
       return darwin.cpus();
     case "linux":
       return linux.cpus();
     default:
-      console.warn(`${os} is not supported!`);
+      console.warn(`${_os} is not supported!`);
       break;
   }
 };
 
 // Existing replacement in packages/deno/std/node/os.ts
 export const endianness = () => {
-  const _os = os();
+  const _os = getOs();
   switch (_os) {
     case "darwin":
       return darwin.endianness();
     case "linux":
       return linux.endianness();
     default:
-      console.warn(`${os} is not supported!`);
+      console.warn(`${_os} is not supported!`);
       break;
   }
 };
 
 // Ported to packages/deno/std/node/os.ts
 export const freemem = () => {
-  const _os = os();
+  const _os = getOs();
   switch (_os) {
     case "darwin":
       return darwin.freemem();
     case "linux":
       return linux.freemem();
     default:
-      console.warn(`${os} is not supported!`);
+      console.warn(`${_os} is not supported!`);
       break;
   }
 };
 
 // Ported to packages/deno/std/node/os.ts
 export const loadavg = () => {
-  const _os = os();
+  const _os = getOs();
   switch (_os) {
     case "darwin":
       return darwin.loadavg();
     case "linux":
       return linux.loadavg();
     default:
-      console.warn(`${os} is not supported!`);
+      console.warn(`${_os} is not supported!`);
       break;
   }
 }
 
 export const networkInterfaces = () => {
-  const _os = os();
+  const _os = getOs();
   switch (_os) {
     case "darwin":
       return darwin.networkInterfaces();
     case "linux":
       return linux.networkInterfaces();
     default:
-      console.warn(`${os} is not supported!`);
+      console.warn(`${_os} is not supported!`);
       break;
   }
 };
