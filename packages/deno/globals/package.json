@@ -12,16 +12,16 @@
   "main": "lib/index.js",
   "module": "lib/index.js",
   "scripts": {
-    "clear": "rm -rf lib tsconfig.tsbuildinfo",
-    "print:name": "echo '@gjsify/node-globals'",
+    "clear": "rm -rf lib tsconfig.tsbuildinfo test.gjs.mjs test.deno.mjs test.node.mjs",
+    "print:name": "echo '@gjsify/deno-globals'",
     "build": "yarn print:name && yarn build:gjsify",
     "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-    "build:test": "yarn build:test:gjs && yarn build:test:node",
+    "build:test": "yarn build:test:gjs && yarn build:test:deno",
     "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-    "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
-    "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
+    "build:test:deno": "gjsify build src/test.mts --app deno --outfile test.deno.mjs",
+    "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:deno && yarn test:gjs",
     "test:gjs": "gjs -m test.gjs.mjs",
-    "test:node": "node test.node.mjs"
+    "test:deno": "deno run --unstable --allow-env test.deno.mjs"
   },
   "dependencies": {
     "@gjsify/deno-runtime": "workspace:^",
