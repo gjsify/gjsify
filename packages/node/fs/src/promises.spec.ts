@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { promises, existsSync } from 'fs';
-import { mkdir, readdir, mkdtemp, writeFile, rm } from 'fs/promises';
+import { mkdir, readdir, mkdtemp, writeFile, rm, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { Buffer } from 'buffer';
 
@@ -19,7 +19,7 @@ export default async () => {
 			expect(files.length).toBe(0);
 
 			// Clear
-			await mkdir(dir);
+			await rmdir(dir);
 		});
 
 		await it('should return the files for non-empty directory', async () => {
@@ -36,8 +36,8 @@ export default async () => {
 			// Clear
 			await rm(txt1);
 			await rm(txt2);
-			await mkdir(dir1);
-			await mkdir(dir);
+			await rmdir(dir1);
+			await rmdir(dir);
 		});
 
 		await it('should return the file with the name "file.txt"', async () => {
@@ -52,7 +52,7 @@ export default async () => {
 
 			// Clear
 			await rm(file);
-			await mkdir(dir);
+			await rmdir(dir);
 		});
 
 		await it('should return with file types if option "withFileTypes" is `true`', async () => {
@@ -80,8 +80,8 @@ export default async () => {
 
 			// Clear
 			await rm(file);
-			await mkdir(subdir);
-			await mkdir(dir);
+			await rmdir(subdir);
+			await rmdir(dir);
 		});
 	});
 

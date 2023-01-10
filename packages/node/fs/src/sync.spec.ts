@@ -122,7 +122,7 @@ export default async () => {
 	await describe('fs.mkdirSync', async () => {
 		const dir = './foobar';
 
-		await it(`should be executed with "${dir}" without error`, () => {
+		await it(`should create the directory "${dir}" without error`, () => {
 			mkdirSync(dir);
 		});
 
@@ -134,13 +134,12 @@ export default async () => {
 	await describe('fs.rmdirSync', async () => {
 		const dir = './foobar';
 
-		await it(`should be executed with "${dir}" without error`, () => {
+		await it(`should be remove the directory "${dir}" without error`, () => {
 			rmdirSync(dir);
 		});
 
 		await it(`"${dir}" should not exists (anymore)`, () => {
-			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
-			expect(typeof utf8Data === 'string').toBeTruthy();
+			expect(existsSync(dir)).toBeFalsy();
 		});
 	});
 
