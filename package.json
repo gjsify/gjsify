@@ -15,7 +15,7 @@
     "print:yarn": "echo 'Using yarn' && yarn --version",
     "build": "yarn print:name && yarn print:yarn && yarn build:infra && yarn build:gjs && yarn build:all",
     "build:infra": "yarn workspace @gjsify/resolve-npm run build && yarn workspace @gjsify/esbuild-plugin-transform-ext run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-deno-loader run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/cli run build",
-    "build:gjs": "yarn workspace @gjsify/webgl run build && yarn workspace @gjsify/types run build && yarn workspace @gjsify/utils run build && yarn workspace @gjsify/unit run build",
+    "build:gjs": "yarn workspace @gjsify/types run build && yarn workspace @gjsify/utils run build && yarn workspace @gjsify/webgl run build && yarn workspace @gjsify/unit run build && yarn workspace @gjsify/gio-2.0 run build && yarn workspace @gjsify/soup-3.0 run build",
     "build:all": "yarn workspaces foreach --no-private --parallel run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
