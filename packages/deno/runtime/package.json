@@ -50,7 +50,6 @@
         "@gjsify/empty": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@tsconfig/deno": "^1.0.7",
-        "@types/node": "^18.11.18",
         "fast-glob": "^3.2.12",
         "open-cli": "^7.1.0",
         "typescript": "^5.0.0-dev.20230110"

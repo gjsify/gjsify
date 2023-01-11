@@ -339,7 +339,6 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@tsconfig/deno": "npm:^1.0.7"
-    "@types/node": "npm:^18.11.18"
     fast-glob: "npm:^3.2.12"
     open-cli: "npm:^7.1.0"
     typescript: "npm:^5.0.0-dev.20230110"

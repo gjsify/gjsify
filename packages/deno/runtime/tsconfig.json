@@ -3,23 +3,23 @@
     "display": "Deno",
     "compilerOptions": {
         "jsx": "react",
-        "noLib": true,
-        // "lib": [],
-        "types": [],
         "module": "ESNext",
         "target": "ESNext",
-        "moduleResolution": "NodeNext",
+        "noLib": true,
         "outDir": "lib",
+        "declaration": true,
         "declarationDir": "lib",
-        "rootDir": "src",
+        "rootDir": ".",
         "composite": true,
         "resolveJsonModule": false,
-        "strict": false
+        "allowJs": true,
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true
     },
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,
     "reflection": false,
     "include": ["src/core/**/*.ts", "src/ext/**/*.ts", "src/ops/**/*.ts", "src/runtime/**/*.ts", "src/types/**/*.ts", "src/cli/js/*.ts", "src/cli/ops/*.ts", "src/*.ts", "src/cli/tsc/dts/lib.deno.*.d.ts"],
-    "exclude": []
+    "exclude": ["node_modules/**"]
 }
