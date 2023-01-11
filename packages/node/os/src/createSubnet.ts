@@ -1,4 +1,4 @@
-export default function createSubnet(size, segment, base, sep) {
+export function createSubnet(size, segment, base, sep) {
   const empty = '0'.repeat(size);
   return  mask => {
     const str = ('1'.repeat(parseInt(mask, 10)) + empty).slice(0, size);
@@ -9,3 +9,5 @@ export default function createSubnet(size, segment, base, sep) {
     return out.join(sep);
   };
 };
+
+export default { createSubnet }

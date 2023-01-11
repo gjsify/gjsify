@@ -1,4 +1,4 @@
-import createSubnet from './createSubnet.js';
+import { createSubnet } from './createSubnet.js';
 import { cli } from '@gjsify/utils';
 
 const EOL = /\r\n|\n/;
