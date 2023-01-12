@@ -2,6 +2,7 @@
     "compilerOptions": {
       "module": "ESNext",
       "types": [],
+      "noLib": false,
       "target": "ESNext",
       "moduleResolution": "NodeNext",
       "experimentalDecorators": true,

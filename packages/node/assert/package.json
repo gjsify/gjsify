@@ -47,7 +47,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.11.18",
-        "typescript": "^5.0.0-dev.20230110"
+        "typescript": "^5.0.0-dev.20230112"
     },
     "dependencies": {
         "@gjsify/deno_std": "workspace:^"

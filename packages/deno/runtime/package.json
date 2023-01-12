@@ -22,6 +22,9 @@
             ]
         }
     },
+    "sideEffects": [
+        "./lib/ext/web/02_event.js"
+    ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/deno-runtime'",
@@ -52,7 +55,7 @@
         "@tsconfig/deno": "^1.0.7",
         "fast-glob": "^3.2.12",
         "open-cli": "^7.1.0",
-        "typescript": "^5.0.0-dev.20230110"
+        "typescript": "^5.0.0-dev.20230112"
     },
     "dependencies": {
         "@gjsify/utils": "workspace:^"

@@ -106,7 +106,8 @@ export const extractErrorData = (errorMessage: string): ErrorData => {
 const reconstructErrorFromMessage = (errorMessage: string): UncaughtExceptionData => {
   const { errorType, frames, message, stackTraceLines } = extractErrorData(errorMessage);
   const ErrorType = globalThis[errorType] as typeof Error;
-  const error = new ErrorType(message);
+  const error = new ErrorType();
+  error.message = message;
   error.stack = stackTraceLines.join("\n");
 
   return {

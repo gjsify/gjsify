@@ -43,6 +43,6 @@
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@types/node": "^18.11.18",
-    "typescript": "^5.0.0-dev.20230110"
+    "typescript": "^5.0.0-dev.20230112"
   }
 }

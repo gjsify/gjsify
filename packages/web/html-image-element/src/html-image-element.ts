@@ -1,8 +1,9 @@
-import { Event } from '@gjsify/dom-events';
+
 import { notImplemented, warnNotImplemented } from '@gjsify/utils';
 import GLib from '@gjsify/types/GLib-2.0';
 import GdkPixbuf from '@gjsify/types/GdkPixbuf-2.0';
 import { System } from '@gjsify/types/Gjs';
+import { Event } from '@gjsify/deno-runtime/ext/web/02_event';
 
 import type { IHTMLImageElement, ImageData } from './types/index.js';
 import type { HTMLElement } from 'happy-dom';

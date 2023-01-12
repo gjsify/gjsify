@@ -20,15 +20,17 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     const esbuildOptions: BuildOptions = {
         format: 'esm', // On Gjs we only support esm
         bundle: true,
+        metafile: true,
         minify: false,
         sourcemap: false,
         treeShaking: true,
+        preserveSymlinks: true,
         // firefox60"  // Since GJS 1.53.90
         // firefox68"  // Since GJS 1.63.90
         // firefox78"  // Since GJS 1.65.90
         // firefox91 // Since GJS 1.71.1
         // firefox102" // Since GJS 1.73.2
-        target: [ "firefox91" ],
+        target: [ "firefox102" ],
         platform: "neutral",
         mainFields: ['module', 'main'],
         conditions: ['import'],
@@ -57,12 +59,6 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     }
 
     const aliases = {...getAliasesForGjs({external}), ...pluginOptions.aliases};
-
-    // for (const aliasKey of Object.keys(aliases)) {
-    //     if(pluginOptions.exclude.includes(aliasKey)) {
-    //         delete aliases[aliasKey];
-    //     }
-    // }
 
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 

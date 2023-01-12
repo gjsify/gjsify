@@ -1,8 +1,9 @@
 import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
-import { build, BuildOptions } from 'esbuild';
+import { build, analyzeMetafile, BuildOptions, BuildResult } from 'esbuild';
 import * as gjsifyPlugin from '@gjsify/esbuild-plugin-gjsify';
 import { dirname, extname } from 'path';
+import { writeFile } from 'fs/promises';
 
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {
@@ -30,11 +31,13 @@ export class BuildAction {
         const mainOutExt = library.main ? extname(library.main) : '.js';
 
         const multipleBuilds = moduleOutdir && mainOutdir && (moduleOutdir !== mainOutdir);
+
+        const results: BuildResult[] = [];
     
         if(multipleBuilds) {
 
             const moduleFormat = moduleOutdir.includes('/cjs') || moduleOutExt === '.cjs' ? 'cjs' : 'esm';
-            await build({
+            results.push(await build({
                 ...this.getEsBuildDefaults(),
                 ...esbuild,
                 format: moduleFormat,
@@ -42,10 +45,10 @@ export class BuildAction {
                 plugins: [
                     gjsifyPlugin.gjsifyPlugin({debug: verbose, library: moduleFormat, exclude, reflection: typescript?.reflection, jsExtension: moduleOutExt}),
                 ]
-            });
+            }));
     
             const mainFormat = mainOutdir.includes('/cjs') || mainOutExt === '.cjs' ? 'cjs' : 'esm';
-            await build({
+            results.push(await build({
                 ...this.getEsBuildDefaults(),
                 ...esbuild,
                 format: moduleFormat,
@@ -53,13 +56,13 @@ export class BuildAction {
                 plugins: [
                     gjsifyPlugin.gjsifyPlugin({debug: verbose, library: mainFormat, exclude, reflection: typescript?.reflection, jsExtension: mainOutdir})
                 ]
-            });
+            }));
         } else {
             const outfilePath = esbuild?.outfile || library?.module || library?.main;
             const outExt = outfilePath ? extname(outfilePath) : '.js';
             const outdir = esbuild?.outdir || (outfilePath ? dirname(outfilePath) : undefined);
             const format = esbuild?.format || outdir?.includes('/cjs') || outExt === '.cjs' ? 'cjs' : 'esm';
-            await build({
+            results.push(await build({
                 ...this.getEsBuildDefaults(),
                 ...esbuild,
                 format,
@@ -67,8 +70,9 @@ export class BuildAction {
                 plugins: [
                     gjsifyPlugin.gjsifyPlugin({debug: verbose, library: format, exclude, reflection: typescript?.reflection, jsExtension: outExt})
                 ]
-            });
+            }));
         }
+        return results;
     }
 
     /** Application mode */
@@ -78,7 +82,7 @@ export class BuildAction {
 
         const format: 'cjs' | 'esm' = esbuild?.format || esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm';
 
-        await build({
+        const result = await build({
             ...this.getEsBuildDefaults(),
             ...esbuild,
             format,
@@ -87,12 +91,26 @@ export class BuildAction {
             ]
         });
 
+        // See https://esbuild.github.io/api/#metafile
+        if(result.metafile) {
+            const outFile = esbuild?.outfile ? esbuild.outfile + '.meta.json' : 'meta.json';
+            await writeFile(outFile, JSON.stringify(result.metafile));
+
+            let text = await analyzeMetafile(result.metafile)
+            console.log(text)
+        }
+
+        return [result];
     }
 
     async start(buildType: {library?: boolean, app?: App} = {app: 'gjs'}) {
+        const results: BuildResult[] = [];
         if(buildType.library) {
-            return this.buildLibrary()
+            results.push(...(await this.buildLibrary()));
+        } else {
+            results.push(...(await this.buildApp(buildType.app)));
         }
-        return this.buildApp(buildType.app)
+
+        return results;
     }
 }

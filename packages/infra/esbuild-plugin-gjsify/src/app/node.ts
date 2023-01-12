@@ -4,7 +4,7 @@ import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import fastGlob from 'fast-glob';
 import { merge } from "lodash";
-import { getAliasesForNode, getJsExtensions } from "../utils/index.js";
+import { getAliasesForNode } from "../utils/index.js";
 import { EXTERNALS_NODE } from "@gjsify/resolve-npm";
 
 // Types
@@ -27,7 +27,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         minify: false,
         sourcemap: false,
         treeShaking: true,
-        target: [ "node16" ],
+        target: [ "node18" ],
         platform: "node",
         mainFields: format === 'esm' ? ['module', 'main'] : ['main', 'module', 'browser'],
         conditions: format === 'esm' ? ['import'] : ['require'],

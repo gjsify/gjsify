@@ -1,5 +1,3 @@
-import { extname, join, dirname } from "path";
-import {readFileSync } from "fs";
 import {
     EXTERNALS_NODE,
     EXTERNALS_NPM,
@@ -41,8 +39,6 @@ export const resolveAliasesByType = (ALIASES: Record<string, string>, options: R
 }
 
 const resolvePackage = (pkgName: string, options: ResolveAliasOptions): string => {
-    // const resolveBy = options.resolveBy === 'main' ? 'main' : 'module';
-    // const resolveByFallback = resolveBy === 'main' ? 'module' : 'main';
 
     // TODO: use micromatch here
     if(options.external.includes(pkgName)) {
@@ -60,31 +56,6 @@ const resolvePackage = (pkgName: string, options: ResolveAliasOptions): string =
     } catch (error) {
         console.warn('[gjsify]', error.message, pkgName);
     }
-
-    // FALLBACK maybe we can `pnpFallbackMode` to `all` instead? See https://yarnpkg.com/configuration/yarnrc#pnpFallbackMode
-    // if(!resolveTo.endsWith('/') && !extname(resolveTo) ) {
-    //     resolveTo = join(resolveTo, 'package.json')
-    // }
-
-    // if(resolveTo.endsWith('package.json')) {
-    //     const pkgPath = require.resolve(resolveTo);
-    //     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-    //     if(pkg[resolveBy]) {
-    //         resolveTo = join(dirname(resolveTo), pkg[resolveBy]);
-    //     } else if(pkg[resolveByFallback]) {
-    //         resolveTo = join(dirname(resolveTo), pkg[resolveByFallback]);
-    //         if(options.debug) console.warn(`Package entry point type "${resolveBy}" not found for "${pkg.name}", use "${resolveByFallback}" instead!`)
-    //     } else {
-    //         resolveTo = join(dirname(resolveTo), 'index.js');
-    //         if(options.debug) console.warn(`Package entry point type "${resolveBy}" not found for "${pkg.name}", use index.js instead!`)
-    //     }
-    // }
-
-    // try {
-    //     result = require.resolve(resolveTo);
-    // } catch (error) {
-    //     console.warn('[gjsify]', error);
-    // }
 
     if(options.debug) console.debug('[gjsify] resolve alias: ' + result);
 
