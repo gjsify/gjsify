@@ -78,6 +78,8 @@ namespace Gwebgl {
             this.webgl_constants.insert("IMPLEMENTATION_COLOR_READ_TYPE", IMPLEMENTATION_COLOR_READ_TYPE);
             this.webgl_constants.insert("IMPLEMENTATION_COLOR_READ_FORMAT", IMPLEMENTATION_COLOR_READ_FORMAT);
             this.webgl_constants.insert("DEPTH_STENCIL", GL_DEPTH_STENCIL_OES);
+            this.webgl_constants.insert("DEPTH_STENCIL_ATTACHMENT", GL_DEPTH_STENCIL_ATTACHMENT);
+            
 
             // Also part of OpenGL ES
             this.webgl_constants.insert("ACTIVE_ATTRIBUTES", GL_ACTIVE_ATTRIBUTES);
