@@ -22,3 +22,7 @@ packages/**/*/test.*.cjs
 packages/**/*/test.*.cjs.map
 packages/**/*/test.*.mjs
 packages/**/*/test.*.mjs.map
+
+// Metafile 
+*.meta.json
+meta.json

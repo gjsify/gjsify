@@ -23,7 +23,8 @@
         }
     },
     "sideEffects": [
-        "./lib/ext/web/02_event.js"
+        "./lib/ext/web/02_event.js",
+        "./lib/globals.js"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo",

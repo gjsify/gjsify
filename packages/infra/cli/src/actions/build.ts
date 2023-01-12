@@ -92,13 +92,14 @@ export class BuildAction {
         });
 
         // See https://esbuild.github.io/api/#metafile
-        if(result.metafile) {
-            const outFile = esbuild?.outfile ? esbuild.outfile + '.meta.json' : 'meta.json';
-            await writeFile(outFile, JSON.stringify(result.metafile));
+        // TODO add cli options for this 
+        // if(result.metafile) {
+        //     const outFile = esbuild?.outfile ? esbuild.outfile + '.meta.json' : 'meta.json';
+        //     await writeFile(outFile, JSON.stringify(result.metafile));
 
-            let text = await analyzeMetafile(result.metafile)
-            console.log(text)
-        }
+        //     let text = await analyzeMetafile(result.metafile)
+        //     console.log(text)
+        // }
 
         return [result];
     }
