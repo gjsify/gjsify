@@ -53,12 +53,6 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
 
     const aliases = {...pluginOptions.aliases};
 
-    // for (const aliasKey of Object.keys(aliases)) {
-    //     if(pluginOptions.exclude.includes(aliasKey)) {
-    //         delete aliases[aliasKey];
-    //     }
-    // }
-
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);

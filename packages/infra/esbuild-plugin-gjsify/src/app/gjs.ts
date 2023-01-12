@@ -3,7 +3,7 @@ import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import fastGlob from 'fast-glob';
 import { merge } from "lodash";
-import { getAliasesForGjs, getJsExtensions } from "../utils/index.js";
+import { getAliasesForGjs } from "../utils/index.js";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";

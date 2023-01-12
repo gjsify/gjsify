@@ -1,4 +1,5 @@
-// Based on https://github.com/igoradamenko/esbuild-plugin-alias
+import { existsSync } from "fs";
+import { realpath } from "fs/promises";
 
 import type { Plugin } from "esbuild";
 
@@ -11,7 +12,7 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
       setup(build) {
         // we do not register 'file' namespace here, because the root file won't be processed
         // https://github.com/evanw/esbuild/issues/791
-        build.onResolve({ filter: re }, (args) => {
+        build.onResolve({ filter: re }, async (args) => {
           let resolvedAlias = aliasObj[args.path];
 
           let namespace = args.namespace;
@@ -25,6 +26,11 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
           }
 
           if (resolvedAlias) {
+
+            if(existsSync(resolvedAlias)) {
+              resolvedAlias = await realpath(resolvedAlias);
+            }
+
             return {
               path: resolvedAlias,
               namespace: namespace,
