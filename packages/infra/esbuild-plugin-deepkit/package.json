@@ -24,6 +24,6 @@
     },
     "devDependencies": {
         "esbuild": "^0.16.17",
-        "typescript": "^5.0.0-dev.20230112"
+        "typescript": "^5.0.0-dev.20230113"
     }
 }

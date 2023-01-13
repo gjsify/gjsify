@@ -1,6 +1,7 @@
 import { aliasPlugin } from '../alias-plugin.js';
-import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
+import { debugPlugin } from '../debug-plugin.js';
 import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
+import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import fastGlob from 'fast-glob';
 import { merge } from "lodash";
 
@@ -23,6 +24,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         minify: false,
         sourcemap: false,
         treeShaking: true,
+        preserveSymlinks: false, // false means follow symlinks
         target: [ "esnext" ],
         platform: "neutral",
         mainFields: ['module', 'main'],
@@ -56,6 +58,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
 
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
+    await debugPlugin().setup(build);
     await aliasPlugin(aliases).setup(build);
     await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);

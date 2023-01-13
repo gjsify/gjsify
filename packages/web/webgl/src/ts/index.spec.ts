@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 
-import { GjsifyWebGLRenderingContext, HTMLCanvasElement } from './index.js';
+import { GjsifyWebGLRenderingContext, HTMLCanvasElement } from '@gjsify/webgl';
 import Gtk from '@gjsify/types/Gtk-4.0';
 import Gio from '@gjsify/types/Gio-2.0';
 

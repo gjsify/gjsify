@@ -22,12 +22,8 @@
             ]
         }
     },
-    "sideEffects": [
-        "./lib/ext/web/02_event.js",
-        "./lib/globals.js"
-    ],
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo lib/tsconfig.tsbuildinfo test.deno.js test.gjs.js test.deno.js.meta.json test.gjs.js.meta.json",
         "print:name": "echo '@gjsify/deno-runtime'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types && yarn sync:dts",
         "build:gjsify": "mkdir lib -p && gjsify build --library 'src/{core,ext,ops,runtime,types}/**/*.ts' 'src/cli/{js,ops}/*.ts' 'src/*.ts' --exclude '**/*.d.ts' 'lib'",
@@ -56,7 +52,7 @@
         "@tsconfig/deno": "^1.0.7",
         "fast-glob": "^3.2.12",
         "open-cli": "^7.1.0",
-        "typescript": "^5.0.0-dev.20230112"
+        "typescript": "^5.0.0-dev.20230113"
     },
     "dependencies": {
         "@gjsify/utils": "workspace:^"

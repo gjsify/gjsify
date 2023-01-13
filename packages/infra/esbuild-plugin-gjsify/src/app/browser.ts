@@ -1,4 +1,5 @@
 import { aliasPlugin } from '../alias-plugin.js';
+import { debugPlugin } from '../debug-plugin.js';
 import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import fastGlob from 'fast-glob';
@@ -22,6 +23,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
         minify: false,
         sourcemap: false,
         treeShaking: true,
+        preserveSymlinks: false, // false means follow symlinks
         target: [ "esnext" ],
         platform: "browser",
         mainFields: ['browser', 'module', 'main'],
@@ -55,6 +57,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
 
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
+    await debugPlugin().setup(build);
     await aliasPlugin(aliases).setup(build);
     await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);

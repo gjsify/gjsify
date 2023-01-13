@@ -1,4 +1,5 @@
 import { aliasPlugin } from '../alias-plugin.js';
+import { debugPlugin } from '../debug-plugin.js';
 import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import fastGlob from 'fast-glob';
@@ -24,7 +25,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         minify: false,
         sourcemap: false,
         treeShaking: true,
-        preserveSymlinks: true,
+        preserveSymlinks: false, // false means follow symlinks
         // firefox60"  // Since GJS 1.53.90
         // firefox68"  // Since GJS 1.63.90
         // firefox78"  // Since GJS 1.65.90
@@ -62,6 +63,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
 
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
+    await debugPlugin().setup(build);
     await aliasPlugin(aliases).setup(build);
     await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);

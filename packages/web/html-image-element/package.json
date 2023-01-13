@@ -11,10 +11,9 @@
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc --emitDeclarationOnly || exit 0",
-        "build:test": "yarn build:test:gjs && yarn build:test:node",
+        "build:test": "yarn build:test:gjs",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
-        "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
+        "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:gjs",
         "test:gjs": "gjs -m test.gjs.mjs",
         "test:node": "node test.node.mjs"
     },
@@ -27,11 +26,11 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.11.18",
-        "typescript": "^5.0.0-dev.20230112"
+        "typescript": "^5.0.0-dev.20230113"
     },
     "dependencies": {
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/types": "workspace:^",
-        "happy-dom": "^8.1.3"
+        "happy-dom": "^8.1.4"
     }
 }

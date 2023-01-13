@@ -259,9 +259,10 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno-runtime": "workspace:^"
     "@gjsify/deno_std": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -273,7 +274,7 @@ __metadata:
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -285,7 +286,7 @@ __metadata:
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -300,7 +301,7 @@ __metadata:
     get-tsconfig: "npm:^4.3.0"
     lodash: "npm:^4.17.21"
     pkg-types: "npm:^1.0.1"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
     yargs: "npm:^17.6.2"
   bin:
     gjsify: ./lib/index.js
@@ -341,7 +342,7 @@ __metadata:
     "@tsconfig/deno": "npm:^1.0.7"
     fast-glob: "npm:^3.2.12"
     open-cli: "npm:^7.1.0"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -355,7 +356,7 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
     open-cli: "npm:^7.1.0"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -367,7 +368,7 @@ __metadata:
     "@gjsify/deno-runtime": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -384,7 +385,7 @@ __metadata:
     "@deepkit/type-compiler": "npm:^1.0.1-alpha.83"
     "@gjsify/resolve-npm": "workspace:^"
     esbuild: "npm:^0.16.17"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -395,7 +396,7 @@ __metadata:
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     deno-importmap: "npm:^0.2.1"
     esbuild: "npm:^0.16.17"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -439,7 +440,7 @@ __metadata:
     stream-browserify: "npm:^3.0.0"
     string_decoder: "npm:^1.3.0"
     test: "npm:^3.2.1"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -476,7 +477,7 @@ __metadata:
     punycode: "npm:^2.2.0"
     stream-browserify: "npm:^3.0.0"
     string_decoder: "npm:^1.3.0"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -488,7 +489,7 @@ __metadata:
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -644,7 +645,7 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.2"
-    data-uri-to-buffer: "npm:^4.0.0"
+    data-uri-to-buffer: "npm:^4.0.1"
     formdata-polyfill: "npm:^4.0.10"
     node-fetch: "npm:^3.3.0"
   languageName: unknown
@@ -670,7 +671,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -683,8 +684,8 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    happy-dom: "npm:^8.1.3"
-    typescript: "npm:^5.0.0-dev.20230112"
+    happy-dom: "npm:^8.1.4"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -739,7 +740,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -783,7 +784,7 @@ __metadata:
     "@gjsify/types": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -795,7 +796,7 @@ __metadata:
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -822,7 +823,7 @@ __metadata:
   resolution: "@gjsify/unit@workspace:packages/gjs/unit"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -833,7 +834,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -849,7 +850,7 @@ __metadata:
     is-arguments: "npm:^1.1.1"
     is-generator-function: "npm:^1.0.10"
     is-typed-array: "npm:^1.1.10"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
     util: "npm:^0.12.5"
     which-typed-array: "npm:^1.1.9"
   languageName: unknown
@@ -861,7 +862,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/types": "workspace:^"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -888,7 +889,7 @@ __metadata:
     "@types/node": "npm:^18.11.18"
     bit-twiddle: "npm:^1.0.2"
     glsl-tokenizer: "npm:^2.1.5"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -900,7 +901,7 @@ __metadata:
     "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.11.18"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -1923,6 +1924,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"data-uri-to-buffer@npm:^4.0.1":
+  version: 4.0.1
+  resolution: "data-uri-to-buffer@npm:4.0.1"
+  checksum: 4398e0c9ca2073b89c0c6f90ffe5044e9193966f3f734b8492237d8dcd1305c77e08d964922da6e5bde9e380eddbde1c110340d7fbb34dcbdfeea35c45383211
+  languageName: node
+  linkType: hard
+
 "debug@npm:4, debug@npm:^4.1.0, debug@npm:^4.1.1, debug@npm:^4.3.3":
   version: 4.3.4
   resolution: "debug@npm:4.3.4"
@@ -2593,7 +2601,7 @@ __metadata:
   resolution: "gjsify@workspace:."
   dependencies:
     "@types/jsdom": "npm:^20.0.1"
-    typescript: "npm:^5.0.0-dev.20230112"
+    typescript: "npm:^5.0.0-dev.20230113"
   languageName: unknown
   linkType: soft
 
@@ -2692,9 +2700,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"happy-dom@npm:^8.1.3":
-  version: 8.1.3
-  resolution: "happy-dom@npm:8.1.3"
+"happy-dom@npm:^8.1.4":
+  version: 8.1.4
+  resolution: "happy-dom@npm:8.1.4"
   dependencies:
     css.escape: "npm:^1.5.1"
     he: "npm:^1.2.0"
@@ -2702,7 +2710,7 @@ __metadata:
     webidl-conversions: "npm:^7.0.0"
     whatwg-encoding: "npm:^2.0.0"
     whatwg-mimetype: "npm:^3.0.0"
-  checksum: b0a86a395bff92356c95a638a6f8833d90d3532db5f9aae843fbc6dfd7c392d447aca6ce8228f843eb0300865eca5811f0ceeb6b7a1e8ed02f5817bcbe6f0d0d
+  checksum: ba55eefaeb02aa91a2c8bd21caa038412e00b01200b4da66a6895fc34911c87ef19229cde1c3a20ca0dc343f76df970b85d9e931522b6a8bcdd35a2a2af4c9f2
   languageName: node
   linkType: hard
 
@@ -4862,13 +4870,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^5.0.0-dev.20230112":
-  version: 5.0.0-dev.20230112
-  resolution: "typescript@npm:5.0.0-dev.20230112"
+"typescript@npm:^5.0.0-dev.20230113":
+  version: 5.0.0-dev.20230113
+  resolution: "typescript@npm:5.0.0-dev.20230113"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 06d587a3c93a6245e85e769241c7441d03fda89d484ee12190ef3400c3fab63c98e875724d4bf08cf6980ce7a1540331a3f63bb50ed2cf6275940a31bf1de95f
+  checksum: e4902e0b9b93e1538b3c309f8400c89abc582c9984a37817df4eaee293cad2a9ec2249712b3fa191f40de039d2a733158113c55555a5c0be4bdb15890eb2f188
   languageName: node
   linkType: hard
 
@@ -4882,13 +4890,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3A^5.0.0-dev.20230112#optional!builtin<compat/typescript>":
-  version: 5.0.0-dev.20230112
-  resolution: "typescript@patch:typescript@npm%3A5.0.0-dev.20230112#optional!builtin<compat/typescript>::version=5.0.0-dev.20230112&hash=ad5954"
+"typescript@patch:typescript@npm%3A^5.0.0-dev.20230113#optional!builtin<compat/typescript>":
+  version: 5.0.0-dev.20230113
+  resolution: "typescript@patch:typescript@npm%3A5.0.0-dev.20230113#optional!builtin<compat/typescript>::version=5.0.0-dev.20230113&hash=ad5954"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 9cdefb356cebdb3be9aa049f649c72b504767a01f240103e2bb096380c2cf48868897742ce67a5b6499d143ffeaaa98b8ee8b495cbc68aca445e827508e43c8e
+  checksum: 29bc6a619cdf5dbea5ca6605d6714b510c3db26cc75d446975a2e9a547b7b9135c001aa6683b7b5e0e79f39d6f81bba5a9c6e1b60211ee9f7e8f0214d4ab94b3
   languageName: node
   linkType: hard
 

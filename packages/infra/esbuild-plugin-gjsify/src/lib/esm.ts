@@ -15,7 +15,6 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
 
     const esbuildOptions: BuildOptions = {
         bundle: false,
-        splitting: true, // only works with esm, see https://esbuild.github.io/api/#splitting
         minify: false,
         sourcemap: false,
         loader: {

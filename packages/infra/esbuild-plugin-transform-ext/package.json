@@ -50,6 +50,6 @@
         "@types/micromatch": "^4.0.2",
         "esbuild": "^0.16.17",
         "lodash": "^4.17.21",
-        "typescript": "^5.0.0-dev.20230112"
+        "typescript": "^5.0.0-dev.20230113"
     }
 }

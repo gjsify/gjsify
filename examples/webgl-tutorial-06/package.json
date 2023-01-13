@@ -9,8 +9,9 @@
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "print:name": "echo '@gjsify/example-webgl-tutorial-06'",
     "start": "yarn start:gjs",
-    "start:gjs": "yarn build:gjs && LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/gjs.js",
+    "start:gjs": "yarn build:gjs && yarn run:gjs",
     "start:browser": "yarn build:browser && open-cli index.html",
+    "run:gjs": "LD_LIBRARY_PATH=../../packages/web/webgl/build GI_TYPELIB_PATH=../../packages/web/webgl/build gjs -m dist/gjs.js",
     "build": "yarn print:name && yarn build:gjs && yarn build:browser",
     "build:gjs": "gjsify build src/gjs.ts --app gjs --outfile dist/gjs.js",
     "build:browser": "gjsify build src/browser.ts --app browser --outfile dist/browser.js"

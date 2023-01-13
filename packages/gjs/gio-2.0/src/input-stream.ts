@@ -1,8 +1,10 @@
 import { byteArray } from '@gjsify/types/Gjs';
 import Gio from '@gjsify/types/Gio-2.0';
 import GLib from '@gjsify/types/GLib-2.0';
-import { Readable, ReadableOptions } from 'stream';
+import { Readable } from 'stream';
 import { ExtOutputStream } from './output-stream.js'
+
+import type { ReadableOptions } from 'stream';
 
 // This interface is used for pseudo extend Gio.InputStream
 export interface ExtInputStream extends Gio.InputStream {}
@@ -96,7 +98,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @returns 
      */
     public toReadableStream(options: ReadableOptions = {}) {
-        return Readable.toWeb(this.toReadable(options))
+        return Readable.toWeb(this.toReadable(options)) as ReadableStream<any>;
     }
 
     /**
