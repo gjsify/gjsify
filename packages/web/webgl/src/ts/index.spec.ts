@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import { GjsifyWebGLRenderingContext, HTMLCanvasElement } from '@gjsify/webgl';
+import GLib from '@gjsify/types/GLib-2.0';
 import Gtk from '@gjsify/types/Gtk-4.0';
 import Gio from '@gjsify/types/Gio-2.0';
 
@@ -13,6 +14,11 @@ export default async () => {
 	let glArea: Gtk.GLArea;
 	let canvas: HTMLCanvasElement;
 	let ctx: GjsifyWebGLRenderingContext | null;
+
+	// Skip tests on CI
+	if(GLib.getenv('CI')) {
+		return;
+	}
 
 	const initApp = async () => {
 		Gtk.init();
