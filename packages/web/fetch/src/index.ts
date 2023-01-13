@@ -33,6 +33,7 @@ import {
   blobFromSync,
   blobFrom
 } from './utils/blob-from.js';
+
 import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
 
 export { FormData, Headers, Request, Response, FetchError, AbortError, isRedirect };

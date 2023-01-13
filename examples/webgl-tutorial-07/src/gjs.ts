@@ -1,3 +1,6 @@
+// WORKAROUND: for error "EventTarget is undefined"
+import '@gjsify/deno-runtime/globals';
+
 import '@gjsify/types/index';
 import Gtk from '@gjsify/types/Gtk-4.0';
 import GLib from '@gjsify/types/GLib-2.0';

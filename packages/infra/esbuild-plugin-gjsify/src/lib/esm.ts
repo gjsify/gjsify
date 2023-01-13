@@ -16,7 +16,8 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
     const esbuildOptions: BuildOptions = {
         bundle: false,
         minify: false,
-        sourcemap: false,
+        sourcemap: false, 
+        splitting: true, // Works only on esm
         loader: {
             '.ts': 'ts',
             '.mts': 'ts',

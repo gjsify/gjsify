@@ -1,9 +1,12 @@
+// WORKAROUND: for error "EventTarget is undefined"
+import '@gjsify/deno-runtime/globals';
+
 import '@gjsify/types/index';
 import Gtk from '@gjsify/types/Gtk-4.0';
 import GLib from '@gjsify/types/GLib-2.0';
 import Gio from '@gjsify/types/Gio-2.0';
-import { GjsifyHTMLCanvasElement } from '@gjsify/webgl';
 import { Image as GjsifyImage } from '@gjsify/html-image-element';
+import { GjsifyHTMLCanvasElement } from '@gjsify/webgl';
 import { start } from './webgl-demo.js';
 
 const mainloop = imports.mainloop;

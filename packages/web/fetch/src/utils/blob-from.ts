@@ -8,9 +8,9 @@ import {
 import { basename, sep, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import process from 'node:process'
-import { Blob } from "@gjsify/deno-runtime/ext/web/09_file";
-import { File } from "@gjsify/deno-runtime/ext/web/09_file";
+
 import { DOMException } from "@gjsify/deno-runtime/ext/web/01_dom_exception";
+import { Blob, File } from "@gjsify/deno-runtime/ext/web/09_file";
 
 // import Blob from './index.js'
 

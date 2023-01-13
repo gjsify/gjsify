@@ -8,7 +8,6 @@
 import { PassThrough, pipeline as pipelineCb, Readable, Stream, Writable } from 'stream';
 import { ReadableStream as StreamWebReadableStream } from "stream/web";
 import { types, deprecate, promisify } from 'util';
-import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
 import { Buffer } from 'buffer';
 
 import { FormData, formDataToBlob } from 'formdata-polyfill/esm.min.js';
@@ -16,6 +15,8 @@ import { FormData, formDataToBlob } from 'formdata-polyfill/esm.min.js';
 import { FetchError } from './errors/fetch-error.js';
 import { FetchBaseError } from './errors/base.js';
 import { isBlob, isURLSearchParameters } from './utils/is.js';
+
+import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
 import { Blob } from "@gjsify/deno-runtime/ext/web/09_file";
 
 import type { Request } from './request.js';
