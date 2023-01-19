@@ -1,4 +1,4 @@
-// TODO: Move this interface to ts-for-gir
+// TODO: Use Methods interface from @gjsify/types/Gjs instead
 /**
  * You can use the `Signals.addSignalMethods` method to apply the `Signals` convenience methods to an `Object`.
  * Generally, this is called on an object prototype, but may also be called on an object instance.

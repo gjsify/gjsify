@@ -2,13 +2,12 @@ import { aliasPlugin } from '../alias-plugin.js';
 import { debugPlugin } from '../debug-plugin.js';
 import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
-import fastGlob from 'fast-glob';
 import { merge } from "lodash";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
-import { getAliasesForDeno } from "../utils/index.js";
+import { getAliasesForDeno, globToEntryPoints } from "../utils/index.js";
 
 export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -50,9 +49,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
 
     merge(build.initialOptions, esbuildOptions);
 
-    if(Array.isArray(build.initialOptions.entryPoints)) {
-        build.initialOptions.entryPoints = await fastGlob(build.initialOptions.entryPoints, {ignore: pluginOptions.exclude})
-    }
+    build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude)
 
     const aliases = {...getAliasesForDeno({external}), ...pluginOptions.aliases};
 

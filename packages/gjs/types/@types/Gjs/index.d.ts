@@ -6,7 +6,6 @@
  */
 
 import type * as Gjs from './Gjs.js'
-import type * as GnomeShell from './GnomeShell.js'
 import type Gio20 from "./Gio-2.0.js";
 import type GLib20 from "./GLib-2.0.js";
 import type Soup30 from "./Soup-3.0.js";
@@ -593,8 +592,6 @@ declare global {
         signals: typeof Gjs.Signals
         package: typeof Gjs.Package
         mainloop: typeof Gjs.Mainloop
-        misc: typeof GnomeShell.misc
-        ui: typeof GnomeShell.ui
         searchPath: string[]
     }
 }

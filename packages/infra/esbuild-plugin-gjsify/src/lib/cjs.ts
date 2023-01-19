@@ -1,8 +1,7 @@
 import { aliasPlugin } from '../alias-plugin.js';
-import fastGlob from 'fast-glob';
 import { transformExtPlugin } from '@gjsify/esbuild-plugin-transform-ext';
 import { merge } from "lodash";
-import { getJsExtensions } from "../utils/index.js";
+import { getJsExtensions, globToEntryPoints } from "../utils/index.js";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -37,9 +36,7 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
 
     merge(build.initialOptions, esbuildOptions);
 
-    if(Array.isArray(build.initialOptions.entryPoints)) {
-        build.initialOptions.entryPoints = await fastGlob(build.initialOptions.entryPoints, {ignore: pluginOptions.exclude})
-    }
+    build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude)
 
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 

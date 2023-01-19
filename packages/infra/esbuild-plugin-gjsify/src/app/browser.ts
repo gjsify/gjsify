@@ -2,8 +2,8 @@ import { aliasPlugin } from '../alias-plugin.js';
 import { debugPlugin } from '../debug-plugin.js';
 import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
-import fastGlob from 'fast-glob';
 import { merge } from "lodash";
+import { globToEntryPoints } from "../utils/index.js";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -49,9 +49,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
 
     merge(build.initialOptions, esbuildOptions);
 
-    if(Array.isArray(build.initialOptions.entryPoints)) {
-        build.initialOptions.entryPoints = await fastGlob(build.initialOptions.entryPoints, {ignore: pluginOptions.exclude})
-    }
+    build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude)
 
     const aliases = {...pluginOptions.aliases};
 
