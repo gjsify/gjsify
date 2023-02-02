@@ -49,7 +49,7 @@
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^0.0.30",
         "@types/node": "^18.11.18",
-        "typescript": "^5.0.0-dev.20230117"
+        "typescript": "^5.0.0-dev.20230202"
     },
     "dependencies": {
         "@gjsify/deno_std": "workspace:^",

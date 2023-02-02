@@ -24,7 +24,7 @@
   "license": "MIT",
   "devDependencies": {
     "@types/jsdom": "^20.0.1",
-    "typescript": "^5.0.0-dev.20230117"
+    "typescript": "^5.0.0-dev.20230202"
   },
   "packageManager": "yarn@4.0.0-rc.35",
   "disabled_resolutions": {
