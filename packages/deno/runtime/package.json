@@ -27,7 +27,7 @@
         "print:name": "echo '@gjsify/deno-runtime'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types && yarn sync:dts",
         "build:gjsify": "mkdir lib -p && gjsify build --library 'src/{core,ext,ops,runtime,types}/**/*.ts' 'src/cli/{js,ops}/*.ts' 'src/*.ts' --exclude '**/*.d.ts' 'lib'",
-        "build:types": "tsc --emitDeclarationOnly || exit 0",
+        "build:types": "tsc --project tsconfig.json || exit 0",
         "build:test": "yarn build:test:gjs && yarn build:test:deno",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "build:test:deno": "gjsify build src/test.ts --app deno --outfile test.deno.js",
