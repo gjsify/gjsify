@@ -5,6 +5,8 @@ import Gio from '@gjsify/types/Gio-2.0';
 import * as GioExt from '@gjsify/gio-2.0';
 import * as SoupExt from '@gjsify/soup-3.0';
 
+import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
+
 import { Readable } from 'stream';
 
 import Headers from './headers.js';
@@ -14,8 +16,6 @@ import {isAbortSignal} from './utils/is.js';
 import {
 	validateReferrerPolicy, determineRequestsReferrer, DEFAULT_REFERRER_POLICY
 } from './utils/referrer.js';
-
-import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
 
 const INTERNALS = Symbol('Request internals');
 

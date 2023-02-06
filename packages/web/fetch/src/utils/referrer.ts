@@ -1,7 +1,7 @@
+import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
+
 import { isIP } from 'net';
 import Request from '../request.js';
-
-import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
 
 /**
  * @external URL

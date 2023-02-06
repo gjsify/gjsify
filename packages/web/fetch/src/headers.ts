@@ -3,12 +3,13 @@
  *
  * Headers class offers convenient helpers
  */
+
+import Soup from '@gjsify/types/Soup-3.0';
+import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
+
 import { types } from 'util';
 import * as http from 'http';
 import type { IncomingMessage } from 'http';
-import Soup from '@gjsify/types/Soup-3.0';
-
-import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
 
 
 /* c8 ignore next 9 */
