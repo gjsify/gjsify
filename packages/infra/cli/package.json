@@ -25,14 +25,14 @@
     "dependencies": {
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
-        "esbuild": "^0.17.5",
-        "get-tsconfig": "^4.3.0",
+        "esbuild": "^0.17.7",
+        "get-tsconfig": "^4.4.0",
         "lodash": "^4.17.21",
         "pkg-types": "^1.0.1",
         "yargs": "^17.6.2"
     },
     "devDependencies": {
         "@types/yargs": "^17.0.22",
-        "typescript": "^5.0.0-dev.20230202"
+        "typescript": "^5.0.0-dev.20230210"
     }
 }

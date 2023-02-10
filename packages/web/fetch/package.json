@@ -38,7 +38,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/http": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.11.18"
+        "@types/node": "^18.13.0"
     },
     "dependencies": {
         "@gjsify/deno-runtime": "workspace:^",
