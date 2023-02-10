@@ -25,7 +25,7 @@
   "devDependencies": {
     "typescript": "^5.0.0-dev.20230210"
   },
-  "packageManager": "yarn@4.0.0-rc.35",
+  "packageManager": "yarn@4.0.0-rc.39",
   "disabled_resolutions": {
     "@deepkit/core": "portal:../deepkit-framework/packages/core",
     "@deepkit/event": "portal:../deepkit-framework/packages/event",
