@@ -3264,6 +3264,7 @@ const VERSION_STRING: string
  * Fetches the name identifier of the specified feature type in the face's `name` table.
  * @param face #hb_face_t to work upon
  * @param feature_type The #hb_aat_layout_feature_type_t of the requested feature type
+ * @returns Name identifier of the requested feature type
  */
 function aat_layout_feature_type_get_name_id(face: face_t, feature_type: aat_layout_feature_type_t): ot_name_id_t
 /**
@@ -3275,12 +3276,14 @@ function aat_layout_feature_type_get_name_id(face: face_t, feature_type: aat_lay
  * @param face #hb_face_t to work upon
  * @param feature_type The #hb_aat_layout_feature_type_t of the requested feature type
  * @param start_offset offset of the first feature type to retrieve
+ * @returns Number of all available feature selectors
  */
 function aat_layout_feature_type_get_selector_infos(face: face_t, feature_type: aat_layout_feature_type_t, start_offset: number): [ /* returnType */ number, /* selectors */ aat_layout_feature_selector_info_t[], /* default_index */ number ]
 /**
  * Fetches a list of the AAT feature types included in the specified face.
  * @param face #hb_face_t to work upon
  * @param start_offset offset of the first feature type to retrieve
+ * @returns Number of all available feature types.
  */
 function aat_layout_get_feature_types(face: face_t, start_offset: number): [ /* returnType */ number, /* features */ aat_layout_feature_type_t[] ]
 /**
@@ -3289,6 +3292,7 @@ function aat_layout_get_feature_types(face: face_t, start_offset: number): [ /* 
  * 
  * <note>Note: does not examine the `GPOS` table.</note>
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function aat_layout_has_positioning(face: face_t): bool_t
 /**
@@ -3297,29 +3301,34 @@ function aat_layout_has_positioning(face: face_t): bool_t
  * 
  * <note>Note: does not examine the `GSUB` table.</note>
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function aat_layout_has_substitution(face: face_t): bool_t
 /**
  * Tests whether the specified face includes any tracking information
  * in the `trak` table.
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function aat_layout_has_tracking(face: face_t): bool_t
 /**
  * Makes a writable copy of `blob`.
  * @param blob A blob.
+ * @returns The new blob, or nullptr if allocation failed
  */
 function blob_copy_writable_or_fail(blob: blob_t): blob_t
 /**
  * Creates a new blob containing the data from the
  * specified binary font file.
  * @param file_name A font filename
+ * @returns An #hb_blob_t pointer with the content of the file, or hb_blob_get_empty() if failed.
  */
 function blob_create_from_file(file_name: string): blob_t
 /**
  * Creates a new blob containing the data from the
  * specified binary font file.
  * @param file_name A font filename
+ * @returns An #hb_blob_t pointer with the content of the file, or `NULL` if failed.
  */
 function blob_create_from_file_or_fail(file_name: string): blob_t
 /**
@@ -3333,11 +3342,13 @@ function blob_create_from_file_or_fail(file_name: string): blob_t
  * @param parent Parent blob.
  * @param offset Start offset of sub-blob within `parent,` in bytes.
  * @param length Length of sub-blob.
+ * @returns New blob, or the empty blob if something failed or if @length is zero or @offset is beyond the end of @parent's data.  Destroy with hb_blob_destroy().
  */
 function blob_create_sub_blob(parent: blob_t, offset: number, length: number): blob_t
 /**
  * Fetches the data from a blob.
  * @param blob a blob.
+ * @returns the byte data of @blob.
  */
 function blob_get_data(blob: blob_t): string[] | null
 /**
@@ -3347,22 +3358,26 @@ function blob_get_data(blob: blob_t): string[] | null
  * Fails if blob has been made immutable, or if memory allocation
  * fails.
  * @param blob a blob.
+ * @returns Writable blob data, or `NULL` if failed.
  */
 function blob_get_data_writable(blob: blob_t): string[]
 /**
  * Returns the singleton empty blob.
  * 
  * See TODO:link object types for more information.
+ * @returns The empty blob.
  */
 function blob_get_empty(): blob_t
 /**
  * Fetches the length of a blob's data.
  * @param blob a blob.
+ * @returns the length of @blob data in bytes.
  */
 function blob_get_length(blob: blob_t): number
 /**
  * Tests whether a blob is immutable.
  * @param blob a blob.
+ * @returns `true` if @blob is immutable, `false` otherwise
  */
 function blob_is_immutable(blob: blob_t): bool_t
 /**
@@ -3450,6 +3465,7 @@ function buffer_add_utf8(buffer: buffer_t, text: Uint8Array, item_offset: number
 /**
  * Check if allocating memory for the buffer succeeded.
  * @param buffer An #hb_buffer_t
+ * @returns `true` if @buffer memory allocation succeeded, `false` otherwise.
  */
 function buffer_allocation_successful(buffer: buffer_t): bool_t
 /**
@@ -3468,12 +3484,14 @@ function buffer_append(buffer: buffer_t, source: buffer_t, start: number, end: n
 function buffer_clear_contents(buffer: buffer_t): void
 /**
  * Creates a new #hb_buffer_t with all properties to defaults.
+ * @returns  A newly allocated #hb_buffer_t with a reference count of 1. The initial reference count should be released with hb_buffer_destroy() when you are done using the #hb_buffer_t. This function never returns `NULL`. If memory cannot be allocated, a special #hb_buffer_t object will be returned on which hb_buffer_allocation_successful() returns `false`.
  */
 function buffer_create(): buffer_t
 /**
  * Creates a new #hb_buffer_t, similar to hb_buffer_create(). The only
  * difference is that the buffer is configured similarly to `src`.
  * @param src An #hb_buffer_t
+ * @returns  A newly allocated #hb_buffer_t, similar to hb_buffer_create().
  */
 function buffer_create_similar(src: buffer_t): buffer_t
 /**
@@ -3483,6 +3501,7 @@ function buffer_create_similar(src: buffer_t): buffer_t
  * @param buf string to deserialize
  * @param font font for getting glyph IDs
  * @param format the #hb_buffer_serialize_format_t of the input `buf`
+ * @returns `true` if @buf is not fully consumed, `false` otherwise.
  */
 function buffer_deserialize_glyphs(buffer: buffer_t, buf: string[], font: font_t | null, format: buffer_serialize_format_t): [ /* returnType */ bool_t, /* end_ptr */ string ]
 /**
@@ -3491,6 +3510,7 @@ function buffer_deserialize_glyphs(buffer: buffer_t, buf: string[], font: font_t
  * @param buffer an #hb_buffer_t buffer.
  * @param buf string to deserialize
  * @param format the #hb_buffer_serialize_format_t of the input `buf`
+ * @returns `true` if @buf is not fully consumed, `false` otherwise.
  */
 function buffer_deserialize_unicode(buffer: buffer_t, buf: string[], format: buffer_serialize_format_t): [ /* returnType */ bool_t, /* end_ptr */ string ]
 /**
@@ -3508,32 +3528,38 @@ function buffer_diff(buffer: buffer_t, reference: buffer_t, dottedcircle_glyph: 
  * dictates one aspect of how HarfBuzz will treat non-base characters
  * during shaping.
  * @param buffer An #hb_buffer_t
+ * @returns The cluster level of @buffer
  */
 function buffer_get_cluster_level(buffer: buffer_t): buffer_cluster_level_t
 /**
  * Fetches the type of `buffer` contents. Buffers are either empty, contain
  * characters (before shaping), or contain glyphs (the result of shaping).
  * @param buffer An #hb_buffer_t
+ * @returns The type of @buffer contents
  */
 function buffer_get_content_type(buffer: buffer_t): buffer_content_type_t
 /**
  * See hb_buffer_set_direction()
  * @param buffer An #hb_buffer_t
+ * @returns The direction of the @buffer.
  */
 function buffer_get_direction(buffer: buffer_t): direction_t
 /**
  * Fetches an empty #hb_buffer_t.
+ * @returns The empty buffer
  */
 function buffer_get_empty(): buffer_t
 /**
  * Fetches the #hb_buffer_flags_t of `buffer`.
  * @param buffer An #hb_buffer_t
+ * @returns The @buffer flags
  */
 function buffer_get_flags(buffer: buffer_t): buffer_flags_t
 /**
  * Returns `buffer` glyph information array.  Returned pointer
  * is valid as long as `buffer` contents are not modified.
  * @param buffer An #hb_buffer_t
+ * @returns  The @buffer glyph information array. The value valid as long as buffer has not been modified.
  */
 function buffer_get_glyph_infos(buffer: buffer_t): glyph_info_t[]
 /**
@@ -3545,37 +3571,44 @@ function buffer_get_glyph_infos(buffer: buffer_t): glyph_info_t[]
  * within a buffer message callback (see hb_buffer_set_message_func()),
  * in which case `NULL` is returned.
  * @param buffer An #hb_buffer_t
+ * @returns  The @buffer glyph position array. The value valid as long as buffer has not been modified.
  */
 function buffer_get_glyph_positions(buffer: buffer_t): glyph_position_t[]
 /**
  * See hb_buffer_set_invisible_glyph().
  * @param buffer An #hb_buffer_t
+ * @returns The @buffer invisible #hb_codepoint_t
  */
 function buffer_get_invisible_glyph(buffer: buffer_t): codepoint_t
 /**
  * See hb_buffer_set_language().
  * @param buffer An #hb_buffer_t
+ * @returns  The #hb_language_t of the buffer. Must not be freed by the caller.
  */
 function buffer_get_language(buffer: buffer_t): language_t
 /**
  * Returns the number of items in the buffer.
  * @param buffer An #hb_buffer_t
+ * @returns The @buffer length. The value valid as long as buffer has not been modified.
  */
 function buffer_get_length(buffer: buffer_t): number
 /**
  * See hb_buffer_set_not_found_glyph().
  * @param buffer An #hb_buffer_t
+ * @returns The @buffer not-found #hb_codepoint_t
  */
 function buffer_get_not_found_glyph(buffer: buffer_t): codepoint_t
 /**
  * Fetches the #hb_codepoint_t that replaces invalid entries for a given encoding
  * when adding text to `buffer`.
  * @param buffer An #hb_buffer_t
+ * @returns The @buffer replacement #hb_codepoint_t
  */
 function buffer_get_replacement_codepoint(buffer: buffer_t): codepoint_t
 /**
  * Fetches the script of `buffer`.
  * @param buffer An #hb_buffer_t
+ * @returns The #hb_script_t of the @buffer
  */
 function buffer_get_script(buffer: buffer_t): script_t
 /**
@@ -3586,6 +3619,7 @@ function buffer_get_segment_properties(buffer: buffer_t): /* props */ segment_pr
 /**
  * Fetches the Unicode-functions structure of a buffer.
  * @param buffer An #hb_buffer_t
+ * @returns The Unicode-functions structure
  */
 function buffer_get_unicode_funcs(buffer: buffer_t): unicode_funcs_t
 /**
@@ -3618,6 +3652,7 @@ function buffer_guess_segment_properties(buffer: buffer_t): void
  * A buffer gains position data when hb_buffer_get_glyph_positions() is called on it,
  * and cleared of position data when hb_buffer_clear_contents() is called.
  * @param buffer an #hb_buffer_t.
+ * @returns `true` if the @buffer has position array, `false` otherwise.
  */
 function buffer_has_positions(buffer: buffer_t): bool_t
 /**
@@ -3632,6 +3667,7 @@ function buffer_normalize_glyphs(buffer: buffer_t): void
  * Pre allocates memory for `buffer` to fit at least `size` number of items.
  * @param buffer An #hb_buffer_t
  * @param size Number of items to pre allocate.
+ * @returns `true` if @buffer memory allocation succeeded, `false` otherwise
  */
 function buffer_pre_allocate(buffer: buffer_t, size: number): bool_t
 /**
@@ -3671,6 +3707,7 @@ function buffer_reverse_range(buffer: buffer_t, start: number, end: number): voi
  * @param font the #hb_font_t used to shape this buffer, needed to        read glyph names and extents. If `NULL`, an empty font will be used.
  * @param format the #hb_buffer_serialize_format_t to use for formatting the output.
  * @param flags the #hb_buffer_serialize_flags_t that control what glyph properties         to serialize.
+ * @returns The number of serialized items.
  */
 function buffer_serialize(buffer: buffer_t, start: number, end: number, font: font_t | null, format: buffer_serialize_format_t, flags: buffer_serialize_flags_t): [ /* returnType */ number, /* buf */ Uint8Array, /* buf_consumed */ number ]
 /**
@@ -3678,12 +3715,14 @@ function buffer_serialize(buffer: buffer_t, start: number, end: number, font: fo
  * `str` is a valid buffer serialization format, use
  * hb_buffer_serialize_list_formats() to get the list of supported formats.
  * @param str a string to parse
+ * @returns The parsed #hb_buffer_serialize_format_t.
  */
 function buffer_serialize_format_from_string(str: Uint8Array): buffer_serialize_format_t
 /**
  * Converts `format` to the string corresponding it, or `NULL` if it is not a valid
  * #hb_buffer_serialize_format_t.
  * @param format an #hb_buffer_serialize_format_t to convert.
+ * @returns  A `NULL` terminated string corresponding to @format. Should not be freed.
  */
 function buffer_serialize_format_to_string(format: buffer_serialize_format_t): string
 /**
@@ -3735,10 +3774,12 @@ function buffer_serialize_format_to_string(format: buffer_serialize_format_t): s
  * @param font the #hb_font_t used to shape this buffer, needed to        read glyph names and extents. If `NULL`, an empty font will be used.
  * @param format the #hb_buffer_serialize_format_t to use for formatting the output.
  * @param flags the #hb_buffer_serialize_flags_t that control what glyph properties         to serialize.
+ * @returns The number of serialized items.
  */
 function buffer_serialize_glyphs(buffer: buffer_t, start: number, end: number, font: font_t | null, format: buffer_serialize_format_t, flags: buffer_serialize_flags_t): [ /* returnType */ number, /* buf */ Uint8Array, /* buf_consumed */ number ]
 /**
  * Returns a list of supported buffer serialization formats.
+ * @returns  A string array of buffer serialization formats. Should not be freed.
  */
 function buffer_serialize_list_formats(): string[]
 /**
@@ -3779,6 +3820,7 @@ function buffer_serialize_list_formats(): string[]
  * @param end the last item in `buffer` to serialize.
  * @param format the #hb_buffer_serialize_format_t to use for formatting the output.
  * @param flags the #hb_buffer_serialize_flags_t that control what glyph properties         to serialize.
+ * @returns The number of serialized items.
  */
 function buffer_serialize_unicode(buffer: buffer_t, start: number, end: number, format: buffer_serialize_format_t, flags: buffer_serialize_flags_t): [ /* returnType */ number, /* buf */ Uint8Array, /* buf_consumed */ number ]
 /**
@@ -3842,6 +3884,7 @@ function buffer_set_language(buffer: buffer_t, language: language_t): void
  * end.
  * @param buffer An #hb_buffer_t
  * @param length The new length of `buffer`
+ * @returns `true` if @buffer memory allocation succeeded, `false` otherwise.
  */
 function buffer_set_length(buffer: buffer_t, length: number): bool_t
 /**
@@ -3901,21 +3944,25 @@ function buffer_set_unicode_funcs(buffer: buffer_t, unicode_funcs: unicode_funcs
 /**
  * Fetches the alpha channel of the given `color`.
  * @param color an #hb_color_t we are interested in its channels.
+ * @returns Alpha channel value
  */
 function color_get_alpha(color: color_t): number
 /**
  * Fetches the blue channel of the given `color`.
  * @param color an #hb_color_t we are interested in its channels.
+ * @returns Blue channel value
  */
 function color_get_blue(color: color_t): number
 /**
  * Fetches the green channel of the given `color`.
  * @param color an #hb_color_t we are interested in its channels.
+ * @returns Green channel value
  */
 function color_get_green(color: color_t): number
 /**
  * Fetches the red channel of the given `color`.
  * @param color an #hb_color_t we are interested in its channels.
+ * @returns Red channel value
  */
 function color_get_red(color: color_t): number
 /**
@@ -3926,11 +3973,13 @@ function color_get_red(color: color_t): number
  * 
  * Unmatched strings will return #HB_DIRECTION_INVALID.
  * @param str String to convert
+ * @returns The #hb_direction_t matching @str
  */
 function direction_from_string(str: Uint8Array): direction_t
 /**
  * Converts an #hb_direction_t to a string.
  * @param direction The #hb_direction_t to convert
+ * @returns The string corresponding to @direction
  */
 function direction_to_string(direction: direction_t): string
 /**
@@ -3955,11 +4004,13 @@ function draw_close_path(dfuncs: draw_funcs_t, draw_data: object | null, st: dra
 function draw_cubic_to(dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, control1_x: number, control1_y: number, control2_x: number, control2_y: number, to_x: number, to_y: number): void
 /**
  * Creates a new draw callbacks object.
+ * @returns  A newly allocated #hb_draw_funcs_t with a reference count of 1. The initial reference count should be released with hb_draw_funcs_destroy when you are done using the #hb_draw_funcs_t. This function never returns `NULL`. If memory cannot be allocated, a special singleton #hb_draw_funcs_t object will be returned.
  */
 function draw_funcs_create(): draw_funcs_t
 /**
  * Checks whether `dfuncs` is immutable.
  * @param dfuncs draw functions
+ * @returns `true` if @dfuncs is immutable, `false` otherwise
  */
 function draw_funcs_is_immutable(dfuncs: draw_funcs_t): bool_t
 /**
@@ -4038,6 +4089,7 @@ function face_builder_add_table(face: face_t, tag: tag_t, blob: blob_t): bool_t
  * Creates a #hb_face_t that can be used with hb_face_builder_add_table().
  * After tables are added to the face, it can be compiled to a binary
  * font file by calling hb_face_reference_blob().
+ * @returns New face.
  */
 function face_builder_create(): face_t
 /**
@@ -4065,6 +4117,7 @@ function face_collect_variation_unicodes(face: face_t, variation_selector: codep
 /**
  * Fetches the number of faces in a blob.
  * @param blob a blob.
+ * @returns Number of faces in @blob
  */
 function face_count(blob: blob_t): number
 /**
@@ -4084,6 +4137,7 @@ function face_count(blob: blob_t): number
  * hb_font_create() for details.</note>
  * @param blob #hb_blob_t to work upon
  * @param index The index of the face within `blob`
+ * @returns The new face object
  */
 function face_create(blob: blob_t, index: number): face_t
 /**
@@ -4095,15 +4149,18 @@ function face_create(blob: blob_t, index: number): face_t
  * Creates a new face object from the specified `user_data` and `reference_table_func,`
  * with the `destroy` callback.
  * @param reference_table_func Table-referencing function
+ * @returns The new face object
  */
 function face_create_for_tables(reference_table_func: reference_table_func_t): face_t
 /**
  * Fetches the singleton empty face object.
+ * @returns The empty face object
  */
 function face_get_empty(): face_t
 /**
  * Fetches the glyph-count value of the specified face object.
  * @param face A face object
+ * @returns The glyph-count value of @face
  */
 function face_get_glyph_count(face: face_t): number
 /**
@@ -4111,6 +4168,7 @@ function face_get_glyph_count(face: face_t): number
  * 
  * <note>Note: face indices within a collection are zero-based.</note>
  * @param face A face object
+ * @returns The index of @face.
  */
 function face_get_index(face: face_t): number
 /**
@@ -4118,16 +4176,19 @@ function face_get_index(face: face_t): number
  * begin at the offset provided
  * @param face A face object
  * @param start_offset The index of first table tag to retrieve
+ * @returns Total number of tables, or zero if it is not possible to list
  */
 function face_get_table_tags(face: face_t, start_offset: number): [ /* returnType */ number, /* table_tags */ tag_t[] ]
 /**
  * Fetches the units-per-em (upem) value of the specified face object.
  * @param face A face object
+ * @returns The upem value of @face
  */
 function face_get_upem(face: face_t): number
 /**
  * Tests whether the given face object is immutable.
  * @param face A face object
+ * @returns `true` is @face is immutable, `false` otherwise
  */
 function face_is_immutable(face: face_t): bool_t
 /**
@@ -4140,6 +4201,7 @@ function face_make_immutable(face: face_t): void
  * specified face. Returns an empty blob if referencing face data is not
  * possible.
  * @param face A face object
+ * @returns A pointer to the blob for @face
  */
 function face_reference_blob(face: face_t): blob_t
 /**
@@ -4147,6 +4209,7 @@ function face_reference_blob(face: face_t): blob_t
  * the specified face.
  * @param face A face object
  * @param tag The #hb_tag_t of the table to query
+ * @returns A pointer to the @tag table within @face
  */
 function face_reference_table(face: face_t, tag: tag_t): blob_t
 /**
@@ -4210,6 +4273,7 @@ function face_set_upem(face: face_t, upem: number): void
  * </tgroup>
  * </informaltable>
  * @param str a string to parse
+ * @returns `true` if @str is successfully parsed, `false` otherwise
  */
 function feature_from_string(str: Uint8Array): [ /* returnType */ bool_t, /* feature */ feature_t ]
 /**
@@ -4249,25 +4313,30 @@ function font_changed(font: font_t): void
  * specifying which named-instance to load by default when creating the
  * face.</note>
  * @param face a face.
+ * @returns The new font object
  */
 function font_create(face: face_t): font_t
 /**
  * Constructs a sub-font font object from the specified `parent` font,
  * replicating the parent's properties.
  * @param parent The parent font object
+ * @returns The new sub-font font object
  */
 function font_create_sub_font(parent: font_t): font_t
 /**
  * Creates a new #hb_font_funcs_t structure of font functions.
+ * @returns The font-functions structure
  */
 function font_funcs_create(): font_funcs_t
 /**
  * Fetches an empty font-functions structure.
+ * @returns The font-functions structure
  */
 function font_funcs_get_empty(): font_funcs_t
 /**
  * Tests whether a font-functions structure is immutable.
  * @param ffuncs The font-functions structure
+ * @returns `true` if @ffuncs is immutable, `false` otherwise
  */
 function font_funcs_is_immutable(ffuncs: font_funcs_t): bool_t
 /**
@@ -4392,6 +4461,7 @@ function font_funcs_set_nominal_glyphs_func(ffuncs: font_funcs_t, func: font_get
 function font_funcs_set_variation_glyph_func(ffuncs: font_funcs_t, func: font_get_variation_glyph_func_t): void
 /**
  * Fetches the empty font object.
+ * @returns The empty font object
  */
 function font_get_empty(): font_t
 /**
@@ -4407,6 +4477,7 @@ function font_get_extents_for_direction(font: font_t, direction: direction_t): /
 /**
  * Fetches the face associated with the specified font object.
  * @param font #hb_font_t to work upon
+ * @returns The #hb_face_t value
  */
 function font_get_face(font: font_t): face_t
 /**
@@ -4418,6 +4489,7 @@ function font_get_face(font: font_t): face_t
  * @param font #hb_font_t to work upon
  * @param unicode The Unicode code point to query
  * @param variation_selector A variation-selector code point
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph(font: font_t, unicode: codepoint_t, variation_selector: codepoint_t): [ /* returnType */ bool_t, /* glyph */ codepoint_t ]
 /**
@@ -4450,6 +4522,7 @@ function font_get_glyph_advances_for_direction(font: font_t, direction: directio
  * @param font #hb_font_t to work upon
  * @param glyph The glyph ID to query
  * @param point_index The contour-point index to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph_contour_point(font: font_t, glyph: codepoint_t, point_index: number): [ /* returnType */ bool_t, /* x */ position_t, /* y */ position_t ]
 /**
@@ -4463,6 +4536,7 @@ function font_get_glyph_contour_point(font: font_t, glyph: codepoint_t, point_in
  * @param glyph The glyph ID to query
  * @param point_index The contour-point index to query
  * @param direction The direction of the text segment
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph_contour_point_for_origin(font: font_t, glyph: codepoint_t, point_index: number, direction: direction_t): [ /* returnType */ bool_t, /* x */ position_t, /* y */ position_t ]
 /**
@@ -4470,6 +4544,7 @@ function font_get_glyph_contour_point_for_origin(font: font_t, glyph: codepoint_
  * in the specified font.
  * @param font #hb_font_t to work upon
  * @param glyph The glyph ID to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph_extents(font: font_t, glyph: codepoint_t): [ /* returnType */ bool_t, /* extents */ glyph_extents_t ]
 /**
@@ -4482,6 +4557,7 @@ function font_get_glyph_extents(font: font_t, glyph: codepoint_t): [ /* returnTy
  * @param font #hb_font_t to work upon
  * @param glyph The glyph ID to query
  * @param direction The direction of the text segment
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph_extents_for_origin(font: font_t, glyph: codepoint_t, direction: direction_t): [ /* returnType */ bool_t, /* extents */ glyph_extents_t ]
 /**
@@ -4490,6 +4566,7 @@ function font_get_glyph_extents_for_origin(font: font_t, glyph: codepoint_t, dir
  * <note>Note: `len` == -1 means the name string is null-terminated.</note>
  * @param font #hb_font_t to work upon
  * @param name The name string to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph_from_name(font: font_t, name: string[]): [ /* returnType */ bool_t, /* glyph */ codepoint_t ]
 /**
@@ -4497,6 +4574,7 @@ function font_get_glyph_from_name(font: font_t, name: string[]): [ /* returnType
  * for horizontal text segments.
  * @param font #hb_font_t to work upon
  * @param glyph The glyph ID to query
+ * @returns The advance of @glyph within @font
  */
 function font_get_glyph_h_advance(font: font_t, glyph: codepoint_t): position_t
 /**
@@ -4518,6 +4596,7 @@ function font_get_glyph_h_advances(font: font_t, count: number, first_glyph: cod
  * @param font #hb_font_t to work upon
  * @param left_glyph The glyph ID of the left glyph in the glyph pair
  * @param right_glyph The glyph ID of the right glyph in the glyph pair
+ * @returns The kerning adjustment value
  */
 function font_get_glyph_h_kerning(font: font_t, left_glyph: codepoint_t, right_glyph: codepoint_t): position_t
 /**
@@ -4525,6 +4604,7 @@ function font_get_glyph_h_kerning(font: font_t, left_glyph: codepoint_t, right_g
  * in the specified font, for horizontal text segments.
  * @param font #hb_font_t to work upon
  * @param glyph The glyph ID to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph_h_origin(font: font_t, glyph: codepoint_t): [ /* returnType */ bool_t, /* x */ position_t, /* y */ position_t ]
 /**
@@ -4542,6 +4622,7 @@ function font_get_glyph_kerning_for_direction(font: font_t, first_glyph: codepoi
  * Fetches the glyph-name string for a glyph ID in the specified `font`.
  * @param font #hb_font_t to work upon
  * @param glyph The glyph ID to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph_name(font: font_t, glyph: codepoint_t): [ /* returnType */ bool_t, /* name */ string[] ]
 /**
@@ -4570,6 +4651,7 @@ function font_get_glyph_shape(font: font_t, glyph: codepoint_t, dfuncs: draw_fun
  * for vertical text segments.
  * @param font #hb_font_t to work upon
  * @param glyph The glyph ID to query
+ * @returns The advance of @glyph within @font
  */
 function font_get_glyph_v_advance(font: font_t, glyph: codepoint_t): position_t
 /**
@@ -4590,6 +4672,7 @@ function font_get_glyph_v_advances(font: font_t, count: number, first_glyph: cod
  * @param font #hb_font_t to work upon
  * @param top_glyph The glyph ID of the top glyph in the glyph pair
  * @param bottom_glyph The glyph ID of the bottom glyph in the glyph pair
+ * @returns The kerning adjustment value
  */
 function font_get_glyph_v_kerning(font: font_t, top_glyph: codepoint_t, bottom_glyph: codepoint_t): position_t
 /**
@@ -4597,12 +4680,14 @@ function font_get_glyph_v_kerning(font: font_t, top_glyph: codepoint_t, bottom_g
  * in the specified font, for vertical text segments.
  * @param font #hb_font_t to work upon
  * @param glyph The glyph ID to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_glyph_v_origin(font: font_t, glyph: codepoint_t): [ /* returnType */ bool_t, /* x */ position_t, /* y */ position_t ]
 /**
  * Fetches the extents for a specified font, for horizontal
  * text segments.
  * @param font #hb_font_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_h_extents(font: font_t): [ /* returnType */ bool_t, /* extents */ font_extents_t ]
 /**
@@ -4614,6 +4699,7 @@ function font_get_h_extents(font: font_t): [ /* returnType */ bool_t, /* extents
  * support, user hb_font_get_variation_glyph() or use hb_font_get_glyph().
  * @param font #hb_font_t to work upon
  * @param unicode The Unicode code point to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_nominal_glyph(font: font_t, unicode: codepoint_t): [ /* returnType */ bool_t, /* glyph */ codepoint_t ]
 /**
@@ -4624,11 +4710,13 @@ function font_get_nominal_glyph(font: font_t, unicode: codepoint_t): [ /* return
  * @param first_unicode The first Unicode code point to query
  * @param unicode_stride The stride between successive code points
  * @param glyph_stride The stride between successive glyph IDs
+ * @returns the number of code points processed
  */
 function font_get_nominal_glyphs(font: font_t, count: number, first_unicode: codepoint_t, unicode_stride: number, glyph_stride: number): [ /* returnType */ number, /* first_glyph */ codepoint_t ]
 /**
  * Fetches the parent font of `font`.
  * @param font #hb_font_t to work upon
+ * @returns The parent font object
  */
 function font_get_parent(font: font_t): font_t
 /**
@@ -4640,6 +4728,7 @@ function font_get_ppem(font: font_t): [ /* x_ppem */ number, /* y_ppem */ number
  * Fetches the "point size" of a font. Used in CoreText to
  * implement optical sizing.
  * @param font #hb_font_t to work upon
+ * @returns Point size.  A value of zero means "not set."
  */
 function font_get_ptem(font: font_t): number
 /**
@@ -4652,17 +4741,20 @@ function font_get_scale(font: font_t): [ /* x_scale */ number, /* y_scale */ num
  * number is increased every time a setting on the font is
  * changed, using a setter function.
  * @param font #hb_font_t to work upon
+ * @returns serial number
  */
 function font_get_serial(font: font_t): number
 /**
  * Fetches the "synthetic slant" of a font.
  * @param font #hb_font_t to work upon
+ * @returns Synthetic slant.  By default is zero.
  */
 function font_get_synthetic_slant(font: font_t): number
 /**
  * Fetches the extents for a specified font, for vertical
  * text segments.
  * @param font #hb_font_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_v_extents(font: font_t): [ /* returnType */ bool_t, /* extents */ font_extents_t ]
 /**
@@ -4676,6 +4768,7 @@ function font_get_v_extents(font: font_t): [ /* returnType */ bool_t, /* extents
  * Return value is valid as long as variation coordinates of the font
  * are not modified.
  * @param font #hb_font_t to work upon
+ * @returns coordinates array
  */
 function font_get_var_coords_design(font: font_t): [ /* returnType */ number, /* length */ number ]
 /**
@@ -4688,6 +4781,7 @@ function font_get_var_coords_design(font: font_t): [ /* returnType */ number, /*
  * Return value is valid as long as variation coordinates of the font
  * are not modified.
  * @param font #hb_font_t to work upon
+ * @returns coordinates array
  */
 function font_get_var_coords_normalized(font: font_t): [ /* returnType */ number, /* length */ number ]
 /**
@@ -4697,6 +4791,7 @@ function font_get_var_coords_normalized(font: font_t): [ /* returnType */ number
  * @param font #hb_font_t to work upon
  * @param unicode The Unicode code point to query
  * @param variation_selector The  variation-selector code point to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_get_variation_glyph(font: font_t, unicode: codepoint_t, variation_selector: codepoint_t): [ /* returnType */ bool_t, /* glyph */ codepoint_t ]
 /**
@@ -4706,6 +4801,7 @@ function font_get_variation_glyph(font: font_t, unicode: codepoint_t, variation_
  * <note>Note: `len` == -1 means the string is null-terminated.</note>
  * @param font #hb_font_t to work upon
  * @param s string to query
+ * @returns `true` if data found, `false` otherwise
  */
 function font_glyph_from_string(font: font_t, s: Uint8Array): [ /* returnType */ bool_t, /* glyph */ codepoint_t ]
 /**
@@ -4721,6 +4817,7 @@ function font_glyph_to_string(font: font_t, glyph: codepoint_t): /* s */ string[
 /**
  * Tests whether a font object is immutable.
  * @param font #hb_font_t to work upon
+ * @returns `true` if @font is immutable, `false` otherwise
  */
 function font_is_immutable(font: font_t): bool_t
 /**
@@ -4860,6 +4957,7 @@ function font_subtract_glyph_origin_for_direction(font: font_t, glyph: codepoint
  * then it is the client program's responsibility to destroy `ft_face`
  * after the #hb_face_t face object has been destroyed.
  * @param ft_face FT_Face to work upon
+ * @returns the new #hb_face_t face object
  */
 function ft_face_create(ft_face: freetype2.Face): face_t
 /**
@@ -4874,6 +4972,7 @@ function ft_face_create(ft_face: freetype2.Face): face_t
  * However, client programs are still responsible for destroying
  * `ft_face` after the last #hb_face_t face object has been destroyed.
  * @param ft_face FT_Face to work upon
+ * @returns the new #hb_face_t face object
  */
 function ft_face_create_cached(ft_face: freetype2.Face): face_t
 /**
@@ -4887,6 +4986,7 @@ function ft_face_create_cached(ft_face: freetype2.Face): face_t
  * 
  * Use this version unless you know you have good reasons not to.
  * @param ft_face FT_Face to work upon
+ * @returns the new #hb_face_t face object
  */
 function ft_face_create_referenced(ft_face: freetype2.Face): face_t
 /**
@@ -4918,6 +5018,7 @@ function ft_font_changed(font: font_t): void
  * and it is the client program's responsibility to ensure that `ft_face` is
  * destroyed only after the #hb_font_t font object has been destroyed.
  * @param ft_face FT_Face to work upon
+ * @returns the new #hb_font_t font object
  */
 function ft_font_create(ft_face: freetype2.Face): font_t
 /**
@@ -4934,6 +5035,7 @@ function ft_font_create(ft_face: freetype2.Face): font_t
  * 
  * Use this version unless you know you have good reasons not to.
  * @param ft_face FT_Face to work upon
+ * @returns the new #hb_font_t font object
  */
 function ft_font_create_referenced(ft_face: freetype2.Face): font_t
 /**
@@ -4942,6 +5044,7 @@ function ft_font_create_referenced(ft_face: freetype2.Face): font_t
  * For more information, see
  * https://www.freetype.org/freetype2/docs/reference/ft2-base_interface.html#ft_load_xxx
  * @param font #hb_font_t to work upon
+ * @returns FT_Load_Glyph flags found
  */
 function ft_font_get_load_flags(font: font_t): number
 /**
@@ -4979,40 +5082,47 @@ function ft_font_set_load_flags(font: font_t, load_flags: number): void
  * variation-axis settings on the `font`.
  * This call is fast if nothing has changed on `font`.
  * @param font #hb_font_t to work upon
+ * @returns true if changed, false otherwise
  */
 function ft_hb_font_changed(font: font_t): bool_t
 /**
  * Creates an #hb_blob_t blob from the specified
  * GBytes data structure.
  * @param gbytes the GBytes structure to work upon
+ * @returns the new #hb_blob_t blob object
  */
 function glib_blob_create(gbytes: GLib.Bytes): blob_t
 /**
  * Fetches a Unicode-functions structure that is populated
  * with the appropriate GLib function for each method.
+ * @returns a pointer to the #hb_unicode_funcs_t Unicode-functions structure
  */
 function glib_get_unicode_funcs(): unicode_funcs_t
 /**
  * Fetches the GUnicodeScript identifier that corresponds to the
  * specified #hb_script_t script.
  * @param script The #hb_script_t to query
+ * @returns the GUnicodeScript identifier found
  */
 function glib_script_from_script(script: script_t): GLib.UnicodeScript
 /**
  * Fetches the #hb_script_t script that corresponds to the
  * specified GUnicodeScript identifier.
  * @param script The GUnicodeScript identifier to query
+ * @returns the #hb_script_t script found
  */
 function glib_script_to_script(script: GLib.UnicodeScript): script_t
 /**
  * Returns glyph flags encoded within a #hb_glyph_info_t.
  * @param info a #hb_glyph_info_t
+ * @returns The #hb_glyph_flags_t encoded within @info
  */
 function glyph_info_get_glyph_flags(info: glyph_info_t): glyph_flags_t
 /**
  * Converts `str` representing a BCP 47 language tag to the corresponding
  * #hb_language_t.
  * @param str a string representing       a BCP 47 language tag
+ * @returns  The #hb_language_t corresponding to the BCP 47 language tag.
  */
 function language_from_string(str: Uint8Array): language_t
 /**
@@ -5024,6 +5134,7 @@ function language_from_string(str: Uint8Array): language_t
  * problems, call this function once before multiple threads can call it.
  * This function is only used from hb_buffer_guess_segment_properties() by
  * HarfBuzz itself.</note>
+ * @returns The default language of the locale as an #hb_language_t
  */
 function language_get_default(): language_t
 /**
@@ -5032,16 +5143,19 @@ function language_get_default(): language_t
  * "fa_IR.utf8" is a more specific tag for "fa" or for "fa_IR".
  * @param language The #hb_language_t to work on
  * @param specific Another #hb_language_t
+ * @returns `true` if languages match, `false` otherwise.
  */
 function language_matches(language: language_t, specific: language_t): bool_t
 /**
  * Converts an #hb_language_t to a string.
  * @param language The #hb_language_t to convert
+ * @returns  A `NULL`-terminated string representing the @language. Must not be freed by the caller.
  */
 function language_to_string(language: language_t): string
 /**
  * Tests whether memory allocation for a set was successful.
  * @param map A map
+ * @returns `true` if allocation succeeded, `false` otherwise
  */
 function map_allocation_successful(map: map_t): bool_t
 /**
@@ -5052,10 +5166,12 @@ function map_clear(map: map_t): void
 /**
  * Allocate a copy of `map`.
  * @param map A map
+ * @returns Newly-allocated map.
  */
 function map_copy(map: map_t): map_t
 /**
  * Creates a new, initially empty map.
+ * @returns The new #hb_map_t
  */
 function map_create(): map_t
 /**
@@ -5072,27 +5188,32 @@ function map_del(map: map_t, key: codepoint_t): void
 function map_get(map: map_t, key: codepoint_t): codepoint_t
 /**
  * Fetches the singleton empty #hb_map_t.
+ * @returns The empty #hb_map_t
  */
 function map_get_empty(): map_t
 /**
  * Returns the number of key-value pairs in the map.
  * @param map A map
+ * @returns The population of @map
  */
 function map_get_population(map: map_t): number
 /**
  * Tests whether `key` is an element of `map`.
  * @param map A map
  * @param key The key to query
+ * @returns `true` if @key is found in @map, `false` otherwise
  */
 function map_has(map: map_t, key: codepoint_t): bool_t
 /**
  * Creates a hash representing `map`.
  * @param map A map
+ * @returns A hash of @map.
  */
 function map_hash(map: map_t): number
 /**
  * Tests whether `map` is empty (contains no elements).
  * @param map A map
+ * @returns `true` if @map is empty
  */
 function map_is_empty(map: map_t): bool_t
 /**
@@ -5100,6 +5221,7 @@ function map_is_empty(map: map_t): bool_t
  * elements).
  * @param map A map
  * @param other Another map
+ * @returns `true` if the two maps are equal, `false` otherwise.
  */
 function map_is_equal(map: map_t, other: map_t): bool_t
 /**
@@ -5115,6 +5237,7 @@ function map_set(map: map_t, key: codepoint_t, value: codepoint_t): void
  * @param face #hb_face_t to work upon
  * @param glyph The glyph index to query
  * @param start_offset offset of the first layer to retrieve
+ * @returns Total number of layers available for the glyph index queried
  */
 function ot_color_glyph_get_layers(face: face_t, glyph: codepoint_t, start_offset: number): [ /* returnType */ number, /* layers */ ot_color_layer_t[] | null ]
 /**
@@ -5125,6 +5248,7 @@ function ot_color_glyph_get_layers(face: face_t, glyph: codepoint_t, start_offse
  * If the glyph has no PNG image, the singleton empty blob is returned.
  * @param font #hb_font_t to work upon
  * @param glyph a glyph index
+ * @returns An #hb_blob_t containing the PNG image for the glyph, if available
  */
 function ot_color_glyph_reference_png(font: font_t, glyph: codepoint_t): blob_t
 /**
@@ -5133,26 +5257,31 @@ function ot_color_glyph_reference_png(font: font_t, glyph: codepoint_t): blob_t
  * If the glyph has no SVG document, the singleton empty blob is returned.
  * @param face #hb_face_t to work upon
  * @param glyph a svg glyph index
+ * @returns An #hb_blob_t containing the SVG document of the glyph, if available
  */
 function ot_color_glyph_reference_svg(face: face_t, glyph: codepoint_t): blob_t
 /**
  * Tests whether a face includes any `COLR` color layers.
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_color_has_layers(face: face_t): bool_t
 /**
  * Tests whether a face includes a `CPAL` color-palette table.
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_color_has_palettes(face: face_t): bool_t
 /**
  * Tests whether a face has PNG glyph images (either in `CBDT` or `sbix` tables).
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_color_has_png(face: face_t): bool_t
 /**
  * Tests whether a face includes any `SVG` glyph images.
  * @param face #hb_face_t to work upon.
+ * @returns `true` if data found, `false` otherwise.
  */
 function ot_color_has_svg(face: face_t): bool_t
 /**
@@ -5163,6 +5292,7 @@ function ot_color_has_svg(face: face_t): bool_t
  * (e.g., "Eye color").
  * @param face #hb_face_t to work upon
  * @param color_index The index of the color
+ * @returns the Name ID found for the color.
  */
 function ot_color_palette_color_get_name_id(face: face_t, color_index: number): ot_name_id_t
 /**
@@ -5176,17 +5306,20 @@ function ot_color_palette_color_get_name_id(face: face_t, color_index: number): 
  * @param face #hb_face_t to work upon
  * @param palette_index the index of the color palette to query
  * @param start_offset offset of the first color to retrieve
+ * @returns the total number of colors in the palette
  */
 function ot_color_palette_get_colors(face: face_t, palette_index: number, start_offset: number): [ /* returnType */ number, /* colors */ color_t[] | null ]
 /**
  * Fetches the number of color palettes in a face.
  * @param face #hb_face_t to work upon
+ * @returns the number of palettes found
  */
 function ot_color_palette_get_count(face: face_t): number
 /**
  * Fetches the flags defined for a color palette.
  * @param face #hb_face_t to work upon
  * @param palette_index The index of the color palette
+ * @returns the #hb_ot_color_palette_flags_t of the requested color palette
  */
 function ot_color_palette_get_flags(face: face_t, palette_index: number): ot_color_palette_flags_t
 /**
@@ -5197,6 +5330,7 @@ function ot_color_palette_get_flags(face: face_t, palette_index: number): ot_col
  * specific, themed names (e.g., "Spring", "Summer", "Fall", and "Winter").
  * @param face #hb_face_t to work upon
  * @param palette_index The index of the color palette
+ * @returns the Named ID found for the palette. If the requested palette has no name the result is #HB_OT_NAME_ID_INVALID.
  */
 function ot_color_palette_get_name_id(face: face_t, palette_index: number): ot_name_id_t
 /**
@@ -5237,6 +5371,7 @@ function ot_layout_collect_lookups(face: face_t, table_tag: tag_t, scripts: tag_
  * @param table_tag table tag to query, "GSUB" or "GPOS".
  * @param feature_index index of feature to query.
  * @param start_offset offset of the first character to retrieve
+ * @returns Number of total sample characters in the cvXX feature.
  */
 function ot_layout_feature_get_characters(face: face_t, table_tag: tag_t, feature_index: number, start_offset: number): [ /* returnType */ number, /* characters */ codepoint_t[] ]
 /**
@@ -5247,6 +5382,7 @@ function ot_layout_feature_get_characters(face: face_t, table_tag: tag_t, featur
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param feature_index The index of the requested feature
  * @param start_offset offset of the first lookup to retrieve
+ * @returns Total number of lookups.
  */
 function ot_layout_feature_get_lookups(face: face_t, table_tag: tag_t, feature_index: number, start_offset: number): [ /* returnType */ number, /* lookup_indexes */ number[] ]
 /**
@@ -5255,6 +5391,7 @@ function ot_layout_feature_get_lookups(face: face_t, table_tag: tag_t, feature_i
  * @param face #hb_face_t to work upon
  * @param table_tag table tag to query, "GSUB" or "GPOS".
  * @param feature_index index of feature to query.
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_layout_feature_get_name_ids(face: face_t, table_tag: tag_t, feature_index: number): [ /* returnType */ bool_t, /* label_id */ ot_name_id_t, /* tooltip_id */ ot_name_id_t, /* sample_id */ ot_name_id_t, /* num_named_parameters */ number, /* first_param_id */ ot_name_id_t ]
 /**
@@ -5266,6 +5403,7 @@ function ot_layout_feature_get_name_ids(face: face_t, table_tag: tag_t, feature_
  * @param feature_index The index of the feature to query
  * @param variations_index The index of the feature variation to query
  * @param start_offset offset of the first lookup to retrieve
+ * @returns Total number of lookups.
  */
 function ot_layout_feature_with_variations_get_lookups(face: face_t, table_tag: tag_t, feature_index: number, variations_index: number, start_offset: number): [ /* returnType */ number, /* lookup_indexes */ number[] ]
 /**
@@ -5276,6 +5414,7 @@ function ot_layout_feature_with_variations_get_lookups(face: face_t, table_tag: 
  * @param face The #hb_face_t to work on
  * @param glyph The #hb_codepoint_t code point to query
  * @param start_offset offset of the first attachment point to retrieve
+ * @returns Total number of attachment points for @glyph.
  */
 function ot_layout_get_attach_points(face: face_t, glyph: codepoint_t, start_offset: number): [ /* returnType */ number, /* point_array */ number[] ]
 /**
@@ -5285,6 +5424,7 @@ function ot_layout_get_attach_points(face: face_t, glyph: codepoint_t, start_off
  * @param direction text direction.
  * @param script_tag script tag.
  * @param language_tag language tag, currently unused.
+ * @returns `true` if found baseline value in the font.
  */
 function ot_layout_get_baseline(font: font_t, baseline_tag: ot_layout_baseline_tag_t, direction: direction_t, script_tag: tag_t, language_tag: tag_t): [ /* returnType */ bool_t, /* coord */ position_t | null ]
 /**
@@ -5301,6 +5441,7 @@ function ot_layout_get_baseline_with_fallback(font: font_t, baseline_tag: ot_lay
  * Fetches the GDEF class of the requested glyph in the specified face.
  * @param face The #hb_face_t to work on
  * @param glyph The #hb_codepoint_t code point to query
+ * @returns The #hb_ot_layout_glyph_class_t glyph class of the given code point in the GDEF table of the face.
  */
 function ot_layout_get_glyph_class(face: face_t, glyph: codepoint_t): ot_layout_glyph_class_t
 /**
@@ -5313,6 +5454,7 @@ function ot_layout_get_glyphs_in_class(face: face_t, klass: ot_layout_glyph_clas
 /**
  * Fetches the dominant horizontal baseline tag used by `script`.
  * @param script a script tag.
+ * @returns dominant baseline tag for the @script.
  */
 function ot_layout_get_horizontal_baseline_tag_for_script(script: script_t): ot_layout_baseline_tag_t
 /**
@@ -5329,6 +5471,7 @@ function ot_layout_get_horizontal_baseline_tag_for_script(script: script_t): ot_
  * @param direction The #hb_direction_t text direction to use
  * @param glyph The #hb_codepoint_t code point to query
  * @param start_offset offset of the first caret position to retrieve
+ * @returns Total number of ligature caret positions for @glyph.
  */
 function ot_layout_get_ligature_carets(font: font_t, direction: direction_t, glyph: codepoint_t, start_offset: number): [ /* returnType */ number, /* caret_array */ position_t[] ]
 /**
@@ -5341,21 +5484,25 @@ function ot_layout_get_ligature_carets(font: font_t, direction: direction_t, gly
  * For more information on this distinction, see the [`size` feature documentation](
  * https://docs.microsoft.com/en-us/typography/opentype/spec/features_pt#tag-size).
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_layout_get_size_params(face: face_t): [ /* returnType */ bool_t, /* design_size */ number, /* subfamily_id */ number, /* subfamily_name_id */ ot_name_id_t, /* range_start */ number, /* range_end */ number ]
 /**
  * Tests whether a face has any glyph classes defined in its GDEF table.
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_layout_has_glyph_classes(face: face_t): bool_t
 /**
  * Tests whether the specified face includes any GPOS positioning.
  * @param face #hb_face_t to work upon
+ * @returns `true` if the face has GPOS data, `false` otherwise
  */
 function ot_layout_has_positioning(face: face_t): bool_t
 /**
  * Tests whether the specified face includes any GSUB substitutions.
  * @param face #hb_face_t to work upon
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_layout_has_substitution(face: face_t): bool_t
 /**
@@ -5366,6 +5513,7 @@ function ot_layout_has_substitution(face: face_t): bool_t
  * @param script_index The index of the requested script tag
  * @param language_index The index of the requested language tag
  * @param feature_tag #hb_tag_t of the feature tag requested
+ * @returns `true` if the feature is found, `false` otherwise
  */
 function ot_layout_language_find_feature(face: face_t, table_tag: tag_t, script_index: number, language_index: number, feature_tag: tag_t): [ /* returnType */ bool_t, /* feature_index */ number ]
 /**
@@ -5377,6 +5525,7 @@ function ot_layout_language_find_feature(face: face_t, table_tag: tag_t, script_
  * @param script_index The index of the requested script tag
  * @param language_index The index of the requested language tag
  * @param start_offset offset of the first feature tag to retrieve
+ * @returns Total number of features.
  */
 function ot_layout_language_get_feature_indexes(face: face_t, table_tag: tag_t, script_index: number, language_index: number, start_offset: number): [ /* returnType */ number, /* feature_indexes */ number[] ]
 /**
@@ -5388,6 +5537,7 @@ function ot_layout_language_get_feature_indexes(face: face_t, table_tag: tag_t, 
  * @param script_index The index of the requested script tag
  * @param language_index The index of the requested language tag
  * @param start_offset offset of the first feature tag to retrieve
+ * @returns Total number of feature tags.
  */
 function ot_layout_language_get_feature_tags(face: face_t, table_tag: tag_t, script_index: number, language_index: number, start_offset: number): [ /* returnType */ number, /* feature_tags */ tag_t[] ]
 /**
@@ -5397,6 +5547,7 @@ function ot_layout_language_get_feature_tags(face: face_t, table_tag: tag_t, scr
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param script_index The index of the requested script tag
  * @param language_index The index of the requested language tag
+ * @returns `true` if the feature is found, `false` otherwise
  */
 function ot_layout_language_get_required_feature(face: face_t, table_tag: tag_t, script_index: number, language_index: number): [ /* returnType */ bool_t, /* feature_index */ number, /* feature_tag */ tag_t ]
 /**
@@ -5406,6 +5557,7 @@ function ot_layout_language_get_required_feature(face: face_t, table_tag: tag_t,
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param script_index The index of the requested script tag
  * @param language_index The index of the requested language tag
+ * @returns `true` if the feature is found, `false` otherwise
  */
 function ot_layout_language_get_required_feature_index(face: face_t, table_tag: tag_t, script_index: number, language_index: number): [ /* returnType */ bool_t, /* feature_index */ number ]
 /**
@@ -5422,6 +5574,7 @@ function ot_layout_lookup_collect_glyphs(face: face_t, table_tag: tag_t, lookup_
  * @param lookup_index index of the feature lookup to query.
  * @param glyph a glyph id.
  * @param start_offset starting offset.
+ * @returns Total number of alternates found in the specific lookup index for the given glyph id.
  */
 function ot_layout_lookup_get_glyph_alternates(face: face_t, lookup_index: number, glyph: codepoint_t, start_offset: number): [ /* returnType */ number, /* alternate_glyphs */ codepoint_t[] ]
 /**
@@ -5439,6 +5592,7 @@ function ot_layout_lookup_substitute_closure(face: face_t, lookup_index: number)
  * @param glyphs The sequence of glyphs to query for substitution
  * @param glyphs_length The length of the glyph sequence
  * @param zero_context #hb_bool_t indicating whether pre-/post-context are disallowed in substitutions
+ * @returns `true` if a substitution would be triggered, `false` otherwise
  */
 function ot_layout_lookup_would_substitute(face: face_t, lookup_index: number, glyphs: codepoint_t, glyphs_length: number, zero_context: bool_t): bool_t
 /**
@@ -5456,6 +5610,7 @@ function ot_layout_lookups_substitute_closure(face: face_t, lookups: set_t): /* 
  * @param script_index The index of the requested script tag
  * @param language_tag The #hb_tag_t of the requested language
  * @param language_index The index of the requested language
+ * @returns `true` if the language tag is found, `false` otherwise
  */
 function ot_layout_script_find_language(face: face_t, table_tag: tag_t, script_index: number, language_tag: tag_t, language_index: number): bool_t
 /**
@@ -5465,6 +5620,7 @@ function ot_layout_script_find_language(face: face_t, table_tag: tag_t, script_i
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param script_index The index of the requested script tag
  * @param start_offset offset of the first language tag to retrieve
+ * @returns Total number of language tags.
  */
 function ot_layout_script_get_language_tags(face: face_t, table_tag: tag_t, script_index: number, start_offset: number): [ /* returnType */ number, /* language_tags */ tag_t[] ]
 /**
@@ -5479,6 +5635,7 @@ function ot_layout_script_get_language_tags(face: face_t, table_tag: tag_t, scri
  * @param script_index The index of the requested script tag
  * @param language_count The number of languages in the specified script
  * @param language_tags The array of language tags
+ * @returns `true` if one of the given language tags is found, `false` otherwise
  */
 function ot_layout_script_select_language(face: face_t, table_tag: tag_t, script_index: number, language_count: number, language_tags: tag_t): [ /* returnType */ bool_t, /* language_index */ number ]
 /**
@@ -5495,6 +5652,7 @@ function ot_layout_table_choose_script(face: face_t, table_tag: tag_t, script_ta
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param coords The variation coordinates to query
  * @param num_coords The number of variation coordinates
+ * @returns `true` if feature variations were found, `false` otherwise.
  */
 function ot_layout_table_find_feature_variations(face: face_t, table_tag: tag_t, coords: number, num_coords: number): [ /* returnType */ bool_t, /* variations_index */ number ]
 /**
@@ -5503,6 +5661,7 @@ function ot_layout_table_find_feature_variations(face: face_t, table_tag: tag_t,
  * @param face #hb_face_t to work upon
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param script_tag #hb_tag_t of the script tag requested
+ * @returns `true` if the script is found, `false` otherwise
  */
 function ot_layout_table_find_script(face: face_t, table_tag: tag_t, script_tag: tag_t): [ /* returnType */ bool_t, /* script_index */ number ]
 /**
@@ -5512,6 +5671,7 @@ function ot_layout_table_find_script(face: face_t, table_tag: tag_t, script_tag:
  * @param face #hb_face_t to work upon
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param start_offset offset of the first feature tag to retrieve
+ * @returns Total number of feature tags.
  */
 function ot_layout_table_get_feature_tags(face: face_t, table_tag: tag_t, start_offset: number): [ /* returnType */ number, /* feature_tags */ tag_t[] ]
 /**
@@ -5519,6 +5679,7 @@ function ot_layout_table_get_feature_tags(face: face_t, table_tag: tag_t, start_
  * face's GSUB table or GPOS table.
  * @param face #hb_face_t to work upon
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
+ * @returns Total number of lookups.
  */
 function ot_layout_table_get_lookup_count(face: face_t, table_tag: tag_t): number
 /**
@@ -5527,6 +5688,7 @@ function ot_layout_table_get_lookup_count(face: face_t, table_tag: tag_t): numbe
  * @param face #hb_face_t to work upon
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param start_offset offset of the first script tag to retrieve
+ * @returns Total number of script tags.
  */
 function ot_layout_table_get_script_tags(face: face_t, table_tag: tag_t, start_offset: number): [ /* returnType */ number, /* script_tags */ tag_t[] ]
 /**
@@ -5540,6 +5702,7 @@ function ot_layout_table_get_script_tags(face: face_t, table_tag: tag_t, start_o
  * @param table_tag #HB_OT_TAG_GSUB or #HB_OT_TAG_GPOS
  * @param script_count Number of script tags in the array
  * @param script_tags Array of #hb_tag_t script tags
+ * @returns `true` if one of the requested scripts is selected, `false` if a fallback script is selected or if no scripts are selected.
  */
 function ot_layout_table_select_script(face: face_t, table_tag: tag_t, script_count: number, script_tags: tag_t): [ /* returnType */ bool_t, /* script_index */ number, /* chosen_script */ tag_t ]
 /**
@@ -5552,6 +5715,7 @@ function ot_layout_table_select_script(face: face_t, table_tag: tag_t, script_co
  * an integer between 0 and 100 representing that percentage.
  * @param font #hb_font_t to work upon
  * @param constant #hb_ot_math_constant_t the constant to retrieve
+ * @returns the requested constant or zero
  */
 function ot_math_get_constant(font: font_t, constant: ot_math_constant_t): position_t
 /**
@@ -5568,6 +5732,7 @@ function ot_math_get_constant(font: font_t, constant: ot_math_constant_t): posit
  * @param glyph The index of the glyph to stretch
  * @param direction direction of the stretching (horizontal or vertical)
  * @param start_offset offset of the first glyph part to retrieve
+ * @returns the total number of parts in the glyph assembly
  */
 function ot_math_get_glyph_assembly(font: font_t, glyph: codepoint_t, direction: direction_t, start_offset: number): [ /* returnType */ number, /* parts */ ot_math_glyph_part_t[], /* italics_correction */ position_t ]
 /**
@@ -5575,6 +5740,7 @@ function ot_math_get_glyph_assembly(font: font_t, glyph: codepoint_t, direction:
  * glyph index.
  * @param font #hb_font_t to work upon
  * @param glyph The glyph index from which to retrieve the value
+ * @returns the italics correction of the glyph or zero
  */
 function ot_math_get_glyph_italics_correction(font: font_t, glyph: codepoint_t): position_t
 /**
@@ -5589,6 +5755,7 @@ function ot_math_get_glyph_italics_correction(font: font_t, glyph: codepoint_t):
  * @param glyph The glyph index from which to retrieve the value
  * @param kern The #hb_ot_math_kern_t from which to retrieve the value
  * @param correction_height the correction height to use to determine the kerning.
+ * @returns requested kerning value or zero
  */
 function ot_math_get_glyph_kerning(font: font_t, glyph: codepoint_t, kern: ot_math_kern_t, correction_height: position_t): position_t
 /**
@@ -5610,6 +5777,7 @@ function ot_math_get_glyph_kerning(font: font_t, glyph: codepoint_t, kern: ot_ma
  * @param glyph The glyph index from which to retrieve the kernings
  * @param kern The #hb_ot_math_kern_t from which to retrieve the kernings
  * @param start_offset offset of the first kern entry to retrieve
+ * @returns the total number of kern values available or zero
  */
 function ot_math_get_glyph_kernings(font: font_t, glyph: codepoint_t, kern: ot_math_kern_t, start_offset: number): [ /* returnType */ number, /* kern_entries */ ot_math_kern_entry_t[] ]
 /**
@@ -5623,6 +5791,7 @@ function ot_math_get_glyph_kernings(font: font_t, glyph: codepoint_t, kern: ot_m
  * one-half the glyph's advance width.
  * @param font #hb_font_t to work upon
  * @param glyph The glyph index from which to retrieve the value
+ * @returns the top accent attachment of the glyph or 0.5 * the advance               width of @glyph
  */
 function ot_math_get_glyph_top_accent_attachment(font: font_t, glyph: codepoint_t): position_t
 /**
@@ -5638,6 +5807,7 @@ function ot_math_get_glyph_top_accent_attachment(font: font_t, glyph: codepoint_
  * @param glyph The index of the glyph to stretch
  * @param direction The direction of the stretching (horizontal or vertical)
  * @param start_offset offset of the first variant to retrieve
+ * @returns the total number of size variants available or zero
  */
 function ot_math_get_glyph_variants(font: font_t, glyph: codepoint_t, direction: direction_t, start_offset: number): [ /* returnType */ number, /* variants */ ot_math_glyph_variant_t[] ]
 /**
@@ -5651,35 +5821,41 @@ function ot_math_get_glyph_variants(font: font_t, glyph: codepoint_t, direction:
  * considered.</note>
  * @param font #hb_font_t to work upon
  * @param direction direction of the stretching (horizontal or vertical)
+ * @returns requested minimum connector overlap or zero
  */
 function ot_math_get_min_connector_overlap(font: font_t, direction: direction_t): position_t
 /**
  * Tests whether a face has a `MATH` table.
  * @param face #hb_face_t to test
+ * @returns `true` if the table is found, `false` otherwise
  */
 function ot_math_has_data(face: face_t): bool_t
 /**
  * Tests whether the given glyph index is an extended shape in the face.
  * @param face #hb_face_t to work upon
  * @param glyph The glyph index to test
+ * @returns `true` if the glyph is an extended shape, `false` otherwise
  */
 function ot_math_is_glyph_extended_shape(face: face_t, glyph: codepoint_t): bool_t
 /**
  * Fetches all available feature types.
  * @param face a face object
  * @param start_offset iteration's start offset
+ * @returns Number of all available feature types.
  */
 function ot_meta_get_entry_tags(face: face_t, start_offset: number): [ /* returnType */ number, /* entries */ ot_meta_tag_t[] ]
 /**
  * It fetches metadata entry of a given tag from a font.
  * @param face a #hb_face_t object.
  * @param meta_tag tag of metadata you like to have.
+ * @returns A blob containing the blob.
  */
 function ot_meta_reference_entry(face: face_t, meta_tag: ot_meta_tag_t): blob_t
 /**
  * Fetches metrics value corresponding to `metrics_tag` from `font`.
  * @param font an #hb_font_t object.
  * @param metrics_tag tag of metrics value you like to fetch.
+ * @returns Whether found the requested metrics in the font.
  */
 function ot_metrics_get_position(font: font_t, metrics_tag: ot_metrics_tag_t): [ /* returnType */ bool_t, /* position */ position_t ]
 /**
@@ -5694,6 +5870,7 @@ function ot_metrics_get_position_with_fallback(font: font_t, metrics_tag: ot_met
  * current font variation settings applied.
  * @param font an #hb_font_t object.
  * @param metrics_tag tag of metrics value you like to fetch.
+ * @returns The requested metric value.
  */
 function ot_metrics_get_variation(font: font_t, metrics_tag: ot_metrics_tag_t): number
 /**
@@ -5701,6 +5878,7 @@ function ot_metrics_get_variation(font: font_t, metrics_tag: ot_metrics_tag_t): 
  * with the current font variation settings applied.
  * @param font an #hb_font_t object.
  * @param metrics_tag tag of metrics value you like to fetch.
+ * @returns The requested metric value.
  */
 function ot_metrics_get_x_variation(font: font_t, metrics_tag: ot_metrics_tag_t): position_t
 /**
@@ -5708,6 +5886,7 @@ function ot_metrics_get_x_variation(font: font_t, metrics_tag: ot_metrics_tag_t)
  * the current font variation settings applied.
  * @param font an #hb_font_t object.
  * @param metrics_tag tag of metrics value you like to fetch.
+ * @returns The requested metric value.
  */
 function ot_metrics_get_y_variation(font: font_t, metrics_tag: ot_metrics_tag_t): position_t
 /**
@@ -5718,6 +5897,7 @@ function ot_metrics_get_y_variation(font: font_t, metrics_tag: ot_metrics_tag_t)
  * @param face font face.
  * @param name_id OpenType name identifier to fetch.
  * @param language language to fetch the name for.
+ * @returns full length of the requested string, or 0 if not found.
  */
 function ot_name_get_utf16(face: face_t, name_id: ot_name_id_t, language: language_t): [ /* returnType */ number, /* text */ number[] ]
 /**
@@ -5728,6 +5908,7 @@ function ot_name_get_utf16(face: face_t, name_id: ot_name_id_t, language: langua
  * @param face font face.
  * @param name_id OpenType name identifier to fetch.
  * @param language language to fetch the name for.
+ * @returns full length of the requested string, or 0 if not found.
  */
 function ot_name_get_utf32(face: face_t, name_id: ot_name_id_t, language: language_t): [ /* returnType */ number, /* text */ number[] ]
 /**
@@ -5738,6 +5919,7 @@ function ot_name_get_utf32(face: face_t, name_id: ot_name_id_t, language: langua
  * @param face font face.
  * @param name_id OpenType name identifier to fetch.
  * @param language language to fetch the name for.
+ * @returns full length of the requested string, or 0 if not found.
  */
 function ot_name_get_utf8(face: face_t, name_id: ot_name_id_t, language: language_t): [ /* returnType */ number, /* text */ string[] ]
 /**
@@ -5745,6 +5927,7 @@ function ot_name_get_utf8(face: face_t, name_id: ot_name_id_t, language: languag
  * array is owned by the `face` and should not be modified.  It can be
  * used as long as `face` is alive.
  * @param face font face.
+ * @returns Array of available name entries.
  */
 function ot_name_list_names(face: face_t): ot_name_entry_t[]
 /**
@@ -5767,11 +5950,13 @@ function ot_tag_from_language(language: language_t): tag_t
 /**
  * Converts a language tag to an #hb_language_t.
  * @param tag an language tag
+ * @returns  The #hb_language_t corresponding to @tag.
  */
 function ot_tag_to_language(tag: tag_t): language_t | null
 /**
  * Converts a script tag to an #hb_script_t.
  * @param tag a script tag
+ * @returns The #hb_script_t corresponding to @tag.
  */
 function ot_tag_to_script(tag: tag_t): script_t
 function ot_tags_from_script(script: script_t, script_tag_1: tag_t, script_tag_2: tag_t): void
@@ -5803,6 +5988,7 @@ function ot_var_find_axis(face: face_t, axis_tag: tag_t, axis_index: number): [ 
  * in the specified face.
  * @param face #hb_face_t to work upon
  * @param axis_tag The #hb_tag_t of the variation axis to query
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_var_find_axis_info(face: face_t, axis_tag: tag_t): [ /* returnType */ bool_t, /* axis_info */ ot_var_axis_info_t ]
 /**
@@ -5815,6 +6001,7 @@ function ot_var_get_axes(face: face_t, start_offset: number): [ /* returnType */
 /**
  * Fetches the number of OpenType variation axes included in the face.
  * @param face The #hb_face_t to work on
+ * @returns the number of variation axes defined
  */
 function ot_var_get_axis_count(face: face_t): number
 /**
@@ -5822,16 +6009,19 @@ function ot_var_get_axis_count(face: face_t): number
  * at the offset provided.
  * @param face #hb_face_t to work upon
  * @param start_offset offset of the first lookup to retrieve
+ * @returns the number of variation axes in the face
  */
 function ot_var_get_axis_infos(face: face_t, start_offset: number): [ /* returnType */ number, /* axes_array */ ot_var_axis_info_t[] ]
 /**
  * Fetches the number of named instances included in the face.
  * @param face The #hb_face_t to work on
+ * @returns the number of named instances defined
  */
 function ot_var_get_named_instance_count(face: face_t): number
 /**
  * Tests whether a face includes any OpenType variation data in the `fvar` table.
  * @param face The #hb_face_t to work on
+ * @returns `true` if data found, `false` otherwise
  */
 function ot_var_has_data(face: face_t): bool_t
 /**
@@ -5839,6 +6029,7 @@ function ot_var_has_data(face: face_t): bool_t
  * named instance in the face.
  * @param face The #hb_face_t to work on
  * @param instance_index The index of the named instance to query
+ * @returns the number of variation axes in the face
  */
 function ot_var_named_instance_get_design_coords(face: face_t, instance_index: number): [ /* returnType */ number, /* coords */ number[] ]
 /**
@@ -5846,6 +6037,7 @@ function ot_var_named_instance_get_design_coords(face: face_t, instance_index: n
  * the "PostScript name" defined for the given named instance in the face.
  * @param face The #hb_face_t to work on
  * @param instance_index The index of the named instance to query
+ * @returns the Name ID found for the PostScript name
  */
 function ot_var_named_instance_get_postscript_name_id(face: face_t, instance_index: number): ot_name_id_t
 /**
@@ -5853,6 +6045,7 @@ function ot_var_named_instance_get_postscript_name_id(face: face_t, instance_ind
  * the "Subfamily name" defined for the given named instance in the face.
  * @param face The #hb_face_t to work on
  * @param instance_index The index of the named instance to query
+ * @returns the Name ID found for the Subfamily name
  */
 function ot_var_named_instance_get_subfamily_name_id(face: face_t, instance_index: number): ot_name_id_t
 /**
@@ -5880,6 +6073,7 @@ function ot_var_normalize_variations(face: face_t, variations: variation_t, vari
 /**
  * Converts an ISO 15924 script tag to a corresponding #hb_script_t.
  * @param tag an #hb_tag_t representing an ISO 15924 tag.
+ * @returns An #hb_script_t corresponding to the ISO 15924 tag.
  */
 function script_from_iso15924_tag(tag: tag_t): script_t
 /**
@@ -5887,6 +6081,7 @@ function script_from_iso15924_tag(tag: tag_t): script_t
  * corresponding #hb_script_t. Shorthand for hb_tag_from_string() then
  * hb_script_from_iso15924_tag().
  * @param str a string representing an       ISO 15924 tag.
+ * @returns An #hb_script_t corresponding to the ISO 15924 tag.
  */
 function script_from_string(str: Uint8Array): script_t
 /**
@@ -5897,22 +6092,26 @@ function script_from_string(str: Uint8Array): script_t
  * horizontally or vertically will return #HB_DIRECTION_INVALID.
  * Unknown scripts will return #HB_DIRECTION_LTR.
  * @param script The #hb_script_t to query
+ * @returns The horizontal #hb_direction_t of @script
  */
 function script_get_horizontal_direction(script: script_t): direction_t
 /**
  * Converts an #hb_script_t to a corresponding ISO 15924 script tag.
  * @param script an #hb_script_t to convert.
+ * @returns An #hb_tag_t representing an ISO 15924 script tag.
  */
 function script_to_iso15924_tag(script: script_t): tag_t
 /**
  * Checks the equality of two #hb_segment_properties_t's.
  * @param a first #hb_segment_properties_t to compare.
  * @param b second #hb_segment_properties_t to compare.
+ * @returns `true` if all properties of @a equal those of @b, `false` otherwise.
  */
 function segment_properties_equal(a: segment_properties_t, b: segment_properties_t): bool_t
 /**
  * Creates a hash representing `p`.
  * @param p #hb_segment_properties_t to hash.
+ * @returns A hash of @p.
  */
 function segment_properties_hash(p: segment_properties_t): number
 /**
@@ -5955,6 +6154,7 @@ function set_add_sorted_array(set: set_t, sorted_codepoints: codepoint_t[]): voi
 /**
  * Tests whether memory allocation for a set was successful.
  * @param set A set
+ * @returns `true` if allocation succeeded, `false` otherwise
  */
 function set_allocation_successful(set: set_t): bool_t
 /**
@@ -5965,10 +6165,12 @@ function set_clear(set: set_t): void
 /**
  * Allocate a copy of `set`.
  * @param set A set
+ * @returns Newly-allocated set.
  */
 function set_copy(set: set_t): set_t
 /**
  * Creates a new, initially empty set.
+ * @returns The new #hb_set_t
  */
 function set_create(): set_t
 /**
@@ -5990,32 +6192,38 @@ function set_del(set: set_t, codepoint: codepoint_t): void
 function set_del_range(set: set_t, first: codepoint_t, last: codepoint_t): void
 /**
  * Fetches the singleton empty #hb_set_t.
+ * @returns The empty #hb_set_t
  */
 function set_get_empty(): set_t
 /**
  * Finds the largest element in the set.
  * @param set A set
+ * @returns maximum of @set, or #HB_SET_VALUE_INVALID if @set is empty.
  */
 function set_get_max(set: set_t): codepoint_t
 /**
  * Finds the smallest element in the set.
  * @param set A set
+ * @returns minimum of @set, or #HB_SET_VALUE_INVALID if @set is empty.
  */
 function set_get_min(set: set_t): codepoint_t
 /**
  * Returns the number of elements in the set.
  * @param set A set
+ * @returns The population of @set
  */
 function set_get_population(set: set_t): number
 /**
  * Tests whether `codepoint` belongs to `set`.
  * @param set A set
  * @param codepoint The element to query
+ * @returns `true` if @codepoint is in @set, `false` otherwise
  */
 function set_has(set: set_t, codepoint: codepoint_t): bool_t
 /**
  * Creates a hash representing `set`.
  * @param set A set
+ * @returns A hash of @set.
  */
 function set_hash(set: set_t): number
 /**
@@ -6032,6 +6240,7 @@ function set_invert(set: set_t): void
 /**
  * Tests whether a set is empty (contains no elements).
  * @param set a set.
+ * @returns `true` if @set is empty
  */
 function set_is_empty(set: set_t): bool_t
 /**
@@ -6039,12 +6248,14 @@ function set_is_empty(set: set_t): bool_t
  * elements).
  * @param set A set
  * @param other Another set
+ * @returns `true` if the two sets are equal, `false` otherwise.
  */
 function set_is_equal(set: set_t, other: set_t): bool_t
 /**
  * Tests whether `set` is a subset of `larger_set`.
  * @param set A set
  * @param larger_set Another set
+ * @returns `true` if the @set is a subset of (or equal to) @larger_set, `false` otherwise.
  */
 function set_is_subset(set: set_t, larger_set: set_t): bool_t
 /**
@@ -6053,6 +6264,7 @@ function set_is_subset(set: set_t, larger_set: set_t): bool_t
  * Set `codepoint` to #HB_SET_VALUE_INVALID to get started.
  * @param set A set
  * @param codepoint Input = Code point to query             Output = Code point retrieved
+ * @returns `true` if there was a next value, `false` otherwise
  */
 function set_next(set: set_t, codepoint: codepoint_t): [ /* returnType */ bool_t, /* codepoint */ codepoint_t ]
 /**
@@ -6062,6 +6274,7 @@ function set_next(set: set_t, codepoint: codepoint_t): [ /* returnType */ bool_t
  * @param set A set
  * @param codepoint Outputting codepoints starting after this one.             Use #HB_SET_VALUE_INVALID to get started.
  * @param out An array of codepoints to write to.
+ * @returns the number of values written.
  */
 function set_next_many(set: set_t, codepoint: codepoint_t, out: codepoint_t[]): number
 /**
@@ -6071,6 +6284,7 @@ function set_next_many(set: set_t, codepoint: codepoint_t, out: codepoint_t[]): 
  * Set `last` to #HB_SET_VALUE_INVALID to get started.
  * @param set A set
  * @param last Input = The current last code point in the range         Output = The last code point in the range
+ * @returns `true` if there was a next range, `false` otherwise
  */
 function set_next_range(set: set_t, last: codepoint_t): [ /* returnType */ bool_t, /* first */ codepoint_t, /* last */ codepoint_t ]
 /**
@@ -6079,6 +6293,7 @@ function set_next_range(set: set_t, last: codepoint_t): [ /* returnType */ bool_
  * Set `codepoint` to #HB_SET_VALUE_INVALID to get started.
  * @param set A set
  * @param codepoint Input = Code point to query             Output = Code point retrieved
+ * @returns `true` if there was a previous value, `false` otherwise
  */
 function set_previous(set: set_t, codepoint: codepoint_t): [ /* returnType */ bool_t, /* codepoint */ codepoint_t ]
 /**
@@ -6088,6 +6303,7 @@ function set_previous(set: set_t, codepoint: codepoint_t): [ /* returnType */ bo
  * Set `first` to #HB_SET_VALUE_INVALID to get started.
  * @param set A set
  * @param first Input = The current first code point in the range         Output = The first code point in the range
+ * @returns `true` if there was a previous range, `false` otherwise
  */
 function set_previous_range(set: set_t, first: codepoint_t): [ /* returnType */ bool_t, /* first */ codepoint_t, /* last */ codepoint_t ]
 /**
@@ -6134,10 +6350,12 @@ function shape(font: font_t, buffer: buffer_t, features: feature_t[] | null): vo
  * @param buffer an #hb_buffer_t to shape
  * @param features an array of user    specified #hb_feature_t or `NULL`
  * @param shaper_list a `NULL`-terminated    array of shapers to use or `NULL`
+ * @returns false if all shapers failed, true otherwise
  */
 function shape_full(font: font_t, buffer: buffer_t, features: feature_t[] | null, shaper_list: string[] | null): bool_t
 /**
  * Retrieves the list of shapers supported by HarfBuzz.
+ * @returns an array of    constant strings
  */
 function shape_list_shapers(): string[]
 /**
@@ -6147,6 +6365,7 @@ function shape_list_shapers(): string[]
  * @param props The #hb_segment_properties_t of the segment
  * @param user_features The list of user-selected features
  * @param shaper_list List of shapers to try
+ * @returns The shaping plan
  */
 function shape_plan_create(face: face_t, props: segment_properties_t, user_features: feature_t[], shaper_list: string[]): shape_plan_t
 /**
@@ -6158,6 +6377,7 @@ function shape_plan_create(face: face_t, props: segment_properties_t, user_featu
  * @param user_features The list of user-selected features
  * @param coords The list of variation-space coordinates
  * @param shaper_list List of shapers to try
+ * @returns The shaping plan
  */
 function shape_plan_create2(face: face_t, props: segment_properties_t, user_features: feature_t[], coords: number[], shaper_list: string[]): shape_plan_t
 /**
@@ -6167,6 +6387,7 @@ function shape_plan_create2(face: face_t, props: segment_properties_t, user_feat
  * @param props The #hb_segment_properties_t of the segment
  * @param user_features The list of user-selected features
  * @param shaper_list List of shapers to try
+ * @returns The shaping plan
  */
 function shape_plan_create_cached(face: face_t, props: segment_properties_t, user_features: feature_t[], shaper_list: string[]): shape_plan_t
 /**
@@ -6179,6 +6400,7 @@ function shape_plan_create_cached(face: face_t, props: segment_properties_t, use
  * @param user_features The list of user-selected features
  * @param coords The list of variation-space coordinates
  * @param shaper_list List of shapers to try
+ * @returns The shaping plan
  */
 function shape_plan_create_cached2(face: face_t, props: segment_properties_t, user_features: feature_t[], coords: number[], shaper_list: string[]): shape_plan_t
 /**
@@ -6188,15 +6410,18 @@ function shape_plan_create_cached2(face: face_t, props: segment_properties_t, us
  * @param font The #hb_font_t to use
  * @param buffer The #hb_buffer_t to work upon
  * @param features Features to enable
+ * @returns `true` if success, `false` otherwise.
  */
 function shape_plan_execute(shape_plan: shape_plan_t, font: font_t, buffer: buffer_t, features: feature_t[]): bool_t
 /**
  * Fetches the singleton empty shaping plan.
+ * @returns The empty shaping plan
  */
 function shape_plan_get_empty(): shape_plan_t
 /**
  * Fetches the shaper from a given shaping plan.
  * @param shape_plan A shaping plan
+ * @returns The shaper
  */
 function shape_plan_get_shaper(shape_plan: shape_plan_t): string
 /**
@@ -6205,6 +6430,7 @@ function shape_plan_get_shaper(shape_plan: shape_plan_t): string
  * tables of the font.
  * @param font a #hb_font_t object.
  * @param style_tag a style tag.
+ * @returns Corresponding axis or default value to a style tag.
  */
 function style_get_value(font: font_t, style_tag: style_tag_t): number
 /**
@@ -6213,6 +6439,7 @@ function style_get_value(font: font_t, style_tag: style_tag_t): number
  * padded with spaces. Longer input strings will be
  * truncated.
  * @param str String to convert
+ * @returns The #hb_tag_t corresponding to @str
  */
 function tag_from_string(str: Uint8Array): tag_t
 /**
@@ -6226,6 +6453,7 @@ function tag_to_string(tag: tag_t): /* buf */ Uint8Array
  * of code point `unicode`.
  * @param ufuncs The Unicode-functions structure
  * @param unicode The code point to query
+ * @returns The #hb_unicode_combining_class_t of @unicode
  */
 function unicode_combining_class(ufuncs: unicode_funcs_t, unicode: codepoint_t): unicode_combining_class_t
 /**
@@ -6237,6 +6465,7 @@ function unicode_combining_class(ufuncs: unicode_funcs_t, unicode: codepoint_t):
  * @param ufuncs The Unicode-functions structure
  * @param a The first Unicode code point to compose
  * @param b The second Unicode code point to compose
+ * @returns `true` if @a and @b composed, `false` otherwise
  */
 function unicode_compose(ufuncs: unicode_funcs_t, a: codepoint_t, b: codepoint_t): [ /* returnType */ bool_t, /* ab */ codepoint_t ]
 /**
@@ -6246,6 +6475,7 @@ function unicode_compose(ufuncs: unicode_funcs_t, a: codepoint_t, b: codepoint_t
  * Unicode-functions structure `ufuncs`.
  * @param ufuncs The Unicode-functions structure
  * @param ab Unicode code point to decompose
+ * @returns `true` if @ab was decomposed, `false` otherwise
  */
 function unicode_decompose(ufuncs: unicode_funcs_t, ab: codepoint_t): [ /* returnType */ bool_t, /* a */ codepoint_t, /* b */ codepoint_t ]
 /**
@@ -6253,6 +6483,7 @@ function unicode_decompose(ufuncs: unicode_funcs_t, ab: codepoint_t): [ /* retur
  * code point. Deprecated.
  * @param ufuncs The Unicode-functions structure
  * @param u Code point to decompose
+ * @returns length of @decomposed.
  */
 function unicode_decompose_compatibility(ufuncs: unicode_funcs_t, u: codepoint_t): [ /* returnType */ number, /* decomposed */ codepoint_t ]
 /**
@@ -6264,27 +6495,32 @@ function unicode_eastasian_width(ufuncs: unicode_funcs_t, unicode: codepoint_t):
 /**
  * Creates a new #hb_unicode_funcs_t structure of Unicode functions.
  * @param parent Parent Unicode-functions structure
+ * @returns The Unicode-functions structure
  */
 function unicode_funcs_create(parent: unicode_funcs_t | null): unicode_funcs_t
 /**
  * Fetches a pointer to the default Unicode-functions structure that is used
  * when no functions are explicitly set on #hb_buffer_t.
+ * @returns a pointer to the #hb_unicode_funcs_t Unicode-functions structure
  */
 function unicode_funcs_get_default(): unicode_funcs_t
 /**
  * Fetches the singleton empty Unicode-functions structure.
+ * @returns The empty Unicode-functions structure
  */
 function unicode_funcs_get_empty(): unicode_funcs_t
 /**
  * Fetches the parent of the Unicode-functions structure
  * `ufuncs`.
  * @param ufuncs The Unicode-functions structure
+ * @returns The parent Unicode-functions structure
  */
 function unicode_funcs_get_parent(ufuncs: unicode_funcs_t): unicode_funcs_t
 /**
  * Tests whether the specified Unicode-functions structure
  * is immutable.
  * @param ufuncs The Unicode-functions structure
+ * @returns `true` if @ufuncs is immutable, `false` otherwise
  */
 function unicode_funcs_is_immutable(ufuncs: unicode_funcs_t): bool_t
 /**
@@ -6346,6 +6582,7 @@ function unicode_funcs_set_script_func(ufuncs: unicode_funcs_t, func: unicode_sc
  * of code point `unicode`.
  * @param ufuncs The Unicode-functions structure
  * @param unicode The code point to query
+ * @returns The #hb_unicode_general_category_t of @unicode
  */
 function unicode_general_category(ufuncs: unicode_funcs_t, unicode: codepoint_t): unicode_general_category_t
 /**
@@ -6353,6 +6590,7 @@ function unicode_general_category(ufuncs: unicode_funcs_t, unicode: codepoint_t)
  * point defined for code point `unicode`.
  * @param ufuncs The Unicode-functions structure
  * @param unicode The code point to query
+ * @returns The #hb_codepoint_t of the Mirroring Glyph for @unicode
  */
 function unicode_mirroring(ufuncs: unicode_funcs_t, unicode: codepoint_t): codepoint_t
 /**
@@ -6360,6 +6598,7 @@ function unicode_mirroring(ufuncs: unicode_funcs_t, unicode: codepoint_t): codep
  * point `unicode` belongs.
  * @param ufuncs The Unicode-functions structure
  * @param unicode The code point to query
+ * @returns The #hb_script_t of @unicode
  */
 function unicode_script(ufuncs: unicode_funcs_t, unicode: codepoint_t): script_t
 /**
@@ -6372,6 +6611,7 @@ function unicode_script(ufuncs: unicode_funcs_t, unicode: codepoint_t): script_t
  * The format is a tag, optionally followed by an equals sign, followed by a
  * number. For example `wght=500`, or `slnt=-7.5`.
  * @param str a string to parse
+ * @returns `true` if @str is successfully parsed, `false` otherwise
  */
 function variation_from_string(str: Uint8Array): [ /* returnType */ bool_t, /* variation */ variation_t ]
 /**
@@ -6391,10 +6631,12 @@ function version(): [ /* major */ number, /* minor */ number, /* micro */ number
  * @param major Library major version component
  * @param minor Library minor version component
  * @param micro Library micro version component
+ * @returns `true` if the library is equal to or greater than the test value, `false` otherwise
  */
 function version_atleast(major: number, minor: number, micro: number): bool_t
 /**
  * Returns library version as a string with three components.
+ * @returns Library version string
  */
 function version_string(): string
 /**
@@ -6407,6 +6649,7 @@ function version_string(): string
  * @param buffer An #hb_buffer_t to work upon
  * @param font The #hb_font_t the `buffer` is shaped with
  * @param message `NULL`-terminated message passed to the function
+ * @returns `true` to perform the shaping step, `false` to skip it.
  */
 interface buffer_message_func_t {
     (buffer: buffer_t, font: font_t, message: string): bool_t
@@ -6505,6 +6748,7 @@ interface font_get_font_extents_func_t {
  * @param font #hb_font_t to work upon
  * @param font_data `font` user data pointer
  * @param glyph The glyph ID to query
+ * @returns The advance of @glyph within @font
  */
 interface font_get_glyph_advance_func_t {
     (font: font_t, font_data: object | null, glyph: codepoint_t): position_t
@@ -6535,6 +6779,7 @@ interface font_get_glyph_advances_func_t {
  * @param font_data `font` user data pointer
  * @param glyph The glyph ID to query
  * @param point_index The contour-point index to query
+ * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_contour_point_func_t {
     (font: font_t, font_data: object | null, glyph: codepoint_t, point_index: number): bool_t
@@ -6548,6 +6793,7 @@ interface font_get_glyph_contour_point_func_t {
  * @param font #hb_font_t to work upon
  * @param font_data `font` user data pointer
  * @param glyph The glyph ID to query
+ * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_extents_func_t {
     (font: font_t, font_data: object | null, glyph: codepoint_t): bool_t
@@ -6561,6 +6807,7 @@ interface font_get_glyph_extents_func_t {
  * @param font #hb_font_t to work upon
  * @param font_data `font` user data pointer
  * @param name The name string to query
+ * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_from_name_func_t {
     (font: font_t, font_data: object | null, name: string[]): bool_t
@@ -6575,6 +6822,7 @@ interface font_get_glyph_from_name_func_t {
  * @param font_data `font` user data pointer
  * @param unicode The Unicode code point to query
  * @param variation_selector The  variation-selector code point to query
+ * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_func_t {
     (font: font_t, font_data: object | null, unicode: codepoint_t, variation_selector: codepoint_t): bool_t
@@ -6600,6 +6848,7 @@ interface font_get_glyph_kerning_func_t {
  * @param font #hb_font_t to work upon
  * @param font_data `font` user data pointer
  * @param glyph The glyph ID to query
+ * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_name_func_t {
     (font: font_t, font_data: object | null, glyph: codepoint_t): bool_t
@@ -6614,6 +6863,7 @@ interface font_get_glyph_name_func_t {
  * @param font #hb_font_t to work upon
  * @param font_data `font` user data pointer
  * @param glyph The glyph ID to query
+ * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_origin_func_t {
     (font: font_t, font_data: object | null, glyph: codepoint_t): bool_t
@@ -6639,6 +6889,7 @@ interface font_get_glyph_shape_func_t {
  * @param font #hb_font_t to work upon
  * @param font_data `font` user data pointer
  * @param unicode The Unicode code point to query
+ * @returns `true` if data found, `false` otherwise
  */
 interface font_get_nominal_glyph_func_t {
     (font: font_t, font_data: object | null, unicode: codepoint_t): bool_t
@@ -6656,6 +6907,7 @@ interface font_get_nominal_glyph_func_t {
  * @param first_unicode The first Unicode code point to query
  * @param unicode_stride The stride between successive code points
  * @param glyph_stride The stride between successive glyph IDs
+ * @returns the number of code points processed
  */
 interface font_get_nominal_glyphs_func_t {
     (font: font_t, font_data: object | null, count: number, first_unicode: codepoint_t, unicode_stride: number, glyph_stride: number): number
@@ -6671,6 +6923,7 @@ interface font_get_nominal_glyphs_func_t {
  * @param font_data `font` user data pointer
  * @param unicode The Unicode code point to query
  * @param variation_selector The  variation-selector code point to query
+ * @returns `true` if data found, `false` otherwise
  */
 interface font_get_variation_glyph_func_t {
     (font: font_t, font_data: object | null, unicode: codepoint_t, variation_selector: codepoint_t): bool_t
@@ -6680,6 +6933,7 @@ interface font_get_variation_glyph_func_t {
  * @callback 
  * @param face an #hb_face_t to reference table for
  * @param tag the tag of the table to reference
+ * @returns A pointer to the @tag table within @face
  */
 interface reference_table_func_t {
     (face: face_t, tag: tag_t): blob_t
@@ -6692,6 +6946,7 @@ interface reference_table_func_t {
  * @callback 
  * @param ufuncs A Unicode-functions structure
  * @param unicode The code point to query
+ * @returns The #hb_unicode_combining_class_t of @unicode
  */
 interface unicode_combining_class_func_t {
     (ufuncs: unicode_funcs_t, unicode: codepoint_t): unicode_combining_class_t
@@ -6708,6 +6963,7 @@ interface unicode_combining_class_func_t {
  * @param ufuncs A Unicode-functions structure
  * @param a The first code point to compose
  * @param b The second code point to compose
+ * @returns `true` is @a,@b composed, `false` otherwise
  */
 interface unicode_compose_func_t {
     (ufuncs: unicode_funcs_t, a: codepoint_t, b: codepoint_t): bool_t
@@ -6725,6 +6981,7 @@ interface unicode_compose_func_t {
  * @param ufuncs a Unicode function structure
  * @param u codepoint to decompose
  * @param decomposed address of codepoint array (of length #HB_UNICODE_MAX_DECOMPOSITION_LEN) to write decomposition into
+ * @returns number of codepoints in the full compatibility decomposition of @u, or 0 if no decomposition available.
  */
 interface unicode_decompose_compatibility_func_t {
     (ufuncs: unicode_funcs_t, u: codepoint_t, decomposed: codepoint_t): number
@@ -6739,6 +6996,7 @@ interface unicode_decompose_compatibility_func_t {
  * @callback 
  * @param ufuncs A Unicode-functions structure
  * @param ab The code point to decompose
+ * @returns `true` if @ab decomposed, `false` otherwise
  */
 interface unicode_decompose_func_t {
     (ufuncs: unicode_funcs_t, ab: codepoint_t): bool_t
@@ -6760,6 +7018,7 @@ interface unicode_eastasian_width_func_t {
  * @callback 
  * @param ufuncs A Unicode-functions structure
  * @param unicode The code point to query
+ * @returns The #hb_unicode_general_category_t of @unicode
  */
 interface unicode_general_category_func_t {
     (ufuncs: unicode_funcs_t, unicode: codepoint_t): unicode_general_category_t
@@ -6776,6 +7035,7 @@ interface unicode_general_category_func_t {
  * @callback 
  * @param ufuncs A Unicode-functions structure
  * @param unicode The code point to query
+ * @returns The #hb_codepoint_t of the Mirroring Glyph for @unicode
  */
 interface unicode_mirroring_func_t {
     (ufuncs: unicode_funcs_t, unicode: codepoint_t): codepoint_t
@@ -6788,6 +7048,7 @@ interface unicode_mirroring_func_t {
  * @callback 
  * @param ufuncs A Unicode-functions structure
  * @param unicode The code point to query
+ * @returns The #hb_script_t of @unicode
  */
 interface unicode_script_func_t {
     (ufuncs: unicode_funcs_t, unicode: codepoint_t): script_t
@@ -7179,6 +7440,7 @@ interface language_t {
 
     /**
      * Converts an #hb_language_t to a string.
+     * @returns  A `NULL`-terminated string representing the @language. Must not be freed by the caller.
      */
     _string(): string
 }

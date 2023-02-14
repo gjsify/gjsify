@@ -4,7 +4,8 @@
       "declarationDir": "dist/types",
       "declaration": true,
       "target": "ESNext",
-      "moduleResolution": "NodeNext"
+      "module": "ESNext",
+      "moduleResolution": "bundler"
     },
     "files": ["src/index.ts"]
 }

@@ -13,12 +13,14 @@ const baseConfig = {
     minify: true,
     external: [
         'fs',
+        'fs/promises',
         'util',
         'path',
         'process',
         'util',
         'typescript',
         '@deepkit/type-compiler',
+        'esbuild',
         // '@gjsify/resolve-npm', can't be required in cjs builds
         '@gjsify/esbuild-plugin-transform-ext',
         '@gjsify/esbuild-plugin-deno-loader',

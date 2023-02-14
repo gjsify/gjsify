@@ -24,7 +24,7 @@
   "scripts": {
     "clear": "rm -rf @types",
     "print:name": "echo '@gjsify/types'",
-    "build": "ts-for-gir generate Gio-2.0 GLib-2.0 GTop-2.0 Soup-3.0 Gtk-4.0 'Gwebgl*' -e gjs -t esm --noDOMLib -g ../../web/webgl/build -g /usr/share/gir-1.0",
+    "build": "ts-for-gir generate",
     "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"
   },
   "devDependencies": {

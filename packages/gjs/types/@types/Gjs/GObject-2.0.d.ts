@@ -393,6 +393,7 @@ const VALUE_NOCOPY_CONTENTS: number
  * Provide a copy of a boxed structure `src_boxed` which is of type `boxed_type`.
  * @param boxed_type The type of `src_boxed`.
  * @param src_boxed The boxed structure to be copied.
+ * @returns The newly created copy of the boxed    structure.
  */
 function boxed_copy(boxed_type: GType, src_boxed: object): object
 /**
@@ -704,18 +705,21 @@ function enum_complete_type_info(g_enum_type: GType, const_values: EnumValue): /
  * Returns the #GEnumValue for a value.
  * @param enum_class a #GEnumClass
  * @param value the value to look up
+ * @returns the #GEnumValue for @value, or %NULL          if @value is not a member of the enumeration
  */
 function enum_get_value(enum_class: EnumClass, value: number): EnumValue | null
 /**
  * Looks up a #GEnumValue by name.
  * @param enum_class a #GEnumClass
  * @param name the name to look up
+ * @returns the #GEnumValue with name @name,          or %NULL if the enumeration doesn't have a member          with that name
  */
 function enum_get_value_by_name(enum_class: EnumClass, name: string): EnumValue | null
 /**
  * Looks up a #GEnumValue by nickname.
  * @param enum_class a #GEnumClass
  * @param nick the nickname to look up
+ * @returns the #GEnumValue with nickname @nick,          or %NULL if the enumeration doesn't have a member          with that nickname
  */
 function enum_get_value_by_nick(enum_class: EnumClass, nick: string): EnumValue | null
 /**
@@ -726,6 +730,7 @@ function enum_get_value_by_nick(enum_class: EnumClass, nick: string): EnumValue 
  * definition  than to write one yourself using g_enum_register_static().
  * @param name A nul-terminated string used as the name of the new type.
  * @param const_static_values An array of #GEnumValue structs for the possible  enumeration values. The array is terminated by a struct with all  members being 0. GObject keeps a reference to the data, so it cannot  be stack-allocated.
+ * @returns The new type identifier.
  */
 function enum_register_static(name: string, const_static_values: EnumValue): GType
 /**
@@ -735,6 +740,7 @@ function enum_register_static(name: string, const_static_values: EnumValue): GTy
  * may change in the future.
  * @param g_enum_type the type identifier of a #GEnumClass type
  * @param value the value
+ * @returns a newly-allocated text string
  */
 function enum_to_string(g_enum_type: GType, value: number): string
 /**
@@ -749,18 +755,21 @@ function flags_complete_type_info(g_flags_type: GType, const_values: FlagsValue)
  * Returns the first #GFlagsValue which is set in `value`.
  * @param flags_class a #GFlagsClass
  * @param value the value
+ * @returns the first #GFlagsValue which is set in          @value, or %NULL if none is set
  */
 function flags_get_first_value(flags_class: FlagsClass, value: number): FlagsValue | null
 /**
  * Looks up a #GFlagsValue by name.
  * @param flags_class a #GFlagsClass
  * @param name the name to look up
+ * @returns the #GFlagsValue with name @name,          or %NULL if there is no flag with that name
  */
 function flags_get_value_by_name(flags_class: FlagsClass, name: string): FlagsValue | null
 /**
  * Looks up a #GFlagsValue by nickname.
  * @param flags_class a #GFlagsClass
  * @param nick the nickname to look up
+ * @returns the #GFlagsValue with nickname @nick,          or %NULL if there is no flag with that nickname
  */
 function flags_get_value_by_nick(flags_class: FlagsClass, nick: string): FlagsValue | null
 /**
@@ -771,6 +780,7 @@ function flags_get_value_by_nick(flags_class: FlagsClass, nick: string): FlagsVa
  * definition than to write one yourself using g_flags_register_static().
  * @param name A nul-terminated string used as the name of the new type.
  * @param const_static_values An array of #GFlagsValue structs for the possible  flags values. The array is terminated by a struct with all members being 0.  GObject keeps a reference to the data, so it cannot be stack-allocated.
+ * @returns The new type identifier.
  */
 function flags_register_static(name: string, const_static_values: FlagsValue): GType
 /**
@@ -781,6 +791,7 @@ function flags_register_static(name: string, const_static_values: FlagsValue): G
  * may change in the future.
  * @param flags_type the type identifier of a #GFlagsClass type
  * @param value the value
+ * @returns a newly-allocated text string
  */
 function flags_to_string(flags_type: GType, value: number): string
 function gtype_get_type(): GType
@@ -797,6 +808,7 @@ function gtype_get_type(): GType
  * @param blurb description of the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_boolean(name: string, nick: string | null, blurb: string | null, default_value: boolean, flags: ParamFlags): ParamSpec
 /**
@@ -809,6 +821,7 @@ function param_spec_boolean(name: string, nick: string | null, blurb: string | n
  * @param blurb description of the property specified
  * @param boxed_type %G_TYPE_BOXED derived type of this property
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_boxed(name: string, nick: string | null, blurb: string | null, boxed_type: GType, flags: ParamFlags): ParamSpec
 /**
@@ -820,6 +833,7 @@ function param_spec_boxed(name: string, nick: string | null, blurb: string | nul
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_char(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -834,6 +848,7 @@ function param_spec_char(name: string, nick: string | null, blurb: string | null
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_double(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -847,6 +862,7 @@ function param_spec_double(name: string, nick: string | null, blurb: string | nu
  * @param enum_type a #GType derived from %G_TYPE_ENUM
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_enum(name: string, nick: string | null, blurb: string | null, enum_type: GType, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -860,6 +876,7 @@ function param_spec_enum(name: string, nick: string | null, blurb: string | null
  * @param flags_type a #GType derived from %G_TYPE_FLAGS
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_flags(name: string, nick: string | null, blurb: string | null, flags_type: GType, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -873,6 +890,7 @@ function param_spec_flags(name: string, nick: string | null, blurb: string | nul
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_float(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -885,6 +903,7 @@ function param_spec_float(name: string, nick: string | null, blurb: string | nul
  * @param blurb description of the property specified
  * @param is_a_type a #GType whose subtypes are allowed as values  of the property (use %G_TYPE_NONE for any type)
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_gtype(name: string, nick: string | null, blurb: string | null, is_a_type: GType, flags: ParamFlags): ParamSpec
 /**
@@ -898,6 +917,7 @@ function param_spec_gtype(name: string, nick: string | null, blurb: string | nul
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_int(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -911,6 +931,7 @@ function param_spec_int(name: string, nick: string | null, blurb: string | null,
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_int64(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -924,6 +945,7 @@ function param_spec_int64(name: string, nick: string | null, blurb: string | nul
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_long(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -936,6 +958,7 @@ function param_spec_long(name: string, nick: string | null, blurb: string | null
  * @param blurb description of the property specified
  * @param object_type %G_TYPE_OBJECT derived type of this property
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_object(name: string, nick: string | null, blurb: string | null, object_type: GType, flags: ParamFlags): ParamSpec
 /**
@@ -948,6 +971,7 @@ function param_spec_object(name: string, nick: string | null, blurb: string | nu
  * @param blurb description of the property specified
  * @param param_type a #GType derived from %G_TYPE_PARAM
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_param(name: string, nick: string | null, blurb: string | null, param_type: GType, flags: ParamFlags): ParamSpec
 /**
@@ -960,6 +984,7 @@ function param_spec_param(name: string, nick: string | null, blurb: string | nul
  * @param nick nick name for the property specified
  * @param blurb description of the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_pointer(name: string, nick: string | null, blurb: string | null, flags: ParamFlags): ParamSpec
 /**
@@ -971,6 +996,7 @@ function param_spec_pointer(name: string, nick: string | null, blurb: string | n
  * @param blurb description of the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_string(name: string, nick: string | null, blurb: string | null, default_value: string | null, flags: ParamFlags): ParamSpec
 /**
@@ -982,6 +1008,7 @@ function param_spec_string(name: string, nick: string | null, blurb: string | nu
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_uchar(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -995,6 +1022,7 @@ function param_spec_uchar(name: string, nick: string | null, blurb: string | nul
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_uint(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -1009,6 +1037,7 @@ function param_spec_uint(name: string, nick: string | null, blurb: string | null
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_uint64(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -1023,6 +1052,7 @@ function param_spec_uint64(name: string, nick: string | null, blurb: string | nu
  * @param maximum maximum value for the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_ulong(name: string, nick: string | null, blurb: string | null, minimum: number, maximum: number, default_value: number, flags: ParamFlags): ParamSpec
 /**
@@ -1036,6 +1066,7 @@ function param_spec_ulong(name: string, nick: string | null, blurb: string | nul
  * @param blurb description of the property specified
  * @param default_value default value for the property specified
  * @param flags flags for the property specified
+ * @returns a newly created parameter specification
  */
 function param_spec_unichar(name: string, nick: string | null, blurb: string | null, default_value: string, flags: ParamFlags): ParamSpec
 /**
@@ -1051,6 +1082,7 @@ function param_spec_unichar(name: string, nick: string | null, blurb: string | n
  * @param type a #GVariantType
  * @param default_value a #GVariant of type `type` to                 use as the default value, or %NULL
  * @param flags flags for the property specified
+ * @returns the newly created #GParamSpec
  */
 function param_spec_variant(name: string, nick: string | null, blurb: string | null, type: GLib.VariantType, default_value: GLib.Variant | null, flags: ParamFlags): ParamSpec
 /**
@@ -1062,6 +1094,7 @@ function param_spec_variant(name: string, nick: string | null, blurb: string | n
  * instances.
  * @param name 0-terminated string used as the name of the new #GParamSpec type.
  * @param pspec_info The #GParamSpecTypeInfo for this #GParamSpec type.
+ * @returns The new type identifier.
  */
 function param_type_register_static(name: string, pspec_info: ParamSpecTypeInfo): GType
 /**
@@ -1076,12 +1109,14 @@ function param_type_register_static(name: string, pspec_info: ParamSpecTypeInfo)
  * @param src_value source #GValue
  * @param dest_value destination #GValue of correct type for `pspec`
  * @param strict_validation %TRUE requires `dest_value` to conform to `pspec` without modifications
+ * @returns %TRUE if transformation and validation were successful,  %FALSE otherwise and @dest_value is left untouched.
  */
 function param_value_convert(pspec: ParamSpec, src_value: any, dest_value: any, strict_validation: boolean): boolean
 /**
  * Checks whether `value` contains the default value as specified in `pspec`.
  * @param pspec a valid #GParamSpec
  * @param value a #GValue of correct type for `pspec`
+ * @returns whether @value contains the canonical default for this @pspec
  */
 function param_value_defaults(pspec: ParamSpec, value: any): boolean
 /**
@@ -1089,6 +1124,7 @@ function param_value_defaults(pspec: ParamSpec, value: any): boolean
  * set out by `pspec`.
  * @param pspec a valid #GParamSpec
  * @param value a #GValue of correct type for `pspec`
+ * @returns whether the contents of @value comply with the specifications   set out by @pspec.
  */
 function param_value_is_valid(pspec: ParamSpec, value: any): boolean
 /**
@@ -1106,6 +1142,7 @@ function param_value_set_default(pspec: ParamSpec, value: any): void
  * range -42 .. +42.
  * @param pspec a valid #GParamSpec
  * @param value a #GValue of correct type for `pspec`
+ * @returns whether modifying @value was necessary to ensure validity
  */
 function param_value_validate(pspec: ParamSpec, value: any): boolean
 /**
@@ -1115,12 +1152,14 @@ function param_value_validate(pspec: ParamSpec, value: any): boolean
  * @param pspec a valid #GParamSpec
  * @param value1 a #GValue of correct type for `pspec`
  * @param value2 a #GValue of correct type for `pspec`
+ * @returns -1, 0 or +1, for a less than, equal to or greater than result
  */
 function param_values_cmp(pspec: ParamSpec, value1: any, value2: any): number
 /**
  * Creates a new %G_TYPE_POINTER derived type id for a new
  * pointer type with name `name`.
  * @param name the name of the new pointer type.
+ * @returns a new %G_TYPE_POINTER derived type id for @name.
  */
 function pointer_type_register_static(name: string): GType
 /**
@@ -1138,6 +1177,7 @@ function pointer_type_register_static(name: string): GType
  * @param return_accu standard #GSignalAccumulator parameter
  * @param handler_return standard #GSignalAccumulator parameter
  * @param dummy standard #GSignalAccumulator parameter
+ * @returns standard #GSignalAccumulator result
  */
 function signal_accumulator_first_wins(ihint: SignalInvocationHint, return_accu: any, handler_return: any, dummy: object | null): boolean
 /**
@@ -1152,6 +1192,7 @@ function signal_accumulator_first_wins(ihint: SignalInvocationHint, return_accu:
  * @param return_accu standard #GSignalAccumulator parameter
  * @param handler_return standard #GSignalAccumulator parameter
  * @param dummy standard #GSignalAccumulator parameter
+ * @returns standard #GSignalAccumulator result
  */
 function signal_accumulator_true_handled(ihint: SignalInvocationHint, return_accu: any, handler_return: any, dummy: object | null): boolean
 /**
@@ -1160,6 +1201,7 @@ function signal_accumulator_true_handled(ihint: SignalInvocationHint, return_acc
  * for signals which don't have %G_SIGNAL_NO_HOOKS flag set.
  * @param signal_id the signal identifier, as returned by g_signal_lookup().
  * @param detail the detail on which to call the hook.
+ * @returns the hook id, for later use with g_signal_remove_emission_hook().
  */
 function signal_add_emission_hook(signal_id: number, detail: GLib.Quark): number
 /**
@@ -1177,6 +1219,7 @@ function signal_chain_from_overridden(instance_and_params: any[], return_value: 
  * @param detailed_signal a string of the form "signal-name::detail".
  * @param closure the closure to connect.
  * @param after whether the handler should be called before or after the  default handler of the signal.
+ * @returns the handler ID (always greater than 0 for successful connections)
  */
 function signal_connect_closure(instance: Object, detailed_signal: string, closure: TClosure, after: boolean): number
 /**
@@ -1186,6 +1229,7 @@ function signal_connect_closure(instance: Object, detailed_signal: string, closu
  * @param detail the detail.
  * @param closure the closure to connect.
  * @param after whether the handler should be called before or after the  default handler of the signal.
+ * @returns the handler ID (always greater than 0 for successful connections)
  */
 function signal_connect_closure_by_id(instance: Object, signal_id: number, detail: GLib.Quark, closure: TClosure, after: boolean): number
 /**
@@ -1203,6 +1247,7 @@ function signal_emitv(instance_and_params: any[], signal_id: number, detail: GLi
 /**
  * Returns the invocation hint of the innermost signal emission of instance.
  * @param instance the instance to query
+ * @returns the invocation hint of the innermost     signal emission, or %NULL if not found.
  */
 function signal_get_invocation_hint(instance: Object): SignalInvocationHint | null
 /**
@@ -1241,12 +1286,14 @@ function signal_handler_disconnect(instance: Object, handler_id: number): void
  * @param detail Signal detail the handler has to be connected to.
  * @param func The C closure callback of the handler (useless for non-C closures).
  * @param data The closure data of the handler's closure.
+ * @returns A valid non-0 signal handler id for a successful match.
  */
 function signal_handler_find(instance: Object, mask: SignalMatchType, signal_id: number, detail: GLib.Quark, func: object | null, data: object | null): number
 /**
  * Returns whether `handler_id` is the ID of a handler connected to `instance`.
  * @param instance The instance where a signal handler is sought.
  * @param handler_id the handler ID.
+ * @returns whether @handler_id identifies a handler connected to @instance.
  */
 function signal_handler_is_connected(instance: Object, handler_id: number): boolean
 /**
@@ -1281,6 +1328,7 @@ function signal_handler_unblock(instance: Object, handler_id: number): void
  * @param detail Signal detail the handlers have to be connected to.
  * @param func The C closure callback of the handlers (useless for non-C closures).
  * @param data The closure data of the handlers' closures.
+ * @returns The number of handlers that matched.
  */
 function signal_handlers_block_matched(instance: Object, mask: SignalMatchType, signal_id: number, detail: GLib.Quark, func: object | null, data: object | null): number
 /**
@@ -1305,6 +1353,7 @@ function signal_handlers_destroy(instance: Object): void
  * @param detail Signal detail the handlers have to be connected to.
  * @param func The C closure callback of the handlers (useless for non-C closures).
  * @param data The closure data of the handlers' closures.
+ * @returns The number of handlers that matched.
  */
 function signal_handlers_disconnect_matched(instance: Object, mask: SignalMatchType, signal_id: number, detail: GLib.Quark, func: object | null, data: object | null): number
 /**
@@ -1322,6 +1371,7 @@ function signal_handlers_disconnect_matched(instance: Object, mask: SignalMatchT
  * @param detail Signal detail the handlers have to be connected to.
  * @param func The C closure callback of the handlers (useless for non-C closures).
  * @param data The closure data of the handlers' closures.
+ * @returns The number of handlers that matched.
  */
 function signal_handlers_unblock_matched(instance: Object, mask: SignalMatchType, signal_id: number, detail: GLib.Quark, func: object | null, data: object | null): number
 /**
@@ -1345,6 +1395,7 @@ function signal_handlers_unblock_matched(instance: Object, mask: SignalMatchType
  * @param signal_id the signal id.
  * @param detail the detail.
  * @param may_be_blocked whether blocked handlers should count as match.
+ * @returns %TRUE if a handler is connected to the signal, %FALSE          otherwise.
  */
 function signal_has_handler_pending(instance: Object, signal_id: number, detail: GLib.Quark, may_be_blocked: boolean): boolean
 /**
@@ -1355,6 +1406,7 @@ function signal_has_handler_pending(instance: Object, signal_id: number, detail:
  * the rules for valid names. The rules for signal names are the same as those
  * for property names.
  * @param name the canonical name of the signal
+ * @returns %TRUE if @name is a valid signal name, %FALSE otherwise.
  */
 function signal_is_valid_name(name: string): boolean
 /**
@@ -1362,6 +1414,7 @@ function signal_is_valid_name(name: string): boolean
  * created. Further information about the signals can be acquired through
  * g_signal_query().
  * @param itype Instance or interface type.
+ * @returns Newly allocated array of signal IDs.
  */
 function signal_list_ids(itype: GType): number[]
 /**
@@ -1378,6 +1431,7 @@ function signal_list_ids(itype: GType): number[]
  * See g_signal_new() for details on allowed signal names.
  * @param name the signal's name.
  * @param itype the type that the signal operates on.
+ * @returns the signal's identifying number, or 0 if no signal was found.
  */
 function signal_lookup(name: string, itype: GType): number
 /**
@@ -1385,6 +1439,7 @@ function signal_lookup(name: string, itype: GType): number
  * 
  * Two different signals may have the same name, if they have differing types.
  * @param signal_id the signal's identifying number.
+ * @returns the signal name, or %NULL if the signal number was invalid.
  */
 function signal_name(signal_id: number): string | null
 /**
@@ -1406,6 +1461,7 @@ function signal_override_class_closure(signal_id: number, instance_type: GType, 
  * @param detailed_signal a string of the form "signal-name::detail".
  * @param itype The interface/instance type that introduced "signal-name".
  * @param force_detail_quark %TRUE forces creation of a #GQuark for the detail.
+ * @returns Whether the signal name could successfully be parsed and @signal_id_p and @detail_p contain valid return values.
  */
 function signal_parse_name(detailed_signal: string, itype: GType, force_detail_quark: boolean): [ /* returnType */ boolean, /* signal_id_p */ number, /* detail_p */ GLib.Quark ]
 /**
@@ -1462,6 +1518,7 @@ function signal_stop_emission_by_name(instance: Object, detailed_signal: string)
  * identified by `itype`.
  * @param itype the #GType identifier of an interface or classed type
  * @param struct_offset the offset of the member function of `itype'`s class  structure which is to be invoked by the new closure
+ * @returns a floating reference to a new #GCClosure
  */
 function signal_type_cclosure_new(itype: GType, struct_offset: number): TClosure
 /**
@@ -1494,6 +1551,7 @@ function source_set_dummy_callback(source: GLib.Source): void
  * contents for debugging output, the way in which the contents are
  * described may change between different GLib versions.
  * @param value #GValue which contents are to be described.
+ * @returns Newly allocated string.
  */
 function strdup_value_contents(value: any): string
 /**
@@ -1535,6 +1593,7 @@ function type_check_class_is_a(g_class: TypeClass, is_a_type: GType): boolean
  * Private helper function to aid implementation of the
  * G_TYPE_CHECK_INSTANCE() macro.
  * @param instance a valid #GTypeInstance structure
+ * @returns %TRUE if @instance is valid, %FALSE otherwise
  */
 function type_check_instance(instance: TypeInstance): boolean
 function type_check_instance_is_a(instance: TypeInstance, iface_type: GType): boolean
@@ -1546,6 +1605,7 @@ function type_check_value_holds(value: any, type: GType): boolean
  * Return a newly allocated and 0-terminated array of type IDs, listing
  * the child types of `type`.
  * @param type the parent type
+ * @returns Newly allocated     and 0-terminated array of child types, free with g_free()
  */
 function type_children(type: GType): GType[]
 function type_class_adjust_private_offset(g_class: object | null, private_size_or_offset: number): void
@@ -1556,12 +1616,14 @@ function type_class_adjust_private_offset(g_class: object | null, private_size_o
  * of the type passed in does not currently exist (hasn't been
  * referenced before).
  * @param type type ID of a classed type
+ * @returns the #GTypeClass     structure for the given type ID or %NULL if the class does not     currently exist
  */
 function type_class_peek(type: GType): TypeClass
 /**
  * A more efficient version of g_type_class_peek() which works only for
  * static types.
  * @param type type ID of a classed type
+ * @returns the #GTypeClass     structure for the given type ID or %NULL if the class does not     currently exist or is dynamically loaded
  */
 function type_class_peek_static(type: GType): TypeClass
 /**
@@ -1569,12 +1631,14 @@ function type_class_peek_static(type: GType): TypeClass
  * `type`. This function will demand-create the class if it doesn't
  * exist already.
  * @param type type ID of a classed type
+ * @returns the #GTypeClass     structure for the given type ID
  */
 function type_class_ref(type: GType): TypeClass
 /**
  * If the interface type `g_type` is currently in use, returns its
  * default interface vtable.
  * @param g_type an interface type
+ * @returns the default     vtable for the interface, or %NULL if the type is not currently     in use
  */
 function type_default_interface_peek(g_type: GType): TypeInterface
 /**
@@ -1589,6 +1653,7 @@ function type_default_interface_peek(g_type: GType): TypeInterface
  * want to make sure that signals and properties for an interface
  * have been installed.
  * @param g_type an interface type
+ * @returns the default     vtable for the interface; call g_type_default_interface_unref()     when you are done using the interface.
  */
 function type_default_interface_ref(g_type: GType): TypeInterface
 /**
@@ -1604,6 +1669,7 @@ function type_default_interface_unref(g_iface: TypeInterface): void
  * Returns the length of the ancestry of the passed in type. This
  * includes the type itself, so that e.g. a fundamental type has depth 1.
  * @param type a #GType
+ * @returns the depth of @type
  */
 function type_depth(type: GType): number
 /**
@@ -1637,12 +1703,14 @@ function type_free_instance(instance: TypeInstance): void
  * to find out by name whether a specific type has been registered
  * yet).
  * @param name type name to look up
+ * @returns corresponding type ID or 0
  */
 function type_from_name(name: string): GType
 /**
  * Internal function, used to extract the fundamental type ID portion.
  * Use G_TYPE_FUNDAMENTAL() instead.
  * @param type_id valid type ID
+ * @returns fundamental type ID
  */
 function type_fundamental(type_id: GType): GType
 /**
@@ -1650,6 +1718,7 @@ function type_fundamental(type_id: GType): GType
  * register a new fundamental type with g_type_register_fundamental().
  * The returned type ID represents the highest currently registered
  * fundamental type identifier.
+ * @returns the next available fundamental type ID to be registered,     or 0 if the type system ran out of fundamental type IDs
  */
 function type_fundamental_next(): GType
 /**
@@ -1658,11 +1727,13 @@ function type_fundamental_next(): GType
  * the instance_count debug flag is set (by setting the GOBJECT_DEBUG
  * variable to include instance-count).
  * @param type a #GType
+ * @returns the number of instances allocated of the given type;   if instance counts are not available, returns 0.
  */
 function type_get_instance_count(type: GType): number
 /**
  * Returns the #GTypePlugin structure for `type`.
  * @param type #GType to retrieve the plugin for
+ * @returns the corresponding plugin     if @type is a dynamic type, %NULL otherwise
  */
 function type_get_plugin(type: GType): TypePlugin
 /**
@@ -1674,6 +1745,7 @@ function type_get_plugin(type: GType): TypePlugin
  * be retrieved from a subtype using g_type_get_qdata().
  * @param type a #GType
  * @param quark a #GQuark id to identify the data
+ * @returns the data, or %NULL if no data was found
  */
 function type_get_qdata(type: GType, quark: GLib.Quark): object | null
 /**
@@ -1682,6 +1754,7 @@ function type_get_qdata(type: GType, quark: GLib.Quark): object | null
  * which means you can cache information based on type lookups (such as
  * g_type_from_name()) and know if the cache is still valid at a later
  * time by comparing the current serial with the one at the type lookup.
+ * @returns An unsigned int, representing the state of type registrations
  */
 function type_get_type_registration_serial(): number
 /**
@@ -1717,6 +1790,7 @@ function type_interface_add_prerequisite(interface_type: GType, prerequisite_typ
  * not have a #GTypePlugin structure. See g_type_add_interface_dynamic().
  * @param instance_type #GType of an instantiatable type
  * @param interface_type #GType of an interface type
+ * @returns the #GTypePlugin for the dynamic     interface @interface_type of @instance_type
  */
 function type_interface_get_plugin(instance_type: GType, interface_type: GType): TypePlugin
 /**
@@ -1727,6 +1801,7 @@ function type_interface_get_plugin(instance_type: GType, interface_type: GType):
  * See g_type_interface_add_prerequisite() for more information
  * about prerequisites.
  * @param interface_type an interface type
+ * @returns the instantiatable prerequisite type or %G_TYPE_INVALID if none
  */
 function type_interface_instantiatable_prerequisite(interface_type: GType): GType
 /**
@@ -1734,17 +1809,20 @@ function type_interface_instantiatable_prerequisite(interface_type: GType): GTyp
  * passed in class conforms.
  * @param instance_class a #GTypeClass structure
  * @param iface_type an interface ID which this class conforms to
+ * @returns the #GTypeInterface     structure of @iface_type if implemented by @instance_class, %NULL     otherwise
  */
 function type_interface_peek(instance_class: TypeClass, iface_type: GType): TypeInterface
 /**
  * Returns the prerequisites of an interfaces type.
  * @param interface_type an interface type
+ * @returns a     newly-allocated zero-terminated array of #GType containing     the prerequisites of @interface_type
  */
 function type_interface_prerequisites(interface_type: GType): GType[]
 /**
  * Return a newly allocated and 0-terminated array of type IDs, listing
  * the interface types that `type` conforms to.
  * @param type the type to list interface types for
+ * @returns Newly allocated     and 0-terminated array of interface types, free with g_free()
  */
 function type_interfaces(type: GType): GType[]
 /**
@@ -1753,6 +1831,7 @@ function type_interfaces(type: GType): GType[]
  * whether `type` conforms to it.
  * @param type type to check ancestry for
  * @param is_a_type possible ancestor of `type` or interface that `type`     could conform to
+ * @returns %TRUE if @type is a @is_a_type
  */
 function type_is_a(type: GType, is_a_type: GType): boolean
 /**
@@ -1762,6 +1841,7 @@ function type_is_a(type: GType, is_a_type: GType): boolean
  * other validly registered type ID, but randomized type IDs should
  * not be passed in and will most likely lead to a crash.
  * @param type type to return name for
+ * @returns static type name or %NULL
  */
 function type_name(type: GType): string
 function type_name_from_class(g_class: TypeClass): string
@@ -1776,17 +1856,20 @@ function type_name_from_instance(instance: TypeInstance): string
  * descended from the root type.
  * @param leaf_type descendant of `root_type` and the type to be returned
  * @param root_type immediate parent of the returned type
+ * @returns immediate child of @root_type and ancestor of @leaf_type
  */
 function type_next_base(leaf_type: GType, root_type: GType): GType
 /**
  * Return the direct parent type of the passed in type. If the passed
  * in type has no parent, i.e. is a fundamental type, 0 is returned.
  * @param type the derived type
+ * @returns the parent type
  */
 function type_parent(type: GType): GType
 /**
  * Get the corresponding quark of the type IDs name.
  * @param type type to return quark of type name for
+ * @returns the type names quark or 0
  */
 function type_qname(type: GType): GLib.Quark
 /**
@@ -1809,6 +1892,7 @@ function type_query(type: GType): /* query */ TypeQuery
  * @param type_name 0-terminated string used as the name of the new type
  * @param plugin #GTypePlugin structure to retrieve the #GTypeInfo from
  * @param flags bitwise combination of #GTypeFlags values
+ * @returns the new type identifier or %G_TYPE_INVALID if registration failed
  */
 function type_register_dynamic(parent_type: GType, type_name: string, plugin: TypePlugin, flags: TypeFlags): GType
 /**
@@ -1824,6 +1908,7 @@ function type_register_dynamic(parent_type: GType, type_name: string, plugin: Ty
  * @param info #GTypeInfo structure for this type
  * @param finfo #GTypeFundamentalInfo structure for this type
  * @param flags bitwise combination of #GTypeFlags values
+ * @returns the predefined type identifier
  */
 function type_register_fundamental(type_id: GType, type_name: string, info: TypeInfo, finfo: TypeFundamentalInfo, flags: TypeFlags): GType
 /**
@@ -1836,6 +1921,7 @@ function type_register_fundamental(type_id: GType, type_name: string, info: Type
  * @param type_name 0-terminated string used as the name of the new type
  * @param info #GTypeInfo structure for this type
  * @param flags bitwise combination of #GTypeFlags values
+ * @returns the new type identifier
  */
 function type_register_static(parent_type: GType, type_name: string, info: TypeInfo, flags: TypeFlags): GType
 /**
@@ -1851,6 +1937,7 @@ function type_test_flags(type: GType, flags: number): boolean
  * a #GValue of type `dest_type`.
  * @param src_type source type to be copied.
  * @param dest_type destination type for copying.
+ * @returns %TRUE if g_value_copy() is possible with @src_type and @dest_type.
  */
 function value_type_compatible(src_type: GType, dest_type: GType): boolean
 /**
@@ -1860,6 +1947,7 @@ function value_type_compatible(src_type: GType, dest_type: GType): boolean
  * transformation function must be registered.
  * @param src_type Source type.
  * @param dest_type Target type.
+ * @returns %TRUE if the transformation is possible, %FALSE otherwise.
  */
 function value_type_transformable(src_type: GType, dest_type: GType): boolean
 /**
@@ -1907,6 +1995,7 @@ interface BaseInitFunc {
  * @param binding a #GBinding
  * @param from_value the #GValue containing the value to transform
  * @param to_value the #GValue in which to store the transformed value
+ * @returns %TRUE if the transformation was successful, and %FALSE   otherwise
  */
 interface BindingTransformFunc {
     (binding: Binding, from_value: any, to_value: any): boolean
@@ -1916,6 +2005,7 @@ interface BindingTransformFunc {
  * of the passed in boxed structure.
  * @callback 
  * @param boxed The boxed structure to be copied.
+ * @returns The newly created copy of the boxed structure.
  */
 interface BoxedCopyFunc {
     (boxed: object): object
@@ -2180,6 +2270,7 @@ interface ObjectSetPropertyFunc {
  * @param ihint Signal invocation hint, see #GSignalInvocationHint.
  * @param return_accu Accumulator to collect callback return values in, this  is the return value of the current signal emission.
  * @param handler_return A #GValue holding the return value of the signal handler.
+ * @returns The accumulator function returns whether the signal emission  should be aborted. Returning %TRUE will continue with  the signal emission. Returning %FALSE will abort the current emission.  Since 2.62, returning %FALSE will skip to the CLEANUP stage. In this case,  emission will occur as normal in the CLEANUP stage and the handler's  return value will be accumulated.
  */
 interface SignalAccumulator {
     (ihint: SignalInvocationHint, return_accu: any, handler_return: any): boolean
@@ -2194,6 +2285,7 @@ interface SignalAccumulator {
  * @callback 
  * @param ihint Signal invocation hint, see #GSignalInvocationHint.
  * @param param_values the instance on which  the signal was emitted, followed by the parameters of the emission.
+ * @returns whether it wants to stay connected. If it returns %FALSE, the signal  hook is disconnected (and destroyed).
  */
 interface SignalEmissionHook {
     (ihint: SignalInvocationHint, param_values: any[]): boolean
@@ -2225,6 +2317,7 @@ interface ToggleNotify {
  * @callback 
  * @param cache_data data that was given to the g_type_add_class_cache_func() call
  * @param g_class The #GTypeClass structure which is    unreferenced
+ * @returns %TRUE to stop further #GTypeClassCacheFuncs from being  called, %FALSE to continue
  */
 interface TypeClassCacheFunc {
     (cache_data: object | null, g_class: TypeClass): boolean
@@ -2748,6 +2841,7 @@ interface Binding {
      * A #GBinding can outlive the source #GObject as the binding does not hold a
      * strong reference to the source. If the source is destroyed before the
      * binding then this function will return %NULL.
+     * @returns the source #GObject, or %NULL if the     source does not exist any more.
      */
     dup_source(): Object | null
     /**
@@ -2756,10 +2850,12 @@ interface Binding {
      * A #GBinding can outlive the target #GObject as the binding does not hold a
      * strong reference to the target. If the target is destroyed before the
      * binding then this function will return %NULL.
+     * @returns the target #GObject, or %NULL if the     target does not exist any more.
      */
     dup_target(): Object | null
     /**
      * Retrieves the flags passed when constructing the #GBinding.
+     * @returns the #GBindingFlags used by the #GBinding
      */
     get_flags(): BindingFlags
     /**
@@ -2772,11 +2868,13 @@ interface Binding {
      * Use g_binding_dup_source() if the source or binding are used from different
      * threads as otherwise the pointer returned from this function might become
      * invalid if the source is finalized from another thread in the meantime.
+     * @returns the source #GObject, or %NULL if the     source does not exist any more.
      */
     get_source(): Object | null
     /**
      * Retrieves the name of the property of #GBinding:source used as the source
      * of the binding.
+     * @returns the name of the source property
      */
     get_source_property(): string
     /**
@@ -2789,11 +2887,13 @@ interface Binding {
      * Use g_binding_dup_target() if the target or binding are used from different
      * threads as otherwise the pointer returned from this function might become
      * invalid if the target is finalized from another thread in the meantime.
+     * @returns the target #GObject, or %NULL if the     target does not exist any more.
      */
     get_target(): Object | null
     /**
      * Retrieves the name of the property of #GBinding:target used as the target
      * of the binding.
+     * @returns the name of the target property
      */
     get_target_property(): string
     /**
@@ -2996,6 +3096,7 @@ interface BindingGroup {
     bind_full(source_property: string, target: Object, target_property: string, flags: BindingFlags, transform_to: TClosure | null, transform_from: TClosure | null): void
     /**
      * Gets the source object used for binding properties.
+     * @returns a #GObject or %NULL.
      */
     dup_source(): Object | null
     /**
@@ -3042,11 +3143,13 @@ class BindingGroup extends Object {
     /**
      * Creates a new #GBindingGroup.
      * @constructor 
+     * @returns a new #GBindingGroup
      */
     constructor() 
     /**
      * Creates a new #GBindingGroup.
      * @constructor 
+     * @returns a new #GBindingGroup
      */
     static new(): BindingGroup
     _init(config?: BindingGroup.ConstructorProperties): void
@@ -3160,6 +3263,7 @@ interface Object {
      * @param target the target #GObject
      * @param target_property the property on `target` to bind
      * @param flags flags to pass to #GBinding
+     * @returns the #GBinding instance representing the     binding between the two #GObject instances. The binding is released     whenever the #GBinding reference count reaches zero.
      */
     bind_property(source_property: string, target: Object, target_property: string, flags: BindingFlags): Binding
     /**
@@ -3176,6 +3280,7 @@ interface Object {
      * @param flags flags to pass to #GBinding
      * @param transform_to a #GClosure wrapping the transformation function     from the `source` to the `target,` or %NULL to use the default
      * @param transform_from a #GClosure wrapping the transformation function     from the `target` to the `source,` or %NULL to use the default
+     * @returns the #GBinding instance representing the     binding between the two #GObject instances. The binding is released     whenever the #GBinding reference count reaches zero.
      */
     bind_property_full(source_property: string, target: Object, target_property: string, flags: BindingFlags, transform_to: TClosure, transform_from: TClosure): Binding
     /**
@@ -3200,6 +3305,7 @@ interface Object {
     /**
      * Gets a named field from the objects table of associations (see g_object_set_data()).
      * @param key name of the key for that association
+     * @returns the data if found,          or %NULL if no such data exists.
      */
     get_data(key: string): object | null
     /**
@@ -3227,6 +3333,7 @@ interface Object {
      * This function gets back user data pointers stored via
      * g_object_set_qdata().
      * @param quark A #GQuark, naming the user data pointer
+     * @returns The user data pointer set, or %NULL
      */
     get_qdata(quark: GLib.Quark): object | null
     /**
@@ -3240,6 +3347,7 @@ interface Object {
     getv(names: string[], values: any[]): void
     /**
      * Checks whether `object` has a [floating][floating-ref] reference.
+     * @returns %TRUE if @object has a floating reference
      */
     is_floating(): boolean
     /**
@@ -3308,6 +3416,7 @@ interface Object {
      * of `object` will be propagated to the return type (using the GCC typeof()
      * extension), so any casting the caller needs to do on the return type must be
      * explicit.
+     * @returns the same @object
      */
     ref(): Object
     /**
@@ -3322,6 +3431,7 @@ interface Object {
      * 
      * Since GLib 2.56, the type of `object` will be propagated to the return type
      * under the same conditions as for g_object_ref().
+     * @returns @object
      */
     ref_sink(): Object
     /**
@@ -3356,6 +3466,7 @@ interface Object {
      * Remove a specified datum from the object's data associations,
      * without invoking the association's destroy handler.
      * @param key name of the key
+     * @returns the data if found, or %NULL          if no such data exists.
      */
     steal_data(key: string): object | null
     /**
@@ -3397,6 +3508,7 @@ interface Object {
      * and thus the partial string list would have been freed upon
      * g_object_set_qdata_full().
      * @param quark A #GQuark, naming the user data pointer
+     * @returns The user data pointer set, or %NULL
      */
     steal_qdata(quark: GLib.Quark): object | null
     /**
@@ -3506,6 +3618,7 @@ class Object {
      * @constructor 
      * @param object_type the type id of the #GObject subtype to instantiate
      * @param parameters an array of #GParameter
+     * @returns a new instance of @object_type
      */
     static newv(object_type: GType, parameters: Parameter[]): Object
     _init(config?: Object.ConstructorProperties): void
@@ -3518,6 +3631,7 @@ class Object {
      * g_type_default_interface_peek().
      * @param g_iface any interface vtable for the  interface, or the default vtable for the interface
      * @param property_name name of a property to look up.
+     * @returns the #GParamSpec for the property of the          interface with the name @property_name, or %NULL if no          such property exists.
      */
     static interface_find_property(g_iface: TypeInterface, property_name: string): ParamSpec
     /**
@@ -3547,6 +3661,7 @@ class Object {
      * g_type_default_interface_ref(), or, if you know the interface has
      * already been loaded, g_type_default_interface_peek().
      * @param g_iface any interface vtable for the  interface, or the default vtable for the interface
+     * @returns a          pointer to an array of pointers to #GParamSpec          structures. The paramspecs are owned by GLib, but the          array should be freed with g_free() when you are done with          it.
      */
     static interface_list_properties(g_iface: TypeInterface): ParamSpec[]
 }
@@ -3585,12 +3700,14 @@ interface ParamSpec {
 
     /**
      * Get the short description of a #GParamSpec.
+     * @returns the short description of @pspec.
      */
     get_blurb(): string | null
     /**
      * Gets the default value of `pspec` as a pointer to a #GValue.
      * 
      * The #GValue will remain valid for the life of `pspec`.
+     * @returns a pointer to a #GValue which must not be modified
      */
     get_default_value(): any
     /**
@@ -3598,19 +3715,23 @@ interface ParamSpec {
      * 
      * The name is always an "interned" string (as per g_intern_string()).
      * This allows for pointer-value comparisons.
+     * @returns the name of @pspec.
      */
     get_name(): string
     /**
      * Gets the GQuark for the name.
+     * @returns the GQuark for @pspec->name.
      */
     get_name_quark(): GLib.Quark
     /**
      * Get the nickname of a #GParamSpec.
+     * @returns the nickname of @pspec.
      */
     get_nick(): string
     /**
      * Gets back user data pointers stored via g_param_spec_set_qdata().
      * @param quark a #GQuark, naming the user data pointer
+     * @returns the user data pointer set, or %NULL
      */
     get_qdata(quark: GLib.Quark): object | null
     /**
@@ -3621,6 +3742,7 @@ interface ParamSpec {
      * type. Redirection is established by creating a property
      * of type #GParamSpecOverride. See g_object_class_override_property()
      * for an example of the use of this capability.
+     * @returns paramspec to which requests on this          paramspec should be redirected, or %NULL if none.
      */
     get_redirect_target(): ParamSpec | null
     /**
@@ -3650,6 +3772,7 @@ interface ParamSpec {
      * function (if any was set).  Usually, calling this function is only
      * required to update user data pointers with a destroy notifier.
      * @param quark a #GQuark, naming the user data pointer
+     * @returns the user data pointer set, or %NULL
      */
     steal_qdata(quark: GLib.Quark): object | null
 
@@ -3694,6 +3817,7 @@ class ParamSpec {
      * See [canonical parameter names][canonical-parameter-names] for details of
      * the rules for valid names.
      * @param name the canonical name of the property
+     * @returns %TRUE if @name is a valid property name, %FALSE otherwise.
      */
     static is_valid_name(name: string): boolean
     static char(name: string, nick: string, blurb: string, flags: ParamFlags, minimum: number, maximum: number, defaultValue: number): ParamSpecChar
@@ -4575,6 +4699,7 @@ interface SignalGroup {
     connect_swapped(detailed_signal: string, c_handler: Callback): void
     /**
      * Gets the target instance used when connecting signals.
+     * @returns The target instance
      */
     dup_target(): Object | null
     /**
@@ -4653,12 +4778,14 @@ class SignalGroup extends Object {
      * Creates a new #GSignalGroup for target instances of `target_type`.
      * @constructor 
      * @param target_type the #GType of the target instance.
+     * @returns a new #GSignalGroup
      */
     constructor(target_type: GType) 
     /**
      * Creates a new #GSignalGroup for target instances of `target_type`.
      * @constructor 
      * @param target_type the #GType of the target instance.
+     * @returns a new #GSignalGroup
      */
     static new(target_type: GType): SignalGroup
     _init(config?: SignalGroup.ConstructorProperties): void
@@ -4717,6 +4844,7 @@ interface TypeModule extends TypePlugin {
      * instead. This can be used when making a static build of the module.
      * @param name name for the type
      * @param const_static_values an array of #GEnumValue structs for the                       possible enumeration values. The array is                       terminated by a struct with all members being                       0.
+     * @returns the new or existing type ID
      */
     register_enum(name: string, const_static_values: EnumValue): GType
     /**
@@ -4732,6 +4860,7 @@ interface TypeModule extends TypePlugin {
      * instead. This can be used when making a static build of the module.
      * @param name name for the type
      * @param const_static_values an array of #GFlagsValue structs for the                       possible flags values. The array is                       terminated by a struct with all members being                       0.
+     * @returns the new or existing type ID
      */
     register_flags(name: string, const_static_values: FlagsValue): GType
     /**
@@ -4753,6 +4882,7 @@ interface TypeModule extends TypePlugin {
      * @param type_name name for the type
      * @param type_info type information structure
      * @param flags flags field providing details about the type
+     * @returns the new or existing type ID
      */
     register_type(parent_type: GType, type_name: string, type_info: TypeInfo, flags: TypeFlags): GType
     /**
@@ -4773,6 +4903,7 @@ interface TypeModule extends TypePlugin {
      * use count was zero before, the plugin will be loaded.
      * If loading the plugin fails, the use count is reset to
      * its prior value.
+     * @returns %FALSE if the plugin needed to be loaded and  loading the plugin failed.
      */
     use(): boolean
 
@@ -5180,6 +5311,7 @@ interface Closure {
     /**
      * Increments the reference count on a closure to force it staying
      * alive while the caller holds a pointer to it.
+     * @returns The @closure passed in, for convenience
      */
     ref(): TClosure
     /**
@@ -5311,6 +5443,7 @@ class Closure {
      * @constructor 
      * @param sizeof_closure the size of the structure to allocate, must be at least  `sizeof (GClosure)`
      * @param object a #GObject pointer to store in the `data` field of the newly  allocated #GClosure
+     * @returns a newly allocated #GClosure
      */
     static new_object(sizeof_closure: number, object: Object): Closure
     /**
@@ -5356,6 +5489,7 @@ class Closure {
      * @constructor 
      * @param sizeof_closure the size of the structure to allocate, must be at least                  `sizeof (GClosure)`
      * @param data data to store in the `data` field of the newly allocated #GClosure
+     * @returns a floating reference to a new #GClosure
      */
     static new_simple(sizeof_closure: number, data: object | null): Closure
 }
@@ -5608,6 +5742,7 @@ interface ObjectClass {
     /**
      * Looks up the #GParamSpec for a property of a class.
      * @param property_name the name of the property to look up
+     * @returns the #GParamSpec for the property, or          %NULL if the class doesn't have a property of that name
      */
     find_property(oclass: Object | Function | GType, property_name: string): ParamSpec
     /**
@@ -5698,6 +5833,7 @@ interface ObjectClass {
     install_property(oclass: Object | Function | GType, property_id: number, pspec: ParamSpec): void
     /**
      * Get an array of #GParamSpec* for all properties of a class.
+     * @returns an array of          #GParamSpec* which should be freed after use
      */
     list_properties(oclass: Object | Function | GType): ParamSpec[]
     /**
@@ -5837,12 +5973,14 @@ interface ParamSpecPool {
      * Gets an array of all #GParamSpecs owned by `owner_type` in
      * the pool.
      * @param owner_type the owner to look for
+     * @returns a newly          allocated array containing pointers to all #GParamSpecs          owned by @owner_type in the pool
      */
     list(owner_type: GType): ParamSpec[]
     /**
      * Gets an #GList of all #GParamSpecs owned by `owner_type` in
      * the pool.
      * @param owner_type the owner to look for
+     * @returns a          #GList of all #GParamSpecs owned by @owner_type in          the pool#GParamSpecs.
      */
     list_owned(owner_type: GType): ParamSpec[]
     /**
@@ -5850,6 +5988,7 @@ interface ParamSpecPool {
      * @param param_name the name to look for
      * @param owner_type the owner to look for
      * @param walk_ancestors If %TRUE, also try to find a #GParamSpec with `param_name`  owned by an ancestor of `owner_type`.
+     * @returns The found #GParamSpec, or %NULL if no matching #GParamSpec was found.
      */
     lookup(param_name: string, owner_type: GType, walk_ancestors: boolean): ParamSpec | null
     /**
@@ -6128,6 +6267,7 @@ interface TypeClass {
      * 
      * This function is essentially equivalent to:
      * g_type_class_peek (g_type_parent (G_TYPE_FROM_CLASS (g_class)))
+     * @returns the parent class     of @g_class
      */
     peek_parent(): TypeClass
     /**
@@ -6159,12 +6299,14 @@ class TypeClass {
      * of the type passed in does not currently exist (hasn't been
      * referenced before).
      * @param type type ID of a classed type
+     * @returns the #GTypeClass     structure for the given type ID or %NULL if the class does not     currently exist
      */
     static peek(type: GType): TypeClass
     /**
      * A more efficient version of g_type_class_peek() which works only for
      * static types.
      * @param type type ID of a classed type
+     * @returns the #GTypeClass     structure for the given type ID or %NULL if the class does not     currently exist or is dynamically loaded
      */
     static peek_static(type: GType): TypeClass
     /**
@@ -6172,6 +6314,7 @@ class TypeClass {
      * `type`. This function will demand-create the class if it doesn't
      * exist already.
      * @param type type ID of a classed type
+     * @returns the #GTypeClass     structure for the given type ID
      */
     static ref(type: GType): TypeClass
 }
@@ -6309,6 +6452,7 @@ interface TypeInterface {
      * of the instance type to which `g_iface` belongs. This is useful when
      * deriving the implementation of an interface from the parent type and
      * then possibly overriding some methods.
+     * @returns the     corresponding #GTypeInterface structure of the parent type of the     instance type to which @g_iface belongs, or %NULL if the parent     type doesn't conform to the interface
      */
     peek_parent(): TypeInterface
 }
@@ -6342,6 +6486,7 @@ class TypeInterface {
      * not have a #GTypePlugin structure. See g_type_add_interface_dynamic().
      * @param instance_type #GType of an instantiatable type
      * @param interface_type #GType of an interface type
+     * @returns the #GTypePlugin for the dynamic     interface @interface_type of @instance_type
      */
     static get_plugin(instance_type: GType, interface_type: GType): TypePlugin
     /**
@@ -6352,6 +6497,7 @@ class TypeInterface {
      * See g_type_interface_add_prerequisite() for more information
      * about prerequisites.
      * @param interface_type an interface type
+     * @returns the instantiatable prerequisite type or %G_TYPE_INVALID if none
      */
     static instantiatable_prerequisite(interface_type: GType): GType
     /**
@@ -6359,11 +6505,13 @@ class TypeInterface {
      * passed in class conforms.
      * @param instance_class a #GTypeClass structure
      * @param iface_type an interface ID which this class conforms to
+     * @returns the #GTypeInterface     structure of @iface_type if implemented by @instance_class, %NULL     otherwise
      */
     static peek(instance_class: TypeClass, iface_type: GType): TypeInterface
     /**
      * Returns the prerequisites of an interfaces type.
      * @param interface_type an interface type
+     * @returns a     newly-allocated zero-terminated array of #GType containing     the prerequisites of @interface_type
      */
     static prerequisites(interface_type: GType): GType[]
 }
@@ -6542,28 +6690,34 @@ interface Value {
      * Get the contents of a %G_TYPE_OBJECT derived #GValue, increasing
      * its reference count. If the contents of the #GValue are %NULL, then
      * %NULL will be returned.
+     * @returns object content of @value,          should be unreferenced when no longer needed.
      */
     dup_object(): Object
     /**
      * Get a copy the contents of a %G_TYPE_STRING #GValue.
+     * @returns a newly allocated copy of the string content of @value
      */
     dup_string(): string
     /**
      * Get the contents of a variant #GValue, increasing its refcount. The returned
      * #GVariant is never floating.
+     * @returns variant contents of @value (may be %NULL);    should be unreffed using g_variant_unref() when no longer needed
      */
     dup_variant(): GLib.Variant | null
     /**
      * Determines if `value` will fit inside the size of a pointer value.
      * This is an internal function introduced mainly for C marshallers.
+     * @returns %TRUE if @value will fit inside a pointer value.
      */
     fits_pointer(): boolean
     /**
      * Get the contents of a %G_TYPE_BOOLEAN #GValue.
+     * @returns boolean contents of @value
      */
     get_boolean(): boolean
     /**
      * Get the contents of a %G_TYPE_BOXED derived #GValue.
+     * @returns boxed contents of @value
      */
     get_boxed(): object | null
     /**
@@ -6571,83 +6725,103 @@ interface Value {
      * type is unsigned, such as ARM and PowerPC.  See g_value_get_schar().
      * 
      * Get the contents of a %G_TYPE_CHAR #GValue.
+     * @returns character contents of @value
      */
     get_char(): number
     /**
      * Get the contents of a %G_TYPE_DOUBLE #GValue.
+     * @returns double contents of @value
      */
     get_double(): number
     /**
      * Get the contents of a %G_TYPE_ENUM #GValue.
+     * @returns enum contents of @value
      */
     get_enum(): number
     /**
      * Get the contents of a %G_TYPE_FLAGS #GValue.
+     * @returns flags contents of @value
      */
     get_flags(): number
     /**
      * Get the contents of a %G_TYPE_FLOAT #GValue.
+     * @returns float contents of @value
      */
     get_float(): number
     /**
      * Get the contents of a %G_TYPE_GTYPE #GValue.
+     * @returns the #GType stored in @value
      */
     get_gtype(): GType
     /**
      * Get the contents of a %G_TYPE_INT #GValue.
+     * @returns integer contents of @value
      */
     get_int(): number
     /**
      * Get the contents of a %G_TYPE_INT64 #GValue.
+     * @returns 64bit integer contents of @value
      */
     get_int64(): number
     /**
      * Get the contents of a %G_TYPE_LONG #GValue.
+     * @returns long integer contents of @value
      */
     get_long(): number
     /**
      * Get the contents of a %G_TYPE_OBJECT derived #GValue.
+     * @returns object contents of @value
      */
     get_object(): Object
     /**
      * Get the contents of a %G_TYPE_PARAM #GValue.
+     * @returns #GParamSpec content of @value
      */
     get_param(): ParamSpec
     /**
      * Get the contents of a pointer #GValue.
+     * @returns pointer contents of @value
      */
     get_pointer(): object | null
     /**
      * Get the contents of a %G_TYPE_CHAR #GValue.
+     * @returns signed 8 bit integer contents of @value
      */
     get_schar(): number
     /**
      * Get the contents of a %G_TYPE_STRING #GValue.
+     * @returns string content of @value
      */
     get_string(): string
     /**
      * Get the contents of a %G_TYPE_UCHAR #GValue.
+     * @returns unsigned character contents of @value
      */
     get_uchar(): number
     /**
      * Get the contents of a %G_TYPE_UINT #GValue.
+     * @returns unsigned integer contents of @value
      */
     get_uint(): number
     /**
      * Get the contents of a %G_TYPE_UINT64 #GValue.
+     * @returns unsigned 64bit integer contents of @value
      */
     get_uint64(): number
     /**
      * Get the contents of a %G_TYPE_ULONG #GValue.
+     * @returns unsigned long integer contents of @value
      */
     get_ulong(): number
     /**
      * Get the contents of a variant #GValue.
+     * @returns variant contents of @value (may be %NULL)
      */
     get_variant(): GLib.Variant | null
     /**
      * Initializes `value` with the default value of `type`.
      * @param g_type Type the #GValue should hold values of.
+     * @returns the #GValue structure that has been passed in
      */
     init(g_type: GType): any
     /**
@@ -6665,11 +6839,13 @@ interface Value {
      * Returns the value contents as pointer. This function asserts that
      * g_value_fits_pointer() returned %TRUE for the passed in value.
      * This is an internal function introduced mainly for C marshallers.
+     * @returns the value contents as pointer
      */
     peek_pointer(): object | null
     /**
      * Clears the current value in `value` and resets it to the default value
      * (as if the value had just been initialized).
+     * @returns the #GValue structure that has been passed in
      */
     reset(): any
     /**
@@ -6866,6 +7042,7 @@ interface Value {
      * results and shouldn't be relied upon for production code (such
      * as rcfile value or object property serialization).
      * @param dest_value Target value.
+     * @returns Whether a transformation rule was found and could be applied.  Upon failing transformations, @dest_value is left untouched.
      */
     transform(dest_value: any): boolean
     /**
@@ -6903,6 +7080,7 @@ class Value {
      * a #GValue of type `dest_type`.
      * @param src_type source type to be copied.
      * @param dest_type destination type for copying.
+     * @returns %TRUE if g_value_copy() is possible with @src_type and @dest_type.
      */
     static type_compatible(src_type: GType, dest_type: GType): boolean
     /**
@@ -6912,6 +7090,7 @@ class Value {
      * transformation function must be registered.
      * @param src_type Source type.
      * @param dest_type Target type.
+     * @returns %TRUE if the transformation is possible, %FALSE otherwise.
      */
     static type_transformable(src_type: GType, dest_type: GType): boolean
 }
@@ -6937,16 +7116,19 @@ interface ValueArray {
      * Insert a copy of `value` as last element of `value_array`. If `value` is
      * %NULL, an uninitialized value is appended.
      * @param value #GValue to copy into #GValueArray, or %NULL
+     * @returns the #GValueArray passed in as @value_array
      */
     append(value: any | null): ValueArray
     /**
      * Construct an exact copy of a #GValueArray by duplicating all its
      * contents.
+     * @returns Newly allocated copy of #GValueArray
      */
     copy(): ValueArray
     /**
      * Return a pointer to the value at `index_` containd in `value_array`.
      * @param index_ index of the value of interest
+     * @returns pointer to a value at @index_ in @value_array
      */
     get_nth(index_: number): any
     /**
@@ -6954,17 +7136,20 @@ interface ValueArray {
      * is %NULL, an uninitialized value is inserted.
      * @param index_ insertion position, must be <= value_array->;n_values
      * @param value #GValue to copy into #GValueArray, or %NULL
+     * @returns the #GValueArray passed in as @value_array
      */
     insert(index_: number, value: any | null): ValueArray
     /**
      * Insert a copy of `value` as first element of `value_array`. If `value` is
      * %NULL, an uninitialized value is prepended.
      * @param value #GValue to copy into #GValueArray, or %NULL
+     * @returns the #GValueArray passed in as @value_array
      */
     prepend(value: any | null): ValueArray
     /**
      * Remove the value at position `index_` from `value_array`.
      * @param index_ position of value to remove, which must be less than     `value_array->`n_values
+     * @returns the #GValueArray passed in as @value_array
      */
     remove(index_: number): ValueArray
     /**
@@ -6974,6 +7159,7 @@ interface ValueArray {
      * The current implementation uses the same sorting algorithm as standard
      * C qsort() function.
      * @param compare_func function to compare elements
+     * @returns the #GValueArray passed in as @value_array
      */
     sort(compare_func: GLib.CompareDataFunc): ValueArray
 }
@@ -6996,6 +7182,7 @@ class ValueArray {
      * regardless of the value of `n_prealloced`.
      * @constructor 
      * @param n_prealloced number of values to preallocate space for
+     * @returns a newly allocated #GValueArray with 0 values
      */
     constructor(n_prealloced: number) 
     /**
@@ -7004,6 +7191,7 @@ class ValueArray {
      * regardless of the value of `n_prealloced`.
      * @constructor 
      * @param n_prealloced number of values to preallocate space for
+     * @returns a newly allocated #GValueArray with 0 values
      */
     static new(n_prealloced: number): ValueArray
 }

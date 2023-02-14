@@ -26,6 +26,7 @@ export namespace PangoCairo {
  * This function does not report options that are derived from
  * the target surface by [func`update_context]`.
  * @param context a `PangoContext`, from a pangocairo font map
+ * @returns the font options previously set on the   context, or %NULL if no options have been set. This value is   owned by the context and must not be modified or freed.
  */
 function context_get_font_options(context: Pango.Context): cairo.FontOptions | null
 /**
@@ -33,6 +34,7 @@ function context_get_font_options(context: Pango.Context): cairo.FontOptions | n
  * 
  * See [func`PangoCairo`.context_set_resolution]
  * @param context a `PangoContext`, from a pangocairo font map
+ * @returns the resolution in "dots per inch". A negative value will   be returned if no resolution has previously been set.
  */
 function context_get_resolution(context: Pango.Context): number
 /**
@@ -75,6 +77,7 @@ function context_set_shape_renderer(context: Pango.Context, func: ShapeRendererF
  * create a layout for use with `cr` and do not need to access `PangoContext`
  * directly, you can use [func`create_layout]` instead.
  * @param cr a Cairo context
+ * @returns the newly created `PangoContext`
  */
 function create_context(cr: cairo.Context): Pango.Context
 /**
@@ -91,6 +94,7 @@ function create_context(cr: cairo.Context): Pango.Context
  * `PangoContext` object for each layout. This might matter in an
  * application that was laying out large amounts of text.
  * @param cr a Cairo context
+ * @returns the newly created `PangoLayout`
  */
 function create_layout(cr: cairo.Context): Pango.Layout
 /**
@@ -123,6 +127,7 @@ function error_underline_path(cr: cairo.Context, x: number, y: number, width: nu
  * Note that since Pango 1.32.6, the default fontmap is per-thread.
  * Each thread gets its own default fontmap. In this way, PangoCairo
  * can be used safely from multiple threads.
+ * @returns the default PangoCairo fontmap  for the current thread. This object is owned by Pango and must  not be freed.
  */
 function font_map_get_default(): Pango.FontMap
 /**
@@ -144,6 +149,7 @@ function font_map_get_default(): Pango.FontMap
  * If requested type is not available, NULL is returned. Ie.
  * this is only useful for testing, when at least two backends
  * are compiled in.
+ * @returns the newly allocated `PangoFontMap`,   which should be freed with g_object_unref().
  */
 function font_map_new(): Pango.FontMap
 /**
@@ -153,6 +159,7 @@ function font_map_new(): Pango.FontMap
  * In most cases one should simply use [func`PangoCairo`.FontMap.new], or
  * in fact in most of those cases, just use [func`PangoCairo`.FontMap.get_default].
  * @param fonttype desired #cairo_font_type_t
+ * @returns the newly allocated   `PangoFontMap` of suitable type which should be freed with   g_object_unref(), or %NULL if the requested cairo font backend   is not supported / compiled in.
  */
 function font_map_new_for_font_type(fonttype: cairo.FontType): Pango.FontMap | null
 /**
@@ -293,6 +300,7 @@ interface Font extends Pango.Font {
      * Gets the `cairo_scaled_font_t` used by `font`.
      * The scaled font can be referenced and kept using
      * cairo_scaled_font_reference().
+     * @returns the `cairo_scaled_font_t`   used by @font
      */
     get_scaled_font(): cairo.ScaledFont | null
 
@@ -340,12 +348,14 @@ interface FontMap extends Pango.FontMap {
 
     /**
      * Gets the type of Cairo font backend that `fontmap` uses.
+     * @returns the `cairo_font_type_t` cairo font backend type
      */
     get_font_type(): cairo.FontType
     /**
      * Gets the resolution for the fontmap.
      * 
      * See [method`PangoCairo`.FontMap.set_resolution].
+     * @returns the resolution in "dots per inch"
      */
     get_resolution(): number
     /**
@@ -429,6 +439,7 @@ class FontMap extends GObject.Object {
      * If requested type is not available, NULL is returned. Ie.
      * this is only useful for testing, when at least two backends
      * are compiled in.
+     * @returns the newly allocated `PangoFontMap`,   which should be freed with g_object_unref().
      */
     static new(): Pango.FontMap
     /**
@@ -438,6 +449,7 @@ class FontMap extends GObject.Object {
      * In most cases one should simply use [func`PangoCairo`.FontMap.new], or
      * in fact in most of those cases, just use [func`PangoCairo`.FontMap.get_default].
      * @param fonttype desired #cairo_font_type_t
+     * @returns the newly allocated   `PangoFontMap` of suitable type which should be freed with   g_object_unref(), or %NULL if the requested cairo font backend   is not supported / compiled in.
      */
     static new_for_font_type(fonttype: cairo.FontType): Pango.FontMap | null
     /**
@@ -456,6 +468,7 @@ class FontMap extends GObject.Object {
      * Note that since Pango 1.32.6, the default fontmap is per-thread.
      * Each thread gets its own default fontmap. In this way, PangoCairo
      * can be used safely from multiple threads.
+     * @returns the default PangoCairo fontmap  for the current thread. This object is owned by Pango and must  not be freed.
      */
     static get_default(): Pango.FontMap
 }

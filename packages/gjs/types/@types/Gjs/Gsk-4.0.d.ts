@@ -374,17 +374,20 @@ function serialization_error_quark(): GLib.Quark
  * If `string` does not describe a valid transform, %FALSE is
  * returned and %NULL is put in `out_transform`.
  * @param string the string to parse
+ * @returns %TRUE if @string described a valid transform.
  */
 function transform_parse(string: string): [ /* returnType */ boolean, /* out_transform */ Transform ]
 /**
  * Retrieves the `GskRenderNode` stored inside the given `value`, and acquires
  * a reference to it.
  * @param value a [struct`GObject`.Value] initialized with type `GSK_TYPE_RENDER_NODE`
+ * @returns a `GskRenderNode`
  */
 function value_dup_render_node(value: any): RenderNode | null
 /**
  * Retrieves the `GskRenderNode` stored inside the given `value`.
  * @param value a `GValue` initialized with type `GSK_TYPE_RENDER_NODE`
+ * @returns a `GskRenderNode`
  */
 function value_get_render_node(value: any): RenderNode | null
 /**
@@ -420,14 +423,17 @@ interface BlendNode {
 
     /**
      * Retrieves the blend mode used by `node`.
+     * @returns the blend mode
      */
     get_blend_mode(): BlendMode
     /**
      * Retrieves the bottom `GskRenderNode` child of the `node`.
+     * @returns the bottom child node
      */
     get_bottom_child(): RenderNode
     /**
      * Retrieves the top `GskRenderNode` child of the `node`.
+     * @returns the top child node
      */
     get_top_child(): RenderNode
 }
@@ -451,6 +457,7 @@ class BlendNode extends RenderNode {
      * @param bottom The bottom node to be drawn
      * @param top The node to be blended onto the `bottom` node
      * @param blend_mode The blend mode to use
+     * @returns A new `GskRenderNode`
      */
     constructor(bottom: RenderNode, top: RenderNode, blend_mode: BlendMode) 
     /**
@@ -460,6 +467,7 @@ class BlendNode extends RenderNode {
      * @param bottom The bottom node to be drawn
      * @param top The node to be blended onto the `bottom` node
      * @param blend_mode The blend mode to use
+     * @returns A new `GskRenderNode`
      */
     static new(bottom: RenderNode, top: RenderNode, blend_mode: BlendMode): BlendNode
 }
@@ -470,10 +478,12 @@ interface BlurNode {
 
     /**
      * Retrieves the child `GskRenderNode` of the blur `node`.
+     * @returns the blurred child node
      */
     get_child(): RenderNode
     /**
      * Retrieves the blur radius of the `node`.
+     * @returns the blur radius
      */
     get_radius(): number
 }
@@ -495,6 +505,7 @@ class BlurNode extends RenderNode {
      * @constructor 
      * @param child the child node to blur
      * @param radius the blur radius. Must be positive
+     * @returns a new `GskRenderNode`
      */
     constructor(child: RenderNode, radius: number) 
     /**
@@ -502,6 +513,7 @@ class BlurNode extends RenderNode {
      * @constructor 
      * @param child the child node to blur
      * @param radius the blur radius. Must be positive
+     * @returns a new `GskRenderNode`
      */
     static new(child: RenderNode, radius: number): BlurNode
 }
@@ -512,14 +524,17 @@ interface BorderNode {
 
     /**
      * Retrieves the colors of the border.
+     * @returns an array of 4 `GdkRGBA` structs     for the top, right, bottom and left color of the border
      */
     get_colors(): Gdk.RGBA
     /**
      * Retrieves the outline of the border.
+     * @returns the outline of the border
      */
     get_outline(): RoundedRect
     /**
      * Retrieves the stroke widths of the border.
+     * @returns an array of 4 floats   for the top, right, bottom and left stroke width of the border,   respectively
      */
     get_widths(): number[]
 }
@@ -545,6 +560,7 @@ class BorderNode extends RenderNode {
      * @param outline a `GskRoundedRect` describing the outline of the border
      * @param border_width the stroke width of the border on     the top, right, bottom and left side respectively.
      * @param border_color the color used on the top, right,     bottom and left side.
+     * @returns A new `GskRenderNode`
      */
     constructor(outline: RoundedRect, border_width: number[], border_color: Gdk.RGBA[]) 
     /**
@@ -556,6 +572,7 @@ class BorderNode extends RenderNode {
      * @param outline a `GskRoundedRect` describing the outline of the border
      * @param border_width the stroke width of the border on     the top, right, bottom and left side respectively.
      * @param border_color the color used on the top, right,     bottom and left side.
+     * @returns A new `GskRenderNode`
      */
     static new(outline: RoundedRect, border_width: number[], border_color: Gdk.RGBA[]): BorderNode
 }
@@ -605,6 +622,7 @@ class BroadwayRenderer extends Renderer {
      * This function is only available when GTK was compiled with Broadway
      * support.
      * @constructor 
+     * @returns a new Broadway renderer.
      */
     constructor() 
     /**
@@ -617,6 +635,7 @@ class BroadwayRenderer extends Renderer {
      * This function is only available when GTK was compiled with Broadway
      * support.
      * @constructor 
+     * @returns a new Broadway renderer.
      */
     static new(): BroadwayRenderer
     _init(config?: BroadwayRenderer.ConstructorProperties): void
@@ -632,10 +651,12 @@ interface CairoNode {
      * 
      * If no surface exists yet, a surface will be created optimized for
      * rendering to `renderer`.
+     * @returns a Cairo context used for drawing; use   cairo_destroy() when done drawing
      */
     get_draw_context(): cairo.Context
     /**
      * Retrieves the Cairo surface used by the render node.
+     * @returns a Cairo surface
      */
     get_surface(): cairo.Surface
 }
@@ -659,6 +680,7 @@ class CairoNode extends RenderNode {
      * You can draw to the cairo surface using [method`Gsk`.CairoNode.get_draw_context].
      * @constructor 
      * @param bounds the rectangle to render to
+     * @returns A new `GskRenderNode`
      */
     constructor(bounds: Graphene.Rect) 
     /**
@@ -668,6 +690,7 @@ class CairoNode extends RenderNode {
      * You can draw to the cairo surface using [method`Gsk`.CairoNode.get_draw_context].
      * @constructor 
      * @param bounds the rectangle to render to
+     * @returns A new `GskRenderNode`
      */
     static new(bounds: Graphene.Rect): CairoNode
 }
@@ -724,6 +747,7 @@ class CairoRenderer extends Renderer {
      * content and will instead render an error marker. Its usage should be
      * avoided.
      * @constructor 
+     * @returns a new Cairo renderer.
      */
     constructor() 
     /**
@@ -736,6 +760,7 @@ class CairoRenderer extends Renderer {
      * content and will instead render an error marker. Its usage should be
      * avoided.
      * @constructor 
+     * @returns a new Cairo renderer.
      */
     static new(): CairoRenderer
     _init(config?: CairoRenderer.ConstructorProperties): void
@@ -747,10 +772,12 @@ interface ClipNode {
 
     /**
      * Gets the child node that is getting clipped by the given `node`.
+     * @returns The child that is getting clipped
      */
     get_child(): RenderNode
     /**
      * Retrieves the clip rectangle for `node`.
+     * @returns a clip rectangle
      */
     get_clip(): Graphene.Rect
 }
@@ -773,6 +800,7 @@ class ClipNode extends RenderNode {
      * @constructor 
      * @param child The node to draw
      * @param clip The clip to apply
+     * @returns A new `GskRenderNode`
      */
     constructor(child: RenderNode, clip: Graphene.Rect) 
     /**
@@ -781,6 +809,7 @@ class ClipNode extends RenderNode {
      * @constructor 
      * @param child The node to draw
      * @param clip The clip to apply
+     * @returns A new `GskRenderNode`
      */
     static new(child: RenderNode, clip: Graphene.Rect): ClipNode
 }
@@ -791,14 +820,17 @@ interface ColorMatrixNode {
 
     /**
      * Gets the child node that is getting its colors modified by the given `node`.
+     * @returns The child that is getting its colors modified
      */
     get_child(): RenderNode
     /**
      * Retrieves the color matrix used by the `node`.
+     * @returns a 4x4 color matrix
      */
     get_color_matrix(): Graphene.Matrix
     /**
      * Retrieves the color offset used by the `node`.
+     * @returns a color vector
      */
     get_color_offset(): Graphene.Vec4
 }
@@ -828,6 +860,7 @@ class ColorMatrixNode extends RenderNode {
      * @param child The node to draw
      * @param color_matrix The matrix to apply
      * @param color_offset Values to add to the color
+     * @returns A new `GskRenderNode`
      */
     constructor(child: RenderNode, color_matrix: Graphene.Matrix, color_offset: Graphene.Vec4) 
     /**
@@ -843,6 +876,7 @@ class ColorMatrixNode extends RenderNode {
      * @param child The node to draw
      * @param color_matrix The matrix to apply
      * @param color_offset Values to add to the color
+     * @returns A new `GskRenderNode`
      */
     static new(child: RenderNode, color_matrix: Graphene.Matrix, color_offset: Graphene.Vec4): ColorMatrixNode
 }
@@ -853,6 +887,7 @@ interface ColorNode {
 
     /**
      * Retrieves the color of the given `node`.
+     * @returns the color of the node
      */
     get_color(): Gdk.RGBA
 }
@@ -875,6 +910,7 @@ class ColorNode extends RenderNode {
      * @constructor 
      * @param rgba a `GdkRGBA` specifying a color
      * @param bounds the rectangle to render the color into
+     * @returns A new `GskRenderNode`
      */
     constructor(rgba: Gdk.RGBA, bounds: Graphene.Rect) 
     /**
@@ -883,6 +919,7 @@ class ColorNode extends RenderNode {
      * @constructor 
      * @param rgba a `GdkRGBA` specifying a color
      * @param bounds the rectangle to render the color into
+     * @returns A new `GskRenderNode`
      */
     static new(rgba: Gdk.RGBA, bounds: Graphene.Rect): ColorNode
 }
@@ -898,22 +935,27 @@ interface ConicGradientNode {
      * in the css specification:
      * 
      *     angle = 90 - gsk_conic_gradient_node_get_rotation()
+     * @returns the angle for the gradient
      */
     get_angle(): number
     /**
      * Retrieves the center pointer for the gradient.
+     * @returns the center point for the gradient
      */
     get_center(): Graphene.Point
     /**
      * Retrieves the color stops in the gradient.
+     * @returns the color stops in the gradient
      */
     get_color_stops(): ColorStop[]
     /**
      * Retrieves the number of color stops in the gradient.
+     * @returns the number of color stops
      */
     get_n_color_stops(): number
     /**
      * Retrieves the rotation for the gradient in degrees.
+     * @returns the rotation for the gradient
      */
     get_rotation(): number
 }
@@ -941,6 +983,7 @@ class ConicGradientNode extends RenderNode {
      * @param center the center of the gradient
      * @param rotation the rotation of the gradient in degrees
      * @param color_stops a pointer to an array of   `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     constructor(bounds: Graphene.Rect, center: Graphene.Point, rotation: number, color_stops: ColorStop[]) 
     /**
@@ -954,6 +997,7 @@ class ConicGradientNode extends RenderNode {
      * @param center the center of the gradient
      * @param rotation the rotation of the gradient in degrees
      * @param color_stops a pointer to an array of   `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     static new(bounds: Graphene.Rect, center: Graphene.Point, rotation: number, color_stops: ColorStop[]): ConicGradientNode
 }
@@ -965,10 +1009,12 @@ interface ContainerNode {
     /**
      * Gets one of the children of `container`.
      * @param idx the position of the child to get
+     * @returns the @idx'th child of @container
      */
     get_child(idx: number): RenderNode
     /**
      * Retrieves the number of direct children of `node`.
+     * @returns the number of children of the `GskRenderNode`
      */
     get_n_children(): number
 }
@@ -991,6 +1037,7 @@ class ContainerNode extends RenderNode {
      * The new node will acquire a reference to each of the children.
      * @constructor 
      * @param children The children of the node
+     * @returns the new `GskRenderNode`
      */
     constructor(children: RenderNode[]) 
     /**
@@ -999,6 +1046,7 @@ class ContainerNode extends RenderNode {
      * The new node will acquire a reference to each of the children.
      * @constructor 
      * @param children The children of the node
+     * @returns the new `GskRenderNode`
      */
     static new(children: RenderNode[]): ContainerNode
 }
@@ -1009,14 +1057,17 @@ interface CrossFadeNode {
 
     /**
      * Retrieves the child `GskRenderNode` at the end of the cross-fade.
+     * @returns a `GskRenderNode`
      */
     get_end_child(): RenderNode
     /**
      * Retrieves the progress value of the cross fade.
+     * @returns the progress value, between 0 and 1
      */
     get_progress(): number
     /**
      * Retrieves the child `GskRenderNode` at the beginning of the cross-fade.
+     * @returns a `GskRenderNode`
      */
     get_start_child(): RenderNode
 }
@@ -1039,6 +1090,7 @@ class CrossFadeNode extends RenderNode {
      * @param start The start node to be drawn
      * @param end The node to be cross_fadeed onto the `start` node
      * @param progress How far the fade has progressed from start to end. The value will     be clamped to the range [0 ... 1]
+     * @returns A new `GskRenderNode`
      */
     constructor(start: RenderNode, end: RenderNode, progress: number) 
     /**
@@ -1047,6 +1099,7 @@ class CrossFadeNode extends RenderNode {
      * @param start The start node to be drawn
      * @param end The node to be cross_fadeed onto the `start` node
      * @param progress How far the fade has progressed from start to end. The value will     be clamped to the range [0 ... 1]
+     * @returns A new `GskRenderNode`
      */
     static new(start: RenderNode, end: RenderNode, progress: number): CrossFadeNode
 }
@@ -1057,10 +1110,12 @@ interface DebugNode {
 
     /**
      * Gets the child node that is getting drawn by the given `node`.
+     * @returns the child `GskRenderNode`
      */
     get_child(): RenderNode
     /**
      * Gets the debug message that was set on this node
+     * @returns The debug message
      */
     get_message(): string
 }
@@ -1086,6 +1141,7 @@ class DebugNode extends RenderNode {
      * @constructor 
      * @param child The child to add debug info for
      * @param message The debug message
+     * @returns A new `GskRenderNode`
      */
     constructor(child: RenderNode, message: string) 
     /**
@@ -1096,6 +1152,7 @@ class DebugNode extends RenderNode {
      * @constructor 
      * @param child The child to add debug info for
      * @param message The debug message
+     * @returns A new `GskRenderNode`
      */
     static new(child: RenderNode, message: string): DebugNode
 }
@@ -1138,11 +1195,13 @@ class GLRenderer extends Renderer {
     /**
      * Creates a new `GskRenderer` using the new OpenGL renderer.
      * @constructor 
+     * @returns a new GL renderer
      */
     constructor() 
     /**
      * Creates a new `GskRenderer` using the new OpenGL renderer.
      * @constructor 
+     * @returns a new GL renderer
      */
     static new(): GLRenderer
     _init(config?: GLRenderer.ConstructorProperties): void
@@ -1197,12 +1256,14 @@ interface GLShader {
      * want to call this from the realize signal of a widget, or during
      * widget snapshot.
      * @param renderer a `GskRenderer`
+     * @returns %TRUE on success, %FALSE if an error occurred
      */
     compile(renderer: Renderer): boolean
     /**
      * Looks for a uniform by the name `name,` and returns the index
      * of the uniform, or -1 if it was not found.
      * @param name uniform name
+     * @returns The index of the uniform, or -1
      */
     find_uniform_by_name(name: string): number
     /**
@@ -1211,6 +1272,7 @@ interface GLShader {
      * The uniform must be of bool type.
      * @param args uniform arguments
      * @param idx index of the uniform
+     * @returns The value
      */
     get_arg_bool(args: GLib.Bytes, idx: number): boolean
     /**
@@ -1219,6 +1281,7 @@ interface GLShader {
      * The uniform must be of float type.
      * @param args uniform arguments
      * @param idx index of the uniform
+     * @returns The value
      */
     get_arg_float(args: GLib.Bytes, idx: number): number
     /**
@@ -1227,6 +1290,7 @@ interface GLShader {
      * The uniform must be of int type.
      * @param args uniform arguments
      * @param idx index of the uniform
+     * @returns The value
      */
     get_arg_int(args: GLib.Bytes, idx: number): number
     /**
@@ -1235,6 +1299,7 @@ interface GLShader {
      * The uniform must be of uint type.
      * @param args uniform arguments
      * @param idx index of the uniform
+     * @returns The value
      */
     get_arg_uint(args: GLib.Bytes, idx: number): number
     /**
@@ -1266,6 +1331,7 @@ interface GLShader {
     get_arg_vec4(args: GLib.Bytes, idx: number, out_value: Graphene.Vec4): void
     /**
      * Get the size of the data block used to specify arguments for this shader.
+     * @returns The size of the data block
      */
     get_args_size(): number
     /**
@@ -1274,34 +1340,41 @@ interface GLShader {
      * This can be used to check that the a passed shader works
      * in your usecase. It is determined by looking at the highest
      * u_textureN value that the shader defines.
+     * @returns The number of texture inputs required by @shader
      */
     get_n_textures(): number
     /**
      * Get the number of declared uniforms for this shader.
+     * @returns The number of declared uniforms
      */
     get_n_uniforms(): number
     /**
      * Gets the resource path for the GLSL sourcecode being used
      * to render this shader.
+     * @returns The resource path for the shader
      */
     get_resource(): string | null
     /**
      * Gets the GLSL sourcecode being used to render this shader.
+     * @returns The source code for the shader
      */
     get_source(): GLib.Bytes
     /**
      * Get the name of the declared uniform for this shader at index `idx`.
      * @param idx index of the uniform
+     * @returns The name of the declared uniform
      */
     get_uniform_name(idx: number): string
     /**
      * Get the offset into the data block where data for this uniforms is stored.
      * @param idx index of the uniform
+     * @returns The data offset
      */
     get_uniform_offset(idx: number): number
     /**
      * Get the type of the declared uniform for this shader at index `idx`.
      * @param idx index of the uniform
+     * @returns The type of the declared uniform
      */
     get_uniform_type(idx: number): GLUniformType
 
@@ -1449,12 +1522,14 @@ class GLShader extends GObject.Object {
      * Creates a `GskGLShader` that will render pixels using the specified code.
      * @constructor 
      * @param sourcecode GLSL sourcecode for the shader, as a `GBytes`
+     * @returns A new `GskGLShader`
      */
     static new_from_bytes(sourcecode: GLib.Bytes): GLShader
     /**
      * Creates a `GskGLShader` that will render pixels using the specified code.
      * @constructor 
      * @param resource_path path to a resource that contains the GLSL sourcecode for     the shader
+     * @returns A new `GskGLShader`
      */
     static new_from_resource(resource_path: string): GLShader
     _init(config?: GLShader.ConstructorProperties): void
@@ -1466,19 +1541,23 @@ interface GLShaderNode {
 
     /**
      * Gets args for the node.
+     * @returns A `GBytes` with the uniform arguments
      */
     get_args(): GLib.Bytes
     /**
      * Gets one of the children.
      * @param idx the position of the child to get
+     * @returns the @idx'th child of @node
      */
     get_child(idx: number): RenderNode
     /**
      * Returns the number of children
+     * @returns The number of children
      */
     get_n_children(): number
     /**
      * Gets shader code for the node.
+     * @returns the `GskGLShader` shader
      */
     get_shader(): GLShader
 }
@@ -1518,6 +1597,7 @@ class GLShaderNode extends RenderNode {
      * @param bounds the rectangle to render the shader into
      * @param args Arguments for the uniforms
      * @param children array of child nodes,   these will be rendered to textures and used as input.
+     * @returns A new `GskRenderNode`
      */
     constructor(shader: GLShader, bounds: Graphene.Rect, args: GLib.Bytes, children: RenderNode[] | null) 
     /**
@@ -1543,6 +1623,7 @@ class GLShaderNode extends RenderNode {
      * @param bounds the rectangle to render the shader into
      * @param args Arguments for the uniforms
      * @param children array of child nodes,   these will be rendered to textures and used as input.
+     * @returns A new `GskRenderNode`
      */
     static new(shader: GLShader, bounds: Graphene.Rect, args: GLib.Bytes, children: RenderNode[] | null): GLShaderNode
 }
@@ -1553,26 +1634,32 @@ interface InsetShadowNode {
 
     /**
      * Retrieves the blur radius to apply to the shadow.
+     * @returns the blur radius, in pixels
      */
     get_blur_radius(): number
     /**
      * Retrieves the color of the inset shadow.
+     * @returns the color of the shadow
      */
     get_color(): Gdk.RGBA
     /**
      * Retrieves the horizontal offset of the inset shadow.
+     * @returns an offset, in pixels
      */
     get_dx(): number
     /**
      * Retrieves the vertical offset of the inset shadow.
+     * @returns an offset, in pixels
      */
     get_dy(): number
     /**
      * Retrieves the outline rectangle of the inset shadow.
+     * @returns a rounded rectangle
      */
     get_outline(): RoundedRect
     /**
      * Retrieves how much the shadow spreads inwards.
+     * @returns the size of the shadow, in pixels
      */
     get_spread(): number
 }
@@ -1599,6 +1686,7 @@ class InsetShadowNode extends RenderNode {
      * @param dy vertical offset of shadow
      * @param spread how far the shadow spreads towards the inside
      * @param blur_radius how much blur to apply to the shadow
+     * @returns A new `GskRenderNode`
      */
     constructor(outline: RoundedRect, color: Gdk.RGBA, dx: number, dy: number, spread: number, blur_radius: number) 
     /**
@@ -1611,6 +1699,7 @@ class InsetShadowNode extends RenderNode {
      * @param dy vertical offset of shadow
      * @param spread how far the shadow spreads towards the inside
      * @param blur_radius how much blur to apply to the shadow
+     * @returns A new `GskRenderNode`
      */
     static new(outline: RoundedRect, color: Gdk.RGBA, dx: number, dy: number, spread: number, blur_radius: number): InsetShadowNode
 }
@@ -1621,18 +1710,22 @@ interface LinearGradientNode {
 
     /**
      * Retrieves the color stops in the gradient.
+     * @returns the color stops in the gradient
      */
     get_color_stops(): ColorStop[]
     /**
      * Retrieves the final point of the linear gradient.
+     * @returns the final point
      */
     get_end(): Graphene.Point
     /**
      * Retrieves the number of color stops in the gradient.
+     * @returns the number of color stops
      */
     get_n_color_stops(): number
     /**
      * Retrieves the initial point of the linear gradient.
+     * @returns the initial point
      */
     get_start(): Graphene.Point
 }
@@ -1657,6 +1750,7 @@ class LinearGradientNode extends RenderNode {
      * @param start the point at which the linear gradient will begin
      * @param end the point at which the linear gradient will finish
      * @param color_stops a pointer to an array of   `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     constructor(bounds: Graphene.Rect, start: Graphene.Point, end: Graphene.Point, color_stops: ColorStop[]) 
     /**
@@ -1667,6 +1761,7 @@ class LinearGradientNode extends RenderNode {
      * @param start the point at which the linear gradient will begin
      * @param end the point at which the linear gradient will finish
      * @param color_stops a pointer to an array of   `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     static new(bounds: Graphene.Rect, start: Graphene.Point, end: Graphene.Point, color_stops: ColorStop[]): LinearGradientNode
 }
@@ -1709,11 +1804,13 @@ class NglRenderer extends Renderer {
     /**
      * Same as gsk_gl_renderer_new().
      * @constructor 
+     * @returns a new GL renderer
      */
     constructor() 
     /**
      * Same as gsk_gl_renderer_new().
      * @constructor 
+     * @returns a new GL renderer
      */
     static new(): NglRenderer
     _init(config?: NglRenderer.ConstructorProperties): void
@@ -1725,10 +1822,12 @@ interface OpacityNode {
 
     /**
      * Gets the child node that is getting opacityed by the given `node`.
+     * @returns The child that is getting opacityed
      */
     get_child(): RenderNode
     /**
      * Gets the transparency factor for an opacity node.
+     * @returns the opacity factor
      */
     get_opacity(): number
 }
@@ -1751,6 +1850,7 @@ class OpacityNode extends RenderNode {
      * @constructor 
      * @param child The node to draw
      * @param opacity The opacity to apply
+     * @returns A new `GskRenderNode`
      */
     constructor(child: RenderNode, opacity: number) 
     /**
@@ -1759,6 +1859,7 @@ class OpacityNode extends RenderNode {
      * @constructor 
      * @param child The node to draw
      * @param opacity The opacity to apply
+     * @returns A new `GskRenderNode`
      */
     static new(child: RenderNode, opacity: number): OpacityNode
 }
@@ -1769,26 +1870,32 @@ interface OutsetShadowNode {
 
     /**
      * Retrieves the blur radius of the shadow.
+     * @returns the blur radius, in pixels
      */
     get_blur_radius(): number
     /**
      * Retrieves the color of the outset shadow.
+     * @returns a color
      */
     get_color(): Gdk.RGBA
     /**
      * Retrieves the horizontal offset of the outset shadow.
+     * @returns an offset, in pixels
      */
     get_dx(): number
     /**
      * Retrieves the vertical offset of the outset shadow.
+     * @returns an offset, in pixels
      */
     get_dy(): number
     /**
      * Retrieves the outline rectangle of the outset shadow.
+     * @returns a rounded rectangle
      */
     get_outline(): RoundedRect
     /**
      * Retrieves how much the shadow spreads outwards.
+     * @returns the size of the shadow, in pixels
      */
     get_spread(): number
 }
@@ -1815,6 +1922,7 @@ class OutsetShadowNode extends RenderNode {
      * @param dy vertical offset of shadow
      * @param spread how far the shadow spreads towards the inside
      * @param blur_radius how much blur to apply to the shadow
+     * @returns A new `GskRenderNode`
      */
     constructor(outline: RoundedRect, color: Gdk.RGBA, dx: number, dy: number, spread: number, blur_radius: number) 
     /**
@@ -1827,6 +1935,7 @@ class OutsetShadowNode extends RenderNode {
      * @param dy vertical offset of shadow
      * @param spread how far the shadow spreads towards the inside
      * @param blur_radius how much blur to apply to the shadow
+     * @returns A new `GskRenderNode`
      */
     static new(outline: RoundedRect, color: Gdk.RGBA, dx: number, dy: number, spread: number, blur_radius: number): OutsetShadowNode
 }
@@ -1837,30 +1946,37 @@ interface RadialGradientNode {
 
     /**
      * Retrieves the center pointer for the gradient.
+     * @returns the center point for the gradient
      */
     get_center(): Graphene.Point
     /**
      * Retrieves the color stops in the gradient.
+     * @returns the color stops in the gradient
      */
     get_color_stops(): ColorStop[]
     /**
      * Retrieves the end value for the gradient.
+     * @returns the end value for the gradient
      */
     get_end(): number
     /**
      * Retrieves the horizonal radius for the gradient.
+     * @returns the horizontal radius for the gradient
      */
     get_hradius(): number
     /**
      * Retrieves the number of color stops in the gradient.
+     * @returns the number of color stops
      */
     get_n_color_stops(): number
     /**
      * Retrieves the start value for the gradient.
+     * @returns the start value for the gradient
      */
     get_start(): number
     /**
      * Retrieves the vertical radius for the gradient.
+     * @returns the vertical radius for the gradient
      */
     get_vradius(): number
 }
@@ -1891,6 +2007,7 @@ class RadialGradientNode extends RenderNode {
      * @param start a percentage >= 0 that defines the start of the gradient around `center`
      * @param end a percentage >= 0 that defines the end of the gradient around `center`
      * @param color_stops a pointer to an array of   `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     constructor(bounds: Graphene.Rect, center: Graphene.Point, hradius: number, vradius: number, start: number, end: number, color_stops: ColorStop[]) 
     /**
@@ -1907,6 +2024,7 @@ class RadialGradientNode extends RenderNode {
      * @param start a percentage >= 0 that defines the start of the gradient around `center`
      * @param end a percentage >= 0 that defines the end of the gradient around `center`
      * @param color_stops a pointer to an array of   `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     static new(bounds: Graphene.Rect, center: Graphene.Point, hradius: number, vradius: number, start: number, end: number, color_stops: ColorStop[]): RadialGradientNode
 }
@@ -1935,10 +2053,12 @@ interface RenderNode {
     get_bounds(): /* bounds */ Graphene.Rect
     /**
      * Returns the type of the `node`.
+     * @returns the type of the `GskRenderNode`
      */
     get_node_type(): RenderNodeType
     /**
      * Acquires a reference on the given `GskRenderNode`.
+     * @returns the `GskRenderNode` with an additional reference
      */
     ref(): RenderNode
     /**
@@ -1951,6 +2071,7 @@ interface RenderNode {
      * 
      * The intended use of this functions is testing, benchmarking and debugging.
      * The format is not meant as a permanent storage format.
+     * @returns a `GBytes` representing the node.
      */
     serialize(): GLib.Bytes
     /**
@@ -1969,6 +2090,7 @@ interface RenderNode {
      * It is mostly intended for use inside a debugger to quickly dump a render
      * node to a file for later inspection.
      * @param filename the file to save it to.
+     * @returns %TRUE if saving was successful
      */
     write_to_file(filename: string): boolean
 }
@@ -2002,6 +2124,7 @@ class RenderNode {
      * 
      * For a discussion of the supported format, see that function.
      * @param bytes the bytes containing the data
+     * @returns a new `GskRenderNode`
      */
     static deserialize(bytes: GLib.Bytes): RenderNode | null
 }
@@ -2034,10 +2157,12 @@ interface Renderer {
      * Retrieves the `GdkSurface` set using gsk_enderer_realize().
      * 
      * If the renderer has not been realized yet, %NULL will be returned.
+     * @returns a `GdkSurface`
      */
     get_surface(): Gdk.Surface | null
     /**
      * Checks whether the `renderer` is realized or not.
+     * @returns %TRUE if the `GskRenderer` was realized, and %FALSE otherwise
      */
     is_realized(): boolean
     /**
@@ -2050,6 +2175,7 @@ interface Renderer {
      * Note that it is mandatory to call [method`Gsk`.Renderer.unrealize] before
      * destroying the renderer.
      * @param surface the `GdkSurface` renderer will be used on
+     * @returns Whether the renderer was successfully realized
      */
     realize(surface: Gdk.Surface | null): boolean
     /**
@@ -2080,6 +2206,7 @@ interface Renderer {
      * transform node and pass that node instead.
      * @param root a `GskRenderNode`
      * @param viewport the section to draw or %NULL to use `root'`s bounds
+     * @returns a `GdkTexture` with the rendered contents of @root.
      */
     render_texture(root: RenderNode, viewport: Graphene.Rect | null): Gdk.Texture
     /**
@@ -2135,6 +2262,7 @@ class Renderer extends GObject.Object {
      * The renderer will be realized before it is returned.
      * @constructor 
      * @param surface a `GdkSurface`
+     * @returns a `GskRenderer`
      */
     static new_for_surface(surface: Gdk.Surface): Renderer
     _init(config?: Renderer.ConstructorProperties): void
@@ -2146,10 +2274,12 @@ interface RepeatNode {
 
     /**
      * Retrieves the child of `node`.
+     * @returns a `GskRenderNode`
      */
     get_child(): RenderNode
     /**
      * Retrieves the bounding rectangle of the child of `node`.
+     * @returns a bounding rectangle
      */
     get_child_bounds(): Graphene.Rect
 }
@@ -2173,6 +2303,7 @@ class RepeatNode extends RenderNode {
      * @param bounds The bounds of the area to be painted
      * @param child The child to repeat
      * @param child_bounds The area of the child to repeat or %NULL to     use the child's bounds
+     * @returns A new `GskRenderNode`
      */
     constructor(bounds: Graphene.Rect, child: RenderNode, child_bounds: Graphene.Rect | null) 
     /**
@@ -2182,6 +2313,7 @@ class RepeatNode extends RenderNode {
      * @param bounds The bounds of the area to be painted
      * @param child The child to repeat
      * @param child_bounds The area of the child to repeat or %NULL to     use the child's bounds
+     * @returns A new `GskRenderNode`
      */
     static new(bounds: Graphene.Rect, child: RenderNode, child_bounds: Graphene.Rect | null): RepeatNode
 }
@@ -2210,6 +2342,7 @@ class RepeatingLinearGradientNode extends RenderNode {
      * @param start the point at which the linear gradient will begin
      * @param end the point at which the linear gradient will finish
      * @param color_stops a pointer to an array of `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     constructor(bounds: Graphene.Rect, start: Graphene.Point, end: Graphene.Point, color_stops: ColorStop[]) 
     /**
@@ -2221,6 +2354,7 @@ class RepeatingLinearGradientNode extends RenderNode {
      * @param start the point at which the linear gradient will begin
      * @param end the point at which the linear gradient will finish
      * @param color_stops a pointer to an array of `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     static new(bounds: Graphene.Rect, start: Graphene.Point, end: Graphene.Point, color_stops: ColorStop[]): RepeatingLinearGradientNode
 }
@@ -2254,6 +2388,7 @@ class RepeatingRadialGradientNode extends RenderNode {
      * @param start a percentage >= 0 that defines the start of the gradient around `center`
      * @param end a percentage >= 0 that defines the end of the gradient around `center`
      * @param color_stops a pointer to an array of   `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     constructor(bounds: Graphene.Rect, center: Graphene.Point, hradius: number, vradius: number, start: number, end: number, color_stops: ColorStop[]) 
     /**
@@ -2270,6 +2405,7 @@ class RepeatingRadialGradientNode extends RenderNode {
      * @param start a percentage >= 0 that defines the start of the gradient around `center`
      * @param end a percentage >= 0 that defines the end of the gradient around `center`
      * @param color_stops a pointer to an array of   `GskColorStop` defining the gradient. The offsets of all color stops   must be increasing. The first stop's offset must be >= 0 and the last   stop's offset must be <= 1.
+     * @returns A new `GskRenderNode`
      */
     static new(bounds: Graphene.Rect, center: Graphene.Point, hradius: number, vradius: number, start: number, end: number, color_stops: ColorStop[]): RepeatingRadialGradientNode
 }
@@ -2280,10 +2416,12 @@ interface RoundedClipNode {
 
     /**
      * Gets the child node that is getting clipped by the given `node`.
+     * @returns The child that is getting clipped
      */
     get_child(): RenderNode
     /**
      * Retrieves the rounded rectangle used to clip the contents of the `node`.
+     * @returns a rounded rectangle
      */
     get_clip(): RoundedRect
 }
@@ -2306,6 +2444,7 @@ class RoundedClipNode extends RenderNode {
      * @constructor 
      * @param child The node to draw
      * @param clip The clip to apply
+     * @returns A new `GskRenderNode`
      */
     constructor(child: RenderNode, clip: RoundedRect) 
     /**
@@ -2314,6 +2453,7 @@ class RoundedClipNode extends RenderNode {
      * @constructor 
      * @param child The node to draw
      * @param clip The clip to apply
+     * @returns A new `GskRenderNode`
      */
     static new(child: RenderNode, clip: RoundedRect): RoundedClipNode
 }
@@ -2324,15 +2464,18 @@ interface ShadowNode {
 
     /**
      * Retrieves the child `GskRenderNode` of the shadow `node`.
+     * @returns the child render node
      */
     get_child(): RenderNode
     /**
      * Retrieves the number of shadows in the `node`.
+     * @returns the number of shadows.
      */
     get_n_shadows(): number
     /**
      * Retrieves the shadow data at the given index `i`.
      * @param i the given index
+     * @returns the shadow data
      */
     get_shadow(i: number): Shadow
 }
@@ -2355,6 +2498,7 @@ class ShadowNode extends RenderNode {
      * @constructor 
      * @param child The node to draw
      * @param shadows The shadows to apply
+     * @returns A new `GskRenderNode`
      */
     constructor(child: RenderNode, shadows: Shadow[]) 
     /**
@@ -2363,6 +2507,7 @@ class ShadowNode extends RenderNode {
      * @constructor 
      * @param child The node to draw
      * @param shadows The shadows to apply
+     * @returns A new `GskRenderNode`
      */
     static new(child: RenderNode, shadows: Shadow[]): ShadowNode
 }
@@ -2373,26 +2518,32 @@ interface TextNode {
 
     /**
      * Retrieves the color used by the text `node`.
+     * @returns the text color
      */
     get_color(): Gdk.RGBA
     /**
      * Returns the font used by the text `node`.
+     * @returns the font
      */
     get_font(): Pango.Font
     /**
      * Retrieves the glyph information in the `node`.
+     * @returns the glyph information
      */
     get_glyphs(): Pango.GlyphInfo[]
     /**
      * Retrieves the number of glyphs in the text node.
+     * @returns the number of glyphs
      */
     get_num_glyphs(): number
     /**
      * Retrieves the offset applied to the text.
+     * @returns a point with the horizontal and vertical offsets
      */
     get_offset(): Graphene.Point
     /**
      * Checks whether the text `node` has color glyphs.
+     * @returns %TRUE if the text node has color glyphs
      */
     has_color_glyphs(): boolean
 }
@@ -2419,6 +2570,7 @@ class TextNode extends RenderNode {
      * @param glyphs the `PangoGlyphString` to render
      * @param color the foreground color to render with
      * @param offset offset of the baseline
+     * @returns a new `GskRenderNode`
      */
     constructor(font: Pango.Font, glyphs: Pango.GlyphString, color: Gdk.RGBA, offset: Graphene.Point) 
     /**
@@ -2431,6 +2583,7 @@ class TextNode extends RenderNode {
      * @param glyphs the `PangoGlyphString` to render
      * @param color the foreground color to render with
      * @param offset offset of the baseline
+     * @returns a new `GskRenderNode`
      */
     static new(font: Pango.Font, glyphs: Pango.GlyphString, color: Gdk.RGBA, offset: Graphene.Point): TextNode
 }
@@ -2441,6 +2594,7 @@ interface TextureNode {
 
     /**
      * Retrieves the `GdkTexture` used when creating this `GskRenderNode`.
+     * @returns the `GdkTexture`
      */
     get_texture(): Gdk.Texture
 }
@@ -2463,6 +2617,7 @@ class TextureNode extends RenderNode {
      * @constructor 
      * @param texture the `GdkTexture`
      * @param bounds the rectangle to render the texture into
+     * @returns A new `GskRenderNode`
      */
     constructor(texture: Gdk.Texture, bounds: Graphene.Rect) 
     /**
@@ -2471,6 +2626,7 @@ class TextureNode extends RenderNode {
      * @constructor 
      * @param texture the `GdkTexture`
      * @param bounds the rectangle to render the texture into
+     * @returns A new `GskRenderNode`
      */
     static new(texture: Gdk.Texture, bounds: Graphene.Rect): TextureNode
 }
@@ -2481,10 +2637,12 @@ interface TransformNode {
 
     /**
      * Gets the child node that is getting transformed by the given `node`.
+     * @returns The child that is getting transformed
      */
     get_child(): RenderNode
     /**
      * Retrieves the `GskTransform` used by the `node`.
+     * @returns a `GskTransform`
      */
     get_transform(): Transform
 }
@@ -2507,6 +2665,7 @@ class TransformNode extends RenderNode {
      * @constructor 
      * @param child The node to transform
      * @param transform The transform to apply
+     * @returns A new `GskRenderNode`
      */
     constructor(child: RenderNode, transform: Transform) 
     /**
@@ -2515,6 +2674,7 @@ class TransformNode extends RenderNode {
      * @constructor 
      * @param child The node to transform
      * @param transform The transform to apply
+     * @returns A new `GskRenderNode`
      */
     static new(child: RenderNode, transform: Transform): TransformNode
 }
@@ -2662,11 +2822,13 @@ interface RoundedRect {
     /**
      * Checks if the given `point` is inside the rounded rectangle.
      * @param point the point to check
+     * @returns %TRUE if the @point is inside the rounded rectangle
      */
     contains_point(point: Graphene.Point): boolean
     /**
      * Checks if the given `rect` is contained inside the rounded rectangle.
      * @param rect the rectangle to check
+     * @returns %TRUE if the @rect is fully contained inside the rounded rectangle
      */
     contains_rect(rect: Graphene.Rect): boolean
     /**
@@ -2679,6 +2841,7 @@ interface RoundedRect {
      * @param top_right the rounding radius of the top right corner
      * @param bottom_right the rounding radius of the bottom right corner
      * @param bottom_left the rounding radius of the bottom left corner
+     * @returns the initialized rectangle
      */
     init(bounds: Graphene.Rect, top_left: Graphene.Size, top_right: Graphene.Size, bottom_right: Graphene.Size, bottom_left: Graphene.Size): RoundedRect
     /**
@@ -2687,6 +2850,7 @@ interface RoundedRect {
      * This function will not normalize the `GskRoundedRect`,
      * so make sure the source is normalized.
      * @param src a `GskRoundedRect`
+     * @returns the initialized rectangle
      */
     init_copy(src: RoundedRect): RoundedRect
     /**
@@ -2694,11 +2858,13 @@ interface RoundedRect {
      * of all four corners to `radius`.
      * @param bounds a `graphene_rect_t`
      * @param radius the border radius
+     * @returns the initialized rectangle
      */
     init_from_rect(bounds: Graphene.Rect, radius: number): RoundedRect
     /**
      * Checks if part of the given `rect` is contained inside the rounded rectangle.
      * @param rect the rectangle to check
+     * @returns %TRUE if the @rect intersects with the rounded rectangle
      */
     intersects_rect(rect: Graphene.Rect): boolean
     /**
@@ -2707,6 +2873,7 @@ interface RoundedRect {
      * 
      * This information can be used to decide if [ctor`Gsk`.ClipNode.new]
      * or [ctor`Gsk`.RoundedClipNode.new] should be called.
+     * @returns %TRUE if the rectangle is rectilinear
      */
     is_rectilinear(): boolean
     /**
@@ -2715,6 +2882,7 @@ interface RoundedRect {
      * This function will ensure that the bounds of the rectangle
      * are normalized and ensure that the corner values are positive
      * and the corners do not overlap.
+     * @returns the normalized rectangle
      */
     normalize(): RoundedRect
     /**
@@ -2723,6 +2891,7 @@ interface RoundedRect {
      * The size and corners of the rectangle are unchanged.
      * @param dx the horizontal offset
      * @param dy the vertical offset
+     * @returns the offset rectangle
      */
     offset(dx: number, dy: number): RoundedRect
     /**
@@ -2738,6 +2907,7 @@ interface RoundedRect {
      * @param right How far to move the right side to the left
      * @param bottom How far to move the bottom side upwards
      * @param left How far to move the left side to the right
+     * @returns the resized `GskRoundedRect`
      */
     shrink(top: number, right: number, bottom: number, left: number): RoundedRect
 }
@@ -2771,6 +2941,7 @@ interface ShaderArgsBuilder {
 
     /**
      * Increases the reference count of a `GskShaderArgsBuilder` by one.
+     * @returns the passed in `GskShaderArgsBuilder`
      */
     ref(): ShaderArgsBuilder
     /**
@@ -2841,6 +3012,7 @@ interface ShaderArgsBuilder {
      * 
      * This function is intended primarily for bindings. C code should use
      * [method`Gsk`.ShaderArgsBuilder.free_to_args].
+     * @returns the newly allocated buffer with   all the args added to @builder
      */
     to_args(): GLib.Bytes
     /**
@@ -2869,6 +3041,7 @@ class ShaderArgsBuilder {
      * @constructor 
      * @param shader a `GskGLShader`
      * @param initial_values optional `GBytes` with initial values
+     * @returns The newly allocated builder, free with     [method@Gsk.ShaderArgsBuilder.unref]
      */
     constructor(shader: GLShader, initial_values: GLib.Bytes | null) 
     /**
@@ -2877,6 +3050,7 @@ class ShaderArgsBuilder {
      * @constructor 
      * @param shader a `GskGLShader`
      * @param initial_values optional `GBytes` with initial values
+     * @returns The newly allocated builder, free with     [method@Gsk.ShaderArgsBuilder.unref]
      */
     static new(shader: GLShader, initial_values: GLib.Bytes | null): ShaderArgsBuilder
 }
@@ -2925,10 +3099,12 @@ interface Transform {
     /**
      * Checks two transforms for equality.
      * @param second the second transform
+     * @returns %TRUE if the two transforms perform the same operation
      */
     equal(second: Transform | null): boolean
     /**
      * Returns the category this transform belongs to.
+     * @returns The category of the transform
      */
     get_category(): TransformCategory
     /**
@@ -2939,11 +3115,13 @@ interface Transform {
      * the correct inverse of %NULL. If you need to differentiate
      * between those cases, you should check `self` is not %NULL
      * before calling this function.
+     * @returns The inverted transform
      */
     invert(): Transform | null
     /**
      * Multiplies `next` with the given `matrix`.
      * @param matrix the matrix to multiply `next` with
+     * @returns The new transform
      */
     matrix(matrix: Graphene.Matrix): Transform
     /**
@@ -2954,6 +3132,7 @@ interface Transform {
      * those with negative Z values towards the origin. Points
      * on the z=0 plane are unchanged.
      * @param depth distance of the z=0 plane. Lower values give a more   flattened pyramid and therefore a more pronounced   perspective effect.
+     * @returns The new transform
      */
     perspective(depth: number): Transform
     /**
@@ -2967,11 +3146,13 @@ interface Transform {
     print(string: GLib.String): void
     /**
      * Acquires a reference on the given `GskTransform`.
+     * @returns the `GskTransform` with an additional reference
      */
     ref(): Transform | null
     /**
      * Rotates `next` `angle` degrees in 2D - or in 3D-speak, around the z axis.
      * @param angle the rotation angle, in degrees (clockwise)
+     * @returns The new transform
      */
     rotate(angle: number): Transform | null
     /**
@@ -2980,6 +3161,7 @@ interface Transform {
      * For a rotation in 2D space, use [method`Gsk`.Transform.rotate]
      * @param angle the rotation angle, in degrees (clockwise)
      * @param axis The rotation axis
+     * @returns The new transform
      */
     rotate_3d(angle: number, axis: Graphene.Vec3): Transform | null
     /**
@@ -2988,6 +3170,7 @@ interface Transform {
      * Use [method`Gsk`.Transform.scale_3d] to scale in all 3 dimensions.
      * @param factor_x scaling factor on the X axis
      * @param factor_y scaling factor on the Y axis
+     * @returns The new transform
      */
     scale(factor_x: number, factor_y: number): Transform | null
     /**
@@ -2995,12 +3178,14 @@ interface Transform {
      * @param factor_x scaling factor on the X axis
      * @param factor_y scaling factor on the Y axis
      * @param factor_z scaling factor on the Z axis
+     * @returns The new transform
      */
     scale_3d(factor_x: number, factor_y: number, factor_z: number): Transform | null
     /**
      * Applies a skew transform.
      * @param skew_x skew factor, in degrees, on the X axis
      * @param skew_y skew factor, in degrees, on the Y axis
+     * @returns The new transform
      */
     skew(skew_x: number, skew_y: number): Transform | null
     /**
@@ -3074,6 +3259,7 @@ interface Transform {
      * The resulting string can be parsed with [func`Gsk`.Transform.parse].
      * 
      * This is a wrapper around [method`Gsk`.Transform.print].
+     * @returns A new string for @self
      */
     to_string(): string
     /**
@@ -3090,6 +3276,7 @@ interface Transform {
     /**
      * Applies all the operations from `other` to `next`.
      * @param other Transform to apply
+     * @returns The new transform
      */
     transform(other: Transform | null): Transform | null
     /**
@@ -3107,11 +3294,13 @@ interface Transform {
     /**
      * Translates `next` in 2-dimensional space by `point`.
      * @param point the point to translate the transform by
+     * @returns The new transform
      */
     translate(point: Graphene.Point): Transform | null
     /**
      * Translates `next` by `point`.
      * @param point the point to translate the transform by
+     * @returns The new transform
      */
     translate_3d(point: Graphene.Point3D): Transform | null
     /**
@@ -3155,6 +3344,7 @@ class Transform {
      * If `string` does not describe a valid transform, %FALSE is
      * returned and %NULL is put in `out_transform`.
      * @param string the string to parse
+     * @returns %TRUE if @string described a valid transform.
      */
     static parse(string: string): [ /* returnType */ boolean, /* out_transform */ Transform ]
 }

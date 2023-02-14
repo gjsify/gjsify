@@ -940,6 +940,7 @@ const VERSION_MIN_REQUIRED: number
  * @param major the major version to check
  * @param minor the minor version to check
  * @param micro the micro version to check
+ * @returns %TRUE if the version of the libsoup currently loaded   is the same as or newer than the passed-in version.
  */
 function check_version(major: number, minor: number, micro: number): boolean
 /**
@@ -955,6 +956,7 @@ function check_version(major: number, minor: number, micro: number): boolean
  * of the cookie.
  * @param header a cookie string (eg, the value of a Set-Cookie header)
  * @param origin origin of the cookie
+ * @returns a new #SoupCookie, or %NULL if it could   not be parsed, or contained an illegal "domain" attribute for a   cookie originating from @origin.
  */
 function cookie_parse(header: string, origin: GLib.Uri | null): Cookie | null
 /**
@@ -966,6 +968,7 @@ function cookie_parse(header: string, origin: GLib.Uri | null): Cookie | null
  * can't generally pass a cookie returned from this method directly to
  * [func`cookies_to_response]`.)
  * @param msg a #SoupMessage containing a "Cookie" request header
+ * @returns a #GSList of   `SoupCookie`s, which can be freed with [method@Cookie.free].
  */
 function cookies_from_request(msg: Message): Cookie[]
 /**
@@ -975,12 +978,14 @@ function cookies_from_request(msg: Message): Cookie[]
  * Cookies that do not specify "path" or "domain" attributes will have their
  * values defaulted from `msg`.
  * @param msg a #SoupMessage containing a "Set-Cookie" response header
+ * @returns a #GSList of   `SoupCookie`s, which can be freed with [method@Cookie.free].
  */
 function cookies_from_response(msg: Message): Cookie[]
 /**
  * Serializes a [struct`GLib`.SList] of #SoupCookie into a string suitable for
  * setting as the value of the "Cookie" header.
  * @param cookies a #GSList of #SoupCookie
+ * @returns the serialization of @cookies
  */
 function cookies_to_cookie_header(cookies: Cookie[]): string
 /**
@@ -1011,12 +1016,14 @@ function cookies_to_response(cookies: Cookie[], msg: Message): void
  * and reasonable approximations thereof. (Eg, it is lenient about whitespace,
  * leading "0"s, etc.)
  * @param date_string The date as a string
+ * @returns a new #GDateTime, or %NULL if @date_string   could not be parsed.
  */
 function date_time_new_from_http_string(date_string: string): GLib.DateTime | null
 /**
  * Converts `date` to a string in the format described by `format`.
  * @param date a #GDateTime
  * @param format the format to generate the date in
+ * @returns @date as a string or %NULL
  */
 function date_time_to_string(date: GLib.DateTime, format: DateFormat): string
 /**
@@ -1024,6 +1031,7 @@ function date_time_to_string(date: GLib.DateTime, format: DateFormat): string
  * 
  * which is an urlencoded dataset as defined in the HTML 4.01 spec.
  * @param encoded_form data of type "application/x-www-form-urlencoded"
+ * @returns a hash   table containing the name/value pairs from @encoded_form, which you   can free with [func@GLib.HashTable.destroy].
  */
 function form_decode(encoded_form: string): GLib.HashTable
 /**
@@ -1048,6 +1056,7 @@ function form_decode(encoded_form: string): GLib.HashTable
  * and [method`Multipart`.get_part].
  * @param multipart a #SoupMultipart
  * @param file_control_name the name of the HTML file upload control
+ * @returns    a hash table containing the name/value pairs (other than   @file_control_name) from @msg, which you can free with   [func@GLib.HashTable.destroy]. On error, it will return %NULL.
  */
 function form_decode_multipart(multipart: Multipart, file_control_name: string | null): [ /* returnType */ GLib.HashTable | null, /* filename */ string, /* content_type */ string, /* file */ GLib.Bytes ]
 /**
@@ -1060,6 +1069,7 @@ function form_decode_multipart(multipart: Multipart, file_control_name: string |
  * 
  * See also: [ctor`Message`.new_from_encoded_form].
  * @param form_data_set a datalist containing name/value pairs
+ * @returns the encoded form
  */
 function form_encode_datalist(form_data_set: GLib.Data): string
 /**
@@ -1075,6 +1085,7 @@ function form_encode_datalist(form_data_set: GLib.Data): string
  * 
  * See also: [ctor`Message`.new_from_encoded_form].
  * @param form_data_set a hash table containing   name/value pairs (as strings)
+ * @returns the encoded form
  */
 function form_encode_hash(form_data_set: GLib.HashTable): string
 /**
@@ -1086,6 +1097,7 @@ function form_encode_hash(form_data_set: GLib.HashTable): string
  * your code is running against. Contrast with the #SOUP_MAJOR_VERSION
  * macro, which represents the major version of the libsoup headers you
  * have included when compiling your code.
+ * @returns the major version number of the libsoup library
  */
 function get_major_version(): number
 /**
@@ -1097,6 +1109,7 @@ function get_major_version(): number
  * your code is running against. Contrast with the #SOUP_MICRO_VERSION
  * macro, which represents the micro version of the libsoup headers you
  * have included when compiling your code.
+ * @returns the micro version number of the libsoup library
  */
 function get_micro_version(): number
 /**
@@ -1108,6 +1121,7 @@ function get_micro_version(): number
  * your code is running against. Contrast with the #SOUP_MINOR_VERSION
  * macro, which represents the minor version of the libsoup headers you
  * have included when compiling your code.
+ * @returns the minor version number of the libsoup library
  */
 function get_minor_version(): number
 /**
@@ -1117,6 +1131,7 @@ function get_minor_version(): number
  * Note that this can't be used with lists that have qvalues.
  * @param header An HTTP header suitable for parsing with   [func`header_parse_list]`
  * @param token a token
+ * @returns whether or not @header contains @token
  */
 function header_contains(header: string, token: string): boolean
 /**
@@ -1156,6 +1171,7 @@ function header_g_string_append_param_quoted(string: GLib.String, name: string, 
  * 
  * "something" does not itself contain commas, except as part of quoted-strings.
  * @param header a header value
+ * @returns a #GSList of   list elements, as allocated strings
  */
 function header_parse_list(header: string): string[]
 /**
@@ -1169,6 +1185,7 @@ function header_parse_list(header: string): string[]
  * for giving UTF8-encoded filenames in the Content-Disposition
  * header).
  * @param header a header value
+ * @returns a   #GHashTable of list elements, which can be freed with   [func@header_free_param_list].
  */
 function header_parse_param_list(header: string): GLib.HashTable
 /**
@@ -1181,6 +1198,7 @@ function header_parse_param_list(header: string): GLib.HashTable
  * RFC5987-encoded parameters, use
  * [func`header_parse_param_list]` instead.
  * @param header a header value
+ * @returns    a #GHashTable of list elements, which can be freed with   [func@header_free_param_list] or %NULL if there are duplicate   elements.
  */
 function header_parse_param_list_strict(header: string): GLib.HashTable | null
 /**
@@ -1192,6 +1210,7 @@ function header_parse_param_list_strict(header: string): GLib.HashTable | null
  * items with qvalue 0. Either way, those items will be removed from
  * the main list.
  * @param header a header value
+ * @returns a #GSList of   acceptable values (as allocated strings), highest-qvalue first.
  */
 function header_parse_quality_list(header: string): [ /* returnType */ string[], /* unacceptable */ string[] ]
 /**
@@ -1205,6 +1224,7 @@ function header_parse_quality_list(header: string): [ /* returnType */ string[],
  * for giving UTF8-encoded filenames in the Content-Disposition
  * header).
  * @param header a header value
+ * @returns a   #GHashTable of list elements, which can be freed with   [func@header_free_param_list].
  */
 function header_parse_semi_param_list(header: string): GLib.HashTable
 /**
@@ -1217,6 +1237,7 @@ function header_parse_semi_param_list(header: string): GLib.HashTable
  * RFC5987-encoded parameters, use
  * [func`header_parse_semi_param_list]` instead.
  * @param header a header value
+ * @returns    a #GHashTable of list elements, which can be freed with   [func@header_free_param_list] or %NULL if there are duplicate   elements.
  */
 function header_parse_semi_param_list_strict(header: string): GLib.HashTable | null
 /**
@@ -1230,6 +1251,7 @@ function header_parse_semi_param_list_strict(header: string): GLib.HashTable | n
  * @param str the header string (including the Request-Line or Status-Line,   but not the trailing blank line)
  * @param len length of `str`
  * @param dest #SoupMessageHeaders to store the header values in
+ * @returns success or failure
  */
 function headers_parse(str: string, len: number, dest: MessageHeaders): boolean
 /**
@@ -1240,6 +1262,7 @@ function headers_parse(str: string, len: number, dest: MessageHeaders): boolean
  * @param str the headers (up to, but not including, the trailing blank line)
  * @param len length of `str`
  * @param req_headers #SoupMessageHeaders to store the header values in
+ * @returns %SOUP_STATUS_OK if the headers could be parsed, or an   HTTP error to be returned to the client if they could not be.
  */
 function headers_parse_request(str: string, len: number, req_headers: MessageHeaders): [ /* returnType */ number, /* req_method */ string, /* req_path */ string, /* ver */ HTTPVersion ]
 /**
@@ -1250,6 +1273,7 @@ function headers_parse_request(str: string, len: number, req_headers: MessageHea
  * @param str the headers (up to, but not including, the trailing blank line)
  * @param len length of `str`
  * @param headers #SoupMessageHeaders to store the header values in
+ * @returns success or failure.
  */
 function headers_parse_response(str: string, len: number, headers: MessageHeaders): [ /* returnType */ boolean, /* ver */ HTTPVersion, /* status_code */ number, /* reason_phrase */ string ]
 /**
@@ -1258,6 +1282,7 @@ function headers_parse_response(str: string, len: number, headers: MessageHeader
  * 
  * `status_line` must be terminated by either "\0" or "\r\n".
  * @param status_line an HTTP Status-Line
+ * @returns %TRUE if @status_line was parsed successfully.
  */
 function headers_parse_status_line(status_line: string): [ /* returnType */ boolean, /* ver */ HTTPVersion, /* status_code */ number, /* reason_phrase */ string ]
 /**
@@ -1267,6 +1292,7 @@ function headers_parse_status_line(status_line: string): [ /* returnType */ bool
 function message_headers_iter_init(hdrs: MessageHeaders): /* iter */ MessageHeadersIter
 /**
  * Registers error quark for SoupSession if needed.
+ * @returns Error quark for SoupSession.
  */
 function session_error_quark(): GLib.Quark
 /**
@@ -1282,6 +1308,7 @@ function session_error_quark(): GLib.Quark
  * Instead, you should create you own error messages based on the
  * status code, and on what you were trying to do.
  * @param status_code an HTTP status code
+ * @returns the (terse, English) description of @status_code
  */
 function status_get_phrase(status_code: number): string
 /**
@@ -1292,10 +1319,12 @@ function status_get_phrase(status_code: number): string
  * UTF-8 if it was an IDN. From 2.46 on, the name can be in either
  * UTF-8 or ASCII format.
  * @param domain a domain name
+ * @returns %TRUE if it is a public domain, %FALSE otherwise.
  */
 function tld_domain_is_public_suffix(domain: string): boolean
 /**
  * Registers error quark for soup_tld_get_base_domain() if needed.
+ * @returns Error quark for Soup TLD functions.
  */
 function tld_error_quark(): GLib.Quark
 /**
@@ -1314,17 +1343,20 @@ function tld_error_quark(): GLib.Quark
  * UTF-8 or ASCII format (and the return value will be in the same
  * format).
  * @param hostname a hostname
+ * @returns a pointer to the start of the base domain in @hostname. If   an error occurs, %NULL will be returned and @error set.
  */
 function tld_get_base_domain(hostname: string): string
 /**
  * Decodes the given data URI and returns its contents and `content_type`.
  * @param uri a data URI, in string form
+ * @returns a #GBytes with the contents of @uri,    or %NULL if @uri is not a valid data URI
  */
 function uri_decode_data_uri(uri: string): [ /* returnType */ GLib.Bytes, /* content_type */ string | null ]
 /**
  * Tests whether or not `uri1` and `uri2` are equal in all parts.
  * @param uri1 a #GUri
  * @param uri2 another #GUri
+ * @returns %TRUE if equal otherwise %FALSE
  */
 function uri_equal(uri1: GLib.Uri, uri2: GLib.Uri): boolean
 /**
@@ -1357,10 +1389,12 @@ function websocket_client_prepare_handshake(msg: Message, origin: string | null,
  * connection, it will call this for you.
  * @param msg #SoupMessage containing both client and server sides of a   WebSocket handshake
  * @param supported_extensions list   of supported extension types
+ * @returns %TRUE if @msg contains a completed valid WebSocket   handshake, %FALSE and an error if not.
  */
 function websocket_client_verify_handshake(msg: Message, supported_extensions: GObject.TypeClass[] | null): [ /* returnType */ boolean, /* accepted_extensions */ WebsocketExtension[] ]
 /**
  * Registers error quark for SoupWebsocket if needed.
+ * @returns Error quark for SoupWebsocket.
  */
 function websocket_error_quark(): GLib.Quark
 /**
@@ -1385,6 +1419,7 @@ function websocket_error_quark(): GLib.Quark
  * @param origin expected Origin header
  * @param protocols allowed WebSocket   protocols.
  * @param supported_extensions list   of supported extension types
+ * @returns %TRUE if @msg contained a valid WebSocket handshake,   %FALSE and an error if not.
  */
 function websocket_server_check_handshake(msg: ServerMessage, origin: string | null, protocols: string[] | null, supported_extensions: GObject.TypeClass[] | null): boolean
 /**
@@ -1407,6 +1442,7 @@ function websocket_server_check_handshake(msg: ServerMessage, origin: string | n
  * @param expected_origin expected Origin header
  * @param protocols allowed WebSocket   protocols.
  * @param supported_extensions list   of supported extension types
+ * @returns %TRUE if @msg contained a valid WebSocket handshake   request and was updated to contain a handshake response. %FALSE if not.
  */
 function websocket_server_process_handshake(msg: ServerMessage, expected_origin: string | null, protocols: string[] | null, supported_extensions: GObject.TypeClass[] | null): [ /* returnType */ boolean, /* accepted_extensions */ WebsocketExtension[] ]
 /**
@@ -1430,6 +1466,7 @@ function websocket_server_process_handshake(msg: ServerMessage, expected_origin:
  * @param msg the message being authenticated
  * @param username the username provided by the client
  * @param password the password provided by the client
+ * @returns %TRUE if @username and @password are valid
  */
 interface AuthDomainBasicAuthCallback {
     (domain: AuthDomainBasic, msg: ServerMessage, username: string, password: string): boolean
@@ -1444,6 +1481,7 @@ interface AuthDomainBasicAuthCallback {
  * @param domain the domain
  * @param msg the message being authenticated
  * @param username the username provided by the client
+ * @returns the encoded password, or %NULL if   @username is not a valid user. @domain will free the password when   it is done with it.
  */
 interface AuthDomainDigestAuthCallback {
     (domain: AuthDomainDigest, msg: ServerMessage, username: string): string | null
@@ -1455,6 +1493,7 @@ interface AuthDomainDigestAuthCallback {
  * @callback 
  * @param domain a #SoupAuthDomain
  * @param msg a #SoupServerMessage
+ * @returns %TRUE if @msg requires authentication, %FALSE if not.
  */
 interface AuthDomainFilter {
     (domain: AuthDomain, msg: ServerMessage): boolean
@@ -1480,6 +1519,7 @@ interface AuthDomainFilter {
  * @param domain a #SoupAuthDomain
  * @param msg the #SoupServerMessage being authenticated
  * @param username the username from `msg`
+ * @returns %TRUE if @msg is authenticated, %FALSE if not.
  */
 interface AuthDomainGenericAuthCallback {
     (domain: AuthDomain, msg: ServerMessage, username: string): boolean
@@ -1493,6 +1533,7 @@ interface AuthDomainGenericAuthCallback {
  * @callback 
  * @param logger the #SoupLogger
  * @param msg the message being logged
+ * @returns a [enum@LoggerLogLevel] value indicating how much of the message to   log
  */
 interface LoggerFilter {
     (logger: Logger, msg: Message): LoggerLogLevel
@@ -1691,6 +1732,7 @@ interface Auth {
     /**
      * Tests if `auth` is able to authenticate by providing credentials to the
      * [method`Auth`.authenticate].
+     * @returns %TRUE if @auth is able to accept credentials.
      */
     can_authenticate(): boolean
     /**
@@ -1703,6 +1745,7 @@ interface Auth {
     cancel(): void
     /**
      * Returns the authority (host:port) that `auth` is associated with.
+     * @returns the authority
      */
     get_authority(): string
     /**
@@ -1711,6 +1754,7 @@ interface Auth {
      * (The session will only call this if [method`Auth`.is_authenticated] returned
      * %TRUE.)
      * @param msg the #SoupMessage to be authorized
+     * @returns the "Authorization" header, which must be freed.
      */
     get_authorization(msg: Message): string
     /**
@@ -1720,6 +1764,7 @@ interface Auth {
      * the same server with the same identifier refer to the same authentication
      * domain (eg, the URLs associated with them take the same usernames and
      * passwords).
+     * @returns the identifier
      */
     get_info(): string
     /**
@@ -1729,6 +1774,7 @@ interface Auth {
      * of `auth'`s protection space, unless otherwise discovered not to
      * be.)
      * @param source_uri the URI of the request that `auth` was generated in   response to.
+     * @returns the list of   paths, which can be freed with [method@Auth.free_protection_space].
      */
     get_protection_space(source_uri: GLib.Uri): string[]
     /**
@@ -1737,11 +1783,13 @@ interface Auth {
      * This is an identifier that distinguishes separate authentication spaces on a
      * given server, and may be some string that is meaningful to the user.
      * (Although it is probably not localized.)
+     * @returns the realm name
      */
     get_realm(): string
     /**
      * soup_auth_get_scheme_name: (attributes org.gtk.Method.get_property=scheme-name)
      * Returns `auth'`s scheme name. (Eg, "Basic", "Digest", or "NTLM")
+     * @returns the scheme name
      */
     get_scheme_name(): string
     /**
@@ -1751,6 +1799,7 @@ interface Auth {
      * some auth types (eg, NTLM), the auth may be sendable (eg, as an
      * authentication request) even before it is authenticated.
      * @param msg a #SoupMessage
+     * @returns %TRUE if @auth is ready to make a request with.
      */
     is_ready(msg: Message): boolean
     /**
@@ -1760,6 +1809,7 @@ interface Auth {
      * As with [ctor`Auth`.new], this is normally only used by [class`Session]`.
      * @param msg the #SoupMessage `auth` is being updated for
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
+     * @returns %TRUE if @auth is still a valid (but potentially   unauthenticated) #SoupAuth. %FALSE if something about @auth_params   could not be parsed or incorporated into @auth at all.
      */
     update(msg: Message, auth_header: string): boolean
 
@@ -1779,6 +1829,7 @@ interface Auth {
      * Tests if `auth` is able to authenticate by providing credentials to the
      * [method`Auth`.authenticate].
      * @virtual 
+     * @returns %TRUE if @auth is able to accept credentials.
      */
     vfunc_can_authenticate(): boolean
     /**
@@ -1788,6 +1839,7 @@ interface Auth {
      * %TRUE.)
      * @virtual 
      * @param msg the #SoupMessage to be authorized
+     * @returns the "Authorization" header, which must be freed.
      */
     vfunc_get_authorization(msg: Message): string
     /**
@@ -1798,11 +1850,13 @@ interface Auth {
      * be.)
      * @virtual 
      * @param source_uri the URI of the request that `auth` was generated in   response to.
+     * @returns the list of   paths, which can be freed with [method@Auth.free_protection_space].
      */
     vfunc_get_protection_space(source_uri: GLib.Uri): string[]
     /**
      * Tests if `auth` has been given a username and password.
      * @virtual 
+     * @returns %TRUE if @auth has been given a username and password
      */
     vfunc_is_authenticated(): boolean
     /**
@@ -1813,6 +1867,7 @@ interface Auth {
      * authentication request) even before it is authenticated.
      * @virtual 
      * @param msg a #SoupMessage
+     * @returns %TRUE if @auth is ready to make a request with.
      */
     vfunc_is_ready(msg: Message): boolean
     /**
@@ -1823,6 +1878,7 @@ interface Auth {
      * @virtual 
      * @param msg the #SoupMessage `auth` is being updated for
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
+     * @returns %TRUE if @auth is still a valid (but potentially   unauthenticated) #SoupAuth. %FALSE if something about @auth_params   could not be parsed or incorporated into @auth at all.
      */
     vfunc_update(msg: Message, auth_header: GLib.HashTable): boolean
 
@@ -1883,6 +1939,7 @@ class Auth extends GObject.Object {
      * @param type the type of auth to create (a subtype of #SoupAuth)
      * @param msg the #SoupMessage the auth is being created for
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
+     * @returns the new #SoupAuth, or %NULL if it could   not be created
      */
     constructor(type: GObject.GType, msg: Message, auth_header: string) 
     /**
@@ -1895,6 +1952,7 @@ class Auth extends GObject.Object {
      * @param type the type of auth to create (a subtype of #SoupAuth)
      * @param msg the #SoupMessage the auth is being created for
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
+     * @returns the new #SoupAuth, or %NULL if it could   not be created
      */
     static new(type: GObject.GType, msg: Message, auth_header: string): Auth
     _init(config?: Auth.ConstructorProperties): void
@@ -2097,6 +2155,7 @@ interface AuthDomain {
      * This is used by [class`Server]` internally and is probably of no use to
      * anyone else.
      * @param msg a #SoupServerMessage
+     * @returns the username that @msg has authenticated   as, if in fact it has authenticated. %NULL otherwise.
      */
     accepts(msg: ServerMessage): string | null
     /**
@@ -2127,6 +2186,7 @@ interface AuthDomain {
      * @param msg a #SoupServerMessage
      * @param username a username
      * @param password a password
+     * @returns whether or not the message is authenticated
      */
     check_password(msg: ServerMessage, username: string, password: string): boolean
     /**
@@ -2139,10 +2199,12 @@ interface AuthDomain {
      * This is used by [class`Server]` internally and is probably of no use to
      * anyone else.
      * @param msg a #SoupServerMessage
+     * @returns %TRUE if @domain requires @msg to be authenticated
      */
     covers(msg: ServerMessage): boolean
     /**
      * Gets the realm name associated with `domain`.
+     * @returns @domain's realm
      */
     get_realm(): string
     /**
@@ -2226,6 +2288,7 @@ interface AuthDomain {
      * @param msg a #SoupServerMessage
      * @param username a username
      * @param password a password
+     * @returns whether or not the message is authenticated
      */
     vfunc_check_password(msg: ServerMessage, username: string, password: string): boolean
 
@@ -2511,6 +2574,7 @@ class AuthDomainDigest extends AuthDomain {
      * @param username a username
      * @param realm an auth realm name
      * @param password the password for `username` in `realm`
+     * @returns the encoded password
      */
     static encode_password(username: string, realm: string, password: string): string
 }
@@ -2714,6 +2778,7 @@ class AuthNegotiate extends Auth {
      * If this is %FALSE, %SOUP_TYPE_AUTH_NEGOTIATE will still be defined and can
      * still be added to a [class`Session]`, but libsoup will never attempt to
      * actually use this auth type.
+     * @returns %TRUE if supported otherwise %FALSE
      */
     static supported(): boolean
 }
@@ -2787,6 +2852,7 @@ interface Cache extends SessionFeature {
     flush(): void
     /**
      * Gets the maximum size of the cache.
+     * @returns the maximum size of the cache, in bytes.
      */
     get_max_size(): number
     /**
@@ -2838,6 +2904,7 @@ class Cache extends GObject.Object {
      * @constructor 
      * @param cache_dir the directory to store the cached data, or %NULL   to use the default one. Note that since the cache isn't safe to access for   multiple processes at once, and the default directory isn't namespaced by   process, clients are strongly discouraged from passing %NULL.
      * @param cache_type the #SoupCacheType of the cache
+     * @returns a new #SoupCache
      */
     constructor(cache_dir: string | null, cache_type: CacheType) 
     /**
@@ -2845,6 +2912,7 @@ class Cache extends GObject.Object {
      * @constructor 
      * @param cache_dir the directory to store the cached data, or %NULL   to use the default one. Note that since the cache isn't safe to access for   multiple processes at once, and the default directory isn't namespaced by   process, clients are strongly discouraged from passing %NULL.
      * @param cache_type the #SoupCacheType of the cache
+     * @returns a new #SoupCache
      */
     static new(cache_dir: string | null, cache_type: CacheType): Cache
     _init(config?: Cache.ConstructorProperties): void
@@ -2929,6 +2997,7 @@ interface ContentSniffer extends SessionFeature {
      * response headers.
      * @param msg the message to sniff
      * @param buffer a buffer containing the start of `msg'`s response body
+     * @returns the sniffed Content-Type of @buffer; this will never be %NULL,   but may be `application/octet-stream`.
      */
     sniff(msg: Message, buffer: GLib.Bytes): [ /* returnType */ string, /* params */ GLib.HashTable | null ]
 
@@ -2964,11 +3033,13 @@ class ContentSniffer extends GObject.Object {
     /**
      * Creates a new #SoupContentSniffer.
      * @constructor 
+     * @returns a new #SoupContentSniffer
      */
     constructor() 
     /**
      * Creates a new #SoupContentSniffer.
      * @constructor 
+     * @returns a new #SoupContentSniffer
      */
     static new(): ContentSniffer
     _init(config?: ContentSniffer.ConstructorProperties): void
@@ -3076,6 +3147,7 @@ interface CookieJar extends SessionFeature {
      * 
      * The cookies in the list are a copy of the original, so
      * you have to free them when you are done with them.
+     * @returns a #GSList   with all the cookies in the @jar.
      */
     all_cookies(): Cookie[]
     /**
@@ -3087,6 +3159,7 @@ interface CookieJar extends SessionFeature {
     delete_cookie(cookie: Cookie): void
     /**
      * Gets `jar'`s [enum`CookieJarAcceptPolicy]`.
+     * @returns the #SoupCookieJarAcceptPolicy set in the @jar
      */
     get_accept_policy(): CookieJarAcceptPolicy
     /**
@@ -3102,6 +3175,7 @@ interface CookieJar extends SessionFeature {
      * this.
      * @param uri a #GUri
      * @param for_http whether or not the return value is being passed directly   to an HTTP operation
+     * @returns a #GSList   with the cookies in the @jar that would be sent with a request to @uri.
      */
     get_cookie_list(uri: GLib.Uri, for_http: boolean): Cookie[]
     /**
@@ -3117,6 +3191,7 @@ interface CookieJar extends SessionFeature {
      * @param for_http whether or not the return value is being passed directly   to an HTTP operation
      * @param is_safe_method if the HTTP method is safe, as defined by RFC 7231, ignored when `for_http` is %FALSE
      * @param is_top_level_navigation whether or not the HTTP request is part of   top level navigation
+     * @returns a #GSList   with the cookies in the @jar that would be sent with a request to @uri.
      */
     get_cookie_list_with_same_site_info(uri: GLib.Uri, top_level: GLib.Uri | null, site_for_cookies: GLib.Uri | null, for_http: boolean, is_safe_method: boolean, is_top_level_navigation: boolean): Cookie[]
     /**
@@ -3132,10 +3207,12 @@ interface CookieJar extends SessionFeature {
      * this.
      * @param uri a #GUri
      * @param for_http whether or not the return value is being passed directly   to an HTTP operation
+     * @returns the cookies, in string form, or %NULL if   there are no cookies for @uri.
      */
     get_cookies(uri: GLib.Uri, for_http: boolean): string | null
     /**
      * Gets whether `jar` stores cookies persistenly.
+     * @returns %TRUE if @jar storage is persistent or %FALSE otherwise.
      */
     is_persistent(): boolean
     /**
@@ -3175,6 +3252,7 @@ interface CookieJar extends SessionFeature {
     /**
      * Gets whether `jar` stores cookies persistenly.
      * @virtual 
+     * @returns %TRUE if @jar storage is persistent or %FALSE otherwise.
      */
     vfunc_is_persistent(): boolean
     vfunc_save(): void
@@ -3227,6 +3305,7 @@ class CookieJar extends GObject.Object {
      * The base #SoupCookieJar class does not support persistent storage of cookies;
      * use a subclass for that.
      * @constructor 
+     * @returns a new #SoupCookieJar
      */
     constructor() 
     /**
@@ -3235,6 +3314,7 @@ class CookieJar extends GObject.Object {
      * The base #SoupCookieJar class does not support persistent storage of cookies;
      * use a subclass for that.
      * @constructor 
+     * @returns a new #SoupCookieJar
      */
     static new(): CookieJar
     _init(config?: CookieJar.ConstructorProperties): void
@@ -3314,6 +3394,7 @@ class CookieJarDB extends CookieJar {
      * @constructor 
      * @param filename the filename to read to/write from, or %NULL
      * @param read_only %TRUE if `filename` is read-only
+     * @returns the new #SoupCookieJar
      */
     constructor(filename: string, read_only: boolean) 
     /**
@@ -3327,6 +3408,7 @@ class CookieJarDB extends CookieJar {
      * @constructor 
      * @param filename the filename to read to/write from, or %NULL
      * @param read_only %TRUE if `filename` is read-only
+     * @returns the new #SoupCookieJar
      */
     static new(filename: string, read_only: boolean): CookieJarDB
 
@@ -3338,6 +3420,7 @@ class CookieJarDB extends CookieJar {
      * The base #SoupCookieJar class does not support persistent storage of cookies;
      * use a subclass for that.
      * @constructor 
+     * @returns a new #SoupCookieJar
      */
     static new(): CookieJar
     _init(config?: CookieJarDB.ConstructorProperties): void
@@ -3413,6 +3496,7 @@ class CookieJarText extends CookieJar {
      * @constructor 
      * @param filename the filename to read to/write from
      * @param read_only %TRUE if `filename` is read-only
+     * @returns the new #SoupCookieJar
      */
     constructor(filename: string, read_only: boolean) 
     /**
@@ -3426,6 +3510,7 @@ class CookieJarText extends CookieJar {
      * @constructor 
      * @param filename the filename to read to/write from
      * @param read_only %TRUE if `filename` is read-only
+     * @returns the new #SoupCookieJar
      */
     static new(filename: string, read_only: boolean): CookieJarText
 
@@ -3437,6 +3522,7 @@ class CookieJarText extends CookieJar {
      * The base #SoupCookieJar class does not support persistent storage of cookies;
      * use a subclass for that.
      * @constructor 
+     * @returns a new #SoupCookieJar
      */
     static new(): CookieJar
     _init(config?: CookieJarText.ConstructorProperties): void
@@ -3472,20 +3558,24 @@ interface HSTSEnforcer extends SessionFeature {
     /**
      * Gets a list of domains for which there are policies in `enforcer`.
      * @param session_policies whether to include session policies
+     * @returns a newly allocated   list of domains. Use [func@GLib.List.free_full] and [func@GLib.free] to free the   list.
      */
     get_domains(session_policies: boolean): string[]
     /**
      * Gets a list with the policies in `enforcer`.
      * @param session_policies whether to include session policies
+     * @returns a newly   allocated list of policies. Use [func@GLib.List.free_full] and   [method@HSTSPolicy.free] to free the list.
      */
     get_policies(session_policies: boolean): HSTSPolicy[]
     /**
      * Gets whether `hsts_enforcer` has a currently valid policy for `domain`.
      * @param domain a domain.
+     * @returns %TRUE if access to @domain should happen over HTTPS, false   otherwise.
      */
     has_valid_policy(domain: string): boolean
     /**
      * Gets whether `hsts_enforcer` stores policies persistenly.
+     * @returns %TRUE if @hsts_enforcer storage is persistent or %FALSE otherwise.
      */
     is_persistent(): boolean
     /**
@@ -3517,11 +3607,13 @@ interface HSTSEnforcer extends SessionFeature {
      * Gets whether `hsts_enforcer` has a currently valid policy for `domain`.
      * @virtual 
      * @param domain a domain.
+     * @returns %TRUE if access to @domain should happen over HTTPS, false   otherwise.
      */
     vfunc_has_valid_policy(domain: string): boolean
     /**
      * Gets whether `hsts_enforcer` stores policies persistenly.
      * @virtual 
+     * @returns %TRUE if @hsts_enforcer storage is persistent or %FALSE otherwise.
      */
     vfunc_is_persistent(): boolean
 
@@ -3580,6 +3672,7 @@ class HSTSEnforcer extends GObject.Object {
      * The base #SoupHSTSEnforcer class does not support persistent storage of HSTS
      * policies, see [class`HSTSEnforcerDB]` for that.
      * @constructor 
+     * @returns a new #SoupHSTSEnforcer
      */
     constructor() 
     /**
@@ -3588,6 +3681,7 @@ class HSTSEnforcer extends GObject.Object {
      * The base #SoupHSTSEnforcer class does not support persistent storage of HSTS
      * policies, see [class`HSTSEnforcerDB]` for that.
      * @constructor 
+     * @returns a new #SoupHSTSEnforcer
      */
     static new(): HSTSEnforcer
     _init(config?: HSTSEnforcer.ConstructorProperties): void
@@ -3657,6 +3751,7 @@ class HSTSEnforcerDB extends HSTSEnforcer {
      * [signal`HSTSEnforcer:`:changed] is emitted.
      * @constructor 
      * @param filename the filename of the database to read/write from.
+     * @returns the new #SoupHSTSEnforcer
      */
     constructor(filename: string) 
     /**
@@ -3670,6 +3765,7 @@ class HSTSEnforcerDB extends HSTSEnforcer {
      * [signal`HSTSEnforcer:`:changed] is emitted.
      * @constructor 
      * @param filename the filename of the database to read/write from.
+     * @returns the new #SoupHSTSEnforcer
      */
     static new(filename: string): HSTSEnforcerDB
 
@@ -3681,6 +3777,7 @@ class HSTSEnforcerDB extends HSTSEnforcer {
      * The base #SoupHSTSEnforcer class does not support persistent storage of HSTS
      * policies, see [class`HSTSEnforcerDB]` for that.
      * @constructor 
+     * @returns a new #SoupHSTSEnforcer
      */
     static new(): HSTSEnforcer
     _init(config?: HSTSEnforcerDB.ConstructorProperties): void
@@ -3727,6 +3824,7 @@ interface Logger extends SessionFeature {
 
     /**
      * Get the maximum body size for `logger`.
+     * @returns the maximum body size, or -1 if unlimited
      */
     get_max_body_size(): number
     /**
@@ -3854,6 +3952,7 @@ class Logger extends GObject.Object {
      * [method`Logger`.set_response_filter].
      * @constructor 
      * @param level the debug level
+     * @returns a new #SoupLogger
      */
     constructor(level: LoggerLogLevel) 
     /**
@@ -3864,6 +3963,7 @@ class Logger extends GObject.Object {
      * [method`Logger`.set_response_filter].
      * @constructor 
      * @param level the debug level
+     * @returns a new #SoupLogger
      */
     static new(level: LoggerLogLevel): Logger
     _init(config?: Logger.ConstructorProperties): void
@@ -4147,14 +4247,17 @@ interface Message {
      * 
      * This may be 0 if it was a cached resource or it has not gotten
      * a connection yet.
+     * @returns An id or 0 if no connection.
      */
     get_connection_id(): number
     /**
      * Gets `msg'`s first-party [struct`GLib`.Uri].
+     * @returns the @msg's first party #GUri
      */
     get_first_party(): GLib.Uri
     /**
      * Gets the flags on `msg`.
+     * @returns the flags
      */
     get_flags(): MessageFlags
     /**
@@ -4162,20 +4265,24 @@ interface Message {
      * 
      * This is the minimum of the version from the request and the version from the
      * response.
+     * @returns the HTTP version
      */
     get_http_version(): HTTPVersion
     /**
      * Gets whether `msg` is intended to be used to send `OPTIONS *` to a server.
+     * @returns %TRUE if the message is options ping, or %FALSE otherwise
      */
     get_is_options_ping(): boolean
     /**
      * Returns if this message is set as a top level navigation.
      * 
      * Used for same-site policy checks.
+     * @returns Whether the current request is a top-level navitation
      */
     get_is_top_level_navigation(): boolean
     /**
      * Returns the method of this message.
+     * @returns A method such as %SOUP_METHOD_GET
      */
     get_method(): string
     /**
@@ -4183,16 +4290,19 @@ interface Message {
      * 
      * If the flag %SOUP_MESSAGE_COLLECT_METRICS is not enabled for `msg` this will
      * return %NULL.
+     * @returns a #SoupMessageMetrics
      */
     get_metrics(): MessageMetrics | null
     /**
      * Retrieves the [enum`MessagePriority]`.
      * 
      * If not set this value defaults to #SOUP_MESSAGE_PRIORITY_NORMAL.
+     * @returns the priority of the message.
      */
     get_priority(): MessagePriority
     /**
      * Returns the reason phrase for the status of this message.
+     * @returns the phrase
      */
     get_reason_phrase(): string | null
     /**
@@ -4204,26 +4314,32 @@ interface Message {
      * connections, the remote address returned is a [class`Gio`.ProxyAddress]. If
      * [property`Session:`remote-connectable] is set the returned address id for the
      * connection to the session's remote connectable.
+     * @returns a #GSocketAddress or %NULL if the connection     hasn't been established
      */
     get_remote_address(): Gio.SocketAddress | null
     /**
      * Returns the headers sent with the request.
+     * @returns The #SoupMessageHeaders
      */
     get_request_headers(): MessageHeaders
     /**
      * Returns the headers recieved with the response.
+     * @returns The #SoupMessageHeaders
      */
     get_response_headers(): MessageHeaders
     /**
      * Gets `msg'`s site for cookies #GUri.
+     * @returns the @msg's site for cookies #GUri
      */
     get_site_for_cookies(): GLib.Uri
     /**
      * Returns the set status of this message.
+     * @returns The #SoupStatus
      */
     get_status(): Status
     /**
      * Gets the name of the TLS ciphersuite negotiated for `msg'`s connection.
+     * @returns the name of the TLS ciphersuite,   or %NULL if @msg's connection is not SSL.
      */
     get_tls_ciphersuite_name(): string
     /**
@@ -4231,22 +4347,26 @@ interface Message {
      * 
      * Note that this is not set yet during the emission of
      * [signal`Message:`:accept-certificate] signal.
+     * @returns @msg's TLS peer certificate,   or %NULL if @msg's connection is not SSL.
      */
     get_tls_peer_certificate(): Gio.TlsCertificate | null
     /**
      * Gets the errors associated with validating `msg'`s TLS peer certificate.
      * Note that this is not set yet during the emission of
      * [signal`Message:`:accept-certificate] signal.
+     * @returns a #GTlsCertificateFlags with @msg's TLS peer certificate errors.
      */
     get_tls_peer_certificate_errors(): Gio.TlsCertificateFlags
     /**
      * Gets the TLS protocol version negotiated for `msg'`s connection.
      * 
      * If the message connection is not SSL, %G_TLS_PROTOCOL_VERSION_UNKNOWN is returned.
+     * @returns a #GTlsProtocolVersion
      */
     get_tls_protocol_version(): Gio.TlsProtocolVersion
     /**
      * Gets `msg'`s URI.
+     * @returns the URI @msg is targeted for.
      */
     get_uri(): GLib.Uri
     /**
@@ -4255,6 +4375,7 @@ interface Message {
      * 
      * See [method`Message`.disable_feature].
      * @param feature_type the #GType of a #SoupSessionFeature
+     * @returns %TRUE if feature is disabled, or %FALSE otherwise.
      */
     is_feature_disabled(feature_type: GObject.GType): boolean
     /**
@@ -4262,11 +4383,13 @@ interface Message {
      * further requests after processing `msg`.
      * 
      * The result is based on the HTTP version, Connection header, etc.
+     * @returns %TRUE or %FALSE.
      */
     is_keepalive(): boolean
     /**
      * Queries if `flags` are present in the set of `msg'`s flags.
      * @param flags a set of #SoupMessageFlags values
+     * @returns %TRUE if @flags are enabled in @msg
      */
     query_flags(flags: MessageFlags): boolean
     /**
@@ -4542,6 +4665,7 @@ class Message extends GObject.Object {
      * @constructor 
      * @param method the HTTP method for the created request
      * @param uri_string the destination endpoint (as a string)
+     * @returns the new #SoupMessage (or %NULL if @uri   could not be parsed).
      */
     constructor(method: string, uri_string: string) 
     /**
@@ -4549,6 +4673,7 @@ class Message extends GObject.Object {
      * @constructor 
      * @param method the HTTP method for the created request
      * @param uri_string the destination endpoint (as a string)
+     * @returns the new #SoupMessage (or %NULL if @uri   could not be parsed).
      */
     static new(method: string, uri_string: string): Message
     /**
@@ -4564,6 +4689,7 @@ class Message extends GObject.Object {
      * @param method the HTTP method for the created request (GET, POST or PUT)
      * @param uri_string the destination endpoint (as a string)
      * @param encoded_form a encoded form
+     * @returns the new #SoupMessage, or %NULL if   @uri_string could not be parsed or @method is not "GET, "POST" or "PUT"
      */
     static new_from_encoded_form(method: string, uri_string: string, encoded_form: string): Message
     /**
@@ -4572,6 +4698,7 @@ class Message extends GObject.Object {
      * @constructor 
      * @param uri_string the destination endpoint
      * @param multipart a #SoupMultipart
+     * @returns the new #SoupMessage, or %NULL if @uri_string   could not be parsed
      */
     static new_from_multipart(uri_string: string, multipart: Multipart): Message
     /**
@@ -4579,6 +4706,7 @@ class Message extends GObject.Object {
      * @constructor 
      * @param method the HTTP method for the created request
      * @param uri the destination endpoint
+     * @returns the new #SoupMessage
      */
     static new_from_uri(method: string, uri: GLib.Uri): Message
     /**
@@ -4586,6 +4714,7 @@ class Message extends GObject.Object {
      * `base_uri` will be ignored.
      * @constructor 
      * @param base_uri the destination endpoint
+     * @returns the new #SoupMessage
      */
     static new_options_ping(base_uri: GLib.Uri): Message
     _init(config?: Message.ConstructorProperties): void
@@ -4632,6 +4761,7 @@ interface MultipartInputStream extends Gio.PollableInputStream {
      * 
      * Note that if a part had no headers at all an empty [struct`MessageHeaders]`
      * will be returned.
+     * @returns a #SoupMessageHeaders   containing the headers for the part currently being processed or   %NULL if the headers failed to parse.
      */
     get_headers(): MessageHeaders | null
     /**
@@ -4647,6 +4777,7 @@ interface MultipartInputStream extends Gio.PollableInputStream {
      * the part; a new call to this function should be done at that point,
      * to obtain the next part.
      * @param cancellable a #GCancellable
+     * @returns a new #GInputStream, or   %NULL if there are no more parts
      */
     next_part(cancellable: Gio.Cancellable | null): Gio.InputStream | null
     /**
@@ -4658,9 +4789,24 @@ interface MultipartInputStream extends Gio.PollableInputStream {
      * @param callback callback to call when request is satisfied.
      */
     next_part_async(io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of next_part_async
+
+    /**
+     * Promisified version of {@link next_part_async}
+     * 
+     * Obtains a [class`Gio`.InputStream] for the next request.
+     * 
+     * See [method`MultipartInputStream`.next_part] for details on the workflow.
+     * @param io_priority the I/O priority for the request.
+     * @param cancellable a #GCancellable.
+     * @returns A Promise of: a newly created   [class@Gio.InputStream] for reading the next part or %NULL if there are no   more parts.
+     */
+    next_part_async(io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<Gio.InputStream | null>
     /**
      * Finishes an asynchronous request for the next part.
      * @param result a #GAsyncResult.
+     * @returns a newly created   [class@Gio.InputStream] for reading the next part or %NULL if there are no   more parts.
      */
     next_part_finish(result: Gio.AsyncResult): Gio.InputStream | null
 
@@ -4712,6 +4858,7 @@ class MultipartInputStream extends Gio.FilterInputStream {
      * @constructor 
      * @param msg the #SoupMessage the response is related to.
      * @param base_stream the #GInputStream returned by sending the request.
+     * @returns a new #SoupMultipartInputStream
      */
     constructor(msg: Message, base_stream: Gio.InputStream) 
     /**
@@ -4724,6 +4871,7 @@ class MultipartInputStream extends Gio.FilterInputStream {
      * @constructor 
      * @param msg the #SoupMessage the response is related to.
      * @param base_stream the #GInputStream returned by sending the request.
+     * @returns a new #SoupMultipartInputStream
      */
     static new(msg: Message, base_stream: Gio.InputStream): MultipartInputStream
     _init(config?: MultipartInputStream.ConstructorProperties): void
@@ -4888,6 +5036,7 @@ interface Server {
      * @param stream a #GIOStream
      * @param local_addr the local #GSocketAddress associated with the   `stream`
      * @param remote_addr the remote #GSocketAddress associated with the   `stream`
+     * @returns %TRUE on success, %FALSE if the stream could not be   accepted or any other error occurred (in which case @error will be   set).
      */
     accept_iostream(stream: Gio.IOStream, local_addr: Gio.SocketAddress | null, remote_addr: Gio.SocketAddress | null): boolean
     /**
@@ -5027,18 +5176,22 @@ interface Server {
      * 
      * You should treat these sockets as read-only; writing to or
      * modifiying any of these sockets may cause `server` to malfunction.
+     * @returns a   list of listening sockets.
      */
     get_listeners(): Gio.Socket[]
     /**
      * Gets the `server` SSL/TLS client authentication mode.
+     * @returns a #GTlsAuthenticationMode
      */
     get_tls_auth_mode(): Gio.TlsAuthenticationMode
     /**
      * Gets the `server` SSL/TLS certificate.
+     * @returns a #GTlsCertificate or %NULL
      */
     get_tls_certificate(): Gio.TlsCertificate | null
     /**
      * Gets the `server` SSL/TLS database.
+     * @returns a #GTlsDatabase
      */
     get_tls_database(): Gio.TlsDatabase | null
     /**
@@ -5051,6 +5204,7 @@ interface Server {
      * Note that if you used [method`Server`.listen_all] the returned URIs will use
      * the addresses `0.0.0.0` and `::`, rather than actually returning separate
      * URIs for each interface on the system.
+     * @returns a list of #GUris, which you   must free when you are done with it.
      */
     get_uris(): GLib.Uri[]
     /**
@@ -5067,6 +5221,7 @@ interface Server {
      * that the server is *able* to do https, regardless of whether it actually
      * currently is or not. Use [method`Server`.get_uris] to see if it currently has
      * any https listeners.
+     * @returns %TRUE if @server is configured to serve https.
      */
     is_https(): boolean
     /**
@@ -5088,6 +5243,7 @@ interface Server {
      * You must configure IPv4 listening separately.
      * @param address the address of the interface to listen on
      * @param options listening options for this server
+     * @returns %TRUE on success, %FALSE if @address could not be   bound or any other error occurred (in which case @error will be   set).
      */
     listen(address: Gio.SocketAddress, options: ServerListenOptions): boolean
     /**
@@ -5104,6 +5260,7 @@ interface Server {
      * See [method`Server`.listen] for more details.
      * @param port the port to listen on, or 0
      * @param options listening options for this server
+     * @returns %TRUE on success, %FALSE if @port could not be bound   or any other error occurred (in which case @error will be set).
      */
     listen_all(port: number, options: ServerListenOptions): boolean
     /**
@@ -5118,6 +5275,7 @@ interface Server {
      * See [method`Server`.listen] for more details.
      * @param port the port to listen on, or 0
      * @param options listening options for this server
+     * @returns %TRUE on success, %FALSE if @port could not be bound   or any other error occurred (in which case @error will be set).
      */
     listen_local(port: number, options: ServerListenOptions): boolean
     /**
@@ -5126,6 +5284,7 @@ interface Server {
      * See [method`Server`.listen] for more details.
      * @param socket a listening #GSocket
      * @param options listening options for this server
+     * @returns %TRUE on success, %FALSE if an error occurred (in   which case @error will be set).
      */
     listen_socket(socket: Gio.Socket, options: ServerListenOptions): boolean
     /**
@@ -5447,45 +5606,55 @@ interface ServerMessage {
 
     /**
      * Get the HTTP version of `msg`.
+     * @returns a #SoupHTTPVersion.
      */
     get_http_version(): HTTPVersion
     /**
      * Retrieves the [class`Gio`.SocketAddress] associated with the local end
      * of a connection.
+     * @returns the #GSocketAddress   associated with the local end of a connection, it may be   %NULL if you used [method@Server.accept_iostream].
      */
     get_local_address(): Gio.SocketAddress | null
     /**
      * Get the HTTP method of `msg`.
+     * @returns the HTTP method.
      */
     get_method(): string
     /**
      * Get the HTTP reason phrase of `msg`.
+     * @returns the reason phrase.
      */
     get_reason_phrase(): string | null
     /**
      * Retrieves the [class`Gio`.SocketAddress] associated with the remote end
      * of a connection.
+     * @returns the #GSocketAddress   associated with the remote end of a connection, it may be   %NULL if you used [class@Server.accept_iostream].
      */
     get_remote_address(): Gio.SocketAddress | null
     /**
      * Retrieves the IP address associated with the remote end of a
      * connection.
+     * @returns the IP address associated with the remote   end of a connection, it may be %NULL if you used   [method@Server.accept_iostream].
      */
     get_remote_host(): string | null
     /**
      * Get the request body of `msg`.
+     * @returns a #SoupMessageBody.
      */
     get_request_body(): MessageBody
     /**
      * Get the request headers of `msg`.
+     * @returns a #SoupMessageHeaders with the request headers.
      */
     get_request_headers(): MessageHeaders
     /**
      * Get the response body of `msg`.
+     * @returns a #SoupMessageBody.
      */
     get_response_body(): MessageBody
     /**
      * Get the response headers of `msg`.
+     * @returns a #SoupMessageHeaders with the response headers.
      */
     get_response_headers(): MessageHeaders
     /**
@@ -5497,30 +5666,36 @@ interface ServerMessage {
      * destruction as well (eg, by using weak references), so that you do
      * not get fooled when the allocator reuses the memory address of a
      * previously-destroyed socket to represent a new socket.
+     * @returns the #GSocket that @msg is   associated with, %NULL if you used [method@Server.accept_iostream].
      */
     get_socket(): Gio.Socket | null
     /**
      * Get the HTTP status code of `msg`.
+     * @returns the HTTP status code.
      */
     get_status(): number
     /**
      * Gets the peer's #GTlsCertificate associated with `msg'`s connection.
      * Note that this is not set yet during the emission of
      * SoupServerMessage::accept-certificate signal.
+     * @returns @msg's TLS peer certificate,    or %NULL if @msg's connection is not SSL.
      */
     get_tls_peer_certificate(): Gio.TlsCertificate | null
     /**
      * Gets the errors associated with validating `msg'`s TLS peer certificate.
      * Note that this is not set yet during the emission of
      * SoupServerMessage::accept-certificate signal.
+     * @returns a #GTlsCertificateFlags with @msg's TLS peer certificate errors.
      */
     get_tls_peer_certificate_errors(): Gio.TlsCertificateFlags
     /**
      * Get `msg'`s URI.
+     * @returns a #GUri
      */
     get_uri(): GLib.Uri
     /**
      * Gets if `msg` represents an OPTIONS message with the path `*`.
+     * @returns %TRUE if is an OPTIONS ping
      */
     is_options_ping(): boolean
     /**
@@ -5577,6 +5752,7 @@ interface ServerMessage {
      * 
      * Note that when calling this function from C, `msg` will most
      * likely be freed as a side effect.
+     * @returns the #GIOStream formerly associated   with @msg (or %NULL if @msg was no longer associated with a   connection). No guarantees are made about what kind of #GIOStream   is returned.
      */
     steal_connection(): Gio.IOStream
     /**
@@ -5988,11 +6164,13 @@ interface Session {
     /**
      * Get the value used by `session` for the "Accept-Language" header on new
      * requests.
+     * @returns the accept language string
      */
     get_accept_language(): string | null
     /**
      * Gets whether `session` automatically sets the "Accept-Language" header on new
      * requests.
+     * @returns %TRUE if @session sets "Accept-Language" header automatically, or   %FALSE otherwise.
      */
     get_accept_language_auto(): boolean
     /**
@@ -6000,11 +6178,13 @@ interface Session {
      * to get the [class`Message]` of an asynchronous operation started by `session`
      * from its [callback`Gio`.AsyncReadyCallback].
      * @param result the #GAsyncResult passed to your callback
+     * @returns a #SoupMessage or   %NULL if @result is not a valid @session async operation result.
      */
     get_async_result_message(result: Gio.AsyncResult): Message | null
     /**
      * Gets the feature in `session` of type `feature_type`.
      * @param feature_type the #GType of the feature to get
+     * @returns a #SoupSessionFeature, or %NULL. The   feature is owned by @session.
      */
     get_feature(feature_type: GObject.GType): SessionFeature | null
     /**
@@ -6012,50 +6192,61 @@ interface Session {
      * that it is not disabled for `msg`.
      * @param feature_type the #GType of the feature to get
      * @param msg a #SoupMessage
+     * @returns a #SoupSessionFeature. The feature is   owned by @session.
      */
     get_feature_for_message(feature_type: GObject.GType, msg: Message): SessionFeature | null
     /**
      * Get the timeout in seconds for idle connection lifetime currently used by
      * `session`.
+     * @returns the timeout in seconds
      */
     get_idle_timeout(): number
     /**
      * Get the [class`Gio`.InetSocketAddress] to use for the client side of
      * connections in `session`.
+     * @returns a #GInetSocketAddress
      */
     get_local_address(): Gio.InetSocketAddress | null
     /**
      * Get the maximum number of connections that `session` can open at once.
+     * @returns the maximum number of connections
      */
     get_max_conns(): number
     /**
      * Get the maximum number of connections that `session` can open at once to a
      * given host.
+     * @returns the maximum number of connections per host
      */
     get_max_conns_per_host(): number
     /**
      * Get the [iface`Gio`.ProxyResolver] currently used by `session`.
+     * @returns a #GProxyResolver or %NULL if proxies   are disabled in @session
      */
     get_proxy_resolver(): Gio.ProxyResolver | null
     /**
      * Gets the remote connectable if one set.
+     * @returns the #GSocketConnectable
      */
     get_remote_connectable(): Gio.SocketConnectable | null
     /**
      * Get the timeout in seconds for socket I/O operations currently used by
      * `session`.
+     * @returns the timeout in seconds
      */
     get_timeout(): number
     /**
      * Get the [class`Gio`.TlsDatabase] currently used by `session`.
+     * @returns a #GTlsDatabase
      */
     get_tls_database(): Gio.TlsDatabase | null
     /**
      * Get the [class`Gio`.TlsInteraction] currently used by `session`.
+     * @returns a #GTlsInteraction
      */
     get_tls_interaction(): Gio.TlsInteraction | null
     /**
      * Get the value used by `session` for the "User-Agent" header on new requests.
+     * @returns the user agent string
      */
     get_user_agent(): string | null
     /**
@@ -6063,6 +6254,7 @@ interface Session {
      * be the type of either a [iface`SessionFeature]`, or else a subtype of
      * some class managed by another feature, such as [class`Auth]`).
      * @param feature_type the #GType of the class of features to check for
+     * @returns %TRUE or %FALSE
      */
     has_feature(feature_type: GObject.GType): boolean
     /**
@@ -6083,9 +6275,33 @@ interface Session {
      * @param callback the callback to invoke when the operation finishes
      */
     preconnect_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of preconnect_async
+
+    /**
+     * Promisified version of {@link preconnect_async}
+     * 
+     * Start a preconnection to `msg`.
+     * 
+     * Once the connection is done, it will remain in idle state so that it can be
+     * reused by future requests. If there's already an idle connection for the
+     * given `msg` host, the operation finishes successfully without creating a new
+     * connection. If a new request for the given `msg` host is made while the
+     * preconnect is still ongoing, the request will take the ownership of the
+     * connection and the preconnect operation will finish successfully (if there's
+     * a connection error it will be handled by the request).
+     * 
+     * The operation finishes when the connection is done or an error occurred.
+     * @param msg a #SoupMessage
+     * @param io_priority the I/O priority of the request
+     * @param cancellable a #GCancellable
+     * @returns A Promise of: %TRUE if the preconnect succeeded, or %FALSE in case of error.
+     */
+    preconnect_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<boolean>
     /**
      * Complete a preconnect async operation started with [method`Session`.preconnect_async].
      * @param result the #GAsyncResult passed to your callback
+     * @returns %TRUE if the preconnect succeeded, or %FALSE in case of error.
      */
     preconnect_finish(result: Gio.AsyncResult): boolean
     /**
@@ -6120,6 +6336,7 @@ interface Session {
      * received.
      * @param msg a #SoupMessage
      * @param cancellable a #GCancellable
+     * @returns a #GInputStream for reading the   response body, or %NULL on error.
      */
     send(msg: Message, cancellable: Gio.Cancellable | null): Gio.InputStream
     /**
@@ -6132,6 +6349,7 @@ interface Session {
      * See [method`Session`.send] for more details on the general semantics.
      * @param msg a #SoupMessage
      * @param cancellable a #GCancellable
+     * @returns a #GBytes, or %NULL on error.
      */
     send_and_read(msg: Message, cancellable: Gio.Cancellable | null): GLib.Bytes
     /**
@@ -6150,11 +6368,33 @@ interface Session {
      * @param callback the callback to invoke
      */
     send_and_read_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of send_and_read_async
+
+    /**
+     * Promisified version of {@link send_and_read_async}
+     * 
+     * Asynchronously sends `msg` and reads the response body.
+     * 
+     * When `callback` is called, then either `msg` has been sent, and its response
+     * body read, or else an error has occurred. This function should only be used
+     * when the resource to be retrieved is not too long and can be stored in
+     * memory. Call [method`Session`.send_and_read_finish] to get a
+     * [struct`GLib`.Bytes] with the response body.
+     * 
+     * See [method`Session`.send] for more details on the general semantics.
+     * @param msg a #SoupMessage
+     * @param io_priority the I/O priority of the request
+     * @param cancellable a #GCancellable
+     * @returns A Promise of: a #GBytes, or %NULL on error.
+     */
+    send_and_read_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<GLib.Bytes>
     /**
      * Gets the response to a [method`Session`.send_and_read_async].
      * 
      * If successful, returns a [struct`GLib`.Bytes] with the response body.
      * @param result the #GAsyncResult passed to your callback
+     * @returns a #GBytes, or %NULL on error.
      */
     send_and_read_finish(result: Gio.AsyncResult): GLib.Bytes
     /**
@@ -6172,12 +6412,33 @@ interface Session {
      * @param callback the callback to invoke
      */
     send_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of send_async
+
+    /**
+     * Promisified version of {@link send_async}
+     * 
+     * Asynchronously sends `msg` and waits for the beginning of a response.
+     * 
+     * When `callback` is called, then either `msg` has been sent, and its response
+     * headers received, or else an error has occurred. Call
+     * [method`Session`.send_finish] to get a [class`Gio`.InputStream] for reading the
+     * response body.
+     * 
+     * See [method`Session`.send] for more details on the general semantics.
+     * @param msg a #SoupMessage
+     * @param io_priority the I/O priority of the request
+     * @param cancellable a #GCancellable
+     * @returns A Promise of: a #GInputStream for reading the   response body, or %NULL on error.
+     */
+    send_async(msg: Message, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<Gio.InputStream>
     /**
      * Gets the response to a [method`Session`.send_async] call.
      * 
      * If successful returns a [class`Gio`.InputStream] that can be used to read the
      * response body.
      * @param result the #GAsyncResult passed to your callback
+     * @returns a #GInputStream for reading the   response body, or %NULL on error.
      */
     send_finish(result: Gio.AsyncResult): Gio.InputStream
     /**
@@ -6277,6 +6538,37 @@ interface Session {
      * @param callback the callback to invoke
      */
     websocket_connect_async(msg: Message, origin: string | null, protocols: string[] | null, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of websocket_connect_async
+
+    /**
+     * Promisified version of {@link websocket_connect_async}
+     * 
+     * Asynchronously creates a [class`WebsocketConnection]` to communicate with a
+     * remote server.
+     * 
+     * All necessary WebSocket-related headers will be added to `msg,` and
+     * it will then be sent and asynchronously processed normally
+     * (including handling of redirection and HTTP authentication).
+     * 
+     * If the server returns "101 Switching Protocols", then `msg'`s status
+     * code and response headers will be updated, and then the WebSocket
+     * handshake will be completed. On success,
+     * [method`Session`.websocket_connect_finish] will return a new
+     * [class`WebsocketConnection]`. On failure it will return a #GError.
+     * 
+     * If the server returns a status other than "101 Switching Protocols", then
+     * `msg` will contain the complete response headers and body from the server's
+     * response, and [method`Session`.websocket_connect_finish] will return
+     * %SOUP_WEBSOCKET_ERROR_NOT_WEBSOCKET.
+     * @param msg #SoupMessage indicating the WebSocket server to connect to
+     * @param origin origin of the connection
+     * @param protocols a   %NULL-terminated array of protocols supported
+     * @param io_priority the I/O priority of the request
+     * @param cancellable a #GCancellable
+     * @returns A Promise of: a new #SoupWebsocketConnection, or   %NULL on error.
+     */
+    websocket_connect_async(msg: Message, origin: string | null, protocols: string[] | null, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<WebsocketConnection>
     /**
      * Gets the [class`WebsocketConnection]` response to a
      * [method`Session`.websocket_connect_async] call.
@@ -6284,6 +6576,7 @@ interface Session {
      * If successful, returns a [class`WebsocketConnection]` that can be used to
      * communicate with the server.
      * @param result the #GAsyncResult passed to your callback
+     * @returns a new #SoupWebsocketConnection, or   %NULL on error.
      */
     websocket_connect_finish(result: Gio.AsyncResult): WebsocketConnection
 
@@ -6395,11 +6688,13 @@ class Session extends GObject.Object {
     /**
      * Creates a #SoupSession with the default options.
      * @constructor 
+     * @returns the new session.
      */
     constructor() 
     /**
      * Creates a #SoupSession with the default options.
      * @constructor 
+     * @returns the new session.
      */
     static new(): Session
     _init(config?: Session.ConstructorProperties): void
@@ -6576,6 +6871,7 @@ interface WebsocketConnection {
      * %SOUP_WEBSOCKET_STATE_CLOSED state. The value will often be in the
      * [enum`WebsocketCloseCode]` enumeration, but may also be an application
      * defined close code.
+     * @returns the close code or zero.
      */
     get_close_code(): number
     /**
@@ -6584,38 +6880,47 @@ interface WebsocketConnection {
      * This only becomes valid once the WebSocket is in the
      * %SOUP_WEBSOCKET_STATE_CLOSED state. The data may be freed once
      * the main loop is run, so copy it if you need to keep it around.
+     * @returns the close data or %NULL
      */
     get_close_data(): string
     /**
      * Get the connection type (client/server) of the connection.
+     * @returns the connection type
      */
     get_connection_type(): WebsocketConnectionType
     /**
      * Get the extensions chosen via negotiation with the peer.
+     * @returns a #GList of #SoupWebsocketExtension objects
      */
     get_extensions(): WebsocketExtension[]
     /**
      * Get the I/O stream the WebSocket is communicating over.
+     * @returns the WebSocket's I/O stream.
      */
     get_io_stream(): Gio.IOStream
     /**
      * Gets the keepalive interval in seconds or 0 if disabled.
+     * @returns the keepalive interval.
      */
     get_keepalive_interval(): number
     /**
      * Gets the maximum payload size allowed for incoming packets.
+     * @returns the maximum payload size.
      */
     get_max_incoming_payload_size(): number
     /**
      * Get the origin of the WebSocket.
+     * @returns the origin
      */
     get_origin(): string | null
     /**
      * Get the protocol chosen via negotiation with the peer.
+     * @returns the chosen protocol
      */
     get_protocol(): string | null
     /**
      * Get the current state of the WebSocket.
+     * @returns the state
      */
     get_state(): WebsocketState
     /**
@@ -6623,6 +6928,7 @@ interface WebsocketConnection {
      * 
      * For servers this represents the address of the WebSocket, and
      * for clients it is the address connected to.
+     * @returns the URI
      */
     get_uri(): GLib.Uri
     /**
@@ -6771,6 +7077,7 @@ class WebsocketConnection extends GObject.Object {
      * @param origin the Origin of the client
      * @param protocol the subprotocol in use
      * @param extensions a #GList of #SoupWebsocketExtension objects
+     * @returns a new #SoupWebsocketConnection
      */
     constructor(stream: Gio.IOStream, uri: GLib.Uri, type: WebsocketConnectionType, origin: string | null, protocol: string | null, extensions: WebsocketExtension[]) 
     /**
@@ -6785,6 +7092,7 @@ class WebsocketConnection extends GObject.Object {
      * @param origin the Origin of the client
      * @param protocol the subprotocol in use
      * @param extensions a #GList of #SoupWebsocketExtension objects
+     * @returns a new #SoupWebsocketConnection
      */
     static new(stream: Gio.IOStream, uri: GLib.Uri, type: WebsocketConnectionType, origin: string | null, protocol: string | null, extensions: WebsocketExtension[]): WebsocketConnection
     _init(config?: WebsocketConnection.ConstructorProperties): void
@@ -6811,6 +7119,7 @@ interface WebsocketExtension {
      * Configures `extension` with the given `params`.
      * @param connection_type either %SOUP_WEBSOCKET_CONNECTION_CLIENT or %SOUP_WEBSOCKET_CONNECTION_SERVER
      * @param params the parameters
+     * @returns %TRUE if extension could be configured with the given parameters, or %FALSE otherwise
      */
     configure(connection_type: WebsocketConnectionType, params: GLib.HashTable | null): boolean
     /**
@@ -6818,6 +7127,7 @@ interface WebsocketExtension {
      * 
      * If the extension doesn't include any parameter in the request, this function
      * returns %NULL.
+     * @returns a new allocated string with the parameters
      */
     get_request_params(): string | null
     /**
@@ -6825,6 +7135,7 @@ interface WebsocketExtension {
      * 
      * If the extension doesn't include any parameter in the response, this function
      * returns %NULL.
+     * @returns a new allocated string with the parameters
      */
     get_response_params(): string | null
     /**
@@ -6837,6 +7148,7 @@ interface WebsocketExtension {
      * Extensions using reserved bits of the header will reset them in `header`.
      * @param header the message header
      * @param payload the payload data
+     * @returns the message payload data, or %NULL in case of error
      */
     process_incoming_message(header: number, payload: GLib.Bytes): [ /* returnType */ GLib.Bytes, /* header */ number ]
     /**
@@ -6849,6 +7161,7 @@ interface WebsocketExtension {
      * Extensions using reserved bits of the header will change them in `header`.
      * @param header the message header
      * @param payload the payload data
+     * @returns the message payload data, or %NULL in case of error
      */
     process_outgoing_message(header: number, payload: GLib.Bytes): [ /* returnType */ GLib.Bytes, /* header */ number ]
 
@@ -6859,6 +7172,7 @@ interface WebsocketExtension {
      * @virtual 
      * @param connection_type either %SOUP_WEBSOCKET_CONNECTION_CLIENT or %SOUP_WEBSOCKET_CONNECTION_SERVER
      * @param params the parameters
+     * @returns %TRUE if extension could be configured with the given parameters, or %FALSE otherwise
      */
     vfunc_configure(connection_type: WebsocketConnectionType, params: GLib.HashTable | null): boolean
     /**
@@ -6867,6 +7181,7 @@ interface WebsocketExtension {
      * If the extension doesn't include any parameter in the request, this function
      * returns %NULL.
      * @virtual 
+     * @returns a new allocated string with the parameters
      */
     vfunc_get_request_params(): string | null
     /**
@@ -6875,6 +7190,7 @@ interface WebsocketExtension {
      * If the extension doesn't include any parameter in the response, this function
      * returns %NULL.
      * @virtual 
+     * @returns a new allocated string with the parameters
      */
     vfunc_get_response_params(): string | null
     /**
@@ -6888,6 +7204,7 @@ interface WebsocketExtension {
      * @virtual 
      * @param header the message header
      * @param payload the payload data
+     * @returns the message payload data, or %NULL in case of error
      */
     vfunc_process_incoming_message(header: number, payload: GLib.Bytes): [ /* returnType */ GLib.Bytes, /* header */ number ]
     /**
@@ -6901,6 +7218,7 @@ interface WebsocketExtension {
      * @virtual 
      * @param header the message header
      * @param payload the payload data
+     * @returns the message payload data, or %NULL in case of error
      */
     vfunc_process_outgoing_message(header: number, payload: GLib.Bytes): [ /* returnType */ GLib.Bytes, /* header */ number ]
 
@@ -7153,10 +7471,12 @@ interface Cookie {
      * `uri,` because it assumes that the caller has already done that.
      * But don't rely on that; it may change in the future.)
      * @param uri a #GUri
+     * @returns %TRUE if @cookie should be sent to @uri, %FALSE if not
      */
     applies_to_uri(uri: GLib.Uri): boolean
     /**
      * Copies `cookie`.
+     * @returns a copy of @cookie
      */
     copy(): Cookie
     /**
@@ -7165,6 +7485,7 @@ interface Cookie {
      * The domains match if `cookie` should be sent when making a request to `host,`
      * or that `cookie` should be accepted when receiving a response from `host`.
      * @param host a URI
+     * @returns %TRUE if the domains match, %FALSE otherwise
      */
     domain_matches(host: string): boolean
     /**
@@ -7173,6 +7494,7 @@ interface Cookie {
      * Note that currently, this does not check that the cookie domains
      * match. This may change in the future.
      * @param cookie2 a #SoupCookie
+     * @returns whether the cookies are equal.
      */
     equal(cookie2: Cookie): boolean
     /**
@@ -7181,34 +7503,42 @@ interface Cookie {
     free(): void
     /**
      * Gets `cookie'`s domain.
+     * @returns @cookie's domain
      */
     get_domain(): string
     /**
      * Gets `cookie'`s expiration time.
+     * @returns @cookie's expiration time, which is   owned by @cookie and should not be modified or freed.
      */
     get_expires(): GLib.DateTime | null
     /**
      * Gets `cookie'`s HttpOnly attribute.
+     * @returns @cookie's HttpOnly attribute
      */
     get_http_only(): boolean
     /**
      * Gets `cookie'`s name.
+     * @returns @cookie's name
      */
     get_name(): string
     /**
      * Gets `cookie'`s path.
+     * @returns @cookie's path
      */
     get_path(): string
     /**
      * Returns the same-site policy for this cookie.
+     * @returns a #SoupSameSitePolicy
      */
     get_same_site_policy(): SameSitePolicy
     /**
      * Gets `cookie'`s secure attribute.
+     * @returns @cookie's secure attribute
      */
     get_secure(): boolean
     /**
      * Gets `cookie'`s value.
+     * @returns @cookie's value
      */
     get_value(): string
     /**
@@ -7282,12 +7612,14 @@ interface Cookie {
     /**
      * Serializes `cookie` in the format used by the Cookie header (ie, for
      * returning a cookie from a [class`Session]` to a server).
+     * @returns the header
      */
     to_cookie_header(): string
     /**
      * Serializes `cookie` in the format used by the Set-Cookie header.
      * 
      * i.e. for sending a cookie from a [class`Server]` to a client.
+     * @returns the header
      */
     to_set_cookie_header(): string
 }
@@ -7352,6 +7684,7 @@ class Cookie {
      * @param domain cookie domain or hostname
      * @param path cookie path, or %NULL
      * @param max_age max age of the cookie, or -1 for a session cookie
+     * @returns a new #SoupCookie.
      */
     constructor(name: string, value: string, domain: string, path: string, max_age: number) 
     /**
@@ -7379,6 +7712,7 @@ class Cookie {
      * @param domain cookie domain or hostname
      * @param path cookie path, or %NULL
      * @param max_age max age of the cookie, or -1 for a session cookie
+     * @returns a new #SoupCookie.
      */
     static new(name: string, value: string, domain: string, path: string, max_age: number): Cookie
     /**
@@ -7394,6 +7728,7 @@ class Cookie {
      * of the cookie.
      * @param header a cookie string (eg, the value of a Set-Cookie header)
      * @param origin origin of the cookie
+     * @returns a new #SoupCookie, or %NULL if it could   not be parsed, or contained an illegal "domain" attribute for a   cookie originating from @origin.
      */
     static parse(header: string, origin: GLib.Uri | null): Cookie | null
 }
@@ -7489,11 +7824,13 @@ interface HSTSPolicy {
 
     /**
      * Copies `policy`.
+     * @returns a copy of @policy
      */
     copy(): HSTSPolicy
     /**
      * Tests if `policy1` and `policy2` are equal.
      * @param policy2 a #SoupHSTSPolicy
+     * @returns whether the policies are equal.
      */
     equal(policy2: HSTSPolicy): boolean
     /**
@@ -7502,30 +7839,36 @@ interface HSTSPolicy {
     free(): void
     /**
      * Gets `policy'`s domain.
+     * @returns @policy's domain.
      */
     get_domain(): string
     /**
      * Returns the expiration date for `policy`.
+     * @returns A #GDateTime or %NULL if unset
      */
     get_expires(): GLib.DateTime
     /**
      * Returns the max age for `policy`.
+     * @returns Max age in seconds
      */
     get_max_age(): number
     /**
      * Gets whether `policy` include its subdomains.
+     * @returns %TRUE if @policy includes subdomains, %FALSE otherwise.
      */
     includes_subdomains(): boolean
     /**
      * Gets whether `policy` is expired.
      * 
      * Permanent policies never expire.
+     * @returns %TRUE if @policy is expired, %FALSE otherwise.
      */
     is_expired(): boolean
     /**
      * Gets whether `policy` is a non-permanent, non-expirable session policy.
      * 
      * See [ctor`HSTSPolicy`.new_session_policy] for details.
+     * @returns %TRUE if @policy is permanent, %FALSE otherwise
      */
     is_session_policy(): boolean
 }
@@ -7574,6 +7917,7 @@ class HSTSPolicy {
      * @param domain policy domain or hostname
      * @param max_age max age of the policy
      * @param include_subdomains %TRUE if the policy applies on subdomains
+     * @returns a new #SoupHSTSPolicy.
      */
     constructor(domain: string, max_age: number, include_subdomains: boolean) 
     /**
@@ -7592,6 +7936,7 @@ class HSTSPolicy {
      * @param domain policy domain or hostname
      * @param max_age max age of the policy
      * @param include_subdomains %TRUE if the policy applies on subdomains
+     * @returns a new #SoupHSTSPolicy.
      */
     static new(domain: string, max_age: number, include_subdomains: boolean): HSTSPolicy
     /**
@@ -7599,6 +7944,7 @@ class HSTSPolicy {
      * returns a #SoupHSTSPolicy.
      * @constructor 
      * @param msg a #SoupMessage
+     * @returns a new #SoupHSTSPolicy, or %NULL if no valid   "Strict-Transport-Security" response header was found.
      */
     static new_from_response(msg: Message): HSTSPolicy
     /**
@@ -7611,6 +7957,7 @@ class HSTSPolicy {
      * @param max_age max age of the policy
      * @param expires the date of expiration of the policy or %NULL for a permanent policy
      * @param include_subdomains %TRUE if the policy applies on subdomains
+     * @returns a new #SoupHSTSPolicy.
      */
     static new_full(domain: string, max_age: number, expires: GLib.DateTime, include_subdomains: boolean): HSTSPolicy
     /**
@@ -7630,6 +7977,7 @@ class HSTSPolicy {
      * @constructor 
      * @param domain policy domain or hostname
      * @param include_subdomains %TRUE if the policy applies on sub domains
+     * @returns a new #SoupHSTSPolicy.
      */
     static new_session_policy(domain: string, include_subdomains: boolean): HSTSPolicy
 }
@@ -7691,12 +8039,14 @@ interface MessageBody {
      * 
      * Adds an additional `\0` byte not counted by `body'`s
      * length field.
+     * @returns a #GBytes containing the same data as @body.   (You must [method@GLib.Bytes.unref] this if you do not want it.)
      */
     flatten(): GLib.Bytes
     /**
      * Gets the accumulate flag on `body`.
      * 
      * See [method`MessageBody`.set_accumulate. for details.
+     * @returns the accumulate flag for @body.
      */
     get_accumulate(): boolean
     /**
@@ -7717,6 +8067,7 @@ interface MessageBody {
      * `body` may still potentially have more data, but that data is not
      * currently available).
      * @param offset an offset
+     * @returns a #GBytes
      */
     get_chunk(offset: number): GLib.Bytes | null
     /**
@@ -7734,6 +8085,7 @@ interface MessageBody {
     got_chunk(chunk: GLib.Bytes): void
     /**
      * Atomically increments the reference count of `body` by one.
+     * @returns the passed in #SoupMessageBody
      */
     ref(): MessageBody
     /**
@@ -7809,6 +8161,7 @@ class MessageBody {
      * [class`Message]` uses this internally; you
      * will not normally need to call it yourself.
      * @constructor 
+     * @returns a new #SoupMessageBody.
      */
     constructor() 
     /**
@@ -7817,6 +8170,7 @@ class MessageBody {
      * [class`Message]` uses this internally; you
      * will not normally need to call it yourself.
      * @constructor 
+     * @returns a new #SoupMessageBody.
      */
     static new(): MessageBody
 }
@@ -7899,6 +8253,7 @@ interface MessageHeaders {
      * Content-Disposition is also used in "multipart/form-data", however
      * this is handled automatically by [struct`Multipart]` and the associated
      * form methods.
+     * @returns %TRUE if @hdrs contains a "Content-Disposition"   header, %FALSE if not (in which case *@disposition and *@params   will be unchanged).
      */
     get_content_disposition(): [ /* returnType */ boolean, /* disposition */ string, /* params */ GLib.HashTable ]
     /**
@@ -7906,12 +8261,14 @@ interface MessageHeaders {
      * 
      * This will only be non-0 if [method`MessageHeaders`.get_encoding] returns
      * %SOUP_ENCODING_CONTENT_LENGTH.
+     * @returns the message body length declared by @hdrs.
      */
     get_content_length(): number
     /**
      * Parses `hdrs'`s Content-Range header and returns it in `start,`
      * `end,` and `total_length`. If the total length field in the header
      * was specified as "*", then `total_length` will be set to -1.
+     * @returns %TRUE if @hdrs contained a "Content-Range" header   containing a byte range which could be parsed, %FALSE otherwise.
      */
     get_content_range(): [ /* returnType */ boolean, /* start */ number, /* end */ number, /* total_length */ number ]
     /**
@@ -7919,6 +8276,7 @@ interface MessageHeaders {
      * its value in *`content_type` and *`params`.
      * 
      * `params` can be %NULL if you are only interested in the content type itself.
+     * @returns a string with the value of the   "Content-Type" header or %NULL if @hdrs does not contain that   header or it cannot be parsed (in which case *@params will be   unchanged).
      */
     get_content_type(): [ /* returnType */ string | null, /* params */ GLib.HashTable ]
     /**
@@ -7927,6 +8285,7 @@ interface MessageHeaders {
      * This may not always correspond to the encoding used on the wire; eg, a HEAD
      * response may declare a Content-Length or Transfer-Encoding, but it will never
      * actually include a body.
+     * @returns the encoding declared by @hdrs.
      */
     get_encoding(): Encoding
     /**
@@ -7934,10 +8293,12 @@ interface MessageHeaders {
      * 
      * Currently this will either be %SOUP_EXPECTATION_CONTINUE or
      * %SOUP_EXPECTATION_UNRECOGNIZED.
+     * @returns the contents of @hdrs's "Expect" header
      */
     get_expectations(): Expectation
     /**
      * Gets the type of headers.
+     * @returns the header's type.
      */
     get_headers_type(): MessageHeadersType
     /**
@@ -7955,6 +8316,7 @@ interface MessageHeaders {
      * transformation is allowed, and so an upstream proxy could do the
      * same thing.
      * @param name header name
+     * @returns the header's value or %NULL if not found.
      */
     get_list(name: string): string | null
     /**
@@ -7969,6 +8331,7 @@ interface MessageHeaders {
      * whichever one makes libsoup most compatible with other HTTP
      * implementations.)
      * @param name header name
+     * @returns the header's value or %NULL if not found.
      */
     get_one(name: string): string | null
     /**
@@ -8001,6 +8364,7 @@ interface MessageHeaders {
      * body available, and only want to generate the parts that were
      * actually requested by the client.
      * @param total_length the total_length of the response body
+     * @returns %TRUE if @hdrs contained a syntactically-valid   "Range" header, %FALSE otherwise (in which case @range and @length   will not be set).
      */
     get_ranges(total_length: number): [ /* returnType */ boolean, /* ranges */ Range[] ]
     /**
@@ -8011,6 +8375,7 @@ interface MessageHeaders {
      * [func`header_contains]` on its value.)
      * @param name header name
      * @param token token to look for
+     * @returns %TRUE if the header is present and contains @token,   %FALSE otherwise.
      */
     header_contains(name: string, token: string): boolean
     /**
@@ -8018,10 +8383,12 @@ interface MessageHeaders {
      * (case-insensitively) equal to `value`.
      * @param name header name
      * @param value expected value
+     * @returns %TRUE if the header is present and its value is   @value, %FALSE otherwise.
      */
     header_equals(name: string, value: string): boolean
     /**
      * Atomically increments the reference count of `hdrs` by one.
+     * @returns the passed in #SoupMessageHeaders
      */
     ref(): MessageHeaders
     /**
@@ -8160,6 +8527,7 @@ class MessageHeaders {
      * headers.)
      * @constructor 
      * @param type the type of headers
+     * @returns a new #SoupMessageHeaders
      */
     constructor(type: MessageHeadersType) 
     /**
@@ -8170,6 +8538,7 @@ class MessageHeaders {
      * headers.)
      * @constructor 
      * @param type the type of headers
+     * @returns a new #SoupMessageHeaders
      */
     static new(type: MessageHeadersType): MessageHeaders
 }
@@ -8185,6 +8554,7 @@ interface MessageHeadersIter {
      * If `iter` has already yielded the last header, then
      * [method`MessageHeadersIter`.next] will return %FALSE and `name` and `value`
      * will be unchanged.
+     * @returns %TRUE if another name and value were returned, %FALSE   if the end of the headers has been reached.
      */
     next(): [ /* returnType */ boolean, /* name */ string, /* value */ string ]
 }
@@ -8220,6 +8590,7 @@ interface MessageMetrics {
 
     /**
      * Copies `metrics`.
+     * @returns a copy of @metrics
      */
     copy(): MessageMetrics
     /**
@@ -8234,6 +8605,7 @@ interface MessageMetrics {
      * It will be 0 if no network connection was required to fetch the resource (a
      * persistent connection was used or resource was loaded from the local disk
      * cache).
+     * @returns the connection end time
      */
     get_connect_end(): number
     /**
@@ -8243,6 +8615,7 @@ interface MessageMetrics {
      * It will be 0 if no network connection was required to fetch the resource (a
      * persistent connection was used or resource was loaded from the local disk
      * cache).
+     * @returns the connection start time
      */
     get_connect_start(): number
     /**
@@ -8252,6 +8625,7 @@ interface MessageMetrics {
      * It will be 0 if no domain lookup was required to fetch the resource (a
      * persistent connection was used or resource was loaded from the local disk
      * cache).
+     * @returns the domain lookup end time
      */
     get_dns_end(): number
     /**
@@ -8261,11 +8635,13 @@ interface MessageMetrics {
      * It will be 0 if no domain lookup was required to fetch the resource (a
      * persistent connection was used or resource was loaded from the local disk
      * cache).
+     * @returns the domain lookup start time
      */
     get_dns_start(): number
     /**
      * Get the time immediately before the [class`Message]` started to
      * fetch a resource either from a remote server or local disk cache.
+     * @returns the fetch start time
      */
     get_fetch_start(): number
     /**
@@ -8276,6 +8652,7 @@ interface MessageMetrics {
      * [method`MessageMetrics`.get_request_body_size]. This value is available right
      * before [signal`Message:`:wrote-body] signal is emitted, but you might get an
      * intermediate value if called before.
+     * @returns the request body bytes sent
      */
     get_request_body_bytes_sent(): number
     /**
@@ -8284,6 +8661,7 @@ interface MessageMetrics {
      * 
      * This value is available right before [signal`Message:`:wrote-body] signal is
      * emitted, but you might get an intermediate value if called before.
+     * @returns the request body size
      */
     get_request_body_size(): number
     /**
@@ -8291,11 +8669,13 @@ interface MessageMetrics {
      * 
      * This value is available right before [signal`Message:`:wrote-headers] signal
      * is emitted, but you might get an intermediate value if called before.
+     * @returns the request headers bytes sent
      */
     get_request_header_bytes_sent(): number
     /**
      * Get the time immediately before the [class`Message]` started the
      * request of the resource from the server or the local disk cache.
+     * @returns the request start time
      */
     get_request_start(): number
     /**
@@ -8304,6 +8684,7 @@ interface MessageMetrics {
      * This value is available right before [signal`Message:`:got-body] signal is
      * emitted, but you might get an intermediate value if called before. For
      * resources loaded from the disk cache this value is always 0.
+     * @returns the response body bytes received
      */
     get_response_body_bytes_received(): number
     /**
@@ -8314,6 +8695,7 @@ interface MessageMetrics {
      * [method`MessageMetrics`.get_response_body_bytes_received]. This value is
      * available right before [signal`Message:`:got-body] signal is emitted, but you
      * might get an intermediate value if called before.
+     * @returns the response body size
      */
     get_response_body_size(): number
     /**
@@ -8322,6 +8704,7 @@ interface MessageMetrics {
      * 
      * In case of load failure, this returns the time immediately before the
      * fetch is aborted.
+     * @returns the response end time
      */
     get_response_end(): number
     /**
@@ -8330,11 +8713,13 @@ interface MessageMetrics {
      * This value is available right before [signal`Message:`:got-headers] signal
      * is emitted, but you might get an intermediate value if called before.
      * For resources loaded from the disk cache this value is always 0.
+     * @returns the response headers bytes received
      */
     get_response_header_bytes_received(): number
     /**
      * Get the time immediately after the [class`Message]` received the first
      * bytes of the response from the server or the local disk cache.
+     * @returns the response start time
      */
     get_response_start(): number
     /**
@@ -8344,6 +8729,7 @@ interface MessageMetrics {
      * It will be 0 if no TLS handshake was required to fetch the resource
      * (connection was not secure, a persistent connection was used or resource was
      * loaded from the local disk cache).
+     * @returns the tls start time
      */
     get_tls_start(): number
 }
@@ -8410,11 +8796,13 @@ interface Multipart {
     free(): void
     /**
      * Gets the number of body parts in `multipart`.
+     * @returns the number of body parts in @multipart
      */
     get_length(): number
     /**
      * Gets the indicated body part from `multipart`.
      * @param part the part number to get (counting from 0)
+     * @returns %TRUE on success, %FALSE if @part is out of range (in   which case @headers and @body won't be set)
      */
     get_part(part: number): [ /* returnType */ boolean, /* headers */ MessageHeaders, /* body */ GLib.Bytes ]
     /**
@@ -8456,6 +8844,7 @@ class Multipart {
      * See also: [ctor`Message`.new_from_multipart].
      * @constructor 
      * @param mime_type the MIME type of the multipart to create.
+     * @returns a new empty #SoupMultipart of the given @mime_type
      */
     constructor(mime_type: string) 
     /**
@@ -8467,6 +8856,7 @@ class Multipart {
      * See also: [ctor`Message`.new_from_multipart].
      * @constructor 
      * @param mime_type the MIME type of the multipart to create.
+     * @returns a new empty #SoupMultipart of the given @mime_type
      */
     static new(mime_type: string): Multipart
     /**
@@ -8474,6 +8864,7 @@ class Multipart {
      * @constructor 
      * @param headers the headers of the HTTP message to parse
      * @param body the body of the HTTP message to parse
+     * @returns a new #SoupMultipart (or %NULL if the   message couldn't be parsed or wasn't multipart).
      */
     static new_from_message(headers: MessageHeaders, body: GLib.Bytes): Multipart
 }

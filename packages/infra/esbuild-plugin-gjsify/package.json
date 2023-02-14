@@ -58,6 +58,6 @@
         "@types/micromatch": "^4.0.2",
         "esbuild": "^0.17.8",
         "lodash": "^4.17.21",
-        "typescript": "^5.0.0-dev.20230214"
+        "typescript": "^5.0.0-beta"
     }
 }

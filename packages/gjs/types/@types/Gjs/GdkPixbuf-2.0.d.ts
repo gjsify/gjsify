@@ -242,6 +242,7 @@ interface PixbufModuleFillVtableFunc {
  * @callback 
  * @param context the state object created by [callback`GdkPixbuf`.PixbufModuleBeginLoadFunc]
  * @param buf the data to load
+ * @returns `TRUE` if the incremental load was successful
  */
 interface PixbufModuleIncrementLoadFunc {
     (context: object | null, buf: Uint8Array): boolean
@@ -252,6 +253,7 @@ interface PixbufModuleIncrementLoadFunc {
  * In case of error, this function should return `NULL` and set the `error` argument.
  * @callback 
  * @param f the file stream from which the image should be loaded
+ * @returns a newly created `GdkPixbufAnimation` for the contents of the file
  */
 interface PixbufModuleLoadAnimationFunc {
     (f: object | null): PixbufAnimation
@@ -262,6 +264,7 @@ interface PixbufModuleLoadAnimationFunc {
  * In case of error, this function should return `NULL` and set the `error` argument.
  * @callback 
  * @param f the file stream from which the image should be loaded
+ * @returns a newly created `GdkPixbuf` for the contents of the file
  */
 interface PixbufModuleLoadFunc {
     (f: object | null): Pixbuf
@@ -270,6 +273,7 @@ interface PixbufModuleLoadFunc {
  * Loads XPM data into a new `GdkPixbuf`.
  * @callback 
  * @param data the XPM data
+ * @returns a newly created `GdkPixbuf` for the XPM data
  */
 interface PixbufModuleLoadXpmDataFunc {
     (data: string[]): Pixbuf
@@ -299,6 +303,7 @@ interface PixbufModulePreparedFunc {
  * @param pixbuf the image to save
  * @param param_keys parameter keys to save
  * @param param_values parameter values to save
+ * @returns `TRUE` on success; in case of failure, `FALSE` is returned and   the `error` is set
  */
 interface PixbufModuleSaveFunc {
     (f: object | null, pixbuf: Pixbuf, param_keys: string[] | null, param_values: string[] | null): boolean
@@ -307,6 +312,7 @@ interface PixbufModuleSaveFunc {
  * Checks whether the given `option_key` is supported when saving.
  * @callback 
  * @param option_key the option key to check
+ * @returns `TRUE` if the option is supported
  */
 interface PixbufModuleSaveOptionSupportedFunc {
     (option_key: string): boolean
@@ -338,6 +344,7 @@ interface PixbufModuleSizeFunc {
  * This function is called on success and error states.
  * @callback 
  * @param context the state object created by [callback`GdkPixbuf`.PixbufModuleBeginLoadFunc]
+ * @returns `TRUE` if the loading operation was successful
  */
 interface PixbufModuleStopLoadFunc {
     (context: object | null): boolean
@@ -370,6 +377,7 @@ interface PixbufModuleUpdatedFunc {
  * will fail with the same error.
  * @callback 
  * @param buf bytes to be written.
+ * @returns `TRUE` if successful, `FALSE` otherwise
  */
 interface PixbufSaveFunc {
     (buf: Uint8Array): boolean
@@ -497,6 +505,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * @param r Red value to substitute.
      * @param g Green value to substitute.
      * @param b Blue value to substitute.
+     * @returns A newly-created pixbuf
      */
     add_alpha(substitute_color: boolean, r: number, g: number, b: number): Pixbuf
     /**
@@ -510,6 +519,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * 
      * If an orientation option/tag is present, the appropriate transform
      * will be performed so that the pixbuf is oriented correctly.
+     * @returns A newly-created pixbuf
      */
     apply_embedded_orientation(): Pixbuf | null
     /**
@@ -581,6 +591,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * @param check_size the size of checks in the checkboard (must be a power of two)
      * @param color1 the color of check at upper left
      * @param color2 the color of the other check
+     * @returns the new pixbuf
      */
     composite_color_simple(dest_width: number, dest_height: number, interp_type: InterpType, overall_alpha: number, check_size: number, color1: number, color2: number): Pixbuf | null
     /**
@@ -589,6 +600,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * 
      * Note that this does not copy the options set on the original `GdkPixbuf`,
      * use gdk_pixbuf_copy_options() for this.
+     * @returns A newly-created pixbuf
      */
     copy(): Pixbuf | null
     /**
@@ -616,6 +628,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * a file. However be careful to remove metadata which you've already
      * applied, such as the "orientation" option after rotating the image.
      * @param dest_pixbuf the destination pixbuf
+     * @returns `TRUE` on success.
      */
     copy_options(dest_pixbuf: Pixbuf): boolean
     /**
@@ -631,30 +644,37 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * Flips a pixbuf horizontally or vertically and returns the
      * result in a new pixbuf.
      * @param horizontal `TRUE` to flip horizontally, `FALSE` to flip vertically
+     * @returns the new pixbuf
      */
     flip(horizontal: boolean): Pixbuf | null
     /**
      * Queries the number of bits per color sample in a pixbuf.
+     * @returns Number of bits per color sample.
      */
     get_bits_per_sample(): number
     /**
      * Returns the length of the pixel data, in bytes.
+     * @returns The length of the pixel data.
      */
     get_byte_length(): number
     /**
      * Queries the color space of a pixbuf.
+     * @returns Color space.
      */
     get_colorspace(): Colorspace
     /**
      * Queries whether a pixbuf has an alpha channel (opacity information).
+     * @returns `TRUE` if it has an alpha channel, `FALSE` otherwise.
      */
     get_has_alpha(): boolean
     /**
      * Queries the height of a pixbuf.
+     * @returns Height in pixels.
      */
     get_height(): number
     /**
      * Queries the number of channels of a pixbuf.
+     * @returns Number of channels.
      */
     get_n_channels(): number
     /**
@@ -674,12 +694,14 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * Since 2.36.6, the JPEG loader sets the "comment" option with the comment
      * EXIF tag.
      * @param key a nul-terminated string.
+     * @returns the value associated with `key`
      */
     get_option(key: string): string | null
     /**
      * Returns a `GHashTable` with a list of all the options that may have been
      * attached to the `pixbuf` when it was loaded, or that may have been
      * attached by another function using [method`GdkPixbuf`.Pixbuf.set_option].
+     * @returns a #GHashTable   of key/values pairs
      */
     get_options(): GLib.HashTable
     /**
@@ -690,15 +712,18 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * 
      * Please see the section on [image data](class.Pixbuf.html#image-data) for information
      * about how the pixel data is stored in memory.
+     * @returns A pointer to the pixbuf's pixel data.
      */
     get_pixels(): Uint8Array
     /**
      * Queries the rowstride of a pixbuf, which is the number of bytes between
      * the start of a row and the start of the next row.
+     * @returns Distance between row starts.
      */
     get_rowstride(): number
     /**
      * Queries the width of a pixbuf.
+     * @returns Width in pixels.
      */
     get_width(): number
     /**
@@ -715,6 +740,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * @param src_y Y coord in `src_pixbuf`
      * @param width width of region in `src_pixbuf`
      * @param height height of region in `src_pixbuf`
+     * @returns a new pixbuf
      */
     new_subpixbuf(src_x: number, src_y: number, width: number, height: number): Pixbuf
     /**
@@ -723,6 +749,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * 
      * This function allows skipping the implicit copy that must be made
      * if gdk_pixbuf_get_pixels() is called on a read-only pixbuf.
+     * @returns A new reference to a read-only copy of   the pixel data.  Note that for mutable pixbufs, this function will   incur a one-time copy of the pixel data for conversion into the   returned #GBytes.
      */
     read_pixel_bytes(): GLib.Bytes
     /**
@@ -730,11 +757,13 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * 
      * This function allows skipping the implicit copy that must be made
      * if gdk_pixbuf_get_pixels() is called on a read-only pixbuf.
+     * @returns a read-only pointer to the raw pixel data
      */
     read_pixels(): number
     /**
      * Removes the key/value pair option attached to a `GdkPixbuf`.
      * @param key a nul-terminated string representing the key to remove.
+     * @returns `TRUE` if an option was removed, `FALSE` if not.
      */
     remove_option(key: string): boolean
     /**
@@ -743,6 +772,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * 
      * If `angle` is 0, this function will return a copy of `src`.
      * @param angle the angle to rotate by
+     * @returns the new pixbuf
      */
     rotate_simple(angle: PixbufRotation): Pixbuf | null
     /**
@@ -775,6 +805,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * @param type name of file format.
      * @param option_keys name of options to set
      * @param option_values values for named options
+     * @returns whether an error was set
      */
     save_to_bufferv(type: string, option_keys: string[] | null, option_values: string[] | null): [ /* returnType */ boolean, /* buffer */ Uint8Array ]
     /**
@@ -790,6 +821,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * @param type name of file format.
      * @param option_keys name of options to set
      * @param option_values values for named options
+     * @returns whether an error was set
      */
     save_to_callbackv(save_func: PixbufSaveFunc, type: string, option_keys: string[] | null, option_values: string[] | null): boolean
     /**
@@ -804,6 +836,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * @param option_keys name of options to set
      * @param option_values values for named options
      * @param cancellable optional `GCancellable` object, `NULL` to ignore
+     * @returns `TRUE` if the pixbuf was saved successfully, `FALSE` if an   error was set.
      */
     save_to_streamv(stream: Gio.OutputStream, type: string, option_keys: string[] | null, option_values: string[] | null, cancellable: Gio.Cancellable | null): boolean
     /**
@@ -836,6 +869,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * @param type name of file format.
      * @param option_keys name of options to set
      * @param option_values values for named options
+     * @returns whether an error was set
      */
     savev(filename: string, type: string, option_keys: string[] | null, option_values: string[] | null): boolean
     /**
@@ -886,6 +920,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * @param dest_width the width of destination image
      * @param dest_height the height of destination image
      * @param interp_type the interpolation type for the transformation.
+     * @returns the new pixbuf
      */
     scale_simple(dest_width: number, dest_height: number, interp_type: InterpType): Pixbuf | null
     /**
@@ -895,6 +930,7 @@ interface Pixbuf extends Gio.Icon, Gio.LoadableIcon {
      * the new value is ignored and `FALSE` is returned.
      * @param key a nul-terminated string.
      * @param value a nul-terminated string.
+     * @returns `TRUE` on success
      */
     set_option(key: string, value: string): boolean
 
@@ -1094,6 +1130,7 @@ class Pixbuf extends GObject.Object {
      * @param bits_per_sample Number of bits per color sample
      * @param width Width of image in pixels, must be > 0
      * @param height Height of image in pixels, must be > 0
+     * @returns A newly-created pixel buffer
      */
     constructor(colorspace: Colorspace, has_alpha: boolean, bits_per_sample: number, width: number, height: number) 
     /**
@@ -1109,6 +1146,7 @@ class Pixbuf extends GObject.Object {
      * @param bits_per_sample Number of bits per color sample
      * @param width Width of image in pixels, must be > 0
      * @param height Height of image in pixels, must be > 0
+     * @returns A newly-created pixel buffer
      */
     static new(colorspace: Colorspace, has_alpha: boolean, bits_per_sample: number, width: number, height: number): Pixbuf
     /**
@@ -1126,6 +1164,7 @@ class Pixbuf extends GObject.Object {
      * @param width Width of the image in pixels, must be > 0
      * @param height Height of the image in pixels, must be > 0
      * @param rowstride Distance in bytes between row starts
+     * @returns A newly-created pixbuf
      */
     static new_from_bytes(data: GLib.Bytes, colorspace: Colorspace, has_alpha: boolean, bits_per_sample: number, width: number, height: number, rowstride: number): Pixbuf
     /**
@@ -1149,6 +1188,7 @@ class Pixbuf extends GObject.Object {
      * @param height Height of the image in pixels, must be > 0
      * @param rowstride Distance in bytes between row starts
      * @param destroy_fn Function used to free the data when the pixbuf's reference count drops to zero, or %NULL if the data should not be freed
+     * @returns A newly-created pixbuf
      */
     static new_from_data(data: Uint8Array, colorspace: Colorspace, has_alpha: boolean, bits_per_sample: number, width: number, height: number, rowstride: number, destroy_fn: PixbufDestroyNotify | null): Pixbuf
     /**
@@ -1166,6 +1206,7 @@ class Pixbuf extends GObject.Object {
      * The error domains are `GDK_PIXBUF_ERROR` and `G_FILE_ERROR`.
      * @constructor 
      * @param filename Name of file to load, in the GLib file   name encoding
+     * @returns A newly-created pixbuf
      */
     static new_from_file(filename: string): Pixbuf
     /**
@@ -1196,6 +1237,7 @@ class Pixbuf extends GObject.Object {
      * @param width The width the image should have or -1 to not constrain the width
      * @param height The height the image should have or -1 to not constrain the height
      * @param preserve_aspect_ratio `TRUE` to preserve the image's aspect ratio
+     * @returns A newly-created pixbuf
      */
     static new_from_file_at_scale(filename: string, width: number, height: number, preserve_aspect_ratio: boolean): Pixbuf
     /**
@@ -1221,6 +1263,7 @@ class Pixbuf extends GObject.Object {
      * @param filename Name of file to load, in the GLib file     name encoding
      * @param width The width the image should have or -1 to not constrain the width
      * @param height The height the image should have or -1 to not constrain the height
+     * @returns A newly-created pixbuf
      */
     static new_from_file_at_size(filename: string, width: number, height: number): Pixbuf
     /**
@@ -1260,6 +1303,7 @@ class Pixbuf extends GObject.Object {
      * @constructor 
      * @param data Byte data containing a   serialized `GdkPixdata` structure
      * @param copy_pixels Whether to copy the pixel data, or use direct pointers   `data` for the resulting pixbuf
+     * @returns A newly-created pixbuf
      */
     static new_from_inline(data: Uint8Array, copy_pixels: boolean): Pixbuf
     /**
@@ -1269,6 +1313,7 @@ class Pixbuf extends GObject.Object {
      * `error` will be set.
      * @constructor 
      * @param resource_path the path of the resource file
+     * @returns A newly-created pixbuf
      */
     static new_from_resource(resource_path: string): Pixbuf
     /**
@@ -1290,6 +1335,7 @@ class Pixbuf extends GObject.Object {
      * @param width The width the image should have or -1 to not constrain the width
      * @param height The height the image should have or -1 to not constrain the height
      * @param preserve_aspect_ratio `TRUE` to preserve the image's aspect ratio
+     * @returns A newly-created pixbuf
      */
     static new_from_resource_at_scale(resource_path: string, width: number, height: number, preserve_aspect_ratio: boolean): Pixbuf
     /**
@@ -1308,6 +1354,7 @@ class Pixbuf extends GObject.Object {
      * @constructor 
      * @param stream a `GInputStream` to load the pixbuf from
      * @param cancellable optional `GCancellable` object, `NULL` to ignore
+     * @returns A newly-created pixbuf
      */
     static new_from_stream(stream: Gio.InputStream, cancellable: Gio.Cancellable | null): Pixbuf
     /**
@@ -1338,6 +1385,7 @@ class Pixbuf extends GObject.Object {
      * @param height The height the image should have or -1 to not constrain the height
      * @param preserve_aspect_ratio `TRUE` to preserve the image's aspect ratio
      * @param cancellable optional `GCancellable` object, `NULL` to ignore
+     * @returns A newly-created pixbuf
      */
     static new_from_stream_at_scale(stream: Gio.InputStream, width: number, height: number, preserve_aspect_ratio: boolean, cancellable: Gio.Cancellable | null): Pixbuf
     /**
@@ -1345,6 +1393,7 @@ class Pixbuf extends GObject.Object {
      * gdk_pixbuf_new_from_stream_async().
      * @constructor 
      * @param async_result a `GAsyncResult`
+     * @returns the newly created pixbuf
      */
     static new_from_stream_finish(async_result: Gio.AsyncResult): Pixbuf
     /**
@@ -1354,6 +1403,7 @@ class Pixbuf extends GObject.Object {
      * program's C source.
      * @constructor 
      * @param data Pointer to inline XPM data.
+     * @returns A newly-created pixbuf
      */
     static new_from_xpm_data(data: string[]): Pixbuf
     _init(config?: Pixbuf.ConstructorProperties): void
@@ -1398,11 +1448,13 @@ class Pixbuf extends GObject.Object {
      * @param bits_per_sample Number of bits per color sample
      * @param width Width of image in pixels, must be > 0
      * @param height Height of image in pixels, must be > 0
+     * @returns the rowstride for the given values, or -1 in case of error.
      */
     static calculate_rowstride(colorspace: Colorspace, has_alpha: boolean, bits_per_sample: number, width: number, height: number): number
     /**
      * Parses an image file far enough to determine its format and size.
      * @param filename The name of the file to identify.
+     * @returns A `GdkPixbufFormat` describing   the image format of the file
      */
     static get_file_info(filename: string): [ /* returnType */ PixbufFormat | null, /* width */ number, /* height */ number ]
     /**
@@ -1424,11 +1476,13 @@ class Pixbuf extends GObject.Object {
      * Finishes an asynchronous pixbuf parsing operation started with
      * gdk_pixbuf_get_file_info_async().
      * @param async_result a `GAsyncResult`
+     * @returns A `GdkPixbufFormat` describing the   image format of the file
      */
     static get_file_info_finish(async_result: Gio.AsyncResult): [ /* returnType */ PixbufFormat | null, /* width */ number, /* height */ number ]
     /**
      * Obtains the available information about the image formats supported
      * by GdkPixbuf.
+     * @returns A list of   support image formats.
      */
     static get_formats(): PixbufFormat[]
     /**
@@ -1452,6 +1506,7 @@ class Pixbuf extends GObject.Object {
      * Finishes an asynchronous pixbuf save operation started with
      * gdk_pixbuf_save_to_stream_async().
      * @param async_result a `GAsyncResult`
+     * @returns `TRUE` if the pixbuf was saved successfully, `FALSE` if an error was set.
      */
     static save_to_stream_finish(async_result: Gio.AsyncResult): boolean
 }
@@ -1475,6 +1530,7 @@ interface PixbufAnimation {
 
     /**
      * Queries the height of the bounding box of a pixbuf animation.
+     * @returns Height of the bounding box of the animation.
      */
     get_height(): number
     /**
@@ -1513,6 +1569,7 @@ interface PixbufAnimation {
      * 
      * A delay time of -1 is possible, indicating "infinite".
      * @param start_time time when the animation starts playing
+     * @returns an iterator to move over the animation
      */
     get_iter(start_time: GLib.TimeVal | null): PixbufAnimationIter
     /**
@@ -1527,10 +1584,12 @@ interface PixbufAnimation {
      * 
      * If an animation hasn't loaded any frames yet, this function will
      * return `NULL`.
+     * @returns unanimated image representing the animation
      */
     get_static_image(): Pixbuf
     /**
      * Queries the width of the bounding box of a pixbuf animation.
+     * @returns Width of the bounding box of the animation.
      */
     get_width(): number
     /**
@@ -1540,6 +1599,7 @@ interface PixbufAnimation {
      * turns out to be a plain, unanimated image, then this function will
      * return `TRUE`. Use gdk_pixbuf_animation_get_static_image() to retrieve
      * the image.
+     * @returns `TRUE` if the "animation" was really just an image
      */
     is_static_image(): boolean
 
@@ -1582,6 +1642,7 @@ interface PixbufAnimation {
      * A delay time of -1 is possible, indicating "infinite".
      * @virtual 
      * @param start_time time when the animation starts playing
+     * @returns an iterator to move over the animation
      */
     vfunc_get_iter(start_time: GLib.TimeVal | null): PixbufAnimationIter
     vfunc_get_size(width: number, height: number): void
@@ -1598,6 +1659,7 @@ interface PixbufAnimation {
      * If an animation hasn't loaded any frames yet, this function will
      * return `NULL`.
      * @virtual 
+     * @returns unanimated image representing the animation
      */
     vfunc_get_static_image(): Pixbuf
     /**
@@ -1608,6 +1670,7 @@ interface PixbufAnimation {
      * return `TRUE`. Use gdk_pixbuf_animation_get_static_image() to retrieve
      * the image.
      * @virtual 
+     * @returns `TRUE` if the "animation" was really just an image
      */
     vfunc_is_static_image(): boolean
 
@@ -1656,6 +1719,7 @@ class PixbufAnimation extends GObject.Object {
      * Possible errors are in the `GDK_PIXBUF_ERROR` and `G_FILE_ERROR` domains.
      * @constructor 
      * @param filename Name of file to load, in the GLib file   name encoding
+     * @returns A newly-created animation
      */
     static new_from_file(filename: string): PixbufAnimation
     /**
@@ -1665,6 +1729,7 @@ class PixbufAnimation extends GObject.Object {
      * `error` will be set.
      * @constructor 
      * @param resource_path the path of the resource file
+     * @returns A newly-created animation
      */
     static new_from_resource(resource_path: string): PixbufAnimation
     /**
@@ -1683,6 +1748,7 @@ class PixbufAnimation extends GObject.Object {
      * @constructor 
      * @param stream a `GInputStream` to load the pixbuf from
      * @param cancellable optional `GCancellable` object
+     * @returns A newly-created animation
      */
     static new_from_stream(stream: Gio.InputStream, cancellable: Gio.Cancellable | null): PixbufAnimation
     /**
@@ -1690,6 +1756,7 @@ class PixbufAnimation extends GObject.Object {
      * [func`GdkPixbuf`.PixbufAnimation.new_from_stream_async].
      * @constructor 
      * @param async_result a #GAsyncResult
+     * @returns the newly created animation
      */
     static new_from_stream_finish(async_result: Gio.AsyncResult): PixbufAnimation
     _init(config?: PixbufAnimation.ConstructorProperties): void
@@ -1749,6 +1816,7 @@ interface PixbufAnimationIter {
      * if `TRUE`, you need to call gdk_pixbuf_animation_iter_get_pixbuf()
      * and update the display with the new pixbuf.
      * @param current_time current time
+     * @returns `TRUE` if the image may need updating
      */
     advance(current_time: GLib.TimeVal | null): boolean
     /**
@@ -1761,6 +1829,7 @@ interface PixbufAnimationIter {
      * Note that some formats, like GIF, might clamp the timeout values in the
      * image file to avoid updates that are just too quick. The minimum timeout
      * for GIF images is currently 20 milliseconds.
+     * @returns delay time in milliseconds (thousandths of a second)
      */
     get_delay_time(): number
     /**
@@ -1779,6 +1848,7 @@ interface PixbufAnimationIter {
      * 
      * Copy the pixbuf to keep it (don't just add a reference), as it may get
      * recycled as you advance the iterator.
+     * @returns the pixbuf to be displayed
      */
     get_pixbuf(): Pixbuf
     /**
@@ -1788,6 +1858,7 @@ interface PixbufAnimationIter {
      * The `::area_updated` signal is emitted for an area of the frame currently
      * streaming in to the loader. So if you're on the currently loading frame,
      * you will need to redraw the screen for the updated area.
+     * @returns `TRUE` if the frame we're on is partially loaded, or the last frame
      */
     on_currently_loading_frame(): boolean
 
@@ -1817,6 +1888,7 @@ interface PixbufAnimationIter {
      * and update the display with the new pixbuf.
      * @virtual 
      * @param current_time current time
+     * @returns `TRUE` if the image may need updating
      */
     vfunc_advance(current_time: GLib.TimeVal | null): boolean
     /**
@@ -1830,6 +1902,7 @@ interface PixbufAnimationIter {
      * image file to avoid updates that are just too quick. The minimum timeout
      * for GIF images is currently 20 milliseconds.
      * @virtual 
+     * @returns delay time in milliseconds (thousandths of a second)
      */
     vfunc_get_delay_time(): number
     /**
@@ -1849,6 +1922,7 @@ interface PixbufAnimationIter {
      * Copy the pixbuf to keep it (don't just add a reference), as it may get
      * recycled as you advance the iterator.
      * @virtual 
+     * @returns the pixbuf to be displayed
      */
     vfunc_get_pixbuf(): Pixbuf
     /**
@@ -1859,6 +1933,7 @@ interface PixbufAnimationIter {
      * streaming in to the loader. So if you're on the currently loading frame,
      * you will need to redraw the screen for the updated area.
      * @virtual 
+     * @returns `TRUE` if the frame we're on is partially loaded, or the last frame
      */
     vfunc_on_currently_loading_frame(): boolean
 
@@ -1948,6 +2023,7 @@ interface PixbufLoader {
      * 
      * Remember that this function does not release a reference on the loader, so
      * you will need to explicitly release any reference you hold.
+     * @returns `TRUE` if all image data written so far was successfully   passed out via the update_area signal
      */
     close(): boolean
     /**
@@ -1959,11 +2035,13 @@ interface PixbufLoader {
      * 
      * If the loader doesn't have enough bytes yet, and hasn't emitted the `area-prepared`
      * signal, this function will return `NULL`.
+     * @returns The animation that the loader is   currently loading
      */
     get_animation(): PixbufAnimation | null
     /**
      * Obtains the available information about the format of the
      * currently loading image file.
+     * @returns A #GdkPixbufFormat
      */
     get_format(): PixbufFormat | null
     /**
@@ -1982,6 +2060,7 @@ interface PixbufLoader {
      * 
      * Additionally, if the loader is an animation, it will return the "static
      * image" of the animation (see gdk_pixbuf_animation_get_static_image()).
+     * @returns The pixbuf that the loader is   creating
      */
     get_pixbuf(): Pixbuf | null
     /**
@@ -2000,11 +2079,13 @@ interface PixbufLoader {
     /**
      * Parses the next `count` bytes in the given image buffer.
      * @param buf Pointer to image data.
+     * @returns `TRUE` if the write was successful, or   `FALSE` if the loader cannot parse the buffer
      */
     write(buf: Uint8Array): boolean
     /**
      * Parses the next contents of the given image buffer.
      * @param buffer The image data as a `GBytes` buffer.
+     * @returns `TRUE` if the write was successful, or `FALSE` if   the loader cannot parse the buffer
      */
     write_bytes(buffer: GLib.Bytes): boolean
 
@@ -2099,11 +2180,13 @@ class PixbufLoader extends GObject.Object {
     /**
      * Creates a new pixbuf loader object.
      * @constructor 
+     * @returns A newly-created pixbuf loader.
      */
     constructor() 
     /**
      * Creates a new pixbuf loader object.
      * @constructor 
+     * @returns A newly-created pixbuf loader.
      */
     static new(): PixbufLoader
     /**
@@ -2124,6 +2207,7 @@ class PixbufLoader extends GObject.Object {
      * structs returned by gdk_pixbuf_get_formats().
      * @constructor 
      * @param mime_type the mime type to be loaded
+     * @returns A newly-created pixbuf loader.
      */
     static new_with_mime_type(mime_type: string): PixbufLoader
     /**
@@ -2143,6 +2227,7 @@ class PixbufLoader extends GObject.Object {
      * of the #GdkPixbufFormat structs returned by gdk_pixbuf_get_formats().
      * @constructor 
      * @param image_type name of the image format to be loaded with the image
+     * @returns A newly-created pixbuf loader.
      */
     static new_with_type(image_type: string): PixbufLoader
     _init(config?: PixbufLoader.ConstructorProperties): void
@@ -2218,6 +2303,7 @@ interface PixbufSimpleAnim {
     add_frame(pixbuf: Pixbuf): void
     /**
      * Gets whether `animation` should loop indefinitely when it reaches the end.
+     * @returns %TRUE if the animation loops forever, %FALSE otherwise
      */
     get_loop(): boolean
     /**
@@ -2257,6 +2343,7 @@ class PixbufSimpleAnim extends PixbufAnimation {
      * @param width the width of the animation
      * @param height the height of the animation
      * @param rate the speed of the animation, in frames per second
+     * @returns a newly allocated #GdkPixbufSimpleAnim
      */
     constructor(width: number, height: number, rate: number) 
     /**
@@ -2265,6 +2352,7 @@ class PixbufSimpleAnim extends PixbufAnimation {
      * @param width the width of the animation
      * @param height the height of the animation
      * @param rate the speed of the animation, in frames per second
+     * @returns a newly allocated #GdkPixbufSimpleAnim
      */
     static new(width: number, height: number, rate: number): PixbufSimpleAnim
     _init(config?: PixbufSimpleAnim.ConstructorProperties): void
@@ -2414,6 +2502,7 @@ interface PixbufFormat {
 
     /**
      * Creates a copy of `format`.
+     * @returns the newly allocated copy of a `GdkPixbufFormat`. Use   gdk_pixbuf_format_free() to free the resources when done
      */
     copy(): PixbufFormat
     /**
@@ -2423,11 +2512,13 @@ interface PixbufFormat {
     free(): void
     /**
      * Returns a description of the format.
+     * @returns a description of the format.
      */
     get_description(): string
     /**
      * Returns the filename extensions typically used for files in the
      * given format.
+     * @returns an array of   filename extensions
      */
     get_extensions(): string[]
     /**
@@ -2435,20 +2526,24 @@ interface PixbufFormat {
      * 
      * The returned string should be a shorthand for a well known license, e.g.
      * "LGPL", "GPL", "QPL", "GPL/QPL", or "other" to indicate some other license.
+     * @returns a string describing the license of the pixbuf format
      */
     get_license(): string
     /**
      * Returns the mime types supported by the format.
+     * @returns an array of mime types
      */
     get_mime_types(): string[]
     /**
      * Returns the name of the format.
+     * @returns the name of the format.
      */
     get_name(): string
     /**
      * Returns whether this image format is disabled.
      * 
      * See gdk_pixbuf_format_set_disabled().
+     * @returns whether this image format is disabled.
      */
     is_disabled(): boolean
     /**
@@ -2457,6 +2552,7 @@ interface PixbufFormat {
      * 
      * See gdk_pixbuf_save() for more information about option keys.
      * @param option_key the name of an option
+     * @returns `TRUE` if the specified option is supported
      */
     is_save_option_supported(option_key: string): boolean
     /**
@@ -2465,10 +2561,12 @@ interface PixbufFormat {
      * If a file is in a scalable format, it is preferable to load it at
      * the desired size, rather than loading it at the default size and
      * scaling the resulting pixbuf to the desired size.
+     * @returns whether this image format is scalable.
      */
     is_scalable(): boolean
     /**
      * Returns whether pixbufs can be saved in the given format.
+     * @returns whether pixbufs can be saved in the given format.
      */
     is_writable(): boolean
     /**

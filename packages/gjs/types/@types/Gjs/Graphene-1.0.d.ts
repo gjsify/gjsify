@@ -235,12 +235,14 @@ const VEC4_LEN: number
  * A degenerate #graphene_box_t that can only be expanded.
  * 
  * The returned value is owned by Graphene and should not be modified or freed.
+ * @returns a #graphene_box_t
  */
 function box_empty(): Box
 /**
  * A degenerate #graphene_box_t that cannot be expanded.
  * 
  * The returned value is owned by Graphene and should not be modified or freed.
+ * @returns a #graphene_box_t
  */
 function box_infinite(): Box
 /**
@@ -248,6 +250,7 @@ function box_infinite(): Box
  * maximum vertex set at (0, 0, 0).
  * 
  * The returned value is owned by Graphene and should not be modified or freed.
+ * @returns a #graphene_box_t
  */
 function box_minus_one(): Box
 /**
@@ -255,6 +258,7 @@ function box_minus_one(): Box
  * maximum vertex set at (1, 1, 1).
  * 
  * The returned value is owned by Graphene and should not be modified or freed.
+ * @returns a #graphene_box_t
  */
 function box_one(): Box
 /**
@@ -262,107 +266,129 @@ function box_one(): Box
  * maximum vertex set at (1, 1, 1).
  * 
  * The returned value is owned by Graphene and should not be modified or freed.
+ * @returns a #graphene_box_t
  */
 function box_one_minus_one(): Box
 /**
  * A #graphene_box_t with both the minimum and maximum vertices set at (0, 0, 0).
  * 
  * The returned value is owned by Graphene and should not be modified or freed.
+ * @returns a #graphene_box_t
  */
 function box_zero(): Box
 /**
  * Retrieves a constant point with all three coordinates set to 0.
+ * @returns a zero point
  */
 function point3d_zero(): Point3D
 /**
  * Returns a point fixed at (0, 0).
+ * @returns a fixed point
  */
 function point_zero(): Point
 /**
  * Allocates a new #graphene_rect_t.
  * 
  * The contents of the returned rectangle are undefined.
+ * @returns the newly allocated rectangle
  */
 function rect_alloc(): Rect
 /**
  * Returns a degenerate rectangle with origin fixed at (0, 0) and
  * a size of 0, 0.
+ * @returns a fixed rectangle
  */
 function rect_zero(): Rect
 /**
  * A constant pointer to a zero #graphene_size_t, useful for
  * equality checks and interpolations.
+ * @returns a constant size
  */
 function size_zero(): Size
 /**
  * Retrieves a constant vector with (1, 1) components.
+ * @returns the one vector
  */
 function vec2_one(): Vec2
 /**
  * Retrieves a constant vector with (1, 0) components.
+ * @returns the X axis vector
  */
 function vec2_x_axis(): Vec2
 /**
  * Retrieves a constant vector with (0, 1) components.
+ * @returns the Y axis vector
  */
 function vec2_y_axis(): Vec2
 /**
  * Retrieves a constant vector with (0, 0) components.
+ * @returns the zero vector
  */
 function vec2_zero(): Vec2
 /**
  * Provides a constant pointer to a vector with three components,
  * all sets to 1.
+ * @returns a constant vector
  */
 function vec3_one(): Vec3
 /**
  * Provides a constant pointer to a vector with three components
  * with values set to (1, 0, 0).
+ * @returns a constant vector
  */
 function vec3_x_axis(): Vec3
 /**
  * Provides a constant pointer to a vector with three components
  * with values set to (0, 1, 0).
+ * @returns a constant vector
  */
 function vec3_y_axis(): Vec3
 /**
  * Provides a constant pointer to a vector with three components
  * with values set to (0, 0, 1).
+ * @returns a constant vector
  */
 function vec3_z_axis(): Vec3
 /**
  * Provides a constant pointer to a vector with three components,
  * all sets to 0.
+ * @returns a constant vector
  */
 function vec3_zero(): Vec3
 /**
  * Retrieves a pointer to a #graphene_vec4_t with all its
  * components set to 1.
+ * @returns a constant vector
  */
 function vec4_one(): Vec4
 /**
  * Retrieves a pointer to a #graphene_vec4_t with its
  * components set to (0, 0, 0, 1).
+ * @returns a constant vector
  */
 function vec4_w_axis(): Vec4
 /**
  * Retrieves a pointer to a #graphene_vec4_t with its
  * components set to (1, 0, 0, 0).
+ * @returns a constant vector
  */
 function vec4_x_axis(): Vec4
 /**
  * Retrieves a pointer to a #graphene_vec4_t with its
  * components set to (0, 1, 0, 0).
+ * @returns a constant vector
  */
 function vec4_y_axis(): Vec4
 /**
  * Retrieves a pointer to a #graphene_vec4_t with its
  * components set to (0, 0, 1, 0).
+ * @returns a constant vector
  */
 function vec4_z_axis(): Vec4
 /**
  * Retrieves a pointer to a #graphene_vec4_t with all its
  * components set to 0.
+ * @returns a constant vector
  */
 function vec4_zero(): Vec4
 interface Box {
@@ -373,16 +399,19 @@ interface Box {
      * Checks whether the #graphene_box_t `a` contains the given
      * #graphene_box_t `b`.
      * @param b a #graphene_box_t
+     * @returns `true` if the box is contained in the given box
      */
     contains_box(b: Box): boolean
     /**
      * Checks whether `box` contains the given `point`.
      * @param point the coordinates to check
+     * @returns `true` if the point is contained in the given box
      */
     contains_point(point: Point3D): boolean
     /**
      * Checks whether the two given boxes are equal.
      * @param b a #graphene_box_t
+     * @returns `true` if the boxes are equal
      */
     equal(b: Box): boolean
     /**
@@ -419,10 +448,12 @@ interface Box {
     get_center(): /* center */ Point3D
     /**
      * Retrieves the size of the `box` on the Z axis.
+     * @returns the depth of the box
      */
     get_depth(): number
     /**
      * Retrieves the size of the `box` on the Y axis.
+     * @returns the height of the box
      */
     get_height(): number
     /**
@@ -446,18 +477,21 @@ interface Box {
     get_vertices(): /* vertices */ Vec3[]
     /**
      * Retrieves the size of the `box` on the X axis.
+     * @returns the width of the box
      */
     get_width(): number
     /**
      * Initializes the given #graphene_box_t with two vertices.
      * @param min the coordinates of the minimum vertex
      * @param max the coordinates of the maximum vertex
+     * @returns the initialized #graphene_box_t
      */
     init(min: Point3D | null, max: Point3D | null): Box
     /**
      * Initializes the given #graphene_box_t with the vertices of
      * another #graphene_box_t.
      * @param src a #graphene_box_t
+     * @returns the initialized #graphene_box_t
      */
     init_from_box(src: Box): Box
     /**
@@ -467,6 +501,7 @@ interface Box {
      * If `n_points` is 0, the returned box is initialized with
      * graphene_box_empty().
      * @param points an array of #graphene_point3d_t
+     * @returns the initialized #graphene_box_t
      */
     init_from_points(points: Point3D[]): Box
     /**
@@ -474,6 +509,7 @@ interface Box {
      * stored inside #graphene_vec3_t.
      * @param min the coordinates of the minimum vertex
      * @param max the coordinates of the maximum vertex
+     * @returns the initialized #graphene_box_t
      */
     init_from_vec3(min: Vec3 | null, max: Vec3 | null): Box
     /**
@@ -483,6 +519,7 @@ interface Box {
      * If `n_vectors` is 0, the returned box is initialized with
      * graphene_box_empty().
      * @param vectors an array of #graphene_vec3_t
+     * @returns the initialized #graphene_box_t
      */
     init_from_vectors(vectors: Vec3[]): Box
     /**
@@ -491,6 +528,7 @@ interface Box {
      * If the two boxes do not intersect, `res` will contain a degenerate box
      * initialized with graphene_box_empty().
      * @param b a #graphene_box_t
+     * @returns true if the two boxes intersect
      */
     intersection(b: Box): [ /* returnType */ boolean, /* res */ Box ]
     /**
@@ -518,18 +556,21 @@ class Box {
      * 
      * The contents of the returned structure are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_box_t structure.   Use graphene_box_free() to free the resources allocated by this function
      */
     static alloc(): Box
     /**
      * A degenerate #graphene_box_t that can only be expanded.
      * 
      * The returned value is owned by Graphene and should not be modified or freed.
+     * @returns a #graphene_box_t
      */
     static empty(): Box
     /**
      * A degenerate #graphene_box_t that cannot be expanded.
      * 
      * The returned value is owned by Graphene and should not be modified or freed.
+     * @returns a #graphene_box_t
      */
     static infinite(): Box
     /**
@@ -537,6 +578,7 @@ class Box {
      * maximum vertex set at (0, 0, 0).
      * 
      * The returned value is owned by Graphene and should not be modified or freed.
+     * @returns a #graphene_box_t
      */
     static minus_one(): Box
     /**
@@ -544,6 +586,7 @@ class Box {
      * maximum vertex set at (1, 1, 1).
      * 
      * The returned value is owned by Graphene and should not be modified or freed.
+     * @returns a #graphene_box_t
      */
     static one(): Box
     /**
@@ -551,12 +594,14 @@ class Box {
      * maximum vertex set at (1, 1, 1).
      * 
      * The returned value is owned by Graphene and should not be modified or freed.
+     * @returns a #graphene_box_t
      */
     static one_minus_one(): Box
     /**
      * A #graphene_box_t with both the minimum and maximum vertices set at (0, 0, 0).
      * 
      * The returned value is owned by Graphene and should not be modified or freed.
+     * @returns a #graphene_box_t
      */
     static zero(): Box
 }
@@ -568,6 +613,7 @@ interface Euler {
     /**
      * Checks if two #graphene_euler_t are equal.
      * @param b a #graphene_euler_t
+     * @returns `true` if the two #graphene_euler_t are equal
      */
     equal(b: Euler): boolean
     /**
@@ -579,6 +625,7 @@ interface Euler {
      * depending on the order of rotation.
      * 
      * See also: graphene_euler_get_x()
+     * @returns the first component of the Euler angle vector, in radians
      */
     get_alpha(): number
     /**
@@ -586,6 +633,7 @@ interface Euler {
      * depending on the order of rotation.
      * 
      * See also: graphene_euler_get_y()
+     * @returns the second component of the Euler angle vector, in radians
      */
     get_beta(): number
     /**
@@ -593,6 +641,7 @@ interface Euler {
      * depending on the order of rotation.
      * 
      * See also: graphene_euler_get_z()
+     * @returns the third component of the Euler angle vector, in radians
      */
     get_gamma(): number
     /**
@@ -603,18 +652,22 @@ interface Euler {
      * This function does not return the %GRAPHENE_EULER_ORDER_DEFAULT
      * enumeration value; it will return the effective order of rotation
      * instead.
+     * @returns the order used to apply the rotations
      */
     get_order(): EulerOrder
     /**
      * Retrieves the rotation angle on the X axis, in degrees.
+     * @returns the rotation angle
      */
     get_x(): number
     /**
      * Retrieves the rotation angle on the Y axis, in degrees.
+     * @returns the rotation angle
      */
     get_y(): number
     /**
      * Retrieves the rotation angle on the Z axis, in degrees.
+     * @returns the rotation angle
      */
     get_z(): number
     /**
@@ -624,6 +677,7 @@ interface Euler {
      * @param x rotation angle on the X axis, in degrees
      * @param y rotation angle on the Y axis, in degrees
      * @param z rotation angle on the Z axis, in degrees
+     * @returns the initialized #graphene_euler_t
      */
     init(x: number, y: number, z: number): Euler
     /**
@@ -633,6 +687,7 @@ interface Euler {
      * If the #graphene_euler_t `src` is %NULL, this function is equivalent
      * to calling graphene_euler_init() with all angles set to 0.
      * @param src a #graphene_euler_t
+     * @returns the initialized #graphene_euler_t
      */
     init_from_euler(src: Euler | null): Euler
     /**
@@ -642,6 +697,7 @@ interface Euler {
      * be initialized with all angles set to 0.
      * @param m a rotation matrix
      * @param order the order used to apply the rotations
+     * @returns the initialized #graphene_euler_t
      */
     init_from_matrix(m: Matrix | null, order: EulerOrder): Euler
     /**
@@ -651,6 +707,7 @@ interface Euler {
      * be initialized with all angles set to 0.
      * @param q a normalized #graphene_quaternion_t
      * @param order the order used to apply the rotations
+     * @returns the initialized #graphene_euler_t
      */
     init_from_quaternion(q: Quaternion | null, order: EulerOrder): Euler
     /**
@@ -660,6 +717,7 @@ interface Euler {
      * @param y rotation angle on the Y axis, in radians
      * @param z rotation angle on the Z axis, in radians
      * @param order order of rotations
+     * @returns the initialized #graphene_euler_t
      */
     init_from_radians(x: number, y: number, z: number, order: EulerOrder): Euler
     /**
@@ -670,6 +728,7 @@ interface Euler {
      * initialized with all angles set to 0.
      * @param v a #graphene_vec3_t containing the rotation   angles in degrees
      * @param order the order used to apply the rotations
+     * @returns the initialized #graphene_euler_t
      */
     init_from_vec3(v: Vec3 | null, order: EulerOrder): Euler
     /**
@@ -678,6 +737,7 @@ interface Euler {
      * @param y rotation angle on the Y axis, in degrees
      * @param z rotation angle on the Z axis, in degrees
      * @param order the order used to apply the rotations
+     * @returns the initialized #graphene_euler_t
      */
     init_with_order(x: number, y: number, z: number, order: EulerOrder): Euler
     /**
@@ -739,6 +799,7 @@ class Euler {
      * 
      * The contents of the returned structure are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_euler_t
      */
     static alloc(): Euler
 }
@@ -751,11 +812,13 @@ interface Frustum {
      * Checks whether a point is inside the volume defined by the given
      * #graphene_frustum_t.
      * @param point a #graphene_point3d_t
+     * @returns `true` if the point is inside the frustum
      */
     contains_point(point: Point3D): boolean
     /**
      * Checks whether the two given #graphene_frustum_t are equal.
      * @param b a #graphene_frustum_t
+     * @returns `true` if the given frustums are equal
      */
     equal(b: Frustum): boolean
     /**
@@ -775,29 +838,34 @@ interface Frustum {
      * @param p3 a clipping plane
      * @param p4 a clipping plane
      * @param p5 a clipping plane
+     * @returns the initialized frustum
      */
     init(p0: Plane, p1: Plane, p2: Plane, p3: Plane, p4: Plane, p5: Plane): Frustum
     /**
      * Initializes the given #graphene_frustum_t using the clipping
      * planes of another #graphene_frustum_t.
      * @param src a #graphene_frustum_t
+     * @returns the initialized frustum
      */
     init_from_frustum(src: Frustum): Frustum
     /**
      * Initializes a #graphene_frustum_t using the given `matrix`.
      * @param matrix a #graphene_matrix_t
+     * @returns the initialized frustum
      */
     init_from_matrix(matrix: Matrix): Frustum
     /**
      * Checks whether the given `box` intersects a plane of
      * a #graphene_frustum_t.
      * @param box a #graphene_box_t
+     * @returns `true` if the box intersects the frustum
      */
     intersects_box(box: Box): boolean
     /**
      * Checks whether the given `sphere` intersects a plane of
      * a #graphene_frustum_t.
      * @param sphere a #graphene_sphere_t
+     * @returns `true` if the sphere intersects the frustum
      */
     intersects_sphere(sphere: Sphere): boolean
 }
@@ -822,6 +890,7 @@ class Frustum {
      * 
      * The contents of the returned structure are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_frustum_t   structure. Use graphene_frustum_free() to free the resources   allocated by this function.
      */
     static alloc(): Frustum
 }
@@ -838,15 +907,18 @@ interface Matrix {
      * specifically, the decomposition code is based on the equivalent code
      * published in "Graphics Gems II", edited by Jim Arvo, and
      * [available online](http://tog.acm.org/resources/GraphicsGems/gemsii/unmatrix.c).
+     * @returns `true` if the matrix could be decomposed
      */
     decompose(): [ /* returnType */ boolean, /* translate */ Vec3, /* scale */ Vec3, /* rotate */ Quaternion, /* shear */ Vec3, /* perspective */ Vec4 ]
     /**
      * Computes the determinant of the given matrix.
+     * @returns the value of the determinant
      */
     determinant(): number
     /**
      * Checks whether the two given #graphene_matrix_t matrices are equal.
      * @param b a #graphene_matrix_t
+     * @returns `true` if the two matrices are equal, and `false` otherwise
      */
     equal(b: Matrix): boolean
     /**
@@ -876,6 +948,7 @@ interface Matrix {
      * ```
      * 
      * @param b a #graphene_matrix_t
+     * @returns `true` if the matrices are equal. and `false` otherwise
      */
     equal_fast(b: Matrix): boolean
     /**
@@ -891,30 +964,37 @@ interface Matrix {
      * Retrieves the value at the given `row` and `col` index.
      * @param row the row index
      * @param col the column index
+     * @returns the value at the given indices
      */
     get_value(row: number, col: number): number
     /**
      * Retrieves the scaling factor on the X axis in `m`.
+     * @returns the value of the scaling factor
      */
     get_x_scale(): number
     /**
      * Retrieves the translation component on the X axis from `m`.
+     * @returns the translation component
      */
     get_x_translation(): number
     /**
      * Retrieves the scaling factor on the Y axis in `m`.
+     * @returns the value of the scaling factor
      */
     get_y_scale(): number
     /**
      * Retrieves the translation component on the Y axis from `m`.
+     * @returns the translation component
      */
     get_y_translation(): number
     /**
      * Retrieves the scaling factor on the Z axis in `m`.
+     * @returns the value of the scaling factor
      */
     get_z_scale(): number
     /**
      * Retrieves the translation component on the Z axis from `m`.
+     * @returns the translation component
      */
     get_z_translation(): number
     /**
@@ -938,18 +1018,21 @@ interface Matrix {
      * @param yy the yy member
      * @param x_0 the x0 member
      * @param y_0 the y0 member
+     * @returns the initialized matrix
      */
     init_from_2d(xx: number, yx: number, xy: number, yy: number, x_0: number, y_0: number): Matrix
     /**
      * Initializes a #graphene_matrix_t with the given array of floating
      * point values.
      * @param v an array of at least 16 floating   point values
+     * @returns the initialized matrix
      */
     init_from_float(v: number[]): Matrix
     /**
      * Initializes a #graphene_matrix_t using the values of the
      * given matrix.
      * @param src a #graphene_matrix_t
+     * @returns the initialized matrix
      */
     init_from_matrix(src: Matrix): Matrix
     /**
@@ -959,6 +1042,7 @@ interface Matrix {
      * @param v1 the second row vector
      * @param v2 the third row vector
      * @param v3 the fourth row vector
+     * @returns the initialized matrix
      */
     init_from_vec4(v0: Vec4, v1: Vec4, v2: Vec4, v3: Vec4): Matrix
     /**
@@ -971,10 +1055,12 @@ interface Matrix {
      * @param top distance of the top clipping plane
      * @param z_near distance of the near clipping plane
      * @param z_far distance of the far clipping plane
+     * @returns the initialized matrix
      */
     init_frustum(left: number, right: number, bottom: number, top: number, z_near: number, z_far: number): Matrix
     /**
      * Initializes a #graphene_matrix_t with the identity matrix.
+     * @returns the initialized matrix
      */
     init_identity(): Matrix
     /**
@@ -997,6 +1083,7 @@ interface Matrix {
      * @param eye the vector describing the position to look from
      * @param center the vector describing the position to look at
      * @param up the vector describing the world's upward direction; usually,   this is the graphene_vec3_y_axis() vector
+     * @returns the initialized matrix
      */
     init_look_at(eye: Vec3, center: Vec3, up: Vec3): Matrix
     /**
@@ -1007,6 +1094,7 @@ interface Matrix {
      * @param bottom the bottom edge of the clipping plane
      * @param z_near the distance of the near clipping plane
      * @param z_far the distance of the far clipping plane
+     * @returns the initialized matrix
      */
     init_ortho(left: number, right: number, top: number, bottom: number, z_near: number, z_far: number): Matrix
     /**
@@ -1015,6 +1103,7 @@ interface Matrix {
      * @param aspect the aspect value
      * @param z_near the near Z plane
      * @param z_far the far Z plane
+     * @returns the initialized matrix
      */
     init_perspective(fovy: number, aspect: number, z_near: number, z_far: number): Matrix
     /**
@@ -1022,6 +1111,7 @@ interface Matrix {
      * the axis represented by the `axis` vector.
      * @param angle the rotation angle, in degrees
      * @param axis the axis vector as a #graphene_vec3_t
+     * @returns the initialized matrix
      */
     init_rotate(angle: number, axis: Vec3): Matrix
     /**
@@ -1029,6 +1119,7 @@ interface Matrix {
      * @param x the scale factor on the X axis
      * @param y the scale factor on the Y axis
      * @param z the scale factor on the Z axis
+     * @returns the initialized matrix
      */
     init_scale(x: number, y: number, z: number): Matrix
     /**
@@ -1036,12 +1127,14 @@ interface Matrix {
      * with the given factors.
      * @param x_skew skew factor, in radians, on the X axis
      * @param y_skew skew factor, in radians, on the Y axis
+     * @returns the initialized matrix
      */
     init_skew(x_skew: number, y_skew: number): Matrix
     /**
      * Initializes a #graphene_matrix_t with a translation to the
      * given coordinates.
      * @param p the translation coordinates
+     * @returns the initialized matrix
      */
     init_translate(p: Point3D): Matrix
     /**
@@ -1057,23 +1150,28 @@ interface Matrix {
     interpolate(b: Matrix, factor: number): /* res */ Matrix
     /**
      * Inverts the given matrix.
+     * @returns `true` if the matrix is invertible
      */
     inverse(): [ /* returnType */ boolean, /* res */ Matrix ]
     /**
      * Checks whether the given #graphene_matrix_t is compatible with an
      * a 2D affine transformation matrix.
+     * @returns `true` if the matrix is compatible with an affine   transformation matrix
      */
     is_2d(): boolean
     /**
      * Checks whether a #graphene_matrix_t has a visible back face.
+     * @returns `true` if the back face of the matrix is visible
      */
     is_backface_visible(): boolean
     /**
      * Checks whether the given #graphene_matrix_t is the identity matrix.
+     * @returns `true` if the matrix is the identity matrix
      */
     is_identity(): boolean
     /**
      * Checks whether a matrix is singular.
+     * @returns `true` if the matrix is singular
      */
     is_singular(): boolean
     /**
@@ -1090,6 +1188,7 @@ interface Matrix {
      * other.
      * @param b a #graphene_matrix_t
      * @param epsilon the threshold between the two matrices
+     * @returns `true` if the two matrices are near each other, and   `false` otherwise
      */
     near(b: Matrix, epsilon: number): boolean
     /**
@@ -1218,6 +1317,7 @@ interface Matrix {
      * 
      * This function can be used to convert between a #graphene_matrix_t
      * and an affine matrix type from other libraries.
+     * @returns `true` if the matrix is compatible with an affine   transformation matrix
      */
     to_2d(): [ /* returnType */ boolean, /* xx */ number, /* yx */ number, /* xy */ number, /* yy */ number, /* x_0 */ number, /* y_0 */ number ]
     /**
@@ -1335,6 +1435,7 @@ interface Matrix {
      * given matrix, within the given axis aligned rectangular `bounds`.
      * @param p a #graphene_point_t
      * @param bounds the bounds of the transformation
+     * @returns `true` if the point was successfully untransformed
      */
     untransform_point(p: Point, bounds: Rect): [ /* returnType */ boolean, /* res */ Point ]
 }
@@ -1357,6 +1458,7 @@ class Matrix {
     /**
      * Allocates a new #graphene_matrix_t.
      * @constructor 
+     * @returns the newly allocated matrix
      */
     static alloc(): Matrix
 }
@@ -1368,11 +1470,13 @@ interface Plane {
     /**
      * Computes the distance of `point` from a #graphene_plane_t.
      * @param point a #graphene_point3d_t
+     * @returns the distance of the given #graphene_point3d_t from the plane
      */
     distance(point: Point3D): number
     /**
      * Checks whether the two given #graphene_plane_t are equal.
      * @param b a #graphene_plane_t
+     * @returns `true` if the given planes are equal
      */
     equal(b: Plane): boolean
     /**
@@ -1382,6 +1486,7 @@ interface Plane {
     /**
      * Retrieves the distance along the normal vector of the
      * given #graphene_plane_t from the origin.
+     * @returns the constant value of the plane
      */
     get_constant(): number
     /**
@@ -1394,12 +1499,14 @@ interface Plane {
      * and `constant` values.
      * @param normal a unit length normal vector defining the plane   pointing towards the origin; if unset, we use the X axis by default
      * @param constant the distance from the origin to the plane along the   normal vector; the sign determines the half-space occupied by the   plane
+     * @returns the initialized plane
      */
     init(normal: Vec3 | null, constant: number): Plane
     /**
      * Initializes the given #graphene_plane_t using the normal
      * vector and constant of another #graphene_plane_t.
      * @param src a #graphene_plane_t
+     * @returns the initialized plane
      */
     init_from_plane(src: Plane): Plane
     /**
@@ -1407,6 +1514,7 @@ interface Plane {
      * and an arbitrary co-planar point.
      * @param normal a normal vector defining the plane pointing towards the origin
      * @param point a #graphene_point3d_t
+     * @returns the initialized plane
      */
     init_from_point(normal: Vec3, point: Point3D): Plane
     /**
@@ -1418,12 +1526,14 @@ interface Plane {
      * @param a a #graphene_point3d_t
      * @param b a #graphene_point3d_t
      * @param c a #graphene_point3d_t
+     * @returns the initialized plane
      */
     init_from_points(a: Point3D, b: Point3D, c: Point3D): Plane
     /**
      * Initializes the given #graphene_plane_t using the components of
      * the given #graphene_vec4_t vector.
      * @param src a #graphene_vec4_t containing the normal vector in its first   three components, and the distance in its fourth component
+     * @returns the initialized plane
      */
     init_from_vec4(src: Vec4): Plane
     /**
@@ -1471,6 +1581,7 @@ class Plane {
      * 
      * The contents of the returned structure are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_plane_t.   Use graphene_plane_free() to free the resources allocated by   this function
      */
     static alloc(): Plane
 }
@@ -1495,6 +1606,7 @@ interface Point {
     /**
      * Computes the distance between `a` and `b`.
      * @param b a #graphene_point_t
+     * @returns the distance between the two points
      */
     distance(b: Point): [ /* returnType */ number, /* d_x */ number, /* d_y */ number ]
     /**
@@ -1505,6 +1617,7 @@ interface Point {
      * you want to control the fuzziness of the match, you can use
      * graphene_point_near() instead.
      * @param b a #graphene_point_t
+     * @returns `true` if the points have the same coordinates
      */
     equal(b: Point): boolean
     /**
@@ -1517,16 +1630,19 @@ interface Point {
      * It's safe to call this function multiple times.
      * @param x the X coordinate
      * @param y the Y coordinate
+     * @returns the initialized point
      */
     init(x: number, y: number): Point
     /**
      * Initializes `p` with the same coordinates of `src`.
      * @param src the #graphene_point_t to use
+     * @returns the initialized point
      */
     init_from_point(src: Point): Point
     /**
      * Initializes `p` with the coordinates inside the given #graphene_vec2_t.
      * @param src a #graphene_vec2_t
+     * @returns the initialized point
      */
     init_from_vec2(src: Vec2): Point
     /**
@@ -1541,6 +1657,7 @@ interface Point {
      * the threshold of `epsilon`.
      * @param b a #graphene_point_t
      * @param epsilon threshold between the two points
+     * @returns `true` if the distance is within @epsilon
      */
     near(b: Point, epsilon: number): boolean
     /**
@@ -1586,10 +1703,12 @@ class Point {
      * ```
      * 
      * @constructor 
+     * @returns the newly allocated #graphene_point_t.   Use graphene_point_free() to free the resources allocated by   this function.
      */
     static alloc(): Point
     /**
      * Returns a point fixed at (0, 0).
+     * @returns a fixed point
      */
     static zero(): Point
 }
@@ -1624,16 +1743,19 @@ interface Point3D {
     /**
      * Computes the distance between the two given #graphene_point3d_t.
      * @param b a #graphene_point3d_t
+     * @returns the distance between two points
      */
     distance(b: Point3D): [ /* returnType */ number, /* delta */ Vec3 ]
     /**
      * Computes the dot product of the two given #graphene_point3d_t.
      * @param b a #graphene_point3d_t
+     * @returns the value of the dot product
      */
     dot(b: Point3D): number
     /**
      * Checks whether two given points are equal.
      * @param b a #graphene_point3d_t
+     * @returns `true` if the points are equal
      */
     equal(b: Point3D): boolean
     /**
@@ -1645,18 +1767,21 @@ interface Point3D {
      * @param x the X coordinate of the point
      * @param y the Y coordinate of the point
      * @param z the Z coordinate of the point
+     * @returns the initialized #graphene_point3d_t
      */
     init(x: number, y: number, z: number): Point3D
     /**
      * Initializes a #graphene_point3d_t using the coordinates of
      * another #graphene_point3d_t.
      * @param src a #graphene_point3d_t
+     * @returns the initialized point
      */
     init_from_point(src: Point3D): Point3D
     /**
      * Initializes a #graphene_point3d_t using the components
      * of a #graphene_vec3_t.
      * @param v a #graphene_vec3_t
+     * @returns the initialized #graphene_point3d_t
      */
     init_from_vec3(v: Vec3): Point3D
     /**
@@ -1669,6 +1794,7 @@ interface Point3D {
     /**
      * Computes the length of the vector represented by the
      * coordinates of the given #graphene_point3d_t.
+     * @returns the length of the vector represented by the point
      */
     length(): number
     /**
@@ -1676,6 +1802,7 @@ interface Point3D {
      * an `epsilon` factor.
      * @param b a #graphene_point3d_t
      * @param epsilon fuzzyness factor
+     * @returns `true` if the points are near each other
      */
     near(b: Point3D, epsilon: number): boolean
     /**
@@ -1722,10 +1849,12 @@ class Point3D {
     /**
      * Allocates a #graphene_point3d_t structure.
      * @constructor 
+     * @returns the newly allocated structure.   Use graphene_point3d_free() to free the resources   allocated by this function.
      */
     static alloc(): Point3D
     /**
      * Retrieves a constant point with all three coordinates set to 0.
+     * @returns a zero point
      */
     static zero(): Point3D
 }
@@ -1741,6 +1870,7 @@ interface Quad {
     /**
      * Checks if the given #graphene_quad_t contains the given #graphene_point_t.
      * @param p a #graphene_point_t
+     * @returns `true` if the point is inside the #graphene_quad_t
      */
     contains(p: Point): boolean
     /**
@@ -1750,6 +1880,7 @@ interface Quad {
     /**
      * Retrieves the point of a #graphene_quad_t at the given index.
      * @param index_ the index of the point to retrieve
+     * @returns a #graphene_point_t
      */
     get_point(index_: number): Point
     /**
@@ -1758,17 +1889,20 @@ interface Quad {
      * @param p2 the second point of the quadrilateral
      * @param p3 the third point of the quadrilateral
      * @param p4 the fourth point of the quadrilateral
+     * @returns the initialized #graphene_quad_t
      */
     init(p1: Point, p2: Point, p3: Point, p4: Point): Quad
     /**
      * Initializes a #graphene_quad_t using an array of points.
      * @param points an array of 4 #graphene_point_t
+     * @returns the initialized #graphene_quad_t
      */
     init_from_points(points: Point[]): Quad
     /**
      * Initializes a #graphene_quad_t using the four corners of the
      * given #graphene_rect_t.
      * @param r a #graphene_rect_t
+     * @returns the initialized #graphene_quad_t
      */
     init_from_rect(r: Rect): Quad
 }
@@ -1793,6 +1927,7 @@ class Quad {
      * 
      * The contents of the returned instance are undefined.
      * @constructor 
+     * @returns the newly created #graphene_quad_t instance
      */
     static alloc(): Quad
 }
@@ -1809,11 +1944,13 @@ interface Quaternion {
     /**
      * Computes the dot product of two #graphene_quaternion_t.
      * @param b a #graphene_quaternion_t
+     * @returns the value of the dot products
      */
     dot(b: Quaternion): number
     /**
      * Checks whether the given quaternions are equal.
      * @param b a #graphene_quaternion_t
+     * @returns `true` if the quaternions are equal
      */
     equal(b: Quaternion): boolean
     /**
@@ -1826,6 +1963,7 @@ interface Quaternion {
      * @param y the second component of the quaternion
      * @param z the third component of the quaternion
      * @param w the fourth component of the quaternion
+     * @returns the initialized quaternion
      */
     init(x: number, y: number, z: number, w: number): Quaternion
     /**
@@ -1833,6 +1971,7 @@ interface Quaternion {
      * specific `axis`.
      * @param angle the rotation on a given axis, in degrees
      * @param axis the axis of rotation, expressed as a vector
+     * @returns the initialized quaternion
      */
     init_from_angle_vec3(angle: number, axis: Vec3): Quaternion
     /**
@@ -1844,22 +1983,26 @@ interface Quaternion {
      * @param deg_x rotation angle on the X axis (yaw), in degrees
      * @param deg_y rotation angle on the Y axis (pitch), in degrees
      * @param deg_z rotation angle on the Z axis (roll), in degrees
+     * @returns the initialized quaternion
      */
     init_from_angles(deg_x: number, deg_y: number, deg_z: number): Quaternion
     /**
      * Initializes a #graphene_quaternion_t using the given #graphene_euler_t.
      * @param e a #graphene_euler_t
+     * @returns the initialized #graphene_quaternion_t
      */
     init_from_euler(e: Euler): Quaternion
     /**
      * Initializes a #graphene_quaternion_t using the rotation components
      * of a transformation matrix.
      * @param m a #graphene_matrix_t
+     * @returns the initialized quaternion
      */
     init_from_matrix(m: Matrix): Quaternion
     /**
      * Initializes a #graphene_quaternion_t with the values from `src`.
      * @param src a #graphene_quaternion_t
+     * @returns the initialized quaternion
      */
     init_from_quaternion(src: Quaternion): Quaternion
     /**
@@ -1871,16 +2014,19 @@ interface Quaternion {
      * @param rad_x rotation angle on the X axis (yaw), in radians
      * @param rad_y rotation angle on the Y axis (pitch), in radians
      * @param rad_z rotation angle on the Z axis (roll), in radians
+     * @returns the initialized quaternion
      */
     init_from_radians(rad_x: number, rad_y: number, rad_z: number): Quaternion
     /**
      * Initializes a #graphene_quaternion_t with the values from `src`.
      * @param src a #graphene_vec4_t
+     * @returns the initialized quaternion
      */
     init_from_vec4(src: Vec4): Quaternion
     /**
      * Initializes a #graphene_quaternion_t using the identity
      * transformation.
+     * @returns the initialized quaternion
      */
     init_identity(): Quaternion
     /**
@@ -1959,6 +2105,7 @@ class Quaternion {
      * 
      * The contents of the returned value are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_quaternion_t
      */
     static alloc(): Quaternion
 }
@@ -1970,6 +2117,7 @@ interface Ray {
     /**
      * Checks whether the two given #graphene_ray_t are equal.
      * @param b a #graphene_ray_t
+     * @returns `true` if the given rays are equal
      */
     equal(b: Ray): boolean
     /**
@@ -1992,6 +2140,7 @@ interface Ray {
      * 
      * If the ray does not intersect the plane, this function returns `INFINITY`.
      * @param p a #graphene_plane_t
+     * @returns the distance of the origin of the ray from the plane
      */
     get_distance_to_plane(p: Plane): number
     /**
@@ -2002,6 +2151,7 @@ interface Ray {
      * between the point and the projection of the point on the
      * ray itself.
      * @param p a #graphene_point3d_t
+     * @returns the distance of the point
      */
     get_distance_to_point(p: Point3D): number
     /**
@@ -2019,36 +2169,42 @@ interface Ray {
      * and `direction` values.
      * @param origin the origin of the ray
      * @param direction the direction vector
+     * @returns the initialized ray
      */
     init(origin: Point3D | null, direction: Vec3 | null): Ray
     /**
      * Initializes the given #graphene_ray_t using the origin and direction
      * values of another #graphene_ray_t.
      * @param src a #graphene_ray_t
+     * @returns the initialized ray
      */
     init_from_ray(src: Ray): Ray
     /**
      * Initializes the given #graphene_ray_t using the given vectors.
      * @param origin a #graphene_vec3_t
      * @param direction a #graphene_vec3_t
+     * @returns the initialized ray
      */
     init_from_vec3(origin: Vec3 | null, direction: Vec3 | null): Ray
     /**
      * Intersects the given #graphene_ray_t `r` with the given
      * #graphene_box_t `b`.
      * @param b a #graphene_box_t
+     * @returns the type of intersection
      */
     intersect_box(b: Box): [ /* returnType */ RayIntersectionKind, /* t_out */ number ]
     /**
      * Intersects the given #graphene_ray_t `r` with the given
      * #graphene_sphere_t `s`.
      * @param s a #graphene_sphere_t
+     * @returns the type of intersection
      */
     intersect_sphere(s: Sphere): [ /* returnType */ RayIntersectionKind, /* t_out */ number ]
     /**
      * Intersects the given #graphene_ray_t `r` with the given
      * #graphene_triangle_t `t`.
      * @param t a #graphene_triangle_t
+     * @returns the type of intersection
      */
     intersect_triangle(t: Triangle): [ /* returnType */ RayIntersectionKind, /* t_out */ number ]
     /**
@@ -2057,6 +2213,7 @@ interface Ray {
      * 
      * See also: graphene_ray_intersect_box()
      * @param b a #graphene_box_t
+     * @returns `true` if the ray intersects the box
      */
     intersects_box(b: Box): boolean
     /**
@@ -2065,6 +2222,7 @@ interface Ray {
      * 
      * See also: graphene_ray_intersect_sphere()
      * @param s a #graphene_sphere_t
+     * @returns `true` if the ray intersects the sphere
      */
     intersects_sphere(s: Sphere): boolean
     /**
@@ -2073,6 +2231,7 @@ interface Ray {
      * 
      * See also: graphene_ray_intersect_triangle()
      * @param t a #graphene_triangle_t
+     * @returns `true` if the ray intersects the triangle
      */
     intersects_triangle(t: Triangle): boolean
 }
@@ -2097,6 +2256,7 @@ class Ray {
      * 
      * The contents of the returned structure are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_ray_t.   Use graphene_ray_free() to free the resources allocated by   this function
      */
     static alloc(): Ray
 }
@@ -2121,17 +2281,20 @@ interface Rect {
     /**
      * Checks whether a #graphene_rect_t contains the given coordinates.
      * @param p a #graphene_point_t
+     * @returns `true` if the rectangle contains the point
      */
     contains_point(p: Point): boolean
     /**
      * Checks whether a #graphene_rect_t fully contains the given
      * rectangle.
      * @param b a #graphene_rect_t
+     * @returns `true` if the rectangle @a fully contains @b
      */
     contains_rect(b: Rect): boolean
     /**
      * Checks whether the two given rectangle are equal.
      * @param b a #graphene_rect_t
+     * @returns `true` if the rectangles are equal
      */
     equal(b: Rect): boolean
     /**
@@ -2145,6 +2308,7 @@ interface Rect {
     free(): void
     /**
      * Compute the area of given normalized rectangle.
+     * @returns the area of the normalized rectangle
      */
     get_area(): number
     /**
@@ -2161,6 +2325,7 @@ interface Rect {
     get_center(): /* p */ Point
     /**
      * Retrieves the normalized height of the given rectangle.
+     * @returns the normalized height of the rectangle
      */
     get_height(): number
     /**
@@ -2177,16 +2342,19 @@ interface Rect {
     get_vertices(): /* vertices */ Vec2[]
     /**
      * Retrieves the normalized width of the given rectangle.
+     * @returns the normalized width of the rectangle
      */
     get_width(): number
     /**
      * Retrieves the normalized X coordinate of the origin of the given
      * rectangle.
+     * @returns the normalized X coordinate of the rectangle
      */
     get_x(): number
     /**
      * Retrieves the normalized Y coordinate of the origin of the given
      * rectangle.
+     * @returns the normalized Y coordinate of the rectangle
      */
     get_y(): number
     /**
@@ -2198,6 +2366,7 @@ interface Rect {
      * @param y the Y coordinate of the `graphene_rect_t`.origin
      * @param width the width of the `graphene_rect_t`.size
      * @param height the height of the `graphene_rect_t`.size
+     * @returns the initialized rectangle
      */
     init(x: number, y: number, width: number, height: number): Rect
     /**
@@ -2206,6 +2375,7 @@ interface Rect {
      * This function will implicitly normalize the #graphene_rect_t
      * before returning.
      * @param src a #graphene_rect_t
+     * @returns the initialized rectangle
      */
     init_from_rect(src: Rect): Rect
     /**
@@ -2225,6 +2395,7 @@ interface Rect {
      * height then the size will be set to zero.
      * @param d_x the horizontal inset
      * @param d_y the vertical inset
+     * @returns the inset rectangle
      */
     inset(d_x: number, d_y: number): Rect
     /**
@@ -2263,6 +2434,7 @@ interface Rect {
      * If the two rectangles do not intersect, `res` will contain
      * a degenerate rectangle with origin in (0, 0) and a size of 0.
      * @param b a #graphene_rect_t
+     * @returns `true` if the two rectangles intersect
      */
     intersection(b: Rect): [ /* returnType */ boolean, /* res */ Rect ]
     /**
@@ -2271,6 +2443,7 @@ interface Rect {
      * This function ensures that the size of the rectangle is made of
      * positive values, and that the origin is the top-left corner of
      * the rectangle.
+     * @returns the normalized rectangle
      */
     normalize(): Rect
     /**
@@ -2287,6 +2460,7 @@ interface Rect {
      * The size of the rectangle is unchanged.
      * @param d_x the horizontal offset
      * @param d_y the vertical offset
+     * @returns the offset rectangle
      */
     offset(d_x: number, d_y: number): Rect
     /**
@@ -2337,6 +2511,7 @@ interface Rect {
      * Rounds the origin and the size of the given rectangle to
      * their nearest integer values; the rounding is guaranteed
      * to be large enough to contain the original rectangle.
+     * @returns the pixel-aligned rectangle.
      */
     round_to_pixel(): Rect
     /**
@@ -2384,11 +2559,13 @@ class Rect {
      * Allocates a new #graphene_rect_t.
      * 
      * The contents of the returned rectangle are undefined.
+     * @returns the newly allocated rectangle
      */
     static alloc(): Rect
     /**
      * Returns a degenerate rectangle with origin fixed at (0, 0) and
      * a size of 0, 0.
+     * @returns a fixed rectangle
      */
     static zero(): Rect
 }
@@ -2433,6 +2610,7 @@ interface Size {
     /**
      * Checks whether the two give #graphene_size_t are equal.
      * @param b a #graphene_size_t
+     * @returns `true` if the sizes are equal
      */
     equal(b: Size): boolean
     /**
@@ -2443,12 +2621,14 @@ interface Size {
      * Initializes a #graphene_size_t using the given `width` and `height`.
      * @param width the width
      * @param height the height
+     * @returns the initialized #graphene_size_t
      */
     init(width: number, height: number): Size
     /**
      * Initializes a #graphene_size_t using the width and height of
      * the given `src`.
      * @param src a #graphene_size_t
+     * @returns the initialized #graphene_size_t
      */
     init_from_size(src: Size): Size
     /**
@@ -2482,11 +2662,13 @@ class Size {
      * 
      * The contents of the returned value are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_size_t
      */
     static alloc(): Size
     /**
      * A constant pointer to a zero #graphene_size_t, useful for
      * equality checks and interpolations.
+     * @returns a constant size
      */
     static zero(): Size
 }
@@ -2499,17 +2681,20 @@ interface Sphere {
      * Checks whether the given `point` is contained in the volume
      * of a #graphene_sphere_t.
      * @param point a #graphene_point3d_t
+     * @returns `true` if the sphere contains the point
      */
     contains_point(point: Point3D): boolean
     /**
      * Computes the distance of the given `point` from the surface of
      * a #graphene_sphere_t.
      * @param point a #graphene_point3d_t
+     * @returns the distance of the point
      */
     distance(point: Point3D): number
     /**
      * Checks whether two #graphene_sphere_t are equal.
      * @param b a #graphene_sphere_t
+     * @returns `true` if the spheres are equal
      */
     equal(b: Sphere): boolean
     /**
@@ -2533,6 +2718,7 @@ interface Sphere {
      * Initializes the given #graphene_sphere_t with the given `center` and `radius`.
      * @param center the coordinates of the center of the sphere, or %NULL   for a center in (0, 0, 0)
      * @param radius the radius of the sphere
+     * @returns the initialized #graphene_sphere_t
      */
     init(center: Point3D | null, radius: number): Sphere
     /**
@@ -2543,6 +2729,7 @@ interface Sphere {
      * of the 3D volume that encompasses all `points`.
      * @param points an array of #graphene_point3d_t
      * @param center the center of the sphere
+     * @returns the initialized #graphene_sphere_t
      */
     init_from_points(points: Point3D[], center: Point3D | null): Sphere
     /**
@@ -2553,10 +2740,12 @@ interface Sphere {
      * of the 3D volume that encompasses all `vectors`.
      * @param vectors an array of #graphene_vec3_t
      * @param center the center of the sphere
+     * @returns the initialized #graphene_sphere_t
      */
     init_from_vectors(vectors: Vec3[], center: Point3D | null): Sphere
     /**
      * Checks whether the sphere has a zero radius.
+     * @returns `true` if the sphere is empty
      */
     is_empty(): boolean
     /**
@@ -2584,6 +2773,7 @@ class Sphere {
      * 
      * The contents of the newly allocated structure are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_sphere_t. Use   graphene_sphere_free() to free the resources allocated by this function
      */
     static alloc(): Sphere
 }
@@ -2595,11 +2785,13 @@ interface Triangle {
     /**
      * Checks whether the given triangle `t` contains the point `p`.
      * @param p a #graphene_point3d_t
+     * @returns `true` if the point is inside the triangle
      */
     contains_point(p: Point3D): boolean
     /**
      * Checks whether the two given #graphene_triangle_t are equal.
      * @param b a #graphene_triangle_t
+     * @returns `true` if the triangles are equal
      */
     equal(b: Triangle): boolean
     /**
@@ -2608,6 +2800,7 @@ interface Triangle {
     free(): void
     /**
      * Computes the area of the given #graphene_triangle_t.
+     * @returns the area of the triangle
      */
     get_area(): number
     /**
@@ -2628,6 +2821,7 @@ interface Triangle {
      *  - `res.x = u`
      *  - `res.y = v`
      * @param p a #graphene_point3d_t
+     * @returns `true` if the barycentric coordinates are valid
      */
     get_barycoords(p: Point3D | null): [ /* returnType */ boolean, /* res */ Vec2 ]
     /**
@@ -2671,6 +2865,7 @@ interface Triangle {
      * @param uv_a the UV coordinates of the first point
      * @param uv_b the UV coordinates of the second point
      * @param uv_c the UV coordinates of the third point
+     * @returns `true` if the coordinates are valid
      */
     get_uv(p: Point3D | null, uv_a: Vec2, uv_b: Vec2, uv_c: Vec2): [ /* returnType */ boolean, /* res */ Vec2 ]
     /**
@@ -2684,6 +2879,7 @@ interface Triangle {
      * @param a an array of 3 floating point values
      * @param b an array of 3 floating point values
      * @param c an array of 3 floating point values
+     * @returns the initialized #graphene_triangle_t
      */
     init_from_float(a: number[], b: number[], c: number[]): Triangle
     /**
@@ -2691,6 +2887,7 @@ interface Triangle {
      * @param a a #graphene_point3d_t
      * @param b a #graphene_point3d_t
      * @param c a #graphene_point3d_t
+     * @returns the initialized #graphene_triangle_t
      */
     init_from_point3d(a: Point3D | null, b: Point3D | null, c: Point3D | null): Triangle
     /**
@@ -2698,6 +2895,7 @@ interface Triangle {
      * @param a a #graphene_vec3_t
      * @param b a #graphene_vec3_t
      * @param c a #graphene_vec3_t
+     * @returns the initialized #graphene_triangle_t
      */
     init_from_vec3(a: Vec3 | null, b: Vec3 | null, c: Vec3 | null): Triangle
 }
@@ -2719,6 +2917,7 @@ class Triangle {
      * 
      * The contents of the returned structure are undefined.
      * @constructor 
+     * @returns the newly allocated #graphene_triangle_t   structure. Use graphene_triangle_free() to free the resources   allocated by this function
      */
     static alloc(): Triangle
 }
@@ -2743,11 +2942,13 @@ interface Vec2 {
     /**
      * Computes the dot product of the two given vectors.
      * @param b a #graphene_vec2_t
+     * @returns the dot product of the vectors
      */
     dot(b: Vec2): number
     /**
      * Checks whether the two given #graphene_vec2_t are equal.
      * @param v2 a #graphene_vec2_t
+     * @returns `true` if the two vectors are equal, and false otherwise
      */
     equal(v2: Vec2): boolean
     /**
@@ -2756,10 +2957,12 @@ interface Vec2 {
     free(): void
     /**
      * Retrieves the X component of the #graphene_vec2_t.
+     * @returns the value of the X component
      */
     get_x(): number
     /**
      * Retrieves the Y component of the #graphene_vec2_t.
+     * @returns the value of the Y component
      */
     get_y(): number
     /**
@@ -2768,16 +2971,19 @@ interface Vec2 {
      * This function can be called multiple times.
      * @param x the X field of the vector
      * @param y the Y field of the vector
+     * @returns the initialized vector
      */
     init(x: number, y: number): Vec2
     /**
      * Initializes `v` with the contents of the given array.
      * @param src an array of floating point values   with at least two elements
+     * @returns the initialized vector
      */
     init_from_float(src: number[]): Vec2
     /**
      * Copies the contents of `src` into `v`.
      * @param src a #graphene_vec2_t
+     * @returns the initialized vector
      */
     init_from_vec2(src: Vec2): Vec2
     /**
@@ -2788,6 +2994,7 @@ interface Vec2 {
     interpolate(v2: Vec2, factor: number): /* res */ Vec2
     /**
      * Computes the length of the given vector.
+     * @returns the length of the vector
      */
     length(): number
     /**
@@ -2813,6 +3020,7 @@ interface Vec2 {
      * whether their values are within the given `epsilon`.
      * @param v2 a #graphene_vec2_t
      * @param epsilon the threshold between the two vectors
+     * @returns `true` if the two vectors are near each other
      */
     near(v2: Vec2, epsilon: number): boolean
     /**
@@ -2863,22 +3071,27 @@ class Vec2 {
      * 
      * Use graphene_vec2_init() to initialize the vector.
      * @constructor 
+     * @returns the newly allocated #graphene_vec2_t   structure. Use graphene_vec2_free() to free the resources allocated   by this function.
      */
     static alloc(): Vec2
     /**
      * Retrieves a constant vector with (1, 1) components.
+     * @returns the one vector
      */
     static one(): Vec2
     /**
      * Retrieves a constant vector with (1, 0) components.
+     * @returns the X axis vector
      */
     static x_axis(): Vec2
     /**
      * Retrieves a constant vector with (0, 1) components.
+     * @returns the Y axis vector
      */
     static y_axis(): Vec2
     /**
      * Retrieves a constant vector with (0, 0) components.
+     * @returns the zero vector
      */
     static zero(): Vec2
 }
@@ -2907,11 +3120,13 @@ interface Vec3 {
     /**
      * Computes the dot product of the two given vectors.
      * @param b a #graphene_vec3_t
+     * @returns the value of the dot product
      */
     dot(b: Vec3): number
     /**
      * Checks whether the two given #graphene_vec3_t are equal.
      * @param v2 a #graphene_vec3_t
+     * @returns `true` if the two vectors are equal, and false otherwise
      */
     equal(v2: Vec3): boolean
     /**
@@ -2920,6 +3135,7 @@ interface Vec3 {
     free(): void
     /**
      * Retrieves the first component of the given vector `v`.
+     * @returns the value of the first component of the vector
      */
     get_x(): number
     /**
@@ -2950,10 +3166,12 @@ interface Vec3 {
     get_xyzw(w: number): /* res */ Vec4
     /**
      * Retrieves the second component of the given vector `v`.
+     * @returns the value of the second component of the vector
      */
     get_y(): number
     /**
      * Retrieves the third component of the given vector `v`.
+     * @returns the value of the third component of the vector
      */
     get_z(): number
     /**
@@ -2963,17 +3181,20 @@ interface Vec3 {
      * @param x the X field of the vector
      * @param y the Y field of the vector
      * @param z the Z field of the vector
+     * @returns a pointer to the initialized   vector
      */
     init(x: number, y: number, z: number): Vec3
     /**
      * Initializes a #graphene_vec3_t with the values from an array.
      * @param src an array of 3 floating point values
+     * @returns the initialized vector
      */
     init_from_float(src: number[]): Vec3
     /**
      * Initializes a #graphene_vec3_t with the values of another
      * #graphene_vec3_t.
      * @param src a #graphene_vec3_t
+     * @returns the initialized vector
      */
     init_from_vec3(src: Vec3): Vec3
     /**
@@ -2984,6 +3205,7 @@ interface Vec3 {
     interpolate(v2: Vec3, factor: number): /* res */ Vec3
     /**
      * Retrieves the length of the given vector `v`.
+     * @returns the value of the length of the vector
      */
     length(): number
     /**
@@ -3008,6 +3230,7 @@ interface Vec3 {
      * whether their values are within the given `epsilon`.
      * @param v2 a #graphene_vec3_t
      * @param epsilon the threshold between the two vectors
+     * @returns `true` if the two vectors are near each other
      */
     near(v2: Vec3, epsilon: number): boolean
     /**
@@ -3058,31 +3281,37 @@ class Vec3 {
      * 
      * Use graphene_vec3_init() to initialize the vector.
      * @constructor 
+     * @returns the newly allocated #graphene_vec3_t   structure. Use graphene_vec3_free() to free the resources allocated   by this function.
      */
     static alloc(): Vec3
     /**
      * Provides a constant pointer to a vector with three components,
      * all sets to 1.
+     * @returns a constant vector
      */
     static one(): Vec3
     /**
      * Provides a constant pointer to a vector with three components
      * with values set to (1, 0, 0).
+     * @returns a constant vector
      */
     static x_axis(): Vec3
     /**
      * Provides a constant pointer to a vector with three components
      * with values set to (0, 1, 0).
+     * @returns a constant vector
      */
     static y_axis(): Vec3
     /**
      * Provides a constant pointer to a vector with three components
      * with values set to (0, 0, 1).
+     * @returns a constant vector
      */
     static z_axis(): Vec3
     /**
      * Provides a constant pointer to a vector with three components,
      * all sets to 0.
+     * @returns a constant vector
      */
     static zero(): Vec3
 }
@@ -3106,11 +3335,13 @@ interface Vec4 {
     /**
      * Computes the dot product of the two given vectors.
      * @param b a #graphene_vec4_t
+     * @returns the value of the dot product
      */
     dot(b: Vec4): number
     /**
      * Checks whether the two given #graphene_vec4_t are equal.
      * @param v2 a #graphene_vec4_t
+     * @returns `true` if the two vectors are equal, and false otherwise
      */
     equal(v2: Vec4): boolean
     /**
@@ -3119,10 +3350,12 @@ interface Vec4 {
     free(): void
     /**
      * Retrieves the value of the fourth component of the given #graphene_vec4_t.
+     * @returns the value of the fourth component
      */
     get_w(): number
     /**
      * Retrieves the value of the first component of the given #graphene_vec4_t.
+     * @returns the value of the first component
      */
     get_x(): number
     /**
@@ -3137,10 +3370,12 @@ interface Vec4 {
     get_xyz(): /* res */ Vec3
     /**
      * Retrieves the value of the second component of the given #graphene_vec4_t.
+     * @returns the value of the second component
      */
     get_y(): number
     /**
      * Retrieves the value of the third component of the given #graphene_vec4_t.
+     * @returns the value of the third component
      */
     get_z(): number
     /**
@@ -3151,11 +3386,13 @@ interface Vec4 {
      * @param y the Y field of the vector
      * @param z the Z field of the vector
      * @param w the W field of the vector
+     * @returns a pointer to the initialized   vector
      */
     init(x: number, y: number, z: number, w: number): Vec4
     /**
      * Initializes a #graphene_vec4_t with the values inside the given array.
      * @param src an array of four floating point values
+     * @returns the initialized vector
      */
     init_from_float(src: number[]): Vec4
     /**
@@ -3164,6 +3401,7 @@ interface Vec4 {
      * @param src a #graphene_vec2_t
      * @param z the value for the third component of `v`
      * @param w the value for the fourth component of `v`
+     * @returns the initialized vector
      */
     init_from_vec2(src: Vec2, z: number, w: number): Vec4
     /**
@@ -3171,12 +3409,14 @@ interface Vec4 {
      * #graphene_vec3_t and the value of `w`.
      * @param src a #graphene_vec3_t
      * @param w the value for the fourth component of `v`
+     * @returns the initialized vector
      */
     init_from_vec3(src: Vec3, w: number): Vec4
     /**
      * Initializes a #graphene_vec4_t using the components of
      * another #graphene_vec4_t.
      * @param src a #graphene_vec4_t
+     * @returns the initialized vector
      */
     init_from_vec4(src: Vec4): Vec4
     /**
@@ -3187,6 +3427,7 @@ interface Vec4 {
     interpolate(v2: Vec4, factor: number): /* res */ Vec4
     /**
      * Computes the length of the given #graphene_vec4_t.
+     * @returns the length of the vector
      */
     length(): number
     /**
@@ -3211,6 +3452,7 @@ interface Vec4 {
      * whether their values are within the given `epsilon`.
      * @param v2 a #graphene_vec4_t
      * @param epsilon the threshold between the two vectors
+     * @returns `true` if the two vectors are near each other
      */
     near(v2: Vec4, epsilon: number): boolean
     /**
@@ -3262,36 +3504,43 @@ class Vec4 {
      * 
      * Use graphene_vec4_init() to initialize the vector.
      * @constructor 
+     * @returns the newly allocated #graphene_vec4_t   structure. Use graphene_vec4_free() to free the resources allocated   by this function.
      */
     static alloc(): Vec4
     /**
      * Retrieves a pointer to a #graphene_vec4_t with all its
      * components set to 1.
+     * @returns a constant vector
      */
     static one(): Vec4
     /**
      * Retrieves a pointer to a #graphene_vec4_t with its
      * components set to (0, 0, 0, 1).
+     * @returns a constant vector
      */
     static w_axis(): Vec4
     /**
      * Retrieves a pointer to a #graphene_vec4_t with its
      * components set to (1, 0, 0, 0).
+     * @returns a constant vector
      */
     static x_axis(): Vec4
     /**
      * Retrieves a pointer to a #graphene_vec4_t with its
      * components set to (0, 1, 0, 0).
+     * @returns a constant vector
      */
     static y_axis(): Vec4
     /**
      * Retrieves a pointer to a #graphene_vec4_t with its
      * components set to (0, 0, 1, 0).
+     * @returns a constant vector
      */
     static z_axis(): Vec4
     /**
      * Retrieves a pointer to a #graphene_vec4_t with all its
      * components set to 0.
+     * @returns a constant vector
      */
     static zero(): Vec4
 }

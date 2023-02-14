@@ -1547,11 +1547,13 @@ const VERSION_STRING: string
  * If breaks are disabled, the range will be kept in a
  * single run, as far as possible.
  * @param allow_breaks %TRUE if we line breaks are allowed
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_allow_breaks_new(allow_breaks: boolean): Attribute
 /**
  * Create a new background alpha attribute.
  * @param alpha the alpha value, between 1 and 65536
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_background_alpha_new(alpha: number): Attribute
 /**
@@ -1559,6 +1561,7 @@ function attr_background_alpha_new(alpha: number): Attribute
  * @param red the red value (ranging from 0 to 65535)
  * @param green the green value
  * @param blue the blue value
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_background_new(red: number, green: number, blue: number): Attribute
 /**
@@ -1572,6 +1575,7 @@ function attr_background_new(red: number, green: number, blue: number): Attribut
  *   <img alt="Baseline Shift" src="baseline-shift-light.png">
  * </picture>
  * @param shift either a `PangoBaselineShift` enumeration value or an absolute value (> 1024)   in Pango units, relative to the baseline of the previous run.   Positive values displace the text upwards.
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_baseline_shift_new(shift: number): Attribute
 /**
@@ -1594,11 +1598,13 @@ function attr_break(text: string, length: number, attr_list: AttrList, offset: n
  * No fallback will be done to other fonts on the system
  * that might contain the characters in the text.
  * @param enable_fallback %TRUE if we should fall back on other fonts   for characters the active font is missing
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_fallback_new(enable_fallback: boolean): Attribute
 /**
  * Create a new font family attribute.
  * @param family the family or comma-separated list of families
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_family_new(family: string): Attribute
 /**
@@ -1607,6 +1613,7 @@ function attr_family_new(family: string): Attribute
  * This attribute allows setting family, style, weight, variant,
  * stretch, and size simultaneously.
  * @param desc the font description
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_font_desc_new(desc: FontDescription): Attribute
 /**
@@ -1615,6 +1622,7 @@ function attr_font_desc_new(desc: FontDescription): Attribute
  * You can use this attribute to select OpenType font features like small-caps,
  * alternative glyphs, ligatures, etc. for fonts that support them.
  * @param features a string with OpenType font features, with the syntax of the [CSS font-feature-settings property](https://www.w3.org/TR/css-fonts-4/#font-rend-desc)
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_font_features_new(features: string): Attribute
 /**
@@ -1623,11 +1631,13 @@ function attr_font_features_new(features: string): Attribute
  * The effect of this attribute is to change the font size of a run,
  * relative to the size of preceding run.
  * @param scale a `PangoFontScale` value, which indicates font size change relative   to the size of the previous run.
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_font_scale_new(scale: FontScale): Attribute
 /**
  * Create a new foreground alpha attribute.
  * @param alpha the alpha value, between 1 and 65536
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_foreground_alpha_new(alpha: number): Attribute
 /**
@@ -1635,16 +1645,19 @@ function attr_foreground_alpha_new(alpha: number): Attribute
  * @param red the red value (ranging from 0 to 65535)
  * @param green the green value
  * @param blue the blue value
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_foreground_new(red: number, green: number, blue: number): Attribute
 /**
  * Create a new gravity hint attribute.
  * @param hint the gravity hint value
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_gravity_hint_new(hint: GravityHint): Attribute
 /**
  * Create a new gravity attribute.
  * @param gravity the gravity value; should not be %PANGO_GRAVITY_AUTO
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_gravity_new(gravity: Gravity): Attribute
 /**
@@ -1654,16 +1667,19 @@ function attr_gravity_new(gravity: Gravity): Attribute
  * the middle of a word. This attribute can be used
  * to suppress the hyphen.
  * @param insert_hyphens %TRUE if hyphens should be inserted
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_insert_hyphens_new(insert_hyphens: boolean): Attribute
 /**
  * Create a new language tag attribute.
  * @param language language tag
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_language_new(language: Language): Attribute
 /**
  * Create a new letter-spacing attribute.
  * @param letter_spacing amount of extra space to add between   graphemes of the text, in Pango units
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_letter_spacing_new(letter_spacing: number): Attribute
 /**
@@ -1692,6 +1708,7 @@ function attr_line_height_new_absolute(height: number): Attribute
  * This is the counterpart to [method`Pango`.AttrList.to_string].
  * See that functions for details about the format.
  * @param text a string
+ * @returns a new `PangoAttrList`
  */
 function attr_list_from_string(text: string): AttrList | null
 /**
@@ -1702,16 +1719,19 @@ function attr_list_from_string(text: string): AttrList | null
  * @param red the red value (ranging from 0 to 65535)
  * @param green the green value
  * @param blue the blue value
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_overline_color_new(red: number, green: number, blue: number): Attribute
 /**
  * Create a new overline-style attribute.
  * @param overline the overline style
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_overline_new(overline: Overline): Attribute
 /**
  * Create a new baseline displacement attribute.
  * @param rise the amount that the text should be displaced vertically,   in Pango units. Positive values displace the text upwards.
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_rise_new(rise: number): Attribute
 /**
@@ -1720,6 +1740,7 @@ function attr_rise_new(rise: number): Attribute
  * The base font for the affected text will have
  * its size multiplied by `scale_factor`.
  * @param scale_factor factor to scale the font
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_scale_new(scale_factor: number): Attribute
 /**
@@ -1727,6 +1748,7 @@ function attr_scale_new(scale_factor: number): Attribute
  * 
  * Note that this may require adjustments to word and
  * sentence classification around the range.
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_sentence_new(): Attribute
 /**
@@ -1738,6 +1760,7 @@ function attr_sentence_new(): Attribute
  * or a widget inside a `PangoLayout`.
  * @param ink_rect ink rectangle to assign to each character
  * @param logical_rect logical rectangle to assign to each character
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_shape_new(ink_rect: Rectangle, logical_rect: Rectangle): Attribute
 /**
@@ -1750,27 +1773,32 @@ function attr_shape_new(ink_rect: Rectangle, logical_rect: Rectangle): Attribute
  * @param logical_rect logical rectangle to assign to each character
  * @param data user data pointer
  * @param copy_func function to copy `data` when the   attribute is copied. If %NULL, `data` is simply copied   as a pointer
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_shape_new_with_data(ink_rect: Rectangle, logical_rect: Rectangle, data: object | null, copy_func: AttrDataCopyFunc | null): Attribute
 /**
  * Create a new attribute that influences how invisible
  * characters are rendered.
  * @param flags `PangoShowFlags` to apply
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_show_new(flags: ShowFlags): Attribute
 /**
  * Create a new font-size attribute in fractional points.
  * @param size the font size, in %PANGO_SCALE-ths of a point
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_size_new(size: number): Attribute
 /**
  * Create a new font-size attribute in device units.
  * @param size the font size, in %PANGO_SCALE-ths of a device unit
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_size_new_absolute(size: number): Attribute
 /**
  * Create a new font stretch attribute.
  * @param stretch the stretch
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_stretch_new(stretch: Stretch): Attribute
 /**
@@ -1781,22 +1809,26 @@ function attr_stretch_new(stretch: Stretch): Attribute
  * @param red the red value (ranging from 0 to 65535)
  * @param green the green value
  * @param blue the blue value
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_strikethrough_color_new(red: number, green: number, blue: number): Attribute
 /**
  * Create a new strike-through attribute.
  * @param strikethrough %TRUE if the text should be struck-through
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_strikethrough_new(strikethrough: boolean): Attribute
 /**
  * Create a new font slant style attribute.
  * @param style the slant style
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_style_new(style: Style): Attribute
 /**
  * Create a new attribute that influences how characters
  * are transformed during shaping.
  * @param transform `PangoTextTransform` to apply
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_text_transform_new(transform: TextTransform): Attribute
 /**
@@ -1810,6 +1842,7 @@ function attr_text_transform_new(transform: TextTransform): Attribute
  * g_intern_string() for what that means) that should
  * not be modified or freed.
  * @param type an attribute type ID to fetch the name for
+ * @returns the type ID name (which   may be %NULL), or %NULL if @type is a built-in Pango   attribute type or invalid.
  */
 function attr_type_get_name(type: AttrType): string | null
 /**
@@ -1818,6 +1851,7 @@ function attr_type_get_name(type: AttrType): string | null
  * The attribute type name can be accessed later
  * by using [func`Pango`.AttrType.get_name].
  * @param name an identifier for the type
+ * @returns the new type ID.
  */
 function attr_type_register(name: string): AttrType
 /**
@@ -1828,21 +1862,25 @@ function attr_type_register(name: string): AttrType
  * @param red the red value (ranging from 0 to 65535)
  * @param green the green value
  * @param blue the blue value
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_underline_color_new(red: number, green: number, blue: number): Attribute
 /**
  * Create a new underline-style attribute.
  * @param underline the underline style
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_underline_new(underline: Underline): Attribute
 /**
  * Create a new font variant attribute (normal or small caps).
  * @param variant the variant
+ * @returns the newly allocated `PangoAttribute`,   which should be freed with [method@Pango.Attribute.destroy].
  */
 function attr_variant_new(variant: Variant): Attribute
 /**
  * Create a new font weight attribute.
  * @param weight the weight
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_weight_new(weight: Weight): Attribute
 /**
@@ -1850,6 +1888,7 @@ function attr_weight_new(weight: Weight): Attribute
  * 
  * Note that this may require adjustments to word and
  * sentence classification around the range.
+ * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
  */
 function attr_word_new(): Attribute
 /**
@@ -1859,6 +1898,7 @@ function attr_word_new(): Attribute
  * 
  * A simplified version of this function is available as [func`unichar_direction]`.
  * @param ch a Unicode character
+ * @returns the bidirectional character type, as used in the Unicode bidirectional algorithm.
  */
 function bidi_type_for_unichar(ch: string): BidiType
 /**
@@ -1916,6 +1956,7 @@ function extents_to_pixels(inclusive: Rectangle | null, nearest: Rectangle | nul
  * direction, according to the Unicode bidirectional algorithm.
  * @param text the text to process. Must be valid UTF-8
  * @param length length of `text` in bytes (may be -1 if `text` is nul-terminated)
+ * @returns The direction corresponding to the first strong character.   If no such character is found, then %PANGO_DIRECTION_NEUTRAL is returned.
  */
 function find_base_dir(text: string, length: number): Direction
 /**
@@ -1983,6 +2024,7 @@ function find_paragraph_boundary(text: string, length: number): [ /* paragraph_d
  * 
  *     "Cantarell Italic Light 15 \`wght=`200"
  * @param str string representation of a font description.
+ * @returns a new `PangoFontDescription`.
  */
 function font_description_from_string(str: string): FontDescription
 /**
@@ -2008,12 +2050,14 @@ function get_log_attrs(text: string, length: number, level: number, language: La
  * Mirror characters are determined by the Unicode mirrored property.
  * @param ch a Unicode character
  * @param mirrored_ch location to store the mirrored character
+ * @returns %TRUE if @ch has a mirrored character and @mirrored_ch is filled in, %FALSE otherwise
  */
 function get_mirror_char(ch: string, mirrored_ch: string): boolean
 /**
  * Finds the gravity that best matches the rotation component
  * in a `PangoMatrix`.
  * @param matrix a `PangoMatrix`
+ * @returns the gravity of @matrix, which will never be %PANGO_GRAVITY_AUTO, or %PANGO_GRAVITY_SOUTH if @matrix is %NULL
  */
 function gravity_get_for_matrix(matrix: Matrix | null): Gravity
 /**
@@ -2027,6 +2071,7 @@ function gravity_get_for_matrix(matrix: Matrix | null): Gravity
  * @param script `PangoScript` to query
  * @param base_gravity base gravity of the paragraph
  * @param hint orientation hint
+ * @returns resolved gravity suitable to use for a run of text with @script
  */
 function gravity_get_for_script(script: Script, base_gravity: Gravity, hint: GravityHint): Gravity
 /**
@@ -2049,6 +2094,7 @@ function gravity_get_for_script(script: Script, base_gravity: Gravity, hint: Gra
  * @param wide %TRUE for wide characters as returned by g_unichar_iswide()
  * @param base_gravity base gravity of the paragraph
  * @param hint orientation hint
+ * @returns resolved gravity suitable to use for a run of text with @script and @wide.
  */
 function gravity_get_for_script_and_width(script: Script, wide: boolean, base_gravity: Gravity, hint: GravityHint): Gravity
 /**
@@ -2058,6 +2104,7 @@ function gravity_get_for_script_and_width(script: Script, wide: boolean, base_gr
  * So, to call [method`Pango`.Matrix,rotate] with the output of this function
  * you should multiply it by (180. / G_PI).
  * @param gravity gravity to query, should not be %PANGO_GRAVITY_AUTO
+ * @returns the rotation value corresponding to @gravity.
  */
 function gravity_to_rotation(gravity: Gravity): number
 /**
@@ -2068,6 +2115,7 @@ function gravity_to_rotation(gravity: Gravity): number
  * 
  * This is totally different from [func`GLib`.unichar_iszerowidth] and is at best misnamed.
  * @param ch a Unicode character
+ * @returns %TRUE if @ch is a zero-width character, %FALSE otherwise
  */
 function is_zero_width(ch: string): boolean
 /**
@@ -2089,6 +2137,7 @@ function is_zero_width(ch: string): boolean
  * @param length the number of bytes (not characters) to process   after `start_index`. This must be >= 0.
  * @param attrs the set of attributes that apply to `text`.
  * @param cached_iter Cached attribute iterator
+ * @returns a `GList` of   [struct@Pango.Item] structures. The items should be freed using   [method@Pango.Item.free] in combination with [func@GLib.List.free_full].
  */
 function itemize(context: Context, text: string, start_index: number, length: number, attrs: AttrList, cached_iter: AttrIterator | null): Item[]
 /**
@@ -2104,6 +2153,7 @@ function itemize(context: Context, text: string, start_index: number, length: nu
  * @param length the number of bytes (not characters) to process   after `start_index`. This must be >= 0.
  * @param attrs the set of attributes that apply to `text`.
  * @param cached_iter Cached attribute iterator
+ * @returns a `GList` of   [struct@Pango.Item] structures. The items should be freed using   [method@Pango.Item.free] probably in combination with [func@GLib.List.free_full].
  */
 function itemize_with_base_dir(context: Context, base_dir: Direction, text: string, start_index: number, length: number, attrs: AttrList, cached_iter: AttrIterator | null): Item[]
 /**
@@ -2120,6 +2170,7 @@ function itemize_with_base_dir(context: Context, base_dir: Direction, text: stri
  * Use [func`Pango`.Language.get_default] if you want to get the
  * `PangoLanguage` for the current locale of the process.
  * @param language a string representing a language tag
+ * @returns a `PangoLanguage`
  */
 function language_from_string(language: string | null): Language | null
 /**
@@ -2154,6 +2205,7 @@ function language_from_string(language: string | null): Language | null
  * Also note that this function will not do the right thing if you
  * use per-thread locales with uselocale(). In that case, you should
  * just call pango_language_from_string() yourself.
+ * @returns the default language as a `PangoLanguage`
  */
 function language_get_default(): Language
 /**
@@ -2168,6 +2220,7 @@ function language_get_default(): Language
  * text returned by [method`Pango`.Language.get_sample_string],
  * you should first try the default language, followed by the
  * languages returned by this function.
+ * @returns a %NULL-terminated array   of `PangoLanguage`*
  */
 function language_get_preferred(): Language[] | null
 function layout_deserialize_error_quark(): GLib.Quark
@@ -2182,6 +2235,7 @@ function layout_deserialize_error_quark(): GLib.Quark
  * @param text the text to itemize.
  * @param length the number of bytes (not characters) to process, or -1   if `text` is nul-terminated and the length should be calculated.
  * @param pbase_dir input base direction, and output resolved direction.
+ * @returns a newly allocated array of embedding levels, one item per   character (not byte), that should be freed using [func@GLib.free].
  */
 function log2vis_get_embedding_levels(text: string, length: number, pbase_dir: Direction): number
 /**
@@ -2192,6 +2246,7 @@ function log2vis_get_embedding_levels(text: string, length: number, pbase_dir: D
  * markup. This function will not free `context,` use [method`GLib`.MarkupParseContext.free]
  * to do so.
  * @param context A valid parse context that was returned from [func`markup_parser_new]`
+ * @returns %FALSE if @error is set, otherwise %TRUE
  */
 function markup_parser_finish(context: GLib.MarkupParseContext): [ /* returnType */ boolean, /* attr_list */ AttrList, /* text */ string, /* accel_char */ string ]
 /**
@@ -2218,6 +2273,7 @@ function markup_parser_finish(context: GLib.MarkupParseContext): [ /* returnType
  * from streams. To simply parse a string containing Pango markup,
  * the [func`Pango`.parse_markup] API is recommended instead.
  * @param accel_marker character that precedes an accelerator, or 0 for none
+ * @returns a `GMarkupParseContext` that should be destroyed with [method@GLib.MarkupParseContext.free].
  */
 function markup_parser_new(accel_marker: string): GLib.MarkupParseContext
 /**
@@ -2234,6 +2290,7 @@ function markup_parser_new(accel_marker: string): GLib.MarkupParseContext
  * @param type enum type to parse, eg. %PANGO_TYPE_ELLIPSIZE_MODE
  * @param str string to parse
  * @param warn if %TRUE, issue a g_warning() on bad input
+ * @returns %TRUE if @str was successfully parsed
  */
 function parse_enum(type: GObject.GType, str: string | null, warn: boolean): [ /* returnType */ boolean, /* value */ number, /* possible_values */ string ]
 /**
@@ -2257,6 +2314,7 @@ function parse_enum(type: GObject.GType, str: string | null, warn: boolean): [ /
  * @param markup_text markup to parse (see the [Pango Markup](pango_markup.html) docs)
  * @param length length of `markup_text,` or -1 if nul-terminated
  * @param accel_marker character that precedes an accelerator, or 0 for none
+ * @returns %FALSE if @error is set, otherwise %TRUE
  */
 function parse_markup(markup_text: string, length: number, accel_marker: string): [ /* returnType */ boolean, /* attr_list */ AttrList, /* text */ string, /* accel_char */ string ]
 /**
@@ -2269,6 +2327,7 @@ function parse_markup(markup_text: string, length: number, accel_marker: string)
  * ignored and the '_' characters may be omitted.
  * @param str a string to parse.
  * @param warn if %TRUE, issue a g_warning() on bad input.
+ * @returns %TRUE if @str was successfully parsed.
  */
 function parse_stretch(str: string, warn: boolean): [ /* returnType */ boolean, /* stretch */ Stretch ]
 /**
@@ -2279,6 +2338,7 @@ function parse_stretch(str: string, warn: boolean): [ /* returnType */ boolean, 
  * ignored.
  * @param str a string to parse.
  * @param warn if %TRUE, issue a g_warning() on bad input.
+ * @returns %TRUE if @str was successfully parsed.
  */
 function parse_style(str: string, warn: boolean): [ /* returnType */ boolean, /* style */ Style ]
 /**
@@ -2289,6 +2349,7 @@ function parse_style(str: string, warn: boolean): [ /* returnType */ boolean, /*
  * case variations being ignored.
  * @param str a string to parse.
  * @param warn if %TRUE, issue a g_warning() on bad input.
+ * @returns %TRUE if @str was successfully parsed.
  */
 function parse_variant(str: string, warn: boolean): [ /* returnType */ boolean, /* variant */ Variant ]
 /**
@@ -2299,6 +2360,7 @@ function parse_variant(str: string, warn: boolean): [ /* returnType */ boolean, 
  * and integers. Case variations are ignored.
  * @param str a string to parse.
  * @param warn if %TRUE, issue a g_warning() on bad input.
+ * @returns %TRUE if @str was successfully parsed.
  */
 function parse_weight(str: string, warn: boolean): [ /* returnType */ boolean, /* weight */ Weight ]
 /**
@@ -2325,6 +2387,7 @@ function quantize_line_geometry(thickness: number, position: number): [ /* thick
  * unmodified.
  * @param stream a stdio stream
  * @param str `GString` buffer into which to write the result
+ * @returns 0 if the stream was already at an %EOF character,   otherwise the number of lines read (this is useful for maintaining   a line number counter which doesn't combine lines with '\')
  */
 function read_line(stream: object | null, str: GLib.String): number
 /**
@@ -2337,6 +2400,7 @@ function read_line(stream: object | null, str: GLib.String): number
  *  It is not a particularly convenient interface, and the code
  *  is duplicated elsewhere in Pango for that reason.)
  * @param items a `GList` of `PangoItem`   in logical order.
+ * @returns a `GList`   of `PangoItem` structures in visual order.
  */
 function reorder_items(items: Item[]): Item[]
 /**
@@ -2344,6 +2408,7 @@ function reorder_items(items: Item[]): Item[]
  * 
  * Leading white space is skipped.
  * @param pos in/out string position
+ * @returns %FALSE if a parse error occurred
  */
 function scan_int(pos: string): [ /* returnType */ boolean, /* pos */ string, /* out */ number ]
 /**
@@ -2354,6 +2419,7 @@ function scan_int(pos: string): [ /* returnType */ boolean, /* pos */ string, /*
  * a literal quote. Leading white space outside of quotes is skipped.
  * @param pos in/out string position
  * @param out a `GString` into which to write the result
+ * @returns %FALSE if a parse error occurred
  */
 function scan_string(pos: string, out: GLib.String): [ /* returnType */ boolean, /* pos */ string ]
 /**
@@ -2363,6 +2429,7 @@ function scan_string(pos: string, out: GLib.String): [ /* returnType */ boolean,
  * [A-Za-z_0-9]. Leading white space is skipped.
  * @param pos in/out string position
  * @param out a `GString` into which to write the result
+ * @returns %FALSE if a parse error occurred
  */
 function scan_word(pos: string, out: GLib.String): [ /* returnType */ boolean, /* pos */ string ]
 /**
@@ -2379,6 +2446,7 @@ function scan_word(pos: string, out: GLib.String): [ /* returnType */ boolean, /
  * the return value of [func`GLib`.unichar_get_script]. Callers must be
  * prepared to handle unknown values.
  * @param ch a Unicode character
+ * @returns the `PangoScript` for the character.
  */
 function script_for_unichar(ch: string): Script
 /**
@@ -2412,6 +2480,7 @@ function script_for_unichar(ch: string): Script
  * choose a default language for %PANGO_SCRIPT_HAN when setting
  * context language is not feasible.
  * @param script a `PangoScript`
+ * @returns a `PangoLanguage` that is representative   of the script
  */
 function script_get_sample_language(script: Script): Language | null
 /**
@@ -2522,12 +2591,14 @@ function shape_with_flags(item_text: string, item_length: number, paragraph_text
 /**
  * Skips 0 or more characters of white space.
  * @param pos in/out string position
+ * @returns %FALSE if skipping the white space leaves   the position at a '\0' character.
  */
 function skip_space(pos: string): [ /* returnType */ boolean, /* pos */ string ]
 /**
  * Splits a %G_SEARCHPATH_SEPARATOR-separated list of files, stripping
  * white space and substituting ~/ with $HOME/.
  * @param str a %G_SEARCHPATH_SEPARATOR separated list of filenames
+ * @returns a list of   strings to be freed with g_strfreev()
  */
 function split_file_list(str: string): string[]
 /**
@@ -2536,6 +2607,7 @@ function split_file_list(str: string): string[]
  * This is the counterpart to [method`Pango`.TabArray.to_string].
  * See that functions for details about the format.
  * @param text a string
+ * @returns a new `PangoTabArray`
  */
 function tab_array_from_string(text: string): TabArray | null
 /**
@@ -2558,6 +2630,7 @@ function tailor_break(text: string, length: number, analysis: Analysis, offset: 
 /**
  * Trims leading and trailing whitespace from a string.
  * @param str a string
+ * @returns A newly-allocated string that must be freed with g_free()
  */
 function trim_string(str: string): string
 /**
@@ -2571,6 +2644,7 @@ function trim_string(str: string): string
  * bidirectional type of a character is needed, [func`Pango`.BidiType.for_unichar]
  * can be used instead.
  * @param ch a Unicode character
+ * @returns the direction of the character.
  */
 function unichar_direction(ch: string): Direction
 /**
@@ -2579,6 +2653,7 @@ function unichar_direction(ch: string): Direction
  * The conversion is done by multiplying `d` by %PANGO_SCALE and
  * rounding the result to nearest integer.
  * @param d double floating-point value
+ * @returns the value in Pango units.
  */
 function units_from_double(d: number): number
 /**
@@ -2586,6 +2661,7 @@ function units_from_double(d: number): number
  * 
  * The conversion is done by dividing `i` by %PANGO_SCALE.
  * @param i value in Pango units
+ * @returns the double value.
  */
 function units_to_double(i: number): number
 /**
@@ -2594,6 +2670,7 @@ function units_to_double(i: number): number
  * This is similar to the macro %PANGO_VERSION except that the macro
  * returns the encoded version available at compile-time. A version
  * number can be encoded into an integer using PANGO_VERSION_ENCODE().
+ * @returns The encoded version of Pango library available at run time.
  */
 function version(): number
 /**
@@ -2617,6 +2694,7 @@ function version(): number
  * @param required_major the required major version
  * @param required_minor the required minor version
  * @param required_micro the required major version
+ * @returns %NULL if the Pango library is compatible   with the given version, or a string describing the version   mismatch.  The returned string is owned by Pango and should not   be modified or freed.
  */
 function version_check(required_major: number, required_minor: number, required_micro: number): string | null
 /**
@@ -2624,11 +2702,13 @@ function version_check(required_major: number, required_minor: number, required_
  * 
  * This is similar to the macro %PANGO_VERSION_STRING except that the
  * macro returns the version available at compile-time.
+ * @returns A string containing the version of Pango library available   at run time. The returned string is owned by Pango and should not   be modified or freed.
  */
 function version_string(): string
 /**
  * Type of a function that can duplicate user data for an attribute.
  * @callback 
+ * @returns new copy of @user_data.
  */
 interface AttrDataCopyFunc {
     (): object | null
@@ -2637,6 +2717,7 @@ interface AttrDataCopyFunc {
  * Type of a function filtering a list of attributes.
  * @callback 
  * @param attribute a Pango attribute
+ * @returns %TRUE if the attribute should be selected for   filtering, %FALSE otherwise.
  */
 interface AttrFilterFunc {
     (attribute: Attribute): boolean
@@ -2648,6 +2729,7 @@ interface AttrFilterFunc {
  * @callback 
  * @param fontset a `PangoFontset`
  * @param font a font from `fontset`
+ * @returns if %TRUE, stop iteration and return immediately.
  */
 interface FontsetForeachFunc {
     (fontset: Fontset, font: Font): boolean
@@ -2679,20 +2761,24 @@ interface Context {
      * Retrieves the base direction for the context.
      * 
      * See [method`Pango`.Context.set_base_dir].
+     * @returns the base direction for the context.
      */
     get_base_dir(): Direction
     /**
      * Retrieves the base gravity for the context.
      * 
      * See [method`Pango`.Context.set_base_gravity].
+     * @returns the base gravity for the context.
      */
     get_base_gravity(): Gravity
     /**
      * Retrieve the default font description for the context.
+     * @returns a pointer to the context's default font   description. This value must not be modified or freed.
      */
     get_font_description(): FontDescription | null
     /**
      * Gets the `PangoFontMap` used to look up fonts for this context.
+     * @returns the font map for the.   `PangoContext` This value is owned by Pango and should not be   unreferenced.
      */
     get_font_map(): FontMap | null
     /**
@@ -2702,16 +2788,19 @@ interface Context {
      * except for when the base gravity is %PANGO_GRAVITY_AUTO for
      * which [func`Pango`.Gravity.get_for_matrix] is used to return the
      * gravity from the current context matrix.
+     * @returns the resolved gravity for the context.
      */
     get_gravity(): Gravity
     /**
      * Retrieves the gravity hint for the context.
      * 
      * See [method`Pango`.Context.set_gravity_hint] for details.
+     * @returns the gravity hint for the context.
      */
     get_gravity_hint(): GravityHint
     /**
      * Retrieves the global language tag for the context.
+     * @returns the global language tag.
      */
     get_language(): Language
     /**
@@ -2719,6 +2808,7 @@ interface Context {
      * rendering with this context.
      * 
      * See [method`Pango`.Context.set_matrix].
+     * @returns the matrix, or %NULL if no   matrix has been set (which is the same as the identity matrix).   The returned matrix is owned by Pango and must not be modified   or freed.
      */
     get_matrix(): Matrix | null
     /**
@@ -2735,6 +2825,7 @@ interface Context {
      * for the individual families.
      * @param desc a `PangoFontDescription` structure. %NULL means that the   font description from the context will be used.
      * @param language language tag used to determine which script to get   the metrics for. %NULL means that the language tag from the context   will be used. If no language tag is set on the context, metrics   for the default language (as determined by [func`Pango`.Language.get_default]   will be returned.
+     * @returns a `PangoFontMetrics` object. The caller must call   [method@Pango.FontMetrics.unref] when finished using the object.
      */
     get_metrics(desc: FontDescription | null, language: Language | null): FontMetrics
     /**
@@ -2755,6 +2846,7 @@ interface Context {
      * This can be used to automatically detect changes to a `PangoContext`,
      * and is only useful when implementing objects that need update when their
      * `PangoContext` changes, like `PangoLayout`.
+     * @returns The current serial number of @context.
      */
     get_serial(): number
     /**
@@ -2765,6 +2857,7 @@ interface Context {
      * Loads the font in one of the fontmaps in the context
      * that is the closest match for `desc`.
      * @param desc a `PangoFontDescription` describing the font to load
+     * @returns the newly allocated `PangoFont`   that was loaded, or %NULL if no font matched.
      */
     load_font(desc: FontDescription): Font | null
     /**
@@ -2772,6 +2865,7 @@ interface Context {
      * a font matching `desc`.
      * @param desc a `PangoFontDescription` describing the fonts to load
      * @param language a `PangoLanguage` the fonts will be used for
+     * @returns the newly allocated   `PangoFontset` loaded, or %NULL if no font matched.
      */
     load_fontset(desc: FontDescription, language: Language): Fontset | null
     /**
@@ -2894,6 +2988,7 @@ class Context extends GObject.Object {
      * For instance, the GTK toolkit has, among others,
      * `gtk_widget_get_pango_context()`. Use those instead.
      * @constructor 
+     * @returns the newly allocated `PangoContext`, which should   be freed with g_object_unref().
      */
     constructor() 
     /**
@@ -2909,6 +3004,7 @@ class Context extends GObject.Object {
      * For instance, the GTK toolkit has, among others,
      * `gtk_widget_get_pango_context()`. Use those instead.
      * @constructor 
+     * @returns the newly allocated `PangoContext`, which should   be freed with g_object_unref().
      */
     static new(): Context
     _init(config?: Context.ConstructorProperties): void
@@ -2929,11 +3025,13 @@ interface Coverage {
 
     /**
      * Copy an existing `PangoCoverage`.
+     * @returns the newly allocated `PangoCoverage`,   with a reference count of one, which should be freed with   [method@Pango.Coverage.unref].
      */
     copy(): Coverage
     /**
      * Determine whether a particular index is covered by `coverage`.
      * @param index_ the index to check
+     * @returns the coverage level of @coverage for character @index_.
      */
     get(index_: number): CoverageLevel
     /**
@@ -2945,6 +3043,7 @@ interface Coverage {
     max(other: Coverage): void
     /**
      * Increase the reference count on the `PangoCoverage` by one.
+     * @returns @coverage
      */
     ref(): Coverage
 
@@ -2957,6 +3056,7 @@ interface Coverage {
      * of `object` will be propagated to the return type (using the GCC typeof()
      * extension), so any casting the caller needs to do on the return type must be
      * explicit.
+     * @returns the same @object
      */
     ref(): GObject.Object
     /**
@@ -3008,11 +3108,13 @@ class Coverage extends GObject.Object {
     /**
      * Create a new `PangoCoverage`
      * @constructor 
+     * @returns the newly allocated `PangoCoverage`, initialized   to %PANGO_COVERAGE_NONE with a reference count of one, which   should be freed with [method@Pango.Coverage.unref].
      */
     constructor() 
     /**
      * Create a new `PangoCoverage`
      * @constructor 
+     * @returns the newly allocated `PangoCoverage`, initialized   to %PANGO_COVERAGE_NONE with a reference count of one, which   should be freed with [method@Pango.Coverage.unref].
      */
     static new(): Coverage
     _init(config?: Coverage.ConstructorProperties): void
@@ -3020,6 +3122,7 @@ class Coverage extends GObject.Object {
      * Convert data generated from [method`Pango`.Coverage.to_bytes]
      * back to a `PangoCoverage`.
      * @param bytes binary data   representing a `PangoCoverage`
+     * @returns a newly allocated `PangoCoverage`
      */
     static from_bytes(bytes: Uint8Array): Coverage | null
 }
@@ -3046,6 +3149,7 @@ interface Font {
      * 
      * Use [method`Pango`.Font.describe_with_absolute_size] if you want
      * the font size in device units.
+     * @returns a newly-allocated `PangoFontDescription` object.
      */
     describe(): FontDescription
     /**
@@ -3053,15 +3157,18 @@ interface Font {
      * in device units.
      * 
      * Use [method`Pango`.Font.describe] if you want the font size in points.
+     * @returns a newly-allocated `PangoFontDescription` object.
      */
     describe_with_absolute_size(): FontDescription
     /**
      * Computes the coverage map for a given font and language tag.
      * @param language the language tag
+     * @returns a newly-allocated `PangoCoverage`   object.
      */
     get_coverage(language: Language): Coverage
     /**
      * Gets the `PangoFontFace` to which `font` belongs.
+     * @returns the `PangoFontFace`
      */
     get_face(): FontFace
     /**
@@ -3087,6 +3194,7 @@ interface Font {
      * It is the responsibility of the user to ensure that the
      * font map is kept alive. In most uses this is not an issue
      * as a `PangoContext` holds a reference to the font map.
+     * @returns the `PangoFontMap`   for the font
      */
     get_font_map(): FontMap | null
     /**
@@ -3113,6 +3221,7 @@ interface Font {
      * 
      * The returned array is only valid as long as the font
      * and its fontmap are valid.
+     * @returns an array of `PangoLanguage`
      */
     get_languages(): Language[] | null
     /**
@@ -3125,11 +3234,13 @@ interface Font {
      * If `font` is %NULL, this function gracefully sets some sane values in the
      * output variables and returns.
      * @param language language tag used to determine which script   to get the metrics for, or %NULL to indicate to get the metrics for   the entire font.
+     * @returns a `PangoFontMetrics` object. The caller must call   [method@Pango.FontMetrics.unref] when finished using the object.
      */
     get_metrics(language: Language | null): FontMetrics
     /**
      * Returns whether the font provides a glyph for this character.
      * @param wc a Unicode character
+     * @returns `TRUE` if @font can render @wc
      */
     has_char(wc: string): boolean
     /**
@@ -3142,6 +3253,7 @@ interface Font {
      * The format is not meant as a permanent storage format.
      * 
      * To recreate a font from its serialized form, use [func`Pango`.Font.deserialize].
+     * @returns a `GBytes` containing the serialized form of @font
      */
     serialize(): GLib.Bytes
 
@@ -3154,6 +3266,7 @@ interface Font {
      * Use [method`Pango`.Font.describe_with_absolute_size] if you want
      * the font size in device units.
      * @virtual 
+     * @returns a newly-allocated `PangoFontDescription` object.
      */
     vfunc_describe(): FontDescription
     vfunc_describe_absolute(): FontDescription
@@ -3161,6 +3274,7 @@ interface Font {
      * Computes the coverage map for a given font and language tag.
      * @virtual 
      * @param language the language tag
+     * @returns a newly-allocated `PangoCoverage`   object.
      */
     vfunc_get_coverage(language: Language): Coverage
     /**
@@ -3188,6 +3302,7 @@ interface Font {
      * font map is kept alive. In most uses this is not an issue
      * as a `PangoContext` holds a reference to the font map.
      * @virtual 
+     * @returns the `PangoFontMap`   for the font
      */
     vfunc_get_font_map(): FontMap | null
     /**
@@ -3217,6 +3332,7 @@ interface Font {
      * output variables and returns.
      * @virtual 
      * @param language language tag used to determine which script   to get the metrics for, or %NULL to indicate to get the metrics for   the entire font.
+     * @returns a `PangoFontMetrics` object. The caller must call   [method@Pango.FontMetrics.unref] when finished using the object.
      */
     vfunc_get_metrics(language: Language | null): FontMetrics
 
@@ -3259,6 +3375,7 @@ class Font extends GObject.Object {
      * result of serializing the font again.
      * @param context a `PangoContext`
      * @param bytes the bytes containing the data
+     * @returns a new `PangoFont`
      */
     static deserialize(context: Context, bytes: GLib.Bytes): Font | null
 }
@@ -3286,6 +3403,7 @@ interface FontFace {
      * The resulting font description will have the family, style,
      * variant, weight and stretch of the face, but its size field
      * will be unset.
+     * @returns a newly-created `PangoFontDescription` structure   holding the description of the face. Use [method@Pango.FontDescription.free]   to free the result.
      */
     describe(): FontDescription
     /**
@@ -3294,10 +3412,12 @@ interface FontFace {
      * Note that a font family may contain multiple faces
      * with the same name (e.g. a variable and a non-variable
      * face for the same style).
+     * @returns the face name for the face. This string is   owned by the face object and must not be modified or freed.
      */
     get_face_name(): string
     /**
      * Gets the `PangoFontFamily` that `face` belongs to.
+     * @returns the `PangoFontFamily`
      */
     get_family(): FontFamily
     /**
@@ -3306,6 +3426,7 @@ interface FontFace {
      * This will be the case if the underlying font rendering engine
      * creates this face from another face, by shearing, emboldening,
      * lightening or modifying it in some other way.
+     * @returns whether @face is synthesized
      */
     is_synthesized(): boolean
     /**
@@ -3327,6 +3448,7 @@ interface FontFace {
      * variant, weight and stretch of the face, but its size field
      * will be unset.
      * @virtual 
+     * @returns a newly-created `PangoFontDescription` structure   holding the description of the face. Use [method@Pango.FontDescription.free]   to free the result.
      */
     vfunc_describe(): FontDescription
     /**
@@ -3336,11 +3458,13 @@ interface FontFace {
      * with the same name (e.g. a variable and a non-variable
      * face for the same style).
      * @virtual 
+     * @returns the face name for the face. This string is   owned by the face object and must not be modified or freed.
      */
     vfunc_get_face_name(): string
     /**
      * Gets the `PangoFontFamily` that `face` belongs to.
      * @virtual 
+     * @returns the `PangoFontFamily`
      */
     vfunc_get_family(): FontFamily
     /**
@@ -3350,6 +3474,7 @@ interface FontFace {
      * creates this face from another face, by shearing, emboldening,
      * lightening or modifying it in some other way.
      * @virtual 
+     * @returns whether @face is synthesized
      */
     vfunc_is_synthesized(): boolean
     /**
@@ -3420,6 +3545,7 @@ interface FontFamily extends Gio.ListModel {
     /**
      * Gets the `PangoFontFace` of `family` with the given name.
      * @param name the name of a face. If the name is %NULL,   the family's default face (fontconfig calls it "Regular")   will be returned.
+     * @returns the `PangoFontFace`,   or %NULL if no face with the given name exists.
      */
     get_face(name: string | null): FontFace | null
     /**
@@ -3428,6 +3554,7 @@ interface FontFamily extends Gio.ListModel {
      * The name is unique among all fonts for the font backend and can
      * be used in a `PangoFontDescription` to specify that a face from
      * this family is desired.
+     * @returns the name of the family. This string is owned   by the family object and must not be modified or freed.
      */
     get_name(): string
     /**
@@ -3445,6 +3572,7 @@ interface FontFamily extends Gio.ListModel {
      * [method`Pango`.FontMetrics.get_approximate_digit_width], since the
      * results of [method`Pango`.FontMetrics.get_approximate_char_width] may
      * be affected by double-width characters.
+     * @returns %TRUE if the family is monospace.
      */
     is_monospace(): boolean
     /**
@@ -3453,6 +3581,7 @@ interface FontFamily extends Gio.ListModel {
      * 
      * Such axes are also known as _variations_; see
      * [method`Pango`.FontDescription.set_variations] for more information.
+     * @returns %TRUE if the family is variable
      */
     is_variable(): boolean
     /**
@@ -3475,6 +3604,7 @@ interface FontFamily extends Gio.ListModel {
      * Gets the `PangoFontFace` of `family` with the given name.
      * @virtual 
      * @param name the name of a face. If the name is %NULL,   the family's default face (fontconfig calls it "Regular")   will be returned.
+     * @returns the `PangoFontFace`,   or %NULL if no face with the given name exists.
      */
     vfunc_get_face(name: string | null): FontFace | null
     /**
@@ -3484,6 +3614,7 @@ interface FontFamily extends Gio.ListModel {
      * be used in a `PangoFontDescription` to specify that a face from
      * this family is desired.
      * @virtual 
+     * @returns the name of the family. This string is owned   by the family object and must not be modified or freed.
      */
     vfunc_get_name(): string
     /**
@@ -3502,6 +3633,7 @@ interface FontFamily extends Gio.ListModel {
      * results of [method`Pango`.FontMetrics.get_approximate_char_width] may
      * be affected by double-width characters.
      * @virtual 
+     * @returns %TRUE if the family is monospace.
      */
     vfunc_is_monospace(): boolean
     /**
@@ -3511,6 +3643,7 @@ interface FontFamily extends Gio.ListModel {
      * Such axes are also known as _variations_; see
      * [method`Pango`.FontDescription.set_variations] for more information.
      * @virtual 
+     * @returns %TRUE if the family is variable
      */
     vfunc_is_variable(): boolean
     /**
@@ -3611,11 +3744,13 @@ interface FontMap extends Gio.ListModel {
      * that system may have it's own way of create a `PangoContext`.
      * For instance, the GTK toolkit has, among others,
      * gtk_widget_get_pango_context(). Use those instead.
+     * @returns the newly allocated `PangoContext`,   which should be freed with g_object_unref().
      */
     create_context(): Context
     /**
      * Gets a font family by name.
      * @param name a family name
+     * @returns the `PangoFontFamily`
      */
     get_family(name: string): FontFamily
     /**
@@ -3631,6 +3766,7 @@ interface FontMap extends Gio.ListModel {
      * 
      * This can be used to automatically detect changes to a `PangoFontMap`,
      * like in `PangoContext`.
+     * @returns The current serial number of @fontmap.
      */
     get_serial(): number
     /**
@@ -3646,6 +3782,7 @@ interface FontMap extends Gio.ListModel {
      * Load the font in the fontmap that is the closest match for `desc`.
      * @param context the `PangoContext` the font will be used with
      * @param desc a `PangoFontDescription` describing the font to load
+     * @returns the newly allocated `PangoFont`   loaded, or %NULL if no font matched.
      */
     load_font(context: Context, desc: FontDescription): Font | null
     /**
@@ -3654,6 +3791,7 @@ interface FontMap extends Gio.ListModel {
      * @param context the `PangoContext` the font will be used with
      * @param desc a `PangoFontDescription` describing the font to load
      * @param language a `PangoLanguage` the fonts will be used for
+     * @returns the newly allocated   `PangoFontset` loaded, or %NULL if no font matched.
      */
     load_fontset(context: Context, desc: FontDescription, language: Language): Fontset | null
 
@@ -3674,6 +3812,7 @@ interface FontMap extends Gio.ListModel {
      * Gets a font family by name.
      * @virtual 
      * @param name a family name
+     * @returns the `PangoFontFamily`
      */
     vfunc_get_family(name: string): FontFamily
     /**
@@ -3690,6 +3829,7 @@ interface FontMap extends Gio.ListModel {
      * This can be used to automatically detect changes to a `PangoFontMap`,
      * like in `PangoContext`.
      * @virtual 
+     * @returns The current serial number of @fontmap.
      */
     vfunc_get_serial(): number
     /**
@@ -3707,6 +3847,7 @@ interface FontMap extends Gio.ListModel {
      * @virtual 
      * @param context the `PangoContext` the font will be used with
      * @param desc a `PangoFontDescription` describing the font to load
+     * @returns the newly allocated `PangoFont`   loaded, or %NULL if no font matched.
      */
     vfunc_load_font(context: Context, desc: FontDescription): Font | null
     /**
@@ -3716,6 +3857,7 @@ interface FontMap extends Gio.ListModel {
      * @param context the `PangoContext` the font will be used with
      * @param desc a `PangoFontDescription` describing the font to load
      * @param language a `PangoLanguage` the fonts will be used for
+     * @returns the newly allocated   `PangoFontset` loaded, or %NULL if no font matched.
      */
     vfunc_load_fontset(context: Context, desc: FontDescription, language: Language): Fontset | null
 
@@ -3783,10 +3925,12 @@ interface Fontset {
      * Returns the font in the fontset that contains the best
      * glyph for a Unicode character.
      * @param wc a Unicode character
+     * @returns a `PangoFont`
      */
     get_font(wc: number): Font
     /**
      * Get overall metric information for the fonts in the fontset.
+     * @returns a `PangoFontMetrics` object
      */
     get_metrics(): FontMetrics
 
@@ -3806,12 +3950,14 @@ interface Fontset {
      * glyph for a Unicode character.
      * @virtual 
      * @param wc a Unicode character
+     * @returns a `PangoFont`
      */
     vfunc_get_font(wc: number): Font
     vfunc_get_language(): Language
     /**
      * Get overall metric information for the fonts in the fontset.
      * @virtual 
+     * @returns a `PangoFontMetrics` object
      */
     vfunc_get_metrics(): FontMetrics
 
@@ -3867,6 +4013,7 @@ interface FontsetSimple {
     append(font: Font): void
     /**
      * Returns the number of fonts in the fontset.
+     * @returns the size of @fontset
      */
     size(): number
 
@@ -3900,12 +4047,14 @@ class FontsetSimple extends Fontset {
      * Creates a new `PangoFontsetSimple` for the given language.
      * @constructor 
      * @param language a `PangoLanguage` tag
+     * @returns the newly allocated `PangoFontsetSimple`
      */
     constructor(language: Language) 
     /**
      * Creates a new `PangoFontsetSimple` for the given language.
      * @constructor 
      * @param language a `PangoLanguage` tag
+     * @returns the newly allocated `PangoFontsetSimple`
      */
     static new(language: Language): FontsetSimple
     _init(config?: FontsetSimple.ConstructorProperties): void
@@ -3937,15 +4086,18 @@ interface Layout {
      * 
      * The attribute list, tab array, and text from the original layout
      * are all copied by value.
+     * @returns the newly allocated `PangoLayout`
      */
     copy(): Layout
     /**
      * Gets the alignment for the layout: how partial lines are
      * positioned within the horizontal space available.
+     * @returns the alignment
      */
     get_alignment(): Alignment
     /**
      * Gets the attribute list for the layout, if any.
+     * @returns a `PangoAttrList`
      */
     get_attributes(): AttrList | null
     /**
@@ -3953,10 +4105,12 @@ interface Layout {
      * according to its contents.
      * 
      * See [method`Pango`.Layout.set_auto_dir].
+     * @returns %TRUE if the bidirectional base direction   is computed from the layout's contents, %FALSE otherwise
      */
     get_auto_dir(): boolean
     /**
      * Gets the Y position of baseline of the first line in `layout`.
+     * @returns baseline of first line, from top of @layout
      */
     get_baseline(): number
     /**
@@ -3977,10 +4131,12 @@ interface Layout {
     /**
      * Returns the number of Unicode characters in the
      * the text of `layout`.
+     * @returns the number of Unicode characters   in the text of @layout
      */
     get_character_count(): number
     /**
      * Retrieves the `PangoContext` used for this layout.
+     * @returns the `PangoContext` for the layout
      */
     get_context(): Context
     /**
@@ -4017,6 +4173,7 @@ interface Layout {
     /**
      * Gets the text direction at the given character position in `layout`.
      * @param index the byte index of the char
+     * @returns the text direction at @index
      */
     get_direction(index: number): Direction
     /**
@@ -4026,6 +4183,7 @@ interface Layout {
      * 
      * Use [method`Pango`.Layout.is_ellipsized] to query whether any
      * paragraphs were actually ellipsized.
+     * @returns the current ellipsization mode for @layout
      */
     get_ellipsize(): EllipsizeMode
     /**
@@ -4043,32 +4201,38 @@ interface Layout {
     get_extents(): [ /* ink_rect */ Rectangle, /* logical_rect */ Rectangle ]
     /**
      * Gets the font description for the layout, if any.
+     * @returns a pointer to the   layout's font description, or %NULL if the font description   from the layout's context is inherited.
      */
     get_font_description(): FontDescription | null
     /**
      * Gets the height of layout used for ellipsization.
      * 
      * See [method`Pango`.Layout.set_height] for details.
+     * @returns the height, in Pango units if positive,   or number of lines if negative.
      */
     get_height(): number
     /**
      * Gets the paragraph indent width in Pango units.
      * 
      * A negative value indicates a hanging indentation.
+     * @returns the indent in Pango units
      */
     get_indent(): number
     /**
      * Returns an iterator to iterate over the visual extents of the layout.
+     * @returns the new `PangoLayoutIter`
      */
     get_iter(): LayoutIter
     /**
      * Gets whether each complete line should be stretched to fill the entire
      * width of the layout.
+     * @returns the justify value
      */
     get_justify(): boolean
     /**
      * Gets whether the last line should be stretched
      * to fill the entire width of the layout.
+     * @returns the justify value
      */
     get_justify_last_line(): boolean
     /**
@@ -4077,10 +4241,12 @@ interface Layout {
      * Use the faster [method`Pango`.Layout.get_line_readonly] if you do not
      * plan to modify the contents of the line (glyphs, glyph widths, etc.).
      * @param line the index of a line, which must be between 0 and   `pango_layout_get_line_count(layout) - 1`, inclusive.
+     * @returns the requested `PangoLayoutLine`,   or %NULL if the index is out of range. This layout line can be ref'ed   and retained, but will become invalid if changes are made to the   `PangoLayout`.
      */
     get_line(line: number): LayoutLine | null
     /**
      * Retrieves the count of lines for the `layout`.
+     * @returns the line count
      */
     get_line_count(): number
     /**
@@ -4090,6 +4256,7 @@ interface Layout {
      * but the user is not expected to modify the contents of the line
      * (glyphs, glyph widths, etc.).
      * @param line the index of a line, which must be between 0 and   `pango_layout_get_line_count(layout) - 1`, inclusive.
+     * @returns the requested `PangoLayoutLine`,   or %NULL if the index is out of range. This layout line can be ref'ed   and retained, but will become invalid if changes are made to the   `PangoLayout`. No changes should be made to the line.
      */
     get_line_readonly(line: number): LayoutLine | null
     /**
@@ -4103,6 +4270,7 @@ interface Layout {
      * 
      * Use the faster [method`Pango`.Layout.get_lines_readonly] if you do not
      * plan to modify the contents of the lines (glyphs, glyph widths, etc.).
+     * @returns a `GSList`   containing the lines in the layout. This points to internal data of the   `PangoLayout` and must be used with care. It will become invalid on any   change to the layout's text or properties.
      */
     get_lines(): LayoutLine[]
     /**
@@ -4111,6 +4279,7 @@ interface Layout {
      * This is a faster alternative to [method`Pango`.Layout.get_lines],
      * but the user is not expected to modify the contents of the lines
      * (glyphs, glyph widths, etc.).
+     * @returns a `GSList`   containing the lines in the layout. This points to internal data of the   `PangoLayout` and must be used with care. It will become invalid on any   change to the layout's text or properties. No changes should be made to   the lines.
      */
     get_lines_readonly(): LayoutLine[]
     /**
@@ -4130,6 +4299,7 @@ interface Layout {
      * than the total number of characters in the layout, since there
      * need to be attributes corresponding to both the position before
      * the first character and the position after the last character.
+     * @returns an array of logical attributes
      */
     get_log_attrs_readonly(): LogAttr[]
     /**
@@ -4163,12 +4333,14 @@ interface Layout {
      * and is useful for example to decide whether a layout needs redrawing.
      * To force the serial to be increased, use
      * [method`Pango`.Layout.context_changed].
+     * @returns The current serial number of @layout.
      */
     get_serial(): number
     /**
      * Obtains whether `layout` is in single paragraph mode.
      * 
      * See [method`Pango`.Layout.set_single_paragraph_mode].
+     * @returns %TRUE if the layout does not break paragraphs   at paragraph separator characters, %FALSE otherwise
      */
     get_single_paragraph_mode(): boolean
     /**
@@ -4180,6 +4352,7 @@ interface Layout {
     get_size(): [ /* width */ number, /* height */ number ]
     /**
      * Gets the amount of spacing between the lines of the layout.
+     * @returns the spacing in Pango units
      */
     get_spacing(): number
     /**
@@ -4189,12 +4362,14 @@ interface Layout {
      * in use and %NULL is returned. Default tabs are every 8 spaces.
      * 
      * The return value should be freed with [method`Pango`.TabArray.free].
+     * @returns a copy of the tabs for this layout
      */
     get_tabs(): TabArray | null
     /**
      * Gets the text in the layout.
      * 
      * The returned text should not be freed or modified.
+     * @returns the text in the @layout
      */
     get_text(): string
     /**
@@ -4204,10 +4379,12 @@ interface Layout {
      * available to render all characters in a certain string, or when
      * used in combination with %PANGO_ATTR_FALLBACK, to check if a
      * certain font supports all the characters in the string.
+     * @returns The number of unknown glyphs in @layout
      */
     get_unknown_glyphs_count(): number
     /**
      * Gets the width to which the lines of the `PangoLayout` should wrap.
+     * @returns the width in Pango units, or -1 if no width set.
      */
     get_width(): number
     /**
@@ -4215,6 +4392,7 @@ interface Layout {
      * 
      * Use [method`Pango`.Layout.is_wrapped] to query whether
      * any paragraphs were actually wrapped.
+     * @returns active wrap mode.
      */
     get_wrap(): WrapMode
     /**
@@ -4243,6 +4421,7 @@ interface Layout {
      * is not %PANGO_ELLIPSIZE_NONE, a positive width is set on `layout,`
      * and there are paragraphs exceeding that width that have to be
      * ellipsized.
+     * @returns %TRUE if any paragraphs had to be ellipsized,   %FALSE otherwise
      */
     is_ellipsized(): boolean
     /**
@@ -4252,6 +4431,7 @@ interface Layout {
      * ellipsization mode of `layout` is set to %PANGO_ELLIPSIZE_NONE,
      * and there are paragraphs exceeding the layout width that have
      * to be wrapped.
+     * @returns %TRUE if any paragraphs had to be wrapped, %FALSE   otherwise
      */
     is_wrapped(): boolean
     /**
@@ -4286,6 +4466,7 @@ interface Layout {
      * The intended use of this function is testing, benchmarking and debugging.
      * The format is not meant as a permanent storage format.
      * @param flags `PangoLayoutSerializeFlags`
+     * @returns a `GBytes` containing the serialized form of @layout
      */
     serialize(flags: LayoutSerializeFlags): GLib.Bytes
     /**
@@ -4572,6 +4753,7 @@ interface Layout {
      * a layout to a file for later inspection.
      * @param flags `PangoLayoutSerializeFlags`
      * @param filename the file to save it to
+     * @returns %TRUE if saving was successful
      */
     write_to_file(flags: LayoutSerializeFlags, filename: string): boolean
     /**
@@ -4586,6 +4768,7 @@ interface Layout {
      * %FALSE; on an exact hit, it returns %TRUE.
      * @param x the X offset (in Pango units) from the left edge of the layout
      * @param y the Y offset (in Pango units) from the top edge of the layout
+     * @returns %TRUE if the coordinates were inside text, %FALSE otherwise
      */
     xy_to_index(x: number, y: number): [ /* returnType */ boolean, /* index_ */ number, /* trailing */ number ]
 
@@ -4653,6 +4836,7 @@ class Layout extends GObject.Object {
      * default values for a particular `PangoContext`.
      * @constructor 
      * @param context a `PangoContext`
+     * @returns the newly allocated `PangoLayout`
      */
     constructor(context: Context) 
     /**
@@ -4660,6 +4844,7 @@ class Layout extends GObject.Object {
      * default values for a particular `PangoContext`.
      * @constructor 
      * @param context a `PangoContext`
+     * @returns the newly allocated `PangoLayout`
      */
     static new(context: Context): Layout
     _init(config?: Layout.ConstructorProperties): void
@@ -4674,6 +4859,7 @@ class Layout extends GObject.Object {
      * @param context a `PangoContext`
      * @param bytes the bytes containing the data
      * @param flags `PangoLayoutDeserializeFlags`
+     * @returns a new `PangoLayout`
      */
     static deserialize(context: Context, bytes: GLib.Bytes, flags: LayoutDeserializeFlags): Layout | null
 }
@@ -4825,11 +5011,13 @@ interface Renderer {
     /**
      * Gets the current alpha for the specified part.
      * @param part the part to get the alpha for
+     * @returns the alpha for the specified part,   or 0 if it hasn't been set and should be   inherited from the environment.
      */
     get_alpha(part: RenderPart): number
     /**
      * Gets the current rendering color for the specified part.
      * @param part the part to get the color for
+     * @returns the color for the   specified part, or %NULL if it hasn't been set and should be   inherited from the environment.
      */
     get_color(part: RenderPart): Color | null
     /**
@@ -4840,6 +5028,7 @@ interface Renderer {
      * 
      * The returned layout should not be modified while still being
      * rendered.
+     * @returns the layout, or %NULL if   no layout is being rendered using @renderer at this time.
      */
     get_layout(): Layout | null
     /**
@@ -4850,6 +5039,7 @@ interface Renderer {
      * 
      * The returned layout line should not be modified while still being
      * rendered.
+     * @returns the layout line, or %NULL   if no layout line is being rendered using @renderer at this time.
      */
     get_layout_line(): LayoutLine | null
     /**
@@ -4857,6 +5047,7 @@ interface Renderer {
      * rendering.
      * 
      * See [method`Pango`.Renderer.set_matrix].
+     * @returns the matrix, or %NULL if no matrix has   been set (which is the same as the identity matrix). The returned   matrix is owned by Pango and must not be modified or freed.
      */
     get_matrix(): Matrix | null
     /**
@@ -5229,6 +5420,7 @@ class AttrFontDesc {
      * This attribute allows setting family, style, weight, variant,
      * stretch, and size simultaneously.
      * @param desc the font description
+     * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
      */
     static new(desc: FontDescription): Attribute
 }
@@ -5268,6 +5460,7 @@ class AttrFontFeatures {
      * You can use this attribute to select OpenType font features like small-caps,
      * alternative glyphs, ligatures, etc. for fonts that support them.
      * @param features a string with OpenType font features, with the syntax of the [CSS font-feature-settings property](https://www.w3.org/TR/css-fonts-4/#font-rend-desc)
+     * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
      */
     static new(features: string): Attribute
 }
@@ -5306,6 +5499,7 @@ interface AttrIterator {
 
     /**
      * Copy a `PangoAttrIterator`.
+     * @returns the newly allocated   `PangoAttrIterator`, which should be freed with   [method@Pango.AttrIterator.destroy]
      */
     copy(): AttrIterator
     /**
@@ -5320,11 +5514,13 @@ interface AttrIterator {
      * the attribute whose range starts closest to the
      * current location is used.
      * @param type the type of attribute to find
+     * @returns the current   attribute of the given type, or %NULL if no attribute   of that type applies to the current location.
      */
     get(type: AttrType): Attribute | null
     /**
      * Gets a list of all attributes at the current position of the
      * iterator.
+     * @returns    a list of all attributes for the current range. To free   this value, call [method@Pango.Attribute.destroy] on each   value and g_slist_free() on the list.
      */
     get_attrs(): Attribute[]
     /**
@@ -5335,6 +5531,7 @@ interface AttrIterator {
     get_font(desc: FontDescription): [ /* language */ Language, /* extra_attrs */ Attribute[] ]
     /**
      * Advance the iterator until the next change of style.
+     * @returns %FALSE if the iterator is at the end   of the list, otherwise %TRUE
      */
     next(): boolean
     /**
@@ -5397,6 +5594,7 @@ class AttrLanguage {
     /**
      * Create a new language tag attribute.
      * @param language language tag
+     * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
      */
     static new(language: Language): Attribute
 }
@@ -5423,6 +5621,7 @@ interface AttrList {
     change(attr: Attribute): void
     /**
      * Copy `list` and return an identical new list.
+     * @returns the newly allocated   `PangoAttrList`, with a reference count of one,   which should be freed with [method@Pango.AttrList.unref].   Returns %NULL if @list was %NULL.
      */
     copy(): AttrList | null
     /**
@@ -5433,6 +5632,7 @@ interface AttrList {
      * Beware that this will return wrong values if any list
      * contains duplicates.
      * @param other_list the other `PangoAttrList`
+     * @returns %TRUE if the lists are equal, %FALSE if   they aren't
      */
     equal(other_list: AttrList): boolean
     /**
@@ -5440,16 +5640,19 @@ interface AttrList {
      * any elements of `list` for which `func` returns %TRUE and
      * inserts them into a new list.
      * @param func callback function;   returns %TRUE if an attribute should be filtered out
+     * @returns the new   `PangoAttrList` or %NULL if no attributes of the   given types were found
      */
     filter(func: AttrFilterFunc): AttrList | null
     /**
      * Gets a list of all attributes in `list`.
+     * @returns    a list of all attributes in @list. To free this value,   call [method@Pango.Attribute.destroy] on each value and   g_slist_free() on the list.
      */
     get_attributes(): Attribute[]
     /**
      * Create a iterator initialized to the beginning of the list.
      * 
      * `list` must not be modified until this iterator is freed.
+     * @returns the newly allocated   `PangoAttrIterator`, which should be freed with   [method@Pango.AttrIterator.destroy]
      */
     get_iterator(): AttrIterator
     /**
@@ -5471,6 +5674,7 @@ interface AttrList {
     /**
      * Increase the reference count of the given attribute
      * list by one.
+     * @returns The attribute list passed in
      */
     ref(): AttrList
     /**
@@ -5532,6 +5736,7 @@ interface AttrList {
      * To parse the returned value, use [func`Pango`.AttrList.from_string].
      * 
      * Note that shape attributes can not be serialized.
+     * @returns a newly allocated string
      */
     to_string(): string
     /**
@@ -5590,12 +5795,14 @@ class AttrList {
      * Create a new empty attribute list with a reference
      * count of one.
      * @constructor 
+     * @returns the newly allocated   `PangoAttrList`, which should be freed with   [method@Pango.AttrList.unref]
      */
     constructor() 
     /**
      * Create a new empty attribute list with a reference
      * count of one.
      * @constructor 
+     * @returns the newly allocated   `PangoAttrList`, which should be freed with   [method@Pango.AttrList.unref]
      */
     static new(): AttrList
     /**
@@ -5604,6 +5811,7 @@ class AttrList {
      * This is the counterpart to [method`Pango`.AttrList.to_string].
      * See that functions for details about the format.
      * @param text a string
+     * @returns a new `PangoAttrList`
      */
     static from_string(text: string): AttrList | null
 }
@@ -5666,6 +5874,7 @@ class AttrShape {
      * or a widget inside a `PangoLayout`.
      * @param ink_rect ink rectangle to assign to each character
      * @param logical_rect logical rectangle to assign to each character
+     * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
      */
     static new(ink_rect: Rectangle, logical_rect: Rectangle): Attribute
     /**
@@ -5678,6 +5887,7 @@ class AttrShape {
      * @param logical_rect logical rectangle to assign to each character
      * @param data user data pointer
      * @param copy_func function to copy `data` when the   attribute is copied. If %NULL, `data` is simply copied   as a pointer
+     * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
      */
     static new_with_data(ink_rect: Rectangle, logical_rect: Rectangle, data: object | null, copy_func: AttrDataCopyFunc | null): Attribute
 }
@@ -5723,11 +5933,13 @@ class AttrSize {
     /**
      * Create a new font-size attribute in fractional points.
      * @param size the font size, in %PANGO_SCALE-ths of a point
+     * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
      */
     static new(size: number): Attribute
     /**
      * Create a new font-size attribute in device units.
      * @param size the font size, in %PANGO_SCALE-ths of a device unit
+     * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy]
      */
     static new_absolute(size: number): Attribute
 }
@@ -5787,58 +5999,68 @@ interface Attribute {
      * Returns the attribute cast to `PangoAttrColor`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrColor`,   or %NULL if it's not a color attribute
      */
     as_color(): AttrColor | null
     /**
      * Returns the attribute cast to `PangoAttrFloat`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrFloat`,   or %NULL if it's not a floating point attribute
      */
     as_float(): AttrFloat | null
     /**
      * Returns the attribute cast to `PangoAttrFontDesc`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrFontDesc`,   or %NULL if it's not a font description attribute
      */
     as_font_desc(): AttrFontDesc | null
     /**
      * Returns the attribute cast to `PangoAttrFontFeatures`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrFontFeatures`,   or %NULL if it's not a font features attribute
      */
     as_font_features(): AttrFontFeatures | null
     /**
      * Returns the attribute cast to `PangoAttrInt`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrInt`,   or %NULL if it's not an integer attribute
      */
     as_int(): AttrInt | null
     /**
      * Returns the attribute cast to `PangoAttrLanguage`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrLanguage`,   or %NULL if it's not a language attribute
      */
     as_language(): AttrLanguage | null
     /**
      * Returns the attribute cast to `PangoAttrShape`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrShape`,   or %NULL if it's not a shape attribute
      */
     as_shape(): AttrShape | null
     /**
      * Returns the attribute cast to `PangoAttrSize`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrSize`,   or NULL if it's not a size attribute
      */
     as_size(): AttrSize | null
     /**
      * Returns the attribute cast to `PangoAttrString`.
      * 
      * This is mainly useful for language bindings.
+     * @returns The attribute as `PangoAttrString`,   or %NULL if it's not a string attribute
      */
     as_string(): AttrString | null
     /**
      * Make a copy of an attribute.
+     * @returns the newly allocated   `PangoAttribute`, which should be freed with   [method@Pango.Attribute.destroy].
      */
     copy(): Attribute
     /**
@@ -5852,6 +6074,7 @@ interface Attribute {
      * attributes and not the ranges that the attributes
      * apply to.
      * @param attr2 another `PangoAttribute`
+     * @returns %TRUE if the two attributes have the same value
      */
     equal(attr2: Attribute): boolean
     /**
@@ -5911,6 +6134,7 @@ interface Color {
      * Primarily used by language bindings, not that useful
      * otherwise (since colors can just be copied by assignment
      * in C).
+     * @returns the newly allocated `PangoColor`,   which should be freed with [method@Pango.Color.free]
      */
     copy(): Color | null
     /**
@@ -5928,6 +6152,7 @@ interface Color {
      * of the color, respectively. (White in the four forms is
      * `#fff`, `#ffffff`, `#fffffffff` and `#ffffffffffff`.)
      * @param spec a string specifying the new color
+     * @returns %TRUE if parsing of the specifier succeeded,   otherwise %FALSE
      */
     parse(spec: string): boolean
     /**
@@ -5947,6 +6172,7 @@ interface Color {
      * component is found in `spec,` `alpha` is set to 0xffff (for a
      * solid color).
      * @param spec a string specifying the new color
+     * @returns %TRUE if parsing of the specifier succeeded,   otherwise %FALSE
      */
     parse_with_alpha(spec: string): [ /* returnType */ boolean, /* alpha */ number ]
     /**
@@ -5955,6 +6181,7 @@ interface Color {
      * The string is in the hexadecimal form `#rrrrggggbbbb`,
      * where `r`, `g` and `b` are hex digits representing the
      * red, green, and blue components respectively.
+     * @returns a newly-allocated text string that must   be freed with g_free().
      */
     to_string(): string
 }
@@ -6021,10 +6248,12 @@ interface FontDescription {
      * Note that `old_match` must match `desc`.
      * @param old_match a `PangoFontDescription`, or %NULL
      * @param new_match a `PangoFontDescription`
+     * @returns %TRUE if @new_match is a better match
      */
     better_match(old_match: FontDescription | null, new_match: FontDescription): boolean
     /**
      * Make a copy of a `PangoFontDescription`.
+     * @returns the newly allocated `PangoFontDescription`,   which should be freed with [method@Pango.FontDescription.free],   or %NULL if @desc was %NULL.
      */
     copy(): FontDescription | null
     /**
@@ -6035,6 +6264,7 @@ interface FontDescription {
      * copy is made of the family name and other allocated fields. The result
      * can only be used until `desc` is modified or freed. This is meant
      * to be used when the copy is only needed temporarily.
+     * @returns the newly allocated `PangoFontDescription`,   which should be freed with [method@Pango.FontDescription.free],   or %NULL if @desc was %NULL.
      */
     copy_static(): FontDescription | null
     /**
@@ -6045,6 +6275,7 @@ interface FontDescription {
      * as long as other fields are all the same. (Two font descriptions may
      * result in identical fonts being loaded, but still compare %FALSE.)
      * @param desc2 another `PangoFontDescription`
+     * @returns %TRUE if the two font descriptions are identical,   %FALSE otherwise.
      */
     equal(desc2: FontDescription): boolean
     /**
@@ -6055,22 +6286,26 @@ interface FontDescription {
      * Gets the family name field of a font description.
      * 
      * See [method`Pango`.FontDescription.set_family].
+     * @returns the family name field for the   font description, or %NULL if not previously set. This has the same   life-time as the font description itself and should not be freed.
      */
     get_family(): string | null
     /**
      * Gets the gravity field of a font description.
      * 
      * See [method`Pango`.FontDescription.set_gravity].
+     * @returns the gravity field for the font description.   Use [method@Pango.FontDescription.get_set_fields] to find out   if the field was explicitly set or not.
      */
     get_gravity(): Gravity
     /**
      * Determines which fields in a font description have been set.
+     * @returns a bitmask with bits set corresponding to the   fields in @desc that have been set.
      */
     get_set_fields(): FontMask
     /**
      * Gets the size field of a font description.
      * 
      * See [method`Pango`.FontDescription.set_size].
+     * @returns the size field for the font description in points   or device units. You must call   [method@Pango.FontDescription.get_size_is_absolute] to find out   which is the case. Returns 0 if the size field has not previously   been set or it has been set to 0 explicitly.   Use [method@Pango.FontDescription.get_set_fields] to find out   if the field was explicitly set or not.
      */
     get_size(): number
     /**
@@ -6079,36 +6314,42 @@ interface FontDescription {
      * 
      * See [method`Pango`.FontDescription.set_size]
      * and [method`Pango`.FontDescription.set_absolute_size].
+     * @returns whether the size for the font description is in   points or device units. Use [method@Pango.FontDescription.get_set_fields]   to find out if the size field of the font description was explicitly   set or not.
      */
     get_size_is_absolute(): boolean
     /**
      * Gets the stretch field of a font description.
      * 
      * See [method`Pango`.FontDescription.set_stretch].
+     * @returns the stretch field for the font description.   Use [method@Pango.FontDescription.get_set_fields] to find   out if the field was explicitly set or not.
      */
     get_stretch(): Stretch
     /**
      * Gets the style field of a `PangoFontDescription`.
      * 
      * See [method`Pango`.FontDescription.set_style].
+     * @returns the style field for the font description.   Use [method@Pango.FontDescription.get_set_fields] to   find out if the field was explicitly set or not.
      */
     get_style(): Style
     /**
      * Gets the variant field of a `PangoFontDescription`.
      * 
      * See [method`Pango`.FontDescription.set_variant].
+     * @returns the variant field for the font description.   Use [method@Pango.FontDescription.get_set_fields] to find   out if the field was explicitly set or not.
      */
     get_variant(): Variant
     /**
      * Gets the variations field of a font description.
      * 
      * See [method`Pango`.FontDescription.set_variations].
+     * @returns the variations field for the font   description, or %NULL if not previously set. This has the same   life-time as the font description itself and should not be freed.
      */
     get_variations(): string | null
     /**
      * Gets the weight field of a font description.
      * 
      * See [method`Pango`.FontDescription.set_weight].
+     * @returns the weight field for the font description.   Use [method@Pango.FontDescription.get_set_fields] to find   out if the field was explicitly set or not.
      */
     get_weight(): Weight
     /**
@@ -6116,6 +6357,7 @@ interface FontDescription {
      * 
      * This is suitable to be used, for example, as an argument
      * to g_hash_table_new(). The hash value is independent of `desc->`mask.
+     * @returns the hash value.
      */
     hash(): number
     /**
@@ -6273,6 +6515,7 @@ interface FontDescription {
      * [method`Pango`.FontDescription.to_string], but with underscores
      * instead of characters that are untypical in filenames, and in
      * lower case only.
+     * @returns a new string that must be freed with g_free().
      */
     to_filename(): string | null
     /**
@@ -6282,6 +6525,7 @@ interface FontDescription {
      * of the format of the string representation. The family list in
      * the string description will only have a terminating comma if
      * the last word of the list is a valid style option.
+     * @returns a new string that must be freed with g_free().
      */
     to_string(): string
     /**
@@ -6313,11 +6557,13 @@ class FontDescription {
     /**
      * Creates a new font description structure with all fields unset.
      * @constructor 
+     * @returns the newly allocated `PangoFontDescription`,   which should be freed using [method@Pango.FontDescription.free].
      */
     constructor() 
     /**
      * Creates a new font description structure with all fields unset.
      * @constructor 
+     * @returns the newly allocated `PangoFontDescription`,   which should be freed using [method@Pango.FontDescription.free].
      */
     static new(): FontDescription
     /**
@@ -6366,6 +6612,7 @@ class FontDescription {
      * 
      *     "Cantarell Italic Light 15 \`wght=`200"
      * @param str string representation of a font description.
+     * @returns a new `PangoFontDescription`.
      */
     static from_string(str: string): FontDescription
 }
@@ -6453,6 +6700,7 @@ interface FontMetrics {
      * This is merely a representative value useful, for example, for
      * determining the initial size for a window. Actual characters in
      * text will be wider and narrower than this.
+     * @returns the character width, in Pango units.
      */
     get_approximate_char_width(): number
     /**
@@ -6463,6 +6711,7 @@ interface FontMetrics {
      * text can be wider or narrower than this, though this value
      * is generally somewhat more accurate than the result of
      * pango_font_metrics_get_approximate_char_width() for digits.
+     * @returns the digit width, in Pango units.
      */
     get_approximate_digit_width(): number
     /**
@@ -6472,6 +6721,7 @@ interface FontMetrics {
      * of a line of text. (The logical top may be above or below the top
      * of the actual drawn ink. It is necessary to lay out the text to
      * figure where the ink will be.)
+     * @returns the ascent, in Pango units.
      */
     get_ascent(): number
     /**
@@ -6481,6 +6731,7 @@ interface FontMetrics {
      * of a line of text. (The logical bottom may be above or below the
      * bottom of the actual drawn ink. It is necessary to lay out the text
      * to figure where the ink will be.)
+     * @returns the descent, in Pango units.
      */
     get_descent(): number
     /**
@@ -6490,6 +6741,7 @@ interface FontMetrics {
      * baselines in wrapped text using this font.
      * 
      * If the line height is not available, 0 is returned.
+     * @returns the height, in Pango units
      */
     get_height(): number
     /**
@@ -6497,10 +6749,12 @@ interface FontMetrics {
      * 
      * The value returned is the distance *above* the
      * baseline of the top of the strikethrough.
+     * @returns the suggested strikethrough position, in Pango units.
      */
     get_strikethrough_position(): number
     /**
      * Gets the suggested thickness to draw for the strikethrough.
+     * @returns the suggested strikethrough thickness, in Pango units.
      */
     get_strikethrough_thickness(): number
     /**
@@ -6509,14 +6763,17 @@ interface FontMetrics {
      * The value returned is the distance *above* the baseline of the top
      * of the underline. Since most fonts have underline positions beneath
      * the baseline, this value is typically negative.
+     * @returns the suggested underline position, in Pango units.
      */
     get_underline_position(): number
     /**
      * Gets the suggested thickness to draw for the underline.
+     * @returns the suggested underline thickness, in Pango units.
      */
     get_underline_thickness(): number
     /**
      * Increase the reference count of a font metrics structure by one.
+     * @returns @metrics
      */
     ref(): FontMetrics | null
     /**
@@ -6722,10 +6979,12 @@ interface GlyphItem {
      * as one of the elements in the list.
      * @param text text that `list` applies to
      * @param list a `PangoAttrList`
+     * @returns a   list of glyph items resulting from splitting @glyph_item. Free   the elements using [method@Pango.GlyphItem.free], the list using   g_slist_free().
      */
     apply_attrs(text: string, list: AttrList): GlyphItem[]
     /**
      * Make a deep copy of an existing `PangoGlyphItem` structure.
+     * @returns the newly allocated `PangoGlyphItem`
      */
     copy(): GlyphItem | null
     /**
@@ -6766,6 +7025,7 @@ interface GlyphItem {
      * it internally.)
      * @param text text to which positions in `orig` apply
      * @param split_index byte index of position to split item, relative to the   start of the item
+     * @returns the newly allocated item   representing text before @split_index, which should be freed   with pango_glyph_item_free().
      */
     split(text: string, split_index: number): GlyphItem | null
 }
@@ -6803,6 +7063,7 @@ interface GlyphItemIter {
 
     /**
      * Make a shallow copy of an existing `PangoGlyphItemIter` structure.
+     * @returns the newly allocated `PangoGlyphItemIter`
      */
     copy(): GlyphItemIter | null
     /**
@@ -6816,6 +7077,7 @@ interface GlyphItemIter {
      * See `PangoGlyphItemIter` for details of cluster orders.
      * @param glyph_item the glyph item to iterate over
      * @param text text corresponding to the glyph item
+     * @returns %FALSE if there are no clusters in the glyph item
      */
     init_end(glyph_item: GlyphItem, text: string): boolean
     /**
@@ -6825,17 +7087,20 @@ interface GlyphItemIter {
      * See `PangoGlyphItemIter` for details of cluster orders.
      * @param glyph_item the glyph item to iterate over
      * @param text text corresponding to the glyph item
+     * @returns %FALSE if there are no clusters in the glyph item
      */
     init_start(glyph_item: GlyphItem, text: string): boolean
     /**
      * Advances the iterator to the next cluster in the glyph item.
      * 
      * See `PangoGlyphItemIter` for details of cluster orders.
+     * @returns %TRUE if the iterator was advanced,   %FALSE if we were already on the  last cluster.
      */
     next_cluster(): boolean
     /**
      * Moves the iterator to the preceding cluster in the glyph item.
      * See `PangoGlyphItemIter` for details of cluster orders.
+     * @returns %TRUE if the iterator was moved,   %FALSE if we were already on the first cluster.
      */
     prev_cluster(): boolean
 }
@@ -6915,6 +7180,7 @@ interface GlyphString {
 
     /**
      * Copy a glyph string and associated storage.
+     * @returns the newly allocated `PangoGlyphString`
      */
     copy(): GlyphString | null
     /**
@@ -6965,6 +7231,7 @@ interface GlyphString {
      * However, since this only computes the width, it's much faster. This
      * is in fact only a convenience function that computes the sum of
      * `geometry`.width for each glyph in the `glyphs`.
+     * @returns the logical width of the glyph string.
      */
     get_width(): number
     /**
@@ -7041,11 +7308,13 @@ class GlyphString {
     /**
      * Create a new `PangoGlyphString`.
      * @constructor 
+     * @returns the newly allocated `PangoGlyphString`, which   should be freed with [method@Pango.GlyphString.free].
      */
     constructor() 
     /**
      * Create a new `PangoGlyphString`.
      * @constructor 
+     * @returns the newly allocated `PangoGlyphString`, which   should be freed with [method@Pango.GlyphString.free].
      */
     static new(): GlyphString
 }
@@ -7130,6 +7399,7 @@ interface Item {
     apply_attrs(iter: AttrIterator): void
     /**
      * Copy an existing `PangoItem` structure.
+     * @returns the newly allocated `PangoItem`
      */
     copy(): Item | null
     /**
@@ -7151,6 +7421,7 @@ interface Item {
      * itself.
      * @param split_index byte index of position to split item, relative to the   start of the item
      * @param split_offset number of chars between start of `orig` and `split_index`
+     * @returns new item representing text before @split_index, which   should be freed with [method@Pango.Item.free].
      */
     split(split_index: number, split_offset: number): Item
 }
@@ -7173,11 +7444,13 @@ class Item {
     /**
      * Creates a new `PangoItem` structure initialized to default values.
      * @constructor 
+     * @returns the newly allocated `PangoItem`, which should   be freed with [method@Pango.Item.free].
      */
     constructor() 
     /**
      * Creates a new `PangoItem` structure initialized to default values.
      * @constructor 
+     * @returns the newly allocated `PangoItem`, which should   be freed with [method@Pango.Item.free].
      */
     static new(): Item
 }
@@ -7206,6 +7479,7 @@ interface Language {
      * ```
      * pango_language_get_sample_string (pango_language_from_string ("xx"))
      * ```
+     * @returns the sample string
      */
     get_sample_string(): string
     /**
@@ -7232,6 +7506,7 @@ interface Language {
      * Note: while the return value is declared as `PangoScript`, the
      * returned values are from the `GUnicodeScript` enumeration, which
      * may have more values. Callers need to handle unknown values.
+     * @returns    An array of `PangoScript` values, with the number of entries in   the array stored in @num_scripts, or %NULL if Pango does not have   any information about this particular language tag (also the case   if @language is %NULL).
      */
     get_scripts(): Script[] | null
     /**
@@ -7249,6 +7524,7 @@ interface Language {
      * 
      * This function uses [method`Pango`.Language.get_scripts] internally.
      * @param script a `PangoScript`
+     * @returns %TRUE if @script is one of the scripts used   to write @language or if nothing is known about @language   (including the case that @language is %NULL), %FALSE otherwise.
      */
     includes_script(script: Script): boolean
     /**
@@ -7259,6 +7535,7 @@ interface Language {
      * range is '*', the range is exactly the tag, or the range is a prefix
      * of the tag, and the character after it in the tag is '-'.
      * @param range_list a list of language ranges, separated by ';', ':',   ',', or space characters.   Each element must either be '*', or a RFC 3066 language range   canonicalized as by [func`Pango`.Language.from_string]
+     * @returns %TRUE if a match was found
      */
     matches(range_list: string): boolean
     /**
@@ -7299,6 +7576,7 @@ class Language {
      * Use [func`Pango`.Language.get_default] if you want to get the
      * `PangoLanguage` for the current locale of the process.
      * @param language a string representing a language tag
+     * @returns a `PangoLanguage`
      */
     static from_string(language: string | null): Language | null
     /**
@@ -7333,6 +7611,7 @@ class Language {
      * Also note that this function will not do the right thing if you
      * use per-thread locales with uselocale(). In that case, you should
      * just call pango_language_from_string() yourself.
+     * @returns the default language as a `PangoLanguage`
      */
     static get_default(): Language
     /**
@@ -7347,6 +7626,7 @@ class Language {
      * text returned by [method`Pango`.Language.get_sample_string],
      * you should first try the default language, followed by the
      * languages returned by this function.
+     * @returns a %NULL-terminated array   of `PangoLanguage`*
      */
     static get_preferred(): Language[] | null
 }
@@ -7367,10 +7647,12 @@ interface LayoutIter {
 
     /**
      * Determines whether `iter` is on the last line of the layout.
+     * @returns %TRUE if @iter is on the last line
      */
     at_last_line(): boolean
     /**
      * Copies a `PangoLayoutIter`.
+     * @returns the newly allocated `PangoLayoutIter`
      */
     copy(): LayoutIter | null
     /**
@@ -7382,6 +7664,7 @@ interface LayoutIter {
      * coordinates.
      * 
      * Layout coordinates have the origin at the top left of the entire layout.
+     * @returns baseline of current line
      */
     get_baseline(): number
     /**
@@ -7406,10 +7689,12 @@ interface LayoutIter {
      * not logical order, so indexes may not be sequential. Also,
      * the index may be equal to the length of the text in the
      * layout, if on the %NULL run (see [method`Pango`.LayoutIter.get_run]).
+     * @returns current byte index
      */
     get_index(): number
     /**
      * Gets the layout associated with a `PangoLayoutIter`.
+     * @returns the layout associated with @iter
      */
     get_layout(): Layout | null
     /**
@@ -7422,6 +7707,7 @@ interface LayoutIter {
      * Use the faster [method`Pango`.LayoutIter.get_line_readonly] if
      * you do not plan to modify the contents of the line (glyphs,
      * glyph widths, etc.).
+     * @returns the current line
      */
     get_line(): LayoutLine | null
     /**
@@ -7439,6 +7725,7 @@ interface LayoutIter {
      * This is a faster alternative to [method`Pango`.LayoutIter.get_line],
      * but the user is not expected to modify the contents of the line
      * (glyphs, glyph widths, etc.).
+     * @returns the current line, that should not be   modified
      */
     get_line_readonly(): LayoutLine | null
     /**
@@ -7465,6 +7752,7 @@ interface LayoutIter {
      * 
      * Use the faster [method`Pango`.LayoutIter.get_run_readonly] if you do not
      * plan to modify the contents of the run (glyphs, glyph widths, etc.).
+     * @returns the current run
      */
     get_run(): LayoutRun | null
     /**
@@ -7494,30 +7782,35 @@ interface LayoutIter {
      * This is a faster alternative to [method`Pango`.LayoutIter.get_run],
      * but the user is not expected to modify the contents of the run (glyphs,
      * glyph widths, etc.).
+     * @returns the current run, that   should not be modified
      */
     get_run_readonly(): LayoutRun | null
     /**
      * Moves `iter` forward to the next character in visual order.
      * 
      * If `iter` was already at the end of the layout, returns %FALSE.
+     * @returns whether motion was possible
      */
     next_char(): boolean
     /**
      * Moves `iter` forward to the next cluster in visual order.
      * 
      * If `iter` was already at the end of the layout, returns %FALSE.
+     * @returns whether motion was possible
      */
     next_cluster(): boolean
     /**
      * Moves `iter` forward to the start of the next line.
      * 
      * If `iter` is already on the last line, returns %FALSE.
+     * @returns whether motion was possible
      */
     next_line(): boolean
     /**
      * Moves `iter` forward to the next run in visual order.
      * 
      * If `iter` was already at the end of the layout, returns %FALSE.
+     * @returns whether motion was possible
      */
     next_run(): boolean
 }
@@ -7595,6 +7888,7 @@ interface LayoutLine {
     get_height(): /* height */ number
     /**
      * Returns the length of the line, in bytes.
+     * @returns the length of the line
      */
     get_length(): number
     /**
@@ -7608,11 +7902,13 @@ interface LayoutLine {
     get_pixel_extents(): [ /* ink_rect */ Rectangle, /* logical_rect */ Rectangle ]
     /**
      * Returns the resolved direction of the line.
+     * @returns the resolved direction of the line
      */
     get_resolved_direction(): Direction
     /**
      * Returns the start index of the line, as byte index
      * into the text of the layout.
+     * @returns the start index of the line
      */
     get_start_index(): number
     /**
@@ -7634,6 +7930,7 @@ interface LayoutLine {
     index_to_x(index_: number, trailing: boolean): /* x_pos */ number
     /**
      * Increase the reference count of a `PangoLayoutLine` by one.
+     * @returns the line passed in.
      */
     ref(): LayoutLine | null
     /**
@@ -7656,6 +7953,7 @@ interface LayoutLine {
      * in the line and `trailing` being set to the number of characters in that
      * grapheme. The reverse is true for a left-to-right line.
      * @param x_pos the X offset (in Pango units) from the left edge of the line.
+     * @returns %FALSE if @x_pos was outside the line, %TRUE if inside
      */
     x_to_index(x_pos: number): [ /* returnType */ boolean, /* index_ */ number, /* trailing */ number ]
 }
@@ -7845,6 +8143,7 @@ interface Matrix {
     concat(new_matrix: Matrix): void
     /**
      * Copies a `PangoMatrix`.
+     * @returns the newly allocated `PangoMatrix`
      */
     copy(): Matrix | null
     /**
@@ -7857,6 +8156,7 @@ interface Matrix {
      * That is, the scale factor in the direction perpendicular to the
      * vector that the X coordinate is mapped to.  If the scale in the X
      * coordinate is needed as well, use [method`Pango`.Matrix.get_font_scale_factors].
+     * @returns the scale factor of @matrix on the height of the font,   or 1.0 if @matrix is %NULL.
      */
     get_font_scale_factor(): number
     /**
@@ -7878,6 +8178,7 @@ interface Matrix {
      *     0 1
      * 
      * this is simply λ.
+     * @returns the slant ratio of @matrix
      */
     get_slant_ratio(): number
     /**
@@ -8106,6 +8407,7 @@ interface ScriptIter {
      * 
      * If `iter` is already at the end, it is left unchanged
      * and %FALSE is returned.
+     * @returns %TRUE if @iter was successfully advanced
      */
     next(): boolean
 }
@@ -8133,6 +8435,7 @@ class ScriptIter {
      * @constructor 
      * @param text a UTF-8 string
      * @param length length of `text,` or -1 if `text` is nul-terminated
+     * @returns the new script iterator, initialized  to point at the first range in the text, which should be  freed with [method@Pango.ScriptIter.free]. If the string is  empty, it will point at an empty range.
      */
     constructor(text: string, length: number) 
     /**
@@ -8145,6 +8448,7 @@ class ScriptIter {
      * @constructor 
      * @param text a UTF-8 string
      * @param length length of `text,` or -1 if `text` is nul-terminated
+     * @returns the new script iterator, initialized  to point at the first range in the text, which should be  freed with [method@Pango.ScriptIter.free]. If the string is  empty, it will point at an empty range.
      */
     static new(text: string, length: number): ScriptIter
 }
@@ -8155,6 +8459,7 @@ interface TabArray {
 
     /**
      * Copies a `PangoTabArray`.
+     * @returns the newly allocated `PangoTabArray`, which should   be freed with [method@Pango.TabArray.free].
      */
     copy(): TabArray
     /**
@@ -8176,10 +8481,12 @@ interface TabArray {
     /**
      * Returns %TRUE if the tab positions are in pixels,
      * %FALSE if they are in Pango units.
+     * @returns whether positions are in pixels.
      */
     get_positions_in_pixels(): boolean
     /**
      * Gets the number of tab stops in `tab_array`.
+     * @returns the number of tab stops in the array.
      */
     get_size(): number
     /**
@@ -8242,6 +8549,7 @@ interface TabArray {
      * The intended use of this function is testing and
      * debugging. The format is not meant as a permanent
      * storage format.
+     * @returns a newly allocated string
      */
     to_string(): string
 }
@@ -8270,6 +8578,7 @@ class TabArray {
      * @constructor 
      * @param initial_size Initial number of tab stops to allocate, can be 0
      * @param positions_in_pixels whether positions are in pixel units
+     * @returns the newly allocated `PangoTabArray`, which should   be freed with [method@Pango.TabArray.free].
      */
     constructor(initial_size: number, positions_in_pixels: boolean) 
     /**
@@ -8280,6 +8589,7 @@ class TabArray {
      * @constructor 
      * @param initial_size Initial number of tab stops to allocate, can be 0
      * @param positions_in_pixels whether positions are in pixel units
+     * @returns the newly allocated `PangoTabArray`, which should   be freed with [method@Pango.TabArray.free].
      */
     static new(initial_size: number, positions_in_pixels: boolean): TabArray
     /**
@@ -8288,6 +8598,7 @@ class TabArray {
      * This is the counterpart to [method`Pango`.TabArray.to_string].
      * See that functions for details about the format.
      * @param text a string
+     * @returns a new `PangoTabArray`
      */
     static from_string(text: string): TabArray | null
 }

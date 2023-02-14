@@ -3521,6 +3521,7 @@ const VOLUME_MONITOR_EXTENSION_POINT_NAME: string
  * It is an error to call this function with a non-utf8 `action_name`.
  * `action_name` must not be %NULL.
  * @param action_name a potential action name
+ * @returns %TRUE if @action_name is valid
  */
 function action_name_is_valid(action_name: string): boolean
 /**
@@ -3549,6 +3550,7 @@ function action_name_is_valid(action_name: string): boolean
  * For strings, this third format must be used if * target value is
  * empty or contains characters other than alphanumerics, '-' and '.'.
  * @param detailed_name a detailed action name
+ * @returns %TRUE if successful, else %FALSE with @error set
  */
 function action_parse_detailed_name(detailed_name: string): [ /* returnType */ boolean, /* action_name */ string, /* target_value */ GLib.Variant ]
 /**
@@ -3564,6 +3566,7 @@ function action_parse_detailed_name(detailed_name: string): [ /* returnType */ b
  * this function.
  * @param action_name a valid action name
  * @param target_value a #GVariant target value, or %NULL
+ * @returns a detailed format string
  */
 function action_print_detailed_name(action_name: string, target_value: GLib.Variant | null): string
 /**
@@ -3577,6 +3580,7 @@ function action_print_detailed_name(action_name: string, target_value: GLib.Vari
  * @param commandline the commandline to use
  * @param application_name the application name, or %NULL to use `commandline`
  * @param flags flags that can specify details of the created #GAppInfo
+ * @returns new #GAppInfo for given command.
  */
 function app_info_create_from_commandline(commandline: string, application_name: string | null, flags: AppInfoCreateFlags): AppInfo
 /**
@@ -3588,6 +3592,7 @@ function app_info_create_from_commandline(commandline: string, application_name:
  * of `OnlyShowIn` or `NotShowIn`. See g_app_info_should_show().
  * The returned list does not include applications which have
  * the `Hidden` key set.
+ * @returns a newly allocated #GList of references to #GAppInfos.
  */
 function app_info_get_all(): AppInfo[]
 /**
@@ -3596,12 +3601,14 @@ function app_info_get_all(): AppInfo[]
  * g_app_info_get_recommended_for_type() and
  * g_app_info_get_fallback_for_type().
  * @param content_type the content type to find a #GAppInfo for
+ * @returns #GList of #GAppInfos     for given @content_type or %NULL on error.
  */
 function app_info_get_all_for_type(content_type: string): AppInfo[]
 /**
  * Gets the default #GAppInfo for a given content type.
  * @param content_type the content type to find a #GAppInfo for
  * @param must_support_uris if %TRUE, the #GAppInfo is expected to     support URIs
+ * @returns #GAppInfo for given @content_type or     %NULL on error.
  */
 function app_info_get_default_for_type(content_type: string, must_support_uris: boolean): AppInfo | null
 /**
@@ -3612,12 +3619,26 @@ function app_info_get_default_for_type(content_type: string, must_support_uris: 
  * @param callback a #GAsyncReadyCallback to call when the request is done
  */
 function app_info_get_default_for_type_async<Z = unknown>(content_type: string, must_support_uris: boolean, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+
+// Overloads of app_info_get_default_for_type_async
+
+/**
+ * Promisified version of {@link app_info_get_default_for_type_async}
+ * 
+ * Asynchronously gets the default #GAppInfo for a given content type.
+ * @param content_type the content type to find a #GAppInfo for
+ * @param must_support_uris if %TRUE, the #GAppInfo is expected to     support URIs
+ * @param cancellable optional #GCancellable object, %NULL to ignore
+ * @returns A Promise of: #GAppInfo for given @content_type or     %NULL on error.
+ */
+function app_info_get_default_for_type_async<Z = unknown>(content_type: string, must_support_uris: boolean, cancellable: Cancellable | null): globalThis.Promise<AppInfo>
 /**
  * Finishes a default #GAppInfo lookup started by
  * g_app_info_get_default_for_type_async().
  * 
  * If no #GAppInfo is found, then `error` will be set to %G_IO_ERROR_NOT_FOUND.
  * @param result a #GAsyncResult
+ * @returns #GAppInfo for given @content_type or     %NULL on error.
  */
 function app_info_get_default_for_type_finish(result: AsyncResult): AppInfo
 /**
@@ -3626,6 +3647,7 @@ function app_info_get_default_for_type_finish(result: AsyncResult): AppInfo
  * of the URI, up to but not including the ':', e.g. "http",
  * "ftp" or "sip".
  * @param uri_scheme a string containing a URI scheme.
+ * @returns #GAppInfo for given @uri_scheme or     %NULL on error.
  */
 function app_info_get_default_for_uri_scheme(uri_scheme: string): AppInfo | null
 /**
@@ -3638,12 +3660,28 @@ function app_info_get_default_for_uri_scheme(uri_scheme: string): AppInfo | null
  * @param callback a #GAsyncReadyCallback to call when the request is done
  */
 function app_info_get_default_for_uri_scheme_async<Z = unknown>(uri_scheme: string, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+
+// Overloads of app_info_get_default_for_uri_scheme_async
+
+/**
+ * Promisified version of {@link app_info_get_default_for_uri_scheme_async}
+ * 
+ * Asynchronously gets the default application for handling URIs with
+ * the given URI scheme. A URI scheme is the initial part
+ * of the URI, up to but not including the ':', e.g. "http",
+ * "ftp" or "sip".
+ * @param uri_scheme a string containing a URI scheme.
+ * @param cancellable optional #GCancellable object, %NULL to ignore
+ * @returns A Promise of: #GAppInfo for given @uri_scheme or     %NULL on error.
+ */
+function app_info_get_default_for_uri_scheme_async<Z = unknown>(uri_scheme: string, cancellable: Cancellable | null): globalThis.Promise<AppInfo>
 /**
  * Finishes a default #GAppInfo lookup started by
  * g_app_info_get_default_for_uri_scheme_async().
  * 
  * If no #GAppInfo is found, then `error` will be set to %G_IO_ERROR_NOT_FOUND.
  * @param result a #GAsyncResult
+ * @returns #GAppInfo for given @uri_scheme or     %NULL on error.
  */
 function app_info_get_default_for_uri_scheme_finish(result: AsyncResult): AppInfo
 /**
@@ -3651,6 +3689,7 @@ function app_info_get_default_for_uri_scheme_finish(result: AsyncResult): AppInf
  * those applications which claim to support the given content type
  * by MIME type subclassing and not directly.
  * @param content_type the content type to find a #GAppInfo for
+ * @returns #GList of #GAppInfos     for given @content_type or %NULL on error.
  */
 function app_info_get_fallback_for_type(content_type: string): AppInfo[]
 /**
@@ -3661,6 +3700,7 @@ function app_info_get_fallback_for_type(content_type: string): AppInfo[]
  * the last one for which g_app_info_set_as_last_used_for_type() has been
  * called.
  * @param content_type the content type to find a #GAppInfo for
+ * @returns #GList of #GAppInfos     for given @content_type or %NULL on error.
  */
 function app_info_get_recommended_for_type(content_type: string): AppInfo[]
 /**
@@ -3674,6 +3714,7 @@ function app_info_get_recommended_for_type(content_type: string): AppInfo[]
  * g_app_info_launch_default_for_uri_async() instead.
  * @param uri the uri to show
  * @param context an optional #GAppLaunchContext
+ * @returns %TRUE on success, %FALSE on error.
  */
 function app_info_launch_default_for_uri(uri: string, context: AppLaunchContext | null): boolean
 /**
@@ -3693,9 +3734,32 @@ function app_info_launch_default_for_uri(uri: string, context: AppLaunchContext 
  * @param callback a #GAsyncReadyCallback to call when the request is done
  */
 function app_info_launch_default_for_uri_async<Z = unknown>(uri: string, context: AppLaunchContext | null, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+
+// Overloads of app_info_launch_default_for_uri_async
+
+/**
+ * Promisified version of {@link app_info_launch_default_for_uri_async}
+ * 
+ * Async version of g_app_info_launch_default_for_uri().
+ * 
+ * This version is useful if you are interested in receiving
+ * error information in the case where the application is
+ * sandboxed and the portal may present an application chooser
+ * dialog to the user.
+ * 
+ * This is also useful if you want to be sure that the D-Bus–activated
+ * applications are really started before termination and if you are interested
+ * in receiving error information from their activation.
+ * @param uri the uri to show
+ * @param context an optional #GAppLaunchContext
+ * @param cancellable a #GCancellable
+ * @returns A Promise of: %TRUE if the launch was successful, %FALSE if @error is set
+ */
+function app_info_launch_default_for_uri_async<Z = unknown>(uri: string, context: AppLaunchContext | null, cancellable: Cancellable | null): globalThis.Promise<boolean>
 /**
  * Finishes an asynchronous launch-default-for-uri operation.
  * @param result a #GAsyncResult
+ * @returns %TRUE if the launch was successful, %FALSE if @error is set
  */
 function app_info_launch_default_for_uri_finish(result: AsyncResult): boolean
 /**
@@ -3749,6 +3813,7 @@ function bus_get<Z = unknown>(bus_type: BusType, cancellable: Cancellable | null
  * Note that the returned #GDBusConnection object will (usually) have
  * the #GDBusConnection:exit-on-close property set to %TRUE.
  * @param res a #GAsyncResult obtained from the #GAsyncReadyCallback passed     to g_bus_get()
+ * @returns a #GDBusConnection or %NULL if @error is set.     Free with g_object_unref().
  */
 function bus_get_finish(res: AsyncResult): DBusConnection
 /**
@@ -3772,6 +3837,7 @@ function bus_get_finish(res: AsyncResult): DBusConnection
  * the #GDBusConnection:exit-on-close property set to %TRUE.
  * @param bus_type a #GBusType
  * @param cancellable a #GCancellable or %NULL
+ * @returns a #GDBusConnection or %NULL if @error is set.     Free with g_object_unref().
  */
 function bus_get_sync(bus_type: BusType, cancellable: Cancellable | null): DBusConnection
 /**
@@ -3782,6 +3848,7 @@ function bus_get_sync(bus_type: BusType, cancellable: Cancellable | null): DBusC
  * @param flags a set of flags from the #GBusNameOwnerFlags enumeration
  * @param name_acquired_closure #GClosure to invoke when `name` is     acquired or %NULL
  * @param name_lost_closure #GClosure to invoke when `name` is lost     or %NULL
+ * @returns an identifier (never 0) that can be used with     g_bus_unown_name() to stop owning the name.
  */
 function bus_own_name_on_connection(connection: DBusConnection, name: string, flags: BusNameOwnerFlags, name_acquired_closure: GObject.TClosure | null, name_lost_closure: GObject.TClosure | null): number
 /**
@@ -3793,6 +3860,7 @@ function bus_own_name_on_connection(connection: DBusConnection, name: string, fl
  * @param bus_acquired_closure #GClosure to invoke when connected to     the bus of type `bus_type` or %NULL
  * @param name_acquired_closure #GClosure to invoke when `name` is     acquired or %NULL
  * @param name_lost_closure #GClosure to invoke when `name` is lost or     %NULL
+ * @returns an identifier (never 0) that can be used with     g_bus_unown_name() to stop owning the name.
  */
 function bus_own_name(bus_type: BusType, name: string, flags: BusNameOwnerFlags, bus_acquired_closure: GObject.TClosure | null, name_acquired_closure: GObject.TClosure | null, name_lost_closure: GObject.TClosure | null): number
 /**
@@ -3827,6 +3895,7 @@ function bus_unwatch_name(watcher_id: number): void
  * @param flags Flags from the #GBusNameWatcherFlags enumeration.
  * @param name_appeared_closure #GClosure to invoke when `name` is known to exist or %NULL.
  * @param name_vanished_closure #GClosure to invoke when `name` is known to not exist or %NULL.
+ * @returns An identifier (never 0) that can be used with g_bus_unwatch_name() to stop watching the name.
  */
 function bus_watch_name_on_connection(connection: DBusConnection, name: string, flags: BusNameWatcherFlags, name_appeared_closure: GObject.TClosure | null, name_vanished_closure: GObject.TClosure | null): number
 /**
@@ -3837,28 +3906,33 @@ function bus_watch_name_on_connection(connection: DBusConnection, name: string, 
  * @param flags Flags from the #GBusNameWatcherFlags enumeration.
  * @param name_appeared_closure #GClosure to invoke when `name` is known to exist or %NULL.
  * @param name_vanished_closure #GClosure to invoke when `name` is known to not exist or %NULL.
+ * @returns An identifier (never 0) that can be used with g_bus_unwatch_name() to stop watching the name.
  */
 function bus_watch_name(bus_type: BusType, name: string, flags: BusNameWatcherFlags, name_appeared_closure: GObject.TClosure | null, name_vanished_closure: GObject.TClosure | null): number
 /**
  * Checks if a content type can be executable. Note that for instance
  * things like text files can be executables (i.e. scripts and batch files).
  * @param type a content type string
+ * @returns %TRUE if the file type corresponds to a type that     can be executable, %FALSE otherwise.
  */
 function content_type_can_be_executable(type: string): boolean
 /**
  * Compares two content types for equality.
  * @param type1 a content type string
  * @param type2 a content type string
+ * @returns %TRUE if the two strings are identical or equivalent,     %FALSE otherwise.
  */
 function content_type_equals(type1: string, type2: string): boolean
 /**
  * Tries to find a content type based on the mime type name.
  * @param mime_type a mime type string
+ * @returns Newly allocated string with content type or     %NULL. Free with g_free()
  */
 function content_type_from_mime_type(mime_type: string): string | null
 /**
  * Gets the human readable description of the content type.
  * @param type a content type string
+ * @returns a short description of the content type @type. Free the     returned string with g_free()
  */
 function content_type_get_description(type: string): string
 /**
@@ -3868,26 +3942,31 @@ function content_type_get_description(type: string): string
  * [shared-mime-info](http://www.freedesktop.org/wiki/Specifications/shared-mime-info-spec)
  * specification for more on the generic icon name.
  * @param type a content type string
+ * @returns the registered generic icon name for the given @type,     or %NULL if unknown. Free with g_free()
  */
 function content_type_get_generic_icon_name(type: string): string | null
 /**
  * Gets the icon for a content type.
  * @param type a content type string
+ * @returns #GIcon corresponding to the content type. Free the returned     object with g_object_unref()
  */
 function content_type_get_icon(type: string): Icon
 /**
  * Get the list of directories which MIME data is loaded from. See
  * g_content_type_set_mime_dirs() for details.
+ * @returns %NULL-terminated list of    directories to load MIME data from, including any `mime/` subdirectory,    and with the first directory to try listed first
  */
 function content_type_get_mime_dirs(): string[]
 /**
  * Gets the mime type for the content type, if one is registered.
  * @param type a content type string
+ * @returns the registered mime type for the     given @type, or %NULL if unknown; free with g_free().
  */
 function content_type_get_mime_type(type: string): string | null
 /**
  * Gets the symbolic icon for a content type.
  * @param type a content type string
+ * @returns symbolic #GIcon corresponding to the content type.     Free the returned object with g_object_unref()
  */
 function content_type_get_symbolic_icon(type: string): Icon
 /**
@@ -3897,6 +3976,7 @@ function content_type_get_symbolic_icon(type: string): Icon
  * on the other argument.
  * @param filename a path, or %NULL
  * @param data a stream of data, or %NULL
+ * @returns a string indicating a guessed content type for the     given data. Free with g_free()
  */
 function content_type_guess(filename: string | null, data: Uint8Array | null): [ /* returnType */ string, /* result_uncertain */ boolean ]
 /**
@@ -3913,12 +3993,14 @@ function content_type_guess(filename: string | null, data: Uint8Array | null): [
  * This function is useful in the implementation of
  * g_mount_guess_content_type().
  * @param root the root of the tree to guess a type for
+ * @returns an %NULL-terminated     array of zero or more content types. Free with g_strfreev()
  */
 function content_type_guess_for_tree(root: File): string[]
 /**
  * Determines if `type` is a subset of `supertype`.
  * @param type a content type string
  * @param supertype a content type string
+ * @returns %TRUE if @type is a kind of @supertype,     %FALSE otherwise.
  */
 function content_type_is_a(type: string, supertype: string): boolean
 /**
@@ -3926,6 +4008,7 @@ function content_type_is_a(type: string, supertype: string): boolean
  * Convenience wrapper around g_content_type_is_a().
  * @param type a content type string
  * @param mime_type a mime type string
+ * @returns %TRUE if @type is a kind of @mime_type,     %FALSE otherwise.
  */
 function content_type_is_mime_type(type: string, mime_type: string): boolean
 /**
@@ -3934,6 +4017,7 @@ function content_type_is_mime_type(type: string, mime_type: string): boolean
  * while on win32 it is "*" and on OSX it is a dynamic type
  * or octet-stream.
  * @param type a content type string
+ * @returns %TRUE if the type is the unknown type.
  */
 function content_type_is_unknown(type: string): boolean
 /**
@@ -3969,6 +4053,7 @@ function content_type_set_mime_dirs(dirs: string[] | null): void
  * Gets a list of strings containing all the registered content types
  * known to the system. The list and its data should be freed using
  * `g_list_free_full (list, g_free)`.
+ * @returns list of the registered     content types
  */
 function content_types_get_registered(): string[]
 /**
@@ -3980,6 +4065,7 @@ function content_types_get_registered(): string[]
  * which could be used in a D-Bus address like
  * `unix:nonce-tcp:host=127.0.0.1,port=42,noncefile=/run/bus-for-%3A0`.
  * @param string an unescaped string to be included in a D-Bus address     as the value in a key-value pair
+ * @returns a copy of @string with all     non-optionally-escaped bytes escaped
  */
 function dbus_address_escape_value(string: string): string
 /**
@@ -3991,6 +4077,7 @@ function dbus_address_escape_value(string: string): string
  * [D-Bus address format](https://dbus.freedesktop.org/doc/dbus-specification.html#addresses).
  * @param bus_type a #GBusType
  * @param cancellable a #GCancellable or %NULL
+ * @returns a valid D-Bus address string for @bus_type or     %NULL if @error is set
  */
 function dbus_address_get_for_bus_sync(bus_type: BusType, cancellable: Cancellable | null): string
 /**
@@ -4016,6 +4103,7 @@ function dbus_address_get_stream<Z = unknown>(address: string, cancellable: Canc
  * A server is not required to set a GUID, so `out_guid` may be set to %NULL
  * even on success.
  * @param res A #GAsyncResult obtained from the GAsyncReadyCallback passed to g_dbus_address_get_stream().
+ * @returns A #GIOStream or %NULL if @error is set.
  */
 function dbus_address_get_stream_finish(res: AsyncResult): [ /* returnType */ IOStream, /* out_guid */ string | null ]
 /**
@@ -4031,6 +4119,7 @@ function dbus_address_get_stream_finish(res: AsyncResult): [ /* returnType */ IO
  * g_dbus_address_get_stream() for the asynchronous version.
  * @param address A valid D-Bus address.
  * @param cancellable A #GCancellable or %NULL.
+ * @returns A #GIOStream or %NULL if @error is set.
  */
 function dbus_address_get_stream_sync(address: string, cancellable: Cancellable | null): [ /* returnType */ IOStream, /* out_guid */ string | null ]
 /**
@@ -4039,6 +4128,7 @@ function dbus_address_get_stream_sync(address: string, cancellable: Cancellable 
  * The cost of this function is O(n) in number of annotations.
  * @param annotations A %NULL-terminated array of annotations or %NULL.
  * @param name The name of the annotation to look up.
+ * @returns The value or %NULL if not found. Do not free, it is owned by @annotations.
  */
 function dbus_annotation_info_lookup(annotations: DBusAnnotationInfo[] | null, name: string): string | null
 /**
@@ -4054,6 +4144,7 @@ function dbus_annotation_info_lookup(annotations: DBusAnnotationInfo[] | null, n
  * This function is typically only used in object mappings to put a
  * #GError on the wire. Regular applications should not use it.
  * @param error A #GError.
+ * @returns A D-Bus error name (never %NULL).     Free with g_free().
  */
 function dbus_error_encode_gerror(error: GLib.Error): string
 /**
@@ -4064,12 +4155,14 @@ function dbus_error_encode_gerror(error: GLib.Error): string
  * (e.g. g_dbus_connection_call_finish()) unless
  * g_dbus_error_strip_remote_error() has been used on `error`.
  * @param error a #GError
+ * @returns an allocated string or %NULL if the     D-Bus error name could not be found. Free with g_free().
  */
 function dbus_error_get_remote_error(error: GLib.Error): string | null
 /**
  * Checks if `error` represents an error received via D-Bus from a remote peer. If so,
  * use g_dbus_error_get_remote_error() to get the name of the error.
  * @param error A #GError.
+ * @returns %TRUE if @error represents an error from a remote peer, %FALSE otherwise.
  */
 function dbus_error_is_remote_error(error: GLib.Error): boolean
 /**
@@ -4101,6 +4194,7 @@ function dbus_error_is_remote_error(error: GLib.Error): boolean
  * it.
  * @param dbus_error_name D-Bus error name.
  * @param dbus_error_message D-Bus error message.
+ * @returns An allocated #GError. Free with g_error_free().
  */
 function dbus_error_new_for_dbus_error(dbus_error_name: string, dbus_error_message: string): GLib.Error
 function dbus_error_quark(): GLib.Quark
@@ -4113,6 +4207,7 @@ function dbus_error_quark(): GLib.Quark
  * @param error_domain A #GQuark for an error domain.
  * @param error_code An error code.
  * @param dbus_error_name A D-Bus error name.
+ * @returns %TRUE if the association was created, %FALSE if it already exists.
  */
 function dbus_error_register_error(error_domain: GLib.Quark, error_code: number, dbus_error_name: string): boolean
 /**
@@ -4133,6 +4228,7 @@ function dbus_error_register_error_domain(error_domain_quark_name: string, quark
  * 
  * This is typically used when presenting errors to the end user.
  * @param error A #GError.
+ * @returns %TRUE if information was stripped, %FALSE otherwise.
  */
 function dbus_error_strip_remote_error(error: GLib.Error): boolean
 /**
@@ -4140,11 +4236,13 @@ function dbus_error_strip_remote_error(error: GLib.Error): boolean
  * @param error_domain A #GQuark for an error domain.
  * @param error_code An error code.
  * @param dbus_error_name A D-Bus error name.
+ * @returns %TRUE if the association was destroyed, %FALSE if it wasn't found.
  */
 function dbus_error_unregister_error(error_domain: GLib.Quark, error_code: number, dbus_error_name: string): boolean
 /**
  * This is a language binding friendly version of g_dbus_escape_object_path_bytestring().
  * @param s the string to escape
+ * @returns an escaped version of @s. Free with g_free().
  */
 function dbus_escape_object_path(s: string): string
 /**
@@ -4165,6 +4263,7 @@ function dbus_escape_object_path(s: string): string
  * 
  * This can be reversed with g_dbus_unescape_object_path().
  * @param bytes the string of bytes to escape
+ * @returns an escaped version of @bytes. Free with g_free().
  */
 function dbus_escape_object_path_bytestring(bytes: Uint8Array): string
 /**
@@ -4179,6 +4278,7 @@ function dbus_escape_object_path_bytestring(bytes: Uint8Array): string
  * 
  * Note that D-Bus GUIDs do not follow
  * [RFC 4122](https://datatracker.ietf.org/doc/html/rfc4122).
+ * @returns A valid D-Bus GUID. Free with g_free().
  */
 function dbus_generate_guid(): string
 /**
@@ -4212,6 +4312,7 @@ function dbus_generate_guid(): string
  * #GVariant to a #GValue.
  * @param gvalue A #GValue to convert to a #GVariant
  * @param type A #GVariantType
+ * @returns A #GVariant (never floating) of     #GVariantType @type holding the data from @gvalue or an empty #GVariant     in case of failure. Free with g_variant_unref().
  */
 function dbus_gvalue_to_gvariant(gvalue: any, type: GLib.VariantType): GLib.Variant
 /**
@@ -4237,6 +4338,7 @@ function dbus_gvariant_to_gvalue(value: GLib.Variant): /* out_gvalue */ any
  * or #GDBusConnection - use g_dbus_is_supported_address() to do more
  * checks.
  * @param string A string.
+ * @returns %TRUE if @string is a valid D-Bus address, %FALSE otherwise.
  */
 function dbus_is_address(string: string): boolean
 /**
@@ -4246,6 +4348,7 @@ function dbus_is_address(string: string): boolean
  * because D-Bus error names are defined to have exactly the
  * same syntax as interface names.
  * @param string The string to check.
+ * @returns %TRUE if valid, %FALSE otherwise.
  */
 function dbus_is_error_name(string: string): boolean
 /**
@@ -4254,21 +4357,25 @@ function dbus_is_error_name(string: string): boolean
  * See the documentation for g_dbus_generate_guid() for more information about
  * the format of a GUID.
  * @param string The string to check.
+ * @returns %TRUE if @string is a GUID, %FALSE otherwise.
  */
 function dbus_is_guid(string: string): boolean
 /**
  * Checks if `string` is a valid D-Bus interface name.
  * @param string The string to check.
+ * @returns %TRUE if valid, %FALSE otherwise.
  */
 function dbus_is_interface_name(string: string): boolean
 /**
  * Checks if `string` is a valid D-Bus member (e.g. signal or method) name.
  * @param string The string to check.
+ * @returns %TRUE if valid, %FALSE otherwise.
  */
 function dbus_is_member_name(string: string): boolean
 /**
  * Checks if `string` is a valid D-Bus bus name (either unique or well-known).
  * @param string The string to check.
+ * @returns %TRUE if valid, %FALSE otherwise.
  */
 function dbus_is_name(string: string): boolean
 /**
@@ -4277,11 +4384,13 @@ function dbus_is_name(string: string): boolean
  * are valid. See the specification of the
  * [D-Bus address format](https://dbus.freedesktop.org/doc/dbus-specification.html#addresses).
  * @param string A string.
+ * @returns %TRUE if @string is a valid D-Bus address that is supported by this library, %FALSE if @error is set.
  */
 function dbus_is_supported_address(string: string): boolean
 /**
  * Checks if `string` is a valid D-Bus unique bus name.
  * @param string The string to check.
+ * @returns %TRUE if valid, %FALSE otherwise.
  */
 function dbus_is_unique_name(string: string): boolean
 /**
@@ -4294,6 +4403,7 @@ function dbus_is_unique_name(string: string): boolean
  * encoded is not allowed (e.g `_63` is not valid, the string
  * should contain `c` instead).
  * @param s the string to unescape
+ * @returns an   unescaped version of @s, or %NULL if @s is not a string returned   from g_dbus_escape_object_path(). Free with g_free().
  */
 function dbus_unescape_object_path(s: string): Uint8Array | null
 /**
@@ -4301,12 +4411,14 @@ function dbus_unescape_object_path(s: string): Uint8Array | null
  * assumed to communicate with the server identified by `server_identity`.
  * @param base_socket the #GDatagramBased to wrap
  * @param server_identity the expected identity of the server
+ * @returns the new   #GDtlsClientConnection, or %NULL on error
  */
 function dtls_client_connection_new(base_socket: DatagramBased, server_identity: SocketConnectable | null): DtlsClientConnection
 /**
  * Creates a new #GDtlsServerConnection wrapping `base_socket`.
  * @param base_socket the #GDatagramBased to wrap
  * @param certificate the default server certificate, or %NULL
+ * @returns the new   #GDtlsServerConnection, or %NULL on error
  */
 function dtls_server_connection_new(base_socket: DatagramBased, certificate: TlsCertificate | null): DtlsServerConnection
 /**
@@ -4325,6 +4437,7 @@ function dtls_server_connection_new(base_socket: DatagramBased, certificate: Tls
  * for you there.  It is also always possible to use this function with
  * #GOptionContext arguments of type %G_OPTION_ARG_FILENAME.
  * @param arg a command line string
+ * @returns a new #GFile.   Free the returned object with g_object_unref().
  */
 function file_new_for_commandline_arg(arg: string): File
 /**
@@ -4341,6 +4454,7 @@ function file_new_for_commandline_arg(arg: string): File
  * See also g_application_command_line_create_file_for_arg().
  * @param arg a command line string
  * @param cwd the current working directory of the commandline
+ * @returns a new #GFile
  */
 function file_new_for_commandline_arg_and_cwd(arg: string, cwd: string): File
 /**
@@ -4348,6 +4462,7 @@ function file_new_for_commandline_arg_and_cwd(arg: string, cwd: string): File
  * fails, but the returned object might not support any I/O
  * operation if `path` is malformed.
  * @param path a string containing a relative or absolute path.   The string must be encoded in the glib filename encoding.
+ * @returns a new #GFile for the given @path.   Free the returned object with g_object_unref().
  */
 function file_new_for_path(path: string): File
 /**
@@ -4356,6 +4471,7 @@ function file_new_for_path(path: string): File
  * operation if `uri` is malformed or if the uri type is
  * not supported.
  * @param uri a UTF-8 string containing a URI
+ * @returns a new #GFile for the given @uri.   Free the returned object with g_object_unref().
  */
 function file_new_for_uri(uri: string): File
 /**
@@ -4370,6 +4486,7 @@ function file_new_for_uri(uri: string): File
  * Unlike the other #GFile constructors, this will return %NULL if
  * a temporary file could not be created.
  * @param tmpl Template for the file   name, as in g_file_open_tmp(), or %NULL for a default template
+ * @returns a new #GFile.   Free the returned object with g_object_unref().
  */
 function file_new_tmp(tmpl: string | null): [ /* returnType */ File, /* iostream */ FileIOStream ]
 /**
@@ -4385,6 +4502,24 @@ function file_new_tmp(tmpl: string | null): [ /* returnType */ File, /* iostream
  * @param callback a #GAsyncReadyCallback to call when the request is done
  */
 function file_new_tmp_async<Z = unknown>(tmpl: string | null, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+
+// Overloads of file_new_tmp_async
+
+/**
+ * Promisified version of {@link file_new_tmp_async}
+ * 
+ * Asynchronously opens a file in the preferred directory for temporary files
+ *  (as returned by g_get_tmp_dir()) as g_file_new_tmp().
+ * 
+ * `tmpl` should be a string in the GLib file name encoding
+ * containing a sequence of six 'X' characters, and containing no
+ * directory components. If it is %NULL, a default template is used.
+ * @param tmpl Template for the file   name, as in g_file_open_tmp(), or %NULL for a default template
+ * @param io_priority the [I/O priority][io-priority] of the request
+ * @param cancellable optional #GCancellable object, %NULL to ignore
+ * @returns A Promise of: a new #GFile.   Free the returned object with g_object_unref().
+ */
+function file_new_tmp_async<Z = unknown>(tmpl: string | null, io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* iostream */ FileIOStream>
 /**
  * Asynchronously creates a directory in the preferred directory for
  * temporary files (as returned by g_get_tmp_dir()) as g_dir_make_tmp().
@@ -4398,15 +4533,35 @@ function file_new_tmp_async<Z = unknown>(tmpl: string | null, io_priority: numbe
  * @param callback a #GAsyncReadyCallback to call when the request is done
  */
 function file_new_tmp_dir_async<Z = unknown>(tmpl: string | null, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<Z> | null): void
+
+// Overloads of file_new_tmp_dir_async
+
+/**
+ * Promisified version of {@link file_new_tmp_dir_async}
+ * 
+ * Asynchronously creates a directory in the preferred directory for
+ * temporary files (as returned by g_get_tmp_dir()) as g_dir_make_tmp().
+ * 
+ * `tmpl` should be a string in the GLib file name encoding
+ * containing a sequence of six 'X' characters, and containing no
+ * directory components. If it is %NULL, a default template is used.
+ * @param tmpl Template for the file   name, as in g_dir_make_tmp(), or %NULL for a default template
+ * @param io_priority the [I/O priority][io-priority] of the request
+ * @param cancellable optional #GCancellable object, %NULL to ignore
+ * @returns A Promise of: a new #GFile.   Free the returned object with g_object_unref().
+ */
+function file_new_tmp_dir_async<Z = unknown>(tmpl: string | null, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<File>
 /**
  * Finishes a temporary directory creation started by
  * g_file_new_tmp_dir_async().
  * @param result a #GAsyncResult
+ * @returns a new #GFile.   Free the returned object with g_object_unref().
  */
 function file_new_tmp_dir_finish(result: AsyncResult): File
 /**
  * Finishes a temporary file creation started by g_file_new_tmp_async().
  * @param result a #GAsyncResult
+ * @returns a new #GFile.   Free the returned object with g_object_unref().
  */
 function file_new_tmp_finish(result: AsyncResult): [ /* returnType */ File, /* iostream */ FileIOStream ]
 /**
@@ -4415,16 +4570,19 @@ function file_new_tmp_finish(result: AsyncResult): [ /* returnType */ File, /* i
  * but the returned object might not support any I/O operation if
  * the `parse_name` cannot be parsed.
  * @param parse_name a file name or path to be parsed
+ * @returns a new #GFile.
  */
 function file_parse_name(parse_name: string): File
 /**
  * Deserializes a #GIcon previously serialized using g_icon_serialize().
  * @param value a #GVariant created with g_icon_serialize()
+ * @returns a #GIcon, or %NULL when deserialization fails.
  */
 function icon_deserialize(value: GLib.Variant): Icon | null
 /**
  * Gets a hash for an icon.
  * @param icon #gconstpointer to an icon object.
+ * @returns a #guint containing a hash for the @icon, suitable for use in a #GHashTable or similar data structure.
  */
 function icon_hash(icon: object): number
 /**
@@ -4435,6 +4593,7 @@ function icon_hash(icon: object): number
  * implementations you need to ensure that each #GType is registered
  * with the type system prior to calling g_icon_new_for_string().
  * @param str A string obtained via g_icon_to_string().
+ * @returns An object implementing the #GIcon          interface or %NULL if @error is set.
  */
 function icon_new_for_string(str: string): Icon
 /**
@@ -4444,6 +4603,7 @@ function icon_new_for_string(str: string): Icon
  * @param object_type a #GType supporting #GInitable.
  * @param parameters the parameters to use to construct the object
  * @param cancellable optional #GCancellable object, %NULL to ignore.
+ * @returns a newly allocated      #GObject, or %NULL on error
  */
 function initable_newv(object_type: GObject.GType, parameters: GObject.Parameter[], cancellable: Cancellable | null): GObject.Object
 /**
@@ -4455,15 +4615,18 @@ function initable_newv(object_type: GObject.GType, parameters: GObject.Parameter
  * As %errno is global and may be modified by intermediate function
  * calls, you should save its value as soon as the call which sets it
  * @param err_no Error number as defined in errno.h.
+ * @returns #GIOErrorEnum value for the given errno.h error number.
  */
 function io_error_from_errno(err_no: number): IOErrorEnum
 /**
  * Converts #GFileError error codes into GIO error codes.
  * @param file_error a #GFileError.
+ * @returns #GIOErrorEnum value for the given #GFileError error value.
  */
 function io_error_from_file_error(file_error: GLib.FileError): IOErrorEnum
 /**
  * Gets the GIO Error Quark.
+ * @returns a #GQuark.
  */
 function io_error_quark(): GLib.Quark
 /**
@@ -4476,16 +4639,19 @@ function io_error_quark(): GLib.Quark
  * @param type the #GType to register as extension
  * @param extension_name the name for the extension
  * @param priority the priority for the extension
+ * @returns a #GIOExtension object for #GType
  */
 function io_extension_point_implement(extension_point_name: string, type: GObject.GType, extension_name: string, priority: number): IOExtension
 /**
  * Looks up an existing extension point.
  * @param name the name of the extension point
+ * @returns the #GIOExtensionPoint, or %NULL if there    is no registered extension point with the given name.
  */
 function io_extension_point_lookup(name: string): IOExtensionPoint
 /**
  * Registers an extension point.
  * @param name The name of the extension point
+ * @returns the new #GIOExtensionPoint. This object is    owned by GIO and should not be freed.
  */
 function io_extension_point_register(name: string): IOExtensionPoint
 /**
@@ -4495,6 +4661,7 @@ function io_extension_point_register(name: string): IOExtensionPoint
  * all gtypes) then you can use g_io_modules_scan_all_in_directory()
  * which allows delayed/lazy loading of modules.
  * @param dirname pathname for a directory containing modules     to load.
+ * @returns a list of #GIOModules loaded      from the directory,      All the modules are loaded into memory, if you want to      unload them (enabling on-demand loading) you must call      g_type_module_unuse() on all the modules. Free the list      with g_list_free().
  */
 function io_modules_load_all_in_directory(dirname: string): IOModule[]
 /**
@@ -4505,6 +4672,7 @@ function io_modules_load_all_in_directory(dirname: string): IOModule[]
  * which allows delayed/lazy loading of modules.
  * @param dirname pathname for a directory containing modules     to load.
  * @param scope a scope to use when scanning the modules.
+ * @returns a list of #GIOModules loaded      from the directory,      All the modules are loaded into memory, if you want to      unload them (enabling on-demand loading) you must call      g_type_module_unuse() on all the modules. Free the list      with g_list_free().
  */
 function io_modules_load_all_in_directory_with_scope(dirname: string, scope: IOModuleScope): IOModule[]
 /**
@@ -4614,10 +4782,12 @@ function io_scheduler_push_job(job_func: IOSchedulerJobFunc, io_priority: number
  * @param filename the filename of the keyfile
  * @param root_path the path under which all settings keys appear
  * @param root_group the group name corresponding to              `root_path,` or %NULL
+ * @returns a keyfile-backed #GSettingsBackend
  */
 function keyfile_settings_backend_new(filename: string, root_path: string, root_group: string | null): SettingsBackend
 /**
  * Gets a reference to the default #GMemoryMonitor for the system.
+ * @returns a new reference to the default #GMemoryMonitor
  */
 function memory_monitor_dup_default(): MemoryMonitor
 /**
@@ -4626,10 +4796,12 @@ function memory_monitor_dup_default(): MemoryMonitor
  * This backend allows changes to settings, but does not write them
  * to any backing storage, so the next time you run your application,
  * the memory backend will start out with the default values again.
+ * @returns a newly created #GSettingsBackend
  */
 function memory_settings_backend_new(): SettingsBackend
 /**
  * Gets the default #GNetworkMonitor for the system.
+ * @returns a #GNetworkMonitor, which will be     a dummy object if no network monitor is available
  */
 function network_monitor_get_default(): NetworkMonitor
 /**
@@ -4644,6 +4816,7 @@ function networking_init(): void
  * 
  * This backend does not allow changes to settings, so all settings
  * will always have their default values.
+ * @returns a newly created #GSettingsBackend
  */
 function null_settings_backend_new(): SettingsBackend
 /**
@@ -4653,6 +4826,7 @@ function null_settings_backend_new(): SettingsBackend
  * anything on its own; use g_source_add_child_source() to add other
  * sources to it to cause it to trigger.
  * @param pollable_stream the stream associated with the new source
+ * @returns the new #GSource.
  */
 function pollable_source_new(pollable_stream: GObject.Object): GLib.Source
 /**
@@ -4663,6 +4837,7 @@ function pollable_source_new(pollable_stream: GObject.Object): GLib.Source
  * @param pollable_stream the stream associated with the   new source
  * @param child_source optional child source to attach
  * @param cancellable optional #GCancellable to attach
+ * @returns the new #GSource.
  */
 function pollable_source_new_full(pollable_stream: GObject.Object, child_source: GLib.Source | null, cancellable: Cancellable | null): GLib.Source
 /**
@@ -4679,6 +4854,7 @@ function pollable_source_new_full(pollable_stream: GObject.Object, child_source:
  * @param buffer a buffer to   read data into
  * @param blocking whether to do blocking I/O
  * @param cancellable optional #GCancellable object, %NULL to ignore.
+ * @returns the number of bytes read, or -1 on error.
  */
 function pollable_stream_read(stream: InputStream, buffer: Uint8Array, blocking: boolean, cancellable: Cancellable | null): number
 /**
@@ -4696,6 +4872,7 @@ function pollable_stream_read(stream: InputStream, buffer: Uint8Array, blocking:
  * @param buffer the buffer   containing the data to write.
  * @param blocking whether to do blocking I/O
  * @param cancellable optional #GCancellable object, %NULL to ignore.
+ * @returns the number of bytes written, or -1 on error.
  */
 function pollable_stream_write(stream: OutputStream, buffer: Uint8Array, blocking: boolean, cancellable: Cancellable | null): number
 /**
@@ -4721,28 +4898,34 @@ function pollable_stream_write(stream: OutputStream, buffer: Uint8Array, blockin
  * @param buffer the buffer   containing the data to write.
  * @param blocking whether to do blocking I/O
  * @param cancellable optional #GCancellable object, %NULL to ignore.
+ * @returns %TRUE on success, %FALSE if there was an error
  */
 function pollable_stream_write_all(stream: OutputStream, buffer: Uint8Array, blocking: boolean, cancellable: Cancellable | null): [ /* returnType */ boolean, /* bytes_written */ number ]
 /**
  * Gets a reference to the default #GPowerProfileMonitor for the system.
+ * @returns a new reference to the default #GPowerProfileMonitor
  */
 function power_profile_monitor_dup_default(): PowerProfileMonitor
 /**
  * Find the `gio-proxy` extension point for a proxy implementation that supports
  * the specified protocol.
  * @param protocol the proxy protocol name (e.g. http, socks, etc)
+ * @returns return a #GProxy or NULL if protocol               is not supported.
  */
 function proxy_get_default_for_protocol(protocol: string): Proxy | null
 /**
  * Gets the default #GProxyResolver for the system.
+ * @returns the default #GProxyResolver, which     will be a dummy object if no proxy resolver is available
  */
 function proxy_resolver_get_default(): ProxyResolver
 /**
  * Gets the #GResolver Error Quark.
+ * @returns a #GQuark.
  */
 function resolver_error_quark(): GLib.Quark
 /**
  * Gets the #GResource Error Quark.
+ * @returns a #GQuark
  */
 function resource_error_quark(): GLib.Quark
 /**
@@ -4757,6 +4940,7 @@ function resource_error_quark(): GLib.Quark
  * there is an error in reading it, an error from g_mapped_file_new() will be
  * returned.
  * @param filename the path of a filename to load, in the GLib filename encoding
+ * @returns a new #GResource, or %NULL on error
  */
 function resource_load(filename: string): Resource
 /**
@@ -4768,6 +4952,7 @@ function resource_load(filename: string): Resource
  * `lookup_flags` controls the behaviour of the lookup.
  * @param path A pathname inside the resource
  * @param lookup_flags A #GResourceLookupFlags
+ * @returns an array of constant strings
  */
 function resources_enumerate_children(path: string, lookup_flags: ResourceLookupFlags): string[]
 /**
@@ -4777,6 +4962,7 @@ function resources_enumerate_children(path: string, lookup_flags: ResourceLookup
  * `lookup_flags` controls the behaviour of the lookup.
  * @param path A pathname inside the resource
  * @param lookup_flags A #GResourceLookupFlags
+ * @returns %TRUE if the file was found. %FALSE if there were errors
  */
 function resources_get_info(path: string, lookup_flags: ResourceLookupFlags): [ /* returnType */ boolean, /* size */ number, /* flags */ number ]
 /**
@@ -4796,6 +4982,7 @@ function resources_get_info(path: string, lookup_flags: ResourceLookupFlags): [ 
  * `lookup_flags` controls the behaviour of the lookup.
  * @param path A pathname inside the resource
  * @param lookup_flags A #GResourceLookupFlags
+ * @returns #GBytes or %NULL on error.     Free the returned object with g_bytes_unref()
  */
 function resources_lookup_data(path: string, lookup_flags: ResourceLookupFlags): GLib.Bytes
 /**
@@ -4806,6 +4993,7 @@ function resources_lookup_data(path: string, lookup_flags: ResourceLookupFlags):
  * `lookup_flags` controls the behaviour of the lookup.
  * @param path A pathname inside the resource
  * @param lookup_flags A #GResourceLookupFlags
+ * @returns #GInputStream or %NULL on error.     Free the returned object with g_object_unref()
  */
 function resources_open_stream(path: string, lookup_flags: ResourceLookupFlags): InputStream
 /**
@@ -4834,6 +5022,7 @@ function resources_unregister(resource: Resource): void
  * in `XDG_DATA_DIRS` and `GSETTINGS_SCHEMA_DIR`. For this reason, all
  * lookups performed against the default source should probably be done
  * recursively.
+ * @returns the default schema source
  */
 function settings_schema_source_get_default(): SettingsSchemaSource | null
 /**
@@ -4847,10 +5036,12 @@ function settings_schema_source_get_default(): SettingsSchemaSource | null
 function simple_async_report_gerror_in_idle<Z = unknown>(object: GObject.Object | null, callback: AsyncReadyCallback<Z> | null, error: GLib.Error): void
 /**
  * Gets the default #GTlsBackend for the system.
+ * @returns a #GTlsBackend, which will be a     dummy object if no TLS backend is available
  */
 function tls_backend_get_default(): TlsBackend
 /**
  * Gets the TLS channel binding error quark.
+ * @returns a #GQuark.
  */
 function tls_channel_binding_error_quark(): GLib.Quark
 /**
@@ -4863,10 +5054,12 @@ function tls_channel_binding_error_quark(): GLib.Quark
  * this function has returned.
  * @param base_io_stream the #GIOStream to wrap
  * @param server_identity the expected identity of the server
+ * @returns the new #GTlsClientConnection, or %NULL on error
  */
 function tls_client_connection_new(base_io_stream: IOStream, server_identity: SocketConnectable | null): TlsClientConnection
 /**
  * Gets the TLS error quark.
+ * @returns a #GQuark.
  */
 function tls_error_quark(): GLib.Quark
 /**
@@ -4875,6 +5068,7 @@ function tls_error_quark(): GLib.Quark
  * 
  * The certificates in `anchors` must be PEM encoded.
  * @param anchors filename of anchor certificate authorities.
+ * @returns the new #GTlsFileDatabase, or %NULL on error
  */
 function tls_file_database_new(anchors: string): TlsFileDatabase
 /**
@@ -4886,6 +5080,7 @@ function tls_file_database_new(anchors: string): TlsFileDatabase
  * this function has returned.
  * @param base_io_stream the #GIOStream to wrap
  * @param certificate the default server certificate, or %NULL
+ * @returns the new #GTlsServerConnection, or %NULL on error
  */
 function tls_server_connection_new(base_io_stream: IOStream, certificate: TlsCertificate | null): TlsServerConnection
 /**
@@ -4894,6 +5089,7 @@ function tls_server_connection_new(base_io_stream: IOStream, certificate: TlsCer
  * that only are used in the OS and has little to no relevance to the
  * casual user.
  * @param mount_path a mount path, e.g. `/media/disk` or `/usr`
+ * @returns %TRUE if @mount_path is considered an implementation detail     of the OS.
  */
 function unix_is_mount_path_system_internal(mount_path: string): boolean
 /**
@@ -4905,6 +5101,7 @@ function unix_is_mount_path_system_internal(mount_path: string): boolean
  * 
  * The list of device paths considered ‘system’ ones may change over time.
  * @param device_path a device path, e.g. `/dev/loop0` or `nfsd`
+ * @returns %TRUE if @device_path is considered an implementation detail of    the OS.
  */
 function unix_is_system_device_path(device_path: string): boolean
 /**
@@ -4916,6 +5113,7 @@ function unix_is_system_device_path(device_path: string): boolean
  * 
  * The list of file system types considered ‘system’ ones may change over time.
  * @param fs_type a file system type, e.g. `procfs` or `tmpfs`
+ * @returns %TRUE if @fs_type is considered an implementation detail of the OS.
  */
 function unix_is_system_fs_type(fs_type: string): boolean
 /**
@@ -4928,17 +5126,20 @@ function unix_is_system_fs_type(fs_type: string): boolean
  * 
  * This will return %NULL if there is no mount point at `mount_path`.
  * @param mount_path path for a possible unix mount.
+ * @returns a #GUnixMountEntry.
  */
 function unix_mount_at(mount_path: string): [ /* returnType */ UnixMountEntry | null, /* time_read */ number ]
 /**
  * Compares two unix mounts.
  * @param mount1 first #GUnixMountEntry to compare.
  * @param mount2 second #GUnixMountEntry to compare.
+ * @returns 1, 0 or -1 if @mount1 is greater than, equal to, or less than @mount2, respectively.
  */
 function unix_mount_compare(mount1: UnixMountEntry, mount2: UnixMountEntry): number
 /**
  * Makes a copy of `mount_entry`.
  * @param mount_entry a #GUnixMountEntry.
+ * @returns a new #GUnixMountEntry
  */
 function unix_mount_copy(mount_entry: UnixMountEntry): UnixMountEntry
 /**
@@ -4952,6 +5153,7 @@ function unix_mount_copy(mount_entry: UnixMountEntry): UnixMountEntry
  * This will return %NULL if looking up the mount entry fails, if
  * `file_path` doesn’t exist or there is an I/O error.
  * @param file_path file path on some unix mount.
+ * @returns a #GUnixMountEntry.
  */
 function unix_mount_for(file_path: string): [ /* returnType */ UnixMountEntry | null, /* time_read */ number ]
 /**
@@ -4962,16 +5164,19 @@ function unix_mount_free(mount_entry: UnixMountEntry): void
 /**
  * Gets the device path for a unix mount.
  * @param mount_entry a #GUnixMount.
+ * @returns a string containing the device path.
  */
 function unix_mount_get_device_path(mount_entry: UnixMountEntry): string
 /**
  * Gets the filesystem type for the unix mount.
  * @param mount_entry a #GUnixMount.
+ * @returns a string containing the file system type.
  */
 function unix_mount_get_fs_type(mount_entry: UnixMountEntry): string
 /**
  * Gets the mount path for a unix mount.
  * @param mount_entry input #GUnixMountEntry to get the mount path for.
+ * @returns the mount path for @mount_entry.
  */
 function unix_mount_get_mount_path(mount_entry: UnixMountEntry): string
 /**
@@ -4981,6 +5186,7 @@ function unix_mount_get_mount_path(mount_entry: UnixMountEntry): string
  * This is similar to g_unix_mount_point_get_options(), but it takes
  * a #GUnixMountEntry as an argument.
  * @param mount_entry a #GUnixMountEntry.
+ * @returns a string containing the options, or %NULL if not available.
  */
 function unix_mount_get_options(mount_entry: UnixMountEntry): string | null
 /**
@@ -4991,37 +5197,44 @@ function unix_mount_get_options(mount_entry: UnixMountEntry): string | null
  * "mount /dev/sda1 /mnt/foo" and "/bar" for
  * "mount --bind /mnt/foo/bar /mnt/bar".
  * @param mount_entry a #GUnixMountEntry.
+ * @returns a string containing the root, or %NULL if not supported.
  */
 function unix_mount_get_root_path(mount_entry: UnixMountEntry): string | null
 /**
  * Guesses whether a Unix mount can be ejected.
  * @param mount_entry a #GUnixMountEntry
+ * @returns %TRUE if @mount_entry is deemed to be ejectable.
  */
 function unix_mount_guess_can_eject(mount_entry: UnixMountEntry): boolean
 /**
  * Guesses the icon of a Unix mount.
  * @param mount_entry a #GUnixMountEntry
+ * @returns a #GIcon
  */
 function unix_mount_guess_icon(mount_entry: UnixMountEntry): Icon
 /**
  * Guesses the name of a Unix mount.
  * The result is a translated string.
  * @param mount_entry a #GUnixMountEntry
+ * @returns A newly allocated string that must     be freed with g_free()
  */
 function unix_mount_guess_name(mount_entry: UnixMountEntry): string
 /**
  * Guesses whether a Unix mount should be displayed in the UI.
  * @param mount_entry a #GUnixMountEntry
+ * @returns %TRUE if @mount_entry is deemed to be displayable.
  */
 function unix_mount_guess_should_display(mount_entry: UnixMountEntry): boolean
 /**
  * Guesses the symbolic icon of a Unix mount.
  * @param mount_entry a #GUnixMountEntry
+ * @returns a #GIcon
  */
 function unix_mount_guess_symbolic_icon(mount_entry: UnixMountEntry): Icon
 /**
  * Checks if a unix mount is mounted read only.
  * @param mount_entry a #GUnixMount.
+ * @returns %TRUE if @mount_entry is read only.
  */
 function unix_mount_is_readonly(mount_entry: UnixMountEntry): boolean
 /**
@@ -5032,6 +5245,7 @@ function unix_mount_is_readonly(mount_entry: UnixMountEntry): boolean
  * The definition of what a ‘system’ mount entry is may change over time as new
  * file system types and device paths are ignored.
  * @param mount_entry a #GUnixMount.
+ * @returns %TRUE if the unix mount is for a system path.
  */
 function unix_mount_is_system_internal(mount_entry: UnixMountEntry): boolean
 /**
@@ -5042,11 +5256,13 @@ function unix_mount_is_system_internal(mount_entry: UnixMountEntry): boolean
  * If more mount points have the same mount path, the last matching mount point
  * is returned.
  * @param mount_path path for a possible unix mount point.
+ * @returns a #GUnixMountPoint, or %NULL if no match is found.
  */
 function unix_mount_point_at(mount_path: string): [ /* returnType */ UnixMountPoint | null, /* time_read */ number ]
 /**
  * Checks if the unix mount points have changed since a given unix time.
  * @param time guint64 to contain a timestamp.
+ * @returns %TRUE if the mount points have changed since @time.
  */
 function unix_mount_points_changed_since(time: number): boolean
 /**
@@ -5054,11 +5270,13 @@ function unix_mount_points_changed_since(time: number): boolean
  * If `time_read` is set, it will be filled with the mount timestamp,
  * allowing for checking if the mounts have changed with
  * g_unix_mount_points_changed_since().
+ * @returns      a #GList of the UNIX mountpoints.
  */
 function unix_mount_points_get(): [ /* returnType */ UnixMountPoint[], /* time_read */ number ]
 /**
  * Checks if the unix mounts have changed since a given unix time.
  * @param time guint64 to contain a timestamp.
+ * @returns %TRUE if the mounts have changed since @time.
  */
 function unix_mounts_changed_since(time: number): boolean
 /**
@@ -5066,6 +5284,7 @@ function unix_mounts_changed_since(time: number): boolean
  * If `time_read` is set, it will be filled with the mount
  * timestamp, allowing for checking if the mounts have changed
  * with g_unix_mounts_changed_since().
+ * @returns      a #GList of the UNIX mounts.
  */
 function unix_mounts_get(): [ /* returnType */ UnixMountEntry[], /* time_read */ number ]
 /**
@@ -5143,6 +5362,7 @@ interface BusNameVanishedCallback {
  * returned by g_cancellable_source_new().
  * @callback 
  * @param cancellable the #GCancellable
+ * @returns it should return %FALSE if the source should be removed.
  */
 interface CancellableSourceFunc {
     (cancellable: Cancellable | null): boolean
@@ -5156,6 +5376,7 @@ interface CancellableSourceFunc {
  * @param interface_name The D-Bus interface name for the property.
  * @param property_name The name of the property to get the value of.
  * @param error Return location for error.
+ * @returns A #GVariant with the value for @property_name or %NULL if     @error is set. If the returned #GVariant is floating, it is     consumed - otherwise its reference count is decreased by one.
  */
 interface DBusInterfaceGetPropertyFunc {
     (connection: DBusConnection, sender: string, object_path: string, interface_name: string, property_name: string, error: GLib.Error): GLib.Variant
@@ -5184,6 +5405,7 @@ interface DBusInterfaceMethodCallFunc {
  * @param property_name The name of the property to get the value of.
  * @param value The value to set the property to.
  * @param error Return location for error.
+ * @returns %TRUE if the property was set to @value, %FALSE if @error is set.
  */
 interface DBusInterfaceSetPropertyFunc {
     (connection: DBusConnection, sender: string, object_path: string, interface_name: string, property_name: string, value: GLib.Variant, error: GLib.Error): boolean
@@ -5255,6 +5477,7 @@ interface DBusInterfaceSetPropertyFunc {
  * @param connection A #GDBusConnection.
  * @param message A locked #GDBusMessage that the filter function takes ownership of.
  * @param incoming %TRUE if it is a message received from the other peer, %FALSE if it is a message to be sent to the other peer.
+ * @returns A #GDBusMessage that will be freed with g_object_unref() or %NULL to drop the message. Passive filter functions can simply return the passed @message object.
  */
 interface DBusMessageFilterFunction {
     (connection: DBusConnection, message: DBusMessage, incoming: boolean): DBusMessage | null
@@ -5271,6 +5494,7 @@ interface DBusMessageFilterFunction {
  * @param manager A #GDBusObjectManagerClient.
  * @param object_path The object path of the remote object.
  * @param interface_name The interface name of the remote object or %NULL if a #GDBusObjectProxy #GType is requested.
+ * @returns A #GType to use for the remote object. The returned type   must be a #GDBusProxy or #GDBusObjectProxy -derived   type.
  */
 interface DBusProxyTypeFunc {
     (manager: DBusObjectManagerClient, object_path: string, interface_name: string | null): GObject.GType
@@ -5300,6 +5524,7 @@ interface DBusSignalCallback {
  * @param interface_name The D-Bus interface name that the method call or property access is for.
  * @param node A node that is a child of `object_path` (relative to `object_path)` or %NULL for the root of the subtree.
  * @param out_user_data Return location for user data to pass to functions in the returned #GDBusInterfaceVTable.
+ * @returns A #GDBusInterfaceVTable or %NULL if you don't want to handle the methods.
  */
 interface DBusSubtreeDispatchFunc {
     (connection: DBusConnection, sender: string, object_path: string, interface_name: string, node: string, out_user_data: object): DBusInterfaceVTable | null
@@ -5320,6 +5545,7 @@ interface DBusSubtreeDispatchFunc {
  * @param connection A #GDBusConnection.
  * @param sender The unique bus name of the remote caller.
  * @param object_path The object path that was registered with g_dbus_connection_register_subtree().
+ * @returns A newly allocated array of strings for node names that are children of @object_path.
  */
 interface DBusSubtreeEnumerateFunc {
     (connection: DBusConnection, sender: string, object_path: string): string[]
@@ -5348,6 +5574,7 @@ interface DBusSubtreeEnumerateFunc {
  * @param sender The unique bus name of the remote caller.
  * @param object_path The object path that was registered with g_dbus_connection_register_subtree().
  * @param node A node that is a child of `object_path` (relative to `object_path)` or %NULL for the root of the subtree.
+ * @returns A %NULL-terminated array of pointers to #GDBusInterfaceInfo, or %NULL.
  */
 interface DBusSubtreeIntrospectFunc {
     (connection: DBusConnection, sender: string, object_path: string, node: string): DBusInterfaceInfo[] | null
@@ -5358,6 +5585,7 @@ interface DBusSubtreeIntrospectFunc {
  * @callback 
  * @param datagram_based the #GDatagramBased
  * @param condition the current condition at the source fired
+ * @returns %G_SOURCE_REMOVE if the source should be removed,   %G_SOURCE_CONTINUE otherwise
  */
 interface DatagramBasedSourceFunc {
     (datagram_based: DatagramBased, condition: GLib.IOCondition): boolean
@@ -5429,6 +5657,7 @@ interface FileProgressCallback {
  * @callback 
  * @param file_contents the data as currently read.
  * @param file_size the size of the data currently read.
+ * @returns %TRUE if more data should be read back. %FALSE otherwise.
  */
 interface FileReadMoreCallback {
     (file_contents: string, file_size: number): boolean
@@ -5441,6 +5670,7 @@ interface FileReadMoreCallback {
  * @callback 
  * @param job a #GIOSchedulerJob.
  * @param cancellable optional #GCancellable object, %NULL to ignore.
+ * @returns %TRUE if this function should be called again to    complete the job, %FALSE if the job is complete (or cancelled)
  */
 interface IOSchedulerJobFunc {
     (job: IOSchedulerJob, cancellable: Cancellable | null): boolean
@@ -5451,6 +5681,7 @@ interface IOSchedulerJobFunc {
  * g_pollable_output_stream_create_source().
  * @callback 
  * @param pollable_stream the #GPollableInputStream or #GPollableOutputStream
+ * @returns it should return %FALSE if the source should be removed.
  */
 interface PollableSourceFunc {
     (pollable_stream: GObject.Object): boolean
@@ -5463,6 +5694,7 @@ interface PollableSourceFunc {
  * @callback 
  * @param data memory block to reallocate
  * @param size size to reallocate `data` to
+ * @returns a pointer to the reallocated memory
  */
 interface ReallocFunc {
     (data: object | null, size: number): object | null
@@ -5474,6 +5706,7 @@ interface ReallocFunc {
  * @callback 
  * @param value return location for the property value
  * @param variant the #GVariant
+ * @returns %TRUE if the conversion succeeded, %FALSE in case of an error
  */
 interface SettingsBindGetMapping {
     (value: any, variant: GLib.Variant): boolean
@@ -5484,6 +5717,7 @@ interface SettingsBindGetMapping {
  * @callback 
  * @param value a #GValue containing the property value to map
  * @param expected_type the #GVariantType to create
+ * @returns a new #GVariant holding the data from @value,     or %NULL in case of an error
  */
 interface SettingsBindSetMapping {
     (value: any, expected_type: GLib.VariantType): GLib.Variant
@@ -5501,6 +5735,7 @@ interface SettingsBindSetMapping {
  * must be returned in this case.
  * @callback 
  * @param value the #GVariant to map, or %NULL
+ * @returns %TRUE if the conversion succeeded, %FALSE in case of an error
  */
 interface SettingsGetMapping {
     (value: GLib.Variant): boolean
@@ -5522,6 +5757,7 @@ interface SimpleAsyncThreadFunc {
  * @callback 
  * @param socket the #GSocket
  * @param condition the current condition at the source fired.
+ * @returns it should return %FALSE if the source should be removed.
  */
 interface SocketSourceFunc {
     (socket: Socket, condition: GLib.IOCondition): boolean
@@ -5561,6 +5797,7 @@ interface TaskThreadFunc {
  * @callback 
  * @param vfs a #GVfs
  * @param identifier the identifier to look up a #GFile for. This can either     be an URI or a parse name as returned by g_file_get_parse_name()
+ * @returns a #GFile for @identifier.
  */
 interface VfsFileLookupFunc {
     (vfs: Vfs, identifier: string): File
@@ -5638,10 +5875,12 @@ interface Action {
      * 
      * An action must be enabled in order to be activated or in order to
      * have its state changed from outside callers.
+     * @returns whether the action is enabled
      */
     get_enabled(): boolean
     /**
      * Queries the name of `action`.
+     * @returns the name of the action
      */
     get_name(): string
     /**
@@ -5653,6 +5892,7 @@ interface Action {
      * 
      * In the case that this function returns %NULL, you must not give any
      * #GVariant, but %NULL instead.
+     * @returns the parameter type
      */
     get_parameter_type(): GLib.VariantType | null
     /**
@@ -5664,6 +5904,7 @@ interface Action {
      * 
      * The return value (if non-%NULL) should be freed with
      * g_variant_unref() when it is no longer required.
+     * @returns the current state of the action
      */
     get_state(): GLib.Variant | null
     /**
@@ -5685,6 +5926,7 @@ interface Action {
      * 
      * The return value (if non-%NULL) should be freed with
      * g_variant_unref() when it is no longer required.
+     * @returns the state range hint
      */
     get_state_hint(): GLib.Variant | null
     /**
@@ -5700,6 +5942,7 @@ interface Action {
      * If the action is not stateful (e.g. created with g_simple_action_new())
      * then this function will return %NULL. In that case, g_action_get_state()
      * will return %NULL and you must not call g_action_change_state().
+     * @returns the state type, if the action is stateful
      */
     get_state_type(): GLib.VariantType | null
 
@@ -5738,11 +5981,13 @@ interface Action {
      * An action must be enabled in order to be activated or in order to
      * have its state changed from outside callers.
      * @virtual 
+     * @returns whether the action is enabled
      */
     vfunc_get_enabled(): boolean
     /**
      * Queries the name of `action`.
      * @virtual 
+     * @returns the name of the action
      */
     vfunc_get_name(): string
     /**
@@ -5755,6 +6000,7 @@ interface Action {
      * In the case that this function returns %NULL, you must not give any
      * #GVariant, but %NULL instead.
      * @virtual 
+     * @returns the parameter type
      */
     vfunc_get_parameter_type(): GLib.VariantType | null
     /**
@@ -5767,6 +6013,7 @@ interface Action {
      * The return value (if non-%NULL) should be freed with
      * g_variant_unref() when it is no longer required.
      * @virtual 
+     * @returns the current state of the action
      */
     vfunc_get_state(): GLib.Variant | null
     /**
@@ -5789,6 +6036,7 @@ interface Action {
      * The return value (if non-%NULL) should be freed with
      * g_variant_unref() when it is no longer required.
      * @virtual 
+     * @returns the state range hint
      */
     vfunc_get_state_hint(): GLib.Variant | null
     /**
@@ -5805,6 +6053,7 @@ interface Action {
      * then this function will return %NULL. In that case, g_action_get_state()
      * will return %NULL and you must not call g_action_change_state().
      * @virtual 
+     * @returns the state type, if the action is stateful
      */
     vfunc_get_state_type(): GLib.VariantType | null
 
@@ -5883,6 +6132,7 @@ class Action extends GObject.Object {
      * It is an error to call this function with a non-utf8 `action_name`.
      * `action_name` must not be %NULL.
      * @param action_name a potential action name
+     * @returns %TRUE if @action_name is valid
      */
     static name_is_valid(action_name: string): boolean
     /**
@@ -5911,6 +6161,7 @@ class Action extends GObject.Object {
      * For strings, this third format must be used if * target value is
      * empty or contains characters other than alphanumerics, '-' and '.'.
      * @param detailed_name a detailed action name
+     * @returns %TRUE if successful, else %FALSE with @error set
      */
     static parse_detailed_name(detailed_name: string): [ /* returnType */ boolean, /* action_name */ string, /* target_value */ GLib.Variant ]
     /**
@@ -5926,6 +6177,7 @@ class Action extends GObject.Object {
      * this function.
      * @param action_name a valid action name
      * @param target_value a #GVariant target value, or %NULL
+     * @returns a detailed format string
      */
     static print_detailed_name(action_name: string, target_value: GLib.Variant | null): string
 }
@@ -6066,6 +6318,7 @@ interface ActionGroup {
      * An action must be enabled in order to be activated or in order to
      * have its state changed from outside callers.
      * @param action_name the name of the action to query
+     * @returns whether or not the action is currently enabled
      */
     get_action_enabled(action_name: string): boolean
     /**
@@ -6083,6 +6336,7 @@ interface ActionGroup {
      * possible for an action to be removed and for a new action to be added
      * with the same name but a different parameter type.
      * @param action_name the name of the action to query
+     * @returns the parameter type
      */
     get_action_parameter_type(action_name: string): GLib.VariantType | null
     /**
@@ -6095,6 +6349,7 @@ interface ActionGroup {
      * The return value (if non-%NULL) should be freed with
      * g_variant_unref() when it is no longer required.
      * @param action_name the name of the action to query
+     * @returns the current state of the action
      */
     get_action_state(action_name: string): GLib.Variant | null
     /**
@@ -6117,6 +6372,7 @@ interface ActionGroup {
      * The return value (if non-%NULL) should be freed with
      * g_variant_unref() when it is no longer required.
      * @param action_name the name of the action to query
+     * @returns the state range hint
      */
     get_action_state_hint(action_name: string): GLib.Variant | null
     /**
@@ -6137,11 +6393,13 @@ interface ActionGroup {
      * possible for an action to be removed and for a new action to be added
      * with the same name but a different state type.
      * @param action_name the name of the action to query
+     * @returns the state type, if the action is stateful
      */
     get_action_state_type(action_name: string): GLib.VariantType | null
     /**
      * Checks if the named action exists within `action_group`.
      * @param action_name the name of the action to check for
+     * @returns whether the named action exists
      */
     has_action(action_name: string): boolean
     /**
@@ -6149,6 +6407,7 @@ interface ActionGroup {
      * 
      * The caller is responsible for freeing the list with g_strfreev() when
      * it is no longer required.
+     * @returns a %NULL-terminated array of the names of the actions in the group
      */
     list_actions(): string[]
     /**
@@ -6180,6 +6439,7 @@ interface ActionGroup {
      * filled.  If the action doesn't exist, %FALSE is returned and the
      * fields may or may not have been modified.
      * @param action_name the name of an action in the group
+     * @returns %TRUE if the action exists, else %FALSE
      */
     query_action(action_name: string): [ /* returnType */ boolean, /* enabled */ boolean, /* parameter_type */ GLib.VariantType, /* state_type */ GLib.VariantType, /* state_hint */ GLib.Variant, /* state */ GLib.Variant ]
 
@@ -6284,6 +6544,7 @@ interface ActionGroup {
      * have its state changed from outside callers.
      * @virtual 
      * @param action_name the name of the action to query
+     * @returns whether or not the action is currently enabled
      */
     vfunc_get_action_enabled(action_name: string): boolean
     /**
@@ -6302,6 +6563,7 @@ interface ActionGroup {
      * with the same name but a different parameter type.
      * @virtual 
      * @param action_name the name of the action to query
+     * @returns the parameter type
      */
     vfunc_get_action_parameter_type(action_name: string): GLib.VariantType | null
     /**
@@ -6315,6 +6577,7 @@ interface ActionGroup {
      * g_variant_unref() when it is no longer required.
      * @virtual 
      * @param action_name the name of the action to query
+     * @returns the current state of the action
      */
     vfunc_get_action_state(action_name: string): GLib.Variant | null
     /**
@@ -6338,6 +6601,7 @@ interface ActionGroup {
      * g_variant_unref() when it is no longer required.
      * @virtual 
      * @param action_name the name of the action to query
+     * @returns the state range hint
      */
     vfunc_get_action_state_hint(action_name: string): GLib.Variant | null
     /**
@@ -6359,12 +6623,14 @@ interface ActionGroup {
      * with the same name but a different state type.
      * @virtual 
      * @param action_name the name of the action to query
+     * @returns the state type, if the action is stateful
      */
     vfunc_get_action_state_type(action_name: string): GLib.VariantType | null
     /**
      * Checks if the named action exists within `action_group`.
      * @virtual 
      * @param action_name the name of the action to check for
+     * @returns whether the named action exists
      */
     vfunc_has_action(action_name: string): boolean
     /**
@@ -6373,6 +6639,7 @@ interface ActionGroup {
      * The caller is responsible for freeing the list with g_strfreev() when
      * it is no longer required.
      * @virtual 
+     * @returns a %NULL-terminated array of the names of the actions in the group
      */
     vfunc_list_actions(): string[]
     /**
@@ -6405,6 +6672,7 @@ interface ActionGroup {
      * fields may or may not have been modified.
      * @virtual 
      * @param action_name the name of an action in the group
+     * @returns %TRUE if the action exists, else %FALSE
      */
     vfunc_query_action(action_name: string): [ /* returnType */ boolean, /* enabled */ boolean, /* parameter_type */ GLib.VariantType, /* state_type */ GLib.VariantType, /* state_hint */ GLib.Variant, /* state */ GLib.Variant ]
 
@@ -6564,6 +6832,7 @@ interface ActionMap {
      * 
      * If no such action exists, returns %NULL.
      * @param action_name the name of an action
+     * @returns a #GAction, or %NULL
      */
     lookup_action(action_name: string): Action | null
     /**
@@ -6593,6 +6862,7 @@ interface ActionMap {
      * If no such action exists, returns %NULL.
      * @virtual 
      * @param action_name the name of an action
+     * @returns a #GAction, or %NULL
      */
     vfunc_lookup_action(action_name: string): Action | null
     /**
@@ -6654,15 +6924,18 @@ interface AppInfo {
      * Adds a content type to the application information to indicate the
      * application is capable of opening files with the given content type.
      * @param content_type a string.
+     * @returns %TRUE on success, %FALSE on error.
      */
     add_supports_type(content_type: string): boolean
     /**
      * Obtains the information whether the #GAppInfo can be deleted.
      * See g_app_info_delete().
+     * @returns %TRUE if @appinfo can be deleted
      */
     can_delete(): boolean
     /**
      * Checks if a supported content type can be removed from an application.
+     * @returns %TRUE if it is possible to remove supported     content types from a given @appinfo, %FALSE if not.
      */
     can_remove_supports_type(): boolean
     /**
@@ -6671,10 +6944,12 @@ interface AppInfo {
      * On some platforms, there may be a difference between user-defined
      * #GAppInfos which can be deleted, and system-wide ones which cannot.
      * See g_app_info_can_delete().
+     * @returns %TRUE if @appinfo has been deleted
      */
     delete(): boolean
     /**
      * Creates a duplicate of a #GAppInfo.
+     * @returns a duplicate of @appinfo.
      */
     dup(): AppInfo
     /**
@@ -6684,28 +6959,34 @@ interface AppInfo {
      * field, and only does an identity check. In case detecting changes in the
      * contents is needed, program code must additionally compare relevant fields.
      * @param appinfo2 the second #GAppInfo.
+     * @returns %TRUE if @appinfo1 is equal to @appinfo2. %FALSE otherwise.
      */
     equal(appinfo2: AppInfo): boolean
     /**
      * Gets the commandline with which the application will be
      * started.
+     * @returns a string containing the @appinfo's commandline,     or %NULL if this information is not available
      */
     get_commandline(): string | null
     /**
      * Gets a human-readable description of an installed application.
+     * @returns a string containing a description of the application @appinfo, or %NULL if none.
      */
     get_description(): string | null
     /**
      * Gets the display name of the application. The display name is often more
      * descriptive to the user than the name itself.
+     * @returns the display name of the application for @appinfo, or the name if no display name is available.
      */
     get_display_name(): string
     /**
      * Gets the executable's name for the installed application.
+     * @returns a string containing the @appinfo's application binaries name
      */
     get_executable(): string
     /**
      * Gets the icon for the application.
+     * @returns the default #GIcon for @appinfo or %NULL if there is no default icon.
      */
     get_icon(): Icon | null
     /**
@@ -6716,10 +6997,12 @@ interface AppInfo {
      * 
      * Note that the returned ID may be %NULL, depending on how
      * the `appinfo` has been constructed.
+     * @returns a string containing the application's ID.
      */
     get_id(): string | null
     /**
      * Gets the installed name of the application.
+     * @returns the name of the application for @appinfo.
      */
     get_name(): string
     /**
@@ -6729,6 +7012,7 @@ interface AppInfo {
      * This function does not take in consideration associations added with
      * g_app_info_add_supports_type(), but only those exported directly by
      * the application.
+     * @returns     a list of content types.
      */
     get_supported_types(): string[]
     /**
@@ -6761,6 +7045,7 @@ interface AppInfo {
      * on information provided in `context`.
      * @param files a #GList of #GFile objects
      * @param context a #GAppLaunchContext or %NULL
+     * @returns %TRUE on successful launch, %FALSE otherwise.
      */
     launch(files: File[] | null, context: AppLaunchContext | null): boolean
     /**
@@ -6778,6 +7063,7 @@ interface AppInfo {
      * no way to detect this.
      * @param uris a #GList containing URIs to launch.
      * @param context a #GAppLaunchContext or %NULL
+     * @returns %TRUE on successful launch, %FALSE otherwise.
      */
     launch_uris(uris: string[] | null, context: AppLaunchContext | null): boolean
     /**
@@ -6793,24 +7079,46 @@ interface AppInfo {
      * @param callback a #GAsyncReadyCallback to call when the request is done
      */
     launch_uris_async(uris: string[] | null, context: AppLaunchContext | null, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of launch_uris_async
+
+    /**
+     * Promisified version of {@link launch_uris_async}
+     * 
+     * Async version of g_app_info_launch_uris().
+     * 
+     * The `callback` is invoked immediately after the application launch, but it
+     * waits for activation in case of D-Bus–activated applications and also provides
+     * extended error information for sandboxed applications, see notes for
+     * g_app_info_launch_default_for_uri_async().
+     * @param uris a #GList containing URIs to launch.
+     * @param context a #GAppLaunchContext or %NULL
+     * @param cancellable a #GCancellable
+     * @returns A Promise of: %TRUE on successful launch, %FALSE otherwise.
+     */
+    launch_uris_async(uris: string[] | null, context: AppLaunchContext | null, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes a g_app_info_launch_uris_async() operation.
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful launch, %FALSE otherwise.
      */
     launch_uris_finish(result: AsyncResult): boolean
     /**
      * Removes a supported type from an application, if possible.
      * @param content_type a string.
+     * @returns %TRUE on success, %FALSE on error.
      */
     remove_supports_type(content_type: string): boolean
     /**
      * Sets the application as the default handler for the given file extension.
      * @param extension a string containing the file extension     (without the dot).
+     * @returns %TRUE on success, %FALSE on error.
      */
     set_as_default_for_extension(extension: string): boolean
     /**
      * Sets the application as the default handler for a given type.
      * @param content_type the content type.
+     * @returns %TRUE on success, %FALSE on error.
      */
     set_as_default_for_type(content_type: string): boolean
     /**
@@ -6819,19 +7127,23 @@ interface AppInfo {
      * by g_app_info_get_recommended_for_type(), regardless of the default
      * application for that content type.
      * @param content_type the content type.
+     * @returns %TRUE on success, %FALSE on error.
      */
     set_as_last_used_for_type(content_type: string): boolean
     /**
      * Checks if the application info should be shown in menus that
      * list available applications.
+     * @returns %TRUE if the @appinfo should be shown, %FALSE otherwise.
      */
     should_show(): boolean
     /**
      * Checks if the application accepts files as arguments.
+     * @returns %TRUE if the @appinfo supports files.
      */
     supports_files(): boolean
     /**
      * Checks if the application supports reading files and directories from URIs.
+     * @returns %TRUE if the @appinfo supports URIs.
      */
     supports_uris(): boolean
 
@@ -6842,17 +7154,20 @@ interface AppInfo {
      * application is capable of opening files with the given content type.
      * @virtual 
      * @param content_type a string.
+     * @returns %TRUE on success, %FALSE on error.
      */
     vfunc_add_supports_type(content_type: string): boolean
     /**
      * Obtains the information whether the #GAppInfo can be deleted.
      * See g_app_info_delete().
      * @virtual 
+     * @returns %TRUE if @appinfo can be deleted
      */
     vfunc_can_delete(): boolean
     /**
      * Checks if a supported content type can be removed from an application.
      * @virtual 
+     * @returns %TRUE if it is possible to remove supported     content types from a given @appinfo, %FALSE if not.
      */
     vfunc_can_remove_supports_type(): boolean
     /**
@@ -6862,11 +7177,13 @@ interface AppInfo {
      * #GAppInfos which can be deleted, and system-wide ones which cannot.
      * See g_app_info_can_delete().
      * @virtual 
+     * @returns %TRUE if @appinfo has been deleted
      */
     vfunc_do_delete(): boolean
     /**
      * Creates a duplicate of a #GAppInfo.
      * @virtual 
+     * @returns a duplicate of @appinfo.
      */
     vfunc_dup(): AppInfo
     /**
@@ -6877,33 +7194,39 @@ interface AppInfo {
      * contents is needed, program code must additionally compare relevant fields.
      * @virtual 
      * @param appinfo2 the second #GAppInfo.
+     * @returns %TRUE if @appinfo1 is equal to @appinfo2. %FALSE otherwise.
      */
     vfunc_equal(appinfo2: AppInfo): boolean
     /**
      * Gets the commandline with which the application will be
      * started.
      * @virtual 
+     * @returns a string containing the @appinfo's commandline,     or %NULL if this information is not available
      */
     vfunc_get_commandline(): string | null
     /**
      * Gets a human-readable description of an installed application.
      * @virtual 
+     * @returns a string containing a description of the application @appinfo, or %NULL if none.
      */
     vfunc_get_description(): string | null
     /**
      * Gets the display name of the application. The display name is often more
      * descriptive to the user than the name itself.
      * @virtual 
+     * @returns the display name of the application for @appinfo, or the name if no display name is available.
      */
     vfunc_get_display_name(): string
     /**
      * Gets the executable's name for the installed application.
      * @virtual 
+     * @returns a string containing the @appinfo's application binaries name
      */
     vfunc_get_executable(): string
     /**
      * Gets the icon for the application.
      * @virtual 
+     * @returns the default #GIcon for @appinfo or %NULL if there is no default icon.
      */
     vfunc_get_icon(): Icon | null
     /**
@@ -6915,11 +7238,13 @@ interface AppInfo {
      * Note that the returned ID may be %NULL, depending on how
      * the `appinfo` has been constructed.
      * @virtual 
+     * @returns a string containing the application's ID.
      */
     vfunc_get_id(): string | null
     /**
      * Gets the installed name of the application.
      * @virtual 
+     * @returns the name of the application for @appinfo.
      */
     vfunc_get_name(): string
     /**
@@ -6930,6 +7255,7 @@ interface AppInfo {
      * g_app_info_add_supports_type(), but only those exported directly by
      * the application.
      * @virtual 
+     * @returns     a list of content types.
      */
     vfunc_get_supported_types(): string[]
     /**
@@ -6963,6 +7289,7 @@ interface AppInfo {
      * @virtual 
      * @param files a #GList of #GFile objects
      * @param context a #GAppLaunchContext or %NULL
+     * @returns %TRUE on successful launch, %FALSE otherwise.
      */
     vfunc_launch(files: File[] | null, context: AppLaunchContext | null): boolean
     /**
@@ -6981,6 +7308,7 @@ interface AppInfo {
      * @virtual 
      * @param uris a #GList containing URIs to launch.
      * @param context a #GAppLaunchContext or %NULL
+     * @returns %TRUE on successful launch, %FALSE otherwise.
      */
     vfunc_launch_uris(uris: string[] | null, context: AppLaunchContext | null): boolean
     /**
@@ -7001,24 +7329,28 @@ interface AppInfo {
      * Finishes a g_app_info_launch_uris_async() operation.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful launch, %FALSE otherwise.
      */
     vfunc_launch_uris_finish(result: AsyncResult): boolean
     /**
      * Removes a supported type from an application, if possible.
      * @virtual 
      * @param content_type a string.
+     * @returns %TRUE on success, %FALSE on error.
      */
     vfunc_remove_supports_type(content_type: string): boolean
     /**
      * Sets the application as the default handler for the given file extension.
      * @virtual 
      * @param extension a string containing the file extension     (without the dot).
+     * @returns %TRUE on success, %FALSE on error.
      */
     vfunc_set_as_default_for_extension(extension: string): boolean
     /**
      * Sets the application as the default handler for a given type.
      * @virtual 
      * @param content_type the content type.
+     * @returns %TRUE on success, %FALSE on error.
      */
     vfunc_set_as_default_for_type(content_type: string): boolean
     /**
@@ -7028,22 +7360,26 @@ interface AppInfo {
      * application for that content type.
      * @virtual 
      * @param content_type the content type.
+     * @returns %TRUE on success, %FALSE on error.
      */
     vfunc_set_as_last_used_for_type(content_type: string): boolean
     /**
      * Checks if the application info should be shown in menus that
      * list available applications.
      * @virtual 
+     * @returns %TRUE if the @appinfo should be shown, %FALSE otherwise.
      */
     vfunc_should_show(): boolean
     /**
      * Checks if the application accepts files as arguments.
      * @virtual 
+     * @returns %TRUE if the @appinfo supports files.
      */
     vfunc_supports_files(): boolean
     /**
      * Checks if the application supports reading files and directories from URIs.
      * @virtual 
+     * @returns %TRUE if the @appinfo supports URIs.
      */
     vfunc_supports_uris(): boolean
 
@@ -7129,6 +7465,7 @@ class AppInfo extends GObject.Object {
      * @param commandline the commandline to use
      * @param application_name the application name, or %NULL to use `commandline`
      * @param flags flags that can specify details of the created #GAppInfo
+     * @returns new #GAppInfo for given command.
      */
     static create_from_commandline(commandline: string, application_name: string | null, flags: AppInfoCreateFlags): AppInfo
     /**
@@ -7140,6 +7477,7 @@ class AppInfo extends GObject.Object {
      * of `OnlyShowIn` or `NotShowIn`. See g_app_info_should_show().
      * The returned list does not include applications which have
      * the `Hidden` key set.
+     * @returns a newly allocated #GList of references to #GAppInfos.
      */
     static get_all(): AppInfo[]
     /**
@@ -7148,12 +7486,14 @@ class AppInfo extends GObject.Object {
      * g_app_info_get_recommended_for_type() and
      * g_app_info_get_fallback_for_type().
      * @param content_type the content type to find a #GAppInfo for
+     * @returns #GList of #GAppInfos     for given @content_type or %NULL on error.
      */
     static get_all_for_type(content_type: string): AppInfo[]
     /**
      * Gets the default #GAppInfo for a given content type.
      * @param content_type the content type to find a #GAppInfo for
      * @param must_support_uris if %TRUE, the #GAppInfo is expected to     support URIs
+     * @returns #GAppInfo for given @content_type or     %NULL on error.
      */
     static get_default_for_type(content_type: string, must_support_uris: boolean): AppInfo | null
     /**
@@ -7170,6 +7510,7 @@ class AppInfo extends GObject.Object {
      * 
      * If no #GAppInfo is found, then `error` will be set to %G_IO_ERROR_NOT_FOUND.
      * @param result a #GAsyncResult
+     * @returns #GAppInfo for given @content_type or     %NULL on error.
      */
     static get_default_for_type_finish(result: AsyncResult): AppInfo
     /**
@@ -7178,6 +7519,7 @@ class AppInfo extends GObject.Object {
      * of the URI, up to but not including the ':', e.g. "http",
      * "ftp" or "sip".
      * @param uri_scheme a string containing a URI scheme.
+     * @returns #GAppInfo for given @uri_scheme or     %NULL on error.
      */
     static get_default_for_uri_scheme(uri_scheme: string): AppInfo | null
     /**
@@ -7196,6 +7538,7 @@ class AppInfo extends GObject.Object {
      * 
      * If no #GAppInfo is found, then `error` will be set to %G_IO_ERROR_NOT_FOUND.
      * @param result a #GAsyncResult
+     * @returns #GAppInfo for given @uri_scheme or     %NULL on error.
      */
     static get_default_for_uri_scheme_finish(result: AsyncResult): AppInfo
     /**
@@ -7203,6 +7546,7 @@ class AppInfo extends GObject.Object {
      * those applications which claim to support the given content type
      * by MIME type subclassing and not directly.
      * @param content_type the content type to find a #GAppInfo for
+     * @returns #GList of #GAppInfos     for given @content_type or %NULL on error.
      */
     static get_fallback_for_type(content_type: string): AppInfo[]
     /**
@@ -7213,6 +7557,7 @@ class AppInfo extends GObject.Object {
      * the last one for which g_app_info_set_as_last_used_for_type() has been
      * called.
      * @param content_type the content type to find a #GAppInfo for
+     * @returns #GList of #GAppInfos     for given @content_type or %NULL on error.
      */
     static get_recommended_for_type(content_type: string): AppInfo[]
     /**
@@ -7226,6 +7571,7 @@ class AppInfo extends GObject.Object {
      * g_app_info_launch_default_for_uri_async() instead.
      * @param uri the uri to show
      * @param context an optional #GAppLaunchContext
+     * @returns %TRUE on success, %FALSE on error.
      */
     static launch_default_for_uri(uri: string, context: AppLaunchContext | null): boolean
     /**
@@ -7248,6 +7594,7 @@ class AppInfo extends GObject.Object {
     /**
      * Finishes an asynchronous launch-default-for-uri operation.
      * @param result a #GAsyncResult
+     * @returns %TRUE if the launch was successful, %FALSE if @error is set
      */
     static launch_default_for_uri_finish(result: AsyncResult): boolean
     /**
@@ -7316,16 +7663,65 @@ interface AsyncInitable {
      * @param callback a #GAsyncReadyCallback to call when the request is satisfied
      */
     init_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of init_async
+
+    /**
+     * Promisified version of {@link init_async}
+     * 
+     * Starts asynchronous initialization of the object implementing the
+     * interface. This must be done before any real use of the object after
+     * initial construction. If the object also implements #GInitable you can
+     * optionally call g_initable_init() instead.
+     * 
+     * This method is intended for language bindings. If writing in C,
+     * g_async_initable_new_async() should typically be used instead.
+     * 
+     * When the initialization is finished, `callback` will be called. You can
+     * then call g_async_initable_init_finish() to get the result of the
+     * initialization.
+     * 
+     * Implementations may also support cancellation. If `cancellable` is not
+     * %NULL, then initialization can be cancelled by triggering the cancellable
+     * object from another thread. If the operation was cancelled, the error
+     * %G_IO_ERROR_CANCELLED will be returned. If `cancellable` is not %NULL, and
+     * the object doesn't support cancellable initialization, the error
+     * %G_IO_ERROR_NOT_SUPPORTED will be returned.
+     * 
+     * As with #GInitable, if the object is not initialized, or initialization
+     * returns with an error, then all operations on the object except
+     * g_object_ref() and g_object_unref() are considered to be invalid, and
+     * have undefined behaviour. They will often fail with g_critical() or
+     * g_warning(), but this must not be relied on.
+     * 
+     * Callers should not assume that a class which implements #GAsyncInitable can
+     * be initialized multiple times; for more information, see g_initable_init().
+     * If a class explicitly supports being initialized multiple times,
+     * implementation requires yielding all subsequent calls to init_async() on the
+     * results of the first call.
+     * 
+     * For classes that also support the #GInitable interface, the default
+     * implementation of this method will run the g_initable_init() function
+     * in a thread, so if you want to support asynchronous initialization via
+     * threads, just implement the #GAsyncInitable interface without overriding
+     * any interface methods.
+     * @param io_priority the [I/O priority][io-priority] of the operation
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: %TRUE if successful. If an error has occurred, this function will return %FALSE and set @error appropriately if present.
+     */
+    init_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes asynchronous initialization and returns the result.
      * See g_async_initable_init_async().
      * @param res a #GAsyncResult.
+     * @returns %TRUE if successful. If an error has occurred, this function will return %FALSE and set @error appropriately if present.
      */
     init_finish(res: AsyncResult): boolean
     /**
      * Finishes the async construction for the various g_async_initable_new
      * calls, returning the created object or %NULL on error.
      * @param res the #GAsyncResult from the callback
+     * @returns a newly created #GObject,      or %NULL on error. Free with g_object_unref().
      */
     new_finish(res: AsyncResult): GObject.Object
 
@@ -7379,6 +7775,7 @@ interface AsyncInitable {
      * See g_async_initable_init_async().
      * @virtual 
      * @param res a #GAsyncResult.
+     * @returns %TRUE if successful. If an error has occurred, this function will return %FALSE and set @error appropriately if present.
      */
     vfunc_init_finish(res: AsyncResult): boolean
 
@@ -7537,16 +7934,19 @@ interface AsyncResult {
 
     /**
      * Gets the source object from a #GAsyncResult.
+     * @returns a new reference to the source    object for the @res, or %NULL if there is none.
      */
     get_source_object(): GObject.Object | null
     /**
      * Gets the user data from a #GAsyncResult.
+     * @returns the user data for @res.
      */
     get_user_data(): object | null
     /**
      * Checks if `res` has the given `source_tag` (generally a function
      * pointer indicating the function `res` was created by).
      * @param source_tag an application-defined tag
+     * @returns %TRUE if @res has the indicated @source_tag, %FALSE if   not.
      */
     is_tagged(source_tag: object | null): boolean
     /**
@@ -7560,6 +7960,7 @@ interface AsyncResult {
      * This should not be used in new code; #GAsyncResult errors that are
      * set by virtual methods should also be extracted by virtual methods,
      * to enable subclasses to chain up correctly.
+     * @returns %TRUE if @error is has been filled in with an error from   @res, %FALSE if not.
      */
     legacy_propagate_error(): boolean
 
@@ -7568,11 +7969,13 @@ interface AsyncResult {
     /**
      * Gets the source object from a #GAsyncResult.
      * @virtual 
+     * @returns a new reference to the source    object for the @res, or %NULL if there is none.
      */
     vfunc_get_source_object(): GObject.Object | null
     /**
      * Gets the user data from a #GAsyncResult.
      * @virtual 
+     * @returns the user data for @res.
      */
     vfunc_get_user_data(): object | null
     /**
@@ -7580,6 +7983,7 @@ interface AsyncResult {
      * pointer indicating the function `res` was created by).
      * @virtual 
      * @param source_tag an application-defined tag
+     * @returns %TRUE if @res has the indicated @source_tag, %FALSE if   not.
      */
     vfunc_is_tagged(source_tag: object | null): boolean
 
@@ -7792,6 +8196,7 @@ interface Converter {
      * @param inbuf the buffer         containing the data to convert.
      * @param outbuf a buffer to write    converted data in.
      * @param flags a #GConverterFlags controlling the conversion details
+     * @returns a #GConverterResult, %G_CONVERTER_ERROR on error.
      */
     convert(inbuf: Uint8Array, outbuf: Uint8Array, flags: ConverterFlags): [ /* returnType */ ConverterResult, /* bytes_read */ number, /* bytes_written */ number ]
     /**
@@ -7890,6 +8295,7 @@ interface Converter {
      * @param inbuf the buffer         containing the data to convert.
      * @param outbuf a buffer to write    converted data in.
      * @param flags a #GConverterFlags controlling the conversion details
+     * @returns a #GConverterResult, %G_CONVERTER_ERROR on error.
      */
     vfunc_convert(inbuf: Uint8Array | null, outbuf: Uint8Array | null, flags: ConverterFlags): [ /* returnType */ ConverterResult, /* bytes_read */ number, /* bytes_written */ number ]
     /**
@@ -7946,11 +8352,13 @@ interface DBusInterface {
 
     /**
      * Gets the #GDBusObject that `interface_` belongs to, if any.
+     * @returns A #GDBusObject or %NULL. The returned reference should be freed with g_object_unref().
      */
     get_object(): DBusObject | null
     /**
      * Gets D-Bus introspection information for the D-Bus interface
      * implemented by `interface_`.
+     * @returns A #GDBusInterfaceInfo. Do not free.
      */
     get_info(): DBusInterfaceInfo
     /**
@@ -7966,12 +8374,14 @@ interface DBusInterface {
     /**
      * Gets the #GDBusObject that `interface_` belongs to, if any.
      * @virtual 
+     * @returns A #GDBusObject or %NULL. The returned reference should be freed with g_object_unref().
      */
     vfunc_dup_object(): DBusObject | null
     /**
      * Gets D-Bus introspection information for the D-Bus interface
      * implemented by `interface_`.
      * @virtual 
+     * @returns A #GDBusInterfaceInfo. Do not free.
      */
     vfunc_get_info(): DBusInterfaceInfo
     /**
@@ -8044,14 +8454,17 @@ interface DBusObject {
      * Gets the D-Bus interface with name `interface_name` associated with
      * `object,` if any.
      * @param interface_name A D-Bus interface name.
+     * @returns %NULL if not found, otherwise a   #GDBusInterface that must be freed with g_object_unref().
      */
     get_interface(interface_name: string): DBusInterface | null
     /**
      * Gets the D-Bus interfaces associated with `object`.
+     * @returns A list of #GDBusInterface instances.   The returned list must be freed by g_list_free() after each element has been freed   with g_object_unref().
      */
     get_interfaces(): DBusInterface[]
     /**
      * Gets the object path for `object`.
+     * @returns A string owned by @object. Do not free.
      */
     get_object_path(): string
 
@@ -8062,16 +8475,19 @@ interface DBusObject {
      * `object,` if any.
      * @virtual 
      * @param interface_name A D-Bus interface name.
+     * @returns %NULL if not found, otherwise a   #GDBusInterface that must be freed with g_object_unref().
      */
     vfunc_get_interface(interface_name: string): DBusInterface | null
     /**
      * Gets the D-Bus interfaces associated with `object`.
      * @virtual 
+     * @returns A list of #GDBusInterface instances.   The returned list must be freed by g_list_free() after each element has been freed   with g_object_unref().
      */
     vfunc_get_interfaces(): DBusInterface[]
     /**
      * Gets the object path for `object`.
      * @virtual 
+     * @returns A string owned by @object. Do not free.
      */
     vfunc_get_object_path(): string
     vfunc_interface_added(interface_: DBusInterface): void
@@ -8163,19 +8579,23 @@ interface DBusObjectManager {
      * any.
      * @param object_path Object path to look up.
      * @param interface_name D-Bus interface name to look up.
+     * @returns A #GDBusInterface instance or %NULL. Free   with g_object_unref().
      */
     get_interface(object_path: string, interface_name: string): DBusInterface | null
     /**
      * Gets the #GDBusObject at `object_path,` if any.
      * @param object_path Object path to look up.
+     * @returns A #GDBusObject or %NULL. Free with   g_object_unref().
      */
     get_object(object_path: string): DBusObject | null
     /**
      * Gets the object path that `manager` is for.
+     * @returns A string owned by @manager. Do not free.
      */
     get_object_path(): string
     /**
      * Gets all #GDBusObject objects known to `manager`.
+     * @returns A list of   #GDBusObject objects. The returned list should be freed with   g_list_free() after each element has been freed with   g_object_unref().
      */
     get_objects(): DBusObject[]
 
@@ -8187,22 +8607,26 @@ interface DBusObjectManager {
      * @virtual 
      * @param object_path Object path to look up.
      * @param interface_name D-Bus interface name to look up.
+     * @returns A #GDBusInterface instance or %NULL. Free   with g_object_unref().
      */
     vfunc_get_interface(object_path: string, interface_name: string): DBusInterface | null
     /**
      * Gets the #GDBusObject at `object_path,` if any.
      * @virtual 
      * @param object_path Object path to look up.
+     * @returns A #GDBusObject or %NULL. Free with   g_object_unref().
      */
     vfunc_get_object(object_path: string): DBusObject | null
     /**
      * Gets the object path that `manager` is for.
      * @virtual 
+     * @returns A string owned by @manager. Do not free.
      */
     vfunc_get_object_path(): string
     /**
      * Gets all #GDBusObject objects known to `manager`.
      * @virtual 
+     * @returns A list of   #GDBusObject objects. The returned list should be freed with   g_list_free() after each element has been freed with   g_object_unref().
      */
     vfunc_get_objects(): DBusObject[]
     vfunc_interface_added(object: DBusObject, interface_: DBusInterface): void
@@ -8307,6 +8731,7 @@ interface DatagramBased {
      * 
      * This call never blocks.
      * @param condition a #GIOCondition mask to check
+     * @returns the #GIOCondition mask of the current state
      */
     condition_check(condition: GLib.IOCondition): GLib.IOCondition
     /**
@@ -8319,6 +8744,7 @@ interface DatagramBased {
      * @param condition a #GIOCondition mask to wait for
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a #GCancellable
+     * @returns %TRUE if the condition was met, %FALSE otherwise
      */
     condition_wait(condition: GLib.IOCondition, timeout: number, cancellable: Cancellable | null): boolean
     /**
@@ -8338,6 +8764,7 @@ interface DatagramBased {
      * g_cancellable_is_cancelled().
      * @param condition a #GIOCondition mask to monitor
      * @param cancellable a #GCancellable
+     * @returns a newly allocated #GSource
      */
     create_source(condition: GLib.IOCondition, cancellable: Cancellable | null): GLib.Source
     /**
@@ -8395,6 +8822,7 @@ interface DatagramBased {
      * @param flags an int containing #GSocketMsgFlags flags for the overall operation
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a %GCancellable
+     * @returns number of messages received, or -1 on error. Note that the number     of messages received may be smaller than @num_messages if @timeout is     zero or positive, if the peer closed the connection, or if @num_messages     was larger than `UIO_MAXIOV` (1024), in which case the caller may re-try     to receive the remaining messages.
      */
     receive_messages(messages: InputMessage[], flags: number, timeout: number, cancellable: Cancellable | null): number
     /**
@@ -8443,6 +8871,7 @@ interface DatagramBased {
      * @param flags an int containing #GSocketMsgFlags flags
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a %GCancellable
+     * @returns number of messages sent, or -1 on error. Note that the number of     messages sent may be smaller than @num_messages if @timeout is zero     or positive, or if @num_messages was larger than `UIO_MAXIOV` (1024), in     which case the caller may re-try to send the remaining messages.
      */
     send_messages(messages: OutputMessage[], flags: number, timeout: number, cancellable: Cancellable | null): number
 
@@ -8487,6 +8916,7 @@ interface DatagramBased {
      * This call never blocks.
      * @virtual 
      * @param condition a #GIOCondition mask to check
+     * @returns the #GIOCondition mask of the current state
      */
     vfunc_condition_check(condition: GLib.IOCondition): GLib.IOCondition
     /**
@@ -8500,6 +8930,7 @@ interface DatagramBased {
      * @param condition a #GIOCondition mask to wait for
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a #GCancellable
+     * @returns %TRUE if the condition was met, %FALSE otherwise
      */
     vfunc_condition_wait(condition: GLib.IOCondition, timeout: number, cancellable: Cancellable | null): boolean
     /**
@@ -8520,6 +8951,7 @@ interface DatagramBased {
      * @virtual 
      * @param condition a #GIOCondition mask to monitor
      * @param cancellable a #GCancellable
+     * @returns a newly allocated #GSource
      */
     vfunc_create_source(condition: GLib.IOCondition, cancellable: Cancellable | null): GLib.Source
     /**
@@ -8578,6 +9010,7 @@ interface DatagramBased {
      * @param flags an int containing #GSocketMsgFlags flags for the overall operation
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a %GCancellable
+     * @returns number of messages received, or -1 on error. Note that the number     of messages received may be smaller than @num_messages if @timeout is     zero or positive, if the peer closed the connection, or if @num_messages     was larger than `UIO_MAXIOV` (1024), in which case the caller may re-try     to receive the remaining messages.
      */
     vfunc_receive_messages(messages: InputMessage[], flags: number, timeout: number, cancellable: Cancellable | null): number
     /**
@@ -8627,6 +9060,7 @@ interface DatagramBased {
      * @param flags an int containing #GSocketMsgFlags flags
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a %GCancellable
+     * @returns number of messages sent, or -1 on error. Note that the number of     messages sent may be smaller than @num_messages if @timeout is zero     or positive, or if @num_messages was larger than `UIO_MAXIOV` (1024), in     which case the caller may re-try to send the remaining messages.
      */
     vfunc_send_messages(messages: OutputMessage[], flags: number, timeout: number, cancellable: Cancellable | null): number
 
@@ -8732,6 +9166,7 @@ interface DebugController extends Initable {
 
     /**
      * Get the value of #GDebugController:debug-enabled.
+     * @returns %TRUE if debug output should be exposed, %FALSE otherwise
      */
     get_debug_enabled(): boolean
     /**
@@ -8805,6 +9240,7 @@ interface DesktopAppInfoLookup {
      * in a GIO module. There is no reason for applications to use it
      * directly. Applications should use g_app_info_get_default_for_uri_scheme().
      * @param uri_scheme a string containing a URI scheme.
+     * @returns #GAppInfo for given @uri_scheme or    %NULL on error.
      */
     get_default_for_uri_scheme(uri_scheme: string): AppInfo | null
 
@@ -8821,6 +9257,7 @@ interface DesktopAppInfoLookup {
      * directly. Applications should use g_app_info_get_default_for_uri_scheme().
      * @virtual 
      * @param uri_scheme a string containing a URI scheme.
+     * @returns #GAppInfo for given @uri_scheme or    %NULL on error.
      */
     vfunc_get_default_for_uri_scheme(uri_scheme: string): AppInfo | null
 
@@ -8896,22 +9333,27 @@ interface Drive {
 
     /**
      * Checks if a drive can be ejected.
+     * @returns %TRUE if the @drive can be ejected, %FALSE otherwise.
      */
     can_eject(): boolean
     /**
      * Checks if a drive can be polled for media changes.
+     * @returns %TRUE if the @drive can be polled for media changes,     %FALSE otherwise.
      */
     can_poll_for_media(): boolean
     /**
      * Checks if a drive can be started.
+     * @returns %TRUE if the @drive can be started, %FALSE otherwise.
      */
     can_start(): boolean
     /**
      * Checks if a drive can be started degraded.
+     * @returns %TRUE if the @drive can be started degraded, %FALSE otherwise.
      */
     can_start_degraded(): boolean
     /**
      * Checks if a drive can be stopped.
+     * @returns %TRUE if the @drive can be stopped, %FALSE otherwise.
      */
     can_stop(): boolean
     /**
@@ -8928,6 +9370,7 @@ interface Drive {
     /**
      * Finishes ejecting a drive.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive has been ejected successfully,     %FALSE otherwise.
      */
     eject_finish(result: AsyncResult): boolean
     /**
@@ -8944,16 +9387,19 @@ interface Drive {
      * Finishes ejecting a drive. If any errors occurred during the operation,
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive was successfully ejected. %FALSE otherwise.
      */
     eject_with_operation_finish(result: AsyncResult): boolean
     /**
      * Gets the kinds of identifiers that `drive` has.
      * Use g_drive_get_identifier() to obtain the identifiers
      * themselves.
+     * @returns a %NULL-terminated     array of strings containing kinds of identifiers. Use g_strfreev()     to free.
      */
     enumerate_identifiers(): string[]
     /**
      * Gets the icon for `drive`.
+     * @returns #GIcon for the @drive.    Free the returned object with g_object_unref().
      */
     get_icon(): Icon
     /**
@@ -8961,22 +9407,27 @@ interface Drive {
      * identifier currently available is
      * %G_DRIVE_IDENTIFIER_KIND_UNIX_DEVICE.
      * @param kind the kind of identifier to return
+     * @returns a newly allocated string containing the     requested identifier, or %NULL if the #GDrive     doesn't have this kind of identifier.
      */
     get_identifier(kind: string): string | null
     /**
      * Gets the name of `drive`.
+     * @returns a string containing @drive's name. The returned     string should be freed when no longer needed.
      */
     get_name(): string
     /**
      * Gets the sort key for `drive,` if any.
+     * @returns Sorting key for @drive or %NULL if no such key is available.
      */
     get_sort_key(): string | null
     /**
      * Gets a hint about how a drive can be started/stopped.
+     * @returns A value from the #GDriveStartStopType enumeration.
      */
     get_start_stop_type(): DriveStartStopType
     /**
      * Gets the icon for `drive`.
+     * @returns symbolic #GIcon for the @drive.    Free the returned object with g_object_unref().
      */
     get_symbolic_icon(): Icon
     /**
@@ -8984,29 +9435,35 @@ interface Drive {
      * 
      * The returned list should be freed with g_list_free(), after
      * its elements have been unreffed with g_object_unref().
+     * @returns #GList containing any #GVolume objects on the given @drive.
      */
     get_volumes(): Volume[]
     /**
      * Checks if the `drive` has media. Note that the OS may not be polling
      * the drive for media changes; see g_drive_is_media_check_automatic()
      * for more details.
+     * @returns %TRUE if @drive has media, %FALSE otherwise.
      */
     has_media(): boolean
     /**
      * Check if `drive` has any mountable volumes.
+     * @returns %TRUE if the @drive contains volumes, %FALSE otherwise.
      */
     has_volumes(): boolean
     /**
      * Checks if `drive` is capable of automatically detecting media changes.
+     * @returns %TRUE if the @drive is capable of automatically detecting     media changes, %FALSE otherwise.
      */
     is_media_check_automatic(): boolean
     /**
      * Checks if the `drive` supports removable media.
+     * @returns %TRUE if @drive supports removable media, %FALSE otherwise.
      */
     is_media_removable(): boolean
     /**
      * Checks if the #GDrive and/or its media is considered removable by the user.
      * See g_drive_is_media_removable().
+     * @returns %TRUE if @drive and/or its media is considered removable, %FALSE otherwise.
      */
     is_removable(): boolean
     /**
@@ -9022,6 +9479,7 @@ interface Drive {
     /**
      * Finishes an operation started with g_drive_poll_for_media() on a drive.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive has been poll_for_mediaed successfully,     %FALSE otherwise.
      */
     poll_for_media_finish(result: AsyncResult): boolean
     /**
@@ -9039,6 +9497,7 @@ interface Drive {
     /**
      * Finishes starting a drive.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive has been started successfully,     %FALSE otherwise.
      */
     start_finish(result: AsyncResult): boolean
     /**
@@ -9056,6 +9515,7 @@ interface Drive {
     /**
      * Finishes stopping a drive.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive has been stopped successfully,     %FALSE otherwise.
      */
     stop_finish(result: AsyncResult): boolean
 
@@ -9064,26 +9524,31 @@ interface Drive {
     /**
      * Checks if a drive can be ejected.
      * @virtual 
+     * @returns %TRUE if the @drive can be ejected, %FALSE otherwise.
      */
     vfunc_can_eject(): boolean
     /**
      * Checks if a drive can be polled for media changes.
      * @virtual 
+     * @returns %TRUE if the @drive can be polled for media changes,     %FALSE otherwise.
      */
     vfunc_can_poll_for_media(): boolean
     /**
      * Checks if a drive can be started.
      * @virtual 
+     * @returns %TRUE if the @drive can be started, %FALSE otherwise.
      */
     vfunc_can_start(): boolean
     /**
      * Checks if a drive can be started degraded.
      * @virtual 
+     * @returns %TRUE if the @drive can be started degraded, %FALSE otherwise.
      */
     vfunc_can_start_degraded(): boolean
     /**
      * Checks if a drive can be stopped.
      * @virtual 
+     * @returns %TRUE if the @drive can be stopped, %FALSE otherwise.
      */
     vfunc_can_stop(): boolean
     vfunc_changed(): void
@@ -9105,6 +9570,7 @@ interface Drive {
      * Finishes ejecting a drive.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive has been ejected successfully,     %FALSE otherwise.
      */
     vfunc_eject_finish(result: AsyncResult): boolean
     /**
@@ -9123,6 +9589,7 @@ interface Drive {
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive was successfully ejected. %FALSE otherwise.
      */
     vfunc_eject_with_operation_finish(result: AsyncResult): boolean
     /**
@@ -9130,11 +9597,13 @@ interface Drive {
      * Use g_drive_get_identifier() to obtain the identifiers
      * themselves.
      * @virtual 
+     * @returns a %NULL-terminated     array of strings containing kinds of identifiers. Use g_strfreev()     to free.
      */
     vfunc_enumerate_identifiers(): string[]
     /**
      * Gets the icon for `drive`.
      * @virtual 
+     * @returns #GIcon for the @drive.    Free the returned object with g_object_unref().
      */
     vfunc_get_icon(): Icon
     /**
@@ -9143,26 +9612,31 @@ interface Drive {
      * %G_DRIVE_IDENTIFIER_KIND_UNIX_DEVICE.
      * @virtual 
      * @param kind the kind of identifier to return
+     * @returns a newly allocated string containing the     requested identifier, or %NULL if the #GDrive     doesn't have this kind of identifier.
      */
     vfunc_get_identifier(kind: string): string | null
     /**
      * Gets the name of `drive`.
      * @virtual 
+     * @returns a string containing @drive's name. The returned     string should be freed when no longer needed.
      */
     vfunc_get_name(): string
     /**
      * Gets the sort key for `drive,` if any.
      * @virtual 
+     * @returns Sorting key for @drive or %NULL if no such key is available.
      */
     vfunc_get_sort_key(): string | null
     /**
      * Gets a hint about how a drive can be started/stopped.
      * @virtual 
+     * @returns A value from the #GDriveStartStopType enumeration.
      */
     vfunc_get_start_stop_type(): DriveStartStopType
     /**
      * Gets the icon for `drive`.
      * @virtual 
+     * @returns symbolic #GIcon for the @drive.    Free the returned object with g_object_unref().
      */
     vfunc_get_symbolic_icon(): Icon
     /**
@@ -9171,6 +9645,7 @@ interface Drive {
      * The returned list should be freed with g_list_free(), after
      * its elements have been unreffed with g_object_unref().
      * @virtual 
+     * @returns #GList containing any #GVolume objects on the given @drive.
      */
     vfunc_get_volumes(): Volume[]
     /**
@@ -9178,27 +9653,32 @@ interface Drive {
      * the drive for media changes; see g_drive_is_media_check_automatic()
      * for more details.
      * @virtual 
+     * @returns %TRUE if @drive has media, %FALSE otherwise.
      */
     vfunc_has_media(): boolean
     /**
      * Check if `drive` has any mountable volumes.
      * @virtual 
+     * @returns %TRUE if the @drive contains volumes, %FALSE otherwise.
      */
     vfunc_has_volumes(): boolean
     /**
      * Checks if `drive` is capable of automatically detecting media changes.
      * @virtual 
+     * @returns %TRUE if the @drive is capable of automatically detecting     media changes, %FALSE otherwise.
      */
     vfunc_is_media_check_automatic(): boolean
     /**
      * Checks if the `drive` supports removable media.
      * @virtual 
+     * @returns %TRUE if @drive supports removable media, %FALSE otherwise.
      */
     vfunc_is_media_removable(): boolean
     /**
      * Checks if the #GDrive and/or its media is considered removable by the user.
      * See g_drive_is_media_removable().
      * @virtual 
+     * @returns %TRUE if @drive and/or its media is considered removable, %FALSE otherwise.
      */
     vfunc_is_removable(): boolean
     /**
@@ -9216,6 +9696,7 @@ interface Drive {
      * Finishes an operation started with g_drive_poll_for_media() on a drive.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive has been poll_for_mediaed successfully,     %FALSE otherwise.
      */
     vfunc_poll_for_media_finish(result: AsyncResult): boolean
     /**
@@ -9235,6 +9716,7 @@ interface Drive {
      * Finishes starting a drive.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive has been started successfully,     %FALSE otherwise.
      */
     vfunc_start_finish(result: AsyncResult): boolean
     /**
@@ -9255,6 +9737,7 @@ interface Drive {
      * Finishes stopping a drive.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the drive has been stopped successfully,     %FALSE otherwise.
      */
     vfunc_stop_finish(result: AsyncResult): boolean
 
@@ -9432,10 +9915,12 @@ interface DtlsClientConnection extends DatagramBased, DtlsConnection {
      * 
      * Each item in the list is a #GByteArray which contains the complete
      * subject DN of the certificate authority.
+     * @returns the list of CA DNs. You should unref each element with g_byte_array_unref() and then the free the list with g_list_free().
      */
     get_accepted_cas(): GLib.List[]
     /**
      * Gets `conn'`s expected server identity
+     * @returns a #GSocketConnectable describing the expected server identity, or %NULL if the expected identity is not known.
      */
     get_server_identity(): SocketConnectable
     /**
@@ -9444,6 +9929,7 @@ interface DtlsClientConnection extends DatagramBased, DtlsConnection {
      * This function does not work as originally designed and is impossible
      * to use correctly. See #GDtlsClientConnection:validation-flags for more
      * information.
+     * @returns the validation flags
      */
     get_validation_flags(): TlsCertificateFlags
     /**
@@ -9540,6 +10026,7 @@ class DtlsClientConnection extends GObject.Object {
      * assumed to communicate with the server identified by `server_identity`.
      * @param base_socket the #GDatagramBased to wrap
      * @param server_identity the expected identity of the server
+     * @returns the new   #GDtlsClientConnection, or %NULL on error
      */
     static new(base_socket: DatagramBased, server_identity: SocketConnectable | null): DtlsClientConnection
 }
@@ -9735,6 +10222,7 @@ interface DtlsConnection extends DatagramBased {
      * partially-closed and any pending untransmitted data may be lost. Call
      * g_dtls_connection_close() again to complete closing the #GDtlsConnection.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE on success, %FALSE otherwise
      */
     close(cancellable: Cancellable | null): boolean
     /**
@@ -9745,10 +10233,24 @@ interface DtlsConnection extends DatagramBased {
      * @param callback callback to call when the close operation is complete
      */
     close_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of close_async
+
+    /**
+     * Promisified version of {@link close_async}
+     * 
+     * Asynchronously close the DTLS connection. See g_dtls_connection_close() for
+     * more information.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE on success, %FALSE on failure, in which case @error will be set
+     */
+    close_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finish an asynchronous TLS close operation. See g_dtls_connection_close()
      * for more information.
      * @param result a #GAsyncResult
+     * @returns %TRUE on success, %FALSE on failure, in which case @error will be set
      */
     close_finish(result: AsyncResult): boolean
     /**
@@ -9756,11 +10258,13 @@ interface DtlsConnection extends DatagramBased {
      * #GDtlsConnection::accept-certificate signal.
      * @param peer_cert the peer's #GTlsCertificate
      * @param errors the problems with `peer_cert`
+     * @returns %TRUE if one of the signal handlers has returned     %TRUE to accept @peer_cert
      */
     emit_accept_certificate(peer_cert: TlsCertificate, errors: TlsCertificateFlags): boolean
     /**
      * Gets `conn'`s certificate, as set by
      * g_dtls_connection_set_certificate().
+     * @returns @conn's certificate, or %NULL
      */
     get_certificate(): TlsCertificate | null
     /**
@@ -9778,6 +10282,7 @@ interface DtlsConnection extends DatagramBased {
      * support `type` or the binding data is not available yet due to additional
      * negotiation or input required.
      * @param type #GTlsChannelBindingType type of data to fetch
+     * @returns %TRUE on success, %FALSE otherwise
      */
     get_channel_binding_data(type: TlsChannelBindingType): [ /* returnType */ boolean, /* data */ Uint8Array ]
     /**
@@ -9789,17 +10294,20 @@ interface DtlsConnection extends DatagramBased {
      * registered ciphersuite names. The ciphersuite name is intended to be
      * displayed to the user for informative purposes only, and parsing it
      * is not recommended.
+     * @returns The name of the current DTLS ciphersuite, or %NULL
      */
     get_ciphersuite_name(): string | null
     /**
      * Gets the certificate database that `conn` uses to verify
      * peer certificates. See g_dtls_connection_set_database().
+     * @returns the certificate database that @conn uses or %NULL
      */
     get_database(): TlsDatabase | null
     /**
      * Get the object that will be used to interact with the user. It will be used
      * for things like prompting the user for passwords. If %NULL is returned, then
      * no user interaction will occur for this connection.
+     * @returns The interaction object.
      */
     get_interaction(): TlsInteraction | null
     /**
@@ -9810,18 +10318,21 @@ interface DtlsConnection extends DatagramBased {
      * protocol that matched one of `conn'`s protocols, or the TLS backend
      * does not support ALPN, then this will be %NULL. See
      * g_dtls_connection_set_advertised_protocols().
+     * @returns the negotiated protocol, or %NULL
      */
     get_negotiated_protocol(): string | null
     /**
      * Gets `conn'`s peer's certificate after the handshake has completed
      * or failed. (It is not set during the emission of
      * #GDtlsConnection::accept-certificate.)
+     * @returns @conn's peer's certificate, or %NULL
      */
     get_peer_certificate(): TlsCertificate | null
     /**
      * Gets the errors associated with validating `conn'`s peer's
      * certificate, after the handshake has completed or failed. (It is
      * not set during the emission of #GDtlsConnection::accept-certificate.)
+     * @returns @conn's peer's certificate errors
      */
     get_peer_certificate_errors(): TlsCertificateFlags
     /**
@@ -9829,17 +10340,20 @@ interface DtlsConnection extends DatagramBased {
      * %G_TLS_PROTOCOL_VERSION_UNKNOWN if the connection has not handshaked, or
      * has been closed, or if the TLS backend has implemented a protocol version
      * that is not a recognized #GTlsProtocolVersion.
+     * @returns The current DTLS protocol version
      */
     get_protocol_version(): TlsProtocolVersion
     /**
      * Gets `conn` rehandshaking mode. See
      * g_dtls_connection_set_rehandshake_mode() for details.
+     * @returns %G_TLS_REHANDSHAKE_SAFELY
      */
     get_rehandshake_mode(): TlsRehandshakeMode
     /**
      * Tests whether or not `conn` expects a proper TLS close notification
      * when the connection is closed. See
      * g_dtls_connection_set_require_close_notify() for details.
+     * @returns %TRUE if @conn requires a proper TLS close notification.
      */
     get_require_close_notify(): boolean
     /**
@@ -9870,6 +10384,7 @@ interface DtlsConnection extends DatagramBased {
      * #GDtlsConnection::accept_certificate may be emitted during the
      * handshake.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns success or failure
      */
     handshake(cancellable: Cancellable | null): boolean
     /**
@@ -9880,10 +10395,24 @@ interface DtlsConnection extends DatagramBased {
      * @param callback callback to call when the handshake is complete
      */
     handshake_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of handshake_async
+
+    /**
+     * Promisified version of {@link handshake_async}
+     * 
+     * Asynchronously performs a TLS handshake on `conn`. See
+     * g_dtls_connection_handshake() for more information.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE on success, %FALSE on failure, in which case @error will be set.
+     */
+    handshake_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finish an asynchronous TLS handshake operation. See
      * g_dtls_connection_handshake() for more information.
      * @param result a #GAsyncResult.
+     * @returns %TRUE on success, %FALSE on failure, in which case @error will be set.
      */
     handshake_finish(result: AsyncResult): boolean
     /**
@@ -10004,6 +10533,7 @@ interface DtlsConnection extends DatagramBased {
      * @param shutdown_read %TRUE to stop reception of incoming datagrams
      * @param shutdown_write %TRUE to stop sending outgoing datagrams
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE on success, %FALSE otherwise
      */
     shutdown(shutdown_read: boolean, shutdown_write: boolean, cancellable: Cancellable | null): boolean
     /**
@@ -10016,10 +10546,26 @@ interface DtlsConnection extends DatagramBased {
      * @param callback callback to call when the shutdown operation is complete
      */
     shutdown_async(shutdown_read: boolean, shutdown_write: boolean, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of shutdown_async
+
+    /**
+     * Promisified version of {@link shutdown_async}
+     * 
+     * Asynchronously shut down part or all of the DTLS connection. See
+     * g_dtls_connection_shutdown() for more information.
+     * @param shutdown_read %TRUE to stop reception of incoming datagrams
+     * @param shutdown_write %TRUE to stop sending outgoing datagrams
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE on success, %FALSE on failure, in which case @error will be set
+     */
+    shutdown_async(shutdown_read: boolean, shutdown_write: boolean, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finish an asynchronous TLS shutdown operation. See
      * g_dtls_connection_shutdown() for more information.
      * @param result a #GAsyncResult
+     * @returns %TRUE on success, %FALSE on failure, in which case @error will be set
      */
     shutdown_finish(result: AsyncResult): boolean
 
@@ -10036,6 +10582,7 @@ interface DtlsConnection extends DatagramBased {
      * does not support ALPN, then this will be %NULL. See
      * g_dtls_connection_set_advertised_protocols().
      * @virtual 
+     * @returns the negotiated protocol, or %NULL
      */
     vfunc_get_negotiated_protocol(): string | null
     /**
@@ -10067,6 +10614,7 @@ interface DtlsConnection extends DatagramBased {
      * handshake.
      * @virtual 
      * @param cancellable a #GCancellable, or %NULL
+     * @returns success or failure
      */
     vfunc_handshake(cancellable: Cancellable | null): boolean
     /**
@@ -10083,6 +10631,7 @@ interface DtlsConnection extends DatagramBased {
      * g_dtls_connection_handshake() for more information.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE on success, %FALSE on failure, in which case @error will be set.
      */
     vfunc_handshake_finish(result: AsyncResult): boolean
     /**
@@ -10121,6 +10670,7 @@ interface DtlsConnection extends DatagramBased {
      * @param shutdown_read %TRUE to stop reception of incoming datagrams
      * @param shutdown_write %TRUE to stop sending outgoing datagrams
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE on success, %FALSE otherwise
      */
     vfunc_shutdown(shutdown_read: boolean, shutdown_write: boolean, cancellable: Cancellable | null): boolean
     /**
@@ -10139,6 +10689,7 @@ interface DtlsConnection extends DatagramBased {
      * g_dtls_connection_shutdown() for more information.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE on success, %FALSE on failure, in which case @error will be set
      */
     vfunc_shutdown_finish(result: AsyncResult): boolean
 
@@ -10323,6 +10874,7 @@ class DtlsServerConnection extends GObject.Object {
      * Creates a new #GDtlsServerConnection wrapping `base_socket`.
      * @param base_socket the #GDatagramBased to wrap
      * @param certificate the default server certificate, or %NULL
+     * @returns the new   #GDtlsServerConnection, or %NULL on error
      */
     static new(base_socket: DatagramBased, certificate: TlsCertificate | null): DtlsServerConnection
 }
@@ -10360,6 +10912,7 @@ interface File {
      * possible too, and depend on what kind of filesystem the file is on.
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileOutputStream, or %NULL on error.   Free the returned object with g_object_unref().
      */
     append_to(flags: FileCreateFlags, cancellable: Cancellable | null): FileOutputStream
     /**
@@ -10377,10 +10930,31 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     append_to_async(flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of append_to_async
+
+    /**
+     * Promisified version of {@link append_to_async}
+     * 
+     * Asynchronously opens `file` for appending.
+     * 
+     * For more details, see g_file_append_to() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_append_to_finish() to get the result
+     * of the operation.
+     * @param flags a set of #GFileCreateFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a valid #GFileOutputStream   or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    append_to_async(flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileOutputStream>
     /**
      * Finishes an asynchronous file append operation started with
      * g_file_append_to_async().
      * @param res #GAsyncResult
+     * @returns a valid #GFileOutputStream   or %NULL on error.   Free the returned object with g_object_unref().
      */
     append_to_finish(res: AsyncResult): FileOutputStream
     /**
@@ -10395,6 +10969,7 @@ interface File {
      * stages (e.g., for recursive move of a directory).
      * @param flags a set of #GFileCopyFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns an attribute query string for g_file_query_info(),   or %NULL if an error occurs.
      */
     build_attribute_list_for_copy(flags: FileCopyFlags, cancellable: Cancellable | null): string
     /**
@@ -10442,6 +11017,7 @@ interface File {
      * @param flags set of #GFileCopyFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
      * @param progress_callback function to callback with   progress information, or %NULL if progress information is not needed
+     * @returns %TRUE on success, %FALSE otherwise.
      */
     copy(destination: File, flags: FileCopyFlags, cancellable: Cancellable | null, progress_callback: FileProgressCallback | null): boolean
     /**
@@ -10473,11 +11049,13 @@ interface File {
      * @param destination a #GFile to copy attributes to
      * @param flags a set of #GFileCopyFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the attributes were copied successfully,   %FALSE otherwise.
      */
     copy_attributes(destination: File, flags: FileCopyFlags, cancellable: Cancellable | null): boolean
     /**
      * Finishes copying the file started with g_file_copy_async().
      * @param res a #GAsyncResult
+     * @returns a %TRUE on success, %FALSE on error.
      */
     copy_finish(res: AsyncResult): boolean
     /**
@@ -10502,6 +11080,7 @@ interface File {
      * of filesystem the file is on.
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileOutputStream for the newly created   file, or %NULL on error.   Free the returned object with g_object_unref().
      */
     create(flags: FileCreateFlags, cancellable: Cancellable | null): FileOutputStream
     /**
@@ -10520,10 +11099,32 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     create_async(flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of create_async
+
+    /**
+     * Promisified version of {@link create_async}
+     * 
+     * Asynchronously creates a new file and returns an output stream
+     * for writing to it. The file must not already exist.
+     * 
+     * For more details, see g_file_create() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_create_finish() to get the result
+     * of the operation.
+     * @param flags a set of #GFileCreateFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a #GFileOutputStream or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    create_async(flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileOutputStream>
     /**
      * Finishes an asynchronous file create operation started with
      * g_file_create_async().
      * @param res a #GAsyncResult
+     * @returns a #GFileOutputStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     create_finish(res: AsyncResult): FileOutputStream
     /**
@@ -10552,6 +11153,7 @@ interface File {
      * streaming, rather than just opening for reading or writing.
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileIOStream for the newly created   file, or %NULL on error.   Free the returned object with g_object_unref().
      */
     create_readwrite(flags: FileCreateFlags, cancellable: Cancellable | null): FileIOStream
     /**
@@ -10570,10 +11172,32 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     create_readwrite_async(flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of create_readwrite_async
+
+    /**
+     * Promisified version of {@link create_readwrite_async}
+     * 
+     * Asynchronously creates a new file and returns a stream
+     * for reading and writing to it. The file must not already exist.
+     * 
+     * For more details, see g_file_create_readwrite() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_create_readwrite_finish() to get
+     * the result of the operation.
+     * @param flags a set of #GFileCreateFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    create_readwrite_async(flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileIOStream>
     /**
      * Finishes an asynchronous file create operation started with
      * g_file_create_readwrite_async().
      * @param res a #GAsyncResult
+     * @returns a #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     create_readwrite_finish(res: AsyncResult): FileIOStream
     /**
@@ -10600,6 +11224,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the file was deleted. %FALSE otherwise.
      */
     delete(cancellable: Cancellable | null): boolean
     /**
@@ -10611,9 +11236,24 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     delete_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of delete_async
+
+    /**
+     * Promisified version of {@link delete_async}
+     * 
+     * Asynchronously delete a file. If the `file` is a directory, it will
+     * only be deleted if it is empty.  This has the same semantics as
+     * g_unlink().
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: %TRUE if the file was deleted. %FALSE otherwise.
+     */
+    delete_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes deleting a file started with g_file_delete_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the file was deleted. %FALSE otherwise.
      */
     delete_finish(result: AsyncResult): boolean
     /**
@@ -10627,6 +11267,7 @@ interface File {
      * reference count.
      * 
      * This call does no blocking I/O.
+     * @returns a new #GFile that is a duplicate   of the given #GFile.
      */
     dup(): File
     /**
@@ -10647,6 +11288,7 @@ interface File {
      * Finishes an asynchronous eject operation started by
      * g_file_eject_mountable().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the @file was ejected successfully.   %FALSE otherwise.
      */
     eject_mountable_finish(result: AsyncResult): boolean
     /**
@@ -10668,6 +11310,7 @@ interface File {
      * Finishes an asynchronous eject operation started by
      * g_file_eject_mountable_with_operation().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the @file was ejected successfully.   %FALSE otherwise.
      */
     eject_mountable_with_operation_finish(result: AsyncResult): boolean
     /**
@@ -10699,6 +11342,7 @@ interface File {
      * @param attributes an attribute query string
      * @param flags a set of #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A #GFileEnumerator if successful,   %NULL on error. Free the returned object with g_object_unref().
      */
     enumerate_children(attributes: string, flags: FileQueryInfoFlags, cancellable: Cancellable | null): FileEnumerator
     /**
@@ -10719,10 +11363,34 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call when the   request is satisfied
      */
     enumerate_children_async(attributes: string, flags: FileQueryInfoFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of enumerate_children_async
+
+    /**
+     * Promisified version of {@link enumerate_children_async}
+     * 
+     * Asynchronously gets the requested information about the files
+     * in a directory. The result is a #GFileEnumerator object that will
+     * give out #GFileInfo objects for all the files in the directory.
+     * 
+     * For more details, see g_file_enumerate_children() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called. You can
+     * then call g_file_enumerate_children_finish() to get the result of
+     * the operation.
+     * @param attributes an attribute query string
+     * @param flags a set of #GFileQueryInfoFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a #GFileEnumerator or %NULL   if an error occurred.   Free the returned object with g_object_unref().
+     */
+    enumerate_children_async(attributes: string, flags: FileQueryInfoFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileEnumerator>
     /**
      * Finishes an async enumerate children operation.
      * See g_file_enumerate_children_async().
      * @param res a #GAsyncResult
+     * @returns a #GFileEnumerator or %NULL   if an error occurred.   Free the returned object with g_object_unref().
      */
     enumerate_children_finish(res: AsyncResult): FileEnumerator
     /**
@@ -10734,6 +11402,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @param file2 the second #GFile
+     * @returns %TRUE if @file1 and @file2 are equal.
      */
     equal(file2: File): boolean
     /**
@@ -10747,6 +11416,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GMount where the @file is located   or %NULL on error.   Free the returned object with g_object_unref().
      */
     find_enclosing_mount(cancellable: Cancellable | null): Mount
     /**
@@ -10763,10 +11433,30 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     find_enclosing_mount_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of find_enclosing_mount_async
+
+    /**
+     * Promisified version of {@link find_enclosing_mount_async}
+     * 
+     * Asynchronously gets the mount for the file.
+     * 
+     * For more details, see g_file_find_enclosing_mount() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_find_enclosing_mount_finish() to
+     * get the result of the operation.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: #GMount for given @file or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    find_enclosing_mount_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<Mount>
     /**
      * Finishes an asynchronous find mount request.
      * See g_file_find_enclosing_mount_async().
      * @param res a #GAsyncResult
+     * @returns #GMount for given @file or %NULL on error.   Free the returned object with g_object_unref().
      */
     find_enclosing_mount_finish(res: AsyncResult): Mount
     /**
@@ -10783,6 +11473,7 @@ interface File {
      * attribute with g_file_query_info().
      * 
      * This call does no blocking I/O.
+     * @returns string containing the #GFile's   base name, or %NULL if given #GFile is invalid. The returned string   should be freed with g_free() when no longer needed.
      */
     get_basename(): string | null
     /**
@@ -10794,6 +11485,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @param name string containing the child's basename
+     * @returns a #GFile to a child specified by @name.   Free the returned object with g_object_unref().
      */
     get_child(name: string): File
     /**
@@ -10806,6 +11498,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @param display_name string to a possible child
+     * @returns a #GFile to the specified child, or   %NULL if the display name couldn't be converted.   Free the returned object with g_object_unref().
      */
     get_child_for_display_name(display_name: string): File
     /**
@@ -10814,6 +11507,7 @@ interface File {
      * file system, then %NULL will be returned.
      * 
      * This call does no blocking I/O.
+     * @returns a #GFile structure to the   parent of the given #GFile or %NULL if there is no parent. Free   the returned object with g_object_unref().
      */
     get_parent(): File | null
     /**
@@ -10831,6 +11525,7 @@ interface File {
      * (a form of URI that allows UTF-8 characters unescaped).
      * 
      * This call does no blocking I/O.
+     * @returns a string containing the #GFile's parse name.   The returned string should be freed with g_free()   when no longer needed.
      */
     get_parse_name(): string
     /**
@@ -10838,6 +11533,7 @@ interface File {
      * guaranteed to be an absolute, canonical path. It might contain symlinks.
      * 
      * This call does no blocking I/O.
+     * @returns string containing the #GFile's path,   or %NULL if no such path exists. The returned string should be freed   with g_free() when no longer needed.
      */
     get_path(): string | null
     /**
@@ -10845,12 +11541,14 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @param descendant input #GFile
+     * @returns string with the relative path from   @descendant to @parent, or %NULL if @descendant doesn't have @parent as   prefix. The returned string should be freed with g_free() when   no longer needed.
      */
     get_relative_path(descendant: File): string | null
     /**
      * Gets the URI for the `file`.
      * 
      * This call does no blocking I/O.
+     * @returns a string containing the #GFile's URI. If the #GFile was constructed   with an invalid URI, an invalid URI is returned.   The returned string should be freed with g_free()   when no longer needed.
      */
     get_uri(): string
     /**
@@ -10866,6 +11564,7 @@ interface File {
      * in that it might be replaced with one that is logically equivalent to the #GFile.
      * 
      * This call does no blocking I/O.
+     * @returns a string containing the URI scheme for the given   #GFile or %NULL if the #GFile was constructed with an invalid URI. The   returned string should be freed with g_free() when no longer needed.
      */
     get_uri_scheme(): string | null
     /**
@@ -10875,6 +11574,7 @@ interface File {
      * parent at all.  If `parent` is non-%NULL then %TRUE is only returned
      * if `file` is an immediate child of `parent`.
      * @param parent the parent to check for, or %NULL
+     * @returns %TRUE if @file is an immediate child of @parent (or any parent in   the case that @parent is %NULL).
      */
     has_parent(parent: File | null): boolean
     /**
@@ -10893,6 +11593,7 @@ interface File {
      * filesystem point of view), because the prefix of `file` is an alias
      * of `prefix`.
      * @param prefix input #GFile
+     * @returns %TRUE if the @file's parent, grandparent, etc is @prefix,   %FALSE otherwise.
      */
     has_prefix(prefix: File): boolean
     /**
@@ -10900,12 +11601,14 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @param uri_scheme a string containing a URI scheme
+     * @returns %TRUE if #GFile's backend supports the   given URI scheme, %FALSE if URI scheme is %NULL,   not supported, or #GFile is invalid.
      */
     has_uri_scheme(uri_scheme: string): boolean
     /**
      * Creates a hash value for a #GFile.
      * 
      * This call does no blocking I/O.
+     * @returns 0 if @file is not a valid #GFile, otherwise an   integer that can be used as hash value for the #GFile.   This function is intended for easily hashing a #GFile to   add to a #GHashTable or similar data structure.
      */
     hash(): number
     /**
@@ -10920,6 +11623,7 @@ interface File {
      * will return %FALSE, but g_file_get_path() will still return a native path.
      * 
      * This call does no blocking I/O.
+     * @returns %TRUE if @file is native
      */
     is_native(): boolean
     /**
@@ -10935,6 +11639,7 @@ interface File {
      * this is not included in the #GBytes length. The resulting #GBytes should be
      * freed with g_bytes_unref() when no longer in use.
      * @param cancellable a #GCancellable or %NULL
+     * @returns a #GBytes or %NULL and @error is set
      */
     load_bytes(cancellable: Cancellable | null): [ /* returnType */ GLib.Bytes, /* etag_out */ string | null ]
     /**
@@ -10952,6 +11657,26 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call when the   request is satisfied
      */
     load_bytes_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of load_bytes_async
+
+    /**
+     * Promisified version of {@link load_bytes_async}
+     * 
+     * Asynchronously loads the contents of `file` as #GBytes.
+     * 
+     * If `file` is a resource:// based URI, the resulting bytes will reference the
+     * embedded resource instead of a copy. Otherwise, this is equivalent to calling
+     * g_file_load_contents_async() and g_bytes_new_take().
+     * 
+     * `callback` should call g_file_load_bytes_finish() to get the result of this
+     * asynchronous operation.
+     * 
+     * See g_file_load_bytes() for more information.
+     * @param cancellable a #GCancellable or %NULL
+     * @returns A Promise of: a #GBytes or %NULL and @error is set
+     */
+    load_bytes_async(cancellable: Cancellable | null): globalThis.Promise</* etag_out */ string | null>
     /**
      * Completes an asynchronous request to g_file_load_bytes_async().
      * 
@@ -10963,6 +11688,7 @@ interface File {
      * 
      * See g_file_load_bytes() for more information.
      * @param result a #GAsyncResult provided to the callback
+     * @returns a #GBytes or %NULL and @error is set
      */
     load_bytes_finish(result: AsyncResult): [ /* returnType */ GLib.Bytes, /* etag_out */ string | null ]
     /**
@@ -10975,6 +11701,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns %TRUE if the @file's contents were successfully loaded.   %FALSE if there were errors.
      */
     load_contents(cancellable: Cancellable | null): [ /* returnType */ boolean, /* contents */ Uint8Array, /* etag_out */ string | null ]
     /**
@@ -10995,6 +11722,29 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call when the request is satisfied
      */
     load_contents_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of load_contents_async
+
+    /**
+     * Promisified version of {@link load_contents_async}
+     * 
+     * Starts an asynchronous load of the `file'`s contents.
+     * 
+     * For more details, see g_file_load_contents() which is
+     * the synchronous version of this call.
+     * 
+     * When the load operation has completed, `callback` will be called
+     * with `user` data. To finish the operation, call
+     * g_file_load_contents_finish() with the #GAsyncResult returned by
+     * the `callback`.
+     * 
+     * If `cancellable` is not %NULL, then the operation can be cancelled by
+     * triggering the cancellable object from another thread. If the operation
+     * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns A Promise of: %TRUE if the load was successful. If %FALSE and @error is   present, it will be set appropriately.
+     */
+    load_contents_async(cancellable: Cancellable | null): globalThis.Promise<[ /* contents */ Uint8Array, /* etag_out */ string | null ]>
     /**
      * Finishes an asynchronous load of the `file'`s contents.
      * The contents are placed in `contents,` and `length` is set to the
@@ -11002,6 +11752,7 @@ interface File {
      * g_free() when no longer needed. If `etag_out` is present, it will be
      * set to the new entity tag for the `file`.
      * @param res a #GAsyncResult
+     * @returns %TRUE if the load was successful. If %FALSE and @error is   present, it will be set appropriately.
      */
     load_contents_finish(res: AsyncResult): [ /* returnType */ boolean, /* contents */ Uint8Array, /* etag_out */ string | null ]
     /**
@@ -11011,6 +11762,7 @@ interface File {
      * The returned `contents` should be freed with g_free() when no longer
      * needed.
      * @param res a #GAsyncResult
+     * @returns %TRUE if the load was successful. If %FALSE and @error is   present, it will be set appropriately.
      */
     load_partial_contents_finish(res: AsyncResult): [ /* returnType */ boolean, /* contents */ Uint8Array, /* etag_out */ string | null ]
     /**
@@ -11029,6 +11781,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE on successful creation, %FALSE otherwise.
      */
     make_directory(cancellable: Cancellable | null): boolean
     /**
@@ -11038,10 +11791,23 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     make_directory_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of make_directory_async
+
+    /**
+     * Promisified version of {@link make_directory_async}
+     * 
+     * Asynchronously creates a directory.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: %TRUE on successful directory creation, %FALSE otherwise.
+     */
+    make_directory_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes an asynchronous directory creation, started with
      * g_file_make_directory_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful directory creation, %FALSE otherwise.
      */
     make_directory_finish(result: AsyncResult): boolean
     /**
@@ -11059,6 +11825,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if all directories have been successfully created, %FALSE otherwise.
      */
     make_directory_with_parents(cancellable: Cancellable | null): boolean
     /**
@@ -11070,6 +11837,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param symlink_value a string with the path for the target   of the new symlink
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE on the creation of a new symlink, %FALSE otherwise.
      */
     make_symbolic_link(symlink_value: string, cancellable: Cancellable | null): boolean
     /**
@@ -11081,10 +11849,25 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     make_symbolic_link_async(symlink_value: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of make_symbolic_link_async
+
+    /**
+     * Promisified version of {@link make_symbolic_link_async}
+     * 
+     * Asynchronously creates a symbolic link named `file` which contains the
+     * string `symlink_value`.
+     * @param symlink_value a string with the path for the target   of the new symlink
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: %TRUE on successful directory creation, %FALSE otherwise.
+     */
+    make_symbolic_link_async(symlink_value: string, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes an asynchronous symbolic link creation, started with
      * g_file_make_symbolic_link_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful directory creation, %FALSE otherwise.
      */
     make_symbolic_link_finish(result: AsyncResult): boolean
     /**
@@ -11092,6 +11875,7 @@ interface File {
      * g_file_measure_disk_usage_async().  See g_file_measure_disk_usage() for
      * more information.
      * @param result the #GAsyncResult passed to your #GAsyncReadyCallback
+     * @returns %TRUE if successful, with the out parameters set.   %FALSE otherwise, with @error set.
      */
     measure_disk_usage_finish(result: AsyncResult): [ /* returnType */ boolean, /* disk_usage */ number, /* num_dirs */ number, /* num_files */ number ]
     /**
@@ -11103,6 +11887,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param flags a set of #GFileMonitorFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileMonitor for the given @file,   or %NULL on error.   Free the returned object with g_object_unref().
      */
     monitor(flags: FileMonitorFlags, cancellable: Cancellable | null): FileMonitor
     /**
@@ -11120,6 +11905,7 @@ interface File {
      * you must register individual watches with g_file_monitor().
      * @param flags a set of #GFileMonitorFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileMonitor for the given @file,   or %NULL on error.   Free the returned object with g_object_unref().
      */
     monitor_directory(flags: FileMonitorFlags, cancellable: Cancellable | null): FileMonitor
     /**
@@ -11139,6 +11925,7 @@ interface File {
      * backend and/or filesystem type.
      * @param flags a set of #GFileMonitorFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileMonitor for the given @file,   or %NULL on error.   Free the returned object with g_object_unref().
      */
     monitor_file(flags: FileMonitorFlags, cancellable: Cancellable | null): FileMonitor
     /**
@@ -11161,6 +11948,7 @@ interface File {
     /**
      * Finishes a mount operation started by g_file_mount_enclosing_volume().
      * @param result a #GAsyncResult
+     * @returns %TRUE if successful. If an error has occurred,   this function will return %FALSE and set @error   appropriately if present.
      */
     mount_enclosing_volume_finish(result: AsyncResult): boolean
     /**
@@ -11187,6 +11975,7 @@ interface File {
      * Finish an asynchronous mount operation that was started
      * with g_file_mount_mountable().
      * @param result a #GAsyncResult
+     * @returns a #GFile or %NULL on error.   Free the returned object with g_object_unref().
      */
     mount_mountable_finish(result: AsyncResult): File
     /**
@@ -11227,6 +12016,7 @@ interface File {
      * @param flags set of #GFileCopyFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
      * @param progress_callback #GFileProgressCallback   function for updates
+     * @returns %TRUE on successful move, %FALSE otherwise.
      */
     move(destination: File, flags: FileCopyFlags, cancellable: Cancellable | null, progress_callback: FileProgressCallback | null): boolean
     /**
@@ -11247,10 +12037,34 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     move_async(destination: File, flags: FileCopyFlags, io_priority: number, cancellable: Cancellable | null, progress_callback: FileProgressCallback | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of move_async
+
+    /**
+     * Promisified version of {@link move_async}
+     * 
+     * Asynchronously moves a file `source` to the location of `destination`. For details of the behaviour, see g_file_move().
+     * 
+     * If `progress_callback` is not %NULL, then that function that will be called
+     * just like in g_file_move(). The callback will run in the default main context
+     * of the thread calling g_file_move_async() — the same context as `callback` is
+     * run in.
+     * 
+     * When the operation is finished, `callback` will be called. You can then call
+     * g_file_move_finish() to get the result of the operation.
+     * @param destination #GFile pointing to the destination location
+     * @param flags set of #GFileCopyFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @param progress_callback #GFileProgressCallback   function for updates
+     * @returns A Promise of: %TRUE on successful file move, %FALSE otherwise.
+     */
+    move_async(destination: File, flags: FileCopyFlags, io_priority: number, cancellable: Cancellable | null, progress_callback: FileProgressCallback | null): globalThis.Promise<boolean>
     /**
      * Finishes an asynchronous file movement, started with
      * g_file_move_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful file move, %FALSE otherwise.
      */
     move_finish(result: AsyncResult): boolean
     /**
@@ -11271,6 +12085,7 @@ interface File {
      * really need to do read and write streaming, rather than just opening
      * for reading or writing.
      * @param cancellable a #GCancellable
+     * @returns #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     open_readwrite(cancellable: Cancellable | null): FileIOStream
     /**
@@ -11287,10 +12102,30 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     open_readwrite_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of open_readwrite_async
+
+    /**
+     * Promisified version of {@link open_readwrite_async}
+     * 
+     * Asynchronously opens `file` for reading and writing.
+     * 
+     * For more details, see g_file_open_readwrite() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_open_readwrite_finish() to get
+     * the result of the operation.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    open_readwrite_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileIOStream>
     /**
      * Finishes an asynchronous file read operation started with
      * g_file_open_readwrite_async().
      * @param res a #GAsyncResult
+     * @returns a #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     open_readwrite_finish(res: AsyncResult): FileIOStream
     /**
@@ -11301,6 +12136,7 @@ interface File {
      * generally more efficient.
      * 
      * This call does no blocking I/O.
+     * @returns string containing the #GFile's path,   or %NULL if no such path exists. The returned string is owned by @file.
      */
     peek_path(): string | null
     /**
@@ -11323,6 +12159,7 @@ interface File {
      * Finish an asynchronous poll operation that was polled
      * with g_file_poll_mountable().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully. %FALSE otherwise.
      */
     poll_mountable_finish(result: AsyncResult): boolean
     /**
@@ -11333,6 +12170,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns a #GAppInfo if the handle was found,   %NULL if there were errors.   When you are done with it, release it with g_object_unref()
      */
     query_default_handler(cancellable: Cancellable | null): AppInfo
     /**
@@ -11342,9 +12180,22 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call when the request is done
      */
     query_default_handler_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of query_default_handler_async
+
+    /**
+     * Promisified version of {@link query_default_handler_async}
+     * 
+     * Async version of g_file_query_default_handler().
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns A Promise of: a #GAppInfo if the handle was found,   %NULL if there were errors.   When you are done with it, release it with g_object_unref()
+     */
+    query_default_handler_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<AppInfo>
     /**
      * Finishes a g_file_query_default_handler_async() operation.
      * @param result a #GAsyncResult
+     * @returns a #GAppInfo if the handle was found,   %NULL if there were errors.   When you are done with it, release it with g_object_unref()
      */
     query_default_handler_finish(result: AsyncResult): AppInfo
     /**
@@ -11371,6 +12222,7 @@ interface File {
      * dialog. If you do this, you should make sure to also handle the errors
      * that can happen due to races when you execute the operation.
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the file exists (and can be detected without error),   %FALSE otherwise (or if cancelled).
      */
     query_exists(cancellable: Cancellable | null): boolean
     /**
@@ -11381,6 +12233,7 @@ interface File {
      * a regular file, directory, or symlink.
      * @param flags a set of #GFileQueryInfoFlags passed to g_file_query_info()
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns The #GFileType of the file and %G_FILE_TYPE_UNKNOWN   if the file does not exist
      */
     query_file_type(flags: FileQueryInfoFlags, cancellable: Cancellable | null): FileType
     /**
@@ -11411,6 +12264,7 @@ interface File {
      * kind of filesystem the file is on.
      * @param attributes an attribute query string
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileInfo or %NULL if there was an error.   Free the returned object with g_object_unref().
      */
     query_filesystem_info(attributes: string, cancellable: Cancellable | null): FileInfo
     /**
@@ -11431,10 +12285,34 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     query_filesystem_info_async(attributes: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of query_filesystem_info_async
+
+    /**
+     * Promisified version of {@link query_filesystem_info_async}
+     * 
+     * Asynchronously gets the requested information about the filesystem
+     * that the specified `file` is on. The result is a #GFileInfo object
+     * that contains key-value attributes (such as type or size for the
+     * file).
+     * 
+     * For more details, see g_file_query_filesystem_info() which is the
+     * synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called. You can
+     * then call g_file_query_info_finish() to get the result of the
+     * operation.
+     * @param attributes an attribute query string
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: #GFileInfo for given @file   or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    query_filesystem_info_async(attributes: string, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileInfo>
     /**
      * Finishes an asynchronous filesystem info query.
      * See g_file_query_filesystem_info_async().
      * @param res a #GAsyncResult
+     * @returns #GFileInfo for given @file   or %NULL on error.   Free the returned object with g_object_unref().
      */
     query_filesystem_info_finish(res: AsyncResult): FileInfo
     /**
@@ -11471,6 +12349,7 @@ interface File {
      * @param attributes an attribute query string
      * @param flags a set of #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileInfo for the given @file, or %NULL   on error. Free the returned object with g_object_unref().
      */
     query_info(attributes: string, flags: FileQueryInfoFlags, cancellable: Cancellable | null): FileInfo
     /**
@@ -11490,10 +12369,33 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call when the   request is satisfied
      */
     query_info_async(attributes: string, flags: FileQueryInfoFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of query_info_async
+
+    /**
+     * Promisified version of {@link query_info_async}
+     * 
+     * Asynchronously gets the requested information about specified `file`.
+     * The result is a #GFileInfo object that contains key-value attributes
+     * (such as type or size for the file).
+     * 
+     * For more details, see g_file_query_info() which is the synchronous
+     * version of this call.
+     * 
+     * When the operation is finished, `callback` will be called. You can
+     * then call g_file_query_info_finish() to get the result of the operation.
+     * @param attributes an attribute query string
+     * @param flags a set of #GFileQueryInfoFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: #GFileInfo for given @file   or %NULL on error. Free the returned object with   g_object_unref().
+     */
+    query_info_async(attributes: string, flags: FileQueryInfoFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileInfo>
     /**
      * Finishes an asynchronous file info query.
      * See g_file_query_info_async().
      * @param res a #GAsyncResult
+     * @returns #GFileInfo for given @file   or %NULL on error. Free the returned object with   g_object_unref().
      */
     query_info_finish(res: AsyncResult): FileInfo
     /**
@@ -11508,6 +12410,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileAttributeInfoList describing the settable attributes.   When you are done with it, release it with   g_file_attribute_info_list_unref()
      */
     query_settable_attributes(cancellable: Cancellable | null): FileAttributeInfoList
     /**
@@ -11519,6 +12422,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileAttributeInfoList describing the writable namespaces.   When you are done with it, release it with   g_file_attribute_info_list_unref()
      */
     query_writable_namespaces(cancellable: Cancellable | null): FileAttributeInfoList
     /**
@@ -11534,6 +12438,7 @@ interface File {
      * error will be returned. Other errors are possible too, and depend
      * on what kind of filesystem the file is on.
      * @param cancellable a #GCancellable
+     * @returns #GFileInputStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     read(cancellable: Cancellable | null): FileInputStream
     /**
@@ -11550,10 +12455,30 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     read_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_async
+
+    /**
+     * Promisified version of {@link read_async}
+     * 
+     * Asynchronously opens `file` for reading.
+     * 
+     * For more details, see g_file_read() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_read_finish() to get the result
+     * of the operation.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a #GFileInputStream or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    read_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileInputStream>
     /**
      * Finishes an asynchronous file read operation started with
      * g_file_read_async().
      * @param res a #GAsyncResult
+     * @returns a #GFileInputStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     read_finish(res: AsyncResult): FileInputStream
     /**
@@ -11602,6 +12527,7 @@ interface File {
      * @param make_backup %TRUE if a backup should be created
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileOutputStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     replace(etag: string | null, make_backup: boolean, flags: FileCreateFlags, cancellable: Cancellable | null): FileOutputStream
     /**
@@ -11622,6 +12548,29 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     replace_async(etag: string | null, make_backup: boolean, flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of replace_async
+
+    /**
+     * Promisified version of {@link replace_async}
+     * 
+     * Asynchronously overwrites the file, replacing the contents,
+     * possibly creating a backup copy of the file first.
+     * 
+     * For more details, see g_file_replace() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_replace_finish() to get the result
+     * of the operation.
+     * @param etag an [entity tag][gfile-etag] for the current #GFile,   or %NULL to ignore
+     * @param make_backup %TRUE if a backup should be created
+     * @param flags a set of #GFileCreateFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a #GFileOutputStream, or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    replace_async(etag: string | null, make_backup: boolean, flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileOutputStream>
     /**
      * Replaces the contents of `file` with `contents` of `length` bytes.
      * 
@@ -11644,9 +12593,43 @@ interface File {
      * @param make_backup %TRUE if a backup should be created
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns %TRUE if successful. If an error has occurred, this function   will return %FALSE and set @error appropriately if present.
      */
     replace_contents(contents: Uint8Array, etag: string | null, make_backup: boolean, flags: FileCreateFlags, cancellable: Cancellable | null): [ /* returnType */ boolean, /* new_etag */ string | null ]
     // Has conflict: replace_contents_async(contents: Uint8Array, etag: string | null, make_backup: boolean, flags: FileCreateFlags, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of replace_contents_async
+
+    /**
+     * Promisified version of {@link replace_contents_async}
+     * 
+     * Starts an asynchronous replacement of `file` with the given
+     * `contents` of `length` bytes. `etag` will replace the document's
+     * current entity tag.
+     * 
+     * When this operation has completed, `callback` will be called with
+     * `user_user` data, and the operation can be finalized with
+     * g_file_replace_contents_finish().
+     * 
+     * If `cancellable` is not %NULL, then the operation can be cancelled by
+     * triggering the cancellable object from another thread. If the operation
+     * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
+     * 
+     * If `make_backup` is %TRUE, this function will attempt to
+     * make a backup of `file`.
+     * 
+     * Note that no copy of `contents` will be made, so it must stay valid
+     * until `callback` is called. See g_file_replace_contents_bytes_async()
+     * for a #GBytes version that will automatically hold a reference to the
+     * contents (without copying) for the duration of the call.
+     * @param contents string of contents to replace the file with
+     * @param etag a new [entity tag][gfile-etag] for the `file,` or %NULL
+     * @param make_backup %TRUE if a backup should be created
+     * @param flags a set of #GFileCreateFlags
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns A Promise of: %TRUE on success, %FALSE on failure.
+     */
+    replace_contents_async(contents: Uint8Array, etag: string | null, make_backup: boolean, flags: FileCreateFlags, cancellable: Cancellable | null): globalThis.Promise</* new_etag */ string | null>
     /**
      * Same as g_file_replace_contents_async() but takes a #GBytes input instead.
      * This function will keep a ref on `contents` until the operation is done.
@@ -11669,12 +12652,14 @@ interface File {
      * g_file_replace_contents_async(). Sets `new_etag` to the new entity
      * tag for the document, if present.
      * @param res a #GAsyncResult
+     * @returns %TRUE on success, %FALSE on failure.
      */
     replace_contents_finish(res: AsyncResult): [ /* returnType */ boolean, /* new_etag */ string | null ]
     /**
      * Finishes an asynchronous file replace operation started with
      * g_file_replace_async().
      * @param res a #GAsyncResult
+     * @returns a #GFileOutputStream, or %NULL on error.   Free the returned object with g_object_unref().
      */
     replace_finish(res: AsyncResult): FileOutputStream
     /**
@@ -11692,6 +12677,7 @@ interface File {
      * @param make_backup %TRUE if a backup should be created
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     replace_readwrite(etag: string | null, make_backup: boolean, flags: FileCreateFlags, cancellable: Cancellable | null): FileIOStream
     /**
@@ -11713,10 +12699,35 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     replace_readwrite_async(etag: string | null, make_backup: boolean, flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of replace_readwrite_async
+
+    /**
+     * Promisified version of {@link replace_readwrite_async}
+     * 
+     * Asynchronously overwrites the file in read-write mode,
+     * replacing the contents, possibly creating a backup copy
+     * of the file first.
+     * 
+     * For more details, see g_file_replace_readwrite() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_replace_readwrite_finish() to get
+     * the result of the operation.
+     * @param etag an [entity tag][gfile-etag] for the current #GFile,   or %NULL to ignore
+     * @param make_backup %TRUE if a backup should be created
+     * @param flags a set of #GFileCreateFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a #GFileIOStream, or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    replace_readwrite_async(etag: string | null, make_backup: boolean, flags: FileCreateFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileIOStream>
     /**
      * Finishes an asynchronous file replace operation started with
      * g_file_replace_readwrite_async().
      * @param res a #GAsyncResult
+     * @returns a #GFileIOStream, or %NULL on error.   Free the returned object with g_object_unref().
      */
     replace_readwrite_finish(res: AsyncResult): FileIOStream
     /**
@@ -11727,6 +12738,7 @@ interface File {
      * If the `relative_path` is an absolute path name, the resolution
      * is done absolutely (without taking `file` path as base).
      * @param relative_path a given relative path string
+     * @returns a #GFile for the resolved path.
      */
     resolve_relative_path(relative_path: string): File
     /**
@@ -11743,6 +12755,7 @@ interface File {
      * @param value_p a pointer to the value (or the pointer   itself if the type is a pointer type)
      * @param flags a set of #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the attribute was set, %FALSE otherwise.
      */
     set_attribute(attribute: string, type: FileAttributeType, value_p: object | null, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -11757,6 +12770,7 @@ interface File {
      * @param value a string containing the attribute's new value
      * @param flags a #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the @attribute was successfully set to @value   in the @file, %FALSE otherwise.
      */
     set_attribute_byte_string(attribute: string, value: string, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -11770,6 +12784,7 @@ interface File {
      * @param value a #gint32 containing the attribute's new value
      * @param flags a #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the @attribute was successfully set to @value   in the @file, %FALSE otherwise.
      */
     set_attribute_int32(attribute: string, value: number, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -11783,6 +12798,7 @@ interface File {
      * @param value a #guint64 containing the attribute's new value
      * @param flags a #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the @attribute was successfully set, %FALSE otherwise.
      */
     set_attribute_int64(attribute: string, value: number, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -11796,6 +12812,7 @@ interface File {
      * @param value a string containing the attribute's value
      * @param flags #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the @attribute was successfully set, %FALSE otherwise.
      */
     set_attribute_string(attribute: string, value: string, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -11809,6 +12826,7 @@ interface File {
      * @param value a #guint32 containing the attribute's new value
      * @param flags a #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the @attribute was successfully set to @value   in the @file, %FALSE otherwise.
      */
     set_attribute_uint32(attribute: string, value: number, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -11822,6 +12840,7 @@ interface File {
      * @param value a #guint64 containing the attribute's new value
      * @param flags a #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the @attribute was successfully set to @value   in the @file, %FALSE otherwise.
      */
     set_attribute_uint64(attribute: string, value: number, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -11840,9 +12859,31 @@ interface File {
      * @param callback a #GAsyncReadyCallback
      */
     set_attributes_async(info: FileInfo, flags: FileQueryInfoFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of set_attributes_async
+
+    /**
+     * Promisified version of {@link set_attributes_async}
+     * 
+     * Asynchronously sets the attributes of `file` with `info`.
+     * 
+     * For more details, see g_file_set_attributes_from_info(),
+     * which is the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_set_attributes_finish() to get
+     * the result of the operation.
+     * @param info a #GFileInfo
+     * @param flags a #GFileQueryInfoFlags
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: %TRUE if the attributes were set correctly, %FALSE otherwise.
+     */
+    set_attributes_async(info: FileInfo, flags: FileQueryInfoFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* info */ FileInfo>
     /**
      * Finishes setting an attribute started in g_file_set_attributes_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the attributes were set correctly, %FALSE otherwise.
      */
     set_attributes_finish(result: AsyncResult): [ /* returnType */ boolean, /* info */ FileInfo ]
     /**
@@ -11861,6 +12902,7 @@ interface File {
      * @param info a #GFileInfo
      * @param flags #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %FALSE if there was any error, %TRUE otherwise.
      */
     set_attributes_from_info(info: FileInfo, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -11881,6 +12923,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param display_name a string
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFile specifying what @file was renamed to,   or %NULL if there was an error.   Free the returned object with g_object_unref().
      */
     set_display_name(display_name: string, cancellable: Cancellable | null): File
     /**
@@ -11898,10 +12941,31 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     set_display_name_async(display_name: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of set_display_name_async
+
+    /**
+     * Promisified version of {@link set_display_name_async}
+     * 
+     * Asynchronously sets the display name for a given #GFile.
+     * 
+     * For more details, see g_file_set_display_name() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_file_set_display_name_finish() to get
+     * the result of the operation.
+     * @param display_name a string
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: a #GFile or %NULL on error.   Free the returned object with g_object_unref().
+     */
+    set_display_name_async(display_name: string, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<File>
     /**
      * Finishes setting a display name started with
      * g_file_set_display_name_async().
      * @param res a #GAsyncResult
+     * @returns a #GFile or %NULL on error.   Free the returned object with g_object_unref().
      */
     set_display_name_finish(res: AsyncResult): File
     /**
@@ -11928,6 +12992,7 @@ interface File {
      * Finish an asynchronous start operation that was started
      * with g_file_start_mountable().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully. %FALSE otherwise.
      */
     start_mountable_finish(result: AsyncResult): boolean
     /**
@@ -11952,6 +13017,7 @@ interface File {
      * Finish an asynchronous stop operation that was started
      * with g_file_stop_mountable().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully.   %FALSE otherwise.
      */
     stop_mountable_finish(result: AsyncResult): boolean
     /**
@@ -11959,6 +13025,7 @@ interface File {
      * [thread-default contexts][g-main-context-push-thread-default-context].
      * If this returns %FALSE, you cannot perform asynchronous operations on
      * `file` in a thread that has a thread-default context.
+     * @returns Whether or not @file supports thread-default contexts.
      */
     supports_thread_contexts(): boolean
     /**
@@ -11973,6 +13040,7 @@ interface File {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE on successful trash, %FALSE otherwise.
      */
     trash(cancellable: Cancellable | null): boolean
     /**
@@ -11982,10 +13050,23 @@ interface File {
      * @param callback a #GAsyncReadyCallback to call   when the request is satisfied
      */
     trash_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of trash_async
+
+    /**
+     * Promisified version of {@link trash_async}
+     * 
+     * Asynchronously sends `file` to the Trash location, if possible.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A Promise of: %TRUE on successful trash, %FALSE otherwise.
+     */
+    trash_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes an asynchronous file trashing operation, started with
      * g_file_trash_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful trash, %FALSE otherwise.
      */
     trash_finish(result: AsyncResult): boolean
     /**
@@ -12009,6 +13090,7 @@ interface File {
      * Finish an asynchronous unmount operation that was started
      * with g_file_unmount_mountable().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully.   %FALSE otherwise.
      */
     unmount_mountable_finish(result: AsyncResult): boolean
     /**
@@ -12034,6 +13116,7 @@ interface File {
      * Finish an asynchronous unmount operation that was started
      * with g_file_unmount_mountable_with_operation().
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully.   %FALSE otherwise.
      */
     unmount_mountable_with_operation_finish(result: AsyncResult): boolean
     /**
@@ -12088,6 +13171,7 @@ interface File {
      * @virtual 
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileOutputStream, or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_append_to(flags: FileCreateFlags, cancellable: Cancellable | null): FileOutputStream
     /**
@@ -12111,6 +13195,7 @@ interface File {
      * g_file_append_to_async().
      * @virtual 
      * @param res #GAsyncResult
+     * @returns a valid #GFileOutputStream   or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_append_to_finish(res: AsyncResult): FileOutputStream
     /**
@@ -12159,6 +13244,7 @@ interface File {
      * @param flags set of #GFileCopyFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
      * @param progress_callback function to callback with   progress information, or %NULL if progress information is not needed
+     * @returns %TRUE on success, %FALSE otherwise.
      */
     vfunc_copy(destination: File, flags: FileCopyFlags, cancellable: Cancellable | null, progress_callback: FileProgressCallback | null): boolean
     /**
@@ -12183,6 +13269,7 @@ interface File {
      * Finishes copying the file started with g_file_copy_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a %TRUE on success, %FALSE on error.
      */
     vfunc_copy_finish(res: AsyncResult): boolean
     /**
@@ -12208,6 +13295,7 @@ interface File {
      * @virtual 
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileOutputStream for the newly created   file, or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_create(flags: FileCreateFlags, cancellable: Cancellable | null): FileOutputStream
     /**
@@ -12232,6 +13320,7 @@ interface File {
      * g_file_create_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a #GFileOutputStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_create_finish(res: AsyncResult): FileOutputStream
     /**
@@ -12261,6 +13350,7 @@ interface File {
      * @virtual 
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileIOStream for the newly created   file, or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_create_readwrite(flags: FileCreateFlags, cancellable: Cancellable | null): FileIOStream
     /**
@@ -12285,6 +13375,7 @@ interface File {
      * g_file_create_readwrite_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_create_readwrite_finish(res: AsyncResult): FileIOStream
     /**
@@ -12312,6 +13403,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @virtual 
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the file was deleted. %FALSE otherwise.
      */
     vfunc_delete_file(cancellable: Cancellable | null): boolean
     /**
@@ -12328,6 +13420,7 @@ interface File {
      * Finishes deleting a file started with g_file_delete_async().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the file was deleted. %FALSE otherwise.
      */
     vfunc_delete_file_finish(result: AsyncResult): boolean
     /**
@@ -12342,6 +13435,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns a new #GFile that is a duplicate   of the given #GFile.
      */
     vfunc_dup(): File
     /**
@@ -12364,6 +13458,7 @@ interface File {
      * g_file_eject_mountable().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the @file was ejected successfully.   %FALSE otherwise.
      */
     vfunc_eject_mountable_finish(result: AsyncResult): boolean
     /**
@@ -12387,6 +13482,7 @@ interface File {
      * g_file_eject_mountable_with_operation().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the @file was ejected successfully.   %FALSE otherwise.
      */
     vfunc_eject_mountable_with_operation_finish(result: AsyncResult): boolean
     /**
@@ -12419,6 +13515,7 @@ interface File {
      * @param attributes an attribute query string
      * @param flags a set of #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns A #GFileEnumerator if successful,   %NULL on error. Free the returned object with g_object_unref().
      */
     vfunc_enumerate_children(attributes: string, flags: FileQueryInfoFlags, cancellable: Cancellable | null): FileEnumerator
     /**
@@ -12445,6 +13542,7 @@ interface File {
      * See g_file_enumerate_children_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a #GFileEnumerator or %NULL   if an error occurred.   Free the returned object with g_object_unref().
      */
     vfunc_enumerate_children_finish(res: AsyncResult): FileEnumerator
     /**
@@ -12457,6 +13555,7 @@ interface File {
      * This call does no blocking I/O.
      * @virtual 
      * @param file2 the second #GFile
+     * @returns %TRUE if @file1 and @file2 are equal.
      */
     vfunc_equal(file2: File): boolean
     /**
@@ -12471,6 +13570,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @virtual 
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GMount where the @file is located   or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_find_enclosing_mount(cancellable: Cancellable | null): Mount
     /**
@@ -12493,6 +13593,7 @@ interface File {
      * See g_file_find_enclosing_mount_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns #GMount for given @file or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_find_enclosing_mount_finish(res: AsyncResult): Mount
     /**
@@ -12510,6 +13611,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns string containing the #GFile's   base name, or %NULL if given #GFile is invalid. The returned string   should be freed with g_free() when no longer needed.
      */
     vfunc_get_basename(): string | null
     /**
@@ -12523,6 +13625,7 @@ interface File {
      * This call does no blocking I/O.
      * @virtual 
      * @param display_name string to a possible child
+     * @returns a #GFile to the specified child, or   %NULL if the display name couldn't be converted.   Free the returned object with g_object_unref().
      */
     vfunc_get_child_for_display_name(display_name: string): File
     /**
@@ -12532,6 +13635,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns a #GFile structure to the   parent of the given #GFile or %NULL if there is no parent. Free   the returned object with g_object_unref().
      */
     vfunc_get_parent(): File | null
     /**
@@ -12550,6 +13654,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns a string containing the #GFile's parse name.   The returned string should be freed with g_free()   when no longer needed.
      */
     vfunc_get_parse_name(): string
     /**
@@ -12558,6 +13663,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns string containing the #GFile's path,   or %NULL if no such path exists. The returned string should be freed   with g_free() when no longer needed.
      */
     vfunc_get_path(): string | null
     /**
@@ -12566,6 +13672,7 @@ interface File {
      * This call does no blocking I/O.
      * @virtual 
      * @param descendant input #GFile
+     * @returns string with the relative path from   @descendant to @parent, or %NULL if @descendant doesn't have @parent as   prefix. The returned string should be freed with g_free() when   no longer needed.
      */
     vfunc_get_relative_path(descendant: File): string | null
     /**
@@ -12573,6 +13680,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns a string containing the #GFile's URI. If the #GFile was constructed   with an invalid URI, an invalid URI is returned.   The returned string should be freed with g_free()   when no longer needed.
      */
     vfunc_get_uri(): string
     /**
@@ -12589,6 +13697,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns a string containing the URI scheme for the given   #GFile or %NULL if the #GFile was constructed with an invalid URI. The   returned string should be freed with g_free() when no longer needed.
      */
     vfunc_get_uri_scheme(): string | null
     /**
@@ -12597,6 +13706,7 @@ interface File {
      * This call does no blocking I/O.
      * @virtual 
      * @param uri_scheme a string containing a URI scheme
+     * @returns %TRUE if #GFile's backend supports the   given URI scheme, %FALSE if URI scheme is %NULL,   not supported, or #GFile is invalid.
      */
     vfunc_has_uri_scheme(uri_scheme: string): boolean
     /**
@@ -12604,6 +13714,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns 0 if @file is not a valid #GFile, otherwise an   integer that can be used as hash value for the #GFile.   This function is intended for easily hashing a #GFile to   add to a #GHashTable or similar data structure.
      */
     vfunc_hash(): number
     /**
@@ -12619,6 +13730,7 @@ interface File {
      * 
      * This call does no blocking I/O.
      * @virtual 
+     * @returns %TRUE if @file is native
      */
     vfunc_is_native(): boolean
     /**
@@ -12638,6 +13750,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @virtual 
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE on successful creation, %FALSE otherwise.
      */
     vfunc_make_directory(cancellable: Cancellable | null): boolean
     /**
@@ -12653,6 +13766,7 @@ interface File {
      * g_file_make_directory_async().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful directory creation, %FALSE otherwise.
      */
     vfunc_make_directory_finish(result: AsyncResult): boolean
     /**
@@ -12665,6 +13779,7 @@ interface File {
      * @virtual 
      * @param symlink_value a string with the path for the target   of the new symlink
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE on the creation of a new symlink, %FALSE otherwise.
      */
     vfunc_make_symbolic_link(symlink_value: string, cancellable: Cancellable | null): boolean
     /**
@@ -12682,6 +13797,7 @@ interface File {
      * g_file_make_symbolic_link_async().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful directory creation, %FALSE otherwise.
      */
     vfunc_make_symbolic_link_finish(result: AsyncResult): boolean
     /**
@@ -12690,6 +13806,7 @@ interface File {
      * more information.
      * @virtual 
      * @param result the #GAsyncResult passed to your #GAsyncReadyCallback
+     * @returns %TRUE if successful, with the out parameters set.   %FALSE otherwise, with @error set.
      */
     vfunc_measure_disk_usage_finish(result: AsyncResult): [ /* returnType */ boolean, /* disk_usage */ number, /* num_dirs */ number, /* num_files */ number ]
     /**
@@ -12708,6 +13825,7 @@ interface File {
      * @virtual 
      * @param flags a set of #GFileMonitorFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileMonitor for the given @file,   or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_monitor_dir(flags: FileMonitorFlags, cancellable: Cancellable | null): FileMonitor
     /**
@@ -12728,6 +13846,7 @@ interface File {
      * @virtual 
      * @param flags a set of #GFileMonitorFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileMonitor for the given @file,   or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_monitor_file(flags: FileMonitorFlags, cancellable: Cancellable | null): FileMonitor
     /**
@@ -12752,6 +13871,7 @@ interface File {
      * Finishes a mount operation started by g_file_mount_enclosing_volume().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if successful. If an error has occurred,   this function will return %FALSE and set @error   appropriately if present.
      */
     vfunc_mount_enclosing_volume_finish(result: AsyncResult): boolean
     /**
@@ -12780,6 +13900,7 @@ interface File {
      * with g_file_mount_mountable().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns a #GFile or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_mount_mountable_finish(result: AsyncResult): File
     /**
@@ -12821,6 +13942,7 @@ interface File {
      * @param flags set of #GFileCopyFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
      * @param progress_callback #GFileProgressCallback   function for updates
+     * @returns %TRUE on successful move, %FALSE otherwise.
      */
     vfunc_move(destination: File, flags: FileCopyFlags, cancellable: Cancellable | null, progress_callback: FileProgressCallback | null): boolean
     /**
@@ -12847,6 +13969,7 @@ interface File {
      * g_file_move_async().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful file move, %FALSE otherwise.
      */
     vfunc_move_finish(result: AsyncResult): boolean
     /**
@@ -12868,6 +13991,7 @@ interface File {
      * for reading or writing.
      * @virtual 
      * @param cancellable a #GCancellable
+     * @returns #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_open_readwrite(cancellable: Cancellable | null): FileIOStream
     /**
@@ -12890,6 +14014,7 @@ interface File {
      * g_file_open_readwrite_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_open_readwrite_finish(res: AsyncResult): FileIOStream
     /**
@@ -12914,6 +14039,7 @@ interface File {
      * with g_file_poll_mountable().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully. %FALSE otherwise.
      */
     vfunc_poll_mountable_finish(result: AsyncResult): boolean
     /**
@@ -12933,6 +14059,7 @@ interface File {
      * of `prefix`.
      * @virtual 
      * @param file input #GFile
+     * @returns %TRUE if the @file's parent, grandparent, etc is @prefix,   %FALSE otherwise.
      */
     vfunc_prefix_matches(file: File): boolean
     /**
@@ -12964,6 +14091,7 @@ interface File {
      * @virtual 
      * @param attributes an attribute query string
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileInfo or %NULL if there was an error.   Free the returned object with g_object_unref().
      */
     vfunc_query_filesystem_info(attributes: string, cancellable: Cancellable | null): FileInfo
     /**
@@ -12990,6 +14118,7 @@ interface File {
      * See g_file_query_filesystem_info_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns #GFileInfo for given @file   or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_query_filesystem_info_finish(res: AsyncResult): FileInfo
     /**
@@ -13027,6 +14156,7 @@ interface File {
      * @param attributes an attribute query string
      * @param flags a set of #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileInfo for the given @file, or %NULL   on error. Free the returned object with g_object_unref().
      */
     vfunc_query_info(attributes: string, flags: FileQueryInfoFlags, cancellable: Cancellable | null): FileInfo
     /**
@@ -13052,6 +14182,7 @@ interface File {
      * See g_file_query_info_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns #GFileInfo for given @file   or %NULL on error. Free the returned object with   g_object_unref().
      */
     vfunc_query_info_finish(res: AsyncResult): FileInfo
     /**
@@ -13067,6 +14198,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @virtual 
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileAttributeInfoList describing the settable attributes.   When you are done with it, release it with   g_file_attribute_info_list_unref()
      */
     vfunc_query_settable_attributes(cancellable: Cancellable | null): FileAttributeInfoList
     /**
@@ -13079,6 +14211,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @virtual 
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileAttributeInfoList describing the writable namespaces.   When you are done with it, release it with   g_file_attribute_info_list_unref()
      */
     vfunc_query_writable_namespaces(cancellable: Cancellable | null): FileAttributeInfoList
     /**
@@ -13101,6 +14234,7 @@ interface File {
      * g_file_read_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a #GFileInputStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_read_finish(res: AsyncResult): FileInputStream
     /**
@@ -13117,6 +14251,7 @@ interface File {
      * on what kind of filesystem the file is on.
      * @virtual 
      * @param cancellable a #GCancellable
+     * @returns #GFileInputStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_read_fn(cancellable: Cancellable | null): FileInputStream
     /**
@@ -13166,6 +14301,7 @@ interface File {
      * @param make_backup %TRUE if a backup should be created
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileOutputStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_replace(etag: string | null, make_backup: boolean, flags: FileCreateFlags, cancellable: Cancellable | null): FileOutputStream
     /**
@@ -13192,6 +14328,7 @@ interface File {
      * g_file_replace_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a #GFileOutputStream, or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_replace_finish(res: AsyncResult): FileOutputStream
     /**
@@ -13210,6 +14347,7 @@ interface File {
      * @param make_backup %TRUE if a backup should be created
      * @param flags a set of #GFileCreateFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFileIOStream or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_replace_readwrite(etag: string | null, make_backup: boolean, flags: FileCreateFlags, cancellable: Cancellable | null): FileIOStream
     /**
@@ -13237,6 +14375,7 @@ interface File {
      * g_file_replace_readwrite_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a #GFileIOStream, or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_replace_readwrite_finish(res: AsyncResult): FileIOStream
     /**
@@ -13248,6 +14387,7 @@ interface File {
      * is done absolutely (without taking `file` path as base).
      * @virtual 
      * @param relative_path a given relative path string
+     * @returns a #GFile for the resolved path.
      */
     vfunc_resolve_relative_path(relative_path: string): File
     /**
@@ -13265,6 +14405,7 @@ interface File {
      * @param value_p a pointer to the value (or the pointer   itself if the type is a pointer type)
      * @param flags a set of #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE if the attribute was set, %FALSE otherwise.
      */
     vfunc_set_attribute(attribute: string, type: FileAttributeType, value_p: object | null, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -13288,6 +14429,7 @@ interface File {
      * Finishes setting an attribute started in g_file_set_attributes_async().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the attributes were set correctly, %FALSE otherwise.
      */
     vfunc_set_attributes_finish(result: AsyncResult): [ /* returnType */ boolean, /* info */ FileInfo ]
     /**
@@ -13307,6 +14449,7 @@ interface File {
      * @param info a #GFileInfo
      * @param flags #GFileQueryInfoFlags
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %FALSE if there was any error, %TRUE otherwise.
      */
     vfunc_set_attributes_from_info(info: FileInfo, flags: FileQueryInfoFlags, cancellable: Cancellable | null): boolean
     /**
@@ -13328,6 +14471,7 @@ interface File {
      * @virtual 
      * @param display_name a string
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns a #GFile specifying what @file was renamed to,   or %NULL if there was an error.   Free the returned object with g_object_unref().
      */
     vfunc_set_display_name(display_name: string, cancellable: Cancellable | null): File
     /**
@@ -13351,6 +14495,7 @@ interface File {
      * g_file_set_display_name_async().
      * @virtual 
      * @param res a #GAsyncResult
+     * @returns a #GFile or %NULL on error.   Free the returned object with g_object_unref().
      */
     vfunc_set_display_name_finish(res: AsyncResult): File
     /**
@@ -13379,6 +14524,7 @@ interface File {
      * with g_file_start_mountable().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully. %FALSE otherwise.
      */
     vfunc_start_mountable_finish(result: AsyncResult): boolean
     /**
@@ -13405,6 +14551,7 @@ interface File {
      * with g_file_stop_mountable().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully.   %FALSE otherwise.
      */
     vfunc_stop_mountable_finish(result: AsyncResult): boolean
     /**
@@ -13420,6 +14567,7 @@ interface File {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @virtual 
      * @param cancellable optional #GCancellable object,   %NULL to ignore
+     * @returns %TRUE on successful trash, %FALSE otherwise.
      */
     vfunc_trash(cancellable: Cancellable | null): boolean
     /**
@@ -13435,6 +14583,7 @@ interface File {
      * g_file_trash_async().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE on successful trash, %FALSE otherwise.
      */
     vfunc_trash_finish(result: AsyncResult): boolean
     /**
@@ -13460,6 +14609,7 @@ interface File {
      * with g_file_unmount_mountable().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully.   %FALSE otherwise.
      */
     vfunc_unmount_mountable_finish(result: AsyncResult): boolean
     /**
@@ -13487,6 +14637,7 @@ interface File {
      * with g_file_unmount_mountable_with_operation().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the operation finished successfully.   %FALSE otherwise.
      */
     vfunc_unmount_mountable_with_operation_finish(result: AsyncResult): boolean
 
@@ -13611,6 +14762,7 @@ class File extends GObject.Object {
      * for you there.  It is also always possible to use this function with
      * #GOptionContext arguments of type %G_OPTION_ARG_FILENAME.
      * @param arg a command line string
+     * @returns a new #GFile.   Free the returned object with g_object_unref().
      */
     static new_for_commandline_arg(arg: string): File
     /**
@@ -13627,6 +14779,7 @@ class File extends GObject.Object {
      * See also g_application_command_line_create_file_for_arg().
      * @param arg a command line string
      * @param cwd the current working directory of the commandline
+     * @returns a new #GFile
      */
     static new_for_commandline_arg_and_cwd(arg: string, cwd: string): File
     /**
@@ -13634,6 +14787,7 @@ class File extends GObject.Object {
      * fails, but the returned object might not support any I/O
      * operation if `path` is malformed.
      * @param path a string containing a relative or absolute path.   The string must be encoded in the glib filename encoding.
+     * @returns a new #GFile for the given @path.   Free the returned object with g_object_unref().
      */
     static new_for_path(path: string): File
     /**
@@ -13642,6 +14796,7 @@ class File extends GObject.Object {
      * operation if `uri` is malformed or if the uri type is
      * not supported.
      * @param uri a UTF-8 string containing a URI
+     * @returns a new #GFile for the given @uri.   Free the returned object with g_object_unref().
      */
     static new_for_uri(uri: string): File
     /**
@@ -13656,6 +14811,7 @@ class File extends GObject.Object {
      * Unlike the other #GFile constructors, this will return %NULL if
      * a temporary file could not be created.
      * @param tmpl Template for the file   name, as in g_file_open_tmp(), or %NULL for a default template
+     * @returns a new #GFile.   Free the returned object with g_object_unref().
      */
     static new_tmp(tmpl: string | null): [ /* returnType */ File, /* iostream */ FileIOStream ]
     /**
@@ -13688,11 +14844,13 @@ class File extends GObject.Object {
      * Finishes a temporary directory creation started by
      * g_file_new_tmp_dir_async().
      * @param result a #GAsyncResult
+     * @returns a new #GFile.   Free the returned object with g_object_unref().
      */
     static new_tmp_dir_finish(result: AsyncResult): File
     /**
      * Finishes a temporary file creation started by g_file_new_tmp_async().
      * @param result a #GAsyncResult
+     * @returns a new #GFile.   Free the returned object with g_object_unref().
      */
     static new_tmp_finish(result: AsyncResult): [ /* returnType */ File, /* iostream */ FileIOStream ]
     /**
@@ -13701,6 +14859,7 @@ class File extends GObject.Object {
      * but the returned object might not support any I/O operation if
      * the `parse_name` cannot be parsed.
      * @param parse_name a file name or path to be parsed
+     * @returns a new #GFile.
      */
     static parse_name(parse_name: string): File
 }
@@ -13720,6 +14879,7 @@ interface FileDescriptorBased {
 
     /**
      * Gets the underlying file descriptor.
+     * @returns The file descriptor
      */
     get_fd(): number
 
@@ -13728,6 +14888,7 @@ interface FileDescriptorBased {
     /**
      * Gets the underlying file descriptor.
      * @virtual 
+     * @returns The file descriptor
      */
     vfunc_get_fd(): number
 
@@ -13777,6 +14938,7 @@ interface Icon {
     /**
      * Checks if two icons are equal.
      * @param icon2 pointer to the second #GIcon.
+     * @returns %TRUE if @icon1 is equal to @icon2. %FALSE otherwise.
      */
     equal(icon2: Icon | null): boolean
     /**
@@ -13785,6 +14947,7 @@ interface Icon {
      * As serialization will avoid using raw icon data when possible, it only
      * makes sense to transfer the #GVariant between processes on the same machine,
      * (as opposed to over the network), and within the same file system namespace.
+     * @returns a #GVariant, or %NULL when serialization fails. The #GVariant will not be floating.
      */
     serialize(): GLib.Variant | null
     /**
@@ -13804,6 +14967,7 @@ interface Icon {
      * 
      * - If `icon` is a #GThemedIcon with exactly one name and no fallbacks,
      *   the encoding is simply the name (such as `network-server`).
+     * @returns An allocated NUL-terminated UTF8 string or %NULL if @icon can't be serialized. Use g_free() to free.
      */
     to_string(): string | null
 
@@ -13813,11 +14977,13 @@ interface Icon {
      * Checks if two icons are equal.
      * @virtual 
      * @param icon2 pointer to the second #GIcon.
+     * @returns %TRUE if @icon1 is equal to @icon2. %FALSE otherwise.
      */
     vfunc_equal(icon2: Icon | null): boolean
     /**
      * Gets a hash for an icon.
      * @virtual 
+     * @returns a #guint containing a hash for the @icon, suitable for use in a #GHashTable or similar data structure.
      */
     vfunc_hash(): number
     /**
@@ -13827,6 +14993,7 @@ interface Icon {
      * makes sense to transfer the #GVariant between processes on the same machine,
      * (as opposed to over the network), and within the same file system namespace.
      * @virtual 
+     * @returns a #GVariant, or %NULL when serialization fails. The #GVariant will not be floating.
      */
     vfunc_serialize(): GLib.Variant | null
 
@@ -13888,16 +15055,19 @@ class Icon extends GObject.Object {
      * implementations you need to ensure that each #GType is registered
      * with the type system prior to calling g_icon_new_for_string().
      * @param str A string obtained via g_icon_to_string().
+     * @returns An object implementing the #GIcon          interface or %NULL if @error is set.
      */
     static new_for_string(str: string): Icon
     /**
      * Deserializes a #GIcon previously serialized using g_icon_serialize().
      * @param value a #GVariant created with g_icon_serialize()
+     * @returns a #GIcon, or %NULL when deserialization fails.
      */
     static deserialize(value: GLib.Variant): Icon | null
     /**
      * Gets a hash for an icon.
      * @param icon #gconstpointer to an icon object.
+     * @returns a #guint containing a hash for the @icon, suitable for use in a #GHashTable or similar data structure.
      */
     static hash(icon: object): number
 }
@@ -13955,6 +15125,7 @@ interface Initable {
      * on the result of g_object_new(), regardless of whether it is in fact a new
      * instance.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if successful. If an error has occurred, this function will     return %FALSE and set @error appropriately if present.
      */
     init(cancellable: Cancellable | null): boolean
 
@@ -14001,6 +15172,7 @@ interface Initable {
      * instance.
      * @virtual 
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if successful. If an error has occurred, this function will     return %FALSE and set @error appropriately if present.
      */
     vfunc_init(cancellable: Cancellable | null): boolean
 
@@ -14062,6 +15234,7 @@ class Initable extends GObject.Object {
      * @constructor 
      * @param object_type the type id of the #GObject subtype to instantiate
      * @param parameters an array of #GParameter
+     * @returns a new instance of @object_type
      */
     static newv(object_type: GObject.GType, parameters: GObject.Parameter[]): GObject.Object
 }
@@ -14098,6 +15271,7 @@ interface ListModel {
      * 
      * The item type of a #GListModel can not change during the life of the
      * model.
+     * @returns the #GType of the items contained in @list.
      */
     get_item_type(): GObject.GType
     /**
@@ -14106,6 +15280,7 @@ interface ListModel {
      * Depending on the model implementation, calling this function may be
      * less efficient than iterating the list with increasing values for
      * `position` until g_list_model_get_item() returns %NULL.
+     * @returns the number of items in @list.
      */
     get_n_items(): number
     /**
@@ -14122,6 +15297,7 @@ interface ListModel {
      * 
      * See also: g_list_model_get_n_items()
      * @param position the position of the item to fetch
+     * @returns the object at @position.
      */
     get_item(position: number): GObject.Object | null
     /**
@@ -14161,6 +15337,7 @@ interface ListModel {
      * of the list.  See g_list_model_get_n_items().
      * @virtual 
      * @param position the position of the item to fetch
+     * @returns the object at @position.
      */
     vfunc_get_item(position: number): GObject.Object | null
     /**
@@ -14173,6 +15350,7 @@ interface ListModel {
      * The item type of a #GListModel can not change during the life of the
      * model.
      * @virtual 
+     * @returns the #GType of the items contained in @list.
      */
     vfunc_get_item_type(): GObject.GType
     /**
@@ -14182,6 +15360,7 @@ interface ListModel {
      * less efficient than iterating the list with increasing values for
      * `position` until g_list_model_get_item() returns %NULL.
      * @virtual 
+     * @returns the number of items in @list.
      */
     vfunc_get_n_items(): number
 
@@ -14297,6 +15476,7 @@ interface LoadableIcon extends Icon {
      * see g_loadable_icon_load_async().
      * @param size an integer.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GInputStream to read the icon from.
      */
     load(size: number, cancellable: Cancellable | null): [ /* returnType */ InputStream, /* type */ string ]
     /**
@@ -14308,9 +15488,24 @@ interface LoadableIcon extends Icon {
      * @param callback a #GAsyncReadyCallback to call when the            request is satisfied
      */
     load_async(size: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of load_async
+
+    /**
+     * Promisified version of {@link load_async}
+     * 
+     * Loads an icon asynchronously. To finish this function, see
+     * g_loadable_icon_load_finish(). For the synchronous, blocking
+     * version of this function, see g_loadable_icon_load().
+     * @param size an integer.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: a #GInputStream to read the icon from.
+     */
+    load_async(size: number, cancellable: Cancellable | null): globalThis.Promise</* type */ string>
     /**
      * Finishes an asynchronous icon load started in g_loadable_icon_load_async().
      * @param res a #GAsyncResult.
+     * @returns a #GInputStream to read the icon from.
      */
     load_finish(res: AsyncResult): [ /* returnType */ InputStream, /* type */ string ]
 
@@ -14322,6 +15517,7 @@ interface LoadableIcon extends Icon {
      * @virtual 
      * @param size an integer.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GInputStream to read the icon from.
      */
     vfunc_load(size: number, cancellable: Cancellable | null): [ /* returnType */ InputStream, /* type */ string ]
     /**
@@ -14338,6 +15534,7 @@ interface LoadableIcon extends Icon {
      * Finishes an asynchronous icon load started in g_loadable_icon_load_async().
      * @virtual 
      * @param res a #GAsyncResult.
+     * @returns a #GInputStream to read the icon from.
      */
     vfunc_load_finish(res: AsyncResult): [ /* returnType */ InputStream, /* type */ string ]
 
@@ -14470,6 +15667,7 @@ class MemoryMonitor extends GObject.Object {
     _init(config?: MemoryMonitor.ConstructorProperties): void
     /**
      * Gets a reference to the default #GMemoryMonitor for the system.
+     * @returns a new reference to the default #GMemoryMonitor
      */
     static dup_default(): MemoryMonitor
 }
@@ -14513,10 +15711,12 @@ interface Mount {
 
     /**
      * Checks if `mount` can be ejected.
+     * @returns %TRUE if the @mount can be ejected.
      */
     can_eject(): boolean
     /**
      * Checks if `mount` can be unmounted.
+     * @returns %TRUE if the @mount can be unmounted.
      */
     can_unmount(): boolean
     /**
@@ -14532,6 +15732,7 @@ interface Mount {
      * Finishes ejecting a mount. If any errors occurred during the operation,
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully ejected. %FALSE otherwise.
      */
     eject_finish(result: AsyncResult): boolean
     /**
@@ -14548,12 +15749,14 @@ interface Mount {
      * Finishes ejecting a mount. If any errors occurred during the operation,
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully ejected. %FALSE otherwise.
      */
     eject_with_operation_finish(result: AsyncResult): boolean
     /**
      * Gets the default location of `mount`. The default location of the given
      * `mount` is a path that reflects the main entry point for the user (e.g.
      * the home directory, or the root of the volume).
+     * @returns a #GFile.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     get_default_location(): File
     /**
@@ -14561,26 +15764,32 @@ interface Mount {
      * 
      * This is a convenience method for getting the #GVolume and then
      * using that object to get the #GDrive.
+     * @returns a #GDrive or %NULL if @mount is not      associated with a volume or a drive.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     get_drive(): Drive | null
     /**
      * Gets the icon for `mount`.
+     * @returns a #GIcon.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     get_icon(): Icon
     /**
      * Gets the name of `mount`.
+     * @returns the name for the given @mount.     The returned string should be freed with g_free()     when no longer needed.
      */
     get_name(): string
     /**
      * Gets the root directory on `mount`.
+     * @returns a #GFile.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     get_root(): File
     /**
      * Gets the sort key for `mount,` if any.
+     * @returns Sorting key for @mount or %NULL if no such key is available.
      */
     get_sort_key(): string | null
     /**
      * Gets the symbolic icon for `mount`.
+     * @returns a #GIcon.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     get_symbolic_icon(): Icon
     /**
@@ -14588,10 +15797,12 @@ interface Mount {
      * the file system UUID for the mount in question and should be
      * considered an opaque string. Returns %NULL if there is no UUID
      * available.
+     * @returns the UUID for @mount or %NULL if no UUID     can be computed.     The returned string should be freed with g_free()     when no longer needed.
      */
     get_uuid(): string | null
     /**
      * Gets the volume for the `mount`.
+     * @returns a #GVolume or %NULL if @mount is not      associated with a volume.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     get_volume(): Volume | null
     /**
@@ -14618,6 +15829,7 @@ interface Mount {
      * %G_IO_ERROR_NOT_SUPPORTED if the mount does not support content
      * guessing.
      * @param result a #GAsyncResult
+     * @returns a %NULL-terminated array of content types or %NULL on error.     Caller should free this array with g_strfreev() when done with it.
      */
     guess_content_type_finish(result: AsyncResult): string[]
     /**
@@ -14632,6 +15844,7 @@ interface Mount {
      * see g_mount_guess_content_type() for the asynchronous version.
      * @param force_rescan Whether to force a rescan of the content.     Otherwise a cached result will be used if available
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns a %NULL-terminated array of content types or %NULL on error.     Caller should free this array with g_strfreev() when done with it.
      */
     guess_content_type_sync(force_rescan: boolean, cancellable: Cancellable | null): string[]
     /**
@@ -14658,6 +15871,7 @@ interface Mount {
      * The proxy monitor in GVfs 2.26 and later, automatically creates and
      * manage shadow mounts (and shadows the underlying mount) if the
      * activation root on a #GVolume is set.
+     * @returns %TRUE if @mount is shadowed.
      */
     is_shadowed(): boolean
     /**
@@ -14680,6 +15894,7 @@ interface Mount {
      * Finishes remounting a mount. If any errors occurred during the operation,
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully remounted. %FALSE otherwise.
      */
     remount_finish(result: AsyncResult): boolean
     /**
@@ -14702,6 +15917,7 @@ interface Mount {
      * Finishes unmounting a mount. If any errors occurred during the operation,
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully unmounted. %FALSE otherwise.
      */
     unmount_finish(result: AsyncResult): boolean
     /**
@@ -14718,6 +15934,7 @@ interface Mount {
      * Finishes unmounting a mount. If any errors occurred during the operation,
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully unmounted. %FALSE otherwise.
      */
     unmount_with_operation_finish(result: AsyncResult): boolean
     /**
@@ -14733,11 +15950,13 @@ interface Mount {
     /**
      * Checks if `mount` can be ejected.
      * @virtual 
+     * @returns %TRUE if the @mount can be ejected.
      */
     vfunc_can_eject(): boolean
     /**
      * Checks if `mount` can be unmounted.
      * @virtual 
+     * @returns %TRUE if the @mount can be unmounted.
      */
     vfunc_can_unmount(): boolean
     vfunc_changed(): void
@@ -14756,6 +15975,7 @@ interface Mount {
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully ejected. %FALSE otherwise.
      */
     vfunc_eject_finish(result: AsyncResult): boolean
     /**
@@ -14774,6 +15994,7 @@ interface Mount {
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully ejected. %FALSE otherwise.
      */
     vfunc_eject_with_operation_finish(result: AsyncResult): boolean
     /**
@@ -14781,6 +16002,7 @@ interface Mount {
      * `mount` is a path that reflects the main entry point for the user (e.g.
      * the home directory, or the root of the volume).
      * @virtual 
+     * @returns a #GFile.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     vfunc_get_default_location(): File
     /**
@@ -14789,31 +16011,37 @@ interface Mount {
      * This is a convenience method for getting the #GVolume and then
      * using that object to get the #GDrive.
      * @virtual 
+     * @returns a #GDrive or %NULL if @mount is not      associated with a volume or a drive.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     vfunc_get_drive(): Drive | null
     /**
      * Gets the icon for `mount`.
      * @virtual 
+     * @returns a #GIcon.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     vfunc_get_icon(): Icon
     /**
      * Gets the name of `mount`.
      * @virtual 
+     * @returns the name for the given @mount.     The returned string should be freed with g_free()     when no longer needed.
      */
     vfunc_get_name(): string
     /**
      * Gets the root directory on `mount`.
      * @virtual 
+     * @returns a #GFile.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     vfunc_get_root(): File
     /**
      * Gets the sort key for `mount,` if any.
      * @virtual 
+     * @returns Sorting key for @mount or %NULL if no such key is available.
      */
     vfunc_get_sort_key(): string | null
     /**
      * Gets the symbolic icon for `mount`.
      * @virtual 
+     * @returns a #GIcon.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     vfunc_get_symbolic_icon(): Icon
     /**
@@ -14822,11 +16050,13 @@ interface Mount {
      * considered an opaque string. Returns %NULL if there is no UUID
      * available.
      * @virtual 
+     * @returns the UUID for @mount or %NULL if no UUID     can be computed.     The returned string should be freed with g_free()     when no longer needed.
      */
     vfunc_get_uuid(): string | null
     /**
      * Gets the volume for the `mount`.
      * @virtual 
+     * @returns a #GVolume or %NULL if @mount is not      associated with a volume.      The returned object should be unreffed with      g_object_unref() when no longer needed.
      */
     vfunc_get_volume(): Volume | null
     /**
@@ -14855,6 +16085,7 @@ interface Mount {
      * guessing.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns a %NULL-terminated array of content types or %NULL on error.     Caller should free this array with g_strfreev() when done with it.
      */
     vfunc_guess_content_type_finish(result: AsyncResult): string[]
     /**
@@ -14870,6 +16101,7 @@ interface Mount {
      * @virtual 
      * @param force_rescan Whether to force a rescan of the content.     Otherwise a cached result will be used if available
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns a %NULL-terminated array of content types or %NULL on error.     Caller should free this array with g_strfreev() when done with it.
      */
     vfunc_guess_content_type_sync(force_rescan: boolean, cancellable: Cancellable | null): string[]
     vfunc_pre_unmount(): void
@@ -14895,6 +16127,7 @@ interface Mount {
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully remounted. %FALSE otherwise.
      */
     vfunc_remount_finish(result: AsyncResult): boolean
     /**
@@ -14912,6 +16145,7 @@ interface Mount {
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully unmounted. %FALSE otherwise.
      */
     vfunc_unmount_finish(result: AsyncResult): boolean
     /**
@@ -14930,6 +16164,7 @@ interface Mount {
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the mount was successfully unmounted. %FALSE otherwise.
      */
     vfunc_unmount_with_operation_finish(result: AsyncResult): boolean
     vfunc_unmounted(): void
@@ -15081,6 +16316,7 @@ interface NetworkMonitor extends Initable {
      * want to block, you should use g_network_monitor_can_reach_async().
      * @param connectable a #GSocketConnectable
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if @connectable is reachable, %FALSE if not.
      */
     can_reach(connectable: SocketConnectable, cancellable: Cancellable | null): boolean
     /**
@@ -15098,10 +16334,31 @@ interface NetworkMonitor extends Initable {
      * @param callback a #GAsyncReadyCallback to call when the     request is satisfied
      */
     can_reach_async(connectable: SocketConnectable, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of can_reach_async
+
+    /**
+     * Promisified version of {@link can_reach_async}
+     * 
+     * Asynchronously attempts to determine whether or not the host
+     * pointed to by `connectable` can be reached, without actually
+     * trying to connect to it.
+     * 
+     * For more details, see g_network_monitor_can_reach().
+     * 
+     * When the operation is finished, `callback` will be called.
+     * You can then call g_network_monitor_can_reach_finish()
+     * to get the result of the operation.
+     * @param connectable a #GSocketConnectable
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE if network is reachable, %FALSE if not.
+     */
+    can_reach_async(connectable: SocketConnectable, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes an async network connectivity test.
      * See g_network_monitor_can_reach_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE if network is reachable, %FALSE if not.
      */
     can_reach_finish(result: AsyncResult): boolean
     /**
@@ -15124,6 +16381,7 @@ interface NetworkMonitor extends Initable {
      * reachable but others are not. In this case, applications can
      * attempt to connect to remote servers, but should gracefully fall
      * back to their "offline" behavior if the connection attempt fails.
+     * @returns the network connectivity state
      */
     get_connectivity(): NetworkConnectivity
     /**
@@ -15131,11 +16389,13 @@ interface NetworkMonitor extends Initable {
      * system has a default route available for at least one of IPv4 or
      * IPv6. It does not necessarily imply that the public Internet is
      * reachable. See #GNetworkMonitor:network-available for more details.
+     * @returns whether the network is available
      */
     get_network_available(): boolean
     /**
      * Checks if the network is metered.
      * See #GNetworkMonitor:network-metered for more details.
+     * @returns whether the connection is metered
      */
     get_network_metered(): boolean
 
@@ -15162,6 +16422,7 @@ interface NetworkMonitor extends Initable {
      * @virtual 
      * @param connectable a #GSocketConnectable
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if @connectable is reachable, %FALSE if not.
      */
     vfunc_can_reach(connectable: SocketConnectable, cancellable: Cancellable | null): boolean
     /**
@@ -15185,6 +16446,7 @@ interface NetworkMonitor extends Initable {
      * See g_network_monitor_can_reach_async().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if network is reachable, %FALSE if not.
      */
     vfunc_can_reach_finish(result: AsyncResult): boolean
     vfunc_network_changed(network_available: boolean): void
@@ -15234,6 +16496,7 @@ class NetworkMonitor extends GObject.Object {
     _init(config?: NetworkMonitor.ConstructorProperties): void
     /**
      * Gets the default #GNetworkMonitor for the system.
+     * @returns a #GNetworkMonitor, which will be     a dummy object if no network monitor is available
      */
     static get_default(): NetworkMonitor
 }
@@ -15259,6 +16522,7 @@ interface PollableInputStream extends InputStream {
      * 
      * For any given stream, the value returned by this method is constant;
      * a stream cannot switch from pollable to non-pollable or vice versa.
+     * @returns %TRUE if @stream is pollable, %FALSE if not.
      */
     can_poll(): boolean
     /**
@@ -15271,6 +16535,7 @@ interface PollableInputStream extends InputStream {
      * triggers, so you should use g_pollable_input_stream_read_nonblocking()
      * rather than g_input_stream_read() from the callback.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a new #GSource
      */
     create_source(cancellable: Cancellable | null): GLib.Source
     /**
@@ -15282,6 +16547,7 @@ interface PollableInputStream extends InputStream {
      * non-blocking behavior, you should always use
      * g_pollable_input_stream_read_nonblocking(), which will return a
      * %G_IO_ERROR_WOULD_BLOCK error rather than blocking.
+     * @returns %TRUE if @stream is readable, %FALSE if not. If an error   has occurred on @stream, this will result in   g_pollable_input_stream_is_readable() returning %TRUE, and the   next attempt to read will return the error.
      */
     is_readable(): boolean
     /**
@@ -15297,6 +16563,7 @@ interface PollableInputStream extends InputStream {
      * may happen if you call this method after a source triggers due
      * to having been cancelled.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns the number of bytes read, or -1 on error (including   %G_IO_ERROR_WOULD_BLOCK).
      */
     read_nonblocking(cancellable: Cancellable | null): [ /* returnType */ number, /* buffer */ Uint8Array ]
 
@@ -15311,6 +16578,7 @@ interface PollableInputStream extends InputStream {
      * For any given stream, the value returned by this method is constant;
      * a stream cannot switch from pollable to non-pollable or vice versa.
      * @virtual 
+     * @returns %TRUE if @stream is pollable, %FALSE if not.
      */
     vfunc_can_poll(): boolean
     /**
@@ -15324,6 +16592,7 @@ interface PollableInputStream extends InputStream {
      * rather than g_input_stream_read() from the callback.
      * @virtual 
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a new #GSource
      */
     vfunc_create_source(cancellable: Cancellable | null): GLib.Source
     /**
@@ -15336,6 +16605,7 @@ interface PollableInputStream extends InputStream {
      * g_pollable_input_stream_read_nonblocking(), which will return a
      * %G_IO_ERROR_WOULD_BLOCK error rather than blocking.
      * @virtual 
+     * @returns %TRUE if @stream is readable, %FALSE if not. If an error   has occurred on @stream, this will result in   g_pollable_input_stream_is_readable() returning %TRUE, and the   next attempt to read will return the error.
      */
     vfunc_is_readable(): boolean
     /**
@@ -15351,6 +16621,7 @@ interface PollableInputStream extends InputStream {
      * may happen if you call this method after a source triggers due
      * to having been cancelled.
      * @virtual 
+     * @returns the number of bytes read, or -1 on error (including   %G_IO_ERROR_WOULD_BLOCK).
      */
     vfunc_read_nonblocking(): [ /* returnType */ number, /* buffer */ Uint8Array | null ]
 
@@ -15403,6 +16674,7 @@ interface PollableOutputStream extends OutputStream {
      * 
      * For any given stream, the value returned by this method is constant;
      * a stream cannot switch from pollable to non-pollable or vice versa.
+     * @returns %TRUE if @stream is pollable, %FALSE if not.
      */
     can_poll(): boolean
     /**
@@ -15415,6 +16687,7 @@ interface PollableOutputStream extends OutputStream {
      * triggers, so you should use g_pollable_output_stream_write_nonblocking()
      * rather than g_output_stream_write() from the callback.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a new #GSource
      */
     create_source(cancellable: Cancellable | null): GLib.Source
     /**
@@ -15426,6 +16699,7 @@ interface PollableOutputStream extends OutputStream {
      * non-blocking behavior, you should always use
      * g_pollable_output_stream_write_nonblocking(), which will return a
      * %G_IO_ERROR_WOULD_BLOCK error rather than blocking.
+     * @returns %TRUE if @stream is writable, %FALSE if not. If an error   has occurred on @stream, this will result in   g_pollable_output_stream_is_writable() returning %TRUE, and the   next attempt to write will return the error.
      */
     is_writable(): boolean
     /**
@@ -15446,6 +16720,7 @@ interface PollableOutputStream extends OutputStream {
      * `count` in the next write call.
      * @param buffer a buffer to write     data from
      * @param cancellable a #GCancellable, or %NULL
+     * @returns the number of bytes written, or -1 on error (including   %G_IO_ERROR_WOULD_BLOCK).
      */
     write_nonblocking(buffer: Uint8Array, cancellable: Cancellable | null): number
     /**
@@ -15467,6 +16742,7 @@ interface PollableOutputStream extends OutputStream {
      * `n_vectors` in the next write call.
      * @param vectors the buffer containing the #GOutputVectors to write.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %@G_POLLABLE_RETURN_OK on success, %G_POLLABLE_RETURN_WOULD_BLOCK if the stream is not currently writable (and @error is *not* set), or %G_POLLABLE_RETURN_FAILED if there was an error in which case @error will be set.
      */
     writev_nonblocking(vectors: OutputVector[], cancellable: Cancellable | null): [ /* returnType */ PollableReturn, /* bytes_written */ number ]
 
@@ -15481,6 +16757,7 @@ interface PollableOutputStream extends OutputStream {
      * For any given stream, the value returned by this method is constant;
      * a stream cannot switch from pollable to non-pollable or vice versa.
      * @virtual 
+     * @returns %TRUE if @stream is pollable, %FALSE if not.
      */
     vfunc_can_poll(): boolean
     /**
@@ -15494,6 +16771,7 @@ interface PollableOutputStream extends OutputStream {
      * rather than g_output_stream_write() from the callback.
      * @virtual 
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a new #GSource
      */
     vfunc_create_source(cancellable: Cancellable | null): GLib.Source
     /**
@@ -15506,6 +16784,7 @@ interface PollableOutputStream extends OutputStream {
      * g_pollable_output_stream_write_nonblocking(), which will return a
      * %G_IO_ERROR_WOULD_BLOCK error rather than blocking.
      * @virtual 
+     * @returns %TRUE if @stream is writable, %FALSE if not. If an error   has occurred on @stream, this will result in   g_pollable_output_stream_is_writable() returning %TRUE, and the   next attempt to write will return the error.
      */
     vfunc_is_writable(): boolean
     /**
@@ -15526,6 +16805,7 @@ interface PollableOutputStream extends OutputStream {
      * `count` in the next write call.
      * @virtual 
      * @param buffer a buffer to write     data from
+     * @returns the number of bytes written, or -1 on error (including   %G_IO_ERROR_WOULD_BLOCK).
      */
     vfunc_write_nonblocking(buffer: Uint8Array | null): number
     /**
@@ -15547,6 +16827,7 @@ interface PollableOutputStream extends OutputStream {
      * `n_vectors` in the next write call.
      * @virtual 
      * @param vectors the buffer containing the #GOutputVectors to write.
+     * @returns %@G_POLLABLE_RETURN_OK on success, %G_POLLABLE_RETURN_WOULD_BLOCK if the stream is not currently writable (and @error is *not* set), or %G_POLLABLE_RETURN_FAILED if there was an error in which case @error will be set.
      */
     vfunc_writev_nonblocking(vectors: OutputVector[]): [ /* returnType */ PollableReturn, /* bytes_written */ number ]
 
@@ -15604,6 +16885,7 @@ interface PowerProfileMonitor extends Initable {
      * You are expected to listen to the
      * #GPowerProfileMonitor::notify::power-saver-enabled signal to know when the profile has
      * changed.
+     * @returns Whether the system is in “Power Saver” mode.
      */
     get_power_saver_enabled(): boolean
 
@@ -15656,6 +16938,7 @@ class PowerProfileMonitor extends GObject.Object {
     _init(config?: PowerProfileMonitor.ConstructorProperties): void
     /**
      * Gets a reference to the default #GPowerProfileMonitor for the system.
+     * @returns a new reference to the default #GPowerProfileMonitor
      */
     static dup_default(): PowerProfileMonitor
 }
@@ -15681,6 +16964,7 @@ interface Proxy {
      * @param connection a #GIOStream
      * @param proxy_address a #GProxyAddress
      * @param cancellable a #GCancellable
+     * @returns a #GIOStream that will replace @connection. This might               be the same as @connection, in which case a reference               will be added.
      */
     connect(connection: IOStream, proxy_address: ProxyAddress, cancellable: Cancellable | null): IOStream
     /**
@@ -15691,9 +16975,23 @@ interface Proxy {
      * @param callback a #GAsyncReadyCallback
      */
     connect_async(connection: IOStream, proxy_address: ProxyAddress, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of connect_async
+
+    /**
+     * Promisified version of {@link connect_async}
+     * 
+     * Asynchronous version of g_proxy_connect().
+     * @param connection a #GIOStream
+     * @param proxy_address a #GProxyAddress
+     * @param cancellable a #GCancellable
+     * @returns A Promise of: a #GIOStream.
+     */
+    connect_async(connection: IOStream, proxy_address: ProxyAddress, cancellable: Cancellable | null): globalThis.Promise<IOStream>
     /**
      * See g_proxy_connect().
      * @param result a #GAsyncResult
+     * @returns a #GIOStream.
      */
     connect_finish(result: AsyncResult): IOStream
     /**
@@ -15704,6 +17002,7 @@ interface Proxy {
      * should resolve the destination hostname first, and then pass a
      * #GProxyAddress containing the stringified IP address to
      * g_proxy_connect() or g_proxy_connect_async().
+     * @returns %TRUE if hostname resolution is supported.
      */
     supports_hostname(): boolean
 
@@ -15718,6 +17017,7 @@ interface Proxy {
      * @param connection a #GIOStream
      * @param proxy_address a #GProxyAddress
      * @param cancellable a #GCancellable
+     * @returns a #GIOStream that will replace @connection. This might               be the same as @connection, in which case a reference               will be added.
      */
     vfunc_connect(connection: IOStream, proxy_address: ProxyAddress, cancellable: Cancellable | null): IOStream
     /**
@@ -15733,6 +17033,7 @@ interface Proxy {
      * See g_proxy_connect().
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns a #GIOStream.
      */
     vfunc_connect_finish(result: AsyncResult): IOStream
     /**
@@ -15744,6 +17045,7 @@ interface Proxy {
      * #GProxyAddress containing the stringified IP address to
      * g_proxy_connect() or g_proxy_connect_async().
      * @virtual 
+     * @returns %TRUE if hostname resolution is supported.
      */
     vfunc_supports_hostname(): boolean
 
@@ -15779,6 +17081,7 @@ class Proxy extends GObject.Object {
      * Find the `gio-proxy` extension point for a proxy implementation that supports
      * the specified protocol.
      * @param protocol the proxy protocol name (e.g. http, socks, etc)
+     * @returns return a #GProxy or NULL if protocol               is not supported.
      */
     static get_default_for_protocol(protocol: string): Proxy | null
 }
@@ -15800,6 +17103,7 @@ interface ProxyResolver {
      * Checks if `resolver` can be used on this system. (This is used
      * internally; g_proxy_resolver_get_default() will only return a proxy
      * resolver that returns %TRUE for this method.)
+     * @returns %TRUE if @resolver is supported.
      */
     is_supported(): boolean
     /**
@@ -15820,6 +17124,7 @@ interface ProxyResolver {
      * returned array of proxies.
      * @param uri a URI representing the destination to connect to
      * @param cancellable a #GCancellable, or %NULL
+     * @returns A               NULL-terminated array of proxy URIs. Must be freed               with g_strfreev().
      */
     lookup(uri: string, cancellable: Cancellable | null): string[]
     /**
@@ -15830,11 +17135,25 @@ interface ProxyResolver {
      * @param callback callback to call after resolution completes
      */
     lookup_async(uri: string, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_async
+
+    /**
+     * Promisified version of {@link lookup_async}
+     * 
+     * Asynchronous lookup of proxy. See g_proxy_resolver_lookup() for more
+     * details.
+     * @param uri a URI representing the destination to connect to
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: A               NULL-terminated array of proxy URIs. Must be freed               with g_strfreev().
+     */
+    lookup_async(uri: string, cancellable: Cancellable | null): globalThis.Promise<string[]>
     /**
      * Call this function to obtain the array of proxy URIs when
      * g_proxy_resolver_lookup_async() is complete. See
      * g_proxy_resolver_lookup() for more details.
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns A               NULL-terminated array of proxy URIs. Must be freed               with g_strfreev().
      */
     lookup_finish(result: AsyncResult): string[]
 
@@ -15845,6 +17164,7 @@ interface ProxyResolver {
      * internally; g_proxy_resolver_get_default() will only return a proxy
      * resolver that returns %TRUE for this method.)
      * @virtual 
+     * @returns %TRUE if @resolver is supported.
      */
     vfunc_is_supported(): boolean
     /**
@@ -15866,6 +17186,7 @@ interface ProxyResolver {
      * @virtual 
      * @param uri a URI representing the destination to connect to
      * @param cancellable a #GCancellable, or %NULL
+     * @returns A               NULL-terminated array of proxy URIs. Must be freed               with g_strfreev().
      */
     vfunc_lookup(uri: string, cancellable: Cancellable | null): string[]
     /**
@@ -15883,6 +17204,7 @@ interface ProxyResolver {
      * g_proxy_resolver_lookup() for more details.
      * @virtual 
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns A               NULL-terminated array of proxy URIs. Must be freed               with g_strfreev().
      */
     vfunc_lookup_finish(result: AsyncResult): string[]
 
@@ -15917,6 +17239,7 @@ class ProxyResolver extends GObject.Object {
     _init(config?: ProxyResolver.ConstructorProperties): void
     /**
      * Gets the default #GProxyResolver for the system.
+     * @returns the default #GProxyResolver, which     will be a dummy object if no proxy resolver is available
      */
     static get_default(): ProxyResolver
 }
@@ -16060,11 +17383,13 @@ interface Seekable {
 
     /**
      * Tests if the stream supports the #GSeekableIface.
+     * @returns %TRUE if @seekable can be seeked. %FALSE otherwise.
      */
     can_seek(): boolean
     /**
      * Tests if the length of the stream can be adjusted with
      * g_seekable_truncate().
+     * @returns %TRUE if the stream can be truncated, %FALSE otherwise.
      */
     can_truncate(): boolean
     /**
@@ -16085,10 +17410,12 @@ interface Seekable {
      * @param offset a #goffset.
      * @param type a #GSeekType.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if successful. If an error     has occurred, this function will return %FALSE and set @error     appropriately if present.
      */
     seek(offset: number, type: GLib.SeekType, cancellable: Cancellable | null): boolean
     /**
      * Tells the current position within the stream.
+     * @returns the (positive or zero) offset from the beginning of the buffer, zero if the target is not seekable.
      */
     tell(): number
     /**
@@ -16103,6 +17430,7 @@ interface Seekable {
      * partial result will be returned, without an error.
      * @param offset new length for `seekable,` in bytes.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if successful. If an error     has occurred, this function will return %FALSE and set @error     appropriately if present.
      */
     truncate(offset: number, cancellable: Cancellable | null): boolean
 
@@ -16111,12 +17439,14 @@ interface Seekable {
     /**
      * Tests if the stream supports the #GSeekableIface.
      * @virtual 
+     * @returns %TRUE if @seekable can be seeked. %FALSE otherwise.
      */
     vfunc_can_seek(): boolean
     /**
      * Tests if the length of the stream can be adjusted with
      * g_seekable_truncate().
      * @virtual 
+     * @returns %TRUE if the stream can be truncated, %FALSE otherwise.
      */
     vfunc_can_truncate(): boolean
     /**
@@ -16138,11 +17468,13 @@ interface Seekable {
      * @param offset a #goffset.
      * @param type a #GSeekType.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if successful. If an error     has occurred, this function will return %FALSE and set @error     appropriately if present.
      */
     vfunc_seek(offset: number, type: GLib.SeekType, cancellable: Cancellable | null): boolean
     /**
      * Tells the current position within the stream.
      * @virtual 
+     * @returns the (positive or zero) offset from the beginning of the buffer, zero if the target is not seekable.
      */
     vfunc_tell(): number
     /**
@@ -16158,6 +17490,7 @@ interface Seekable {
      * @virtual 
      * @param offset new length for `seekable,` in bytes.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if successful. If an error     has occurred, this function will return %FALSE and set @error     appropriately if present.
      */
     vfunc_truncate_fn(offset: number, cancellable: Cancellable | null): boolean
 
@@ -16214,6 +17547,7 @@ interface SocketConnectable {
 
     /**
      * Creates a #GSocketAddressEnumerator for `connectable`.
+     * @returns a new #GSocketAddressEnumerator.
      */
     enumerate(): SocketAddressEnumerator
     /**
@@ -16224,6 +17558,7 @@ interface SocketConnectable {
      * If `connectable` does not implement
      * g_socket_connectable_proxy_enumerate(), this will fall back to
      * calling g_socket_connectable_enumerate().
+     * @returns a new #GSocketAddressEnumerator.
      */
     proxy_enumerate(): SocketAddressEnumerator
     /**
@@ -16234,6 +17569,7 @@ interface SocketConnectable {
      * 
      * If the #GSocketConnectable implementation does not support string formatting,
      * the implementation’s type name will be returned as a fallback.
+     * @returns the formatted string
      */
     to_string(): string
 
@@ -16242,6 +17578,7 @@ interface SocketConnectable {
     /**
      * Creates a #GSocketAddressEnumerator for `connectable`.
      * @virtual 
+     * @returns a new #GSocketAddressEnumerator.
      */
     vfunc_enumerate(): SocketAddressEnumerator
     /**
@@ -16253,6 +17590,7 @@ interface SocketConnectable {
      * g_socket_connectable_proxy_enumerate(), this will fall back to
      * calling g_socket_connectable_enumerate().
      * @virtual 
+     * @returns a new #GSocketAddressEnumerator.
      */
     vfunc_proxy_enumerate(): SocketAddressEnumerator
     /**
@@ -16264,6 +17602,7 @@ interface SocketConnectable {
      * If the #GSocketConnectable implementation does not support string formatting,
      * the implementation’s type name will be returned as a fallback.
      * @virtual 
+     * @returns the formatted string
      */
     vfunc_to_string(): string
 
@@ -16365,30 +17704,37 @@ interface TlsBackend {
 
     /**
      * Gets the #GType of `backend'`s #GTlsCertificate implementation.
+     * @returns the #GType of @backend's #GTlsCertificate   implementation.
      */
     get_certificate_type(): GObject.GType
     /**
      * Gets the #GType of `backend'`s #GTlsClientConnection implementation.
+     * @returns the #GType of @backend's #GTlsClientConnection   implementation.
      */
     get_client_connection_type(): GObject.GType
     /**
      * Gets the default #GTlsDatabase used to verify TLS connections.
+     * @returns the default database, which should be               unreffed when done.
      */
     get_default_database(): TlsDatabase
     /**
      * Gets the #GType of `backend’`s #GDtlsClientConnection implementation.
+     * @returns the #GType of @backend’s #GDtlsClientConnection   implementation, or %G_TYPE_INVALID if this backend doesn’t support DTLS.
      */
     get_dtls_client_connection_type(): GObject.GType
     /**
      * Gets the #GType of `backend’`s #GDtlsServerConnection implementation.
+     * @returns the #GType of @backend’s #GDtlsServerConnection   implementation, or %G_TYPE_INVALID if this backend doesn’t support DTLS.
      */
     get_dtls_server_connection_type(): GObject.GType
     /**
      * Gets the #GType of `backend'`s #GTlsFileDatabase implementation.
+     * @returns the #GType of backend's #GTlsFileDatabase implementation.
      */
     get_file_database_type(): GObject.GType
     /**
      * Gets the #GType of `backend'`s #GTlsServerConnection implementation.
+     * @returns the #GType of @backend's #GTlsServerConnection   implementation.
      */
     get_server_connection_type(): GObject.GType
     /**
@@ -16406,11 +17752,13 @@ interface TlsBackend {
     /**
      * Checks if DTLS is supported. DTLS support may not be available even if TLS
      * support is available, and vice-versa.
+     * @returns whether DTLS is supported
      */
     supports_dtls(): boolean
     /**
      * Checks if TLS is supported; if this returns %FALSE for the default
      * #GTlsBackend, it means no "real" TLS backend is available.
+     * @returns whether or not TLS is supported
      */
     supports_tls(): boolean
 
@@ -16419,18 +17767,21 @@ interface TlsBackend {
     /**
      * Gets the default #GTlsDatabase used to verify TLS connections.
      * @virtual 
+     * @returns the default database, which should be               unreffed when done.
      */
     vfunc_get_default_database(): TlsDatabase
     /**
      * Checks if DTLS is supported. DTLS support may not be available even if TLS
      * support is available, and vice-versa.
      * @virtual 
+     * @returns whether DTLS is supported
      */
     vfunc_supports_dtls(): boolean
     /**
      * Checks if TLS is supported; if this returns %FALSE for the default
      * #GTlsBackend, it means no "real" TLS backend is available.
      * @virtual 
+     * @returns whether or not TLS is supported
      */
     vfunc_supports_tls(): boolean
 
@@ -16459,6 +17810,7 @@ class TlsBackend extends GObject.Object {
     _init(config?: TlsBackend.ConstructorProperties): void
     /**
      * Gets the default #GTlsBackend for the system.
+     * @returns a #GTlsBackend, which will be a     dummy object if no TLS backend is available
      */
     static get_default(): TlsBackend
 }
@@ -16618,15 +17970,18 @@ interface TlsClientConnection extends TlsConnection {
      * 
      * Each item in the list is a #GByteArray which contains the complete
      * subject DN of the certificate authority.
+     * @returns the list of CA DNs. You should unref each element with g_byte_array_unref() and then the free the list with g_list_free().
      */
     get_accepted_cas(): GLib.List[]
     /**
      * Gets `conn'`s expected server identity
+     * @returns a #GSocketConnectable describing the expected server identity, or %NULL if the expected identity is not known.
      */
     get_server_identity(): SocketConnectable | null
     /**
      * SSL 3.0 is no longer supported. See
      * g_tls_client_connection_set_use_ssl3() for details.
+     * @returns %FALSE
      */
     get_use_ssl3(): boolean
     /**
@@ -16635,6 +17990,7 @@ interface TlsClientConnection extends TlsConnection {
      * This function does not work as originally designed and is impossible
      * to use correctly. See #GTlsClientConnection:validation-flags for more
      * information.
+     * @returns the validation flags
      */
     get_validation_flags(): TlsCertificateFlags
     /**
@@ -16792,6 +18148,7 @@ class TlsClientConnection extends GObject.Object {
      * this function has returned.
      * @param base_io_stream the #GIOStream to wrap
      * @param server_identity the expected identity of the server
+     * @returns the new #GTlsClientConnection, or %NULL on error
      */
     static new(base_io_stream: IOStream, server_identity: SocketConnectable | null): TlsClientConnection
 }
@@ -16861,6 +18218,7 @@ class TlsFileDatabase extends GObject.Object {
      * 
      * The certificates in `anchors` must be PEM encoded.
      * @param anchors filename of anchor certificate authorities.
+     * @returns the new #GTlsFileDatabase, or %NULL on error
      */
     static new(anchors: string): TlsFileDatabase
 }
@@ -16973,6 +18331,7 @@ class TlsServerConnection extends GObject.Object {
      * this function has returned.
      * @param base_io_stream the #GIOStream to wrap
      * @param certificate the default server certificate, or %NULL
+     * @returns the new #GTlsServerConnection, or %NULL on error
      */
     static new(base_io_stream: IOStream, certificate: TlsCertificate | null): TlsServerConnection
 }
@@ -17009,10 +18368,12 @@ interface Volume {
 
     /**
      * Checks if a volume can be ejected.
+     * @returns %TRUE if the @volume can be ejected. %FALSE otherwise
      */
     can_eject(): boolean
     /**
      * Checks if a volume can be mounted.
+     * @returns %TRUE if the @volume can be mounted. %FALSE otherwise
      */
     can_mount(): boolean
     /**
@@ -17028,6 +18389,7 @@ interface Volume {
      * Finishes ejecting a volume. If any errors occurred during the operation,
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @param result a #GAsyncResult
+     * @returns %TRUE, %FALSE if operation failed
      */
     eject_finish(result: AsyncResult): boolean
     /**
@@ -17044,11 +18406,13 @@ interface Volume {
      * Finishes ejecting a volume. If any errors occurred during the operation,
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @param result a #GAsyncResult
+     * @returns %TRUE if the volume was successfully ejected. %FALSE otherwise
      */
     eject_with_operation_finish(result: AsyncResult): boolean
     /**
      * Gets the kinds of [identifiers][volume-identifier] that `volume` has.
      * Use g_volume_get_identifier() to obtain the identifiers themselves.
+     * @returns a %NULL-terminated array   of strings containing kinds of identifiers. Use g_strfreev() to free.
      */
     enumerate_identifiers(): string[]
     /**
@@ -17082,14 +18446,17 @@ interface Volume {
      * Activation roots are typically used in #GVolumeMonitor
      * implementations to find the underlying mount to shadow, see
      * g_mount_is_shadowed() for more details.
+     * @returns the activation root of @volume     or %NULL. Use g_object_unref() to free.
      */
     get_activation_root(): File | null
     /**
      * Gets the drive for the `volume`.
+     * @returns a #GDrive or %NULL if @volume is not     associated with a drive. The returned object should be unreffed     with g_object_unref() when no longer needed.
      */
     get_drive(): Drive | null
     /**
      * Gets the icon for `volume`.
+     * @returns a #GIcon.     The returned object should be unreffed with g_object_unref()     when no longer needed.
      */
     get_icon(): Icon
     /**
@@ -17097,22 +18464,27 @@ interface Volume {
      * See the [introduction][volume-identifier] for more
      * information about volume identifiers.
      * @param kind the kind of identifier to return
+     * @returns a newly allocated string containing the     requested identifier, or %NULL if the #GVolume     doesn't have this kind of identifier
      */
     get_identifier(kind: string): string | null
     /**
      * Gets the mount for the `volume`.
+     * @returns a #GMount or %NULL if @volume isn't mounted.     The returned object should be unreffed with g_object_unref()     when no longer needed.
      */
     get_mount(): Mount | null
     /**
      * Gets the name of `volume`.
+     * @returns the name for the given @volume. The returned string should     be freed with g_free() when no longer needed.
      */
     get_name(): string
     /**
      * Gets the sort key for `volume,` if any.
+     * @returns Sorting key for @volume or %NULL if no such key is available
      */
     get_sort_key(): string | null
     /**
      * Gets the symbolic icon for `volume`.
+     * @returns a #GIcon.     The returned object should be unreffed with g_object_unref()     when no longer needed.
      */
     get_symbolic_icon(): Icon
     /**
@@ -17120,6 +18492,7 @@ interface Volume {
      * the file system UUID for the volume in question and should be
      * considered an opaque string. Returns %NULL if there is no UUID
      * available.
+     * @returns the UUID for @volume or %NULL if no UUID     can be computed.     The returned string should be freed with g_free()     when no longer needed.
      */
     get_uuid(): string | null
     /**
@@ -17141,10 +18514,12 @@ interface Volume {
      * function; there's no need to listen for the 'mount-added' signal on
      * #GVolumeMonitor.
      * @param result a #GAsyncResult
+     * @returns %TRUE, %FALSE if operation failed
      */
     mount_finish(result: AsyncResult): boolean
     /**
      * Returns whether the volume should be automatically mounted.
+     * @returns %TRUE if the volume should be automatically mounted
      */
     should_automount(): boolean
 
@@ -17153,11 +18528,13 @@ interface Volume {
     /**
      * Checks if a volume can be ejected.
      * @virtual 
+     * @returns %TRUE if the @volume can be ejected. %FALSE otherwise
      */
     vfunc_can_eject(): boolean
     /**
      * Checks if a volume can be mounted.
      * @virtual 
+     * @returns %TRUE if the @volume can be mounted. %FALSE otherwise
      */
     vfunc_can_mount(): boolean
     vfunc_changed(): void
@@ -17176,6 +18553,7 @@ interface Volume {
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE, %FALSE if operation failed
      */
     vfunc_eject_finish(result: AsyncResult): boolean
     /**
@@ -17194,12 +18572,14 @@ interface Volume {
      * `error` will be set to contain the errors and %FALSE will be returned.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if the volume was successfully ejected. %FALSE otherwise
      */
     vfunc_eject_with_operation_finish(result: AsyncResult): boolean
     /**
      * Gets the kinds of [identifiers][volume-identifier] that `volume` has.
      * Use g_volume_get_identifier() to obtain the identifiers themselves.
      * @virtual 
+     * @returns a %NULL-terminated array   of strings containing kinds of identifiers. Use g_strfreev() to free.
      */
     vfunc_enumerate_identifiers(): string[]
     /**
@@ -17234,16 +18614,19 @@ interface Volume {
      * implementations to find the underlying mount to shadow, see
      * g_mount_is_shadowed() for more details.
      * @virtual 
+     * @returns the activation root of @volume     or %NULL. Use g_object_unref() to free.
      */
     vfunc_get_activation_root(): File | null
     /**
      * Gets the drive for the `volume`.
      * @virtual 
+     * @returns a #GDrive or %NULL if @volume is not     associated with a drive. The returned object should be unreffed     with g_object_unref() when no longer needed.
      */
     vfunc_get_drive(): Drive | null
     /**
      * Gets the icon for `volume`.
      * @virtual 
+     * @returns a #GIcon.     The returned object should be unreffed with g_object_unref()     when no longer needed.
      */
     vfunc_get_icon(): Icon
     /**
@@ -17252,26 +18635,31 @@ interface Volume {
      * information about volume identifiers.
      * @virtual 
      * @param kind the kind of identifier to return
+     * @returns a newly allocated string containing the     requested identifier, or %NULL if the #GVolume     doesn't have this kind of identifier
      */
     vfunc_get_identifier(kind: string): string | null
     /**
      * Gets the mount for the `volume`.
      * @virtual 
+     * @returns a #GMount or %NULL if @volume isn't mounted.     The returned object should be unreffed with g_object_unref()     when no longer needed.
      */
     vfunc_get_mount(): Mount | null
     /**
      * Gets the name of `volume`.
      * @virtual 
+     * @returns the name for the given @volume. The returned string should     be freed with g_free() when no longer needed.
      */
     vfunc_get_name(): string
     /**
      * Gets the sort key for `volume,` if any.
      * @virtual 
+     * @returns Sorting key for @volume or %NULL if no such key is available
      */
     vfunc_get_sort_key(): string | null
     /**
      * Gets the symbolic icon for `volume`.
      * @virtual 
+     * @returns a #GIcon.     The returned object should be unreffed with g_object_unref()     when no longer needed.
      */
     vfunc_get_symbolic_icon(): Icon
     /**
@@ -17280,6 +18668,7 @@ interface Volume {
      * considered an opaque string. Returns %NULL if there is no UUID
      * available.
      * @virtual 
+     * @returns the UUID for @volume or %NULL if no UUID     can be computed.     The returned string should be freed with g_free()     when no longer needed.
      */
     vfunc_get_uuid(): string | null
     /**
@@ -17292,6 +18681,7 @@ interface Volume {
      * #GVolumeMonitor.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE, %FALSE if operation failed
      */
     vfunc_mount_finish(result: AsyncResult): boolean
     /**
@@ -17309,6 +18699,7 @@ interface Volume {
     /**
      * Returns whether the volume should be automatically mounted.
      * @virtual 
+     * @returns %TRUE if the volume should be automatically mounted
      */
     vfunc_should_automount(): boolean
 
@@ -17451,6 +18842,43 @@ export class DBusExportedObject {
     emit_property_changed(name: string, variant: GLib.Variant): void;
 }
 
+/**
+ * A convenient helper to create Promise wrappers for asynchronous functions in GJS.
+ * 
+ * This utility replaces the original function on the class prototype with a Promise-based version,
+ * allowing the function to be called on any instance of the class, including subclasses.
+ * Simply pass the class prototype, the "async" function name, and the "finish" function name as arguments.
+ * 
+ * The function can be used like any other Promise, without the need for a custom wrapper, by leaving out the callback argument.
+ * The original function will still be available, and can be used by passing the callback.
+ * 
+ * @param proto - The class prototype that contains the asynchronous function.
+ * @param asyncFunc - The name of the asynchronous function.
+ * @param finishFunc - The name of the "finish" function that is used to retrieve the result of the asynchronous function.
+ * 
+ * @version Gjs 1.54
+ * @see https://gjs.guide/guides/gjs/asynchronous-programming.html#promisify-helper
+ * 
+ * @example
+ * ```js
+ * import Gio from "gi://Gio";
+ * 
+ * Gio._promisify(Gio.InputStream.prototype, 'read_bytes_async', 'read_bytes_finish');
+ * 
+ * try {
+ *    const inputStream = new Gio.UnixInputStream({fd: 0});
+ *    const bytes = await inputStream.read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null);
+ * } catch (e) {
+ *    logError(e, 'Failed to read bytes');
+ * }
+ * ```
+ * 
+ */
+export function _promisify(proto: any, asyncFunc: string, finishFunc?: string): void;
+
+/** Temporary Gio.File.prototype fix */
+export const _LocalFilePrototype: typeof File.prototype;
+
 module AppInfoMonitor {
 
     // Signal callback interfaces
@@ -17527,6 +18955,7 @@ class AppInfoMonitor extends GObject.Object {
      * 
      * You must only call g_object_unref() on the return value from under
      * the same main context as you created it.
+     * @returns a reference to a #GAppInfoMonitor
      */
     static get(): AppInfoMonitor
 }
@@ -17578,6 +19007,7 @@ interface AppLaunchContext {
      * application, by setting the `DISPLAY` environment variable.
      * @param info a #GAppInfo
      * @param files a #GList of #GFile objects
+     * @returns a display string for the display.
      */
     get_display(info: AppInfo, files: File[]): string | null
     /**
@@ -17585,6 +19015,7 @@ interface AppLaunchContext {
      * the child process when `context` is used to launch an application.
      * This is a %NULL-terminated array of strings, where each string has
      * the form `KEY=VALUE`.
+     * @returns      the child's environment
      */
     get_environment(): string[]
     /**
@@ -17595,6 +19026,7 @@ interface AppLaunchContext {
      * [FreeDesktop.Org Startup Notifications standard](http://standards.freedesktop.org/startup-notification-spec/startup-notification-latest.txt).
      * @param info a #GAppInfo
      * @param files a #GList of of #GFile objects
+     * @returns a startup notification ID for the application, or %NULL if     not supported.
      */
     get_startup_notify_id(info: AppInfo, files: File[]): string | null
     /**
@@ -17626,6 +19058,7 @@ interface AppLaunchContext {
      * @virtual 
      * @param info a #GAppInfo
      * @param files a #GList of #GFile objects
+     * @returns a display string for the display.
      */
     vfunc_get_display(info: AppInfo, files: File[]): string | null
     /**
@@ -17637,6 +19070,7 @@ interface AppLaunchContext {
      * @virtual 
      * @param info a #GAppInfo
      * @param files a #GList of of #GFile objects
+     * @returns a startup notification ID for the application, or %NULL if     not supported.
      */
     vfunc_get_startup_notify_id(info: AppInfo, files: File[]): string | null
     /**
@@ -17689,12 +19123,14 @@ class AppLaunchContext extends GObject.Object {
      * Creates a new application launch context. This is not normally used,
      * instead you instantiate a subclass of this, such as #GdkAppLaunchContext.
      * @constructor 
+     * @returns a #GAppLaunchContext.
      */
     constructor() 
     /**
      * Creates a new application launch context. This is not normally used,
      * instead you instantiate a subclass of this, such as #GdkAppLaunchContext.
      * @constructor 
+     * @returns a #GAppLaunchContext.
      */
     static new(): AppLaunchContext
     _init(config?: AppLaunchContext.ConstructorProperties): void
@@ -17919,6 +19355,7 @@ interface Application extends ActionGroup, ActionMap {
     bind_busy_property(object: GObject.Object, property: string): void
     /**
      * Gets the unique identifier for `application`.
+     * @returns the identifier for @application, owned by @application
      */
     get_application_id(): string | null
     /**
@@ -17935,6 +19372,7 @@ interface Application extends ActionGroup, ActionMap {
      * 
      * This function must not be called before the application has been
      * registered.  See g_application_get_is_registered().
+     * @returns a #GDBusConnection, or %NULL
      */
     get_dbus_connection(): DBusConnection | null
     /**
@@ -17952,12 +19390,14 @@ interface Application extends ActionGroup, ActionMap {
      * 
      * This function must not be called before the application has been
      * registered.  See g_application_get_is_registered().
+     * @returns the object path, or %NULL
      */
     get_dbus_object_path(): string | null
     /**
      * Gets the flags for `application`.
      * 
      * See #GApplicationFlags.
+     * @returns the flags for @application
      */
     get_flags(): ApplicationFlags
     /**
@@ -17965,11 +19405,13 @@ interface Application extends ActionGroup, ActionMap {
      * 
      * This is the amount of time (in milliseconds) after the last call to
      * g_application_release() before the application stops running.
+     * @returns the timeout, in milliseconds
      */
     get_inactivity_timeout(): number
     /**
      * Gets the application's current busy state, as set through
      * g_application_mark_busy() or g_application_bind_busy_property().
+     * @returns %TRUE if @application is currently marked as busy
      */
     get_is_busy(): boolean
     /**
@@ -17977,6 +19419,7 @@ interface Application extends ActionGroup, ActionMap {
      * 
      * An application is registered if g_application_register() has been
      * successfully called.
+     * @returns %TRUE if @application is registered
      */
     get_is_registered(): boolean
     /**
@@ -17990,12 +19433,14 @@ interface Application extends ActionGroup, ActionMap {
      * The value of this property cannot be accessed before
      * g_application_register() has been called.  See
      * g_application_get_is_registered().
+     * @returns %TRUE if @application is remote
      */
     get_is_remote(): boolean
     /**
      * Gets the resource base path of `application`.
      * 
      * See g_application_set_resource_base_path() for more information.
+     * @returns the base resource path, if one is set
      */
     get_resource_base_path(): string | null
     /**
@@ -18090,6 +19535,7 @@ interface Application extends ActionGroup, ActionMap {
      * instance is or is not the primary instance of the application.  See
      * g_application_get_is_remote() for that.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if registration succeeded
      */
     register(cancellable: Cancellable | null): boolean
     /**
@@ -18178,6 +19624,7 @@ interface Application extends ActionGroup, ActionMap {
      * control over when processes invoked via the commandline will exit and
      * what their exit status will be.
      * @param argv      the argv from main(), or %NULL
+     * @returns the exit status
      */
     run(argv: string[] | null): number
     /**
@@ -18388,6 +19835,7 @@ interface Application extends ActionGroup, ActionMap {
      * See g_application_run() for more details on #GApplication startup.
      * @virtual 
      * @param arguments_ array of command line arguments
+     * @returns %TRUE if the commandline has been completely handled
      */
     vfunc_local_command_line(arguments_: string[]): [ /* returnType */ boolean, /* arguments_ */ string[], /* exit_status */ number ]
     vfunc_name_lost(): boolean
@@ -18610,6 +20058,7 @@ class Application extends GObject.Object {
      * @constructor 
      * @param application_id the application id
      * @param flags the application flags
+     * @returns a new #GApplication instance
      */
     constructor(application_id: string | null, flags: ApplicationFlags) 
     /**
@@ -18623,6 +20072,7 @@ class Application extends GObject.Object {
      * @constructor 
      * @param application_id the application id
      * @param flags the application flags
+     * @returns a new #GApplication instance
      */
     static new(application_id: string | null, flags: ApplicationFlags): Application
     _init(config?: Application.ConstructorProperties): void
@@ -18634,6 +20084,7 @@ class Application extends GObject.Object {
      * this by using g_application_set_default().
      * 
      * If there is no default application then %NULL is returned.
+     * @returns the default application for this process, or %NULL
      */
     static get_default(): Application | null
     /**
@@ -18683,6 +20134,7 @@ class Application extends GObject.Object {
      * For example, if the owner of 7-zip.org used an application identifier for an
      * archiving application, it might be named `org._7_zip.Archiver`.
      * @param application_id a potential application identifier
+     * @returns %TRUE if @application_id is valid
      */
     static id_is_valid(application_id: string): boolean
 }
@@ -18721,6 +20173,7 @@ interface ApplicationCommandLine {
      * resolves relative pathnames using the current working directory of
      * the invoking process rather than the local process.
      * @param arg an argument from `cmdline`
+     * @returns a new #GFile
      */
     create_file_for_arg(arg: string): File
     /**
@@ -18735,6 +20188,7 @@ interface ApplicationCommandLine {
      * 
      * The return value is %NULL-terminated and should be freed using
      * g_strfreev().
+     * @returns       the string array containing the arguments (the argv)
      */
     get_arguments(): string[]
     /**
@@ -18746,6 +20200,7 @@ interface ApplicationCommandLine {
      * 
      * The return value should not be modified or freed and is valid for as
      * long as `cmdline` exists.
+     * @returns the current directory, or %NULL
      */
     get_cwd(): string | null
     /**
@@ -18764,15 +20219,18 @@ interface ApplicationCommandLine {
      * 
      * See g_application_command_line_getenv() if you are only interested
      * in the value of a single environment variable.
+     * @returns      the environment strings, or %NULL if they were not sent
      */
     get_environ(): string[]
     /**
      * Gets the exit status of `cmdline`.  See
      * g_application_command_line_set_exit_status() for more information.
+     * @returns the exit status
      */
     get_exit_status(): number
     /**
      * Determines if `cmdline` represents a remote invocation.
+     * @returns %TRUE if the invocation was remote
      */
     get_is_remote(): boolean
     /**
@@ -18785,6 +20243,7 @@ interface ApplicationCommandLine {
      * 
      * If no options were sent then an empty dictionary is returned so that
      * you don't need to check for %NULL.
+     * @returns a #GVariantDict with the options
      */
     get_options_dict(): GLib.VariantDict
     /**
@@ -18796,6 +20255,7 @@ interface ApplicationCommandLine {
      * notification ID.
      * 
      * For local invocation, it will be %NULL.
+     * @returns the platform data, or %NULL
      */
     get_platform_data(): GLib.Variant | null
     /**
@@ -18809,6 +20269,7 @@ interface ApplicationCommandLine {
      * future, support may be expanded to other platforms.
      * 
      * You must only call this function once per commandline invocation.
+     * @returns a #GInputStream for stdin
      */
     get_stdin(): InputStream | null
     /**
@@ -18824,6 +20285,7 @@ interface ApplicationCommandLine {
      * The return value should not be modified or freed and is valid for as
      * long as `cmdline` exists.
      * @param name the environment variable to get
+     * @returns the value of the variable, or %NULL if unset or unsent
      */
     getenv(name: string): string | null
     /**
@@ -18866,6 +20328,7 @@ interface ApplicationCommandLine {
      * 
      * You must only call this function once per commandline invocation.
      * @virtual 
+     * @returns a #GInputStream for stdin
      */
     vfunc_get_stdin(): InputStream | null
     vfunc_print_literal(message: string): void
@@ -19125,6 +20588,7 @@ interface BufferedInputStream extends Seekable {
      * g_buffered_input_stream_fill_async().
      * @param count the number of bytes that will be read from the stream
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns the number of bytes read into @stream's buffer, up to @count,     or -1 on error.
      */
     fill(count: number, cancellable: Cancellable | null): number
     /**
@@ -19140,17 +20604,38 @@ interface BufferedInputStream extends Seekable {
      * @param callback a #GAsyncReadyCallback
      */
     fill_async(count: number, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of fill_async
+
+    /**
+     * Promisified version of {@link fill_async}
+     * 
+     * Reads data into `stream'`s buffer asynchronously, up to `count` size.
+     * `io_priority` can be used to prioritize reads. For the synchronous
+     * version of this function, see g_buffered_input_stream_fill().
+     * 
+     * If `count` is -1 then the attempted read size is equal to the number
+     * of bytes that are required to fill the buffer.
+     * @param count the number of bytes that will be read from the stream
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object
+     * @returns A Promise of: a #gssize of the read stream, or `-1` on an error.
+     */
+    fill_async(count: number, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<number>
     /**
      * Finishes an asynchronous read.
      * @param result a #GAsyncResult
+     * @returns a #gssize of the read stream, or `-1` on an error.
      */
     fill_finish(result: AsyncResult): number
     /**
      * Gets the size of the available data within the stream.
+     * @returns size of the available stream.
      */
     get_available(): number
     /**
      * Gets the size of the input buffer.
+     * @returns the current buffer size.
      */
     get_buffer_size(): number
     /**
@@ -19158,12 +20643,14 @@ interface BufferedInputStream extends Seekable {
      * offset `offset` bytes.
      * @param buffer a pointer to   an allocated chunk of memory
      * @param offset a #gsize
+     * @returns a #gsize of the number of bytes peeked, or -1 on error.
      */
     peek(buffer: Uint8Array, offset: number): number
     /**
      * Returns the buffer with the currently available bytes. The returned
      * buffer must not be modified and will become invalid when reading from
      * the stream or filling the buffer.
+     * @returns           read-only buffer
      */
     peek_buffer(): Uint8Array
     /**
@@ -19181,6 +20668,7 @@ interface BufferedInputStream extends Seekable {
      * 
      * On error -1 is returned and `error` is set accordingly.
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns the byte read from the @stream, or -1 on end of stream or error.
      */
     read_byte(cancellable: Cancellable | null): number
     /**
@@ -19221,6 +20709,7 @@ interface BufferedInputStream extends Seekable {
      * @virtual 
      * @param count the number of bytes that will be read from the stream
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns the number of bytes read into @stream's buffer, up to @count,     or -1 on error.
      */
     vfunc_fill(count: number, cancellable: Cancellable | null): number
     /**
@@ -19241,6 +20730,7 @@ interface BufferedInputStream extends Seekable {
      * Finishes an asynchronous read.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns a #gssize of the read stream, or `-1` on an error.
      */
     vfunc_fill_finish(result: AsyncResult): number
 
@@ -19290,6 +20780,7 @@ class BufferedInputStream extends FilterInputStream {
      * a buffer set to the default size (4 kilobytes).
      * @constructor 
      * @param base_stream a #GInputStream
+     * @returns a #GInputStream for the given @base_stream.
      */
     constructor(base_stream: InputStream) 
     /**
@@ -19297,6 +20788,7 @@ class BufferedInputStream extends FilterInputStream {
      * a buffer set to the default size (4 kilobytes).
      * @constructor 
      * @param base_stream a #GInputStream
+     * @returns a #GInputStream for the given @base_stream.
      */
     static new(base_stream: InputStream): BufferedInputStream
     /**
@@ -19305,6 +20797,7 @@ class BufferedInputStream extends FilterInputStream {
      * @constructor 
      * @param base_stream a #GInputStream
      * @param size a #gsize
+     * @returns a #GInputStream.
      */
     static new_sized(base_stream: InputStream, size: number): BufferedInputStream
     _init(config?: BufferedInputStream.ConstructorProperties): void
@@ -19340,10 +20833,12 @@ interface BufferedOutputStream extends Seekable {
 
     /**
      * Checks if the buffer automatically grows as data is added.
+     * @returns %TRUE if the @stream's buffer automatically grows, %FALSE otherwise.
      */
     get_auto_grow(): boolean
     /**
      * Gets the size of the buffer in the `stream`.
+     * @returns the current size of the buffer.
      */
     get_buffer_size(): number
     /**
@@ -19408,12 +20903,14 @@ class BufferedOutputStream extends FilterOutputStream {
      * Creates a new buffered output stream for a base stream.
      * @constructor 
      * @param base_stream a #GOutputStream.
+     * @returns a #GOutputStream for the given @base_stream.
      */
     constructor(base_stream: OutputStream) 
     /**
      * Creates a new buffered output stream for a base stream.
      * @constructor 
      * @param base_stream a #GOutputStream.
+     * @returns a #GOutputStream for the given @base_stream.
      */
     static new(base_stream: OutputStream): BufferedOutputStream
     /**
@@ -19421,6 +20918,7 @@ class BufferedOutputStream extends FilterOutputStream {
      * @constructor 
      * @param base_stream a #GOutputStream.
      * @param size a #gsize.
+     * @returns a #GOutputStream with an internal buffer set to @size.
      */
     static new_sized(base_stream: OutputStream, size: number): BufferedOutputStream
     _init(config?: BufferedOutputStream.ConstructorProperties): void
@@ -19455,6 +20953,7 @@ interface BytesIcon extends Icon, LoadableIcon {
 
     /**
      * Gets the #GBytes associated with the given `icon`.
+     * @returns a #GBytes.
      */
     get_bytes(): GLib.Bytes
 
@@ -19491,6 +20990,7 @@ class BytesIcon extends GObject.Object {
      * (for example, if g_loadable_icon_load() is called) if the image is invalid.
      * @constructor 
      * @param bytes a #GBytes.
+     * @returns a #GIcon for the given   @bytes.
      */
     constructor(bytes: GLib.Bytes) 
     /**
@@ -19500,6 +21000,7 @@ class BytesIcon extends GObject.Object {
      * (for example, if g_loadable_icon_load() is called) if the image is invalid.
      * @constructor 
      * @param bytes a #GBytes.
+     * @returns a #GIcon for the given   @bytes.
      */
     static new(bytes: GLib.Bytes): BytesIcon
     _init(config?: BytesIcon.ConstructorProperties): void
@@ -19571,6 +21072,7 @@ interface Cancellable {
      * earlier GLib versions which now makes it easier to write cleanup
      * code that unconditionally invokes e.g. g_cancellable_cancel().
      * @param callback The #GCallback to connect.
+     * @returns The id of the signal handler or 0 if @cancellable has already          been cancelled.
      */
     connect(callback: GObject.Callback): number
     /**
@@ -19605,10 +21107,12 @@ interface Cancellable {
      * the returned file descriptor.
      * 
      * See also g_cancellable_make_pollfd().
+     * @returns A valid file descriptor. `-1` if the file descriptor is not supported, or on errors.
      */
     get_fd(): number
     /**
      * Checks if a cancellable job has been cancelled.
+     * @returns %TRUE if @cancellable is cancelled, FALSE if called with %NULL or if item is not cancelled.
      */
     is_cancelled(): boolean
     /**
@@ -19631,6 +21135,7 @@ interface Cancellable {
      * readable status. Reading to unset the readable status is done
      * with g_cancellable_reset().
      * @param pollfd a pointer to a #GPollFD
+     * @returns %TRUE if @pollfd was successfully initialized, %FALSE on          failure to prepare the cancellable.
      */
     make_pollfd(pollfd: GLib.PollFD): boolean
     /**
@@ -19678,6 +21183,7 @@ interface Cancellable {
     /**
      * If the `cancellable` is cancelled, sets the error to notify
      * that the operation was cancelled.
+     * @returns %TRUE if @cancellable was cancelled, %FALSE if it was not
      */
     set_error_if_cancelled(): boolean
     /**
@@ -19690,6 +21196,7 @@ interface Cancellable {
      * in which case the source will never trigger.
      * 
      * The new #GSource will hold a reference to the #GCancellable.
+     * @returns the new #GSource.
      */
     source_new(): GLib.Source
 
@@ -19737,6 +21244,7 @@ class Cancellable extends GObject.Object {
      * One #GCancellable can be used in multiple consecutive
      * operations or in multiple concurrent operations.
      * @constructor 
+     * @returns a #GCancellable.
      */
     constructor() 
     /**
@@ -19749,11 +21257,13 @@ class Cancellable extends GObject.Object {
      * One #GCancellable can be used in multiple consecutive
      * operations or in multiple concurrent operations.
      * @constructor 
+     * @returns a #GCancellable.
      */
     static new(): Cancellable
     _init(config?: Cancellable.ConstructorProperties): void
     /**
      * Gets the top cancellable from the stack.
+     * @returns a #GCancellable from the top of the stack, or %NULL if the stack is empty.
      */
     static get_current(): Cancellable | null
 }
@@ -19785,10 +21295,12 @@ interface CharsetConverter extends Converter, Initable {
 
     /**
      * Gets the number of fallbacks that `converter` has applied so far.
+     * @returns the number of fallbacks that @converter has applied
      */
     get_num_fallbacks(): number
     /**
      * Gets the #GCharsetConverter:use-fallback property.
+     * @returns %TRUE if fallbacks are used by @converter
      */
     get_use_fallback(): boolean
     /**
@@ -19834,6 +21346,7 @@ class CharsetConverter extends GObject.Object {
      * @constructor 
      * @param to_charset destination charset
      * @param from_charset source charset
+     * @returns a new #GCharsetConverter or %NULL on error.
      */
     constructor(to_charset: string, from_charset: string) 
     /**
@@ -19841,6 +21354,7 @@ class CharsetConverter extends GObject.Object {
      * @constructor 
      * @param to_charset destination charset
      * @param from_charset source charset
+     * @returns a new #GCharsetConverter or %NULL on error.
      */
     static new(to_charset: string, from_charset: string): CharsetConverter
     _init(config?: CharsetConverter.ConstructorProperties): void
@@ -19873,6 +21387,7 @@ interface ConverterInputStream extends PollableInputStream {
 
     /**
      * Gets the #GConverter that is used by `converter_stream`.
+     * @returns the converter of the converter input stream
      */
     get_converter(): Converter
 
@@ -19913,6 +21428,7 @@ class ConverterInputStream extends FilterInputStream {
      * @constructor 
      * @param base_stream a #GInputStream
      * @param converter a #GConverter
+     * @returns a new #GInputStream.
      */
     constructor(base_stream: InputStream, converter: Converter) 
     /**
@@ -19920,6 +21436,7 @@ class ConverterInputStream extends FilterInputStream {
      * @constructor 
      * @param base_stream a #GInputStream
      * @param converter a #GConverter
+     * @returns a new #GInputStream.
      */
     static new(base_stream: InputStream, converter: Converter): ConverterInputStream
     _init(config?: ConverterInputStream.ConstructorProperties): void
@@ -19952,6 +21469,7 @@ interface ConverterOutputStream extends PollableOutputStream {
 
     /**
      * Gets the #GConverter that is used by `converter_stream`.
+     * @returns the converter of the converter output stream
      */
     get_converter(): Converter
 
@@ -19992,6 +21510,7 @@ class ConverterOutputStream extends FilterOutputStream {
      * @constructor 
      * @param base_stream a #GOutputStream
      * @param converter a #GConverter
+     * @returns a new #GOutputStream.
      */
     constructor(base_stream: OutputStream, converter: Converter) 
     /**
@@ -19999,6 +21518,7 @@ class ConverterOutputStream extends FilterOutputStream {
      * @constructor 
      * @param base_stream a #GOutputStream
      * @param converter a #GConverter
+     * @returns a new #GOutputStream.
      */
     static new(base_stream: OutputStream, converter: Converter): ConverterOutputStream
     _init(config?: ConverterOutputStream.ConstructorProperties): void
@@ -20024,6 +21544,7 @@ interface Credentials {
      * This operation can fail if #GCredentials is not supported on the
      * OS or if the native credentials type does not contain information
      * about the UNIX process ID.
+     * @returns The UNIX process ID, or `-1` if @error is set.
      */
     get_unix_pid(): number
     /**
@@ -20033,6 +21554,7 @@ interface Credentials {
      * This operation can fail if #GCredentials is not supported on the
      * OS or if the native credentials type does not contain information
      * about the UNIX user.
+     * @returns The UNIX user identifier or `-1` if @error is set.
      */
     get_unix_user(): number
     /**
@@ -20041,6 +21563,7 @@ interface Credentials {
      * This operation can fail if #GCredentials is not supported on the
      * the OS.
      * @param other_credentials A #GCredentials.
+     * @returns %TRUE if @credentials and @other_credentials has the same user, %FALSE otherwise or if @error is set.
      */
     is_same_user(other_credentials: Credentials): boolean
     /**
@@ -20063,12 +21586,14 @@ interface Credentials {
      * about the UNIX user. It can also fail if the OS does not allow the
      * use of "spoofed" credentials.
      * @param uid The UNIX user identifier to set.
+     * @returns %TRUE if @uid was set, %FALSE if error is set.
      */
     set_unix_user(uid: number): boolean
     /**
      * Creates a human-readable textual representation of `credentials`
      * that can be used in logging and debug messages. The format of the
      * returned string may change in future GLib release.
+     * @returns A string that should be freed with g_free().
      */
     to_string(): string
 
@@ -20134,12 +21659,14 @@ class Credentials extends GObject.Object {
      * Creates a new #GCredentials object with credentials matching the
      * the current process.
      * @constructor 
+     * @returns A #GCredentials. Free with g_object_unref().
      */
     constructor() 
     /**
      * Creates a new #GCredentials object with credentials matching the
      * the current process.
      * @constructor 
+     * @returns A #GCredentials. Free with g_object_unref().
      */
     static new(): Credentials
     _init(config?: Credentials.ConstructorProperties): void
@@ -20198,6 +21725,7 @@ class DBusActionGroup extends GObject.Object {
      * @param connection A #GDBusConnection
      * @param bus_name the bus name which exports the action     group or %NULL if `connection` is not a message bus connection
      * @param object_path the object path at which the action group is exported
+     * @returns a #GDBusActionGroup
      */
     static get(connection: DBusConnection, bus_name: string | null, object_path: string): DBusActionGroup
 }
@@ -20235,12 +21763,14 @@ interface DBusAuthObserver {
     /**
      * Emits the #GDBusAuthObserver::allow-mechanism signal on `observer`.
      * @param mechanism The name of the mechanism, e.g. `DBUS_COOKIE_SHA1`.
+     * @returns %TRUE if @mechanism can be used to authenticate the other peer, %FALSE if not.
      */
     allow_mechanism(mechanism: string): boolean
     /**
      * Emits the #GDBusAuthObserver::authorize-authenticated-peer signal on `observer`.
      * @param stream A #GIOStream for the #GDBusConnection.
      * @param credentials Credentials received from the peer or %NULL.
+     * @returns %TRUE if the peer is authorized, %FALSE if not.
      */
     authorize_authenticated_peer(stream: IOStream, credentials: Credentials | null): boolean
 
@@ -20343,11 +21873,13 @@ class DBusAuthObserver extends GObject.Object {
     /**
      * Creates a new #GDBusAuthObserver object.
      * @constructor 
+     * @returns A #GDBusAuthObserver. Free with g_object_unref().
      */
     constructor() 
     /**
      * Creates a new #GDBusAuthObserver object.
      * @constructor 
+     * @returns A #GDBusAuthObserver. Free with g_object_unref().
      */
     static new(): DBusAuthObserver
     _init(config?: DBusAuthObserver.ConstructorProperties): void
@@ -20541,6 +22073,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * filter is removed, and may be called after `connection` has been
      * destroyed.)
      * @param filter_function a filter function
+     * @returns a filter identifier that can be used with     g_dbus_connection_remove_filter()
      */
     add_filter(filter_function: DBusMessageFilterFunction): number
     /**
@@ -20606,6 +22139,7 @@ interface DBusConnection extends AsyncInitable, Initable {
     /**
      * Finishes an operation started with g_dbus_connection_call().
      * @param res a #GAsyncResult obtained from the #GAsyncReadyCallback passed to g_dbus_connection_call()
+     * @returns %NULL if @error is set. Otherwise a non-floating     #GVariant tuple with return values. Free with g_variant_unref().
      */
     call_finish(res: AsyncResult): GLib.Variant
     /**
@@ -20656,6 +22190,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * @param flags flags from the #GDBusCallFlags enumeration
      * @param timeout_msec the timeout in milliseconds, -1 to use the default     timeout or %G_MAXINT for no timeout
      * @param cancellable a #GCancellable or %NULL
+     * @returns %NULL if @error is set. Otherwise a non-floating     #GVariant tuple with return values. Free with g_variant_unref().
      */
     call_sync(bus_name: string | null, object_path: string, interface_name: string, method_name: string, parameters: GLib.Variant | null, reply_type: GLib.VariantType | null, flags: DBusCallFlags, timeout_msec: number, cancellable: Cancellable | null): GLib.Variant
     /**
@@ -20701,6 +22236,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * access file descriptors if they are referenced in this way by a
      * value of type %G_VARIANT_TYPE_HANDLE in the body of the message.
      * @param res a #GAsyncResult obtained from the #GAsyncReadyCallback passed to     g_dbus_connection_call_with_unix_fd_list()
+     * @returns %NULL if @error is set. Otherwise a non-floating     #GVariant tuple with return values. Free with g_variant_unref().
      */
     call_with_unix_fd_list_finish(res: AsyncResult): [ /* returnType */ GLib.Variant, /* out_fd_list */ UnixFDList ]
     /**
@@ -20719,6 +22255,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * @param timeout_msec the timeout in milliseconds, -1 to use the default     timeout or %G_MAXINT for no timeout
      * @param fd_list a #GUnixFDList or %NULL
      * @param cancellable a #GCancellable or %NULL
+     * @returns %NULL if @error is set. Otherwise a non-floating     #GVariant tuple with return values. Free with g_variant_unref().
      */
     call_with_unix_fd_list_sync(bus_name: string | null, object_path: string, interface_name: string, method_name: string, parameters: GLib.Variant | null, reply_type: GLib.VariantType | null, flags: DBusCallFlags, timeout_msec: number, fd_list: UnixFDList | null, cancellable: Cancellable | null): [ /* returnType */ GLib.Variant, /* out_fd_list */ UnixFDList ]
     /**
@@ -20753,6 +22290,7 @@ interface DBusConnection extends AsyncInitable, Initable {
     /**
      * Finishes an operation started with g_dbus_connection_close().
      * @param res a #GAsyncResult obtained from the #GAsyncReadyCallback passed     to g_dbus_connection_close()
+     * @returns %TRUE if the operation succeeded, %FALSE if @error is set
      */
     close_finish(res: AsyncResult): boolean
     /**
@@ -20761,6 +22299,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * asynchronous version of this method and more details about what it
      * does.
      * @param cancellable a #GCancellable or %NULL
+     * @returns %TRUE if the operation succeeded, %FALSE if @error is set
      */
     close_sync(cancellable: Cancellable | null): boolean
     /**
@@ -20776,6 +22315,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * @param interface_name D-Bus interface to emit a signal on
      * @param signal_name the name of the signal to emit
      * @param parameters a #GVariant tuple with parameters for the signal              or %NULL if not passing parameters
+     * @returns %TRUE unless @error is set
      */
     emit_signal(destination_bus_name: string | null, object_path: string, interface_name: string, signal_name: string, parameters: GLib.Variant | null): boolean
     /**
@@ -20802,6 +22342,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * context.
      * @param object_path a D-Bus object path
      * @param action_group a #GActionGroup
+     * @returns the ID of the export (never zero), or 0 in case of failure
      */
     export_action_group(object_path: string, action_group: ActionGroup): number
     /**
@@ -20819,6 +22360,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * this function.
      * @param object_path a D-Bus object path
      * @param menu a #GMenuModel
+     * @returns the ID of the export (never zero), or 0 in case of failure
      */
     export_menu_model(object_path: string, menu: MenuModel): number
     /**
@@ -20843,6 +22385,7 @@ interface DBusConnection extends AsyncInitable, Initable {
     /**
      * Finishes an operation started with g_dbus_connection_flush().
      * @param res a #GAsyncResult obtained from the #GAsyncReadyCallback passed     to g_dbus_connection_flush()
+     * @returns %TRUE if the operation succeeded, %FALSE if @error is set
      */
     flush_finish(res: AsyncResult): boolean
     /**
@@ -20851,25 +22394,30 @@ interface DBusConnection extends AsyncInitable, Initable {
      * asynchronous version of this method and more details about what it
      * does.
      * @param cancellable a #GCancellable or %NULL
+     * @returns %TRUE if the operation succeeded, %FALSE if @error is set
      */
     flush_sync(cancellable: Cancellable | null): boolean
     /**
      * Gets the capabilities negotiated with the remote peer
+     * @returns zero or more flags from the #GDBusCapabilityFlags enumeration
      */
     get_capabilities(): DBusCapabilityFlags
     /**
      * Gets whether the process is terminated when `connection` is
      * closed by the remote peer. See
      * #GDBusConnection:exit-on-close for more details.
+     * @returns whether the process is terminated when @connection is     closed by the remote peer
      */
     get_exit_on_close(): boolean
     /**
      * Gets the flags used to construct this connection
+     * @returns zero or more flags from the #GDBusConnectionFlags enumeration
      */
     get_flags(): DBusConnectionFlags
     /**
      * The GUID of the peer performing the role of server when
      * authenticating. See #GDBusConnection:guid for more details.
+     * @returns The GUID. Do not free this string, it is owned by     @connection.
      */
     get_guid(): string
     /**
@@ -20878,6 +22426,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * API such as g_dbus_connection_send_message() as well as
      * high-level API such as g_dbus_connection_emit_signal(),
      * g_dbus_connection_call() or g_dbus_proxy_call().
+     * @returns the last used serial or zero when no message has been sent     within the current thread
      */
     get_last_serial(): number
     /**
@@ -20890,6 +22439,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * In a message bus setup, the message bus is always the server and
      * each application is a client. So this method will always return
      * %NULL for message bus clients.
+     * @returns a #GCredentials or %NULL if not     available. Do not free this object, it is owned by @connection.
      */
     get_peer_credentials(): Credentials | null
     /**
@@ -20898,16 +22448,19 @@ interface DBusConnection extends AsyncInitable, Initable {
      * While the #GDBusConnection is active, it will interact with this
      * stream from a worker thread, so it is not safe to interact with
      * the stream directly.
+     * @returns the stream used for IO
      */
     get_stream(): IOStream
     /**
      * Gets the unique name of `connection` as assigned by the message
      * bus. This can also be used to figure out if `connection` is a
      * message bus connection.
+     * @returns the unique name or %NULL if @connection is not a message     bus connection. Do not free this string, it is owned by     @connection.
      */
     get_unique_name(): string | null
     /**
      * Gets whether `connection` is closed.
+     * @returns %TRUE if the connection is closed, %FALSE otherwise
      */
     is_closed(): boolean
     /**
@@ -20918,6 +22471,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * @param method_call_closure #GClosure for handling incoming method calls.
      * @param get_property_closure #GClosure for getting a property.
      * @param set_property_closure #GClosure for setting a property.
+     * @returns 0 if @error is set, otherwise a registration ID (never 0) that can be used with g_dbus_connection_unregister_object() .
      */
     register_object(object_path: string, interface_info: DBusInterfaceInfo, method_call_closure: GObject.TClosure | null, get_property_closure: GObject.TClosure | null, set_property_closure: GObject.TClosure | null): number
     /**
@@ -20960,6 +22514,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * @param flags flags used to fine tune the behavior of the subtree
      * @param user_data data to pass to functions in `vtable`
      * @param user_data_free_func function to call when the subtree is unregistered
+     * @returns 0 if @error is set, otherwise a subtree registration ID (never 0) that can be used with g_dbus_connection_unregister_subtree()
      */
     register_subtree(object_path: string, vtable: DBusSubtreeVTable, flags: DBusSubtreeFlags, user_data: object | null, user_data_free_func: GLib.DestroyNotify): number
     /**
@@ -20998,6 +22553,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * %G_DBUS_SEND_MESSAGE_FLAGS_PRESERVE_SERIAL flag.
      * @param message a #GDBusMessage
      * @param flags flags affecting how the message is sent
+     * @returns %TRUE if the message was well-formed and queued for     transmission, %FALSE if @error is set
      */
     send_message(message: DBusMessage, flags: DBusSendMessageFlags): [ /* returnType */ boolean, /* out_serial */ number ]
     /**
@@ -21049,6 +22605,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * for an example of how to use this low-level API to send and receive
      * UNIX file descriptors.
      * @param res a #GAsyncResult obtained from the #GAsyncReadyCallback passed to     g_dbus_connection_send_message_with_reply()
+     * @returns a locked #GDBusMessage or %NULL if @error is set
      */
     send_message_with_reply_finish(res: AsyncResult): DBusMessage
     /**
@@ -21086,6 +22643,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * @param flags flags affecting how the message is sent.
      * @param timeout_msec the timeout in milliseconds, -1 to use the default     timeout or %G_MAXINT for no timeout
      * @param cancellable a #GCancellable or %NULL
+     * @returns a locked #GDBusMessage that is the reply     to @message or %NULL if @error is set
      */
     send_message_with_reply_sync(message: DBusMessage, flags: DBusSendMessageFlags, timeout_msec: number, cancellable: Cancellable | null): [ /* returnType */ DBusMessage, /* out_serial */ number ]
     /**
@@ -21159,6 +22717,7 @@ interface DBusConnection extends AsyncInitable, Initable {
      * @param arg0 contents of first string argument to match on or %NULL     to match on all kinds of arguments
      * @param flags #GDBusSignalFlags describing how arg0 is used in subscribing to the     signal
      * @param callback callback to invoke when there is a signal matching the requested data
+     * @returns a subscription identifier that can be used with g_dbus_connection_signal_unsubscribe()
      */
     signal_subscribe(sender: string | null, interface_name: string | null, member: string | null, object_path: string | null, arg0: string | null, flags: DBusSignalFlags, callback: DBusSignalCallback): number
     /**
@@ -21207,11 +22766,13 @@ interface DBusConnection extends AsyncInitable, Initable {
     /**
      * Unregisters an object.
      * @param registration_id a registration id obtained from     g_dbus_connection_register_object()
+     * @returns %TRUE if the object was unregistered, %FALSE otherwise
      */
     unregister_object(registration_id: number): boolean
     /**
      * Unregisters a subtree.
      * @param registration_id a subtree registration id obtained from     g_dbus_connection_register_subtree()
+     * @returns %TRUE if the subtree was unregistered, %FALSE otherwise
      */
     unregister_subtree(registration_id: number): boolean
     watch_name(name: string, flags: BusNameWatcherFlags, name_appeared_closure: GObject.TClosure | null, name_vanished_closure: GObject.TClosure | null): number
@@ -21326,12 +22887,14 @@ class DBusConnection extends GObject.Object {
      * Finishes an operation started with g_dbus_connection_new().
      * @constructor 
      * @param res a #GAsyncResult obtained from the #GAsyncReadyCallback     passed to g_dbus_connection_new().
+     * @returns a #GDBusConnection or %NULL if @error is set. Free     with g_object_unref().
      */
     static new_finish(res: AsyncResult): DBusConnection
     /**
      * Finishes an operation started with g_dbus_connection_new_for_address().
      * @constructor 
      * @param res a #GAsyncResult obtained from the #GAsyncReadyCallback passed     to g_dbus_connection_new()
+     * @returns a #GDBusConnection or %NULL if @error is set.     Free with g_object_unref().
      */
     static new_for_address_finish(res: AsyncResult): DBusConnection
     /**
@@ -21357,6 +22920,7 @@ class DBusConnection extends GObject.Object {
      * @param flags flags describing how to make the connection
      * @param observer a #GDBusAuthObserver or %NULL
      * @param cancellable a #GCancellable or %NULL
+     * @returns a #GDBusConnection or %NULL if @error is set.     Free with g_object_unref().
      */
     static new_for_address_sync(address: string, flags: DBusConnectionFlags, observer: DBusAuthObserver | null, cancellable: Cancellable | null): DBusConnection
     /**
@@ -21381,6 +22945,7 @@ class DBusConnection extends GObject.Object {
      * @param flags flags describing how to make the connection
      * @param observer a #GDBusAuthObserver or %NULL
      * @param cancellable a #GCancellable or %NULL
+     * @returns a #GDBusConnection or %NULL if @error is set.     Free with g_object_unref().
      */
     static new_sync(stream: IOStream, guid: string | null, flags: DBusConnectionFlags, observer: DBusAuthObserver | null, cancellable: Cancellable | null): DBusConnection
     _init(config?: DBusConnection.ConstructorProperties): void
@@ -21492,6 +23057,7 @@ interface DBusInterfaceSkeleton extends DBusInterface {
      * Use g_dbus_interface_skeleton_unexport() to unexport the object.
      * @param connection A #GDBusConnection to export `interface_` on.
      * @param object_path The path to export the interface at.
+     * @returns %TRUE if the interface was exported on @connection, otherwise %FALSE with @error set.
      */
     export(connection: DBusConnection, object_path: string): boolean
     /**
@@ -21507,33 +23073,40 @@ interface DBusInterfaceSkeleton extends DBusInterface {
     flush(): void
     /**
      * Gets the first connection that `interface_` is exported on, if any.
+     * @returns A #GDBusConnection or %NULL if @interface_ is not exported anywhere. Do not free, the object belongs to @interface_.
      */
     get_connection(): DBusConnection | null
     /**
      * Gets a list of the connections that `interface_` is exported on.
+     * @returns A list of   all the connections that @interface_ is exported on. The returned   list should be freed with g_list_free() after each element has   been freed with g_object_unref().
      */
     get_connections(): DBusConnection[]
     /**
      * Gets the #GDBusInterfaceSkeletonFlags that describes what the behavior
      * of `interface_`
+     * @returns One or more flags from the #GDBusInterfaceSkeletonFlags enumeration.
      */
     get_flags(): DBusInterfaceSkeletonFlags
     /**
      * Gets D-Bus introspection information for the D-Bus interface
      * implemented by `interface_`.
+     * @returns A #GDBusInterfaceInfo (never %NULL). Do not free.
      */
     get_info(): DBusInterfaceInfo
     /**
      * Gets the object path that `interface_` is exported on, if any.
+     * @returns A string owned by @interface_ or %NULL if @interface_ is not exported anywhere. Do not free, the string belongs to @interface_.
      */
     get_object_path(): string | null
     /**
      * Gets all D-Bus properties for `interface_`.
+     * @returns A #GVariant of type ['a{sv}'][G-VARIANT-TYPE-VARDICT:CAPS]. Free with g_variant_unref().
      */
     get_properties(): GLib.Variant
     /**
      * Checks if `interface_` is exported on `connection`.
      * @param connection A #GDBusConnection.
+     * @returns %TRUE if @interface_ is exported on @connection, %FALSE otherwise.
      */
     has_connection(connection: DBusConnection): boolean
     /**
@@ -21576,11 +23149,13 @@ interface DBusInterfaceSkeleton extends DBusInterface {
      * Gets D-Bus introspection information for the D-Bus interface
      * implemented by `interface_`.
      * @virtual 
+     * @returns A #GDBusInterfaceInfo (never %NULL). Do not free.
      */
     vfunc_get_info(): DBusInterfaceInfo
     /**
      * Gets all D-Bus properties for `interface_`.
      * @virtual 
+     * @returns A #GVariant of type ['a{sv}'][G-VARIANT-TYPE-VARDICT:CAPS]. Free with g_variant_unref().
      */
     vfunc_get_properties(): GLib.Variant
 
@@ -21666,6 +23241,7 @@ class DBusMenuModel extends MenuModel {
      * @param connection a #GDBusConnection
      * @param bus_name the bus name which exports the menu model     or %NULL if `connection` is not a message bus connection
      * @param object_path the object path at which the menu model is exported
+     * @returns a #GDBusMenuModel object. Free with     g_object_unref().
      */
     static get(connection: DBusConnection, bus_name: string | null, object_path: string): DBusMenuModel
 }
@@ -21694,30 +23270,37 @@ interface DBusMessage {
      * 
      * This operation can fail if e.g. `message` contains file descriptors
      * and the per-process or system-wide open files limit is reached.
+     * @returns A new #GDBusMessage or %NULL if @error is set.     Free with g_object_unref().
      */
     copy(): DBusMessage
     /**
      * Convenience to get the first item in the body of `message`.
+     * @returns The string item or %NULL if the first item in the body of @message is not a string.
      */
     get_arg0(): string | null
     /**
      * Gets the body of a message.
+     * @returns A #GVariant or %NULL if the body is empty. Do not free, it is owned by @message.
      */
     get_body(): GLib.Variant | null
     /**
      * Gets the byte order of `message`.
+     * @returns The byte order.
      */
     get_byte_order(): DBusMessageByteOrder
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_DESTINATION header field.
+     * @returns The value.
      */
     get_destination(): string | null
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_ERROR_NAME header field.
+     * @returns The value.
      */
     get_error_name(): string | null
     /**
      * Gets the flags for `message`.
+     * @returns Flags that are set (typically values from the #GDBusMessageFlags enumeration bitwise ORed together).
      */
     get_flags(): DBusMessageFlags
     /**
@@ -21726,54 +23309,66 @@ interface DBusMessage {
      * The caller is responsible for checking the type of the returned #GVariant
      * matches what is expected.
      * @param header_field A 8-bit unsigned integer (typically a value from the #GDBusMessageHeaderField enumeration)
+     * @returns A #GVariant with the value if the header was found, %NULL otherwise. Do not free, it is owned by @message.
      */
     get_header(header_field: DBusMessageHeaderField): GLib.Variant | null
     /**
      * Gets an array of all header fields on `message` that are set.
+     * @returns An array of header fields terminated by %G_DBUS_MESSAGE_HEADER_FIELD_INVALID.  Each element is a #guchar. Free with g_free().
      */
     get_header_fields(): Uint8Array
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_INTERFACE header field.
+     * @returns The value.
      */
     get_interface(): string | null
     /**
      * Checks whether `message` is locked. To monitor changes to this
      * value, conncet to the #GObject::notify signal to listen for changes
      * on the #GDBusMessage:locked property.
+     * @returns %TRUE if @message is locked, %FALSE otherwise.
      */
     get_locked(): boolean
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_MEMBER header field.
+     * @returns The value.
      */
     get_member(): string | null
     /**
      * Gets the type of `message`.
+     * @returns A 8-bit unsigned integer (typically a value from the #GDBusMessageType enumeration).
      */
     get_message_type(): DBusMessageType
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_NUM_UNIX_FDS header field.
+     * @returns The value.
      */
     get_num_unix_fds(): number
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_PATH header field.
+     * @returns The value.
      */
     get_path(): string | null
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_REPLY_SERIAL header field.
+     * @returns The value.
      */
     get_reply_serial(): number
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_SENDER header field.
+     * @returns The value.
      */
     get_sender(): string | null
     /**
      * Gets the serial for `message`.
+     * @returns A #guint32.
      */
     get_serial(): number
     /**
      * Convenience getter for the %G_DBUS_MESSAGE_HEADER_FIELD_SIGNATURE header field.
      * 
      * This will always be non-%NULL, but may be an empty string.
+     * @returns The value.
      */
     get_signature(): string
     /**
@@ -21786,6 +23381,7 @@ interface DBusMessage {
      * if g_variant_get_handle() returns 5, that is intended to be a reference
      * to the file descriptor that can be accessed by
      * `g_unix_fd_list_get (list, 5, ...)`.
+     * @returns A #GUnixFDList or %NULL if no file descriptors are associated. Do not free, this object is owned by @message.
      */
     get_unix_fd_list(): UnixFDList | null
     /**
@@ -21796,10 +23392,12 @@ interface DBusMessage {
      * Creates a new #GDBusMessage that is an error reply to `method_call_message`.
      * @param error_name A valid D-Bus error name.
      * @param error_message The D-Bus error message.
+     * @returns A #GDBusMessage. Free with g_object_unref().
      */
     new_method_error_literal(error_name: string, error_message: string): DBusMessage
     /**
      * Creates a new #GDBusMessage that is a reply to `method_call_message`.
+     * @returns #GDBusMessage. Free with g_object_unref().
      */
     new_method_reply(): DBusMessage
     /**
@@ -21838,6 +23436,7 @@ interface DBusMessage {
      * ```
      * 
      * @param indent Indentation level.
+     * @returns A string that should be freed with g_free().
      */
     print(indent: number): string
     /**
@@ -21941,6 +23540,7 @@ interface DBusMessage {
      * Serializes `message` to a blob. The byte order returned by
      * g_dbus_message_get_byte_order() will be used.
      * @param capabilities A #GDBusCapabilityFlags describing what protocol features are supported.
+     * @returns A pointer to a valid binary D-Bus message of @out_size bytes generated by @message or %NULL if @error is set. Free with g_free().
      */
     to_blob(capabilities: DBusCapabilityFlags): Uint8Array
     /**
@@ -21951,6 +23551,7 @@ interface DBusMessage {
      * using g_dbus_error_set_dbus_error() using the information in the
      * %G_DBUS_MESSAGE_HEADER_FIELD_ERROR_NAME header field of `message` as
      * well as the first string item in `message'`s body.
+     * @returns %TRUE if @error was set, %FALSE otherwise.
      */
     to_gerror(): boolean
 
@@ -21983,11 +23584,13 @@ class DBusMessage extends GObject.Object {
     /**
      * Creates a new empty #GDBusMessage.
      * @constructor 
+     * @returns A #GDBusMessage. Free with g_object_unref().
      */
     constructor() 
     /**
      * Creates a new empty #GDBusMessage.
      * @constructor 
+     * @returns A #GDBusMessage. Free with g_object_unref().
      */
     static new(): DBusMessage
     /**
@@ -22000,6 +23603,7 @@ class DBusMessage extends GObject.Object {
      * @constructor 
      * @param blob A blob representing a binary D-Bus message.
      * @param capabilities A #GDBusCapabilityFlags describing what protocol features are supported.
+     * @returns A new #GDBusMessage or %NULL if @error is set. Free with g_object_unref().
      */
     static new_from_blob(blob: Uint8Array, capabilities: DBusCapabilityFlags): DBusMessage
     /**
@@ -22009,6 +23613,7 @@ class DBusMessage extends GObject.Object {
      * @param path A valid object path.
      * @param interface_ A valid D-Bus interface name or %NULL.
      * @param method A valid method name.
+     * @returns A #GDBusMessage. Free with g_object_unref().
      */
     static new_method_call(name: string | null, path: string, interface_: string | null, method: string): DBusMessage
     /**
@@ -22017,6 +23622,7 @@ class DBusMessage extends GObject.Object {
      * @param path A valid object path.
      * @param interface_ A valid D-Bus interface name.
      * @param signal A valid signal name.
+     * @returns A #GDBusMessage. Free with g_object_unref().
      */
     static new_signal(path: string, interface_: string, signal: string): DBusMessage
     _init(config?: DBusMessage.ConstructorProperties): void
@@ -22024,6 +23630,7 @@ class DBusMessage extends GObject.Object {
      * Utility function to calculate how many bytes are needed to
      * completely deserialize the D-Bus message stored at `blob`.
      * @param blob A blob representing a binary D-Bus message.
+     * @returns Number of bytes needed or -1 if @error is set (e.g. if @blob contains invalid data or not enough data is available to determine the size).
      */
     static bytes_needed(blob: Uint8Array): number
 }
@@ -22043,6 +23650,7 @@ interface DBusMethodInvocation {
 
     /**
      * Gets the #GDBusConnection the method was invoked on.
+     * @returns A #GDBusConnection. Do not free, it is owned by @invocation.
      */
     get_connection(): DBusConnection
     /**
@@ -22052,6 +23660,7 @@ interface DBusMethodInvocation {
      * been redirected to the method call handler then
      * "org.freedesktop.DBus.Properties" will be returned.  See
      * #GDBusInterfaceVTable for more information.
+     * @returns A string. Do not free, it is owned by @invocation.
      */
     get_interface_name(): string
     /**
@@ -22063,6 +23672,7 @@ interface DBusMethodInvocation {
      * See this [server][gdbus-server] and [client][gdbus-unix-fd-client]
      * for an example of how to use this low-level API to send and receive
      * UNIX file descriptors.
+     * @returns #GDBusMessage. Do not free, it is owned by @invocation.
      */
     get_message(): DBusMessage
     /**
@@ -22072,19 +23682,23 @@ interface DBusMethodInvocation {
      * has been redirected to the method call handler then %NULL will be
      * returned.  See g_dbus_method_invocation_get_property_info() and
      * #GDBusInterfaceVTable for more information.
+     * @returns A #GDBusMethodInfo or %NULL. Do not free, it is owned by @invocation.
      */
     get_method_info(): DBusMethodInfo | null
     /**
      * Gets the name of the method that was invoked.
+     * @returns A string. Do not free, it is owned by @invocation.
      */
     get_method_name(): string
     /**
      * Gets the object path the method was invoked on.
+     * @returns A string. Do not free, it is owned by @invocation.
      */
     get_object_path(): string
     /**
      * Gets the parameters of the method invocation. If there are no input
      * parameters then this will return a GVariant with 0 children rather than NULL.
+     * @returns A #GVariant tuple. Do not unref this because it is owned by @invocation.
      */
     get_parameters(): GLib.Variant
     /**
@@ -22099,10 +23713,12 @@ interface DBusMethodInvocation {
      * See #GDBusInterfaceVTable for more information.
      * 
      * If the call was GetAll, %NULL will be returned.
+     * @returns a #GDBusPropertyInfo or %NULL
      */
     get_property_info(): DBusPropertyInfo | null
     /**
      * Gets the bus name that invoked the method.
+     * @returns A string. Do not free, it is owned by @invocation.
      */
     get_sender(): string
     /**
@@ -22334,15 +23950,18 @@ interface DBusObjectManagerClient extends AsyncInitable, DBusObjectManager, Init
 
     /**
      * Gets the #GDBusConnection used by `manager`.
+     * @returns A #GDBusConnection object. Do not free,   the object belongs to @manager.
      */
     get_connection(): DBusConnection
     /**
      * Gets the flags that `manager` was constructed with.
+     * @returns Zero of more flags from the #GDBusObjectManagerClientFlags enumeration.
      */
     get_flags(): DBusObjectManagerClientFlags
     /**
      * Gets the name that `manager` is for, or %NULL if not a message bus
      * connection.
+     * @returns A unique or well-known name. Do not free, the string belongs to @manager.
      */
     get_name(): string
     /**
@@ -22350,6 +23969,7 @@ interface DBusObjectManagerClient extends AsyncInitable, DBusObjectManager, Init
      * no-one currently owns that name. You can connect to the
      * #GObject::notify signal to track changes to the
      * #GDBusObjectManagerClient:name-owner property.
+     * @returns The name owner or %NULL if no name owner exists. Free with g_free().
      */
     get_name_owner(): string | null
 
@@ -22494,12 +24114,14 @@ class DBusObjectManagerClient extends GObject.Object {
      * Finishes an operation started with g_dbus_object_manager_client_new().
      * @constructor 
      * @param res A #GAsyncResult obtained from the #GAsyncReadyCallback passed to g_dbus_object_manager_client_new().
+     * @returns A   #GDBusObjectManagerClient object or %NULL if @error is set. Free   with g_object_unref().
      */
     static new_finish(res: AsyncResult): DBusObjectManagerClient
     /**
      * Finishes an operation started with g_dbus_object_manager_client_new_for_bus().
      * @constructor 
      * @param res A #GAsyncResult obtained from the #GAsyncReadyCallback passed to g_dbus_object_manager_client_new_for_bus().
+     * @returns A   #GDBusObjectManagerClient object or %NULL if @error is set. Free   with g_object_unref().
      */
     static new_for_bus_finish(res: AsyncResult): DBusObjectManagerClient
     /**
@@ -22516,6 +24138,7 @@ class DBusObjectManagerClient extends GObject.Object {
      * @param object_path The object path of the control object.
      * @param get_proxy_type_func A #GDBusProxyTypeFunc function or %NULL to always construct #GDBusProxy proxies.
      * @param cancellable A #GCancellable or %NULL
+     * @returns A   #GDBusObjectManagerClient object or %NULL if @error is set. Free   with g_object_unref().
      */
     static new_for_bus_sync(bus_type: BusType, flags: DBusObjectManagerClientFlags, name: string, object_path: string, get_proxy_type_func: DBusProxyTypeFunc | null, cancellable: Cancellable | null): DBusObjectManagerClient
     /**
@@ -22531,6 +24154,7 @@ class DBusObjectManagerClient extends GObject.Object {
      * @param object_path The object path of the control object.
      * @param get_proxy_type_func A #GDBusProxyTypeFunc function or %NULL to always construct #GDBusProxy proxies.
      * @param cancellable A #GCancellable or %NULL
+     * @returns A   #GDBusObjectManagerClient object or %NULL if @error is set. Free   with g_object_unref().
      */
     static new_sync(connection: DBusConnection, flags: DBusObjectManagerClientFlags, name: string | null, object_path: string, get_proxy_type_func: DBusProxyTypeFunc | null, cancellable: Cancellable | null): DBusObjectManagerClient
     _init(config?: DBusObjectManagerClient.ConstructorProperties): void
@@ -22632,11 +24256,13 @@ interface DBusObjectManagerServer extends DBusObjectManager {
     export_uniquely(object: DBusObjectSkeleton): void
     /**
      * Gets the #GDBusConnection used by `manager`.
+     * @returns A #GDBusConnection object or %NULL if   @manager isn't exported on a connection. The returned object should   be freed with g_object_unref().
      */
     get_connection(): DBusConnection | null
     /**
      * Returns whether `object` is currently exported on `manager`.
      * @param object An object.
+     * @returns %TRUE if @object is exported
      */
     is_exported(object: DBusObjectSkeleton): boolean
     /**
@@ -22652,6 +24278,7 @@ interface DBusObjectManagerServer extends DBusObjectManager {
      * Note that `object_path` must be in the hierarchy rooted by the
      * object path for `manager`.
      * @param object_path An object path.
+     * @returns %TRUE if object at @object_path was removed, %FALSE otherwise.
      */
     unexport(object_path: string): boolean
 
@@ -22714,6 +24341,7 @@ class DBusObjectManagerServer extends GObject.Object {
      * signals being emitted.
      * @constructor 
      * @param object_path The object path to export the manager object at.
+     * @returns A #GDBusObjectManagerServer object. Free with g_object_unref().
      */
     constructor(object_path: string) 
     /**
@@ -22726,6 +24354,7 @@ class DBusObjectManagerServer extends GObject.Object {
      * signals being emitted.
      * @constructor 
      * @param object_path The object path to export the manager object at.
+     * @returns A #GDBusObjectManagerServer object. Free with g_object_unref().
      */
     static new(object_path: string): DBusObjectManagerServer
     _init(config?: DBusObjectManagerServer.ConstructorProperties): void
@@ -22768,6 +24397,7 @@ interface DBusObjectProxy extends DBusObject {
 
     /**
      * Gets the connection that `proxy` is for.
+     * @returns A #GDBusConnection. Do not free, the   object is owned by @proxy.
      */
     get_connection(): DBusConnection
 
@@ -22808,6 +24438,7 @@ class DBusObjectProxy extends GObject.Object {
      * @constructor 
      * @param connection a #GDBusConnection
      * @param object_path the object path
+     * @returns a new #GDBusObjectProxy
      */
     constructor(connection: DBusConnection, object_path: string) 
     /**
@@ -22816,6 +24447,7 @@ class DBusObjectProxy extends GObject.Object {
      * @constructor 
      * @param connection a #GDBusConnection
      * @param object_path the object path
+     * @returns a new #GDBusObjectProxy
      */
     static new(connection: DBusConnection, object_path: string): DBusObjectProxy
     _init(config?: DBusObjectProxy.ConstructorProperties): void
@@ -22937,12 +24569,14 @@ class DBusObjectSkeleton extends GObject.Object {
      * Creates a new #GDBusObjectSkeleton.
      * @constructor 
      * @param object_path An object path.
+     * @returns A #GDBusObjectSkeleton. Free with g_object_unref().
      */
     constructor(object_path: string) 
     /**
      * Creates a new #GDBusObjectSkeleton.
      * @constructor 
      * @param object_path An object path.
+     * @returns A #GDBusObjectSkeleton. Free with g_object_unref().
      */
     static new(object_path: string): DBusObjectSkeleton
     _init(config?: DBusObjectSkeleton.ConstructorProperties): void
@@ -23176,6 +24810,7 @@ interface DBusProxy extends AsyncInitable, DBusInterface, Initable {
     /**
      * Finishes an operation started with g_dbus_proxy_call().
      * @param res A #GAsyncResult obtained from the #GAsyncReadyCallback passed to g_dbus_proxy_call().
+     * @returns %NULL if @error is set. Otherwise a #GVariant tuple with return values. Free with g_variant_unref().
      */
     call_finish(res: AsyncResult): GLib.Variant
     /**
@@ -23220,6 +24855,7 @@ interface DBusProxy extends AsyncInitable, DBusInterface, Initable {
      * @param flags Flags from the #GDBusCallFlags enumeration.
      * @param timeout_msec The timeout in milliseconds (with %G_MAXINT meaning                "infinite") or -1 to use the proxy default timeout.
      * @param cancellable A #GCancellable or %NULL.
+     * @returns %NULL if @error is set. Otherwise a #GVariant tuple with return values. Free with g_variant_unref().
      */
     call_sync(method_name: string, parameters: GLib.Variant | null, flags: DBusCallFlags, timeout_msec: number, cancellable: Cancellable | null): GLib.Variant
     /**
@@ -23238,6 +24874,7 @@ interface DBusProxy extends AsyncInitable, DBusInterface, Initable {
     /**
      * Finishes an operation started with g_dbus_proxy_call_with_unix_fd_list().
      * @param res A #GAsyncResult obtained from the #GAsyncReadyCallback passed to g_dbus_proxy_call_with_unix_fd_list().
+     * @returns %NULL if @error is set. Otherwise a #GVariant tuple with return values. Free with g_variant_unref().
      */
     call_with_unix_fd_list_finish(res: AsyncResult): [ /* returnType */ GLib.Variant, /* out_fd_list */ UnixFDList ]
     /**
@@ -23250,6 +24887,7 @@ interface DBusProxy extends AsyncInitable, DBusInterface, Initable {
      * @param timeout_msec The timeout in milliseconds (with %G_MAXINT meaning                "infinite") or -1 to use the proxy default timeout.
      * @param fd_list A #GUnixFDList or %NULL.
      * @param cancellable A #GCancellable or %NULL.
+     * @returns %NULL if @error is set. Otherwise a #GVariant tuple with return values. Free with g_variant_unref().
      */
     call_with_unix_fd_list_sync(method_name: string, parameters: GLib.Variant | null, flags: DBusCallFlags, timeout_msec: number, fd_list: UnixFDList | null, cancellable: Cancellable | null): [ /* returnType */ GLib.Variant, /* out_fd_list */ UnixFDList ]
     /**
@@ -23260,14 +24898,17 @@ interface DBusProxy extends AsyncInitable, DBusInterface, Initable {
      * #GDBusProxy:g-interface-info) and `property_name` is referenced by
      * it, then `value` is checked against the type of the property.
      * @param property_name Property name.
+     * @returns A reference to the #GVariant instance    that holds the value for @property_name or %NULL if the value is not in    the cache. The returned reference must be freed with g_variant_unref().
      */
     get_cached_property(property_name: string): GLib.Variant | null
     /**
      * Gets the names of all cached properties on `proxy`.
+     * @returns A          %NULL-terminated array of strings or %NULL if          @proxy has no cached properties. Free the returned array with          g_strfreev().
      */
     get_cached_property_names(): string[] | null
     /**
      * Gets the connection `proxy` is for.
+     * @returns A #GDBusConnection owned by @proxy. Do not free.
      */
     get_connection(): DBusConnection
     /**
@@ -23276,20 +24917,24 @@ interface DBusProxy extends AsyncInitable, DBusInterface, Initable {
      * g_dbus_proxy_call_sync() functions.
      * 
      * See the #GDBusProxy:g-default-timeout property for more details.
+     * @returns Timeout to use for @proxy.
      */
     get_default_timeout(): number
     /**
      * Gets the flags that `proxy` was constructed with.
+     * @returns Flags from the #GDBusProxyFlags enumeration.
      */
     get_flags(): DBusProxyFlags
     /**
      * Returns the #GDBusInterfaceInfo, if any, specifying the interface
      * that `proxy` conforms to. See the #GDBusProxy:g-interface-info
      * property for more details.
+     * @returns A #GDBusInterfaceInfo or %NULL.    Do not unref the returned object, it is owned by @proxy.
      */
     get_interface_info(): DBusInterfaceInfo | null
     /**
      * Gets the D-Bus interface name `proxy` is for.
+     * @returns A string owned by @proxy. Do not free.
      */
     get_interface_name(): string
     /**
@@ -23298,6 +24943,7 @@ interface DBusProxy extends AsyncInitable, DBusInterface, Initable {
      * When connected to a message bus, this will usually be non-%NULL.
      * However, it may be %NULL for a proxy that communicates using a peer-to-peer
      * pattern.
+     * @returns A string owned by @proxy. Do not free.
      */
     get_name(): string | null
     /**
@@ -23305,10 +24951,12 @@ interface DBusProxy extends AsyncInitable, DBusInterface, Initable {
      * no-one currently owns that name. You may connect to the
      * #GObject::notify signal to track changes to the
      * #GDBusProxy:g-name-owner property.
+     * @returns The name owner or %NULL if no name    owner exists. Free with g_free().
      */
     get_name_owner(): string | null
     /**
      * Gets the object path `proxy` is for.
+     * @returns A string owned by @proxy. Do not free.
      */
     get_object_path(): string
     /**
@@ -23480,12 +25128,14 @@ class DBusProxy extends GObject.Object {
      * Finishes creating a #GDBusProxy.
      * @constructor 
      * @param res A #GAsyncResult obtained from the #GAsyncReadyCallback function passed to g_dbus_proxy_new().
+     * @returns A #GDBusProxy or %NULL if @error is set.    Free with g_object_unref().
      */
     static new_finish(res: AsyncResult): DBusProxy
     /**
      * Finishes creating a #GDBusProxy.
      * @constructor 
      * @param res A #GAsyncResult obtained from the #GAsyncReadyCallback function passed to g_dbus_proxy_new_for_bus().
+     * @returns A #GDBusProxy or %NULL if @error is set.    Free with g_object_unref().
      */
     static new_for_bus_finish(res: AsyncResult): DBusProxy
     /**
@@ -23500,6 +25150,7 @@ class DBusProxy extends GObject.Object {
      * @param object_path An object path.
      * @param interface_name A D-Bus interface name.
      * @param cancellable A #GCancellable or %NULL.
+     * @returns A #GDBusProxy or %NULL if error is set.    Free with g_object_unref().
      */
     static new_for_bus_sync(bus_type: BusType, flags: DBusProxyFlags, info: DBusInterfaceInfo | null, name: string, object_path: string, interface_name: string, cancellable: Cancellable | null): DBusProxy
     /**
@@ -23533,6 +25184,7 @@ class DBusProxy extends GObject.Object {
      * @param object_path An object path.
      * @param interface_name A D-Bus interface name.
      * @param cancellable A #GCancellable or %NULL.
+     * @returns A #GDBusProxy or %NULL if error is set.    Free with g_object_unref().
      */
     static new_sync(connection: DBusConnection, flags: DBusProxyFlags, info: DBusInterfaceInfo | null, name: string | null, object_path: string, interface_name: string, cancellable: Cancellable | null): DBusProxy
     _init(config?: DBusProxy.ConstructorProperties): void
@@ -23670,18 +25322,22 @@ interface DBusServer extends Initable {
      * string that can be used by clients to connect to `server`.
      * 
      * This is valid and non-empty if initializing the #GDBusServer succeeded.
+     * @returns A D-Bus address string. Do not free, the string is owned by @server.
      */
     get_client_address(): string
     /**
      * Gets the flags for `server`.
+     * @returns A set of flags from the #GDBusServerFlags enumeration.
      */
     get_flags(): DBusServerFlags
     /**
      * Gets the GUID for `server,` as provided to g_dbus_server_new_sync().
+     * @returns A D-Bus GUID. Do not free this string, it is owned by @server.
      */
     get_guid(): string
     /**
      * Gets whether `server` is active.
+     * @returns %TRUE if server is active, %FALSE otherwise.
      */
     is_active(): boolean
     /**
@@ -23783,6 +25439,7 @@ class DBusServer extends GObject.Object {
      * @param guid A D-Bus GUID.
      * @param observer A #GDBusAuthObserver or %NULL.
      * @param cancellable A #GCancellable or %NULL.
+     * @returns A #GDBusServer or %NULL if @error is set. Free with g_object_unref().
      */
     static new_sync(address: string, flags: DBusServerFlags, guid: string, observer: DBusAuthObserver | null, cancellable: Cancellable | null): DBusServer
     _init(config?: DBusServer.ConstructorProperties): void
@@ -23835,15 +25492,18 @@ interface DataInputStream extends Seekable {
 
     /**
      * Gets the byte order for the data input stream.
+     * @returns the @stream's current #GDataStreamByteOrder.
      */
     get_byte_order(): DataStreamByteOrder
     /**
      * Gets the current newline type for the `stream`.
+     * @returns #GDataStreamNewlineType for the given @stream.
      */
     get_newline_type(): DataStreamNewlineType
     /**
      * Reads an unsigned 8-bit/1-byte value from `stream`.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns an unsigned 8-bit/1-byte value read from the @stream or `0` if an error occurred.
      */
     read_byte(cancellable: Cancellable | null): number
     /**
@@ -23852,6 +25512,7 @@ interface DataInputStream extends Seekable {
      * In order to get the correct byte order for this read operation,
      * see g_data_input_stream_get_byte_order() and g_data_input_stream_set_byte_order().
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a signed 16-bit/2-byte value read from @stream or `0` if an error occurred.
      */
     read_int16(cancellable: Cancellable | null): number
     /**
@@ -23864,6 +25525,7 @@ interface DataInputStream extends Seekable {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a signed 32-bit/4-byte value read from the @stream or `0` if an error occurred.
      */
     read_int32(cancellable: Cancellable | null): number
     /**
@@ -23876,6 +25538,7 @@ interface DataInputStream extends Seekable {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a signed 64-bit/8-byte value read from @stream or `0` if an error occurred.
      */
     read_int64(cancellable: Cancellable | null): number
     /**
@@ -23887,6 +25550,7 @@ interface DataInputStream extends Seekable {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns   a NUL terminated byte array with the line that was read in  (without the newlines).  Set @length to a #gsize to get the length  of the read line.  On an error, it will return %NULL and @error  will be set. If there's no content to read, it will still return  %NULL, but @error won't be set.
      */
     read_line(cancellable: Cancellable | null): [ /* returnType */ Uint8Array | null, /* length */ number ]
     /**
@@ -23901,18 +25565,37 @@ interface DataInputStream extends Seekable {
      * @param callback callback to call when the request is satisfied.
      */
     read_line_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_line_async
+
+    /**
+     * Promisified version of {@link read_line_async}
+     * 
+     * The asynchronous version of g_data_input_stream_read_line().  It is
+     * an error to have two outstanding calls to this function.
+     * 
+     * When the operation is finished, `callback` will be called. You
+     * can then call g_data_input_stream_read_line_finish() to get
+     * the result of the operation.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of:   a NUL-terminated byte array with the line that was read in  (without the newlines).  Set @length to a #gsize to get the length  of the read line.  On an error, it will return %NULL and @error  will be set. If there's no content to read, it will still return  %NULL, but @error won't be set.
+     */
+    read_line_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* length */ number>
     /**
      * Finish an asynchronous call started by
      * g_data_input_stream_read_line_async().  Note the warning about
      * string encoding in g_data_input_stream_read_line() applies here as
      * well.
      * @param result the #GAsyncResult that was provided to the callback.
+     * @returns   a NUL-terminated byte array with the line that was read in  (without the newlines).  Set @length to a #gsize to get the length  of the read line.  On an error, it will return %NULL and @error  will be set. If there's no content to read, it will still return  %NULL, but @error won't be set.
      */
     read_line_finish(result: AsyncResult): [ /* returnType */ Uint8Array | null, /* length */ number ]
     /**
      * Finish an asynchronous call started by
      * g_data_input_stream_read_line_async().
      * @param result the #GAsyncResult that was provided to the callback.
+     * @returns a string with the line that  was read in (without the newlines).  Set @length to a #gsize to  get the length of the read line.  On an error, it will return  %NULL and @error will be set. For UTF-8 conversion errors, the set  error domain is %G_CONVERT_ERROR.  If there's no content to read,  it will still return %NULL, but @error won't be set.
      */
     read_line_finish_utf8(result: AsyncResult): [ /* returnType */ string | null, /* length */ number ]
     /**
@@ -23922,6 +25605,7 @@ interface DataInputStream extends Seekable {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a NUL terminated UTF-8 string  with the line that was read in (without the newlines).  Set  @length to a #gsize to get the length of the read line.  On an  error, it will return %NULL and @error will be set.  For UTF-8  conversion errors, the set error domain is %G_CONVERT_ERROR.  If  there's no content to read, it will still return %NULL, but @error  won't be set.
      */
     read_line_utf8(cancellable: Cancellable | null): [ /* returnType */ string | null, /* length */ number ]
     /**
@@ -23930,6 +25614,7 @@ interface DataInputStream extends Seekable {
      * In order to get the correct byte order for this read operation,
      * see g_data_input_stream_get_byte_order() and g_data_input_stream_set_byte_order().
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns an unsigned 16-bit/2-byte value read from the @stream or `0` if an error occurred.
      */
     read_uint16(cancellable: Cancellable | null): number
     /**
@@ -23942,6 +25627,7 @@ interface DataInputStream extends Seekable {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns an unsigned 32-bit/4-byte value read from the @stream or `0` if an error occurred.
      */
     read_uint32(cancellable: Cancellable | null): number
     /**
@@ -23954,6 +25640,7 @@ interface DataInputStream extends Seekable {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns an unsigned 64-bit/8-byte read from @stream or `0` if an error occurred.
      */
     read_uint64(cancellable: Cancellable | null): number
     /**
@@ -23970,6 +25657,7 @@ interface DataInputStream extends Seekable {
      * does not consume the stop character.
      * @param stop_chars characters to terminate the read.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a string with the data that was read     before encountering any of the stop characters. Set @length to     a #gsize to get the length of the string. This function will     return %NULL on an error.
      */
     read_until(stop_chars: string, cancellable: Cancellable | null): [ /* returnType */ string, /* length */ number ]
     /**
@@ -23994,10 +25682,38 @@ interface DataInputStream extends Seekable {
      * @param callback callback to call when the request is satisfied.
      */
     read_until_async(stop_chars: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_until_async
+
+    /**
+     * Promisified version of {@link read_until_async}
+     * 
+     * The asynchronous version of g_data_input_stream_read_until().
+     * It is an error to have two outstanding calls to this function.
+     * 
+     * Note that, in contrast to g_data_input_stream_read_until(),
+     * this function does not consume the stop character that it finds.  You
+     * must read it for yourself.
+     * 
+     * When the operation is finished, `callback` will be called. You
+     * can then call g_data_input_stream_read_until_finish() to get
+     * the result of the operation.
+     * 
+     * Don't use this function in new code.  Its functionality is
+     * inconsistent with g_data_input_stream_read_until().  Both functions
+     * will be marked as deprecated in a future release.  Use
+     * g_data_input_stream_read_upto_async() instead.
+     * @param stop_chars characters to terminate the read.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: a string with the data that was read     before encountering any of the stop characters. Set @length to     a #gsize to get the length of the string. This function will     return %NULL on an error.
+     */
+    read_until_async(stop_chars: string, io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* length */ number>
     /**
      * Finish an asynchronous call started by
      * g_data_input_stream_read_until_async().
      * @param result the #GAsyncResult that was provided to the callback.
+     * @returns a string with the data that was read     before encountering any of the stop characters. Set @length to     a #gsize to get the length of the string. This function will     return %NULL on an error.
      */
     read_until_finish(result: AsyncResult): [ /* returnType */ string, /* length */ number ]
     /**
@@ -24016,6 +25732,7 @@ interface DataInputStream extends Seekable {
      * @param stop_chars characters to terminate the read
      * @param stop_chars_len length of `stop_chars`. May be -1 if `stop_chars` is     nul-terminated
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns a string with the data that was read     before encountering any of the stop characters. Set @length to     a #gsize to get the length of the string. This function will     return %NULL on an error
      */
     read_upto(stop_chars: string, stop_chars_len: number, cancellable: Cancellable | null): [ /* returnType */ string, /* length */ number ]
     /**
@@ -24040,6 +25757,33 @@ interface DataInputStream extends Seekable {
      * @param callback callback to call when the request is satisfied
      */
     read_upto_async(stop_chars: string, stop_chars_len: number, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_upto_async
+
+    /**
+     * Promisified version of {@link read_upto_async}
+     * 
+     * The asynchronous version of g_data_input_stream_read_upto().
+     * It is an error to have two outstanding calls to this function.
+     * 
+     * In contrast to g_data_input_stream_read_until(), this function
+     * does not consume the stop character. You have to use
+     * g_data_input_stream_read_byte() to get it before calling
+     * g_data_input_stream_read_upto() again.
+     * 
+     * Note that `stop_chars` may contain '\0' if `stop_chars_len` is
+     * specified.
+     * 
+     * When the operation is finished, `callback` will be called. You
+     * can then call g_data_input_stream_read_upto_finish() to get
+     * the result of the operation.
+     * @param stop_chars characters to terminate the read
+     * @param stop_chars_len length of `stop_chars`. May be -1 if `stop_chars` is     nul-terminated
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns A Promise of: a string with the data that was read     before encountering any of the stop characters. Set @length to     a #gsize to get the length of the string. This function will     return %NULL on an error.
+     */
+    read_upto_async(stop_chars: string, stop_chars_len: number, io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* length */ number>
     /**
      * Finish an asynchronous call started by
      * g_data_input_stream_read_upto_async().
@@ -24050,6 +25794,7 @@ interface DataInputStream extends Seekable {
      * 
      * The returned string will always be nul-terminated on success.
      * @param result the #GAsyncResult that was provided to the callback
+     * @returns a string with the data that was read     before encountering any of the stop characters. Set @length to     a #gsize to get the length of the string. This function will     return %NULL on an error.
      */
     read_upto_finish(result: AsyncResult): [ /* returnType */ string, /* length */ number ]
     /**
@@ -24107,12 +25852,14 @@ class DataInputStream extends BufferedInputStream {
      * Creates a new data input stream for the `base_stream`.
      * @constructor 
      * @param base_stream a #GInputStream.
+     * @returns a new #GDataInputStream.
      */
     constructor(base_stream: InputStream) 
     /**
      * Creates a new data input stream for the `base_stream`.
      * @constructor 
      * @param base_stream a #GInputStream.
+     * @returns a new #GDataInputStream.
      */
     static new(base_stream: InputStream): DataInputStream
 
@@ -24123,6 +25870,7 @@ class DataInputStream extends BufferedInputStream {
      * a buffer set to the default size (4 kilobytes).
      * @constructor 
      * @param base_stream a #GInputStream
+     * @returns a #GInputStream for the given @base_stream.
      */
     static new(base_stream: InputStream): BufferedInputStream
     _init(config?: DataInputStream.ConstructorProperties): void
@@ -24163,54 +25911,63 @@ interface DataOutputStream extends Seekable {
 
     /**
      * Gets the byte order for the stream.
+     * @returns the #GDataStreamByteOrder for the @stream.
      */
     get_byte_order(): DataStreamByteOrder
     /**
      * Puts a byte into the output stream.
      * @param data a #guchar.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if @data was successfully added to the @stream.
      */
     put_byte(data: number, cancellable: Cancellable | null): boolean
     /**
      * Puts a signed 16-bit integer into the output stream.
      * @param data a #gint16.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if @data was successfully added to the @stream.
      */
     put_int16(data: number, cancellable: Cancellable | null): boolean
     /**
      * Puts a signed 32-bit integer into the output stream.
      * @param data a #gint32.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if @data was successfully added to the @stream.
      */
     put_int32(data: number, cancellable: Cancellable | null): boolean
     /**
      * Puts a signed 64-bit integer into the stream.
      * @param data a #gint64.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if @data was successfully added to the @stream.
      */
     put_int64(data: number, cancellable: Cancellable | null): boolean
     /**
      * Puts a string into the output stream.
      * @param str a string.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if @string was successfully added to the @stream.
      */
     put_string(str: string, cancellable: Cancellable | null): boolean
     /**
      * Puts an unsigned 16-bit integer into the output stream.
      * @param data a #guint16.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if @data was successfully added to the @stream.
      */
     put_uint16(data: number, cancellable: Cancellable | null): boolean
     /**
      * Puts an unsigned 32-bit integer into the stream.
      * @param data a #guint32.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if @data was successfully added to the @stream.
      */
     put_uint32(data: number, cancellable: Cancellable | null): boolean
     /**
      * Puts an unsigned 64-bit integer into the stream.
      * @param data a #guint64.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE if @data was successfully added to the @stream.
      */
     put_uint64(data: number, cancellable: Cancellable | null): boolean
     /**
@@ -24252,12 +26009,14 @@ class DataOutputStream extends FilterOutputStream {
      * Creates a new data output stream for `base_stream`.
      * @constructor 
      * @param base_stream a #GOutputStream.
+     * @returns #GDataOutputStream.
      */
     constructor(base_stream: OutputStream) 
     /**
      * Creates a new data output stream for `base_stream`.
      * @constructor 
      * @param base_stream a #GOutputStream.
+     * @returns #GDataOutputStream.
      */
     static new(base_stream: OutputStream): DataOutputStream
     _init(config?: DataOutputStream.ConstructorProperties): void
@@ -24489,6 +26248,7 @@ class DebugControllerDBus extends GObject.Object {
      * @constructor 
      * @param connection a #GDBusConnection to register the debug object on
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a new #GDebugControllerDBus, or %NULL   on failure
      */
     constructor(connection: DBusConnection, cancellable: Cancellable | null) 
     /**
@@ -24502,6 +26262,7 @@ class DebugControllerDBus extends GObject.Object {
      * @constructor 
      * @param connection a #GDBusConnection to register the debug object on
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a new #GDebugControllerDBus, or %NULL   on failure
      */
     static new(connection: DBusConnection, cancellable: Cancellable | null): DebugControllerDBus
     _init(config?: DebugControllerDBus.ConstructorProperties): void
@@ -24541,6 +26302,7 @@ interface DesktopAppInfo extends AppInfo {
      * This corresponds to the "Name" key within the keyfile group for the
      * action.
      * @param action_name the name of the action as from   g_desktop_app_info_list_actions()
+     * @returns the locale-specific action name
      */
     get_action_name(action_name: string): string
     /**
@@ -24548,29 +26310,35 @@ interface DesktopAppInfo extends AppInfo {
      * 
      * The `key` is looked up in the "Desktop Entry" group.
      * @param key the key to look up
+     * @returns the boolean value, or %FALSE if the key     is not found
      */
     get_boolean(key: string): boolean
     /**
      * Gets the categories from the desktop file.
+     * @returns The unparsed Categories key from the desktop file;     i.e. no attempt is made to split it by ';' or validate it.
      */
     get_categories(): string | null
     /**
      * When `info` was created from a known filename, return it.  In some
      * situations such as the #GDesktopAppInfo returned from
      * g_desktop_app_info_new_from_keyfile(), this function will return %NULL.
+     * @returns The full path to the file for @info,     or %NULL if not known.
      */
     get_filename(): string | null
     /**
      * Gets the generic name from the desktop file.
+     * @returns The value of the GenericName key
      */
     get_generic_name(): string | null
     /**
      * A desktop file is hidden if the Hidden key in it is
      * set to True.
+     * @returns %TRUE if hidden, %FALSE otherwise.
      */
     get_is_hidden(): boolean
     /**
      * Gets the keywords from the desktop file.
+     * @returns The value of the Keywords key
      */
     get_keywords(): string[]
     /**
@@ -24579,12 +26347,14 @@ interface DesktopAppInfo extends AppInfo {
      * 
      * The `key` is looked up in the "Desktop Entry" group.
      * @param key the key to look up
+     * @returns a newly allocated string, or %NULL if the key     is not found
      */
     get_locale_string(key: string): string | null
     /**
      * Gets the value of the NoDisplay key, which helps determine if the
      * application info should be shown in menus. See
      * %G_KEY_FILE_DESKTOP_KEY_NO_DISPLAY and g_app_info_should_show().
+     * @returns The value of the NoDisplay key
      */
     get_nodisplay(): boolean
     /**
@@ -24600,12 +26370,14 @@ interface DesktopAppInfo extends AppInfo {
      * Note that g_app_info_should_show() for `info` will include this check (with
      * %NULL for `desktop_env)` as well as additional checks.
      * @param desktop_env a string specifying a desktop name
+     * @returns %TRUE if the @info should be shown in @desktop_env according to the `OnlyShowIn` and `NotShowIn` keys, %FALSE otherwise.
      */
     get_show_in(desktop_env: string | null): boolean
     /**
      * Retrieves the StartupWMClass field from `info`. This represents the
      * WM_CLASS property of the main window of the application, if launched
      * through `info`.
+     * @returns the startup WM class, or %NULL if none is set in the desktop file.
      */
     get_startup_wm_class(): string | null
     /**
@@ -24613,6 +26385,7 @@ interface DesktopAppInfo extends AppInfo {
      * 
      * The `key` is looked up in the "Desktop Entry" group.
      * @param key the key to look up
+     * @returns a newly allocated string, or %NULL if the key     is not found
      */
     get_string(key: string): string | null
     /**
@@ -24620,12 +26393,14 @@ interface DesktopAppInfo extends AppInfo {
      * 
      * The `key` is looked up in the "Desktop Entry" group.
      * @param key the key to look up
+     * @returns   a %NULL-terminated string array or %NULL if the specified  key cannot be found. The array should be freed with g_strfreev().
      */
     get_string_list(key: string): string[]
     /**
      * Returns whether `key` exists in the "Desktop Entry" group
      * of the keyfile backing `info`.
      * @param key the key to look up
+     * @returns %TRUE if the @key exists
      */
     has_key(key: string): boolean
     /**
@@ -24667,6 +26442,7 @@ interface DesktopAppInfo extends AppInfo {
      * @param uris List of URIs
      * @param launch_context a #GAppLaunchContext
      * @param spawn_flags #GSpawnFlags, used for each process
+     * @returns %TRUE on successful launch, %FALSE otherwise.
      */
     launch_uris_as_manager(uris: string[], launch_context: AppLaunchContext | null, spawn_flags: GLib.SpawnFlags): boolean
     /**
@@ -24682,6 +26458,7 @@ interface DesktopAppInfo extends AppInfo {
      * @param stdin_fd file descriptor to use for child's stdin, or -1
      * @param stdout_fd file descriptor to use for child's stdout, or -1
      * @param stderr_fd file descriptor to use for child's stderr, or -1
+     * @returns %TRUE on successful launch, %FALSE otherwise.
      */
     launch_uris_as_manager_with_fds(uris: string[], launch_context: AppLaunchContext | null, spawn_flags: GLib.SpawnFlags, stdin_fd: number, stdout_fd: number, stderr_fd: number): boolean
     /**
@@ -24690,6 +26467,7 @@ interface DesktopAppInfo extends AppInfo {
      * 
      * As per the specification, this is the list of actions that are
      * explicitly listed in the "Actions" key of the [Desktop Entry] group.
+     * @returns a list of strings, always non-%NULL
      */
     list_actions(): string[]
 
@@ -24737,6 +26515,7 @@ class DesktopAppInfo extends GObject.Object {
      * `/usr/share/applications/kde/foo.desktop`).
      * @constructor 
      * @param desktop_id the desktop file id
+     * @returns a new #GDesktopAppInfo, or %NULL if no desktop     file with that id exists.
      */
     constructor(desktop_id: string) 
     /**
@@ -24753,18 +26532,21 @@ class DesktopAppInfo extends GObject.Object {
      * `/usr/share/applications/kde/foo.desktop`).
      * @constructor 
      * @param desktop_id the desktop file id
+     * @returns a new #GDesktopAppInfo, or %NULL if no desktop     file with that id exists.
      */
     static new(desktop_id: string): DesktopAppInfo
     /**
      * Creates a new #GDesktopAppInfo.
      * @constructor 
      * @param filename the path of a desktop file, in the GLib      filename encoding
+     * @returns a new #GDesktopAppInfo or %NULL on error.
      */
     static new_from_filename(filename: string): DesktopAppInfo
     /**
      * Creates a new #GDesktopAppInfo.
      * @constructor 
      * @param key_file an opened #GKeyFile
+     * @returns a new #GDesktopAppInfo or %NULL on error.
      */
     static new_from_keyfile(key_file: GLib.KeyFile): DesktopAppInfo
     _init(config?: DesktopAppInfo.ConstructorProperties): void
@@ -24774,6 +26556,7 @@ class DesktopAppInfo extends GObject.Object {
      * An application implements an interface if that interface is listed in
      * the Implements= line of the desktop file of the application.
      * @param interface the name of the interface
+     * @returns a list of #GDesktopAppInfo objects.
      */
     static get_implementations(interface: string): DesktopAppInfo[]
     /**
@@ -24793,6 +26576,7 @@ class DesktopAppInfo extends GObject.Object {
      * this function. It is expected that calling code will do this when
      * subsequently creating a #GDesktopAppInfo for each result.
      * @param search_string the search string to use
+     * @returns a   list of strvs.  Free each item with g_strfreev() and free the outer   list with g_free().
      */
     static search(search_string: string): string[]
     /**
@@ -24833,10 +26617,12 @@ interface Emblem extends Icon {
 
     /**
      * Gives back the icon from `emblem`.
+     * @returns a #GIcon. The returned object belongs to          the emblem and should not be modified or freed.
      */
     get_icon(): Icon
     /**
      * Gets the origin of the emblem.
+     * @returns the origin of the emblem
      */
     get_origin(): EmblemOrigin
 
@@ -24877,12 +26663,14 @@ class Emblem extends GObject.Object {
      * Creates a new emblem for `icon`.
      * @constructor 
      * @param icon a GIcon containing the icon.
+     * @returns a new #GEmblem.
      */
     constructor(icon: Icon) 
     /**
      * Creates a new emblem for `icon`.
      * @constructor 
      * @param icon a GIcon containing the icon.
+     * @returns a new #GEmblem.
      */
     static new(icon: Icon): Emblem
     /**
@@ -24890,6 +26678,7 @@ class Emblem extends GObject.Object {
      * @constructor 
      * @param icon a GIcon containing the icon.
      * @param origin a GEmblemOrigin enum defining the emblem's origin
+     * @returns a new #GEmblem.
      */
     static new_with_origin(icon: Icon, origin: EmblemOrigin): Emblem
     _init(config?: Emblem.ConstructorProperties): void
@@ -24931,10 +26720,12 @@ interface EmblemedIcon extends Icon {
     clear_emblems(): void
     /**
      * Gets the list of emblems for the `icon`.
+     * @returns a #GList of     #GEmblems that is owned by @emblemed
      */
     get_emblems(): Emblem[]
     /**
      * Gets the main icon for `emblemed`.
+     * @returns a #GIcon that is owned by @emblemed
      */
     get_icon(): Icon
 
@@ -24973,6 +26764,7 @@ class EmblemedIcon extends GObject.Object {
      * @constructor 
      * @param icon a #GIcon
      * @param emblem a #GEmblem, or %NULL
+     * @returns a new #GIcon
      */
     constructor(icon: Icon, emblem: Emblem | null) 
     /**
@@ -24980,6 +26772,7 @@ class EmblemedIcon extends GObject.Object {
      * @constructor 
      * @param icon a #GIcon
      * @param emblem a #GEmblem, or %NULL
+     * @returns a new #GIcon
      */
     static new(icon: Icon, emblem: Emblem | null): EmblemedIcon
     _init(config?: EmblemedIcon.ConstructorProperties): void
@@ -25018,6 +26811,7 @@ interface FileEnumerator {
      * is dropped, but you might want to call this function to make
      * sure resources are released as early as possible.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns #TRUE on success or #FALSE on error.
      */
     close(cancellable: Cancellable | null): boolean
     /**
@@ -25032,6 +26826,23 @@ interface FileEnumerator {
      * @param callback a #GAsyncReadyCallback to call when the request is satisfied
      */
     close_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of close_async
+
+    /**
+     * Promisified version of {@link close_async}
+     * 
+     * Asynchronously closes the file enumerator.
+     * 
+     * If `cancellable` is not %NULL, then the operation can be cancelled by
+     * triggering the cancellable object from another thread. If the operation
+     * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned in
+     * g_file_enumerator_close_finish().
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: %TRUE if the close operation has finished successfully.
+     */
+    close_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes closing a file enumerator, started from g_file_enumerator_close_async().
      * 
@@ -25044,6 +26855,7 @@ interface FileEnumerator {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be set, and %FALSE will be
      * returned.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the close operation has finished successfully.
      */
     close_finish(result: AsyncResult): boolean
     /**
@@ -25063,18 +26875,22 @@ interface FileEnumerator {
      * ```
      * 
      * @param info a #GFileInfo gotten from g_file_enumerator_next_file()   or the async equivalents.
+     * @returns a #GFile for the #GFileInfo passed it.
      */
     get_child(info: FileInfo): File
     /**
      * Get the #GFile container which is being enumerated.
+     * @returns the #GFile which is being enumerated.
      */
     get_container(): File
     /**
      * Checks if the file enumerator has pending operations.
+     * @returns %TRUE if the @enumerator has pending operations.
      */
     has_pending(): boolean
     /**
      * Checks if the file enumerator has been closed.
+     * @returns %TRUE if the @enumerator is closed.
      */
     is_closed(): boolean
     /**
@@ -25133,6 +26949,7 @@ interface FileEnumerator {
      * enumerator is at the end, %NULL will be returned and `error` will
      * be unset.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A #GFileInfo or %NULL on error    or end of enumerator.  Free the returned object with    g_object_unref() when no longer needed.
      */
     next_file(cancellable: Cancellable | null): FileInfo | null
     /**
@@ -25161,9 +26978,41 @@ interface FileEnumerator {
      * @param callback a #GAsyncReadyCallback to call when the request is satisfied
      */
     next_files_async(num_files: number, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of next_files_async
+
+    /**
+     * Promisified version of {@link next_files_async}
+     * 
+     * Request information for a number of files from the enumerator asynchronously.
+     * When all i/o for the operation is finished the `callback` will be called with
+     * the requested information.
+     * 
+     * See the documentation of #GFileEnumerator for information about the
+     * order of returned files.
+     * 
+     * The callback can be called with less than `num_files` files in case of error
+     * or at the end of the enumerator. In case of a partial error the callback will
+     * be called with any succeeding items and no error, and on the next request the
+     * error will be reported. If a request is cancelled the callback will be called
+     * with %G_IO_ERROR_CANCELLED.
+     * 
+     * During an async request no other sync and async calls are allowed, and will
+     * result in %G_IO_ERROR_PENDING errors.
+     * 
+     * Any outstanding i/o request with higher priority (lower numerical value) will
+     * be executed before an outstanding request with lower priority. Default
+     * priority is %G_PRIORITY_DEFAULT.
+     * @param num_files the number of file info objects to request
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: a #GList of #GFileInfos. You must free the list with     g_list_free() and unref the infos with g_object_unref() when you're     done with them.
+     */
+    next_files_async(num_files: number, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileInfo[]>
     /**
      * Finishes the asynchronous operation started with g_file_enumerator_next_files_async().
      * @param result a #GAsyncResult.
+     * @returns a #GList of #GFileInfos. You must free the list with     g_list_free() and unref the infos with g_object_unref() when you're     done with them.
      */
     next_files_finish(result: AsyncResult): FileInfo[]
     /**
@@ -25200,6 +27049,7 @@ interface FileEnumerator {
      * returned.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the close operation has finished successfully.
      */
     vfunc_close_finish(result: AsyncResult): boolean
     vfunc_close_fn(cancellable: Cancellable | null): boolean
@@ -25217,6 +27067,7 @@ interface FileEnumerator {
      * be unset.
      * @virtual 
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A #GFileInfo or %NULL on error    or end of enumerator.  Free the returned object with    g_object_unref() when no longer needed.
      */
     vfunc_next_file(cancellable: Cancellable | null): FileInfo | null
     /**
@@ -25250,6 +27101,7 @@ interface FileEnumerator {
      * Finishes the asynchronous operation started with g_file_enumerator_next_files_async().
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns a #GList of #GFileInfos. You must free the list with     g_list_free() and unref the infos with g_object_unref() when you're     done with them.
      */
     vfunc_next_files_finish(result: AsyncResult): FileInfo[]
 
@@ -25327,6 +27179,7 @@ interface FileIOStream extends Seekable {
      * Gets the entity tag for the file when it has been written.
      * This must be called after the stream has been written
      * and closed, as the etag can change while writing.
+     * @returns the entity tag for the stream.
      */
     get_etag(): string | null
     /**
@@ -25349,6 +27202,7 @@ interface FileIOStream extends Seekable {
      * be returned.
      * @param attributes a file attribute query string.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GFileInfo for the @stream, or %NULL on error.
      */
     query_info(attributes: string, cancellable: Cancellable | null): FileInfo
     /**
@@ -25364,10 +27218,29 @@ interface FileIOStream extends Seekable {
      * @param callback callback to call when the request is satisfied
      */
     query_info_async(attributes: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of query_info_async
+
+    /**
+     * Promisified version of {@link query_info_async}
+     * 
+     * Asynchronously queries the `stream` for a #GFileInfo. When completed,
+     * `callback` will be called with a #GAsyncResult which can be used to
+     * finish the operation with g_file_io_stream_query_info_finish().
+     * 
+     * For the synchronous version of this function, see
+     * g_file_io_stream_query_info().
+     * @param attributes a file attribute query string.
+     * @param io_priority the [I/O priority][gio-GIOScheduler] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: A #GFileInfo for the finished query.
+     */
+    query_info_async(attributes: string, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileInfo>
     /**
      * Finalizes the asynchronous query started
      * by g_file_io_stream_query_info_async().
      * @param result a #GAsyncResult.
+     * @returns A #GFileInfo for the finished query.
      */
     query_info_finish(result: AsyncResult): FileInfo
 
@@ -25380,6 +27253,7 @@ interface FileIOStream extends Seekable {
      * This must be called after the stream has been written
      * and closed, as the etag can change while writing.
      * @virtual 
+     * @returns the entity tag for the stream.
      */
     vfunc_get_etag(): string | null
     /**
@@ -25403,6 +27277,7 @@ interface FileIOStream extends Seekable {
      * @virtual 
      * @param attributes a file attribute query string.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GFileInfo for the @stream, or %NULL on error.
      */
     vfunc_query_info(attributes: string, cancellable: Cancellable | null): FileInfo
     /**
@@ -25424,6 +27299,7 @@ interface FileIOStream extends Seekable {
      * by g_file_io_stream_query_info_async().
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns A #GFileInfo for the finished query.
      */
     vfunc_query_info_finish(result: AsyncResult): FileInfo
     vfunc_seek(offset: number, type: GLib.SeekType, cancellable: Cancellable | null): boolean
@@ -25512,6 +27388,7 @@ interface FileIcon extends Icon, LoadableIcon {
 
     /**
      * Gets the #GFile associated with the given `icon`.
+     * @returns a #GFile.
      */
     get_file(): File
 
@@ -25545,12 +27422,14 @@ class FileIcon extends GObject.Object {
      * Creates a new icon for a file.
      * @constructor 
      * @param file a #GFile.
+     * @returns a #GIcon for the given   @file, or %NULL on error.
      */
     constructor(file: File) 
     /**
      * Creates a new icon for a file.
      * @constructor 
      * @param file a #GFile.
+     * @returns a #GIcon for the given   @file, or %NULL on error.
      */
     static new(file: File): FileIcon
     _init(config?: FileIcon.ConstructorProperties): void
@@ -25581,6 +27460,7 @@ interface FileInfo {
     copy_into(dest_info: FileInfo): void
     /**
      * Duplicates a file info structure.
+     * @returns a duplicate #GFileInfo of @other.
      */
     dup(): FileInfo
     /**
@@ -25593,6 +27473,7 @@ interface FileInfo {
      * 
      * If nanosecond precision is needed, %G_FILE_ATTRIBUTE_TIME_ACCESS_NSEC must
      * be queried separately using g_file_info_get_attribute_uint32().
+     * @returns access time, or %NULL if unknown
      */
     get_access_date_time(): GLib.DateTime | null
     /**
@@ -25600,23 +27481,27 @@ interface FileInfo {
      * This escapes things as needed to make the string valid
      * UTF-8.
      * @param attribute a file attribute key.
+     * @returns a UTF-8 string associated with the given @attribute, or    %NULL if the attribute wasn’t set.    When you're done with the string it must be freed with g_free().
      */
     get_attribute_as_string(attribute: string): string | null
     /**
      * Gets the value of a boolean attribute. If the attribute does not
      * contain a boolean value, %FALSE will be returned.
      * @param attribute a file attribute key.
+     * @returns the boolean value contained within the attribute.
      */
     get_attribute_boolean(attribute: string): boolean
     /**
      * Gets the value of a byte string attribute. If the attribute does
      * not contain a byte string, %NULL will be returned.
      * @param attribute a file attribute key.
+     * @returns the contents of the @attribute value as a byte string, or %NULL otherwise.
      */
     get_attribute_byte_string(attribute: string): string | null
     /**
      * Gets the attribute type, value and status for an attribute key.
      * @param attribute a file attribute key
+     * @returns %TRUE if @info has an attribute named @attribute,      %FALSE otherwise.
      */
     get_attribute_data(attribute: string): [ /* returnType */ boolean, /* type */ FileAttributeType, /* value_pp */ object, /* status */ FileAttributeStatus ]
     /**
@@ -25624,6 +27509,7 @@ interface FileInfo {
      * attribute does not contain a signed 32-bit integer, or is invalid,
      * 0 will be returned.
      * @param attribute a file attribute key.
+     * @returns a signed 32-bit integer from the attribute.
      */
     get_attribute_int32(attribute: string): number
     /**
@@ -25631,34 +27517,40 @@ interface FileInfo {
      * attribute does not contain a signed 64-bit integer, or is invalid,
      * 0 will be returned.
      * @param attribute a file attribute key.
+     * @returns a signed 64-bit integer from the attribute.
      */
     get_attribute_int64(attribute: string): number
     /**
      * Gets the value of a #GObject attribute. If the attribute does
      * not contain a #GObject, %NULL will be returned.
      * @param attribute a file attribute key.
+     * @returns a #GObject associated with the given @attribute, or %NULL otherwise.
      */
     get_attribute_object(attribute: string): GObject.Object | null
     /**
      * Gets the attribute status for an attribute key.
      * @param attribute a file attribute key
+     * @returns a #GFileAttributeStatus for the given @attribute, or    %G_FILE_ATTRIBUTE_STATUS_UNSET if the key is invalid.
      */
     get_attribute_status(attribute: string): FileAttributeStatus
     /**
      * Gets the value of a string attribute. If the attribute does
      * not contain a string, %NULL will be returned.
      * @param attribute a file attribute key.
+     * @returns the contents of the @attribute value as a UTF-8 string, or %NULL otherwise.
      */
     get_attribute_string(attribute: string): string | null
     /**
      * Gets the value of a stringv attribute. If the attribute does
      * not contain a stringv, %NULL will be returned.
      * @param attribute a file attribute key.
+     * @returns the contents of the @attribute value as a stringv, or %NULL otherwise. Do not free. These returned strings are UTF-8.
      */
     get_attribute_stringv(attribute: string): string[] | null
     /**
      * Gets the attribute type for an attribute key.
      * @param attribute a file attribute key.
+     * @returns a #GFileAttributeType for the given @attribute, or %G_FILE_ATTRIBUTE_TYPE_INVALID if the key is not set.
      */
     get_attribute_type(attribute: string): FileAttributeType
     /**
@@ -25666,6 +27558,7 @@ interface FileInfo {
      * attribute does not contain an unsigned 32-bit integer, or is invalid,
      * 0 will be returned.
      * @param attribute a file attribute key.
+     * @returns an unsigned 32-bit integer from the attribute.
      */
     get_attribute_uint32(attribute: string): number
     /**
@@ -25673,10 +27566,12 @@ interface FileInfo {
      * attribute does not contain an unsigned 64-bit integer, or is invalid,
      * 0 will be returned.
      * @param attribute a file attribute key.
+     * @returns a unsigned 64-bit integer from the attribute.
      */
     get_attribute_uint64(attribute: string): number
     /**
      * Gets the file's content type.
+     * @returns a string containing the file's content type, or %NULL if unknown.
      */
     get_content_type(): string | null
     /**
@@ -25689,46 +27584,56 @@ interface FileInfo {
      * 
      * If nanosecond precision is needed, %G_FILE_ATTRIBUTE_TIME_CREATED_NSEC must
      * be queried separately using g_file_info_get_attribute_uint32().
+     * @returns creation time, or %NULL if unknown
      */
     get_creation_date_time(): GLib.DateTime | null
     /**
      * Returns the #GDateTime representing the deletion date of the file, as
      * available in G_FILE_ATTRIBUTE_TRASH_DELETION_DATE. If the
      * G_FILE_ATTRIBUTE_TRASH_DELETION_DATE attribute is unset, %NULL is returned.
+     * @returns a #GDateTime, or %NULL.
      */
     get_deletion_date(): GLib.DateTime | null
     /**
      * Gets a display name for a file. This is guaranteed to always be set.
+     * @returns a string containing the display name.
      */
     get_display_name(): string
     /**
      * Gets the edit name for a file.
+     * @returns a string containing the edit name.
      */
     get_edit_name(): string
     /**
      * Gets the [entity tag][gfile-etag] for a given
      * #GFileInfo. See %G_FILE_ATTRIBUTE_ETAG_VALUE.
+     * @returns a string containing the value of the "etag:value" attribute.
      */
     get_etag(): string | null
     /**
      * Gets a file's type (whether it is a regular file, symlink, etc).
      * This is different from the file's content type, see g_file_info_get_content_type().
+     * @returns a #GFileType for the given file.
      */
     get_file_type(): FileType
     /**
      * Gets the icon for a file.
+     * @returns #GIcon for the given @info.
      */
     get_icon(): Icon | null
     /**
      * Checks if a file is a backup file.
+     * @returns %TRUE if file is a backup file, %FALSE otherwise.
      */
     get_is_backup(): boolean
     /**
      * Checks if a file is hidden.
+     * @returns %TRUE if the file is a hidden file, %FALSE otherwise.
      */
     get_is_hidden(): boolean
     /**
      * Checks if a file is a symlink.
+     * @returns %TRUE if the given @info is a symlink.
      */
     get_is_symlink(): boolean
     /**
@@ -25741,6 +27646,7 @@ interface FileInfo {
      * 
      * If nanosecond precision is needed, %G_FILE_ATTRIBUTE_TIME_MODIFIED_NSEC must
      * be queried separately using g_file_info_get_attribute_uint32().
+     * @returns modification time, or %NULL if unknown
      */
     get_modification_date_time(): GLib.DateTime | null
     /**
@@ -25750,41 +27656,49 @@ interface FileInfo {
     get_modification_time(): /* result */ GLib.TimeVal
     /**
      * Gets the name for a file. This is guaranteed to always be set.
+     * @returns a string containing the file name.
      */
     get_name(): string
     /**
      * Gets the file's size (in bytes). The size is retrieved through the value of
      * the %G_FILE_ATTRIBUTE_STANDARD_SIZE attribute and is converted
      * from #guint64 to #goffset before returning the result.
+     * @returns a #goffset containing the file's size (in bytes).
      */
     get_size(): number
     /**
      * Gets the value of the sort_order attribute from the #GFileInfo.
      * See %G_FILE_ATTRIBUTE_STANDARD_SORT_ORDER.
+     * @returns a #gint32 containing the value of the "standard::sort_order" attribute.
      */
     get_sort_order(): number
     /**
      * Gets the symbolic icon for a file.
+     * @returns #GIcon for the given @info.
      */
     get_symbolic_icon(): Icon | null
     /**
      * Gets the symlink target for a given #GFileInfo.
+     * @returns a string containing the symlink target.
      */
     get_symlink_target(): string | null
     /**
      * Checks if a file info structure has an attribute named `attribute`.
      * @param attribute a file attribute key.
+     * @returns %TRUE if @info has an attribute named @attribute,     %FALSE otherwise.
      */
     has_attribute(attribute: string): boolean
     /**
      * Checks if a file info structure has an attribute in the
      * specified `name_space`.
      * @param name_space a file attribute namespace.
+     * @returns %TRUE if @info has an attribute in @name_space,     %FALSE otherwise.
      */
     has_namespace(name_space: string): boolean
     /**
      * Lists the file info structure's attributes.
      * @param name_space a file attribute key's namespace, or %NULL to list   all attributes.
+     * @returns a null-terminated array of strings of all of the possible attribute types for the given @name_space, or %NULL on error.
      */
     list_attributes(name_space: string | null): string[] | null
     /**
@@ -25858,6 +27772,7 @@ interface FileInfo {
      * is returned and `info` is unchanged.
      * @param attribute a file attribute key
      * @param status a #GFileAttributeStatus
+     * @returns %TRUE if the status was changed, %FALSE if the key was not set.
      */
     set_attribute_status(attribute: string, status: FileAttributeStatus): boolean
     /**
@@ -26048,11 +27963,13 @@ class FileInfo extends GObject.Object {
     /**
      * Creates a new file info structure.
      * @constructor 
+     * @returns a #GFileInfo.
      */
     constructor() 
     /**
      * Creates a new file info structure.
      * @constructor 
+     * @returns a #GFileInfo.
      */
     static new(): FileInfo
     _init(config?: FileInfo.ConstructorProperties): void
@@ -26083,6 +28000,7 @@ interface FileInputStream extends Seekable {
      * any other operations on the stream will fail with %G_IO_ERROR_PENDING.
      * @param attributes a file attribute query string.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GFileInfo, or %NULL on error.
      */
     query_info(attributes: string, cancellable: Cancellable | null): FileInfo
     /**
@@ -26103,9 +28021,33 @@ interface FileInputStream extends Seekable {
      * @param callback callback to call when the request is satisfied
      */
     query_info_async(attributes: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of query_info_async
+
+    /**
+     * Promisified version of {@link query_info_async}
+     * 
+     * Queries the stream information asynchronously.
+     * When the operation is finished `callback` will be called.
+     * You can then call g_file_input_stream_query_info_finish()
+     * to get the result of the operation.
+     * 
+     * For the synchronous version of this function,
+     * see g_file_input_stream_query_info().
+     * 
+     * If `cancellable` is not %NULL, then the operation can be cancelled by
+     * triggering the cancellable object from another thread. If the operation
+     * was cancelled, the error %G_IO_ERROR_CANCELLED will be set
+     * @param attributes a file attribute query string.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: #GFileInfo.
+     */
+    query_info_async(attributes: string, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileInfo>
     /**
      * Finishes an asynchronous info query operation.
      * @param result a #GAsyncResult.
+     * @returns #GFileInfo.
      */
     query_info_finish(result: AsyncResult): FileInfo
 
@@ -26121,6 +28063,7 @@ interface FileInputStream extends Seekable {
      * @virtual 
      * @param attributes a file attribute query string.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GFileInfo, or %NULL on error.
      */
     vfunc_query_info(attributes: string, cancellable: Cancellable | null): FileInfo
     /**
@@ -26146,6 +28089,7 @@ interface FileInputStream extends Seekable {
      * Finishes an asynchronous info query operation.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns #GFileInfo.
      */
     vfunc_query_info_finish(result: AsyncResult): FileInfo
     vfunc_seek(offset: number, type: GLib.SeekType, cancellable: Cancellable | null): boolean
@@ -26222,6 +28166,7 @@ interface FileMonitor {
 
     /**
      * Cancels a file monitor.
+     * @returns always %TRUE
      */
     cancel(): boolean
     /**
@@ -26239,6 +28184,7 @@ interface FileMonitor {
     emit_event(child: File, other_file: File, event_type: FileMonitorEvent): void
     /**
      * Returns whether the monitor is canceled.
+     * @returns %TRUE if monitor is canceled. %FALSE otherwise.
      */
     is_cancelled(): boolean
     /**
@@ -26253,6 +28199,7 @@ interface FileMonitor {
     /**
      * Cancels a file monitor.
      * @virtual 
+     * @returns always %TRUE
      */
     vfunc_cancel(): boolean
     vfunc_changed(file: File, other_file: File, event_type: FileMonitorEvent): void
@@ -26328,6 +28275,7 @@ interface FileOutputStream extends Seekable {
      * Gets the entity tag for the file when it has been written.
      * This must be called after the stream has been written
      * and closed, as the etag can change while writing.
+     * @returns the entity tag for the stream.
      */
     get_etag(): string | null
     /**
@@ -26350,6 +28298,7 @@ interface FileOutputStream extends Seekable {
      * be returned.
      * @param attributes a file attribute query string.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GFileInfo for the @stream, or %NULL on error.
      */
     query_info(attributes: string, cancellable: Cancellable | null): FileInfo
     /**
@@ -26365,10 +28314,29 @@ interface FileOutputStream extends Seekable {
      * @param callback callback to call when the request is satisfied
      */
     query_info_async(attributes: string, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of query_info_async
+
+    /**
+     * Promisified version of {@link query_info_async}
+     * 
+     * Asynchronously queries the `stream` for a #GFileInfo. When completed,
+     * `callback` will be called with a #GAsyncResult which can be used to
+     * finish the operation with g_file_output_stream_query_info_finish().
+     * 
+     * For the synchronous version of this function, see
+     * g_file_output_stream_query_info().
+     * @param attributes a file attribute query string.
+     * @param io_priority the [I/O priority][gio-GIOScheduler] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: A #GFileInfo for the finished query.
+     */
+    query_info_async(attributes: string, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<FileInfo>
     /**
      * Finalizes the asynchronous query started
      * by g_file_output_stream_query_info_async().
      * @param result a #GAsyncResult.
+     * @returns A #GFileInfo for the finished query.
      */
     query_info_finish(result: AsyncResult): FileInfo
 
@@ -26381,6 +28349,7 @@ interface FileOutputStream extends Seekable {
      * This must be called after the stream has been written
      * and closed, as the etag can change while writing.
      * @virtual 
+     * @returns the entity tag for the stream.
      */
     vfunc_get_etag(): string | null
     /**
@@ -26404,6 +28373,7 @@ interface FileOutputStream extends Seekable {
      * @virtual 
      * @param attributes a file attribute query string.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GFileInfo for the @stream, or %NULL on error.
      */
     vfunc_query_info(attributes: string, cancellable: Cancellable | null): FileInfo
     /**
@@ -26425,6 +28395,7 @@ interface FileOutputStream extends Seekable {
      * by g_file_output_stream_query_info_async().
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns A #GFileInfo for the finished query.
      */
     vfunc_query_info_finish(result: AsyncResult): FileInfo
     vfunc_seek(offset: number, type: GLib.SeekType, cancellable: Cancellable | null): boolean
@@ -26495,11 +28466,13 @@ interface FilenameCompleter {
     /**
      * Obtains a completion for `initial_text` from `completer`.
      * @param initial_text text to be completed.
+     * @returns a completed string, or %NULL if no     completion exists. This string is not owned by GIO, so remember to g_free()     it when finished.
      */
     get_completion_suffix(initial_text: string): string | null
     /**
      * Gets an array of completion strings for a given initial text.
      * @param initial_text text to be completed.
+     * @returns array of strings with possible completions for @initial_text. This array must be freed by g_strfreev() when finished.
      */
     get_completions(initial_text: string): string[]
     /**
@@ -26546,11 +28519,13 @@ class FilenameCompleter extends GObject.Object {
     /**
      * Creates a new filename completer.
      * @constructor 
+     * @returns a #GFilenameCompleter.
      */
     constructor() 
     /**
      * Creates a new filename completer.
      * @constructor 
+     * @returns a #GFilenameCompleter.
      */
     static new(): FilenameCompleter
     _init(config?: FilenameCompleter.ConstructorProperties): void
@@ -26585,11 +28560,13 @@ interface FilterInputStream {
 
     /**
      * Gets the base stream for the filter stream.
+     * @returns a #GInputStream.
      */
     get_base_stream(): InputStream
     /**
      * Returns whether the base stream will be closed when `stream` is
      * closed.
+     * @returns %TRUE if the base stream will be closed.
      */
     get_close_base_stream(): boolean
     /**
@@ -26658,11 +28635,13 @@ interface FilterOutputStream {
 
     /**
      * Gets the base stream for the filter stream.
+     * @returns a #GOutputStream.
      */
     get_base_stream(): OutputStream
     /**
      * Returns whether the base stream will be closed when `stream` is
      * closed.
+     * @returns %TRUE if the base stream will be closed.
      */
     get_close_base_stream(): boolean
     /**
@@ -26726,6 +28705,7 @@ interface IOModule extends GObject.TypePlugin {
      * use count was zero before, the plugin will be loaded.
      * If loading the plugin fails, the use count is reset to
      * its prior value.
+     * @returns %FALSE if the plugin needed to be loaded and  loading the plugin failed.
      */
     use(): boolean
 
@@ -26767,6 +28747,7 @@ class IOModule extends GObject.TypeModule {
      * shared library when in use.
      * @constructor 
      * @param filename filename of the shared library module.
+     * @returns a #GIOModule from given @filename, or %NULL on error.
      */
     constructor(filename: string) 
     /**
@@ -26774,6 +28755,7 @@ class IOModule extends GObject.TypeModule {
      * shared library when in use.
      * @constructor 
      * @param filename filename of the shared library module.
+     * @returns a #GIOModule from given @filename, or %NULL on error.
      */
     static new(filename: string): IOModule
     _init(config?: IOModule.ConstructorProperties): void
@@ -26809,6 +28791,7 @@ class IOModule extends GObject.TypeModule {
      * Using the new symbol names avoids name clashes when building modules
      * statically. The old symbol names continue to be supported, but cannot be used
      * for static builds.
+     * @returns A %NULL-terminated array of strings,     listing the supported extension points of the module. The array     must be suitable for freeing with g_strfreev().
      */
     static query(): string[]
 }
@@ -26875,6 +28858,7 @@ interface IOStream {
      * The default implementation of this method just calls close on the
      * individual input/output streams.
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns %TRUE on success, %FALSE on failure
      */
     close(cancellable: Cancellable | null): boolean
     /**
@@ -26893,33 +28877,60 @@ interface IOStream {
      * @param callback callback to call when the request is satisfied
      */
     close_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of close_async
+
+    /**
+     * Promisified version of {@link close_async}
+     * 
+     * Requests an asynchronous close of the stream, releasing resources
+     * related to it. When the operation is finished `callback` will be
+     * called. You can then call g_io_stream_close_finish() to get
+     * the result of the operation.
+     * 
+     * For behaviour details see g_io_stream_close().
+     * 
+     * The asynchronous methods have a default fallback that uses threads
+     * to implement asynchronicity, so they are optional for inheriting
+     * classes. However, if you override one you must override all.
+     * @param io_priority the io priority of the request
+     * @param cancellable optional cancellable object
+     * @returns A Promise of: %TRUE if stream was successfully closed, %FALSE otherwise.
+     */
+    close_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Closes a stream.
      * @param result a #GAsyncResult
+     * @returns %TRUE if stream was successfully closed, %FALSE otherwise.
      */
     close_finish(result: AsyncResult): boolean
     /**
      * Gets the input stream for this object. This is used
      * for reading.
+     * @returns a #GInputStream, owned by the #GIOStream. Do not free.
      */
     get_input_stream(): InputStream
     /**
      * Gets the output stream for this object. This is used for
      * writing.
+     * @returns a #GOutputStream, owned by the #GIOStream. Do not free.
      */
     get_output_stream(): OutputStream
     /**
      * Checks if a stream has pending actions.
+     * @returns %TRUE if @stream has pending actions.
      */
     has_pending(): boolean
     /**
      * Checks if a stream is closed.
+     * @returns %TRUE if the stream is closed.
      */
     is_closed(): boolean
     /**
      * Sets `stream` to have actions pending. If the pending flag is
      * already set or `stream` is closed, it will return %FALSE and set
      * `error`.
+     * @returns %TRUE if pending was previously unset and is now set.
      */
     set_pending(): boolean
     /**
@@ -26961,6 +28972,7 @@ interface IOStream {
      * Closes a stream.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns %TRUE if stream was successfully closed, %FALSE otherwise.
      */
     vfunc_close_finish(result: AsyncResult): boolean
     vfunc_close_fn(cancellable: Cancellable | null): boolean
@@ -26968,12 +28980,14 @@ interface IOStream {
      * Gets the input stream for this object. This is used
      * for reading.
      * @virtual 
+     * @returns a #GInputStream, owned by the #GIOStream. Do not free.
      */
     vfunc_get_input_stream(): InputStream
     /**
      * Gets the output stream for this object. This is used for
      * writing.
      * @virtual 
+     * @returns a #GOutputStream, owned by the #GIOStream. Do not free.
      */
     vfunc_get_output_stream(): OutputStream
 
@@ -27057,6 +29071,7 @@ class IOStream extends GObject.Object {
     /**
      * Finishes an asynchronous io stream splice operation.
      * @param result a #GAsyncResult.
+     * @returns %TRUE on success, %FALSE otherwise.
      */
     static splice_finish(result: AsyncResult): boolean
 }
@@ -27141,48 +29156,59 @@ interface InetAddress {
     /**
      * Checks if two #GInetAddress instances are equal, e.g. the same address.
      * @param other_address Another #GInetAddress.
+     * @returns %TRUE if @address and @other_address are equal, %FALSE otherwise.
      */
     equal(other_address: InetAddress): boolean
     /**
      * Gets `address'`s family
+     * @returns @address's family
      */
     get_family(): SocketFamily
     /**
      * Tests whether `address` is the "any" address for its family.
+     * @returns %TRUE if @address is the "any" address for its family.
      */
     get_is_any(): boolean
     /**
      * Tests whether `address` is a link-local address (that is, if it
      * identifies a host on a local network that is not connected to the
      * Internet).
+     * @returns %TRUE if @address is a link-local address.
      */
     get_is_link_local(): boolean
     /**
      * Tests whether `address` is the loopback address for its family.
+     * @returns %TRUE if @address is the loopback address for its family.
      */
     get_is_loopback(): boolean
     /**
      * Tests whether `address` is a global multicast address.
+     * @returns %TRUE if @address is a global multicast address.
      */
     get_is_mc_global(): boolean
     /**
      * Tests whether `address` is a link-local multicast address.
+     * @returns %TRUE if @address is a link-local multicast address.
      */
     get_is_mc_link_local(): boolean
     /**
      * Tests whether `address` is a node-local multicast address.
+     * @returns %TRUE if @address is a node-local multicast address.
      */
     get_is_mc_node_local(): boolean
     /**
      * Tests whether `address` is an organization-local multicast address.
+     * @returns %TRUE if @address is an organization-local multicast address.
      */
     get_is_mc_org_local(): boolean
     /**
      * Tests whether `address` is a site-local multicast address.
+     * @returns %TRUE if @address is a site-local multicast address.
      */
     get_is_mc_site_local(): boolean
     /**
      * Tests whether `address` is a multicast address.
+     * @returns %TRUE if @address is a multicast address.
      */
     get_is_multicast(): boolean
     /**
@@ -27190,15 +29216,18 @@ interface InetAddress {
      * (that is, the address identifies a host on a local network that can
      * not be reached directly from the Internet, but which may have
      * outgoing Internet connectivity via a NAT or firewall).
+     * @returns %TRUE if @address is a site-local address.
      */
     get_is_site_local(): boolean
     /**
      * Gets the size of the native raw binary address for `address`. This
      * is the size of the data that you get from g_inet_address_to_bytes().
+     * @returns the number of bytes used for the native version of @address.
      */
     get_native_size(): number
     /**
      * Converts `address` to string form.
+     * @returns a representation of @address as a string, which should be freed after use.
      */
     to_string(): string
 
@@ -27207,6 +29236,7 @@ interface InetAddress {
     /**
      * Converts `address` to string form.
      * @virtual 
+     * @returns a representation of @address as a string, which should be freed after use.
      */
     vfunc_to_string(): string
 
@@ -27282,6 +29312,7 @@ class InetAddress extends GObject.Object {
      * care") for `family`.
      * @constructor 
      * @param family the address family
+     * @returns a new #GInetAddress corresponding to the "any" address for @family.     Free the returned object with g_object_unref().
      */
     static new_any(family: SocketFamily): InetAddress
     /**
@@ -27291,18 +29322,21 @@ class InetAddress extends GObject.Object {
      * @constructor 
      * @param bytes raw address data
      * @param family the address family of `bytes`
+     * @returns a new #GInetAddress corresponding to @family and @bytes.     Free the returned object with g_object_unref().
      */
     static new_from_bytes(bytes: Uint8Array, family: SocketFamily): InetAddress
     /**
      * Parses `string` as an IP address and creates a new #GInetAddress.
      * @constructor 
      * @param string a string representation of an IP address
+     * @returns a new #GInetAddress corresponding to @string, or %NULL if @string could not be parsed.     Free the returned object with g_object_unref().
      */
     static new_from_string(string: string): InetAddress
     /**
      * Creates a #GInetAddress for the loopback address for `family`.
      * @constructor 
      * @param family the address family
+     * @returns a new #GInetAddress corresponding to the loopback address for @family.     Free the returned object with g_object_unref().
      */
     static new_loopback(family: SocketFamily): InetAddress
     _init(config?: InetAddress.ConstructorProperties): void
@@ -27339,27 +29373,33 @@ interface InetAddressMask extends Initable {
     /**
      * Tests if `mask` and `mask2` are the same mask.
      * @param mask2 another #GInetAddressMask
+     * @returns whether @mask and @mask2 are the same mask
      */
     equal(mask2: InetAddressMask): boolean
     /**
      * Gets `mask'`s base address
+     * @returns @mask's base address
      */
     get_address(): InetAddress
     /**
      * Gets the #GSocketFamily of `mask'`s address
+     * @returns the #GSocketFamily of @mask's address
      */
     get_family(): SocketFamily
     /**
      * Gets `mask'`s length
+     * @returns @mask's length
      */
     get_length(): number
     /**
      * Tests if `address` falls within the range described by `mask`.
      * @param address a #GInetAddress
+     * @returns whether @address falls within the range described by @mask.
      */
     matches(address: InetAddress): boolean
     /**
      * Converts `mask` back to its corresponding string form.
+     * @returns a string corresponding to @mask.
      */
     to_string(): string
 
@@ -27403,6 +29443,7 @@ class InetAddressMask extends GObject.Object {
      * @constructor 
      * @param addr a #GInetAddress
      * @param length number of bits of `addr` to use
+     * @returns a new #GInetAddressMask, or %NULL on error
      */
     constructor(addr: InetAddress, length: number) 
     /**
@@ -27411,6 +29452,7 @@ class InetAddressMask extends GObject.Object {
      * @constructor 
      * @param addr a #GInetAddress
      * @param length number of bits of `addr` to use
+     * @returns a new #GInetAddressMask, or %NULL on error
      */
     static new(addr: InetAddress, length: number): InetAddressMask
     /**
@@ -27420,6 +29462,7 @@ class InetAddressMask extends GObject.Object {
      * assumed to be the full length of the address.
      * @constructor 
      * @param mask_string an IP address or address/length string
+     * @returns a new #GInetAddressMask corresponding to @string, or %NULL on error.
      */
     static new_from_string(mask_string: string): InetAddressMask
     _init(config?: InetAddressMask.ConstructorProperties): void
@@ -27464,20 +29507,24 @@ interface InetSocketAddress extends SocketConnectable {
 
     /**
      * Gets `address'`s #GInetAddress.
+     * @returns the #GInetAddress for @address, which must be g_object_ref()'d if it will be stored
      */
     get_address(): InetAddress
     /**
      * Gets the `sin6_flowinfo` field from `address,`
      * which must be an IPv6 address.
+     * @returns the flowinfo field
      */
     get_flowinfo(): number
     /**
      * Gets `address'`s port.
+     * @returns the port for @address
      */
     get_port(): number
     /**
      * Gets the `sin6_scope_id` field from `address,`
      * which must be an IPv6 address.
+     * @returns the scope id field
      */
     get_scope_id(): number
 
@@ -27524,6 +29571,7 @@ class InetSocketAddress extends SocketAddress {
      * @constructor 
      * @param address a #GInetAddress
      * @param port a port number
+     * @returns a new #GInetSocketAddress
      */
     constructor(address: InetAddress, port: number) 
     /**
@@ -27531,6 +29579,7 @@ class InetSocketAddress extends SocketAddress {
      * @constructor 
      * @param address a #GInetAddress
      * @param port a port number
+     * @returns a new #GInetSocketAddress
      */
     static new(address: InetAddress, port: number): InetSocketAddress
     /**
@@ -27541,6 +29590,7 @@ class InetSocketAddress extends SocketAddress {
      * @constructor 
      * @param address the string form of an IP address
      * @param port a port number
+     * @returns a new #GInetSocketAddress, or %NULL if @address cannot be parsed.
      */
     static new_from_string(address: string, port: number): InetSocketAddress
     _init(config?: InetSocketAddress.ConstructorProperties): void
@@ -27592,6 +29642,7 @@ interface InputStream {
      * Cancelling a close will still leave the stream closed, but some streams
      * can use a faster close that doesn't block to e.g. check errors.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE on success, %FALSE on failure
      */
     close(cancellable: Cancellable | null): boolean
     /**
@@ -27610,17 +29661,41 @@ interface InputStream {
      * @param callback callback to call when the request is satisfied
      */
     close_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of close_async
+
+    /**
+     * Promisified version of {@link close_async}
+     * 
+     * Requests an asynchronous closes of the stream, releasing resources related to it.
+     * When the operation is finished `callback` will be called.
+     * You can then call g_input_stream_close_finish() to get the result of the
+     * operation.
+     * 
+     * For behaviour details see g_input_stream_close().
+     * 
+     * The asynchronous methods have a default fallback that uses threads to implement
+     * asynchronicity, so they are optional for inheriting classes. However, if you
+     * override one you must override all.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional cancellable object
+     * @returns A Promise of: %TRUE if the stream was closed successfully.
+     */
+    close_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes closing a stream asynchronously, started from g_input_stream_close_async().
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the stream was closed successfully.
      */
     close_finish(result: AsyncResult): boolean
     /**
      * Checks if an input stream has pending actions.
+     * @returns %TRUE if @stream has pending actions.
      */
     has_pending(): boolean
     /**
      * Checks if an input stream is closed.
+     * @returns %TRUE if the stream is closed.
      */
     is_closed(): boolean
     /**
@@ -27646,6 +29721,7 @@ interface InputStream {
      * 
      * On error -1 is returned and `error` is set accordingly.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns Number of bytes read, or -1 on error, or 0 on end of file.
      */
     read(cancellable: Cancellable | null): [ /* returnType */ number, /* buffer */ Uint8Array ]
     /**
@@ -27669,6 +29745,7 @@ interface InputStream {
      * available from C.  If you need it from another language then you must
      * write your own loop around g_input_stream_read().
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     read_all(cancellable: Cancellable | null): [ /* returnType */ boolean, /* buffer */ Uint8Array, /* bytes_read */ number ]
     /**
@@ -27687,6 +29764,27 @@ interface InputStream {
      * @param callback callback to call when the request is satisfied
      */
     read_all_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): /* buffer */ Uint8Array
+
+    // Overloads of read_all_async
+
+    /**
+     * Promisified version of {@link read_all_async}
+     * 
+     * Request an asynchronous read of `count` bytes from the stream into the
+     * buffer starting at `buffer`.
+     * 
+     * This is the asynchronous equivalent of g_input_stream_read_all().
+     * 
+     * Call g_input_stream_read_all_finish() to collect the result.
+     * 
+     * Any outstanding I/O request with higher priority (lower numerical
+     * value) will be executed before an outstanding request with lower
+     * priority. Default priority is %G_PRIORITY_DEFAULT.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns A Promise of: %TRUE on success, %FALSE if there was an error
+     */
+    read_all_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* bytes_read */ number>
     /**
      * Finishes an asynchronous stream read operation started with
      * g_input_stream_read_all_async().
@@ -27698,6 +29796,7 @@ interface InputStream {
      * available from C.  If you need it from another language then you must
      * write your own loop around g_input_stream_read_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     read_all_finish(result: AsyncResult): [ /* returnType */ boolean, /* bytes_read */ number ]
     /**
@@ -27729,6 +29828,40 @@ interface InputStream {
      * @param callback callback to call when the request is satisfied
      */
     read_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): /* buffer */ Uint8Array
+
+    // Overloads of read_async
+
+    /**
+     * Promisified version of {@link read_async}
+     * 
+     * Request an asynchronous read of `count` bytes from the stream into the buffer
+     * starting at `buffer`. When the operation is finished `callback` will be called.
+     * You can then call g_input_stream_read_finish() to get the result of the
+     * operation.
+     * 
+     * During an async request no other sync and async calls are allowed on `stream,` and will
+     * result in %G_IO_ERROR_PENDING errors.
+     * 
+     * A value of `count` larger than %G_MAXSSIZE will cause a %G_IO_ERROR_INVALID_ARGUMENT error.
+     * 
+     * On success, the number of bytes read into the buffer will be passed to the
+     * callback. It is not an error if this is not the same as the requested size, as it
+     * can happen e.g. near the end of a file, but generally we try to read
+     * as many bytes as requested. Zero is returned on end of file
+     * (or if `count` is zero),  but never otherwise.
+     * 
+     * Any outstanding i/o request with higher priority (lower numerical value) will
+     * be executed before an outstanding request with lower priority. Default
+     * priority is %G_PRIORITY_DEFAULT.
+     * 
+     * The asynchronous methods have a default fallback that uses threads to implement
+     * asynchronicity, so they are optional for inheriting classes. However, if you
+     * override one you must override all.
+     * @param io_priority the [I/O priority][io-priority] of the request.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: number of bytes read in, or -1 on error, or 0 on end of file.
+     */
+    read_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<number>
     /**
      * Like g_input_stream_read(), this tries to read `count` bytes from
      * the stream in a blocking fashion. However, rather than reading into
@@ -27755,6 +29888,7 @@ interface InputStream {
      * On error %NULL is returned and `error` is set accordingly.
      * @param count maximum number of bytes that will be read from the stream. Common values include 4096 and 8192.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a new #GBytes, or %NULL on error
      */
     read_bytes(count: number, cancellable: Cancellable | null): GLib.Bytes
     /**
@@ -27784,20 +29918,55 @@ interface InputStream {
      * @param callback callback to call when the request is satisfied
      */
     read_bytes_async(count: number, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_bytes_async
+
+    /**
+     * Promisified version of {@link read_bytes_async}
+     * 
+     * Request an asynchronous read of `count` bytes from the stream into a
+     * new #GBytes. When the operation is finished `callback` will be
+     * called. You can then call g_input_stream_read_bytes_finish() to get the
+     * result of the operation.
+     * 
+     * During an async request no other sync and async calls are allowed
+     * on `stream,` and will result in %G_IO_ERROR_PENDING errors.
+     * 
+     * A value of `count` larger than %G_MAXSSIZE will cause a
+     * %G_IO_ERROR_INVALID_ARGUMENT error.
+     * 
+     * On success, the new #GBytes will be passed to the callback. It is
+     * not an error if this is smaller than the requested size, as it can
+     * happen e.g. near the end of a file, but generally we try to read as
+     * many bytes as requested. Zero is returned on end of file (or if
+     * `count` is zero), but never otherwise.
+     * 
+     * Any outstanding I/O request with higher priority (lower numerical
+     * value) will be executed before an outstanding request with lower
+     * priority. Default priority is %G_PRIORITY_DEFAULT.
+     * @param count the number of bytes that will be read from the stream
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: the newly-allocated #GBytes, or %NULL on error
+     */
+    read_bytes_async(count: number, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<GLib.Bytes>
     /**
      * Finishes an asynchronous stream read-into-#GBytes operation.
      * @param result a #GAsyncResult.
+     * @returns the newly-allocated #GBytes, or %NULL on error
      */
     read_bytes_finish(result: AsyncResult): GLib.Bytes
     /**
      * Finishes an asynchronous stream read operation.
      * @param result a #GAsyncResult.
+     * @returns number of bytes read in, or -1 on error, or 0 on end of file.
      */
     read_finish(result: AsyncResult): number
     /**
      * Sets `stream` to have actions pending. If the pending flag is
      * already set or `stream` is closed, it will return %FALSE and set
      * `error`.
+     * @returns %TRUE if pending was previously unset and is now set.
      */
     set_pending(): boolean
     /**
@@ -27817,6 +29986,7 @@ interface InputStream {
      * partial result will be returned, without an error.
      * @param count the number of bytes that will be skipped from the stream
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns Number of bytes skipped, or -1 on error
      */
     skip(count: number, cancellable: Cancellable | null): number
     /**
@@ -27849,9 +30019,45 @@ interface InputStream {
      * @param callback callback to call when the request is satisfied
      */
     skip_async(count: number, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of skip_async
+
+    /**
+     * Promisified version of {@link skip_async}
+     * 
+     * Request an asynchronous skip of `count` bytes from the stream.
+     * When the operation is finished `callback` will be called.
+     * You can then call g_input_stream_skip_finish() to get the result
+     * of the operation.
+     * 
+     * During an async request no other sync and async calls are allowed,
+     * and will result in %G_IO_ERROR_PENDING errors.
+     * 
+     * A value of `count` larger than %G_MAXSSIZE will cause a %G_IO_ERROR_INVALID_ARGUMENT error.
+     * 
+     * On success, the number of bytes skipped will be passed to the callback.
+     * It is not an error if this is not the same as the requested size, as it
+     * can happen e.g. near the end of a file, but generally we try to skip
+     * as many bytes as requested. Zero is returned on end of file
+     * (or if `count` is zero), but never otherwise.
+     * 
+     * Any outstanding i/o request with higher priority (lower numerical value)
+     * will be executed before an outstanding request with lower priority.
+     * Default priority is %G_PRIORITY_DEFAULT.
+     * 
+     * The asynchronous methods have a default fallback that uses threads to
+     * implement asynchronicity, so they are optional for inheriting classes.
+     * However, if you override one, you must override all.
+     * @param count the number of bytes that will be skipped from the stream
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: the size of the bytes skipped, or `-1` on error.
+     */
+    skip_async(count: number, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<number>
     /**
      * Finishes a stream skip operation.
      * @param result a #GAsyncResult.
+     * @returns the size of the bytes skipped, or `-1` on error.
      */
     skip_finish(result: AsyncResult): number
 
@@ -27878,6 +30084,7 @@ interface InputStream {
      * Finishes closing a stream asynchronously, started from g_input_stream_close_async().
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the stream was closed successfully.
      */
     vfunc_close_finish(result: AsyncResult): boolean
     vfunc_close_fn(cancellable: Cancellable | null): boolean
@@ -27915,6 +30122,7 @@ interface InputStream {
      * Finishes an asynchronous stream read operation.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns number of bytes read in, or -1 on error, or 0 on end of file.
      */
     vfunc_read_finish(result: AsyncResult): number
     vfunc_read_fn(buffer: object | null, count: number, cancellable: Cancellable | null): number
@@ -27936,6 +30144,7 @@ interface InputStream {
      * @virtual 
      * @param count the number of bytes that will be skipped from the stream
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns Number of bytes skipped, or -1 on error
      */
     vfunc_skip(count: number, cancellable: Cancellable | null): number
     /**
@@ -27973,6 +30182,7 @@ interface InputStream {
      * Finishes a stream skip operation.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns the size of the bytes skipped, or `-1` on error.
      */
     vfunc_skip_finish(result: AsyncResult): number
 
@@ -28062,6 +30272,7 @@ interface ListStore<A extends GObject.Object = GObject.Object> extends ListModel
      * If you need to compare the two items with a custom comparison function, use
      * g_list_store_find_with_equal_func() with a custom #GEqualFunc instead.
      * @param item an item
+     * @returns Whether @store contains @item. If it was found, @position will be set to the position where @item occurred for the first time.
      */
     find(item: GObject.Object): [ /* returnType */ boolean, /* position */ number ]
     /**
@@ -28071,6 +30282,7 @@ interface ListStore<A extends GObject.Object = GObject.Object> extends ListModel
      * method will return %FALSE.
      * @param item an item
      * @param equal_func A custom equality check function
+     * @returns Whether @store contains @item. If it was found, @position will be set to the position where @item occurred for the first time.
      */
     find_with_equal_func(item: GObject.Object, equal_func: GLib.EqualFunc): [ /* returnType */ boolean, /* position */ number ]
     /**
@@ -28078,6 +30290,7 @@ interface ListStore<A extends GObject.Object = GObject.Object> extends ListModel
      * that is passed to `equal_func`.
      * @param item an item
      * @param equal_func A custom equality check function
+     * @returns Whether @store contains @item. If it was found, @position will be set to the position where @item occurred for the first time.
      */
     find_with_equal_func_full(item: GObject.Object, equal_func: GLib.EqualFuncFull): [ /* returnType */ boolean, /* position */ number ]
     /**
@@ -28142,6 +30355,7 @@ interface ListStore<A extends GObject.Object = GObject.Object> extends ListModel
      * This function takes a ref on `item`.
      * @param item the new item
      * @param compare_func pairwise comparison function for sorting
+     * @returns the position at which @item was inserted
      */
     insert_sorted(item: A, compare_func: GLib.CompareDataFunc): number
     sort(compare_func: GLib.CompareDataFunc): void
@@ -28183,6 +30397,7 @@ class ListStore<A extends GObject.Object = GObject.Object> extends GObject.Objec
      * must be a subclass of #GObject.
      * @constructor 
      * @param item_type the #GType of items in the list
+     * @returns a new #GListStore
      */
     constructor(item_type: GObject.GType) 
     /**
@@ -28190,6 +30405,7 @@ class ListStore<A extends GObject.Object = GObject.Object> extends GObject.Objec
      * must be a subclass of #GObject.
      * @constructor 
      * @param item_type the #GType of items in the list
+     * @returns a new #GListStore
      */
     static new(item_type: GObject.GType): ListStore
     _init(config?: ListStore.ConstructorProperties): void
@@ -28253,17 +30469,20 @@ class MemoryInputStream extends InputStream {
     /**
      * Creates a new empty #GMemoryInputStream.
      * @constructor 
+     * @returns a new #GInputStream
      */
     constructor() 
     /**
      * Creates a new empty #GMemoryInputStream.
      * @constructor 
+     * @returns a new #GInputStream
      */
     static new(): MemoryInputStream
     /**
      * Creates a new #GMemoryInputStream with data from the given `bytes`.
      * @constructor 
      * @param bytes a #GBytes
+     * @returns new #GInputStream read from @bytes
      */
     static new_from_bytes(bytes: GLib.Bytes): MemoryInputStream
     /**
@@ -28271,6 +30490,7 @@ class MemoryInputStream extends InputStream {
      * @constructor 
      * @param data input data
      * @param destroy function that is called to free `data,` or %NULL
+     * @returns new #GInputStream read from @data of @len bytes.
      */
     static new_from_data(data: Uint8Array, destroy: GLib.DestroyNotify | null): MemoryInputStream
     _init(config?: MemoryInputStream.ConstructorProperties): void
@@ -28324,6 +30544,7 @@ interface MemoryOutputStream extends PollableOutputStream, Seekable {
      * 
      * Note that the returned pointer may become invalid on the next
      * write or truncate operation on the stream.
+     * @returns pointer to the stream's data, or %NULL if the data    has been stolen
      */
     get_data(): object | null
 
@@ -28332,11 +30553,13 @@ interface MemoryOutputStream extends PollableOutputStream, Seekable {
     /**
      * Gets a named field from the objects table of associations (see g_object_set_data()).
      * @param key name of the key for that association
+     * @returns the data if found,          or %NULL if no such data exists.
      */
     get_data(key: string): object | null
     /**
      * Returns the number of bytes from the start up to including the last
      * byte written in the stream that has not been truncated away.
+     * @returns the number of bytes written to the stream
      */
     get_data_size(): number
     /**
@@ -28355,11 +30578,13 @@ interface MemoryOutputStream extends PollableOutputStream, Seekable {
      * 
      * In any case, if you want the number of bytes currently written to the
      * stream, use g_memory_output_stream_get_data_size().
+     * @returns the number of bytes allocated for the data buffer
      */
     get_size(): number
     /**
      * Returns data from the `ostream` as a #GBytes. `ostream` must be
      * closed before calling this function.
+     * @returns the stream's data
      */
     steal_as_bytes(): GLib.Bytes
     /**
@@ -28369,6 +30594,7 @@ interface MemoryOutputStream extends PollableOutputStream, Seekable {
      * #GMemoryOutputStream:destroy-function property.
      * 
      * `ostream` must be closed before calling this function.
+     * @returns the stream's data, or %NULL if it has previously    been stolen
      */
     steal_data(): object | null
 
@@ -28378,6 +30604,7 @@ interface MemoryOutputStream extends PollableOutputStream, Seekable {
      * Remove a specified datum from the object's data associations,
      * without invoking the association's destroy handler.
      * @param key name of the key
+     * @returns the data if found, or %NULL          if no such data exists.
      */
     steal_data(key: string): object | null
 
@@ -28613,6 +30840,7 @@ class Menu extends MenuModel {
      * 
      * The new menu has no items.
      * @constructor 
+     * @returns a new #GMenu
      */
     constructor() 
     /**
@@ -28620,6 +30848,7 @@ class Menu extends MenuModel {
      * 
      * The new menu has no items.
      * @constructor 
+     * @returns a new #GMenu
      */
     static new(): Menu
     _init(config?: Menu.ConstructorProperties): void
@@ -28648,6 +30877,7 @@ interface MenuAttributeIter {
      * a string.
      * 
      * The iterator is not advanced.
+     * @returns the name of the attribute
      */
     get_name(): string
     /**
@@ -28666,12 +30896,14 @@ interface MenuAttributeIter {
      * The value returned in `name` remains valid for as long as the iterator
      * remains at the current position.  The value returned in `value` must
      * be unreffed using g_variant_unref() when it is no longer in use.
+     * @returns %TRUE on success, or %FALSE if there is no additional     attribute
      */
     get_next(): [ /* returnType */ boolean, /* out_name */ string, /* value */ GLib.Variant ]
     /**
      * Gets the value of the attribute at the current iterator position.
      * 
      * The iterator is not advanced.
+     * @returns the value of the current attribute
      */
     get_value(): GLib.Variant
     /**
@@ -28684,6 +30916,7 @@ interface MenuAttributeIter {
      * You must call this function when you first acquire the iterator
      * to advance it to the first attribute (and determine if the first
      * attribute exists at all).
+     * @returns %TRUE on success, or %FALSE when there are no more attributes
      */
     next(): boolean
 
@@ -28706,6 +30939,7 @@ interface MenuAttributeIter {
      * remains at the current position.  The value returned in `value` must
      * be unreffed using g_variant_unref() when it is no longer in use.
      * @virtual 
+     * @returns %TRUE on success, or %FALSE if there is no additional     attribute
      */
     vfunc_get_next(): [ /* returnType */ boolean, /* out_name */ string, /* value */ GLib.Variant ]
 
@@ -28756,11 +30990,13 @@ interface MenuItem {
      * simply does not exist.
      * @param attribute the attribute name to query
      * @param expected_type the expected type of the attribute
+     * @returns the attribute value, or %NULL
      */
     get_attribute_value(attribute: string, expected_type: GLib.VariantType | null): GLib.Variant | null
     /**
      * Queries the named `link` on `menu_item`.
      * @param link the link name to query
+     * @returns the link, or %NULL
      */
     get_link(link: string): MenuModel | null
     /**
@@ -28940,6 +31176,7 @@ class MenuItem extends GObject.Object {
      * @constructor 
      * @param label the section label, or %NULL
      * @param detailed_action the detailed action string, or %NULL
+     * @returns a new #GMenuItem
      */
     constructor(label: string | null, detailed_action: string | null) 
     /**
@@ -28954,6 +31191,7 @@ class MenuItem extends GObject.Object {
      * @constructor 
      * @param label the section label, or %NULL
      * @param detailed_action the detailed action string, or %NULL
+     * @returns a new #GMenuItem
      */
     static new(label: string | null, detailed_action: string | null): MenuItem
     /**
@@ -28965,6 +31203,7 @@ class MenuItem extends GObject.Object {
      * @constructor 
      * @param model a #GMenuModel
      * @param item_index the index of an item in `model`
+     * @returns a new #GMenuItem.
      */
     static new_from_model(model: MenuModel, item_index: number): MenuItem
     /**
@@ -29033,6 +31272,7 @@ class MenuItem extends GObject.Object {
      * @constructor 
      * @param label the section label, or %NULL
      * @param section a #GMenuModel with the items of the section
+     * @returns a new #GMenuItem
      */
     static new_section(label: string | null, section: MenuModel): MenuItem
     /**
@@ -29043,6 +31283,7 @@ class MenuItem extends GObject.Object {
      * @constructor 
      * @param label the section label, or %NULL
      * @param submenu a #GMenuModel with the items of the submenu
+     * @returns a new #GMenuItem
      */
     static new_submenu(label: string | null, submenu: MenuModel): MenuItem
     _init(config?: MenuItem.ConstructorProperties): void
@@ -29070,6 +31311,7 @@ interface MenuLinkIter {
      * Gets the name of the link at the current iterator position.
      * 
      * The iterator is not advanced.
+     * @returns the type of the link
      */
     get_name(): string
     /**
@@ -29087,12 +31329,14 @@ interface MenuLinkIter {
      * The value returned in `out_link` remains valid for as long as the iterator
      * remains at the current position.  The value returned in `value` must
      * be unreffed using g_object_unref() when it is no longer in use.
+     * @returns %TRUE on success, or %FALSE if there is no additional link
      */
     get_next(): [ /* returnType */ boolean, /* out_link */ string, /* value */ MenuModel ]
     /**
      * Gets the linked #GMenuModel at the current iterator position.
      * 
      * The iterator is not advanced.
+     * @returns the #GMenuModel that is linked to
      */
     get_value(): MenuModel
     /**
@@ -29104,6 +31348,7 @@ interface MenuLinkIter {
      * You must call this function when you first acquire the iterator to
      * advance it to the first link (and determine if the first link exists
      * at all).
+     * @returns %TRUE on success, or %FALSE when there are no more links
      */
     next(): boolean
 
@@ -29125,6 +31370,7 @@ interface MenuLinkIter {
      * remains at the current position.  The value returned in `value` must
      * be unreffed using g_object_unref() when it is no longer in use.
      * @virtual 
+     * @returns %TRUE on success, or %FALSE if there is no additional link
      */
     vfunc_get_next(): [ /* returnType */ boolean, /* out_link */ string, /* value */ MenuModel ]
 
@@ -29197,6 +31443,7 @@ interface MenuModel {
      * @param item_index the index of the item
      * @param attribute the attribute to query
      * @param expected_type the expected type of the attribute, or     %NULL
+     * @returns the value of the attribute
      */
     get_item_attribute_value(item_index: number, attribute: string, expected_type: GLib.VariantType | null): GLib.Variant | null
     /**
@@ -29207,10 +31454,12 @@ interface MenuModel {
      * does not exist, %NULL is returned.
      * @param item_index the index of the item
      * @param link the link to query
+     * @returns the linked #GMenuModel, or %NULL
      */
     get_item_link(item_index: number, link: string): MenuModel | null
     /**
      * Query the number of items in `model`.
+     * @returns the number of items
      */
     get_n_items(): number
     /**
@@ -29218,6 +31467,7 @@ interface MenuModel {
      * 
      * An immutable #GMenuModel will never emit the #GMenuModel::items-changed
      * signal. Consumers of the model may make optimisations accordingly.
+     * @returns %TRUE if the model is mutable (ie: "items-changed" may be     emitted).
      */
     is_mutable(): boolean
     /**
@@ -29247,6 +31497,7 @@ interface MenuModel {
      * 
      * You must free the iterator with g_object_unref() when you are done.
      * @param item_index the index of the item
+     * @returns a new #GMenuAttributeIter
      */
     iterate_item_attributes(item_index: number): MenuAttributeIter
     /**
@@ -29255,6 +31506,7 @@ interface MenuModel {
      * 
      * You must free the iterator with g_object_unref() when you are done.
      * @param item_index the index of the item
+     * @returns a new #GMenuLinkIter
      */
     iterate_item_links(item_index: number): MenuLinkIter
 
@@ -29276,6 +31528,7 @@ interface MenuModel {
      * @param item_index the index of the item
      * @param attribute the attribute to query
      * @param expected_type the expected type of the attribute, or     %NULL
+     * @returns the value of the attribute
      */
     vfunc_get_item_attribute_value(item_index: number, attribute: string, expected_type: GLib.VariantType | null): GLib.Variant | null
     /**
@@ -29293,6 +31546,7 @@ interface MenuModel {
      * @virtual 
      * @param item_index the index of the item
      * @param link the link to query
+     * @returns the linked #GMenuModel, or %NULL
      */
     vfunc_get_item_link(item_index: number, link: string): MenuModel | null
     /**
@@ -29304,6 +31558,7 @@ interface MenuModel {
     /**
      * Query the number of items in `model`.
      * @virtual 
+     * @returns the number of items
      */
     vfunc_get_n_items(): number
     /**
@@ -29312,6 +31567,7 @@ interface MenuModel {
      * An immutable #GMenuModel will never emit the #GMenuModel::items-changed
      * signal. Consumers of the model may make optimisations accordingly.
      * @virtual 
+     * @returns %TRUE if the model is mutable (ie: "items-changed" may be     emitted).
      */
     vfunc_is_mutable(): boolean
     /**
@@ -29321,6 +31577,7 @@ interface MenuModel {
      * You must free the iterator with g_object_unref() when you are done.
      * @virtual 
      * @param item_index the index of the item
+     * @returns a new #GMenuAttributeIter
      */
     vfunc_iterate_item_attributes(item_index: number): MenuAttributeIter
     /**
@@ -29330,6 +31587,7 @@ interface MenuModel {
      * You must free the iterator with g_object_unref() when you are done.
      * @virtual 
      * @param item_index the index of the item
+     * @returns a new #GMenuLinkIter
      */
     vfunc_iterate_item_links(item_index: number): MenuLinkIter
 
@@ -29638,40 +31896,49 @@ interface MountOperation {
     /**
      * Check to see whether the mount operation is being used
      * for an anonymous user.
+     * @returns %TRUE if mount operation is anonymous.
      */
     get_anonymous(): boolean
     /**
      * Gets a choice from the mount operation.
+     * @returns an integer containing an index of the user's choice from the choice's list, or `0`.
      */
     get_choice(): number
     /**
      * Gets the domain of the mount operation.
+     * @returns a string set to the domain.
      */
     get_domain(): string | null
     /**
      * Check to see whether the mount operation is being used
      * for a TCRYPT hidden volume.
+     * @returns %TRUE if mount operation is for hidden volume.
      */
     get_is_tcrypt_hidden_volume(): boolean
     /**
      * Check to see whether the mount operation is being used
      * for a TCRYPT system volume.
+     * @returns %TRUE if mount operation is for system volume.
      */
     get_is_tcrypt_system_volume(): boolean
     /**
      * Gets a password from the mount operation.
+     * @returns a string containing the password within @op.
      */
     get_password(): string | null
     /**
      * Gets the state of saving passwords for the mount operation.
+     * @returns a #GPasswordSave flag.
      */
     get_password_save(): PasswordSave
     /**
      * Gets a PIM from the mount operation.
+     * @returns The VeraCrypt PIM within @op.
      */
     get_pim(): number
     /**
      * Get the user name from the mount operation.
+     * @returns a string containing the user name.
      */
     get_username(): string | null
     /**
@@ -29845,11 +32112,13 @@ class MountOperation extends GObject.Object {
     /**
      * Creates a new mount operation.
      * @constructor 
+     * @returns a #GMountOperation.
      */
     constructor() 
     /**
      * Creates a new mount operation.
      * @constructor 
+     * @returns a #GMountOperation.
      */
     static new(): MountOperation
     _init(config?: MountOperation.ConstructorProperties): void
@@ -29900,6 +32169,7 @@ class NativeSocketAddress extends SocketAddress {
      * @constructor 
      * @param native a native address object
      * @param len the length of `native,` in bytes
+     * @returns a new #GNativeSocketAddress
      */
     constructor(native: object | null, len: number) 
     /**
@@ -29907,6 +32177,7 @@ class NativeSocketAddress extends SocketAddress {
      * @constructor 
      * @param native a native address object
      * @param len the length of `native,` in bytes
+     * @returns a new #GNativeSocketAddress
      */
     static new(native: object | null, len: number): NativeSocketAddress
     _init(config?: NativeSocketAddress.ConstructorProperties): void
@@ -29980,14 +32251,17 @@ interface NetworkAddress extends SocketConnectable {
     /**
      * Gets `addr'`s hostname. This might be either UTF-8 or ASCII-encoded,
      * depending on what `addr` was created with.
+     * @returns @addr's hostname
      */
     get_hostname(): string
     /**
      * Gets `addr'`s port number
+     * @returns @addr's port (which may be 0)
      */
     get_port(): number
     /**
      * Gets `addr'`s scheme
+     * @returns @addr's scheme (%NULL if not built from URI)
      */
     get_scheme(): string | null
 
@@ -30043,6 +32317,7 @@ class NetworkAddress extends GObject.Object {
      * @constructor 
      * @param hostname the hostname
      * @param port the port
+     * @returns the new #GNetworkAddress
      */
     constructor(hostname: string, port: number) 
     /**
@@ -30057,6 +32332,7 @@ class NetworkAddress extends GObject.Object {
      * @constructor 
      * @param hostname the hostname
      * @param port the port
+     * @returns the new #GNetworkAddress
      */
     static new(hostname: string, port: number): NetworkAddress
     /**
@@ -30074,6 +32350,7 @@ class NetworkAddress extends GObject.Object {
      * a #GNetworkAddress created with this constructor.
      * @constructor 
      * @param port the port
+     * @returns the new #GNetworkAddress
      */
     static new_loopback(port: number): NetworkAddress
     _init(config?: NetworkAddress.ConstructorProperties): void
@@ -30101,6 +32378,7 @@ class NetworkAddress extends GObject.Object {
      * which is generally quite sparse on platforms other than Linux.)
      * @param host_and_port the hostname and optionally a port
      * @param default_port the default port if not in `host_and_port`
+     * @returns the new   #GNetworkAddress, or %NULL on error
      */
     static parse(host_and_port: string, default_port: number): NetworkAddress
     /**
@@ -30112,6 +32390,7 @@ class NetworkAddress extends GObject.Object {
      * when to use application-specific proxy protocols.
      * @param uri the hostname and optionally a port
      * @param default_port The default port if none is found in the URI
+     * @returns the new   #GNetworkAddress, or %NULL on error
      */
     static parse_uri(uri: string, default_port: number): NetworkAddress
 }
@@ -30150,19 +32429,23 @@ interface NetworkService extends SocketConnectable {
     /**
      * Gets the domain that `srv` serves. This might be either UTF-8 or
      * ASCII-encoded, depending on what `srv` was created with.
+     * @returns @srv's domain name
      */
     get_domain(): string
     /**
      * Gets `srv'`s protocol name (eg, "tcp").
+     * @returns @srv's protocol name
      */
     get_protocol(): string
     /**
      * Gets the URI scheme used to resolve proxies. By default, the service name
      * is used as scheme.
+     * @returns @srv's scheme name
      */
     get_scheme(): string
     /**
      * Gets `srv'`s service name (eg, "ldap").
+     * @returns @srv's service name
      */
     get_service(): string
     /**
@@ -30222,6 +32505,7 @@ class NetworkService extends GObject.Object {
      * @param service the service type to look up (eg, "ldap")
      * @param protocol the networking protocol to use for `service` (eg, "tcp")
      * @param domain the DNS domain to look up the service in
+     * @returns a new #GNetworkService
      */
     constructor(service: string, protocol: string, domain: string) 
     /**
@@ -30232,6 +32516,7 @@ class NetworkService extends GObject.Object {
      * @param service the service type to look up (eg, "ldap")
      * @param protocol the networking protocol to use for `service` (eg, "tcp")
      * @param domain the DNS domain to look up the service in
+     * @returns a new #GNetworkService
      */
     static new(service: string, protocol: string, domain: string): NetworkService
     _init(config?: NetworkService.ConstructorProperties): void
@@ -30415,6 +32700,7 @@ class Notification extends GObject.Object {
      * resending `notification`.
      * @constructor 
      * @param title the title of the notification
+     * @returns a new #GNotification instance
      */
     constructor(title: string) 
     /**
@@ -30426,6 +32712,7 @@ class Notification extends GObject.Object {
      * resending `notification`.
      * @constructor 
      * @param title the title of the notification
+     * @returns a new #GNotification instance
      */
     static new(title: string): Notification
     _init(config?: Notification.ConstructorProperties): void
@@ -30483,6 +32770,7 @@ interface OutputStream {
      * cancellation (as with any error) there is no guarantee that all written
      * data will reach the target.
      * @param cancellable optional cancellable object
+     * @returns %TRUE on success, %FALSE on failure
      */
     close(cancellable: Cancellable | null): boolean
     /**
@@ -30501,9 +32789,31 @@ interface OutputStream {
      * @param callback callback to call when the request is satisfied
      */
     close_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of close_async
+
+    /**
+     * Promisified version of {@link close_async}
+     * 
+     * Requests an asynchronous close of the stream, releasing resources
+     * related to it. When the operation is finished `callback` will be
+     * called. You can then call g_output_stream_close_finish() to get
+     * the result of the operation.
+     * 
+     * For behaviour details see g_output_stream_close().
+     * 
+     * The asynchronous methods have a default fallback that uses threads
+     * to implement asynchronicity, so they are optional for inheriting
+     * classes. However, if you override one you must override all.
+     * @param io_priority the io priority of the request.
+     * @param cancellable optional cancellable object
+     * @returns A Promise of: %TRUE if stream was successfully closed, %FALSE otherwise.
+     */
+    close_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Closes an output stream.
      * @param result a #GAsyncResult.
+     * @returns %TRUE if stream was successfully closed, %FALSE otherwise.
      */
     close_finish(result: AsyncResult): boolean
     /**
@@ -30517,6 +32827,7 @@ interface OutputStream {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional cancellable object
+     * @returns %TRUE on success, %FALSE on error
      */
     flush(cancellable: Cancellable | null): boolean
     /**
@@ -30532,17 +32843,38 @@ interface OutputStream {
      * @param callback a #GAsyncReadyCallback to call when the request is satisfied
      */
     flush_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of flush_async
+
+    /**
+     * Promisified version of {@link flush_async}
+     * 
+     * Forces an asynchronous write of all user-space buffered data for
+     * the given `stream`.
+     * For behaviour details see g_output_stream_flush().
+     * 
+     * When the operation is finished `callback` will be
+     * called. You can then call g_output_stream_flush_finish() to get the
+     * result of the operation.
+     * @param io_priority the io priority of the request.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: %TRUE if flush operation succeeded, %FALSE otherwise.
+     */
+    flush_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes flushing an output stream.
      * @param result a GAsyncResult.
+     * @returns %TRUE if flush operation succeeded, %FALSE otherwise.
      */
     flush_finish(result: AsyncResult): boolean
     /**
      * Checks if an output stream has pending actions.
+     * @returns %TRUE if @stream has pending actions.
      */
     has_pending(): boolean
     /**
      * Checks if an output stream has already been closed.
+     * @returns %TRUE if @stream is closed. %FALSE otherwise.
      */
     is_closed(): boolean
     /**
@@ -30550,12 +32882,14 @@ interface OutputStream {
      * used inside e.g. a flush implementation to see if the
      * flush (or other i/o operation) is called from within
      * the closing operation.
+     * @returns %TRUE if @stream is being closed. %FALSE otherwise.
      */
     is_closing(): boolean
     /**
      * Sets `stream` to have actions pending. If the pending flag is
      * already set or `stream` is closed, it will return %FALSE and set
      * `error`.
+     * @returns %TRUE if pending was previously unset and is now set.
      */
     set_pending(): boolean
     /**
@@ -30563,6 +32897,7 @@ interface OutputStream {
      * @param source a #GInputStream.
      * @param flags a set of #GOutputStreamSpliceFlags.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #gssize containing the size of the data spliced, or     -1 if an error occurred. Note that if the number of bytes     spliced is greater than %G_MAXSSIZE, then that will be     returned, and there is no way to determine the actual number     of bytes spliced.
      */
     splice(source: InputStream, flags: OutputStreamSpliceFlags, cancellable: Cancellable | null): number
     /**
@@ -30580,9 +32915,30 @@ interface OutputStream {
      * @param callback a #GAsyncReadyCallback.
      */
     splice_async(source: InputStream, flags: OutputStreamSpliceFlags, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of splice_async
+
+    /**
+     * Promisified version of {@link splice_async}
+     * 
+     * Splices a stream asynchronously.
+     * When the operation is finished `callback` will be called.
+     * You can then call g_output_stream_splice_finish() to get the
+     * result of the operation.
+     * 
+     * For the synchronous, blocking version of this function, see
+     * g_output_stream_splice().
+     * @param source a #GInputStream.
+     * @param flags a set of #GOutputStreamSpliceFlags.
+     * @param io_priority the io priority of the request.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: a #gssize of the number of bytes spliced. Note that if the     number of bytes spliced is greater than %G_MAXSSIZE, then that     will be returned, and there is no way to determine the actual     number of bytes spliced.
+     */
+    splice_async(source: InputStream, flags: OutputStreamSpliceFlags, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<number>
     /**
      * Finishes an asynchronous stream splice operation.
      * @param result a #GAsyncResult.
+     * @returns a #gssize of the number of bytes spliced. Note that if the     number of bytes spliced is greater than %G_MAXSSIZE, then that     will be returned, and there is no way to determine the actual     number of bytes spliced.
      */
     splice_finish(result: AsyncResult): number
     /**
@@ -30608,6 +32964,7 @@ interface OutputStream {
      * On error -1 is returned and `error` is set accordingly.
      * @param buffer the buffer containing the data to write.
      * @param cancellable optional cancellable object
+     * @returns Number of bytes written, or -1 on error
      */
     write(buffer: Uint8Array, cancellable: Cancellable | null): number
     /**
@@ -30632,6 +32989,7 @@ interface OutputStream {
      * g_output_stream_write().
      * @param buffer the buffer containing the data to write.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     write_all(buffer: Uint8Array, cancellable: Cancellable | null): [ /* returnType */ boolean, /* bytes_written */ number ]
     /**
@@ -30656,6 +33014,33 @@ interface OutputStream {
      * @param callback callback to call when the request is satisfied
      */
     write_all_async(buffer: Uint8Array, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of write_all_async
+
+    /**
+     * Promisified version of {@link write_all_async}
+     * 
+     * Request an asynchronous write of `count` bytes from `buffer` into
+     * the stream. When the operation is finished `callback` will be called.
+     * You can then call g_output_stream_write_all_finish() to get the result of the
+     * operation.
+     * 
+     * This is the asynchronous version of g_output_stream_write_all().
+     * 
+     * Call g_output_stream_write_all_finish() to collect the result.
+     * 
+     * Any outstanding I/O request with higher priority (lower numerical
+     * value) will be executed before an outstanding request with lower
+     * priority. Default priority is %G_PRIORITY_DEFAULT.
+     * 
+     * Note that no copy of `buffer` will be made, so it must stay valid
+     * until `callback` is called.
+     * @param buffer the buffer containing the data to write
+     * @param io_priority the io priority of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns A Promise of: %TRUE on success, %FALSE if there was an error
+     */
+    write_all_async(buffer: Uint8Array, io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* bytes_written */ number>
     /**
      * Finishes an asynchronous stream write operation started with
      * g_output_stream_write_all_async().
@@ -30668,6 +33053,7 @@ interface OutputStream {
      * language then you must write your own loop around
      * g_output_stream_write_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     write_all_finish(result: AsyncResult): [ /* returnType */ boolean, /* bytes_written */ number ]
     /**
@@ -30712,6 +33098,53 @@ interface OutputStream {
      * @param callback callback to call when the request is satisfied
      */
     write_async(buffer: Uint8Array, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of write_async
+
+    /**
+     * Promisified version of {@link write_async}
+     * 
+     * Request an asynchronous write of `count` bytes from `buffer` into
+     * the stream. When the operation is finished `callback` will be called.
+     * You can then call g_output_stream_write_finish() to get the result of the
+     * operation.
+     * 
+     * During an async request no other sync and async calls are allowed,
+     * and will result in %G_IO_ERROR_PENDING errors.
+     * 
+     * A value of `count` larger than %G_MAXSSIZE will cause a
+     * %G_IO_ERROR_INVALID_ARGUMENT error.
+     * 
+     * On success, the number of bytes written will be passed to the
+     * `callback`. It is not an error if this is not the same as the
+     * requested size, as it can happen e.g. on a partial I/O error,
+     * but generally we try to write as many bytes as requested.
+     * 
+     * You are guaranteed that this method will never fail with
+     * %G_IO_ERROR_WOULD_BLOCK - if `stream` can't accept more data, the
+     * method will just wait until this changes.
+     * 
+     * Any outstanding I/O request with higher priority (lower numerical
+     * value) will be executed before an outstanding request with lower
+     * priority. Default priority is %G_PRIORITY_DEFAULT.
+     * 
+     * The asynchronous methods have a default fallback that uses threads
+     * to implement asynchronicity, so they are optional for inheriting
+     * classes. However, if you override one you must override all.
+     * 
+     * For the synchronous, blocking version of this function, see
+     * g_output_stream_write().
+     * 
+     * Note that no copy of `buffer` will be made, so it must stay valid
+     * until `callback` is called. See g_output_stream_write_bytes_async()
+     * for a #GBytes version that will automatically hold a reference to
+     * the contents (without copying) for the duration of the call.
+     * @param buffer the buffer containing the data to write.
+     * @param io_priority the io priority of the request.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: a #gssize containing the number of bytes written to the stream.
+     */
+    write_async(buffer: Uint8Array, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<number>
     /**
      * A wrapper function for g_output_stream_write() which takes a
      * #GBytes as input.  This can be more convenient for use by language
@@ -30726,6 +33159,7 @@ interface OutputStream {
      * data in the output stream.
      * @param bytes the #GBytes to write
      * @param cancellable optional cancellable object
+     * @returns Number of bytes written, or -1 on error
      */
     write_bytes(bytes: GLib.Bytes, cancellable: Cancellable | null): number
     /**
@@ -30748,14 +33182,41 @@ interface OutputStream {
      * @param callback callback to call when the request is satisfied
      */
     write_bytes_async(bytes: GLib.Bytes, io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of write_bytes_async
+
+    /**
+     * Promisified version of {@link write_bytes_async}
+     * 
+     * This function is similar to g_output_stream_write_async(), but
+     * takes a #GBytes as input.  Due to the refcounted nature of #GBytes,
+     * this allows the stream to avoid taking a copy of the data.
+     * 
+     * However, note that this function may still perform partial writes,
+     * just like g_output_stream_write_async(). If that occurs, to continue
+     * writing, you will need to create a new #GBytes containing just the
+     * remaining bytes, using g_bytes_new_from_bytes(). Passing the same
+     * #GBytes instance multiple times potentially can result in duplicated
+     * data in the output stream.
+     * 
+     * For the synchronous, blocking version of this function, see
+     * g_output_stream_write_bytes().
+     * @param bytes The bytes to write
+     * @param io_priority the io priority of the request.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: a #gssize containing the number of bytes written to the stream.
+     */
+    write_bytes_async(bytes: GLib.Bytes, io_priority: number, cancellable: Cancellable | null): globalThis.Promise<number>
     /**
      * Finishes a stream write-from-#GBytes operation.
      * @param result a #GAsyncResult.
+     * @returns a #gssize containing the number of bytes written to the stream.
      */
     write_bytes_finish(result: AsyncResult): number
     /**
      * Finishes a stream write operation.
      * @param result a #GAsyncResult.
+     * @returns a #gssize containing the number of bytes written to the stream.
      */
     write_finish(result: AsyncResult): number
     /**
@@ -30784,6 +33245,7 @@ interface OutputStream {
      * the aggregate buffer size must not exceed %G_MAXSSIZE bytes.
      * @param vectors the buffer containing the #GOutputVectors to write.
      * @param cancellable optional cancellable object
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     writev(vectors: OutputVector[], cancellable: Cancellable | null): [ /* returnType */ boolean, /* bytes_written */ number ]
     /**
@@ -30811,6 +33273,7 @@ interface OutputStream {
      * function.
      * @param vectors the buffer containing the #GOutputVectors to write.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     writev_all(vectors: OutputVector[], cancellable: Cancellable | null): [ /* returnType */ boolean, /* bytes_written */ number ]
     /**
@@ -30836,6 +33299,34 @@ interface OutputStream {
      * @param callback callback to call when the request is satisfied
      */
     writev_all_async(vectors: OutputVector[], io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of writev_all_async
+
+    /**
+     * Promisified version of {@link writev_all_async}
+     * 
+     * Request an asynchronous write of the bytes contained in the `n_vectors` `vectors` into
+     * the stream. When the operation is finished `callback` will be called.
+     * You can then call g_output_stream_writev_all_finish() to get the result of the
+     * operation.
+     * 
+     * This is the asynchronous version of g_output_stream_writev_all().
+     * 
+     * Call g_output_stream_writev_all_finish() to collect the result.
+     * 
+     * Any outstanding I/O request with higher priority (lower numerical
+     * value) will be executed before an outstanding request with lower
+     * priority. Default priority is %G_PRIORITY_DEFAULT.
+     * 
+     * Note that no copy of `vectors` will be made, so it must stay valid
+     * until `callback` is called. The content of the individual elements
+     * of `vectors` might be changed by this function.
+     * @param vectors the buffer containing the #GOutputVectors to write.
+     * @param io_priority the I/O priority of the request
+     * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns A Promise of: %TRUE on success, %FALSE if there was an error
+     */
+    writev_all_async(vectors: OutputVector[], io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* bytes_written */ number>
     /**
      * Finishes an asynchronous stream write operation started with
      * g_output_stream_writev_all_async().
@@ -30848,6 +33339,7 @@ interface OutputStream {
      * language then you must write your own loop around
      * g_output_stream_writev_async().
      * @param result a #GAsyncResult
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     writev_all_finish(result: AsyncResult): [ /* returnType */ boolean, /* bytes_written */ number ]
     /**
@@ -30887,9 +33379,52 @@ interface OutputStream {
      * @param callback callback to call when the request is satisfied
      */
     writev_async(vectors: OutputVector[], io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of writev_async
+
+    /**
+     * Promisified version of {@link writev_async}
+     * 
+     * Request an asynchronous write of the bytes contained in `n_vectors` `vectors` into
+     * the stream. When the operation is finished `callback` will be called.
+     * You can then call g_output_stream_writev_finish() to get the result of the
+     * operation.
+     * 
+     * During an async request no other sync and async calls are allowed,
+     * and will result in %G_IO_ERROR_PENDING errors.
+     * 
+     * On success, the number of bytes written will be passed to the
+     * `callback`. It is not an error if this is not the same as the
+     * requested size, as it can happen e.g. on a partial I/O error,
+     * but generally we try to write as many bytes as requested.
+     * 
+     * You are guaranteed that this method will never fail with
+     * %G_IO_ERROR_WOULD_BLOCK — if `stream` can't accept more data, the
+     * method will just wait until this changes.
+     * 
+     * Any outstanding I/O request with higher priority (lower numerical
+     * value) will be executed before an outstanding request with lower
+     * priority. Default priority is %G_PRIORITY_DEFAULT.
+     * 
+     * The asynchronous methods have a default fallback that uses threads
+     * to implement asynchronicity, so they are optional for inheriting
+     * classes. However, if you override one you must override all.
+     * 
+     * For the synchronous, blocking version of this function, see
+     * g_output_stream_writev().
+     * 
+     * Note that no copy of `vectors` will be made, so it must stay valid
+     * until `callback` is called.
+     * @param vectors the buffer containing the #GOutputVectors to write.
+     * @param io_priority the I/O priority of the request.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: %TRUE on success, %FALSE if there was an error
+     */
+    writev_async(vectors: OutputVector[], io_priority: number, cancellable: Cancellable | null): globalThis.Promise</* bytes_written */ number>
     /**
      * Finishes a stream writev operation.
      * @param result a #GAsyncResult.
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     writev_finish(result: AsyncResult): [ /* returnType */ boolean, /* bytes_written */ number ]
 
@@ -30916,6 +33451,7 @@ interface OutputStream {
      * Closes an output stream.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE if stream was successfully closed, %FALSE otherwise.
      */
     vfunc_close_finish(result: AsyncResult): boolean
     vfunc_close_fn(cancellable: Cancellable | null): boolean
@@ -30931,6 +33467,7 @@ interface OutputStream {
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @virtual 
      * @param cancellable optional cancellable object
+     * @returns %TRUE on success, %FALSE on error
      */
     vfunc_flush(cancellable: Cancellable | null): boolean
     /**
@@ -30951,6 +33488,7 @@ interface OutputStream {
      * Finishes flushing an output stream.
      * @virtual 
      * @param result a GAsyncResult.
+     * @returns %TRUE if flush operation succeeded, %FALSE otherwise.
      */
     vfunc_flush_finish(result: AsyncResult): boolean
     /**
@@ -30959,6 +33497,7 @@ interface OutputStream {
      * @param source a #GInputStream.
      * @param flags a set of #GOutputStreamSpliceFlags.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #gssize containing the size of the data spliced, or     -1 if an error occurred. Note that if the number of bytes     spliced is greater than %G_MAXSSIZE, then that will be     returned, and there is no way to determine the actual number     of bytes spliced.
      */
     vfunc_splice(source: InputStream, flags: OutputStreamSpliceFlags, cancellable: Cancellable | null): number
     /**
@@ -30981,6 +33520,7 @@ interface OutputStream {
      * Finishes an asynchronous stream splice operation.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns a #gssize of the number of bytes spliced. Note that if the     number of bytes spliced is greater than %G_MAXSSIZE, then that     will be returned, and there is no way to determine the actual     number of bytes spliced.
      */
     vfunc_splice_finish(result: AsyncResult): number
     /**
@@ -31030,6 +33570,7 @@ interface OutputStream {
      * Finishes a stream write operation.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns a #gssize containing the number of bytes written to the stream.
      */
     vfunc_write_finish(result: AsyncResult): number
     /**
@@ -31056,6 +33597,7 @@ interface OutputStream {
      * @virtual 
      * @param buffer the buffer containing the data to write.
      * @param cancellable optional cancellable object
+     * @returns Number of bytes written, or -1 on error
      */
     vfunc_write_fn(buffer: Uint8Array | null, cancellable: Cancellable | null): number
     /**
@@ -31100,6 +33642,7 @@ interface OutputStream {
      * Finishes a stream writev operation.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     vfunc_writev_finish(result: AsyncResult): [ /* returnType */ boolean, /* bytes_written */ number ]
     /**
@@ -31129,6 +33672,7 @@ interface OutputStream {
      * @virtual 
      * @param vectors the buffer containing the #GOutputVectors to write.
      * @param cancellable optional cancellable object
+     * @returns %TRUE on success, %FALSE if there was an error
      */
     vfunc_writev_fn(vectors: OutputVector[], cancellable: Cancellable | null): [ /* returnType */ boolean, /* bytes_written */ number ]
 
@@ -31219,6 +33763,7 @@ interface Permission {
      * user interaction is required).  See g_permission_acquire_async() for
      * the non-blocking version.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if the permission was successfully acquired
      */
     acquire(cancellable: Cancellable | null): boolean
     /**
@@ -31230,6 +33775,20 @@ interface Permission {
      * @param callback the #GAsyncReadyCallback to call when done
      */
     acquire_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of acquire_async
+
+    /**
+     * Promisified version of {@link acquire_async}
+     * 
+     * Attempts to acquire the permission represented by `permission`.
+     * 
+     * This is the first half of the asynchronous version of
+     * g_permission_acquire().
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE if the permission was successfully acquired
+     */
+    acquire_async(cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Collects the result of attempting to acquire the permission
      * represented by `permission`.
@@ -31237,24 +33796,28 @@ interface Permission {
      * This is the second half of the asynchronous version of
      * g_permission_acquire().
      * @param result the #GAsyncResult given to the #GAsyncReadyCallback
+     * @returns %TRUE if the permission was successfully acquired
      */
     acquire_finish(result: AsyncResult): boolean
     /**
      * Gets the value of the 'allowed' property.  This property is %TRUE if
      * the caller currently has permission to perform the action that
      * `permission` represents the permission to perform.
+     * @returns the value of the 'allowed' property
      */
     get_allowed(): boolean
     /**
      * Gets the value of the 'can-acquire' property.  This property is %TRUE
      * if it is generally possible to acquire the permission by calling
      * g_permission_acquire().
+     * @returns the value of the 'can-acquire' property
      */
     get_can_acquire(): boolean
     /**
      * Gets the value of the 'can-release' property.  This property is %TRUE
      * if it is generally possible to release the permission by calling
      * g_permission_release().
+     * @returns the value of the 'can-release' property
      */
     get_can_release(): boolean
     /**
@@ -31285,6 +33848,7 @@ interface Permission {
      * user interaction is required).  See g_permission_release_async() for
      * the non-blocking version.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if the permission was successfully released
      */
     release(cancellable: Cancellable | null): boolean
     /**
@@ -31296,6 +33860,20 @@ interface Permission {
      * @param callback the #GAsyncReadyCallback to call when done
      */
     release_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of release_async
+
+    /**
+     * Promisified version of {@link release_async}
+     * 
+     * Attempts to release the permission represented by `permission`.
+     * 
+     * This is the first half of the asynchronous version of
+     * g_permission_release().
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE if the permission was successfully released
+     */
+    release_async(cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Collects the result of attempting to release the permission
      * represented by `permission`.
@@ -31303,6 +33881,7 @@ interface Permission {
      * This is the second half of the asynchronous version of
      * g_permission_release().
      * @param result the #GAsyncResult given to the #GAsyncReadyCallback
+     * @returns %TRUE if the permission was successfully released
      */
     release_finish(result: AsyncResult): boolean
 
@@ -31326,6 +33905,7 @@ interface Permission {
      * the non-blocking version.
      * @virtual 
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if the permission was successfully acquired
      */
     vfunc_acquire(cancellable: Cancellable | null): boolean
     /**
@@ -31346,6 +33926,7 @@ interface Permission {
      * g_permission_acquire().
      * @virtual 
      * @param result the #GAsyncResult given to the #GAsyncReadyCallback
+     * @returns %TRUE if the permission was successfully acquired
      */
     vfunc_acquire_finish(result: AsyncResult): boolean
     /**
@@ -31366,6 +33947,7 @@ interface Permission {
      * the non-blocking version.
      * @virtual 
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if the permission was successfully released
      */
     vfunc_release(cancellable: Cancellable | null): boolean
     /**
@@ -31386,6 +33968,7 @@ interface Permission {
      * g_permission_release().
      * @virtual 
      * @param result the #GAsyncResult given to the #GAsyncReadyCallback
+     * @returns %TRUE if the permission was successfully released
      */
     vfunc_release_finish(result: AsyncResult): boolean
 
@@ -31630,6 +34213,7 @@ class PropertyAction extends GObject.Object {
      * @param name the name of the action to create
      * @param object the object that has the property   to wrap
      * @param property_name the name of the property
+     * @returns a new #GPropertyAction
      */
     constructor(name: string, object: GObject.Object, property_name: string) 
     /**
@@ -31645,6 +34229,7 @@ class PropertyAction extends GObject.Object {
      * @param name the name of the action to create
      * @param object the object that has the property   to wrap
      * @param property_name the name of the property
+     * @returns a new #GPropertyAction
      */
     static new(name: string, object: GObject.Object, property_name: string): PropertyAction
     _init(config?: PropertyAction.ConstructorProperties): void
@@ -31707,33 +34292,40 @@ interface ProxyAddress extends SocketConnectable {
      * Gets `proxy'`s destination hostname; that is, the name of the host
      * that will be connected to via the proxy, not the name of the proxy
      * itself.
+     * @returns the @proxy's destination hostname
      */
     get_destination_hostname(): string
     /**
      * Gets `proxy'`s destination port; that is, the port on the
      * destination host that will be connected to via the proxy, not the
      * port number of the proxy itself.
+     * @returns the @proxy's destination port
      */
     get_destination_port(): number
     /**
      * Gets the protocol that is being spoken to the destination
      * server; eg, "http" or "ftp".
+     * @returns the @proxy's destination protocol
      */
     get_destination_protocol(): string
     /**
      * Gets `proxy'`s password.
+     * @returns the @proxy's password
      */
     get_password(): string | null
     /**
      * Gets `proxy'`s protocol. eg, "socks" or "http"
+     * @returns the @proxy's protocol
      */
     get_protocol(): string
     /**
      * Gets the proxy URI that `proxy` was constructed from.
+     * @returns the @proxy's URI, or %NULL if unknown
      */
     get_uri(): string | null
     /**
      * Gets `proxy'`s username.
+     * @returns the @proxy's username
      */
     get_username(): string | null
 
@@ -31810,6 +34402,7 @@ class ProxyAddress extends InetSocketAddress {
      * @param dest_port The destination port to tunnel to.
      * @param username The username to authenticate to the proxy server     (or %NULL).
      * @param password The password to authenticate to the proxy server     (or %NULL).
+     * @returns a new #GProxyAddress
      */
     constructor(inetaddr: InetAddress, port: number, protocol: string, dest_hostname: string, dest_port: number, username: string | null, password: string | null) 
     /**
@@ -31827,6 +34420,7 @@ class ProxyAddress extends InetSocketAddress {
      * @param dest_port The destination port to tunnel to.
      * @param username The username to authenticate to the proxy server     (or %NULL).
      * @param password The password to authenticate to the proxy server     (or %NULL).
+     * @returns a new #GProxyAddress
      */
     static new(inetaddr: InetAddress, port: number, protocol: string, dest_hostname: string, dest_port: number, username: string | null, password: string | null): ProxyAddress
 
@@ -31837,6 +34431,7 @@ class ProxyAddress extends InetSocketAddress {
      * @constructor 
      * @param address a #GInetAddress
      * @param port a port number
+     * @returns a new #GInetSocketAddress
      */
     static new(address: InetAddress, port: number): InetSocketAddress
     _init(config?: ProxyAddress.ConstructorProperties): void
@@ -31966,6 +34561,7 @@ interface Resolver {
      * %G_IO_ERROR_CANCELLED.
      * @param address the address to reverse-resolve
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a hostname (either ASCII-only, or in ASCII-encoded     form), or %NULL on error.
      */
     lookup_by_address(address: InetAddress, cancellable: Cancellable | null): string
     /**
@@ -31977,6 +34573,20 @@ interface Resolver {
      * @param callback callback to call after resolution completes
      */
     lookup_by_address_async(address: InetAddress, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_by_address_async
+
+    /**
+     * Promisified version of {@link lookup_by_address_async}
+     * 
+     * Begins asynchronously reverse-resolving `address` to determine its
+     * associated hostname, and eventually calls `callback,` which must
+     * call g_resolver_lookup_by_address_finish() to get the final result.
+     * @param address the address to reverse-resolve
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a hostname (either ASCII-only, or in ASCII-encoded form), or %NULL on error.
+     */
+    lookup_by_address_async(address: InetAddress, cancellable: Cancellable | null): globalThis.Promise<string>
     /**
      * Retrieves the result of a previous call to
      * g_resolver_lookup_by_address_async().
@@ -31985,6 +34595,7 @@ interface Resolver {
      * a value from #GResolverError. If the operation was cancelled,
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a hostname (either ASCII-only, or in ASCII-encoded form), or %NULL on error.
      */
     lookup_by_address_finish(result: AsyncResult): string
     /**
@@ -32013,6 +34624,7 @@ interface Resolver {
      * #GSocketConnectable interface.
      * @param hostname the hostname to look up
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a non-empty #GList of #GInetAddress, or %NULL on error. You must unref each of the addresses and free the list when you are done with it. (You can use g_resolver_free_addresses() to do this.)
      */
     lookup_by_name(hostname: string, cancellable: Cancellable | null): InetAddress[]
     /**
@@ -32025,6 +34637,21 @@ interface Resolver {
      * @param callback callback to call after resolution completes
      */
     lookup_by_name_async(hostname: string, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_by_name_async
+
+    /**
+     * Promisified version of {@link lookup_by_name_async}
+     * 
+     * Begins asynchronously resolving `hostname` to determine its
+     * associated IP address(es), and eventually calls `callback,` which
+     * must call g_resolver_lookup_by_name_finish() to get the result.
+     * See g_resolver_lookup_by_name() for more details.
+     * @param hostname the hostname to look up the address of
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a #GList of #GInetAddress, or %NULL on error. See g_resolver_lookup_by_name() for more details.
+     */
+    lookup_by_name_async(hostname: string, cancellable: Cancellable | null): globalThis.Promise<InetAddress[]>
     /**
      * Retrieves the result of a call to
      * g_resolver_lookup_by_name_async().
@@ -32033,6 +34660,7 @@ interface Resolver {
      * a value from #GResolverError. If the operation was cancelled,
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a #GList of #GInetAddress, or %NULL on error. See g_resolver_lookup_by_name() for more details.
      */
     lookup_by_name_finish(result: AsyncResult): InetAddress[]
     /**
@@ -32042,6 +34670,7 @@ interface Resolver {
      * @param hostname the hostname to look up
      * @param flags extra #GResolverNameLookupFlags for the lookup
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a non-empty #GList of #GInetAddress, or %NULL on error. You must unref each of the addresses and free the list when you are done with it. (You can use g_resolver_free_addresses() to do this.)
      */
     lookup_by_name_with_flags(hostname: string, flags: ResolverNameLookupFlags, cancellable: Cancellable | null): InetAddress[]
     /**
@@ -32055,6 +34684,22 @@ interface Resolver {
      * @param callback callback to call after resolution completes
      */
     lookup_by_name_with_flags_async(hostname: string, flags: ResolverNameLookupFlags, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_by_name_with_flags_async
+
+    /**
+     * Promisified version of {@link lookup_by_name_with_flags_async}
+     * 
+     * Begins asynchronously resolving `hostname` to determine its
+     * associated IP address(es), and eventually calls `callback,` which
+     * must call g_resolver_lookup_by_name_with_flags_finish() to get the result.
+     * See g_resolver_lookup_by_name() for more details.
+     * @param hostname the hostname to look up the address of
+     * @param flags extra #GResolverNameLookupFlags for the lookup
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a #GList of #GInetAddress, or %NULL on error. See g_resolver_lookup_by_name() for more details.
+     */
+    lookup_by_name_with_flags_async(hostname: string, flags: ResolverNameLookupFlags, cancellable: Cancellable | null): globalThis.Promise<InetAddress[]>
     /**
      * Retrieves the result of a call to
      * g_resolver_lookup_by_name_with_flags_async().
@@ -32063,6 +34708,7 @@ interface Resolver {
      * a value from #GResolverError. If the operation was cancelled,
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a #GList of #GInetAddress, or %NULL on error. See g_resolver_lookup_by_name() for more details.
      */
     lookup_by_name_with_flags_finish(result: AsyncResult): InetAddress[]
     /**
@@ -32079,6 +34725,7 @@ interface Resolver {
      * @param rrname the DNS name to look up the record for
      * @param record_type the type of DNS record to look up
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a non-empty #GList of #GVariant, or %NULL on error. You must free each of the records and the list when you are done with it. (You can use g_list_free_full() with g_variant_unref() to do this.)
      */
     lookup_records(rrname: string, record_type: ResolverRecordType, cancellable: Cancellable | null): GLib.Variant[]
     /**
@@ -32092,6 +34739,22 @@ interface Resolver {
      * @param callback callback to call after resolution completes
      */
     lookup_records_async(rrname: string, record_type: ResolverRecordType, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_records_async
+
+    /**
+     * Promisified version of {@link lookup_records_async}
+     * 
+     * Begins asynchronously performing a DNS lookup for the given
+     * `rrname,` and eventually calls `callback,` which must call
+     * g_resolver_lookup_records_finish() to get the final result. See
+     * g_resolver_lookup_records() for more details.
+     * @param rrname the DNS name to look up the record for
+     * @param record_type the type of DNS record to look up
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a non-empty #GList of #GVariant, or %NULL on error. You must free each of the records and the list when you are done with it. (You can use g_list_free_full() with g_variant_unref() to do this.)
+     */
+    lookup_records_async(rrname: string, record_type: ResolverRecordType, cancellable: Cancellable | null): globalThis.Promise<GLib.Variant[]>
     /**
      * Retrieves the result of a previous call to
      * g_resolver_lookup_records_async(). Returns a non-empty list of records as
@@ -32102,6 +34765,7 @@ interface Resolver {
      * a value from #GResolverError. If the operation was cancelled,
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a non-empty #GList of #GVariant, or %NULL on error. You must free each of the records and the list when you are done with it. (You can use g_list_free_full() with g_variant_unref() to do this.)
      */
     lookup_records_finish(result: AsyncResult): GLib.Variant[]
     /**
@@ -32130,6 +34794,7 @@ interface Resolver {
      * @param protocol the networking protocol to use for `service` (eg, "tcp")
      * @param domain the DNS domain to look up the service in
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a non-empty #GList of #GSrvTarget, or %NULL on error. You must free each of the targets and the list when you are done with it. (You can use g_resolver_free_targets() to do this.)
      */
     lookup_service(service: string, protocol: string, domain: string, cancellable: Cancellable | null): SrvTarget[]
     /**
@@ -32145,6 +34810,24 @@ interface Resolver {
      * @param callback callback to call after resolution completes
      */
     lookup_service_async(service: string, protocol: string, domain: string, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_service_async
+
+    /**
+     * Promisified version of {@link lookup_service_async}
+     * 
+     * Begins asynchronously performing a DNS SRV lookup for the given
+     * `service` and `protocol` in the given `domain,` and eventually calls
+     * `callback,` which must call g_resolver_lookup_service_finish() to
+     * get the final result. See g_resolver_lookup_service() for more
+     * details.
+     * @param service the service type to look up (eg, "ldap")
+     * @param protocol the networking protocol to use for `service` (eg, "tcp")
+     * @param domain the DNS domain to look up the service in
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a non-empty #GList of #GSrvTarget, or %NULL on error. See g_resolver_lookup_service() for more details.
+     */
+    lookup_service_async(service: string, protocol: string, domain: string, cancellable: Cancellable | null): globalThis.Promise<SrvTarget[]>
     /**
      * Retrieves the result of a previous call to
      * g_resolver_lookup_service_async().
@@ -32153,6 +34836,7 @@ interface Resolver {
      * a value from #GResolverError. If the operation was cancelled,
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a non-empty #GList of #GSrvTarget, or %NULL on error. See g_resolver_lookup_service() for more details.
      */
     lookup_service_finish(result: AsyncResult): SrvTarget[]
     /**
@@ -32183,6 +34867,7 @@ interface Resolver {
      * @virtual 
      * @param address the address to reverse-resolve
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a hostname (either ASCII-only, or in ASCII-encoded     form), or %NULL on error.
      */
     vfunc_lookup_by_address(address: InetAddress, cancellable: Cancellable | null): string
     /**
@@ -32204,6 +34889,7 @@ interface Resolver {
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @virtual 
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a hostname (either ASCII-only, or in ASCII-encoded form), or %NULL on error.
      */
     vfunc_lookup_by_address_finish(result: AsyncResult): string
     /**
@@ -32233,6 +34919,7 @@ interface Resolver {
      * @virtual 
      * @param hostname the hostname to look up
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a non-empty #GList of #GInetAddress, or %NULL on error. You must unref each of the addresses and free the list when you are done with it. (You can use g_resolver_free_addresses() to do this.)
      */
     vfunc_lookup_by_name(hostname: string, cancellable: Cancellable | null): InetAddress[]
     /**
@@ -32255,6 +34942,7 @@ interface Resolver {
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @virtual 
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a #GList of #GInetAddress, or %NULL on error. See g_resolver_lookup_by_name() for more details.
      */
     vfunc_lookup_by_name_finish(result: AsyncResult): InetAddress[]
     /**
@@ -32265,6 +34953,7 @@ interface Resolver {
      * @param hostname the hostname to look up
      * @param flags extra #GResolverNameLookupFlags for the lookup
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a non-empty #GList of #GInetAddress, or %NULL on error. You must unref each of the addresses and free the list when you are done with it. (You can use g_resolver_free_addresses() to do this.)
      */
     vfunc_lookup_by_name_with_flags(hostname: string, flags: ResolverNameLookupFlags, cancellable: Cancellable | null): InetAddress[]
     /**
@@ -32288,6 +34977,7 @@ interface Resolver {
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @virtual 
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a #GList of #GInetAddress, or %NULL on error. See g_resolver_lookup_by_name() for more details.
      */
     vfunc_lookup_by_name_with_flags_finish(result: AsyncResult): InetAddress[]
     /**
@@ -32305,6 +34995,7 @@ interface Resolver {
      * @param rrname the DNS name to look up the record for
      * @param record_type the type of DNS record to look up
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a non-empty #GList of #GVariant, or %NULL on error. You must free each of the records and the list when you are done with it. (You can use g_list_free_full() with g_variant_unref() to do this.)
      */
     vfunc_lookup_records(rrname: string, record_type: ResolverRecordType, cancellable: Cancellable | null): GLib.Variant[]
     /**
@@ -32330,6 +35021,7 @@ interface Resolver {
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @virtual 
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a non-empty #GList of #GVariant, or %NULL on error. You must free each of the records and the list when you are done with it. (You can use g_list_free_full() with g_variant_unref() to do this.)
      */
     vfunc_lookup_records_finish(result: AsyncResult): GLib.Variant[]
     vfunc_lookup_service_async(rrname: string, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
@@ -32342,6 +35034,7 @@ interface Resolver {
      * `error` will be set to %G_IO_ERROR_CANCELLED.
      * @virtual 
      * @param result the result passed to your #GAsyncReadyCallback
+     * @returns a non-empty #GList of #GSrvTarget, or %NULL on error. See g_resolver_lookup_service() for more details.
      */
     vfunc_lookup_service_finish(result: AsyncResult): SrvTarget[]
     vfunc_reload(): void
@@ -32386,6 +35079,7 @@ class Resolver extends GObject.Object {
      * Gets the default #GResolver. You should unref it when you are done
      * with it. #GResolver may use its reference count as a hint about how
      * many threads it should allocate for concurrent DNS resolutions.
+     * @returns the default #GResolver.
      */
     static get_default(): Resolver
 }
@@ -32599,6 +35293,7 @@ interface Settings {
      * activations take the new value for the key (which must have the
      * correct type).
      * @param key the name of a key in `settings`
+     * @returns a new #GAction
      */
     create_action(key: string): Action
     /**
@@ -32615,6 +35310,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't specified as
      * having a boolean type in the schema for `settings`.
      * @param key the key to get the value for
+     * @returns a boolean
      */
     get_boolean(key: string): boolean
     /**
@@ -32628,6 +35324,7 @@ interface Settings {
      * The created child settings object will inherit the #GSettings:delay-apply
      * mode from `settings`.
      * @param name the name of the child schema
+     * @returns a 'child' settings object
      */
     get_child(name: string): Settings
     /**
@@ -32653,6 +35350,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't contained in the
      * schema for `settings`.
      * @param key the key to get the default value for
+     * @returns the default value
      */
     get_default_value(key: string): GLib.Variant | null
     /**
@@ -32663,6 +35361,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't specified as
      * having a 'double' type in the schema for `settings`.
      * @param key the key to get the value for
+     * @returns a double
      */
     get_double(key: string): number
     /**
@@ -32679,6 +35378,7 @@ interface Settings {
      * value for the enumerated type then this function will return the
      * default value.
      * @param key the key to get the value for
+     * @returns the enum value
      */
     get_enum(key: string): number
     /**
@@ -32695,11 +35395,13 @@ interface Settings {
      * value for the flags type then this function will return the default
      * value.
      * @param key the key to get the value for
+     * @returns the flags value
      */
     get_flags(key: string): number
     /**
      * Returns whether the #GSettings object has any unapplied
      * changes.  This can only be the case if it is in 'delayed-apply' mode.
+     * @returns %TRUE if @settings has unapplied changes
      */
     get_has_unapplied(): boolean
     /**
@@ -32710,6 +35412,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't specified as
      * having a int32 type in the schema for `settings`.
      * @param key the key to get the value for
+     * @returns an integer
      */
     get_int(key: string): number
     /**
@@ -32720,6 +35423,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't specified as
      * having a int64 type in the schema for `settings`.
      * @param key the key to get the value for
+     * @returns a 64-bit integer
      */
     get_int64(key: string): number
     /**
@@ -32752,6 +35456,7 @@ interface Settings {
      * just as any other value would be.
      * @param key the key to get the value for
      * @param mapping the function to map the value in the           settings database to the value used by the application
+     * @returns the result, which may be %NULL
      */
     get_mapped(key: string, mapping: SettingsGetMapping): object | null
     /**
@@ -32767,6 +35472,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't specified as
      * having a string type in the schema for `settings`.
      * @param key the key to get the value for
+     * @returns a newly-allocated string
      */
     get_string(key: string): string
     /**
@@ -32775,6 +35481,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't specified as
      * having an array of strings type in the schema for `settings`.
      * @param key the key to get the value for
+     * @returns a newly-allocated, %NULL-terminated array of strings, the value that is stored at @key in @settings.
      */
     get_strv(key: string): string[]
     /**
@@ -32786,6 +35493,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't specified as
      * having a uint32 type in the schema for `settings`.
      * @param key the key to get the value for
+     * @returns an unsigned integer
      */
     get_uint(key: string): number
     /**
@@ -32797,6 +35505,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't specified as
      * having a uint64 type in the schema for `settings`.
      * @param key the key to get the value for
+     * @returns a 64-bit unsigned integer
      */
     get_uint64(key: string): number
     /**
@@ -32819,6 +35528,7 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't contained in the
      * schema for `settings`.
      * @param key the key to get the user value for
+     * @returns the user's value, if set
      */
     get_user_value(key: string): GLib.Variant | null
     /**
@@ -32827,11 +35537,13 @@ interface Settings {
      * It is a programmer error to give a `key` that isn't contained in the
      * schema for `settings`.
      * @param key the key to get the value for
+     * @returns a new #GVariant
      */
     get_value(key: string): GLib.Variant
     /**
      * Finds out if a key can be written or not
      * @param name the name of a key
+     * @returns %TRUE if the key @name is writable
      */
     is_writable(name: string): boolean
     /**
@@ -32846,6 +35558,7 @@ interface Settings {
      * 
      * You should free the return value with g_strfreev() when you are done
      * with it.
+     * @returns a list of the children    on @settings, in no defined order
      */
     list_children(): string[]
     /**
@@ -32857,6 +35570,7 @@ interface Settings {
      * 
      * You should free the return value with g_strfreev() when you are done
      * with it.
+     * @returns a list    of the keys on @settings, in no defined order
      */
     list_keys(): string[]
     /**
@@ -32864,6 +35578,7 @@ interface Settings {
      * permitted range for `key`.
      * @param key the key to check
      * @param value the value to check
+     * @returns %TRUE if @value is valid for @key
      */
     range_check(key: string, value: GLib.Variant): boolean
     /**
@@ -32893,6 +35608,7 @@ interface Settings {
      * having a boolean type in the schema for `settings`.
      * @param key the name of the key to set
      * @param value the value to set it to
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_boolean(key: string, value: boolean): boolean
     /**
@@ -32904,6 +35620,7 @@ interface Settings {
      * having a 'double' type in the schema for `settings`.
      * @param key the name of the key to set
      * @param value the value to set it to
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_double(key: string, value: number): boolean
     /**
@@ -32919,6 +35636,7 @@ interface Settings {
      * `value`.
      * @param key a key, within `settings`
      * @param value an enumerated value
+     * @returns %TRUE, if the set succeeds
      */
     set_enum(key: string, value: number): boolean
     /**
@@ -32935,6 +35653,7 @@ interface Settings {
      * bit in `value`.
      * @param key a key, within `settings`
      * @param value a flags value
+     * @returns %TRUE, if the set succeeds
      */
     set_flags(key: string, value: number): boolean
     /**
@@ -32946,6 +35665,7 @@ interface Settings {
      * having a int32 type in the schema for `settings`.
      * @param key the name of the key to set
      * @param value the value to set it to
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_int(key: string, value: number): boolean
     /**
@@ -32957,6 +35677,7 @@ interface Settings {
      * having a int64 type in the schema for `settings`.
      * @param key the name of the key to set
      * @param value the value to set it to
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_int64(key: string, value: number): boolean
     /**
@@ -32968,6 +35689,7 @@ interface Settings {
      * having a string type in the schema for `settings`.
      * @param key the name of the key to set
      * @param value the value to set it to
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_string(key: string, value: string): boolean
     /**
@@ -32980,6 +35702,7 @@ interface Settings {
      * having an array of strings type in the schema for `settings`.
      * @param key the name of the key to set
      * @param value the value to set it to, or %NULL
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_strv(key: string, value: string[] | null): boolean
     /**
@@ -32992,6 +35715,7 @@ interface Settings {
      * having a uint32 type in the schema for `settings`.
      * @param key the name of the key to set
      * @param value the value to set it to
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_uint(key: string, value: number): boolean
     /**
@@ -33004,6 +35728,7 @@ interface Settings {
      * having a uint64 type in the schema for `settings`.
      * @param key the name of the key to set
      * @param value the value to set it to
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_uint64(key: string, value: number): boolean
     /**
@@ -33016,6 +35741,7 @@ interface Settings {
      * If `value` is floating then this function consumes the reference.
      * @param key the name of the key to set
      * @param value a #GVariant of the correct type
+     * @returns %TRUE if setting the key succeeded,     %FALSE if the key was not writable
      */
     set_value(key: string, value: GLib.Variant): boolean
 
@@ -33396,6 +36122,7 @@ class Settings extends GObject.Object {
      * on the context.  See g_main_context_push_thread_default().
      * @constructor 
      * @param schema_id the id of the schema
+     * @returns a new #GSettings object
      */
     constructor(schema_id: string) 
     /**
@@ -33414,6 +36141,7 @@ class Settings extends GObject.Object {
      * on the context.  See g_main_context_push_thread_default().
      * @constructor 
      * @param schema_id the id of the schema
+     * @returns a new #GSettings object
      */
     static new(schema_id: string): Settings
     /**
@@ -33444,6 +36172,7 @@ class Settings extends GObject.Object {
      * @param schema a #GSettingsSchema
      * @param backend a #GSettingsBackend
      * @param path the path to use
+     * @returns a new #GSettings object
      */
     static new_full(schema: SettingsSchema, backend: SettingsBackend | null, path: string | null): Settings
     /**
@@ -33458,6 +36187,7 @@ class Settings extends GObject.Object {
      * @constructor 
      * @param schema_id the id of the schema
      * @param backend the #GSettingsBackend to use
+     * @returns a new #GSettings object
      */
     static new_with_backend(schema_id: string, backend: SettingsBackend): Settings
     /**
@@ -33470,6 +36200,7 @@ class Settings extends GObject.Object {
      * @param schema_id the id of the schema
      * @param backend the #GSettingsBackend to use
      * @param path the path to use
+     * @returns a new #GSettings object
      */
     static new_with_backend_and_path(schema_id: string, backend: SettingsBackend, path: string): Settings
     /**
@@ -33489,15 +36220,18 @@ class Settings extends GObject.Object {
      * @constructor 
      * @param schema_id the id of the schema
      * @param path the path to use
+     * @returns a new #GSettings object
      */
     static new_with_path(schema_id: string, path: string): Settings
     _init(config?: Settings.ConstructorProperties): void
     /**
      * Deprecated.
+     * @returns a list of   relocatable #GSettings schemas that are available, in no defined order.   The list must not be modified or freed.
      */
     static list_relocatable_schemas(): string[]
     /**
      * Deprecated.
+     * @returns a list of   #GSettings schemas that are available, in no defined order.  The list   must not be modified or freed.
      */
     static list_schemas(): string[]
     /**
@@ -33723,6 +36457,7 @@ class SettingsBackend extends GObject.Object {
      * to the name of a settings backend.
      * 
      * The user gets a reference to the backend.
+     * @returns the default #GSettingsBackend,     which will be a dummy (memory) settings backend if no other settings     backend is available.
      */
     static get_default(): SettingsBackend
 }
@@ -33902,6 +36637,7 @@ class SimpleAction extends GObject.Object {
      * @constructor 
      * @param name the name of the action
      * @param parameter_type the type of parameter that will be passed to   handlers for the #GSimpleAction::activate signal, or %NULL for no parameter
+     * @returns a new #GSimpleAction
      */
     constructor(name: string, parameter_type: GLib.VariantType | null) 
     /**
@@ -33912,6 +36648,7 @@ class SimpleAction extends GObject.Object {
      * @constructor 
      * @param name the name of the action
      * @param parameter_type the type of parameter that will be passed to   handlers for the #GSimpleAction::activate signal, or %NULL for no parameter
+     * @returns a new #GSimpleAction
      */
     static new(name: string, parameter_type: GLib.VariantType | null): SimpleAction
     /**
@@ -33925,6 +36662,7 @@ class SimpleAction extends GObject.Object {
      * @param name the name of the action
      * @param parameter_type the type of the parameter that will be passed to   handlers for the #GSimpleAction::activate signal, or %NULL for no parameter
      * @param state the initial state of the action
+     * @returns a new #GSimpleAction
      */
     static new_stateful(name: string, parameter_type: GLib.VariantType | null, state: GLib.Variant): SimpleAction
     _init(config?: SimpleAction.ConstructorProperties): void
@@ -33965,6 +36703,7 @@ interface SimpleActionGroup extends ActionGroup, ActionMap {
      * 
      * If no such action exists, returns %NULL.
      * @param action_name the name of an action
+     * @returns a #GAction, or %NULL
      */
     lookup(action_name: string): Action
     /**
@@ -34001,11 +36740,13 @@ class SimpleActionGroup extends GObject.Object {
     /**
      * Creates a new, empty, #GSimpleActionGroup.
      * @constructor 
+     * @returns a new #GSimpleActionGroup
      */
     constructor() 
     /**
      * Creates a new, empty, #GSimpleActionGroup.
      * @constructor 
+     * @returns a new #GSimpleActionGroup
      */
     static new(): SimpleActionGroup
     _init(config?: SimpleActionGroup.ConstructorProperties): void
@@ -34046,10 +36787,12 @@ interface SimpleAsyncResult extends AsyncResult {
     complete_in_idle(): void
     /**
      * Gets the operation result boolean from within the asynchronous result.
+     * @returns %TRUE if the operation's result was %TRUE, %FALSE     if the operation's result was %FALSE.
      */
     get_op_res_gboolean(): boolean
     /**
      * Gets a gssize from the asynchronous result.
+     * @returns a gssize returned from the asynchronous function.
      */
     get_op_res_gssize(): number
     /**
@@ -34059,6 +36802,7 @@ interface SimpleAsyncResult extends AsyncResult {
      * If the #GCancellable given to a prior call to
      * g_simple_async_result_set_check_cancellable() is cancelled then this
      * function will return %TRUE with `dest` set appropriately.
+     * @returns %TRUE if the error was propagated to @dest. %FALSE otherwise.
      */
     propagate_error(): boolean
     /**
@@ -34309,6 +37053,7 @@ class SimpleAsyncResult extends GObject.Object {
      * @param source_object a #GObject, or %NULL.
      * @param callback a #GAsyncReadyCallback.
      * @param source_tag the asynchronous function.
+     * @returns a #GSimpleAsyncResult.
      */
     constructor(source_object: GObject.Object | null, callback: AsyncReadyCallback<SimpleAsyncResult> | null, source_tag: object | null) 
     /**
@@ -34326,6 +37071,7 @@ class SimpleAsyncResult extends GObject.Object {
      * @param source_object a #GObject, or %NULL.
      * @param callback a #GAsyncReadyCallback.
      * @param source_tag the asynchronous function.
+     * @returns a #GSimpleAsyncResult.
      */
     static new(source_object: GObject.Object | null, callback: AsyncReadyCallback<SimpleAsyncResult> | null, source_tag: object | null): SimpleAsyncResult
     /**
@@ -34334,6 +37080,7 @@ class SimpleAsyncResult extends GObject.Object {
      * @param source_object a #GObject, or %NULL.
      * @param callback a #GAsyncReadyCallback.
      * @param error a #GError
+     * @returns a #GSimpleAsyncResult.
      */
     static new_from_error(source_object: GObject.Object | null, callback: AsyncReadyCallback<SimpleAsyncResult> | null, error: GLib.Error): SimpleAsyncResult
     _init(config?: SimpleAsyncResult.ConstructorProperties): void
@@ -34353,6 +37100,7 @@ class SimpleAsyncResult extends GObject.Object {
      * @param result the #GAsyncResult passed to the _finish function.
      * @param source the #GObject passed to the _finish function.
      * @param source_tag the asynchronous function.
+     * @returns #TRUE if all checks passed or #FALSE if any failed.
      */
     static is_valid(result: AsyncResult, source: GObject.Object | null, source_tag: object | null): boolean
 }
@@ -34422,6 +37170,7 @@ class SimpleIOStream extends IOStream {
      * @constructor 
      * @param input_stream a #GInputStream.
      * @param output_stream a #GOutputStream.
+     * @returns a new #GSimpleIOStream instance.
      */
     constructor(input_stream: InputStream, output_stream: OutputStream) 
     /**
@@ -34430,6 +37179,7 @@ class SimpleIOStream extends IOStream {
      * @constructor 
      * @param input_stream a #GInputStream.
      * @param output_stream a #GOutputStream.
+     * @returns a new #GSimpleIOStream instance.
      */
     static new(input_stream: InputStream, output_stream: OutputStream): SimpleIOStream
     _init(config?: SimpleIOStream.ConstructorProperties): void
@@ -34486,6 +37236,7 @@ class SimplePermission extends Permission {
      * either always or never allowed.
      * @constructor 
      * @param allowed %TRUE if the action is allowed
+     * @returns the #GSimplePermission, as a #GPermission
      */
     constructor(allowed: boolean) 
     /**
@@ -34493,6 +37244,7 @@ class SimplePermission extends Permission {
      * either always or never allowed.
      * @constructor 
      * @param allowed %TRUE if the action is allowed
+     * @returns the #GSimplePermission, as a #GPermission
      */
     static new(allowed: boolean): SimplePermission
     _init(config?: SimplePermission.ConstructorProperties): void
@@ -34691,6 +37443,7 @@ class SimpleProxyResolver extends GObject.Object {
      * arguments are interpreted.
      * @param default_proxy the default proxy to use, eg     "socks://192.168.1.1"
      * @param ignore_hosts an optional list of hosts/IP addresses     to not use a proxy for.
+     * @returns a new #GSimpleProxyResolver
      */
     static new(default_proxy: string | null, ignore_hosts: string[] | null): ProxyResolver
 }
@@ -34787,6 +37540,7 @@ interface Socket extends DatagramBased, Initable {
      * or return %G_IO_ERROR_WOULD_BLOCK if non-blocking I/O is enabled.
      * To be notified of an incoming connection, wait for the %G_IO_IN condition.
      * @param cancellable a %GCancellable or %NULL
+     * @returns a new #GSocket, or %NULL on error.     Free the returned object with g_object_unref().
      */
     accept(cancellable: Cancellable | null): Socket
     /**
@@ -34815,12 +37569,14 @@ interface Socket extends DatagramBased, Initable {
      * UDP packets to an address with multiple listeners is not defined.)
      * @param address a #GSocketAddress specifying the local address.
      * @param allow_reuse whether to allow reusing this address
+     * @returns %TRUE on success, %FALSE on error.
      */
     bind(address: SocketAddress, allow_reuse: boolean): boolean
     /**
      * Checks and resets the pending connect error for the socket.
      * This is used to check for errors when g_socket_connect() is
      * used in non-blocking mode.
+     * @returns %TRUE if no error, %FALSE otherwise, setting @error to the error
      */
     check_connect_result(): boolean
     /**
@@ -34853,6 +37609,7 @@ interface Socket extends DatagramBased, Initable {
      * g_tcp_connection_set_graceful_disconnect(). But of course, this
      * only works if the client will close its connection after the server
      * does.)
+     * @returns %TRUE on success, %FALSE on error
      */
     close(): boolean
     /**
@@ -34874,6 +37631,7 @@ interface Socket extends DatagramBased, Initable {
      * 
      * This call never blocks.
      * @param condition a #GIOCondition mask to check
+     * @returns the @GIOCondition mask of the current state
      */
     condition_check(condition: GLib.IOCondition): GLib.IOCondition
     /**
@@ -34896,6 +37654,7 @@ interface Socket extends DatagramBased, Initable {
      * @param condition a #GIOCondition mask to wait for
      * @param timeout_us the maximum time (in microseconds) to wait, or -1
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if the condition was met, %FALSE otherwise
      */
     condition_timed_wait(condition: GLib.IOCondition, timeout_us: number, cancellable: Cancellable | null): boolean
     /**
@@ -34911,6 +37670,7 @@ interface Socket extends DatagramBased, Initable {
      * See also g_socket_condition_timed_wait().
      * @param condition a #GIOCondition mask to wait for
      * @param cancellable a #GCancellable, or %NULL
+     * @returns %TRUE if the condition was met, %FALSE otherwise
      */
     condition_wait(condition: GLib.IOCondition, cancellable: Cancellable | null): boolean
 
@@ -34926,6 +37686,7 @@ interface Socket extends DatagramBased, Initable {
      * @param condition a #GIOCondition mask to wait for
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a #GCancellable
+     * @returns %TRUE if the condition was met, %FALSE otherwise
      */
     condition_wait(condition: GLib.IOCondition, timeout: number, cancellable: Cancellable | null): boolean
     /**
@@ -34947,11 +37708,13 @@ interface Socket extends DatagramBased, Initable {
      * checked with g_socket_check_connect_result().
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if connected, %FALSE on error.
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     /**
      * Creates a #GSocketConnection subclass of the right type for
      * `socket`.
+     * @returns a #GSocketConnection
      */
     connection_factory_create_connection(): SocketConnection
     /**
@@ -34967,17 +37730,20 @@ interface Socket extends DatagramBased, Initable {
      * g_socket_receive() with a buffer of that size, rather than calling
      * g_socket_get_available_bytes() first and then doing a receive of
      * exactly the right size.
+     * @returns the number of bytes that can be read from the socket without blocking or truncating, or -1 on error.
      */
     get_available_bytes(): number
     /**
      * Gets the blocking mode of the socket. For details on blocking I/O,
      * see g_socket_set_blocking().
+     * @returns %TRUE if blocking I/O is used, %FALSE otherwise.
      */
     get_blocking(): boolean
     /**
      * Gets the broadcast setting on `socket;` if %TRUE,
      * it is possible to send packets to broadcast
      * addresses.
+     * @returns the broadcast setting on @socket
      */
     get_broadcast(): boolean
     /**
@@ -35001,10 +37767,12 @@ interface Socket extends DatagramBased, Initable {
      * #GUnixCredentialsMessage type and
      * g_unix_connection_send_credentials() /
      * g_unix_connection_receive_credentials() functions.
+     * @returns %NULL if @error is set, otherwise a #GCredentials object that must be freed with g_object_unref().
      */
     get_credentials(): Credentials
     /**
      * Gets the socket family of the socket.
+     * @returns a #GSocketFamily
      */
     get_family(): SocketFamily
     /**
@@ -35013,33 +37781,39 @@ interface Socket extends DatagramBased, Initable {
      * a Winsock2 SOCKET handle. This may be useful for
      * doing platform specific or otherwise unusual operations
      * on the socket.
+     * @returns the file descriptor of the socket.
      */
     get_fd(): number
     /**
      * Gets the keepalive mode of the socket. For details on this,
      * see g_socket_set_keepalive().
+     * @returns %TRUE if keepalive is active, %FALSE otherwise.
      */
     get_keepalive(): boolean
     /**
      * Gets the listen backlog setting of the socket. For details on this,
      * see g_socket_set_listen_backlog().
+     * @returns the maximum number of pending connections.
      */
     get_listen_backlog(): number
     /**
      * Try to get the local address of a bound socket. This is only
      * useful if the socket has been bound to a local address,
      * either explicitly or implicitly when connecting.
+     * @returns a #GSocketAddress or %NULL on error.     Free the returned object with g_object_unref().
      */
     get_local_address(): SocketAddress
     /**
      * Gets the multicast loopback setting on `socket;` if %TRUE (the
      * default), outgoing multicast packets will be looped back to
      * multicast listeners on the same host.
+     * @returns the multicast loopback setting on @socket
      */
     get_multicast_loopback(): boolean
     /**
      * Gets the multicast time-to-live setting on `socket;` see
      * g_socket_set_multicast_ttl() for more details.
+     * @returns the multicast time-to-live setting on @socket
      */
     get_multicast_ttl(): number
     /**
@@ -35058,34 +37832,41 @@ interface Socket extends DatagramBased, Initable {
      * g_socket_get_option() will handle the conversion internally.
      * @param level the "API level" of the option (eg, `SOL_SOCKET`)
      * @param optname the "name" of the option (eg, `SO_BROADCAST`)
+     * @returns success or failure. On failure, @error will be set, and   the system error value (`errno` or WSAGetLastError()) will still   be set to the result of the getsockopt() call.
      */
     get_option(level: number, optname: number): [ /* returnType */ boolean, /* value */ number ]
     /**
      * Gets the socket protocol id the socket was created with.
      * In case the protocol is unknown, -1 is returned.
+     * @returns a protocol id, or -1 if unknown
      */
     get_protocol(): SocketProtocol
     /**
      * Try to get the remote address of a connected socket. This is only
      * useful for connection oriented sockets that have been connected.
+     * @returns a #GSocketAddress or %NULL on error.     Free the returned object with g_object_unref().
      */
     get_remote_address(): SocketAddress
     /**
      * Gets the socket type of the socket.
+     * @returns a #GSocketType
      */
     get_socket_type(): SocketType
     /**
      * Gets the timeout setting of the socket. For details on this, see
      * g_socket_set_timeout().
+     * @returns the timeout in seconds
      */
     get_timeout(): number
     /**
      * Gets the unicast time-to-live setting on `socket;` see
      * g_socket_set_ttl() for more details.
+     * @returns the time-to-live setting on @socket
      */
     get_ttl(): number
     /**
      * Checks whether a socket is closed.
+     * @returns %TRUE if socket is closed, %FALSE otherwise
      */
     is_closed(): boolean
     /**
@@ -35096,6 +37877,7 @@ interface Socket extends DatagramBased, Initable {
      * socket has been shut down for reading and writing. If you do a non-blocking
      * connect, this function will not return %TRUE until after you call
      * g_socket_check_connect_result().
+     * @returns %TRUE if socket is connected, %FALSE otherwise.
      */
     is_connected(): boolean
     /**
@@ -35116,6 +37898,7 @@ interface Socket extends DatagramBased, Initable {
      * @param group a #GInetAddress specifying the group address to join.
      * @param source_specific %TRUE if source-specific multicast should be used
      * @param iface Name of the interface to use, or %NULL
+     * @returns %TRUE on success, %FALSE on error.
      */
     join_multicast_group(group: InetAddress, source_specific: boolean, iface: string | null): boolean
     /**
@@ -35137,6 +37920,7 @@ interface Socket extends DatagramBased, Initable {
      * @param group a #GInetAddress specifying the group address to join.
      * @param source_specific a #GInetAddress specifying the source-specific multicast address or %NULL to ignore.
      * @param iface Name of the interface to use, or %NULL
+     * @returns %TRUE on success, %FALSE on error.
      */
     join_multicast_group_ssm(group: InetAddress, source_specific: InetAddress | null, iface: string | null): boolean
     /**
@@ -35152,6 +37936,7 @@ interface Socket extends DatagramBased, Initable {
      * @param group a #GInetAddress specifying the group address to leave.
      * @param source_specific %TRUE if source-specific multicast was used
      * @param iface Interface used
+     * @returns %TRUE on success, %FALSE on error.
      */
     leave_multicast_group(group: InetAddress, source_specific: boolean, iface: string | null): boolean
     /**
@@ -35164,6 +37949,7 @@ interface Socket extends DatagramBased, Initable {
      * @param group a #GInetAddress specifying the group address to leave.
      * @param source_specific a #GInetAddress specifying the source-specific multicast address or %NULL to ignore.
      * @param iface Name of the interface to use, or %NULL
+     * @returns %TRUE on success, %FALSE on error.
      */
     leave_multicast_group_ssm(group: InetAddress, source_specific: InetAddress | null, iface: string | null): boolean
     /**
@@ -35175,6 +37961,7 @@ interface Socket extends DatagramBased, Initable {
      * 
      * To set the maximum amount of outstanding clients, use
      * g_socket_set_listen_backlog().
+     * @returns %TRUE on success, %FALSE on error.
      */
     listen(): boolean
     /**
@@ -35202,6 +37989,7 @@ interface Socket extends DatagramBased, Initable {
      * 
      * On error -1 is returned and `error` is set accordingly.
      * @param cancellable a %GCancellable or %NULL
+     * @returns Number of bytes read, or 0 if the connection was closed by the peer, or -1 on error
      */
     receive(cancellable: Cancellable | null): [ /* returnType */ number, /* buffer */ Uint8Array ]
     /**
@@ -35213,6 +38001,7 @@ interface Socket extends DatagramBased, Initable {
      * 
      * See g_socket_receive() for additional information.
      * @param cancellable a %GCancellable or %NULL
+     * @returns Number of bytes read, or 0 if the connection was closed by the peer, or -1 on error
      */
     receive_from(cancellable: Cancellable | null): [ /* returnType */ number, /* address */ SocketAddress, /* buffer */ Uint8Array ]
     /**
@@ -35278,6 +38067,7 @@ interface Socket extends DatagramBased, Initable {
      * @param vectors an array of #GInputVector structs
      * @param flags a pointer to an int containing #GSocketMsgFlags flags,    which may additionally contain    [other platform specific flags](http://man7.org/linux/man-pages/man2/recv.2.html)
      * @param cancellable a %GCancellable or %NULL
+     * @returns Number of bytes read, or 0 if the connection was closed by the peer, or -1 on error
      */
     receive_message(vectors: InputVector[], flags: number, cancellable: Cancellable | null): [ /* returnType */ number, /* address */ SocketAddress, /* messages */ SocketControlMessage[] | null, /* flags */ number ]
     /**
@@ -35332,6 +38122,7 @@ interface Socket extends DatagramBased, Initable {
      * @param messages an array of #GInputMessage structs
      * @param flags an int containing #GSocketMsgFlags flags for the overall operation,    which may additionally contain    [other platform specific flags](http://man7.org/linux/man-pages/man2/recv.2.html)
      * @param cancellable a %GCancellable or %NULL
+     * @returns number of messages received, or -1 on error. Note that the number     of messages received may be smaller than @num_messages if in non-blocking     mode, if the peer closed the connection, or if @num_messages     was larger than `UIO_MAXIOV` (1024), in which case the caller may re-try     to receive the remaining messages.
      */
     receive_messages(messages: InputMessage[], flags: number, cancellable: Cancellable | null): number
 
@@ -35392,6 +38183,7 @@ interface Socket extends DatagramBased, Initable {
      * @param flags an int containing #GSocketMsgFlags flags for the overall operation
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a %GCancellable
+     * @returns number of messages received, or -1 on error. Note that the number     of messages received may be smaller than @num_messages if @timeout is     zero or positive, if the peer closed the connection, or if @num_messages     was larger than `UIO_MAXIOV` (1024), in which case the caller may re-try     to receive the remaining messages.
      */
     receive_messages(messages: InputMessage[], flags: number, timeout: number, cancellable: Cancellable | null): number
     /**
@@ -35400,6 +38192,7 @@ interface Socket extends DatagramBased, Initable {
      * the `blocking` argument rather than by `socket'`s properties.
      * @param blocking whether to do blocking or non-blocking I/O
      * @param cancellable a %GCancellable or %NULL
+     * @returns Number of bytes read, or 0 if the connection was closed by the peer, or -1 on error
      */
     receive_with_blocking(blocking: boolean, cancellable: Cancellable | null): [ /* returnType */ number, /* buffer */ Uint8Array ]
     /**
@@ -35419,6 +38212,7 @@ interface Socket extends DatagramBased, Initable {
      * On error -1 is returned and `error` is set accordingly.
      * @param buffer the buffer     containing the data to send.
      * @param cancellable a %GCancellable or %NULL
+     * @returns Number of bytes written (which may be less than @size), or -1 on error
      */
     send(buffer: Uint8Array, cancellable: Cancellable | null): number
     /**
@@ -35469,6 +38263,7 @@ interface Socket extends DatagramBased, Initable {
      * @param messages a pointer to an   array of #GSocketControlMessages, or %NULL.
      * @param flags an int containing #GSocketMsgFlags flags, which may additionally    contain [other platform specific flags](http://man7.org/linux/man-pages/man2/recv.2.html)
      * @param cancellable a %GCancellable or %NULL
+     * @returns Number of bytes written (which may be less than @size), or -1 on error
      */
     send_message(address: SocketAddress | null, vectors: OutputVector[], messages: SocketControlMessage[] | null, flags: number, cancellable: Cancellable | null): number
     /**
@@ -35485,6 +38280,7 @@ interface Socket extends DatagramBased, Initable {
      * @param flags an int containing #GSocketMsgFlags flags, which may additionally    contain [other platform specific flags](http://man7.org/linux/man-pages/man2/recv.2.html)
      * @param timeout_us the maximum time (in microseconds) to wait, or -1
      * @param cancellable a %GCancellable or %NULL
+     * @returns %G_POLLABLE_RETURN_OK if all data was successfully written, %G_POLLABLE_RETURN_WOULD_BLOCK if the socket is currently not writable, or %G_POLLABLE_RETURN_FAILED if an error happened and @error is set.
      */
     send_message_with_timeout(address: SocketAddress | null, vectors: OutputVector[], messages: SocketControlMessage[] | null, flags: number, timeout_us: number, cancellable: Cancellable | null): [ /* returnType */ PollableReturn, /* bytes_written */ number ]
     /**
@@ -35525,6 +38321,7 @@ interface Socket extends DatagramBased, Initable {
      * @param messages an array of #GOutputMessage structs
      * @param flags an int containing #GSocketMsgFlags flags, which may additionally    contain [other platform specific flags](http://man7.org/linux/man-pages/man2/recv.2.html)
      * @param cancellable a %GCancellable or %NULL
+     * @returns number of messages sent, or -1 on error. Note that the number of     messages sent may be smaller than @num_messages if the socket is     non-blocking or if @num_messages was larger than UIO_MAXIOV (1024),     in which case the caller may re-try to send the remaining messages.
      */
     send_messages(messages: OutputMessage[], flags: number, cancellable: Cancellable | null): number
 
@@ -35576,6 +38373,7 @@ interface Socket extends DatagramBased, Initable {
      * @param flags an int containing #GSocketMsgFlags flags
      * @param timeout the maximum time (in microseconds) to wait, 0 to not block, or -1   to block indefinitely
      * @param cancellable a %GCancellable
+     * @returns number of messages sent, or -1 on error. Note that the number of     messages sent may be smaller than @num_messages if @timeout is zero     or positive, or if @num_messages was larger than `UIO_MAXIOV` (1024), in     which case the caller may re-try to send the remaining messages.
      */
     send_messages(messages: OutputMessage[], flags: number, timeout: number, cancellable: Cancellable | null): number
     /**
@@ -35587,6 +38385,7 @@ interface Socket extends DatagramBased, Initable {
      * @param address a #GSocketAddress, or %NULL
      * @param buffer the buffer     containing the data to send.
      * @param cancellable a %GCancellable or %NULL
+     * @returns Number of bytes written (which may be less than @size), or -1 on error
      */
     send_to(address: SocketAddress | null, buffer: Uint8Array, cancellable: Cancellable | null): number
     /**
@@ -35596,6 +38395,7 @@ interface Socket extends DatagramBased, Initable {
      * @param buffer the buffer     containing the data to send.
      * @param blocking whether to do blocking or non-blocking I/O
      * @param cancellable a %GCancellable or %NULL
+     * @returns Number of bytes written (which may be less than @size), or -1 on error
      */
     send_with_blocking(buffer: Uint8Array, blocking: boolean, cancellable: Cancellable | null): number
     /**
@@ -35674,6 +38474,7 @@ interface Socket extends DatagramBased, Initable {
      * @param level the "API level" of the option (eg, `SOL_SOCKET`)
      * @param optname the "name" of the option (eg, `SO_BROADCAST`)
      * @param value the value to set the option to
+     * @returns success or failure. On failure, @error will be set, and   the system error value (`errno` or WSAGetLastError()) will still   be set to the result of the setsockopt() call.
      */
     set_option(level: number, optname: number, value: number): boolean
     /**
@@ -35723,6 +38524,7 @@ interface Socket extends DatagramBased, Initable {
      * other side saw all sent data.
      * @param shutdown_read whether to shut down the read side
      * @param shutdown_write whether to shut down the write side
+     * @returns %TRUE on success, %FALSE on error
      */
     shutdown(shutdown_read: boolean, shutdown_write: boolean): boolean
     /**
@@ -35735,6 +38537,7 @@ interface Socket extends DatagramBased, Initable {
      * 
      * No other types of sockets are currently considered as being capable
      * of speaking IPv4.
+     * @returns %TRUE if this socket can be used with IPv4.
      */
     speaks_ipv4(): boolean
 
@@ -35870,6 +38673,7 @@ class Socket extends GObject.Object {
      * @param family the socket family to use, e.g. %G_SOCKET_FAMILY_IPV4.
      * @param type the socket type to use.
      * @param protocol the id of the protocol to use, or 0 for default.
+     * @returns a #GSocket or %NULL on error.     Free the returned object with g_object_unref().
      */
     constructor(family: SocketFamily, type: SocketType, protocol: SocketProtocol) 
     /**
@@ -35890,6 +38694,7 @@ class Socket extends GObject.Object {
      * @param family the socket family to use, e.g. %G_SOCKET_FAMILY_IPV4.
      * @param type the socket type to use.
      * @param protocol the id of the protocol to use, or 0 for default.
+     * @returns a #GSocket or %NULL on error.     Free the returned object with g_object_unref().
      */
     static new(family: SocketFamily, type: SocketType, protocol: SocketProtocol): Socket
     /**
@@ -35908,6 +38713,7 @@ class Socket extends GObject.Object {
      * descriptor.  Instead, a GError will be set with code %G_IO_ERROR_FAILED
      * @constructor 
      * @param fd a native socket file descriptor.
+     * @returns a #GSocket or %NULL on error.     Free the returned object with g_object_unref().
      */
     static new_from_fd(fd: number): Socket
     _init(config?: Socket.ConstructorProperties): void
@@ -35936,12 +38742,14 @@ interface SocketAddress extends SocketConnectable {
 
     /**
      * Gets the socket family type of `address`.
+     * @returns the socket family type of @address
      */
     get_family(): SocketFamily
     /**
      * Gets the size of `address'`s native struct sockaddr.
      * You can use this to allocate memory to pass to
      * g_socket_address_to_native().
+     * @returns the size of the native struct sockaddr that     @address represents
      */
     get_native_size(): number
     /**
@@ -35953,6 +38761,7 @@ interface SocketAddress extends SocketConnectable {
      * then a %G_IO_ERROR_NOT_SUPPORTED error is returned.
      * @param dest a pointer to a memory location that will contain the native struct sockaddr
      * @param destlen the size of `dest`. Must be at least as large as     g_socket_address_get_native_size()
+     * @returns %TRUE if @dest was filled in, %FALSE on error
      */
     to_native(dest: object | null, destlen: number): boolean
 
@@ -35961,6 +38770,7 @@ interface SocketAddress extends SocketConnectable {
     /**
      * Gets the socket family type of `address`.
      * @virtual 
+     * @returns the socket family type of @address
      */
     vfunc_get_family(): SocketFamily
     /**
@@ -35968,6 +38778,7 @@ interface SocketAddress extends SocketConnectable {
      * You can use this to allocate memory to pass to
      * g_socket_address_to_native().
      * @virtual 
+     * @returns the size of the native struct sockaddr that     @address represents
      */
     vfunc_get_native_size(): number
     /**
@@ -35980,6 +38791,7 @@ interface SocketAddress extends SocketConnectable {
      * @virtual 
      * @param dest a pointer to a memory location that will contain the native struct sockaddr
      * @param destlen the size of `dest`. Must be at least as large as     g_socket_address_get_native_size()
+     * @returns %TRUE if @dest was filled in, %FALSE on error
      */
     vfunc_to_native(dest: object | null, destlen: number): boolean
 
@@ -36016,6 +38828,7 @@ class SocketAddress extends GObject.Object {
      * @constructor 
      * @param native a pointer to a struct sockaddr
      * @param len the size of the memory location pointed to by `native`
+     * @returns a new #GSocketAddress if @native could successfully     be converted, otherwise %NULL
      */
     static new_from_native(native: object, len: number): SocketAddress
     _init(config?: SocketAddress.ConstructorProperties): void
@@ -36049,6 +38862,7 @@ interface SocketAddressEnumerator {
      * internal errors (other than `cancellable` being triggered) will be
      * ignored.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GSocketAddress (owned by the caller), or %NULL on     error (in which case *@error will be set) or if there are no     more addresses.
      */
     next(cancellable: Cancellable | null): SocketAddress | null
     /**
@@ -36061,12 +38875,28 @@ interface SocketAddressEnumerator {
      * @param callback a #GAsyncReadyCallback to call when the request     is satisfied
      */
     next_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of next_async
+
+    /**
+     * Promisified version of {@link next_async}
+     * 
+     * Asynchronously retrieves the next #GSocketAddress from `enumerator`
+     * and then calls `callback,` which must call
+     * g_socket_address_enumerator_next_finish() to get the result.
+     * 
+     * It is an error to call this multiple times before the previous callback has finished.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: a #GSocketAddress (owned by the caller), or %NULL on     error (in which case *@error will be set) or if there are no     more addresses.
+     */
+    next_async(cancellable: Cancellable | null): globalThis.Promise<SocketAddress | null>
     /**
      * Retrieves the result of a completed call to
      * g_socket_address_enumerator_next_async(). See
      * g_socket_address_enumerator_next() for more information about
      * error handling.
      * @param result a #GAsyncResult
+     * @returns a #GSocketAddress (owned by the caller), or %NULL on     error (in which case *@error will be set) or if there are no     more addresses.
      */
     next_finish(result: AsyncResult): SocketAddress | null
 
@@ -36088,6 +38918,7 @@ interface SocketAddressEnumerator {
      * ignored.
      * @virtual 
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GSocketAddress (owned by the caller), or %NULL on     error (in which case *@error will be set) or if there are no     more addresses.
      */
     vfunc_next(cancellable: Cancellable | null): SocketAddress | null
     /**
@@ -36108,6 +38939,7 @@ interface SocketAddressEnumerator {
      * error handling.
      * @virtual 
      * @param result a #GAsyncResult
+     * @returns a #GSocketAddress (owned by the caller), or %NULL on     error (in which case *@error will be set) or if there are no     more addresses.
      */
     vfunc_next_finish(result: AsyncResult): SocketAddress | null
 
@@ -36287,6 +39119,7 @@ interface SocketClient {
      * socket will be bound to this address before connecting.
      * @param connectable a #GSocketConnectable specifying the remote address.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     connect(connectable: SocketConnectable, cancellable: Cancellable | null): SocketConnection
     /**
@@ -36309,9 +39142,35 @@ interface SocketClient {
      * @param callback a #GAsyncReadyCallback
      */
     connect_async(connectable: SocketConnectable, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of connect_async
+
+    /**
+     * Promisified version of {@link connect_async}
+     * 
+     * This is the asynchronous version of g_socket_client_connect().
+     * 
+     * You may wish to prefer the asynchronous version even in synchronous
+     * command line programs because, since 2.60, it implements
+     * [RFC 8305](https://tools.ietf.org/html/rfc8305) "Happy Eyeballs"
+     * recommendations to work around long connection timeouts in networks
+     * where IPv6 is broken by performing an IPv4 connection simultaneously
+     * without waiting for IPv6 to time out, which is not supported by the
+     * synchronous call. (This is not an API guarantee, and may change in
+     * the future.)
+     * 
+     * When the operation is finished `callback` will be
+     * called. You can then call g_socket_client_connect_finish() to get
+     * the result of the operation.
+     * @param connectable a #GSocketConnectable specifying the remote address.
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a #GSocketConnection on success, %NULL on error.
+     */
+    connect_async(connectable: SocketConnectable, cancellable: Cancellable | null): globalThis.Promise<SocketConnection>
     /**
      * Finishes an async connect operation. See g_socket_client_connect_async()
      * @param result a #GAsyncResult.
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     connect_finish(result: AsyncResult): SocketConnection
     /**
@@ -36348,6 +39207,7 @@ interface SocketClient {
      * @param host_and_port the name and optionally port of the host to connect to
      * @param default_port the default port to connect to
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     connect_to_host(host_and_port: string, default_port: number, cancellable: Cancellable | null): SocketConnection
     /**
@@ -36362,9 +39222,27 @@ interface SocketClient {
      * @param callback a #GAsyncReadyCallback
      */
     connect_to_host_async(host_and_port: string, default_port: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of connect_to_host_async
+
+    /**
+     * Promisified version of {@link connect_to_host_async}
+     * 
+     * This is the asynchronous version of g_socket_client_connect_to_host().
+     * 
+     * When the operation is finished `callback` will be
+     * called. You can then call g_socket_client_connect_to_host_finish() to get
+     * the result of the operation.
+     * @param host_and_port the name and optionally the port of the host to connect to
+     * @param default_port the default port to connect to
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a #GSocketConnection on success, %NULL on error.
+     */
+    connect_to_host_async(host_and_port: string, default_port: number, cancellable: Cancellable | null): globalThis.Promise<SocketConnection>
     /**
      * Finishes an async connect operation. See g_socket_client_connect_to_host_async()
      * @param result a #GAsyncResult.
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     connect_to_host_finish(result: AsyncResult): SocketConnection
     /**
@@ -36385,6 +39263,7 @@ interface SocketClient {
      * @param domain a domain name
      * @param service the name of the service to connect to
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a #GSocketConnection if successful, or %NULL on error
      */
     connect_to_service(domain: string, service: string, cancellable: Cancellable | null): SocketConnection
     /**
@@ -36396,9 +39275,24 @@ interface SocketClient {
      * @param callback a #GAsyncReadyCallback
      */
     connect_to_service_async(domain: string, service: string, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of connect_to_service_async
+
+    /**
+     * Promisified version of {@link connect_to_service_async}
+     * 
+     * This is the asynchronous version of
+     * g_socket_client_connect_to_service().
+     * @param domain a domain name
+     * @param service the name of the service to connect to
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a #GSocketConnection on success, %NULL on error.
+     */
+    connect_to_service_async(domain: string, service: string, cancellable: Cancellable | null): globalThis.Promise<SocketConnection>
     /**
      * Finishes an async connect operation. See g_socket_client_connect_to_service_async()
      * @param result a #GAsyncResult.
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     connect_to_service_finish(result: AsyncResult): SocketConnection
     /**
@@ -36426,6 +39320,7 @@ interface SocketClient {
      * @param uri A network URI
      * @param default_port the default port to connect to
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     connect_to_uri(uri: string, default_port: number, cancellable: Cancellable | null): SocketConnection
     /**
@@ -36440,54 +39335,80 @@ interface SocketClient {
      * @param callback a #GAsyncReadyCallback
      */
     connect_to_uri_async(uri: string, default_port: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of connect_to_uri_async
+
+    /**
+     * Promisified version of {@link connect_to_uri_async}
+     * 
+     * This is the asynchronous version of g_socket_client_connect_to_uri().
+     * 
+     * When the operation is finished `callback` will be
+     * called. You can then call g_socket_client_connect_to_uri_finish() to get
+     * the result of the operation.
+     * @param uri a network uri
+     * @param default_port the default port to connect to
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a #GSocketConnection on success, %NULL on error.
+     */
+    connect_to_uri_async(uri: string, default_port: number, cancellable: Cancellable | null): globalThis.Promise<SocketConnection>
     /**
      * Finishes an async connect operation. See g_socket_client_connect_to_uri_async()
      * @param result a #GAsyncResult.
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     connect_to_uri_finish(result: AsyncResult): SocketConnection
     /**
      * Gets the proxy enable state; see g_socket_client_set_enable_proxy()
+     * @returns whether proxying is enabled
      */
     get_enable_proxy(): boolean
     /**
      * Gets the socket family of the socket client.
      * 
      * See g_socket_client_set_family() for details.
+     * @returns a #GSocketFamily
      */
     get_family(): SocketFamily
     /**
      * Gets the local address of the socket client.
      * 
      * See g_socket_client_set_local_address() for details.
+     * @returns a #GSocketAddress or %NULL. Do not free.
      */
     get_local_address(): SocketAddress | null
     /**
      * Gets the protocol name type of the socket client.
      * 
      * See g_socket_client_set_protocol() for details.
+     * @returns a #GSocketProtocol
      */
     get_protocol(): SocketProtocol
     /**
      * Gets the #GProxyResolver being used by `client`. Normally, this will
      * be the resolver returned by g_proxy_resolver_get_default(), but you
      * can override it with g_socket_client_set_proxy_resolver().
+     * @returns The #GProxyResolver being used by   @client.
      */
     get_proxy_resolver(): ProxyResolver
     /**
      * Gets the socket type of the socket client.
      * 
      * See g_socket_client_set_socket_type() for details.
+     * @returns a #GSocketFamily
      */
     get_socket_type(): SocketType
     /**
      * Gets the I/O timeout time for sockets created by `client`.
      * 
      * See g_socket_client_set_timeout() for details.
+     * @returns the timeout in seconds
      */
     get_timeout(): number
     /**
      * Gets whether `client` creates TLS connections. See
      * g_socket_client_set_tls() for details.
+     * @returns whether @client uses TLS
      */
     get_tls(): boolean
     /**
@@ -36497,6 +39418,7 @@ interface SocketClient {
      * This function does not work as originally designed and is impossible
      * to use correctly. See #GSocketClient:tls-validation-flags for more
      * information.
+     * @returns the TLS validation flags
      */
     get_tls_validation_flags(): TlsCertificateFlags
     /**
@@ -36680,11 +39602,13 @@ class SocketClient extends GObject.Object {
     /**
      * Creates a new #GSocketClient with the default options.
      * @constructor 
+     * @returns a #GSocketClient.     Free the returned object with g_object_unref().
      */
     constructor() 
     /**
      * Creates a new #GSocketClient with the default options.
      * @constructor 
+     * @returns a #GSocketClient.     Free the returned object with g_object_unref().
      */
     static new(): SocketClient
     _init(config?: SocketClient.ConstructorProperties): void
@@ -36720,6 +39644,7 @@ interface SocketConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     /**
@@ -36734,13 +39659,32 @@ interface SocketConnection {
      * @param callback a #GAsyncReadyCallback
      */
     connect_async(address: SocketAddress, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of connect_async
+
+    /**
+     * Promisified version of {@link connect_async}
+     * 
+     * Asynchronously connect `connection` to the specified remote address.
+     * 
+     * This clears the #GSocket:blocking flag on `connection'`s underlying
+     * socket if it is currently set.
+     * 
+     * Use g_socket_connection_connect_finish() to retrieve the result.
+     * @param address a #GSocketAddress specifying the remote address.
+     * @param cancellable a %GCancellable or %NULL
+     * @returns A Promise of: %TRUE if the connection succeeded, %FALSE on error
+     */
+    connect_async(address: SocketAddress, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Gets the result of a g_socket_connection_connect_async() call.
      * @param result the #GAsyncResult
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect_finish(result: AsyncResult): boolean
     /**
      * Try to get the local address of a socket connection.
+     * @returns a #GSocketAddress or %NULL on error.     Free the returned object with g_object_unref().
      */
     get_local_address(): SocketAddress
     /**
@@ -36752,17 +39696,20 @@ interface SocketConnection {
      * address that will be used for the connection.  This allows
      * applications to print e.g. "Connecting to example.com
      * (10.42.77.3)...".
+     * @returns a #GSocketAddress or %NULL on error.     Free the returned object with g_object_unref().
      */
     get_remote_address(): SocketAddress
     /**
      * Gets the underlying #GSocket object of the connection.
      * This can be useful if you want to do something unusual on it
      * not supported by the #GSocketConnection APIs.
+     * @returns a #GSocket or %NULL on error.
      */
     get_socket(): Socket
     /**
      * Checks if `connection` is connected. This is equivalent to calling
      * g_socket_is_connected() on `connection'`s underlying #GSocket.
+     * @returns whether @connection is connected
      */
     is_connected(): boolean
 
@@ -36824,6 +39771,7 @@ class SocketConnection extends IOStream {
      * @param family a #GSocketFamily
      * @param type a #GSocketType
      * @param protocol_id a protocol id
+     * @returns a #GType
      */
     static factory_lookup_type(family: SocketFamily, type: SocketType, protocol_id: number): GObject.GType
     /**
@@ -36860,16 +39808,19 @@ interface SocketControlMessage {
     /**
      * Returns the "level" (i.e. the originating protocol) of the control message.
      * This is often SOL_SOCKET.
+     * @returns an integer describing the level
      */
     get_level(): number
     /**
      * Returns the protocol specific type of the control message.
      * For instance, for UNIX fd passing this would be SCM_RIGHTS.
+     * @returns an integer describing the type of control message
      */
     get_msg_type(): number
     /**
      * Returns the space required for the control message, not including
      * headers or alignment.
+     * @returns The number of bytes required.
      */
     get_size(): number
     /**
@@ -36889,12 +39840,14 @@ interface SocketControlMessage {
      * Returns the "level" (i.e. the originating protocol) of the control message.
      * This is often SOL_SOCKET.
      * @virtual 
+     * @returns an integer describing the level
      */
     vfunc_get_level(): number
     /**
      * Returns the space required for the control message, not including
      * headers or alignment.
      * @virtual 
+     * @returns The number of bytes required.
      */
     vfunc_get_size(): number
     vfunc_get_type(): number
@@ -36963,6 +39916,7 @@ class SocketControlMessage extends GObject.Object {
      * @param level a socket level
      * @param type a socket control message type for the given `level`
      * @param data pointer to the message data
+     * @returns the deserialized message or %NULL
      */
     static deserialize(level: number, type: number, data: Uint8Array): SocketControlMessage
 }
@@ -37016,6 +39970,7 @@ interface SocketListener {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     accept(cancellable: Cancellable | null): [ /* returnType */ SocketConnection, /* source_object */ GObject.Object | null ]
     /**
@@ -37028,9 +39983,25 @@ interface SocketListener {
      * @param callback a #GAsyncReadyCallback
      */
     accept_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of accept_async
+
+    /**
+     * Promisified version of {@link accept_async}
+     * 
+     * This is the asynchronous version of g_socket_listener_accept().
+     * 
+     * When the operation is finished `callback` will be
+     * called. You can then call g_socket_listener_accept_finish()
+     * to get the result of the operation.
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a #GSocketConnection on success, %NULL on error.
+     */
+    accept_async(cancellable: Cancellable | null): globalThis.Promise</* source_object */ GObject.Object | null>
     /**
      * Finishes an async accept operation. See g_socket_listener_accept_async()
      * @param result a #GAsyncResult.
+     * @returns a #GSocketConnection on success, %NULL on error.
      */
     accept_finish(result: AsyncResult): [ /* returnType */ SocketConnection, /* source_object */ GObject.Object | null ]
     /**
@@ -37049,6 +40020,7 @@ interface SocketListener {
      * triggering the cancellable object from another thread. If the operation
      * was cancelled, the error %G_IO_ERROR_CANCELLED will be returned.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a #GSocket on success, %NULL on error.
      */
     accept_socket(cancellable: Cancellable | null): [ /* returnType */ Socket, /* source_object */ GObject.Object | null ]
     /**
@@ -37061,9 +40033,25 @@ interface SocketListener {
      * @param callback a #GAsyncReadyCallback
      */
     accept_socket_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of accept_socket_async
+
+    /**
+     * Promisified version of {@link accept_socket_async}
+     * 
+     * This is the asynchronous version of g_socket_listener_accept_socket().
+     * 
+     * When the operation is finished `callback` will be
+     * called. You can then call g_socket_listener_accept_socket_finish()
+     * to get the result of the operation.
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a #GSocket on success, %NULL on error.
+     */
+    accept_socket_async(cancellable: Cancellable | null): globalThis.Promise</* source_object */ GObject.Object | null>
     /**
      * Finishes an async accept operation. See g_socket_listener_accept_socket_async()
      * @param result a #GAsyncResult.
+     * @returns a #GSocket on success, %NULL on error.
      */
     accept_socket_finish(result: AsyncResult): [ /* returnType */ Socket, /* source_object */ GObject.Object | null ]
     /**
@@ -37094,6 +40082,7 @@ interface SocketListener {
      * @param type a #GSocketType
      * @param protocol a #GSocketProtocol
      * @param source_object Optional #GObject identifying this source
+     * @returns %TRUE on success, %FALSE on error.
      */
     add_address(address: SocketAddress, type: SocketType, protocol: SocketProtocol, source_object: GObject.Object | null): [ /* returnType */ boolean, /* effective_address */ SocketAddress ]
     /**
@@ -37108,6 +40097,7 @@ interface SocketListener {
      * useful if you're listening on multiple addresses and do
      * different things depending on what address is connected to.
      * @param source_object Optional #GObject identifying this source
+     * @returns the port number, or 0 in case of failure.
      */
     add_any_inet_port(source_object: GObject.Object | null): number
     /**
@@ -37125,6 +40115,7 @@ interface SocketListener {
      * references may be held internally.
      * @param port an IP port number (non-zero)
      * @param source_object Optional #GObject identifying this source
+     * @returns %TRUE on success, %FALSE on error.
      */
     add_inet_port(port: number, source_object: GObject.Object | null): boolean
     /**
@@ -37143,6 +40134,7 @@ interface SocketListener {
      * if references to it were held elsewhere.
      * @param socket a listening #GSocket
      * @param source_object Optional #GObject identifying this source
+     * @returns %TRUE on success, %FALSE on error.
      */
     add_socket(socket: Socket, source_object: GObject.Object | null): boolean
     /**
@@ -37213,6 +40205,7 @@ class SocketListener extends GObject.Object {
      * New listeners can be added with e.g. g_socket_listener_add_address()
      * or g_socket_listener_add_inet_port().
      * @constructor 
+     * @returns a new #GSocketListener.
      */
     constructor() 
     /**
@@ -37220,6 +40213,7 @@ class SocketListener extends GObject.Object {
      * New listeners can be added with e.g. g_socket_listener_add_address()
      * or g_socket_listener_add_inet_port().
      * @constructor 
+     * @returns a new #GSocketListener.
      */
     static new(): SocketListener
     _init(config?: SocketListener.ConstructorProperties): void
@@ -37272,6 +40266,7 @@ interface SocketService {
      * service will accept new clients that connect, while
      * a non-active service will let connecting clients queue
      * up until the service is started.
+     * @returns %TRUE if the service is active, %FALSE otherwise
      */
     is_active(): boolean
     /**
@@ -37375,6 +40370,7 @@ class SocketService extends SocketListener {
      * g_socket_service_start(), unless g_socket_service_stop() has been
      * called before.
      * @constructor 
+     * @returns a new #GSocketService.
      */
     constructor() 
     /**
@@ -37386,6 +40382,7 @@ class SocketService extends SocketListener {
      * g_socket_service_start(), unless g_socket_service_stop() has been
      * called before.
      * @constructor 
+     * @returns a new #GSocketService.
      */
     static new(): SocketService
 
@@ -37396,6 +40393,7 @@ class SocketService extends SocketListener {
      * New listeners can be added with e.g. g_socket_listener_add_address()
      * or g_socket_listener_add_inet_port().
      * @constructor 
+     * @returns a new #GSocketListener.
      */
     static new(): SocketListener
     _init(config?: SocketService.ConstructorProperties): void
@@ -37468,6 +40466,7 @@ interface Subprocess extends Initable {
      * (either from another thread or if using the asynchronous version).
      * @param stdin_buf data to send to the stdin of the subprocess, or %NULL
      * @param cancellable a #GCancellable
+     * @returns %TRUE if successful
      */
     communicate(stdin_buf: GLib.Bytes | null, cancellable: Cancellable | null): [ /* returnType */ boolean, /* stdout_buf */ GLib.Bytes | null, /* stderr_buf */ GLib.Bytes | null ]
     /**
@@ -37478,6 +40477,19 @@ interface Subprocess extends Initable {
      * @param callback Callback
      */
     communicate_async(stdin_buf: GLib.Bytes | null, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of communicate_async
+
+    /**
+     * Promisified version of {@link communicate_async}
+     * 
+     * Asynchronous version of g_subprocess_communicate().  Complete
+     * invocation with g_subprocess_communicate_finish().
+     * @param stdin_buf Input data, or %NULL
+     * @param cancellable Cancellable
+     * @returns A Promise of the result of {@link communicate_async}
+     */
+    communicate_async(stdin_buf: GLib.Bytes | null, cancellable: Cancellable | null): globalThis.Promise<[ /* stdout_buf */ GLib.Bytes | null, /* stderr_buf */ GLib.Bytes | null ]>
     /**
      * Complete an invocation of g_subprocess_communicate_async().
      * @param result Result
@@ -37501,6 +40513,19 @@ interface Subprocess extends Initable {
      * @param callback Callback
      */
     communicate_utf8_async(stdin_buf: string | null, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of communicate_utf8_async
+
+    /**
+     * Promisified version of {@link communicate_utf8_async}
+     * 
+     * Asynchronous version of g_subprocess_communicate_utf8().  Complete
+     * invocation with g_subprocess_communicate_utf8_finish().
+     * @param stdin_buf Input data, or %NULL
+     * @param cancellable Cancellable
+     * @returns A Promise of the result of {@link communicate_utf8_async}
+     */
+    communicate_utf8_async(stdin_buf: string | null, cancellable: Cancellable | null): globalThis.Promise<[ /* stdout_buf */ string | null, /* stderr_buf */ string | null ]>
     /**
      * Complete an invocation of g_subprocess_communicate_utf8_async().
      * @param result Result
@@ -37525,12 +40550,14 @@ interface Subprocess extends Initable {
      * 
      * It is an error to call this function before g_subprocess_wait() and
      * unless g_subprocess_get_if_exited() returned %TRUE.
+     * @returns the exit status
      */
     get_exit_status(): number
     /**
      * On UNIX, returns the process ID as a decimal string.
      * On Windows, returns the result of GetProcessId() also as a string.
      * If the subprocess has terminated, this will return %NULL.
+     * @returns the subprocess identifier, or %NULL if the subprocess    has terminated
      */
     get_identifier(): string | null
     /**
@@ -37541,6 +40568,7 @@ interface Subprocess extends Initable {
      * 
      * It is an error to call this function before g_subprocess_wait() has
      * returned.
+     * @returns %TRUE if the case of a normal exit
      */
     get_if_exited(): boolean
     /**
@@ -37550,6 +40578,7 @@ interface Subprocess extends Initable {
      * 
      * It is an error to call this function before g_subprocess_wait() has
      * returned.
+     * @returns %TRUE if the case of termination due to a signal
      */
     get_if_signaled(): boolean
     /**
@@ -37564,6 +40593,7 @@ interface Subprocess extends Initable {
      * 
      * It is an error to call this function before g_subprocess_wait() has
      * returned.
+     * @returns the (meaningless) waitpid() exit status from the kernel
      */
     get_status(): number
     /**
@@ -37572,6 +40602,7 @@ interface Subprocess extends Initable {
      * 
      * The process must have been created with %G_SUBPROCESS_FLAGS_STDERR_PIPE,
      * otherwise %NULL will be returned.
+     * @returns the stderr pipe
      */
     get_stderr_pipe(): InputStream | null
     /**
@@ -37580,6 +40611,7 @@ interface Subprocess extends Initable {
      * 
      * The process must have been created with %G_SUBPROCESS_FLAGS_STDIN_PIPE and
      * not %G_SUBPROCESS_FLAGS_STDIN_INHERIT, otherwise %NULL will be returned.
+     * @returns the stdout pipe
      */
     get_stdin_pipe(): OutputStream | null
     /**
@@ -37588,6 +40620,7 @@ interface Subprocess extends Initable {
      * 
      * The process must have been created with %G_SUBPROCESS_FLAGS_STDOUT_PIPE,
      * otherwise %NULL will be returned.
+     * @returns the stdout pipe
      */
     get_stdout_pipe(): InputStream | null
     /**
@@ -37597,6 +40630,7 @@ interface Subprocess extends Initable {
      * 
      * It is an error to call this function before g_subprocess_wait() has
      * returned.
+     * @returns %TRUE if the process exited cleanly with a exit status of 0
      */
     get_successful(): boolean
     /**
@@ -37607,6 +40641,7 @@ interface Subprocess extends Initable {
      * 
      * It is an error to call this function before g_subprocess_wait() and
      * unless g_subprocess_get_if_signaled() returned %TRUE.
+     * @returns the signal causing termination
      */
     get_term_sig(): number
     /**
@@ -37633,6 +40668,7 @@ interface Subprocess extends Initable {
      * Cancelling `cancellable` doesn't kill the subprocess.  Call
      * g_subprocess_force_exit() if it is desirable.
      * @param cancellable a #GCancellable
+     * @returns %TRUE on success, %FALSE if @cancellable was cancelled
      */
     wait(cancellable: Cancellable | null): boolean
     /**
@@ -37643,9 +40679,23 @@ interface Subprocess extends Initable {
      * @param callback a #GAsyncReadyCallback to call when the operation is complete
      */
     wait_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of wait_async
+
+    /**
+     * Promisified version of {@link wait_async}
+     * 
+     * Wait for the subprocess to terminate.
+     * 
+     * This is the asynchronous version of g_subprocess_wait().
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE if successful, or %FALSE with @error set
+     */
+    wait_async(cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Combines g_subprocess_wait() with g_spawn_check_wait_status().
      * @param cancellable a #GCancellable
+     * @returns %TRUE on success, %FALSE if process exited abnormally, or @cancellable was cancelled
      */
     wait_check(cancellable: Cancellable | null): boolean
     /**
@@ -37656,16 +40706,31 @@ interface Subprocess extends Initable {
      * @param callback a #GAsyncReadyCallback to call when the operation is complete
      */
     wait_check_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of wait_check_async
+
+    /**
+     * Promisified version of {@link wait_check_async}
+     * 
+     * Combines g_subprocess_wait_async() with g_spawn_check_wait_status().
+     * 
+     * This is the asynchronous version of g_subprocess_wait_check().
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE if successful, or %FALSE with @error set
+     */
+    wait_check_async(cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Collects the result of a previous call to
      * g_subprocess_wait_check_async().
      * @param result the #GAsyncResult passed to your #GAsyncReadyCallback
+     * @returns %TRUE if successful, or %FALSE with @error set
      */
     wait_check_finish(result: AsyncResult): boolean
     /**
      * Collects the result of a previous call to
      * g_subprocess_wait_async().
      * @param result the #GAsyncResult passed to your #GAsyncReadyCallback
+     * @returns %TRUE if successful, or %FALSE with @error set
      */
     wait_finish(result: AsyncResult): boolean
 
@@ -37760,6 +40825,7 @@ class Subprocess extends GObject.Object {
      * @constructor 
      * @param argv commandline arguments for the subprocess
      * @param flags flags that define the behaviour of the subprocess
+     * @returns A newly created #GSubprocess, or %NULL on error (and @error   will be set)
      */
     constructor(argv: string[], flags: SubprocessFlags) 
     /**
@@ -37769,6 +40835,7 @@ class Subprocess extends GObject.Object {
      * @constructor 
      * @param argv commandline arguments for the subprocess
      * @param flags flags that define the behaviour of the subprocess
+     * @returns A newly created #GSubprocess, or %NULL on error (and @error   will be set)
      */
     static new(argv: string[], flags: SubprocessFlags): Subprocess
     _init(config?: Subprocess.ConstructorProperties): void
@@ -37815,6 +40882,7 @@ interface SubprocessLauncher {
      * On UNIX, the returned string can be an arbitrary byte string.
      * On Windows, it will be UTF-8.
      * @param variable the environment variable to get
+     * @returns the value of the environment variable,     %NULL if unset
      */
     getenv(variable: string): string | null
     /**
@@ -37927,6 +40995,7 @@ interface SubprocessLauncher {
     /**
      * Creates a #GSubprocess given a provided array of arguments.
      * @param argv Command line arguments
+     * @returns A new #GSubprocess, or %NULL on error (and @error will be set)
      */
     spawnv(argv: string[]): Subprocess
     /**
@@ -38104,6 +41173,7 @@ interface Task extends AsyncResult {
 
     /**
      * Gets `task'`s #GCancellable
+     * @returns @task's #GCancellable
      */
     get_cancellable(): Cancellable
     /**
@@ -38115,6 +41185,7 @@ interface Task extends AsyncResult {
      * Gets the value of #GTask:completed. This changes from %FALSE to %TRUE after
      * the task’s callback is invoked, and will return %FALSE if called from inside
      * the callback.
+     * @returns %TRUE if the task has completed, %FALSE otherwise.
      */
     get_completed(): boolean
     /**
@@ -38125,14 +41196,17 @@ interface Task extends AsyncResult {
      * 
      * This will always return a non-%NULL value, even if the task's
      * context is the default #GMainContext.
+     * @returns @task's #GMainContext
      */
     get_context(): GLib.MainContext
     /**
      * Gets `task’`s name. See g_task_set_name().
+     * @returns @task’s name, or %NULL
      */
     get_name(): string | null
     /**
      * Gets `task'`s priority
+     * @returns @task's priority
      */
     get_priority(): number
     /**
@@ -38143,18 +41217,22 @@ interface Task extends AsyncResult {
     /**
      * Gets the source object from `task`. Like
      * g_async_result_get_source_object(), but does not ref the object.
+     * @returns @task's source object, or %NULL
      */
     get_source_object(): GObject.Object | null
     /**
      * Gets `task'`s source tag. See g_task_set_source_tag().
+     * @returns @task's source tag
      */
     get_source_tag(): object | null
     /**
      * Gets `task'`s `task_data`.
+     * @returns @task's `task_data`.
      */
     get_task_data(): object | null
     /**
      * Tests if `task` resulted in an error.
+     * @returns %TRUE if the task resulted in an error, %FALSE otherwise.
      */
     had_error(): boolean
     /**
@@ -38165,6 +41243,7 @@ interface Task extends AsyncResult {
      * 
      * Since this method transfers ownership of the return value (or
      * error) to the caller, you may only call it once.
+     * @returns the task result, or %FALSE on error
      */
     propagate_boolean(): boolean
     /**
@@ -38175,6 +41254,7 @@ interface Task extends AsyncResult {
      * 
      * Since this method transfers ownership of the return value (or
      * error) to the caller, you may only call it once.
+     * @returns the task result, or -1 on error
      */
     propagate_int(): number
     /**
@@ -38186,6 +41266,7 @@ interface Task extends AsyncResult {
      * 
      * Since this method transfers ownership of the return value (or
      * error) to the caller, you may only call it once.
+     * @returns the task result, or %NULL on error
      */
     propagate_pointer(): object | null
     /**
@@ -38199,6 +41280,7 @@ interface Task extends AsyncResult {
      * 
      * Since this method transfers ownership of the return value (or
      * error) to the caller, you may only call it once.
+     * @returns %TRUE if @task succeeded, %FALSE on error.
      */
     propagate_value(): [ /* returnType */ boolean, /* value */ any ]
     /**
@@ -38228,6 +41310,7 @@ interface Task extends AsyncResult {
      * `task'`s error accordingly and completes the task (see
      * g_task_return_pointer() for more discussion of exactly what this
      * means).
+     * @returns %TRUE if @task has been cancelled, %FALSE if not
      */
     return_error_if_cancelled(): boolean
     /**
@@ -38381,6 +41464,7 @@ interface Task extends AsyncResult {
      * #GTaskThreadFunc will still be run (for consistency), but the task
      * will also be completed right away.
      * @param return_on_cancel whether the task returns automatically when   it is cancelled.
+     * @returns %TRUE if @task's return-on-cancel flag was changed to   match @return_on_cancel. %FALSE if @task has already been   cancelled.
      */
     set_return_on_cancel(return_on_cancel: boolean): boolean
     /**
@@ -38958,6 +42042,7 @@ class Task extends GObject.Object {
      * @param source_object the #GObject that owns   this task, or %NULL.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
      * @param callback a #GAsyncReadyCallback.
+     * @returns a #GTask.
      */
     constructor(source_object: GObject.Object | null, cancellable: Cancellable | null, callback: AsyncReadyCallback<Task> | null) 
     /**
@@ -38981,6 +42066,7 @@ class Task extends GObject.Object {
      * @param source_object the #GObject that owns   this task, or %NULL.
      * @param cancellable optional #GCancellable object, %NULL to ignore.
      * @param callback a #GAsyncReadyCallback.
+     * @returns a #GTask.
      */
     static new(source_object: GObject.Object | null, cancellable: Cancellable | null, callback: AsyncReadyCallback<Task> | null): Task
     _init(config?: Task.ConstructorProperties): void
@@ -38990,6 +42076,7 @@ class Task extends GObject.Object {
      * source object). This can be used in g_return_if_fail() checks.
      * @param result A #GAsyncResult
      * @param source_object the source object   expected to be associated with the task
+     * @returns %TRUE if @result and @source_object are valid, %FALSE if not
      */
     static is_valid(result: AsyncResult, source_object: GObject.Object | null): boolean
     /**
@@ -39038,6 +42125,7 @@ interface TcpConnection {
     /**
      * Checks if graceful disconnects are used. See
      * g_tcp_connection_set_graceful_disconnect().
+     * @returns %TRUE if graceful disconnect is used on close, %FALSE otherwise
      */
     get_graceful_disconnect(): boolean
     /**
@@ -39064,6 +42152,7 @@ interface TcpConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::graceful-disconnect", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39076,6 +42165,7 @@ interface TcpConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::socket", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39088,6 +42178,7 @@ interface TcpConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::closed", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39100,6 +42191,7 @@ interface TcpConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::input-stream", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39112,6 +42204,7 @@ interface TcpConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::output-stream", callback: (($obj: TcpConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39124,6 +42217,7 @@ interface TcpConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: string, callback: (...args: any[]) => void): number
@@ -39177,6 +42271,7 @@ interface TcpWrapperConnection {
 
     /**
      * Gets `conn'`s base #GIOStream
+     * @returns @conn's base #GIOStream
      */
     get_base_io_stream(): IOStream
 
@@ -39190,6 +42285,7 @@ interface TcpWrapperConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::base-io-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39202,6 +42298,7 @@ interface TcpWrapperConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::graceful-disconnect", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39214,6 +42311,7 @@ interface TcpWrapperConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::socket", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39226,6 +42324,7 @@ interface TcpWrapperConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::closed", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39238,6 +42337,7 @@ interface TcpWrapperConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::input-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39250,6 +42350,7 @@ interface TcpWrapperConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::output-stream", callback: (($obj: TcpWrapperConnection, pspec: GObject.ParamSpec) => void)): number
@@ -39262,6 +42363,7 @@ interface TcpWrapperConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: string, callback: (...args: any[]) => void): number
@@ -39292,6 +42394,7 @@ class TcpWrapperConnection extends TcpConnection {
      * @constructor 
      * @param base_io_stream the #GIOStream to wrap
      * @param socket the #GSocket associated with `base_io_stream`
+     * @returns the new #GSocketConnection.
      */
     constructor(base_io_stream: IOStream, socket: Socket) 
     /**
@@ -39299,6 +42402,7 @@ class TcpWrapperConnection extends TcpConnection {
      * @constructor 
      * @param base_io_stream the #GIOStream to wrap
      * @param socket the #GSocket associated with `base_io_stream`
+     * @returns the new #GSocketConnection.
      */
     static new(base_io_stream: IOStream, socket: Socket): TcpWrapperConnection
     _init(config?: TcpWrapperConnection.ConstructorProperties): void
@@ -39349,10 +42453,12 @@ interface TestDBus {
      * Get the address on which dbus-daemon is running. If g_test_dbus_up() has not
      * been called yet, %NULL is returned. This can be used with
      * g_dbus_connection_new_for_address().
+     * @returns the address of the bus, or %NULL.
      */
     get_bus_address(): string | null
     /**
      * Get the flags of the #GTestDBus object.
+     * @returns the value of #GTestDBus:flags property
      */
     get_flags(): TestDBusFlags
     /**
@@ -39479,12 +42585,14 @@ class TestDBus extends GObject.Object {
      * Create a new #GTestDBus object.
      * @constructor 
      * @param flags a #GTestDBusFlags
+     * @returns a new #GTestDBus.
      */
     constructor(flags: TestDBusFlags) 
     /**
      * Create a new #GTestDBus object.
      * @constructor 
      * @param flags a #GTestDBusFlags
+     * @returns a new #GTestDBus.
      */
     static new(flags: TestDBusFlags): TestDBus
     _init(config?: TestDBus.ConstructorProperties): void
@@ -39584,6 +42692,7 @@ interface ThemedIcon extends Icon {
     append_name(iconname: string): void
     /**
      * Gets the names of icons from within `icon`.
+     * @returns a list of icon names.
      */
     get_names(): string[]
     /**
@@ -39636,18 +42745,21 @@ class ThemedIcon extends GObject.Object {
      * Creates a new themed icon for `iconname`.
      * @constructor 
      * @param iconname a string containing an icon name.
+     * @returns a new #GThemedIcon.
      */
     constructor(iconname: string) 
     /**
      * Creates a new themed icon for `iconname`.
      * @constructor 
      * @param iconname a string containing an icon name.
+     * @returns a new #GThemedIcon.
      */
     static new(iconname: string): ThemedIcon
     /**
      * Creates a new themed icon for `iconnames`.
      * @constructor 
      * @param iconnames an array of strings containing icon names.
+     * @returns a new #GThemedIcon
      */
     static new_from_names(iconnames: string[]): ThemedIcon
     /**
@@ -39670,6 +42782,7 @@ class ThemedIcon extends GObject.Object {
      * 
      * @constructor 
      * @param iconname a string containing an icon name
+     * @returns a new #GThemedIcon.
      */
     static new_with_default_fallbacks(iconname: string): ThemedIcon
     _init(config?: ThemedIcon.ConstructorProperties): void
@@ -39769,6 +42882,7 @@ class ThreadedSocketService extends SocketService {
      * must be added with one of the #GSocketListener "add" methods.
      * @constructor 
      * @param max_threads the maximal number of threads to execute concurrently   handling incoming clients, -1 means no limit
+     * @returns a new #GSocketService.
      */
     constructor(max_threads: number) 
     /**
@@ -39776,6 +42890,7 @@ class ThreadedSocketService extends SocketService {
      * must be added with one of the #GSocketListener "add" methods.
      * @constructor 
      * @param max_threads the maximal number of threads to execute concurrently   handling incoming clients, -1 means no limit
+     * @returns a new #GSocketService.
      */
     static new(max_threads: number): ThreadedSocketService
 
@@ -39790,6 +42905,7 @@ class ThreadedSocketService extends SocketService {
      * g_socket_service_start(), unless g_socket_service_stop() has been
      * called before.
      * @constructor 
+     * @returns a new #GSocketService.
      */
     static new(): SocketService
     /**
@@ -39797,6 +42913,7 @@ class ThreadedSocketService extends SocketService {
      * New listeners can be added with e.g. g_socket_listener_add_address()
      * or g_socket_listener_add_inet_port().
      * @constructor 
+     * @returns a new #GSocketListener.
      */
     static new(): SocketListener
     _init(config?: ThreadedSocketService.ConstructorProperties): void
@@ -40048,30 +43165,37 @@ interface TlsCertificate {
 
     /**
      * Gets the value of #GTlsCertificate:dns-names.
+     * @returns A #GPtrArray of #GBytes elements, or %NULL if it's not available.
      */
     get_dns_names(): GLib.Bytes[] | null
     /**
      * Gets the value of #GTlsCertificate:ip-addresses.
+     * @returns A #GPtrArray of #GInetAddress elements, or %NULL if it's not available.
      */
     get_ip_addresses(): InetAddress[] | null
     /**
      * Gets the #GTlsCertificate representing `cert'`s issuer, if known
+     * @returns The certificate of @cert's issuer, or %NULL if @cert is self-signed or signed with an unknown certificate.
      */
     get_issuer(): TlsCertificate | null
     /**
      * Returns the issuer name from the certificate.
+     * @returns The issuer name, or %NULL if it's not available.
      */
     get_issuer_name(): string | null
     /**
      * Returns the time at which the certificate became or will become invalid.
+     * @returns The not-valid-after date, or %NULL if it's not available.
      */
     get_not_valid_after(): GLib.DateTime | null
     /**
      * Returns the time at which the certificate became or will become valid.
+     * @returns The not-valid-before date, or %NULL if it's not available.
      */
     get_not_valid_before(): GLib.DateTime | null
     /**
      * Returns the subject name from the certificate.
+     * @returns The subject name, or %NULL if it's not available.
      */
     get_subject_name(): string | null
     /**
@@ -40081,6 +43205,7 @@ interface TlsCertificate {
      * their #GTlsCertificate:issuer, #GTlsCertificate:private-key, or
      * #GTlsCertificate:private-key-pem properties differ.
      * @param cert_two second certificate to compare
+     * @returns whether the same or not
      */
     is_same(cert_two: TlsCertificate): boolean
     /**
@@ -40119,6 +43244,7 @@ interface TlsCertificate {
      * handle the verification.
      * @param identity the expected peer identity
      * @param trusted_ca the certificate of a trusted authority
+     * @returns the appropriate #GTlsCertificateFlags
      */
     verify(identity: SocketConnectable | null, trusted_ca: TlsCertificate | null): TlsCertificateFlags
 
@@ -40161,6 +43287,7 @@ interface TlsCertificate {
      * @virtual 
      * @param identity the expected peer identity
      * @param trusted_ca the certificate of a trusted authority
+     * @returns the appropriate #GTlsCertificateFlags
      */
     vfunc_verify(identity: SocketConnectable | null, trusted_ca: TlsCertificate | null): TlsCertificateFlags
 
@@ -40247,6 +43374,7 @@ class TlsCertificate extends GObject.Object {
      * set `error`.
      * @constructor 
      * @param file file containing a certificate to import
+     * @returns the new certificate, or %NULL on error
      */
     static new_from_file(file: string): TlsCertificate
     /**
@@ -40261,6 +43389,7 @@ class TlsCertificate extends GObject.Object {
      * @constructor 
      * @param file file containing a certificate to import
      * @param password password for PKCS #12 files
+     * @returns the new certificate, or %NULL on error
      */
     static new_from_file_with_password(file: string, password: string): TlsCertificate
     /**
@@ -40281,6 +43410,7 @@ class TlsCertificate extends GObject.Object {
      * @constructor 
      * @param cert_file file containing one or more PEM-encoded     certificates to import
      * @param key_file file containing a PEM-encoded private key     to import
+     * @returns the new certificate, or %NULL on error
      */
     static new_from_files(cert_file: string, key_file: string): TlsCertificate
     /**
@@ -40301,6 +43431,7 @@ class TlsCertificate extends GObject.Object {
      * @constructor 
      * @param data PEM-encoded certificate data
      * @param length the length of `data,` or -1 if it's 0-terminated.
+     * @returns the new certificate, or %NULL if @data is invalid
      */
     static new_from_pem(data: string, length: number): TlsCertificate
     /**
@@ -40332,6 +43463,7 @@ class TlsCertificate extends GObject.Object {
      * @constructor 
      * @param pkcs11_uri A PKCS \#11 URI
      * @param private_key_pkcs11_uri A PKCS \#11 URI
+     * @returns the new certificate, or %NULL on error
      */
     static new_from_pkcs11_uris(pkcs11_uri: string, private_key_pkcs11_uri: string | null): TlsCertificate
     /**
@@ -40355,6 +43487,7 @@ class TlsCertificate extends GObject.Object {
      * @constructor 
      * @param data DER-encoded PKCS #12 format certificate data
      * @param password optional password for encrypted certificate data
+     * @returns the new certificate, or %NULL if @data is invalid
      */
     static new_from_pkcs12(data: Uint8Array, password: string | null): TlsCertificate
     _init(config?: TlsCertificate.ConstructorProperties): void
@@ -40365,6 +43498,7 @@ class TlsCertificate extends GObject.Object {
      * PEM-encoded certificates, this will return an empty list and not
      * set `error`.
      * @param file file containing PEM-encoded certificates to import
+     * @returns a #GList containing #GTlsCertificate objects. You must free the list and its contents when you are done with it.
      */
     static list_new_from_file(file: string): TlsCertificate[]
 }
@@ -40567,11 +43701,13 @@ interface TlsConnection {
      * #GTlsConnection::accept-certificate signal.
      * @param peer_cert the peer's #GTlsCertificate
      * @param errors the problems with `peer_cert`
+     * @returns %TRUE if one of the signal handlers has returned     %TRUE to accept @peer_cert
      */
     emit_accept_certificate(peer_cert: TlsCertificate, errors: TlsCertificateFlags): boolean
     /**
      * Gets `conn'`s certificate, as set by
      * g_tls_connection_set_certificate().
+     * @returns @conn's certificate, or %NULL
      */
     get_certificate(): TlsCertificate | null
     /**
@@ -40589,6 +43725,7 @@ interface TlsConnection {
      * support `type` or the binding data is not available yet due to additional
      * negotiation or input required.
      * @param type #GTlsChannelBindingType type of data to fetch
+     * @returns %TRUE on success, %FALSE otherwise
      */
     get_channel_binding_data(type: TlsChannelBindingType): [ /* returnType */ boolean, /* data */ Uint8Array ]
     /**
@@ -40600,17 +43737,20 @@ interface TlsConnection {
      * registered ciphersuite names. The ciphersuite name is intended to be
      * displayed to the user for informative purposes only, and parsing it
      * is not recommended.
+     * @returns The name of the current TLS ciphersuite, or %NULL
      */
     get_ciphersuite_name(): string | null
     /**
      * Gets the certificate database that `conn` uses to verify
      * peer certificates. See g_tls_connection_set_database().
+     * @returns the certificate database that @conn uses or %NULL
      */
     get_database(): TlsDatabase | null
     /**
      * Get the object that will be used to interact with the user. It will be used
      * for things like prompting the user for passwords. If %NULL is returned, then
      * no user interaction will occur for this connection.
+     * @returns The interaction object.
      */
     get_interaction(): TlsInteraction | null
     /**
@@ -40621,12 +43761,14 @@ interface TlsConnection {
      * protocol that matched one of `conn'`s protocols, or the TLS backend
      * does not support ALPN, then this will be %NULL. See
      * g_tls_connection_set_advertised_protocols().
+     * @returns the negotiated protocol, or %NULL
      */
     get_negotiated_protocol(): string | null
     /**
      * Gets `conn'`s peer's certificate after the handshake has completed
      * or failed. (It is not set during the emission of
      * #GTlsConnection::accept-certificate.)
+     * @returns @conn's peer's certificate, or %NULL
      */
     get_peer_certificate(): TlsCertificate | null
     /**
@@ -40635,6 +43777,7 @@ interface TlsConnection {
      * not set during the emission of #GTlsConnection::accept-certificate.)
      * 
      * See #GTlsConnection:peer-certificate-errors for more information.
+     * @returns @conn's peer's certificate errors
      */
     get_peer_certificate_errors(): TlsCertificateFlags
     /**
@@ -40642,22 +43785,26 @@ interface TlsConnection {
      * %G_TLS_PROTOCOL_VERSION_UNKNOWN if the connection has not handshaked, or
      * has been closed, or if the TLS backend has implemented a protocol version
      * that is not a recognized #GTlsProtocolVersion.
+     * @returns The current TLS protocol version
      */
     get_protocol_version(): TlsProtocolVersion
     /**
      * Gets `conn` rehandshaking mode. See
      * g_tls_connection_set_rehandshake_mode() for details.
+     * @returns %G_TLS_REHANDSHAKE_SAFELY
      */
     get_rehandshake_mode(): TlsRehandshakeMode
     /**
      * Tests whether or not `conn` expects a proper TLS close notification
      * when the connection is closed. See
      * g_tls_connection_set_require_close_notify() for details.
+     * @returns %TRUE if @conn requires a proper TLS close notification.
      */
     get_require_close_notify(): boolean
     /**
      * Gets whether `conn` uses the system certificate database to verify
      * peer certificates. See g_tls_connection_set_use_system_certdb().
+     * @returns whether @conn uses the system certificate database
      */
     get_use_system_certdb(): boolean
     /**
@@ -40693,6 +43840,7 @@ interface TlsConnection {
      * #GTlsConnection::accept_certificate may be emitted during the
      * handshake.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns success or failure
      */
     handshake(cancellable: Cancellable | null): boolean
     /**
@@ -40703,10 +43851,24 @@ interface TlsConnection {
      * @param callback callback to call when the handshake is complete
      */
     handshake_async(io_priority: number, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of handshake_async
+
+    /**
+     * Promisified version of {@link handshake_async}
+     * 
+     * Asynchronously performs a TLS handshake on `conn`. See
+     * g_tls_connection_handshake() for more information.
+     * @param io_priority the [I/O priority][io-priority] of the request
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: %TRUE on success, %FALSE on failure, in which case @error will be set.
+     */
+    handshake_async(io_priority: number, cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finish an asynchronous TLS handshake operation. See
      * g_tls_connection_handshake() for more information.
      * @param result a #GAsyncResult.
+     * @returns %TRUE on success, %FALSE on failure, in which case @error will be set.
      */
     handshake_finish(result: AsyncResult): boolean
     /**
@@ -40834,6 +43996,7 @@ interface TlsConnection {
      * does not support ALPN, then this will be %NULL. See
      * g_tls_connection_set_advertised_protocols().
      * @virtual 
+     * @returns the negotiated protocol, or %NULL
      */
     vfunc_get_negotiated_protocol(): string | null
     /**
@@ -40870,6 +44033,7 @@ interface TlsConnection {
      * handshake.
      * @virtual 
      * @param cancellable a #GCancellable, or %NULL
+     * @returns success or failure
      */
     vfunc_handshake(cancellable: Cancellable | null): boolean
     /**
@@ -40886,6 +44050,7 @@ interface TlsConnection {
      * g_tls_connection_handshake() for more information.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns %TRUE on success, %FALSE on failure, in which case @error will be set.
      */
     vfunc_handshake_finish(result: AsyncResult): boolean
 
@@ -41001,6 +44166,7 @@ interface TlsDatabase {
      * and between applications. If a certificate is modified in the database,
      * then it is not guaranteed that this handle will continue to point to it.
      * @param certificate certificate for which to create a handle.
+     * @returns a newly allocated string containing the handle.
      */
     create_certificate_handle(certificate: TlsCertificate): string | null
     /**
@@ -41020,6 +44186,7 @@ interface TlsDatabase {
      * @param interaction used to interact with the user if necessary
      * @param flags Flags which affect the lookup.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a newly allocated #GTlsCertificate, or %NULL. Use g_object_unref() to release the certificate.
      */
     lookup_certificate_for_handle(handle: string, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): TlsCertificate | null
     /**
@@ -41032,6 +44199,21 @@ interface TlsDatabase {
      * @param callback callback to call when the operation completes
      */
     lookup_certificate_for_handle_async(handle: string, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_certificate_for_handle_async
+
+    /**
+     * Promisified version of {@link lookup_certificate_for_handle_async}
+     * 
+     * Asynchronously look up a certificate by its handle in the database. See
+     * g_tls_database_lookup_certificate_for_handle() for more information.
+     * @param handle a certificate handle
+     * @param interaction used to interact with the user if necessary
+     * @param flags Flags which affect the lookup.
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a newly allocated #GTlsCertificate object. Use g_object_unref() to release the certificate.
+     */
+    lookup_certificate_for_handle_async(handle: string, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): globalThis.Promise<TlsCertificate>
     /**
      * Finish an asynchronous lookup of a certificate by its handle. See
      * g_tls_database_lookup_certificate_for_handle() for more information.
@@ -41039,6 +44221,7 @@ interface TlsDatabase {
      * If the handle is no longer valid, or does not point to a certificate in
      * this database, then %NULL will be returned.
      * @param result a #GAsyncResult.
+     * @returns a newly allocated #GTlsCertificate object. Use g_object_unref() to release the certificate.
      */
     lookup_certificate_for_handle_finish(result: AsyncResult): TlsCertificate
     /**
@@ -41066,6 +44249,7 @@ interface TlsDatabase {
      * @param interaction used to interact with the user if necessary
      * @param flags flags which affect the lookup operation
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a newly allocated issuer #GTlsCertificate, or %NULL. Use g_object_unref() to release the certificate.
      */
     lookup_certificate_issuer(certificate: TlsCertificate, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): TlsCertificate
     /**
@@ -41078,10 +44262,26 @@ interface TlsDatabase {
      * @param callback callback to call when the operation completes
      */
     lookup_certificate_issuer_async(certificate: TlsCertificate, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_certificate_issuer_async
+
+    /**
+     * Promisified version of {@link lookup_certificate_issuer_async}
+     * 
+     * Asynchronously look up the issuer of `certificate` in the database. See
+     * g_tls_database_lookup_certificate_issuer() for more information.
+     * @param certificate a #GTlsCertificate
+     * @param interaction used to interact with the user if necessary
+     * @param flags flags which affect the lookup operation
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a newly allocated issuer #GTlsCertificate, or %NULL. Use g_object_unref() to release the certificate.
+     */
+    lookup_certificate_issuer_async(certificate: TlsCertificate, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): globalThis.Promise<TlsCertificate>
     /**
      * Finish an asynchronous lookup issuer operation. See
      * g_tls_database_lookup_certificate_issuer() for more information.
      * @param result a #GAsyncResult.
+     * @returns a newly allocated issuer #GTlsCertificate, or %NULL. Use g_object_unref() to release the certificate.
      */
     lookup_certificate_issuer_finish(result: AsyncResult): TlsCertificate
     /**
@@ -41093,6 +44293,7 @@ interface TlsDatabase {
      * @param interaction used to interact with the user if necessary
      * @param flags Flags which affect the lookup operation.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a newly allocated list of #GTlsCertificate objects. Use g_object_unref() on each certificate, and g_list_free() on the release the list.
      */
     lookup_certificates_issued_by(issuer_raw_dn: Uint8Array, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): TlsCertificate[]
     /**
@@ -41109,10 +44310,30 @@ interface TlsDatabase {
      * @param callback callback to call when the operation completes
      */
     lookup_certificates_issued_by_async(issuer_raw_dn: Uint8Array, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of lookup_certificates_issued_by_async
+
+    /**
+     * Promisified version of {@link lookup_certificates_issued_by_async}
+     * 
+     * Asynchronously look up certificates issued by this issuer in the database. See
+     * g_tls_database_lookup_certificates_issued_by() for more information.
+     * 
+     * The database may choose to hold a reference to the issuer byte array for the duration
+     * of of this asynchronous operation. The byte array should not be modified during
+     * this time.
+     * @param issuer_raw_dn a #GByteArray which holds the DER encoded issuer DN.
+     * @param interaction used to interact with the user if necessary
+     * @param flags Flags which affect the lookup operation.
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: a newly allocated list of #GTlsCertificate objects. Use g_object_unref() on each certificate, and g_list_free() on the release the list.
+     */
+    lookup_certificates_issued_by_async(issuer_raw_dn: Uint8Array, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): globalThis.Promise<TlsCertificate[]>
     /**
      * Finish an asynchronous lookup of certificates. See
      * g_tls_database_lookup_certificates_issued_by() for more information.
      * @param result a #GAsyncResult.
+     * @returns a newly allocated list of #GTlsCertificate objects. Use g_object_unref() on each certificate, and g_list_free() on the release the list.
      */
     lookup_certificates_issued_by_finish(result: AsyncResult): TlsCertificate[]
     /**
@@ -41182,6 +44403,7 @@ interface TlsDatabase {
      * @param interaction used to interact with the user if necessary
      * @param flags additional verify flags
      * @param cancellable a #GCancellable, or %NULL
+     * @returns the appropriate #GTlsCertificateFlags which represents the result of verification.
      */
     verify_chain(chain: TlsCertificate, purpose: string, identity: SocketConnectable | null, interaction: TlsInteraction | null, flags: TlsDatabaseVerifyFlags, cancellable: Cancellable | null): TlsCertificateFlags
     /**
@@ -41197,6 +44419,24 @@ interface TlsDatabase {
      * @param callback callback to call when the operation completes
      */
     verify_chain_async(chain: TlsCertificate, purpose: string, identity: SocketConnectable | null, interaction: TlsInteraction | null, flags: TlsDatabaseVerifyFlags, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of verify_chain_async
+
+    /**
+     * Promisified version of {@link verify_chain_async}
+     * 
+     * Asynchronously determines the validity of a certificate chain after
+     * looking up and adding any missing certificates to the chain. See
+     * g_tls_database_verify_chain() for more information.
+     * @param chain a #GTlsCertificate chain
+     * @param purpose the purpose that this certificate chain will be used for.
+     * @param identity the expected peer identity
+     * @param interaction used to interact with the user if necessary
+     * @param flags additional verify flags
+     * @param cancellable a #GCancellable, or %NULL
+     * @returns A Promise of: the appropriate #GTlsCertificateFlags which represents the result of verification.
+     */
+    verify_chain_async(chain: TlsCertificate, purpose: string, identity: SocketConnectable | null, interaction: TlsInteraction | null, flags: TlsDatabaseVerifyFlags, cancellable: Cancellable | null): globalThis.Promise<TlsCertificateFlags>
     /**
      * Finish an asynchronous verify chain operation. See
      * g_tls_database_verify_chain() for more information.
@@ -41210,6 +44450,7 @@ interface TlsDatabase {
      * accordingly. `error` is not set when `chain` is successfully analyzed
      * but found to be invalid.
      * @param result a #GAsyncResult.
+     * @returns the appropriate #GTlsCertificateFlags which represents the result of verification.
      */
     verify_chain_finish(result: AsyncResult): TlsCertificateFlags
 
@@ -41226,6 +44467,7 @@ interface TlsDatabase {
      * then it is not guaranteed that this handle will continue to point to it.
      * @virtual 
      * @param certificate certificate for which to create a handle.
+     * @returns a newly allocated string containing the handle.
      */
     vfunc_create_certificate_handle(certificate: TlsCertificate): string | null
     /**
@@ -41246,6 +44488,7 @@ interface TlsDatabase {
      * @param interaction used to interact with the user if necessary
      * @param flags Flags which affect the lookup.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a newly allocated #GTlsCertificate, or %NULL. Use g_object_unref() to release the certificate.
      */
     vfunc_lookup_certificate_for_handle(handle: string, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): TlsCertificate | null
     /**
@@ -41267,6 +44510,7 @@ interface TlsDatabase {
      * this database, then %NULL will be returned.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns a newly allocated #GTlsCertificate object. Use g_object_unref() to release the certificate.
      */
     vfunc_lookup_certificate_for_handle_finish(result: AsyncResult): TlsCertificate
     /**
@@ -41295,6 +44539,7 @@ interface TlsDatabase {
      * @param interaction used to interact with the user if necessary
      * @param flags flags which affect the lookup operation
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a newly allocated issuer #GTlsCertificate, or %NULL. Use g_object_unref() to release the certificate.
      */
     vfunc_lookup_certificate_issuer(certificate: TlsCertificate, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): TlsCertificate
     /**
@@ -41313,6 +44558,7 @@ interface TlsDatabase {
      * g_tls_database_lookup_certificate_issuer() for more information.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns a newly allocated issuer #GTlsCertificate, or %NULL. Use g_object_unref() to release the certificate.
      */
     vfunc_lookup_certificate_issuer_finish(result: AsyncResult): TlsCertificate
     /**
@@ -41325,6 +44571,7 @@ interface TlsDatabase {
      * @param interaction used to interact with the user if necessary
      * @param flags Flags which affect the lookup operation.
      * @param cancellable a #GCancellable, or %NULL
+     * @returns a newly allocated list of #GTlsCertificate objects. Use g_object_unref() on each certificate, and g_list_free() on the release the list.
      */
     vfunc_lookup_certificates_issued_by(issuer_raw_dn: Uint8Array, interaction: TlsInteraction | null, flags: TlsDatabaseLookupFlags, cancellable: Cancellable | null): TlsCertificate[]
     /**
@@ -41347,6 +44594,7 @@ interface TlsDatabase {
      * g_tls_database_lookup_certificates_issued_by() for more information.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns a newly allocated list of #GTlsCertificate objects. Use g_object_unref() on each certificate, and g_list_free() on the release the list.
      */
     vfunc_lookup_certificates_issued_by_finish(result: AsyncResult): TlsCertificate[]
     /**
@@ -41417,6 +44665,7 @@ interface TlsDatabase {
      * @param interaction used to interact with the user if necessary
      * @param flags additional verify flags
      * @param cancellable a #GCancellable, or %NULL
+     * @returns the appropriate #GTlsCertificateFlags which represents the result of verification.
      */
     vfunc_verify_chain(chain: TlsCertificate, purpose: string, identity: SocketConnectable | null, interaction: TlsInteraction | null, flags: TlsDatabaseVerifyFlags, cancellable: Cancellable | null): TlsCertificateFlags
     /**
@@ -41447,6 +44696,7 @@ interface TlsDatabase {
      * but found to be invalid.
      * @virtual 
      * @param result a #GAsyncResult.
+     * @returns the appropriate #GTlsCertificateFlags which represents the result of verification.
      */
     vfunc_verify_chain_finish(result: AsyncResult): TlsCertificateFlags
 
@@ -41512,6 +44762,7 @@ interface TlsInteraction {
      * not support immediate cancellation.
      * @param password a #GTlsPassword object
      * @param cancellable an optional #GCancellable cancellation object
+     * @returns The status of the ask password interaction.
      */
     ask_password(password: TlsPassword, cancellable: Cancellable | null): TlsInteractionResult
     /**
@@ -41535,6 +44786,32 @@ interface TlsInteraction {
      * @param callback will be called when the interaction completes
      */
     ask_password_async(password: TlsPassword, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of ask_password_async
+
+    /**
+     * Promisified version of {@link ask_password_async}
+     * 
+     * Run asynchronous interaction to ask the user for a password. In general,
+     * g_tls_interaction_invoke_ask_password() should be used instead of this
+     * function.
+     * 
+     * Derived subclasses usually implement a password prompt, although they may
+     * also choose to provide a password from elsewhere. The `password` value will
+     * be filled in and then `callback` will be called. Alternatively the user may
+     * abort this password request, which will usually abort the TLS connection.
+     * 
+     * If the interaction is cancelled by the cancellation object, or by the
+     * user then %G_TLS_INTERACTION_FAILED will be returned with an error that
+     * contains a %G_IO_ERROR_CANCELLED error code. Certain implementations may
+     * not support immediate cancellation.
+     * 
+     * Certain implementations may not support immediate cancellation.
+     * @param password a #GTlsPassword object
+     * @param cancellable an optional #GCancellable cancellation object
+     * @returns A Promise of: The status of the ask password interaction.
+     */
+    ask_password_async(password: TlsPassword, cancellable: Cancellable | null): globalThis.Promise<TlsInteractionResult>
     /**
      * Complete an ask password user interaction request. This should be once
      * the g_tls_interaction_ask_password_async() completion callback is called.
@@ -41546,6 +44823,7 @@ interface TlsInteraction {
      * user then %G_TLS_INTERACTION_FAILED will be returned with an error that
      * contains a %G_IO_ERROR_CANCELLED error code.
      * @param result the result passed to the callback
+     * @returns The status of the ask password interaction.
      */
     ask_password_finish(result: AsyncResult): TlsInteractionResult
     /**
@@ -41570,6 +44848,7 @@ interface TlsInteraction {
      * not support immediate cancellation.
      * @param password a #GTlsPassword object
      * @param cancellable an optional #GCancellable cancellation object
+     * @returns The status of the ask password interaction.
      */
     invoke_ask_password(password: TlsPassword, cancellable: Cancellable | null): TlsInteractionResult
     /**
@@ -41596,6 +44875,7 @@ interface TlsInteraction {
      * @param connection a #GTlsConnection object
      * @param flags flags providing more information about the request
      * @param cancellable an optional #GCancellable cancellation object
+     * @returns The status of the certificate request interaction.
      */
     invoke_request_certificate(connection: TlsConnection, flags: TlsCertificateRequestFlags, cancellable: Cancellable | null): TlsInteractionResult
     /**
@@ -41618,6 +44898,7 @@ interface TlsInteraction {
      * @param connection a #GTlsConnection object
      * @param flags flags providing more information about the request
      * @param cancellable an optional #GCancellable cancellation object
+     * @returns The status of the request certificate interaction.
      */
     request_certificate(connection: TlsConnection, flags: TlsCertificateRequestFlags, cancellable: Cancellable | null): TlsInteractionResult
     /**
@@ -41635,6 +44916,26 @@ interface TlsInteraction {
      * @param callback will be called when the interaction completes
      */
     request_certificate_async(connection: TlsConnection, flags: TlsCertificateRequestFlags, cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of request_certificate_async
+
+    /**
+     * Promisified version of {@link request_certificate_async}
+     * 
+     * Run asynchronous interaction to ask the user for a certificate to use with
+     * the connection. In general, g_tls_interaction_invoke_request_certificate() should
+     * be used instead of this function.
+     * 
+     * Derived subclasses usually implement a certificate selector, although they may
+     * also choose to provide a certificate from elsewhere. `callback` will be called
+     * when the operation completes. Alternatively the user may abort this certificate
+     * request, which will usually abort the TLS connection.
+     * @param connection a #GTlsConnection object
+     * @param flags flags providing more information about the request
+     * @param cancellable an optional #GCancellable cancellation object
+     * @returns A Promise of: The status of the request certificate interaction.
+     */
+    request_certificate_async(connection: TlsConnection, flags: TlsCertificateRequestFlags, cancellable: Cancellable | null): globalThis.Promise<TlsInteractionResult>
     /**
      * Complete a request certificate user interaction request. This should be once
      * the g_tls_interaction_request_certificate_async() completion callback is called.
@@ -41647,6 +44948,7 @@ interface TlsInteraction {
      * user then %G_TLS_INTERACTION_FAILED will be returned with an error that
      * contains a %G_IO_ERROR_CANCELLED error code.
      * @param result the result passed to the callback
+     * @returns The status of the request certificate interaction.
      */
     request_certificate_finish(result: AsyncResult): TlsInteractionResult
 
@@ -41669,6 +44971,7 @@ interface TlsInteraction {
      * @virtual 
      * @param password a #GTlsPassword object
      * @param cancellable an optional #GCancellable cancellation object
+     * @returns The status of the ask password interaction.
      */
     vfunc_ask_password(password: TlsPassword, cancellable: Cancellable | null): TlsInteractionResult
     /**
@@ -41705,6 +45008,7 @@ interface TlsInteraction {
      * contains a %G_IO_ERROR_CANCELLED error code.
      * @virtual 
      * @param result the result passed to the callback
+     * @returns The status of the ask password interaction.
      */
     vfunc_ask_password_finish(result: AsyncResult): TlsInteractionResult
     /**
@@ -41728,6 +45032,7 @@ interface TlsInteraction {
      * @param connection a #GTlsConnection object
      * @param flags flags providing more information about the request
      * @param cancellable an optional #GCancellable cancellation object
+     * @returns The status of the request certificate interaction.
      */
     vfunc_request_certificate(connection: TlsConnection, flags: TlsCertificateRequestFlags, cancellable: Cancellable | null): TlsInteractionResult
     /**
@@ -41759,6 +45064,7 @@ interface TlsInteraction {
      * contains a %G_IO_ERROR_CANCELLED error code.
      * @virtual 
      * @param result the result passed to the callback
+     * @returns The status of the request certificate interaction.
      */
     vfunc_request_certificate_finish(result: AsyncResult): TlsInteractionResult
 
@@ -41838,10 +45144,12 @@ interface TlsPassword {
 
     /**
      * Get a description string about what the password will be used for.
+     * @returns The description of the password.
      */
     get_description(): string
     /**
      * Get flags about the password.
+     * @returns The flags about the password.
      */
     get_flags(): TlsPasswordFlags
     /**
@@ -41850,12 +45158,14 @@ interface TlsPassword {
      * password value is not nul-terminated, so you can only pass %NULL
      * for `length` in contexts where you know the password will have a
      * certain fixed length.)
+     * @returns The password value (owned by the password object).
      */
     get_value(): Uint8Array
     /**
      * Get a user readable translated warning. Usually this warning is a
      * representation of the password flags returned from
      * g_tls_password_get_flags().
+     * @returns The warning.
      */
     get_warning(): string
     /**
@@ -41911,6 +45221,7 @@ interface TlsPassword {
      * for `length` in contexts where you know the password will have a
      * certain fixed length.)
      * @virtual 
+     * @returns The password value (owned by the password object).
      */
     vfunc_get_value(): Uint8Array
     /**
@@ -41965,6 +45276,7 @@ class TlsPassword extends GObject.Object {
      * @constructor 
      * @param flags the password flags
      * @param description description of what the password is for
+     * @returns The newly allocated password object
      */
     constructor(flags: TlsPasswordFlags, description: string) 
     /**
@@ -41972,6 +45284,7 @@ class TlsPassword extends GObject.Object {
      * @constructor 
      * @param flags the password flags
      * @param description description of what the password is for
+     * @returns The newly allocated password object
      */
     static new(flags: TlsPasswordFlags, description: string): TlsPassword
     _init(config?: TlsPassword.ConstructorProperties): void
@@ -42015,6 +45328,7 @@ interface UnixConnection {
      * Other ways to exchange credentials with a foreign peer includes the
      * #GUnixCredentialsMessage type and g_socket_get_credentials() function.
      * @param cancellable A #GCancellable or %NULL.
+     * @returns Received credentials on success (free with g_object_unref()), %NULL if @error is set.
      */
     receive_credentials(cancellable: Cancellable | null): Credentials
     /**
@@ -42029,10 +45343,28 @@ interface UnixConnection {
      * @param callback a #GAsyncReadyCallback to call when the request is satisfied
      */
     receive_credentials_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of receive_credentials_async
+
+    /**
+     * Promisified version of {@link receive_credentials_async}
+     * 
+     * Asynchronously receive credentials.
+     * 
+     * For more details, see g_unix_connection_receive_credentials() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called. You can then call
+     * g_unix_connection_receive_credentials_finish() to get the result of the operation.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: a #GCredentials, or %NULL on error.     Free the returned object with g_object_unref().
+     */
+    receive_credentials_async(cancellable: Cancellable | null): globalThis.Promise<Credentials>
     /**
      * Finishes an asynchronous receive credentials operation started with
      * g_unix_connection_receive_credentials_async().
      * @param result a #GAsyncResult.
+     * @returns a #GCredentials, or %NULL on error.     Free the returned object with g_object_unref().
      */
     receive_credentials_finish(result: AsyncResult): Credentials
     /**
@@ -42044,6 +45376,7 @@ interface UnixConnection {
      * stream, as this is required for fd passing to work on some
      * implementations.
      * @param cancellable optional #GCancellable object, %NULL to ignore
+     * @returns a file descriptor on success, -1 on error.
      */
     receive_fd(cancellable: Cancellable | null): number
     /**
@@ -42067,6 +45400,7 @@ interface UnixConnection {
      * Other ways to exchange credentials with a foreign peer includes the
      * #GUnixCredentialsMessage type and g_socket_get_credentials() function.
      * @param cancellable A #GCancellable or %NULL.
+     * @returns %TRUE on success, %FALSE if @error is set.
      */
     send_credentials(cancellable: Cancellable | null): boolean
     /**
@@ -42081,10 +45415,28 @@ interface UnixConnection {
      * @param callback a #GAsyncReadyCallback to call when the request is satisfied
      */
     send_credentials_async(cancellable: Cancellable | null, callback: AsyncReadyCallback<this> | null): void
+
+    // Overloads of send_credentials_async
+
+    /**
+     * Promisified version of {@link send_credentials_async}
+     * 
+     * Asynchronously send credentials.
+     * 
+     * For more details, see g_unix_connection_send_credentials() which is
+     * the synchronous version of this call.
+     * 
+     * When the operation is finished, `callback` will be called. You can then call
+     * g_unix_connection_send_credentials_finish() to get the result of the operation.
+     * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns A Promise of: %TRUE if the operation was successful, otherwise %FALSE.
+     */
+    send_credentials_async(cancellable: Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes an asynchronous send credentials operation started with
      * g_unix_connection_send_credentials_async().
      * @param result a #GAsyncResult.
+     * @returns %TRUE if the operation was successful, otherwise %FALSE.
      */
     send_credentials_finish(result: AsyncResult): boolean
     /**
@@ -42097,6 +45449,7 @@ interface UnixConnection {
      * implementations.
      * @param fd a file descriptor
      * @param cancellable optional #GCancellable object, %NULL to ignore.
+     * @returns a %TRUE on success, %NULL on error.
      */
     send_fd(fd: number, cancellable: Cancellable | null): boolean
 
@@ -42110,6 +45463,7 @@ interface UnixConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::socket", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
@@ -42122,6 +45476,7 @@ interface UnixConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::closed", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
@@ -42134,6 +45489,7 @@ interface UnixConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::input-stream", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
@@ -42146,6 +45502,7 @@ interface UnixConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: "notify::output-stream", callback: (($obj: UnixConnection, pspec: GObject.ParamSpec) => void)): number
@@ -42158,6 +45515,7 @@ interface UnixConnection {
      * Connect `connection` to the specified remote address.
      * @param address a #GSocketAddress specifying the remote address.
      * @param cancellable a %GCancellable or %NULL
+     * @returns %TRUE if the connection succeeded, %FALSE on error
      */
     connect(address: SocketAddress, cancellable: Cancellable | null): boolean
     connect_after(sigName: string, callback: (...args: any[]) => void): number
@@ -42227,6 +45585,7 @@ interface UnixCredentialsMessage {
 
     /**
      * Gets the credentials stored in `message`.
+     * @returns A #GCredentials instance. Do not free, it is owned by @message.
      */
     get_credentials(): Credentials
 
@@ -42276,22 +45635,26 @@ class UnixCredentialsMessage extends SocketControlMessage {
     /**
      * Creates a new #GUnixCredentialsMessage with credentials matching the current processes.
      * @constructor 
+     * @returns a new #GUnixCredentialsMessage
      */
     constructor() 
     /**
      * Creates a new #GUnixCredentialsMessage with credentials matching the current processes.
      * @constructor 
+     * @returns a new #GUnixCredentialsMessage
      */
     static new(): UnixCredentialsMessage
     /**
      * Creates a new #GUnixCredentialsMessage holding `credentials`.
      * @constructor 
      * @param credentials A #GCredentials object.
+     * @returns a new #GUnixCredentialsMessage
      */
     static new_with_credentials(credentials: Credentials): UnixCredentialsMessage
     _init(config?: UnixCredentialsMessage.ConstructorProperties): void
     /**
      * Checks if passing #GCredentials on a #GSocket is supported on this platform.
+     * @returns %TRUE if supported, %FALSE otherwise
      */
     static is_supported(): boolean
 }
@@ -42328,6 +45691,7 @@ interface UnixFDList {
      * this index with g_unix_fd_list_get() then you will receive back a
      * duplicated copy of the same file descriptor.
      * @param fd a valid open file descriptor
+     * @returns the index of the appended fd in case of success, else -1          (and @error is set)
      */
     append(fd: number): number
     /**
@@ -42344,11 +45708,13 @@ interface UnixFDList {
      * A possible cause of failure is exceeding the per-process or
      * system-wide file descriptor limit.
      * @param index_ the index into the list
+     * @returns the file descriptor, or -1 in case of error
      */
     get(index_: number): number
     /**
      * Gets the length of `list` (ie: the number of file descriptors
      * contained within).
+     * @returns the length of @list
      */
     get_length(): number
     /**
@@ -42365,6 +45731,7 @@ interface UnixFDList {
      * 
      * This function never returns %NULL. In case there are no file
      * descriptors contained in `list,` an empty array is returned.
+     * @returns an array of file     descriptors
      */
     peek_fds(): number[]
     /**
@@ -42386,6 +45753,7 @@ interface UnixFDList {
      * 
      * This function never returns %NULL. In case there are no file
      * descriptors contained in `list,` an empty array is returned.
+     * @returns an array of file     descriptors
      */
     steal_fds(): number[]
 
@@ -42425,11 +45793,13 @@ class UnixFDList extends GObject.Object {
     /**
      * Creates a new #GUnixFDList containing no file descriptors.
      * @constructor 
+     * @returns a new #GUnixFDList
      */
     constructor() 
     /**
      * Creates a new #GUnixFDList containing no file descriptors.
      * @constructor 
+     * @returns a new #GUnixFDList
      */
     static new(): UnixFDList
     /**
@@ -42443,6 +45813,7 @@ class UnixFDList extends GObject.Object {
      * If `n_fds` is -1 then `fds` must be terminated with -1.
      * @constructor 
      * @param fds the initial list of file descriptors
+     * @returns a new #GUnixFDList
      */
     static new_from_array(fds: number[]): UnixFDList
     _init(config?: UnixFDList.ConstructorProperties): void
@@ -42484,12 +45855,14 @@ interface UnixFDMessage {
      * A possible cause of failure is exceeding the per-process or
      * system-wide file descriptor limit.
      * @param fd a valid open file descriptor
+     * @returns %TRUE in case of success, else %FALSE (and @error is set)
      */
     append_fd(fd: number): boolean
     /**
      * Gets the #GUnixFDList contained in `message`.  This function does not
      * return a reference to the caller, but the returned list is valid for
      * the lifetime of `message`.
+     * @returns the #GUnixFDList from @message
      */
     get_fd_list(): UnixFDList
     /**
@@ -42510,6 +45883,7 @@ interface UnixFDMessage {
      * 
      * This function never returns %NULL. In case there are no file
      * descriptors contained in `message,` an empty array is returned.
+     * @returns an array of file     descriptors
      */
     steal_fds(): number[]
 
@@ -42554,18 +45928,21 @@ class UnixFDMessage extends SocketControlMessage {
      * Creates a new #GUnixFDMessage containing an empty file descriptor
      * list.
      * @constructor 
+     * @returns a new #GUnixFDMessage
      */
     constructor() 
     /**
      * Creates a new #GUnixFDMessage containing an empty file descriptor
      * list.
      * @constructor 
+     * @returns a new #GUnixFDMessage
      */
     static new(): UnixFDMessage
     /**
      * Creates a new #GUnixFDMessage containing `list`.
      * @constructor 
      * @param fd_list a #GUnixFDList
+     * @returns a new #GUnixFDMessage
      */
     static new_with_fd_list(fd_list: UnixFDList): UnixFDMessage
     _init(config?: UnixFDMessage.ConstructorProperties): void
@@ -42613,10 +45990,12 @@ interface UnixInputStream extends FileDescriptorBased, PollableInputStream {
     /**
      * Returns whether the file descriptor of `stream` will be
      * closed when the stream is closed.
+     * @returns %TRUE if the file descriptor is closed when done
      */
     get_close_fd(): boolean
     /**
      * Return the UNIX file descriptor that the stream reads from.
+     * @returns The file descriptor of @stream
      */
     get_fd(): number
     /**
@@ -42670,6 +46049,7 @@ class UnixInputStream extends InputStream {
      * @constructor 
      * @param fd a UNIX file descriptor
      * @param close_fd %TRUE to close the file descriptor when done
+     * @returns a new #GUnixInputStream
      */
     constructor(fd: number, close_fd: boolean) 
     /**
@@ -42680,6 +46060,7 @@ class UnixInputStream extends InputStream {
      * @constructor 
      * @param fd a UNIX file descriptor
      * @param close_fd %TRUE to close the file descriptor when done
+     * @returns a new #GUnixInputStream
      */
     static new(fd: number, close_fd: boolean): UnixInputStream
     _init(config?: UnixInputStream.ConstructorProperties): void
@@ -42764,6 +46145,7 @@ class UnixMountMonitor extends GObject.Object {
      * This function was never a true constructor, which is why it was
      * renamed.
      * @constructor 
+     * @returns a #GUnixMountMonitor.
      */
     constructor() 
     /**
@@ -42772,6 +46154,7 @@ class UnixMountMonitor extends GObject.Object {
      * This function was never a true constructor, which is why it was
      * renamed.
      * @constructor 
+     * @returns a #GUnixMountMonitor.
      */
     static new(): UnixMountMonitor
     _init(config?: UnixMountMonitor.ConstructorProperties): void
@@ -42785,6 +46168,7 @@ class UnixMountMonitor extends GObject.Object {
      * 
      * You must only call g_object_unref() on the return value from under
      * the same main context as you called this function.
+     * @returns the #GUnixMountMonitor.
      */
     static get(): UnixMountMonitor
 }
@@ -42831,10 +46215,12 @@ interface UnixOutputStream extends FileDescriptorBased, PollableOutputStream {
     /**
      * Returns whether the file descriptor of `stream` will be
      * closed when the stream is closed.
+     * @returns %TRUE if the file descriptor is closed when done
      */
     get_close_fd(): boolean
     /**
      * Return the UNIX file descriptor that the stream writes to.
+     * @returns The file descriptor of @stream
      */
     get_fd(): number
     /**
@@ -42888,6 +46274,7 @@ class UnixOutputStream extends OutputStream {
      * @constructor 
      * @param fd a UNIX file descriptor
      * @param close_fd %TRUE to close the file descriptor when done
+     * @returns a new #GOutputStream
      */
     constructor(fd: number, close_fd: boolean) 
     /**
@@ -42898,6 +46285,7 @@ class UnixOutputStream extends OutputStream {
      * @constructor 
      * @param fd a UNIX file descriptor
      * @param close_fd %TRUE to close the file descriptor when done
+     * @returns a new #GOutputStream
      */
     static new(fd: number, close_fd: boolean): UnixOutputStream
     _init(config?: UnixOutputStream.ConstructorProperties): void
@@ -42942,10 +46330,12 @@ interface UnixSocketAddress extends SocketConnectable {
 
     /**
      * Gets `address'`s type.
+     * @returns a #GUnixSocketAddressType
      */
     get_address_type(): UnixSocketAddressType
     /**
      * Tests if `address` is abstract.
+     * @returns %TRUE if the address is abstract, %FALSE otherwise
      */
     get_is_abstract(): boolean
     /**
@@ -42955,12 +46345,14 @@ interface UnixSocketAddress extends SocketConnectable {
      * may contain embedded zeros, and thus you should use
      * g_unix_socket_address_get_path_len() to get the true length
      * of this string.
+     * @returns the path for @address
      */
     get_path(): string
     /**
      * Gets the length of `address'`s path.
      * 
      * For details, see g_unix_socket_address_get_path().
+     * @returns the length of the path
      */
     get_path_len(): number
 
@@ -43025,6 +46417,7 @@ class UnixSocketAddress extends SocketAddress {
      * use g_unix_socket_address_new_abstract().
      * @constructor 
      * @param path the socket path
+     * @returns a new #GUnixSocketAddress
      */
     constructor(path: string) 
     /**
@@ -43034,6 +46427,7 @@ class UnixSocketAddress extends SocketAddress {
      * use g_unix_socket_address_new_abstract().
      * @constructor 
      * @param path the socket path
+     * @returns a new #GUnixSocketAddress
      */
     static new(path: string): UnixSocketAddress
     /**
@@ -43041,6 +46435,7 @@ class UnixSocketAddress extends SocketAddress {
      * #GUnixSocketAddress for `path`.
      * @constructor 
      * @param path the abstract name
+     * @returns a new #GUnixSocketAddress
      */
     static new_abstract(path: number[]): UnixSocketAddress
     /**
@@ -43078,11 +46473,13 @@ class UnixSocketAddress extends SocketAddress {
      * @constructor 
      * @param path the name
      * @param type a #GUnixSocketAddressType
+     * @returns a new #GUnixSocketAddress
      */
     static new_with_type(path: number[], type: UnixSocketAddressType): UnixSocketAddress
     _init(config?: UnixSocketAddress.ConstructorProperties): void
     /**
      * Checks if abstract UNIX domain socket names are supported.
+     * @returns %TRUE if supported, %FALSE otherwise
      */
     static abstract_names_supported(): boolean
 }
@@ -43107,6 +46504,7 @@ interface Vfs {
     /**
      * Gets a #GFile for `path`.
      * @param path a string containing a VFS path.
+     * @returns a #GFile.     Free the returned object with g_object_unref().
      */
     get_file_for_path(path: string): File
     /**
@@ -43116,14 +46514,17 @@ interface Vfs {
      * might not support any I/O operation if the URI
      * is malformed or if the URI scheme is not supported.
      * @param uri a string containing a URI
+     * @returns a #GFile.     Free the returned object with g_object_unref().
      */
     get_file_for_uri(uri: string): File
     /**
      * Gets a list of URI schemes supported by `vfs`.
+     * @returns a %NULL-terminated array of strings.     The returned array belongs to GIO and must     not be freed or modified.
      */
     get_supported_uri_schemes(): string[]
     /**
      * Checks if the VFS is active.
+     * @returns %TRUE if construction of the @vfs was successful     and it is now active.
      */
     is_active(): boolean
     /**
@@ -43131,6 +46532,7 @@ interface Vfs {
      * not support any I/O operations if the `parse_name` cannot
      * be parsed by the #GVfs module.
      * @param parse_name a string to be parsed by the VFS module.
+     * @returns a #GFile for the given @parse_name.     Free the returned object with g_object_unref().
      */
     parse_name(parse_name: string): File
     /**
@@ -43157,12 +46559,14 @@ interface Vfs {
      * @param scheme an URI scheme, e.g. "http"
      * @param uri_func a #GVfsFileLookupFunc
      * @param parse_name_func a #GVfsFileLookupFunc
+     * @returns %TRUE if @scheme was successfully registered, or %FALSE if a handler     for @scheme already exists.
      */
     register_uri_scheme(scheme: string, uri_func: VfsFileLookupFunc | null, parse_name_func: VfsFileLookupFunc | null): boolean
     /**
      * Unregisters the URI handler for `scheme` previously registered with
      * g_vfs_register_uri_scheme().
      * @param scheme an URI scheme, e.g. "http"
+     * @returns %TRUE if @scheme was successfully unregistered, or %FALSE if a     handler for @scheme does not exist.
      */
     unregister_uri_scheme(scheme: string): boolean
 
@@ -43173,6 +46577,7 @@ interface Vfs {
      * Gets a #GFile for `path`.
      * @virtual 
      * @param path a string containing a VFS path.
+     * @returns a #GFile.     Free the returned object with g_object_unref().
      */
     vfunc_get_file_for_path(path: string): File
     /**
@@ -43183,16 +46588,19 @@ interface Vfs {
      * is malformed or if the URI scheme is not supported.
      * @virtual 
      * @param uri a string containing a URI
+     * @returns a #GFile.     Free the returned object with g_object_unref().
      */
     vfunc_get_file_for_uri(uri: string): File
     /**
      * Gets a list of URI schemes supported by `vfs`.
      * @virtual 
+     * @returns a %NULL-terminated array of strings.     The returned array belongs to GIO and must     not be freed or modified.
      */
     vfunc_get_supported_uri_schemes(): string[]
     /**
      * Checks if the VFS is active.
      * @virtual 
+     * @returns %TRUE if construction of the @vfs was successful     and it is now active.
      */
     vfunc_is_active(): boolean
     vfunc_local_file_add_info(filename: string, device: number, attribute_matcher: FileAttributeMatcher, info: FileInfo, cancellable: Cancellable | null, extra_data: object | null, free_extra_data: GLib.DestroyNotify): void
@@ -43205,6 +46613,7 @@ interface Vfs {
      * be parsed by the #GVfs module.
      * @virtual 
      * @param parse_name a string to be parsed by the VFS module.
+     * @returns a #GFile for the given @parse_name.     Free the returned object with g_object_unref().
      */
     vfunc_parse_name(parse_name: string): File
 
@@ -43233,10 +46642,12 @@ class Vfs extends GObject.Object {
     _init(config?: Vfs.ConstructorProperties): void
     /**
      * Gets the default #GVfs for the system.
+     * @returns a #GVfs, which will be the local     file system #GVfs if no other implementation is available.
      */
     static get_default(): Vfs
     /**
      * Gets the local #GVfs for the system.
+     * @returns a #GVfs.
      */
     static get_local(): Vfs
 }
@@ -43350,11 +46761,13 @@ interface VolumeMonitor {
      * 
      * The returned list should be freed with g_list_free(), after
      * its elements have been unreffed with g_object_unref().
+     * @returns a #GList of connected #GDrive objects.
      */
     get_connected_drives(): Drive[]
     /**
      * Finds a #GMount object by its UUID (see g_mount_get_uuid())
      * @param uuid the UUID to look for
+     * @returns a #GMount or %NULL if no such mount is available.     Free the returned object with g_object_unref().
      */
     get_mount_for_uuid(uuid: string): Mount | null
     /**
@@ -43362,11 +46775,13 @@ interface VolumeMonitor {
      * 
      * The returned list should be freed with g_list_free(), after
      * its elements have been unreffed with g_object_unref().
+     * @returns a #GList of #GMount objects.
      */
     get_mounts(): Mount[]
     /**
      * Finds a #GVolume object by its UUID (see g_volume_get_uuid())
      * @param uuid the UUID to look for
+     * @returns a #GVolume or %NULL if no such volume is available.     Free the returned object with g_object_unref().
      */
     get_volume_for_uuid(uuid: string): Volume | null
     /**
@@ -43374,6 +46789,7 @@ interface VolumeMonitor {
      * 
      * The returned list should be freed with g_list_free(), after
      * its elements have been unreffed with g_object_unref().
+     * @returns a #GList of #GVolume objects.
      */
     get_volumes(): Volume[]
 
@@ -43390,12 +46806,14 @@ interface VolumeMonitor {
      * The returned list should be freed with g_list_free(), after
      * its elements have been unreffed with g_object_unref().
      * @virtual 
+     * @returns a #GList of connected #GDrive objects.
      */
     vfunc_get_connected_drives(): Drive[]
     /**
      * Finds a #GMount object by its UUID (see g_mount_get_uuid())
      * @virtual 
      * @param uuid the UUID to look for
+     * @returns a #GMount or %NULL if no such mount is available.     Free the returned object with g_object_unref().
      */
     vfunc_get_mount_for_uuid(uuid: string): Mount | null
     /**
@@ -43404,12 +46822,14 @@ interface VolumeMonitor {
      * The returned list should be freed with g_list_free(), after
      * its elements have been unreffed with g_object_unref().
      * @virtual 
+     * @returns a #GList of #GMount objects.
      */
     vfunc_get_mounts(): Mount[]
     /**
      * Finds a #GVolume object by its UUID (see g_volume_get_uuid())
      * @virtual 
      * @param uuid the UUID to look for
+     * @returns a #GVolume or %NULL if no such volume is available.     Free the returned object with g_object_unref().
      */
     vfunc_get_volume_for_uuid(uuid: string): Volume | null
     /**
@@ -43418,6 +46838,7 @@ interface VolumeMonitor {
      * The returned list should be freed with g_list_free(), after
      * its elements have been unreffed with g_object_unref().
      * @virtual 
+     * @returns a #GList of #GVolume objects.
      */
     vfunc_get_volumes(): Volume[]
     vfunc_mount_added(mount: Mount): void
@@ -43530,10 +46951,12 @@ class VolumeMonitor extends GObject.Object {
      * is to return #GVolume objects representing entries in the users
      * "favorite servers" list or similar.
      * @param mount a #GMount object to find a parent for
+     * @returns the #GVolume object that is the parent for @mount or %NULL if no wants to adopt the #GMount.
      */
     static adopt_orphan_mount(mount: Mount): Volume
     /**
      * Gets the volume monitor used by gio.
+     * @returns a reference to the #GVolumeMonitor used by gio. Call    g_object_unref() when done with it.
      */
     static get(): VolumeMonitor
 }
@@ -43575,6 +46998,7 @@ interface ZlibCompressor extends Converter {
 
     /**
      * Returns the #GZlibCompressor:file-info property.
+     * @returns a #GFileInfo, or %NULL
      */
     get_file_info(): FileInfo | null
     /**
@@ -43627,6 +47051,7 @@ class ZlibCompressor extends GObject.Object {
      * @constructor 
      * @param format The format to use for the compressed data
      * @param level compression level (0-9), -1 for default
+     * @returns a new #GZlibCompressor
      */
     constructor(format: ZlibCompressorFormat, level: number) 
     /**
@@ -43634,6 +47059,7 @@ class ZlibCompressor extends GObject.Object {
      * @constructor 
      * @param format The format to use for the compressed data
      * @param level compression level (0-9), -1 for default
+     * @returns a new #GZlibCompressor
      */
     static new(format: ZlibCompressorFormat, level: number): ZlibCompressor
     _init(config?: ZlibCompressor.ConstructorProperties): void
@@ -43673,6 +47099,7 @@ interface ZlibDecompressor extends Converter {
      * #GZlibDecompressor:format property is not %G_ZLIB_COMPRESSOR_FORMAT_GZIP,
      * or the header data was not fully processed yet, or it not present in the
      * data stream at all.
+     * @returns a #GFileInfo, or %NULL
      */
     get_file_info(): FileInfo | null
 
@@ -43709,12 +47136,14 @@ class ZlibDecompressor extends GObject.Object {
      * Creates a new #GZlibDecompressor.
      * @constructor 
      * @param format The format to use for the compressed data
+     * @returns a new #GZlibDecompressor
      */
     constructor(format: ZlibCompressorFormat) 
     /**
      * Creates a new #GZlibDecompressor.
      * @constructor 
      * @param format The format to use for the compressed data
+     * @returns a new #GZlibDecompressor
      */
     static new(format: ZlibCompressorFormat): ZlibDecompressor
     _init(config?: ZlibDecompressor.ConstructorProperties): void
@@ -44255,6 +47684,7 @@ interface DBusAnnotationInfo {
     /**
      * If `info` is statically allocated does nothing. Otherwise increases
      * the reference count.
+     * @returns The same @info.
      */
     ref(): DBusAnnotationInfo
     /**
@@ -44283,6 +47713,7 @@ class DBusAnnotationInfo {
      * The cost of this function is O(n) in number of annotations.
      * @param annotations A %NULL-terminated array of annotations or %NULL.
      * @param name The name of the annotation to look up.
+     * @returns The value or %NULL if not found. Do not free, it is owned by @annotations.
      */
     static lookup(annotations: DBusAnnotationInfo[] | null, name: string): string | null
 }
@@ -44317,6 +47748,7 @@ interface DBusArgInfo {
     /**
      * If `info` is statically allocated does nothing. Otherwise increases
      * the reference count.
+     * @returns The same @info.
      */
     ref(): DBusArgInfo
     /**
@@ -44464,6 +47896,7 @@ interface DBusInterfaceInfo {
      * The cost of this function is O(n) in number of methods unless
      * g_dbus_interface_info_cache_build() has been used on `info`.
      * @param name A D-Bus method name (typically in CamelCase)
+     * @returns A #GDBusMethodInfo or %NULL if not found. Do not free, it is owned by @info.
      */
     lookup_method(name: string): DBusMethodInfo | null
     /**
@@ -44472,6 +47905,7 @@ interface DBusInterfaceInfo {
      * The cost of this function is O(n) in number of properties unless
      * g_dbus_interface_info_cache_build() has been used on `info`.
      * @param name A D-Bus property name (typically in CamelCase).
+     * @returns A #GDBusPropertyInfo or %NULL if not found. Do not free, it is owned by @info.
      */
     lookup_property(name: string): DBusPropertyInfo | null
     /**
@@ -44480,11 +47914,13 @@ interface DBusInterfaceInfo {
      * The cost of this function is O(n) in number of signals unless
      * g_dbus_interface_info_cache_build() has been used on `info`.
      * @param name A D-Bus signal name (typically in CamelCase)
+     * @returns A #GDBusSignalInfo or %NULL if not found. Do not free, it is owned by @info.
      */
     lookup_signal(name: string): DBusSignalInfo | null
     /**
      * If `info` is statically allocated does nothing. Otherwise increases
      * the reference count.
+     * @returns The same @info.
      */
     ref(): DBusInterfaceInfo
     /**
@@ -44649,6 +48085,7 @@ interface DBusMethodInfo {
     /**
      * If `info` is statically allocated does nothing. Otherwise increases
      * the reference count.
+     * @returns The same @info.
      */
     ref(): DBusMethodInfo
     /**
@@ -44716,11 +48153,13 @@ interface DBusNodeInfo {
      * 
      * The cost of this function is O(n) in number of interfaces.
      * @param name A D-Bus interface name.
+     * @returns A #GDBusInterfaceInfo or %NULL if not found. Do not free, it is owned by @info.
      */
     lookup_interface(name: string): DBusInterfaceInfo | null
     /**
      * If `info` is statically allocated does nothing. Otherwise increases
      * the reference count.
+     * @returns The same @info.
      */
     ref(): DBusNodeInfo
     /**
@@ -44754,6 +48193,7 @@ class DBusNodeInfo {
      * parser that only accepts a subset of valid XML documents.
      * @constructor 
      * @param xml_data Valid D-Bus introspection XML.
+     * @returns A #GDBusNodeInfo structure or %NULL if @error is set. Free with g_dbus_node_info_unref().
      */
     static new_for_xml(xml_data: string): DBusNodeInfo
 }
@@ -44981,6 +48421,7 @@ interface DBusPropertyInfo {
     /**
      * If `info` is statically allocated does nothing. Otherwise increases
      * the reference count.
+     * @returns The same @info.
      */
     ref(): DBusPropertyInfo
     /**
@@ -45061,6 +48502,7 @@ interface DBusSignalInfo {
     /**
      * If `info` is statically allocated does nothing. Otherwise increases
      * the reference count.
+     * @returns The same @info.
      */
     ref(): DBusSignalInfo
     /**
@@ -45488,15 +48930,18 @@ interface FileAttributeInfoList {
     add(name: string, type: FileAttributeType, flags: FileAttributeInfoFlags): void
     /**
      * Makes a duplicate of a file attribute info list.
+     * @returns a copy of the given @list.
      */
     dup(): FileAttributeInfoList
     /**
      * Gets the file attribute with the name `name` from `list`.
      * @param name the name of the attribute to look up.
+     * @returns a #GFileAttributeInfo for the @name, or %NULL if an attribute isn't found.
      */
     lookup(name: string): FileAttributeInfo
     /**
      * References a file attribute info list.
+     * @returns #GFileAttributeInfoList or %NULL on error.
      */
     ref(): FileAttributeInfoList
     /**
@@ -45522,11 +48967,13 @@ class FileAttributeInfoList {
     /**
      * Creates a new file attribute info list.
      * @constructor 
+     * @returns a #GFileAttributeInfoList.
      */
     constructor() 
     /**
      * Creates a new file attribute info list.
      * @constructor 
+     * @returns a #GFileAttributeInfoList.
      */
     static new(): FileAttributeInfoList
 }
@@ -45543,10 +48990,12 @@ interface FileAttributeMatcher {
      * 
      * TODO: this is awkwardly worded.
      * @param ns a string containing a file attribute namespace.
+     * @returns %TRUE if the matcher matches all of the entries in the given @ns, %FALSE otherwise.
      */
     enumerate_namespace(ns: string): boolean
     /**
      * Gets the next matched attribute from a #GFileAttributeMatcher.
+     * @returns a string containing the next attribute or, %NULL if no more attribute exist.
      */
     enumerate_next(): string | null
     /**
@@ -45554,16 +49003,19 @@ interface FileAttributeMatcher {
      * the matcher was created with the "*" matching string, this function
      * will always return %TRUE.
      * @param attribute a file attribute key.
+     * @returns %TRUE if @attribute matches @matcher. %FALSE otherwise.
      */
     matches(attribute: string): boolean
     /**
      * Checks if a attribute matcher only matches a given attribute. Always
      * returns %FALSE if "*" was used when creating the matcher.
      * @param attribute a file attribute key.
+     * @returns %TRUE if the matcher only matches @attribute. %FALSE otherwise.
      */
     matches_only(attribute: string): boolean
     /**
      * References a file attribute matcher.
+     * @returns a #GFileAttributeMatcher.
      */
     ref(): FileAttributeMatcher
     /**
@@ -45576,6 +49028,7 @@ interface FileAttributeMatcher {
      * is a limitation of the current implementation, but may be fixed
      * in the future.
      * @param subtract The matcher to subtract
+     * @returns A file attribute matcher matching all attributes of     @matcher that are not matched by @subtract
      */
     subtract(subtract: FileAttributeMatcher | null): FileAttributeMatcher | null
     /**
@@ -45583,6 +49036,7 @@ interface FileAttributeMatcher {
      * equal to the format passed to g_file_attribute_matcher_new().
      * The output however, might not be identical, as the matcher may
      * decide to use a different order or omit needless parts.
+     * @returns a string describing the attributes the matcher matches   against or %NULL if @matcher was %NULL.
      */
     to_string(): string
     /**
@@ -45626,6 +49080,7 @@ class FileAttributeMatcher {
      *   namespace and all keys in the unix namespace.
      * @constructor 
      * @param attributes an attribute string to match.
+     * @returns a #GFileAttributeMatcher
      */
     constructor(attributes: string) 
     /**
@@ -45650,6 +49105,7 @@ class FileAttributeMatcher {
      *   namespace and all keys in the unix namespace.
      * @constructor 
      * @param attributes an attribute string to match.
+     * @returns a #GFileAttributeMatcher
      */
     static new(attributes: string): FileAttributeMatcher
 }
@@ -46024,14 +49480,17 @@ interface IOExtension {
      * 
      * Note that the same type may be registered as extension
      * for multiple extension points, under different names.
+     * @returns the name of @extension.
      */
     get_name(): string
     /**
      * Gets the priority with which `extension` was registered.
+     * @returns the priority of @extension
      */
     get_priority(): number
     /**
      * Gets the type associated with `extension`.
+     * @returns the type of @extension
      */
     get_type(): GObject.GType
 }
@@ -46055,15 +49514,18 @@ interface IOExtensionPoint {
     /**
      * Finds a #GIOExtension for an extension point by name.
      * @param name the name of the extension to get
+     * @returns the #GIOExtension for @extension_point that has the    given name, or %NULL if there is no extension with that name
      */
     get_extension_by_name(name: string): IOExtension
     /**
      * Gets a list of all extensions that implement this extension point.
      * The list is sorted by priority, beginning with the highest priority.
+     * @returns a #GList of     #GIOExtensions. The list is owned by GIO and should not be     modified.
      */
     get_extensions(): IOExtension[]
     /**
      * Gets the required type for `extension_point`.
+     * @returns the #GType that all implementations must have,   or %G_TYPE_INVALID if the extension point has no required type
      */
     get_required_type(): GObject.GType
     /**
@@ -46097,16 +49559,19 @@ class IOExtensionPoint {
      * @param type the #GType to register as extension
      * @param extension_name the name for the extension
      * @param priority the priority for the extension
+     * @returns a #GIOExtension object for #GType
      */
     static implement(extension_point_name: string, type: GObject.GType, extension_name: string, priority: number): IOExtension
     /**
      * Looks up an existing extension point.
      * @param name the name of the extension point
+     * @returns the #GIOExtensionPoint, or %NULL if there    is no registered extension point with the given name.
      */
     static lookup(name: string): IOExtensionPoint
     /**
      * Registers an extension point.
      * @param name The name of the extension point
+     * @returns the new #GIOExtensionPoint. This object is    owned by GIO and should not be freed.
      */
     static register(name: string): IOExtensionPoint
 }
@@ -46162,6 +49627,7 @@ interface IOSchedulerJob {
      * that the job was started from, waiting for the result (and thus
      * blocking the I/O job).
      * @param func a #GSourceFunc callback that will be called in the original thread
+     * @returns The return value of @func
      */
     send_to_mainloop(func: GLib.SourceFunc): boolean
     /**
@@ -47330,6 +50796,7 @@ interface Resource {
      * `lookup_flags` controls the behaviour of the lookup.
      * @param path A pathname inside the resource
      * @param lookup_flags A #GResourceLookupFlags
+     * @returns an array of constant strings
      */
     enumerate_children(path: string, lookup_flags: ResourceLookupFlags): string[]
     /**
@@ -47339,6 +50806,7 @@ interface Resource {
      * `lookup_flags` controls the behaviour of the lookup.
      * @param path A pathname inside the resource
      * @param lookup_flags A #GResourceLookupFlags
+     * @returns %TRUE if the file was found. %FALSE if there were errors
      */
     get_info(path: string, lookup_flags: ResourceLookupFlags): [ /* returnType */ boolean, /* size */ number, /* flags */ number ]
     /**
@@ -47358,6 +50826,7 @@ interface Resource {
      * `lookup_flags` controls the behaviour of the lookup.
      * @param path A pathname inside the resource
      * @param lookup_flags A #GResourceLookupFlags
+     * @returns #GBytes or %NULL on error.     Free the returned object with g_bytes_unref()
      */
     lookup_data(path: string, lookup_flags: ResourceLookupFlags): GLib.Bytes
     /**
@@ -47367,11 +50836,13 @@ interface Resource {
      * `lookup_flags` controls the behaviour of the lookup.
      * @param path A pathname inside the resource
      * @param lookup_flags A #GResourceLookupFlags
+     * @returns #GInputStream or %NULL on error.     Free the returned object with g_object_unref()
      */
     open_stream(path: string, lookup_flags: ResourceLookupFlags): InputStream
     /**
      * Atomically increments the reference count of `resource` by one. This
      * function is MT-safe and may be called from any thread.
+     * @returns The passed in #GResource
      */
     ref(): Resource
     /**
@@ -47548,6 +51019,7 @@ class Resource {
      * If `data` is empty or corrupt, %G_RESOURCE_ERROR_INTERNAL will be returned.
      * @constructor 
      * @param data A #GBytes
+     * @returns a new #GResource, or %NULL on error
      */
     static new_from_data(data: GLib.Bytes): Resource
     /**
@@ -47562,6 +51034,7 @@ class Resource {
      * there is an error in reading it, an error from g_mapped_file_new() will be
      * returned.
      * @param filename the path of a filename to load, in the GLib filename encoding
+     * @returns a new #GResource, or %NULL on error
      */
     static load(filename: string): Resource
 }
@@ -47665,6 +51138,7 @@ interface SettingsSchema {
 
     /**
      * Get the ID of `schema`.
+     * @returns the ID
      */
     get_id(): string
     /**
@@ -47673,6 +51147,7 @@ interface SettingsSchema {
      * It is a programmer error to request a key that does not exist.  See
      * g_settings_schema_list_keys().
      * @param name the name of a key
+     * @returns the #GSettingsSchemaKey for @name
      */
     get_key(name: string): SettingsSchemaKey
     /**
@@ -47685,11 +51160,13 @@ interface SettingsSchema {
      * Relocatable schemas can be referenced by other schemas and can
      * therefore describe multiple sets of keys at different locations.  For
      * relocatable schemas, this function will return %NULL.
+     * @returns the path of the schema, or %NULL
      */
     get_path(): string | null
     /**
      * Checks if `schema` has a key named `name`.
      * @param name the name of a key
+     * @returns %TRUE if such a key exists
      */
     has_key(name: string): boolean
     /**
@@ -47697,6 +51174,7 @@ interface SettingsSchema {
      * 
      * You should free the return value with g_strfreev() when you are done
      * with it.
+     * @returns a list of    the children on @settings, in no defined order
      */
     list_children(): string[]
     /**
@@ -47705,10 +51183,12 @@ interface SettingsSchema {
      * You should probably not be calling this function from "normal" code
      * (since you should already know what keys are in your schema).  This
      * function is intended for introspection reasons.
+     * @returns a list   of the keys on @schema, in no defined order
      */
     list_keys(): string[]
     /**
      * Increase the reference count of `schema,` returning a new reference.
+     * @returns a new reference to @schema
      */
     ref(): SettingsSchema
     /**
@@ -47830,6 +51310,7 @@ interface SettingsSchemaKey {
      * 
      * Note that this is the default value according to the schema.  System
      * administrator defaults and lockdown are not visible via this API.
+     * @returns the default value for the key
      */
     get_default_value(): GLib.Variant
     /**
@@ -47847,10 +51328,12 @@ interface SettingsSchemaKey {
      * the schemas is not stored in the compiled schema database so this
      * function has to parse all of the source XML files in the schema
      * directory.
+     * @returns the description for @key, or %NULL
      */
     get_description(): string | null
     /**
      * Gets the name of `key`.
+     * @returns the name of @key.
      */
     get_name(): string
     /**
@@ -47890,6 +51373,7 @@ interface SettingsSchemaKey {
      * 
      * You should free the returned value with g_variant_unref() when it is
      * no longer needed.
+     * @returns a #GVariant describing the range
      */
     get_range(): GLib.Variant
     /**
@@ -47906,10 +51390,12 @@ interface SettingsSchemaKey {
      * the schemas is not stored in the compiled schema database so this
      * function has to parse all of the source XML files in the schema
      * directory.
+     * @returns the summary for @key, or %NULL
      */
     get_summary(): string | null
     /**
      * Gets the #GVariantType of `key`.
+     * @returns the type of @key
      */
     get_value_type(): GLib.VariantType
     /**
@@ -47919,10 +51405,12 @@ interface SettingsSchemaKey {
      * It is a programmer error if `value` is not of the correct type — you
      * must check for this first.
      * @param value the value to check
+     * @returns %TRUE if @value is valid for @key
      */
     range_check(value: GLib.Variant): boolean
     /**
      * Increase the reference count of `key,` returning a new reference.
+     * @returns a new reference to @key
      */
     ref(): SettingsSchemaKey
     /**
@@ -47976,10 +51464,12 @@ interface SettingsSchemaSource {
      * If the schema isn't found, %NULL is returned.
      * @param schema_id a schema ID
      * @param recursive %TRUE if the lookup should be recursive
+     * @returns a new #GSettingsSchema
      */
     lookup(schema_id: string, recursive: boolean): SettingsSchema | null
     /**
      * Increase the reference count of `source,` returning a new reference.
+     * @returns a new reference to @source
      */
     ref(): SettingsSchemaSource
     /**
@@ -48052,6 +51542,7 @@ class SettingsSchemaSource {
      * in `XDG_DATA_DIRS` and `GSETTINGS_SCHEMA_DIR`. For this reason, all
      * lookups performed against the default source should probably be done
      * recursively.
+     * @returns the default schema source
      */
     static get_default(): SettingsSchemaSource | null
 }
@@ -48343,6 +51834,7 @@ interface SrvTarget {
 
     /**
      * Copies `target`
+     * @returns a copy of @target
      */
     copy(): SrvTarget
     /**
@@ -48354,22 +51846,26 @@ interface SrvTarget {
      * this to the user, you should use g_hostname_is_ascii_encoded() to
      * check if it contains encoded Unicode segments, and use
      * g_hostname_to_unicode() to convert it if it does.)
+     * @returns @target's hostname
      */
     get_hostname(): string
     /**
      * Gets `target'`s port
+     * @returns @target's port
      */
     get_port(): number
     /**
      * Gets `target'`s priority. You should not need to look at this;
      * #GResolver already sorts the targets according to the algorithm in
      * RFC 2782.
+     * @returns @target's priority
      */
     get_priority(): number
     /**
      * Gets `target'`s weight. You should not need to look at this;
      * #GResolver already sorts the targets according to the algorithm in
      * RFC 2782.
+     * @returns @target's weight
      */
     get_weight(): number
 }
@@ -48409,6 +51905,7 @@ class SrvTarget {
      * @param port the port that the service is running on
      * @param priority the target's priority
      * @param weight the target's weight
+     * @returns a new #GSrvTarget.
      */
     constructor(hostname: string, port: number, priority: number, weight: number) 
     /**
@@ -48421,6 +51918,7 @@ class SrvTarget {
      * @param port the port that the service is running on
      * @param priority the target's priority
      * @param weight the target's weight
+     * @returns a new #GSrvTarget.
      */
     static new(hostname: string, port: number, priority: number, weight: number): SrvTarget
 }
@@ -48443,6 +51941,7 @@ interface StaticResource {
      * This is normally used by code generated by
      * [glib-compile-resources][glib-compile-resources]
      * and is not typically used by other code.
+     * @returns a #GResource
      */
     get_resource(): Resource
     /**
@@ -48998,10 +52497,12 @@ interface UnixMountPoint {
     /**
      * Compares two unix mount points.
      * @param mount2 a #GUnixMount.
+     * @returns 1, 0 or -1 if @mount1 is greater than, equal to, or less than @mount2, respectively.
      */
     compare(mount2: UnixMountPoint): number
     /**
      * Makes a copy of `mount_point`.
+     * @returns a new #GUnixMountPoint
      */
     copy(): UnixMountPoint
     /**
@@ -49010,47 +52511,58 @@ interface UnixMountPoint {
     free(): void
     /**
      * Gets the device path for a unix mount point.
+     * @returns a string containing the device path.
      */
     get_device_path(): string
     /**
      * Gets the file system type for the mount point.
+     * @returns a string containing the file system type.
      */
     get_fs_type(): string
     /**
      * Gets the mount path for a unix mount point.
+     * @returns a string containing the mount path.
      */
     get_mount_path(): string
     /**
      * Gets the options for the mount point.
+     * @returns a string containing the options.
      */
     get_options(): string | null
     /**
      * Guesses whether a Unix mount point can be ejected.
+     * @returns %TRUE if @mount_point is deemed to be ejectable.
      */
     guess_can_eject(): boolean
     /**
      * Guesses the icon of a Unix mount point.
+     * @returns a #GIcon
      */
     guess_icon(): Icon
     /**
      * Guesses the name of a Unix mount point.
      * The result is a translated string.
+     * @returns A newly allocated string that must     be freed with g_free()
      */
     guess_name(): string
     /**
      * Guesses the symbolic icon of a Unix mount point.
+     * @returns a #GIcon
      */
     guess_symbolic_icon(): Icon
     /**
      * Checks if a unix mount point is a loopback device.
+     * @returns %TRUE if the mount point is a loopback. %FALSE otherwise.
      */
     is_loopback(): boolean
     /**
      * Checks if a unix mount point is read only.
+     * @returns %TRUE if a mount point is read only.
      */
     is_readonly(): boolean
     /**
      * Checks if a unix mount point is mountable by the user.
+     * @returns %TRUE if the mount point is user mountable.
      */
     is_user_mountable(): boolean
 }
@@ -49076,6 +52588,7 @@ class UnixMountPoint {
      * If more mount points have the same mount path, the last matching mount point
      * is returned.
      * @param mount_path path for a possible unix mount point.
+     * @returns a #GUnixMountPoint, or %NULL if no match is found.
      */
     static at(mount_path: string): [ /* returnType */ UnixMountPoint | null, /* time_read */ number ]
 }

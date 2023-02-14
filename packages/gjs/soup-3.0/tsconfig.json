@@ -15,8 +15,5 @@
     "checkJs": false,
     "reflection": false,
     "include": ["src/**/*.ts"],
-    "exclude": ["src/test.ts", "src/**/*.spec.ts"],
-    "references": [
-      { "path": "../gio-2.0/tsconfig.json" },
-    ]
+    "exclude": ["src/test.ts", "src/**/*.spec.ts"]
 }

@@ -25,6 +25,6 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/types": "workspace:^",
-        "typescript": "^5.0.0-dev.20230214"
+        "typescript": "^5.0.0-beta"
     }
 }

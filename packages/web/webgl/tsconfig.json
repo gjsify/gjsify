@@ -37,8 +37,5 @@
 	"checkJs": false,
 	"reflection": false,
 	"include": ["src/ts/**/*.ts"],
-	"exclude": ["src/ts/test.ts", "src/ts/**/*.spec.ts"],
-	"references": [
-		{ "path": "../html-image-element/tsconfig.json" }
-	]
+	"exclude": ["src/ts/test.ts", "src/ts/**/*.spec.ts"]
 }

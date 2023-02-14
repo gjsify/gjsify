@@ -3575,6 +3575,7 @@ function cairo_region(cr: cairo.Context, region: cairo.Region): void
  * This function takes into account device offsets that might be
  * set with cairo_surface_set_device_offset().
  * @param surface a cairo surface
+ * @returns A `cairo_region_t`
  */
 function cairo_region_create_from_surface(surface: cairo.Surface): cairo.Region
 /**
@@ -3610,9 +3611,31 @@ function cairo_set_source_rgba(cr: cairo.Context, rgba: RGBA): void
  * @param callback callback to call when the operation is done
  */
 function content_deserialize_async<Z = unknown>(stream: Gio.InputStream, mime_type: string, type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<Z> | null): void
+
+// Overloads of content_deserialize_async
+
+/**
+ * Promisified version of {@link content_deserialize_async}
+ * 
+ * Read content from the given input stream and deserialize it, asynchronously.
+ * 
+ * The default I/O priority is %G_PRIORITY_DEFAULT (i.e. 0), and lower numbers
+ * indicate a higher priority.
+ * 
+ * When the operation is finished, `callback` will be called. You must then
+ * call [func`Gdk`.content_deserialize_finish] to get the result of the operation.
+ * @param stream a `GInputStream` to read the serialized content from
+ * @param mime_type the mime type to deserialize from
+ * @param type the GType to deserialize from
+ * @param io_priority the I/O priority of the operation
+ * @param cancellable optional `GCancellable` object
+ * @returns A Promise of: %TRUE if the operation was successful. In this case,   @value is set. %FALSE if an error occurred. In this case,   @error is set
+ */
+function content_deserialize_async<Z = unknown>(stream: Gio.InputStream, mime_type: string, type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* value */ any>
 /**
  * Finishes a content deserialization operation.
  * @param result the `GAsyncResult`
+ * @returns %TRUE if the operation was successful. In this case,   @value is set. %FALSE if an error occurred. In this case,   @error is set
  */
 function content_deserialize_finish(result: Gio.AsyncResult): [ /* returnType */ boolean, /* value */ any ]
 /**
@@ -3625,6 +3648,7 @@ function content_deserialize_finish(result: Gio.AsyncResult): [ /* returnType */
  * If `string` does not describe valid content formats, %NULL
  * is returned.
  * @param string the string to parse
+ * @returns the content formats if @string is valid
  */
 function content_formats_parse(string: string): ContentFormats | null
 /**
@@ -3657,9 +3681,31 @@ function content_register_serializer(type: GObject.GType, mime_type: string, ser
  * @param callback callback to call when the operation is done
  */
 function content_serialize_async<Z = unknown>(stream: Gio.OutputStream, mime_type: string, value: any, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<Z> | null): void
+
+// Overloads of content_serialize_async
+
+/**
+ * Promisified version of {@link content_serialize_async}
+ * 
+ * Serialize content and write it to the given output stream, asynchronously.
+ * 
+ * The default I/O priority is %G_PRIORITY_DEFAULT (i.e. 0), and lower numbers
+ * indicate a higher priority.
+ * 
+ * When the operation is finished, `callback` will be called. You must then
+ * call [func`Gdk`.content_serialize_finish] to get the result of the operation.
+ * @param stream a `GOutputStream` to write the serialized content to
+ * @param mime_type the mime type to serialize to
+ * @param value the content to serialize
+ * @param io_priority the I/O priority of the operation
+ * @param cancellable optional `GCancellable` object
+ * @returns A Promise of: %TRUE if the operation was successful, %FALSE if an   error occurred. In this case, @error is set
+ */
+function content_serialize_async<Z = unknown>(stream: Gio.OutputStream, mime_type: string, value: any, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<boolean>
 /**
  * Finishes a content serialization operation.
  * @param result the `GAsyncResult`
+ * @returns %TRUE if the operation was successful, %FALSE if an   error occurred. In this case, @error is set
  */
 function content_serialize_finish(result: Gio.AsyncResult): boolean
 /**
@@ -3669,6 +3715,7 @@ function content_serialize_finish(result: Gio.AsyncResult): boolean
  * When `action` is 0 - ie no action was given, %TRUE
  * is returned.
  * @param action a `GdkDragAction`
+ * @returns %TRUE if exactly one action was given
  */
 function drag_action_is_unique(action: DragAction): boolean
 /**
@@ -3682,6 +3729,7 @@ function drag_action_is_unique(action: DragAction): boolean
  * If not, this function returns %FALSE.
  * @param event1 first `GdkEvent`
  * @param event2 second `GdkEvent`
+ * @returns %TRUE if the angle could be calculated.
  */
 function events_get_angle(event1: Event, event2: Event): [ /* returnType */ boolean, /* angle */ number ]
 /**
@@ -3691,6 +3739,7 @@ function events_get_angle(event1: Event, event2: Event): [ /* returnType */ bool
  * If not, this function returns %FALSE.
  * @param event1 first `GdkEvent`
  * @param event2 second `GdkEvent`
+ * @returns %TRUE if the center could be calculated.
  */
 function events_get_center(event1: Event, event2: Event): [ /* returnType */ boolean, /* x */ number, /* y */ number ]
 /**
@@ -3700,6 +3749,7 @@ function events_get_center(event1: Event, event2: Event): [ /* returnType */ boo
  * If not, this function returns %FALSE.
  * @param event1 first `GdkEvent`
  * @param event2 second `GdkEvent`
+ * @returns %TRUE if the distance could be calculated.
  */
 function events_get_distance(event1: Event, event2: Event): [ /* returnType */ boolean, /* distance */ number ]
 function gl_error_quark(): GLib.Quark
@@ -3709,6 +3759,7 @@ function gl_error_quark(): GLib.Quark
  * If `string` is not a valid mime type, %NULL is returned instead.
  * See RFC 2048 for the syntax if mime types.
  * @param string string of a potential mime type
+ * @returns An interned string for the canonicalized   mime type or %NULL if the string wasn't a valid mime type
  */
 function intern_mime_type(string: string): string | null
 /**
@@ -3725,16 +3776,19 @@ function keyval_convert_case(symbol: number): [ /* lower */ number, /* upper */ 
  * `gdk/gdkkeysyms.h` header file
  * but without the leading “GDK_KEY_”.
  * @param keyval_name a key name
+ * @returns the corresponding key value, or %GDK_KEY_VoidSymbol   if the key name is not a valid key
  */
 function keyval_from_name(keyval_name: string): number
 /**
  * Returns %TRUE if the given key value is in lower case.
  * @param keyval a key value.
+ * @returns %TRUE if @keyval is in lower case, or if @keyval is not   subject to case conversion.
  */
 function keyval_is_lower(keyval: number): boolean
 /**
  * Returns %TRUE if the given key value is in upper case.
  * @param keyval a key value.
+ * @returns %TRUE if @keyval is in upper case, or if @keyval is not subject to  case conversion.
  */
 function keyval_is_upper(keyval: number): boolean
 /**
@@ -3744,11 +3798,13 @@ function keyval_is_upper(keyval: number): boolean
  * `gdk/gdkkeysyms.h` header file
  * but without the leading “GDK_KEY_”.
  * @param keyval a key value
+ * @returns a string containing the name   of the key
  */
 function keyval_name(keyval: number): string | null
 /**
  * Converts a key value to lower case, if applicable.
  * @param keyval a key value.
+ * @returns the lower case form of @keyval, or @keyval itself if it is already  in lower case or it is not subject to case conversion.
  */
 function keyval_to_lower(keyval: number): number
 /**
@@ -3759,11 +3815,13 @@ function keyval_to_lower(keyval: number): number
  * into consideration, which might be expected for particular
  * keyvals, such as %GDK_KEY_KP_Decimal.
  * @param keyval a GDK key symbol
+ * @returns the corresponding unicode character, or 0 if there   is no corresponding character.
  */
 function keyval_to_unicode(keyval: number): number
 /**
  * Converts a key value to upper case, if applicable.
  * @param keyval a key value.
+ * @returns the upper case form of @keyval, or @keyval itself if it is already   in upper case or it is not subject to case conversion.
  */
 function keyval_to_upper(keyval: number): number
 /**
@@ -3775,6 +3833,7 @@ function keyval_to_upper(keyval: number): number
  * [class`Gtk`.MediaStream] before receiving the first frame).
  * @param intrinsic_width The intrinsic width to report. Can be 0 for no width.
  * @param intrinsic_height The intrinsic height to report. Can be 0 for no height.
+ * @returns a `GdkPaintable`
  */
 function paintable_new_empty(intrinsic_width: number, intrinsic_height: number): Paintable
 /**
@@ -3790,6 +3849,7 @@ function paintable_new_empty(intrinsic_width: number, intrinsic_height: number):
  * @param src_y Source Y coordinate within `surface`
  * @param width Width in pixels of region to get
  * @param height Height in pixels of region to get
+ * @returns A newly-created pixbuf with a   reference count of 1
  */
 function pixbuf_get_from_surface(surface: cairo.Surface, src_x: number, src_y: number, width: number, height: number): GdkPixbuf.Pixbuf | null
 /**
@@ -3799,6 +3859,7 @@ function pixbuf_get_from_surface(surface: cairo.Surface, src_x: number, src_y: n
  * stages will almost certainly convert the pixbuf back into a texture
  * to draw it on screen.
  * @param texture a `GdkTexture`
+ * @returns a new `GdkPixbuf`
  */
 function pixbuf_get_from_texture(texture: Texture): GdkPixbuf.Pixbuf | null
 /**
@@ -3843,6 +3904,7 @@ function toplevel_size_get_type(): GObject.GType
 /**
  * Convert from a Unicode character to a key symbol.
  * @param wc a Unicode character
+ * @returns the corresponding GDK key symbol, if one exists.   or, if there is no corresponding symbol, wc | 0x01000000
  */
 function unicode_to_keyval(wc: number): number
 function vulkan_error_quark(): GLib.Quark
@@ -3889,16 +3951,19 @@ interface DevicePad extends Device {
      * f the feature or index do not exist in `pad,` -1 is returned.
      * @param feature the feature type to get the group from
      * @param feature_idx the index of the feature to get the group from
+     * @returns The group number of the queried pad feature.
      */
     get_feature_group(feature: DevicePadFeature, feature_idx: number): number
     /**
      * Returns the number of modes that `group` may have.
      * @param group_idx group to get the number of available modes from
+     * @returns The number of modes available in @group.
      */
     get_group_n_modes(group_idx: number): number
     /**
      * Returns the number of features a tablet pad has.
      * @param feature a pad feature
+     * @returns The amount of elements of type @feature that this pad has.
      */
     get_n_features(feature: DevicePadFeature): number
     /**
@@ -3907,6 +3972,7 @@ interface DevicePad extends Device {
      * Pads have at least one group. A pad group is a subcollection of
      * buttons/strip/rings that is affected collectively by a same
      * current mode.
+     * @returns The number of button/ring/strip groups in the pad.
      */
     get_n_groups(): number
 
@@ -4016,6 +4082,7 @@ interface DragSurface extends Surface {
      * Present `drag_surface`.
      * @param width the unconstrained drag_surface width to layout
      * @param height the unconstrained drag_surface height to layout
+     * @returns %FALSE if it failed to be presented, otherwise %TRUE.
      */
     present(width: number, height: number): boolean
 
@@ -4119,6 +4186,7 @@ interface Paintable {
      * for example to take a screenshot of a running animation.
      * 
      * If the `paintable` is already immutable, it will return itself.
+     * @returns An immutable paintable for the current   contents of @paintable
      */
     get_current_image(): Paintable
     /**
@@ -4127,6 +4195,7 @@ interface Paintable {
      * This is oftentimes useful for optimizations.
      * 
      * See [flags`Gdk`.PaintableFlags] for the flags and what they mean.
+     * @returns The `GdkPaintableFlags` for this paintable
      */
     get_flags(): PaintableFlags
     /**
@@ -4147,6 +4216,7 @@ interface Paintable {
      * 
      * If the `paintable` does not have a preferred aspect ratio,
      * it returns 0. Negative values are never returned.
+     * @returns the intrinsic aspect ratio of @paintable or 0 if none.
      */
     get_intrinsic_aspect_ratio(): number
     /**
@@ -4160,6 +4230,7 @@ interface Paintable {
      * 
      * If the `paintable` does not have a preferred height, it returns 0.
      * Negative values are never returned.
+     * @returns the intrinsic height of @paintable or 0 if none.
      */
     get_intrinsic_height(): number
     /**
@@ -4173,6 +4244,7 @@ interface Paintable {
      * 
      * If the `paintable` does not have a preferred width, it returns 0.
      * Negative values are never returned.
+     * @returns the intrinsic width of @paintable or 0 if none.
      */
     get_intrinsic_width(): number
     /**
@@ -4223,6 +4295,7 @@ interface Paintable {
      * 
      * If the `paintable` is already immutable, it will return itself.
      * @virtual 
+     * @returns An immutable paintable for the current   contents of @paintable
      */
     vfunc_get_current_image(): Paintable
     /**
@@ -4232,6 +4305,7 @@ interface Paintable {
      * 
      * See [flags`Gdk`.PaintableFlags] for the flags and what they mean.
      * @virtual 
+     * @returns The `GdkPaintableFlags` for this paintable
      */
     vfunc_get_flags(): PaintableFlags
     /**
@@ -4253,6 +4327,7 @@ interface Paintable {
      * If the `paintable` does not have a preferred aspect ratio,
      * it returns 0. Negative values are never returned.
      * @virtual 
+     * @returns the intrinsic aspect ratio of @paintable or 0 if none.
      */
     vfunc_get_intrinsic_aspect_ratio(): number
     /**
@@ -4267,6 +4342,7 @@ interface Paintable {
      * If the `paintable` does not have a preferred height, it returns 0.
      * Negative values are never returned.
      * @virtual 
+     * @returns the intrinsic height of @paintable or 0 if none.
      */
     vfunc_get_intrinsic_height(): number
     /**
@@ -4281,6 +4357,7 @@ interface Paintable {
      * If the `paintable` does not have a preferred width, it returns 0.
      * Negative values are never returned.
      * @virtual 
+     * @returns the intrinsic width of @paintable or 0 if none.
      */
     vfunc_get_intrinsic_width(): number
     /**
@@ -4381,6 +4458,7 @@ class Paintable extends GObject.Object {
      * [class`Gtk`.MediaStream] before receiving the first frame).
      * @param intrinsic_width The intrinsic width to report. Can be 0 for no width.
      * @param intrinsic_height The intrinsic height to report. Can be 0 for no height.
+     * @returns a `GdkPaintable`
      */
     static new_empty(intrinsic_width: number, intrinsic_height: number): Paintable
 }
@@ -4422,18 +4500,22 @@ interface Popup extends Surface {
 
     /**
      * Returns whether this popup is set to hide on outside clicks.
+     * @returns %TRUE if @popup will autohide
      */
     get_autohide(): boolean
     /**
      * Returns the parent surface of a popup.
+     * @returns the parent surface
      */
     get_parent(): Surface | null
     /**
      * Obtains the position of the popup relative to its parent.
+     * @returns the X coordinate of @popup position
      */
     get_position_x(): number
     /**
      * Obtains the position of the popup relative to its parent.
+     * @returns the Y coordinate of @popup position
      */
     get_position_y(): number
     /**
@@ -4441,6 +4523,7 @@ interface Popup extends Surface {
      * 
      * The value returned may change after calling [method`Gdk`.Popup.present],
      * or after the [signal`Gdk`.Surface::layout] signal is emitted.
+     * @returns the current rectangle anchor value of @popup
      */
     get_rect_anchor(): Gravity
     /**
@@ -4448,6 +4531,7 @@ interface Popup extends Surface {
      * 
      * The value returned may change after calling [method`Gdk`.Popup.present],
      * or after the [signal`Gdk`.Surface::layout] signal is emitted.
+     * @returns the current surface anchor value of @popup
      */
     get_surface_anchor(): Gravity
     /**
@@ -4469,6 +4553,7 @@ interface Popup extends Surface {
      * @param width the unconstrained popup width to layout
      * @param height the unconstrained popup height to layout
      * @param layout the `GdkPopupLayout` object used to layout
+     * @returns %FALSE if it failed to be presented, otherwise %TRUE.
      */
     present(width: number, height: number, layout: PopupLayout): boolean
 
@@ -4671,6 +4756,7 @@ interface Toplevel extends Surface {
     /**
      * Gets the bitwise or of the currently active surface state flags,
      * from the `GdkToplevelState` enumeration.
+     * @returns surface state bitfield
      */
     get_state(): ToplevelState
     /**
@@ -4702,12 +4788,14 @@ interface Toplevel extends Surface {
      * Asks to lower the `toplevel` below other windows.
      * 
      * The windowing system may choose to ignore the request.
+     * @returns %TRUE if the surface was lowered
      */
     lower(): boolean
     /**
      * Asks to minimize the `toplevel`.
      * 
      * The windowing system may choose to ignore the request.
+     * @returns %TRUE if the surface was minimized
      */
     minimize(): boolean
     /**
@@ -4813,11 +4901,13 @@ interface Toplevel extends Surface {
      * for windows using client-side decorations, activating it with a
      * right-click on the window decorations.
      * @param event a `GdkEvent` to show the menu for
+     * @returns %TRUE if the window menu was shown and %FALSE otherwise.
      */
     show_window_menu(event: Event): boolean
     /**
      * Returns whether the desktop environment supports
      * tiled window states.
+     * @returns %TRUE if the desktop environment supports tiled window states
      */
     supports_edge_constraints(): boolean
     titlebar_gesture(gesture: TitlebarGesture): boolean
@@ -4937,6 +5027,7 @@ interface AppLaunchContext {
 
     /**
      * Gets the `GdkDisplay` that `context` is for.
+     * @returns the display of @context
      */
     get_display(): Display
 
@@ -4948,6 +5039,7 @@ interface AppLaunchContext {
      * application, by setting the `DISPLAY` environment variable.
      * @param info a #GAppInfo
      * @param files a #GList of #GFile objects
+     * @returns a display string for the display.
      */
     get_display(info: Gio.AppInfo, files: Gio.File[]): string | null
     /**
@@ -5057,6 +5149,7 @@ interface ButtonEvent {
 
     /**
      * Extract the button number from a button event.
+     * @returns the button of @event
      */
     get_button(): number
 }
@@ -5094,6 +5187,7 @@ interface CairoContext {
      * 
      * The returned context is guaranteed to be valid until
      * [method`Gdk`.DrawContext.end_frame] is called.
+     * @returns a Cairo context   to draw on `GdkSurface
      */
     cairo_create(): cairo.Context | null
 
@@ -5188,14 +5282,17 @@ interface Clipboard {
      * 
      * If the `clipboard` is empty or its contents are not owned by the
      * current process, %NULL will be returned.
+     * @returns The content of a clipboard   if the clipboard does not maintain any content
      */
     get_content(): ContentProvider | null
     /**
      * Gets the `GdkDisplay` that the clipboard was created for.
+     * @returns a `GdkDisplay`
      */
     get_display(): Display
     /**
      * Gets the formats that the clipboard can provide its current contents in.
+     * @returns The formats of the clipboard
      */
     get_formats(): ContentFormats
     /**
@@ -5206,6 +5303,7 @@ interface Clipboard {
      * 
      * Note that [method`Gdk`.Clipboard.get_content] may return %NULL
      * even on a local clipboard. In this case the clipboard is empty.
+     * @returns %TRUE if the clipboard is local
      */
     is_local(): boolean
     /**
@@ -5223,11 +5321,32 @@ interface Clipboard {
      * @param callback callback to call when the request is satisfied
      */
     read_async(mime_types: string[], io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_async
+
+    /**
+     * Promisified version of {@link read_async}
+     * 
+     * Asynchronously requests an input stream to read the `clipboard'`s
+     * contents from.
+     * 
+     * When the operation is finished `callback` will be called. You must then
+     * call [method`Gdk`.Clipboard.read_finish] to get the result of the operation.
+     * 
+     * The clipboard will choose the most suitable mime type from the given list
+     * to fulfill the request, preferring the ones listed first.
+     * @param mime_types a %NULL-terminated array of mime types to choose from
+     * @param io_priority the I/O priority of the request
+     * @param cancellable optional `GCancellable` object
+     * @returns A Promise of: a `GInputStream`
+     */
+    read_async(mime_types: string[], io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* out_mime_type */ string>
     /**
      * Finishes an asynchronous clipboard read.
      * 
      * See [method`Gdk`.Clipboard.read_async].
      * @param result a `GAsyncResult`
+     * @returns a `GInputStream`
      */
     read_finish(result: Gio.AsyncResult): [ /* returnType */ Gio.InputStream | null, /* out_mime_type */ string ]
     /**
@@ -5243,11 +5362,30 @@ interface Clipboard {
      * @param callback callback to call when the request is satisfied
      */
     read_text_async(cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_text_async
+
+    /**
+     * Promisified version of {@link read_text_async}
+     * 
+     * Asynchronously request the `clipboard` contents converted to a string.
+     * 
+     * When the operation is finished `callback` will be called. You must then
+     * call [method`Gdk`.Clipboard.read_text_finish] to get the result.
+     * 
+     * This is a simple wrapper around [method`Gdk`.Clipboard.read_value_async].
+     * Use that function or [method`Gdk`.Clipboard.read_async] directly if you
+     * need more control over the operation.
+     * @param cancellable optional `GCancellable` object
+     * @returns A Promise of: a new string
+     */
+    read_text_async(cancellable: Gio.Cancellable | null): globalThis.Promise<string | null>
     /**
      * Finishes an asynchronous clipboard read.
      * 
      * See [method`Gdk`.Clipboard.read_text_async].
      * @param result a `GAsyncResult`
+     * @returns a new string
      */
     read_text_finish(result: Gio.AsyncResult): string | null
     /**
@@ -5263,11 +5401,30 @@ interface Clipboard {
      * @param callback callback to call when the request is satisfied
      */
     read_texture_async(cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_texture_async
+
+    /**
+     * Promisified version of {@link read_texture_async}
+     * 
+     * Asynchronously request the `clipboard` contents converted to a `GdkPixbuf`.
+     * 
+     * When the operation is finished `callback` will be called. You must then
+     * call [method`Gdk`.Clipboard.read_texture_finish] to get the result.
+     * 
+     * This is a simple wrapper around [method`Gdk`.Clipboard.read_value_async].
+     * Use that function or [method`Gdk`.Clipboard.read_async] directly if you
+     * need more control over the operation.
+     * @param cancellable optional `GCancellable` object, %NULL to ignore.
+     * @returns A Promise of: a new `GdkTexture`
+     */
+    read_texture_async(cancellable: Gio.Cancellable | null): globalThis.Promise<Texture | null>
     /**
      * Finishes an asynchronous clipboard read.
      * 
      * See [method`Gdk`.Clipboard.read_texture_async].
      * @param result a `GAsyncResult`
+     * @returns a new `GdkTexture`
      */
     read_texture_finish(result: Gio.AsyncResult): Texture | null
     /**
@@ -5286,11 +5443,33 @@ interface Clipboard {
      * @param callback callback to call when the request is satisfied
      */
     read_value_async(type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_value_async
+
+    /**
+     * Promisified version of {@link read_value_async}
+     * 
+     * Asynchronously request the `clipboard` contents converted to the given
+     * `type`.
+     * 
+     * When the operation is finished `callback` will be called. You must then call
+     * [method`Gdk`.Clipboard.read_value_finish] to get the resulting `GValue`.
+     * 
+     * For local clipboard contents that are available in the given `GType`,
+     * the value will be copied directly. Otherwise, GDK will try to use
+     * [func`content_deserialize_async]` to convert the clipboard's data.
+     * @param type a `GType` to read
+     * @param io_priority the I/O priority of the request
+     * @param cancellable optional `GCancellable` object
+     * @returns A Promise of: a `GValue` containing the result.
+     */
+    read_value_async(type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<any>
     /**
      * Finishes an asynchronous clipboard read.
      * 
      * See [method`Gdk`.Clipboard.read_value_async].
      * @param result a `GAsyncResult`
+     * @returns a `GValue` containing the result.
      */
     read_value_finish(result: Gio.AsyncResult): any
     /**
@@ -5307,6 +5486,7 @@ interface Clipboard {
      * `clipboard'`s read functions, `clipboard` will select the best format to
      * transfer the contents and then request that format from `provider`.
      * @param provider the new contents of `clipboard`   or %NULL to clear the clipboard
+     * @returns %TRUE if setting the clipboard succeeded
      */
     set_content(provider: ContentProvider | null): boolean
     /**
@@ -5333,11 +5513,36 @@ interface Clipboard {
      * @param callback callback to call when the request is satisfied
      */
     store_async(io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of store_async
+
+    /**
+     * Promisified version of {@link store_async}
+     * 
+     * Asynchronously instructs the `clipboard` to store its contents remotely.
+     * 
+     * If the clipboard is not local, this function does nothing but report success.
+     * 
+     * The `callback` must call [method`Gdk`.Clipboard.store_finish].
+     * 
+     * The purpose of this call is to preserve clipboard contents beyond the
+     * lifetime of an application, so this function is typically called on
+     * exit. Depending on the platform, the functionality may not be available
+     * unless a "clipboard manager" is running.
+     * 
+     * This function is called automatically when a [class`Gtk`.Application] is
+     * shut down, so you likely don't need to call it.
+     * @param io_priority the I/O priority of the request
+     * @param cancellable optional `GCancellable` object
+     * @returns A Promise of: %TRUE if storing was successful.
+     */
+    store_async(io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes an asynchronous clipboard store.
      * 
      * See [method`Gdk`.Clipboard.store_async].
      * @param result a `GAsyncResult`
+     * @returns %TRUE if storing was successful.
      */
     store_finish(result: Gio.AsyncResult): boolean
 
@@ -5417,40 +5622,48 @@ interface ContentDeserializer extends Gio.AsyncResult {
      * Gets the cancellable for the current operation.
      * 
      * This is the `GCancellable` that was passed to [func`Gdk`.content_deserialize_async].
+     * @returns the cancellable for the current operation
      */
     get_cancellable(): Gio.Cancellable | null
     /**
      * Gets the `GType` to create an instance of.
+     * @returns the `GType` for the current operation
      */
     get_gtype(): GObject.GType
     /**
      * Gets the input stream for the current operation.
      * 
      * This is the stream that was passed to [func`Gdk`.content_deserialize_async].
+     * @returns the input stream for the current operation
      */
     get_input_stream(): Gio.InputStream
     /**
      * Gets the mime type to deserialize from.
+     * @returns the mime type for the current operation
      */
     get_mime_type(): string
     /**
      * Gets the I/O priority for the current operation.
      * 
      * This is the priority that was passed to [func`Gdk`.content_deserialize_async].
+     * @returns the I/O priority for the current operation
      */
     get_priority(): number
     /**
      * Gets the data that was associated with the current operation.
      * 
      * See [method`Gdk`.ContentDeserializer.set_task_data].
+     * @returns the task data for @deserializer
      */
     get_task_data(): object | null
     /**
      * Gets the user data that was passed when the deserializer was registered.
+     * @returns the user data for this deserializer
      */
     get_user_data(): object | null
     /**
      * Gets the `GValue` to store the deserialized object in.
+     * @returns the `GValue` for the current operation
      */
     get_value(): any
     /**
@@ -5556,10 +5769,12 @@ interface ContentProvider {
      * returned by [method`Gdk`.ContentProvider.ref_formats]. However, if the
      * given `GType` is not supported, this operation can fail and
      * `G_IO_ERROR_NOT_SUPPORTED` will be reported.
+     * @returns %TRUE if the value was set successfully. Otherwise   @error will be set to describe the failure.
      */
     get_value(): [ /* returnType */ boolean, /* value */ any ]
     /**
      * Gets the formats that the provider can provide its current contents in.
+     * @returns The formats of the provider
      */
     ref_formats(): ContentFormats
     /**
@@ -5569,6 +5784,7 @@ interface ContentProvider {
      * An example of such an application would be a clipboard manager.
      * 
      * This can be assumed to be a subset of [method`Gdk`.ContentProvider.ref_formats].
+     * @returns The storable formats of the provider
      */
     ref_storable_formats(): ContentFormats
     /**
@@ -5591,11 +5807,37 @@ interface ContentProvider {
      * @param callback callback to call when the request is satisfied
      */
     write_mime_type_async(mime_type: string, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of write_mime_type_async
+
+    /**
+     * Promisified version of {@link write_mime_type_async}
+     * 
+     * Asynchronously writes the contents of `provider` to `stream` in the given
+     * `mime_type`.
+     * 
+     * When the operation is finished `callback` will be called. You must then call
+     * [method`Gdk`.ContentProvider.write_mime_type_finish] to get the result
+     * of the operation.
+     * 
+     * The given mime type does not need to be listed in the formats returned by
+     * [method`Gdk`.ContentProvider.ref_formats]. However, if the given `GType` is
+     * not supported, `G_IO_ERROR_NOT_SUPPORTED` will be reported.
+     * 
+     * The given `stream` will not be closed.
+     * @param mime_type the mime type to provide the data in
+     * @param stream the `GOutputStream` to write to
+     * @param io_priority I/O priority of the request.
+     * @param cancellable optional `GCancellable` object, %NULL to ignore.
+     * @returns A Promise of: %TRUE if the operation was completed successfully. Otherwise   @error will be set to describe the failure.
+     */
+    write_mime_type_async(mime_type: string, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes an asynchronous write operation.
      * 
      * See [method`Gdk`.ContentProvider.write_mime_type_async].
      * @param result a `GAsyncResult`
+     * @returns %TRUE if the operation was completed successfully. Otherwise   @error will be set to describe the failure.
      */
     write_mime_type_finish(result: Gio.AsyncResult): boolean
 
@@ -5617,11 +5859,13 @@ interface ContentProvider {
      * given `GType` is not supported, this operation can fail and
      * `G_IO_ERROR_NOT_SUPPORTED` will be reported.
      * @virtual 
+     * @returns %TRUE if the value was set successfully. Otherwise   @error will be set to describe the failure.
      */
     vfunc_get_value(): [ /* returnType */ boolean, /* value */ any ]
     /**
      * Gets the formats that the provider can provide its current contents in.
      * @virtual 
+     * @returns The formats of the provider
      */
     vfunc_ref_formats(): ContentFormats
     /**
@@ -5632,6 +5876,7 @@ interface ContentProvider {
      * 
      * This can be assumed to be a subset of [method`Gdk`.ContentProvider.ref_formats].
      * @virtual 
+     * @returns The storable formats of the provider
      */
     vfunc_ref_storable_formats(): ContentFormats
     /**
@@ -5661,6 +5906,7 @@ interface ContentProvider {
      * See [method`Gdk`.ContentProvider.write_mime_type_async].
      * @virtual 
      * @param result a `GAsyncResult`
+     * @returns %TRUE if the operation was completed successfully. Otherwise   @error will be set to describe the failure.
      */
     vfunc_write_mime_type_finish(result: Gio.AsyncResult): boolean
 
@@ -5712,12 +5958,14 @@ class ContentProvider extends GObject.Object {
      * @constructor 
      * @param mime_type the mime type
      * @param bytes a `GBytes` with the data for `mime_type`
+     * @returns a new `GdkContentProvider`
      */
     static new_for_bytes(mime_type: string, bytes: GLib.Bytes): ContentProvider
     /**
      * Create a content provider that provides the given `value`.
      * @constructor 
      * @param value a `GValue`
+     * @returns a new `GdkContentProvider`
      */
     static new_for_value(value: any): ContentProvider
     /**
@@ -5738,6 +5986,7 @@ class ContentProvider extends GObject.Object {
      * ```
      * @constructor 
      * @param providers    The `GdkContentProvider`s to present the union of
+     * @returns a new `GdkContentProvider`
      */
     static new_union(providers: ContentProvider[] | null): ContentProvider
     _init(config?: ContentProvider.ConstructorProperties): void
@@ -5760,40 +6009,48 @@ interface ContentSerializer extends Gio.AsyncResult {
      * Gets the cancellable for the current operation.
      * 
      * This is the `GCancellable` that was passed to [func`content_serialize_async]`.
+     * @returns the cancellable for the current operation
      */
     get_cancellable(): Gio.Cancellable | null
     /**
      * Gets the `GType` to of the object to serialize.
+     * @returns the `GType` for the current operation
      */
     get_gtype(): GObject.GType
     /**
      * Gets the mime type to serialize to.
+     * @returns the mime type for the current operation
      */
     get_mime_type(): string
     /**
      * Gets the output stream for the current operation.
      * 
      * This is the stream that was passed to [func`content_serialize_async]`.
+     * @returns the output stream for the current operation
      */
     get_output_stream(): Gio.OutputStream
     /**
      * Gets the I/O priority for the current operation.
      * 
      * This is the priority that was passed to [func`content_serialize_async]`.
+     * @returns the I/O priority for the current operation
      */
     get_priority(): number
     /**
      * Gets the data that was associated with the current operation.
      * 
      * See [method`Gdk`.ContentSerializer.set_task_data].
+     * @returns the task data for @serializer
      */
     get_task_data(): object | null
     /**
      * Gets the user data that was passed when the serializer was registered.
+     * @returns the user data for this serializer
      */
     get_user_data(): object | null
     /**
      * Gets the `GValue` to read the object to serialize from.
+     * @returns the `GValue` for the current operation
      */
     get_value(): any
     /**
@@ -5856,14 +6113,17 @@ interface CrossingEvent {
 
     /**
      * Extracts the notify detail from a crossing event.
+     * @returns the notify detail of @event
      */
     get_detail(): NotifyType
     /**
      * Checks if the `event` surface is the focus surface.
+     * @returns %TRUE if the surface is the focus surface
      */
     get_focus(): boolean
     /**
      * Extracts the crossing mode from a crossing event.
+     * @returns the mode of @event
      */
     get_mode(): CrossingMode
 }
@@ -5954,6 +6214,7 @@ interface Cursor {
      * names or when using an incomplete cursor theme. For textured cursors,
      * this can happen when the texture is too large or when the `GdkDisplay`
      * it is used on does not support textured cursors.
+     * @returns the fallback of the cursor or %NULL   to use the default cursor as fallback
      */
     get_fallback(): Cursor | null
     /**
@@ -5964,6 +6225,7 @@ interface Cursor {
      * Note that named cursors may have a nonzero hotspot, but this function
      * will only return the hotspot position for cursors created with
      * [ctor`Gdk`.Cursor.new_from_texture].
+     * @returns the horizontal offset of the hotspot or 0 for named cursors
      */
     get_hotspot_x(): number
     /**
@@ -5974,18 +6236,21 @@ interface Cursor {
      * Note that named cursors may have a nonzero hotspot, but this function
      * will only return the hotspot position for cursors created with
      * [ctor`Gdk`.Cursor.new_from_texture].
+     * @returns the vertical offset of the hotspot or 0 for named cursors
      */
     get_hotspot_y(): number
     /**
      * Returns the name of the cursor.
      * 
      * If the cursor is not a named cursor, %NULL will be returned.
+     * @returns the name of the cursor or %NULL   if it is not a named cursor
      */
     get_name(): string | null
     /**
      * Returns the texture for the cursor.
      * 
      * If the cursor is a named cursor, %NULL will be returned.
+     * @returns the texture for cursor or %NULL   if it is a named cursor
      */
     get_texture(): Texture | null
 
@@ -6079,6 +6344,7 @@ class Cursor extends GObject.Object {
      * @constructor 
      * @param name the name of the cursor
      * @param fallback %NULL or the `GdkCursor` to fall back to when   this one cannot be supported
+     * @returns a new `GdkCursor`, or %NULL if there is no   cursor with the given name
      */
     static new_from_name(name: string, fallback: Cursor | null): Cursor
     /**
@@ -6088,6 +6354,7 @@ class Cursor extends GObject.Object {
      * @param hotspot_x the horizontal offset of the “hotspot” of the cursor
      * @param hotspot_y the vertical offset of the “hotspot” of the cursor
      * @param fallback the `GdkCursor` to fall back to when   this one cannot be supported
+     * @returns a new `GdkCursor`
      */
     static new_from_texture(texture: Texture, hotspot_x: number, hotspot_y: number, fallback: Cursor | null): Cursor
     _init(config?: Cursor.ConstructorProperties): void
@@ -6099,6 +6366,7 @@ interface DNDEvent {
 
     /**
      * Gets the `GdkDrop` object from a DND event.
+     * @returns the drop
      */
     get_drop(): Drop | null
 }
@@ -6290,10 +6558,12 @@ interface Device {
      * Retrieves whether the Caps Lock modifier of the keyboard is locked.
      * 
      * This is only relevant for keyboard devices.
+     * @returns %TRUE if Caps Lock is on for @device
      */
     get_caps_lock_state(): boolean
     /**
      * Retrieves the current tool for `device`.
+     * @returns the `GdkDeviceTool`
      */
     get_device_tool(): DeviceTool | null
     /**
@@ -6303,10 +6573,12 @@ interface Device {
      * 
      * The direction of a layout is the direction of the majority
      * of its symbols. See [func`Pango`.unichar_direction].
+     * @returns %PANGO_DIRECTION_LTR or %PANGO_DIRECTION_RTL   if it can determine the direction. %PANGO_DIRECTION_NEUTRAL   otherwise
      */
     get_direction(): Pango.Direction
     /**
      * Returns the `GdkDisplay` to which `device` pertains.
+     * @returns a `GdkDisplay`
      */
     get_display(): Display
     /**
@@ -6314,26 +6586,31 @@ interface Device {
      * 
      * This is not meaningful for keyboard devices, which
      * don't have a pointer.
+     * @returns %TRUE if the pointer follows device motion
      */
     get_has_cursor(): boolean
     /**
      * Retrieves the current modifier state of the keyboard.
      * 
      * This is only relevant for keyboard devices.
+     * @returns the current modifier state
      */
     get_modifier_state(): ModifierType
     /**
      * The name of the device, suitable for showing in a user interface.
+     * @returns a name
      */
     get_name(): string
     /**
      * Retrieves whether the Num Lock modifier of the keyboard is locked.
      * 
      * This is only relevant for keyboard devices.
+     * @returns %TRUE if Num Lock is on for @device
      */
     get_num_lock_state(): boolean
     /**
      * Retrieves the number of touch points associated to `device`.
+     * @returns the number of touch points
      */
     get_num_touches(): number
     /**
@@ -6341,20 +6618,24 @@ interface Device {
      * 
      * This ID is retrieved from the device, and does not change.
      * See [method`Gdk`.Device.get_vendor_id] for more information.
+     * @returns the product ID
      */
     get_product_id(): string | null
     /**
      * Retrieves whether the Scroll Lock modifier of the keyboard is locked.
      * 
      * This is only relevant for keyboard devices.
+     * @returns %TRUE if Scroll Lock is on for @device
      */
     get_scroll_lock_state(): boolean
     /**
      * Returns the `GdkSeat` the device belongs to.
+     * @returns a `GdkSeat`
      */
     get_seat(): Seat
     /**
      * Determines the type of the device.
+     * @returns a `GdkInputSource`
      */
     get_source(): InputSource
     /**
@@ -6363,6 +6644,7 @@ interface Device {
      * 
      * Returns %NULL if the surface tree under `device` is not known to GDK
      * (for example, belongs to another application).
+     * @returns the `GdkSurface` under the   device position
      */
     get_surface_at_position(): [ /* returnType */ Surface | null, /* win_x */ number, /* win_y */ number ]
     /**
@@ -6372,6 +6654,7 @@ interface Device {
      * received from the OS for this device. (GTK may occasionally produce
      * events for a device that are not received from the OS, and will not
      * update the timestamp).
+     * @returns the timestamp of the last activity for this device
      */
     get_timestamp(): number
     /**
@@ -6402,6 +6685,7 @@ interface Device {
      *    return settings;
      *  }
      * ```
+     * @returns the vendor ID
      */
     get_vendor_id(): string | null
 
@@ -6544,6 +6828,7 @@ interface DeviceTool {
 
     /**
      * Gets the axes of the tool.
+     * @returns the axes of @tool
      */
     get_axes(): AxisFlags
     /**
@@ -6558,6 +6843,7 @@ interface DeviceTool {
      * a `GdkDeviceTool` than [method`Gdk`.DeviceTool.get_tool_type],
      * as a tablet may support multiple devices with the same
      * `GdkDeviceToolType`, but different hardware identificators.
+     * @returns The hardware identificator of this tool.
      */
     get_hardware_id(): number
     /**
@@ -6565,10 +6851,12 @@ interface DeviceTool {
      * 
      * This value can be used to identify a physical tool
      * (eg. a tablet pen) across program executions.
+     * @returns The serial ID for this tool
      */
     get_serial(): number
     /**
      * Gets the `GdkDeviceToolType` of the tool.
+     * @returns The physical type for this tool. This can be used to   figure out what sort of pen is being used, such as an airbrush   or a pencil.
      */
     get_tool_type(): DeviceToolType
 
@@ -6695,11 +6983,13 @@ interface Display {
      * If the creation of the `GdkGLContext` failed, `error` will be set.
      * Before using the returned `GdkGLContext`, you will need to
      * call [method`Gdk`.GLContext.make_current] or [method`Gdk`.GLContext.realize].
+     * @returns the newly created `GdkGLContext`
      */
     create_gl_context(): GLContext
     /**
      * Returns %TRUE if there is an ongoing grab on `device` for `display`.
      * @param device a `GdkDevice`
+     * @returns %TRUE if there is a grab in effect for @device.
      */
     device_is_grabbed(device: Device): boolean
     /**
@@ -6718,10 +7008,12 @@ interface Display {
     /**
      * Returns a `GdkAppLaunchContext` suitable for launching
      * applications on the given display.
+     * @returns a new `GdkAppLaunchContext` for @display
      */
     get_app_launch_context(): AppLaunchContext
     /**
      * Gets the clipboard used for copy/paste operations.
+     * @returns the display's clipboard
      */
     get_clipboard(): Clipboard
     /**
@@ -6729,6 +7021,7 @@ interface Display {
      * 
      * Note that a display may not have a seat. In this case,
      * this function will return %NULL.
+     * @returns the default seat.
      */
     get_default_seat(): Seat | null
     /**
@@ -6738,6 +7031,7 @@ interface Display {
      * Returns a monitor close to `surface` if it is outside
      * of all monitors.
      * @param surface a `GdkSurface`
+     * @returns the monitor with the largest   overlap with @surface
      */
     get_monitor_at_surface(surface: Surface): Monitor
     /**
@@ -6748,10 +7042,12 @@ interface Display {
      * 
      * You can listen to the GListModel::items-changed signal on
      * this list to monitor changes to the monitor of this display.
+     * @returns a `GListModel` of `GdkMonitor`
      */
     get_monitors(): Gio.ListModel
     /**
      * Gets the name of the display.
+     * @returns a string representing the display name. This string is owned   by GDK and should not be modified or freed.
      */
     get_name(): string
     /**
@@ -6759,6 +7055,7 @@ interface Display {
      * 
      * On backends where the primary clipboard is not supported natively,
      * GDK emulates this clipboard locally.
+     * @returns the primary clipboard
      */
     get_primary_clipboard(): Clipboard
     /**
@@ -6766,15 +7063,18 @@ interface Display {
      * for the `display`.
      * @param name the name of the setting
      * @param value location to store the value of the setting
+     * @returns %TRUE if the setting existed and a value was stored   in @value, %FALSE otherwise
      */
     get_setting(name: string, value: any): boolean
     /**
      * Gets the startup notification ID for a Wayland display, or %NULL
      * if no ID has been defined.
+     * @returns the startup notification ID for @display
      */
     get_startup_notification_id(): string | null
     /**
      * Finds out if the display has been closed.
+     * @returns %TRUE if the display is closed.
      */
     is_closed(): boolean
     /**
@@ -6788,6 +7088,7 @@ interface Display {
      * compositing on `display`.
      * 
      * On modern displays, this value is always %TRUE.
+     * @returns Whether surfaces with RGBA visuals can reasonably   be expected to have their alpha channels drawn correctly   on the screen.
      */
     is_composited(): boolean
     /**
@@ -6802,10 +7103,12 @@ interface Display {
      * to check if that is the case.
      * 
      * On modern displays, this value is always %TRUE.
+     * @returns %TRUE if surfaces are created with an alpha channel or   %FALSE if the display does not support this functionality.
      */
     is_rgba(): boolean
     /**
      * Returns the list of seats known to `display`.
+     * @returns the   list of seats known to the `GdkDisplay`
      */
     list_seats(): Seat[]
     /**
@@ -6819,6 +7122,7 @@ interface Display {
      * 
      * Free the returned arrays with g_free().
      * @param keycode a keycode
+     * @returns %TRUE if there were any entries
      */
     map_keycode(keycode: number): [ /* returnType */ boolean, /* keys */ KeymapKey[], /* keyvals */ number[] ]
     /**
@@ -6838,6 +7142,7 @@ interface Display {
      * 
      * The returned array should be freed with g_free().
      * @param keyval a keyval, such as %GDK_KEY_a, %GDK_KEY_Up, %GDK_KEY_Return, etc.
+     * @returns %TRUE if keys were found and returned
      */
     map_keyval(keyval: number): [ /* returnType */ boolean, /* keys */ KeymapKey[] ]
     /**
@@ -6866,6 +7171,7 @@ interface Display {
      * You never need to call this function, GDK will call it automatically
      * as needed. But you can use it as a check when setting up code that
      * might make use of OpenGL.
+     * @returns %TRUE if the display supports OpenGL
      */
     prepare_gl(): boolean
     /**
@@ -6884,6 +7190,7 @@ interface Display {
      * be used to modify the input shape of surfaces on `display`.
      * 
      * On modern displays, this value is always %TRUE.
+     * @returns %TRUE if surfaces with modified input shape are supported
      */
     supports_input_shapes(): boolean
     /**
@@ -6922,6 +7229,7 @@ interface Display {
      * @param keycode a keycode
      * @param state a modifier state
      * @param group active keyboard group
+     * @returns %TRUE if there was a keyval bound to keycode/state/group.
      */
     translate_key(keycode: number, state: ModifierType, group: number): [ /* returnType */ boolean, /* keyval */ number, /* effective_group */ number, /* level */ number, /* consumed */ ModifierType ]
 
@@ -6994,6 +7302,7 @@ class Display extends GObject.Object {
      * This is a convenience function for:
      * 
      *     gdk_display_manager_get_default_display (gdk_display_manager_get ())
+     * @returns a `GdkDisplay`, or %NULL if   there is no default display
      */
     static get_default(): Display | null
     /**
@@ -7001,6 +7310,7 @@ class Display extends GObject.Object {
      * 
      * If opening the display fails, `NULL` is returned.
      * @param display_name the name of the display to open
+     * @returns a `GdkDisplay`
      */
     static open(display_name: string): Display | null
 }
@@ -7044,15 +7354,18 @@ interface DisplayManager {
 
     /**
      * Gets the default `GdkDisplay`.
+     * @returns a `GdkDisplay`
      */
     get_default_display(): Display | null
     /**
      * List all currently open displays.
+     * @returns a newly   allocated `GSList` of `GdkDisplay` objects
      */
     list_displays(): Display[]
     /**
      * Opens a display.
      * @param name the name of the display to open
+     * @returns a `GdkDisplay`, or %NULL   if the display could not be opened
      */
     open_display(name: string): Display | null
     /**
@@ -7144,6 +7457,7 @@ class DisplayManager extends GObject.Object {
      * 
      * Applications can use [func`set_allowed_backends]` to limit what
      * backends wil be used.
+     * @returns The global `GdkDisplayManager` singleton
      */
     static get(): DisplayManager
 }
@@ -7260,18 +7574,22 @@ interface Drag {
     drop_done(success: boolean): void
     /**
      * Determines the bitmask of possible actions proposed by the source.
+     * @returns the `GdkDragAction` flags
      */
     get_actions(): DragAction
     /**
      * Returns the `GdkContentProvider` associated to the `GdkDrag` object.
+     * @returns The `GdkContentProvider` associated to @drag.
      */
     get_content(): ContentProvider
     /**
      * Returns the `GdkDevice` associated to the `GdkDrag` object.
+     * @returns The `GdkDevice` associated to @drag.
      */
     get_device(): Device
     /**
      * Gets the `GdkDisplay` that the drag object was created for.
+     * @returns a `GdkDisplay`
      */
     get_display(): Display
     /**
@@ -7282,18 +7600,22 @@ interface Drag {
      * has begun. GDK will move the surface in accordance with the ongoing
      * drag operation. The surface is owned by `drag` and will be destroyed
      * when the drag operation is over.
+     * @returns the drag surface
      */
     get_drag_surface(): Surface | null
     /**
      * Retrieves the formats supported by this `GdkDrag` object.
+     * @returns a `GdkContentFormats`
      */
     get_formats(): ContentFormats
     /**
      * Determines the action chosen by the drag destination.
+     * @returns a `GdkDragAction` value
      */
     get_selected_action(): DragAction
     /**
      * Returns the `GdkSurface` where the drag originates.
+     * @returns The `GdkSurface` where the drag originates
      */
     get_surface(): Surface
     /**
@@ -7392,6 +7714,7 @@ class Drag extends GObject.Object {
      * @param actions the actions supported by this drag
      * @param dx the x offset to `device'`s position where the drag nominally started
      * @param dy the y offset to `device'`s position where the drag nominally started
+     * @returns a newly created `GdkDrag`
      */
     static begin(surface: Surface, device: Device, content: ContentProvider, actions: DragAction, dx: number, dy: number): Drag | null
 }
@@ -7472,6 +7795,7 @@ interface DrawContext {
     end_frame(): void
     /**
      * Retrieves the `GdkDisplay` the `context` is created for
+     * @returns the `GdkDisplay`
      */
     get_display(): Display | null
     /**
@@ -7483,10 +7807,12 @@ interface DrawContext {
      * 
      * If `context` is not in between calls to [method`Gdk`.DrawContext.begin_frame]
      * and [method`Gdk`.DrawContext.end_frame], %NULL will be returned.
+     * @returns a Cairo region
      */
     get_frame_region(): cairo.Region | null
     /**
      * Retrieves the surface that `context` is bound to.
+     * @returns a `GdkSurface`
      */
     get_surface(): Surface | null
     /**
@@ -7495,6 +7821,7 @@ interface DrawContext {
      * This is the case between calls to [method`Gdk`.DrawContext.begin_frame]
      * and [method`Gdk`.DrawContext.end_frame]. In this situation, drawing commands
      * may be effecting the contents of the `context'`s surface.
+     * @returns %TRUE if the context is between [method@Gdk.DrawContext.begin_frame]   and [method@Gdk.DrawContext.end_frame] calls.
      */
     is_in_frame(): boolean
 
@@ -7623,14 +7950,17 @@ interface Drop {
      * both as a response to source side actions as well as to calls to
      * [method`Gdk`.Drop.status] or [method`Gdk`.Drop.finish]. The source
      * side will not change this value anymore once a drop has started.
+     * @returns The possible `GdkDragActions`
      */
     get_actions(): DragAction
     /**
      * Returns the `GdkDevice` performing the drop.
+     * @returns The `GdkDevice` performing the drop.
      */
     get_device(): Device
     /**
      * Gets the `GdkDisplay` that `self` was created for.
+     * @returns a `GdkDisplay`
      */
     get_display(): Display
     /**
@@ -7638,15 +7968,18 @@ interface Drop {
      * that corresponds to this drop.
      * 
      * If it is not, %NULL is returned.
+     * @returns the corresponding `GdkDrag`
      */
     get_drag(): Drag | null
     /**
      * Returns the `GdkContentFormats` that the drop offers the data
      * to be read in.
+     * @returns The possible `GdkContentFormats`
      */
     get_formats(): ContentFormats
     /**
      * Returns the `GdkSurface` performing the drop.
+     * @returns The `GdkSurface` performing the drop.
      */
     get_surface(): Surface
     /**
@@ -7658,6 +7991,20 @@ interface Drop {
      * @param callback a `GAsyncReadyCallback` to call when   the request is satisfied
      */
     read_async(mime_types: string[], io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_async
+
+    /**
+     * Promisified version of {@link read_async}
+     * 
+     * Asynchronously read the dropped data from a `GdkDrop`
+     * in a format that complies with one of the mime types.
+     * @param mime_types    pointer to an array of mime types
+     * @param io_priority the I/O priority for the read operation
+     * @param cancellable optional `GCancellable` object
+     * @returns A Promise of: the `GInputStream`
+     */
+    read_async(mime_types: string[], io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* out_mime_type */ string>
     /**
      * Finishes an async drop read operation.
      * 
@@ -7668,6 +8015,7 @@ interface Drop {
      * 
      * See [method`Gdk`.Drop.read_async].
      * @param result a `GAsyncResult`
+     * @returns the `GInputStream`
      */
     read_finish(result: Gio.AsyncResult): [ /* returnType */ Gio.InputStream | null, /* out_mime_type */ string ]
     /**
@@ -7687,11 +8035,34 @@ interface Drop {
      * @param callback callback to call when the request is satisfied
      */
     read_value_async(type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+
+    // Overloads of read_value_async
+
+    /**
+     * Promisified version of {@link read_value_async}
+     * 
+     * Asynchronously request the drag operation's contents converted
+     * to the given `type`.
+     * 
+     * When the operation is finished `callback` will be called. You must
+     * then call [method`Gdk`.Drop.read_value_finish] to get the resulting
+     * `GValue`.
+     * 
+     * For local drag-and-drop operations that are available in the given
+     * `GType`, the value will be copied directly. Otherwise, GDK will
+     * try to use [func`Gdk`.content_deserialize_async] to convert the data.
+     * @param type a `GType` to read
+     * @param io_priority the I/O priority of the request.
+     * @param cancellable optional `GCancellable` object, %NULL to ignore.
+     * @returns A Promise of: a `GValue` containing the result.
+     */
+    read_value_async(type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<any>
     /**
      * Finishes an async drop read.
      * 
      * See [method`Gdk`.Drop.read_value_async].
      * @param result a `GAsyncResult`
+     * @returns a `GValue` containing the result.
      */
     read_value_finish(result: Gio.AsyncResult): any
     /**
@@ -7783,6 +8154,7 @@ interface Event {
      * This assumes that both events have X/Y information.
      * If not, this function returns %FALSE.
      * @param event2 second `GdkEvent`
+     * @returns %TRUE if the angle could be calculated.
      */
     _get_angle(event2: Event): [ /* returnType */ boolean, /* angle */ number ]
     /**
@@ -7791,6 +8163,7 @@ interface Event {
      * This assumes that both events have X/Y information.
      * If not, this function returns %FALSE.
      * @param event2 second `GdkEvent`
+     * @returns %TRUE if the center could be calculated.
      */
     _get_center(event2: Event): [ /* returnType */ boolean, /* x */ number, /* y */ number ]
     /**
@@ -7799,6 +8172,7 @@ interface Event {
      * This assumes that both events have X/Y information.
      * If not, this function returns %FALSE.
      * @param event2 second `GdkEvent`
+     * @returns %TRUE if the distance could be calculated.
      */
     _get_distance(event2: Event): [ /* returnType */ boolean, /* distance */ number ]
     /**
@@ -7806,6 +8180,7 @@ interface Event {
      * 
      * To find out which axes are used, use [method`Gdk`.DeviceTool.get_axes]
      * on the device tool returned by [method`Gdk`.Event.get_device_tool].
+     * @returns %TRUE on success, otherwise %FALSE
      */
     get_axes(): [ /* returnType */ boolean, /* axes */ number[] ]
     /**
@@ -7815,10 +8190,12 @@ interface Event {
      * To find out which axes are used, use [method`Gdk`.DeviceTool.get_axes]
      * on the device tool returned by [method`Gdk`.Event.get_device_tool].
      * @param axis_use the axis use to look for
+     * @returns %TRUE if the specified axis was found, otherwise %FALSE
      */
     get_axis(axis_use: AxisUse): [ /* returnType */ boolean, /* value */ number ]
     /**
      * Returns the device of an event.
+     * @returns a `GdkDevice`
      */
     get_device(): Device | null
     /**
@@ -7832,10 +8209,12 @@ interface Event {
      * Note: the `GdkDeviceTool` will be constant during
      * the application lifetime, if settings must be stored
      * persistently across runs, see [method`Gdk`.DeviceTool.get_serial].
+     * @returns The current device tool
      */
     get_device_tool(): DeviceTool | null
     /**
      * Retrieves the display associated to the `event`.
+     * @returns a `GdkDisplay`
      */
     get_display(): Display | null
     /**
@@ -7843,10 +8222,12 @@ interface Event {
      * 
      * Related touch events are connected in a sequence. Other
      * events typically don't have event sequence information.
+     * @returns the event sequence that the event belongs to
      */
     get_event_sequence(): EventSequence
     /**
      * Retrieves the type of the event.
+     * @returns a `GdkEvent`Type
      */
     get_event_type(): EventType
     /**
@@ -7859,16 +8240,19 @@ interface Event {
      * Note that only motion and scroll events record history, and motion
      * events do it only if one of the mouse buttons is down, or the device
      * has a tool.
+     * @returns an   array of time and coordinates
      */
     get_history(): TimeCoord[] | null
     /**
      * Returns the modifier state field of an event.
+     * @returns the modifier state of @event
      */
     get_modifier_state(): ModifierType
     /**
      * Returns whether this event is an 'emulated' pointer event.
      * 
      * Emulated pointer events typically originate from a touch events.
+     * @returns %TRUE if this event is emulated
      */
     get_pointer_emulated(): boolean
     /**
@@ -7877,10 +8261,12 @@ interface Event {
     get_position(): [ /* returnType */ boolean, /* x */ number, /* y */ number ]
     /**
      * Returns the seat that originated the event.
+     * @returns a `GdkSeat`.
      */
     get_seat(): Seat | null
     /**
      * Extracts the surface associated with an event.
+     * @returns The `GdkSurface` associated with the event
      */
     get_surface(): Surface | null
     /**
@@ -7888,10 +8274,12 @@ interface Event {
      * 
      * Not all events have timestamps. In that case, this function
      * returns %GDK_CURRENT_TIME.
+     * @returns timestamp field from @event
      */
     get_time(): number
     /**
      * Increase the ref count of `event`.
+     * @returns @event
      */
     ref(): Event
     /**
@@ -7902,6 +8290,7 @@ interface Event {
      * 
      * This function should always be used instead of simply checking for
      * event->button == %GDK_BUTTON_SECONDARY.
+     * @returns %TRUE if the event should trigger a context menu.
      */
     triggers_context_menu(): boolean
     /**
@@ -7935,6 +8324,7 @@ interface FocusEvent {
     /**
      * Extracts whether this event is about focus entering or
      * leaving the surface.
+     * @returns %TRUE of the focus is entering
      */
     get_in(): boolean
 }
@@ -8033,16 +8423,19 @@ interface FrameClock {
     end_updating(): void
     /**
      * Gets the frame timings for the current frame.
+     * @returns the `GdkFrameTimings` for the   frame currently being processed, or even no frame is being   processed, for the previous frame. Before any frames have been   processed, returns %NULL.
      */
     get_current_timings(): FrameTimings | null
     /**
      * Calculates the current frames-per-second, based on the
      * frame timings of `frame_clock`.
+     * @returns the current fps, as a `double`
      */
     get_fps(): number
     /**
      * `GdkFrameClock` maintains a 64-bit counter that increments for
      * each frame drawn.
+     * @returns inside frame processing, the value of the frame counter   for the current frame. Outside of frame processing, the frame   counter for the last frame.
      */
     get_frame_counter(): number
     /**
@@ -8053,6 +8446,7 @@ interface FrameClock {
      * the time of the conceptual “previous frame,” which may be either
      * the actual previous frame time, or if that’s too old, an updated
      * time.
+     * @returns a timestamp in microseconds, in the timescale of  of g_get_monotonic_time().
      */
     get_frame_time(): number
     /**
@@ -8064,6 +8458,7 @@ interface FrameClock {
      * is the set from the counter values given by
      * [method`Gdk`.FrameClock.get_history_start] and
      * [method`Gdk`.FrameClock.get_frame_counter], inclusive.
+     * @returns the frame counter value for the oldest frame  that is available in the internal frame history of the  `GdkFrameClock`
      */
     get_history_start(): number
     /**
@@ -8085,6 +8480,7 @@ interface FrameClock {
      * [method`Gdk`.FrameTimings.get_complete] and
      * [method`Gdk`.FrameClock.get_history_start].
      * @param frame_counter the frame counter value identifying the frame to  be received
+     * @returns the `GdkFrameTimings` object   for the specified frame, or %NULL if it is not available
      */
     get_timings(frame_counter: number): FrameTimings | null
     /**
@@ -8231,28 +8627,33 @@ interface GLContext {
 
     /**
      * Gets the allowed APIs set via gdk_gl_context_set_allowed_apis().
+     * @returns the allowed APIs
      */
     get_allowed_apis(): GLAPI
     /**
      * Gets the API currently in use.
      * 
      * If the renderer has not been realized yet, 0 is returned.
+     * @returns the currently used API
      */
     get_api(): GLAPI
     /**
      * Retrieves whether the context is doing extra validations and runtime checking.
      * 
      * See [method`Gdk`.GLContext.set_debug_enabled].
+     * @returns %TRUE if debugging is enabled
      */
     get_debug_enabled(): boolean
     /**
      * Retrieves the display the `context` is created for
+     * @returns a `GdkDisplay`
      */
     get_display(): Display | null
     /**
      * Retrieves whether the context is forward-compatible.
      * 
      * See [method`Gdk`.GLContext.set_forward_compatible].
+     * @returns %TRUE if the context should be forward-compatible
      */
     get_forward_compatible(): boolean
     /**
@@ -8269,14 +8670,17 @@ interface GLContext {
      * 
      * As many contexts can share data now and no single shared context exists
      * anymore, this function has been deprecated and now always returns %NULL.
+     * @returns %NULL
      */
     get_shared_context(): GLContext | null
     /**
      * Retrieves the surface used by the `context`.
+     * @returns a `GdkSurface`
      */
     get_surface(): Surface | null
     /**
      * Checks whether the `context` is using an OpenGL or OpenGL ES profile.
+     * @returns %TRUE if the `GdkGLContext` is using an OpenGL ES profile; %FALSE if other profile is in use of if the @context has not yet been realized.
      */
     get_use_es(): boolean
     /**
@@ -8305,6 +8709,7 @@ interface GLContext {
      * You can use the value returned by this function to decide which kind
      * of OpenGL API to use, or whether to do extension discovery, or what
      * kind of shader programs to load.
+     * @returns %TRUE if the GL context is in legacy mode
      */
     is_legacy(): boolean
     /**
@@ -8321,6 +8726,7 @@ interface GLContext {
      * Both contexts must be realized for this check to succeed. If either one
      * is not, this function will return %FALSE.
      * @param other the `GdkGLContext` that should be compatible with `self`
+     * @returns %TRUE if the two GL contexts are compatible.
      */
     is_shared(other: GLContext): boolean
     /**
@@ -8331,6 +8737,7 @@ interface GLContext {
      * Realizes the given `GdkGLContext`.
      * 
      * It is safe to call this function on a realized `GdkGLContext`.
+     * @returns %TRUE if the context is realized
      */
     realize(): boolean
     /**
@@ -8495,6 +8902,7 @@ class GLContext extends DrawContext {
     static clear_current(): void
     /**
      * Retrieves the current `GdkGLContext`.
+     * @returns the current `GdkGLContext`
      */
     static get_current(): GLContext | null
 }
@@ -8562,6 +8970,7 @@ class GLTexture extends Texture {
      * @param height the nominal height of the texture
      * @param destroy a destroy notify that will be called when the GL resources   are released
      * @param data data that gets passed to `destroy`
+     * @returns A newly-created   `GdkTexture`
      */
     constructor(context: GLContext, id: number, width: number, height: number, destroy: GLib.DestroyNotify, data: object | null) 
     /**
@@ -8577,6 +8986,7 @@ class GLTexture extends Texture {
      * @param height the nominal height of the texture
      * @param destroy a destroy notify that will be called when the GL resources   are released
      * @param data data that gets passed to `destroy`
+     * @returns A newly-created   `GdkTexture`
      */
     static new(context: GLContext, id: number, width: number, height: number, destroy: GLib.DestroyNotify, data: object | null): GLTexture
     _init(config?: GLTexture.ConstructorProperties): void
@@ -8588,10 +8998,12 @@ interface GrabBrokenEvent {
 
     /**
      * Extracts the grab surface from a grab broken event.
+     * @returns the grab surface of @event
      */
     get_grab_surface(): Surface
     /**
      * Checks whether the grab broken event is for an implicit grab.
+     * @returns %TRUE if the an implicit grab was broken
      */
     get_implicit(): boolean
 }
@@ -8613,22 +9025,27 @@ interface KeyEvent {
 
     /**
      * Extracts the consumed modifiers from a key event.
+     * @returns the consumed modifiers or @event
      */
     get_consumed_modifiers(): ModifierType
     /**
      * Extracts the keycode from a key event.
+     * @returns the keycode of @event
      */
     get_keycode(): number
     /**
      * Extracts the keyval from a key event.
+     * @returns the keyval of @event
      */
     get_keyval(): number
     /**
      * Extracts the layout from a key event.
+     * @returns the layout of @event
      */
     get_layout(): number
     /**
      * Extracts the shift level from a key event.
+     * @returns the shift level of @event
      */
     get_level(): number
     /**
@@ -8636,10 +9053,12 @@ interface KeyEvent {
      * the event.
      * 
      * See [method`Gdk`.KeyEvent.matches].
+     * @returns %TRUE on success
      */
     get_match(): [ /* returnType */ boolean, /* keyval */ number, /* modifiers */ ModifierType ]
     /**
      * Extracts whether the key event is for a modifier key.
+     * @returns %TRUE if the @event is for a modifier key
      */
     is_modifier(): boolean
     /**
@@ -8653,6 +9072,7 @@ interface KeyEvent {
      * Note that we ignore Caps Lock for matching.
      * @param keyval the keyval to match
      * @param modifiers the modifiers to match
+     * @returns a `GdkKeyMatch` value describing whether @event matches
      */
     matches(keyval: number, modifiers: ModifierType): KeyMatch
 }
@@ -8718,6 +9138,7 @@ class MemoryTexture extends Texture {
      * @param format the format of the data
      * @param bytes the `GBytes` containing the pixel data
      * @param stride rowstride for the data
+     * @returns A newly-created `GdkTexture`
      */
     constructor(width: number, height: number, format: MemoryFormat, bytes: GLib.Bytes, stride: number) 
     /**
@@ -8731,6 +9152,7 @@ class MemoryTexture extends Texture {
      * @param format the format of the data
      * @param bytes the `GBytes` containing the pixel data
      * @param stride rowstride for the data
+     * @returns A newly-created `GdkTexture`
      */
     static new(width: number, height: number, format: MemoryFormat, bytes: GLib.Bytes, stride: number): MemoryTexture
     _init(config?: MemoryTexture.ConstructorProperties): void
@@ -8815,10 +9237,12 @@ interface Monitor {
 
     /**
      * Gets the name of the monitor's connector, if available.
+     * @returns the name of the connector
      */
     get_connector(): string | null
     /**
      * Gets the display that this monitor belongs to.
+     * @returns the display
      */
     get_display(): Display
     /**
@@ -8831,6 +9255,7 @@ interface Monitor {
     get_geometry(): /* geometry */ Rectangle
     /**
      * Gets the height in millimeters of the monitor.
+     * @returns the physical height of the monitor
      */
     get_height_mm(): number
     /**
@@ -8841,10 +9266,12 @@ interface Monitor {
      * 
      * The PNP ID registry is located at
      * [https://uefi.org/pnp_id_list](https://uefi.org/pnp_id_list).
+     * @returns the name of the manufacturer
      */
     get_manufacturer(): string | null
     /**
      * Gets the string identifying the monitor model, if available.
+     * @returns the monitor model
      */
     get_model(): string | null
     /**
@@ -8852,6 +9279,7 @@ interface Monitor {
      * 
      * The value is in milli-Hertz, so a refresh rate of 60Hz
      * is returned as 60000.
+     * @returns the refresh rate in milli-Hertz, or 0
      */
     get_refresh_rate(): number
     /**
@@ -8864,15 +9292,18 @@ interface Monitor {
      * This can be used if you want to create pixel based data for a
      * particular monitor, but most of the time you’re drawing to a surface
      * where it is better to use [method`Gdk`.Surface.get_scale_factor] instead.
+     * @returns the scale factor
      */
     get_scale_factor(): number
     /**
      * Gets information about the layout of red, green and blue
      * primaries for pixels.
+     * @returns the subpixel layout
      */
     get_subpixel_layout(): SubpixelLayout
     /**
      * Gets the width in millimeters of the monitor.
+     * @returns the physical width of the monitor
      */
     get_width_mm(): number
     /**
@@ -8881,6 +9312,7 @@ interface Monitor {
      * 
      * The `monitor` becomes invalid when the physical monitor
      * is unplugged or removed.
+     * @returns %TRUE if the object corresponds to a physical monitor
      */
     is_valid(): boolean
 
@@ -8979,6 +9411,7 @@ interface PadEvent {
     /**
      * Extracts information about the pressed button from
      * a pad event.
+     * @returns the button of @event
      */
     get_button(): number
     /**
@@ -9028,6 +9461,7 @@ interface ScrollEvent {
     get_deltas(): [ /* delta_x */ number, /* delta_y */ number ]
     /**
      * Extracts the direction of a scroll event.
+     * @returns the scroll direction of @event
      */
     get_direction(): ScrollDirection
     /**
@@ -9035,6 +9469,7 @@ interface ScrollEvent {
      * 
      * The unit will always be %GDK_SCROLL_UNIT_WHEEL if the scroll direction is not
      * %GDK_SCROLL_SMOOTH.
+     * @returns the scroll unit.
      */
     get_unit(): ScrollUnit
     /**
@@ -9047,6 +9482,7 @@ interface ScrollEvent {
      * velocity.
      * 
      * Stop scroll events always have a delta of 0/0.
+     * @returns %TRUE if the event is a scroll stop event
      */
     is_stop(): boolean
 }
@@ -9126,27 +9562,33 @@ interface Seat {
 
     /**
      * Returns the capabilities this `GdkSeat` currently has.
+     * @returns the seat capabilities
      */
     get_capabilities(): SeatCapabilities
     /**
      * Returns the devices that match the given capabilities.
      * @param capabilities capabilities to get devices for
+     * @returns A list   of `GdkDevices`. The list must be freed with g_list_free(),   the elements are owned by GTK and must not be freed.
      */
     get_devices(capabilities: SeatCapabilities): Device[]
     /**
      * Returns the `GdkDisplay` this seat belongs to.
+     * @returns a `GdkDisplay`. This object   is owned by GTK and must not be freed.
      */
     get_display(): Display
     /**
      * Returns the device that routes keyboard events.
+     * @returns a `GdkDevice` with keyboard   capabilities. This object is owned by GTK and must not be freed.
      */
     get_keyboard(): Device | null
     /**
      * Returns the device that routes pointer events.
+     * @returns a `GdkDevice` with pointer   capabilities. This object is owned by GTK and must not be freed.
      */
     get_pointer(): Device | null
     /**
      * Returns all `GdkDeviceTools` that are known to the application.
+     * @returns    A list of tools. Free with g_list_free().
      */
     get_tools(): DeviceTool[]
 
@@ -9338,6 +9780,7 @@ interface Surface {
     beep(): void
     /**
      * Creates a new `GdkCairoContext` for rendering on `surface`.
+     * @returns the newly created `GdkCairoContext`
      */
     create_cairo_context(): CairoContext
     /**
@@ -9347,6 +9790,7 @@ interface Surface {
      * If the creation of the `GdkGLContext` failed, `error` will be set.
      * Before using the returned `GdkGLContext`, you will need to
      * call [method`Gdk`.GLContext.make_current] or [method`Gdk`.GLContext.realize].
+     * @returns the newly created `GdkGLContext`
      */
     create_gl_context(): GLContext
     /**
@@ -9368,12 +9812,14 @@ interface Surface {
      * @param content the content for the new surface
      * @param width width of the new surface
      * @param height height of the new surface
+     * @returns a pointer to the newly allocated surface. The caller   owns the surface and should call cairo_surface_destroy() when done   with it.
      */
     create_similar_surface(content: cairo.Content, width: number, height: number): cairo.Surface
     /**
      * Creates a new `GdkVulkanContext` for rendering on `surface`.
      * 
      * If the creation of the `GdkVulkanContext` failed, `error` will be set.
+     * @returns the newly created `GdkVulkanContext`, or   %NULL on error
      */
     create_vulkan_context(): VulkanContext
     /**
@@ -9396,6 +9842,7 @@ interface Surface {
      * the surface, and it is using the cursor for its parent surface.
      * 
      * Use [method`Gdk`.Surface.set_cursor] to unset the cursor of the surface.
+     * @returns a `GdkCursor`
      */
     get_cursor(): Cursor | null
     /**
@@ -9407,6 +9854,7 @@ interface Surface {
      * 
      * Use [method`Gdk`.Surface.set_cursor] to unset the cursor of the surface.
      * @param device a pointer `GdkDevice`
+     * @returns a `GdkCursor`
      */
     get_device_cursor(device: Device): Cursor | null
     /**
@@ -9415,10 +9863,12 @@ interface Surface {
      * The position is given in coordinates relative to the upper
      * left corner of `surface`.
      * @param device pointer `GdkDevice` to query to
+     * @returns %TRUE if the device is over the surface
      */
     get_device_position(device: Device): [ /* returnType */ boolean, /* x */ number, /* y */ number, /* mask */ ModifierType ]
     /**
      * Gets the `GdkDisplay` associated with a `GdkSurface`.
+     * @returns the `GdkDisplay` associated with @surface
      */
     get_display(): Display
     /**
@@ -9426,6 +9876,7 @@ interface Surface {
      * 
      * The frame clock for a surface never changes unless the surface is
      * reparented to a new toplevel surface.
+     * @returns the frame clock
      */
     get_frame_clock(): FrameClock
     /**
@@ -9433,6 +9884,7 @@ interface Surface {
      * 
      * Surface size is reported in ”application pixels”, not
      * ”device pixels” (see [method`Gdk`.Surface.get_scale_factor]).
+     * @returns The height of @surface
      */
     get_height(): number
     /**
@@ -9440,6 +9892,7 @@ interface Surface {
      * 
      * A surface is mapped with [method`Gdk`.Toplevel.present]
      * or [method`Gdk`.Popup.present].
+     * @returns %TRUE if the surface is mapped
      */
     get_mapped(): boolean
     /**
@@ -9454,6 +9907,7 @@ interface Surface {
      * use a pixel resource with higher resolution data.
      * 
      * The scale of a surface may change during runtime.
+     * @returns the scale factor
      */
     get_scale_factor(): number
     /**
@@ -9461,6 +9915,7 @@ interface Surface {
      * 
      * Surface size is reported in ”application pixels”, not
      * ”device pixels” (see [method`Gdk`.Surface.get_scale_factor]).
+     * @returns The width of @surface
      */
     get_width(): number
     /**
@@ -9474,6 +9929,7 @@ interface Surface {
     hide(): void
     /**
      * Check to see if a surface is destroyed.
+     * @returns %TRUE if the surface is destroyed
      */
     is_destroyed(): boolean
     /**
@@ -9559,6 +10015,7 @@ interface Surface {
      * @param to the target surface
      * @param x coordinates to translate
      * @param y coordinates to translate
+     * @returns %TRUE if the coordinates were successfully translated
      */
     translate_coordinates(to: Surface, x: number, y: number): [ /* returnType */ boolean, /* x */ number, /* y */ number ]
 
@@ -9639,12 +10096,14 @@ class Surface extends GObject.Object {
      * @constructor 
      * @param parent the parent surface to attach the surface to
      * @param autohide whether to hide the surface on outside clicks
+     * @returns a new `GdkSurface`
      */
     static new_popup(parent: Surface, autohide: boolean): Surface
     /**
      * Creates a new toplevel surface.
      * @constructor 
      * @param display the display to create the surface on
+     * @returns the new `GdkSurface`
      */
     static new_toplevel(display: Display): Surface
     _init(config?: Surface.ConstructorProperties): void
@@ -9711,10 +10170,12 @@ interface Texture extends Paintable, Gio.Icon, Gio.LoadableIcon {
     download(data: Uint8Array, stride: number): void
     /**
      * Returns the height of the `texture,` in pixels.
+     * @returns the height of the `GdkTexture`
      */
     get_height(): number
     /**
      * Returns the width of `texture,` in pixels.
+     * @returns the width of the `GdkTexture`
      */
     get_width(): number
     /**
@@ -9726,6 +10187,7 @@ interface Texture extends Paintable, Gio.Icon, Gio.LoadableIcon {
      * use [method`Gdk`.Texture.save_to_png_bytes] or look into the
      * gdk-pixbuf library.
      * @param filename the filename to store to
+     * @returns %TRUE if saving succeeded, %FALSE on failure.
      */
     save_to_png(filename: string): boolean
     /**
@@ -9743,6 +10205,7 @@ interface Texture extends Paintable, Gio.Icon, Gio.LoadableIcon {
      * If you are dealing with high dynamic range float data, you
      * might also want to consider [method`Gdk`.Texture.save_to_tiff_bytes]
      * instead.
+     * @returns a newly allocated `GBytes` containing PNG data
      */
     save_to_png_bytes(): GLib.Bytes
     /**
@@ -9750,6 +10213,7 @@ interface Texture extends Paintable, Gio.Icon, Gio.LoadableIcon {
      * 
      * GTK will attempt to store data without loss.
      * @param filename the filename to store to
+     * @returns %TRUE if saving succeeded, %FALSE on failure.
      */
     save_to_tiff(filename: string): boolean
     /**
@@ -9765,6 +10229,7 @@ interface Texture extends Paintable, Gio.Icon, Gio.LoadableIcon {
      * If that is not your concern and you are interested in a
      * smaller size and a more portable format, you might want to
      * use [method`Gdk`.Texture.save_to_png_bytes].
+     * @returns a newly allocated `GBytes` containing TIFF data
      */
     save_to_tiff_bytes(): GLib.Bytes
 
@@ -9817,6 +10282,7 @@ class Texture extends GObject.Object {
      * while loading a big image.
      * @constructor 
      * @param pixbuf a `GdkPixbuf`
+     * @returns a new `GdkTexture`
      */
     static new_for_pixbuf(pixbuf: GdkPixbuf.Pixbuf): Texture
     /**
@@ -9832,6 +10298,7 @@ class Texture extends GObject.Object {
      * while loading a big image.
      * @constructor 
      * @param bytes a `GBytes` containing the data to load
+     * @returns A newly-created `GdkTexture`
      */
     static new_from_bytes(bytes: GLib.Bytes): Texture
     /**
@@ -9847,6 +10314,7 @@ class Texture extends GObject.Object {
      * while loading a big image.
      * @constructor 
      * @param file `GFile` to load
+     * @returns A newly-created `GdkTexture`
      */
     static new_from_file(file: Gio.File): Texture
     /**
@@ -9862,6 +10330,7 @@ class Texture extends GObject.Object {
      * while loading a big image.
      * @constructor 
      * @param path the filename to load
+     * @returns A newly-created `GdkTexture`
      */
     static new_from_filename(path: string): Texture
     /**
@@ -9880,6 +10349,7 @@ class Texture extends GObject.Object {
      * while loading a big image.
      * @constructor 
      * @param resource_path the path of the resource file
+     * @returns A newly-created `GdkTexture`
      */
     static new_from_resource(resource_path: string): Texture
     _init(config?: Texture.ConstructorProperties): void
@@ -9891,6 +10361,7 @@ interface TouchEvent {
 
     /**
      * Extracts whether a touch event is emulating a pointer event.
+     * @returns %TRUE if @event is emulating
      */
     get_emulating_pointer(): boolean
 }
@@ -9916,18 +10387,22 @@ interface TouchpadEvent {
     get_deltas(): [ /* dx */ number, /* dy */ number ]
     /**
      * Extracts the touchpad gesture phase from a touchpad event.
+     * @returns the gesture phase of @event
      */
     get_gesture_phase(): TouchpadGesturePhase
     /**
      * Extracts the number of fingers from a touchpad event.
+     * @returns the number of fingers for @event
      */
     get_n_fingers(): number
     /**
      * Extracts the angle delta from a touchpad pinch event.
+     * @returns the angle delta of @event
      */
     get_pinch_angle_delta(): number
     /**
      * Extracts the scale from a touchpad pinch event.
+     * @returns the scale of @event
      */
     get_pinch_scale(): number
 }
@@ -10021,11 +10496,13 @@ interface ContentFormats {
     /**
      * Checks if a given `GType` is part of the given `formats`.
      * @param type the `GType` to search for
+     * @returns %TRUE if the `GType` was found
      */
     contain_gtype(type: GObject.GType): boolean
     /**
      * Checks if a given mime type is part of the given `formats`.
      * @param mime_type the mime type to search for
+     * @returns %TRUE if the mime_type was found
      */
     contain_mime_type(mime_type: string): boolean
     /**
@@ -10033,6 +10510,7 @@ interface ContentFormats {
      * 
      * Note that `formats` may not contain any `GType`s, in particular when
      * they are empty. In that case %NULL will be returned.
+     * @returns    %G_TYPE_INVALID-terminated array of types included in @formats
      */
     get_gtypes(): GObject.GType[] | null
     /**
@@ -10040,11 +10518,13 @@ interface ContentFormats {
      * 
      * Note that `formats` may not contain any mime types, in particular
      * when they are empty. In that case %NULL will be returned.
+     * @returns    %NULL-terminated array of interned strings of mime types included   in @formats
      */
     get_mime_types(): string[] | null
     /**
      * Checks if `first` and `second` have any matching formats.
      * @param second the `GdkContentFormats` to intersect with
+     * @returns %TRUE if a matching format was found.
      */
     match(second: ContentFormats): boolean
     /**
@@ -10053,6 +10533,7 @@ interface ContentFormats {
      * 
      * If no matching `GType` is found, %G_TYPE_INVALID is returned.
      * @param second the `GdkContentFormats` to intersect with
+     * @returns The first common `GType` or %G_TYPE_INVALID if none.
      */
     match_gtype(second: ContentFormats): GObject.GType
     /**
@@ -10061,6 +10542,7 @@ interface ContentFormats {
      * 
      * If no matching mime type is found, %NULL is returned.
      * @param second the `GdkContentFormats` to intersect with
+     * @returns The first common mime type or %NULL if none
      */
     match_mime_type(second: ContentFormats): string | null
     /**
@@ -10073,6 +10555,7 @@ interface ContentFormats {
     print(string: GLib.String): void
     /**
      * Increases the reference count of a `GdkContentFormats` by one.
+     * @returns the passed in `GdkContentFormats`.
      */
     ref(): ContentFormats
     /**
@@ -10082,32 +10565,38 @@ interface ContentFormats {
      * 
      * This is a small wrapper around [method`Gdk`.ContentFormats.print]
      * to help when debugging.
+     * @returns a new string
      */
     to_string(): string
     /**
      * Append all missing types from `second` to `first,` in the order
      * they had in `second`.
      * @param second the `GdkContentFormats` to merge from
+     * @returns a new `GdkContentFormats`
      */
     union(second: ContentFormats): ContentFormats
     /**
      * Add GTypes for mime types in `formats` for which deserializers are
      * registered.
+     * @returns a new `GdkContentFormats`
      */
     union_deserialize_gtypes(): ContentFormats
     /**
      * Add mime types for GTypes in `formats` for which deserializers are
      * registered.
+     * @returns a new `GdkContentFormats`
      */
     union_deserialize_mime_types(): ContentFormats
     /**
      * Add GTypes for the mime types in `formats` for which serializers are
      * registered.
+     * @returns a new `GdkContentFormats`
      */
     union_serialize_gtypes(): ContentFormats
     /**
      * Add mime types for GTypes in `formats` for which serializers are
      * registered.
+     * @returns a new `GdkContentFormats`
      */
     union_serialize_mime_types(): ContentFormats
     /**
@@ -10169,6 +10658,7 @@ class ContentFormats {
      * this, use [struct`Gdk`.ContentFormatsBuilder] instead.
      * @constructor 
      * @param mime_types Pointer to an   array of mime types
+     * @returns the new `GdkContentFormats`.
      */
     constructor(mime_types: string[] | null) 
     /**
@@ -10179,12 +10669,14 @@ class ContentFormats {
      * this, use [struct`Gdk`.ContentFormatsBuilder] instead.
      * @constructor 
      * @param mime_types Pointer to an   array of mime types
+     * @returns the new `GdkContentFormats`.
      */
     static new(mime_types: string[] | null): ContentFormats
     /**
      * Creates a new `GdkContentFormats` for a given `GType`.
      * @constructor 
      * @param type a `GType`
+     * @returns a new `GdkContentFormats`
      */
     static new_for_gtype(type: GObject.GType): ContentFormats
     /**
@@ -10197,6 +10689,7 @@ class ContentFormats {
      * If `string` does not describe valid content formats, %NULL
      * is returned.
      * @param string the string to parse
+     * @returns the content formats if @string is valid
      */
     static parse(string: string): ContentFormats | null
 }
@@ -10226,6 +10719,7 @@ interface ContentFormatsBuilder {
      * 
      * This function is intended primarily for bindings.
      * `GdkContentFormatsBuilder` objects should not be kept around.
+     * @returns the given `GdkContentFormatsBuilder`   with its reference count increased
      */
     ref(): ContentFormatsBuilder
     /**
@@ -10236,6 +10730,7 @@ interface ContentFormatsBuilder {
      * 
      * This function is intended primarily for bindings. C code should use
      * [method`Gdk`.ContentFormatsBuilder.free_to_formats].
+     * @returns the newly created `GdkContentFormats`   with all the formats added to @builder
      */
     to_formats(): ContentFormats
     /**
@@ -10263,6 +10758,7 @@ class ContentFormatsBuilder {
      * The resulting builder would create an empty `GdkContentFormats`.
      * Use addition functions to add types to it.
      * @constructor 
+     * @returns a new `GdkContentFormatsBuilder`
      */
     constructor() 
     /**
@@ -10271,6 +10767,7 @@ class ContentFormatsBuilder {
      * The resulting builder would create an empty `GdkContentFormats`.
      * Use addition functions to add types to it.
      * @constructor 
+     * @returns a new `GdkContentFormatsBuilder`
      */
     static new(): ContentFormatsBuilder
 }
@@ -10348,6 +10845,7 @@ interface FileList {
      * Retrieves the list of files inside a `GdkFileList`.
      * 
      * This function is meant for language bindings.
+     * @returns the files inside the list
      */
     get_files(): Gio.File[]
 }
@@ -10370,6 +10868,7 @@ class FileList {
      * This function is meant to be used by language bindings.
      * @constructor 
      * @param files the files to add to the list
+     * @returns the newly create files list
      */
     static new_from_array(files: Gio.File[]): FileList
     /**
@@ -10379,6 +10878,7 @@ class FileList {
      * This function is meant to be used by language bindings
      * @constructor 
      * @param files a list of files
+     * @returns the newly created files list
      */
     static new_from_list(files: Gio.File[]): FileList
 }
@@ -10421,11 +10921,13 @@ interface FrameTimings {
      * Once this function returns %TRUE for a frame, you can be
      * certain that no further values will become available and be
      * stored in the `GdkFrameTimings`.
+     * @returns %TRUE if all information that will be available   for the frame has been filled in.
      */
     get_complete(): boolean
     /**
      * Gets the frame counter value of the `GdkFrameClock` when
      * this frame was drawn.
+     * @returns the frame counter value for this frame
      */
     get_frame_counter(): number
     /**
@@ -10433,6 +10935,7 @@ interface FrameTimings {
      * 
      * This is the time value that is typically used to time
      * animations for the frame. See [method`Gdk`.FrameClock.get_frame_time].
+     * @returns the frame time for the frame, in the timescale  of g_get_monotonic_time()
      */
     get_frame_time(): number
     /**
@@ -10448,12 +10951,14 @@ interface FrameTimings {
      * but this function is useful for applications that want exact control
      * over latency. For example, a movie player may want this information
      * for Audio/Video synchronization.
+     * @returns The predicted time at which the frame will be presented,   in the timescale of g_get_monotonic_time(), or 0 if no predicted   presentation time is available.
      */
     get_predicted_presentation_time(): number
     /**
      * Reurns the presentation time.
      * 
      * This is the time at which the frame became visible to the user.
+     * @returns the time the frame was displayed to the user, in the   timescale of g_get_monotonic_time(), or 0 if no presentation   time is available. See [method@Gdk.FrameTimings.get_complete]
      */
     get_presentation_time(): number
     /**
@@ -10462,10 +10967,12 @@ interface FrameTimings {
      * 
      * Frame presentation usually happens during the “vertical
      * blanking interval”.
+     * @returns the refresh interval of the display, in microseconds,   or 0 if the refresh interval is not available.   See [method@Gdk.FrameTimings.get_complete].
      */
     get_refresh_interval(): number
     /**
      * Increases the reference count of `timings`.
+     * @returns @timings
      */
     ref(): FrameTimings
     /**
@@ -10612,19 +11119,23 @@ interface PopupLayout {
 
     /**
      * Makes a copy of `layout`.
+     * @returns a copy of @layout.
      */
     copy(): PopupLayout
     /**
      * Check whether `layout` and `other` has identical layout properties.
      * @param other another `GdkPopupLayout`
+     * @returns %TRUE if @layout and @other have identical layout properties,   otherwise %FALSE.
      */
     equal(other: PopupLayout): boolean
     /**
      * Get the `GdkAnchorHints`.
+     * @returns the `GdkAnchorHints`
      */
     get_anchor_hints(): AnchorHints
     /**
      * Get the anchor rectangle.
+     * @returns The anchor rectangle
      */
     get_anchor_rect(): Rectangle
     /**
@@ -10633,6 +11144,7 @@ interface PopupLayout {
     get_offset(): [ /* dx */ number, /* dy */ number ]
     /**
      * Returns the anchor position on the anchor rectangle.
+     * @returns the anchor on the anchor rectangle.
      */
     get_rect_anchor(): Gravity
     /**
@@ -10641,10 +11153,12 @@ interface PopupLayout {
     get_shadow_width(): [ /* left */ number, /* right */ number, /* top */ number, /* bottom */ number ]
     /**
      * Returns the anchor position on the popup surface.
+     * @returns the anchor on the popup surface.
      */
     get_surface_anchor(): Gravity
     /**
      * Increases the reference count of `value`.
+     * @returns the same @layout
      */
     ref(): PopupLayout
     /**
@@ -10758,6 +11272,7 @@ class PopupLayout {
      * @param anchor_rect the anchor `GdkRectangle` to align `surface` with
      * @param rect_anchor the point on `anchor_rect` to align with `surface'`s anchor point
      * @param surface_anchor the point on `surface` to align with `rect'`s anchor point
+     * @returns newly created instance of `GdkPopupLayout`
      */
     constructor(anchor_rect: Rectangle, rect_anchor: Gravity, surface_anchor: Gravity) 
     /**
@@ -10777,6 +11292,7 @@ class PopupLayout {
      * @param anchor_rect the anchor `GdkRectangle` to align `surface` with
      * @param rect_anchor the point on `anchor_rect` to align with `surface'`s anchor point
      * @param surface_anchor the point on `surface` to align with `rect'`s anchor point
+     * @returns newly created instance of `GdkPopupLayout`
      */
     static new(anchor_rect: Rectangle, rect_anchor: Gravity, surface_anchor: Gravity): PopupLayout
 }
@@ -10813,11 +11329,13 @@ interface RGBA {
      * Makes a copy of a `GdkRGBA`.
      * 
      * The result must be freed through [method`Gdk`.RGBA.free].
+     * @returns A newly allocated `GdkRGBA`, with the same contents as @rgba
      */
     copy(): RGBA
     /**
      * Compares two `GdkRGBA` colors.
      * @param p2 another `GdkRGBA`
+     * @returns %TRUE if the two colors compare equal
      */
     equal(p2: RGBA): boolean
     /**
@@ -10827,12 +11345,14 @@ interface RGBA {
     /**
      * A hash function suitable for using for a hash
      * table that stores `GdkRGBA`s.
+     * @returns The hash value for @p
      */
     hash(): number
     /**
      * Checks if an `rgba` value is transparent.
      * 
      * That is, drawing with the value would not produce any change.
+     * @returns %TRUE if the @rgba is clear
      */
     is_clear(): boolean
     /**
@@ -10840,6 +11360,7 @@ interface RGBA {
      * 
      * That is, drawing with the value will not retain any results
      * from previous contents.
+     * @returns %TRUE if the @rgba is opaque
      */
     is_opaque(): boolean
     /**
@@ -10862,6 +11383,7 @@ interface RGBA {
      * values in the range 0% to 100%, and a is a floating point value
      * in the range 0 to 1.
      * @param spec the string specifying the color
+     * @returns %TRUE if the parsing succeeded
      */
     parse(spec: string): boolean
     /**
@@ -10878,6 +11400,7 @@ interface RGBA {
      * Note that this string representation may lose some precision,
      * since “r”, “g” and “b” are represented as 8-bit integers. If
      * this is a concern, you should use a different representation.
+     * @returns A newly allocated text string
      */
     to_string(): string
 }
@@ -10932,11 +11455,13 @@ interface Rectangle {
      * Returns %TRUE if `rect` contains the point described by `x` and `y`.
      * @param x X coordinate
      * @param y Y coordinate
+     * @returns %TRUE if @rect contains the point
      */
     contains_point(x: number, y: number): boolean
     /**
      * Checks if the two given rectangles are equal.
      * @param rect2 a `GdkRectangle`
+     * @returns %TRUE if the rectangles are equal.
      */
     equal(rect2: Rectangle): boolean
     /**
@@ -10948,6 +11473,7 @@ interface Rectangle {
      * in whether the rectangles intersect, but not in the intersecting area
      * itself, pass %NULL for `dest`.
      * @param src2 a `GdkRectangle`
+     * @returns %TRUE if the rectangles intersect.
      */
     intersect(src2: Rectangle): [ /* returnType */ boolean, /* dest */ Rectangle ]
     /**
@@ -11072,37 +11598,44 @@ interface ToplevelLayout {
 
     /**
      * Create a new `GdkToplevelLayout` and copy the contents of `layout` into it.
+     * @returns a copy of @layout.
      */
     copy(): ToplevelLayout
     /**
      * Check whether `layout` and `other` has identical layout properties.
      * @param other another `GdkToplevelLayout`
+     * @returns %TRUE if @layout and @other have identical layout properties,   otherwise %FALSE.
      */
     equal(other: ToplevelLayout): boolean
     /**
      * If the layout specifies whether to the toplevel should go fullscreen,
      * the value pointed to by `fullscreen` is set to %TRUE if it should go
      * fullscreen, or %FALSE, if it should go unfullscreen.
+     * @returns whether the @layout specifies the fullscreen state for the toplevel
      */
     get_fullscreen(): [ /* returnType */ boolean, /* fullscreen */ boolean ]
     /**
      * Returns the monitor that the layout is fullscreening
      * the surface on.
+     * @returns the monitor on which @layout fullscreens
      */
     get_fullscreen_monitor(): Monitor | null
     /**
      * If the layout specifies whether to the toplevel should go maximized,
      * the value pointed to by `maximized` is set to %TRUE if it should go
      * fullscreen, or %FALSE, if it should go unmaximized.
+     * @returns whether the @layout specifies the maximized state for the toplevel
      */
     get_maximized(): [ /* returnType */ boolean, /* maximized */ boolean ]
     /**
      * Returns whether the layout should allow the user
      * to resize the surface.
+     * @returns %TRUE if the layout is resizable
      */
     get_resizable(): boolean
     /**
      * Increases the reference count of `layout`.
+     * @returns the same @layout
      */
     ref(): ToplevelLayout
     /**
@@ -11159,6 +11692,7 @@ class ToplevelLayout {
      * The size is in ”application pixels”, not
      * ”device pixels” (see gdk_surface_get_scale_factor()).
      * @constructor 
+     * @returns newly created instance of `GdkToplevelLayout`
      */
     constructor() 
     /**
@@ -11170,6 +11704,7 @@ class ToplevelLayout {
      * The size is in ”application pixels”, not
      * ”device pixels” (see gdk_surface_get_scale_factor()).
      * @constructor 
+     * @returns newly created instance of `GdkToplevelLayout`
      */
     static new(): ToplevelLayout
 }

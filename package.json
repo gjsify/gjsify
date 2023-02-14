@@ -23,22 +23,9 @@
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.0.0-dev.20230214"
+    "typescript": "^5.0.0-beta"
   },
   "packageManager": "yarn@4.0.0-rc.39",
-  "disabled_resolutions": {
-    "@deepkit/core": "portal:../deepkit-framework/packages/core",
-    "@deepkit/event": "portal:../deepkit-framework/packages/event",
-    "@deepkit/stopwatch": "portal:../deepkit-framework/packages/stopwatch",
-    "@deepkit/workflow": "portal:../deepkit-framework/packages/workflow",
-    "@deepkit/app": "portal:../deepkit-framework/packages/app",
-    "@deepkit/injector": "portal:../deepkit-framework/packages/injector",
-    "@deepkit/type": "portal:../deepkit-framework/packages/type",
-    "@deepkit/type-compiler": "portal:../deepkit-framework/packages/type-compiler",
-    "@deepkit/type-spec": "portal:../deepkit-framework/packages/type-spec",
-    "@ts-for-gir/cli": "portal:../../ts-for-gir/packages/cli/",
-    "esbuild-plugin-glob": "portal:../../esbuild-plugin-glob"
-  },
   "workspaces": [
     "packages/infra/*",
     "packages/gjs/*",

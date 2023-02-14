@@ -11,7 +11,7 @@
         "print:name": "echo '@gjsify/esbuild-plugin-deepkit'",
         "build": "yarn print:name && yarn build:js && yarn build:types",
         "build:js": "node esbuild.mjs",
-        "build:types": "tsc --emitDeclarationOnly"
+        "build:types": "yarn tsc --emitDeclarationOnly"
     },
     "keywords": [
         "gjs",
@@ -19,11 +19,11 @@
         "fs"
     ],
     "dependencies": {
-        "@deepkit/type-compiler": "^1.0.1-alpha.83",
-        "@gjsify/resolve-npm": "workspace:^"
+        "@deepkit/type-compiler": "^1.0.1-alpha.83"
     },
     "devDependencies": {
+        "@types/node": "^18.13.0",
         "esbuild": "^0.17.8",
-        "typescript": "^5.0.0-dev.20230214"
+        "typescript": "^5.0.0-beta"
     }
 }
