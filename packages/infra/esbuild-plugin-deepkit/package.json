@@ -23,7 +23,7 @@
         "@gjsify/resolve-npm": "workspace:^"
     },
     "devDependencies": {
-        "esbuild": "^0.17.7",
-        "typescript": "^5.0.0-dev.20230210"
+        "esbuild": "^0.17.8",
+        "typescript": "^5.0.0-dev.20230214"
     }
 }

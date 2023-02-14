@@ -23,7 +23,7 @@
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.0.0-dev.20230210"
+    "typescript": "^5.0.0-dev.20230214"
   },
   "packageManager": "yarn@4.0.0-rc.39",
   "disabled_resolutions": {

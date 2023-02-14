@@ -26,11 +26,11 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.13.0",
-        "typescript": "^5.0.0-dev.20230210"
+        "typescript": "^5.0.0-dev.20230214"
     },
     "dependencies": {
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/types": "workspace:^",
-        "happy-dom": "^8.2.6"
+        "happy-dom": "^8.3.2"
     }
 }
