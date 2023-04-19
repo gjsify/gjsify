@@ -1,4 +1,4 @@
-import '@gjsify/types/index';
+import '@girs/gjs/ambient';
 
 export * from './types/index.js';
 

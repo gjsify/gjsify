@@ -376,7 +376,7 @@ function serialization_error_quark(): GLib.Quark
  * @param string the string to parse
  * @returns %TRUE if @string described a valid transform.
  */
-function transform_parse(string: string): [ /* returnType */ boolean, /* out_transform */ Transform ]
+function transform_parse(string: string | null): [ /* returnType */ boolean, /* out_transform */ Transform ]
 /**
  * Retrieves the `GskRenderNode` stored inside the given `value`, and acquires
  * a reference to it.
@@ -1117,7 +1117,7 @@ interface DebugNode {
      * Gets the debug message that was set on this node
      * @returns The debug message
      */
-    get_message(): string
+    get_message(): string | null
 }
 
 /**
@@ -1143,7 +1143,7 @@ class DebugNode extends RenderNode {
      * @param message The debug message
      * @returns A new `GskRenderNode`
      */
-    constructor(child: RenderNode, message: string) 
+    constructor(child: RenderNode, message: string | null) 
     /**
      * Creates a `GskRenderNode` that will add debug information about
      * the given `child`.
@@ -1154,7 +1154,7 @@ class DebugNode extends RenderNode {
      * @param message The debug message
      * @returns A new `GskRenderNode`
      */
-    static new(child: RenderNode, message: string): DebugNode
+    static new(child: RenderNode, message: string | null): DebugNode
 }
 
 module GLRenderer {
@@ -1237,7 +1237,7 @@ interface GLShader {
      * If the shader source is not coming from a resource, this
      * will be %NULL.
      */
-    readonly resource: string
+    readonly resource: string | null
     readonly source: GLib.Bytes
 
     // Owm methods of Gsk-4.0.Gsk.GLShader
@@ -1265,7 +1265,7 @@ interface GLShader {
      * @param name uniform name
      * @returns The index of the uniform, or -1
      */
-    find_uniform_by_name(name: string): number
+    find_uniform_by_name(name: string | null): number
     /**
      * Gets the value of the uniform `idx` in the `args` block.
      * 
@@ -1364,7 +1364,7 @@ interface GLShader {
      * @param idx index of the uniform
      * @returns The name of the declared uniform
      */
-    get_uniform_name(idx: number): string
+    get_uniform_name(idx: number): string | null
     /**
      * Get the offset into the data block where data for this uniforms is stored.
      * @param idx index of the uniform
@@ -1531,7 +1531,7 @@ class GLShader extends GObject.Object {
      * @param resource_path path to a resource that contains the GLSL sourcecode for     the shader
      * @returns A new `GskGLShader`
      */
-    static new_from_resource(resource_path: string): GLShader
+    static new_from_resource(resource_path: string | null): GLShader
     _init(config?: GLShader.ConstructorProperties): void
 }
 
@@ -3261,7 +3261,7 @@ interface Transform {
      * This is a wrapper around [method`Gsk`.Transform.print].
      * @returns A new string for @self
      */
-    to_string(): string
+    to_string(): string | null
     /**
      * Converts a `GskTransform` to a translation operation.
      * 
@@ -3346,7 +3346,7 @@ class Transform {
      * @param string the string to parse
      * @returns %TRUE if @string described a valid transform.
      */
-    static parse(string: string): [ /* returnType */ boolean, /* out_transform */ Transform ]
+    static parse(string: string | null): [ /* returnType */ boolean, /* out_transform */ Transform ]
 }
 
 /**

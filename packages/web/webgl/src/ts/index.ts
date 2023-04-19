@@ -1,3 +1,4 @@
+import '@girs/gjs/ambient';
 export * from './html-canvas-element.js';
 // export * from './linkable.js';
 // export * from './utils.js';

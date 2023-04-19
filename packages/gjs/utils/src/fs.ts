@@ -1,4 +1,4 @@
-import Gio from '@gjsify/types/Gio-2.0';
+import Gio from 'gi://Gio?version=2.0';
 
 /** Check if a file descriptor exists */
 export const existsFD = (fd: number) => {

@@ -1,10 +1,10 @@
 // https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Getting_started_with_WebGL
 // https://github.com/mdn/dom-examples/tree/main/webgl-examples/tutorial/sample1
 
-import '@gjsify/types/index';
-import Gtk from '@gjsify/types/Gtk-4.0';
-import GLib from '@gjsify/types/GLib-2.0';
-import Gio from '@gjsify/types/Gio-2.0';
+import '@girs/gjs/ambient';
+import Gtk from 'gi://Gtk?version=4.0';
+import GLib from 'gi://GLib?version=2.0';
+import Gio from 'gi://Gio?version=2.0';
 import { GjsifyHTMLCanvasElement, WebGLRenderingContext } from '@gjsify/webgl';
 
 let app: Gtk.Application;

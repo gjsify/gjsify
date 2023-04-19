@@ -2,7 +2,7 @@
 // import { gl } from './native-gl.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLProgram } from './webgl-program.js';
-import GLib from '@gjsify/types/GLib-2.0';
+import GLib from 'gi://GLib?version=2.0';
 import { HTMLImageElement as GjsifyHTMLImageElement } from "@gjsify/html-image-element";
 
 import type Gwebgl from '@gjsify/types/Gwebgl-0.1';

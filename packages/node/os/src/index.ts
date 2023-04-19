@@ -4,7 +4,7 @@ export { constants }
 
 import * as linux from './linux.js';
 import * as darwin from './darwin.js';
-import GLib from '@gjsify/types/GLib-2.0';
+import GLib from 'gi://GLib?version=2.0';
 
 import constants from './constants.js';
 

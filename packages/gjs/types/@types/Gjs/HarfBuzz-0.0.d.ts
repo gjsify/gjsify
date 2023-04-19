@@ -3259,7 +3259,7 @@ const VERSION_MINOR: number
 /**
  * A string literal containing the library version available at compile-time.
  */
-const VERSION_STRING: string
+const VERSION_STRING: string | null
 /**
  * Fetches the name identifier of the specified feature type in the face's `name` table.
  * @param face #hb_face_t to work upon
@@ -3323,14 +3323,14 @@ function blob_copy_writable_or_fail(blob: blob_t): blob_t
  * @param file_name A font filename
  * @returns An #hb_blob_t pointer with the content of the file, or hb_blob_get_empty() if failed.
  */
-function blob_create_from_file(file_name: string): blob_t
+function blob_create_from_file(file_name: string | null): blob_t
 /**
  * Creates a new blob containing the data from the
  * specified binary font file.
  * @param file_name A font filename
  * @returns An #hb_blob_t pointer with the content of the file, or `NULL` if failed.
  */
-function blob_create_from_file_or_fail(file_name: string): blob_t
+function blob_create_from_file_or_fail(file_name: string | null): blob_t
 /**
  * Returns a blob that represents a range of bytes in `parent`.  The new
  * blob is always created with #HB_MEMORY_MODE_READONLY, meaning that it
@@ -3503,7 +3503,7 @@ function buffer_create_similar(src: buffer_t): buffer_t
  * @param format the #hb_buffer_serialize_format_t of the input `buf`
  * @returns `true` if @buf is not fully consumed, `false` otherwise.
  */
-function buffer_deserialize_glyphs(buffer: buffer_t, buf: string[], font: font_t | null, format: buffer_serialize_format_t): [ /* returnType */ bool_t, /* end_ptr */ string ]
+function buffer_deserialize_glyphs(buffer: buffer_t, buf: string[], font: font_t | null, format: buffer_serialize_format_t): [ /* returnType */ bool_t, /* end_ptr */ string | null ]
 /**
  * Deserializes Unicode `buffer` from textual representation in the format
  * produced by hb_buffer_serialize_unicode().
@@ -3512,7 +3512,7 @@ function buffer_deserialize_glyphs(buffer: buffer_t, buf: string[], font: font_t
  * @param format the #hb_buffer_serialize_format_t of the input `buf`
  * @returns `true` if @buf is not fully consumed, `false` otherwise.
  */
-function buffer_deserialize_unicode(buffer: buffer_t, buf: string[], format: buffer_serialize_format_t): [ /* returnType */ bool_t, /* end_ptr */ string ]
+function buffer_deserialize_unicode(buffer: buffer_t, buf: string[], format: buffer_serialize_format_t): [ /* returnType */ bool_t, /* end_ptr */ string | null ]
 /**
  * If dottedcircle_glyph is (hb_codepoint_t) -1 then #HB_BUFFER_DIFF_FLAG_DOTTED_CIRCLE_PRESENT
  * and #HB_BUFFER_DIFF_FLAG_NOTDEF_PRESENT are never returned.  This should be used by most
@@ -3724,7 +3724,7 @@ function buffer_serialize_format_from_string(str: Uint8Array): buffer_serialize_
  * @param format an #hb_buffer_serialize_format_t to convert.
  * @returns  A `NULL` terminated string corresponding to @format. Should not be freed.
  */
-function buffer_serialize_format_to_string(format: buffer_serialize_format_t): string
+function buffer_serialize_format_to_string(format: buffer_serialize_format_t): string | null
 /**
  * Serializes `buffer` into a textual representation of its glyph content,
  * useful for showing the contents of the buffer, for example during debugging.
@@ -3981,14 +3981,14 @@ function direction_from_string(str: Uint8Array): direction_t
  * @param direction The #hb_direction_t to convert
  * @returns The string corresponding to @direction
  */
-function direction_to_string(direction: direction_t): string
+function direction_to_string(direction: direction_t): string | null
 /**
  * Perform a "close-path" draw operation.
  * @param dfuncs draw functions
  * @param draw_data associated draw data passed by the caller
  * @param st current draw state
  */
-function draw_close_path(dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t): void
+function draw_close_path(dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t): void
 /**
  * Perform a "cubic-to" draw operation.
  * @param dfuncs draw functions
@@ -4001,7 +4001,7 @@ function draw_close_path(dfuncs: draw_funcs_t, draw_data: object | null, st: dra
  * @param to_x X component of target point
  * @param to_y Y component of target point
  */
-function draw_cubic_to(dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, control1_x: number, control1_y: number, control2_x: number, control2_y: number, to_x: number, to_y: number): void
+function draw_cubic_to(dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t, control1_x: number, control1_y: number, control2_x: number, control2_y: number, to_x: number, to_y: number): void
 /**
  * Creates a new draw callbacks object.
  * @returns  A newly allocated #hb_draw_funcs_t with a reference count of 1. The initial reference count should be released with hb_draw_funcs_destroy when you are done using the #hb_draw_funcs_t. This function never returns `NULL`. If memory cannot be allocated, a special singleton #hb_draw_funcs_t object will be returned.
@@ -4056,7 +4056,7 @@ function draw_funcs_set_quadratic_to_func(dfuncs: draw_funcs_t, func: draw_quadr
  * @param to_x X component of target point
  * @param to_y Y component of target point
  */
-function draw_line_to(dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, to_x: number, to_y: number): void
+function draw_line_to(dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t, to_x: number, to_y: number): void
 /**
  * Perform a "move-to" draw operation.
  * @param dfuncs draw functions
@@ -4065,7 +4065,7 @@ function draw_line_to(dfuncs: draw_funcs_t, draw_data: object | null, st: draw_s
  * @param to_x X component of target point
  * @param to_y Y component of target point
  */
-function draw_move_to(dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, to_x: number, to_y: number): void
+function draw_move_to(dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t, to_x: number, to_y: number): void
 /**
  * Perform a "quadratic-to" draw operation.
  * @param dfuncs draw functions
@@ -4076,7 +4076,7 @@ function draw_move_to(dfuncs: draw_funcs_t, draw_data: object | null, st: draw_s
  * @param to_x X component of target point
  * @param to_y Y component of target point
  */
-function draw_quadratic_to(dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, control_x: number, control_y: number, to_x: number, to_y: number): void
+function draw_quadratic_to(dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t, control_x: number, control_y: number, to_x: number, to_y: number): void
 /**
  * Add table for `tag` with data provided by `blob` to the face.  `face` must
  * be created using hb_face_builder_create().
@@ -4645,7 +4645,7 @@ function font_get_glyph_origin_for_direction(font: font_t, glyph: codepoint_t, d
  * @param dfuncs #hb_draw_funcs_t to draw to
  * @param draw_data User data to pass to draw callbacks
  */
-function font_get_glyph_shape(font: font_t, glyph: codepoint_t, dfuncs: draw_funcs_t, draw_data: object | null): void
+function font_get_glyph_shape(font: font_t, glyph: codepoint_t, dfuncs: draw_funcs_t, draw_data: any | null): void
 /**
  * Fetches the advance for a glyph ID in the specified font,
  * for vertical text segments.
@@ -4844,7 +4844,7 @@ function font_set_funcs(font: font_t, klass: font_funcs_t): void
  * @param font #hb_font_t to work upon
  * @param font_data Data to attach to `font`
  */
-function font_set_funcs_data(font: font_t, font_data: object | null): void
+function font_set_funcs_data(font: font_t, font_data: any | null): void
 /**
  * Sets the parent font of `font`.
  * @param font #hb_font_t to work upon
@@ -5151,7 +5151,7 @@ function language_matches(language: language_t, specific: language_t): bool_t
  * @param language The #hb_language_t to convert
  * @returns  A `NULL`-terminated string representing the @language. Must not be freed by the caller.
  */
-function language_to_string(language: language_t): string
+function language_to_string(language: language_t): string | null
 /**
  * Tests whether memory allocation for a set was successful.
  * @param map A map
@@ -6423,7 +6423,7 @@ function shape_plan_get_empty(): shape_plan_t
  * @param shape_plan A shaping plan
  * @returns The shaper
  */
-function shape_plan_get_shaper(shape_plan: shape_plan_t): string
+function shape_plan_get_shaper(shape_plan: shape_plan_t): string | null
 /**
  * Searches variation axes of a #hb_font_t object for a specific axis first,
  * if not set, then tries to get default style values from different
@@ -6638,7 +6638,7 @@ function version_atleast(major: number, minor: number, micro: number): bool_t
  * Returns library version as a string with three components.
  * @returns Library version string
  */
-function version_string(): string
+function version_string(): string | null
 /**
  * A callback method for #hb_buffer_t. The method gets called with the
  * #hb_buffer_t it was set on, the #hb_font_t the buffer is shaped with and a
@@ -6652,7 +6652,7 @@ function version_string(): string
  * @returns `true` to perform the shaping step, `false` to skip it.
  */
 interface buffer_message_func_t {
-    (buffer: buffer_t, font: font_t, message: string): bool_t
+    (buffer: buffer_t, font: font_t, message: string | null): bool_t
 }
 /**
  * A virtual method for destroy user-data callbacks.
@@ -6670,7 +6670,7 @@ interface destroy_func_t {
  * @param st current draw state
  */
 interface draw_close_path_func_t {
-    (dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t): void
+    (dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t): void
 }
 /**
  * A virtual method for the #hb_draw_funcs_t to perform a "cubic-to" draw
@@ -6687,7 +6687,7 @@ interface draw_close_path_func_t {
  * @param to_y Y component of target point
  */
 interface draw_cubic_to_func_t {
-    (dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, control1_x: number, control1_y: number, control2_x: number, control2_y: number, to_x: number, to_y: number): void
+    (dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t, control1_x: number, control1_y: number, control2_x: number, control2_y: number, to_x: number, to_y: number): void
 }
 /**
  * A virtual method for the #hb_draw_funcs_t to perform a "line-to" draw
@@ -6700,7 +6700,7 @@ interface draw_cubic_to_func_t {
  * @param to_y Y component of target point
  */
 interface draw_line_to_func_t {
-    (dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, to_x: number, to_y: number): void
+    (dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t, to_x: number, to_y: number): void
 }
 /**
  * A virtual method for the #hb_draw_funcs_t to perform a "move-to" draw
@@ -6713,7 +6713,7 @@ interface draw_line_to_func_t {
  * @param to_y Y component of target point
  */
 interface draw_move_to_func_t {
-    (dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, to_x: number, to_y: number): void
+    (dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t, to_x: number, to_y: number): void
 }
 /**
  * A virtual method for the #hb_draw_funcs_t to perform a "quadratic-to" draw
@@ -6728,7 +6728,7 @@ interface draw_move_to_func_t {
  * @param to_y Y component of target point
  */
 interface draw_quadratic_to_func_t {
-    (dfuncs: draw_funcs_t, draw_data: object | null, st: draw_state_t, control_x: number, control_y: number, to_x: number, to_y: number): void
+    (dfuncs: draw_funcs_t, draw_data: any | null, st: draw_state_t, control_x: number, control_y: number, to_x: number, to_y: number): void
 }
 /**
  * This method should retrieve the extents for a font.
@@ -6737,7 +6737,7 @@ interface draw_quadratic_to_func_t {
  * @param font_data `font` user data pointer
  */
 interface font_get_font_extents_func_t {
-    (font: font_t, font_data: object | null): bool_t
+    (font: font_t, font_data: any | null): bool_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6751,7 +6751,7 @@ interface font_get_font_extents_func_t {
  * @returns The advance of @glyph within @font
  */
 interface font_get_glyph_advance_func_t {
-    (font: font_t, font_data: object | null, glyph: codepoint_t): position_t
+    (font: font_t, font_data: any | null, glyph: codepoint_t): position_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6766,7 +6766,7 @@ interface font_get_glyph_advance_func_t {
  * @param advance_stride The stride between successive advances
  */
 interface font_get_glyph_advances_func_t {
-    (font: font_t, font_data: object | null, count: number, first_glyph: codepoint_t, glyph_stride: number, advance_stride: number): void
+    (font: font_t, font_data: any | null, count: number, first_glyph: codepoint_t, glyph_stride: number, advance_stride: number): void
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6782,7 +6782,7 @@ interface font_get_glyph_advances_func_t {
  * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_contour_point_func_t {
-    (font: font_t, font_data: object | null, glyph: codepoint_t, point_index: number): bool_t
+    (font: font_t, font_data: any | null, glyph: codepoint_t, point_index: number): bool_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6796,7 +6796,7 @@ interface font_get_glyph_contour_point_func_t {
  * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_extents_func_t {
-    (font: font_t, font_data: object | null, glyph: codepoint_t): bool_t
+    (font: font_t, font_data: any | null, glyph: codepoint_t): bool_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6810,7 +6810,7 @@ interface font_get_glyph_extents_func_t {
  * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_from_name_func_t {
-    (font: font_t, font_data: object | null, name: string[]): bool_t
+    (font: font_t, font_data: any | null, name: string[]): bool_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6825,7 +6825,7 @@ interface font_get_glyph_from_name_func_t {
  * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_func_t {
-    (font: font_t, font_data: object | null, unicode: codepoint_t, variation_selector: codepoint_t): bool_t
+    (font: font_t, font_data: any | null, unicode: codepoint_t, variation_selector: codepoint_t): bool_t
 }
 /**
  * This method should retrieve the kerning-adjustment value for a glyph-pair in
@@ -6837,7 +6837,7 @@ interface font_get_glyph_func_t {
  * @param second_glyph The glyph ID of the second glyph in the glyph pair
  */
 interface font_get_glyph_kerning_func_t {
-    (font: font_t, font_data: object | null, first_glyph: codepoint_t, second_glyph: codepoint_t): position_t
+    (font: font_t, font_data: any | null, first_glyph: codepoint_t, second_glyph: codepoint_t): position_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6851,7 +6851,7 @@ interface font_get_glyph_kerning_func_t {
  * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_name_func_t {
-    (font: font_t, font_data: object | null, glyph: codepoint_t): bool_t
+    (font: font_t, font_data: any | null, glyph: codepoint_t): bool_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6866,7 +6866,7 @@ interface font_get_glyph_name_func_t {
  * @returns `true` if data found, `false` otherwise
  */
 interface font_get_glyph_origin_func_t {
-    (font: font_t, font_data: object | null, glyph: codepoint_t): bool_t
+    (font: font_t, font_data: any | null, glyph: codepoint_t): bool_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6878,7 +6878,7 @@ interface font_get_glyph_origin_func_t {
  * @param draw_data The data accompanying the draw functions
  */
 interface font_get_glyph_shape_func_t {
-    (font: font_t, font_data: object | null, glyph: codepoint_t, draw_funcs: draw_funcs_t, draw_data: object | null): void
+    (font: font_t, font_data: any | null, glyph: codepoint_t, draw_funcs: draw_funcs_t, draw_data: any | null): void
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6892,7 +6892,7 @@ interface font_get_glyph_shape_func_t {
  * @returns `true` if data found, `false` otherwise
  */
 interface font_get_nominal_glyph_func_t {
-    (font: font_t, font_data: object | null, unicode: codepoint_t): bool_t
+    (font: font_t, font_data: any | null, unicode: codepoint_t): bool_t
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6910,7 +6910,7 @@ interface font_get_nominal_glyph_func_t {
  * @returns the number of code points processed
  */
 interface font_get_nominal_glyphs_func_t {
-    (font: font_t, font_data: object | null, count: number, first_unicode: codepoint_t, unicode_stride: number, glyph_stride: number): number
+    (font: font_t, font_data: any | null, count: number, first_unicode: codepoint_t, unicode_stride: number, glyph_stride: number): number
 }
 /**
  * A virtual method for the #hb_font_funcs_t of an #hb_font_t object.
@@ -6926,7 +6926,7 @@ interface font_get_nominal_glyphs_func_t {
  * @returns `true` if data found, `false` otherwise
  */
 interface font_get_variation_glyph_func_t {
-    (font: font_t, font_data: object | null, unicode: codepoint_t, variation_selector: codepoint_t): bool_t
+    (font: font_t, font_data: any | null, unicode: codepoint_t, variation_selector: codepoint_t): bool_t
 }
 /**
  * Callback function for hb_face_create_for_tables().
@@ -7442,7 +7442,7 @@ interface language_t {
      * Converts an #hb_language_t to a string.
      * @returns  A `NULL`-terminated string representing the @language. Must not be freed by the caller.
      */
-    _string(): string
+    _string(): string | null
 }
 
 /**

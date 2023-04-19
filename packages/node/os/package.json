@@ -23,7 +23,7 @@
     "os"
   ],
   "dependencies": {
-    "@gjsify/types": "workspace:^",
+    "@girs/gjs": "latest",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {

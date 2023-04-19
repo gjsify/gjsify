@@ -3610,7 +3610,7 @@ function cairo_set_source_rgba(cr: cairo.Context, rgba: RGBA): void
  * @param cancellable optional `GCancellable` object
  * @param callback callback to call when the operation is done
  */
-function content_deserialize_async<Z = unknown>(stream: Gio.InputStream, mime_type: string, type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<Z> | null): void
+function content_deserialize_async<Z = unknown>(stream: Gio.InputStream, mime_type: string | null, type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<Z> | null): void
 
 // Overloads of content_deserialize_async
 
@@ -3631,7 +3631,7 @@ function content_deserialize_async<Z = unknown>(stream: Gio.InputStream, mime_ty
  * @param cancellable optional `GCancellable` object
  * @returns A Promise of: %TRUE if the operation was successful. In this case,   @value is set. %FALSE if an error occurred. In this case,   @error is set
  */
-function content_deserialize_async<Z = unknown>(stream: Gio.InputStream, mime_type: string, type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* value */ any>
+function content_deserialize_async<Z = unknown>(stream: Gio.InputStream, mime_type: string | null, type: GObject.GType, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* value */ any>
 /**
  * Finishes a content deserialization operation.
  * @param result the `GAsyncResult`
@@ -3650,21 +3650,21 @@ function content_deserialize_finish(result: Gio.AsyncResult): [ /* returnType */
  * @param string the string to parse
  * @returns the content formats if @string is valid
  */
-function content_formats_parse(string: string): ContentFormats | null
+function content_formats_parse(string: string | null): ContentFormats | null
 /**
  * Registers a function to deserialize object of a given type.
  * @param mime_type the mime type which the function can deserialize from
  * @param type the type of objects that the function creates
  * @param deserialize the callback
  */
-function content_register_deserializer(mime_type: string, type: GObject.GType, deserialize: ContentDeserializeFunc): void
+function content_register_deserializer(mime_type: string | null, type: GObject.GType, deserialize: ContentDeserializeFunc): void
 /**
  * Registers a function to serialize objects of a given type.
  * @param type the type of objects that the function can serialize
  * @param mime_type the mime type to serialize to
  * @param serialize the callback
  */
-function content_register_serializer(type: GObject.GType, mime_type: string, serialize: ContentSerializeFunc): void
+function content_register_serializer(type: GObject.GType, mime_type: string | null, serialize: ContentSerializeFunc): void
 /**
  * Serialize content and write it to the given output stream, asynchronously.
  * 
@@ -3680,7 +3680,7 @@ function content_register_serializer(type: GObject.GType, mime_type: string, ser
  * @param cancellable optional `GCancellable` object
  * @param callback callback to call when the operation is done
  */
-function content_serialize_async<Z = unknown>(stream: Gio.OutputStream, mime_type: string, value: any, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<Z> | null): void
+function content_serialize_async<Z = unknown>(stream: Gio.OutputStream, mime_type: string | null, value: any, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<Z> | null): void
 
 // Overloads of content_serialize_async
 
@@ -3701,7 +3701,7 @@ function content_serialize_async<Z = unknown>(stream: Gio.OutputStream, mime_typ
  * @param cancellable optional `GCancellable` object
  * @returns A Promise of: %TRUE if the operation was successful, %FALSE if an   error occurred. In this case, @error is set
  */
-function content_serialize_async<Z = unknown>(stream: Gio.OutputStream, mime_type: string, value: any, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<boolean>
+function content_serialize_async<Z = unknown>(stream: Gio.OutputStream, mime_type: string | null, value: any, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<boolean>
 /**
  * Finishes a content serialization operation.
  * @param result the `GAsyncResult`
@@ -3761,7 +3761,7 @@ function gl_error_quark(): GLib.Quark
  * @param string string of a potential mime type
  * @returns An interned string for the canonicalized   mime type or %NULL if the string wasn't a valid mime type
  */
-function intern_mime_type(string: string): string | null
+function intern_mime_type(string: string | null): string | null
 /**
  * Obtains the upper- and lower-case versions of the keyval `symbol`.
  * 
@@ -3778,7 +3778,7 @@ function keyval_convert_case(symbol: number): [ /* lower */ number, /* upper */ 
  * @param keyval_name a key name
  * @returns the corresponding key value, or %GDK_KEY_VoidSymbol   if the key name is not a valid key
  */
-function keyval_from_name(keyval_name: string): number
+function keyval_from_name(keyval_name: string | null): number
 /**
  * Returns %TRUE if the given key value is in lower case.
  * @param keyval a key value.
@@ -3898,7 +3898,7 @@ function pixbuf_get_from_texture(texture: Texture): GdkPixbuf.Pixbuf | null
  * in order to take effect.
  * @param backends a comma-separated list of backends
  */
-function set_allowed_backends(backends: string): void
+function set_allowed_backends(backends: string | null): void
 function texture_error_quark(): GLib.Quark
 function toplevel_size_get_type(): GObject.GType
 /**
@@ -4648,7 +4648,7 @@ module Toplevel {
         /**
          * A list of textures to use as icon.
          */
-        icon_list?: object | null
+        icon_list?: any | null
         /**
          * Whether the surface is modal.
          */
@@ -4691,7 +4691,7 @@ interface Toplevel extends Surface {
     /**
      * A list of textures to use as icon.
      */
-    icon_list: object
+    icon_list: any
     /**
      * Whether the surface is modal.
      */
@@ -4706,7 +4706,7 @@ interface Toplevel extends Surface {
      * See [class`Gdk`.AppLaunchContext] for more information about
      * startup feedback.
      */
-    startup_id: string
+    startup_id: string | null
     /**
      * The state of the toplevel.
      */
@@ -4714,7 +4714,7 @@ interface Toplevel extends Surface {
     /**
      * The title of the surface.
      */
-    title: string
+    title: string | null
     /**
      * The transient parent of the surface.
      */
@@ -4871,7 +4871,7 @@ interface Toplevel extends Surface {
      * low-level function.
      * @param startup_id a string with startup-notification identifier
      */
-    set_startup_id(startup_id: string): void
+    set_startup_id(startup_id: string | null): void
     /**
      * Sets the title of a toplevel surface.
      * 
@@ -4879,7 +4879,7 @@ interface Toplevel extends Surface {
      * in lists of windows, etc.
      * @param title title of `surface`
      */
-    set_title(title: string): void
+    set_title(title: string | null): void
     /**
      * Sets a transient-for parent.
      * 
@@ -5340,7 +5340,7 @@ interface Clipboard {
      * @param cancellable optional `GCancellable` object
      * @returns A Promise of: a `GInputStream`
      */
-    read_async(mime_types: string[], io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* out_mime_type */ string>
+    read_async(mime_types: string[], io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* out_mime_type */ string | null>
     /**
      * Finishes an asynchronous clipboard read.
      * 
@@ -5348,7 +5348,7 @@ interface Clipboard {
      * @param result a `GAsyncResult`
      * @returns a `GInputStream`
      */
-    read_finish(result: Gio.AsyncResult): [ /* returnType */ Gio.InputStream | null, /* out_mime_type */ string ]
+    read_finish(result: Gio.AsyncResult): [ /* returnType */ Gio.InputStream | null, /* out_mime_type */ string | null ]
     /**
      * Asynchronously request the `clipboard` contents converted to a string.
      * 
@@ -5641,7 +5641,7 @@ interface ContentDeserializer extends Gio.AsyncResult {
      * Gets the mime type to deserialize from.
      * @returns the mime type for the current operation
      */
-    get_mime_type(): string
+    get_mime_type(): string | null
     /**
      * Gets the I/O priority for the current operation.
      * 
@@ -5655,12 +5655,12 @@ interface ContentDeserializer extends Gio.AsyncResult {
      * See [method`Gdk`.ContentDeserializer.set_task_data].
      * @returns the task data for @deserializer
      */
-    get_task_data(): object | null
+    get_task_data(): any | null
     /**
      * Gets the user data that was passed when the deserializer was registered.
      * @returns the user data for this deserializer
      */
-    get_user_data(): object | null
+    get_user_data(): any | null
     /**
      * Gets the `GValue` to store the deserialized object in.
      * @returns the `GValue` for the current operation
@@ -5682,7 +5682,7 @@ interface ContentDeserializer extends Gio.AsyncResult {
      * @param data data to associate with this operation
      * @param notify destroy notify for `data`
      */
-    set_task_data(data: object | null, notify: GLib.DestroyNotify): void
+    set_task_data(data: any | null, notify: GLib.DestroyNotify): void
 
     // Class property signals of Gdk-4.0.Gdk.ContentDeserializer
 
@@ -5806,7 +5806,7 @@ interface ContentProvider {
      * @param cancellable optional `GCancellable` object, %NULL to ignore.
      * @param callback callback to call when the request is satisfied
      */
-    write_mime_type_async(mime_type: string, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+    write_mime_type_async(mime_type: string | null, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
 
     // Overloads of write_mime_type_async
 
@@ -5831,7 +5831,7 @@ interface ContentProvider {
      * @param cancellable optional `GCancellable` object, %NULL to ignore.
      * @returns A Promise of: %TRUE if the operation was completed successfully. Otherwise   @error will be set to describe the failure.
      */
-    write_mime_type_async(mime_type: string, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<boolean>
+    write_mime_type_async(mime_type: string | null, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise<boolean>
     /**
      * Finishes an asynchronous write operation.
      * 
@@ -5899,7 +5899,7 @@ interface ContentProvider {
      * @param cancellable optional `GCancellable` object, %NULL to ignore.
      * @param callback callback to call when the request is satisfied
      */
-    vfunc_write_mime_type_async(mime_type: string, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
+    vfunc_write_mime_type_async(mime_type: string | null, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback<this> | null): void
     /**
      * Finishes an asynchronous write operation.
      * 
@@ -5960,7 +5960,7 @@ class ContentProvider extends GObject.Object {
      * @param bytes a `GBytes` with the data for `mime_type`
      * @returns a new `GdkContentProvider`
      */
-    static new_for_bytes(mime_type: string, bytes: GLib.Bytes): ContentProvider
+    static new_for_bytes(mime_type: string | null, bytes: GLib.Bytes): ContentProvider
     /**
      * Create a content provider that provides the given `value`.
      * @constructor 
@@ -6021,7 +6021,7 @@ interface ContentSerializer extends Gio.AsyncResult {
      * Gets the mime type to serialize to.
      * @returns the mime type for the current operation
      */
-    get_mime_type(): string
+    get_mime_type(): string | null
     /**
      * Gets the output stream for the current operation.
      * 
@@ -6042,12 +6042,12 @@ interface ContentSerializer extends Gio.AsyncResult {
      * See [method`Gdk`.ContentSerializer.set_task_data].
      * @returns the task data for @serializer
      */
-    get_task_data(): object | null
+    get_task_data(): any | null
     /**
      * Gets the user data that was passed when the serializer was registered.
      * @returns the user data for this serializer
      */
-    get_user_data(): object | null
+    get_user_data(): any | null
     /**
      * Gets the `GValue` to read the object to serialize from.
      * @returns the `GValue` for the current operation
@@ -6069,7 +6069,7 @@ interface ContentSerializer extends Gio.AsyncResult {
      * @param data data to associate with this operation
      * @param notify destroy notify for `data`
      */
-    set_task_data(data: object | null, notify: GLib.DestroyNotify): void
+    set_task_data(data: any | null, notify: GLib.DestroyNotify): void
 
     // Class property signals of Gdk-4.0.Gdk.ContentSerializer
 
@@ -6196,7 +6196,7 @@ interface Cursor {
      * 
      * The name will be %NULL if the cursor was created from a texture.
      */
-    readonly name: string
+    readonly name: string | null
     /**
      * The texture displayed by this cursor.
      * 
@@ -6346,7 +6346,7 @@ class Cursor extends GObject.Object {
      * @param fallback %NULL or the `GdkCursor` to fall back to when   this one cannot be supported
      * @returns a new `GdkCursor`, or %NULL if there is no   cursor with the given name
      */
-    static new_from_name(name: string, fallback: Cursor | null): Cursor
+    static new_from_name(name: string | null, fallback: Cursor | null): Cursor
     /**
      * Creates a new cursor from a `GdkTexture`.
      * @constructor 
@@ -6507,7 +6507,7 @@ interface Device {
     /**
      * The device name.
      */
-    readonly name: string
+    readonly name: string | null
     /**
      * Whether Num Lock is on.
      * 
@@ -6526,7 +6526,7 @@ interface Device {
      * 
      * See [method`Gdk`.Device.get_product_id].
      */
-    readonly product_id: string
+    readonly product_id: string | null
     /**
      * Whether Scroll Lock is on.
      * 
@@ -6550,7 +6550,7 @@ interface Device {
      * 
      * See [method`Gdk`.Device.get_vendor_id].
      */
-    readonly vendor_id: string
+    readonly vendor_id: string | null
 
     // Owm methods of Gdk-4.0.Gdk.Device
 
@@ -6600,7 +6600,7 @@ interface Device {
      * The name of the device, suitable for showing in a user interface.
      * @returns a name
      */
-    get_name(): string
+    get_name(): string | null
     /**
      * Retrieves whether the Num Lock modifier of the keyboard is locked.
      * 
@@ -6933,7 +6933,7 @@ module Display {
      * Signal callback interface for `setting-changed`
      */
     interface SettingChangedSignalCallback {
-        ($obj: Display, setting: string): void
+        ($obj: Display, setting: string | null): void
     }
 
 
@@ -7049,7 +7049,7 @@ interface Display {
      * Gets the name of the display.
      * @returns a string representing the display name. This string is owned   by GDK and should not be modified or freed.
      */
-    get_name(): string
+    get_name(): string | null
     /**
      * Gets the clipboard used for the primary selection.
      * 
@@ -7065,7 +7065,7 @@ interface Display {
      * @param value location to store the value of the setting
      * @returns %TRUE if the setting existed and a value was stored   in @value, %FALSE otherwise
      */
-    get_setting(name: string, value: any): boolean
+    get_setting(name: string | null, value: any): boolean
     /**
      * Gets the startup notification ID for a Wayland display, or %NULL
      * if no ID has been defined.
@@ -7155,7 +7155,7 @@ interface Display {
      * is called to disable that feature.
      * @param startup_id a startup-notification identifier, for which   notification process should be completed
      */
-    notify_startup_complete(startup_id: string): void
+    notify_startup_complete(startup_id: string | null): void
     /**
      * Checks that OpenGL is available for `self` and ensures that it is
      * properly initialized.
@@ -7249,7 +7249,7 @@ interface Display {
     emit(sigName: "seat-removed", seat: Seat, ...args: any[]): void
     connect(sigName: "setting-changed", callback: Display.SettingChangedSignalCallback): number
     connect_after(sigName: "setting-changed", callback: Display.SettingChangedSignalCallback): number
-    emit(sigName: "setting-changed", setting: string, ...args: any[]): void
+    emit(sigName: "setting-changed", setting: string | null, ...args: any[]): void
 
     // Class property signals of Gdk-4.0.Gdk.Display
 
@@ -7312,7 +7312,7 @@ class Display extends GObject.Object {
      * @param display_name the name of the display to open
      * @returns a `GdkDisplay`
      */
-    static open(display_name: string): Display | null
+    static open(display_name: string | null): Display | null
 }
 
 module DisplayManager {
@@ -7367,7 +7367,7 @@ interface DisplayManager {
      * @param name the name of the display to open
      * @returns a `GdkDisplay`, or %NULL   if the display could not be opened
      */
-    open_display(name: string): Display | null
+    open_display(name: string | null): Display | null
     /**
      * Sets `display` as the default display.
      * @param display a `GdkDisplay`
@@ -8004,7 +8004,7 @@ interface Drop {
      * @param cancellable optional `GCancellable` object
      * @returns A Promise of: the `GInputStream`
      */
-    read_async(mime_types: string[], io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* out_mime_type */ string>
+    read_async(mime_types: string[], io_priority: number, cancellable: Gio.Cancellable | null): globalThis.Promise</* out_mime_type */ string | null>
     /**
      * Finishes an async drop read operation.
      * 
@@ -8017,7 +8017,7 @@ interface Drop {
      * @param result a `GAsyncResult`
      * @returns the `GInputStream`
      */
-    read_finish(result: Gio.AsyncResult): [ /* returnType */ Gio.InputStream | null, /* out_mime_type */ string ]
+    read_finish(result: Gio.AsyncResult): [ /* returnType */ Gio.InputStream | null, /* out_mime_type */ string | null ]
     /**
      * Asynchronously request the drag operation's contents converted
      * to the given `type`.
@@ -8972,7 +8972,7 @@ class GLTexture extends Texture {
      * @param data data that gets passed to `destroy`
      * @returns A newly-created   `GdkTexture`
      */
-    constructor(context: GLContext, id: number, width: number, height: number, destroy: GLib.DestroyNotify, data: object | null) 
+    constructor(context: GLContext, id: number, width: number, height: number, destroy: GLib.DestroyNotify, data: any | null) 
     /**
      * Creates a new texture for an existing GL texture.
      * 
@@ -8988,7 +8988,7 @@ class GLTexture extends Texture {
      * @param data data that gets passed to `destroy`
      * @returns A newly-created   `GdkTexture`
      */
-    static new(context: GLContext, id: number, width: number, height: number, destroy: GLib.DestroyNotify, data: object | null): GLTexture
+    static new(context: GLContext, id: number, width: number, height: number, destroy: GLib.DestroyNotify, data: any | null): GLTexture
     _init(config?: GLTexture.ConstructorProperties): void
 }
 
@@ -9191,7 +9191,7 @@ interface Monitor {
     /**
      * The connector name.
      */
-    readonly connector: string
+    readonly connector: string | null
     /**
      * The `GdkDisplay` of the monitor.
      */
@@ -9207,11 +9207,11 @@ interface Monitor {
     /**
      * The manufacturer name.
      */
-    readonly manufacturer: string
+    readonly manufacturer: string | null
     /**
      * The model name.
      */
-    readonly model: string
+    readonly model: string | null
     /**
      * The refresh rate, in milli-Hertz.
      */
@@ -10351,7 +10351,7 @@ class Texture extends GObject.Object {
      * @param resource_path the path of the resource file
      * @returns A newly-created `GdkTexture`
      */
-    static new_from_resource(resource_path: string): Texture
+    static new_from_resource(resource_path: string | null): Texture
     _init(config?: Texture.ConstructorProperties): void
 }
 
@@ -10504,7 +10504,7 @@ interface ContentFormats {
      * @param mime_type the mime type to search for
      * @returns %TRUE if the mime_type was found
      */
-    contain_mime_type(mime_type: string): boolean
+    contain_mime_type(mime_type: string | null): boolean
     /**
      * Gets the `GType`s included in `formats`.
      * 
@@ -10567,7 +10567,7 @@ interface ContentFormats {
      * to help when debugging.
      * @returns a new string
      */
-    to_string(): string
+    to_string(): string | null
     /**
      * Append all missing types from `second` to `first,` in the order
      * they had in `second`.
@@ -10691,7 +10691,7 @@ class ContentFormats {
      * @param string the string to parse
      * @returns the content formats if @string is valid
      */
-    static parse(string: string): ContentFormats | null
+    static parse(string: string | null): ContentFormats | null
 }
 
 interface ContentFormatsBuilder {
@@ -10713,7 +10713,7 @@ interface ContentFormatsBuilder {
      * Appends `mime_type` to `builder` if it has not already been added.
      * @param mime_type a mime type
      */
-    add_mime_type(mime_type: string): void
+    add_mime_type(mime_type: string | null): void
     /**
      * Acquires a reference on the given `builder`.
      * 
@@ -10782,7 +10782,7 @@ interface ContentProviderClass {
     detach_clipboard: (provider: ContentProvider, clipboard: Clipboard) => void
     ref_formats: (provider: ContentProvider) => ContentFormats
     ref_storable_formats: (provider: ContentProvider) => ContentFormats
-    write_mime_type_async: (provider: ContentProvider, mime_type: string, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback | null) => void
+    write_mime_type_async: (provider: ContentProvider, mime_type: string | null, stream: Gio.OutputStream, io_priority: number, cancellable: Gio.Cancellable | null, callback: Gio.AsyncReadyCallback | null) => void
     write_mime_type_finish: (provider: ContentProvider, result: Gio.AsyncResult) => boolean
     get_value: (provider: ContentProvider) => [ /* returnType */ boolean, /* value */ any ]
 }
@@ -11385,7 +11385,7 @@ interface RGBA {
      * @param spec the string specifying the color
      * @returns %TRUE if the parsing succeeded
      */
-    parse(spec: string): boolean
+    parse(spec: string | null): boolean
     /**
      * Returns a textual specification of `rgba` in the form
      * `rgb(r,g,b)` or `rgba(r,g,b,a)`, where “r”, “g”, “b” and
@@ -11402,7 +11402,7 @@ interface RGBA {
      * this is a concern, you should use a different representation.
      * @returns A newly allocated text string
      */
-    to_string(): string
+    to_string(): string | null
 }
 
 /**

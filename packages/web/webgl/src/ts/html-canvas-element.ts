@@ -1,5 +1,5 @@
 import { warnNotImplemented, notImplemented } from '@gjsify/utils'
-import Gtk from '@gjsify/types/Gtk-4.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
 
 // TODO this fakes the implementation of HTMLCanvasElement, create a new package for a real implementation based on https://github.com/capricorn86/happy-dom/tree/master/packages/happy-dom/src/nodes/html-element

@@ -1,4 +1,4 @@
-import Gio from '@gjsify/types/Gio-2.0';
+import Gio from 'gi://Gio?version=2.0';
 import { basename } from 'path';
 
 import type { Dirent as OriginalDirent } from 'fs'; // Types from @types/node

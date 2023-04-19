@@ -24,7 +24,7 @@
     "@types/node": "^18.13.0"
   },
   "dependencies": {
-    "@gjsify/types": "workspace:^",
+    "@girs/gjs": "latest",
     "@gjsify/webgl": "workspace:^"
   }
 }

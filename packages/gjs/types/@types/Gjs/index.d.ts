@@ -6,22 +6,9 @@
  */
 
 import type * as Gjs from './Gjs.js'
-import type Gio20 from "./Gio-2.0.js";
-import type GLib20 from "./GLib-2.0.js";
-import type Soup30 from "./Soup-3.0.js";
-import type Gtk40 from "./Gtk-4.0.js";
 import type Gwebgl01 from "./Gwebgl-0.1.js";
+import type GLib20 from "./GLib-2.0.js";
 import type GObject20 from "./GObject-2.0.js";
-import type Gsk40 from "./Gsk-4.0.js";
-import type Gdk40 from "./Gdk-4.0.js";
-import type Graphene10 from "./Graphene-1.0.js";
-import type Cairo10 from "./cairo-1.0.js";
-import type PangoCairo10 from "./PangoCairo-1.0.js";
-import type Pango10 from "./Pango-1.0.js";
-import type GdkPixbuf20 from "./GdkPixbuf-2.0.js";
-import type HarfBuzz00 from "./HarfBuzz-0.0.js";
-import type GModule20 from "./GModule-2.0.js";
-import type Freetype220 from "./freetype2-2.0.js";
 
 // See also https://github.com/microsoft/TypeScript/blob/main/lib/lib.dom.d.ts
 declare global {
@@ -552,39 +539,13 @@ declare global {
 
     const imports: typeof Gjs & {
         gi: {
-              Gio:                typeof Gio20
-              GLib:                typeof GLib20
-              Soup:                typeof Soup30
-              Gtk:                typeof Gtk40
               Gwebgl:                typeof Gwebgl01
+              GLib:                typeof GLib20
               GObject:                typeof GObject20
-              Gsk:                typeof Gsk40
-              Gdk:                typeof Gdk40
-              Graphene:                typeof Graphene10
-              cairo:                typeof Cairo10
-              PangoCairo:                typeof PangoCairo10
-              Pango:                typeof Pango10
-              GdkPixbuf:                typeof GdkPixbuf20
-              HarfBuzz:                typeof HarfBuzz00
-              GModule:                typeof GModule20
-              freetype2:                typeof Freetype220
             versions: {
-                  Gio:                    '2.0'
-                  GLib:                    '2.0'
-                  Soup:                    '3.0'
-                  Gtk:                    '4.0'
                   Gwebgl:                    '0.1'
+                  GLib:                    '2.0'
                   GObject:                    '2.0'
-                  Gsk:                    '4.0'
-                  Gdk:                    '4.0'
-                  Graphene:                    '1.0'
-                  cairo:                    '1.0'
-                  PangoCairo:                    '1.0'
-                  Pango:                    '1.0'
-                  GdkPixbuf:                    '2.0'
-                  HarfBuzz:                    '0.0'
-                  GModule:                    '2.0'
-                  freetype2:                    '2.0'
             }
         }
         lang: typeof Gjs.Lang

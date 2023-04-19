@@ -57,7 +57,7 @@ interface WebGLRenderingContextBase {
     _vertexAttribDivisor(index: number, divisor: number): void
     activeTexture(texture: number): void
     attachShader(program: number, shader: number): void
-    bindAttribLocation(program: number, index: number, name: string): void
+    bindAttribLocation(program: number, index: number, name: string | null): void
     bindBuffer(target: number, buffer: number): void
     bindFramebuffer(target: number, framebuffer: number): void
     bindRenderbuffer(target: number, renderbuffer: number): void
@@ -110,7 +110,7 @@ interface WebGLRenderingContextBase {
     getActiveAttrib(program: number, index: number): /* result */ WebGLActiveInfo
     getActiveUniform(program: number, index: number): /* result */ WebGLActiveInfo
     getAttachedShaders(program: number): number[]
-    getAttribLocation(program: number, name: string): number
+    getAttribLocation(program: number, name: string | null): number
     getBufferParameteriv(target: number, pname: number): number[]
     getError(): number
     setError(_error_: number): void
@@ -122,19 +122,19 @@ interface WebGLRenderingContextBase {
     getParameterfv(pname: number, resultSize: number): number[]
     getParameteri(pname: number): number
     getParameteriv(pname: number, resultSize: number): number[]
-    getProgramInfoLog(program: number): string
+    getProgramInfoLog(program: number): string | null
     getProgramParameter(program: number, pname: number): number
     getRenderbufferParameter(target: number, pname: number): number
-    getShaderInfoLog(shader: number): string
+    getShaderInfoLog(shader: number): string | null
     getShaderParameter(shader: number, pname: number): number
     getShaderPrecisionFormat(shadertype: number, precisiontype: number): /* result */ WebGLShaderPrecisionFormat
-    getShaderSource(shader: number): string
-    getString(pname: number): string
+    getShaderSource(shader: number): string | null
+    getString(pname: number): string | null
     getSupportedExtensions(): string[]
     getTexParameterx(target: number, pname: number): GLib.Variant
     getTexParameterfv(target: number, pname: number): number
     getTexParameteriv(target: number, pname: number): number
-    getUniformLocation(program: number, name: string): number
+    getUniformLocation(program: number, name: string | null): number
     getUniform(program: number, location: number): number[]
     getUniformf(program: number, location: number): number[]
     getUniformfv(program: number, location: number, resultSize: number): number[]
@@ -160,7 +160,7 @@ interface WebGLRenderingContextBase {
     renderbufferStorage(target: number, internalFormat: number, width: number, height: number): void
     sampleCoverage(value: number, invert: boolean): void
     scissor(x: number, y: number, width: number, height: number): void
-    shaderSource(shader: number, source: string): void
+    shaderSource(shader: number, source: string | null): void
     stencilFunc(func: number, ref_: number, mask: number): void
     stencilFuncSeparate(face: number, func: number, ref_: number, mask: number): void
     stencilMask(mask: number): void
@@ -260,9 +260,9 @@ interface WebGLRenderingContext {
     compressedTexSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, variant: GLib.Variant): void
     readPixels(x: number, y: number, width: number, height: number, format: number, type: number, variant: GLib.Variant): Uint8Array
     texImage2D(target: number, level: number, internalFormat: number, width: number, height: number, border: number, format: number, type: number, variant: GLib.Variant): void
-    texImage2DFromPixbuf(target: number, level: number, internalFormat: number, format: number, type: number, source: object | null): void
+    texImage2DFromPixbuf(target: number, level: number, internalFormat: number, format: number, type: number, source: any | null): void
     texSubImage2D(target: number, level: number, xoffset: number, yoffset: number, width: number, height: number, format: number, type: number, variant: GLib.Variant): void
-    texSubImage2DFromPixbuf(target: number, level: number, xoffset: number, yoffset: number, format: number, type: number, source: object | null): void
+    texSubImage2DFromPixbuf(target: number, level: number, xoffset: number, yoffset: number, format: number, type: number, source: any | null): void
     uniform1fv(location: number, vLength: number, value: number[]): void
     uniform1iv(location: number, vLength: number, value: number[]): void
     uniform2fv(location: number, vLength: number, value: number[]): void
@@ -386,7 +386,7 @@ interface WebGLActiveInfo {
 
     // Own fields of Gwebgl-0.1.Gwebgl.WebGLActiveInfo
 
-    name: string
+    name: string | null
     size: number
     type: number
 }

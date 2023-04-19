@@ -25,10 +25,10 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.13.0",
-        "typescript": "^5.0.0-beta"
+        "typescript": "^5.0.4"
     },
     "dependencies": {
-        "@gjsify/gio-2.0": "workspace:^",
-        "@gjsify/types": "workspace:^"
+        "@girs/gjs": "latest",
+        "@gjsify/gio-2.0": "workspace:^"
     }
 }

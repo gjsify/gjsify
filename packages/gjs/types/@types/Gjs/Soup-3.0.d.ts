@@ -882,13 +882,13 @@ const COOKIE_MAX_AGE_ONE_YEAR: number
  * `multipart/form-data`; the MIME type used for
  * posting form data that contains files to be uploaded.
  */
-const FORM_MIME_TYPE_MULTIPART: string
+const FORM_MIME_TYPE_MULTIPART: string | null
 /**
  * A macro containing the value
  * `application/x-www-form-urlencoded`; the default
  * MIME type for POSTing HTML form data.
  */
-const FORM_MIME_TYPE_URLENCODED: string
+const FORM_MIME_TYPE_URLENCODED: string | null
 /**
  * An expiration date that is always in the past.
  */
@@ -958,7 +958,7 @@ function check_version(major: number, minor: number, micro: number): boolean
  * @param origin origin of the cookie
  * @returns a new #SoupCookie, or %NULL if it could   not be parsed, or contained an illegal "domain" attribute for a   cookie originating from @origin.
  */
-function cookie_parse(header: string, origin: GLib.Uri | null): Cookie | null
+function cookie_parse(header: string | null, origin: GLib.Uri | null): Cookie | null
 /**
  * Parses `msg'`s Cookie request header and returns a [struct`GLib`.SList] of
  * `SoupCookie`s.
@@ -987,7 +987,7 @@ function cookies_from_response(msg: Message): Cookie[]
  * @param cookies a #GSList of #SoupCookie
  * @returns the serialization of @cookies
  */
-function cookies_to_cookie_header(cookies: Cookie[]): string
+function cookies_to_cookie_header(cookies: Cookie[]): string | null
 /**
  * Adds the name and value of each cookie in `cookies` to `msg'`s
  * "Cookie" request.
@@ -1018,14 +1018,14 @@ function cookies_to_response(cookies: Cookie[], msg: Message): void
  * @param date_string The date as a string
  * @returns a new #GDateTime, or %NULL if @date_string   could not be parsed.
  */
-function date_time_new_from_http_string(date_string: string): GLib.DateTime | null
+function date_time_new_from_http_string(date_string: string | null): GLib.DateTime | null
 /**
  * Converts `date` to a string in the format described by `format`.
  * @param date a #GDateTime
  * @param format the format to generate the date in
  * @returns @date as a string or %NULL
  */
-function date_time_to_string(date: GLib.DateTime, format: DateFormat): string
+function date_time_to_string(date: GLib.DateTime, format: DateFormat): string | null
 /**
  * Decodes `form`.
  * 
@@ -1033,7 +1033,7 @@ function date_time_to_string(date: GLib.DateTime, format: DateFormat): string
  * @param encoded_form data of type "application/x-www-form-urlencoded"
  * @returns a hash   table containing the name/value pairs from @encoded_form, which you   can free with [func@GLib.HashTable.destroy].
  */
-function form_decode(encoded_form: string): GLib.HashTable
+function form_decode(encoded_form: string | null): GLib.HashTable
 /**
  * Decodes the "multipart/form-data" request in `multipart`.
  * 
@@ -1058,7 +1058,7 @@ function form_decode(encoded_form: string): GLib.HashTable
  * @param file_control_name the name of the HTML file upload control
  * @returns    a hash table containing the name/value pairs (other than   @file_control_name) from @msg, which you can free with   [func@GLib.HashTable.destroy]. On error, it will return %NULL.
  */
-function form_decode_multipart(multipart: Multipart, file_control_name: string | null): [ /* returnType */ GLib.HashTable | null, /* filename */ string, /* content_type */ string, /* file */ GLib.Bytes ]
+function form_decode_multipart(multipart: Multipart, file_control_name: string | null): [ /* returnType */ GLib.HashTable | null, /* filename */ string | null, /* content_type */ string | null, /* file */ GLib.Bytes ]
 /**
  * Encodes `form_data_set` into a value of type
  * "application/x-www-form-urlencoded".
@@ -1071,7 +1071,7 @@ function form_decode_multipart(multipart: Multipart, file_control_name: string |
  * @param form_data_set a datalist containing name/value pairs
  * @returns the encoded form
  */
-function form_encode_datalist(form_data_set: GLib.Data): string
+function form_encode_datalist(form_data_set: GLib.Data): string | null
 /**
  * Encodes `form_data_set` into a value of type
  * "application/x-www-form-urlencoded".
@@ -1087,7 +1087,7 @@ function form_encode_datalist(form_data_set: GLib.Data): string
  * @param form_data_set a hash table containing   name/value pairs (as strings)
  * @returns the encoded form
  */
-function form_encode_hash(form_data_set: GLib.HashTable): string
+function form_encode_hash(form_data_set: GLib.HashTable): string | null
 /**
  * Returns the major version number of the libsoup library.
  * 
@@ -1133,7 +1133,7 @@ function get_minor_version(): number
  * @param token a token
  * @returns whether or not @header contains @token
  */
-function header_contains(header: string, token: string): boolean
+function header_contains(header: string | null, token: string | null): boolean
 /**
  * Frees `param_list`.
  * @param param_list a #GHashTable returned from   [func`header_parse_param_list]` or [func`header_parse_semi_param_list]`
@@ -1154,7 +1154,7 @@ function header_free_param_list(param_list: GLib.HashTable): void
  * @param name a parameter name
  * @param value a parameter value, or %NULL
  */
-function header_g_string_append_param(string: GLib.String, name: string, value: string): void
+function header_g_string_append_param(string: GLib.String, name: string | null, value: string | null): void
 /**
  * Appends something like `name="value"` to
  * `string,` taking care to escape any quotes or backslashes in `value`.
@@ -1165,7 +1165,7 @@ function header_g_string_append_param(string: GLib.String, name: string, value: 
  * @param name a parameter name
  * @param value a parameter value
  */
-function header_g_string_append_param_quoted(string: GLib.String, name: string, value: string): void
+function header_g_string_append_param_quoted(string: GLib.String, name: string | null, value: string | null): void
 /**
  * Parses a header whose content is described by RFC2616 as `#something`.
  * 
@@ -1173,7 +1173,7 @@ function header_g_string_append_param_quoted(string: GLib.String, name: string, 
  * @param header a header value
  * @returns a #GSList of   list elements, as allocated strings
  */
-function header_parse_list(header: string): string[]
+function header_parse_list(header: string | null): string[]
 /**
  * Parses a header which is a comma-delimited list of something like:
  * `token [ "=" ( token | quoted-string ) ]`.
@@ -1187,7 +1187,7 @@ function header_parse_list(header: string): string[]
  * @param header a header value
  * @returns a   #GHashTable of list elements, which can be freed with   [func@header_free_param_list].
  */
-function header_parse_param_list(header: string): GLib.HashTable
+function header_parse_param_list(header: string | null): GLib.HashTable
 /**
  * A strict version of [func`header_parse_param_list]`
  * that bails out if there are duplicate parameters.
@@ -1200,7 +1200,7 @@ function header_parse_param_list(header: string): GLib.HashTable
  * @param header a header value
  * @returns    a #GHashTable of list elements, which can be freed with   [func@header_free_param_list] or %NULL if there are duplicate   elements.
  */
-function header_parse_param_list_strict(header: string): GLib.HashTable | null
+function header_parse_param_list_strict(header: string | null): GLib.HashTable | null
 /**
  * Parses a header whose content is a list of items with optional
  * "qvalue"s (eg, Accept, Accept-Charset, Accept-Encoding,
@@ -1212,7 +1212,7 @@ function header_parse_param_list_strict(header: string): GLib.HashTable | null
  * @param header a header value
  * @returns a #GSList of   acceptable values (as allocated strings), highest-qvalue first.
  */
-function header_parse_quality_list(header: string): [ /* returnType */ string[], /* unacceptable */ string[] ]
+function header_parse_quality_list(header: string | null): [ /* returnType */ string[], /* unacceptable */ string[] ]
 /**
  * Parses a header which is a semicolon-delimited list of something
  * like: `token [ "=" ( token | quoted-string ) ]`.
@@ -1226,7 +1226,7 @@ function header_parse_quality_list(header: string): [ /* returnType */ string[],
  * @param header a header value
  * @returns a   #GHashTable of list elements, which can be freed with   [func@header_free_param_list].
  */
-function header_parse_semi_param_list(header: string): GLib.HashTable
+function header_parse_semi_param_list(header: string | null): GLib.HashTable
 /**
  * A strict version of [func`header_parse_semi_param_list]`
  * that bails out if there are duplicate parameters.
@@ -1239,7 +1239,7 @@ function header_parse_semi_param_list(header: string): GLib.HashTable
  * @param header a header value
  * @returns    a #GHashTable of list elements, which can be freed with   [func@header_free_param_list] or %NULL if there are duplicate   elements.
  */
-function header_parse_semi_param_list_strict(header: string): GLib.HashTable | null
+function header_parse_semi_param_list_strict(header: string | null): GLib.HashTable | null
 /**
  * Parses the headers of an HTTP request or response in `str` and
  * stores the results in `dest`.
@@ -1253,7 +1253,7 @@ function header_parse_semi_param_list_strict(header: string): GLib.HashTable | n
  * @param dest #SoupMessageHeaders to store the header values in
  * @returns success or failure
  */
-function headers_parse(str: string, len: number, dest: MessageHeaders): boolean
+function headers_parse(str: string | null, len: number, dest: MessageHeaders): boolean
 /**
  * Parses the headers of an HTTP request in `str` and stores the
  * results in `req_method,` `req_path,` `ver,` and `req_headers`.
@@ -1264,7 +1264,7 @@ function headers_parse(str: string, len: number, dest: MessageHeaders): boolean
  * @param req_headers #SoupMessageHeaders to store the header values in
  * @returns %SOUP_STATUS_OK if the headers could be parsed, or an   HTTP error to be returned to the client if they could not be.
  */
-function headers_parse_request(str: string, len: number, req_headers: MessageHeaders): [ /* returnType */ number, /* req_method */ string, /* req_path */ string, /* ver */ HTTPVersion ]
+function headers_parse_request(str: string | null, len: number, req_headers: MessageHeaders): [ /* returnType */ number, /* req_method */ string | null, /* req_path */ string | null, /* ver */ HTTPVersion ]
 /**
  * Parses the headers of an HTTP response in `str` and stores the
  * results in `ver,` `status_code,` `reason_phrase,` and `headers`.
@@ -1275,7 +1275,7 @@ function headers_parse_request(str: string, len: number, req_headers: MessageHea
  * @param headers #SoupMessageHeaders to store the header values in
  * @returns success or failure.
  */
-function headers_parse_response(str: string, len: number, headers: MessageHeaders): [ /* returnType */ boolean, /* ver */ HTTPVersion, /* status_code */ number, /* reason_phrase */ string ]
+function headers_parse_response(str: string | null, len: number, headers: MessageHeaders): [ /* returnType */ boolean, /* ver */ HTTPVersion, /* status_code */ number, /* reason_phrase */ string | null ]
 /**
  * Parses the HTTP Status-Line string in `status_line` into `ver,`
  * `status_code,` and `reason_phrase`.
@@ -1284,7 +1284,7 @@ function headers_parse_response(str: string, len: number, headers: MessageHeader
  * @param status_line an HTTP Status-Line
  * @returns %TRUE if @status_line was parsed successfully.
  */
-function headers_parse_status_line(status_line: string): [ /* returnType */ boolean, /* ver */ HTTPVersion, /* status_code */ number, /* reason_phrase */ string ]
+function headers_parse_status_line(status_line: string | null): [ /* returnType */ boolean, /* ver */ HTTPVersion, /* status_code */ number, /* reason_phrase */ string | null ]
 /**
  * Initializes `iter` for iterating `hdrs`.
  * @param hdrs a %SoupMessageHeaders
@@ -1310,7 +1310,7 @@ function session_error_quark(): GLib.Quark
  * @param status_code an HTTP status code
  * @returns the (terse, English) description of @status_code
  */
-function status_get_phrase(status_code: number): string
+function status_get_phrase(status_code: number): string | null
 /**
  * Looks whether the `domain` passed as argument is a public domain
  * suffix (.org, .com, .co.uk, etc) or not.
@@ -1321,7 +1321,7 @@ function status_get_phrase(status_code: number): string
  * @param domain a domain name
  * @returns %TRUE if it is a public domain, %FALSE otherwise.
  */
-function tld_domain_is_public_suffix(domain: string): boolean
+function tld_domain_is_public_suffix(domain: string | null): boolean
 /**
  * Registers error quark for soup_tld_get_base_domain() if needed.
  * @returns Error quark for Soup TLD functions.
@@ -1345,13 +1345,13 @@ function tld_error_quark(): GLib.Quark
  * @param hostname a hostname
  * @returns a pointer to the start of the base domain in @hostname. If   an error occurs, %NULL will be returned and @error set.
  */
-function tld_get_base_domain(hostname: string): string
+function tld_get_base_domain(hostname: string | null): string | null
 /**
  * Decodes the given data URI and returns its contents and `content_type`.
  * @param uri a data URI, in string form
  * @returns a #GBytes with the contents of @uri,    or %NULL if @uri is not a valid data URI
  */
-function uri_decode_data_uri(uri: string): [ /* returnType */ GLib.Bytes, /* content_type */ string | null ]
+function uri_decode_data_uri(uri: string | null): [ /* returnType */ GLib.Bytes, /* content_type */ string | null ]
 /**
  * Tests whether or not `uri1` and `uri2` are equal in all parts.
  * @param uri1 a #GUri
@@ -1469,7 +1469,7 @@ function websocket_server_process_handshake(msg: ServerMessage, expected_origin:
  * @returns %TRUE if @username and @password are valid
  */
 interface AuthDomainBasicAuthCallback {
-    (domain: AuthDomainBasic, msg: ServerMessage, username: string, password: string): boolean
+    (domain: AuthDomainBasic, msg: ServerMessage, username: string | null, password: string | null): boolean
 }
 /**
  * Callback used by #SoupAuthDomainDigest for authentication purposes.
@@ -1484,7 +1484,7 @@ interface AuthDomainBasicAuthCallback {
  * @returns the encoded password, or %NULL if   @username is not a valid user. @domain will free the password when   it is done with it.
  */
 interface AuthDomainDigestAuthCallback {
-    (domain: AuthDomainDigest, msg: ServerMessage, username: string): string | null
+    (domain: AuthDomainDigest, msg: ServerMessage, username: string | null): string | null
 }
 /**
  * The prototype for a #SoupAuthDomain filter.
@@ -1522,7 +1522,7 @@ interface AuthDomainFilter {
  * @returns %TRUE if @msg is authenticated, %FALSE if not.
  */
 interface AuthDomainGenericAuthCallback {
-    (domain: AuthDomain, msg: ServerMessage, username: string): boolean
+    (domain: AuthDomain, msg: ServerMessage, username: string | null): boolean
 }
 /**
  * The prototype for a logging filter.
@@ -1559,7 +1559,7 @@ interface LoggerFilter {
  * @param data data to print
  */
 interface LoggerPrinter {
-    (logger: Logger, level: LoggerLogLevel, direction: number, data: string): void
+    (logger: Logger, level: LoggerLogLevel, direction: number, data: string | null): void
 }
 /**
  * The callback passed to [method`MessageHeaders`.foreach].
@@ -1568,7 +1568,7 @@ interface LoggerPrinter {
  * @param value the header value
  */
 interface MessageHeadersForeachFunc {
-    (name: string, value: string): void
+    (name: string | null, value: string | null): void
 }
 /**
  * A callback used to handle requests to a [class`Server]`.
@@ -1598,7 +1598,7 @@ interface MessageHeadersForeachFunc {
  * @param query the parsed query   component of `msg'`s Request-URI
  */
 interface ServerCallback {
-    (server: Server, msg: ServerMessage, path: string, query: GLib.HashTable | null): void
+    (server: Server, msg: ServerMessage, path: string | null, query: GLib.HashTable | null): void
 }
 /**
  * A callback used to handle WebSocket requests to a #SoupServer.
@@ -1615,7 +1615,7 @@ interface ServerCallback {
  * @param connection the newly created WebSocket connection
  */
 interface ServerWebsocketCallback {
-    (server: Server, msg: ServerMessage, path: string, connection: WebsocketConnection): void
+    (server: Server, msg: ServerMessage, path: string | null, connection: WebsocketConnection): void
 }
 module SessionFeature {
 
@@ -1692,7 +1692,7 @@ interface Auth {
     /**
      * The authority (host:port) being authenticated to.
      */
-    authority: string
+    authority: string | null
     /**
      * Whether or not the auth has been authenticated.
      */
@@ -1708,11 +1708,11 @@ interface Auth {
     /**
      * The authentication realm.
      */
-    realm: string
+    realm: string | null
     /**
      * The authentication scheme name.
      */
-    readonly scheme_name: string
+    readonly scheme_name: string | null
 
     // Own fields of Soup-3.0.Soup.Auth
 
@@ -1728,7 +1728,7 @@ interface Auth {
      * @param username the username provided by the user or client
      * @param password the password provided by the user or client
      */
-    authenticate(username: string, password: string): void
+    authenticate(username: string | null, password: string | null): void
     /**
      * Tests if `auth` is able to authenticate by providing credentials to the
      * [method`Auth`.authenticate].
@@ -1747,7 +1747,7 @@ interface Auth {
      * Returns the authority (host:port) that `auth` is associated with.
      * @returns the authority
      */
-    get_authority(): string
+    get_authority(): string | null
     /**
      * Generates an appropriate "Authorization" header for `msg`.
      * 
@@ -1756,7 +1756,7 @@ interface Auth {
      * @param msg the #SoupMessage to be authorized
      * @returns the "Authorization" header, which must be freed.
      */
-    get_authorization(msg: Message): string
+    get_authorization(msg: Message): string | null
     /**
      * Gets an opaque identifier for `auth`.
      * 
@@ -1766,7 +1766,7 @@ interface Auth {
      * passwords).
      * @returns the identifier
      */
-    get_info(): string
+    get_info(): string | null
     /**
      * Returns a list of paths on the server which `auth` extends over.
      * 
@@ -1785,13 +1785,13 @@ interface Auth {
      * (Although it is probably not localized.)
      * @returns the realm name
      */
-    get_realm(): string
+    get_realm(): string | null
     /**
      * soup_auth_get_scheme_name: (attributes org.gtk.Method.get_property=scheme-name)
      * Returns `auth'`s scheme name. (Eg, "Basic", "Digest", or "NTLM")
      * @returns the scheme name
      */
-    get_scheme_name(): string
+    get_scheme_name(): string | null
     /**
      * Tests if `auth` is ready to make a request for `msg` with.
      * 
@@ -1811,7 +1811,7 @@ interface Auth {
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
      * @returns %TRUE if @auth is still a valid (but potentially   unauthenticated) #SoupAuth. %FALSE if something about @auth_params   could not be parsed or incorporated into @auth at all.
      */
-    update(msg: Message, auth_header: string): boolean
+    update(msg: Message, auth_header: string | null): boolean
 
     // Own virtual methods of Soup-3.0.Soup.Auth
 
@@ -1824,7 +1824,7 @@ interface Auth {
      * @param username the username provided by the user or client
      * @param password the password provided by the user or client
      */
-    vfunc_authenticate(username: string, password: string): void
+    vfunc_authenticate(username: string | null, password: string | null): void
     /**
      * Tests if `auth` is able to authenticate by providing credentials to the
      * [method`Auth`.authenticate].
@@ -1841,7 +1841,7 @@ interface Auth {
      * @param msg the #SoupMessage to be authorized
      * @returns the "Authorization" header, which must be freed.
      */
-    vfunc_get_authorization(msg: Message): string
+    vfunc_get_authorization(msg: Message): string | null
     /**
      * Returns a list of paths on the server which `auth` extends over.
      * 
@@ -1941,7 +1941,7 @@ class Auth extends GObject.Object {
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
      * @returns the new #SoupAuth, or %NULL if it could   not be created
      */
-    constructor(type: GObject.GType, msg: Message, auth_header: string) 
+    constructor(type: GObject.GType, msg: Message, auth_header: string | null) 
     /**
      * Creates a new #SoupAuth of type `type` with the information from
      * `msg` and `auth_header`.
@@ -1954,7 +1954,7 @@ class Auth extends GObject.Object {
      * @param auth_header the WWW-Authenticate/Proxy-Authenticate header
      * @returns the new #SoupAuth, or %NULL if it could   not be created
      */
-    static new(type: GObject.GType, msg: Message, auth_header: string): Auth
+    static new(type: GObject.GType, msg: Message, auth_header: string | null): Auth
     _init(config?: Auth.ConstructorProperties): void
 }
 
@@ -2089,7 +2089,7 @@ module AuthDomain {
         /**
          * Data to pass to the [callback`AuthDomainFilter]`.
          */
-        filter_data?: object | null
+        filter_data?: any | null
         /**
          * The [callback`AuthDomainGenericAuthCallback]`.
          */
@@ -2097,7 +2097,7 @@ module AuthDomain {
         /**
          * The data to pass to the [callback`AuthDomainGenericAuthCallback]`.
          */
-        generic_auth_data?: object | null
+        generic_auth_data?: any | null
         /**
          * Whether or not this is a proxy auth domain.
          */
@@ -2121,7 +2121,7 @@ interface AuthDomain {
     /**
      * Data to pass to the [callback`AuthDomainFilter]`.
      */
-    filter_data: object
+    filter_data: any
     /**
      * The [callback`AuthDomainGenericAuthCallback]`.
      */
@@ -2129,7 +2129,7 @@ interface AuthDomain {
     /**
      * The data to pass to the [callback`AuthDomainGenericAuthCallback]`.
      */
-    generic_auth_data: object
+    generic_auth_data: any
     /**
      * Whether or not this is a proxy auth domain.
      */
@@ -2137,7 +2137,7 @@ interface AuthDomain {
     /**
      * The realm of this auth domain.
      */
-    readonly realm: string
+    readonly realm: string | null
 
     // Own fields of Soup-3.0.Soup.AuthDomain
 
@@ -2166,7 +2166,7 @@ interface AuthDomain {
      * [method`AuthDomain`.set_filter]).
      * @param path the path to add to `domain`
      */
-    add_path(path: string): void
+    add_path(path: string | null): void
     /**
      * Adds a "WWW-Authenticate" or "Proxy-Authenticate" header to `msg`.
      * 
@@ -2188,7 +2188,7 @@ interface AuthDomain {
      * @param password a password
      * @returns whether or not the message is authenticated
      */
-    check_password(msg: ServerMessage, username: string, password: string): boolean
+    check_password(msg: ServerMessage, username: string | null, password: string | null): boolean
     /**
      * Checks if `domain` requires `msg` to be authenticated (according to
      * its paths and filter function).
@@ -2206,7 +2206,7 @@ interface AuthDomain {
      * Gets the realm name associated with `domain`.
      * @returns @domain's realm
      */
-    get_realm(): string
+    get_realm(): string | null
     /**
      * Removes `path` from `domain`.
      * 
@@ -2222,7 +2222,7 @@ interface AuthDomain {
      * otherwise be unnecessary.
      * @param path the path to remove from `domain`
      */
-    remove_path(path: string): void
+    remove_path(path: string | null): void
     /**
      * Adds `filter` as an authentication filter to `domain`.
      * 
@@ -2266,7 +2266,7 @@ interface AuthDomain {
 
     // Own virtual methods of Soup-3.0.Soup.AuthDomain
 
-    vfunc_accepts(msg: ServerMessage, header: string): string
+    vfunc_accepts(msg: ServerMessage, header: string | null): string | null
     /**
      * Adds a "WWW-Authenticate" or "Proxy-Authenticate" header to `msg`.
      * 
@@ -2277,7 +2277,7 @@ interface AuthDomain {
      * @virtual 
      * @param msg a #SoupServerMessage
      */
-    vfunc_challenge(msg: ServerMessage): string
+    vfunc_challenge(msg: ServerMessage): string | null
     /**
      * Checks if `msg` authenticates to `domain` via `username` and
      * `password`.
@@ -2290,7 +2290,7 @@ interface AuthDomain {
      * @param password a password
      * @returns whether or not the message is authenticated
      */
-    vfunc_check_password(msg: ServerMessage, username: string, password: string): boolean
+    vfunc_check_password(msg: ServerMessage, username: string | null, password: string | null): boolean
 
     // Class property signals of Soup-3.0.Soup.AuthDomain
 
@@ -2366,7 +2366,7 @@ module AuthDomainBasic {
         /**
          * The data to pass to the [callback`AuthDomainBasicAuthCallback]`.
          */
-        auth_data?: object | null
+        auth_data?: any | null
     }
 
 }
@@ -2382,7 +2382,7 @@ interface AuthDomainBasic {
     /**
      * The data to pass to the [callback`AuthDomainBasicAuthCallback]`.
      */
-    auth_data: object
+    auth_data: any
 
     // Owm methods of Soup-3.0.Soup.AuthDomainBasic
 
@@ -2469,7 +2469,7 @@ module AuthDomainDigest {
         /**
          * The data to pass to the [callback`AuthDomainDigestAuthCallback]`.
          */
-        auth_data?: object | null
+        auth_data?: any | null
     }
 
 }
@@ -2485,7 +2485,7 @@ interface AuthDomainDigest {
     /**
      * The data to pass to the [callback`AuthDomainDigestAuthCallback]`.
      */
-    auth_data: object
+    auth_data: any
 
     // Owm methods of Soup-3.0.Soup.AuthDomainDigest
 
@@ -2576,7 +2576,7 @@ class AuthDomainDigest extends AuthDomain {
      * @param password the password for `username` in `realm`
      * @returns the encoded password
      */
-    static encode_password(username: string, realm: string, password: string): string
+    static encode_password(username: string | null, realm: string | null, password: string | null): string | null
 }
 
 module AuthManager {
@@ -2810,7 +2810,7 @@ interface Cache extends SessionFeature {
     /**
      * The directory to store the cache files.
      */
-    readonly cache_dir: string
+    readonly cache_dir: string | null
     /**
      * Whether the cache is private or shared.
      */
@@ -2999,7 +2999,7 @@ interface ContentSniffer extends SessionFeature {
      * @param buffer a buffer containing the start of `msg'`s response body
      * @returns the sniffed Content-Type of @buffer; this will never be %NULL,   but may be `application/octet-stream`.
      */
-    sniff(msg: Message, buffer: GLib.Bytes): [ /* returnType */ string, /* params */ GLib.HashTable | null ]
+    sniff(msg: Message, buffer: GLib.Bytes): [ /* returnType */ string | null, /* params */ GLib.HashTable | null ]
 
     // Class property signals of Soup-3.0.Soup.ContentSniffer
 
@@ -3233,7 +3233,7 @@ interface CookieJar extends SessionFeature {
      * @param uri the URI setting the cookie
      * @param cookie the stringified cookie to set
      */
-    set_cookie(uri: GLib.Uri, cookie: string): void
+    set_cookie(uri: GLib.Uri, cookie: string | null): void
     /**
      * Adds `cookie` to `jar,` exactly as though it had appeared in a
      * Set-Cookie header returned from a request to `uri`.
@@ -3244,7 +3244,7 @@ interface CookieJar extends SessionFeature {
      * @param first_party the URI for the main document
      * @param cookie the stringified cookie to set
      */
-    set_cookie_with_first_party(uri: GLib.Uri, first_party: GLib.Uri, cookie: string): void
+    set_cookie_with_first_party(uri: GLib.Uri, first_party: GLib.Uri, cookie: string | null): void
 
     // Own virtual methods of Soup-3.0.Soup.CookieJar
 
@@ -3343,7 +3343,7 @@ interface CookieJarDB extends SessionFeature {
     /**
      * Cookie-storage filename.
      */
-    readonly filename: string
+    readonly filename: string | null
 
     // Class property signals of Soup-3.0.Soup.CookieJarDB
 
@@ -3396,7 +3396,7 @@ class CookieJarDB extends CookieJar {
      * @param read_only %TRUE if `filename` is read-only
      * @returns the new #SoupCookieJar
      */
-    constructor(filename: string, read_only: boolean) 
+    constructor(filename: string | null, read_only: boolean) 
     /**
      * Creates a #SoupCookieJarDB.
      * 
@@ -3410,7 +3410,7 @@ class CookieJarDB extends CookieJar {
      * @param read_only %TRUE if `filename` is read-only
      * @returns the new #SoupCookieJar
      */
-    static new(filename: string, read_only: boolean): CookieJarDB
+    static new(filename: string | null, read_only: boolean): CookieJarDB
 
     // Overloads of new
 
@@ -3449,7 +3449,7 @@ interface CookieJarText extends SessionFeature {
     /**
      * Cookie-storage filename.
      */
-    readonly filename: string
+    readonly filename: string | null
 
     // Class property signals of Soup-3.0.Soup.CookieJarText
 
@@ -3498,7 +3498,7 @@ class CookieJarText extends CookieJar {
      * @param read_only %TRUE if `filename` is read-only
      * @returns the new #SoupCookieJar
      */
-    constructor(filename: string, read_only: boolean) 
+    constructor(filename: string | null, read_only: boolean) 
     /**
      * Creates a #SoupCookieJarText.
      * 
@@ -3512,7 +3512,7 @@ class CookieJarText extends CookieJar {
      * @param read_only %TRUE if `filename` is read-only
      * @returns the new #SoupCookieJar
      */
-    static new(filename: string, read_only: boolean): CookieJarText
+    static new(filename: string | null, read_only: boolean): CookieJarText
 
     // Overloads of new
 
@@ -3572,7 +3572,7 @@ interface HSTSEnforcer extends SessionFeature {
      * @param domain a domain.
      * @returns %TRUE if access to @domain should happen over HTTPS, false   otherwise.
      */
-    has_valid_policy(domain: string): boolean
+    has_valid_policy(domain: string | null): boolean
     /**
      * Gets whether `hsts_enforcer` stores policies persistenly.
      * @returns %TRUE if @hsts_enforcer storage is persistent or %FALSE otherwise.
@@ -3598,7 +3598,7 @@ interface HSTSEnforcer extends SessionFeature {
      * @param domain policy domain or hostname
      * @param include_subdomains %TRUE if the policy applies on sub domains
      */
-    set_session_policy(domain: string, include_subdomains: boolean): void
+    set_session_policy(domain: string | null, include_subdomains: boolean): void
 
     // Own virtual methods of Soup-3.0.Soup.HSTSEnforcer
 
@@ -3609,7 +3609,7 @@ interface HSTSEnforcer extends SessionFeature {
      * @param domain a domain.
      * @returns %TRUE if access to @domain should happen over HTTPS, false   otherwise.
      */
-    vfunc_has_valid_policy(domain: string): boolean
+    vfunc_has_valid_policy(domain: string | null): boolean
     /**
      * Gets whether `hsts_enforcer` stores policies persistenly.
      * @virtual 
@@ -3710,7 +3710,7 @@ interface HSTSEnforcerDB extends SessionFeature {
     /**
      * The filename of the SQLite database where HSTS policies are stored.
      */
-    readonly filename: string
+    readonly filename: string | null
 
     // Class property signals of Soup-3.0.Soup.HSTSEnforcerDB
 
@@ -3753,7 +3753,7 @@ class HSTSEnforcerDB extends HSTSEnforcer {
      * @param filename the filename of the database to read/write from.
      * @returns the new #SoupHSTSEnforcer
      */
-    constructor(filename: string) 
+    constructor(filename: string | null) 
     /**
      * Creates a #SoupHSTSEnforcerDB.
      * 
@@ -3767,7 +3767,7 @@ class HSTSEnforcerDB extends HSTSEnforcer {
      * @param filename the filename of the database to read/write from.
      * @returns the new #SoupHSTSEnforcer
      */
-    static new(filename: string): HSTSEnforcerDB
+    static new(filename: string | null): HSTSEnforcerDB
 
     // Overloads of new
 
@@ -3991,7 +3991,7 @@ module Message {
      * Signal callback interface for `content-sniffed`
      */
     interface ContentSniffedSignalCallback {
-        ($obj: Message, type: string, params: GLib.HashTable): void
+        ($obj: Message, type: string | null, params: GLib.HashTable): void
     }
 
     /**
@@ -4168,7 +4168,7 @@ interface Message {
     /**
      * The message's HTTP method.
      */
-    method: string
+    method: string | null
     /**
      * Sets the priority of the #SoupMessage. See
      * [method`Message`.set_priority] for further details.
@@ -4177,7 +4177,7 @@ interface Message {
     /**
      * The HTTP response reason phrase.
      */
-    readonly reason_phrase: string
+    readonly reason_phrase: string | null
     /**
      * The remote [class`Gio`.SocketAddress] of the connection associated
      * with the message.
@@ -4202,7 +4202,7 @@ interface Message {
     /**
      * The Name of TLS ciphersuite negotiated for this message connection.
      */
-    readonly tls_ciphersuite_name: string
+    readonly tls_ciphersuite_name: string | null
     /**
      * The peer's [class`Gio`.TlsCertificate] associated with the message.
      */
@@ -4284,7 +4284,7 @@ interface Message {
      * Returns the method of this message.
      * @returns A method such as %SOUP_METHOD_GET
      */
-    get_method(): string
+    get_method(): string | null
     /**
      * Get the [struct`MessageMetrics]` of `msg`.
      * 
@@ -4341,7 +4341,7 @@ interface Message {
      * Gets the name of the TLS ciphersuite negotiated for `msg'`s connection.
      * @returns the name of the TLS ciphersuite,   or %NULL if @msg's connection is not SSL.
      */
-    get_tls_ciphersuite_name(): string
+    get_tls_ciphersuite_name(): string | null
     /**
      * Gets the peer's [class`Gio`.TlsCertificate] associated with `msg'`s connection.
      * 
@@ -4430,7 +4430,7 @@ interface Message {
      * Set `msg'`s HTTP method to `method`.
      * @param method the value to set
      */
-    set_method(method: string): void
+    set_method(method: string | null): void
     /**
      * Sets the priority of a message.
      * 
@@ -4522,7 +4522,7 @@ interface Message {
     emit(sigName: "authenticate", auth: Auth, retrying: boolean, ...args: any[]): void
     connect(sigName: "content-sniffed", callback: Message.ContentSniffedSignalCallback): number
     connect_after(sigName: "content-sniffed", callback: Message.ContentSniffedSignalCallback): number
-    emit(sigName: "content-sniffed", type: string, params: GLib.HashTable, ...args: any[]): void
+    emit(sigName: "content-sniffed", type: string | null, params: GLib.HashTable, ...args: any[]): void
     connect(sigName: "finished", callback: Message.FinishedSignalCallback): number
     connect_after(sigName: "finished", callback: Message.FinishedSignalCallback): number
     emit(sigName: "finished", ...args: any[]): void
@@ -4667,7 +4667,7 @@ class Message extends GObject.Object {
      * @param uri_string the destination endpoint (as a string)
      * @returns the new #SoupMessage (or %NULL if @uri   could not be parsed).
      */
-    constructor(method: string, uri_string: string) 
+    constructor(method: string | null, uri_string: string | null) 
     /**
      * Creates a new empty #SoupMessage, which will connect to `uri`.
      * @constructor 
@@ -4675,7 +4675,7 @@ class Message extends GObject.Object {
      * @param uri_string the destination endpoint (as a string)
      * @returns the new #SoupMessage (or %NULL if @uri   could not be parsed).
      */
-    static new(method: string, uri_string: string): Message
+    static new(method: string | null, uri_string: string | null): Message
     /**
      * Creates a new #SoupMessage and sets it up to send the given `encoded_form`
      * to `uri` via `method`. If `method` is "GET", it will include the form data
@@ -4691,7 +4691,7 @@ class Message extends GObject.Object {
      * @param encoded_form a encoded form
      * @returns the new #SoupMessage, or %NULL if   @uri_string could not be parsed or @method is not "GET, "POST" or "PUT"
      */
-    static new_from_encoded_form(method: string, uri_string: string, encoded_form: string): Message
+    static new_from_encoded_form(method: string | null, uri_string: string | null, encoded_form: string | null): Message
     /**
      * Creates a new #SoupMessage and sets it up to send `multipart` to
      * `uri_string` via POST.
@@ -4700,7 +4700,7 @@ class Message extends GObject.Object {
      * @param multipart a #SoupMultipart
      * @returns the new #SoupMessage, or %NULL if @uri_string   could not be parsed
      */
-    static new_from_multipart(uri_string: string, multipart: Multipart): Message
+    static new_from_multipart(uri_string: string | null, multipart: Multipart): Message
     /**
      * Creates a new empty #SoupMessage, which will connect to `uri`.
      * @constructor 
@@ -4708,7 +4708,7 @@ class Message extends GObject.Object {
      * @param uri the destination endpoint
      * @returns the new #SoupMessage
      */
-    static new_from_uri(method: string, uri: GLib.Uri): Message
+    static new_from_uri(method: string | null, uri: GLib.Uri): Message
     /**
      * Creates a new #SoupMessage to send `OPTIONS *` to a server. The path of
      * `base_uri` will be ignored.
@@ -5006,7 +5006,7 @@ interface Server {
      * whitespace, #SoupServer will append its own product token (eg,
      * `libsoup/2.3.2`) to the end of the header for you.
      */
-    server_header: string
+    server_header: string | null
     /**
      * A [enum`Gio`.TlsAuthenticationMode] for SSL/TLS client authentication.
      */
@@ -5310,7 +5310,7 @@ interface Server {
      * Removes all handlers (early and normal) registered at `path`.
      * @param path the toplevel path for the handler
      */
-    remove_handler(path: string): void
+    remove_handler(path: string | null): void
     /**
      * Removes support for WebSocket extension of type `extension_type` (or any subclass of
      * `extension_type)` from `server`.
@@ -5619,7 +5619,7 @@ interface ServerMessage {
      * Get the HTTP method of `msg`.
      * @returns the HTTP method.
      */
-    get_method(): string
+    get_method(): string | null
     /**
      * Get the HTTP reason phrase of `msg`.
      * @returns the reason phrase.
@@ -5723,7 +5723,7 @@ interface ServerMessage {
      * @param status_code a 3xx status code
      * @param redirect_uri the URI to redirect `msg` to
      */
-    set_redirect(status_code: number, redirect_uri: string): void
+    set_redirect(status_code: number, redirect_uri: string | null): void
     /**
      * Convenience function to set the response body of a #SoupServerMessage. If
      * `content_type` is %NULL, the response body must be empty as well.
@@ -6007,7 +6007,7 @@ interface Session {
      * 
      * Setting this will disable [property`Session:`accept-language-auto].
      */
-    accept_language: string
+    accept_language: string | null
     /**
      * If %TRUE, #SoupSession will automatically set the string
      * for the "Accept-Language" header on every [class`Message]`
@@ -6123,7 +6123,7 @@ interface Session {
      * (eg, `libsoup/2.3.2`) to the end of the
      * header for you.
      */
-    user_agent: string
+    user_agent: string | null
 
     // Own fields of Soup-3.0.Soup.Session
 
@@ -6449,7 +6449,7 @@ interface Session {
      * requests. See [property`Session:`accept-language] for more information.
      * @param accept_language the languages string
      */
-    set_accept_language(accept_language: string): void
+    set_accept_language(accept_language: string | null): void
     /**
      * Set whether `session` will automatically set the "Accept-Language" header on
      * requests using a value generated from system languages based on
@@ -6511,7 +6511,7 @@ interface Session {
      * [property`Session:`user-agent] for more information.
      * @param user_agent the user agent string
      */
-    set_user_agent(user_agent: string): void
+    set_user_agent(user_agent: string | null): void
     /**
      * Asynchronously creates a [class`WebsocketConnection]` to communicate with a
      * remote server.
@@ -6753,7 +6753,7 @@ module WebsocketConnection {
         /**
          * List of [class`WebsocketExtension]` objects that are active in the connection.
          */
-        extensions?: object | null
+        extensions?: any | null
         /**
          * The underlying IO stream the WebSocket is communicating
          * over.
@@ -6805,7 +6805,7 @@ interface WebsocketConnection {
     /**
      * List of [class`WebsocketExtension]` objects that are active in the connection.
      */
-    readonly extensions: object
+    readonly extensions: any
     /**
      * The underlying IO stream the WebSocket is communicating
      * over.
@@ -6829,12 +6829,12 @@ interface WebsocketConnection {
     /**
      * The client's Origin.
      */
-    readonly origin: string
+    readonly origin: string | null
     /**
      * The chosen protocol, or %NULL if a protocol was not agreed
      * upon.
      */
-    readonly protocol: string
+    readonly protocol: string | null
     /**
      * The current state of the WebSocket.
      */
@@ -6882,7 +6882,7 @@ interface WebsocketConnection {
      * the main loop is run, so copy it if you need to keep it around.
      * @returns the close data or %NULL
      */
-    get_close_data(): string
+    get_close_data(): string | null
     /**
      * Get the connection type (client/server) of the connection.
      * @returns the connection type
@@ -6961,7 +6961,7 @@ interface WebsocketConnection {
      * is run.
      * @param text the message contents
      */
-    send_text(text: string): void
+    send_text(text: string | null): void
     /**
      * Sets the interval in seconds on when to send a ping message which will serve
      * as a keepalive message.
@@ -7337,16 +7337,16 @@ interface AuthClass {
     // Own fields of Soup-3.0.Soup.AuthClass
 
     parent_class: GObject.ObjectClass
-    scheme_name: string
+    scheme_name: string | null
     strength: number
     update: (auth: Auth, msg: Message, auth_header: GLib.HashTable) => boolean
     get_protection_space: (auth: Auth, source_uri: GLib.Uri) => string[]
-    authenticate: (auth: Auth, username: string, password: string) => void
+    authenticate: (auth: Auth, username: string | null, password: string | null) => void
     is_authenticated: (auth: Auth) => boolean
-    get_authorization: (auth: Auth, msg: Message) => string
+    get_authorization: (auth: Auth, msg: Message) => string | null
     is_ready: (auth: Auth, msg: Message) => boolean
     can_authenticate: (auth: Auth) => boolean
-    padding: object[]
+    padding: any[]
 }
 
 abstract class AuthClass {
@@ -7375,10 +7375,10 @@ interface AuthDomainClass {
     // Own fields of Soup-3.0.Soup.AuthDomainClass
 
     parent_class: GObject.ObjectClass
-    accepts: (domain: AuthDomain, msg: ServerMessage, header: string) => string
-    challenge: (domain: AuthDomain, msg: ServerMessage) => string
-    check_password: (domain: AuthDomain, msg: ServerMessage, username: string, password: string) => boolean
-    padding: object[]
+    accepts: (domain: AuthDomain, msg: ServerMessage, header: string | null) => string | null
+    challenge: (domain: AuthDomain, msg: ServerMessage) => string | null
+    check_password: (domain: AuthDomain, msg: ServerMessage, username: string | null, password: string | null) => boolean
+    padding: any[]
 }
 
 abstract class AuthDomainClass {
@@ -7422,7 +7422,7 @@ interface CacheClass {
 
     parent_class: GObject.ObjectClass
     get_cacheability: (cache: Cache, msg: Message) => Cacheability
-    padding: object[]
+    padding: any[]
 }
 
 abstract class CacheClass {
@@ -7487,7 +7487,7 @@ interface Cookie {
      * @param host a URI
      * @returns %TRUE if the domains match, %FALSE otherwise
      */
-    domain_matches(host: string): boolean
+    domain_matches(host: string | null): boolean
     /**
      * Tests if `cookie1` and `cookie2` are equal.
      * 
@@ -7505,7 +7505,7 @@ interface Cookie {
      * Gets `cookie'`s domain.
      * @returns @cookie's domain
      */
-    get_domain(): string
+    get_domain(): string | null
     /**
      * Gets `cookie'`s expiration time.
      * @returns @cookie's expiration time, which is   owned by @cookie and should not be modified or freed.
@@ -7520,12 +7520,12 @@ interface Cookie {
      * Gets `cookie'`s name.
      * @returns @cookie's name
      */
-    get_name(): string
+    get_name(): string | null
     /**
      * Gets `cookie'`s path.
      * @returns @cookie's path
      */
-    get_path(): string
+    get_path(): string | null
     /**
      * Returns the same-site policy for this cookie.
      * @returns a #SoupSameSitePolicy
@@ -7540,12 +7540,12 @@ interface Cookie {
      * Gets `cookie'`s value.
      * @returns @cookie's value
      */
-    get_value(): string
+    get_value(): string | null
     /**
      * Sets `cookie'`s domain to `domain`.
      * @param domain the new domain
      */
-    set_domain(domain: string): void
+    set_domain(domain: string | null): void
     /**
      * Sets `cookie'`s expiration time to `expires`.
      * 
@@ -7583,12 +7583,12 @@ interface Cookie {
      * Sets `cookie'`s name to `name`.
      * @param name the new name
      */
-    set_name(name: string): void
+    set_name(name: string | null): void
     /**
      * Sets `cookie'`s path to `path`.
      * @param path the new path
      */
-    set_path(path: string): void
+    set_path(path: string | null): void
     /**
      * When used in conjunction with
      * [method`CookieJar`.get_cookie_list_with_same_site_info] this sets the policy
@@ -7608,20 +7608,20 @@ interface Cookie {
      * Sets `cookie'`s value to `value`.
      * @param value the new value
      */
-    set_value(value: string): void
+    set_value(value: string | null): void
     /**
      * Serializes `cookie` in the format used by the Cookie header (ie, for
      * returning a cookie from a [class`Session]` to a server).
      * @returns the header
      */
-    to_cookie_header(): string
+    to_cookie_header(): string | null
     /**
      * Serializes `cookie` in the format used by the Set-Cookie header.
      * 
      * i.e. for sending a cookie from a [class`Server]` to a client.
      * @returns the header
      */
-    to_set_cookie_header(): string
+    to_set_cookie_header(): string | null
 }
 
 /**
@@ -7686,7 +7686,7 @@ class Cookie {
      * @param max_age max age of the cookie, or -1 for a session cookie
      * @returns a new #SoupCookie.
      */
-    constructor(name: string, value: string, domain: string, path: string, max_age: number) 
+    constructor(name: string | null, value: string | null, domain: string | null, path: string | null, max_age: number) 
     /**
      * Creates a new #SoupCookie with the given attributes.
      * 
@@ -7714,7 +7714,7 @@ class Cookie {
      * @param max_age max age of the cookie, or -1 for a session cookie
      * @returns a new #SoupCookie.
      */
-    static new(name: string, value: string, domain: string, path: string, max_age: number): Cookie
+    static new(name: string | null, value: string | null, domain: string | null, path: string | null, max_age: number): Cookie
     /**
      * Parses `header` and returns a #SoupCookie.
      * 
@@ -7730,7 +7730,7 @@ class Cookie {
      * @param origin origin of the cookie
      * @returns a new #SoupCookie, or %NULL if it could   not be parsed, or contained an illegal "domain" attribute for a   cookie originating from @origin.
      */
-    static parse(header: string, origin: GLib.Uri | null): Cookie | null
+    static parse(header: string | null, origin: GLib.Uri | null): Cookie | null
 }
 
 interface CookieJarClass {
@@ -7741,7 +7741,7 @@ interface CookieJarClass {
     save: (jar: CookieJar) => void
     is_persistent: (jar: CookieJar) => boolean
     changed: (jar: CookieJar, old_cookie: Cookie, new_cookie: Cookie) => void
-    padding: object[]
+    padding: any[]
 }
 
 abstract class CookieJarClass {
@@ -7789,7 +7789,7 @@ interface HSTSEnforcerClass {
      */
     parent_class: GObject.ObjectClass
     is_persistent: (hsts_enforcer: HSTSEnforcer) => boolean
-    has_valid_policy: (hsts_enforcer: HSTSEnforcer, domain: string) => boolean
+    has_valid_policy: (hsts_enforcer: HSTSEnforcer, domain: string | null) => boolean
     changed: (enforcer: HSTSEnforcer, old_policy: HSTSPolicy, new_policy: HSTSPolicy) => void
 }
 
@@ -7841,7 +7841,7 @@ interface HSTSPolicy {
      * Gets `policy'`s domain.
      * @returns @policy's domain.
      */
-    get_domain(): string
+    get_domain(): string | null
     /**
      * Returns the expiration date for `policy`.
      * @returns A #GDateTime or %NULL if unset
@@ -7919,7 +7919,7 @@ class HSTSPolicy {
      * @param include_subdomains %TRUE if the policy applies on subdomains
      * @returns a new #SoupHSTSPolicy.
      */
-    constructor(domain: string, max_age: number, include_subdomains: boolean) 
+    constructor(domain: string | null, max_age: number, include_subdomains: boolean) 
     /**
      * Creates a new #SoupHSTSPolicy with the given attributes.
      * 
@@ -7938,7 +7938,7 @@ class HSTSPolicy {
      * @param include_subdomains %TRUE if the policy applies on subdomains
      * @returns a new #SoupHSTSPolicy.
      */
-    static new(domain: string, max_age: number, include_subdomains: boolean): HSTSPolicy
+    static new(domain: string | null, max_age: number, include_subdomains: boolean): HSTSPolicy
     /**
      * Parses `msg'`s first "Strict-Transport-Security" response header and
      * returns a #SoupHSTSPolicy.
@@ -7959,7 +7959,7 @@ class HSTSPolicy {
      * @param include_subdomains %TRUE if the policy applies on subdomains
      * @returns a new #SoupHSTSPolicy.
      */
-    static new_full(domain: string, max_age: number, expires: GLib.DateTime, include_subdomains: boolean): HSTSPolicy
+    static new_full(domain: string | null, max_age: number, expires: GLib.DateTime, include_subdomains: boolean): HSTSPolicy
     /**
      * Creates a new session #SoupHSTSPolicy with the given attributes.
      * 
@@ -7979,7 +7979,7 @@ class HSTSPolicy {
      * @param include_subdomains %TRUE if the policy applies on sub domains
      * @returns a new #SoupHSTSPolicy.
      */
-    static new_session_policy(domain: string, include_subdomains: boolean): HSTSPolicy
+    static new_session_policy(domain: string | null, include_subdomains: boolean): HSTSPolicy
 }
 
 interface LoggerClass {
@@ -8205,7 +8205,7 @@ interface MessageHeaders {
      * @param name the header name to add
      * @param value the new value of `name`
      */
-    append(name: string, value: string): void
+    append(name: string | null, value: string | null): void
     /**
      * Removes all the headers listed in the Connection header.
      */
@@ -8255,7 +8255,7 @@ interface MessageHeaders {
      * form methods.
      * @returns %TRUE if @hdrs contains a "Content-Disposition"   header, %FALSE if not (in which case *@disposition and *@params   will be unchanged).
      */
-    get_content_disposition(): [ /* returnType */ boolean, /* disposition */ string, /* params */ GLib.HashTable ]
+    get_content_disposition(): [ /* returnType */ boolean, /* disposition */ string | null, /* params */ GLib.HashTable ]
     /**
      * Gets the message body length that `hdrs` declare.
      * 
@@ -8318,7 +8318,7 @@ interface MessageHeaders {
      * @param name header name
      * @returns the header's value or %NULL if not found.
      */
-    get_list(name: string): string | null
+    get_list(name: string | null): string | null
     /**
      * Gets the value of header `name` in `hdrs`.
      * 
@@ -8333,7 +8333,7 @@ interface MessageHeaders {
      * @param name header name
      * @returns the header's value or %NULL if not found.
      */
-    get_one(name: string): string | null
+    get_one(name: string | null): string | null
     /**
      * Parses `hdrs'`s Range header and returns an array of the requested
      * byte ranges.
@@ -8377,7 +8377,7 @@ interface MessageHeaders {
      * @param token token to look for
      * @returns %TRUE if the header is present and contains @token,   %FALSE otherwise.
      */
-    header_contains(name: string, token: string): boolean
+    header_contains(name: string | null, token: string | null): boolean
     /**
      * Checks whether the header `name` is present in `hdrs` and is
      * (case-insensitively) equal to `value`.
@@ -8385,7 +8385,7 @@ interface MessageHeaders {
      * @param value expected value
      * @returns %TRUE if the header is present and its value is   @value, %FALSE otherwise.
      */
-    header_equals(name: string, value: string): boolean
+    header_equals(name: string | null, value: string | null): boolean
     /**
      * Atomically increments the reference count of `hdrs` by one.
      * @returns the passed in #SoupMessageHeaders
@@ -8397,7 +8397,7 @@ interface MessageHeaders {
      * If there are multiple values for `name,` they are all removed.
      * @param name the header name to remove
      */
-    remove(name: string): void
+    remove(name: string | null): void
     /**
      * Replaces the value of the header `name` in `hdrs` with `value`.
      * 
@@ -8408,7 +8408,7 @@ interface MessageHeaders {
      * @param name the header name to replace
      * @param value the new value of `name`
      */
-    replace(name: string, value: string): void
+    replace(name: string | null, value: string | null): void
     /**
      * Sets the "Content-Disposition" header in `hdrs` to `disposition,`
      * optionally with additional parameters specified in `params`.
@@ -8418,7 +8418,7 @@ interface MessageHeaders {
      * @param disposition the disposition-type
      * @param params additional parameters
      */
-    set_content_disposition(disposition: string, params: GLib.HashTable | null): void
+    set_content_disposition(disposition: string | null, params: GLib.HashTable | null): void
     /**
      * Sets the message body length that `hdrs` will declare, and sets
      * `hdrs'`s encoding to %SOUP_ENCODING_CONTENT_LENGTH.
@@ -8455,7 +8455,7 @@ interface MessageHeaders {
      * @param content_type the MIME type
      * @param params additional parameters
      */
-    set_content_type(content_type: string, params: GLib.HashTable | null): void
+    set_content_type(content_type: string | null, params: GLib.HashTable | null): void
     /**
      * Sets the message body encoding that `hdrs` will declare.
      * 
@@ -8556,7 +8556,7 @@ interface MessageHeadersIter {
      * will be unchanged.
      * @returns %TRUE if another name and value were returned, %FALSE   if the end of the headers has been reached.
      */
-    next(): [ /* returnType */ boolean, /* name */ string, /* value */ string ]
+    next(): [ /* returnType */ boolean, /* name */ string | null, /* value */ string | null ]
 }
 
 /**
@@ -8771,7 +8771,7 @@ interface Multipart {
      * @param content_type the MIME type of the file, or %NULL if not known
      * @param body the file data
      */
-    append_form_file(control_name: string, filename: string, content_type: string, body: GLib.Bytes): void
+    append_form_file(control_name: string | null, filename: string | null, content_type: string | null, body: GLib.Bytes): void
     /**
      * Adds a new MIME part containing `data` to `multipart`.
      * 
@@ -8779,7 +8779,7 @@ interface Multipart {
      * @param control_name the name of the control associated with `data`
      * @param data the body data
      */
-    append_form_string(control_name: string, data: string): void
+    append_form_string(control_name: string | null, data: string | null): void
     /**
      * Adds a new MIME part to `multipart` with the given headers and body.
      * 
@@ -8846,7 +8846,7 @@ class Multipart {
      * @param mime_type the MIME type of the multipart to create.
      * @returns a new empty #SoupMultipart of the given @mime_type
      */
-    constructor(mime_type: string) 
+    constructor(mime_type: string | null) 
     /**
      * Creates a new empty #SoupMultipart with a randomly-generated
      * boundary string.
@@ -8858,7 +8858,7 @@ class Multipart {
      * @param mime_type the MIME type of the multipart to create.
      * @returns a new empty #SoupMultipart of the given @mime_type
      */
-    static new(mime_type: string): Multipart
+    static new(mime_type: string | null): Multipart
     /**
      * Parses `headers` and `body` to form a new #SoupMultipart
      * @constructor 
@@ -8932,7 +8932,7 @@ interface ServerClass {
     request_read: (server: Server, msg: ServerMessage) => void
     request_finished: (server: Server, msg: ServerMessage) => void
     request_aborted: (server: Server, msg: ServerMessage) => void
-    padding: object[]
+    padding: any[]
 }
 
 abstract class ServerClass {
@@ -9017,7 +9017,7 @@ interface WebsocketExtensionClass {
      * the name of the extension
      * @field 
      */
-    name: string
+    name: string | null
     configure: (extension: WebsocketExtension, connection_type: WebsocketConnectionType, params: GLib.HashTable | null) => boolean
     get_request_params: (extension: WebsocketExtension) => string | null
     get_response_params: (extension: WebsocketExtension) => string | null

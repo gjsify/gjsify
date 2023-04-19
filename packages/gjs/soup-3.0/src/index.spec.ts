@@ -3,7 +3,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import * as SoupExt from './index.js';
 import "@gjsify/types/index";
 import Soup from "@gjsify/types/Soup-3.0";
-import GLib from '@gjsify/types/GLib-2.0';
+import GLib from 'gi://GLib?version=2.0';
 
 export default async () => {
 	await describe('SoupExt.ExtSession.sendAsync', async () => {

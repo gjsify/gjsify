@@ -3648,19 +3648,19 @@ const BIG_ENDIAN: number
  * Used for specifying valid identifier characters
  * in #GScannerConfig.
  */
-const CSET_A_2_Z: string
+const CSET_A_2_Z: string | null
 /**
  * The set of ASCII digits.
  * Used for specifying valid identifier characters
  * in #GScannerConfig.
  */
-const CSET_DIGITS: string
+const CSET_DIGITS: string | null
 /**
  * The set of lowercase ASCII alphabet characters.
  * Used for specifying valid identifier characters
  * in #GScannerConfig.
  */
-const CSET_a_2_z: string
+const CSET_a_2_z: string | null
 /**
  * A bitmask that restricts the possible flags passed to
  * g_datalist_set_flags(). Passing a flags value where
@@ -3688,7 +3688,7 @@ const DIR_SEPARATOR: number
  * The directory separator as a string.
  * This is "/" on UNIX machines and "\" under Windows.
  */
-const DIR_SEPARATOR_S: string
+const DIR_SEPARATOR_S: string | null
 /**
  * The base of natural logarithms.
  */
@@ -3709,7 +3709,7 @@ const E: number
  * ```
  * 
  */
-const GINT16_FORMAT: string
+const GINT16_FORMAT: string | null
 /**
  * The platform dependent length modifier for conversion specifiers
  * for scanning and printing values of type #gint16 or #guint16. It
@@ -3725,18 +3725,18 @@ const GINT16_FORMAT: string
  * ```
  * 
  */
-const GINT16_MODIFIER: string
+const GINT16_MODIFIER: string | null
 /**
  * This is the platform dependent conversion specifier for scanning
  * and printing values of type #gint32. See also %G_GINT16_FORMAT.
  */
-const GINT32_FORMAT: string
+const GINT32_FORMAT: string | null
 /**
  * The platform dependent length modifier for conversion specifiers
  * for scanning and printing values of type #gint32 or #guint32. It
  * is a string literal. See also %G_GINT16_MODIFIER.
  */
-const GINT32_MODIFIER: string
+const GINT32_MODIFIER: string | null
 /**
  * This is the platform dependent conversion specifier for scanning
  * and printing values of type #gint64. See also %G_GINT16_FORMAT.
@@ -3748,7 +3748,7 @@ const GINT32_MODIFIER: string
  * is not recommended for parsing anyway; consider using g_ascii_strtoull()
  * instead.
  */
-const GINT64_FORMAT: string
+const GINT64_FORMAT: string | null
 /**
  * The platform dependent length modifier for conversion specifiers
  * for scanning and printing values of type #gint64 or #guint64.
@@ -3758,60 +3758,60 @@ const GINT64_FORMAT: string
  * though the types are supported. On such platforms %G_GINT64_MODIFIER
  * is not defined.
  */
-const GINT64_MODIFIER: string
+const GINT64_MODIFIER: string | null
 /**
  * This is the platform dependent conversion specifier for scanning
  * and printing values of type #gintptr.
  */
-const GINTPTR_FORMAT: string
+const GINTPTR_FORMAT: string | null
 /**
  * The platform dependent length modifier for conversion specifiers
  * for scanning and printing values of type #gintptr or #guintptr.
  * It is a string literal.
  */
-const GINTPTR_MODIFIER: string
+const GINTPTR_MODIFIER: string | null
 /**
  * Expands to "" on all modern compilers, and to  __FUNCTION__ on gcc
  * version 2.x. Don't use it.
  */
-const GNUC_FUNCTION: string
+const GNUC_FUNCTION: string | null
 /**
  * Expands to "" on all modern compilers, and to __PRETTY_FUNCTION__
  * on gcc version 2.x. Don't use it.
  */
-const GNUC_PRETTY_FUNCTION: string
+const GNUC_PRETTY_FUNCTION: string | null
 /**
  * This is the platform dependent conversion specifier for scanning
  * and printing values of type #gsize. See also %G_GINT16_FORMAT.
  */
-const GSIZE_FORMAT: string
+const GSIZE_FORMAT: string | null
 /**
  * The platform dependent length modifier for conversion specifiers
  * for scanning and printing values of type #gsize. It
  * is a string literal.
  */
-const GSIZE_MODIFIER: string
+const GSIZE_MODIFIER: string | null
 /**
  * This is the platform dependent conversion specifier for scanning
  * and printing values of type #gssize. See also %G_GINT16_FORMAT.
  */
-const GSSIZE_FORMAT: string
+const GSSIZE_FORMAT: string | null
 /**
  * The platform dependent length modifier for conversion specifiers
  * for scanning and printing values of type #gssize. It
  * is a string literal.
  */
-const GSSIZE_MODIFIER: string
+const GSSIZE_MODIFIER: string | null
 /**
  * This is the platform dependent conversion specifier for scanning
  * and printing values of type #guint16. See also %G_GINT16_FORMAT
  */
-const GUINT16_FORMAT: string
+const GUINT16_FORMAT: string | null
 /**
  * This is the platform dependent conversion specifier for scanning
  * and printing values of type #guint32. See also %G_GINT16_FORMAT.
  */
-const GUINT32_FORMAT: string
+const GUINT32_FORMAT: string | null
 /**
  * This is the platform dependent conversion specifier for scanning
  * and printing values of type #guint64. See also %G_GINT16_FORMAT.
@@ -3823,12 +3823,12 @@ const GUINT32_FORMAT: string
  * is not recommended for parsing anyway; consider using g_ascii_strtoull()
  * instead.
  */
-const GUINT64_FORMAT: string
+const GUINT64_FORMAT: string | null
 /**
  * This is the platform dependent conversion specifier
  * for scanning and printing values of type #guintptr.
  */
-const GUINTPTR_FORMAT: string
+const GUINTPTR_FORMAT: string | null
 const HAVE_GINT64: number
 const HAVE_GNUC_VARARGS: number
 /**
@@ -3858,110 +3858,110 @@ const IEEE754_FLOAT_BIAS: number
  * Consult the specification for more
  * details about the meanings of the keys below.
  */
-const KEY_FILE_DESKTOP_GROUP: string
+const KEY_FILE_DESKTOP_GROUP: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a string list
  * giving the available application actions.
  */
-const KEY_FILE_DESKTOP_KEY_ACTIONS: string
+const KEY_FILE_DESKTOP_KEY_ACTIONS: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a list
  * of strings giving the categories in which the desktop entry
  * should be shown in a menu.
  */
-const KEY_FILE_DESKTOP_KEY_CATEGORIES: string
+const KEY_FILE_DESKTOP_KEY_CATEGORIES: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a localized
  * string giving the tooltip for the desktop entry.
  */
-const KEY_FILE_DESKTOP_KEY_COMMENT: string
+const KEY_FILE_DESKTOP_KEY_COMMENT: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a boolean
  * set to true if the application is D-Bus activatable.
  */
-const KEY_FILE_DESKTOP_KEY_DBUS_ACTIVATABLE: string
+const KEY_FILE_DESKTOP_KEY_DBUS_ACTIVATABLE: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a string
  * giving the command line to execute. It is only valid for desktop
  * entries with the `Application` type.
  */
-const KEY_FILE_DESKTOP_KEY_EXEC: string
+const KEY_FILE_DESKTOP_KEY_EXEC: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a localized
  * string giving the generic name of the desktop entry.
  */
-const KEY_FILE_DESKTOP_KEY_GENERIC_NAME: string
+const KEY_FILE_DESKTOP_KEY_GENERIC_NAME: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a boolean
  * stating whether the desktop entry has been deleted by the user.
  */
-const KEY_FILE_DESKTOP_KEY_HIDDEN: string
+const KEY_FILE_DESKTOP_KEY_HIDDEN: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a localized
  * string giving the name of the icon to be displayed for the desktop
  * entry.
  */
-const KEY_FILE_DESKTOP_KEY_ICON: string
+const KEY_FILE_DESKTOP_KEY_ICON: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a list
  * of strings giving the MIME types supported by this desktop entry.
  */
-const KEY_FILE_DESKTOP_KEY_MIME_TYPE: string
+const KEY_FILE_DESKTOP_KEY_MIME_TYPE: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a localized
  * string giving the specific name of the desktop entry.
  */
-const KEY_FILE_DESKTOP_KEY_NAME: string
+const KEY_FILE_DESKTOP_KEY_NAME: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a list of
  * strings identifying the environments that should not display the
  * desktop entry.
  */
-const KEY_FILE_DESKTOP_KEY_NOT_SHOW_IN: string
+const KEY_FILE_DESKTOP_KEY_NOT_SHOW_IN: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a boolean
  * stating whether the desktop entry should be shown in menus.
  */
-const KEY_FILE_DESKTOP_KEY_NO_DISPLAY: string
+const KEY_FILE_DESKTOP_KEY_NO_DISPLAY: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a list of
  * strings identifying the environments that should display the
  * desktop entry.
  */
-const KEY_FILE_DESKTOP_KEY_ONLY_SHOW_IN: string
+const KEY_FILE_DESKTOP_KEY_ONLY_SHOW_IN: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a string
  * containing the working directory to run the program in. It is only
  * valid for desktop entries with the `Application` type.
  */
-const KEY_FILE_DESKTOP_KEY_PATH: string
+const KEY_FILE_DESKTOP_KEY_PATH: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a boolean
  * stating whether the application supports the
  * [Startup Notification Protocol Specification](http://www.freedesktop.org/Standards/startup-notification-spec).
  */
-const KEY_FILE_DESKTOP_KEY_STARTUP_NOTIFY: string
+const KEY_FILE_DESKTOP_KEY_STARTUP_NOTIFY: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is string
  * identifying the WM class or name hint of a window that the application
  * will create, which can be used to emulate Startup Notification with
  * older applications.
  */
-const KEY_FILE_DESKTOP_KEY_STARTUP_WM_CLASS: string
+const KEY_FILE_DESKTOP_KEY_STARTUP_WM_CLASS: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a boolean
  * stating whether the program should be run in a terminal window.
  * 
  * It is only valid for desktop entries with the `Application` type.
  */
-const KEY_FILE_DESKTOP_KEY_TERMINAL: string
+const KEY_FILE_DESKTOP_KEY_TERMINAL: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a string
  * giving the file name of a binary on disk used to determine if the
  * program is actually installed. It is only valid for desktop entries
  * with the `Application` type.
  */
-const KEY_FILE_DESKTOP_KEY_TRY_EXEC: string
+const KEY_FILE_DESKTOP_KEY_TRY_EXEC: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a string
  * giving the type of the desktop entry.
@@ -3970,34 +3970,34 @@ const KEY_FILE_DESKTOP_KEY_TRY_EXEC: string
  * %G_KEY_FILE_DESKTOP_TYPE_LINK, or
  * %G_KEY_FILE_DESKTOP_TYPE_DIRECTORY.
  */
-const KEY_FILE_DESKTOP_KEY_TYPE: string
+const KEY_FILE_DESKTOP_KEY_TYPE: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a string
  * giving the URL to access. It is only valid for desktop entries
  * with the `Link` type.
  */
-const KEY_FILE_DESKTOP_KEY_URL: string
+const KEY_FILE_DESKTOP_KEY_URL: string | null
 /**
  * A key under %G_KEY_FILE_DESKTOP_GROUP, whose value is a string
  * giving the version of the Desktop Entry Specification used for
  * the desktop entry file.
  */
-const KEY_FILE_DESKTOP_KEY_VERSION: string
+const KEY_FILE_DESKTOP_KEY_VERSION: string | null
 /**
  * The value of the %G_KEY_FILE_DESKTOP_KEY_TYPE, key for desktop
  * entries representing applications.
  */
-const KEY_FILE_DESKTOP_TYPE_APPLICATION: string
+const KEY_FILE_DESKTOP_TYPE_APPLICATION: string | null
 /**
  * The value of the %G_KEY_FILE_DESKTOP_KEY_TYPE, key for desktop
  * entries representing directories.
  */
-const KEY_FILE_DESKTOP_TYPE_DIRECTORY: string
+const KEY_FILE_DESKTOP_TYPE_DIRECTORY: string | null
 /**
  * The value of the %G_KEY_FILE_DESKTOP_KEY_TYPE, key for desktop
  * entries representing links to documents.
  */
-const KEY_FILE_DESKTOP_TYPE_LINK: string
+const KEY_FILE_DESKTOP_TYPE_LINK: string | null
 /**
  * Specifies one of the possible types of byte order.
  * See %G_BYTE_ORDER.
@@ -4126,7 +4126,7 @@ const MININT8: number
  * linked against at application run time.
  */
 const MINOR_VERSION: number
-const MODULE_SUFFIX: string
+const MODULE_SUFFIX: string | null
 /**
  * If a long option in the main group has this name, it is not treated as a
  * regular option. Instead it collects all non-option arguments which would
@@ -4139,7 +4139,7 @@ const MODULE_SUFFIX: string
  * for leftover arguments has the advantage that GOption takes care of
  * necessary encoding conversions for strings or filenames.
  */
-const OPTION_REMAINING: string
+const OPTION_REMAINING: string | null
 /**
  * Specifies one of the possible types of byte order
  * (currently unused). See %G_BYTE_ORDER.
@@ -4153,7 +4153,7 @@ const PI: number
  * A format specifier that can be used in printf()-style format strings
  * when printing a #GPid.
  */
-const PID_FORMAT: string
+const PID_FORMAT: string | null
 /**
  * Pi divided by 2.
  */
@@ -4166,7 +4166,7 @@ const PI_4: number
  * A format specifier that can be used in printf()-style format strings
  * when printing the `fd` member of a #GPollFD.
  */
-const POLLFD_FORMAT: string
+const POLLFD_FORMAT: string | null
 /**
  * Use this for default priority event sources.
  * 
@@ -4212,7 +4212,7 @@ const SEARCHPATH_SEPARATOR: number
  * The search path separator as a string.
  * This is ":" on UNIX machines and ";" under Windows.
  */
-const SEARCHPATH_SEPARATOR_S: string
+const SEARCHPATH_SEPARATOR_S: string | null
 const SIZEOF_LONG: number
 const SIZEOF_SIZE_T: number
 const SIZEOF_SSIZE_T: number
@@ -4234,7 +4234,7 @@ const SQRT2: number
 /**
  * The standard delimiters, used in g_strdelimit().
  */
-const STR_DELIMITERS: string
+const STR_DELIMITERS: string | null
 const SYSDEF_AF_INET: number
 const SYSDEF_AF_INET6: number
 const SYSDEF_AF_UNIX: number
@@ -4266,7 +4266,7 @@ const SYSDEF_MSG_PEEK: number
  * calls to functions like g_get_user_cache_dir(), the caller must be prepared
  * to create the directory if it doesn’t exist.
  */
-const TEST_OPTION_ISOLATE_DIRS: string
+const TEST_OPTION_ISOLATE_DIRS: string | null
 /**
  * Evaluates to a time span of one day.
  */
@@ -4298,12 +4298,12 @@ const UNICHAR_MAX_DECOMPOSITION_LENGTH: number
  * Generic delimiters characters as defined in
  * [RFC 3986](https://tools.ietf.org/html/rfc3986). Includes `:/?#[]```.
  */
-const URI_RESERVED_CHARS_GENERIC_DELIMITERS: string
+const URI_RESERVED_CHARS_GENERIC_DELIMITERS: string | null
 /**
  * Subcomponent delimiter characters as defined in
  * [RFC 3986](https://tools.ietf.org/html/rfc3986). Includes `!$&'()*+,;=`.
  */
-const URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS: string
+const URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS: string | null
 /**
  * Number of microseconds in one second (1 million).
  * This macro is provided for code readability.
@@ -4361,7 +4361,7 @@ function access(filename: string, mode: number): number
  * @param alignment the alignment to be enforced, which must be a positive power of 2   and a multiple of `sizeof(void*)`
  * @returns the allocated memory
  */
-function aligned_alloc(n_blocks: number, n_block_bytes: number, alignment: number): object | null
+function aligned_alloc(n_blocks: number, n_block_bytes: number, alignment: number): any | null
 /**
  * This function is similar to g_aligned_alloc(), but it will
  * also clear the allocated memory before returning it.
@@ -4370,12 +4370,12 @@ function aligned_alloc(n_blocks: number, n_block_bytes: number, alignment: numbe
  * @param alignment the alignment to be enforced, which must be a positive power of 2   and a multiple of `sizeof(void*)`
  * @returns the allocated, cleared memory
  */
-function aligned_alloc0(n_blocks: number, n_block_bytes: number, alignment: number): object | null
+function aligned_alloc0(n_blocks: number, n_block_bytes: number, alignment: number): any | null
 /**
  * Frees the memory allocated by g_aligned_alloc().
  * @param mem the memory to deallocate
  */
-function aligned_free(mem: object | null): void
+function aligned_free(mem: any | null): void
 /**
  * Determines the numeric value of a character as a decimal digit.
  * Differs from g_unichar_digit_value() because it takes a char, so
@@ -4399,7 +4399,7 @@ function ascii_digit_value(c: number): number
  * @param d The #gdouble to convert
  * @returns The pointer to the buffer with the converted string.
  */
-function ascii_dtostr(buffer: string, buf_len: number, d: number): string
+function ascii_dtostr(buffer: string | null, buf_len: number, d: number): string | null
 /**
  * Converts a #gdouble to a string, using the '.' as
  * decimal point. To format the number you pass in
@@ -4419,7 +4419,7 @@ function ascii_dtostr(buffer: string, buf_len: number, d: number): string
  * @param d The #gdouble to convert
  * @returns The pointer to the buffer with the converted string.
  */
-function ascii_formatd(buffer: string, buf_len: number, format: string, d: number): string
+function ascii_formatd(buffer: string | null, buf_len: number, format: string | null, d: number): string | null
 /**
  * Compare two strings, ignoring the case of ASCII characters.
  * 
@@ -4440,14 +4440,14 @@ function ascii_formatd(buffer: string, buf_len: number, format: string, d: numbe
  * @param s2 string to compare with `s1`
  * @returns 0 if the strings match, a negative value if @s1 < @s2,     or a positive value if @s1 > @s2.
  */
-function ascii_strcasecmp(s1: string, s2: string): number
+function ascii_strcasecmp(s1: string | null, s2: string | null): number
 /**
  * Converts all upper case ASCII letters to lower case ASCII letters.
  * @param str a string
  * @param len length of `str` in bytes, or -1 if `str` is nul-terminated
  * @returns a newly-allocated string, with all the upper case     characters in @str converted to lower case, with semantics that     exactly match g_ascii_tolower(). (Note that this is unlike the     old g_strdown(), which modified the string in place.)
  */
-function ascii_strdown(str: string, len: number): string
+function ascii_strdown(str: string | null, len: number): string | null
 /**
  * A convenience function for converting a string to a signed number.
  * 
@@ -4476,7 +4476,7 @@ function ascii_strdown(str: string, len: number): string
  * @param max an upper bound (inclusive)
  * @returns %TRUE if @str was a number, otherwise %FALSE.
  */
-function ascii_string_to_signed(str: string, base: number, min: number, max: number): [ /* returnType */ boolean, /* out_num */ number ]
+function ascii_string_to_signed(str: string | null, base: number, min: number, max: number): [ /* returnType */ boolean, /* out_num */ number ]
 /**
  * A convenience function for converting a string to an unsigned number.
  * 
@@ -4506,7 +4506,7 @@ function ascii_string_to_signed(str: string, base: number, min: number, max: num
  * @param max an upper bound (inclusive)
  * @returns %TRUE if @str was a number, otherwise %FALSE.
  */
-function ascii_string_to_unsigned(str: string, base: number, min: number, max: number): [ /* returnType */ boolean, /* out_num */ number ]
+function ascii_string_to_unsigned(str: string | null, base: number, min: number, max: number): [ /* returnType */ boolean, /* out_num */ number ]
 /**
  * Compare `s1` and `s2`, ignoring the case of ASCII characters and any
  * characters after the first `n` in each string. If either string is
@@ -4525,7 +4525,7 @@ function ascii_string_to_unsigned(str: string, base: number, min: number, max: n
  * @param n number of characters to compare
  * @returns 0 if the strings match, a negative value if @s1 < @s2,     or a positive value if @s1 > @s2.
  */
-function ascii_strncasecmp(s1: string, s2: string, n: number): number
+function ascii_strncasecmp(s1: string | null, s2: string | null, n: number): number
 /**
  * Converts a string to a #gdouble value.
  * 
@@ -4553,7 +4553,7 @@ function ascii_strncasecmp(s1: string, s2: string, n: number): number
  * @param nptr the string to convert to a numeric value.
  * @returns the #gdouble value.
  */
-function ascii_strtod(nptr: string): [ /* returnType */ number, /* endptr */ string ]
+function ascii_strtod(nptr: string | null): [ /* returnType */ number, /* endptr */ string | null ]
 /**
  * Converts a string to a #gint64 value.
  * This function behaves like the standard strtoll() function
@@ -4576,7 +4576,7 @@ function ascii_strtod(nptr: string): [ /* returnType */ number, /* endptr */ str
  * @param base to be used for the conversion, 2..36 or 0
  * @returns the #gint64 value or zero on error.
  */
-function ascii_strtoll(nptr: string, base: number): [ /* returnType */ number, /* endptr */ string ]
+function ascii_strtoll(nptr: string | null, base: number): [ /* returnType */ number, /* endptr */ string | null ]
 /**
  * Converts a string to a #guint64 value.
  * This function behaves like the standard strtoull() function
@@ -4604,14 +4604,14 @@ function ascii_strtoll(nptr: string, base: number): [ /* returnType */ number, /
  * @param base to be used for the conversion, 2..36 or 0
  * @returns the #guint64 value or zero on error.
  */
-function ascii_strtoull(nptr: string, base: number): [ /* returnType */ number, /* endptr */ string ]
+function ascii_strtoull(nptr: string | null, base: number): [ /* returnType */ number, /* endptr */ string | null ]
 /**
  * Converts all lower case ASCII letters to upper case ASCII letters.
  * @param str a string
  * @param len length of `str` in bytes, or -1 if `str` is nul-terminated
  * @returns a newly allocated string, with all the lower case     characters in @str converted to upper case, with semantics that     exactly match g_ascii_toupper(). (Note that this is unlike the     old g_strup(), which modified the string in place.)
  */
-function ascii_strup(str: string, len: number): string
+function ascii_strup(str: string | null, len: number): string | null
 /**
  * Convert a character to ASCII lower case.
  * 
@@ -4649,11 +4649,11 @@ function ascii_toupper(c: number): number
  * @returns If @c is a hex digit (according to g_ascii_isxdigit()),     its numeric value. Otherwise, -1.
  */
 function ascii_xdigit_value(c: number): number
-function assert_warning(log_domain: string, file: string, line: number, pretty_function: string, expression: string): void
-function assertion_message(domain: string, file: string, line: number, func: string, message: string): void
-function assertion_message_cmpstr(domain: string, file: string, line: number, func: string, expr: string, arg1: string, cmp: string, arg2: string): void
-function assertion_message_cmpstrv(domain: string, file: string, line: number, func: string, expr: string, arg1: string, arg2: string, first_wrong_idx: number): void
-function assertion_message_error(domain: string, file: string, line: number, func: string, expr: string, error: Error, error_domain: Quark, error_code: number): void
+function assert_warning(log_domain: string | null, file: string | null, line: number, pretty_function: string | null, expression: string | null): void
+function assertion_message(domain: string | null, file: string | null, line: number, func: string | null, message: string | null): void
+function assertion_message_cmpstr(domain: string | null, file: string | null, line: number, func: string | null, expr: string | null, arg1: string | null, cmp: string | null, arg2: string | null): void
+function assertion_message_cmpstrv(domain: string | null, file: string | null, line: number, func: string | null, expr: string | null, arg1: string | null, arg2: string | null, first_wrong_idx: number): void
+function assertion_message_error(domain: string | null, file: string | null, line: number, func: string | null, expr: string | null, error: Error, error_domain: Quark, error_code: number): void
 /**
  * Specifies a function to be called at normal program termination.
  * 
@@ -4879,7 +4879,7 @@ function atomic_int_xor(atomic: number, val: number): number
  * @param val the value to add
  * @returns the value of @atomic before the add, signed
  */
-function atomic_pointer_add(atomic: object, val: number): number
+function atomic_pointer_add(atomic: any, val: number): number
 /**
  * Performs an atomic bitwise 'and' of the value of `atomic` and `val,`
  * storing the result back in `atomic`.
@@ -4895,7 +4895,7 @@ function atomic_pointer_add(atomic: object, val: number): number
  * @param val the value to 'and'
  * @returns the value of @atomic before the operation, unsigned
  */
-function atomic_pointer_and(atomic: object, val: number): number
+function atomic_pointer_and(atomic: any, val: number): number
 /**
  * Compares `atomic` to `oldval` and, if equal, sets it to `newval`.
  * If `atomic` was not equal to `oldval` then no change occurs.
@@ -4914,7 +4914,7 @@ function atomic_pointer_and(atomic: object, val: number): number
  * @param newval the value to conditionally replace with
  * @returns %TRUE if the exchange took place
  */
-function atomic_pointer_compare_and_exchange(atomic: object, oldval: object | null, newval: object | null): boolean
+function atomic_pointer_compare_and_exchange(atomic: any, oldval: any | null, newval: any | null): boolean
 /**
  * Compares `atomic` to `oldval` and, if equal, sets it to `newval`.
  * If `atomic` was not equal to `oldval` then no change occurs.
@@ -4933,7 +4933,7 @@ function atomic_pointer_compare_and_exchange(atomic: object, oldval: object | nu
  * @param newval the value to conditionally replace with
  * @returns %TRUE if the exchange took place
  */
-function atomic_pointer_compare_and_exchange_full(atomic: object, oldval: object | null, newval: object | null): [ /* returnType */ boolean, /* preval */ object ]
+function atomic_pointer_compare_and_exchange_full(atomic: any, oldval: any | null, newval: any | null): [ /* returnType */ boolean, /* preval */ any ]
 /**
  * Sets the `atomic` to `newval` and returns the old value from `atomic`.
  * 
@@ -4947,7 +4947,7 @@ function atomic_pointer_compare_and_exchange_full(atomic: object, oldval: object
  * @param newval the value to replace with
  * @returns the value of @atomic before the exchange
  */
-function atomic_pointer_exchange(atomic: object | null, newval: object | null): object | null
+function atomic_pointer_exchange(atomic: any | null, newval: any | null): any | null
 /**
  * Gets the current value of `atomic`.
  * 
@@ -4959,7 +4959,7 @@ function atomic_pointer_exchange(atomic: object | null, newval: object | null): 
  * @param atomic a pointer to a #gpointer-sized value
  * @returns the value of the pointer
  */
-function atomic_pointer_get(atomic: object): object | null
+function atomic_pointer_get(atomic: any): any | null
 /**
  * Performs an atomic bitwise 'or' of the value of `atomic` and `val,`
  * storing the result back in `atomic`.
@@ -4975,7 +4975,7 @@ function atomic_pointer_get(atomic: object): object | null
  * @param val the value to 'or'
  * @returns the value of @atomic before the operation, unsigned
  */
-function atomic_pointer_or(atomic: object, val: number): number
+function atomic_pointer_or(atomic: any, val: number): number
 /**
  * Sets the value of `atomic` to `newval`.
  * 
@@ -4987,7 +4987,7 @@ function atomic_pointer_or(atomic: object, val: number): number
  * @param atomic a pointer to a #gpointer-sized value
  * @param newval a new value to store
  */
-function atomic_pointer_set(atomic: object, newval: object | null): void
+function atomic_pointer_set(atomic: any, newval: any | null): void
 /**
  * Performs an atomic bitwise 'xor' of the value of `atomic` and `val,`
  * storing the result back in `atomic`.
@@ -5003,13 +5003,13 @@ function atomic_pointer_set(atomic: object, newval: object | null): void
  * @param val the value to 'xor'
  * @returns the value of @atomic before the operation, unsigned
  */
-function atomic_pointer_xor(atomic: object, val: number): number
+function atomic_pointer_xor(atomic: any, val: number): number
 /**
  * Atomically acquires a reference on the data pointed by `mem_block`.
  * @param mem_block a pointer to reference counted data
  * @returns a pointer to the data,   with its reference count increased
  */
-function atomic_rc_box_acquire(mem_block: object): object
+function atomic_rc_box_acquire(mem_block: any): any
 /**
  * Allocates `block_size` bytes of memory, and adds atomic
  * reference counting semantics to it.
@@ -5022,7 +5022,7 @@ function atomic_rc_box_acquire(mem_block: object): object
  * @param block_size the size of the allocation, must be greater than 0
  * @returns a pointer to the allocated memory
  */
-function atomic_rc_box_alloc(block_size: number): object
+function atomic_rc_box_alloc(block_size: number): any
 /**
  * Allocates `block_size` bytes of memory, and adds atomic
  * reference counting semantics to it.
@@ -5037,7 +5037,7 @@ function atomic_rc_box_alloc(block_size: number): object
  * @param block_size the size of the allocation, must be greater than 0
  * @returns a pointer to the allocated memory
  */
-function atomic_rc_box_alloc0(block_size: number): object
+function atomic_rc_box_alloc0(block_size: number): any
 /**
  * Allocates a new block of data with atomic reference counting
  * semantics, and copies `block_size` bytes of `mem_block`
@@ -5046,13 +5046,13 @@ function atomic_rc_box_alloc0(block_size: number): object
  * @param mem_block the memory to copy
  * @returns a pointer to the allocated   memory
  */
-function atomic_rc_box_dup(block_size: number, mem_block: object): object
+function atomic_rc_box_dup(block_size: number, mem_block: any): any
 /**
  * Retrieves the size of the reference counted data pointed by `mem_block`.
  * @param mem_block a pointer to reference counted data
  * @returns the size of the data, in bytes
  */
-function atomic_rc_box_get_size(mem_block: object): number
+function atomic_rc_box_get_size(mem_block: any): number
 /**
  * Atomically releases a reference on the data pointed by `mem_block`.
  * 
@@ -5060,7 +5060,7 @@ function atomic_rc_box_get_size(mem_block: object): number
  * resources allocated for `mem_block`.
  * @param mem_block a pointer to reference counted data
  */
-function atomic_rc_box_release(mem_block: object): void
+function atomic_rc_box_release(mem_block: any): void
 /**
  * Atomically releases a reference on the data pointed by `mem_block`.
  * 
@@ -5070,7 +5070,7 @@ function atomic_rc_box_release(mem_block: object): void
  * @param mem_block a pointer to reference counted data
  * @param clear_func a function to call when clearing the data
  */
-function atomic_rc_box_release_full(mem_block: object, clear_func: DestroyNotify): void
+function atomic_rc_box_release_full(mem_block: any, clear_func: DestroyNotify): void
 /**
  * Atomically compares the current value of `arc` with `val`.
  * @param arc the address of an atomic reference count variable
@@ -5105,7 +5105,7 @@ function atomic_ref_count_init(arc: number): void
  * @param text zero-terminated string with base64 text to decode
  * @returns                newly allocated buffer containing the binary data               that @text represents. The returned buffer must               be freed with g_free().
  */
-function base64_decode(text: string): Uint8Array
+function base64_decode(text: string | null): Uint8Array
 /**
  * Decode a sequence of Base-64 encoded text into binary data
  * by overwriting the input data.
@@ -5119,7 +5119,7 @@ function base64_decode_inplace(text: Uint8Array): [ /* returnType */ number, /* 
  * @param data the binary data to encode
  * @returns a newly allocated, zero-terminated Base-64               encoded string representing @data. The returned string must               be freed with g_free().
  */
-function base64_encode(data: Uint8Array | null): string
+function base64_encode(data: Uint8Array | null): string | null
 /**
  * Flush the status from a sequence of calls to g_base64_encode_step().
  * 
@@ -5265,7 +5265,7 @@ function build_filenamev(args: string[]): string
  * @param args %NULL-terminated     array of strings containing the path elements.
  * @returns a newly-allocated string that     must be freed with g_free().
  */
-function build_pathv(separator: string, args: string[]): string
+function build_pathv(separator: string | null, args: string[]): string
 /**
  * Frees the memory allocated by the #GByteArray. If `free_segment` is
  * %TRUE it frees the actual byte data. If the reference count of
@@ -5494,7 +5494,7 @@ function compute_checksum_for_data(checksum_type: ChecksumType, data: Uint8Array
  * @param length the length of the string, or -1 if the string is null-terminated.
  * @returns the checksum as a hexadecimal string,   or %NULL if g_checksum_new() fails for @checksum_type. The returned string   should be freed with g_free() when done using it.
  */
-function compute_checksum_for_string(checksum_type: ChecksumType, str: string, length: number): string | null
+function compute_checksum_for_string(checksum_type: ChecksumType, str: string | null, length: number): string | null
 /**
  * Computes the HMAC for a binary `data`. This is a
  * convenience wrapper for g_hmac_new(), g_hmac_get_string()
@@ -5506,7 +5506,7 @@ function compute_checksum_for_string(checksum_type: ChecksumType, str: string, l
  * @param data binary blob to compute the HMAC of
  * @returns the HMAC of the binary data as a string in hexadecimal.   The returned string should be freed with g_free() when done using it.
  */
-function compute_hmac_for_bytes(digest_type: ChecksumType, key: Bytes, data: Bytes): string
+function compute_hmac_for_bytes(digest_type: ChecksumType, key: Bytes, data: Bytes): string | null
 /**
  * Computes the HMAC for a binary `data` of `length`. This is a
  * convenience wrapper for g_hmac_new(), g_hmac_get_string()
@@ -5518,7 +5518,7 @@ function compute_hmac_for_bytes(digest_type: ChecksumType, key: Bytes, data: Byt
  * @param data binary blob to compute the HMAC of
  * @returns the HMAC of the binary data as a string in hexadecimal.   The returned string should be freed with g_free() when done using it.
  */
-function compute_hmac_for_data(digest_type: ChecksumType, key: Uint8Array, data: Uint8Array): string
+function compute_hmac_for_data(digest_type: ChecksumType, key: Uint8Array, data: Uint8Array): string | null
 /**
  * Computes the HMAC for a string.
  * 
@@ -5529,7 +5529,7 @@ function compute_hmac_for_data(digest_type: ChecksumType, key: Uint8Array, data:
  * @param length the length of the string, or -1 if the string is nul-terminated
  * @returns the HMAC as a hexadecimal string.     The returned string should be freed with g_free()     when done using it.
  */
-function compute_hmac_for_string(digest_type: ChecksumType, key: Uint8Array, str: string, length: number): string
+function compute_hmac_for_string(digest_type: ChecksumType, key: Uint8Array, str: string | null, length: number): string | null
 /**
  * Converts a string from one character set to another.
  * 
@@ -5550,7 +5550,7 @@ function compute_hmac_for_string(digest_type: ChecksumType, key: Uint8Array, str
  * @param from_codeset character set of `str`.
  * @returns           If the conversion was successful, a newly allocated buffer          containing the converted string, which must be freed with g_free().          Otherwise %NULL and @error will be set.
  */
-function convert(str: Uint8Array, to_codeset: string, from_codeset: string): [ /* returnType */ Uint8Array, /* bytes_read */ number ]
+function convert(str: Uint8Array, to_codeset: string | null, from_codeset: string | null): [ /* returnType */ Uint8Array, /* bytes_read */ number ]
 function convert_error_quark(): Quark
 /**
  * Converts a string from one character set to another, possibly
@@ -5576,7 +5576,7 @@ function convert_error_quark(): Quark
  * @param fallback UTF-8 string to use in place of characters not                present in the target encoding. (The string must be                representable in the target encoding).                If %NULL, characters not in the target encoding will                be represented as Unicode escapes \uxxxx or \Uxxxxyyyy.
  * @returns           If the conversion was successful, a newly allocated buffer          containing the converted string, which must be freed with g_free().          Otherwise %NULL and @error will be set.
  */
-function convert_with_fallback(str: Uint8Array, to_codeset: string, from_codeset: string, fallback: string): [ /* returnType */ Uint8Array, /* bytes_read */ number ]
+function convert_with_fallback(str: Uint8Array, to_codeset: string | null, from_codeset: string | null, fallback: string | null): [ /* returnType */ Uint8Array, /* bytes_read */ number ]
 /**
  * Calls the given function for each data element of the datalist. The
  * function is called with each data element's #GQuark id and data,
@@ -5599,7 +5599,7 @@ function datalist_foreach(datalist: Data, func: DataForeachFunc): void
  * @param key the string identifying a data element.
  * @returns the data element, or %NULL if it          is not found.
  */
-function datalist_get_data(datalist: Data, key: string): object | null
+function datalist_get_data(datalist: Data, key: string | null): any | null
 /**
  * Gets flags values packed in together with the datalist.
  * See g_datalist_set_flags().
@@ -5613,7 +5613,7 @@ function datalist_get_flags(datalist: Data): number
  * @param key_id the #GQuark identifying a data element.
  * @returns the data element, or %NULL if          it is not found.
  */
-function datalist_id_get_data(datalist: Data, key_id: Quark): object | null
+function datalist_id_get_data(datalist: Data, key_id: Quark): any | null
 /**
  * Removes multiple keys from a datalist.
  * 
@@ -5645,7 +5645,7 @@ function datalist_unset_flags(datalist: Data, flags: number): void
  * destroy functions set for data elements.
  * @param dataset_location the location identifying the dataset.
  */
-function dataset_destroy(dataset_location: object): void
+function dataset_destroy(dataset_location: any): void
 /**
  * Calls the given function for each data element which is associated
  * with the given location. Note that this function is NOT thread-safe.
@@ -5658,14 +5658,14 @@ function dataset_destroy(dataset_location: object): void
  * @param dataset_location the location identifying the dataset.
  * @param func the function to call for each data element.
  */
-function dataset_foreach(dataset_location: object, func: DataForeachFunc): void
+function dataset_foreach(dataset_location: any, func: DataForeachFunc): void
 /**
  * Gets the data element corresponding to a #GQuark.
  * @param dataset_location the location identifying the dataset.
  * @param key_id the #GQuark id to identify the data element.
  * @returns the data element corresponding to          the #GQuark, or %NULL if it is not found.
  */
-function dataset_id_get_data(dataset_location: object, key_id: Quark): object | null
+function dataset_id_get_data(dataset_location: any, key_id: Quark): any | null
 /**
  * Returns the number of days in a month, taking leap
  * years into account.
@@ -5729,7 +5729,7 @@ function date_is_leap_year(year: DateYear): boolean
  * @param date valid #GDate
  * @returns number of characters written to the buffer, or 0 the buffer was too small
  */
-function date_strftime(s: string, slen: number, format: string, date: Date): number
+function date_strftime(s: string | null, slen: number, format: string | null, date: Date): number
 /**
  * Returns %TRUE if the day of the month is valid (a day is valid if it's
  * between 1 and 31 inclusive).
@@ -5785,7 +5785,7 @@ function date_valid_year(year: DateYear): boolean
  * @param category a locale category
  * @returns the translated string for the given locale category
  */
-function dcgettext(domain: string | null, msgid: string, category: number): string
+function dcgettext(domain: string | null, msgid: string | null, category: number): string | null
 /**
  * This function is a wrapper of dgettext() which does not translate
  * the message if the default domain as set with textdomain() has no
@@ -5823,7 +5823,7 @@ function dcgettext(domain: string | null, msgid: string, category: number): stri
  * @param msgid message to translate
  * @returns The translated string
  */
-function dgettext(domain: string | null, msgid: string): string
+function dgettext(domain: string | null, msgid: string | null): string | null
 /**
  * Creates a subdirectory in the preferred directory for temporary
  * files (as returned by g_get_tmp_dir()).
@@ -5852,7 +5852,7 @@ function dir_make_tmp(tmpl: string | null): string
  * @param v2 a key to compare with `v1`
  * @returns %TRUE if the two keys match.
  */
-function direct_equal(v1: object | null, v2: object | null): boolean
+function direct_equal(v1: any | null, v2: any | null): boolean
 /**
  * Converts a gpointer to a hash value.
  * It can be passed to g_hash_table_new() as the `hash_func` parameter,
@@ -5864,7 +5864,7 @@ function direct_equal(v1: object | null, v2: object | null): boolean
  * @param v a #gpointer key
  * @returns a hash value corresponding to the key.
  */
-function direct_hash(v: object | null): number
+function direct_hash(v: any | null): number
 /**
  * This function is a wrapper of dngettext() which does not translate
  * the message if the default domain as set with textdomain() has no
@@ -5878,7 +5878,7 @@ function direct_hash(v: object | null): number
  * @param n the quantity for which translation is needed
  * @returns The translated string
  */
-function dngettext(domain: string | null, msgid: string, msgid_plural: string, n: number): string
+function dngettext(domain: string | null, msgid: string | null, msgid_plural: string | null, n: number): string | null
 /**
  * Compares the two #gdouble values being pointed to and returns
  * %TRUE if they are equal.
@@ -5889,7 +5889,7 @@ function dngettext(domain: string | null, msgid: string, msgid_plural: string, n
  * @param v2 a pointer to a #gdouble key to compare with `v1`
  * @returns %TRUE if the two keys match.
  */
-function double_equal(v1: object, v2: object): boolean
+function double_equal(v1: any, v2: any): boolean
 /**
  * Converts a pointer to a #gdouble to a hash value.
  * It can be passed to g_hash_table_new() as the `hash_func` parameter,
@@ -5898,7 +5898,7 @@ function double_equal(v1: object, v2: object): boolean
  * @param v a pointer to a #gdouble key
  * @returns a hash value corresponding to the key.
  */
-function double_hash(v: object): number
+function double_hash(v: any): number
 /**
  * This function is a variant of g_dgettext() which supports
  * a disambiguating message context. GNU gettext uses the
@@ -5918,7 +5918,7 @@ function double_hash(v: object): number
  * @param msgidoffset the offset of the message id in `msgctxid`
  * @returns The translated string
  */
-function dpgettext(domain: string | null, msgctxtid: string, msgidoffset: number): string
+function dpgettext(domain: string | null, msgctxtid: string | null, msgidoffset: number): string | null
 /**
  * This function is a variant of g_dgettext() which supports
  * a disambiguating message context. GNU gettext uses the
@@ -5935,7 +5935,7 @@ function dpgettext(domain: string | null, msgctxtid: string, msgidoffset: number
  * @param msgid the message
  * @returns The translated string
  */
-function dpgettext2(domain: string | null, context: string, msgid: string): string
+function dpgettext2(domain: string | null, context: string | null, msgid: string | null): string | null
 /**
  * Returns the value of the environment variable `variable` in the
  * provided list `envp`.
@@ -6162,7 +6162,7 @@ function file_test(filename: string, test: FileTest): boolean
  * @param filename an absolute pathname in the     GLib file name encoding
  * @returns a newly allocated string containing   a rendition of the basename of the filename in valid UTF-8
  */
-function filename_display_basename(filename: string): string
+function filename_display_basename(filename: string): string | null
 /**
  * Converts a filename into a valid UTF-8 string. The conversion is
  * not necessarily reversible, so you should keep the original around
@@ -6182,14 +6182,14 @@ function filename_display_basename(filename: string): string
  * @param filename a pathname hopefully in the     GLib file name encoding
  * @returns a newly allocated string containing   a rendition of the filename in valid UTF-8
  */
-function filename_display_name(filename: string): string
+function filename_display_name(filename: string): string | null
 /**
  * Converts an escaped ASCII-encoded URI to a local filename in the
  * encoding used for filenames.
  * @param uri a uri describing a filename (escaped, encoded in ASCII).
  * @returns a newly-allocated string holding               the resulting filename, or %NULL on an error.
  */
-function filename_from_uri(uri: string): [ /* returnType */ string, /* hostname */ string | null ]
+function filename_from_uri(uri: string | null): [ /* returnType */ string, /* hostname */ string | null ]
 /**
  * Converts a string from UTF-8 to the encoding GLib uses for
  * filenames. Note that on Windows GLib uses UTF-8 for filenames;
@@ -6205,7 +6205,7 @@ function filename_from_uri(uri: string): [ /* returnType */ string, /* hostname 
  * @param len the length of the string, or -1 if the string is                 nul-terminated.
  * @returns                The converted string, or %NULL on an error.
  */
-function filename_from_utf8(utf8string: string, len: number): [ /* returnType */ string, /* bytes_read */ number, /* bytes_written */ number ]
+function filename_from_utf8(utf8string: string | null, len: number): [ /* returnType */ string, /* bytes_read */ number, /* bytes_written */ number ]
 /**
  * Converts an absolute filename to an escaped ASCII-encoded URI, with the path
  * component following Section 3.3. of RFC 2396.
@@ -6213,7 +6213,7 @@ function filename_from_utf8(utf8string: string, len: number): [ /* returnType */
  * @param hostname A UTF-8 encoded hostname, or %NULL for none.
  * @returns a newly-allocated string holding the resulting               URI, or %NULL on an error.
  */
-function filename_to_uri(filename: string, hostname: string | null): string
+function filename_to_uri(filename: string, hostname: string | null): string | null
 /**
  * Converts a string which is in the encoding used by GLib for
  * filenames into a UTF-8 string. Note that on Windows GLib uses UTF-8
@@ -6231,7 +6231,7 @@ function filename_to_uri(filename: string, hostname: string | null): string
  * @param len the length of the string, or -1 if the string is                 nul-terminated (Note that some encodings may allow nul                 bytes to occur inside strings. In that case, using -1                 for the `len` parameter is unsafe)
  * @returns The converted string, or %NULL on an error.
  */
-function filename_to_utf8(opsysstring: string, len: number): [ /* returnType */ string, /* bytes_read */ number, /* bytes_written */ number ]
+function filename_to_utf8(opsysstring: string, len: number): [ /* returnType */ string | null, /* bytes_read */ number, /* bytes_written */ number ]
 /**
  * Locates the first executable named `program` in the user's path, in the
  * same way that execvp() would locate it. Returns an allocated string
@@ -6271,7 +6271,7 @@ function find_program_in_path(program: string): string | null
  * @param size a size in bytes
  * @returns a newly-allocated formatted string containing   a human readable file size
  */
-function format_size(size: number): string
+function format_size(size: number): string | null
 /**
  * Formats a size (for example the size of a file) into a human
  * readable string. Sizes are rounded to the nearest size prefix
@@ -6285,7 +6285,7 @@ function format_size(size: number): string
  * @param size a size in bytes
  * @returns a newly-allocated formatted string   containing a human readable file size
  */
-function format_size_for_display(size: number): string
+function format_size_for_display(size: number): string | null
 /**
  * Formats a size.
  * 
@@ -6295,7 +6295,7 @@ function format_size_for_display(size: number): string
  * @param flags #GFormatSizeFlags to modify the output
  * @returns a newly-allocated formatted string   containing a human readable file size
  */
-function format_size_full(size: number, flags: FormatSizeFlags): string
+function format_size_full(size: number, flags: FormatSizeFlags): string | null
 /**
  * Frees the memory pointed to by `mem`.
  * 
@@ -6303,7 +6303,7 @@ function format_size_full(size: number, flags: FormatSizeFlags): string
  * against %NULL before calling this function.
  * @param mem the memory to free
  */
-function free(mem: object | null): void
+function free(mem: any | null): void
 /**
  * Gets a human-readable name for the application, as set by
  * g_set_application_name(). This name should be localized if
@@ -6338,12 +6338,12 @@ function get_application_name(): string | null
  * freed.
  * @returns %TRUE if the returned charset is UTF-8
  */
-function get_charset(): [ /* returnType */ boolean, /* charset */ string ]
+function get_charset(): [ /* returnType */ boolean, /* charset */ string | null ]
 /**
  * Gets the character set for the current locale.
  * @returns a newly allocated string containing the name     of the character set. This string must be freed with g_free().
  */
-function get_codeset(): string
+function get_codeset(): string | null
 /**
  * Obtains the character set used by the console attached to the process,
  * which is suitable for printing output to the terminal.
@@ -6364,7 +6364,7 @@ function get_codeset(): string
  * freed.
  * @returns %TRUE if the returned charset is UTF-8
  */
-function get_console_charset(): [ /* returnType */ boolean, /* charset */ string ]
+function get_console_charset(): [ /* returnType */ boolean, /* charset */ string | null ]
 /**
  * Gets the current directory.
  * 
@@ -6469,7 +6469,7 @@ function get_home_dir(): string
  * The encoding of the returned string is UTF-8.
  * @returns the host name of the machine.
  */
-function get_host_name(): string
+function get_host_name(): string | null
 /**
  * Computes a list of applicable locale names, which can be used to
  * e.g. construct locale-dependent filenames or search paths. The returned
@@ -6499,7 +6499,7 @@ function get_language_names(): string[]
  * @param category_name a locale category name
  * @returns a %NULL-terminated array of strings owned by    the thread g_get_language_names_with_category was called from.    It must not be modified or freed. It must be copied if planned to be used in another thread.
  */
-function get_language_names_with_category(category_name: string): string[]
+function get_language_names_with_category(category_name: string | null): string[]
 /**
  * Returns a list of derived variants of `locale,` which can be used to
  * e.g. construct locale-dependent filenames or search paths. The returned
@@ -6519,7 +6519,7 @@ function get_language_names_with_category(category_name: string): string[]
  * @param locale a locale identifier
  * @returns a newly   allocated array of newly allocated strings with the locale variants. Free with   g_strfreev().
  */
-function get_locale_variants(locale: string): string[]
+function get_locale_variants(locale: string | null): string[]
 /**
  * Queries the system monotonic time.
  * 
@@ -6554,7 +6554,7 @@ function get_num_processors(): number
  * @param key_name a key for the OS info being requested, for example %G_OS_INFO_KEY_NAME.
  * @returns The associated value for the requested key or %NULL if   this information is not provided.
  */
-function get_os_info(key_name: string): string | null
+function get_os_info(key_name: string | null): string | null
 /**
  * Gets the name of the program. This name should not be localized,
  * in contrast to g_get_application_name().
@@ -6824,14 +6824,14 @@ function getenv(variable: string): string | null
  * @param key a key to insert
  * @returns %TRUE if the key did not exist yet
  */
-function hash_table_add(hash_table: HashTable, key: object | null): boolean
+function hash_table_add(hash_table: HashTable, key: any | null): boolean
 /**
  * Checks if `key` is in `hash_table`.
  * @param hash_table a #GHashTable
  * @param key a key to check
  * @returns %TRUE if @key is in @hash_table, %FALSE otherwise.
  */
-function hash_table_contains(hash_table: HashTable, key: object | null): boolean
+function hash_table_contains(hash_table: HashTable, key: any | null): boolean
 /**
  * Destroys all keys and values in the #GHashTable and decrements its
  * reference count by 1. If keys and/or values are dynamically allocated,
@@ -6860,7 +6860,7 @@ function hash_table_destroy(hash_table: HashTable): void
  * @param value the value to associate with the key
  * @returns %TRUE if the key did not exist yet
  */
-function hash_table_insert(hash_table: HashTable, key: object | null, value: object | null): boolean
+function hash_table_insert(hash_table: HashTable, key: any | null, value: any | null): boolean
 /**
  * Looks up a key in a #GHashTable. Note that this function cannot
  * distinguish between a key that is not present and one which is present
@@ -6870,7 +6870,7 @@ function hash_table_insert(hash_table: HashTable, key: object | null, value: obj
  * @param key the key to look up
  * @returns the associated value, or %NULL if the key is not found
  */
-function hash_table_lookup(hash_table: HashTable, key: object | null): object | null
+function hash_table_lookup(hash_table: HashTable, key: any | null): any | null
 /**
  * Looks up a key in the #GHashTable, returning the original key and the
  * associated value and a #gboolean which is %TRUE if the key was found. This
@@ -6884,7 +6884,7 @@ function hash_table_lookup(hash_table: HashTable, key: object | null): object | 
  * @param lookup_key the key to look up
  * @returns %TRUE if the key was found in the #GHashTable
  */
-function hash_table_lookup_extended(hash_table: HashTable, lookup_key: object | null): [ /* returnType */ boolean, /* orig_key */ object | null, /* value */ object | null ]
+function hash_table_lookup_extended(hash_table: HashTable, lookup_key: any | null): [ /* returnType */ boolean, /* orig_key */ any | null, /* value */ any | null ]
 /**
  * Creates a new #GHashTable like g_hash_table_new_full() with a reference
  * count of 1.
@@ -6909,7 +6909,7 @@ function hash_table_new_similar(other_hash_table: HashTable): HashTable
  * @param key the key to remove
  * @returns %TRUE if the key was found and removed from the #GHashTable
  */
-function hash_table_remove(hash_table: HashTable, key: object | null): boolean
+function hash_table_remove(hash_table: HashTable, key: any | null): boolean
 /**
  * Removes all keys and their associated values from a #GHashTable.
  * 
@@ -6937,7 +6937,7 @@ function hash_table_remove_all(hash_table: HashTable): void
  * @param value the value to associate with the key
  * @returns %TRUE if the key did not exist yet
  */
-function hash_table_replace(hash_table: HashTable, key: object | null, value: object | null): boolean
+function hash_table_replace(hash_table: HashTable, key: any | null, value: any | null): boolean
 /**
  * Returns the number of elements contained in the #GHashTable.
  * @param hash_table a #GHashTable
@@ -6951,7 +6951,7 @@ function hash_table_size(hash_table: HashTable): number
  * @param key the key to remove
  * @returns %TRUE if the key was found and removed from the #GHashTable
  */
-function hash_table_steal(hash_table: HashTable, key: object | null): boolean
+function hash_table_steal(hash_table: HashTable, key: any | null): boolean
 /**
  * Removes all keys and their associated values from a #GHashTable
  * without calling the key and value destroy functions.
@@ -6973,7 +6973,7 @@ function hash_table_steal_all(hash_table: HashTable): void
  * @param lookup_key the key to look up
  * @returns %TRUE if the key was found in the #GHashTable
  */
-function hash_table_steal_extended(hash_table: HashTable, lookup_key: object | null): [ /* returnType */ boolean, /* stolen_key */ object | null, /* stolen_value */ object | null ]
+function hash_table_steal_extended(hash_table: HashTable, lookup_key: any | null): [ /* returnType */ boolean, /* stolen_key */ any | null, /* stolen_value */ any | null ]
 /**
  * Atomically decrements the reference count of `hash_table` by one.
  * If the reference count drops to 0, all keys and values will be
@@ -7036,7 +7036,7 @@ function hook_unref(hook_list: HookList, hook: Hook): void
  * @param hostname a hostname
  * @returns %TRUE if @hostname contains any ASCII-encoded segments.
  */
-function hostname_is_ascii_encoded(hostname: string): boolean
+function hostname_is_ascii_encoded(hostname: string | null): boolean
 /**
  * Tests if `hostname` is the string form of an IPv4 or IPv6 address.
  * (Eg, "192.168.0.1".)
@@ -7045,7 +7045,7 @@ function hostname_is_ascii_encoded(hostname: string): boolean
  * @param hostname a hostname (or IP address in string form)
  * @returns %TRUE if @hostname is an IP address
  */
-function hostname_is_ip_address(hostname: string): boolean
+function hostname_is_ip_address(hostname: string | null): boolean
 /**
  * Tests if `hostname` contains Unicode characters. If this returns
  * %TRUE, you need to encode the hostname with g_hostname_to_ascii()
@@ -7057,7 +7057,7 @@ function hostname_is_ip_address(hostname: string): boolean
  * @param hostname a hostname
  * @returns %TRUE if @hostname contains any non-ASCII characters
  */
-function hostname_is_non_ascii(hostname: string): boolean
+function hostname_is_non_ascii(hostname: string | null): boolean
 /**
  * Converts `hostname` to its canonical ASCII form; an ASCII-only
  * string containing no uppercase letters and not ending with a
@@ -7065,7 +7065,7 @@ function hostname_is_non_ascii(hostname: string): boolean
  * @param hostname a valid UTF-8 or ASCII hostname
  * @returns an ASCII hostname, which must be freed,    or %NULL if @hostname is in some way invalid.
  */
-function hostname_to_ascii(hostname: string): string | null
+function hostname_to_ascii(hostname: string | null): string | null
 /**
  * Converts `hostname` to its canonical presentation form; a UTF-8
  * string in Unicode normalization form C, containing no uppercase
@@ -7077,7 +7077,7 @@ function hostname_to_ascii(hostname: string): string | null
  * @param hostname a valid UTF-8 or ASCII hostname
  * @returns a UTF-8 hostname, which must be freed,    or %NULL if @hostname is in some way invalid.
  */
-function hostname_to_unicode(hostname: string): string | null
+function hostname_to_unicode(hostname: string | null): string | null
 /**
  * Adds a function to be called whenever there are no higher priority
  * events pending.
@@ -7103,7 +7103,7 @@ function idle_add(priority: number, function_: SourceFunc): number
  * @param data the data for the idle source's callback.
  * @returns %TRUE if an idle source was found and removed.
  */
-function idle_remove_by_data(data: object | null): boolean
+function idle_remove_by_data(data: any | null): boolean
 /**
  * Creates a new idle source.
  * 
@@ -7125,7 +7125,7 @@ function idle_source_new(): Source
  * @param v2 a pointer to a #gint64 key to compare with `v1`
  * @returns %TRUE if the two keys match.
  */
-function int64_equal(v1: object, v2: object): boolean
+function int64_equal(v1: any, v2: any): boolean
 /**
  * Converts a pointer to a #gint64 to a hash value.
  * 
@@ -7135,7 +7135,7 @@ function int64_equal(v1: object, v2: object): boolean
  * @param v a pointer to a #gint64 key
  * @returns a hash value corresponding to the key.
  */
-function int64_hash(v: object): number
+function int64_hash(v: any): number
 /**
  * Compares the two #gint values being pointed to and returns
  * %TRUE if they are equal.
@@ -7150,7 +7150,7 @@ function int64_hash(v: object): number
  * @param v2 a pointer to a #gint key to compare with `v1`
  * @returns %TRUE if the two keys match.
  */
-function int_equal(v1: object, v2: object): boolean
+function int_equal(v1: any, v2: any): boolean
 /**
  * Converts a pointer to a #gint to a hash value.
  * It can be passed to g_hash_table_new() as the `hash_func` parameter,
@@ -7162,7 +7162,7 @@ function int_equal(v1: object, v2: object): boolean
  * @param v a pointer to a #gint key
  * @returns a hash value corresponding to the key.
  */
-function int_hash(v: object): number
+function int_hash(v: any): number
 /**
  * Returns a canonical representation for `string`. Interned strings
  * can be compared for equality by comparing the pointers, instead of
@@ -7175,7 +7175,7 @@ function int_hash(v: object): number
  * @param string a static string
  * @returns a canonical representation for the string
  */
-function intern_static_string(string: string | null): string
+function intern_static_string(string: string | null): string | null
 /**
  * Returns a canonical representation for `string`. Interned strings
  * can be compared for equality by comparing the pointers, instead of
@@ -7187,7 +7187,7 @@ function intern_static_string(string: string | null): string
  * @param string a string
  * @returns a canonical representation for the string
  */
-function intern_string(string: string | null): string
+function intern_string(string: string | null): string | null
 /**
  * Adds the #GIOChannel into the default main loop context
  * with the given priority.
@@ -7256,7 +7256,7 @@ function listenv(): string[]
  * @param len the length of the string, or -1 if the string is                 nul-terminated.
  * @returns           A newly-allocated buffer containing the converted string,          or %NULL on an error, and error will be set.
  */
-function locale_from_utf8(utf8string: string, len: number): [ /* returnType */ Uint8Array, /* bytes_read */ number ]
+function locale_from_utf8(utf8string: string | null, len: number): [ /* returnType */ Uint8Array, /* bytes_read */ number ]
 /**
  * Converts a string which is in the encoding used for strings by
  * the C runtime (usually the same as that used by the operating
@@ -7272,7 +7272,7 @@ function locale_from_utf8(utf8string: string, len: number): [ /* returnType */ U
  * @param opsysstring a string in the                 encoding of the current locale. On Windows                 this means the system codepage.
  * @returns The converted string, or %NULL on an error.
  */
-function locale_to_utf8(opsysstring: Uint8Array): [ /* returnType */ string, /* bytes_read */ number, /* bytes_written */ number ]
+function locale_to_utf8(opsysstring: Uint8Array): [ /* returnType */ string | null, /* bytes_read */ number, /* bytes_written */ number ]
 /**
  * The default log handler set up by GLib; g_log_set_default_handler()
  * allows to install an alternate default log handler.
@@ -7305,7 +7305,7 @@ function locale_to_utf8(opsysstring: Uint8Array): [ /* returnType */ string, /* 
  * @param message the message
  * @param unused_data data passed from g_log() which is unused
  */
-function log_default_handler(log_domain: string | null, log_level: LogLevelFlags, message: string | null, unused_data: object | null): void
+function log_default_handler(log_domain: string | null, log_level: LogLevelFlags, message: string | null, unused_data: any | null): void
 /**
  * Return whether debug output from the GLib logging system is enabled.
  * 
@@ -7326,7 +7326,7 @@ function log_get_debug_enabled(): boolean
  * @param log_domain the log domain
  * @param handler_id the id of the handler, which was returned     in g_log_set_handler()
  */
-function log_remove_handler(log_domain: string, handler_id: number): void
+function log_remove_handler(log_domain: string | null, handler_id: number): void
 /**
  * Sets the message levels which are always fatal, in any log domain.
  * When a message with any of these levels is logged the program terminates.
@@ -7376,7 +7376,7 @@ function log_set_debug_enabled(enabled: boolean): void
  * @param fatal_mask the new fatal mask
  * @returns the old fatal mask for the log domain
  */
-function log_set_fatal_mask(log_domain: string, fatal_mask: LogLevelFlags): LogLevelFlags
+function log_set_fatal_mask(log_domain: string | null, fatal_mask: LogLevelFlags): LogLevelFlags
 /**
  * Like g_log_set_handler(), but takes a destroy notify for the `user_data`.
  * 
@@ -7459,7 +7459,7 @@ function log_variant(log_domain: string | null, log_level: LogLevelFlags, fields
  * @param user_data user data passed to g_log_set_writer_func()
  * @returns %G_LOG_WRITER_HANDLED on success, %G_LOG_WRITER_UNHANDLED otherwise
  */
-function log_writer_default(log_level: LogLevelFlags, fields: LogField[], user_data: object | null): LogWriterOutput
+function log_writer_default(log_level: LogLevelFlags, fields: LogField[], user_data: any | null): LogWriterOutput
 /**
  * Configure whether the built-in log functions
  * (g_log_default_handler() for the old-style API, and both
@@ -7529,7 +7529,7 @@ function log_writer_default_would_drop(log_level: LogLevelFlags, log_domain: str
  * @param use_color %TRUE to use ANSI color escape sequences when formatting the    message, %FALSE to not
  * @returns string containing the formatted log message, in    the character set of the current locale
  */
-function log_writer_format_fields(log_level: LogLevelFlags, fields: LogField[], use_color: boolean): string
+function log_writer_format_fields(log_level: LogLevelFlags, fields: LogField[], use_color: boolean): string | null
 /**
  * Check whether the given `output_fd` file descriptor is a connection to the
  * systemd journal, or something else (like a log file or `stdout` or
@@ -7561,7 +7561,7 @@ function log_writer_is_journald(output_fd: number): boolean
  * @param user_data user data passed to g_log_set_writer_func()
  * @returns %G_LOG_WRITER_HANDLED on success, %G_LOG_WRITER_UNHANDLED otherwise
  */
-function log_writer_journald(log_level: LogLevelFlags, fields: LogField[], user_data: object | null): LogWriterOutput
+function log_writer_journald(log_level: LogLevelFlags, fields: LogField[], user_data: any | null): LogWriterOutput
 /**
  * Format a structured log message and print it to either `stdout` or `stderr`,
  * depending on its log level. %G_LOG_LEVEL_INFO and %G_LOG_LEVEL_DEBUG messages
@@ -7582,7 +7582,7 @@ function log_writer_journald(log_level: LogLevelFlags, fields: LogField[], user_
  * @param user_data user data passed to g_log_set_writer_func()
  * @returns %G_LOG_WRITER_HANDLED on success, %G_LOG_WRITER_UNHANDLED otherwise
  */
-function log_writer_standard_streams(log_level: LogLevelFlags, fields: LogField[], user_data: object | null): LogWriterOutput
+function log_writer_standard_streams(log_level: LogLevelFlags, fields: LogField[], user_data: any | null): LogWriterOutput
 /**
  * Check whether the given `output_fd` file descriptor supports ANSI color
  * escape sequences. If so, they can safely be used when formatting log
@@ -7747,7 +7747,7 @@ function main_depth(): number
  * @param n_bytes the number of bytes to allocate
  * @returns a pointer to the allocated memory
  */
-function malloc(n_bytes: number): object | null
+function malloc(n_bytes: number): any | null
 /**
  * Allocates `n_bytes` bytes of memory, initialized to 0's.
  * If `n_bytes` is 0 it returns %NULL.
@@ -7757,7 +7757,7 @@ function malloc(n_bytes: number): object | null
  * @param n_bytes the number of bytes to allocate
  * @returns a pointer to the allocated memory
  */
-function malloc0(n_bytes: number): object | null
+function malloc0(n_bytes: number): any | null
 /**
  * This function is similar to g_malloc0(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
@@ -7768,7 +7768,7 @@ function malloc0(n_bytes: number): object | null
  * @param n_block_bytes the size of each block in bytes
  * @returns a pointer to the allocated memory
  */
-function malloc0_n(n_blocks: number, n_block_bytes: number): object | null
+function malloc0_n(n_blocks: number, n_block_bytes: number): any | null
 /**
  * This function is similar to g_malloc(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
@@ -7779,7 +7779,7 @@ function malloc0_n(n_blocks: number, n_block_bytes: number): object | null
  * @param n_block_bytes the size of each block in bytes
  * @returns a pointer to the allocated memory
  */
-function malloc_n(n_blocks: number, n_block_bytes: number): object | null
+function malloc_n(n_blocks: number, n_block_bytes: number): any | null
 function markup_error_quark(): Quark
 /**
  * Escapes text so that the markup parser will parse it verbatim.
@@ -7800,7 +7800,7 @@ function markup_error_quark(): Quark
  * @param length length of `text` in bytes, or -1 if the text is nul-terminated
  * @returns a newly allocated string with the escaped text
  */
-function markup_escape_text(text: string, length: number): string
+function markup_escape_text(text: string | null, length: number): string | null
 /**
  * Checks whether the allocator used by g_malloc() is the system's
  * malloc implementation. If it returns %TRUE memory allocated with
@@ -7831,7 +7831,7 @@ function mem_set_vtable(vtable: MemVTable): void
  * @param byte_size the number of bytes to copy.
  * @returns a pointer to the newly-allocated copy of the memory, or %NULL if @mem  is %NULL.
  */
-function memdup(mem: object | null, byte_size: number): object | null
+function memdup(mem: any | null, byte_size: number): any | null
 /**
  * Allocates `byte_size` bytes of memory, and copies `byte_size` bytes into it
  * from `mem`. If `mem` is %NULL it returns %NULL.
@@ -7842,7 +7842,7 @@ function memdup(mem: object | null, byte_size: number): object | null
  * @param byte_size the number of bytes to copy.
  * @returns a pointer to the newly-allocated copy of the memory,    or %NULL if @mem is %NULL.
  */
-function memdup2(mem: object | null, byte_size: number): object | null
+function memdup2(mem: any | null, byte_size: number): any | null
 /**
  * Create a directory if it doesn't already exist. Create intermediate
  * parent directories as needed, too.
@@ -7855,7 +7855,7 @@ function mkdir_with_parents(pathname: string, mode: number): number
  * Set the pointer at the specified location to %NULL.
  * @param nullify_location the memory address of the pointer.
  */
-function nullify_pointer(nullify_location: object): void
+function nullify_pointer(nullify_location: any): void
 function number_parser_error_quark(): Quark
 /**
  * Prompts the user with
@@ -7908,7 +7908,7 @@ function number_parser_error_quark(): Quark
  * calling g_on_error_stack_trace() instead.
  * @param prg_name the program name, needed by gdb for the "[S]tack trace"     option. If `prg_name` is %NULL, g_get_prgname() is called to get     the program name (which will work correctly if gdk_init() or     gtk_init() has been called)
  */
-function on_error_query(prg_name: string): void
+function on_error_query(prg_name: string | null): void
 /**
  * Invokes gdb, which attaches to the current process and shows a
  * stack trace. Called by g_on_error_query() when the "[S]tack trace"
@@ -7925,7 +7925,7 @@ function on_error_query(prg_name: string): void
  * handle that exception (see [Running GLib Applications](glib-running.html)).
  * @param prg_name the program name, needed by gdb for the "[S]tack trace"     option
  */
-function on_error_stack_trace(prg_name: string): void
+function on_error_stack_trace(prg_name: string | null): void
 /**
  * Function to be called when starting a critical initialization
  * section. The argument `location` must point to a static
@@ -7957,7 +7957,7 @@ function on_error_stack_trace(prg_name: string): void
  * @param location location of a static initializable variable    containing 0
  * @returns %TRUE if the initialization section should be entered,     %FALSE and blocks otherwise
  */
-function once_init_enter(location: object): boolean
+function once_init_enter(location: any): boolean
 /**
  * Counterpart to g_once_init_enter(). Expects a location of a static
  * 0-initialized initialization variable, and an initialization value
@@ -7970,7 +7970,7 @@ function once_init_enter(location: object): boolean
  * @param location location of a static initializable variable    containing 0
  * @param result new non-0 value for *`value_location`
  */
-function once_init_leave(location: object, result: number): void
+function once_init_leave(location: any, result: number): void
 function option_error_quark(): Quark
 /**
  * Parses a string containing debugging options
@@ -8058,7 +8058,7 @@ function path_skip_root(file_name: string): string | null
  * @param string the UTF-8 encoded string to match
  * @returns %TRUE if @string matches @pspec
  */
-function pattern_match_simple(pattern: string, string: string): boolean
+function pattern_match_simple(pattern: string | null, string: string | null): boolean
 /**
  * This is equivalent to g_bit_lock, but working on pointers (or other
  * pointer-sized values).
@@ -8071,7 +8071,7 @@ function pattern_match_simple(pattern: string, string: string): boolean
  * @param address a pointer to a #gpointer-sized value
  * @param lock_bit a bit value between 0 and 31
  */
-function pointer_bit_lock(address: object, lock_bit: number): void
+function pointer_bit_lock(address: any, lock_bit: number): void
 /**
  * This is equivalent to g_bit_trylock(), but working on pointers (or
  * other pointer-sized values).
@@ -8085,7 +8085,7 @@ function pointer_bit_lock(address: object, lock_bit: number): void
  * @param lock_bit a bit value between 0 and 31
  * @returns %TRUE if the lock was acquired
  */
-function pointer_bit_trylock(address: object, lock_bit: number): boolean
+function pointer_bit_trylock(address: any, lock_bit: number): boolean
 /**
  * This is equivalent to g_bit_unlock, but working on pointers (or other
  * pointer-sized values).
@@ -8098,7 +8098,7 @@ function pointer_bit_trylock(address: object, lock_bit: number): boolean
  * @param address a pointer to a #gpointer-sized value
  * @param lock_bit a bit value between 0 and 31
  */
-function pointer_bit_unlock(address: object, lock_bit: number): void
+function pointer_bit_unlock(address: any, lock_bit: number): void
 /**
  * Polls `fds,` as with the poll() system call, but portably. (On
  * systems that don't have poll(), it is emulated using select().)
@@ -8129,7 +8129,7 @@ function poll(fds: PollFD, nfds: number, timeout: number): number
  * @param err a return location for a #GError, or %NULL
  * @param prefix string to prefix `err` with
  */
-function prefix_error_literal(err: Error | null, prefix: string): void
+function prefix_error_literal(err: Error | null, prefix: string | null): void
 /**
  * If `dest` is %NULL, free `src;` otherwise, moves `src` into *`dest`.
  * The error variable `dest` points to must be %NULL.
@@ -8180,7 +8180,7 @@ function quark_from_string(string: string | null): Quark
  * @param quark a #GQuark.
  * @returns the string associated with the #GQuark
  */
-function quark_to_string(quark: Quark): string
+function quark_to_string(quark: Quark): string | null
 /**
  * Gets the #GQuark associated with the given string, or 0 if string is
  * %NULL or it has no associated #GQuark.
@@ -8232,7 +8232,7 @@ function random_set_seed(seed: number): void
  * @param mem_block a pointer to reference counted data
  * @returns a pointer to the data,   with its reference count increased
  */
-function rc_box_acquire(mem_block: object): object
+function rc_box_acquire(mem_block: any): any
 /**
  * Allocates `block_size` bytes of memory, and adds reference
  * counting semantics to it.
@@ -8245,7 +8245,7 @@ function rc_box_acquire(mem_block: object): object
  * @param block_size the size of the allocation, must be greater than 0
  * @returns a pointer to the allocated memory
  */
-function rc_box_alloc(block_size: number): object
+function rc_box_alloc(block_size: number): any
 /**
  * Allocates `block_size` bytes of memory, and adds reference
  * counting semantics to it.
@@ -8260,7 +8260,7 @@ function rc_box_alloc(block_size: number): object
  * @param block_size the size of the allocation, must be greater than 0
  * @returns a pointer to the allocated memory
  */
-function rc_box_alloc0(block_size: number): object
+function rc_box_alloc0(block_size: number): any
 /**
  * Allocates a new block of data with reference counting
  * semantics, and copies `block_size` bytes of `mem_block`
@@ -8269,13 +8269,13 @@ function rc_box_alloc0(block_size: number): object
  * @param mem_block the memory to copy
  * @returns a pointer to the allocated   memory
  */
-function rc_box_dup(block_size: number, mem_block: object): object
+function rc_box_dup(block_size: number, mem_block: any): any
 /**
  * Retrieves the size of the reference counted data pointed by `mem_block`.
  * @param mem_block a pointer to reference counted data
  * @returns the size of the data, in bytes
  */
-function rc_box_get_size(mem_block: object): number
+function rc_box_get_size(mem_block: any): number
 /**
  * Releases a reference on the data pointed by `mem_block`.
  * 
@@ -8283,7 +8283,7 @@ function rc_box_get_size(mem_block: object): number
  * resources allocated for `mem_block`.
  * @param mem_block a pointer to reference counted data
  */
-function rc_box_release(mem_block: object): void
+function rc_box_release(mem_block: any): void
 /**
  * Releases a reference on the data pointed by `mem_block`.
  * 
@@ -8293,7 +8293,7 @@ function rc_box_release(mem_block: object): void
  * @param mem_block a pointer to reference counted data
  * @param clear_func a function to call when clearing the data
  */
-function rc_box_release_full(mem_block: object, clear_func: DestroyNotify): void
+function rc_box_release_full(mem_block: any, clear_func: DestroyNotify): void
 /**
  * Reallocates the memory pointed to by `mem,` so that it now has space for
  * `n_bytes` bytes of memory. It returns the new address of the memory, which may
@@ -8307,7 +8307,7 @@ function rc_box_release_full(mem_block: object, clear_func: DestroyNotify): void
  * @param n_bytes new size of the memory in bytes
  * @returns the new address of the allocated memory
  */
-function realloc(mem: object | null, n_bytes: number): object | null
+function realloc(mem: any | null, n_bytes: number): any | null
 /**
  * This function is similar to g_realloc(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
@@ -8319,7 +8319,7 @@ function realloc(mem: object | null, n_bytes: number): object | null
  * @param n_block_bytes the size of each block in bytes
  * @returns the new address of the allocated memory
  */
-function realloc_n(mem: object | null, n_blocks: number, n_block_bytes: number): object | null
+function realloc_n(mem: any | null, n_blocks: number, n_block_bytes: number): any | null
 /**
  * Compares the current value of `rc` with `val`.
  * @param rc the address of a reference count variable
@@ -8352,20 +8352,20 @@ function ref_count_init(rc: number): void
  * @param str a reference counted string
  * @returns the given string, with its reference count increased
  */
-function ref_string_acquire(str: string): string
+function ref_string_acquire(str: string | null): string | null
 /**
  * Retrieves the length of `str`.
  * @param str a reference counted string
  * @returns the length of the given string, in bytes
  */
-function ref_string_length(str: string): number
+function ref_string_length(str: string | null): number
 /**
  * Creates a new reference counted string and copies the contents of `str`
  * into it.
  * @param str a NUL-terminated string
  * @returns the newly created reference counted string
  */
-function ref_string_new(str: string): string
+function ref_string_new(str: string | null): string | null
 /**
  * Creates a new reference counted string and copies the content of `str`
  * into it.
@@ -8376,7 +8376,7 @@ function ref_string_new(str: string): string
  * @param str a NUL-terminated string
  * @returns the newly created reference   counted string, or a new reference to an existing string
  */
-function ref_string_new_intern(str: string): string
+function ref_string_new_intern(str: string | null): string | null
 /**
  * Creates a new reference counted string and copies the contents of `str`
  * into it, up to `len` bytes.
@@ -8387,13 +8387,13 @@ function ref_string_new_intern(str: string): string
  * @param len length of `str` to use, or -1 if `str` is nul-terminated
  * @returns the newly created reference counted string
  */
-function ref_string_new_len(str: string, len: number): string
+function ref_string_new_len(str: string | null, len: number): string | null
 /**
  * Releases a reference on a string; if it was the last reference, the
  * resources allocated by the string are freed as well.
  * @param str a reference counted string
  */
-function ref_string_release(str: string): void
+function ref_string_release(str: string | null): void
 /**
  * Checks whether `replacement` is a valid replacement string
  * (see g_regex_replace()), i.e. that all escape sequences in
@@ -8407,7 +8407,7 @@ function ref_string_release(str: string): void
  * @param replacement the replacement string
  * @returns whether @replacement is a valid replacement string
  */
-function regex_check_replacement(replacement: string): [ /* returnType */ boolean, /* has_references */ boolean ]
+function regex_check_replacement(replacement: string | null): [ /* returnType */ boolean, /* has_references */ boolean ]
 function regex_error_quark(): Quark
 /**
  * Escapes the nul characters in `string` to "\x00".  It can be used
@@ -8419,7 +8419,7 @@ function regex_error_quark(): Quark
  * @param length the length of `string`
  * @returns a newly-allocated escaped string
  */
-function regex_escape_nul(string: string, length: number): string
+function regex_escape_nul(string: string | null, length: number): string | null
 /**
  * Escapes the special characters used for regular expressions
  * in `string,` for instance "a.b*c" becomes "a\.b\*c". This
@@ -8431,7 +8431,7 @@ function regex_escape_nul(string: string, length: number): string
  * @param string the string to escape
  * @returns a newly-allocated escaped string
  */
-function regex_escape_string(string: string[]): string
+function regex_escape_string(string: string[]): string | null
 /**
  * Scans for a match in `string` for `pattern`.
  * 
@@ -8449,7 +8449,7 @@ function regex_escape_string(string: string[]): string
  * @param match_options match options, or 0
  * @returns %TRUE if the string matched, %FALSE otherwise
  */
-function regex_match_simple(pattern: string, string: string, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): boolean
+function regex_match_simple(pattern: string | null, string: string | null, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): boolean
 /**
  * Breaks the string on the pattern, and returns an array of
  * the tokens. If the pattern contains capturing parentheses,
@@ -8484,7 +8484,7 @@ function regex_match_simple(pattern: string, string: string, compile_options: Re
  * @param match_options match options, or 0
  * @returns a %NULL-terminated array of strings. Free it using g_strfreev()
  */
-function regex_split_simple(pattern: string, string: string, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): string[]
+function regex_split_simple(pattern: string | null, string: string | null, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): string[]
 /**
  * Resets the cache used for g_get_user_special_dir(), so
  * that the latest on-disk version is used. Call this only
@@ -8511,14 +8511,14 @@ function rmdir(filename: string): number
  * @param iter a #GSequenceIter
  * @returns the data that @iter points to
  */
-function sequence_get(iter: SequenceIter): object | null
+function sequence_get(iter: SequenceIter): any | null
 /**
  * Inserts a new item just before the item pointed to by `iter`.
  * @param iter a #GSequenceIter
  * @param data the data for the new item
  * @returns an iterator pointing to the new item
  */
-function sequence_insert_before(iter: SequenceIter, data: object | null): SequenceIter
+function sequence_insert_before(iter: SequenceIter, data: any | null): SequenceIter
 /**
  * Moves the item pointed to by `src` to the position indicated by `dest`.
  * After calling this function `dest` will point to the position immediately
@@ -8579,7 +8579,7 @@ function sequence_remove_range(begin: SequenceIter, end: SequenceIter): void
  * @param iter a #GSequenceIter
  * @param data new data for the item
  */
-function sequence_set(iter: SequenceIter, data: object | null): void
+function sequence_set(iter: SequenceIter, data: any | null): void
 /**
  * Swaps the items pointed to by `a` and `b`. It is allowed for `a` and `b`
  * to point into difference sequences.
@@ -8601,7 +8601,7 @@ function sequence_swap(a: SequenceIter, b: SequenceIter): void
  * or when displaying an application's name in the task list.
  * @param application_name localized name of the application
  */
-function set_application_name(application_name: string): void
+function set_application_name(application_name: string | null): void
 /**
  * Does nothing if `err` is %NULL; if `err` is non-%NULL, then *`err`
  * must be %NULL. A new #GError is created and assigned to *`err`.
@@ -8612,7 +8612,7 @@ function set_application_name(application_name: string): void
  * @param code error code
  * @param message error message
  */
-function set_error_literal(domain: Quark, code: number, message: string): /* err */ Error
+function set_error_literal(domain: Quark, code: number, message: string | null): /* err */ Error
 /**
  * Sets the name of the program. This name should not be localized,
  * in contrast to g_set_application_name().
@@ -8628,7 +8628,7 @@ function set_error_literal(domain: Quark, code: number, message: string): /* err
  * could only be called once per process.
  * @param prgname the name of the program.
  */
-function set_prgname(prgname: string): void
+function set_prgname(prgname: string | null): void
 /**
  * Sets an environment variable. On UNIX, both the variable's name and
  * value can be arbitrary byte strings, except that the variable's name
@@ -8741,7 +8741,7 @@ function shell_unquote(quoted_string: string): string
  * @param block_size the number of bytes to allocate
  * @returns a pointer to the allocated memory block, which will   be %NULL if and only if @mem_size is 0
  */
-function slice_alloc(block_size: number): object | null
+function slice_alloc(block_size: number): any | null
 /**
  * Allocates a block of memory via g_slice_alloc() and initializes
  * the returned memory to 0. Note that the underlying slice allocation
@@ -8750,7 +8750,7 @@ function slice_alloc(block_size: number): object | null
  * @param block_size the number of bytes to allocate
  * @returns a pointer to the allocated block, which will be %NULL if and only    if @mem_size is 0
  */
-function slice_alloc0(block_size: number): object | null
+function slice_alloc0(block_size: number): any | null
 /**
  * Allocates a block of memory from the slice allocator
  * and copies `block_size` bytes into it from `mem_block`.
@@ -8760,7 +8760,7 @@ function slice_alloc0(block_size: number): object | null
  * @param mem_block the memory to copy
  * @returns a pointer to the allocated memory block, which will be %NULL if and    only if @mem_size is 0
  */
-function slice_copy(block_size: number, mem_block: object | null): object | null
+function slice_copy(block_size: number, mem_block: any | null): any | null
 /**
  * Frees a block of memory.
  * 
@@ -8774,7 +8774,7 @@ function slice_copy(block_size: number, mem_block: object | null): object | null
  * @param block_size the size of the block
  * @param mem_block a pointer to the block to free
  */
-function slice_free1(block_size: number, mem_block: object | null): void
+function slice_free1(block_size: number, mem_block: any | null): void
 /**
  * Frees a linked list of memory blocks of structure type `type`.
  * 
@@ -8791,7 +8791,7 @@ function slice_free1(block_size: number, mem_block: object | null): void
  * @param mem_chain a pointer to the first block of the chain
  * @param next_offset the offset of the `next` field in the blocks
  */
-function slice_free_chain_with_offset(block_size: number, mem_chain: object | null, next_offset: number): void
+function slice_free_chain_with_offset(block_size: number, mem_chain: any | null, next_offset: number): void
 function slice_get_config(ckey: SliceConfig): number
 function slice_get_config_state(ckey: SliceConfig, address: number, n_values: number): number
 function slice_set_config(ckey: SliceConfig, value: number): void
@@ -8827,7 +8827,7 @@ function source_remove(tag: number): boolean
  * @param user_data the user data for the callback
  * @returns %TRUE if a source was found and removed.
  */
-function source_remove_by_funcs_user_data(funcs: SourceFuncs, user_data: object | null): boolean
+function source_remove_by_funcs_user_data(funcs: SourceFuncs, user_data: any | null): boolean
 /**
  * Removes a source from the default main loop context given the user
  * data for the callback. If multiple sources exist with the same user
@@ -8835,7 +8835,7 @@ function source_remove_by_funcs_user_data(funcs: SourceFuncs, user_data: object 
  * @param user_data the user_data for the callback.
  * @returns %TRUE if a source was found and removed.
  */
-function source_remove_by_user_data(user_data: object | null): boolean
+function source_remove_by_user_data(user_data: any | null): boolean
 /**
  * Sets the name of a source using its ID.
  * 
@@ -8856,7 +8856,7 @@ function source_remove_by_user_data(user_data: object | null): boolean
  * @param tag a #GSource ID
  * @param name debug name for the source
  */
-function source_set_name_by_id(tag: number, name: string): void
+function source_set_name_by_id(tag: number, name: string | null): void
 /**
  * Gets the smallest prime number from a built-in array of primes which
  * is larger than `num`. This is used within GLib to calculate the optimum
@@ -9285,7 +9285,7 @@ function spawn_sync(working_directory: string | null, argv: string[], envp: stri
  * @param src source string.
  * @returns a pointer to trailing nul byte.
  */
-function stpcpy(dest: string, src: string): string
+function stpcpy(dest: string | null, src: string | null): string | null
 /**
  * Compares two strings for byte-by-byte equality and returns %TRUE
  * if they are equal. It can be passed to g_hash_table_new() as the
@@ -9299,21 +9299,21 @@ function stpcpy(dest: string, src: string): string
  * @param v2 a key to compare with `v1`
  * @returns %TRUE if the two keys match
  */
-function str_equal(v1: object, v2: object): boolean
+function str_equal(v1: any, v2: any): boolean
 /**
  * Looks whether the string `str` begins with `prefix`.
  * @param str a nul-terminated string
  * @param prefix the nul-terminated prefix to look for
  * @returns %TRUE if @str begins with @prefix, %FALSE otherwise.
  */
-function str_has_prefix(str: string, prefix: string): boolean
+function str_has_prefix(str: string | null, prefix: string | null): boolean
 /**
  * Looks whether the string `str` ends with `suffix`.
  * @param str a nul-terminated string
  * @param suffix the nul-terminated suffix to look for
  * @returns %TRUE if @str end with @suffix, %FALSE otherwise.
  */
-function str_has_suffix(str: string, suffix: string): boolean
+function str_has_suffix(str: string | null, suffix: string | null): boolean
 /**
  * Converts a string to a hash value.
  * 
@@ -9332,14 +9332,14 @@ function str_has_suffix(str: string, suffix: string): boolean
  * @param v a string key
  * @returns a hash value corresponding to the key
  */
-function str_hash(v: object): number
+function str_hash(v: any): number
 /**
  * Determines if a string is pure ASCII. A string is pure ASCII if it
  * contains no bytes with the high bit set.
  * @param str a string
  * @returns %TRUE if @str is ASCII
  */
-function str_is_ascii(str: string): boolean
+function str_is_ascii(str: string | null): boolean
 /**
  * Checks if a search conducted for `search_term` should match
  * `potential_hit`.
@@ -9368,7 +9368,7 @@ function str_is_ascii(str: string): boolean
  * @param accept_alternates %TRUE to accept ASCII alternates
  * @returns %TRUE if @potential_hit is a hit
  */
-function str_match_string(search_term: string, potential_hit: string, accept_alternates: boolean): boolean
+function str_match_string(search_term: string | null, potential_hit: string | null, accept_alternates: boolean): boolean
 /**
  * Transliterate `str` to plain ASCII.
  * 
@@ -9392,7 +9392,7 @@ function str_match_string(search_term: string, potential_hit: string, accept_alt
  * @param from_locale the source locale, if known
  * @returns a string in plain ASCII
  */
-function str_to_ascii(str: string, from_locale: string | null): string
+function str_to_ascii(str: string | null, from_locale: string | null): string | null
 /**
  * Tokenises `string` and performs folding on each token.
  * 
@@ -9413,7 +9413,7 @@ function str_to_ascii(str: string, from_locale: string | null): string
  * @param translit_locale the language code (like 'de' or   'en_GB') from which `string` originates
  * @returns the folded tokens
  */
-function str_tokenize_and_fold(string: string, translit_locale: string | null): [ /* returnType */ string[], /* ascii_alternates */ string[] ]
+function str_tokenize_and_fold(string: string | null, translit_locale: string | null): [ /* returnType */ string[], /* ascii_alternates */ string[] ]
 /**
  * For each character in `string,` if the character is not in `valid_chars,`
  * replaces the character with `substitutor`.
@@ -9441,7 +9441,7 @@ function str_tokenize_and_fold(string: string, translit_locale: string | null): 
  * @param substitutor replacement character for disallowed bytes
  * @returns the modified @string
  */
-function strcanon(string: string, valid_chars: string, substitutor: number): string
+function strcanon(string: string | null, valid_chars: string | null, substitutor: number): string | null
 /**
  * A case-insensitive string comparison, corresponding to the standard
  * strcasecmp() function on platforms which support it.
@@ -9449,7 +9449,7 @@ function strcanon(string: string, valid_chars: string, substitutor: number): str
  * @param s2 a string to compare with `s1`
  * @returns 0 if the strings match, a negative value if @s1 < @s2,     or a positive value if @s1 > @s2.
  */
-function strcasecmp(s1: string, s2: string): number
+function strcasecmp(s1: string | null, s2: string | null): number
 /**
  * Removes trailing whitespace from a string.
  * 
@@ -9463,7 +9463,7 @@ function strcasecmp(s1: string, s2: string): number
  * @param string a string to remove the trailing whitespace from
  * @returns @string
  */
-function strchomp(string: string): string
+function strchomp(string: string | null): string | null
 /**
  * Removes leading whitespace from a string, by moving the rest
  * of the characters forward.
@@ -9478,7 +9478,7 @@ function strchomp(string: string): string
  * @param string a string to remove the leading whitespace from
  * @returns @string
  */
-function strchug(string: string): string
+function strchug(string: string | null): string | null
 /**
  * Compares `str1` and `str2` like strcmp(). Handles %NULL
  * gracefully by sorting it before non-%NULL strings.
@@ -9495,7 +9495,7 @@ function strcmp0(str1: string | null, str2: string | null): number
  * @param source a string to compress
  * @returns a newly-allocated copy of @source with all escaped     character compressed
  */
-function strcompress(source: string): string
+function strcompress(source: string | null): string | null
 /**
  * Converts any delimiter characters in `string` to `new_delimiter`.
  * 
@@ -9525,13 +9525,13 @@ function strcompress(source: string): string
  * @param new_delimiter the new delimiter character
  * @returns the modified @string
  */
-function strdelimit(string: string, delimiters: string | null, new_delimiter: number): string
+function strdelimit(string: string | null, delimiters: string | null, new_delimiter: number): string | null
 /**
  * Converts a string to lower case.
  * @param string the string to convert.
  * @returns the string
  */
-function strdown(string: string): string
+function strdown(string: string | null): string | null
 /**
  * Duplicates a string. If `str` is %NULL it returns %NULL.
  * The returned string should be freed with g_free()
@@ -9539,7 +9539,7 @@ function strdown(string: string): string
  * @param str the string to duplicate
  * @returns a newly-allocated copy of @str
  */
-function strdup(str: string | null): string
+function strdup(str: string | null): string | null
 /**
  * Returns a string corresponding to the given error code, e.g. "no
  * such process". Unlike strerror(), this always returns a string in
@@ -9563,7 +9563,7 @@ function strdup(str: string | null): string
  * @param errnum the system error number. See the standard C %errno     documentation
  * @returns a UTF-8 string describing the error code. If the error code     is unknown, it returns a string like "Unknown error: <code>".
  */
-function strerror(errnum: number): string
+function strerror(errnum: number): string | null
 /**
  * Escapes the special characters '\b', '\f', '\n', '\r', '\t', '\v', '\'
  * and '"' in the string `source` by inserting a '\' before
@@ -9577,7 +9577,7 @@ function strerror(errnum: number): string
  * @param exceptions a string of characters not to escape in `source`
  * @returns a newly-allocated copy of @source with certain     characters escaped. See above.
  */
-function strescape(source: string, exceptions: string | null): string
+function strescape(source: string | null, exceptions: string | null): string | null
 /**
  * Frees a %NULL-terminated array of strings, as well as each
  * string it contains.
@@ -9592,7 +9592,7 @@ function strfreev(str_array: string | null): void
  * @param msgval another string
  * @returns @msgval, unless @msgval is identical to @msgid     and contains a '|' character, in which case a pointer to     the substring of msgid after the first '|' character is returned.
  */
-function strip_context(msgid: string, msgval: string): string
+function strip_context(msgid: string | null, msgval: string | null): string | null
 /**
  * Joins a number of strings together to form one long string, with the
  * optional `separator` inserted between each of them. The returned string
@@ -9605,7 +9605,7 @@ function strip_context(msgid: string, msgval: string): string
  * @param str_array a %NULL-terminated array of strings to join
  * @returns a newly-allocated string containing all of the strings joined     together, with @separator between them
  */
-function strjoinv(separator: string | null, str_array: string): string
+function strjoinv(separator: string | null, str_array: string | null): string | null
 /**
  * Portability wrapper that calls strlcat() on systems which have it,
  * and emulates it otherwise. Appends nul-terminated `src` string to `dest,`
@@ -9625,7 +9625,7 @@ function strjoinv(separator: string | null, str_array: string): string
  * @param dest_size length of `dest` buffer in bytes (not length of existing string     inside `dest)`
  * @returns size of attempted result, which is MIN (dest_size, strlen     (original dest)) + strlen (src), so if retval >= dest_size,     truncation occurred.
  */
-function strlcat(dest: string, src: string, dest_size: number): number
+function strlcat(dest: string | null, src: string | null, dest_size: number): number
 /**
  * Portability wrapper that calls strlcpy() on systems which have it,
  * and emulates strlcpy() otherwise. Copies `src` to `dest;` `dest` is
@@ -9646,7 +9646,7 @@ function strlcat(dest: string, src: string, dest_size: number): number
  * @param dest_size length of `dest` in bytes
  * @returns length of @src
  */
-function strlcpy(dest: string, src: string, dest_size: number): number
+function strlcpy(dest: string | null, src: string | null, dest_size: number): number
 /**
  * A case-insensitive string comparison, corresponding to the standard
  * strncasecmp() function on platforms which support it. It is similar
@@ -9657,7 +9657,7 @@ function strlcpy(dest: string, src: string, dest_size: number): number
  * @param n the maximum number of characters to compare
  * @returns 0 if the strings match, a negative value if @s1 < @s2,     or a positive value if @s1 > @s2.
  */
-function strncasecmp(s1: string, s2: string, n: number): number
+function strncasecmp(s1: string | null, s2: string | null, n: number): number
 /**
  * Duplicates the first `n` bytes of a string, returning a newly-allocated
  * buffer `n` + 1 bytes long which will always be nul-terminated. If `str`
@@ -9671,7 +9671,7 @@ function strncasecmp(s1: string, s2: string, n: number): number
  * @param n the maximum number of bytes to copy from `str`
  * @returns a newly-allocated buffer containing the first @n bytes     of @str, nul-terminated
  */
-function strndup(str: string, n: number): string
+function strndup(str: string | null, n: number): string | null
 /**
  * Creates a new string `length` bytes long filled with `fill_char`.
  * The returned string should be freed when no longer needed.
@@ -9679,7 +9679,7 @@ function strndup(str: string, n: number): string
  * @param fill_char the byte to fill the string with
  * @returns a newly-allocated string filled the @fill_char
  */
-function strnfill(length: number, fill_char: number): string
+function strnfill(length: number, fill_char: number): string | null
 /**
  * Reverses all of the bytes in a string. For example,
  * `g_strreverse ("abcdef")` will result in "fedcba".
@@ -9690,7 +9690,7 @@ function strnfill(length: number, fill_char: number): string
  * @param string the string to reverse
  * @returns the same pointer passed in as @string
  */
-function strreverse(string: string): string
+function strreverse(string: string | null): string | null
 /**
  * Searches the string `haystack` for the last occurrence
  * of the string `needle`.
@@ -9698,7 +9698,7 @@ function strreverse(string: string): string
  * @param needle the nul-terminated string to search for
  * @returns a pointer to the found occurrence, or    %NULL if not found.
  */
-function strrstr(haystack: string, needle: string): string
+function strrstr(haystack: string | null, needle: string | null): string | null
 /**
  * Searches the string `haystack` for the last occurrence
  * of the string `needle,` limiting the length of the search
@@ -9708,7 +9708,7 @@ function strrstr(haystack: string, needle: string): string
  * @param needle the nul-terminated string to search for
  * @returns a pointer to the found occurrence, or    %NULL if not found.
  */
-function strrstr_len(haystack: string, haystack_len: number, needle: string): string
+function strrstr_len(haystack: string | null, haystack_len: number, needle: string | null): string | null
 /**
  * Returns a string describing the given signal, e.g. "Segmentation fault".
  * You should use this function in preference to strsignal(), because it
@@ -9717,7 +9717,7 @@ function strrstr_len(haystack: string, haystack_len: number, needle: string): st
  * @param signum the signal number. See the `signal` documentation
  * @returns a UTF-8 string describing the signal. If the signal is unknown,     it returns "unknown signal (<signum>)".
  */
-function strsignal(signum: number): string
+function strsignal(signum: number): string | null
 /**
  * Searches the string `haystack` for the first occurrence
  * of the string `needle,` limiting the length of the search
@@ -9727,7 +9727,7 @@ function strsignal(signum: number): string
  * @param needle the string to search for
  * @returns a pointer to the found occurrence, or    %NULL if not found.
  */
-function strstr_len(haystack: string, haystack_len: number, needle: string): string
+function strstr_len(haystack: string | null, haystack_len: number, needle: string | null): string | null
 /**
  * Converts a string to a #gdouble value.
  * It calls the standard strtod() function to handle the conversion, but
@@ -9743,20 +9743,20 @@ function strstr_len(haystack: string, haystack_len: number, needle: string): str
  * @param nptr the string to convert to a numeric value.
  * @returns the #gdouble value.
  */
-function strtod(nptr: string): [ /* returnType */ number, /* endptr */ string ]
+function strtod(nptr: string | null): [ /* returnType */ number, /* endptr */ string | null ]
 /**
  * Converts a string to upper case.
  * @param string the string to convert
  * @returns the string
  */
-function strup(string: string): string
+function strup(string: string | null): string | null
 /**
  * Checks if `strv` contains `str`. `strv` must not be %NULL.
  * @param strv a %NULL-terminated array of strings
  * @param str a string
  * @returns %TRUE if @str is an element of @strv, according to g_str_equal().
  */
-function strv_contains(strv: string, str: string): boolean
+function strv_contains(strv: string | null, str: string | null): boolean
 /**
  * Checks if `strv1` and `strv2` contain exactly the same elements in exactly the
  * same order. Elements are compared using g_str_equal(). To match independently
@@ -9768,7 +9768,7 @@ function strv_contains(strv: string, str: string): boolean
  * @param strv2 another %NULL-terminated array of strings
  * @returns %TRUE if @strv1 and @strv2 are equal
  */
-function strv_equal(strv1: string, strv2: string): boolean
+function strv_equal(strv1: string | null, strv2: string | null): boolean
 function strv_get_type(): GObject.GType
 /**
  * Returns the length of the given %NULL-terminated
@@ -9776,7 +9776,7 @@ function strv_get_type(): GObject.GType
  * @param str_array a %NULL-terminated array of strings
  * @returns length of @str_array.
  */
-function strv_length(str_array: string): number
+function strv_length(str_array: string | null): number
 /**
  * Create a new test case, similar to g_test_create_case(). However
  * the test is assumed to use no fixture, and test suites are automatically
@@ -9795,7 +9795,7 @@ function strv_length(str_array: string): number
  * @param test_data Test data argument for the test function.
  * @param test_func The test function to invoke for this test.
  */
-function test_add_data_func(testpath: string, test_data: object | null, test_func: TestDataFunc): void
+function test_add_data_func(testpath: string | null, test_data: any | null, test_func: TestDataFunc): void
 /**
  * Create a new test case, as with g_test_add_data_func(), but freeing
  * `test_data` after the test run is complete.
@@ -9803,7 +9803,7 @@ function test_add_data_func(testpath: string, test_data: object | null, test_fun
  * @param test_data Test data argument for the test function.
  * @param test_func The test function to invoke for this test.
  */
-function test_add_data_func_full(testpath: string, test_data: object | null, test_func: TestDataFunc): void
+function test_add_data_func_full(testpath: string | null, test_data: any | null, test_func: TestDataFunc): void
 /**
  * Create a new test case, similar to g_test_create_case(). However
  * the test is assumed to use no fixture, and test suites are automatically
@@ -9820,8 +9820,8 @@ function test_add_data_func_full(testpath: string, test_data: object | null, tes
  * @param testpath /-separated test case path name for the test.
  * @param test_func The test function to invoke for this test.
  */
-function test_add_func(testpath: string, test_func: TestFunc): void
-function test_assert_expected_messages_internal(domain: string, file: string, line: number, func: string): void
+function test_add_func(testpath: string | null, test_func: TestFunc): void
+function test_assert_expected_messages_internal(domain: string | null, file: string | null, line: number, func: string | null): void
 /**
  * This function adds a message to test reports that
  * associates a bug URI with a test case.
@@ -9835,7 +9835,7 @@ function test_assert_expected_messages_internal(domain: string, file: string, li
  * is already a valid URI.
  * @param bug_uri_snippet Bug specific bug tracker URI or URI portion.
  */
-function test_bug(bug_uri_snippet: string): void
+function test_bug(bug_uri_snippet: string | null): void
 /**
  * Specify the base URI for bug reports.
  * 
@@ -9853,7 +9853,7 @@ function test_bug(bug_uri_snippet: string): void
  * from the value provided by g_test_bug().
  * @param uri_pattern the base pattern for bug URIs
  */
-function test_bug_base(uri_pattern: string): void
+function test_bug_base(uri_pattern: string | null): void
 /**
  * Indicates that a message with the given `log_domain` and `log_level,`
  * with text matching `pattern,` is expected to be logged. When this
@@ -9895,7 +9895,7 @@ function test_bug_base(uri_pattern: string): void
  * @param log_level the log level of the message
  * @param pattern a glob-style [pattern][glib-Glob-style-pattern-matching]
  */
-function test_expect_message(log_domain: string | null, log_level: LogLevelFlags, pattern: string): void
+function test_expect_message(log_domain: string | null, log_level: LogLevelFlags, pattern: string | null): void
 /**
  * Indicates that a test failed. This function can be called
  * multiple times from the same test. You can use this function
@@ -9951,7 +9951,7 @@ function test_get_dir(file_type: TestFileType): string
  * This function returns a valid string only within a test function.
  * @returns the test path for the test currently being run
  */
-function test_get_path(): string
+function test_get_path(): string | null
 /**
  * Indicates that a test failed because of some incomplete
  * functionality. This function can be called multiple times
@@ -9966,7 +9966,7 @@ function test_get_path(): string
  * @param msg explanation
  */
 function test_incomplete(msg: string | null): void
-function test_log_type_name(log_type: TestLogType): string
+function test_log_type_name(log_type: TestLogType): string | null
 /**
  * This function enqueus a callback `destroy_func` to be executed
  * during the next test case teardown phase. This is most useful
@@ -9977,14 +9977,14 @@ function test_log_type_name(log_type: TestLogType): string
  * @param destroy_func Destroy callback for teardown phase.
  * @param destroy_data Destroy callback data.
  */
-function test_queue_destroy(destroy_func: DestroyNotify, destroy_data: object | null): void
+function test_queue_destroy(destroy_func: DestroyNotify, destroy_data: any | null): void
 /**
  * Enqueue a pointer to be released with g_free() during the next
  * teardown phase. This is equivalent to calling g_test_queue_destroy()
  * with a destroy callback of g_free().
  * @param gfree_pointer the pointer to be stored.
  */
-function test_queue_free(gfree_pointer: object | null): void
+function test_queue_free(gfree_pointer: any | null): void
 /**
  * Get a reproducible random floating point number,
  * see g_test_rand_int() for details on test case random numbers.
@@ -10124,7 +10124,7 @@ function test_subprocess(): boolean
  * 
  * @param summary One or two sentences summarising what the test checks, and how it    checks it.
  */
-function test_summary(summary: string): void
+function test_summary(summary: string | null): void
 /**
  * Get the number of seconds since the last start of the timer with
  * g_test_timer_start().
@@ -10141,7 +10141,7 @@ function test_timer_last(): number
  * to be done. Call this function again to restart the timer.
  */
 function test_timer_start(): void
-function test_trap_assertions(domain: string, file: string, line: number, func: string, assertion_flags: number, pattern: string): void
+function test_trap_assertions(domain: string | null, file: string | null, line: number, func: string | null, assertion_flags: number, pattern: string | null): void
 /**
  * Fork the current test program to execute a test case that might
  * not return or that might abort.
@@ -10274,7 +10274,7 @@ function thread_error_quark(): Quark
  * or or from within a #GThreadPool.
  * @param retval the return value of this thread
  */
-function thread_exit(retval: object | null): void
+function thread_exit(retval: any | null): void
 /**
  * This function will return the maximum `interval` that a
  * thread will wait in the thread pool for new tasks before
@@ -10365,7 +10365,7 @@ function thread_yield(): void
  * @param iso_date an ISO 8601 encoded date string
  * @returns %TRUE if the conversion was successful.
  */
-function time_val_from_iso8601(iso_date: string): [ /* returnType */ boolean, /* time_ */ TimeVal ]
+function time_val_from_iso8601(iso_date: string | null): [ /* returnType */ boolean, /* time_ */ TimeVal ]
 /**
  * Sets a function to be called at regular intervals, with the given
  * priority.  The function is called repeatedly until it returns
@@ -10487,33 +10487,33 @@ function trash_stack_height(stack_p: TrashStack): number
  * @param stack_p a #GTrashStack
  * @returns the element at the top of the stack
  */
-function trash_stack_peek(stack_p: TrashStack): object | null
+function trash_stack_peek(stack_p: TrashStack): any | null
 /**
  * Pops a piece of memory off a #GTrashStack.
  * @param stack_p a #GTrashStack
  * @returns the element at the top of the stack
  */
-function trash_stack_pop(stack_p: TrashStack): object | null
+function trash_stack_pop(stack_p: TrashStack): any | null
 /**
  * Pushes a piece of memory onto a #GTrashStack.
  * @param stack_p a #GTrashStack
  * @param data_p the piece of memory to push on the stack
  */
-function trash_stack_push(stack_p: TrashStack, data_p: object): void
+function trash_stack_push(stack_p: TrashStack, data_p: any): void
 /**
  * Attempts to allocate `n_bytes,` and returns %NULL on failure.
  * Contrast with g_malloc(), which aborts the program on failure.
  * @param n_bytes number of bytes to allocate.
  * @returns the allocated memory, or %NULL.
  */
-function try_malloc(n_bytes: number): object | null
+function try_malloc(n_bytes: number): any | null
 /**
  * Attempts to allocate `n_bytes,` initialized to 0's, and returns %NULL on
  * failure. Contrast with g_malloc0(), which aborts the program on failure.
  * @param n_bytes number of bytes to allocate
  * @returns the allocated memory, or %NULL
  */
-function try_malloc0(n_bytes: number): object | null
+function try_malloc0(n_bytes: number): any | null
 /**
  * This function is similar to g_try_malloc0(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
@@ -10521,7 +10521,7 @@ function try_malloc0(n_bytes: number): object | null
  * @param n_block_bytes the size of each block in bytes
  * @returns the allocated memory, or %NULL
  */
-function try_malloc0_n(n_blocks: number, n_block_bytes: number): object | null
+function try_malloc0_n(n_blocks: number, n_block_bytes: number): any | null
 /**
  * This function is similar to g_try_malloc(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
@@ -10529,7 +10529,7 @@ function try_malloc0_n(n_blocks: number, n_block_bytes: number): object | null
  * @param n_block_bytes the size of each block in bytes
  * @returns the allocated memory, or %NULL.
  */
-function try_malloc_n(n_blocks: number, n_block_bytes: number): object | null
+function try_malloc_n(n_blocks: number, n_block_bytes: number): any | null
 /**
  * Attempts to realloc `mem` to a new size, `n_bytes,` and returns %NULL
  * on failure. Contrast with g_realloc(), which aborts the program
@@ -10540,7 +10540,7 @@ function try_malloc_n(n_blocks: number, n_block_bytes: number): object | null
  * @param n_bytes number of bytes to allocate.
  * @returns the allocated memory, or %NULL.
  */
-function try_realloc(mem: object | null, n_bytes: number): object | null
+function try_realloc(mem: any | null, n_bytes: number): any | null
 /**
  * This function is similar to g_try_realloc(), allocating (`n_blocks` * `n_block_bytes)` bytes,
  * but care is taken to detect possible overflow during multiplication.
@@ -10549,7 +10549,7 @@ function try_realloc(mem: object | null, n_bytes: number): object | null
  * @param n_block_bytes the size of each block in bytes
  * @returns the allocated memory, or %NULL.
  */
-function try_realloc_n(mem: object | null, n_blocks: number, n_block_bytes: number): object | null
+function try_realloc_n(mem: any | null, n_blocks: number, n_block_bytes: number): any | null
 /**
  * Convert a string from UCS-4 to UTF-16. A 0 character will be
  * added to the result after the converted text.
@@ -10565,7 +10565,7 @@ function ucs4_to_utf16(str: string, len: number): [ /* returnType */ number, /* 
  * @param len the maximum length (number of characters) of `str` to use.     If `len` < 0, then the string is nul-terminated.
  * @returns a pointer to a newly allocated UTF-8 string.     This value must be freed with g_free(). If an error occurs,     %NULL will be returned and @error set. In that case, @items_read     will be set to the position of the first invalid input character.
  */
-function ucs4_to_utf8(str: string, len: number): [ /* returnType */ string, /* items_read */ number, /* items_written */ number ]
+function ucs4_to_utf8(str: string, len: number): [ /* returnType */ string | null, /* items_read */ number, /* items_written */ number ]
 /**
  * Determines the break type of `c`. `c` should be a Unicode character
  * (to derive a character from UTF-8 encoded text, use
@@ -10857,7 +10857,7 @@ function unichar_iszerowidth(c: string): boolean
  * @param c a Unicode character code
  * @returns number of bytes written
  */
-function unichar_to_utf8(c: string): [ /* returnType */ number, /* outbuf */ string ]
+function unichar_to_utf8(c: string): [ /* returnType */ number, /* outbuf */ string | null ]
 /**
  * Converts a character to lower case.
  * @param c a Unicode character.
@@ -10981,7 +10981,7 @@ function unix_fd_source_new(fd: number, condition: IOCondition): Source
  * @param user_name the username to get the passwd file entry for
  * @returns passwd entry, or %NULL on error; free the returned    value with g_free()
  */
-function unix_get_passwd_entry(user_name: string): object | null
+function unix_get_passwd_entry(user_name: string | null): any | null
 /**
  * Similar to the UNIX pipe() call, but on modern systems like Linux
  * uses the pipe2() system call, which atomically creates a pipe with
@@ -11092,7 +11092,7 @@ function unsetenv(variable: string): void
  * @param fragment the fragment, or %NULL
  * @returns a new #GUri
  */
-function uri_build(flags: UriFlags, scheme: string, userinfo: string | null, host: string | null, port: number, path: string, query: string | null, fragment: string | null): Uri
+function uri_build(flags: UriFlags, scheme: string | null, userinfo: string | null, host: string | null, port: number, path: string | null, query: string | null, fragment: string | null): Uri
 /**
  * Creates a new #GUri from the given components according to `flags`
  * (%G_URI_FLAGS_HAS_PASSWORD is added unconditionally). The `flags` must be
@@ -11114,7 +11114,7 @@ function uri_build(flags: UriFlags, scheme: string, userinfo: string | null, hos
  * @param fragment the fragment, or %NULL
  * @returns a new #GUri
  */
-function uri_build_with_user(flags: UriFlags, scheme: string, user: string | null, password: string | null, auth_params: string | null, host: string | null, port: number, path: string, query: string | null, fragment: string | null): Uri
+function uri_build_with_user(flags: UriFlags, scheme: string | null, user: string | null, password: string | null, auth_params: string | null, host: string | null, port: number, path: string | null, query: string | null, fragment: string | null): Uri
 function uri_error_quark(): Quark
 /**
  * Escapes arbitrary data for use in a URI.
@@ -11132,7 +11132,7 @@ function uri_error_quark(): Quark
  * @param reserved_chars_allowed a string of reserved   characters that are allowed to be used, or %NULL.
  * @returns an escaped version of @unescaped.     The returned string should be freed when no longer needed.
  */
-function uri_escape_bytes(unescaped: Uint8Array, reserved_chars_allowed: string | null): string
+function uri_escape_bytes(unescaped: Uint8Array, reserved_chars_allowed: string | null): string | null
 /**
  * Escapes a string for use in a URI.
  * 
@@ -11147,7 +11147,7 @@ function uri_escape_bytes(unescaped: Uint8Array, reserved_chars_allowed: string 
  * @param allow_utf8 %TRUE if the result can include UTF-8 characters.
  * @returns an escaped version of @unescaped. The returned string should be freed when no longer needed.
  */
-function uri_escape_string(unescaped: string, reserved_chars_allowed: string | null, allow_utf8: boolean): string
+function uri_escape_string(unescaped: string | null, reserved_chars_allowed: string | null, allow_utf8: boolean): string | null
 /**
  * Parses `uri_string` according to `flags,` to determine whether it is a valid
  * [absolute URI][relative-absolute-uris], i.e. it does not need to be resolved
@@ -11161,7 +11161,7 @@ function uri_escape_string(unescaped: string, reserved_chars_allowed: string | n
  * @param flags flags for parsing `uri_string`
  * @returns %TRUE if @uri_string is a valid absolute URI, %FALSE on error.
  */
-function uri_is_valid(uri_string: string, flags: UriFlags): boolean
+function uri_is_valid(uri_string: string | null, flags: UriFlags): boolean
 /**
  * Joins the given components together according to `flags` to create
  * an absolute URI string. `path` may not be %NULL (though it may be the empty
@@ -11187,7 +11187,7 @@ function uri_is_valid(uri_string: string, flags: UriFlags): boolean
  * @param fragment the fragment, or %NULL
  * @returns an absolute URI string
  */
-function uri_join(flags: UriFlags, scheme: string | null, userinfo: string | null, host: string | null, port: number, path: string, query: string | null, fragment: string | null): string
+function uri_join(flags: UriFlags, scheme: string | null, userinfo: string | null, host: string | null, port: number, path: string | null, query: string | null, fragment: string | null): string | null
 /**
  * Joins the given components together according to `flags` to create
  * an absolute URI string. `path` may not be %NULL (though it may be the empty
@@ -11210,7 +11210,7 @@ function uri_join(flags: UriFlags, scheme: string | null, userinfo: string | nul
  * @param fragment the fragment, or %NULL
  * @returns an absolute URI string
  */
-function uri_join_with_user(flags: UriFlags, scheme: string | null, user: string | null, password: string | null, auth_params: string | null, host: string | null, port: number, path: string, query: string | null, fragment: string | null): string
+function uri_join_with_user(flags: UriFlags, scheme: string | null, user: string | null, password: string | null, auth_params: string | null, host: string | null, port: number, path: string | null, query: string | null, fragment: string | null): string | null
 /**
  * Splits an URI list conforming to the text/uri-list
  * mime type defined in RFC 2483 into individual URIs,
@@ -11218,7 +11218,7 @@ function uri_join_with_user(flags: UriFlags, scheme: string | null, user: string
  * @param uri_list an URI list
  * @returns a newly allocated %NULL-terminated list   of strings holding the individual URIs. The array should be freed   with g_strfreev().
  */
-function uri_list_extract_uris(uri_list: string): string[]
+function uri_list_extract_uris(uri_list: string | null): string[]
 /**
  * Parses `uri_string` according to `flags`. If the result is not a
  * valid [absolute URI][relative-absolute-uris], it will be discarded, and an
@@ -11227,7 +11227,7 @@ function uri_list_extract_uris(uri_list: string): string[]
  * @param flags flags describing how to parse `uri_string`
  * @returns a new #GUri, or NULL on error.
  */
-function uri_parse(uri_string: string, flags: UriFlags): Uri
+function uri_parse(uri_string: string | null, flags: UriFlags): Uri
 /**
  * Many URI schemes include one or more attribute/value pairs as part of the URI
  * value. This method can be used to parse them into a hash table. When an
@@ -11259,7 +11259,7 @@ function uri_parse(uri_string: string, flags: UriFlags): Uri
  * @param flags flags to modify the way the parameters are handled.
  * @returns      A hash table of attribute/value pairs, with both names and values     fully-decoded; or %NULL on error.
  */
-function uri_parse_params(params: string, length: number, separators: string, flags: UriParamsFlags): HashTable
+function uri_parse_params(params: string | null, length: number, separators: string | null, flags: UriParamsFlags): HashTable
 /**
  * Gets the scheme portion of a URI string.
  * [RFC 3986](https://tools.ietf.org/html/rfc3986#section-3) decodes the scheme
@@ -11272,7 +11272,7 @@ function uri_parse_params(params: string, length: number, separators: string, fl
  * @param uri a valid URI.
  * @returns The ‘scheme’ component of the URI, or     %NULL on error. The returned string should be freed when no longer needed.
  */
-function uri_parse_scheme(uri: string): string | null
+function uri_parse_scheme(uri: string | null): string | null
 /**
  * Gets the scheme portion of a URI string.
  * [RFC 3986](https://tools.ietf.org/html/rfc3986#section-3) decodes the scheme
@@ -11288,7 +11288,7 @@ function uri_parse_scheme(uri: string): string | null
  * @param uri a valid URI.
  * @returns The ‘scheme’ component of the URI, or     %NULL on error. The returned string is normalized to all-lowercase, and     interned via g_intern_string(), so it does not need to be freed.
  */
-function uri_peek_scheme(uri: string): string | null
+function uri_peek_scheme(uri: string | null): string | null
 /**
  * Parses `uri_ref` according to `flags` and, if it is a
  * [relative URI][relative-absolute-uris], resolves it relative to
@@ -11302,7 +11302,7 @@ function uri_peek_scheme(uri: string): string | null
  * @param flags flags describing how to parse `uri_ref`
  * @returns the resolved URI string, or NULL on error.
  */
-function uri_resolve_relative(base_uri_string: string | null, uri_ref: string, flags: UriFlags): string
+function uri_resolve_relative(base_uri_string: string | null, uri_ref: string | null, flags: UriFlags): string | null
 /**
  * Parses `uri_ref` (which can be an
  * [absolute or relative URI][relative-absolute-uris]) according to `flags,` and
@@ -11324,7 +11324,7 @@ function uri_resolve_relative(base_uri_string: string | null, uri_ref: string, f
  * @param flags flags for parsing `uri_ref`
  * @returns %TRUE if @uri_ref parsed successfully, %FALSE   on error.
  */
-function uri_split(uri_ref: string, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* userinfo */ string | null, /* host */ string | null, /* port */ number, /* path */ string, /* query */ string | null, /* fragment */ string | null ]
+function uri_split(uri_ref: string | null, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* userinfo */ string | null, /* host */ string | null, /* port */ number, /* path */ string | null, /* query */ string | null, /* fragment */ string | null ]
 /**
  * Parses `uri_string` (which must be an [absolute URI][relative-absolute-uris])
  * according to `flags,` and returns the pieces relevant to connecting to a host.
@@ -11336,7 +11336,7 @@ function uri_split(uri_ref: string, flags: UriFlags): [ /* returnType */ boolean
  * @param flags flags for parsing `uri_string`
  * @returns %TRUE if @uri_string parsed successfully,   %FALSE on error.
  */
-function uri_split_network(uri_string: string, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* host */ string | null, /* port */ number ]
+function uri_split_network(uri_string: string | null, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* host */ string | null, /* port */ number ]
 /**
  * Parses `uri_ref` (which can be an
  * [absolute or relative URI][relative-absolute-uris]) according to `flags,` and
@@ -11353,7 +11353,7 @@ function uri_split_network(uri_string: string, flags: UriFlags): [ /* returnType
  * @param flags flags for parsing `uri_ref`
  * @returns %TRUE if @uri_ref parsed successfully, %FALSE   on error.
  */
-function uri_split_with_user(uri_ref: string, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* user */ string | null, /* password */ string | null, /* auth_params */ string | null, /* host */ string | null, /* port */ number, /* path */ string, /* query */ string | null, /* fragment */ string | null ]
+function uri_split_with_user(uri_ref: string | null, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* user */ string | null, /* password */ string | null, /* auth_params */ string | null, /* host */ string | null, /* port */ number, /* path */ string | null, /* query */ string | null, /* fragment */ string | null ]
 /**
  * Unescapes a segment of an escaped string as binary data.
  * 
@@ -11370,7 +11370,7 @@ function uri_split_with_user(uri_ref: string, flags: UriFlags): [ /* returnType 
  * @param illegal_characters a string of illegal characters   not to be allowed, or %NULL.
  * @returns an unescaped version of @escaped_string     or %NULL on error (if decoding failed, using %G_URI_ERROR_FAILED error     code). The returned #GBytes should be unreffed when no longer needed.
  */
-function uri_unescape_bytes(escaped_string: string, length: number, illegal_characters: string | null): Bytes
+function uri_unescape_bytes(escaped_string: string | null, length: number, illegal_characters: string | null): Bytes
 /**
  * Unescapes a segment of an escaped string.
  * 
@@ -11400,7 +11400,7 @@ function uri_unescape_segment(escaped_string: string | null, escaped_string_end:
  * @param illegal_characters a string of illegal characters   not to be allowed, or %NULL.
  * @returns an unescaped version of @escaped_string. The returned string should be freed when no longer needed.
  */
-function uri_unescape_string(escaped_string: string, illegal_characters: string | null): string | null
+function uri_unescape_string(escaped_string: string | null, illegal_characters: string | null): string | null
 /**
  * Pauses the current thread for the given number of microseconds.
  * 
@@ -11437,7 +11437,7 @@ function utf16_to_ucs4(str: number, len: number): [ /* returnType */ string, /* 
  * @param len the maximum length (number of #gunichar2) of `str` to use.     If `len` < 0, then the string is nul-terminated.
  * @returns a pointer to a newly allocated UTF-8 string.     This value must be freed with g_free(). If an error occurs,     %NULL will be returned and @error set.
  */
-function utf16_to_utf8(str: number, len: number): [ /* returnType */ string, /* items_read */ number, /* items_written */ number ]
+function utf16_to_utf8(str: number, len: number): [ /* returnType */ string | null, /* items_read */ number, /* items_written */ number ]
 /**
  * Converts a string into a form that is independent of case. The
  * result will not correspond to any particular case, but can be
@@ -11454,7 +11454,7 @@ function utf16_to_utf8(str: number, len: number): [ /* returnType */ string, /* 
  * @param len length of `str,` in bytes, or -1 if `str` is nul-terminated.
  * @returns a newly allocated string, that is a   case independent form of @str.
  */
-function utf8_casefold(str: string, len: number): string
+function utf8_casefold(str: string | null, len: number): string | null
 /**
  * Compares two strings for ordering using the linguistically
  * correct rules for the [current locale][setlocale].
@@ -11470,7 +11470,7 @@ function utf8_casefold(str: string, len: number): string
  * @param str2 a UTF-8 encoded string
  * @returns < 0 if @str1 compares before @str2,   0 if they compare equal, > 0 if @str1 compares after @str2.
  */
-function utf8_collate(str1: string, str2: string): number
+function utf8_collate(str1: string | null, str2: string | null): number
 /**
  * Converts a string into a collation key that can be compared
  * with other collation keys produced by the same function using
@@ -11485,7 +11485,7 @@ function utf8_collate(str1: string, str2: string): number
  * @param len length of `str,` in bytes, or -1 if `str` is nul-terminated.
  * @returns a newly allocated string. This string should   be freed with g_free() when you are done with it.
  */
-function utf8_collate_key(str: string, len: number): string
+function utf8_collate_key(str: string | null, len: number): string | null
 /**
  * Converts a string into a collation key that can be compared
  * with other collation keys produced by the same function using strcmp().
@@ -11502,7 +11502,7 @@ function utf8_collate_key(str: string, len: number): string
  * @param len length of `str,` in bytes, or -1 if `str` is nul-terminated.
  * @returns a newly allocated string. This string should   be freed with g_free() when you are done with it.
  */
-function utf8_collate_key_for_filename(str: string, len: number): string
+function utf8_collate_key_for_filename(str: string | null, len: number): string | null
 /**
  * Finds the start of the next UTF-8 character in the string after `p`.
  * 
@@ -11518,7 +11518,7 @@ function utf8_collate_key_for_filename(str: string, len: number): string
  * @param end a pointer to the byte following the end of the string,     or %NULL to indicate that the string is nul-terminated
  * @returns a pointer to the found character or %NULL if @end is    set and is reached
  */
-function utf8_find_next_char(p: string, end: string | null): string | null
+function utf8_find_next_char(p: string | null, end: string | null): string | null
 /**
  * Given a position `p` with a UTF-8 encoded string `str,` find the start
  * of the previous UTF-8 character starting before `p`. Returns %NULL if no
@@ -11531,7 +11531,7 @@ function utf8_find_next_char(p: string, end: string | null): string | null
  * @param p pointer to some position within `str`
  * @returns a pointer to the found character or %NULL.
  */
-function utf8_find_prev_char(str: string, p: string): string | null
+function utf8_find_prev_char(str: string | null, p: string | null): string | null
 /**
  * Converts a sequence of bytes encoded as UTF-8 to a Unicode character.
  * 
@@ -11542,7 +11542,7 @@ function utf8_find_prev_char(str: string, p: string): string | null
  * @param p a pointer to Unicode character encoded as UTF-8
  * @returns the resulting character
  */
-function utf8_get_char(p: string): string
+function utf8_get_char(p: string | null): string
 /**
  * Convert a sequence of bytes encoded as UTF-8 to a Unicode character.
  * This function checks for incomplete characters, for invalid characters
@@ -11556,7 +11556,7 @@ function utf8_get_char(p: string): string
  * @param max_len the maximum number of bytes to read, or -1 if `p` is nul-terminated
  * @returns the resulting character. If @p points to a partial     sequence at the end of a string that could begin a valid     character (or if @max_len is zero), returns (gunichar)-2;     otherwise, if @p does not point to a valid UTF-8 encoded     Unicode character, returns (gunichar)-1.
  */
-function utf8_get_char_validated(p: string, max_len: number): string
+function utf8_get_char_validated(p: string | null, max_len: number): string
 /**
  * If the provided string is valid UTF-8, return a copy of it. If not,
  * return a copy in which bytes that could not be interpreted as valid Unicode
@@ -11571,7 +11571,7 @@ function utf8_get_char_validated(p: string, max_len: number): string
  * @param len the maximum length of `str` to use, in bytes. If `len` < 0,     then the string is nul-terminated.
  * @returns a valid UTF-8 string whose content resembles @str
  */
-function utf8_make_valid(str: string, len: number): string
+function utf8_make_valid(str: string | null, len: number): string | null
 /**
  * Converts a string into canonical form, standardizing
  * such issues as whether a character with an accent
@@ -11603,7 +11603,7 @@ function utf8_make_valid(str: string, len: number): string
  * @param mode the type of normalization to perform.
  * @returns a newly allocated string, that   is the normalized form of @str, or %NULL if @str   is not valid UTF-8.
  */
-function utf8_normalize(str: string, len: number, mode: NormalizeMode): string | null
+function utf8_normalize(str: string | null, len: number, mode: NormalizeMode): string | null
 /**
  * Converts from an integer character offset to a pointer to a position
  * within the string.
@@ -11622,7 +11622,7 @@ function utf8_normalize(str: string, len: number, mode: NormalizeMode): string |
  * @param offset a character offset within `str`
  * @returns the resulting pointer
  */
-function utf8_offset_to_pointer(str: string, offset: number): string
+function utf8_offset_to_pointer(str: string | null, offset: number): string | null
 /**
  * Converts from a pointer to position within a string to an integer
  * character offset.
@@ -11633,7 +11633,7 @@ function utf8_offset_to_pointer(str: string, offset: number): string
  * @param pos a pointer to a position within `str`
  * @returns the resulting character offset
  */
-function utf8_pointer_to_offset(str: string, pos: string): number
+function utf8_pointer_to_offset(str: string | null, pos: string | null): number
 /**
  * Finds the previous UTF-8 character in the string before `p`.
  * 
@@ -11644,7 +11644,7 @@ function utf8_pointer_to_offset(str: string, pos: string): number
  * @param p a pointer to a position within a UTF-8 encoded string
  * @returns a pointer to the found character
  */
-function utf8_prev_char(p: string): string
+function utf8_prev_char(p: string | null): string | null
 /**
  * Finds the leftmost occurrence of the given Unicode character
  * in a UTF-8 encoded string, while limiting the search to `len` bytes.
@@ -11654,7 +11654,7 @@ function utf8_prev_char(p: string): string
  * @param c a Unicode character
  * @returns %NULL if the string does not contain the character,     otherwise, a pointer to the start of the leftmost occurrence     of the character in the string.
  */
-function utf8_strchr(p: string, len: number, c: string): string | null
+function utf8_strchr(p: string | null, len: number, c: string): string | null
 /**
  * Converts all Unicode characters in the string that have a case
  * to lowercase. The exact manner that this is done depends
@@ -11664,7 +11664,7 @@ function utf8_strchr(p: string, len: number, c: string): string | null
  * @param len length of `str,` in bytes, or -1 if `str` is nul-terminated.
  * @returns a newly allocated string, with all characters    converted to lowercase.
  */
-function utf8_strdown(str: string, len: number): string
+function utf8_strdown(str: string | null, len: number): string | null
 /**
  * Computes the length of the string in characters, not including
  * the terminating nul character. If the `max'`th byte falls in the
@@ -11673,7 +11673,7 @@ function utf8_strdown(str: string, len: number): string
  * @param max the maximum number of bytes to examine. If `max`       is less than 0, then the string is assumed to be       nul-terminated. If `max` is 0, `p` will not be examined and       may be %NULL. If `max` is greater than 0, up to `max`       bytes are examined
  * @returns the length of the string in characters
  */
-function utf8_strlen(p: string, max: number): number
+function utf8_strlen(p: string | null, max: number): number
 /**
  * Like the standard C strncpy() function, but copies a given number
  * of characters instead of a given number of bytes. The `src` string
@@ -11687,7 +11687,7 @@ function utf8_strlen(p: string, max: number): number
  * @param n character count
  * @returns @dest
  */
-function utf8_strncpy(dest: string, src: string, n: number): string
+function utf8_strncpy(dest: string | null, src: string | null, n: number): string | null
 /**
  * Find the rightmost occurrence of the given Unicode character
  * in a UTF-8 encoded string, while limiting the search to `len` bytes.
@@ -11697,7 +11697,7 @@ function utf8_strncpy(dest: string, src: string, n: number): string
  * @param c a Unicode character
  * @returns %NULL if the string does not contain the character,     otherwise, a pointer to the start of the rightmost occurrence     of the character in the string.
  */
-function utf8_strrchr(p: string, len: number, c: string): string | null
+function utf8_strrchr(p: string | null, len: number, c: string): string | null
 /**
  * Reverses a UTF-8 string. `str` must be valid UTF-8 encoded text.
  * (Use g_utf8_validate() on all text before trying to use UTF-8
@@ -11716,7 +11716,7 @@ function utf8_strrchr(p: string, len: number, c: string): string | null
  * @param len the maximum length of `str` to use, in bytes. If `len` < 0,     then the string is nul-terminated.
  * @returns a newly-allocated string which is the reverse of @str
  */
-function utf8_strreverse(str: string, len: number): string
+function utf8_strreverse(str: string | null, len: number): string | null
 /**
  * Converts all Unicode characters in the string that have a case
  * to uppercase. The exact manner that this is done depends
@@ -11727,7 +11727,7 @@ function utf8_strreverse(str: string, len: number): string
  * @param len length of `str,` in bytes, or -1 if `str` is nul-terminated.
  * @returns a newly allocated string, with all characters    converted to uppercase.
  */
-function utf8_strup(str: string, len: number): string
+function utf8_strup(str: string | null, len: number): string | null
 /**
  * Copies a substring out of a UTF-8 encoded string.
  * The substring will contain `end_pos` - `start_pos` characters.
@@ -11739,7 +11739,7 @@ function utf8_strup(str: string, len: number): string
  * @param end_pos another character offset within `str,`   or `-1` to indicate the end of the string
  * @returns a newly allocated copy of the requested     substring. Free with g_free() when no longer needed.
  */
-function utf8_substring(str: string, start_pos: number, end_pos: number): string
+function utf8_substring(str: string | null, start_pos: number, end_pos: number): string | null
 /**
  * Convert a string from UTF-8 to a 32-bit fixed width
  * representation as UCS-4. A trailing 0 character will be added to the
@@ -11748,7 +11748,7 @@ function utf8_substring(str: string, start_pos: number, end_pos: number): string
  * @param len the maximum length of `str` to use, in bytes. If `len` < 0,     then the string is nul-terminated.
  * @returns a pointer to a newly allocated UCS-4 string.     This value must be freed with g_free(). If an error occurs,     %NULL will be returned and @error set.
  */
-function utf8_to_ucs4(str: string, len: number): [ /* returnType */ string, /* items_read */ number, /* items_written */ number ]
+function utf8_to_ucs4(str: string | null, len: number): [ /* returnType */ string, /* items_read */ number, /* items_written */ number ]
 /**
  * Convert a string from UTF-8 to a 32-bit fixed width
  * representation as UCS-4, assuming valid UTF-8 input.
@@ -11759,7 +11759,7 @@ function utf8_to_ucs4(str: string, len: number): [ /* returnType */ string, /* i
  * @param len the maximum length of `str` to use, in bytes. If `len` < 0,     then the string is nul-terminated.
  * @returns a pointer to a newly allocated UCS-4 string.     This value must be freed with g_free().
  */
-function utf8_to_ucs4_fast(str: string, len: number): [ /* returnType */ string, /* items_written */ number ]
+function utf8_to_ucs4_fast(str: string | null, len: number): [ /* returnType */ string, /* items_written */ number ]
 /**
  * Convert a string from UTF-8 to UTF-16. A 0 character will be
  * added to the result after the converted text.
@@ -11767,7 +11767,7 @@ function utf8_to_ucs4_fast(str: string, len: number): [ /* returnType */ string,
  * @param len the maximum length (number of bytes) of `str` to use.     If `len` < 0, then the string is nul-terminated.
  * @returns a pointer to a newly allocated UTF-16 string.     This value must be freed with g_free(). If an error occurs,     %NULL will be returned and @error set.
  */
-function utf8_to_utf16(str: string, len: number): [ /* returnType */ number, /* items_read */ number, /* items_written */ number ]
+function utf8_to_utf16(str: string | null, len: number): [ /* returnType */ number, /* items_read */ number, /* items_written */ number ]
 /**
  * Validates UTF-8 encoded text. `str` is the text to validate;
  * if `str` is nul-terminated, then `max_len` can be -1, otherwise
@@ -11787,7 +11787,7 @@ function utf8_to_utf16(str: string, len: number): [ /* returnType */ number, /* 
  * @param str a pointer to character data
  * @returns %TRUE if the text was valid UTF-8
  */
-function utf8_validate(str: Uint8Array): [ /* returnType */ boolean, /* end */ string ]
+function utf8_validate(str: Uint8Array): [ /* returnType */ boolean, /* end */ string | null ]
 /**
  * Validates UTF-8 encoded text.
  * 
@@ -11796,7 +11796,7 @@ function utf8_validate(str: Uint8Array): [ /* returnType */ boolean, /* end */ s
  * @param str a pointer to character data
  * @returns %TRUE if the text was valid UTF-8
  */
-function utf8_validate_len(str: Uint8Array): [ /* returnType */ boolean, /* end */ string ]
+function utf8_validate_len(str: Uint8Array): [ /* returnType */ boolean, /* end */ string | null ]
 /**
  * Parses the string `str` and verify if it is a UUID.
  * 
@@ -11809,14 +11809,14 @@ function utf8_validate_len(str: Uint8Array): [ /* returnType */ boolean, /* end 
  * @param str a string representing a UUID
  * @returns %TRUE if @str is a valid UUID, %FALSE otherwise.
  */
-function uuid_string_is_valid(str: string): boolean
+function uuid_string_is_valid(str: string | null): boolean
 /**
  * Generates a random UUID (RFC 4122 version 4) as a string. It has the same
  * randomness guarantees as #GRand, so must not be used for cryptographic
  * purposes such as key generation, nonces, salts or one-time pads.
  * @returns A string that should be freed with g_free().
  */
-function uuid_string_random(): string
+function uuid_string_random(): string | null
 function variant_get_gtype(): GObject.GType
 /**
  * Determines if a given string is a valid D-Bus object path.  You
@@ -11830,7 +11830,7 @@ function variant_get_gtype(): GObject.GType
  * @param string a normal C nul-terminated string
  * @returns %TRUE if @string is a D-Bus object path
  */
-function variant_is_object_path(string: string): boolean
+function variant_is_object_path(string: string | null): boolean
 /**
  * Determines if a given string is a valid D-Bus type signature.  You
  * should ensure that a string is a valid D-Bus type signature before
@@ -11841,7 +11841,7 @@ function variant_is_object_path(string: string): boolean
  * @param string a normal C nul-terminated string
  * @returns %TRUE if @string is a D-Bus type signature
  */
-function variant_is_signature(string: string): boolean
+function variant_is_signature(string: string | null): boolean
 /**
  * Parses a #GVariant from a text representation.
  * 
@@ -11884,7 +11884,7 @@ function variant_is_signature(string: string): boolean
  * @param endptr a location to store the end pointer, or %NULL
  * @returns a non-floating reference to a #GVariant, or %NULL
  */
-function variant_parse(type: VariantType | null, text: string, limit: string | null, endptr: string | null): Variant
+function variant_parse(type: VariantType | null, text: string | null, limit: string | null, endptr: string | null): Variant
 /**
  * Pretty-prints a message showing the context of a #GVariant parse
  * error within the string for which parsing was attempted.
@@ -11921,14 +11921,14 @@ function variant_parse(type: VariantType | null, text: string, limit: string | n
  * @param source_str the string that was given to the parser
  * @returns the printed message
  */
-function variant_parse_error_print_context(error: Error, source_str: string): string
+function variant_parse_error_print_context(error: Error, source_str: string | null): string | null
 function variant_parse_error_quark(): Quark
 /**
  * Same as g_variant_error_quark().
  */
 function variant_parser_get_error_quark(): Quark
-function variant_type_checked_(arg0: string): VariantType
-function variant_type_string_get_depth_(type_string: string): number
+function variant_type_checked_(arg0: string | null): VariantType
+function variant_type_string_get_depth_(type_string: string | null): number
 /**
  * Checks if `type_string` is a valid GVariant type string.  This call is
  * equivalent to calling g_variant_type_string_scan() and confirming
@@ -11936,7 +11936,7 @@ function variant_type_string_get_depth_(type_string: string): number
  * @param type_string a pointer to any string
  * @returns %TRUE if @type_string is exactly one valid type string Since 2.24
  */
-function variant_type_string_is_valid(type_string: string): boolean
+function variant_type_string_is_valid(type_string: string | null): boolean
 /**
  * Scan for a single complete and valid GVariant type string in `string`.
  * The memory pointed to by `limit` (or bytes beyond it) is never
@@ -11955,7 +11955,7 @@ function variant_type_string_is_valid(type_string: string): boolean
  * @param limit the end of `string,` or %NULL
  * @returns %TRUE if a valid type string was found
  */
-function variant_type_string_scan(string: string, limit: string | null): [ /* returnType */ boolean, /* endptr */ string ]
+function variant_type_string_scan(string: string | null, limit: string | null): [ /* returnType */ boolean, /* endptr */ string | null ]
 /**
  * Prototype of a #GChildWatchSource callback, called when a child
  * process has exited.
@@ -11993,7 +11993,7 @@ interface ClearHandleFunc {
  * @returns negative value if @a < @b; zero if @a = @b; positive          value if @a > @b
  */
 interface CompareDataFunc {
-    (a: object | null, b: object | null): number
+    (a: any | null, b: any | null): number
 }
 /**
  * Specifies the type of a comparison function used to compare two
@@ -12006,7 +12006,7 @@ interface CompareDataFunc {
  * @returns negative value if @a < @b; zero if @a = @b; positive          value if @a > @b
  */
 interface CompareFunc {
-    (a: object | null, b: object | null): number
+    (a: any | null, b: any | null): number
 }
 /**
  * A function of this signature is used to copy the node data
@@ -12016,7 +12016,7 @@ interface CompareFunc {
  * @returns A pointer to the copy
  */
 interface CopyFunc {
-    (src: object): object
+    (src: any): any
 }
 /**
  * Specifies the type of function passed to g_dataset_foreach(). It is
@@ -12027,7 +12027,7 @@ interface CopyFunc {
  * @param data the data element.
  */
 interface DataForeachFunc {
-    (key_id: Quark, data: object | null): void
+    (key_id: Quark, data: any | null): void
 }
 /**
  * Specifies the type of function which is called when a data element
@@ -12037,7 +12037,7 @@ interface DataForeachFunc {
  * @param data the data element.
  */
 interface DestroyNotify {
-    (data: object | null): void
+    (data: any | null): void
 }
 /**
  * The type of functions that are used to 'duplicate' an object.
@@ -12049,7 +12049,7 @@ interface DestroyNotify {
  * @returns a duplicate of data
  */
 interface DuplicateFunc {
-    (data: object | null): object | null
+    (data: any | null): any | null
 }
 /**
  * Specifies the type of a function used to test two values for
@@ -12061,7 +12061,7 @@ interface DuplicateFunc {
  * @returns %TRUE if @a = @b; %FALSE otherwise
  */
 interface EqualFunc {
-    (a: object | null, b: object | null): boolean
+    (a: any | null, b: any | null): boolean
 }
 /**
  * Specifies the type of a function used to test two values for
@@ -12076,7 +12076,7 @@ interface EqualFunc {
  * @returns %TRUE if @a = @b; %FALSE otherwise
  */
 interface EqualFuncFull {
-    (a: object | null, b: object | null): boolean
+    (a: any | null, b: any | null): boolean
 }
 /**
  * Specifies the type of function which is called when an extended
@@ -12129,7 +12129,7 @@ interface ErrorInitFunc {
  * @param data a data pointer
  */
 interface FreeFunc {
-    (data: object | null): void
+    (data: any | null): void
 }
 /**
  * Specifies the type of functions passed to g_list_foreach() and
@@ -12138,7 +12138,7 @@ interface FreeFunc {
  * @param data the element's data
  */
 interface Func {
-    (data: object | null): void
+    (data: any | null): void
 }
 /**
  * Specifies the type of the function passed to g_hash_table_foreach().
@@ -12149,7 +12149,7 @@ interface Func {
  * @param value the value corresponding to the key
  */
 interface HFunc {
-    (key: object | null, value: object | null): void
+    (key: any | null, value: any | null): void
 }
 /**
  * Specifies the type of the function passed to
@@ -12163,7 +12163,7 @@ interface HFunc {
  * @returns %TRUE if the key/value pair should be removed from the     #GHashTable
  */
 interface HRFunc {
-    (key: object | null, value: object | null): boolean
+    (key: any | null, value: any | null): boolean
 }
 /**
  * Specifies the type of the hash function which is passed to
@@ -12201,7 +12201,7 @@ interface HRFunc {
  * @returns the hash value corresponding to the key
  */
 interface HashFunc {
-    (key: object | null): number
+    (key: any | null): number
 }
 /**
  * Defines the type of a hook function that can be invoked
@@ -12211,7 +12211,7 @@ interface HashFunc {
  * @returns %FALSE if the #GHook should be destroyed
  */
 interface HookCheckFunc {
-    (data: object | null): boolean
+    (data: any | null): boolean
 }
 /**
  * Defines the type of function used by g_hook_list_marshal_check().
@@ -12259,7 +12259,7 @@ interface HookFindFunc {
  * @param data the data field of the #GHook is passed to the hook function here
  */
 interface HookFunc {
-    (data: object | null): void
+    (data: any | null): void
 }
 /**
  * Defines the type of function used by g_hook_list_marshal().
@@ -12298,7 +12298,7 @@ interface IOFunc {
  * @param message the message to process
  */
 interface LogFunc {
-    (log_domain: string, log_level: LogLevelFlags, message: string): void
+    (log_domain: string | null, log_level: LogLevelFlags, message: string | null): void
 }
 /**
  * Writer function for log entries. A log entry is a collection of one or more
@@ -12358,7 +12358,7 @@ interface NodeTraverseFunc {
  * @returns %TRUE if the option was successfully parsed, %FALSE if an error  occurred, in which case @error should be set with g_set_error()
  */
 interface OptionArgFunc {
-    (option_name: string, value: string): boolean
+    (option_name: string | null, value: string | null): boolean
 }
 /**
  * The type of function to be used as callback when a parse error occurs.
@@ -12398,7 +12398,7 @@ interface PollFunc {
  * @param string the message to output
  */
 interface PrintFunc {
-    (string: string): void
+    (string: string | null): void
 }
 /**
  * Specifies the type of the function passed to g_regex_replace_eval().
@@ -12421,7 +12421,7 @@ interface RegexEvalCallback {
  * @param error %TRUE if the message signals an error,     %FALSE if it signals a warning.
  */
 interface ScannerMsgFunc {
-    (scanner: Scanner, message: string, error: boolean): void
+    (scanner: Scanner, message: string | null, error: boolean): void
 }
 /**
  * A #GSequenceIterCompareFunc is a function used to compare iterators.
@@ -12534,7 +12534,7 @@ interface TestDataFunc {
  * @param fixture the test fixture
  */
 interface TestFixtureFunc {
-    (fixture: object): void
+    (fixture: any): void
 }
 /**
  * The type used for test case functions.
@@ -12552,7 +12552,7 @@ interface TestFunc {
  * @returns %TRUE if the program should abort, %FALSE otherwise
  */
 interface TestLogFatalFunc {
-    (log_domain: string, log_level: LogLevelFlags, message: string): boolean
+    (log_domain: string | null, log_level: LogLevelFlags, message: string | null): boolean
 }
 /**
  * Specifies the type of the `func` functions passed to g_thread_new()
@@ -12561,7 +12561,7 @@ interface TestLogFatalFunc {
  * @returns the return value of the thread
  */
 interface ThreadFunc {
-    (): object | null
+    (): any | null
 }
 /**
  * The type of functions which are used to translate user-visible
@@ -12571,7 +12571,7 @@ interface ThreadFunc {
  * @returns a translation of the string for the current locale.  The returned string is owned by GLib and must not be freed.
  */
 interface TranslateFunc {
-    (str: string): string
+    (str: string | null): string | null
 }
 /**
  * Specifies the type of function passed to g_tree_traverse(). It is
@@ -12584,7 +12584,7 @@ interface TranslateFunc {
  * @returns %TRUE to stop the traversal
  */
 interface TraverseFunc {
-    (key: object | null, value: object | null): boolean
+    (key: any | null, value: any | null): boolean
 }
 /**
  * Specifies the type of function passed to g_tree_foreach_node(). It is
@@ -12627,7 +12627,7 @@ interface Array {
      *     elements are added to the #GArray.
      * @field 
      */
-    data: string
+    data: string | null
     /**
      * the number of elements in the #GArray not including the
      *     possible terminating zero element.
@@ -12694,7 +12694,7 @@ interface AsyncQueue {
      * blocks until data becomes available.
      * @returns data from the queue
      */
-    pop(): object | null
+    pop(): any | null
     /**
      * Pops data from the `queue`. If `queue` is empty, this function
      * blocks until data becomes available.
@@ -12702,12 +12702,12 @@ interface AsyncQueue {
      * This function must be called while holding the `queue'`s lock.
      * @returns data from the queue.
      */
-    pop_unlocked(): object | null
+    pop_unlocked(): any | null
     /**
      * Pushes the `data` into the `queue`. `data` must not be %NULL.
      * @param data `data` to push into the `queue`
      */
-    push(data: object | null): void
+    push(data: any | null): void
     /**
      * Pushes the `item` into the `queue`. `item` must not be %NULL.
      * In contrast to g_async_queue_push(), this function
@@ -12715,7 +12715,7 @@ interface AsyncQueue {
      * so that it will be the next one to be popped off the queue.
      * @param item data to push into the `queue`
      */
-    push_front(item: object | null): void
+    push_front(item: any | null): void
     /**
      * Pushes the `item` into the `queue`. `item` must not be %NULL.
      * In contrast to g_async_queue_push_unlocked(), this function
@@ -12725,14 +12725,14 @@ interface AsyncQueue {
      * This function must be called while holding the `queue'`s lock.
      * @param item data to push into the `queue`
      */
-    push_front_unlocked(item: object | null): void
+    push_front_unlocked(item: any | null): void
     /**
      * Pushes the `data` into the `queue`. `data` must not be %NULL.
      * 
      * This function must be called while holding the `queue'`s lock.
      * @param data `data` to push into the `queue`
      */
-    push_unlocked(data: object | null): void
+    push_unlocked(data: any | null): void
     /**
      * Increases the reference count of the asynchronous `queue` by 1.
      */
@@ -12742,7 +12742,7 @@ interface AsyncQueue {
      * @param item the data to remove from the `queue`
      * @returns %TRUE if the item was removed
      */
-    remove(item: object | null): boolean
+    remove(item: any | null): boolean
     /**
      * Remove an item from the queue.
      * 
@@ -12750,7 +12750,7 @@ interface AsyncQueue {
      * @param item the data to remove from the `queue`
      * @returns %TRUE if the item was removed
      */
-    remove_unlocked(item: object | null): boolean
+    remove_unlocked(item: any | null): boolean
     /**
      * Pops data from the `queue`. If the queue is empty, blocks until
      * `end_time` or until data becomes available.
@@ -12762,7 +12762,7 @@ interface AsyncQueue {
      * @param end_time a #GTimeVal, determining the final time
      * @returns data from the queue or %NULL, when no data is     received before @end_time.
      */
-    timed_pop(end_time: TimeVal): object | null
+    timed_pop(end_time: TimeVal): any | null
     /**
      * Pops data from the `queue`. If the queue is empty, blocks until
      * `end_time` or until data becomes available.
@@ -12776,7 +12776,7 @@ interface AsyncQueue {
      * @param end_time a #GTimeVal, determining the final time
      * @returns data from the queue or %NULL, when no data is     received before @end_time.
      */
-    timed_pop_unlocked(end_time: TimeVal): object | null
+    timed_pop_unlocked(end_time: TimeVal): any | null
     /**
      * Pops data from the `queue`. If the queue is empty, blocks for
      * `timeout` microseconds, or until data becomes available.
@@ -12785,7 +12785,7 @@ interface AsyncQueue {
      * @param timeout the number of microseconds to wait
      * @returns data from the queue or %NULL, when no data is     received before the timeout.
      */
-    timeout_pop(timeout: number): object | null
+    timeout_pop(timeout: number): any | null
     /**
      * Pops data from the `queue`. If the queue is empty, blocks for
      * `timeout` microseconds, or until data becomes available.
@@ -12796,13 +12796,13 @@ interface AsyncQueue {
      * @param timeout the number of microseconds to wait
      * @returns data from the queue or %NULL, when no data is     received before the timeout.
      */
-    timeout_pop_unlocked(timeout: number): object | null
+    timeout_pop_unlocked(timeout: number): any | null
     /**
      * Tries to pop data from the `queue`. If no data is available,
      * %NULL is returned.
      * @returns data from the queue or %NULL, when no data is     available immediately.
      */
-    try_pop(): object | null
+    try_pop(): any | null
     /**
      * Tries to pop data from the `queue`. If no data is available,
      * %NULL is returned.
@@ -12810,7 +12810,7 @@ interface AsyncQueue {
      * This function must be called while holding the `queue'`s lock.
      * @returns data from the queue or %NULL, when no data is     available immediately.
      */
-    try_pop_unlocked(): object | null
+    try_pop_unlocked(): any | null
     /**
      * Releases the queue's lock.
      * 
@@ -12881,7 +12881,7 @@ interface BookmarkFile {
      * @param name the name of the application registering the bookmark   or %NULL
      * @param exec command line to be used to launch the bookmark or %NULL
      */
-    add_application(uri: string, name: string | null, exec: string | null): void
+    add_application(uri: string | null, name: string | null, exec: string | null): void
     /**
      * Adds `group` to the list of groups to which the bookmark for `uri`
      * belongs to.
@@ -12890,7 +12890,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param group the group name to be added
      */
-    add_group(uri: string, group: string): void
+    add_group(uri: string | null, group: string | null): void
     /**
      * Frees a #GBookmarkFile.
      */
@@ -12903,7 +12903,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a timestamp
      */
-    get_added(uri: string): number
+    get_added(uri: string | null): number
     /**
      * Gets the time the bookmark for `uri` was added to `bookmark`
      * 
@@ -12912,7 +12912,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a #GDateTime
      */
-    get_added_date_time(uri: string): DateTime
+    get_added_date_time(uri: string | null): DateTime
     /**
      * Gets the registration information of `app_name` for the bookmark for
      * `uri`.  See g_bookmark_file_set_application_info() for more information about
@@ -12931,7 +12931,7 @@ interface BookmarkFile {
      * @param name an application's name
      * @returns %TRUE on success.
      */
-    get_app_info(uri: string, name: string): [ /* returnType */ boolean, /* exec */ string, /* count */ number, /* stamp */ number ]
+    get_app_info(uri: string | null, name: string | null): [ /* returnType */ boolean, /* exec */ string | null, /* count */ number, /* stamp */ number ]
     /**
      * Gets the registration information of `app_name` for the bookmark for
      * `uri`.  See g_bookmark_file_set_application_info() for more information about
@@ -12950,7 +12950,7 @@ interface BookmarkFile {
      * @param name an application's name
      * @returns %TRUE on success.
      */
-    get_application_info(uri: string, name: string): [ /* returnType */ boolean, /* exec */ string, /* count */ number, /* stamp */ DateTime ]
+    get_application_info(uri: string | null, name: string | null): [ /* returnType */ boolean, /* exec */ string | null, /* count */ number, /* stamp */ DateTime ]
     /**
      * Retrieves the names of the applications that have registered the
      * bookmark for `uri`.
@@ -12960,7 +12960,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a newly allocated %NULL-terminated array of strings.   Use g_strfreev() to free it.
      */
-    get_applications(uri: string): string[]
+    get_applications(uri: string | null): string[]
     /**
      * Retrieves the description of the bookmark for `uri`.
      * 
@@ -12969,7 +12969,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a newly allocated string or %NULL if the specified   URI cannot be found.
      */
-    get_description(uri: string): string
+    get_description(uri: string | null): string | null
     /**
      * Retrieves the list of group names of the bookmark for `uri`.
      * 
@@ -12981,7 +12981,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a newly allocated %NULL-terminated array of group names.   Use g_strfreev() to free it.
      */
-    get_groups(uri: string): string[]
+    get_groups(uri: string | null): string[]
     /**
      * Gets the icon of the bookmark for `uri`.
      * 
@@ -12990,7 +12990,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns %TRUE if the icon for the bookmark for the URI was found.   You should free the returned strings.
      */
-    get_icon(uri: string): [ /* returnType */ boolean, /* href */ string, /* mime_type */ string ]
+    get_icon(uri: string | null): [ /* returnType */ boolean, /* href */ string | null, /* mime_type */ string | null ]
     /**
      * Gets whether the private flag of the bookmark for `uri` is set.
      * 
@@ -13001,7 +13001,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns %TRUE if the private flag is set, %FALSE otherwise.
      */
-    get_is_private(uri: string): boolean
+    get_is_private(uri: string | null): boolean
     /**
      * Retrieves the MIME type of the resource pointed by `uri`.
      * 
@@ -13012,7 +13012,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a newly allocated string or %NULL if the specified   URI cannot be found.
      */
-    get_mime_type(uri: string): string
+    get_mime_type(uri: string | null): string | null
     /**
      * Gets the time when the bookmark for `uri` was last modified.
      * 
@@ -13021,7 +13021,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a timestamp
      */
-    get_modified(uri: string): number
+    get_modified(uri: string | null): number
     /**
      * Gets the time when the bookmark for `uri` was last modified.
      * 
@@ -13030,7 +13030,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a #GDateTime
      */
-    get_modified_date_time(uri: string): DateTime
+    get_modified_date_time(uri: string | null): DateTime
     /**
      * Gets the number of bookmarks inside `bookmark`.
      * @returns the number of bookmarks
@@ -13046,7 +13046,7 @@ interface BookmarkFile {
      * @param uri a valid URI or %NULL
      * @returns a newly allocated string or %NULL if the specified   URI cannot be found.
      */
-    get_title(uri: string | null): string
+    get_title(uri: string | null): string | null
     /**
      * Returns all URIs of the bookmarks in the bookmark file `bookmark`.
      * The array of returned URIs will be %NULL-terminated, so `length` may
@@ -13062,7 +13062,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a timestamp.
      */
-    get_visited(uri: string): number
+    get_visited(uri: string | null): number
     /**
      * Gets the time the bookmark for `uri` was last visited.
      * 
@@ -13071,7 +13071,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @returns a #GDateTime
      */
-    get_visited_date_time(uri: string): DateTime
+    get_visited_date_time(uri: string | null): DateTime
     /**
      * Checks whether the bookmark for `uri` inside `bookmark` has been
      * registered by application `name`.
@@ -13082,7 +13082,7 @@ interface BookmarkFile {
      * @param name the name of the application
      * @returns %TRUE if the application @name was found
      */
-    has_application(uri: string, name: string): boolean
+    has_application(uri: string | null, name: string | null): boolean
     /**
      * Checks whether `group` appears in the list of groups to which
      * the bookmark for `uri` belongs to.
@@ -13093,13 +13093,13 @@ interface BookmarkFile {
      * @param group the group name to be searched
      * @returns %TRUE if @group was found.
      */
-    has_group(uri: string, group: string): boolean
+    has_group(uri: string | null, group: string | null): boolean
     /**
      * Looks whether the desktop bookmark has an item with its URI set to `uri`.
      * @param uri a valid URI
      * @returns %TRUE if @uri is inside @bookmark, %FALSE otherwise
      */
-    has_item(uri: string): boolean
+    has_item(uri: string | null): boolean
     /**
      * Loads a bookmark file from memory into an empty #GBookmarkFile
      * structure.  If the object cannot be created then `error` is set to a
@@ -13137,7 +13137,7 @@ interface BookmarkFile {
      * @param new_uri a valid URI, or %NULL
      * @returns %TRUE if the URI was successfully changed
      */
-    move_item(old_uri: string, new_uri: string | null): boolean
+    move_item(old_uri: string | null, new_uri: string | null): boolean
     /**
      * Removes application registered with `name` from the list of applications
      * that have registered a bookmark for `uri` inside `bookmark`.
@@ -13151,7 +13151,7 @@ interface BookmarkFile {
      * @param name the name of the application
      * @returns %TRUE if the application was successfully removed.
      */
-    remove_application(uri: string, name: string): boolean
+    remove_application(uri: string | null, name: string | null): boolean
     /**
      * Removes `group` from the list of groups to which the bookmark
      * for `uri` belongs to.
@@ -13164,13 +13164,13 @@ interface BookmarkFile {
      * @param group the group name to be removed
      * @returns %TRUE if @group was successfully removed.
      */
-    remove_group(uri: string, group: string): boolean
+    remove_group(uri: string | null, group: string | null): boolean
     /**
      * Removes the bookmark for `uri` from the bookmark file `bookmark`.
      * @param uri a valid URI
      * @returns %TRUE if the bookmark was removed successfully.
      */
-    remove_item(uri: string): boolean
+    remove_item(uri: string | null): boolean
     /**
      * Sets the time the bookmark for `uri` was added into `bookmark`.
      * 
@@ -13178,7 +13178,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param added a timestamp or -1 to use the current time
      */
-    set_added(uri: string, added: number): void
+    set_added(uri: string | null, added: number): void
     /**
      * Sets the time the bookmark for `uri` was added into `bookmark`.
      * 
@@ -13186,7 +13186,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param added a #GDateTime
      */
-    set_added_date_time(uri: string, added: DateTime): void
+    set_added_date_time(uri: string | null, added: DateTime): void
     /**
      * Sets the meta-data of application `name` inside the list of
      * applications that have registered a bookmark for `uri` inside
@@ -13223,7 +13223,7 @@ interface BookmarkFile {
      * @param stamp the time of the last registration for this application
      * @returns %TRUE if the application's meta-data was successfully   changed.
      */
-    set_app_info(uri: string, name: string, exec: string, count: number, stamp: number): boolean
+    set_app_info(uri: string | null, name: string | null, exec: string | null, count: number, stamp: number): boolean
     /**
      * Sets the meta-data of application `name` inside the list of
      * applications that have registered a bookmark for `uri` inside
@@ -13259,7 +13259,7 @@ interface BookmarkFile {
      * @param stamp the time of the last registration for this application,    which may be %NULL if `count` is 0
      * @returns %TRUE if the application's meta-data was successfully   changed.
      */
-    set_application_info(uri: string, name: string, exec: string, count: number, stamp: DateTime | null): boolean
+    set_application_info(uri: string | null, name: string | null, exec: string | null, count: number, stamp: DateTime | null): boolean
     /**
      * Sets `description` as the description of the bookmark for `uri`.
      * 
@@ -13269,7 +13269,7 @@ interface BookmarkFile {
      * @param uri a valid URI or %NULL
      * @param description a string
      */
-    set_description(uri: string | null, description: string): void
+    set_description(uri: string | null, description: string | null): void
     /**
      * Sets a list of group names for the item with URI `uri`.  Each previously
      * set group name list is removed.
@@ -13278,7 +13278,7 @@ interface BookmarkFile {
      * @param uri an item's URI
      * @param groups an array of    group names, or %NULL to remove all groups
      */
-    set_groups(uri: string, groups: string[] | null): void
+    set_groups(uri: string | null, groups: string[] | null): void
     /**
      * Sets the icon for the bookmark for `uri`. If `href` is %NULL, unsets
      * the currently set icon. `href` can either be a full URL for the icon
@@ -13289,7 +13289,7 @@ interface BookmarkFile {
      * @param href the URI of the icon for the bookmark, or %NULL
      * @param mime_type the MIME type of the icon for the bookmark
      */
-    set_icon(uri: string, href: string | null, mime_type: string): void
+    set_icon(uri: string | null, href: string | null, mime_type: string | null): void
     /**
      * Sets the private flag of the bookmark for `uri`.
      * 
@@ -13297,7 +13297,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param is_private %TRUE if the bookmark should be marked as private
      */
-    set_is_private(uri: string, is_private: boolean): void
+    set_is_private(uri: string | null, is_private: boolean): void
     /**
      * Sets `mime_type` as the MIME type of the bookmark for `uri`.
      * 
@@ -13305,7 +13305,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param mime_type a MIME type
      */
-    set_mime_type(uri: string, mime_type: string): void
+    set_mime_type(uri: string | null, mime_type: string | null): void
     /**
      * Sets the last time the bookmark for `uri` was last modified.
      * 
@@ -13318,7 +13318,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param modified a timestamp or -1 to use the current time
      */
-    set_modified(uri: string, modified: number): void
+    set_modified(uri: string | null, modified: number): void
     /**
      * Sets the last time the bookmark for `uri` was last modified.
      * 
@@ -13331,7 +13331,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param modified a #GDateTime
      */
-    set_modified_date_time(uri: string, modified: DateTime): void
+    set_modified_date_time(uri: string | null, modified: DateTime): void
     /**
      * Sets `title` as the title of the bookmark for `uri` inside the
      * bookmark file `bookmark`.
@@ -13342,7 +13342,7 @@ interface BookmarkFile {
      * @param uri a valid URI or %NULL
      * @param title a UTF-8 encoded string
      */
-    set_title(uri: string | null, title: string): void
+    set_title(uri: string | null, title: string | null): void
     /**
      * Sets the time the bookmark for `uri` was last visited.
      * 
@@ -13356,7 +13356,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param visited a timestamp or -1 to use the current time
      */
-    set_visited(uri: string, visited: number): void
+    set_visited(uri: string | null, visited: number): void
     /**
      * Sets the time the bookmark for `uri` was last visited.
      * 
@@ -13370,7 +13370,7 @@ interface BookmarkFile {
      * @param uri a valid URI
      * @param visited a #GDateTime
      */
-    set_visited_date_time(uri: string, visited: DateTime): void
+    set_visited_date_time(uri: string | null, visited: DateTime): void
     /**
      * This function outputs `bookmark` as a string.
      * @returns    a newly allocated string holding the contents of the #GBookmarkFile
@@ -13551,7 +13551,7 @@ interface Bytes {
      * @param n_elements the number of elements in the region
      * @returns the requested region, or %NULL in case of an error
      */
-    get_region(element_size: number, offset: number, n_elements: number): object | null
+    get_region(element_size: number, offset: number, n_elements: number): any | null
     /**
      * Get the size of the byte data in the #GBytes.
      * 
@@ -13724,7 +13724,7 @@ interface Checksum {
      * The hexadecimal characters will be lower case.
      * @returns the hexadecimal representation of the checksum. The   returned string is owned by the checksum and should not be modified   or freed.
      */
-    get_string(): string
+    get_string(): string | null
     /**
      * Resets the state of the `checksum` back to its initial state.
      */
@@ -14230,7 +14230,7 @@ interface Date {
      * capacity).
      * @param str string to parse
      */
-    set_parse(str: string): void
+    set_parse(str: string | null): void
     /**
      * Sets the value of a date from a #GTime value.
      * The time to date conversion is done using the user's current timezone.
@@ -14298,7 +14298,7 @@ interface Date {
      * Initializes the non-date parts with something safe but meaningless.
      * @param tm struct tm to fill
      */
-    to_struct_tm(tm: object): void
+    to_struct_tm(tm: any): void
     /**
      * Returns %TRUE if the #GDate represents an existing day. The date must not
      * contain garbage; it should have been initialized with g_date_clear()
@@ -14435,7 +14435,7 @@ class Date {
      * @param date valid #GDate
      * @returns number of characters written to the buffer, or 0 the buffer was too small
      */
-    static strftime(s: string, slen: number, format: string, date: Date): number
+    static strftime(s: string | null, slen: number, format: string | null, date: Date): number
     /**
      * Returns %TRUE if the day of the month is valid (a day is valid if it's
      * between 1 and 31 inclusive).
@@ -14690,7 +14690,7 @@ interface DateTime {
      * @param format a valid UTF-8 string, containing the format for the          #GDateTime
      * @returns a newly allocated string formatted to    the requested format or %NULL in the case that there was an error (such    as a format specifier not being supported in the current locale). The    string should be freed with g_free().
      */
-    format(format: string): string | null
+    format(format: string | null): string | null
     /**
      * Format `datetime` in [ISO 8601 format](https://en.wikipedia.org/wiki/ISO_8601),
      * including the date, time and time zone, and return that as a UTF-8 encoded
@@ -14764,7 +14764,7 @@ interface DateTime {
      * time is in effect.
      * @returns the time zone abbreviation. The returned          string is owned by the #GDateTime and it should not be          modified or freed
      */
-    get_timezone_abbreviation(): string
+    get_timezone_abbreviation(): string | null
     /**
      * Determines the offset to UTC in effect at the time and in the time
      * zone of `datetime`.
@@ -15062,7 +15062,7 @@ class DateTime {
      * @param default_tz a #GTimeZone to use if the text doesn't contain a                          timezone, or %NULL.
      * @returns a new #GDateTime, or %NULL
      */
-    static new_from_iso8601(text: string, default_tz: TimeZone | null): DateTime
+    static new_from_iso8601(text: string | null, default_tz: TimeZone | null): DateTime
     /**
      * Creates a #GDateTime corresponding to the given #GTimeVal `tv` in the
      * local time zone.
@@ -15206,7 +15206,7 @@ interface DebugKey {
      * the string
      * @field 
      */
-    key: string
+    key: string | null
     /**
      * the flag
      * @field 
@@ -15329,7 +15329,7 @@ interface Error {
      * human-readable informative error message
      * @field 
      */
-    message: string
+    message: string | null
 
     // Owm methods of GLib-2.0.GLib.Error
 
@@ -15385,7 +15385,7 @@ class Error {
      * @param message error message
      * @returns a new #GError
      */
-    static new_literal(domain: Quark, code: number, message: string): Error
+    static new_literal(domain: Quark, code: number, message: string | null): Error
 
     // Owm static methods of GLib-2.0.GLib.Error
 
@@ -15442,14 +15442,14 @@ class HashTable<A = symbol | string | number, B = string | number | boolean> {
      * @param key a key to insert
      * @returns %TRUE if the key did not exist yet
      */
-    static add(hash_table: HashTable, key: object | null): boolean
+    static add(hash_table: HashTable, key: any | null): boolean
     /**
      * Checks if `key` is in `hash_table`.
      * @param hash_table a #GHashTable
      * @param key a key to check
      * @returns %TRUE if @key is in @hash_table, %FALSE otherwise.
      */
-    static contains(hash_table: HashTable, key: object | null): boolean
+    static contains(hash_table: HashTable, key: any | null): boolean
     /**
      * Destroys all keys and values in the #GHashTable and decrements its
      * reference count by 1. If keys and/or values are dynamically allocated,
@@ -15478,7 +15478,7 @@ class HashTable<A = symbol | string | number, B = string | number | boolean> {
      * @param value the value to associate with the key
      * @returns %TRUE if the key did not exist yet
      */
-    static insert(hash_table: HashTable, key: object | null, value: object | null): boolean
+    static insert(hash_table: HashTable, key: any | null, value: any | null): boolean
     /**
      * Looks up a key in a #GHashTable. Note that this function cannot
      * distinguish between a key that is not present and one which is present
@@ -15488,7 +15488,7 @@ class HashTable<A = symbol | string | number, B = string | number | boolean> {
      * @param key the key to look up
      * @returns the associated value, or %NULL if the key is not found
      */
-    static lookup(hash_table: HashTable, key: object | null): object | null
+    static lookup(hash_table: HashTable, key: any | null): any | null
     /**
      * Looks up a key in the #GHashTable, returning the original key and the
      * associated value and a #gboolean which is %TRUE if the key was found. This
@@ -15502,7 +15502,7 @@ class HashTable<A = symbol | string | number, B = string | number | boolean> {
      * @param lookup_key the key to look up
      * @returns %TRUE if the key was found in the #GHashTable
      */
-    static lookup_extended(hash_table: HashTable, lookup_key: object | null): [ /* returnType */ boolean, /* orig_key */ object | null, /* value */ object | null ]
+    static lookup_extended(hash_table: HashTable, lookup_key: any | null): [ /* returnType */ boolean, /* orig_key */ any | null, /* value */ any | null ]
     /**
      * Removes a key and its associated value from a #GHashTable.
      * 
@@ -15514,7 +15514,7 @@ class HashTable<A = symbol | string | number, B = string | number | boolean> {
      * @param key the key to remove
      * @returns %TRUE if the key was found and removed from the #GHashTable
      */
-    static remove(hash_table: HashTable, key: object | null): boolean
+    static remove(hash_table: HashTable, key: any | null): boolean
     /**
      * Removes all keys and their associated values from a #GHashTable.
      * 
@@ -15542,7 +15542,7 @@ class HashTable<A = symbol | string | number, B = string | number | boolean> {
      * @param value the value to associate with the key
      * @returns %TRUE if the key did not exist yet
      */
-    static replace(hash_table: HashTable, key: object | null, value: object | null): boolean
+    static replace(hash_table: HashTable, key: any | null, value: any | null): boolean
     /**
      * Returns the number of elements contained in the #GHashTable.
      * @param hash_table a #GHashTable
@@ -15556,7 +15556,7 @@ class HashTable<A = symbol | string | number, B = string | number | boolean> {
      * @param key the key to remove
      * @returns %TRUE if the key was found and removed from the #GHashTable
      */
-    static steal(hash_table: HashTable, key: object | null): boolean
+    static steal(hash_table: HashTable, key: any | null): boolean
     /**
      * Removes all keys and their associated values from a #GHashTable
      * without calling the key and value destroy functions.
@@ -15578,7 +15578,7 @@ class HashTable<A = symbol | string | number, B = string | number | boolean> {
      * @param lookup_key the key to look up
      * @returns %TRUE if the key was found in the #GHashTable
      */
-    static steal_extended(hash_table: HashTable, lookup_key: object | null): [ /* returnType */ boolean, /* stolen_key */ object | null, /* stolen_value */ object | null ]
+    static steal_extended(hash_table: HashTable, lookup_key: any | null): [ /* returnType */ boolean, /* stolen_key */ any | null, /* stolen_value */ any | null ]
     /**
      * Atomically decrements the reference count of `hash_table` by one.
      * If the reference count drops to 0, all keys and values will be
@@ -15622,7 +15622,7 @@ interface HashTableIter {
      * `key` and `value` are not set, and the iterator becomes invalid.
      * @returns %FALSE if the end of the #GHashTable has been reached.
      */
-    next(): [ /* returnType */ boolean, /* key */ object | null, /* value */ object | null ]
+    next(): [ /* returnType */ boolean, /* key */ any | null, /* value */ any | null ]
     /**
      * Removes the key/value pair currently pointed to by the iterator
      * from its associated #GHashTable. Can only be called after
@@ -15655,7 +15655,7 @@ interface HashTableIter {
      * #GHashTable, the old value is freed using that function.
      * @param value the value to replace with
      */
-    replace(value: object | null): void
+    replace(value: any | null): void
     /**
      * Removes the key/value pair currently pointed to by the
      * iterator from its associated #GHashTable, without calling
@@ -15705,7 +15705,7 @@ interface Hmac {
      * The hexadecimal characters will be lower case.
      * @returns the hexadecimal representation of the HMAC. The   returned string is owned by the HMAC and should not be modified   or freed.
      */
-    get_string(): string
+    get_string(): string | null
     /**
      * Atomically decrements the reference count of `hmac` by one.
      * 
@@ -15746,7 +15746,7 @@ interface Hook {
      * data which is passed to func when this hook is invoked
      * @field 
      */
-    data: object
+    data: any
     /**
      * pointer to the next hook in the list
      * @field 
@@ -15778,7 +15778,7 @@ interface Hook {
      *     signatures for this function are #GHookFunc and #GHookCheckFunc
      * @field 
      */
-    func: object
+    func: any
     /**
      * the default `finalize_hook` function of a #GHookList calls
      *     this member of the hook that is being finalized
@@ -15881,7 +15881,7 @@ interface HookList {
      * unused
      * @field 
      */
-    dummy3: object
+    dummy3: any
     /**
      * the function to call to finalize a #GHook element.
      *     The default behaviour is to call the hooks `destroy` function
@@ -15892,7 +15892,7 @@ interface HookList {
      * unused
      * @field 
      */
-    dummy: object[]
+    dummy: any[]
 
     // Owm methods of GLib-2.0.GLib.HookList
 
@@ -15991,7 +15991,7 @@ interface IOChannel {
      * makes the channel safe for binary data.
      * @returns A string containing the encoding, this string is   owned by GLib and must not be freed.
      */
-    get_encoding(): string
+    get_encoding(): string | null
     /**
      * Gets the current flags for a #GIOChannel, including read-only
      * flags such as %G_IO_FLAG_IS_READABLE.
@@ -16012,7 +16012,7 @@ interface IOChannel {
      * @param length a location to return the length of the line terminator
      * @returns The line termination string. This value   is owned by GLib and must not be freed.
      */
-    get_line_term(length: number): string
+    get_line_term(length: number): string | null
     /**
      * Initializes a #GIOChannel struct.
      * 
@@ -16028,7 +16028,7 @@ interface IOChannel {
      * @param bytes_read returns the number of bytes actually read
      * @returns %G_IO_ERROR_NONE if the operation was successful.
      */
-    read(buf: string, count: number, bytes_read: number): IOError
+    read(buf: string | null, count: number, bytes_read: number): IOError
     /**
      * Replacement for g_io_channel_read() with the new API.
      * @returns the status of the operation.
@@ -16041,7 +16041,7 @@ interface IOChannel {
      * is %G_IO_STATUS_NORMAL.
      * @returns the status of the operation.
      */
-    read_line(): [ /* returnType */ IOStatus, /* str_return */ string, /* length */ number, /* terminator_pos */ number ]
+    read_line(): [ /* returnType */ IOStatus, /* str_return */ string | null, /* length */ number, /* terminator_pos */ number ]
     /**
      * Reads a line from a #GIOChannel, using a #GString as a buffer.
      * @param buffer a #GString into which the line will be written.          If `buffer` already contains data, the old data will          be overwritten.
@@ -16197,7 +16197,7 @@ interface IOChannel {
      * @param bytes_written the number of bytes actually written
      * @returns %G_IO_ERROR_NONE if the operation was successful.
      */
-    write(buf: string, count: number, bytes_written: number): IOError
+    write(buf: string | null, count: number, bytes_written: number): IOError
     /**
      * Replacement for g_io_channel_write() with the new API.
      * 
@@ -16244,7 +16244,7 @@ class IOChannel {
      * @param mode One of "r", "w", "a", "r+", "w+", "a+". These have        the same meaning as in fopen()
      * @returns A #GIOChannel on success, %NULL on failure.
      */
-    static new_file(filename: string, mode: string): IOChannel
+    static new_file(filename: string, mode: string | null): IOChannel
     /**
      * Creates a new #GIOChannel given a file descriptor. On UNIX systems
      * this works for plain files, pipes, and sockets.
@@ -16286,8 +16286,8 @@ interface IOFuncs {
 
     // Own fields of GLib-2.0.GLib.IOFuncs
 
-    io_read: (channel: IOChannel, buf: string, count: number, bytes_read: number) => IOStatus
-    io_write: (channel: IOChannel, buf: string, count: number, bytes_written: number) => IOStatus
+    io_read: (channel: IOChannel, buf: string | null, count: number, bytes_read: number) => IOStatus
+    io_write: (channel: IOChannel, buf: string | null, count: number, bytes_written: number) => IOStatus
     io_seek: (channel: IOChannel, offset: number, type: SeekType) => IOStatus
     io_close: (channel: IOChannel) => IOStatus
     io_create_watch: (channel: IOChannel, condition: IOCondition) => Source
@@ -16324,7 +16324,7 @@ interface KeyFile {
      * @param key a key
      * @returns the value associated with the key as a boolean,    or %FALSE if the key was not found or could not be parsed.
      */
-    get_boolean(group_name: string, key: string): boolean
+    get_boolean(group_name: string | null, key: string | null): boolean
     /**
      * Returns the values associated with `key` under `group_name` as
      * booleans.
@@ -16337,7 +16337,7 @@ interface KeyFile {
      * @param key a key
      * @returns     the values associated with the key as a list of booleans, or %NULL if the    key was not found or could not be parsed. The returned list of booleans    should be freed with g_free() when no longer needed.
      */
-    get_boolean_list(group_name: string, key: string): boolean[]
+    get_boolean_list(group_name: string | null, key: string | null): boolean[]
     /**
      * Retrieves a comment above `key` from `group_name`.
      * If `key` is %NULL then `comment` will be read from above
@@ -16351,7 +16351,7 @@ interface KeyFile {
      * @param key a key
      * @returns a comment that should be freed with g_free()
      */
-    get_comment(group_name: string | null, key: string | null): string
+    get_comment(group_name: string | null, key: string | null): string | null
     /**
      * Returns the value associated with `key` under `group_name` as a
      * double. If `group_name` is %NULL, the start_group is used.
@@ -16364,7 +16364,7 @@ interface KeyFile {
      * @param key a key
      * @returns the value associated with the key as a double, or     0.0 if the key was not found or could not be parsed.
      */
-    get_double(group_name: string, key: string): number
+    get_double(group_name: string | null, key: string | null): number
     /**
      * Returns the values associated with `key` under `group_name` as
      * doubles.
@@ -16377,7 +16377,7 @@ interface KeyFile {
      * @param key a key
      * @returns      the values associated with the key as a list of doubles, or %NULL if the     key was not found or could not be parsed. The returned list of doubles     should be freed with g_free() when no longer needed.
      */
-    get_double_list(group_name: string, key: string): number[]
+    get_double_list(group_name: string | null, key: string | null): number[]
     /**
      * Returns all groups in the key file loaded with `key_file`.
      * The array of returned groups will be %NULL-terminated, so
@@ -16393,7 +16393,7 @@ interface KeyFile {
      * @param key a non-%NULL key
      * @returns the value associated with the key as a signed 64-bit integer, or 0 if the key was not found or could not be parsed.
      */
-    get_int64(group_name: string, key: string): number
+    get_int64(group_name: string | null, key: string | null): number
     /**
      * Returns the value associated with `key` under `group_name` as an
      * integer.
@@ -16407,7 +16407,7 @@ interface KeyFile {
      * @param key a key
      * @returns the value associated with the key as an integer, or     0 if the key was not found or could not be parsed.
      */
-    get_integer(group_name: string, key: string): number
+    get_integer(group_name: string | null, key: string | null): number
     /**
      * Returns the values associated with `key` under `group_name` as
      * integers.
@@ -16421,7 +16421,7 @@ interface KeyFile {
      * @param key a key
      * @returns      the values associated with the key as a list of integers, or %NULL if     the key was not found or could not be parsed. The returned list of     integers should be freed with g_free() when no longer needed.
      */
-    get_integer_list(group_name: string, key: string): number[]
+    get_integer_list(group_name: string | null, key: string | null): number[]
     /**
      * Returns all keys for the group name `group_name`.  The array of
      * returned keys will be %NULL-terminated, so `length` may
@@ -16431,7 +16431,7 @@ interface KeyFile {
      * @param group_name a group name
      * @returns a newly-allocated %NULL-terminated array of strings.     Use g_strfreev() to free it.
      */
-    get_keys(group_name: string): [ /* returnType */ string[], /* length */ number ]
+    get_keys(group_name: string | null): [ /* returnType */ string[], /* length */ number ]
     /**
      * Returns the actual locale which the result of
      * g_key_file_get_locale_string() or g_key_file_get_locale_string_list()
@@ -16447,7 +16447,7 @@ interface KeyFile {
      * @param locale a locale identifier or %NULL
      * @returns the locale from the file, or %NULL if the key was not   found or the entry in the file was was untranslated
      */
-    get_locale_for_key(group_name: string, key: string, locale: string | null): string | null
+    get_locale_for_key(group_name: string | null, key: string | null, locale: string | null): string | null
     /**
      * Returns the value associated with `key` under `group_name`
      * translated in the given `locale` if available.  If `locale` is
@@ -16466,7 +16466,7 @@ interface KeyFile {
      * @param locale a locale identifier or %NULL
      * @returns a newly allocated string or %NULL if the specified   key cannot be found.
      */
-    get_locale_string(group_name: string, key: string, locale: string | null): string
+    get_locale_string(group_name: string | null, key: string | null, locale: string | null): string | null
     /**
      * Returns the values associated with `key` under `group_name`
      * translated in the given `locale` if available.  If `locale` is
@@ -16487,7 +16487,7 @@ interface KeyFile {
      * @param locale a locale identifier or %NULL
      * @returns a newly allocated %NULL-terminated string array   or %NULL if the key isn't found. The string array should be freed   with g_strfreev().
      */
-    get_locale_string_list(group_name: string, key: string, locale: string | null): string[]
+    get_locale_string_list(group_name: string | null, key: string | null, locale: string | null): string[]
     /**
      * Returns the name of the start group of the file.
      * @returns The start group of the key file.
@@ -16506,7 +16506,7 @@ interface KeyFile {
      * @param key a key
      * @returns a newly allocated string or %NULL if the specified   key cannot be found.
      */
-    get_string(group_name: string, key: string): string
+    get_string(group_name: string | null, key: string | null): string | null
     /**
      * Returns the values associated with `key` under `group_name`.
      * 
@@ -16518,7 +16518,7 @@ interface KeyFile {
      * @param key a key
      * @returns   a %NULL-terminated string array or %NULL if the specified  key cannot be found. The array should be freed with g_strfreev().
      */
-    get_string_list(group_name: string, key: string): string[]
+    get_string_list(group_name: string | null, key: string | null): string[]
     /**
      * Returns the value associated with `key` under `group_name` as an unsigned
      * 64-bit integer. This is similar to g_key_file_get_integer() but can return
@@ -16527,7 +16527,7 @@ interface KeyFile {
      * @param key a non-%NULL key
      * @returns the value associated with the key as an unsigned 64-bit integer, or 0 if the key was not found or could not be parsed.
      */
-    get_uint64(group_name: string, key: string): number
+    get_uint64(group_name: string | null, key: string | null): number
     /**
      * Returns the raw value associated with `key` under `group_name`.
      * Use g_key_file_get_string() to retrieve an unescaped UTF-8 string.
@@ -16540,13 +16540,13 @@ interface KeyFile {
      * @param key a key
      * @returns a newly allocated string or %NULL if the specified  key cannot be found.
      */
-    get_value(group_name: string, key: string): string
+    get_value(group_name: string | null, key: string | null): string | null
     /**
      * Looks whether the key file has the group `group_name`.
      * @param group_name a group name
      * @returns %TRUE if @group_name is a part of @key_file, %FALSE otherwise.
      */
-    has_group(group_name: string): boolean
+    has_group(group_name: string | null): boolean
     /**
      * Loads a key file from the data in `bytes` into an empty #GKeyFile structure.
      * If the object cannot be created then %error is set to a #GKeyFileError.
@@ -16563,7 +16563,7 @@ interface KeyFile {
      * @param flags flags from #GKeyFileFlags
      * @returns %TRUE if a key file could be loaded, %FALSE otherwise
      */
-    load_from_data(data: string, length: number, flags: KeyFileFlags): boolean
+    load_from_data(data: string | null, length: number, flags: KeyFileFlags): boolean
     /**
      * This function looks for a key file named `file` in the paths
      * returned from g_get_user_data_dir() and g_get_system_data_dirs(),
@@ -16621,14 +16621,14 @@ interface KeyFile {
      * @param group_name a group name
      * @returns %TRUE if the group was removed, %FALSE otherwise
      */
-    remove_group(group_name: string): boolean
+    remove_group(group_name: string | null): boolean
     /**
      * Removes `key` in `group_name` from the key file.
      * @param group_name a group name
      * @param key a key name to remove
      * @returns %TRUE if the key was removed, %FALSE otherwise
      */
-    remove_key(group_name: string, key: string): boolean
+    remove_key(group_name: string | null, key: string | null): boolean
     /**
      * Writes the contents of `key_file` to `filename` using
      * g_file_set_contents(). If you need stricter guarantees about durability of
@@ -16640,7 +16640,7 @@ interface KeyFile {
      * @param filename the name of the file to write to
      * @returns %TRUE if successful, else %FALSE with @error set
      */
-    save_to_file(filename: string): boolean
+    save_to_file(filename: string | null): boolean
     /**
      * Associates a new boolean value with `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16648,7 +16648,7 @@ interface KeyFile {
      * @param key a key
      * @param value %TRUE or %FALSE
      */
-    set_boolean(group_name: string, key: string, value: boolean): void
+    set_boolean(group_name: string | null, key: string | null, value: boolean): void
     /**
      * Associates a list of boolean values with `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16657,7 +16657,7 @@ interface KeyFile {
      * @param key a key
      * @param list an array of boolean values
      */
-    set_boolean_list(group_name: string, key: string, list: boolean[]): void
+    set_boolean_list(group_name: string | null, key: string | null, list: boolean[]): void
     /**
      * Places a comment above `key` from `group_name`.
      * 
@@ -16672,7 +16672,7 @@ interface KeyFile {
      * @param comment a comment
      * @returns %TRUE if the comment was written, %FALSE otherwise
      */
-    set_comment(group_name: string | null, key: string | null, comment: string): boolean
+    set_comment(group_name: string | null, key: string | null, comment: string | null): boolean
     /**
      * Associates a new double value with `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16680,7 +16680,7 @@ interface KeyFile {
      * @param key a key
      * @param value a double value
      */
-    set_double(group_name: string, key: string, value: number): void
+    set_double(group_name: string | null, key: string | null, value: number): void
     /**
      * Associates a list of double values with `key` under
      * `group_name`.  If `key` cannot be found then it is created.
@@ -16688,7 +16688,7 @@ interface KeyFile {
      * @param key a key
      * @param list an array of double values
      */
-    set_double_list(group_name: string, key: string, list: number[]): void
+    set_double_list(group_name: string | null, key: string | null, list: number[]): void
     /**
      * Associates a new integer value with `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16696,7 +16696,7 @@ interface KeyFile {
      * @param key a key
      * @param value an integer value
      */
-    set_int64(group_name: string, key: string, value: number): void
+    set_int64(group_name: string | null, key: string | null, value: number): void
     /**
      * Associates a new integer value with `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16704,7 +16704,7 @@ interface KeyFile {
      * @param key a key
      * @param value an integer value
      */
-    set_integer(group_name: string, key: string, value: number): void
+    set_integer(group_name: string | null, key: string | null, value: number): void
     /**
      * Associates a list of integer values with `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16712,7 +16712,7 @@ interface KeyFile {
      * @param key a key
      * @param list an array of integer values
      */
-    set_integer_list(group_name: string, key: string, list: number[]): void
+    set_integer_list(group_name: string | null, key: string | null, list: number[]): void
     /**
      * Sets the character which is used to separate
      * values in lists. Typically ';' or ',' are used
@@ -16728,7 +16728,7 @@ interface KeyFile {
      * @param locale a locale identifier
      * @param string a string
      */
-    set_locale_string(group_name: string, key: string, locale: string, string: string): void
+    set_locale_string(group_name: string | null, key: string | null, locale: string | null, string: string | null): void
     /**
      * Associates a list of string values for `key` and `locale` under
      * `group_name`.  If the translation for `key` cannot be found then
@@ -16738,7 +16738,7 @@ interface KeyFile {
      * @param locale a locale identifier
      * @param list a %NULL-terminated array of locale string values
      */
-    set_locale_string_list(group_name: string, key: string, locale: string, list: string[]): void
+    set_locale_string_list(group_name: string | null, key: string | null, locale: string | null, list: string[]): void
     /**
      * Associates a new string value with `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16749,7 +16749,7 @@ interface KeyFile {
      * @param key a key
      * @param string a string
      */
-    set_string(group_name: string, key: string, string: string): void
+    set_string(group_name: string | null, key: string | null, string: string | null): void
     /**
      * Associates a list of string values for `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16758,7 +16758,7 @@ interface KeyFile {
      * @param key a key
      * @param list an array of string values
      */
-    set_string_list(group_name: string, key: string, list: string[]): void
+    set_string_list(group_name: string | null, key: string | null, list: string[]): void
     /**
      * Associates a new integer value with `key` under `group_name`.
      * If `key` cannot be found then it is created.
@@ -16766,7 +16766,7 @@ interface KeyFile {
      * @param key a key
      * @param value an integer value
      */
-    set_uint64(group_name: string, key: string, value: number): void
+    set_uint64(group_name: string | null, key: string | null, value: number): void
     /**
      * Associates a new value with `key` under `group_name`.
      * 
@@ -16778,7 +16778,7 @@ interface KeyFile {
      * @param key a key
      * @param value a string
      */
-    set_value(group_name: string, key: string, value: string): void
+    set_value(group_name: string | null, key: string | null, value: string | null): void
     /**
      * This function outputs `key_file` as a string.
      * 
@@ -16786,7 +16786,7 @@ interface KeyFile {
      * so it is safe to pass %NULL as `error`.
      * @returns a newly allocated string holding   the contents of the #GKeyFile
      */
-    to_data(): [ /* returnType */ string, /* length */ number ]
+    to_data(): [ /* returnType */ string | null, /* length */ number ]
     /**
      * Decreases the reference count of `key_file` by 1. If the reference count
      * reaches zero, frees the key file and all its allocated memory.
@@ -16838,17 +16838,17 @@ interface List<A = any> {
      *        [Type Conversion Macros][glib-Type-Conversion-Macros]
      * @field 
      */
-    data: object
+    data: any
     /**
      * contains the link to the next element in the list
      * @field 
      */
-    next: object[]
+    next: any[]
     /**
      * contains the link to the previous element in the list
      * @field 
      */
-    prev: object[]
+    prev: any[]
 }
 
 /**
@@ -16870,12 +16870,12 @@ interface LogField {
      * field name (UTF-8 string)
      * @field 
      */
-    key: string
+    key: string | null
     /**
      * field value (arbitrary bytes)
      * @field 
      */
-    value: object
+    value: any
     /**
      * length of `value,` in bytes, or -1 if it is nul-terminated
      * @field 
@@ -16954,7 +16954,7 @@ interface MainContext {
      * @param user_data the user data from the callback.
      * @returns the source, if one was found, otherwise %NULL
      */
-    find_source_by_funcs_user_data(funcs: SourceFuncs, user_data: object | null): Source
+    find_source_by_funcs_user_data(funcs: SourceFuncs, user_data: any | null): Source
     /**
      * Finds a #GSource given a pair of context and ID.
      * 
@@ -16979,7 +16979,7 @@ interface MainContext {
      * @param user_data the user_data for the callback.
      * @returns the source, if one was found, otherwise %NULL
      */
-    find_source_by_user_data(user_data: object | null): Source
+    find_source_by_user_data(user_data: any | null): Source
     /**
      * Invokes a function in such a way that `context` is owned during the
      * invocation of `function`.
@@ -17326,7 +17326,7 @@ interface MappedFile {
      * If the file is empty then %NULL is returned.
      * @returns the contents of @file, or %NULL.
      */
-    get_contents(): string
+    get_contents(): string | null
     /**
      * Returns the length of the contents of a #GMappedFile.
      * @returns the length of the contents of @file.
@@ -17457,7 +17457,7 @@ interface MarkupParseContext {
      * elements, see g_markup_parse_context_get_element_stack().
      * @returns the name of the currently open element, or %NULL
      */
-    get_element(): string
+    get_element(): string | null
     /**
      * Retrieves the current line number and the number of the character on
      * that line. Intended for use in error messages; there are no strict
@@ -17473,7 +17473,7 @@ interface MarkupParseContext {
      * of g_markup_parse_context_push().
      * @returns the provided user_data. The returned data belongs to     the markup context and will be freed when     g_markup_parse_context_free() is called.
      */
-    get_user_data(): object | null
+    get_user_data(): any | null
     /**
      * Feed some data to the #GMarkupParseContext.
      * 
@@ -17489,7 +17489,7 @@ interface MarkupParseContext {
      * @param text_len length of `text` in bytes
      * @returns %FALSE if an error occurred, %TRUE on success
      */
-    parse(text: string, text_len: number): boolean
+    parse(text: string | null, text_len: number): boolean
     /**
      * Completes the process of a temporary sub-parser redirection.
      * 
@@ -17506,7 +17506,7 @@ interface MarkupParseContext {
      * interface.
      * @returns the user data passed to g_markup_parse_context_push()
      */
-    pop(): object | null
+    pop(): any | null
     /**
      * Temporarily redirects markup data to a sub-parser.
      * 
@@ -17631,7 +17631,7 @@ interface MarkupParseContext {
      * @param parser a #GMarkupParser
      * @param user_data user data to pass to #GMarkupParser functions
      */
-    push(parser: MarkupParser, user_data: object | null): void
+    push(parser: MarkupParser, user_data: any | null): void
     /**
      * Increases the reference count of `context`.
      * @returns the same @context
@@ -17673,7 +17673,7 @@ class MarkupParseContext {
      * @param user_data_dnotify user data destroy notifier called when     the parse context is freed
      * @returns a new #GMarkupParseContext
      */
-    constructor(parser: MarkupParser, flags: MarkupParseFlags, user_data: object | null, user_data_dnotify: DestroyNotify) 
+    constructor(parser: MarkupParser, flags: MarkupParseFlags, user_data: any | null, user_data_dnotify: DestroyNotify) 
     /**
      * Creates a new parse context. A parse context is used to parse
      * marked-up documents. You can feed any number of documents into
@@ -17687,17 +17687,17 @@ class MarkupParseContext {
      * @param user_data_dnotify user data destroy notifier called when     the parse context is freed
      * @returns a new #GMarkupParseContext
      */
-    static new(parser: MarkupParser, flags: MarkupParseFlags, user_data: object | null, user_data_dnotify: DestroyNotify): MarkupParseContext
+    static new(parser: MarkupParser, flags: MarkupParseFlags, user_data: any | null, user_data_dnotify: DestroyNotify): MarkupParseContext
 }
 
 interface MarkupParser {
 
     // Own fields of GLib-2.0.GLib.MarkupParser
 
-    start_element: (context: MarkupParseContext, element_name: string, attribute_names: string, attribute_values: string) => void
-    end_element: (context: MarkupParseContext, element_name: string) => void
-    text: (context: MarkupParseContext, text: string, text_len: number) => void
-    passthrough: (context: MarkupParseContext, passthrough_text: string, text_len: number) => void
+    start_element: (context: MarkupParseContext, element_name: string | null, attribute_names: string | null, attribute_values: string | null) => void
+    end_element: (context: MarkupParseContext, element_name: string | null) => void
+    text: (context: MarkupParseContext, text: string | null, text_len: number) => void
+    passthrough: (context: MarkupParseContext, passthrough_text: string | null, text_len: number) => void
     error: (context: MarkupParseContext, error: Error) => void
 }
 
@@ -17743,7 +17743,7 @@ interface MatchInfo {
      * @param string_to_expand the string to expand
      * @returns the expanded string, or %NULL if an error occurred
      */
-    expand_references(string_to_expand: string): string | null
+    expand_references(string_to_expand: string | null): string | null
     /**
      * Retrieves the text matching the `match_num'`th capturing
      * parentheses. 0 is the full text of the match, 1 is the first paren
@@ -17797,7 +17797,7 @@ interface MatchInfo {
      * @param name name of the subexpression
      * @returns The matched substring, or %NULL if an error     occurred. You have to free the string yourself
      */
-    fetch_named(name: string): string | null
+    fetch_named(name: string | null): string | null
     /**
      * Retrieves the position in bytes of the capturing parentheses named `name`.
      * 
@@ -17807,7 +17807,7 @@ interface MatchInfo {
      * @param name name of the subexpression
      * @returns %TRUE if the position was fetched, %FALSE otherwise.     If the position cannot be fetched, @start_pos and @end_pos     are left unchanged.
      */
-    fetch_named_pos(name: string): [ /* returnType */ boolean, /* start_pos */ number, /* end_pos */ number ]
+    fetch_named_pos(name: string | null): [ /* returnType */ boolean, /* start_pos */ number, /* end_pos */ number ]
     /**
      * Retrieves the position in bytes of the `match_num'`th capturing
      * parentheses. 0 is the full text of the match, 1 is the first
@@ -17856,7 +17856,7 @@ interface MatchInfo {
      * you may not free it before calling this function.
      * @returns the string searched with @match_info
      */
-    get_string(): string
+    get_string(): string | null
     /**
      * Usually if the string passed to g_regex_match*() matches as far as
      * it goes, but is too short to match the entire pattern, %FALSE is
@@ -17937,12 +17937,12 @@ interface MemVTable {
 
     // Own fields of GLib-2.0.GLib.MemVTable
 
-    malloc: (n_bytes: number) => object
-    realloc: (mem: object, n_bytes: number) => object
-    free: (mem: object) => void
-    calloc: (n_blocks: number, n_block_bytes: number) => object
-    try_malloc: (n_bytes: number) => object
-    try_realloc: (mem: object, n_bytes: number) => object
+    malloc: (n_bytes: number) => any
+    realloc: (mem: any, n_bytes: number) => any
+    free: (mem: any) => void
+    calloc: (n_blocks: number, n_block_bytes: number) => any
+    try_malloc: (n_bytes: number) => any
+    try_realloc: (mem: any, n_bytes: number) => any
 }
 
 /**
@@ -17968,7 +17968,7 @@ interface Node {
      * contains the actual data of the node.
      * @field 
      */
-    data: object
+    data: any
     /**
      * points to the node's next sibling (a sibling is another
      *        #GNode with the same parent).
@@ -18002,7 +18002,7 @@ interface Node {
      * @param data the data to find
      * @returns the index of the child of @node which contains     @data, or -1 if the data is not found
      */
-    child_index(data: object | null): number
+    child_index(data: any | null): number
     /**
      * Gets the position of a #GNode with respect to its siblings.
      * `child` must be a child of `node`. The first child is numbered 0,
@@ -18088,7 +18088,7 @@ interface Once {
      *          is %G_ONCE_STATUS_READY
      * @field 
      */
-    retval: object
+    retval: any
 }
 
 /**
@@ -18136,7 +18136,7 @@ class Once {
      * @param location location of a static initializable variable    containing 0
      * @returns %TRUE if the initialization section should be entered,     %FALSE and blocks otherwise
      */
-    static init_enter(location: object): boolean
+    static init_enter(location: any): boolean
     /**
      * Counterpart to g_once_init_enter(). Expects a location of a static
      * 0-initialized initialization variable, and an initialization value
@@ -18149,7 +18149,7 @@ class Once {
      * @param location location of a static initializable variable    containing 0
      * @param result new non-0 value for *`value_location`
      */
-    static init_leave(location: object, result: number): void
+    static init_leave(location: any, result: number): void
 }
 
 interface OptionContext {
@@ -18182,7 +18182,7 @@ interface OptionContext {
      * Returns the description. See g_option_context_set_description().
      * @returns the description
      */
-    get_description(): string
+    get_description(): string | null
     /**
      * Returns a formatted, translated help text for the given context.
      * To obtain the text produced by `--help`, call
@@ -18195,7 +18195,7 @@ interface OptionContext {
      * @param group the #GOptionGroup to create help for, or %NULL
      * @returns A newly allocated string containing the help text
      */
-    get_help(main_help: boolean, group: OptionGroup | null): string
+    get_help(main_help: boolean, group: OptionGroup | null): string | null
     /**
      * Returns whether automatic `--help` generation
      * is turned on for `context`. See g_option_context_set_help_enabled().
@@ -18224,7 +18224,7 @@ interface OptionContext {
      * Returns the summary. See g_option_context_set_summary().
      * @returns the summary
      */
-    get_summary(): string
+    get_summary(): string | null
     /**
      * Parses the command line arguments, recognizing options
      * which have been added to `context`. A side-effect of
@@ -18366,7 +18366,7 @@ interface OptionContext {
      * user-visible strings.
      * @param domain the domain to use
      */
-    set_translation_domain(domain: string): void
+    set_translation_domain(domain: string | null): void
 }
 
 /**
@@ -18394,7 +18394,7 @@ interface OptionEntry {
      *     `--groupname-long_name`.
      * @field 
      */
-    long_name: string
+    long_name: string | null
     /**
      * If an option has a short name, it can be specified
      *     `-short_name` in a commandline. `short_name` must be  a printable
@@ -18433,14 +18433,14 @@ interface OptionEntry {
      *     %G_OPTION_ARG_FILENAME_ARRAY, the data should be freed using g_strfreev().
      * @field 
      */
-    arg_data: object
+    arg_data: any
     /**
      * the description for the option in `--help`
      *     output. The `description` is translated using the `translate_func`
      *     of the group, see g_option_group_set_translation_domain().
      * @field 
      */
-    description: string
+    description: string | null
     /**
      * The placeholder to use for the extra argument parsed
      *     by the option in `--help` output. The `arg_description` is translated
@@ -18448,7 +18448,7 @@ interface OptionEntry {
      *     g_option_group_set_translation_domain().
      * @field 
      */
-    arg_description: string
+    arg_description: string | null
 }
 
 /**
@@ -18498,7 +18498,7 @@ interface OptionGroup {
      * user-visible strings.
      * @param domain the domain to use
      */
-    set_translation_domain(domain: string): void
+    set_translation_domain(domain: string | null): void
     /**
      * Decrements the reference count of `group` by one.
      * If the reference count drops to 0, the `group` will be freed.
@@ -18535,7 +18535,7 @@ class OptionGroup {
      * @param destroy a function that will be called to free `user_data,` or %NULL
      * @returns a newly created option group. It should be added   to a #GOptionContext or freed with g_option_group_unref().
      */
-    constructor(name: string, description: string, help_description: string, user_data: object | null, destroy: DestroyNotify | null) 
+    constructor(name: string | null, description: string | null, help_description: string | null, user_data: any | null, destroy: DestroyNotify | null) 
     /**
      * Creates a new #GOptionGroup.
      * @constructor 
@@ -18546,7 +18546,7 @@ class OptionGroup {
      * @param destroy a function that will be called to free `user_data,` or %NULL
      * @returns a newly created option group. It should be added   to a #GOptionContext or freed with g_option_group_unref().
      */
-    static new(name: string, description: string, help_description: string, user_data: object | null, destroy: DestroyNotify | null): OptionGroup
+    static new(name: string | null, description: string | null, help_description: string | null, user_data: any | null, destroy: DestroyNotify | null): OptionGroup
 }
 
 interface PatternSpec {
@@ -18592,7 +18592,7 @@ interface PatternSpec {
      * @param string_reversed the reverse of `string` or %NULL
      * @returns %TRUE if @string matches @pspec
      */
-    match(string_length: number, string: string, string_reversed: string | null): boolean
+    match(string_length: number, string: string | null, string_reversed: string | null): boolean
     /**
      * Matches a string against a compiled pattern. If the string is to be
      * matched against more than one pattern, consider using
@@ -18600,7 +18600,7 @@ interface PatternSpec {
      * @param string the UTF-8 encoded string to match
      * @returns %TRUE if @string matches @pspec
      */
-    match_string(string: string): boolean
+    match_string(string: string | null): boolean
 }
 
 /**
@@ -18622,14 +18622,14 @@ class PatternSpec {
      * @param pattern a zero-terminated UTF-8 encoded string
      * @returns a newly-allocated #GPatternSpec
      */
-    constructor(pattern: string) 
+    constructor(pattern: string | null) 
     /**
      * Compiles a pattern to a #GPatternSpec.
      * @constructor 
      * @param pattern a zero-terminated UTF-8 encoded string
      * @returns a newly-allocated #GPatternSpec
      */
-    static new(pattern: string): PatternSpec
+    static new(pattern: string | null): PatternSpec
 }
 
 interface PollFD {
@@ -18681,7 +18681,7 @@ interface Private {
      * created, for example).
      * @returns the thread-local value
      */
-    get(): object | null
+    get(): any | null
     /**
      * Sets the thread local variable `key` to have the value `value` in the
      * current thread.
@@ -18691,7 +18691,7 @@ interface Private {
      * `key` is run on it.
      * @param value the new value
      */
-    replace(value: object | null): void
+    replace(value: any | null): void
     /**
      * Sets the thread local variable `key` to have the value `value` in the
      * current thread.
@@ -18700,7 +18700,7 @@ interface Private {
      * the #GDestroyNotify for `key` is not called on the old value.
      * @param value the new value
      */
-    set(value: object | null): void
+    set(value: any | null): void
 }
 
 /**
@@ -18739,7 +18739,7 @@ interface PtrArray {
      *     array grows
      * @field 
      */
-    pdata: object
+    pdata: any
     /**
      * number of pointers in the array
      * @field 
@@ -18766,12 +18766,12 @@ interface Queue {
      * a pointer to the first element of the queue
      * @field 
      */
-    head: object[]
+    head: any[]
     /**
      * a pointer to the last element of the queue
      * @field 
      */
-    tail: object[]
+    tail: any[]
     /**
      * the number of elements in the queue
      * @field 
@@ -18819,7 +18819,7 @@ interface Queue {
      * @param data the data to find
      * @returns the position of the first element in @queue which     contains @data, or -1 if no element in @queue contains @data
      */
-    index(data: object | null): number
+    index(data: any | null): number
     /**
      * A statically-allocated #GQueue must be initialized with this function
      * before it can be used. Alternatively you can initialize it with
@@ -18836,62 +18836,62 @@ interface Queue {
      * Returns the first element of the queue.
      * @returns the data of the first element in the queue, or %NULL     if the queue is empty
      */
-    peek_head(): object | null
+    peek_head(): any | null
     /**
      * Returns the `n'`th element of `queue`.
      * @param n the position of the element
      * @returns the data for the @n'th element of @queue,     or %NULL if @n is off the end of @queue
      */
-    peek_nth(n: number): object | null
+    peek_nth(n: number): any | null
     /**
      * Returns the last element of the queue.
      * @returns the data of the last element in the queue, or %NULL     if the queue is empty
      */
-    peek_tail(): object | null
+    peek_tail(): any | null
     /**
      * Removes the first element of the queue and returns its data.
      * @returns the data of the first element in the queue, or %NULL     if the queue is empty
      */
-    pop_head(): object | null
+    pop_head(): any | null
     /**
      * Removes the `n'`th element of `queue` and returns its data.
      * @param n the position of the element
      * @returns the element's data, or %NULL if @n is off the end of @queue
      */
-    pop_nth(n: number): object | null
+    pop_nth(n: number): any | null
     /**
      * Removes the last element of the queue and returns its data.
      * @returns the data of the last element in the queue, or %NULL     if the queue is empty
      */
-    pop_tail(): object | null
+    pop_tail(): any | null
     /**
      * Adds a new element at the head of the queue.
      * @param data the data for the new element.
      */
-    push_head(data: object | null): void
+    push_head(data: any | null): void
     /**
      * Inserts a new element into `queue` at the given position.
      * @param data the data for the new element
      * @param n the position to insert the new element. If `n` is negative or     larger than the number of elements in the `queue,` the element is     added to the end of the queue.
      */
-    push_nth(data: object | null, n: number): void
+    push_nth(data: any | null, n: number): void
     /**
      * Adds a new element at the tail of the queue.
      * @param data the data for the new element
      */
-    push_tail(data: object | null): void
+    push_tail(data: any | null): void
     /**
      * Removes the first element in `queue` that contains `data`.
      * @param data the data to remove
      * @returns %TRUE if @data was found and removed from @queue
      */
-    remove(data: object | null): boolean
+    remove(data: any | null): boolean
     /**
      * Remove all elements whose data equals `data` from `queue`.
      * @param data the data to remove
      * @returns the number of elements removed from @queue
      */
-    remove_all(data: object | null): number
+    remove_all(data: any | null): number
     /**
      * Reverses the order of the items in `queue`.
      */
@@ -19293,13 +19293,13 @@ interface Regex {
      * the string passed to g_regex_new().
      * @returns the pattern of @regex
      */
-    get_pattern(): string
+    get_pattern(): string | null
     /**
      * Retrieves the number of the subexpression named `name`.
      * @param name name of the subexpression
      * @returns The number of the subexpression or -1 if @name   does not exists
      */
-    get_string_number(name: string): number
+    get_string_number(name: string | null): number
     /**
      * Scans for a match in `string` for the pattern in `regex`.
      * The `match_options` are combined with the match options specified
@@ -19347,7 +19347,7 @@ interface Regex {
      * @param match_options match options
      * @returns %TRUE is the string matched, %FALSE otherwise
      */
-    match(string: string, match_options: RegexMatchFlags): [ /* returnType */ boolean, /* match_info */ MatchInfo ]
+    match(string: string | null, match_options: RegexMatchFlags): [ /* returnType */ boolean, /* match_info */ MatchInfo ]
     /**
      * Using the standard algorithm for regular expression matching only
      * the longest match in the string is retrieved. This function uses
@@ -19367,7 +19367,7 @@ interface Regex {
      * @param match_options match options
      * @returns %TRUE is the string matched, %FALSE otherwise
      */
-    match_all(string: string, match_options: RegexMatchFlags): [ /* returnType */ boolean, /* match_info */ MatchInfo ]
+    match_all(string: string | null, match_options: RegexMatchFlags): [ /* returnType */ boolean, /* match_info */ MatchInfo ]
     /**
      * Using the standard algorithm for regular expression matching only
      * the longest match in the `string` is retrieved, it is not possible
@@ -19511,7 +19511,7 @@ interface Regex {
      * @param match_options options for the match
      * @returns a newly allocated string containing the replacements
      */
-    replace(string: string[], start_position: number, replacement: string, match_options: RegexMatchFlags): string
+    replace(string: string[], start_position: number, replacement: string | null, match_options: RegexMatchFlags): string | null
     /**
      * Replaces all occurrences of the pattern in `regex` with the
      * replacement text. `replacement` is replaced literally, to
@@ -19527,7 +19527,7 @@ interface Regex {
      * @param match_options options for the match
      * @returns a newly allocated string containing the replacements
      */
-    replace_literal(string: string[], start_position: number, replacement: string, match_options: RegexMatchFlags): string
+    replace_literal(string: string[], start_position: number, replacement: string | null, match_options: RegexMatchFlags): string | null
     /**
      * Breaks the string on the pattern, and returns an array of the tokens.
      * If the pattern contains capturing parentheses, then the text for each
@@ -19550,7 +19550,7 @@ interface Regex {
      * @param match_options match time option flags
      * @returns a %NULL-terminated gchar ** array. Free it using g_strfreev()
      */
-    split(string: string, match_options: RegexMatchFlags): string[]
+    split(string: string | null, match_options: RegexMatchFlags): string[]
     /**
      * Breaks the string on the pattern, and returns an array of the tokens.
      * If the pattern contains capturing parentheses, then the text for each
@@ -19672,7 +19672,7 @@ class Regex {
      * @param match_options match options for the regular expression, or 0
      * @returns a #GRegex structure or %NULL if an error occurred. Call   g_regex_unref() when you are done with it
      */
-    constructor(pattern: string, compile_options: RegexCompileFlags, match_options: RegexMatchFlags) 
+    constructor(pattern: string | null, compile_options: RegexCompileFlags, match_options: RegexMatchFlags) 
     /**
      * Compiles the regular expression to an internal form, and does
      * the initial setup of the #GRegex structure.
@@ -19682,7 +19682,7 @@ class Regex {
      * @param match_options match options for the regular expression, or 0
      * @returns a #GRegex structure or %NULL if an error occurred. Call   g_regex_unref() when you are done with it
      */
-    static new(pattern: string, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): Regex
+    static new(pattern: string | null, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): Regex
     /**
      * Checks whether `replacement` is a valid replacement string
      * (see g_regex_replace()), i.e. that all escape sequences in
@@ -19696,7 +19696,7 @@ class Regex {
      * @param replacement the replacement string
      * @returns whether @replacement is a valid replacement string
      */
-    static check_replacement(replacement: string): [ /* returnType */ boolean, /* has_references */ boolean ]
+    static check_replacement(replacement: string | null): [ /* returnType */ boolean, /* has_references */ boolean ]
     static error_quark(): Quark
     /**
      * Escapes the nul characters in `string` to "\x00".  It can be used
@@ -19708,7 +19708,7 @@ class Regex {
      * @param length the length of `string`
      * @returns a newly-allocated escaped string
      */
-    static escape_nul(string: string, length: number): string
+    static escape_nul(string: string | null, length: number): string | null
     /**
      * Escapes the special characters used for regular expressions
      * in `string,` for instance "a.b*c" becomes "a\.b\*c". This
@@ -19720,7 +19720,7 @@ class Regex {
      * @param string the string to escape
      * @returns a newly-allocated escaped string
      */
-    static escape_string(string: string[]): string
+    static escape_string(string: string[]): string | null
     /**
      * Scans for a match in `string` for `pattern`.
      * 
@@ -19738,7 +19738,7 @@ class Regex {
      * @param match_options match options, or 0
      * @returns %TRUE if the string matched, %FALSE otherwise
      */
-    static match_simple(pattern: string, string: string, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): boolean
+    static match_simple(pattern: string | null, string: string | null, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): boolean
     /**
      * Breaks the string on the pattern, and returns an array of
      * the tokens. If the pattern contains capturing parentheses,
@@ -19773,7 +19773,7 @@ class Regex {
      * @param match_options match options, or 0
      * @returns a %NULL-terminated array of strings. Free it using g_strfreev()
      */
-    static split_simple(pattern: string, string: string, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): string[]
+    static split_simple(pattern: string | null, string: string | null, compile_options: RegexCompileFlags, match_options: RegexMatchFlags): string[]
 }
 
 interface SList {
@@ -19786,12 +19786,12 @@ interface SList {
      *        [Type Conversion Macros][glib-Type-Conversion-Macros]
      * @field 
      */
-    data: object
+    data: any
     /**
      * contains the link to the next element in the list.
      * @field 
      */
-    next: object[]
+    next: any[]
 }
 
 /**
@@ -19814,7 +19814,7 @@ interface Scanner {
      * unused
      * @field 
      */
-    user_data: object
+    user_data: any
     /**
      * unused
      * @field 
@@ -19829,7 +19829,7 @@ interface Scanner {
      * name of input stream, featured by the default message handler
      * @field 
      */
-    input_name: string
+    input_name: string | null
     /**
      * quarked data
      * @field 
@@ -19936,7 +19936,7 @@ interface Scanner {
      * @param text the text buffer to scan
      * @param text_len the length of the text buffer
      */
-    input_text(text: string, text_len: number): void
+    input_text(text: string | null, text_len: number): void
     /**
      * Looks up a symbol in the current scope and return its value.
      * If the symbol is not bound in the current scope, %NULL is
@@ -19944,7 +19944,7 @@ interface Scanner {
      * @param symbol the symbol to look up
      * @returns the value of @symbol in the current scope, or %NULL     if @symbol is not bound in the current scope
      */
-    lookup_symbol(symbol: string): object | null
+    lookup_symbol(symbol: string | null): any | null
     /**
      * Parses the next token, without removing it from the input stream.
      * The token data is placed in the `next_token,` `next_value,` `next_line,`
@@ -19966,7 +19966,7 @@ interface Scanner {
      * @param symbol the symbol to add
      * @param value the value of the symbol
      */
-    scope_add_symbol(scope_id: number, symbol: string, value: object | null): void
+    scope_add_symbol(scope_id: number, symbol: string | null, value: any | null): void
     /**
      * Looks up a symbol in a scope and return its value. If the
      * symbol is not bound in the scope, %NULL is returned.
@@ -19974,13 +19974,13 @@ interface Scanner {
      * @param symbol the symbol to look up
      * @returns the value of @symbol in the given scope, or %NULL     if @symbol is not bound in the given scope.
      */
-    scope_lookup_symbol(scope_id: number, symbol: string): object | null
+    scope_lookup_symbol(scope_id: number, symbol: string | null): any | null
     /**
      * Removes a symbol from a scope.
      * @param scope_id the scope id
      * @param symbol the symbol to remove
      */
-    scope_remove_symbol(scope_id: number, symbol: string): void
+    scope_remove_symbol(scope_id: number, symbol: string | null): void
     /**
      * Sets the current scope.
      * @param scope_id the new scope id
@@ -20009,7 +20009,7 @@ interface Scanner {
      * @param message a message string to output at the end of the     warning/error, or %NULL.
      * @param is_error if %TRUE it is output as an error. If %FALSE it is     output as a warning.
      */
-    unexp_token(expected_token: TokenType, identifier_spec: string, symbol_spec: string, symbol_name: string, message: string, is_error: number): void
+    unexp_token(expected_token: TokenType, identifier_spec: string | null, symbol_spec: string | null, symbol_name: string | null, message: string | null, is_error: number): void
 }
 
 /**
@@ -20046,13 +20046,13 @@ interface ScannerConfig {
      *     tab, carriage-return and line-feed).
      * @field 
      */
-    cset_skip_characters: string
+    cset_skip_characters: string | null
     /**
      * specifies the characters which can start
      *     identifiers (the default is %G_CSET_a_2_z, "_", and %G_CSET_A_2_Z).
      * @field 
      */
-    cset_identifier_first: string
+    cset_identifier_first: string | null
     /**
      * specifies the characters which can be used
      *     in identifiers, after the first character (the default is
@@ -20060,7 +20060,7 @@ interface ScannerConfig {
      *     %G_CSET_LATINC).
      * @field 
      */
-    cset_identifier_nth: string
+    cset_identifier_nth: string | null
     /**
      * specifies the characters at the start and
      *     end of single-line comments. The default is "#\n" which means
@@ -20068,7 +20068,7 @@ interface ScannerConfig {
      *     a '\n' (end of line).
      * @field 
      */
-    cpair_comment_single: string
+    cpair_comment_single: string | null
     /**
      * specifies if symbols are case sensitive (the
      *     default is %FALSE).
@@ -20224,7 +20224,7 @@ interface Sequence {
      * @param data the data for the new item
      * @returns an iterator pointing to the new item
      */
-    append(data: object | null): SequenceIter
+    append(data: any | null): SequenceIter
     /**
      * Frees the memory allocated for `seq`. If `seq` has a data destroy
      * function associated with it, that function is called on all items
@@ -20269,7 +20269,7 @@ interface Sequence {
      * @param data the data for the new item
      * @returns an iterator pointing to the new item
      */
-    prepend(data: object | null): SequenceIter
+    prepend(data: any | null): SequenceIter
 }
 
 /**
@@ -20290,14 +20290,14 @@ class Sequence {
      * @param iter a #GSequenceIter
      * @returns the data that @iter points to
      */
-    static get(iter: SequenceIter): object | null
+    static get(iter: SequenceIter): any | null
     /**
      * Inserts a new item just before the item pointed to by `iter`.
      * @param iter a #GSequenceIter
      * @param data the data for the new item
      * @returns an iterator pointing to the new item
      */
-    static insert_before(iter: SequenceIter, data: object | null): SequenceIter
+    static insert_before(iter: SequenceIter, data: any | null): SequenceIter
     /**
      * Moves the item pointed to by `src` to the position indicated by `dest`.
      * After calling this function `dest` will point to the position immediately
@@ -20358,7 +20358,7 @@ class Sequence {
      * @param iter a #GSequenceIter
      * @param data new data for the item
      */
-    static set(iter: SequenceIter, data: object | null): void
+    static set(iter: SequenceIter, data: any | null): void
     /**
      * Swaps the items pointed to by `a` and `b`. It is allowed for `a` and `b`
      * to point into difference sequences.
@@ -20495,7 +20495,7 @@ interface Source {
      * @param events an event mask
      * @returns an opaque tag
      */
-    add_unix_fd(fd: number, events: IOCondition): object
+    add_unix_fd(fd: number, events: IOCondition): any
     /**
      * Adds a #GSource to a `context` so that it will be executed within
      * that context. Remove it by calling g_source_destroy().
@@ -20692,7 +20692,7 @@ interface Source {
      * @param tag the tag from g_source_add_unix_fd()
      * @param new_events the new event mask to watch
      */
-    modify_unix_fd(tag: object, new_events: IOCondition): void
+    modify_unix_fd(tag: any, new_events: IOCondition): void
     /**
      * Queries the events reported for the fd corresponding to `tag` on
      * `source` during the last poll.
@@ -20707,7 +20707,7 @@ interface Source {
      * @param tag the tag from g_source_add_unix_fd()
      * @returns the conditions reported on the fd
      */
-    query_unix_fd(tag: object): IOCondition
+    query_unix_fd(tag: any): IOCondition
     /**
      * Increases the reference count on a source by one.
      * @returns @source
@@ -20743,7 +20743,7 @@ interface Source {
      * As the name suggests, this function is not available on Windows.
      * @param tag the tag from g_source_add_unix_fd()
      */
-    remove_unix_fd(tag: object): void
+    remove_unix_fd(tag: any): void
     /**
      * Sets the callback function for a source. The callback for a source is
      * called from the source's dispatch function.
@@ -20782,7 +20782,7 @@ interface Source {
      * @param callback_data pointer to callback data "object"
      * @param callback_funcs functions for reference counting `callback_data`                  and getting the callback and data
      */
-    set_callback_indirect(callback_data: object | null, callback_funcs: SourceCallbackFuncs): void
+    set_callback_indirect(callback_data: any | null, callback_funcs: SourceCallbackFuncs): void
     /**
      * Sets whether a source can be called recursively. If `can_recurse` is
      * %TRUE, then while the source is being dispatched then this source
@@ -20818,7 +20818,7 @@ interface Source {
      * Also see g_source_set_static_name().
      * @param name debug name for the source
      */
-    set_name(name: string): void
+    set_name(name: string | null): void
     /**
      * Sets the priority of a source. While the main loop is being run, a
      * source will be dispatched if it is ready to be dispatched and no
@@ -20863,7 +20863,7 @@ interface Source {
      * string literals.
      * @param name debug name for the source
      */
-    set_static_name(name: string): void
+    set_static_name(name: string | null): void
     /**
      * Decreases the reference count of a source by one. If the
      * resulting reference count is zero the source and associated
@@ -20947,7 +20947,7 @@ class Source {
      * @param user_data the user data for the callback
      * @returns %TRUE if a source was found and removed.
      */
-    static remove_by_funcs_user_data(funcs: SourceFuncs, user_data: object | null): boolean
+    static remove_by_funcs_user_data(funcs: SourceFuncs, user_data: any | null): boolean
     /**
      * Removes a source from the default main loop context given the user
      * data for the callback. If multiple sources exist with the same user
@@ -20955,7 +20955,7 @@ class Source {
      * @param user_data the user_data for the callback.
      * @returns %TRUE if a source was found and removed.
      */
-    static remove_by_user_data(user_data: object | null): boolean
+    static remove_by_user_data(user_data: any | null): boolean
     /**
      * Sets the name of a source using its ID.
      * 
@@ -20976,15 +20976,15 @@ class Source {
      * @param tag a #GSource ID
      * @param name debug name for the source
      */
-    static set_name_by_id(tag: number, name: string): void
+    static set_name_by_id(tag: number, name: string | null): void
 }
 
 interface SourceCallbackFuncs {
 
     // Own fields of GLib-2.0.GLib.SourceCallbackFuncs
 
-    ref: (cb_data: object) => void
-    unref: (cb_data: object) => void
+    ref: (cb_data: any) => void
+    unref: (cb_data: any) => void
 }
 
 /**
@@ -21075,7 +21075,7 @@ interface String {
      *   can be used as an ordinary C string.
      * @field 
      */
-    str: string
+    str: string | null
     /**
      * contains the length of the string, not including the
      *   terminating nul byte.
@@ -21097,7 +21097,7 @@ interface String {
      * @param val the string to append onto the end of `string`
      * @returns @string
      */
-    append(val: string): String
+    append(val: string | null): String
     /**
      * Adds a byte onto the end of a #GString, expanding
      * it if necessary.
@@ -21119,7 +21119,7 @@ interface String {
      * @param len number of bytes of `val` to use, or -1 for all of `val`
      * @returns @string
      */
-    append_len(val: string, len: number): String
+    append_len(val: string | null, len: number): String
     /**
      * Converts a Unicode character into UTF-8, and appends it
      * to the string.
@@ -21135,7 +21135,7 @@ interface String {
      * @param allow_utf8 set %TRUE if the escaped string may include UTF8 characters
      * @returns @string
      */
-    append_uri_escaped(unescaped: string, reserved_chars_allowed: string, allow_utf8: boolean): String
+    append_uri_escaped(unescaped: string | null, reserved_chars_allowed: string | null, allow_utf8: boolean): String
     /**
      * Converts all uppercase ASCII letters to lowercase ASCII letters.
      * @returns passed-in @string pointer, with all the     uppercase characters converted to lowercase in place,     with semantics that exactly match g_ascii_tolower().
@@ -21154,7 +21154,7 @@ interface String {
      * @param rval the string to copy into `string`
      * @returns @string
      */
-    assign(rval: string): String
+    assign(rval: string | null): String
     /**
      * Converts a #GString to lowercase.
      * @returns the #GString
@@ -21208,7 +21208,7 @@ interface String {
      * @param val the string to insert
      * @returns @string
      */
-    insert(pos: number, val: string): String
+    insert(pos: number, val: string | null): String
     /**
      * Inserts a byte into a #GString, expanding it if necessary.
      * @param pos the position to insert the byte
@@ -21232,7 +21232,7 @@ interface String {
      * @param len number of bytes of `val` to insert, or -1 for all of `val`
      * @returns @string
      */
-    insert_len(pos: number, val: string, len: number): String
+    insert_len(pos: number, val: string | null, len: number): String
     /**
      * Converts a Unicode character into UTF-8, and insert it
      * into the string at the given position.
@@ -21247,7 +21247,7 @@ interface String {
      * @param val the string that will overwrite the `string` starting at `pos`
      * @returns @string
      */
-    overwrite(pos: number, val: string): String
+    overwrite(pos: number, val: string | null): String
     /**
      * Overwrites part of a string, lengthening it if necessary.
      * This function will work with embedded nuls.
@@ -21256,14 +21256,14 @@ interface String {
      * @param len the number of bytes to write from `val`
      * @returns @string
      */
-    overwrite_len(pos: number, val: string, len: number): String
+    overwrite_len(pos: number, val: string | null, len: number): String
     /**
      * Adds a string on to the start of a #GString,
      * expanding it if necessary.
      * @param val the string to prepend on the start of `string`
      * @returns @string
      */
-    prepend(val: string): String
+    prepend(val: string | null): String
     /**
      * Adds a byte onto the start of a #GString,
      * expanding it if necessary.
@@ -21285,7 +21285,7 @@ interface String {
      * @param len number of bytes in `val` to prepend, or -1 for all of `val`
      * @returns @string
      */
-    prepend_len(val: string, len: number): String
+    prepend_len(val: string | null, len: number): String
     /**
      * Converts a Unicode character into UTF-8, and prepends it
      * to the string.
@@ -21308,7 +21308,7 @@ interface String {
      * @param limit the maximum instances of `find` to replace with `replace,` or `0` for no limit
      * @returns the number of find and replace operations performed.
      */
-    replace(find: string, replace: string, limit: number): number
+    replace(find: string | null, replace: string | null, limit: number): number
     /**
      * Sets the length of a #GString. If the length is less than
      * the current length, the string will be truncated. If the
@@ -21371,7 +21371,7 @@ class String {
      * @param len length of `init` to use
      * @returns a new #GString
      */
-    static new_len(init: string, len: number): String
+    static new_len(init: string | null, len: number): String
     /**
      * Creates a new #GString, with enough space for `dfl_size`
      * bytes. This is useful if you are going to add a lot of
@@ -21415,7 +21415,7 @@ interface StringChunk {
      * @param string the string to add
      * @returns a pointer to the copy of @string within     the #GStringChunk
      */
-    insert(string: string): string
+    insert(string: string | null): string | null
     /**
      * Adds a copy of `string` to the #GStringChunk, unless the same
      * string has already been added to the #GStringChunk with
@@ -21433,7 +21433,7 @@ interface StringChunk {
      * @param string the string to add
      * @returns a pointer to the new or existing copy of @string     within the #GStringChunk
      */
-    insert_const(string: string): string
+    insert_const(string: string | null): string | null
     /**
      * Adds a copy of the first `len` bytes of `string` to the #GStringChunk.
      * The copy is nul-terminated.
@@ -21448,7 +21448,7 @@ interface StringChunk {
      * @param len number of bytes of `string` to insert, or -1 to insert a     nul-terminated string
      * @returns a pointer to the copy of @string within the #GStringChunk
      */
-    insert_len(string: string, len: number): string
+    insert_len(string: string | null, len: number): string | null
 }
 
 /**
@@ -21473,7 +21473,7 @@ interface StrvBuilder {
      * Since 2.68
      * @param value a string.
      */
-    add(value: string): void
+    add(value: string | null): void
     /**
      * Appends all the strings in the given vector to the builder.
      * 
@@ -21589,7 +21589,7 @@ interface TestLogMsg {
 
     log_type: TestLogType
     n_strings: number
-    strings: string
+    strings: string | null
     n_nums: number
 
     // Owm methods of GLib-2.0.GLib.TestLogMsg
@@ -21661,7 +21661,7 @@ interface Thread {
      * want to keep the GThread alive beyond the g_thread_join() call.
      * @returns the return value of the thread
      */
-    join(): object | null
+    join(): any | null
     /**
      * Increase the reference count on `thread`.
      * @returns a new reference to @thread
@@ -21799,7 +21799,7 @@ class Thread {
      * or or from within a #GThreadPool.
      * @param retval the return value of this thread
      */
-    static exit(retval: object | null): void
+    static exit(retval: any | null): void
     /**
      * This function returns the #GThread corresponding to the
      * current thread. Note that this function does not increase
@@ -21835,7 +21835,7 @@ interface ThreadPool {
      * the user data for the threads of this pool
      * @field 
      */
-    user_data: object
+    user_data: any
     /**
      * are all threads exclusive to this pool
      * @field 
@@ -21879,7 +21879,7 @@ interface ThreadPool {
      * @param data an unprocessed item in the pool
      * @returns %TRUE if the item was found and moved
      */
-    move_to_front(data: object | null): boolean
+    move_to_front(data: any | null): boolean
     /**
      * Inserts `data` into the list of tasks to be executed by `pool`.
      * 
@@ -21898,7 +21898,7 @@ interface ThreadPool {
      * @param data a new task for `pool`
      * @returns %TRUE on success, %FALSE if an error occurred
      */
-    push(data: object | null): boolean
+    push(data: any | null): boolean
     /**
      * Sets the maximal allowed number of threads for `pool`.
      * A value of -1 means that the maximal number of threads
@@ -22102,7 +22102,7 @@ class TimeVal {
      * @param iso_date an ISO 8601 encoded date string
      * @returns %TRUE if the conversion was successful.
      */
-    static from_iso8601(iso_date: string): [ /* returnType */ boolean, /* time_ */ TimeVal ]
+    static from_iso8601(iso_date: string | null): [ /* returnType */ boolean, /* time_ */ TimeVal ]
 }
 
 interface TimeZone {
@@ -22165,7 +22165,7 @@ interface TimeZone {
      * @param interval an interval within the timezone
      * @returns the time zone abbreviation, which belongs to @tz
      */
-    get_abbreviation(interval: number): string
+    get_abbreviation(interval: number): string | null
     /**
      * Get the identifier of this #GTimeZone, as passed to g_time_zone_new().
      * If the identifier passed at construction time was not recognised, `UTC` will
@@ -22177,7 +22177,7 @@ interface TimeZone {
      * this function.
      * @returns identifier for this timezone
      */
-    get_identifier(): string
+    get_identifier(): string | null
     /**
      * Determines the offset to UTC in effect during a particular `interval`
      * of time in the time zone `tz`.
@@ -22459,19 +22459,19 @@ class TrashStack {
      * @param stack_p a #GTrashStack
      * @returns the element at the top of the stack
      */
-    static peek(stack_p: TrashStack): object | null
+    static peek(stack_p: TrashStack): any | null
     /**
      * Pops a piece of memory off a #GTrashStack.
      * @param stack_p a #GTrashStack
      * @returns the element at the top of the stack
      */
-    static pop(stack_p: TrashStack): object | null
+    static pop(stack_p: TrashStack): any | null
     /**
      * Pushes a piece of memory onto a #GTrashStack.
      * @param stack_p a #GTrashStack
      * @param data_p the piece of memory to push on the stack
      */
-    static push(stack_p: TrashStack, data_p: object): void
+    static push(stack_p: TrashStack, data_p: any): void
 }
 
 interface Tree {
@@ -22504,7 +22504,7 @@ interface Tree {
      * @param key the key to insert
      * @param value the value corresponding to the key
      */
-    insert(key: object | null, value: object | null): void
+    insert(key: any | null, value: any | null): void
     /**
      * Inserts a key/value pair into a #GTree.
      * 
@@ -22523,7 +22523,7 @@ interface Tree {
      * @param value the value corresponding to the key
      * @returns the inserted (or set) node.
      */
-    insert_node(key: object | null, value: object | null): TreeNode
+    insert_node(key: any | null, value: any | null): TreeNode
     /**
      * Gets the value corresponding to the given key. Since a #GTree is
      * automatically balanced as key/value pairs are added, key lookup
@@ -22531,7 +22531,7 @@ interface Tree {
      * @param key the key to look up
      * @returns the value corresponding to the key, or %NULL     if the key was not found
      */
-    lookup(key: object | null): object | null
+    lookup(key: any | null): any | null
     /**
      * Looks up a key in the #GTree, returning the original key and the
      * associated value. This is useful if you need to free the memory
@@ -22540,7 +22540,7 @@ interface Tree {
      * @param lookup_key the key to look up
      * @returns %TRUE if the key was found in the #GTree
      */
-    lookup_extended(lookup_key: object | null): [ /* returnType */ boolean, /* orig_key */ object | null, /* value */ object | null ]
+    lookup_extended(lookup_key: any | null): [ /* returnType */ boolean, /* orig_key */ any | null, /* value */ any | null ]
     /**
      * Gets the tree node corresponding to the given key. Since a #GTree is
      * automatically balanced as key/value pairs are added, key lookup
@@ -22548,7 +22548,7 @@ interface Tree {
      * @param key the key to look up
      * @returns the tree node corresponding to          the key, or %NULL if the key was not found
      */
-    lookup_node(key: object | null): TreeNode | null
+    lookup_node(key: any | null): TreeNode | null
     /**
      * Gets the lower bound node corresponding to the given key,
      * or %NULL if the tree is empty or all the nodes in the tree
@@ -22559,7 +22559,7 @@ interface Tree {
      * @param key the key to calculate the lower bound for
      * @returns the tree node corresponding to          the lower bound, or %NULL if the tree is empty or has only          keys strictly lower than the searched key.
      */
-    lower_bound(key: object | null): TreeNode | null
+    lower_bound(key: any | null): TreeNode | null
     /**
      * Gets the number of nodes in a #GTree.
      * @returns the number of nodes in @tree
@@ -22598,7 +22598,7 @@ interface Tree {
      * @param key the key to remove
      * @returns %TRUE if the key was found (prior to 2.8, this function     returned nothing)
      */
-    remove(key: object | null): boolean
+    remove(key: any | null): boolean
     /**
      * Removes all nodes from a #GTree and destroys their keys and values,
      * then resets the #GTree’s root to %NULL.
@@ -22610,7 +22610,7 @@ interface Tree {
      * @param key the key to insert
      * @param value the value corresponding to the key
      */
-    replace(key: object | null, value: object | null): void
+    replace(key: any | null, value: any | null): void
     /**
      * Inserts a new key and value into a #GTree similar to g_tree_insert_node().
      * The difference is that if the key already exists in the #GTree, it gets
@@ -22625,7 +22625,7 @@ interface Tree {
      * @param value the value corresponding to the key
      * @returns the inserted (or set) node.
      */
-    replace_node(key: object | null, value: object | null): TreeNode
+    replace_node(key: any | null, value: any | null): TreeNode
     /**
      * Removes a key and its associated value from a #GTree without calling
      * the key and value destroy functions.
@@ -22634,7 +22634,7 @@ interface Tree {
      * @param key the key to remove
      * @returns %TRUE if the key was found (prior to 2.8, this function     returned nothing)
      */
-    steal(key: object | null): boolean
+    steal(key: any | null): boolean
     /**
      * Decrements the reference count of `tree` by one.
      * If the reference count drops to 0, all keys and values will
@@ -22654,7 +22654,7 @@ interface Tree {
      * @param key the key to calculate the upper bound for
      * @returns the tree node corresponding to the          upper bound, or %NULL if the tree is empty or has only keys          lower than or equal to the searched key.
      */
-    upper_bound(key: object | null): TreeNode | null
+    upper_bound(key: any | null): TreeNode | null
 }
 
 /**
@@ -22691,7 +22691,7 @@ interface TreeNode {
      * Gets the key stored at a particular tree node.
      * @returns the key at the node.
      */
-    key(): object | null
+    key(): any | null
     /**
      * Returns the next in-order node of the tree, or %NULL
      * if the passed node was already the last one.
@@ -22708,7 +22708,7 @@ interface TreeNode {
      * Gets the value stored at a particular tree node.
      * @returns the value at the node.
      */
-    value(): object | null
+    value(): any | null
 }
 
 /**
@@ -22773,7 +22773,7 @@ interface Uri {
      * flags with which `uri` was created.
      * @returns @uri's path.
      */
-    get_path(): string
+    get_path(): string | null
     /**
      * Gets `uri'`s port.
      * @returns @uri's port, or `-1` if no port was specified.
@@ -22793,7 +22793,7 @@ interface Uri {
      * regardless of the string or strings that `uri` was created from.
      * @returns @uri's scheme.
      */
-    get_scheme(): string
+    get_scheme(): string | null
     /**
      * Gets the ‘username’ component of `uri'`s userinfo, which may contain
      * `%`-encoding, depending on the flags with which `uri` was created.
@@ -22817,7 +22817,7 @@ interface Uri {
      * @param flags flags describing how to parse `uri_ref`
      * @returns a new #GUri, or NULL on error.
      */
-    parse_relative(uri_ref: string, flags: UriFlags): Uri
+    parse_relative(uri_ref: string | null, flags: UriFlags): Uri
     /**
      * Returns a string representing `uri`.
      * 
@@ -22833,14 +22833,14 @@ interface Uri {
      * logged, then consider using g_uri_to_string_partial() to redact parts.
      * @returns a string representing @uri,     which the caller must free.
      */
-    to_string(): string
+    to_string(): string | null
     /**
      * Returns a string representing `uri,` subject to the options in
      * `flags`. See g_uri_to_string() and #GUriHideFlags for more details.
      * @param flags flags describing what parts of `uri` to hide
      * @returns a string representing     @uri, which the caller must free.
      */
-    to_string_partial(flags: UriHideFlags): string
+    to_string_partial(flags: UriHideFlags): string | null
 }
 
 /**
@@ -22977,7 +22977,7 @@ class Uri {
      * @param fragment the fragment, or %NULL
      * @returns a new #GUri
      */
-    static build(flags: UriFlags, scheme: string, userinfo: string | null, host: string | null, port: number, path: string, query: string | null, fragment: string | null): Uri
+    static build(flags: UriFlags, scheme: string | null, userinfo: string | null, host: string | null, port: number, path: string | null, query: string | null, fragment: string | null): Uri
     /**
      * Creates a new #GUri from the given components according to `flags`
      * (%G_URI_FLAGS_HAS_PASSWORD is added unconditionally). The `flags` must be
@@ -22999,7 +22999,7 @@ class Uri {
      * @param fragment the fragment, or %NULL
      * @returns a new #GUri
      */
-    static build_with_user(flags: UriFlags, scheme: string, user: string | null, password: string | null, auth_params: string | null, host: string | null, port: number, path: string, query: string | null, fragment: string | null): Uri
+    static build_with_user(flags: UriFlags, scheme: string | null, user: string | null, password: string | null, auth_params: string | null, host: string | null, port: number, path: string | null, query: string | null, fragment: string | null): Uri
     static error_quark(): Quark
     /**
      * Escapes arbitrary data for use in a URI.
@@ -23017,7 +23017,7 @@ class Uri {
      * @param reserved_chars_allowed a string of reserved   characters that are allowed to be used, or %NULL.
      * @returns an escaped version of @unescaped.     The returned string should be freed when no longer needed.
      */
-    static escape_bytes(unescaped: Uint8Array, reserved_chars_allowed: string | null): string
+    static escape_bytes(unescaped: Uint8Array, reserved_chars_allowed: string | null): string | null
     /**
      * Escapes a string for use in a URI.
      * 
@@ -23032,7 +23032,7 @@ class Uri {
      * @param allow_utf8 %TRUE if the result can include UTF-8 characters.
      * @returns an escaped version of @unescaped. The returned string should be freed when no longer needed.
      */
-    static escape_string(unescaped: string, reserved_chars_allowed: string | null, allow_utf8: boolean): string
+    static escape_string(unescaped: string | null, reserved_chars_allowed: string | null, allow_utf8: boolean): string | null
     /**
      * Parses `uri_string` according to `flags,` to determine whether it is a valid
      * [absolute URI][relative-absolute-uris], i.e. it does not need to be resolved
@@ -23046,7 +23046,7 @@ class Uri {
      * @param flags flags for parsing `uri_string`
      * @returns %TRUE if @uri_string is a valid absolute URI, %FALSE on error.
      */
-    static is_valid(uri_string: string, flags: UriFlags): boolean
+    static is_valid(uri_string: string | null, flags: UriFlags): boolean
     /**
      * Joins the given components together according to `flags` to create
      * an absolute URI string. `path` may not be %NULL (though it may be the empty
@@ -23072,7 +23072,7 @@ class Uri {
      * @param fragment the fragment, or %NULL
      * @returns an absolute URI string
      */
-    static join(flags: UriFlags, scheme: string | null, userinfo: string | null, host: string | null, port: number, path: string, query: string | null, fragment: string | null): string
+    static join(flags: UriFlags, scheme: string | null, userinfo: string | null, host: string | null, port: number, path: string | null, query: string | null, fragment: string | null): string | null
     /**
      * Joins the given components together according to `flags` to create
      * an absolute URI string. `path` may not be %NULL (though it may be the empty
@@ -23095,7 +23095,7 @@ class Uri {
      * @param fragment the fragment, or %NULL
      * @returns an absolute URI string
      */
-    static join_with_user(flags: UriFlags, scheme: string | null, user: string | null, password: string | null, auth_params: string | null, host: string | null, port: number, path: string, query: string | null, fragment: string | null): string
+    static join_with_user(flags: UriFlags, scheme: string | null, user: string | null, password: string | null, auth_params: string | null, host: string | null, port: number, path: string | null, query: string | null, fragment: string | null): string | null
     /**
      * Splits an URI list conforming to the text/uri-list
      * mime type defined in RFC 2483 into individual URIs,
@@ -23103,7 +23103,7 @@ class Uri {
      * @param uri_list an URI list
      * @returns a newly allocated %NULL-terminated list   of strings holding the individual URIs. The array should be freed   with g_strfreev().
      */
-    static list_extract_uris(uri_list: string): string[]
+    static list_extract_uris(uri_list: string | null): string[]
     /**
      * Parses `uri_string` according to `flags`. If the result is not a
      * valid [absolute URI][relative-absolute-uris], it will be discarded, and an
@@ -23112,7 +23112,7 @@ class Uri {
      * @param flags flags describing how to parse `uri_string`
      * @returns a new #GUri, or NULL on error.
      */
-    static parse(uri_string: string, flags: UriFlags): Uri
+    static parse(uri_string: string | null, flags: UriFlags): Uri
     /**
      * Many URI schemes include one or more attribute/value pairs as part of the URI
      * value. This method can be used to parse them into a hash table. When an
@@ -23144,7 +23144,7 @@ class Uri {
      * @param flags flags to modify the way the parameters are handled.
      * @returns      A hash table of attribute/value pairs, with both names and values     fully-decoded; or %NULL on error.
      */
-    static parse_params(params: string, length: number, separators: string, flags: UriParamsFlags): HashTable
+    static parse_params(params: string | null, length: number, separators: string | null, flags: UriParamsFlags): HashTable
     /**
      * Gets the scheme portion of a URI string.
      * [RFC 3986](https://tools.ietf.org/html/rfc3986#section-3) decodes the scheme
@@ -23157,7 +23157,7 @@ class Uri {
      * @param uri a valid URI.
      * @returns The ‘scheme’ component of the URI, or     %NULL on error. The returned string should be freed when no longer needed.
      */
-    static parse_scheme(uri: string): string | null
+    static parse_scheme(uri: string | null): string | null
     /**
      * Gets the scheme portion of a URI string.
      * [RFC 3986](https://tools.ietf.org/html/rfc3986#section-3) decodes the scheme
@@ -23173,7 +23173,7 @@ class Uri {
      * @param uri a valid URI.
      * @returns The ‘scheme’ component of the URI, or     %NULL on error. The returned string is normalized to all-lowercase, and     interned via g_intern_string(), so it does not need to be freed.
      */
-    static peek_scheme(uri: string): string | null
+    static peek_scheme(uri: string | null): string | null
     /**
      * Parses `uri_ref` according to `flags` and, if it is a
      * [relative URI][relative-absolute-uris], resolves it relative to
@@ -23187,7 +23187,7 @@ class Uri {
      * @param flags flags describing how to parse `uri_ref`
      * @returns the resolved URI string, or NULL on error.
      */
-    static resolve_relative(base_uri_string: string | null, uri_ref: string, flags: UriFlags): string
+    static resolve_relative(base_uri_string: string | null, uri_ref: string | null, flags: UriFlags): string | null
     /**
      * Parses `uri_ref` (which can be an
      * [absolute or relative URI][relative-absolute-uris]) according to `flags,` and
@@ -23209,7 +23209,7 @@ class Uri {
      * @param flags flags for parsing `uri_ref`
      * @returns %TRUE if @uri_ref parsed successfully, %FALSE   on error.
      */
-    static split(uri_ref: string, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* userinfo */ string | null, /* host */ string | null, /* port */ number, /* path */ string, /* query */ string | null, /* fragment */ string | null ]
+    static split(uri_ref: string | null, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* userinfo */ string | null, /* host */ string | null, /* port */ number, /* path */ string | null, /* query */ string | null, /* fragment */ string | null ]
     /**
      * Parses `uri_string` (which must be an [absolute URI][relative-absolute-uris])
      * according to `flags,` and returns the pieces relevant to connecting to a host.
@@ -23221,7 +23221,7 @@ class Uri {
      * @param flags flags for parsing `uri_string`
      * @returns %TRUE if @uri_string parsed successfully,   %FALSE on error.
      */
-    static split_network(uri_string: string, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* host */ string | null, /* port */ number ]
+    static split_network(uri_string: string | null, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* host */ string | null, /* port */ number ]
     /**
      * Parses `uri_ref` (which can be an
      * [absolute or relative URI][relative-absolute-uris]) according to `flags,` and
@@ -23238,7 +23238,7 @@ class Uri {
      * @param flags flags for parsing `uri_ref`
      * @returns %TRUE if @uri_ref parsed successfully, %FALSE   on error.
      */
-    static split_with_user(uri_ref: string, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* user */ string | null, /* password */ string | null, /* auth_params */ string | null, /* host */ string | null, /* port */ number, /* path */ string, /* query */ string | null, /* fragment */ string | null ]
+    static split_with_user(uri_ref: string | null, flags: UriFlags): [ /* returnType */ boolean, /* scheme */ string | null, /* user */ string | null, /* password */ string | null, /* auth_params */ string | null, /* host */ string | null, /* port */ number, /* path */ string | null, /* query */ string | null, /* fragment */ string | null ]
     /**
      * Unescapes a segment of an escaped string as binary data.
      * 
@@ -23255,7 +23255,7 @@ class Uri {
      * @param illegal_characters a string of illegal characters   not to be allowed, or %NULL.
      * @returns an unescaped version of @escaped_string     or %NULL on error (if decoding failed, using %G_URI_ERROR_FAILED error     code). The returned #GBytes should be unreffed when no longer needed.
      */
-    static unescape_bytes(escaped_string: string, length: number, illegal_characters: string | null): Bytes
+    static unescape_bytes(escaped_string: string | null, length: number, illegal_characters: string | null): Bytes
     /**
      * Unescapes a segment of an escaped string.
      * 
@@ -23285,7 +23285,7 @@ class Uri {
      * @param illegal_characters a string of illegal characters   not to be allowed, or %NULL.
      * @returns an unescaped version of @escaped_string. The returned string should be freed when no longer needed.
      */
-    static unescape_string(escaped_string: string, illegal_characters: string | null): string | null
+    static unescape_string(escaped_string: string | null, illegal_characters: string | null): string | null
 }
 
 interface UriParamsIter {
@@ -23333,7 +23333,7 @@ interface UriParamsIter {
      * @param separators the separator byte character set between parameters. (usually   `&`, but sometimes `;` or both `&;`). Note that this function works on   bytes not characters, so it can't be used to delimit UTF-8 strings for   anything but ASCII characters. You may pass an empty set, in which case   no splitting will occur.
      * @param flags flags to modify the way the parameters are handled.
      */
-    init(params: string, length: number, separators: string, flags: UriParamsFlags): void
+    init(params: string | null, length: number, separators: string | null, flags: UriParamsFlags): void
     /**
      * Advances `iter` and retrieves the next attribute/value. %FALSE is returned if
      * an error has occurred (in which case `error` is set), or if the end of the
@@ -23406,7 +23406,7 @@ interface Variant {
      * @param copy_only %TRUE to ensure the format string makes deep copies
      * @returns %TRUE if @format_string is safe to use
      */
-    check_format_string(format_string: string, copy_only: boolean): boolean
+    check_format_string(format_string: string | null, copy_only: boolean): boolean
     /**
      * Classifies `value` according to its top-level type.
      * @returns the #GVariantClass of @value
@@ -23481,7 +23481,7 @@ interface Variant {
      * The return value must be freed using g_free().
      * @returns a newly allocated string, UTF-8 encoded
      */
-    dup_string(): [ /* returnType */ string, /* length */ number ]
+    dup_string(): [ /* returnType */ string | null, /* length */ number ]
     /**
      * Gets the contents of an array of strings #GVariant.  This call
      * makes a deep copy; the return result should be released with
@@ -23613,7 +23613,7 @@ interface Variant {
      * serialized data).
      * @returns the serialized form of @value, or %NULL
      */
-    get_data(): object | null
+    get_data(): any | null
     /**
      * Returns a pointer to the serialized form of a #GVariant instance.
      * The semantics of this function are exactly the same as
@@ -23749,7 +23749,7 @@ interface Variant {
      * The return value remains valid as long as `value` exists.
      * @returns the constant string, UTF-8 encoded
      */
-    get_string(): [ /* returnType */ string, /* length */ number ]
+    get_string(): [ /* returnType */ string | null, /* length */ number ]
     /**
      * Gets the contents of an array of strings #GVariant.  This call
      * makes a shallow copy; the return result should be released with
@@ -23778,7 +23778,7 @@ interface Variant {
      * string belongs to #GVariant and must not be freed.
      * @returns the type string for the type of @value
      */
-    get_type_string(): string
+    get_type_string(): string | null
     /**
      * Returns the 16-bit unsigned integer value of `value`.
      * 
@@ -23889,7 +23889,7 @@ interface Variant {
      * @param expected_type a #GVariantType, or %NULL
      * @returns the value of the dictionary key, or %NULL
      */
-    lookup_value(key: string, expected_type: VariantType | null): Variant
+    lookup_value(key: string | null, expected_type: VariantType | null): Variant
     /**
      * Determines the number of children in a container #GVariant instance.
      * This includes variants, maybes, arrays, tuples and dictionary
@@ -23915,7 +23915,7 @@ interface Variant {
      * @param type_annotate %TRUE if type information should be included in                 the output
      * @returns a newly-allocated string holding the result.
      */
-    print(type_annotate: boolean): string
+    print(type_annotate: boolean): string | null
     /**
      * Increases the reference count of `value`.
      * @returns the same @value
@@ -23962,7 +23962,7 @@ interface Variant {
      * This function is approximately O(n) in the size of `data`.
      * @param data the location to store the serialized data at
      */
-    store(data: object): void
+    store(data: any): void
     /**
      * If `value` is floating, sink it.  Otherwise, do nothing.
      * 
@@ -24363,7 +24363,7 @@ class Variant {
      * @param element_size the size of each element
      * @returns a floating reference to a new array #GVariant instance
      */
-    static new_fixed_array(element_type: VariantType, elements: object | null, n_elements: number, element_size: number): Variant
+    static new_fixed_array(element_type: VariantType, elements: any | null, n_elements: number, element_size: number): Variant
     /**
      * Constructs a new serialized-mode #GVariant instance.  This is the
      * inner interface for creation of new serialized values that gets
@@ -24419,7 +24419,7 @@ class Variant {
      * @param user_data data for `notify`
      * @returns a new floating #GVariant of type @type
      */
-    static new_from_data(type: VariantType, data: Uint8Array, trusted: boolean, notify: DestroyNotify, user_data: object | null): Variant
+    static new_from_data(type: VariantType, data: Uint8Array, trusted: boolean, notify: DestroyNotify, user_data: any | null): Variant
     /**
      * Creates a new handle #GVariant instance.
      * 
@@ -24477,7 +24477,7 @@ class Variant {
      * @param object_path a normal C nul-terminated string
      * @returns a floating reference to a new object path #GVariant instance
      */
-    static new_object_path(object_path: string): Variant
+    static new_object_path(object_path: string | null): Variant
     /**
      * Constructs an array of object paths #GVariant from the given array of
      * strings.
@@ -24499,7 +24499,7 @@ class Variant {
      * @param signature a normal C nul-terminated string
      * @returns a floating reference to a new signature #GVariant instance
      */
-    static new_signature(signature: string): Variant
+    static new_signature(signature: string | null): Variant
     /**
      * Creates a string #GVariant with the contents of `string`.
      * 
@@ -24510,7 +24510,7 @@ class Variant {
      * @param string a normal UTF-8 nul-terminated string
      * @returns a floating reference to a new string #GVariant instance
      */
-    static new_string(string: string): Variant
+    static new_string(string: string | null): Variant
     /**
      * Constructs an array of strings #GVariant from the given array of
      * strings.
@@ -24579,7 +24579,7 @@ class Variant {
      * @param string a normal C nul-terminated string
      * @returns %TRUE if @string is a D-Bus object path
      */
-    static is_object_path(string: string): boolean
+    static is_object_path(string: string | null): boolean
     /**
      * Determines if a given string is a valid D-Bus type signature.  You
      * should ensure that a string is a valid D-Bus type signature before
@@ -24590,7 +24590,7 @@ class Variant {
      * @param string a normal C nul-terminated string
      * @returns %TRUE if @string is a D-Bus type signature
      */
-    static is_signature(string: string): boolean
+    static is_signature(string: string | null): boolean
     /**
      * Parses a #GVariant from a text representation.
      * 
@@ -24633,7 +24633,7 @@ class Variant {
      * @param endptr a location to store the end pointer, or %NULL
      * @returns a non-floating reference to a #GVariant, or %NULL
      */
-    static parse(type: VariantType | null, text: string, limit: string | null, endptr: string | null): Variant
+    static parse(type: VariantType | null, text: string | null, limit: string | null, endptr: string | null): Variant
     /**
      * Pretty-prints a message showing the context of a #GVariant parse
      * error within the string for which parsing was attempted.
@@ -24670,7 +24670,7 @@ class Variant {
      * @param source_str the string that was given to the parser
      * @returns the printed message
      */
-    static parse_error_print_context(error: Error, source_str: string): string
+    static parse_error_print_context(error: Error, source_str: string | null): string | null
     static parse_error_quark(): Quark
     /**
      * Same as g_variant_error_quark().
@@ -24868,7 +24868,7 @@ interface VariantDict {
      * @param key the key to look up in the dictionary
      * @returns %TRUE if @key is in @dict
      */
-    contains(key: string): boolean
+    contains(key: string | null): boolean
     /**
      * Returns the current value of `dict` as a #GVariant of type
      * %G_VARIANT_TYPE_VARDICT, clearing it in the process.
@@ -24887,7 +24887,7 @@ interface VariantDict {
      * @param key the key to insert a value for
      * @param value the value to insert
      */
-    insert_value(key: string, value: Variant): void
+    insert_value(key: string | null, value: Variant): void
     /**
      * Looks up a value in a #GVariantDict.
      * 
@@ -24904,7 +24904,7 @@ interface VariantDict {
      * @param expected_type a #GVariantType, or %NULL
      * @returns the value of the dictionary key, or %NULL
      */
-    lookup_value(key: string, expected_type: VariantType | null): Variant | null
+    lookup_value(key: string | null, expected_type: VariantType | null): Variant | null
     /**
      * Increases the reference count on `dict`.
      * 
@@ -24918,7 +24918,7 @@ interface VariantDict {
      * @param key the key to remove
      * @returns %TRUE if the key was found and removed
      */
-    remove(key: string): boolean
+    remove(key: string | null): boolean
     /**
      * Decreases the reference count on `dict`.
      * 
@@ -25151,7 +25151,7 @@ interface VariantType {
      * call g_free() on the return value.
      * @returns the corresponding type string Since 2.24
      */
-    dup_string(): string
+    dup_string(): string | null
     /**
      * Determines the element type of an array or maybe type.
      * 
@@ -25528,7 +25528,7 @@ class VariantType {
      * @param type_string a valid GVariant type string
      * @returns a new #GVariantType
      */
-    constructor(type_string: string) 
+    constructor(type_string: string | null) 
     /**
      * Creates a new #GVariantType corresponding to the type string given
      * by `type_string`.  It is appropriate to call g_variant_type_free() on
@@ -25540,7 +25540,7 @@ class VariantType {
      * @param type_string a valid GVariant type string
      * @returns a new #GVariantType
      */
-    static new(type_string: string): VariantType
+    static new(type_string: string | null): VariantType
     /**
      * Constructs the type corresponding to an array of elements of the
      * type `type`.
@@ -25584,8 +25584,8 @@ class VariantType {
      * @returns a new tuple #GVariantType Since 2.24
      */
     static new_tuple(items: VariantType[]): VariantType
-    static checked_(arg0: string): VariantType
-    static string_get_depth_(type_string: string): number
+    static checked_(arg0: string | null): VariantType
+    static string_get_depth_(type_string: string | null): number
     /**
      * Checks if `type_string` is a valid GVariant type string.  This call is
      * equivalent to calling g_variant_type_string_scan() and confirming
@@ -25593,7 +25593,7 @@ class VariantType {
      * @param type_string a pointer to any string
      * @returns %TRUE if @type_string is exactly one valid type string Since 2.24
      */
-    static string_is_valid(type_string: string): boolean
+    static string_is_valid(type_string: string | null): boolean
     /**
      * Scan for a single complete and valid GVariant type string in `string`.
      * The memory pointed to by `limit` (or bytes beyond it) is never
@@ -25612,7 +25612,7 @@ class VariantType {
      * @param limit the end of `string,` or %NULL
      * @returns %TRUE if a valid type string was found
      */
-    static string_scan(string: string, limit: string | null): [ /* returnType */ boolean, /* endptr */ string ]
+    static string_scan(string: string | null, limit: string | null): [ /* returnType */ boolean, /* endptr */ string | null ]
 }
 
 interface DoubleIEEE754 {
@@ -25807,12 +25807,12 @@ interface TokenValue {
      * token symbol value
      * @field 
      */
-    v_symbol: object
+    v_symbol: any
     /**
      * token identifier value
      * @field 
      */
-    v_identifier: string
+    v_identifier: string | null
     /**
      * token binary integer value
      * @field 
@@ -25847,12 +25847,12 @@ interface TokenValue {
      * string value
      * @field 
      */
-    v_string: string
+    v_string: string | null
     /**
      * comment value
      * @field 
      */
-    v_comment: string
+    v_comment: string | null
     /**
      * character value
      * @field 

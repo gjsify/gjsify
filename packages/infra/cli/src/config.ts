@@ -1,6 +1,6 @@
 import { APP_NAME } from  './constants.js';
 import { cosmiconfig, Options as LoadOptions } from 'cosmiconfig';
-import { readPackageJSON, resolvePackageJSON, readTSConfig, resolveTSConfig } from 'pkg-types';
+import { readPackageJSON, resolvePackageJSON } from 'pkg-types';
 import { getTsconfig } from 'get-tsconfig';
 import lodash from "lodash";
 const { merge } = lodash;

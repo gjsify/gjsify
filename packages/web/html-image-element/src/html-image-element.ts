@@ -1,6 +1,6 @@
 
 import { notImplemented, warnNotImplemented } from '@gjsify/utils';
-import GLib from '@gjsify/types/GLib-2.0';
+import GLib from 'gi://GLib?version=2.0';
 import GdkPixbuf from '@gjsify/types/GdkPixbuf-2.0';
 import { System } from '@gjsify/types/Gjs';
 import { Event } from '@gjsify/dom-events';

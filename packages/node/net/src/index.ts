@@ -1,4 +1,4 @@
-import Gio from '@gjsify/types/Gio-2.0';
+import Gio from 'gi://Gio?version=2.0';
 
 export function isIP(input: string): 0 | 4 | 6 {
   const addr = Gio.InetAddress.new_from_string(input);

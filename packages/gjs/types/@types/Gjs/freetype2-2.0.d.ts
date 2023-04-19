@@ -44,7 +44,7 @@ class Library {
     static name: string
 }
 
-    type Int32 = any
+    type Int32 = number
 /**
  * Name of the imported GIR library
  * @see https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L188

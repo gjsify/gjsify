@@ -23,8 +23,8 @@
         "fs"
     ],
     "devDependencies": {
+        "@girs/gjs": "latest",
         "@gjsify/cli": "workspace:^",
-        "@gjsify/types": "workspace:^",
-        "typescript": "^5.0.0-beta"
+        "typescript": "^5.0.4"
     }
 }

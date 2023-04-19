@@ -28,7 +28,7 @@
     "open-cli": "^7.1.0"
   },
   "dependencies": {
-    "@gjsify/types": "workspace:^",
+    "@girs/gjs": "latest",
     "@gjsify/webgl": "workspace:^",
     "gl-matrix": "^3.4.3"
   }
