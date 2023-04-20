@@ -9,7 +9,13 @@ Combine the power of Typescript with the power of GJS
 Fedora:
 
 ```
-sudo dnf install meson
+sudo dnf install meson vala gjs
+```
+
+Ubuntu:
+
+```
+sudo apt install meson valac gjs
 ```
 
 ### Build

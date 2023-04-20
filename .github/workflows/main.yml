@@ -33,6 +33,6 @@ jobs:
       - name: Install NPM dependencies
         run: yarn install --immutable
       - name: Build
-        run: yarn run build
+        run: NODE_OPTIONS=--max_old_space_size=9216 yarn run build
       - name: Test
         run: yarn run test
