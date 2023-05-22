@@ -1,4 +1,4 @@
-// TODO: Use Methods interface from @gjsify/types/Gjs instead
+// TODO: Use Methods interface from @girs/gjs instead
 /**
  * You can use the `Signals.addSignalMethods` method to apply the `Signals` convenience methods to an `Object`.
  * Generally, this is called on an object prototype, but may also be called on an object instance.

@@ -30,7 +30,9 @@
         "typescript": "^5.0.4"
     },
     "dependencies": {
-        "@girs/gjs": "latest",
+        "@girs/gio-2.0": "^2.76.1-3.0.0-beta.16",
+        "@girs/gjs": "^3.0.0-beta.16",
+        "@girs/gtk-4.0": "^4.10.1-3.0.0-beta.16",
         "@gjsify/html-image-element": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@types/bit-twiddle": "^1.0.1",

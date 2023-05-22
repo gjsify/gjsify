@@ -1,4 +1,4 @@
-import Soup from '@gjsify/types/Soup-3.0';
+import Soup from 'gi://Soup?version=3.0';
 import Gio from 'gi://Gio?version=2.0';
 import Request from './request.js';
 

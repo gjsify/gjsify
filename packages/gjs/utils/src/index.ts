@@ -1,4 +1,5 @@
-import '@girs/gjs/ambient';
+import '@girs/gjs';
+import '@girs/gio-2.0';
 
 export * from './types/index.js';
 

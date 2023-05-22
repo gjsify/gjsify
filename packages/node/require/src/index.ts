@@ -1,5 +1,8 @@
 /*! (c) Andrea Giammarchi - ISC - https://github.com/WebReflection/gjs-require */
 
+import '@girs/gjs';
+import '@girs/gio-2.0';
+
 const { searchPath } = imports;
 import { resolve as _resolve, readJSON, getNodeModulesPath } from '@gjsify/utils';
 import Gio from 'gi://Gio?version=2.0';

@@ -1,10 +1,10 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import { ExtInputStream } from './index.js';
-import { byteArray } from '@gjsify/types/Gjs';
 import Gio from 'gi://Gio?version=2.0';
 import { Readable } from 'stream';
 
+const byteArray = imports.byteArray;
 
 // TODO @gjsify/unit need to better handle async tests
 

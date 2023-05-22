@@ -1,8 +1,10 @@
+import "@gjs/gjs";
+import "@gjs/soup-3.0"
+
 import { describe, it, expect } from '@gjsify/unit';
 
 import * as SoupExt from './index.js';
-import "@gjsify/types/index";
-import Soup from "@gjsify/types/Soup-3.0";
+import Soup from "gi://Soup?version=3.0";
 import GLib from 'gi://GLib?version=2.0';
 
 export default async () => {

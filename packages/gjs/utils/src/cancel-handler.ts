@@ -1,4 +1,4 @@
-import { Signals } from '@gjsify/types/Gjs';
+import '@girs/gjs';
 import type { CancelSignals } from './types/index.js';
 
 let nextRid = 1;
@@ -7,7 +7,7 @@ const resources: {[rid: number]: CancelSignals} = {};
 export const createCancelHandler = () => {
     const rid = nextRid++;
     const cancelHandler = {} as CancelSignals;
-    Signals.addSignalMethods(cancelHandler);
+    imports.signals.addSignalMethods(cancelHandler);
 
     resources[rid] = cancelHandler;
 

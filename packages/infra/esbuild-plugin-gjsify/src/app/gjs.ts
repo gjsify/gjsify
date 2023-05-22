@@ -11,7 +11,7 @@ import type { PluginOptions } from '../types/plugin-options.js';
 
 export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
-    const external = ['gi://*'];
+    const external = ['gi://*', 'cairo', 'gettext', 'system'];
 
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];

@@ -288,6 +288,12 @@ enum TypeFlags {
      *  leaf node in a deep derivable type hierarchy tree. Since: 2.70
      */
     FINAL,
+    /**
+     * The type is deprecated and may be removed in a
+     *  future version. A warning will be emitted if it is instantiated while
+     *  running with `G_ENABLE_DIAGNOSTIC=1`. Since 2.76
+     */
+    DEPRECATED,
 }
 /**
  * Bit masks used to check or determine specific characteristics of a
@@ -1215,6 +1221,9 @@ function signal_add_emission_hook(signal_id: number, detail: GLib.Quark): number
 function signal_chain_from_overridden(instance_and_params: any[], return_value: any): void
 /**
  * Connects a closure to a signal for a particular object.
+ * 
+ * If `closure` is a floating reference (see g_closure_sink()), this function
+ * takes ownership of `closure`.
  * @param instance the instance to connect to.
  * @param detailed_signal a string of the form "signal-name::detail".
  * @param closure the closure to connect.
@@ -1224,6 +1233,9 @@ function signal_chain_from_overridden(instance_and_params: any[], return_value: 
 function signal_connect_closure(instance: Object, detailed_signal: string | null, closure: TClosure, after: boolean): number
 /**
  * Connects a closure to a signal for a particular object.
+ * 
+ * If `closure` is a floating reference (see g_closure_sink()), this function
+ * takes ownership of `closure`.
  * @param instance the instance to connect to.
  * @param signal_id the id of the signal.
  * @param detail the detail.
@@ -2164,9 +2176,10 @@ interface ClassInitFunc {
  * @param return_value a #GValue to store the return  value. May be %NULL if the callback of `closure` doesn't return a  value.
  * @param param_values an array of  #GValues holding the arguments on which to invoke the  callback of `closure`
  * @param invocation_hint the invocation hint given as the  last argument to g_closure_invoke()
+ * @param marshal_data additional data specified when  registering the marshaller, see g_closure_set_marshal() and  g_closure_set_meta_marshal()
  */
 interface ClosureMarshal {
-    (closure: TClosure, return_value: any | null, param_values: any[], invocation_hint: any | null): void
+    (closure: TClosure, return_value: any | null, param_values: any[], invocation_hint: any | null, marshal_data: any | null): void
 }
 /**
  * The type used for the various notification callbacks which can be registered
@@ -2270,10 +2283,11 @@ interface ObjectSetPropertyFunc {
  * @param ihint Signal invocation hint, see #GSignalInvocationHint.
  * @param return_accu Accumulator to collect callback return values in, this  is the return value of the current signal emission.
  * @param handler_return A #GValue holding the return value of the signal handler.
+ * @param data Callback data that was specified when creating the signal.
  * @returns The accumulator function returns whether the signal emission  should be aborted. Returning %TRUE will continue with  the signal emission. Returning %FALSE will abort the current emission.  Since 2.62, returning %FALSE will skip to the CLEANUP stage. In this case,  emission will occur as normal in the CLEANUP stage and the handler's  return value will be accumulated.
  */
 interface SignalAccumulator {
-    (ihint: SignalInvocationHint, return_accu: any, handler_return: any): boolean
+    (ihint: SignalInvocationHint, return_accu: any, handler_return: any, data: any | null): boolean
 }
 /**
  * A simple function pointer to get invoked when the signal is emitted.
@@ -2285,10 +2299,11 @@ interface SignalAccumulator {
  * @callback 
  * @param ihint Signal invocation hint, see #GSignalInvocationHint.
  * @param param_values the instance on which  the signal was emitted, followed by the parameters of the emission.
+ * @param data user data associated with the hook.
  * @returns whether it wants to stay connected. If it returns %FALSE, the signal  hook is disconnected (and destroyed).
  */
 interface SignalEmissionHook {
-    (ihint: SignalInvocationHint, param_values: any[]): boolean
+    (ihint: SignalInvocationHint, param_values: any[], data: any | null): boolean
 }
 /**
  * A callback function used for notification when the state
@@ -6389,7 +6404,7 @@ interface TypeInfo {
      */
     instance_size: number
     /**
-     * Prior to GLib 2.10, it specified the number of pre-allocated (cached) instances to reserve memory for (0 indicates no caching). Since GLib 2.10, it is ignored, since instances are allocated with the [slice allocator][glib-Memory-Slices] now.
+     * Prior to GLib 2.10, it specified the number of pre-allocated (cached) instances to reserve memory for (0 indicates no caching). Since GLib 2.10 this field is ignored.
      * @field 
      */
     n_preallocs: number
@@ -6692,7 +6707,7 @@ interface Value {
      * %NULL will be returned.
      * @returns object content of @value,          should be unreferenced when no longer needed.
      */
-    dup_object(): Object
+    dup_object(): Object | null
     /**
      * Get a copy the contents of a %G_TYPE_STRING #GValue.
      * @returns a newly allocated copy of the string content of @value
@@ -6772,7 +6787,7 @@ interface Value {
      * Get the contents of a %G_TYPE_OBJECT derived #GValue.
      * @returns object contents of @value
      */
-    get_object(): Object
+    get_object(): Object | null
     /**
      * Get the contents of a %G_TYPE_PARAM #GValue.
      * @returns #GParamSpec content of @value

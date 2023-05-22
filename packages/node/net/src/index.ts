@@ -1,3 +1,4 @@
+import '@girs/gio-2.0';
 import Gio from 'gi://Gio?version=2.0';
 
 export function isIP(input: string): 0 | 4 | 6 {

@@ -35,7 +35,7 @@
   },
   "homepage": "https://github.com/gjsify/unit#readme",
   "devDependencies": {
-    "@girs/gjs": "latest",
+    "@girs/gjs": "^3.0.0-beta.16",
     "@gjsify/cli": "workspace:^",
     "typescript": "^5.0.4"
   }

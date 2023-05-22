@@ -1,6 +1,7 @@
 // Based on https://github.com/philipphoffmann/gjsunit
 
-import "@girs/gjs/ambient";
+import "@girs/gjs";
+
 import type GLib from 'gi://GLib?version=2.0';
 export * from './spy.js';
 import nodeAssert from 'assert';

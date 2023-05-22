@@ -9,5 +9,5 @@
     "moduleResolution": "node"
   },
   "files": ["src/index.ts"],
-  "include": ["@girs/gjs/ambient"]
+  "include": ["@girs/gjs"]
 }

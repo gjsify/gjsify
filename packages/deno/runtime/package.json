@@ -46,7 +46,7 @@
         "globals"
     ],
     "devDependencies": {
-        "@girs/gjs": "^3.0.0-beta.12",
+        "@girs/gjs": "^3.0.0-beta.16",
         "@gjsify/cli": "workspace:^",
         "@gjsify/empty": "workspace:^",
         "@gjsify/unit": "workspace:^",

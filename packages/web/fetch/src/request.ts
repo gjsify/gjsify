@@ -1,6 +1,8 @@
-import '@girs/gjs/ambient';
+import '@girs/gjs';
+import '@girs/gio-2.0';
+
 import GLib from 'gi://GLib?version=2.0';
-import Soup from '@gjsify/types/Soup-3.0';
+import Soup from 'gi://Soup?version=3.0';
 import Gio from 'gi://Gio?version=2.0';
 import * as GioExt from '@gjsify/gio-2.0';
 import * as SoupExt from '@gjsify/soup-3.0';

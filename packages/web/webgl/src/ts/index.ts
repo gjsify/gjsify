@@ -1,4 +1,6 @@
-import '@girs/gjs/ambient';
+import '@girs/gjs';
+import '@girs/gio-2.0';
+
 export * from './html-canvas-element.js';
 // export * from './linkable.js';
 // export * from './utils.js';

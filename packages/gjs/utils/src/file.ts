@@ -1,5 +1,6 @@
 import GLib from 'gi://GLib?version=2.0';
-import { byteArray } from '@gjsify/types/Gjs';
+
+const byteArray = imports.byteArray;
 
 export const readJSON = (path: string) => {
   const [ok, contents] = GLib.file_get_contents(path);

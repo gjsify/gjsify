@@ -1,10 +1,11 @@
-import { byteArray } from '@gjsify/types/Gjs';
 import Gio from 'gi://Gio?version=2.0';
 import GLib from 'gi://GLib?version=2.0';
 import { ExtOutputStream } from './output-stream.js'
 
 import { Readable } from 'stream';
 import type { ReadableOptions } from 'stream';
+
+const byteArray = imports.byteArray;
 
 // This interface is used for pseudo extend Gio.InputStream
 export interface ExtInputStream extends Gio.InputStream {}

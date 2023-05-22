@@ -1,3 +1,7 @@
+import '@girs/gjs';
+import '@girs/gio-2.0';
+import '@girs/gtk-4.0';
+
 import { describe, it, expect } from '@gjsify/unit';
 
 import { GjsifyWebGLRenderingContext, HTMLCanvasElement } from '@gjsify/webgl';

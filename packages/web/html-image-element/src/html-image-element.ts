@@ -1,9 +1,9 @@
-
+import '@girs/gdkpixbuf-2.0'
 import { notImplemented, warnNotImplemented } from '@gjsify/utils';
 import GLib from 'gi://GLib?version=2.0';
-import GdkPixbuf from '@gjsify/types/GdkPixbuf-2.0';
-import { System } from '@gjsify/types/Gjs';
+import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import { Event } from '@gjsify/dom-events';
+const System = imports.system;
 
 import type { IHTMLImageElement, ImageData } from './types/index.js';
 import type { HTMLElement } from 'happy-dom';

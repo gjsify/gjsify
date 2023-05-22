@@ -5,5 +5,6 @@ export default {
     ignoreVersionConflicts: true,
     promisify: true,
     noDOMLib: true,
+    package: true,
     ignore: []
 }

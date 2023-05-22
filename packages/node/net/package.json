@@ -26,5 +26,8 @@
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^18.13.0"
+    },
+    "dependencies": {
+        "@girs/gio-2.0": "^2.76.1-3.0.0-beta.16"
     }
 }
