@@ -5,10 +5,10 @@
   "scripts": {
     "clear": "rm -rf @types",
     "print:name": "echo '@gjsify/types'",
-    "build": "ts-for-gir generate",
+    "build": "ts-for-gir generate && yarn install",
     "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"
   },
   "devDependencies": {
-    "@ts-for-gir/cli": "^3.0.1"
+    "@ts-for-gir/cli": "^3.0.3"
   }
 }

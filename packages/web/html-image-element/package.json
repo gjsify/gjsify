@@ -29,7 +29,7 @@
         "typescript": "^5.1.3"
     },
     "dependencies": {
-        "@girs/gjs": "^3.0.1",
+        "@girs/gjs": "^3.0.3",
         "@gjsify/dom-events": "workspace:^",
         "happy-dom": "^9.20.3"
     }

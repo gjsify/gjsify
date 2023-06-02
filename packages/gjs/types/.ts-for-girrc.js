@@ -6,5 +6,6 @@ export default {
     promisify: true,
     noDOMLib: true,
     package: true,
+    packageYarn: false,
     ignore: []
 }

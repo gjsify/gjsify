@@ -253,7 +253,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/cairo-1.0@npm:^1.0.0-3.0.0-beta.16, @girs/cairo-1.0@npm:^1.0.0-3.0.1":
+"@girs/cairo-1.0@npm:^1.0.0-3.0.0-beta.16, @girs/cairo-1.0@npm:^1.0.0-3.0.3":
   version: 1.0.0-3.0.0-beta.16
   resolution: "@girs/cairo-1.0@npm:1.0.0-3.0.0-beta.16"
   dependencies:
@@ -263,7 +263,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/freetype2-2.0@npm:^2.0.0-3.0.0-beta.16, @girs/freetype2-2.0@npm:^2.0.0-3.0.1":
+"@girs/freetype2-2.0@npm:^2.0.0-3.0.0-beta.16, @girs/freetype2-2.0@npm:^2.0.0-3.0.3":
   version: 2.0.0-3.0.0-beta.16
   resolution: "@girs/freetype2-2.0@npm:2.0.0-3.0.0-beta.16"
   dependencies:
@@ -273,7 +273,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gdk-4.0@npm:^4.0.0-3.0.0-beta.16, @girs/gdk-4.0@npm:^4.0.0-3.0.1":
+"@girs/gdk-4.0@npm:^4.0.0-3.0.0-beta.16, @girs/gdk-4.0@npm:^4.0.0-3.0.3":
   version: 4.0.0-3.0.0-beta.16
   resolution: "@girs/gdk-4.0@npm:4.0.0-3.0.0-beta.16"
   dependencies:
@@ -292,7 +292,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gdkpixbuf-2.0@npm:^2.0.0-3.0.0-beta.16, @girs/gdkpixbuf-2.0@npm:^2.0.0-3.0.1":
+"@girs/gdkpixbuf-2.0@npm:^2.0.0-3.0.0-beta.16, @girs/gdkpixbuf-2.0@npm:^2.0.0-3.0.3":
   version: 2.0.0-3.0.0-beta.16
   resolution: "@girs/gdkpixbuf-2.0@npm:2.0.0-3.0.0-beta.16"
   dependencies:
@@ -305,7 +305,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gio-2.0@npm:2.76.1-3.0.0-beta.16, @girs/gio-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/gio-2.0@npm:^2.76.1-3.0.1":
+"@girs/gio-2.0@npm:2.76.1-3.0.3":
+  version: 2.76.1-3.0.3
+  resolution: "@girs/gio-2.0@npm:2.76.1-3.0.3"
+  dependencies:
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/glib-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gobject-2.0": "npm:^2.76.1-3.0.3"
+  checksum: 3e1757c2c9f6c0a5bb55c3bf2cda404b33d73e4deca940bd7b44c9f0f87e4815ff203758355b85d71ad423479f937d094a846a3278ed5e1cef69b5781bf4abf5
+  languageName: node
+  linkType: hard
+
+"@girs/gio-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/gio-2.0@npm:^2.76.1-3.0.3":
   version: 2.76.1-3.0.0-beta.16
   resolution: "@girs/gio-2.0@npm:2.76.1-3.0.0-beta.16"
   dependencies:
@@ -313,6 +324,16 @@ __metadata:
     "@girs/glib-2.0": "npm:^2.76.1-3.0.0-beta.16"
     "@girs/gobject-2.0": "npm:^2.76.1-3.0.0-beta.16"
   checksum: 073077599aca99aaac2b4116e2b63e611257b35074fc0a65a7fcf4681d72e012b41148d15966456cde7ae8acf55cf57fe10069ac2b6cfcbb217de7f4d9a44173
+  languageName: node
+  linkType: hard
+
+"@girs/gjs@npm:3.0.3, @girs/gjs@npm:^3.0.3":
+  version: 3.0.3
+  resolution: "@girs/gjs@npm:3.0.3"
+  dependencies:
+    "@girs/glib-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gobject-2.0": "npm:^2.76.1-3.0.3"
+  checksum: 78354d15e260548965e3405a119c743c18d24c55a152ca6eb344b1173977d00db1b78934666840c13d65364a807cceca77f18c57948311871d0c375c84154985
   languageName: node
   linkType: hard
 
@@ -326,27 +347,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gjs@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "@girs/gjs@npm:3.0.1"
+"@girs/glib-2.0@npm:2.76.1-3.0.3":
+  version: 2.76.1-3.0.3
+  resolution: "@girs/glib-2.0@npm:2.76.1-3.0.3"
   dependencies:
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.1"
-  checksum: b0171e5185ab3ddb03e43ad8921f9f7aec54e86f9b7a843354fcfb3606622e80917d6286da2e22a1409f570866b54a4ac4f30fcf38f122b52f3bc3a602a9d087
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gobject-2.0": "npm:^2.76.1-3.0.3"
+  checksum: 9458f3541e1feee0906c91f32885ecb2d7e125501e1570023612ecbcedce7f7d6d503b4ab8702932594bb5ee425c2c4ddd88f5c81c4bfd16d0ccd35344cb4f61
   languageName: node
   linkType: hard
 
-"@girs/glib-2.0@npm:2.76.1-3.0.1":
-  version: 2.76.1-3.0.1
-  resolution: "@girs/glib-2.0@npm:2.76.1-3.0.1"
-  dependencies:
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.1"
-  checksum: bb4d856986ec818d264838678cbfcba3d7a77893bb22cea18a3f9a5791b44ae06a7422e67b105ecf611850928d664b1ead8b93f0d998ea6f5f3cab7382399b76
-  languageName: node
-  linkType: hard
-
-"@girs/glib-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/glib-2.0@npm:^2.76.1-3.0.1":
+"@girs/glib-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/glib-2.0@npm:^2.76.1-3.0.3":
   version: 2.76.1-3.0.0-beta.16
   resolution: "@girs/glib-2.0@npm:2.76.1-3.0.0-beta.16"
   dependencies:
@@ -356,7 +367,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gmodule-2.0@npm:^2.0.0-3.0.0-beta.16, @girs/gmodule-2.0@npm:^2.0.0-3.0.1":
+"@girs/gmodule-2.0@npm:^2.0.0-3.0.0-beta.16, @girs/gmodule-2.0@npm:^2.0.0-3.0.3":
   version: 2.0.0-3.0.0-beta.16
   resolution: "@girs/gmodule-2.0@npm:2.0.0-3.0.0-beta.16"
   dependencies:
@@ -367,17 +378,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gobject-2.0@npm:2.76.1-3.0.1":
-  version: 2.76.1-3.0.1
-  resolution: "@girs/gobject-2.0@npm:2.76.1-3.0.1"
+"@girs/gobject-2.0@npm:2.76.1-3.0.3":
+  version: 2.76.1-3.0.3
+  resolution: "@girs/gobject-2.0@npm:2.76.1-3.0.3"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.1"
-  checksum: f42e4c324014da2cb9911ab6790b2276b4ab3f367dbb9e3aeb8cf50f1fa60d1a1b314f4bacf49c2f307361ef1737d37974ae4ed1ecd087f207307419b4ad5e88
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/glib-2.0": "npm:^2.76.1-3.0.3"
+  checksum: 1fa6835cbe379a73508db21f6d0952764f19f88723337433b3112ce7382235e66279521646a8aba733f1c15ef161df7038ceb95dbc9b70b2de9ec4bb3115c122
   languageName: node
   linkType: hard
 
-"@girs/gobject-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/gobject-2.0@npm:^2.76.1-3.0.1":
+"@girs/gobject-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/gobject-2.0@npm:^2.76.1-3.0.3":
   version: 2.76.1-3.0.0-beta.16
   resolution: "@girs/gobject-2.0@npm:2.76.1-3.0.0-beta.16"
   dependencies:
@@ -387,7 +398,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/graphene-1.0@npm:^1.0.0-3.0.0-beta.16, @girs/graphene-1.0@npm:^1.0.0-3.0.1":
+"@girs/graphene-1.0@npm:^1.0.0-3.0.0-beta.16, @girs/graphene-1.0@npm:^1.0.0-3.0.3":
   version: 1.0.0-3.0.0-beta.16
   resolution: "@girs/graphene-1.0@npm:1.0.0-3.0.0-beta.16"
   dependencies:
@@ -398,7 +409,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gsk-4.0@npm:^4.0.0-3.0.1":
+"@girs/gsk-4.0@npm:^4.0.0-3.0.3":
   version: 4.0.0-3.0.0-beta.16
   resolution: "@girs/gsk-4.0@npm:4.0.0-3.0.0-beta.16"
   dependencies:
@@ -419,25 +430,25 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gtk-4.0@npm:4.10.3-3.0.1":
-  version: 4.10.3-3.0.1
-  resolution: "@girs/gtk-4.0@npm:4.10.3-3.0.1"
+"@girs/gtk-4.0@npm:4.10.3-3.0.3":
+  version: 4.10.3-3.0.3
+  resolution: "@girs/gtk-4.0@npm:4.10.3-3.0.3"
   dependencies:
-    "@girs/cairo-1.0": "npm:^1.0.0-3.0.1"
-    "@girs/freetype2-2.0": "npm:^2.0.0-3.0.1"
-    "@girs/gdk-4.0": "npm:^4.0.0-3.0.1"
-    "@girs/gdkpixbuf-2.0": "npm:^2.0.0-3.0.1"
-    "@girs/gio-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/gmodule-2.0": "npm:^2.0.0-3.0.1"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/graphene-1.0": "npm:^1.0.0-3.0.1"
-    "@girs/gsk-4.0": "npm:^4.0.0-3.0.1"
-    "@girs/harfbuzz-0.0": "npm:^7.1.0-3.0.1"
-    "@girs/pango-1.0": "npm:^1.50.14-3.0.1"
-    "@girs/pangocairo-1.0": "npm:^1.0.0-3.0.1"
-  checksum: e83fbfa35fa66303df70942dc5ee1b69057132907f887e49eb697ec194c1ba03408ad3d6bb9b950f4d4e5bee80fd269b80796bd92866135170d4e6d2e2c6f5e9
+    "@girs/cairo-1.0": "npm:^1.0.0-3.0.3"
+    "@girs/freetype2-2.0": "npm:^2.0.0-3.0.3"
+    "@girs/gdk-4.0": "npm:^4.0.0-3.0.3"
+    "@girs/gdkpixbuf-2.0": "npm:^2.0.0-3.0.3"
+    "@girs/gio-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/glib-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gmodule-2.0": "npm:^2.0.0-3.0.3"
+    "@girs/gobject-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/graphene-1.0": "npm:^1.0.0-3.0.3"
+    "@girs/gsk-4.0": "npm:^4.0.0-3.0.3"
+    "@girs/harfbuzz-0.0": "npm:^7.1.0-3.0.3"
+    "@girs/pango-1.0": "npm:^1.50.14-3.0.3"
+    "@girs/pangocairo-1.0": "npm:^1.0.0-3.0.3"
+  checksum: 441328d9365d451872c28b4afff00882688d63f1951ae920386bfd5dee692263d66f1c21a43ffc8799d7d02ff73d6a59163f3911155748c0342ad4ac25413df2
   languageName: node
   linkType: hard
 
@@ -445,10 +456,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@girs/gwebgl-0.1@workspace:packages/gjs/types/@types/gwebgl-0.1"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/glib-2.0": "npm:2.76.1-3.0.1"
-    "@girs/gobject-2.0": "npm:2.76.1-3.0.1"
-    typescript: "npm:^5.1.3"
+    "@girs/gjs": "npm:3.0.3"
+    "@girs/glib-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gobject-2.0": "npm:2.76.1-3.0.3"
+    typescript: "npm:*"
   languageName: unknown
   linkType: soft
 
@@ -464,15 +475,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/harfbuzz-0.0@npm:^7.1.0-3.0.1":
-  version: 7.1.0-3.0.1
-  resolution: "@girs/harfbuzz-0.0@npm:7.1.0-3.0.1"
+"@girs/harfbuzz-0.0@npm:^7.1.0-3.0.3":
+  version: 7.1.0-3.0.3
+  resolution: "@girs/harfbuzz-0.0@npm:7.1.0-3.0.3"
   dependencies:
-    "@girs/freetype2-2.0": "npm:^2.0.0-3.0.1"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.1"
-  checksum: e39c9975ba99d4d0e9679dbef330cedf37416a8e0ca9ec889cba4f687e8d09912370f5376948b0a9d1406e0c1735fe122a761eab9d79aee72f15fa4d102314b0
+    "@girs/freetype2-2.0": "npm:^2.0.0-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/glib-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gobject-2.0": "npm:^2.76.1-3.0.3"
+  checksum: 2e854b10fb30ef8340d97f9ea0a49de9e4103f3a2f8397b78d3016df3477d646c92bbe24e0d4035e9ee47279f066a57d15afddb383f1b94a1e8b8db3df25cc6e
   languageName: node
   linkType: hard
 
@@ -491,22 +502,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/pango-1.0@npm:^1.50.14-3.0.1":
-  version: 1.50.14-3.0.1
-  resolution: "@girs/pango-1.0@npm:1.50.14-3.0.1"
+"@girs/pango-1.0@npm:^1.50.14-3.0.3":
+  version: 1.50.14-3.0.3
+  resolution: "@girs/pango-1.0@npm:1.50.14-3.0.3"
   dependencies:
-    "@girs/cairo-1.0": "npm:^1.0.0-3.0.1"
-    "@girs/freetype2-2.0": "npm:^2.0.0-3.0.1"
-    "@girs/gio-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/harfbuzz-0.0": "npm:^7.1.0-3.0.1"
-  checksum: 3ad0e5b2b536c7f2c39123c59382ed0133d861645ad7a34cc8f709e5eaf48e63926fd0e01fa4e78966315982b9a70bf5ebd3adb23432878f984afdc5b0f4e3db
+    "@girs/cairo-1.0": "npm:^1.0.0-3.0.3"
+    "@girs/freetype2-2.0": "npm:^2.0.0-3.0.3"
+    "@girs/gio-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/glib-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gobject-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/harfbuzz-0.0": "npm:^7.1.0-3.0.3"
+  checksum: 4adf28c828d81cda01814ecca1614d7076f23e268ab372b2133687dddbbdb9d74a98859aafe59b48a58d7a062dafdb49f690340a1a8d03cff9ef0b4ba106ea52
   languageName: node
   linkType: hard
 
-"@girs/pangocairo-1.0@npm:^1.0.0-3.0.0-beta.16, @girs/pangocairo-1.0@npm:^1.0.0-3.0.1":
+"@girs/pangocairo-1.0@npm:^1.0.0-3.0.0-beta.16, @girs/pangocairo-1.0@npm:^1.0.0-3.0.3":
   version: 1.0.0-3.0.0-beta.16
   resolution: "@girs/pangocairo-1.0@npm:1.0.0-3.0.0-beta.16"
   dependencies:
@@ -522,15 +533,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/soup-3.0@npm:3.4.2-3.0.1":
-  version: 3.4.2-3.0.1
-  resolution: "@girs/soup-3.0@npm:3.4.2-3.0.1"
+"@girs/soup-3.0@npm:3.4.2-3.0.3":
+  version: 3.4.2-3.0.3
+  resolution: "@girs/soup-3.0@npm:3.4.2-3.0.3"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.1"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.1"
-  checksum: ad35d59bb679988a225efc693a9102ba2981af9077b4e3076e7e9ebd3f4c59e2c3c3a714d0d15c14decfc5e8d0b428a2d58da552727481521cae42a09e697e09
+    "@girs/gio-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/glib-2.0": "npm:^2.76.1-3.0.3"
+    "@girs/gobject-2.0": "npm:^2.76.1-3.0.3"
+  checksum: 6c5bc7339332bf07fd19cf1d7b34ef98c39c36874cea4599baba80853466044d58f1d40a4c2ab69266a3f8352a4049b93b96cc068b05c5ec8e79c987424c7a59
   languageName: node
   linkType: hard
 
@@ -618,7 +629,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/deno-runtime@workspace:packages/deno/runtime"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
+    "@girs/gjs": "npm:^3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/empty": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -634,7 +645,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/deno_std@workspace:packages/deno/std"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
+    "@girs/gjs": "npm:^3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno-runtime": "workspace:^"
     "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
@@ -816,9 +827,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-demo-fade@workspace:examples/webgl-demo-fade"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^18.16.16"
@@ -829,9 +840,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-tutorial-01@workspace:examples/webgl-tutorial-01"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^18.16.16"
@@ -842,9 +853,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-tutorial-02@workspace:examples/webgl-tutorial-02"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -858,9 +869,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-tutorial-03@workspace:examples/webgl-tutorial-03"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -874,9 +885,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-tutorial-04@workspace:examples/webgl-tutorial-04"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -890,9 +901,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-tutorial-05@workspace:examples/webgl-tutorial-05"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -906,9 +917,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-tutorial-06@workspace:examples/webgl-tutorial-06"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -922,9 +933,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-tutorial-07@workspace:examples/webgl-tutorial-07"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -969,8 +980,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/gio-2.0@workspace:packages/gjs/gio-2.0"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.16.16"
@@ -982,7 +993,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/html-image-element@workspace:packages/web/html-image-element"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
+    "@girs/gjs": "npm:^3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -1006,7 +1017,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/net@workspace:packages/node/net"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -1030,7 +1041,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/os@workspace:packages/node/os"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
+    "@girs/gjs": "npm:^3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/utils": "workspace:^"
   languageName: unknown
@@ -1040,7 +1051,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/process@workspace:packages/node/process"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
+    "@girs/gjs": "npm:^3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^18.16.16"
@@ -1064,7 +1075,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/require@workspace:packages/node/require"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/process": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
@@ -1084,8 +1095,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/soup-3.0@workspace:packages/gjs/soup-3.0"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/soup-3.0": "npm:3.4.2-3.0.1"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/soup-3.0": "npm:3.4.2-3.0.3"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^18.16.16"
@@ -1119,7 +1130,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/types@workspace:packages/gjs/types"
   dependencies:
-    "@ts-for-gir/cli": "npm:^3.0.1"
+    "@ts-for-gir/cli": "npm:^3.0.3"
   languageName: unknown
   linkType: soft
 
@@ -1127,7 +1138,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/unit@workspace:packages/gjs/unit"
   dependencies:
-    "@girs/gjs": "npm:^3.0.1"
+    "@girs/gjs": "npm:^3.0.3"
     "@gjsify/cli": "workspace:^"
     typescript: "npm:^5.1.3"
   languageName: unknown
@@ -1166,8 +1177,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/utils@workspace:packages/gjs/utils"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
     "@gjsify/cli": "workspace:^"
     typescript: "npm:^5.1.3"
   languageName: unknown
@@ -1187,9 +1198,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/webgl@workspace:packages/web/webgl"
   dependencies:
-    "@girs/gio-2.0": "npm:2.76.1-3.0.0-beta.16"
-    "@girs/gjs": "npm:^3.0.1"
-    "@girs/gtk-4.0": "npm:4.10.3-3.0.1"
+    "@girs/gio-2.0": "npm:2.76.1-3.0.3"
+    "@girs/gjs": "npm:^3.0.3"
+    "@girs/gtk-4.0": "npm:4.10.3-3.0.3"
     "@girs/gwebgl-0.1": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/html-image-element": "workspace:^"
@@ -1287,64 +1298,64 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ts-for-gir/cli@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "@ts-for-gir/cli@npm:3.0.1"
+"@ts-for-gir/cli@npm:^3.0.3":
+  version: 3.0.3
+  resolution: "@ts-for-gir/cli@npm:3.0.3"
   dependencies:
-    "@ts-for-gir/generator-base": "npm:^3.0.1"
-    "@ts-for-gir/generator-html-doc": "npm:^3.0.1"
-    "@ts-for-gir/generator-typescript": "npm:^3.0.1"
-    "@ts-for-gir/lib": "npm:^3.0.1"
+    "@ts-for-gir/generator-base": "npm:^3.0.3"
+    "@ts-for-gir/generator-html-doc": "npm:^3.0.3"
+    "@ts-for-gir/generator-typescript": "npm:^3.0.3"
+    "@ts-for-gir/lib": "npm:^3.0.3"
     colorette: "npm:^2.0.20"
     cosmiconfig: "npm:^8.1.3"
-    get-tsconfig: "npm:^4.5.0"
+    get-tsconfig: "npm:^4.6.0"
     inquirer: "npm:^9.2.6"
     tiny-glob: "npm:^0.2.9"
     yargs: "npm:^17.7.2"
   bin:
     ts-for-gir: ./lib/start.js
-  checksum: d018d593db66510981f6008b55576f6121350d8cf7627a3a13e491b1805b2474088583084a62fd4c3b7ee16b366a9fcc9aa074f7f0b1b7e14f7089885ed6c244
+  checksum: 2986f590966dca78cd38cc9cf6fc1836065cf9ed9b58f9a3617928040dd6b31d5abfe0ca54e253aef7f0b99b040e45ea6b8ea5f9e99dc29db70e10c350723855
   languageName: node
   linkType: hard
 
-"@ts-for-gir/generator-base@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "@ts-for-gir/generator-base@npm:3.0.1"
+"@ts-for-gir/generator-base@npm:^3.0.3":
+  version: 3.0.3
+  resolution: "@ts-for-gir/generator-base@npm:3.0.3"
   dependencies:
-    "@ts-for-gir/lib": "npm:^3.0.1"
-  checksum: b2aea75b4fc4444fc4f0c8479f04cfd9bef306acc94c4c4c0134cc8fa09d6acabff640da46de3651dc8172c9eac2609c4c6d992b62aaadfa8f6503b097b73944
+    "@ts-for-gir/lib": "npm:^3.0.3"
+  checksum: 0847ed316b5e87e355f5cae5af4435d1c2592ee90e22586203b4ea478d0fca01313a2440ceda378c2101eb317c4c3d111ba20771b4e947b2fec89bb572ae79ea
   languageName: node
   linkType: hard
 
-"@ts-for-gir/generator-html-doc@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "@ts-for-gir/generator-html-doc@npm:3.0.1"
+"@ts-for-gir/generator-html-doc@npm:^3.0.3":
+  version: 3.0.3
+  resolution: "@ts-for-gir/generator-html-doc@npm:3.0.3"
   dependencies:
-    "@ts-for-gir/generator-base": "npm:^3.0.1"
-    "@ts-for-gir/lib": "npm:^3.0.1"
-  checksum: 090d5e954fd31d9612ec8a7c95e01690fbac1b1f13e210511e66a322b7bb265567733b5db885b7e1cdbb115de42cccd5b02d8110be290f4f31b6e1d3ee79b1a7
+    "@ts-for-gir/generator-base": "npm:^3.0.3"
+    "@ts-for-gir/lib": "npm:^3.0.3"
+  checksum: 0734605bb1683d11b0543c6925bd1442daa3e0893c566947b28999768a8b83b1adf7b5719ea8d07378f4d04f923d3dcf2ce75c8840290ccbd96c8e8222e9c509
   languageName: node
   linkType: hard
 
-"@ts-for-gir/generator-typescript@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "@ts-for-gir/generator-typescript@npm:3.0.1"
+"@ts-for-gir/generator-typescript@npm:^3.0.3":
+  version: 3.0.3
+  resolution: "@ts-for-gir/generator-typescript@npm:3.0.3"
   dependencies:
-    "@ts-for-gir/generator-base": "npm:^3.0.1"
-    "@ts-for-gir/lib": "npm:^3.0.1"
-  checksum: 9315c670a49b0182760bfc3b69099b5abfbcaaf765c795d1833b42204497fcb8dbca6292873fc42b88d704cc32aa52edf47f37f4cf0b0788c0865e67eb6edb73
+    "@ts-for-gir/generator-base": "npm:^3.0.3"
+    "@ts-for-gir/lib": "npm:^3.0.3"
+  checksum: f331abb9b7dbca2c856f2f56dd1238eb5302ee8804745593d6c75f118b95ad6a8745db6b13ac79eaf2180c862ca6516a2cc35dccec901186399da3e33cf73dd2
   languageName: node
   linkType: hard
 
-"@ts-for-gir/lib@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "@ts-for-gir/lib@npm:3.0.1"
+"@ts-for-gir/lib@npm:^3.0.3":
+  version: 3.0.3
+  resolution: "@ts-for-gir/lib@npm:3.0.3"
   dependencies:
     colorette: "npm:^2.0.20"
     ejs: "npm:^3.1.9"
     lodash: "npm:^4.17.21"
-    xml2js: "npm:^0.5.0"
-  checksum: b618695c77fdd312596ad791962f1c271fb447f419edb45c40b9af95027a2cb30feac60ec9ea85b42726861f8ddfab58d7cae38ec3c2ecb29913df852e1c7ec3
+    xml2js: "npm:0.5.0"
+  checksum: 10c48ac11d00dd4f3be902f06f72787f1f3b6dcb89e68ba9edb3ecb820f4555d0227e932e7d2dc4e57aed8a7add233f9dda0980777022b24ad8a7e706a9ac5ad
   languageName: node
   linkType: hard
 
@@ -5487,7 +5498,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^5.1.3":
+"typescript@npm:*, typescript@npm:^5.1.3":
   version: 5.1.3
   resolution: "typescript@npm:5.1.3"
   bin:
@@ -5497,7 +5508,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3A^5.1.3#optional!builtin<compat/typescript>":
+"typescript@patch:typescript@npm%3A*#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.1.3#optional!builtin<compat/typescript>":
   version: 5.1.3
   resolution: "typescript@patch:typescript@npm%3A5.1.3#optional!builtin<compat/typescript>::version=5.1.3&hash=5da071"
   bin:
@@ -5739,7 +5750,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"xml2js@npm:^0.5.0":
+"xml2js@npm:0.5.0":
   version: 0.5.0
   resolution: "xml2js@npm:0.5.0"
   dependencies:

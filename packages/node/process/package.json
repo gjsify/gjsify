@@ -37,7 +37,7 @@
     "process"
   ],
   "dependencies": {
-    "@girs/gjs": "^3.0.1",
+    "@girs/gjs": "^3.0.3",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {

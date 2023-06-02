@@ -1,7 +1,7 @@
 
 # Gwebgl-0.1
 
-GJS TypeScript type definitions for Gwebgl-0.1, generated from library version 0.1.0 using [ts-for-gir](https://github.com/gjsify/ts-for-gir) v3.0.1.
+GJS TypeScript type definitions for Gwebgl-0.1, generated from library version 0.1.0 using [ts-for-gir](https://github.com/gjsify/ts-for-gir) v3.0.3.
 
 
 ## Install

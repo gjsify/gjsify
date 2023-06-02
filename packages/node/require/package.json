@@ -24,7 +24,7 @@
     "test:node": "node test.node.cjs"
   },
   "dependencies": {
-    "@girs/gio-2.0": "2.76.1-3.0.0-beta.16",
+    "@girs/gio-2.0": "2.76.1-3.0.3",
     "@gjsify/process": "workspace:^",
     "@gjsify/resolve-npm": "workspace:^",
     "@gjsify/utils": "workspace:^"
