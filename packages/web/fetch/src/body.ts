@@ -51,7 +51,7 @@ export default class Body implements globalThis.Body {
 
     size = 0;
 
-    constructor(body: BodyInit | Readable, options: ResponseInit & { size?: number } = { size: 0 }) {
+    constructor(body: BodyInit | Readable | Blob | Buffer, options: ResponseInit & { size?: number } = { size: 0 }) {
         this.size = options.size || 0;
         if (body === null) {
             // Body is undefined or null
@@ -97,6 +97,7 @@ export default class Body implements globalThis.Body {
         if (Buffer.isBuffer(body)) {
             this[INTERNALS].stream = Readable.from(body);
         } else if (isBlob(body)) {
+            // @ts-ignore
             this[INTERNALS].stream = Readable.from(body.stream());
         } else if (body instanceof Readable) {
             this[INTERNALS].stream = body;
@@ -113,6 +114,7 @@ export default class Body implements globalThis.Body {
     }
 
     get body(): ReadableStream<Uint8Array> {
+        // @ts-ignore
         return Readable.toWeb(this[INTERNALS].stream);
     }
 
@@ -157,6 +159,7 @@ export default class Body implements globalThis.Body {
      *
      * @return Promise
      */
+    // @ts-ignore
     async blob() {
         const ct = ((this as unknown as Request).headers?.get('content-type')) || (this[INTERNALS].body && (this[INTERNALS].body as Blob).type) || '';
         const buf = await this.arrayBuffer();

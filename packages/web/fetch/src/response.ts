@@ -12,6 +12,7 @@ import Body, { clone, extractContentType } from './body.js';
 import { isRedirect } from './utils/is-redirect.js';
 
 import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
+import { Blob } from '@gjsify/deno-runtime/ext/web/09_file';
 
 import type { Readable } from 'stream';
 
@@ -46,6 +47,8 @@ export class Response extends Body implements globalThis.Response {
         counter: number;
         highWaterMark: number;
     };
+
+    _inputStream: Gio.InputStream | null = null;
 
     constructor(body: BodyInit | Readable | Blob | Buffer | null = null, options: ResponseInit = {}) {
         super(body, options);
@@ -113,6 +116,7 @@ export class Response extends Body implements globalThis.Response {
      *
      * @return  Response
      */
+    // @ts-ignore
     clone() {
         return new Response(clone(this, this.highWaterMark), {
             type: this.type,

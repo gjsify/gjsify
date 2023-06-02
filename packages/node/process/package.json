@@ -37,12 +37,12 @@
     "process"
   ],
   "dependencies": {
-    "@girs/gjs": "^3.0.0-beta.16",
+    "@girs/gjs": "^3.0.1",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
-    "@types/node": "^18.13.0",
-    "typescript": "^5.0.4"
+    "@types/node": "^18.16.16",
+    "typescript": "^5.1.3"
   }
 }

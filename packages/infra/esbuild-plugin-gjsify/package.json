@@ -43,7 +43,7 @@
         "@gjsify/zlib": "workspace:^",
         "assert": "^2.0.0",
         "constants-browserify": "^1.0.0",
-        "core-js": "^3.28.0",
+        "core-js": "^3.30.2",
         "crypto-browserify": "^3.12.0",
         "fast-glob": "^3.2.12",
         "micromatch": "^4.0.5",
@@ -54,10 +54,10 @@
         "test": "^3.3.0"
     },
     "devDependencies": {
-        "@types/lodash": "^4.14.191",
+        "@types/lodash": "^4.14.195",
         "@types/micromatch": "^4.0.2",
-        "esbuild": "^0.17.8",
+        "esbuild": "^0.17.19",
         "lodash": "^4.17.21",
-        "typescript": "^5.0.4"
+        "typescript": "^5.1.3"
     }
 }

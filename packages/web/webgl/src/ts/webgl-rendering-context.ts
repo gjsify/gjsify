@@ -2,7 +2,7 @@ import '@girs/gdkpixbuf-2.0'
 
 import * as bits from 'bit-twiddle';
 import tokenize from 'glsl-tokenizer/string';
-import Gwebgl from '@gjsify/types/Gwebgl-0.1';
+import Gwebgl from '@girs/gwebgl-0.1';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
 import { GjsifyHTMLCanvasElement } from './html-canvas-element.js';

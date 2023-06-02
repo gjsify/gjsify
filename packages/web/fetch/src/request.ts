@@ -8,6 +8,7 @@ import * as GioExt from '@gjsify/gio-2.0';
 import * as SoupExt from '@gjsify/soup-3.0';
 
 import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
+import { Blob } from '@gjsify/deno-runtime/ext/web/09_file';
 
 import { Readable } from 'stream';
 
@@ -31,8 +32,11 @@ const INTERNALS = Symbol('Request internals');
 	);
 };
 
+// @ts-ignore
+export interface Request extends globalThis.Request {}
+
 /** This Fetch API interface represents a resource request. */
-export class Request extends Body implements globalThis.Request {
+export class Request extends Body {
   /** Returns the cache mode associated with request, which is a string indicating how the request will interact with the browser's cache when fetching. */
   readonly cache: RequestCache;
   /** Returns the credentials mode associated with request, which is a string indicating whether credentials will be sent with the request always, never, or only when sent to a same-origin URL. */
@@ -138,7 +142,7 @@ export class Request extends Body implements globalThis.Request {
   highWaterMark = 16384;
   insecureHTTPParser = false;
 
-  constructor(input: RequestInfo | URL | Request, init?: RequestInit) {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
     let parsedURL: URL;
     let requestObj: Partial<Request> = {};
 
@@ -259,6 +263,7 @@ export class Request extends Body implements globalThis.Request {
    * Clone this request
    */
   clone(): Request {
+    // @ts-ignores
     return new Request(this);
   }
 

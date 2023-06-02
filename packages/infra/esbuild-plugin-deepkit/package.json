@@ -22,8 +22,8 @@
         "@deepkit/type-compiler": "^1.0.1-alpha.83"
     },
     "devDependencies": {
-        "@types/node": "^18.13.0",
-        "esbuild": "^0.17.8",
-        "typescript": "^5.0.4"
+        "@types/node": "^18.16.16",
+        "esbuild": "^0.17.19",
+        "typescript": "^5.1.3"
     }
 }

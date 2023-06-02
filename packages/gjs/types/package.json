@@ -1,26 +1,7 @@
 {
   "name": "@gjsify/types",
   "type": "module",
-  "main": "./@types/Gjs/index.js",
-  "module": "./@types/Gjs/index.js",
-  "types": "./@types/Gjs/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./@types/Gjs/index.js",
-      "default": "./@types/Gjs/index.js"
-    },
-    "./*": {
-      "import": "./@types/Gjs/*.js",
-      "default": "./@types/Gjs/*.js"
-    }
-  },
-  "typesVersions": {
-    "*": {
-      "*": [
-        "./@types/Gjs/*.d.ts"
-      ]
-    }
-  },
+  "private": true,
   "scripts": {
     "clear": "rm -rf @types",
     "print:name": "echo '@gjsify/types'",
@@ -28,6 +9,6 @@
     "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"
   },
   "devDependencies": {
-    "@ts-for-gir/cli": "^3.0.0-beta.12"
+    "@ts-for-gir/cli": "^3.0.1"
   }
 }

@@ -1,5 +1,6 @@
 import '@girs/gjs';
 import '@girs/gio-2.0';
+import '@girs/gtk-4.0';
 
 export * from './html-canvas-element.js';
 // export * from './linkable.js';

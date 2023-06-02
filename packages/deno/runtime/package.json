@@ -46,14 +46,14 @@
         "globals"
     ],
     "devDependencies": {
-        "@girs/gjs": "^3.0.0-beta.16",
+        "@girs/gjs": "^3.0.1",
         "@gjsify/cli": "workspace:^",
         "@gjsify/empty": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@tsconfig/deno": "^1.0.7",
         "fast-glob": "^3.2.12",
-        "open-cli": "^7.1.0",
-        "typescript": "^5.0.4"
+        "open-cli": "^7.2.0",
+        "typescript": "^5.1.3"
     },
     "dependencies": {
         "@gjsify/utils": "workspace:^"
