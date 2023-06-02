@@ -20,9 +20,9 @@
         "esbuild"
     ],
     "dependencies": {
-        "@deepkit/core": "^1.0.1-alpha.77",
-        "@deepkit/injector": "^1.0.1-alpha.85",
-        "@deepkit/type": "^1.0.1-alpha.85",
+        "@deepkit/core": "^1.0.1-alpha.97",
+        "@deepkit/injector": "^1.0.1-alpha.97",
+        "@deepkit/type": "^1.0.1-alpha.97",
         "@gjsify/assert": "workspace:^",
         "@gjsify/deno-runtime": "workspace:^",
         "@gjsify/deno_std": "workspace:^",

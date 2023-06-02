@@ -28,6 +28,6 @@
         "typescript": "^5.1.3"
     },
     "dependencies": {
-        "@girs/gio-2.0": "2.76.1-3.0.1"
+        "@girs/gio-2.0": "2.76.1-3.0.0-beta.16"
     }
 }

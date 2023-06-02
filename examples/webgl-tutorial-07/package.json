@@ -30,7 +30,7 @@
     "open-cli": "^7.2.0"
   },
   "dependencies": {
-    "@girs/gio-2.0": "2.76.1-3.0.1",
+    "@girs/gio-2.0": "2.76.1-3.0.0-beta.16",
     "@girs/gjs": "^3.0.1",
     "@girs/gtk-4.0": "4.10.3-3.0.1",
     "@gjsify/webgl": "workspace:^",
