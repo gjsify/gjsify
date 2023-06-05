@@ -11,7 +11,7 @@
         "print:name": "echo '@gjsify/esbuild-plugin-deepkit'",
         "build": "yarn print:name && yarn build:js && yarn build:types",
         "build:js": "node esbuild.mjs",
-        "build:types": "yarn tsc --emitDeclarationOnly"
+        "build:types": "yarn tsc --emitDeclarationOnly || exit 0"
     },
     "keywords": [
         "gjs",

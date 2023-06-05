@@ -13,12 +13,12 @@
     "clear": "yarn workspaces foreach -v --no-private --parallel run clear",
     "print:name": "echo 'gjsify (root)'",
     "print:yarn": "echo 'Using yarn' && yarn --version",
-    "build": "yarn print:name && yarn print:yarn && yarn build:infra && yarn build:gjs && yarn build:other",
-    "build:infra": "yarn workspace @gjsify/resolve-npm run build && yarn workspace @gjsify/esbuild-plugin-transform-ext run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-deno-loader run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/cli run build || exit 0",
-    "build:gjs": "yarn workspace @gjsify/webgl run build:meson && yarn workspace @gjsify/types run build && yarn workspace @gjsify/utils run build && yarn build:deno && yarn build:web && yarn workspace @gjsify/unit run build && yarn workspace @gjsify/gio-2.0 run build && yarn workspace @gjsify/soup-3.0 run build || exit 0",
-    "build:web": "yarn workspace @gjsify/dom-events run build && yarn workspace @gjsify/html-image-element run build && yarn workspace @gjsify/webgl run build",
-    "build:deno": "yarn workspace @gjsify/deno-runtime run build && yarn workspace @gjsify/deno_std && yarn workspace @gjsify/deno-globals run build",
-    "build:other": "yarn workspaces foreach -v --no-private --parallel run build"
+    "build": "yarn workspaces foreach --no-private --topological-dev run build",
+    "build:cli": "yarn workspaces foreach -pR --topological-dev --from '@gjsify/cli' run build",
+    "build:native-libs": "yarn workspaces foreach run build:meson && yarn workspace @gjsify/types run build",
+    "build:gjs": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/gio-2.0,@gjsify/soup-3.0,@gjsify/utils,@gjsify/unit}' run build",
+    "build:web": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/abort-controller,@gjsify/dom-events,@gjsify/fetch,@gjsify/web-globals,@gjsify/html-image-element,@gjsify/webgl}' run build",
+    "build:deno": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/deno-runtime,@gjsify/deno_std, @gjsify/deno-globals}' run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

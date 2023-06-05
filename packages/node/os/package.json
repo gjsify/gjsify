@@ -23,7 +23,7 @@
     "os"
   ],
   "dependencies": {
-    "@girs/gjs": "^3.0.3",
+    "@girs/gjs": "^3.0.4",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {

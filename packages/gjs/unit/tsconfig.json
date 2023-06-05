@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "outDir": "lib",
+    "types": [],
+    "lib": ["ESNext"],
     "declarationDir": "lib/types",
     "declaration": true,
     "esModuleInterop": true,

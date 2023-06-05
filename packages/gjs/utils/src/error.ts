@@ -6,14 +6,14 @@
  */
 export const initErrorV8Methods = (ErrorConstructor: typeof Error) => {
     // See https://nodejs.org/dist/latest-v18.x/docs/api/errors.html#errorcapturestacktracetargetobject-constructoropt
-    if (!Error.captureStackTrace) {
+    if (!(Error as any).captureStackTrace) {
         /**
          * A non-standard V8 function.
          * Creates a .stack property on targetObject, which when accessed returns a string representing the location in the code at which Error.captureStackTrace() was called.
          * @param targetObject 
          * @param constructorOpt 
          */
-        Error.captureStackTrace = function(targetObject: object, constructorOpt?: Function) {
+        (Error as any).captureStackTrace = function(targetObject: object, constructorOpt?: Function) {
             const container = new Error();
 
             const target = constructorOpt || targetObject;

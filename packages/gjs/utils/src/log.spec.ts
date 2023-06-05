@@ -1,6 +1,6 @@
 import { describe, it, assert, spy } from '@gjsify/unit';
-import { logSignals } from '@gjsify/utils';
-import type { StructuredLogData } from '@gjsify/utils';
+// import { logSignals } from '@gjsify/utils';
+// import type { StructuredLogData } from '@gjsify/utils';
 
 const createUncaughtException = async () => {
 	throw new Error("top level error");

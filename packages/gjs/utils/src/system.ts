@@ -13,7 +13,7 @@ export const getArgv = () => {
     return args;
   }
 
-  const [__filename] = GLib.filename_from_uri(import.meta.url);
+  const [__filename] = GLib.filename_from_uri((import.meta as any).url);
   args.push(__filename);
   ARGV.forEach(arg => {
       if (arg[0] !== '-') {

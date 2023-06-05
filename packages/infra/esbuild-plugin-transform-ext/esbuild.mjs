@@ -1,4 +1,3 @@
-import { globPlugin } from 'esbuild-plugin-glob';
 import { build } from 'esbuild';
 import { readFile } from 'fs/promises';
 import { extname, dirname } from 'path';
@@ -27,9 +26,6 @@ const baseConfig = {
         '@gjsify/esbuild-plugin-deno-loader',
         '@gjsify/esbuild-plugin-deepkit',
         '@gjsify/esbuild-plugin-gjsify',
-    ],
-    plugins: [
-        globPlugin(),
     ]
 }
 
