@@ -13,26 +13,43 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
       // we do not register 'file' namespace here, because the root file won't be processed
       // https://github.com/evanw/esbuild/issues/791
       build.onResolve({ filter: re }, async (args) => {
-        let resolvedAlias = aliasObj[args.path];
+        let resolvedAliasPath = aliasObj[args.path];
 
         let namespace = args.namespace;
 
-        if (resolvedAlias.startsWith('http://')) {
-          namespace = 'http';
-          resolvedAlias = resolvedAlias.slice(5)
-        } else if (resolvedAlias.startsWith('https://')) {
-          namespace = 'https';
-          resolvedAlias = resolvedAlias.slice(6)
-        }
+        if (resolvedAliasPath) {
 
-        if (resolvedAlias) {
+          if (resolvedAliasPath.startsWith('http://')) {
+            namespace = 'http';
+            resolvedAliasPath = resolvedAliasPath.slice(5)
+          } else if (resolvedAliasPath.startsWith('https://')) {
+            namespace = 'https';
+            resolvedAliasPath = resolvedAliasPath.slice(6)
+          } else {
+            const resolvedAlias = (await build.resolve(resolvedAliasPath, {
+              importer: args.importer,
+              kind: args.kind,
+              namespace: namespace,
+              resolveDir: args.resolveDir,
+              pluginData: args.pluginData,
+            }));
 
-          if (existsSync(resolvedAlias)) {
-            resolvedAlias = await realpath(resolvedAlias);
+            if (resolvedAlias.errors) {
+              return resolvedAlias;
+            } else {
+              resolvedAliasPath = resolvedAlias.path;
+              namespace = resolvedAlias.namespace;
+            }
           }
 
+          if (existsSync(resolvedAliasPath)) {
+            resolvedAliasPath = await realpath(resolvedAliasPath);
+          }
+
+          // console.debug(`resolvedAliasPath: ${args.path} -> ${resolvedAliasPath}`);
+
           return {
-            path: resolvedAlias,
+            path: resolvedAliasPath,
             namespace: namespace,
           }
         }

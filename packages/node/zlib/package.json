@@ -6,8 +6,20 @@
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "type": "module",
+    "exports": {
+        ".": {
+            "import": "./lib/esm/index.js",
+            "default": "./lib/esm/index.js",
+            "require": "./lib/cjs/index.js"
+        },
+        "./types": {
+            "import": "./lib/esm/types/index.js",
+            "default": "./lib/esm/types/index.js",
+            "require": "./lib/cjs/types/index.js"
+        }
+    },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "print:name": "echo '@gjsify/zlib'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",

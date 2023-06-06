@@ -27,7 +27,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
         target: [ "esnext" ],
         platform: "browser",
         mainFields: ['browser', 'module', 'main'],
-        conditions: ['import'],
+        conditions: ['import', 'browser'],
         external,
         loader: {
             '.ts': 'ts',

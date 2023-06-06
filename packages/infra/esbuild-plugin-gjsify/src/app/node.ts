@@ -31,7 +31,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         target: [ "node18" ],
         platform: "node",
         mainFields: format === 'esm' ? ['module', 'main'] : ['main', 'module', 'browser'],
-        conditions: format === 'esm' ? ['import'] : ['require'],
+        conditions: format === 'esm' ? ['module', 'import'] : ['require'],
         external,
         loader: {
             '.ts': 'ts',

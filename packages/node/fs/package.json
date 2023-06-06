@@ -7,29 +7,32 @@
     "type": "module",
     "exports": {
         ".": {
-            "import": "./lib/esm/index.js",
-            "default": "./lib/esm/index.js",
-            "require": "./lib/cjs/index.js"
+            "import": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/esm/index.js"
+            },
+            "require": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/cjs/index.js"
+            }
         },
         "./promises": {
-            "import": "./lib/esm/promises.js",
-            "default": "./lib/esm/promises.js",
-            "require": "./lib/cjs/promises.js"
+            "import": {
+                "types": "./lib/types/promises.d.ts",
+                "default": "./lib/esm/promises.js"
+            },
+            "require": {
+                "types": "./lib/types/promises.d.ts",
+                "default": "./lib/cjs/promises.js"
+            }
         }
     },
-    "*": {
-        "": [
-            "lib/types/index.d.js"
-        ],
-        "promises": [
-            "lib/types/promises.d.js"
-        ]
-    },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "print:name": "echo '@gjsify/fs'",
         "build": "yarn print:name && yarn build:gjsify",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "yarn build:test:gjs && yarn build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
@@ -45,7 +48,8 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^18.16.16"
+        "@types/node": "^18.16.16",
+        "typescript": "^5.1.3"
     },
     "dependencies": {
         "@gjsify/deno_std": "workspace:^",

@@ -10,7 +10,7 @@
         "gjsify": "./lib/index.js"
     },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "print:name": "echo '@gjsify/cli'",
         "start": "node lib/index.js",
         "build": "yarn print:name && tsc && yarn chmod",

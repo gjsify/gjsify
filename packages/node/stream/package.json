@@ -8,42 +8,48 @@
     "types": "lib/types/index.d.js",
     "exports": {
         ".": {
-            "import": "./lib/esm/index.js",
-            "default": "./lib/esm/index.js",
-            "require": "./lib/cjs/index.js"
+            "import": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/esm/index.js"
+            },
+            "require": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/cjs/index.js"
+            }
         },
         "./consumers": {
-            "import": "./lib/esm/consumers/index.js",
-            "default": "./lib/esm/consumers/index.js",
-            "require": "./lib/cjs/consumers/index.js"
+            "import": {
+                "types": "./lib/types/consumers/index.d.ts",
+                "default": "./lib/esm/consumers/index.js"
+            },
+            "require": {
+                "types": "./lib/types/consumers/index.d.ts",
+                "default": "./lib/cjs/consumers/index.js"
+            }
         },
         "./promises": {
-            "import": "./lib/esm/promises/index.js",
-            "default": "./lib/esm/promises/index.js",
-            "require": "./lib/cjs/promises/index.js"
+            "import": {
+                "types": "./lib/types/promises/index.d.ts",
+                "default": "./lib/esm/promises/index.js"
+            },
+            "require": {
+                "types": "./lib/types/promises/index.d.ts",
+                "default": "./lib/cjs/promises/index.js"
+            }
         },
         "./web": {
-            "import": "./lib/esm/web/index.js",
-            "default": "./lib/esm/web/index.js",
-            "require": "./lib/cjs/web/index.js"
+            "import": {
+                "types": "./lib/types/web/index.d.ts",
+                "default": "./lib/esm/web/index.js"
+            },
+            "require": {
+                "types": "./lib/types/web/index.d.ts",
+                "default": "./lib/cjs/web/index.js"
+            }
         }
     },
-    "*": {
-        "": [
-            "lib/types/index.d.js"
-        ],
-        "consumers": [
-            "lib/types/consumers/index.d.js"
-        ],
-        "promises": [
-            "lib/types/promises/index.d.js"
-        ],
-        "web": [
-            "lib/types/web/index.d.js"
-        ]
-    },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "print:name": "echo '@gjsify/stream'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",

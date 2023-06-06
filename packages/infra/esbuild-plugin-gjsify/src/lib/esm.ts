@@ -30,7 +30,8 @@ export const setupEsmLib = async (build: PluginBuild, pluginOptions: PluginOptio
         },
         target: [ "esnext" ],
         platform: "browser",
-        conditions: ['import'],
+        // https://esbuild.github.io/api/#conditions
+        conditions: ['module','import'],
         format: 'esm'
     };
 

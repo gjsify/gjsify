@@ -8,15 +8,15 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./lib/esm/index.js",
-      "default": "./lib/esm/index.js",
-      "require": "./lib/cjs/index.js"
+      "import": {
+        "types": "./lib/types/index.d.ts",
+        "default": "./lib/esm/index.js"
+      },
+      "require": {
+        "types": "./lib/types/index.d.ts",
+        "default": "./lib/cjs/index.js"
+      }
     }
-  },
-  "*": {
-    "": [
-      "lib/types/index.d.js"
-    ]
   },
   "scripts": {
     "clear": "rm -rf lib tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs",

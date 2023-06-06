@@ -2,16 +2,28 @@
     "name": "@gjsify/utils",
     "version": "0.0.1",
     "description": "Utils module for gjsify",
-    "main": "lib/index.js",
-    "module": "lib/index.js",
-    "types": "lib/index.d.ts",
+    "main": "lib/cjs/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
     "type": "module",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/esm/index.js"
+            },
+            "require": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/cjs/index.js"
+            }
+        }
+    },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "print:name": "echo '@gjsify/utils'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-        "build:types": "tsc --emitDeclarationOnly || exit 0",
+        "build:types": "tsc --project tsconfig.types.json",
         "build:test": "yarn build:test:gjs",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:gjs",

@@ -27,7 +27,7 @@ export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOpti
         target: [ "esnext" ],
         platform: "neutral",
         mainFields: ['module', 'main'],
-        conditions: ['import'],
+        conditions: ['module','import'],
         external,
         loader: {
             '.ts': 'ts',

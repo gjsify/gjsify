@@ -8,28 +8,30 @@
     "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
-            "import": "./lib/esm/index.js",
-            "default": "./lib/esm/index.js",
-            "require": "./lib/cjs/index.js"
+            "import": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/esm/index.js"
+            },
+            "require": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/cjs/index.js"
+            }
         },
         "./strict": {
-            "import": "./lib/esm/strict/index.js",
-            "default": "./lib/esm/strict/index.js",
-            "require": "./lib/cjs/strict/index.js"
+            "import": {
+                "types": "./lib/types/strict/index.d.ts",
+                "default": "./lib/esm/strict/index.js"
+            },
+            "require": {
+                "types": "./lib/types/strict/index.d.ts",
+                "default": "./lib/cjs/strict/index.js"
+            }
         }
     },
-    "*": {
-        "": [
-            "lib/types/index.d.js"
-        ],
-        "strict": [
-            "lib/types/strict/index.d.js"
-        ]
-    },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "print:name": "echo '@gjsify/assert'",
-        "build": "yarn print:name && yarn build:gjsify && yarn build:types",
+        "build": "yarn print:name && yarn build:gjsify",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "yarn build:test:gjs && yarn build:test:node",

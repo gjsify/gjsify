@@ -11,8 +11,20 @@
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/types/index.d.ts",
+        "default": "./lib/esm/index.js"
+      },
+      "require": {
+        "types": "./lib/types/index.d.ts",
+        "default": "./lib/cjs/index.js"
+      }
+    }
+  },
   "scripts": {
-    "clear": "rm -rf lib tsconfig.tsbuildinfo",
+    "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
     "print:name": "echo '@gjsify/require'",
     "build": "yarn print:name && yarn build:gjsify",
     "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",

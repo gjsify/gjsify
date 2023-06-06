@@ -26,55 +26,17 @@ export const setNodeAliasPrefix = (ALIASES: Record<string, string>) => {
     return ALIASES;
 }
 
-export const resolveAliasesByType = (ALIASES: Record<string, string>, options: ResolveAliasOptions) => {
-    const aliases: Record<string, string> = {}
-    for (const ALIAS in ALIASES) {
-        if(ALIASES[ALIAS].startsWith("http://") || ALIASES[ALIAS].startsWith("https://") || ALIASES[ALIAS].startsWith("file://")) {
-            aliases[ALIAS] = ALIASES[ALIAS];
-        } else {
-            aliases[ALIAS] = resolvePackage(ALIASES[ALIAS], options);
-        }        
-    }
-    return aliases
-}
+const getAliasesGeneralForGjs = (options: ResolveAliasOptions) => ALIASES_GENERAL_FOR_GJS;
+const getAliasesNodeForGjs = (options: ResolveAliasOptions) => setNodeAliasPrefix(ALIASES_NODE_FOR_GJS);
+const getAliasesWebForGjs = (options: ResolveAliasOptions) => ALIASES_WEB_FOR_GJS;
 
-const resolvePackage = (pkgName: string, options: ResolveAliasOptions): string => {
+const getAliasesGeneralForDeno = (options: ResolveAliasOptions) => ALIASES_GENERAL_FOR_DENO;
+const getAliasesNodeForDeno = (options: ResolveAliasOptions) => setNodeAliasPrefix(ALIASES_NODE_FOR_DENO);
+const getAliasesGjsForDeno = (options: ResolveAliasOptions) => ALIASES_GJS_FOR_DENO;
 
-    // TODO: use micromatch here
-    if(options.external.includes(pkgName)) {
-        if(options.debug) console.debug('[gjsify] external alias: ' + pkgName);
-        return pkgName;
-    }
-
-    let resolveTo = pkgName;
-    let result = resolveTo;
-
-    try {
-        result = require.resolve(resolveTo);
-        if(options.debug) console.debug('[gjsify] resolve alias: ' + result);
-        return result;
-    } catch (error) {
-        console.warn('[gjsify]', error.message, pkgName);
-    }
-
-    if(options.debug) console.debug('[gjsify] resolve alias: ' + result);
-
-    return result;
-}
-
-
-
-const getAliasesGeneralForGjs = (options: ResolveAliasOptions) => resolveAliasesByType(ALIASES_GENERAL_FOR_GJS, options);
-const getAliasesNodeForGjs = (options: ResolveAliasOptions) => resolveAliasesByType(setNodeAliasPrefix(ALIASES_NODE_FOR_GJS), options);
-const getAliasesWebForGjs = (options: ResolveAliasOptions) => resolveAliasesByType(ALIASES_WEB_FOR_GJS, options);
-
-const getAliasesGeneralForDeno = (options: ResolveAliasOptions) => resolveAliasesByType(ALIASES_GENERAL_FOR_DENO, options);
-const getAliasesNodeForDeno = (options: ResolveAliasOptions) => resolveAliasesByType(setNodeAliasPrefix(ALIASES_NODE_FOR_DENO), options);
-const getAliasesGjsForDeno = (options: ResolveAliasOptions) => resolveAliasesByType(ALIASES_GJS_FOR_DENO, options);
-
-const getAliasesGeneralForNode = (options: ResolveAliasOptions) => resolveAliasesByType(ALIASES_GENERAL_FOR_NODE, options);
-const getAliasesGjsForNode = (options: ResolveAliasOptions) => resolveAliasesByType(ALIASES_GJS_FOR_NODE, options);
-const getAliasesWebForNode = (options: ResolveAliasOptions) => resolveAliasesByType(ALIASES_WEB_FOR_NODE, options);
+const getAliasesGeneralForNode = (options: ResolveAliasOptions) => ALIASES_GENERAL_FOR_NODE;
+const getAliasesGjsForNode = (options: ResolveAliasOptions) => ALIASES_GJS_FOR_NODE;
+const getAliasesWebForNode = (options: ResolveAliasOptions) => ALIASES_WEB_FOR_NODE;
 
 
 export const getAliasesForGjs = (options: ResolveAliasOptions) => {

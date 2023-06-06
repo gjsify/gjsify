@@ -30,6 +30,7 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
         },
         target: ['esnext'],
         platform: "browser",
+        // https://esbuild.github.io/api/#conditions
         conditions: ['require'],
         format: 'cjs'
     };
