@@ -316,34 +316,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gio-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/gio-2.0@npm:^2.76.1-3.0.4":
-  version: 2.76.1-3.0.0-beta.16
-  resolution: "@girs/gio-2.0@npm:2.76.1-3.0.0-beta.16"
-  dependencies:
-    "@girs/gjs": "npm:^3.0.0-beta.16"
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.0-beta.16"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.0-beta.16"
-  checksum: 073077599aca99aaac2b4116e2b63e611257b35074fc0a65a7fcf4681d72e012b41148d15966456cde7ae8acf55cf57fe10069ac2b6cfcbb217de7f4d9a44173
-  languageName: node
-  linkType: hard
-
-"@girs/gjs@npm:3.0.4, @girs/gjs@npm:^3.0.4":
+"@girs/gjs@npm:3.0.4":
   version: 3.0.4
   resolution: "@girs/gjs@npm:3.0.4"
   dependencies:
     "@girs/glib-2.0": "npm:^2.76.1-3.0.4"
     "@girs/gobject-2.0": "npm:^2.76.1-3.0.4"
   checksum: 52f1e711a74cc18dd8941a3e34e28865feb70d89047c3a91923527ce0903f90dd22456b53988177f348e2bfc8be54ada2796d68bbfe3f174510fd433a283d9ce
-  languageName: node
-  linkType: hard
-
-"@girs/gjs@npm:^3.0.0-beta.16":
-  version: 3.0.0-beta.16
-  resolution: "@girs/gjs@npm:3.0.0-beta.16"
-  dependencies:
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.0-beta.16"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.0-beta.16"
-  checksum: 6b02bbf2812cc6c199b04908c68c4539224d67872cd4ed62aba8d30f76cc0ed8bc96527845d6012a04b9764f37731de3f5dbe2f482238751a6a62bc7a593e052
   languageName: node
   linkType: hard
 
@@ -354,16 +333,6 @@ __metadata:
     "@girs/gjs": "npm:^3.0.4"
     "@girs/gobject-2.0": "npm:^2.76.1-3.0.4"
   checksum: bcc3cc1a0fab1877d8156e352251d4d0722a5f8dc4f8235cf4aacca3488c103ad65e5345e40706841f31f8c8aef82c0ddad055cbc053bd6e9a17c10f79107e5e
-  languageName: node
-  linkType: hard
-
-"@girs/glib-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/glib-2.0@npm:^2.76.1-3.0.4":
-  version: 2.76.1-3.0.0-beta.16
-  resolution: "@girs/glib-2.0@npm:2.76.1-3.0.0-beta.16"
-  dependencies:
-    "@girs/gjs": "npm:^3.0.0-beta.16"
-    "@girs/gobject-2.0": "npm:^2.76.1-3.0.0-beta.16"
-  checksum: 31ccf4d1333b1289453e13ebfff0adb9b20930919e580a54ad0e9b060339eaac85c9d418df9ed6979a0c0aabdafc20591e6575323c46e651d8494143b035587e
   languageName: node
   linkType: hard
 
@@ -385,16 +354,6 @@ __metadata:
     "@girs/gjs": "npm:^3.0.4"
     "@girs/glib-2.0": "npm:^2.76.1-3.0.4"
   checksum: 4b6cb4f7ea9c88d65950b1f7dd63e5d3e62aeb6d6531e0ff3a7781b0917038c978bdc1c849ef09665fc5e94a0e3160fff01f1d83e00c6e32bfb24e05b59991f4
-  languageName: node
-  linkType: hard
-
-"@girs/gobject-2.0@npm:^2.76.1-3.0.0-beta.16, @girs/gobject-2.0@npm:^2.76.1-3.0.4":
-  version: 2.76.1-3.0.0-beta.16
-  resolution: "@girs/gobject-2.0@npm:2.76.1-3.0.0-beta.16"
-  dependencies:
-    "@girs/gjs": "npm:^3.0.0-beta.16"
-    "@girs/glib-2.0": "npm:^2.76.1-3.0.0-beta.16"
-  checksum: 9c64594ae327e0a2a3e25d4877973139464fce8940b2adb2eaabb5fe2e10892b0247bd8f330ef9006eba648756970013a6d365d98fe86fc9a655e5af55ac00b3
   languageName: node
   linkType: hard
 
@@ -1142,6 +1101,7 @@ __metadata:
   dependencies:
     "@girs/gio-2.0": "npm:2.76.1-3.0.4"
     "@girs/gjs": "npm:^3.0.4"
+    "@girs/glib-2.0": "npm:2.76.1-3.0.4"
     "@gjsify/cli": "workspace:^"
     typescript: "npm:^5.1.3"
   languageName: unknown

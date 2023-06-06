@@ -1,4 +1,3 @@
-import '@girs/gjs';
 import type { CancelSignals } from './types/index.js';
 
 let nextRid = 1;
