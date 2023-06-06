@@ -5,8 +5,8 @@ import '@girs/gio-2.0';
 
 const { searchPath } = imports;
 import { resolve as _resolve, readJSON, getNodeModulesPath } from '@gjsify/utils';
-import Gio from 'gi://Gio?version=2.0';
-import GLib from 'gi://GLib?version=2.0';
+import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import { ALIASES_NODE_FOR_GJS, ALIASES_WEB_FOR_GJS } from "@gjsify/resolve-npm";
 // import { URL } from 'url';
 

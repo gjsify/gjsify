@@ -1,11 +1,10 @@
-import "@gjs/gjs";
-import "@gjs/soup-3.0"
+import "@girs/gjs";
 
 import { describe, it, expect } from '@gjsify/unit';
 
 import * as SoupExt from './index.js';
-import Soup from "gi://Soup?version=3.0";
-import GLib from 'gi://GLib?version=2.0';
+import Soup from "@girs/soup-3.0";
+import GLib from '@girs/glib-2.0';
 
 export default async () => {
 	await describe('SoupExt.ExtSession.sendAsync', async () => {

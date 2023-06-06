@@ -1,10 +1,9 @@
 import "@girs/gjs";
-import "@girs/soup-3.0"
 
-import Soup from 'gi://Soup?version=3.0';
-import Gio from 'gi://Gio?version=2.0';
+import Soup from '@girs/soup-3.0';
+import Gio from '@girs/gio-2.0';
 import { ExtInputStream } from '@gjsify/gio-2.0';
-import GLib from 'gi://GLib?version=2.0';
+import GLib from '@girs/glib-2.0';
 
 // This interface is used for pseudo extend Soup.Session
 export interface ExtSession extends Soup.Session {}

@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import { ExtInputStream } from './index.js';
-import Gio from 'gi://Gio?version=2.0';
+import Gio from '@girs/gio-2.0';
 import { Readable } from 'stream';
 
 const byteArray = imports.byteArray;

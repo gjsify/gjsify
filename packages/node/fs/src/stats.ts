@@ -1,4 +1,4 @@
-import Gio from 'gi://Gio?version=2.0';
+import Gio from '@girs/gio-2.0';
 import { Dirent } from './dirent.js';
 import { basename } from 'path';
 

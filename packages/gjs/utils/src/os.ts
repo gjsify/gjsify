@@ -1,6 +1,6 @@
 import { cli } from './cli.js';
-import GLib from 'gi://GLib?version=2.0';
-import Gio from 'gi://Gio?version=2.0';
+import GLib from '@girs/glib-2.0';
+import Gio from '@girs/gio-2.0';
 
 import type { UserInfo } from './types/index.js';
 

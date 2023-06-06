@@ -4,7 +4,7 @@
  * Headers class offers convenient helpers
  */
 
-import Soup from 'gi://Soup?version=3.0';
+import Soup from '@girs/soup-3.0';
 import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
 
 import { types } from 'util';

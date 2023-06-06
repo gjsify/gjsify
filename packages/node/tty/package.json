@@ -4,6 +4,7 @@
     "description": "Node.js tty module for Gjs",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
+    "type": "module",
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/tty'",

@@ -1,5 +1,5 @@
-import Soup from 'gi://Soup?version=3.0';
-import Gio from 'gi://Gio?version=2.0';
+import Soup from '@girs/soup-3.0';
+import Gio from '@girs/gio-2.0';
 import Request from './request.js';
 
 /**

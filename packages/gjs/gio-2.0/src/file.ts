@@ -1,5 +1,5 @@
-import Gio from 'gi://Gio?version=2.0';
-import GLib from 'gi://GLib?version=2.0';
+import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import { ExtFileEnumerator } from './file-enumerator.js';
 
 export class ExtFile extends Gio.File {

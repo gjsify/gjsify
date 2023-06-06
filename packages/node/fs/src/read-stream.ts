@@ -1,5 +1,5 @@
 // Credits https://github.com/denoland/deno_std/blob/main/node/_fs/_fs_streams.ts
-import GLib from 'gi://GLib?version=2.0';
+import GLib from '@girs/glib-2.0';
 import { notImplemented } from "@gjsify/utils";
 import { Buffer } from "buffer";
 import { Readable } from "stream";
