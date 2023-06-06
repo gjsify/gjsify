@@ -5,7 +5,8 @@
   "scripts": {
     "clear": "rm -rf @types",
     "print:name": "echo '@gjsify/types'",
-    "build": "ts-for-gir generate && yarn install",
+    "build": "echo 'Please build the types by hand and commit the changes'",
+    "build:types": "ts-for-gir generate",
     "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"
   },
   "devDependencies": {
