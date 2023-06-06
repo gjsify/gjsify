@@ -13,9 +13,9 @@
     "clear": "yarn workspaces foreach -v --no-private --parallel run clear",
     "print:name": "echo 'gjsify (root)'",
     "print:yarn": "echo 'Using yarn' && yarn --version",
-    "build": "yarn workspaces foreach --no-private --topological-dev run build",
+    "build": "yarn run build:cli && yarn run build:native-libs && yarn run build:deno && yarn run build:gjs && yarn run build:web",
     "build:cli": "yarn workspaces foreach -pR --topological-dev --from '@gjsify/cli' run build",
-    "build:native-libs": "yarn workspaces foreach run build:meson && yarn workspace @gjsify/types run build",
+    "build:native-libs": "yarn workspace @gjsify/webgl run build:meson && yarn workspace @gjsify/types run build",
     "build:gjs": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/gio-2.0,@gjsify/soup-3.0,@gjsify/utils,@gjsify/unit}' run build",
     "build:web": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/abort-controller,@gjsify/dom-events,@gjsify/fetch,@gjsify/web-globals,@gjsify/html-image-element,@gjsify/webgl}' run build",
     "build:deno": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/deno-runtime,@gjsify/deno_std, @gjsify/deno-globals}' run build"

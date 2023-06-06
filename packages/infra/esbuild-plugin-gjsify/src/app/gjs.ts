@@ -32,7 +32,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox102 // Since GJS 1.73.2
         target: [ "firefox102" ],
         platform: "neutral",
-        // mainFields: ['module', 'main'],
+        mainFields: ['module', 'main'],
         // https://esbuild.github.io/api/#conditions
         conditions: ['module','import'],
         external,

@@ -580,6 +580,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno-runtime": "workspace:^"
     "@gjsify/process": "workspace:^"
+    "@gjsify/stream": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
   languageName: unknown
@@ -1024,7 +1025,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/stream@workspace:packages/node/stream":
+"@gjsify/stream@workspace:^, @gjsify/stream@workspace:packages/node/stream":
   version: 0.0.0-use.local
   resolution: "@gjsify/stream@workspace:packages/node/stream"
   dependencies:

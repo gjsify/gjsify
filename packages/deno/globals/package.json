@@ -11,6 +11,16 @@
   "type": "module",
   "main": "lib/index.js",
   "module": "lib/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "default": "./lib/index.js"
+      },
+      "require": {
+        "default": "./lib/index.js"
+      }
+    }
+  },
   "scripts": {
     "clear": "rm -rf lib tsconfig.tsbuildinfo test.gjs.mjs test.deno.mjs test.node.mjs",
     "print:name": "echo '@gjsify/deno-globals'",
@@ -26,6 +36,7 @@
   "dependencies": {
     "@gjsify/deno-runtime": "workspace:^",
     "@gjsify/process": "workspace:^",
+    "@gjsify/stream": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {

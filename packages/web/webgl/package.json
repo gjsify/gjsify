@@ -2,10 +2,22 @@
     "name": "@gjsify/webgl",
     "version": "0.0.1",
     "description": "WebGL module for Gjs",
-    "main": "lib/index.js",
-    "module": "lib/index.js",
-    "types": "lib/index.d.ts",
+    "main": "lib/cjs/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
     "type": "module",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/esm/index.js"
+            },
+            "require": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/cjs/index.js"
+            }
+        }
+    },
     "scripts": {
         "clear": "rm -rf lib tmp build test.gjs.js tsconfig.tsbuildinfo",
         "print:name": "echo '@gjsify/webgl'",

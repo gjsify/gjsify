@@ -8,23 +8,15 @@
     "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
-            "import": "./lib/esm/index.js",
-            "default": "./lib/esm/index.js",
-            "require": "./lib/cjs/index.js"
-        },
-        "./types": {
-            "import": "./lib/esm/types/index.js",
-            "default": "./lib/esm/types/index.js",
-            "require": "./lib/cjs/types/index.js"
+            "import": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/esm/index.js"
+            },
+            "require": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/cjs/index.js"
+            }
         }
-    },
-    "*": {
-        "": [
-            "lib/types/index.d.js"
-        ],
-        "types": [
-            "lib/types/types/index.d.js"
-        ]
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",

@@ -23,7 +23,7 @@
         "print:name": "echo '@gjsify/gio-2.0'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-        "build:types": "tsc --emitDeclarationOnly --project tsconfig.types.json || exit 0",
+        "build:types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:gjs",
         "test:gjs": "gjs -m test.gjs.js"
