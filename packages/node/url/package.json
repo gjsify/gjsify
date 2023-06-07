@@ -22,7 +22,8 @@
         "print:name": "echo '@gjsify/url'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.ts' 'src/test.ts'",
-        "build:types": "tsc --project tsconfig.types.json || exit 0",
+        "build:types": "echo 'The types are currently handwritten'",
+        "build:real_types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "yarn build:test:gjs && yarn build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.ts --app node --outfile test.node.mjs",
@@ -41,6 +42,7 @@
         "typescript": "^5.1.3"
     },
     "dependencies": {
-        "@gjsify/deno_std": "workspace:^"
+        "@gjsify/deno_std": "workspace:^",
+        "@types/node": "^20.2.5"
     }
 }

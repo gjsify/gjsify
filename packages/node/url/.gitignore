@@ -1,0 +1,4 @@
+!lib/
+lib/cjs/
+lib/esm/
+!lib/types/
