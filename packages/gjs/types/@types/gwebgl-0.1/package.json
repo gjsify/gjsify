@@ -27,8 +27,8 @@
     },
     "scripts": {
         "test": "yarn test:esm && yarn test:cjs",
-        "test:esm": "tsc --noEmit gwebgl-0.1.d.ts",
-        "test:cjs": "tsc --noEmit gwebgl-0.1.d.cts"
+        "test:esm": "NODE_OPTIONS=--max_old_space_size=9216 tsc --noEmit gwebgl-0.1.d.ts",
+        "test:cjs": "NODE_OPTIONS=--max_old_space_size=9216 tsc --noEmit gwebgl-0.1.d.cts"
     },
     "dependencies": {
         "@girs/gjs": "3.0.4",

@@ -22,9 +22,6 @@
 		"composite": true,
 		"incremental": true,
     	"typeRoots": ["node_modules", "src/ts/@types"],
-		"types": [
-			"node"
-		],
 		"lib": [
 			"es2015",
 			"es2016",

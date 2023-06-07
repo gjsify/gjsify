@@ -106,6 +106,9 @@ export interface GjsifyWebGLRenderingContext extends WebGLConstants { }
 export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     canvas: GjsifyHTMLCanvasElement & HTMLCanvasElement;
 
+    /** TODO implement this: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawingBufferColorSpace */
+    drawingBufferColorSpace: PredefinedColorSpace;
+
     get drawingBufferHeight() {
         return this.canvas.height || 0;
     }

@@ -174,7 +174,9 @@ export function boolArray(array: ArrayBufferView) {
 }
 
 export const extractImageData = (pixels: TexImageSource | GjsifyHTMLImageElement): ImageData | null => {
-    if (typeof pixels === 'object' && typeof pixels.width !== 'undefined' && typeof pixels.height !== 'undefined') {
+    const width = (pixels as any).width as number | undefined;
+    const height = (pixels as any).height as number | undefined;
+    if (typeof pixels === 'object' && typeof width !== 'undefined' && typeof height !== 'undefined') {
         if (typeof (pixels as ImageData).data !== 'undefined') {
             return pixels as ImageData
         }
@@ -189,8 +191,8 @@ export const extractImageData = (pixels: TexImageSource | GjsifyHTMLImageElement
             const canvas = document.createElement('canvas')
 
             if (typeof canvas === 'object' && typeof canvas.getContext === 'function') {
-                canvas.width = pixels.width
-                canvas.height = pixels.height
+                canvas.width = width
+                canvas.height = height
                 context = canvas.getContext('2d')
 
                 if (context !== null) {
@@ -200,7 +202,7 @@ export const extractImageData = (pixels: TexImageSource | GjsifyHTMLImageElement
         }
 
         if (context !== null) {
-            return context.getImageData(0, 0, pixels.width, pixels.height)
+            return context.getImageData(0, 0, width, height)
         }
     }
 
