@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/net",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Node.js net module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",

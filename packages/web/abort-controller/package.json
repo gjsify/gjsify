@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/abort-controller",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Web AbortController module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",

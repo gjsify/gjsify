@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/esbuild-plugin-transform-ext",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Transform import file extensions plugin for esbuild",
     "type": "module",
     "main": "dist/cjs/index.cjs",

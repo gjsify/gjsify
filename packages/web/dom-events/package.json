@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/dom-events",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Web events module for Gjs",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",

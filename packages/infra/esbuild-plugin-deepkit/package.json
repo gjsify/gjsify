@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/esbuild-plugin-deepkit",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Deepkit type compiler plugin for esbuild",
     "type": "commonjs",
     "main": "dist/cjs/index.cjs",

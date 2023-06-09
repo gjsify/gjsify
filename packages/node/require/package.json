@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/require",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "require core module for gjs",
   "keywords": [
     "gjs",

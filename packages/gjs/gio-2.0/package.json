@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gio-2.0",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Extended Gio-2.0 module for Gjsify",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",

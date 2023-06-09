@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/soup-3.0",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Extended Soup-3.0 module for Gjsify",
     "main": "lib/index.js",
     "module": "lib/index.js",
