@@ -22,7 +22,7 @@
         "esbuild": "^0.17.19"
     },
     "devDependencies": {
-        "esbuild": "^0.17.19",
+        "esbuild": "^0.18.2",
         "typescript": "^5.1.3"
     }
 }

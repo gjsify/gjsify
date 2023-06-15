@@ -36,7 +36,7 @@
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@types/node": "^18.16.16"
+        "@types/node": "^20.3.1"
     },
     "dependencies": {
         "@gjsify/utils": "workspace:^"

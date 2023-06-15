@@ -3,7 +3,9 @@ import GLib from '@girs/glib-2.0';
 import { ExtOutputStream } from './output-stream.js'
 
 import { Readable } from 'stream';
-import type { ReadableOptions } from 'stream';
+import type { ReadableOptions } from 'node:stream';
+
+import type { ReadableStream } from 'node:stream/web'
 
 const byteArray = imports.byteArray;
 
@@ -99,7 +101,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @returns 
      */
     public toReadableStream(options: ReadableOptions = {}) {
-        return Readable.toWeb(this.toReadable(options)) as ReadableStream<any>;
+        return Readable.toWeb(this.toReadable(options)) as ReadableStream<Uint8Array>;
     }
 
     /**
