@@ -20,7 +20,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     const esbuildOptions: BuildOptions = {
         format, 
         bundle: true,
-        metafile: true,
+        metafile: false,
         minify: false,
         sourcemap: false,
         treeShaking: true,
@@ -31,10 +31,10 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox91  // Since GJS 1.71.1
         // firefox102 // Since GJS 1.73.2
         target: [ "firefox102" ],
-        platform: "neutral",
-        mainFields: format === 'esm' ? ['module', 'main'] : ['main'],
+        platform: 'neutral',
+        mainFields: format === 'esm' ? ['module', 'main'] : ['main', 'module'],
         // https://esbuild.github.io/api/#conditions
-        conditions: format === 'esm' ? ['module', 'import'] : ['require'],
+        conditions: format === 'esm' ? ['import', 'require'] : ['require', 'import'],
         external,
         loader: {
             '.ts': 'ts',

@@ -1,0 +1,16 @@
+{
+  "name": "@gjsify/example-gio-cat",
+  "version": "0.0.2",
+  "type": "module",
+  "module": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\"",
+    "build": "gjsify build src/index.ts --app",
+    "start": "gjs -m dist/index.js src/index.ts"
+  },
+  "dependencies": {
+    "@girs/gio-2.0": "^2.76.1-3.1.0",
+    "@girs/gjs": "^3.1.0",
+    "@gjsify/cli": "^0.0.2"
+  }
+}

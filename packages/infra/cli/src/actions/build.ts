@@ -77,13 +77,13 @@ export class BuildAction {
     /** Application mode */
     async buildApp(app: App = 'gjs') {
 
-        const { verbose, esbuild, typescript, exclude, library } = this.configData;
+        const { verbose, esbuild, typescript, exclude, library: pgk } = this.configData;
 
         const format: 'cjs' | 'esm' = esbuild?.format || esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm';
 
         // Set default outfile if no outdir is set 
-        if(esbuild && !esbuild?.outfile && !esbuild?.outdir && !library?.module && (library?.main || library?.module)) {
-            esbuild.outfile = esbuild?.format === 'cjs' ? library.main || library.module : library.module || library.main;
+        if(esbuild && !esbuild?.outfile && !esbuild?.outdir && (pgk?.main || pgk?.module)) {
+            esbuild.outfile = esbuild?.format === 'cjs' ? pgk.main || pgk.module : pgk.module || pgk.main;
         }
 
         const result = await build({
