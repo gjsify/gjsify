@@ -7,16 +7,19 @@ import { getJsExtensions, globToEntryPoints } from "../utils/index.js";
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
 
-export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptions) => {
+export const setupLib = async (build: PluginBuild, pluginOptions: PluginOptions) => {
+
+    const format = pluginOptions.format || 'esm';
 
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];
 
     const esbuildOptions: BuildOptions = {
+        format,
         bundle: false,
-        splitting: false, // only works with esm, see https://esbuild.github.io/api/#splitting
         minify: false,
-        sourcemap: false,
+        sourcemap: false, 
+        splitting: format === 'esm' ? true : false, // Works only on esm
         loader: {
             '.ts': 'ts',
             '.mts': 'ts',
@@ -28,18 +31,16 @@ export const setupCjsLib = async (build: PluginBuild, pluginOptions: PluginOptio
             '.cjs': 'ts',
             '.js': 'ts',
         },
-        target: ['esnext'],
-        platform: "browser",
+        target: [ "esnext" ],
+        platform: "neutral",
+        mainFields: format === 'esm' ? ['module', 'main'] : ['main'],
         // https://esbuild.github.io/api/#conditions
-        conditions: ['require'],
-        format: 'cjs'
+        conditions: format === 'esm' ? ['module','import'] : ['require'],
     };
 
     merge(build.initialOptions, esbuildOptions);
 
-    build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude)
-
-    if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
+    build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude);
 
     await aliasPlugin(pluginOptions.aliases).setup(build);
     await transformExtPlugin({ outExtension: getJsExtensions(pluginOptions.jsExtension) }).setup(build);

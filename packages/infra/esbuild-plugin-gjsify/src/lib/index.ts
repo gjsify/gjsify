@@ -1,2 +1,1 @@
-export * from './cjs.js';
-export * from './esm.js';
+export * from './lib.js';

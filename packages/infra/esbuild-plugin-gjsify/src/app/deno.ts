@@ -11,13 +11,16 @@ import { getAliasesForDeno, globToEntryPoints } from "../utils/index.js";
 export const setupForDeno = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
     const external = [];
+    const format = pluginOptions.format || 'esm';
+
+    if(format !== 'esm') throw new TypeError('Only ESM format is supported for Deno');
 
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];
 
     // Set default options
     const esbuildOptions: BuildOptions = {
-        format: 'esm',
+        format, // Only 'esm' is supported for Deno
         bundle: true,
         minify: false,
         sourcemap: false,

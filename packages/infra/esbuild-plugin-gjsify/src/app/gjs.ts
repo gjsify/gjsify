@@ -11,13 +11,14 @@ import type { PluginOptions } from '../types/plugin-options.js';
 export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
     const external = ['gi://*', 'cairo', 'gettext', 'system'];
+    const format = pluginOptions.format || 'esm';
 
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];
 
     // Set default options
     const esbuildOptions: BuildOptions = {
-        format: 'esm', // On Gjs we only support esm
+        format, 
         bundle: true,
         metafile: true,
         minify: false,
@@ -31,9 +32,9 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox102 // Since GJS 1.73.2
         target: [ "firefox102" ],
         platform: "neutral",
-        mainFields: ['module', 'main'],
+        mainFields: format === 'esm' ? ['module', 'main'] : ['main'],
         // https://esbuild.github.io/api/#conditions
-        conditions: ['module','import'],
+        conditions: format === 'esm' ? ['module', 'import'] : ['require'],
         external,
         loader: {
             '.ts': 'ts',

@@ -8,6 +8,16 @@ export interface CliBuildOptions {
   entryPoints?: string[];
   /** Switch on the verbose mode */
   verbose?: boolean;
+  /**
+   * When enabled, the generated code will be minified instead of pretty-printed.
+   * @see https://esbuild.github.io/api/#minify
+   */
+  minify?: boolean;
+  /**
+   * Override the default output format.
+   * @see https://esbuild.github.io/api/#format
+   */
+  format?: 'iife' | 'esm' | 'cjs';
   /** Use this if you want to build a application or test, the platforms node and deno are usually only used internally to build the tests for Gjsify */
   app?: App;
   /** Use this if you want to build a library for Gjsify */

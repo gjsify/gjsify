@@ -17,6 +17,7 @@ const baseConfig = {
     entryPoints: ['src/index.ts'],
     bundle: true,
     minify: false,
+    platform: "node",
     external: [
         ...EXTERNALS_NODE,
         'typescript',
@@ -35,7 +36,6 @@ if (pkg.main) {
         outdir: dirname(pkg.main),
         format: 'cjs',
         outExtension: {'.js': extname(pkg.main)},
-        platform: "node",
     });    
 }
 

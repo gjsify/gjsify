@@ -1,9 +1,8 @@
 import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
-import { build, analyzeMetafile, BuildOptions, BuildResult } from 'esbuild';
+import { build, BuildOptions, BuildResult } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
 import { dirname, extname } from 'path';
-import { writeFile } from 'fs/promises';
 
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {

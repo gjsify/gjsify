@@ -8,7 +8,7 @@ export interface PluginOptions extends DeepkitPluginOptions {
     /** An array of glob patterns to exclude matches and aliases */
     exclude?: string[];
     jsExtension?: string;
-    /** Override the format, only be considered if the target app platform is `'node'`, otherwise it is always `'esm'` */
+    /** Override the format */
     format?: 'esm' | 'cjs'
     /** 
      * Library Mode

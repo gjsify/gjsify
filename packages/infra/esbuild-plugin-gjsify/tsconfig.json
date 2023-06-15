@@ -3,8 +3,11 @@
     "module": "ESNext",
     "target": "ESNext",
     "outDir": "dist",
+    "types": ["node"],
+    "lib": ["ESNext", "DOM"],
     "declarationDir": "dist/types",
     "declaration": true,
+    "emitDeclarationOnly": true,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true

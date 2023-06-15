@@ -13,11 +13,10 @@ import type { PluginOptions } from '../types/plugin-options.js';
 export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
     const external = [...EXTERNALS_NODE, 'gi://*'];
+    const format = pluginOptions.format || 'esm';
 
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];
-
-    const format = pluginOptions.format || 'esm';
 
     // Set default options
     const esbuildOptions: BuildOptions = {
@@ -29,7 +28,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         preserveSymlinks: false, // false means follow symlinks
         target: [ "node18" ],
         platform: "node",
-        mainFields: format === 'esm' ? ['module', 'main'] : ['main', 'module', 'browser'],
+        mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
         conditions: format === 'esm' ? ['module', 'import'] : ['require'],
         external,
         loader: {

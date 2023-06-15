@@ -10,9 +10,7 @@ import type { ArgumentsCamelCase } from 'yargs';
 
 export class Config {
 
-    readonly loadOptions: LoadOptions = {
-        searchPlaces: [APP_NAME]
-    }
+    readonly loadOptions: LoadOptions = {}
 
     constructor(loadOptions: LoadOptions = {}) {
         if(Object.keys(loadOptions).length) {
@@ -20,7 +18,7 @@ export class Config {
         }
     }
 
-    /** Loads gjsify config file, e.g `gjsify.js` */
+    /** Loads gjsify config file, e.g `.gjsifyrc.js` */
     private async load(searchFrom?: string) {        
         let configFile = await cosmiconfig(APP_NAME, this.loadOptions).search(searchFrom) as CosmiconfigResult<ConfigData> | null;
 
@@ -66,11 +64,17 @@ export class Config {
         merge(configData.library, pkg, configData.library);
         merge(configData.typescript, tsConfig, configData.typescript);
         merge(configData.esbuild, {
+            format: cliArgs.format,
+            minify: cliArgs.minify,
             entryPoints: cliArgs.entryPoints,
             outfile: cliArgs.outfile,
             outdir: cliArgs.outdir,
             logLevel: cliArgs.logLevel || 'warning'
         });
+
+        if(configData.esbuild && !configData.esbuild?.outfile) {
+            configData.esbuild.outfile = configData.esbuild?.format === 'cjs' ? pkg.main || pkg.module : pkg.module || pkg.main;
+        }
 
         if(configData.verbose) console.debug("configData", configData);
 

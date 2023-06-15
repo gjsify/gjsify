@@ -1,6 +1,6 @@
 import type { Plugin } from "esbuild";
 import type { PluginOptions } from './types/plugin-options.js';
-import { setupCjsLib, setupEsmLib } from './lib/index.js';
+import { setupLib } from './lib/index.js';
 import { setupForGjs, setupForNode, setupForDeno, setupForBrowser } from './app/index.js';
 
 export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
@@ -12,9 +12,8 @@ export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
             if(pluginOptions.library) {
                 switch (pluginOptions.library) {
                     case 'esm':
-                        return setupEsmLib(build, pluginOptions)
                     case 'cjs':
-                        return setupCjsLib(build, pluginOptions)
+                        return setupLib(build, pluginOptions)
                     default:
                         throw new TypeError('Unknown library type: ' + pluginOptions.library);
                 }

@@ -38,6 +38,18 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
                 default: 'gjs'
             })
+            .option('format', {
+                description: "Override the default output format",
+                type: 'string',
+                choices: ['iife', 'esm', 'cjs'],
+                normalize: true,
+            })
+            .option('minify', {
+                description: "When enabled, the generated code will be minified instead of pretty-printed",
+                type: 'boolean',
+                normalize: true,
+                default: false
+            })
             .option('library', {
                 description: "Use this if you want to build a library for Gjsify",
                 type: 'boolean',
@@ -45,16 +57,19 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 default: false
             })
             .option('outfile', {
+                alias: 'o',
                 description: "Sets the output file name for the build operation. If no outfile is specified, the outfile will be parsed from the package.json. Only used if application mode is active",
                 type: 'string',
                 normalize: true,
             })
             .option('outdir', {
+                alias: 'd',
                 description: "Sets the output directory for the build operation. If no outdir is specified, the outdir will be parsed from the package.json. Only used if library mode is active",
                 type: 'string',
                 normalize: true,
             })
             .option('reflection', {
+                alias: 'r',
                 description: "Enables TypeScript types on runtime using Deepkit's type compiler",
                 type: 'boolean',
                 normalize: true,
