@@ -1,3 +1,4 @@
+import './lodash.d.ts';
 export * from './types/index.js';
 export * from "@gjsify/resolve-npm";
 export * from './utils/index.js';
