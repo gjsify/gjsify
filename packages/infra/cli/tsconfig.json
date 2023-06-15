@@ -8,5 +8,6 @@
       "allowSyntheticDefaultImports": true,
       "strict": true
     },
+    "include": ["src/lodash.d.ts"],
     "files": ["src/index.ts"]
 }

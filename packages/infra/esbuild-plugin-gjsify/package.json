@@ -12,7 +12,7 @@
         "test": "yarn print:name && echo 'nothing to do'",
         "build": "yarn print:name && yarn build:js && yarn build:types",
         "build:js": "node esbuild.mjs",
-        "build:types": "tsc --project ./tsconfig.json || exit 0"
+        "build:types": "tsc --project ./tsconfig.json"
     },
     "keywords": [
         "gjs",
@@ -23,7 +23,8 @@
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-deno-loader": "workspace:^",
         "@gjsify/esbuild-plugin-transform-ext": "workspace:^",
-        "fast-glob": "^3.2.12"
+        "fast-glob": "^3.2.12",
+        "lodash": "^4.17.21"
     },
     "devDependencies": {
         "esbuild": "^0.18.2",

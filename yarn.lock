@@ -514,7 +514,6 @@ __metadata:
   dependencies:
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
-    "@types/lodash": "npm:^4.14.195"
     "@types/yargs": "npm:^17.0.24"
     cosmiconfig: "npm:^8.2.0"
     esbuild: "npm:^0.18.2"
@@ -633,6 +632,7 @@ __metadata:
     "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
     esbuild: "npm:^0.18.2"
     fast-glob: "npm:^3.2.12"
+    lodash: "npm:^4.17.21"
     typescript: "npm:^5.1.3"
   languageName: unknown
   linkType: soft
@@ -1254,13 +1254,6 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: e82e4c546bd9a4a5080277c72a41c80849e69146e594e4bb3950815b26fa3bd071823464a3e70084a99171cace7ea7d562ad6a0cdb33bf26c09ada764edf5fc0
-  languageName: node
-  linkType: hard
-
-"@types/lodash@npm:^4.14.195":
-  version: 4.14.195
-  resolution: "@types/lodash@npm:4.14.195"
-  checksum: a503fc2cef87abc17ec6f388009a787e609b799b8fcb69c47f9b91d5a47e564b5c00fd121f691acf2b2bb43b788e28ca22781de1ac561b2c35bea380c6446f79
   languageName: node
   linkType: hard
 

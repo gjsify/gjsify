@@ -72,10 +72,6 @@ export class Config {
             logLevel: cliArgs.logLevel || 'warning'
         });
 
-        if(configData.esbuild && !configData.esbuild?.outfile) {
-            configData.esbuild.outfile = configData.esbuild?.format === 'cjs' ? pkg.main || pkg.module : pkg.module || pkg.main;
-        }
-
         if(configData.verbose) console.debug("configData", configData);
 
         return configData;
