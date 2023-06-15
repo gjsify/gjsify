@@ -23,10 +23,10 @@ log("myModel", myModel, typeof myModel.created, myModel.created instanceof Date 
 const myModelBack = deserialize<MyModel>(myModel);
 log("myModelBack", myModelBack, typeof myModelBack.created, myModelBack.created instanceof Date );
 
-log(deserialize<boolean>('false')); //false
-log(deserialize<boolean>('0')); //false
-log(deserialize<boolean>('1')); //true
+log(deserialize<boolean>('false')); // false
+log(deserialize<boolean>('0')); // false
+log(deserialize<boolean>('1')); // true
 
-log(deserialize<number>('1')); //1
+log(deserialize<number>('1'), typeof deserialize<number>('1')); // 1 number
 
-log(deserialize<string>(1)); //'1'
+log(deserialize<string>(1), typeof deserialize<string>(1)); // '1' string
