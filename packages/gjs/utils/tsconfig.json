@@ -15,6 +15,7 @@
   "allowJs": true,
   "checkJs": false,
   "reflection": false,
-  "include": ["@girs/gjs", "src/**/*.mts", "src/**/*.ts"],
+  "files": ["src/index.ts"],
+  "include": ["../../../node_modules/@girs/gjs/gjs.d.ts", "../../../node_modules/@girs/gjs/dom.d.ts", "src/**/*.mts", "src/**/*.ts"],
   "exclude": ["src/test.ts", "src/**/*.spec.ts"]
 }

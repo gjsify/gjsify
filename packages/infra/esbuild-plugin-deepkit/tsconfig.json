@@ -5,6 +5,7 @@
       "declaration": true,
       "target": "ESNext",
       "module": "ESNext",
+      "types": ["node"],
       "moduleResolution": "bundler"
     },
     "files": ["src/index.ts"]

@@ -11,6 +11,7 @@
     "drawingbuffer",
     "esbuild",
     "framebuffers",
+    "gdkpixbuf",
     "girs",
     "gjsify",
     "glarea",

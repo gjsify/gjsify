@@ -3,6 +3,7 @@
     "module": "ESNext",
     "target": "ESNext",
     "outDir": "dist",
+    "types": ["node"],
     "declarationDir": "dist/types",
     "declaration": true,
     "allowSyntheticDefaultImports": true,

@@ -1,5 +1,3 @@
-import '@girs/gjs';
-
 export * from './types/index.js';
 
 export * from './cancel-handler.js';
