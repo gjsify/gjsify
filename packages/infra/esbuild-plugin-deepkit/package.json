@@ -13,6 +13,14 @@
         "build:js": "node esbuild.mjs",
         "build:types": "yarn tsc --emitDeclarationOnly"
     },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/esbuild-plugin-deepkit#readme",
     "keywords": [
         "gjs",
         "node",

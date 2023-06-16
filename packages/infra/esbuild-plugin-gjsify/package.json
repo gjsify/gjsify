@@ -20,6 +20,7 @@
         "esbuild"
     ],
     "dependencies": {
+        "@gjsify/esbuild-plugin-alias": "workspace:^",
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-deno-loader": "workspace:^",
         "@gjsify/esbuild-plugin-transform-ext": "workspace:^",

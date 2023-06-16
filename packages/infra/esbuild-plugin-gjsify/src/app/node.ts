@@ -1,5 +1,4 @@
-
-import { aliasPlugin } from '../alias-plugin.js';
+import { aliasPlugin } from '@gjsify/esbuild-plugin-alias';
 import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "lodash";

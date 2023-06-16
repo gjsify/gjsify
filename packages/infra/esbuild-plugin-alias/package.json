@@ -1,14 +1,14 @@
 {
-    "name": "@gjsify/esbuild-plugin-transform-ext",
+    "name": "@gjsify/esbuild-plugin-alias",
     "version": "0.0.2",
-    "description": "Transform import file extensions plugin for esbuild",
+    "description": "",
     "type": "module",
     "main": "dist/cjs/index.cjs",
     "module": "dist/esm/index.mjs",
     "types": "dist/types/index.d.ts",
     "scripts": {
         "clear": "rm -rf dist tsconfig.tsbuildinfo",
-        "print:name": "echo '@gjsify/esbuild-plugin-transform-ext'",
+        "print:name": "echo '@gjsify/esbuild-plugin-alias'",
         "build": "yarn print:name && yarn build:js && yarn build:types",
         "build:js": "node esbuild.mjs",
         "build:types": "tsc --emitDeclarationOnly"
@@ -20,7 +20,7 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/esbuild-plugin-transform-ext#readme",
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/esbuild-plugin-alias#readme",
     "keywords": [
         "esbuild",
         "plugin"

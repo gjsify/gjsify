@@ -3,6 +3,12 @@ import { realpath } from "fs/promises";
 
 import type { Plugin } from "esbuild";
 
+function escapeRegExp(str: string) {
+  // $& means the whole matched string
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+
 export const aliasPlugin = (aliasObj: Record<string, string>) => {
   const aliases = Object.keys(aliasObj);
   const re = new RegExp(`^(${aliases.map(x => escapeRegExp(x)).join('|')})$`);
@@ -62,7 +68,4 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
   return plugin;
 };
 
-function escapeRegExp(str: string) {
-  // $& means the whole matched string
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+export default aliasPlugin;

@@ -1,4 +1,4 @@
-import { aliasPlugin } from '../alias-plugin.js';
+import { aliasPlugin } from '@gjsify/esbuild-plugin-alias';
 import { transformExtPlugin } from '@gjsify/esbuild-plugin-transform-ext';
 import { merge } from "lodash";
 import { getJsExtensions, globToEntryPoints } from "../utils/index.js";
