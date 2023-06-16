@@ -1,0 +1,69 @@
+{
+    "name": "@gjsify/deno-runtime-2",
+    "version": "0.0.3",
+    "description": "Deno runtime module for gjsify",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "type": "module",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./lib/index.d.ts",
+                "default": "./lib/index.js"
+            },
+            "require": {
+                "types": "./lib/index.d.ts",
+                "default": "./lib/index.js"
+            }
+        },
+        "./*": {
+            "import": {
+                "types": "./lib/*.d.ts",
+                "default": "./lib/*.js"
+            },
+            "require": {
+                "types": "./lib/*.d.ts",
+                "default": "./lib/*.js"
+            }
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo lib/tsconfig.tsbuildinfo test.deno.js test.gjs.js test.deno.js.meta.json test.gjs.js.meta.json",
+        "print:name": "echo '@gjsify/deno-runtime-2'",
+        "build": "yarn print:name && yarn build:gjsify",
+        "build:gjsify": "mkdir lib -p && gjsify build --library 'src/{core,ext,ops,runtime,types}/**/*.{js,ts}' 'src/cli/{js,ops}/*.{js,ts}' 'src/*.{js,ts}' --exclude '**/*.d.ts' 'lib'",
+        "build:test": "yarn build:test:gjs && yarn build:test:deno",
+        "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
+        "build:test:deno": "gjsify build src/test.ts --app deno --outfile test.deno.js",
+        "sync:dts": "node copy-d-ts-files.mjs",
+        "test": "echo '@gjsify/deno-runtime-2 is a experimental replacement for @gjsify/deno-runtime and not ready yet'",
+        "_test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:gjs && yarn test:deno",
+        "test:gjs": "gjs -m test.gjs.js main.ts --location https://example.com/path",
+        "test:deno": "deno run --unstable --allow-env --location https://example.com/path test.deno.js",
+        "git:upstream:init": "cd src && git remote add upstream https://github.com/denoland/deno.git || exit 0",
+        "git:upstream:diff": "open-cli https://github.com/gjsify/deno/compare/runtime-2...denoland:deno:main",
+        "git:upstream:_merge": "cd src && git fetch upstream && git merge upstream/main",
+        "git:upstream:merge": "yarn git:upstream:init && yarn git:upstream:diff && yarn git:upstream:_merge"
+    },
+    "keywords": [
+        "gjs",
+        "deno",
+        "globals"
+    ],
+    "files": [
+        "lib"
+    ],
+    "devDependencies": {
+        "@girs/gjs": "^3.1.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/empty": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@tsconfig/deno": "^1.0.7",
+        "fast-glob": "^3.2.12",
+        "open-cli": "^7.2.0",
+        "typescript": "^5.1.3"
+    },
+    "dependencies": {
+        "@gjsify/utils": "workspace:^"
+    }
+}
