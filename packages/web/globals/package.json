@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/web-globals",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "Web global module for Gjs",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/html-image-element",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "Web html-image-element module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",

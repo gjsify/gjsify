@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/url",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "Node.js url module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",

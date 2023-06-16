@@ -1,6 +1,6 @@
 {
   "name": "gjsify",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Combine the power of Typescript with the power of GJS",
   "type": "module",
   "private": true,
@@ -26,6 +26,9 @@
   "license": "MIT",
   "devDependencies": {
     "typescript": "^5.1.3"
+  },
+  "resolutions": {
+    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
   },
   "packageManager": "yarn@4.0.0-rc.45",
   "workspaces": [
