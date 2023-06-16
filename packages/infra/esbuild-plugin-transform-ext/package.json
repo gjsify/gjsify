@@ -18,9 +18,6 @@
         "gjsify",
         "esbuild"
     ],
-    "peerDependencies": {
-        "esbuild": "^0.17.19"
-    },
     "devDependencies": {
         "esbuild": "^0.18.3",
         "typescript": "^5.1.3"

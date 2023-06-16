@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ESNext",
+    "outDir": "dist",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true
+  },
+  "files": ["src/index.ts"]
+}
