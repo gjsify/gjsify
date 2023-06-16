@@ -717,7 +717,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/events@workspace:packages/node/events":
+"@gjsify/events@workspace:^, @gjsify/events@workspace:packages/node/events":
   version: 0.0.0-use.local
   resolution: "@gjsify/events@workspace:packages/node/events"
   dependencies:
@@ -939,6 +939,7 @@ __metadata:
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno_std": "workspace:^"
+    "@gjsify/events": "workspace:^"
     "@gjsify/gio-2.0": "workspace:^"
     "@gjsify/stream": "workspace:^"
     "@gjsify/unit": "workspace:^"

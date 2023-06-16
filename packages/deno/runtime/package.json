@@ -50,6 +50,9 @@
         "deno",
         "globals"
     ],
+    "files": [
+        "lib"
+    ],
     "devDependencies": {
         "@girs/gjs": "^3.1.0",
         "@gjsify/cli": "workspace:^",
