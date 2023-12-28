@@ -23,44 +23,42 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
 
         let namespace = args.namespace;
 
-        if (resolvedAliasPath) {
+        if (!resolvedAliasPath) {
+          return null;
+        }
 
-          if (resolvedAliasPath.startsWith('http://')) {
-            namespace = 'http';
-            resolvedAliasPath = resolvedAliasPath.slice(5)
-          } else if (resolvedAliasPath.startsWith('https://')) {
-            namespace = 'https';
-            resolvedAliasPath = resolvedAliasPath.slice(6)
-          } else {
-            const resolvedAlias = (await build.resolve(resolvedAliasPath, {
-              importer: args.importer,
-              kind: args.kind,
-              namespace: namespace,
-              resolveDir: args.resolveDir,
-              pluginData: args.pluginData,
-            }));
-
-            if (resolvedAlias.errors) {
-              return resolvedAlias;
-            } else {
-              resolvedAliasPath = resolvedAlias.path;
-              namespace = resolvedAlias.namespace;
-            }
-          }
-
-          if (existsSync(resolvedAliasPath)) {
-            resolvedAliasPath = await realpath(resolvedAliasPath);
-          }
-
-          // console.debug(`resolvedAliasPath: ${args.path} -> ${resolvedAliasPath}`);
-
-          return {
-            path: resolvedAliasPath,
+        if (resolvedAliasPath.startsWith('http://')) {
+          namespace = 'http';
+          resolvedAliasPath = resolvedAliasPath.slice(5)
+        } else if (resolvedAliasPath.startsWith('https://')) {
+          namespace = 'https';
+          resolvedAliasPath = resolvedAliasPath.slice(6)
+        } else {
+          const resolvedAlias = (await build.resolve(resolvedAliasPath, {
+            importer: args.importer,
+            kind: args.kind,
             namespace: namespace,
+            resolveDir: args.resolveDir,
+            pluginData: args.pluginData,
+          }));
+
+          if (resolvedAlias.errors.length > 0) {
+            console.error(resolvedAlias.errors);
+            return resolvedAlias;
+          } else {
+            resolvedAliasPath = resolvedAlias.path;
+            namespace = resolvedAlias.namespace;
           }
         }
 
-        return null;
+        if (existsSync(resolvedAliasPath)) {
+          resolvedAliasPath = await realpath(resolvedAliasPath);
+        }
+
+        return {
+          path: resolvedAliasPath,
+          namespace: namespace,
+        };
       });
     },
   };
