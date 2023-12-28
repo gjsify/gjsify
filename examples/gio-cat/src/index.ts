@@ -9,7 +9,10 @@ async function cat(filename: string) {
     const file = Gio.file_new_for_path(filename);
 
     const [contents] = await file.load_contents_async(null);
-    print(ByteArray.toString(contents));
+    const decoder = new TextDecoder();
+    const decoded = decoder.decode(contents);
+    // const decoded = ByteArray.toString(contents);
+    print(decoded);
 }
 
 

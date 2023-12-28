@@ -9,8 +9,8 @@
     "typescript"
   ],
   "scripts": {
-    "test": "yarn workspaces foreach -v --no-private --exclude '@girs/*' run test",
-    "clear": "yarn workspaces foreach -v --no-private --parallel run clear",
+    "test": "yarn workspaces foreach -v --no-private --all --exclude '@girs/*' run test",
+    "clear": "yarn workspaces foreach -v --no-private --all --parallel run clear",
     "npm:publish": "yarn run build && yarn workspaces foreach -v --no-private npm publish --tolerate-republish --tag latest --access public",
     "print:name": "echo 'gjsify (root)'",
     "print:yarn": "echo 'Using yarn' && yarn --version",

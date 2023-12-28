@@ -4,7 +4,8 @@
     "target": "ESNext",
     "outDir": "dist",
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
   },
   "files": ["src/index.ts"]
 }
