@@ -23,10 +23,10 @@
   "license": "MIT",
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
-    "@types/node": "^20.3.1"
+    "@types/node": "^20.10.5"
   },
   "dependencies": {
-    "@deepkit/core": "^1.0.1-alpha.97",
-    "@deepkit/type": "^1.0.1-alpha.97"
+    "@deepkit/core": "^1.0.1-alpha.108",
+    "@deepkit/type": "^1.0.1-alpha.108"
   }
 }

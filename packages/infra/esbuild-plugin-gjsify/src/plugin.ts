@@ -7,7 +7,6 @@ export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
     const plugin: Plugin = {
         name: 'gjsify',
         async setup(build) {
-
             // Library mode
             if(pluginOptions.library) {
                 switch (pluginOptions.library) {
@@ -19,7 +18,7 @@ export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
                 }
             }
 
-            pluginOptions.app ||= 'gjs';
+            pluginOptions.app ||= 'gjs'
             
             // End user applications or tests
             switch (pluginOptions.app) {

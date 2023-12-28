@@ -30,7 +30,7 @@
   "resolutions": {
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
   },
-  "packageManager": "yarn@4.0.0-rc.45",
+  "packageManager": "yarn@4.0.2",
   "workspaces": [
     "packages/infra/*",
     "packages/gjs/*",

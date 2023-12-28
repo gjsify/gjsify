@@ -6,7 +6,7 @@
 		"tsBuildInfoFile": "tmp/.tsbuildinfo",
 		"target": "es2020",
 		"declaration": true,
-		"module": "CommonJS",
+		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"esModuleInterop": true,
 		"experimentalDecorators": true,

@@ -54,12 +54,12 @@
         "lib"
     ],
     "devDependencies": {
-        "@girs/gjs": "^3.1.0",
+        "@girs/gjs": "^3.2.6",
         "@gjsify/cli": "workspace:^",
         "@gjsify/empty": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@tsconfig/deno": "^1.0.7",
-        "fast-glob": "^3.2.12",
+        "@tsconfig/deno": "^1.0.9",
+        "fast-glob": "^3.3.2",
         "open-cli": "^7.2.0",
         "typescript": "^5.1.3"
     },

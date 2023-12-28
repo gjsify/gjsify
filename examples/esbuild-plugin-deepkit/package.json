@@ -17,7 +17,7 @@
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
   },
   "dependencies": {
-    "@deepkit/core": "^1.0.1-alpha.97",
-    "@deepkit/type": "^1.0.1-alpha.97"
+    "@deepkit/core": "^1.0.1-alpha.108",
+    "@deepkit/type": "^1.0.1-alpha.108"
   }
 }

@@ -24,11 +24,11 @@
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-deno-loader": "workspace:^",
         "@gjsify/esbuild-plugin-transform-ext": "workspace:^",
-        "fast-glob": "^3.2.12",
+        "fast-glob": "^3.3.2",
         "lodash": "^4.17.21"
     },
     "devDependencies": {
-        "esbuild": "^0.18.3",
+        "esbuild": "^0.19.10",
         "typescript": "^5.1.3"
     }
 }

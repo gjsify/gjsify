@@ -39,16 +39,16 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/inherits": "^0.0.30",
-        "@types/node": "^20.3.1",
+        "@types/inherits": "^0.0.33",
+        "@types/node": "^20.10.5",
         "typescript": "^5.1.3"
     },
     "dependencies": {
         "@gjsify/deno_std": "workspace:^",
         "is-arguments": "^1.1.1",
         "is-generator-function": "^1.0.10",
-        "is-typed-array": "^1.1.10",
+        "is-typed-array": "^1.1.12",
         "util": "^0.12.5",
-        "which-typed-array": "^1.1.9"
+        "which-typed-array": "^1.1.13"
     }
 }
