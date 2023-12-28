@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/deno-globals",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Deno globals core and runtime module for Gjs",
   "keywords": [
     "gjs",

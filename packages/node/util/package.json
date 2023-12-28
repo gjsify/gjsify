@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/util",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "Node.js util module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",

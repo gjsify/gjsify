@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-gio-cat",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "module": "dist/index.js",
   "scripts": {

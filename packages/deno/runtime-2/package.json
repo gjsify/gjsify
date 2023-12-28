@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/deno-runtime-2",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "Deno runtime module for gjsify",
     "main": "lib/index.js",
     "module": "lib/index.js",

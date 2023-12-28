@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/events",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "Node.js events module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",
