@@ -27,7 +27,7 @@
     "@types/gl-matrix": "^3.2.0",
     "@types/node": "^20.10.5",
     "http-server": "^14.1.1",
-    "open-cli": "^7.2.0"
+    "open-cli": "^8.0.0"
   },
   "dependencies": {
     "@girs/gio-2.0": "2.78.0-3.2.6",

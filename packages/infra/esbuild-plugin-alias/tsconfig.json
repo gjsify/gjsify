@@ -8,7 +8,8 @@
     "declaration": true,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true,
   },
   "files": ["src/index.ts"]
 }

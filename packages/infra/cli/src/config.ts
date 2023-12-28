@@ -10,9 +10,9 @@ import type { ArgumentsCamelCase } from 'yargs';
 
 export class Config {
 
-    readonly loadOptions: LoadOptions = {}
+    readonly loadOptions: Partial<LoadOptions> = {}
 
-    constructor(loadOptions: LoadOptions = {}) {
+    constructor(loadOptions: Partial<LoadOptions> = {}) {
         if(Object.keys(loadOptions).length) {
             this.loadOptions = loadOptions;
         }

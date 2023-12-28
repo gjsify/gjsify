@@ -8,7 +8,7 @@
 		"target": "es2020",
 		"declaration": true,
 		"emitDeclarationOnly": true,
-		"module": "ESNext",
+		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
