@@ -7,6 +7,11 @@
 [submodule "packages/deno/runtime/src"]
 	path = packages/deno/runtime/src
 	url = git@github.com:gjsify/deno.git
+	branch = main
 [submodule "packages/deno/runtime-2/src"]
 	path = packages/deno/runtime-2/src
 	url = git@github.com:gjsify/deno.git
+	branch = runtime-2
+[submodule "packages/deno/core"]
+	path = packages/deno/core
+	url = git@github.com:gjsify/deno_core.git

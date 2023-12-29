@@ -5,7 +5,7 @@
     "outDir": "dist",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "noEmit": true,
+    "emitDeclarationOnly":true,
   },
   "files": ["src/index.ts"]
 }

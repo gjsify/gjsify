@@ -2,28 +2,28 @@
     "name": "@gjsify/deno-runtime-2",
     "version": "0.0.4",
     "description": "Deno runtime module for gjsify",
-    "main": "lib/index.js",
-    "module": "lib/index.js",
+    "main": "lib/globals.js",
+    "module": "lib/globals.js",
     "type": "module",
     "exports": {
         ".": {
             "import": {
-                "types": "./lib/index.d.ts",
-                "default": "./lib/index.js"
+                "types": "./lib/globals.d.ts",
+                "default": "./lib/globals.js"
             },
             "require": {
-                "types": "./lib/index.d.ts",
-                "default": "./lib/index.js"
+                "types": "./lib/globals.d.ts",
+                "default": "./lib/globals.js"
             }
         },
         "./*": {
             "import": {
-                "types": "./lib/*.d.ts",
-                "default": "./lib/*.js"
+                "types": "./lib/*",
+                "default": "./lib/*"
             },
             "require": {
-                "types": "./lib/*.d.ts",
-                "default": "./lib/*.js"
+                "types": "./lib/*",
+                "default": "./lib/*"
             }
         }
     },
@@ -36,8 +36,7 @@
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "build:test:deno": "gjsify build src/test.ts --app deno --outfile test.deno.js",
         "sync:dts": "node copy-d-ts-files.mjs",
-        "test": "echo '@gjsify/deno-runtime-2 is a experimental replacement for @gjsify/deno-runtime and not ready yet'",
-        "_test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:gjs && yarn test:deno",
+        "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:gjs && yarn test:deno",
         "test:gjs": "gjs -m test.gjs.js main.ts --location https://example.com/path",
         "test:deno": "deno run --unstable --allow-env --location https://example.com/path test.deno.js",
         "git:upstream:init": "cd src && git remote add upstream https://github.com/denoland/deno.git || exit 0",
@@ -48,7 +47,7 @@
     "keywords": [
         "gjs",
         "deno",
-        "globals"
+        "runtime"
     ],
     "files": [
         "lib"
@@ -64,6 +63,7 @@
         "typescript": "^5.3.3"
     },
     "dependencies": {
+        "@gjsify/deno-core": "workspace:^",
         "@gjsify/utils": "workspace:^"
     }
 }

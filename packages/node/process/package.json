@@ -38,6 +38,7 @@
   ],
   "dependencies": {
     "@girs/gjs": "^3.2.6",
+    "@gjsify/deno_std": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {

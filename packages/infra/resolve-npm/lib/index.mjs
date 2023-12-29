@@ -65,7 +65,8 @@ export const EXTERNALS_NPM = [
 ]
 
 /** General record of modules for Gjs */
-export const ALIASES_GENERAL_FOR_GJS = {}
+export const ALIASES_GENERAL_FOR_GJS = {
+}
 
 /** Record of Node.js modules (build in or not) and his replacement for Gjs */
 export const ALIASES_NODE_FOR_GJS = {

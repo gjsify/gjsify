@@ -9,7 +9,8 @@
     "declarationDir": "lib/types",
     "composite": true,
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true
   },
   "skipLibCheck": true,
   "allowJs": true,

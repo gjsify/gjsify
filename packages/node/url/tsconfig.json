@@ -6,6 +6,7 @@
       "experimentalDecorators": true,
       "moduleResolution": "bundler",
       "allowImportingTsExtensions": true,
+      "emitDeclarationOnly":true,
       "outDir": "lib",
       "rootDir": "src",
       "composite": true

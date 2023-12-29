@@ -547,6 +547,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/deno-core@workspace:^, @gjsify/deno-core@workspace:packages/deno/core":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/deno-core@workspace:packages/deno/core"
+  dependencies:
+    "@girs/gjs": "npm:^3.2.6"
+    "@gjsify/cli": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/deno-globals@workspace:packages/deno/globals":
   version: 0.0.0-use.local
   resolution: "@gjsify/deno-globals@workspace:packages/deno/globals"
@@ -566,6 +575,7 @@ __metadata:
   dependencies:
     "@girs/gjs": "npm:^3.2.6"
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno-core": "workspace:^"
     "@gjsify/empty": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
@@ -994,6 +1004,7 @@ __metadata:
   dependencies:
     "@girs/gjs": "npm:^3.2.6"
     "@gjsify/cli": "workspace:^"
+    "@gjsify/deno_std": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^20.10.5"
     typescript: "npm:^5.3.3"

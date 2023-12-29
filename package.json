@@ -11,7 +11,7 @@
   "scripts": {
     "test": "yarn workspaces foreach -v --no-private --all --exclude '@girs/*' run test",
     "clear": "yarn workspaces foreach -v --no-private --all --parallel run clear",
-    "npm:publish": "yarn run build && yarn workspaces foreach -v --no-private npm publish --tolerate-republish --tag latest --access public",
+    "npm:publish": "yarn run build && yarn workspaces foreach -v --no-private --all npm publish --tolerate-republish --tag latest --access public",
     "print:name": "echo 'gjsify (root)'",
     "print:yarn": "echo 'Using yarn' && yarn --version",
     "build": "yarn run build:infra && yarn run build:native-libs && yarn run build:deno && yarn run build:gjs && yarn run build:node && yarn run build:web",
