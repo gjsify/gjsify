@@ -31,9 +31,9 @@
         "test:cjs": "NODE_OPTIONS=--max_old_space_size=9216 tsc --noEmit gwebgl-0.1.d.cts"
     },
     "dependencies": {
-        "@girs/gjs": "3.2.6",
-        "@girs/glib-2.0": "^2.78.0-3.2.6",
-        "@girs/gobject-2.0": "^2.78.0-3.2.6"
+        "@girs/gjs": "3.2.7",
+        "@girs/glib-2.0": "^2.78.0-3.2.7",
+        "@girs/gobject-2.0": "^2.78.0-3.2.7"
     },
     "devDependencies": {
         "typescript": "*"

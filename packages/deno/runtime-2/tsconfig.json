@@ -31,7 +31,7 @@
             "ext:deno_io/*": ["./src/ext/io/*"],
             "ext:deno_kv/*": ["./src/ext/kv/*"],
             "ext:deno_net/*": ["./src/ext/net/*"],
-            "ext:deno_node/*": ["./src/ext/node/*"],
+            "ext:deno_node/*": ["./src/ext/node/polyfills/*"],
             "ext:deno_url/*": ["./src/ext/url/*"],
             "ext:deno_web/*": ["./src/ext/web/*"],
             "ext:deno_webgpu/*": ["./src/ext/webgpu/*"],

@@ -24,13 +24,13 @@
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@types/gl-matrix": "^3.2.0",
-    "@types/node": "^20.10.5",
+    "@types/node": "^20.10.6",
     "open-cli": "^8.0.0"
   },
   "dependencies": {
-    "@girs/gio-2.0": "2.78.0-3.2.6",
-    "@girs/gjs": "^3.2.6",
-    "@girs/gtk-4.0": "4.12.3-3.2.6",
+    "@girs/gio-2.0": "2.78.0-3.2.7",
+    "@girs/gjs": "^3.2.7",
+    "@girs/gtk-4.0": "4.12.4-3.2.7",
     "@gjsify/webgl": "workspace:^",
     "gl-matrix": "^3.4.3"
   }

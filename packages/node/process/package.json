@@ -37,13 +37,13 @@
     "process"
   ],
   "dependencies": {
-    "@girs/gjs": "^3.2.6",
+    "@girs/gjs": "^3.2.7",
     "@gjsify/deno_std": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
-    "@types/node": "^20.10.5",
+    "@types/node": "^20.10.6",
     "typescript": "^5.3.3"
   }
 }

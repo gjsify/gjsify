@@ -35,7 +35,7 @@
     "os"
   ],
   "dependencies": {
-    "@girs/gjs": "^3.2.6",
+    "@girs/gjs": "^3.2.7",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {

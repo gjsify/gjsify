@@ -10,6 +10,6 @@
     "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"
   },
   "devDependencies": {
-    "@ts-for-gir/cli": "^3.2.6"
+    "@ts-for-gir/cli": "^3.2.7"
   }
 }
