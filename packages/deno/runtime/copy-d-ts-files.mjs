@@ -13,7 +13,7 @@ for (const dtsFile of dtsFiles) {
 
     const jsFile = dTsDest.replace(/\.d\.ts$/, ".js");
 
-    // Create a placeholder js file if no js file for this .d.ts not file exists.
+    // Create a placeholder js file if no js file for this .d.ts file exists.
     if (!fs.existsSync(jsFile)) {
         fs.writeFileSync(jsFile, jsPlaceholder);
     }

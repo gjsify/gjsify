@@ -466,7 +466,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/soup-3.0@npm:3.4.4-3.2.7":
+"@girs/soup-3.0@npm:3.4.4-3.2.7, @girs/soup-3.0@npm:^3.4.4-3.2.7":
   version: 3.4.4-3.2.7
   resolution: "@girs/soup-3.0@npm:3.4.4-3.2.7"
   dependencies:
@@ -553,6 +553,7 @@ __metadata:
   dependencies:
     "@girs/gjs": "npm:^3.2.7"
     "@gjsify/cli": "workspace:^"
+    typescript: "npm:^5.3.3"
   languageName: unknown
   linkType: soft
 
@@ -574,6 +575,7 @@ __metadata:
   resolution: "@gjsify/deno-runtime-2@workspace:packages/deno/runtime-2"
   dependencies:
     "@girs/gjs": "npm:^3.2.7"
+    "@girs/soup-3.0": "npm:^3.4.4-3.2.7"
     "@gjsify/cli": "workspace:^"
     "@gjsify/deno-core": "workspace:^"
     "@gjsify/empty": "workspace:^"

@@ -41,9 +41,6 @@
             "ext:core/*": ["@gjsify/deno-core/*"],
         },
     },
-    "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false,
     "reflection": false,
     "include": ["@girs/gjs/ambient", "src/ext/**/*", "src/runtime/**/*", "src/cli/**/*", "src/*"],
     "exclude": ["node_modules/**/*"]

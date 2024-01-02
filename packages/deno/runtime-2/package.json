@@ -32,6 +32,7 @@
         "print:name": "echo '@gjsify/deno-runtime-2'",
         "build": "yarn print:name && yarn build:gjsify",
         "build:gjsify": "mkdir lib -p && gjsify build --library 'src/{core,ext,ops,runtime,types}/**/*.{js,ts}' 'src/cli/{js,ops}/*.{js,ts}' 'src/*.{js,ts}' --exclude '**/*.d.ts' 'lib'",
+        "build:types": "tsc --project tsconfig.json",
         "build:test": "yarn build:test:gjs && yarn build:test:deno",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "build:test:deno": "gjsify build src/test.ts --app deno --outfile test.deno.js",
@@ -63,6 +64,7 @@
         "typescript": "^5.3.3"
     },
     "dependencies": {
+        "@girs/soup-3.0": "^3.4.4-3.2.7",
         "@gjsify/deno-core": "workspace:^",
         "@gjsify/utils": "workspace:^"
     }
