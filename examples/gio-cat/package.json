@@ -1,5 +1,6 @@
 {
   "name": "@gjsify/example-gio-cat",
+  "private": true,
   "version": "0.0.4",
   "type": "module",
   "module": "dist/index.js",
