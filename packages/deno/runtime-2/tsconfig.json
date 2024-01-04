@@ -4,10 +4,10 @@
     "compilerOptions": {
         "jsx": "react",
         "module": "ESNext",
-        "target": "ESNext",
+        "target": "ES2020",
+        "lib": ["ES2020"],
+        "noLib": false,
         "baseUrl": "./",
-        "types": [],
-        "noLib": true,
         "outDir": "lib",
         "declaration": true,
         "emitDeclarationOnly": true,
@@ -43,5 +43,5 @@
     },
     "reflection": false,
     "include": ["@girs/gjs/ambient", "src/ext/**/*", "src/runtime/**/*", "src/cli/**/*", "src/*"],
-    "exclude": ["node_modules/**/*"]
+    "exclude": ["node_modules", "src/cli/tsc/dts"]
 }
