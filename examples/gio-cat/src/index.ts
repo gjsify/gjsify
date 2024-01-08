@@ -15,7 +15,6 @@ async function cat(filename: string) {
     print(decoded);
 }
 
-
 if (ARGV.length !== 1)
     printerr('Usage: gio-cat.js filename');
 else {
