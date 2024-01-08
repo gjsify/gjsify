@@ -26,3 +26,5 @@ packages/**/*/test.*.mjs.map
 // Metafile 
 *.meta.json
 meta.json
+
+.env

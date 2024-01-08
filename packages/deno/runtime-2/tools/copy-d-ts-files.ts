@@ -1,6 +1,8 @@
-import fg from 'fast-glob';
-import fs from 'fs';
-import path from 'path';
+// deno run --allow-read --allow-write tools/copy-d-ts-files.ts
+
+import fg from 'npm:fast-glob';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const jsPlaceholder = `export {}`;
 
