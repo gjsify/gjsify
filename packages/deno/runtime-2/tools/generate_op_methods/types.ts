@@ -3,6 +3,7 @@ export interface OpMethod {
     definition: string;
     macro: string;
     completeFunction: string;
+    isAsync: boolean;
 }
 
 export interface OpSource {
@@ -13,4 +14,5 @@ export interface OpSource {
 
 export interface OpenAIResponse {
     answers: string[];
+    codeBlocks: string[];
 }

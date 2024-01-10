@@ -1,0 +1,7 @@
+{
+  "name": "@gjsify/deno-runtime-2",
+  "version": "0.0.4",
+  "tasks": {
+    "generate:op-methods": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --unstable ./tools/generate_op_methods/mod.ts"
+  }
+}
