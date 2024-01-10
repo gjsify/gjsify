@@ -3,27 +3,24 @@
 import { askOpenAIAboutFunction } from './openai.ts';
 import { findRustFunctions } from './rust.ts';
 import { exists } from 'https://deno.land/std/fs/mod.ts';
-import type { OpMethod, OpSource } from './types.ts';
 
+import type { OpSource } from './types.ts';
 
-const startDir = '.'; // Replace with your start directory
-const results = await findRustFunctions(startDir);
-// console.debug(JSON.stringify(results[0], null, 2));
-
-let fileIndex = 0;
-for (const result of results) {
-    const tsPath = result.path.replace('.rs', '.ts');
+async function processFile(data: OpSource) {
+    const tsPath = data.path.replace('.rs', '.ts');
 
     // TODO: Check if all op methods are already added to the ts file
     if(await exists(tsPath)) {
         console.warn(`File ${tsPath} already exists, skipping...`);
-        continue;
+        return null;
     }
+
+    console.log(`\n\nProcessing file ${data.path} (${data.methods.length} methods)...`);
 
     let tsContent = '';
     let methodIndex = 0;
-    for (const method of result.methods) {
-        const answers = await askOpenAIAboutFunction(result, method)
+    for (const method of data.methods) {
+        const answers = await askOpenAIAboutFunction(data, method)
         console.debug("answer: ", answers.answers[0]);
         console.debug("code:", answers.codeBlocks[0]);
 
@@ -38,13 +35,28 @@ for (const result of results) {
 
     // Write to file
     const encoder = new TextEncoder();
-    const data = encoder.encode(tsContent);
-    await Deno.writeFile(tsPath, data);
+    await Deno.writeFile(tsPath, encoder.encode(tsContent));
     console.log(`Wrote ${tsPath}`);
-
-    // Break after first file iteration for testing
-    if(fileIndex === 0) break;
-
-    fileIndex++;
+    return tsContent;
 }
 
+async function start() {
+    const startDir = '.'; // Replace with your start directory
+    const results = await findRustFunctions(startDir);
+
+    // console.debug(JSON.stringify(results[0], null, 2));
+
+    let fileIndex = 0;
+    for (const result of results) {
+        const res = await processFile(result);
+
+        if(!res) continue;
+
+        // Break after first file iteration for testing
+        if(fileIndex === 0) break;
+
+        fileIndex++;
+    }
+}
+
+await start();

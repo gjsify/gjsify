@@ -1,5 +1,6 @@
 import OpenAI from 'npm:openai';
 import { load as loadEnv } from "https://deno.land/std/dotenv/mod.ts";
+import { basename } from "https://deno.land/std/path/mod.ts";
 
 import { extractCodeBlocks } from './markdown.ts';
 import { OpSource, OpMethod, OpenAIResponse } from './types.ts';
@@ -20,8 +21,10 @@ const wrapInRustCodeBlock = (code: string) => `\`\`\`rust\n${code}\n\`\`\``;
 export async function askOpenAIAboutFunction(source: OpSource, method: OpMethod, iteration = 0): Promise<OpenAIResponse> {
     if(!source.content) throw new Error('Source content is missing');
    
-    let question = `I would like to reimplement the Rust function '${method.definition}' in TypeScript using GJS (GNOME JavaScript). Do not implement the method, just insert a console.warn stating that this method still needs to be implemented. This is meant to be a guide to help me implement it myself. What I want is a code scaffolding. Therefore, also write a meaningful TSDoc comment that helps me understand what the method does and how it might be translated into TypeScript so that I know what I have to implement. Include TSDoc parameters as well. Don't give me an explanation of your answer, just the TypeScript code. Focus on what the method does and what needs to be implemented. Always assume that it is feasible.\nRust source code:\n${wrapInRustCodeBlock(source.content)}`
-    
+    let question = `I would like to reimplement the Rust function '${method.definition}' in TypeScript using GJS (GNOME JavaScript). Do not implement the method, just insert a console.warn stating that this method still needs to be implemented. This is meant to be a guide to help me implement it myself. What I want is a code scaffolding. Therefore, also write a meaningful TSDoc comment that helps me understand what the method does and how it might be translated into TypeScript so that I know what I have to implement. Include TSDoc parameters as well. Don't give me an explanation of your answer, just the TypeScript code. Focus on what the method does and what needs to be implemented. Always assume that it is feasible.`
+    + `\nPlease export the TypeScript function with the export statement.`
+    + `\nRust source code:\n${wrapInRustCodeBlock(source.content)}`;
+
     if(method.isAsync) {
         question += ' I would like to reimplement the Rust function as an async function.';
     } else {
@@ -30,7 +33,7 @@ export async function askOpenAIAboutFunction(source: OpSource, method: OpMethod,
 
     // console.debug(question);
 
-    console.log(`Asking OpenAI about function ${method.functionName} in file ${source.path}...`);
+    console.log(`\n\nAsking OpenAI about function ${method.functionName} in file ${basename(source.path)}...`);
 
     try {
         const completion = await openai.chat.completions.create({
