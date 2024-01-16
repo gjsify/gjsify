@@ -1,0 +1,20 @@
+{
+  "folders": [
+    {
+      "path": "./packages/infra/generate-deno-op-methods"
+    }
+  ],
+  "settings": {
+    "deno.enable": true,
+    "deno.lint": true,
+    "deno.unstable": true,
+    "deno.cacheOnSave": true,
+    "deno.disablePaths": [
+    ],
+    "editor.formatOnSave": true,
+    "typescript.format.enable": true,
+    "[typescript]": {
+      "editor.defaultFormatter": "denoland.vscode-deno"
+    }
+  }
+}
