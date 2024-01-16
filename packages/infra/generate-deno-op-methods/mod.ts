@@ -1,45 +1,50 @@
 // deno run --allow-read --allow-net tools/generate_op_methods/mod.ts
 
-import { askOpenAIAboutFunction } from "./openai.ts";
+import { askLLMAboutFunction } from "./openai.ts";
 import { findRustFunctions } from "./rust.ts";
-import { exists } from "https://deno.land/std/fs/mod.ts";
+import { writeToFile } from "./file.ts";
+import { exists } from "https://deno.land/std@0.211.0/fs/mod.ts";
 
 import type { OpSource } from "./types.ts";
 
+const getOpTsFilePath = (path: string, methodName: string) => {
+  const filename = path.split("/").pop()!;
+  const parentDir = path.replace(filename, "");
+  const dir = parentDir + "gjsify_" + filename.replace(/\.rs$/, "");
+  return dir + "/" + methodName + ".ts";
+};
+
 async function processFile(data: OpSource) {
-  const tsPath = data.path.replace(/\.rs$/, ".ts");
-
-  // TODO: Check if all op methods are already added to the ts file
-  if (await exists(tsPath)) {
-    console.warn(`File ${tsPath} already exists, skipping...`);
-    return null;
-  }
-
   console.log(
     `\n\nProcessing file ${data.path} (${data.methods.length} methods)...`,
   );
 
-  let tsContent = "";
   let methodIndex = 0;
   for (const method of data.methods) {
-    const answers = await askOpenAIAboutFunction(data, method);
+    console.debug(`\n\nProcessing method ${method.functionName}...`);
+
+    const tsMethodPath = getOpTsFilePath(
+      data.path,
+      method.functionName,
+    );
+
+    // TODO: Check if all op methods are already added to the ts file
+    if (await exists(tsMethodPath)) {
+      console.warn(`File ${tsMethodPath} already exists, skipping...`);
+      return null;
+    }
+
+    const answers = await askLLMAboutFunction(data, method);
+    console.debug("question: ", answers.question);
     console.debug("answer: ", answers.answers[0]);
     console.debug("code:", answers.codeBlocks[0]);
 
-    tsContent += answers.codeBlocks[0];
-    tsContent += "\n\n";
+    const tsContent = answers.codeBlocks.join("\n\n");
 
-    // Break after first method iteration for testing
-    if (methodIndex === 0) break;
+    await writeToFile(tsMethodPath, tsContent);
 
     methodIndex++;
   }
-
-  // Write to file
-  const encoder = new TextEncoder();
-  await Deno.writeFile(tsPath, encoder.encode(tsContent));
-  console.log(`Wrote ${tsPath}`);
-  return tsContent;
 }
 
 async function start(rootDir = ".") {
@@ -60,4 +65,4 @@ async function start(rootDir = ".") {
   }
 }
 
-await start("../../deno/runtime-2");
+await start("../../deno/runtime-2/src");

@@ -1,18 +1,20 @@
 export interface OpMethod {
-    functionName: string;
-    definition: string;
-    macro: string;
-    completeFunction: string;
-    isAsync: boolean;
+  functionName: string;
+  definition: string;
+  macro: string;
+  // completeFunction: string;
+  isAsync: boolean;
 }
 
 export interface OpSource {
-    path: string;
-    methods: OpMethod[];
-    content?: string;
+  path: string;
+  relativePath: string;
+  methods: OpMethod[];
+  content?: string;
 }
 
 export interface OpenAIResponse {
-    answers: string[];
-    codeBlocks: string[];
+  answers: string[];
+  codeBlocks: string[];
+  question: string;
 }
