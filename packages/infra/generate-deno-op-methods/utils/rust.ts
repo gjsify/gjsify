@@ -1,23 +1,34 @@
-import type { OpMethod, OpSource } from "./types.ts";
+import type { OpMethod, OpSource, Options } from "../types.ts";
+import { filterMethodsByPrefix } from "./index.ts";
 
-export async function findRustFunctions(rootDir: string): Promise<OpSource[]> {
+export async function findRustFunctions(options: Options): Promise<OpSource[]> {
   const results: OpSource[] = [];
 
-  for await (const entry of Deno.readDir(rootDir)) {
-    const fullPath = `${rootDir}/${entry.name}`;
+  for await (const entry of Deno.readDir(options.dir)) {
+    const fullPath = `${options.dir}/${entry.name}`;
 
     if (entry.isDirectory) {
-      results.push(...await findRustFunctions(fullPath));
+      results.push(
+        ...await findRustFunctions({
+          ...options,
+          dir: fullPath,
+        }),
+      );
     } else if (entry.isFile && fullPath.endsWith(".rs")) {
       console.log("Found file: ", fullPath);
       const fileContent = await Deno.readTextFile(fullPath);
-      const methods = extractMethods(fileContent);
+      let methods = extractMethods(fileContent);
+
+      if (options.prefix) {
+        methods = filterMethodsByPrefix(methods, options.prefix);
+      }
+
       if (!methods.length) {
         continue;
       }
       results.push({
         path: fullPath,
-        relativePath: fullPath.replace(rootDir, ""),
+        relativePath: fullPath.replace(options.dir, ""),
         methods,
         content: fileContent.trim(),
       });

@@ -3,7 +3,7 @@ import { load as loadEnv } from "https://deno.land/std/dotenv/mod.ts";
 import { basename } from "https://deno.land/std/path/mod.ts";
 
 import { extractCodeBlocks } from "./markdown.ts";
-import { OpenAIResponse, OpMethod, OpSource } from "./types.ts";
+import { OpenAIResponse, OpMethod, OpSource } from "../types.ts";
 
 const env = await loadEnv();
 
@@ -28,10 +28,10 @@ export async function askLLMAboutFunction(
   if (!source.content) throw new Error("Source content is missing");
 
   let question =
-    `I would like to reimplement the single Rust function '${method.functionName}' in TypeScript. Do not implement the method, just insert a console.warn stating that this method still needs to be implemented. This is meant to be a guide to help me implement it myself. What I want is a code scaffolding. Therefore, also write a meaningful TSDoc comment that helps me understand what the method does and how it might be translated into TypeScript so that I know what I have to implement. Include TSDoc parameters as well. Don't give me an explanation of your answer, just the TypeScript code. Focus on what the method does and what needs to be implemented. Always assume that it is feasible.` +
+    `Reimplement the Rust function '${method.functionName}' in TypeScript. Do not implement the method fully, just insert a console.warn stating that this method still needs to be implemented. What I want is a code scaffolding. Also write a meaningful TSDoc comment that helps me understand what the method does and how it might be translated into TypeScript so that I know what I have to implement. Include TSDoc parameters as well. Don't give me an explanation of your answer, just the TypeScript code. Focus on what the method does and what needs to be implemented. Always assume that it is feasible.` +
     `\nFollow these rules:` +
-    `\n* Export the function with the export statement` +
-    `\n* The function has exactly the same name`;
+    `\n* Export function with export statement` +
+    `\n* Same function name`;
 
   if (method.isAsync) {
     question += "\n* The function is asynchronous";

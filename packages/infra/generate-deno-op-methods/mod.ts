@@ -1,18 +1,16 @@
 // deno run --allow-read --allow-net tools/generate_op_methods/mod.ts
 
-import { askLLMAboutFunction } from "./openai.ts";
-import { findRustFunctions } from "./rust.ts";
-import { writeToFile } from "./file.ts";
+import { askLLMAboutFunction } from "./utils/openai.ts";
+import {
+  findRustFunctions,
+  getOptions,
+  getOpTsFilePath,
+  printHelp,
+  writeToFile,
+} from "./utils/index.ts";
 import { exists } from "https://deno.land/std@0.211.0/fs/mod.ts";
 
 import type { OpSource } from "./types.ts";
-
-const getOpTsFilePath = (path: string, methodName: string) => {
-  const filename = path.split("/").pop()!;
-  const parentDir = path.replace(filename, "");
-  const dir = parentDir + "gjsify_" + filename.replace(/\.rs$/, "");
-  return dir + "/" + methodName + ".ts";
-};
 
 async function processFile(data: OpSource) {
   console.log(
@@ -47,8 +45,17 @@ async function processFile(data: OpSource) {
   }
 }
 
-async function start(rootDir = ".") {
-  const results = await findRustFunctions(rootDir);
+async function start() {
+  const options = getOptions();
+
+  if (options.help) {
+    printHelp(options);
+    return;
+  }
+
+  console.debug("options: ", JSON.stringify(options, null, 2));
+
+  const results = await findRustFunctions(options);
 
   // console.debug(JSON.stringify(results[0], null, 2));
 
@@ -65,4 +72,4 @@ async function start(rootDir = ".") {
   }
 }
 
-await start("../../deno/runtime-2/src");
+await start();

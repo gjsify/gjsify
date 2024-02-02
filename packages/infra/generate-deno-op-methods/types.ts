@@ -18,3 +18,17 @@ export interface OpenAIResponse {
   codeBlocks: string[];
   question: string;
 }
+
+/**
+ * Interface for the arguments parsed in the parseArguments method.
+ */
+export interface Options {
+  /** The prefix of the op methods to process */
+  prefix?: string;
+  /** The path the script should search for op methods */
+  dir: string;
+  /** If the AI should be used to write boilerplate for the methods */
+  ai?: boolean;
+  /** If the help should be shown */
+  help?: boolean;
+}
