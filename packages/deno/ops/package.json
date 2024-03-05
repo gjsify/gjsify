@@ -1,0 +1,46 @@
+{
+  "name": "@gjsify/deno-ops",
+  "version": "0.0.4",
+  "description": "Deno operation (ops) core and runtime module for Gjs",
+  "keywords": [
+    "gjs",
+    "deno",
+    "ops",
+    "runtime"
+  ],
+  "author": "Pascal Garber",
+  "type": "module",
+  "main": "lib/index.js",
+  "module": "lib/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "default": "./lib/index.js"
+      },
+      "require": {
+        "default": "./lib/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "clear": "rm -rf lib tsconfig.tsbuildinfo test.gjs.mjs test.deno.mjs test.node.mjs",
+    "print:name": "echo '@gjsify/ops'",
+    "build": "yarn print:name && yarn build:gjsify",
+    "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+    "build:test": "yarn build:test:gjs && yarn build:test:deno",
+    "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+    "build:test:deno": "gjsify build src/test.mts --app deno --outfile test.deno.mjs",
+    "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:deno && yarn test:gjs",
+    "test:gjs": "gjs -m test.gjs.mjs",
+    "test:deno": "deno run --unstable --allow-env test.deno.mjs"
+  },
+  "dependencies": {
+    "@gjsify/process": "workspace:^",
+    "@gjsify/stream": "workspace:^",
+    "@gjsify/utils": "workspace:^"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/unit": "workspace:^"
+  }
+}

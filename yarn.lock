@@ -570,6 +570,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/deno-ops@workspace:packages/deno/ops":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/deno-ops@workspace:packages/deno/ops"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/process": "workspace:^"
+    "@gjsify/stream": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/deno-runtime-2@workspace:packages/deno/runtime-2":
   version: 0.0.0-use.local
   resolution: "@gjsify/deno-runtime-2@workspace:packages/deno/runtime-2"

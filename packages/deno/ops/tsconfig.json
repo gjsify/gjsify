@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "types": ["node"],
+    "target": "ESNext",
+    "moduleResolution": "Bundler",
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "outDir": "lib",
+    "rootDir": "src",
+    "composite": true
+  },
+  "skipLibCheck": true,
+  "allowJs": true,
+  "checkJs": false,
+  "reflection": false,
+  "include": ["**/*.ts"],
+  "exclude": ["test.mts", "**/*.spec.ts"]
+}
