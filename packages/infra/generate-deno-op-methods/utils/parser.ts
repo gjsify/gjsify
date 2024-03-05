@@ -5,6 +5,9 @@ export async function findRustFunctions(options: Options): Promise<OpSource[]> {
   const results: OpSource[] = [];
 
   for await (const entry of Deno.readDir(options.dir)) {
+    if (!entry.isDirectory && !entry.isFile) {
+      continue;
+    }
     const fullPath = `${options.dir}/${entry.name}`;
 
     if (entry.isDirectory) {

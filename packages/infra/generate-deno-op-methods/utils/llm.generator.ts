@@ -14,13 +14,15 @@ const SYSTEM_ENVIRONMENTS_PROMT =
 const SYSTEM_GNOME_PROMPT =
   "You are an assistant who helps me reimplement the runtime and core of Deno, which is programmed in Rust, into TypeScript using GJS (GNOME JavaScript). For this, you are well-versed in the GNOME ecosystem and familiar with the existing libraries, and you know which of these libraries might be useful right now. You understand that these can be used with GJS thanks to GObject introspection.";
 
+const MAX_ATTEMPTS = 5;
+
 const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
 });
 
 const wrapInRustCodeBlock = (code: string) => `\`\`\`rust\n${code}\n\`\`\``;
 
-export async function askLLMAboutFunction(
+async function askLLMAboutFunction(
   source: OpSource,
   method: OpMethod,
   iteration = 0,
@@ -28,7 +30,7 @@ export async function askLLMAboutFunction(
   if (!source.content) throw new Error("Source content is missing");
 
   let question =
-    `Reimplement the Rust function '${method.functionName}' in TypeScript. Do not implement the method fully, just insert a console.warn stating that this method still needs to be implemented. What I want is a code scaffolding. Also write a meaningful TSDoc comment that helps me understand what the method does and how it might be translated into TypeScript so that I know what I have to implement. Include TSDoc parameters as well. Don't give me an explanation of your answer, just the TypeScript code. Focus on what the method does and what needs to be implemented. Always assume that it is feasible.` +
+    `RImplement the Rust function '${method.functionName}' in TypeScript as a code scaffolding. Write a meaningful TSDoc comment with parameters what the method does and how this could be implemented. Only answer with the TypeScript code.` +
     `\nFollow these rules:` +
     `\n* Export function with export statement` +
     `\n* Same function name`;
@@ -45,7 +47,7 @@ export async function askLLMAboutFunction(
   // console.debug(question);
 
   console.log(
-    `\n\nAsking OpenAI about function ${method.functionName} in file ${
+    `\nAsking OpenAI about function ${method.functionName} in file ${
       basename(source.path)
     }...`,
   );
@@ -75,7 +77,11 @@ export async function askLLMAboutFunction(
       console.error("No code blocks found in answers: ", answers);
       if (iteration < MAX_ITERATIONS) {
         console.error("Retry...");
-        return askLLMAboutFunction(source, method, iteration + 1);
+        return askLLMAboutFunction(
+          source,
+          method,
+          iteration,
+        );
       }
     }
 
@@ -83,5 +89,40 @@ export async function askLLMAboutFunction(
   } catch (error) {
     console.error("Error while requesting OpenAI: ", error);
     throw error;
+  }
+}
+
+export async function llmGenerator(
+  source: OpSource,
+  method: OpMethod,
+  iteration = 0,
+  attempt = 0,
+): Promise<OpenAIResponse | null> {
+  try {
+    // Attempt to make the API call
+    return await askLLMAboutFunction(source, method, iteration);
+  } catch (error) {
+    if (error.message.includes("429") && attempt < MAX_ATTEMPTS) { // Check for rate limit error and max attempts
+      if (error.message.includes("Request too large")) {
+        console.error("Request too large, skipping...");
+        return null;
+      }
+
+      // Wait for a period of time before retrying
+      const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
+      console.log(
+        `Rate limit exceeded, retrying in ${waitTime / 1000} seconds...`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+      return llmGenerator(
+        source,
+        method,
+        iteration,
+        attempt + 1,
+      ); // Retry with incremented attempt count
+    } else {
+      // If not a rate limit error or max attempts reached, rethrow the error
+      throw error;
+    }
   }
 }

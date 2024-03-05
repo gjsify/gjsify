@@ -1,6 +1,7 @@
 // deno run --allow-read --allow-net tools/generate_op_methods/mod.ts
 
-import { askLLMAboutFunction } from "./utils/openai.ts";
+import { llmGenerator } from "./utils/llm.generator.ts";
+import { boilerplateGenerator } from "./utils/boilerplate.generator.ts";
 import {
   findRustFunctions,
   getOptions,
@@ -10,9 +11,9 @@ import {
 } from "./utils/index.ts";
 import { exists } from "https://deno.land/std@0.211.0/fs/mod.ts";
 
-import type { OpSource } from "./types.ts";
+import type { OpSource, Options } from "./types.ts";
 
-async function processFile(data: OpSource) {
+async function processFile(data: OpSource, options: Options) {
   console.log(
     `\n\nProcessing file ${data.path} (${data.methods.length} methods)...`,
   );
@@ -32,14 +33,20 @@ async function processFile(data: OpSource) {
       return null;
     }
 
-    const answers = await askLLMAboutFunction(data, method);
-    console.debug("question: ", answers.question);
-    console.debug("answer: ", answers.answers[0]);
-    console.debug("code:", answers.codeBlocks[0]);
+    let tsContent = "";
+    if (options.ai) {
+      const answers = await llmGenerator(data, method);
+      if (!answers) continue;
+      console.debug("question: ", answers.question);
+      console.debug("answer: ", answers.answers[0]);
+      console.debug("code:", answers.codeBlocks[0]);
 
-    const tsContent = answers.codeBlocks.join("\n\n");
+      tsContent = answers.codeBlocks.join("\n\n");
+    } else {
+      tsContent = await boilerplateGenerator(data, method);
+    }
 
-    await writeToFile(tsMethodPath, tsContent);
+    await writeToFile(tsMethodPath, tsContent, options);
 
     methodIndex++;
   }
@@ -61,7 +68,7 @@ async function start() {
 
   let fileIndex = 0;
   for (const result of results) {
-    const res = await processFile(result);
+    const res = await processFile(result, options);
 
     if (!res) continue;
 

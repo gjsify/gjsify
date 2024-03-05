@@ -15,12 +15,16 @@ export const parseArguments = (): Options => {
   // The path the script should search for op methods
   const dir = args.dir || "../../deno/runtime-2/src";
 
+  const baseDir = args.baseDir || dir;
+
+  const outDir = args.outDir || dir;
+
   // If the AI should be used to write boilerplate for the methods
   const ai = args.ai || false;
 
   const help = args.help || false;
 
-  return { prefix, dir, ai, help };
+  return { prefix, dir, baseDir, outDir, ai, help };
 };
 
 export const getOptions = () => {
@@ -37,6 +41,8 @@ export const printHelp = (options: Options): void => {
     Options:
       --prefix    The prefix of the op methods to process
       --dir       The path the script should search for op methods
+      --baseDir   The base directory of the project
+      --outDir    The directory where the generated files should be placed
       --ai        If the AI should be used to write boilerplate for the methods
       --help      Show help information
 
@@ -49,6 +55,7 @@ export const printHelp = (options: Options): void => {
     Your Options:
       --prefix=${options.prefix}
       --dir=${options.dir}
+      --outDir=${options.outDir}
       --ai=${options.ai}
   `);
 };
