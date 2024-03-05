@@ -5,6 +5,7 @@
     "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi ./mod.ts",
     "start:all": "deno task start --dir ../../deno/runtime-2/src --outDir ../../deno/ops",
     "start:fs": "deno task start --dir ../../deno/runtime-2/src --outDir ../../deno/ops --prefix op_fs_",
+    "start:webgpu": "deno task start --dir ../../deno/runtime-2/src --outDir ../../deno/ops --prefix op_webgpu_",
     "generate:index": "deno run --allow-read --allow-write scripts/generate-index.ts && deno task format",
     "format": "deno fmt"
   }

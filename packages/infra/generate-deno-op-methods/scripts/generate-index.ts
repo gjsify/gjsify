@@ -1,6 +1,7 @@
 // Generate index.ts files for each folder
 const paths = [
   "./utils",
+  "./generators",
 ];
 
 const encoder = new TextEncoder();

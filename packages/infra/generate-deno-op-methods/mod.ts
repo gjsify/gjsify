@@ -1,7 +1,6 @@
 // deno run --allow-read --allow-net tools/generate_op_methods/mod.ts
 
-import { llmGenerator } from "./utils/llm.generator.ts";
-import { boilerplateGenerator } from "./utils/boilerplate.generator.ts";
+import { BoilerplateGenerator, llmGenerator } from "./generators/index.ts";
 import {
   findRustFunctions,
   getOptions,
@@ -35,15 +34,9 @@ async function processFile(data: OpSource, options: Options) {
 
     let tsContent = "";
     if (options.ai) {
-      const answers = await llmGenerator(data, method);
-      if (!answers) continue;
-      console.debug("question: ", answers.question);
-      console.debug("answer: ", answers.answers[0]);
-      console.debug("code:", answers.codeBlocks[0]);
-
-      tsContent = answers.codeBlocks.join("\n\n");
+      tsContent = await llmGenerator.generate(data, method);
     } else {
-      tsContent = await boilerplateGenerator(data, method);
+      tsContent = await new BoilerplateGenerator().generate(data, method);
     }
 
     await writeToFile(tsMethodPath, tsContent, options);
