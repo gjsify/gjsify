@@ -65,6 +65,8 @@ export class Event {
   readonly AT_TARGET = 2;
   readonly BUBBLING_PHASE = 3;
 
+  get [Symbol.toStringTag]() { return 'Event'; }
+
   constructor(type: string, eventInitDict?: EventInit) {
     this.type = type;
     this.bubbles = eventInitDict?.bubbles ?? false;
@@ -108,6 +110,8 @@ export class CustomEvent<T = any> extends Event {
 
 export class EventTarget {
   private _listeners = new Map<string, ListenerEntry[]>();
+
+  get [Symbol.toStringTag]() { return 'EventTarget'; }
 
   addEventListener(
     type: string,

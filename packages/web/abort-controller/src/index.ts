@@ -8,6 +8,8 @@ export class AbortSignal extends EventTarget {
 
   onabort: ((this: AbortSignal, ev: Event) => any) | null = null;
 
+  get [Symbol.toStringTag]() { return 'AbortSignal'; }
+
   throwIfAborted(): void {
     if (this.aborted) {
       throw this.reason;
