@@ -30,7 +30,8 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox78  // Since GJS 1.65.90
         // firefox91  // Since GJS 1.71.1
         // firefox102 // Since GJS 1.73.2
-        target: [ "firefox102" ],
+        // firefox128 // Since GJS 1.86.0
+        target: [ "firefox128" ],
         platform: 'neutral',
         mainFields: format === 'esm' ? ['module', 'main'] : ['main', 'module'],
         // https://esbuild.github.io/api/#conditions

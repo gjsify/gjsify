@@ -1,3 +1,21 @@
-export * from '@gjsify/deno_std/node/assert/strict';
-import assert from '@gjsify/deno_std/node/assert/strict';
-export default assert;
+export { strict as default, strict } from '../index.js';
+export {
+  AssertionError,
+  ok,
+  fail,
+  ifError,
+  match,
+  doesNotMatch,
+  throws,
+  doesNotThrow,
+  rejects,
+  doesNotReject,
+  strictEqual,
+  notStrictEqual,
+  deepStrictEqual,
+  notDeepStrictEqual,
+  strictEqual as equal,
+  notStrictEqual as notEqual,
+  deepStrictEqual as deepEqual,
+  notDeepStrictEqual as notDeepEqual,
+} from '../index.js';
