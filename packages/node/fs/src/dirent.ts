@@ -1,5 +1,5 @@
 import Gio from '@girs/gio-2.0';
-import { basename } from 'path';
+import { basename, dirname } from 'path';
 
 import type { Dirent as OriginalDirent } from 'fs'; // Types from @types/node
 
@@ -21,6 +21,12 @@ export class Dirent implements OriginalDirent {
      */
     name: string;
 
+    /**
+     * The path to the parent directory of the file this `fs.Dirent` object refers to.
+     * @since v20.12.0, v18.20.0
+     */
+    parentPath: string;
+
     private _isFile = false;
     private _isDirectory = false;
     private _isBlockDevice = false;
@@ -36,6 +42,7 @@ export class Dirent implements OriginalDirent {
     constructor(path: string, filename?: string) {
         if (!filename) filename = basename(path);
         this.name = filename;
+        this.parentPath = dirname(path);
         this._file = Gio.File.new_for_path(path);
         const type = this._file.query_file_type(Gio.FileQueryInfoFlags.NONE, null);
 
@@ -54,10 +61,12 @@ export class Dirent implements OriginalDirent {
                 break;
             case Gio.FileType.SPECIAL:
                 // File is a "special" file, such as a socket, fifo, block device, or character device.
-                this._isBlockDevice = Gio.unix_is_system_device_path(path);
-                // TODO: this._isCharacterDevice = 
-                // TODO: this._isSocket = 
-                // TODO: this._isFifo = 
+                if (typeof (Gio as Record<string, unknown>).unix_is_system_device_path === 'function') {
+                    this._isBlockDevice = (Gio as Record<string, unknown> as { unix_is_system_device_path: (path: string) => boolean }).unix_is_system_device_path(path);
+                }
+                // TODO: this._isCharacterDevice =
+                // TODO: this._isSocket =
+                // TODO: this._isFifo =
                 break;
         }
 

@@ -32,6 +32,7 @@ export interface DuplexOptions extends ReadableOptions, WritableOptions {
   allowHalfOpen?: boolean;
   readableObjectMode?: boolean;
   writableObjectMode?: boolean;
+  destroy?(this: Readable & Writable, error: Error | null, callback: (error?: Error | null) => void): void;
 }
 
 export interface TransformOptions extends DuplexOptions {

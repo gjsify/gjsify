@@ -109,6 +109,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     /** TODO implement this: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawingBufferColorSpace */
     drawingBufferColorSpace: PredefinedColorSpace;
 
+    unpackColorSpace: PredefinedColorSpace = 'srgb';
+
+    readonly RGBA8 = 0x8058 as const;
+
     get drawingBufferHeight() {
         return this.canvas.height || 0;
     }
@@ -1126,8 +1130,8 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     }
 
     bufferData(target: GLenum, size: GLsizeiptr, usage: GLenum): void;
-    bufferData(target: GLenum, data: TypedArray | BufferSource | null, usage: GLenum): void;
-    bufferData(target: GLenum = 0, dataOrSize: GLsizeiptr | TypedArray | BufferSource | null, usage: GLenum = 0): void {
+    bufferData(target: GLenum, data: BufferSource | null, usage: GLenum): void;
+    bufferData(target: GLenum = 0, dataOrSize: GLsizeiptr | BufferSource | null, usage: GLenum = 0): void {
         let size = 0;
         let data: BufferSource | null = null;
 

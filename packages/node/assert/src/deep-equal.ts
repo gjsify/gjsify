@@ -130,7 +130,7 @@ function areSimilarTypedArrays(a: ArrayBufferView, b: ArrayBufferView): boolean 
   return true;
 }
 
-function areEqualArrayBuffers(buf1: ArrayBuffer, buf2: ArrayBuffer): boolean {
+function areEqualArrayBuffers(buf1: ArrayBuffer | SharedArrayBuffer, buf2: ArrayBuffer | SharedArrayBuffer): boolean {
   if (buf1.byteLength !== buf2.byteLength) return false;
   const a = new Uint8Array(buf1);
   const b = new Uint8Array(buf2);

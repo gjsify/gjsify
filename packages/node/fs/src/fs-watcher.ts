@@ -36,6 +36,14 @@ export class FSWatcher extends EventEmitter implements IFSWatcher {
     }
   }
 
+  ref(): this {
+    return this;
+  }
+
+  unref(): this {
+    return this;
+  }
+
 };
 
 function changed(watcher, file, otherFile, eventType) {

@@ -33,9 +33,9 @@ const kRejection = Symbol.for('nodejs.rejection');
 /**
  * Wraps a once listener so it removes itself after first invocation.
  */
-function onceWrapper(this: { target: EventEmitter; type: string | symbol; listener: EventListener }) {
+function onceWrapper(this: { target: EventEmitter; type: string | symbol; listener: EventListener; wrapperFn?: EventListener }) {
   const { target, type, listener } = this;
-  target.removeListener(type, this.wrapperFn as EventListener);
+  if (this.wrapperFn) target.removeListener(type, this.wrapperFn);
   const result = listener.apply(target, arguments as any);
   return result;
 }

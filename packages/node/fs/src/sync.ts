@@ -227,20 +227,10 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
  */
 export function rmdirSync(path: PathLike, options?: RmDirOptions): void {
 
-  const recursive = options?.recursive || false;
-
   const childFiles = readdirSync(path, { withFileTypes: true });
 
-  if (!recursive && childFiles.length) {
+  if (childFiles.length) {
     throw new Error('Dir is not empty!');
-  }
-
-  for (const childFile of childFiles) {
-    if (childFile.isDirectory()) {
-      rmdirSync(join(path.toString(), childFile.name));
-    } else if (childFile.isFile()) {
-      rmSync(join(path.toString(), childFile.name));
-    }
   }
 
   const result = GLib.rmdir(path.toString());
@@ -321,9 +311,9 @@ export function rmSync(path: PathLike, options?: RmOptions): void {
     }
   
     for (const childFile of childFiles) {
-      if (childFile.isDirectory()) {
+      if (typeof childFile !== 'string' && childFile.isDirectory()) {
         rmdirSync(join(path.toString(), childFile.name), options);
-      } else if (childFile.isFile()) {
+      } else if (typeof childFile !== 'string' && childFile.isFile()) {
         rmSync(join(path.toString(), childFile.name), options);
       }
     }

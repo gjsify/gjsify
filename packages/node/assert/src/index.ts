@@ -223,8 +223,10 @@ function expectedException(
   if (typeof expected === 'object' && expected !== null) {
     const keys = Object.keys(expected);
     for (const key of keys) {
-      if (typeof (actual as any)[key] === 'string' && expected[key as keyof typeof expected] instanceof RegExp) {
-        if (!(expected[key as keyof typeof expected] as RegExp).test((actual as any)[key])) {
+      const expectedObj = expected as Record<string, unknown>;
+      const actualObj = actual as Record<string, unknown>;
+      if (typeof actualObj[key] === 'string' && expectedObj[key] instanceof RegExp) {
+        if (!(expectedObj[key] as RegExp).test(actualObj[key] as string)) {
           throw new AssertionError({
             actual,
             expected,
@@ -233,7 +235,7 @@ function expectedException(
             stackStartFn: fn,
           });
         }
-      } else if (!isDeepStrictEqual((actual as any)[key], expected[key as keyof typeof expected])) {
+      } else if (!isDeepStrictEqual(actualObj[key], expectedObj[key])) {
         throw new AssertionError({
           actual,
           expected,
@@ -307,7 +309,7 @@ function doesNotThrow(
   }
 
   // If an expected error type was given, only re-throw if it matches
-  if (expected !== undefined && expected.prototype !== undefined && actual instanceof (expected as any)) {
+  if (expected !== undefined && typeof expected === 'function' && expected.prototype !== undefined && actual instanceof expected) {
     innerFail({
       actual,
       expected,
@@ -317,7 +319,7 @@ function doesNotThrow(
     });
   }
 
-  if (expected === undefined || (expected.prototype !== undefined && actual instanceof (expected as any))) {
+  if (expected === undefined || (typeof expected === 'function' && expected.prototype !== undefined && actual instanceof expected)) {
     innerFail({
       actual,
       expected,

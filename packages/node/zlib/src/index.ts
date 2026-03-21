@@ -9,7 +9,7 @@ type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
   const cs = new CompressionStream(format);
   const writer = cs.writable.getWriter();
-  writer.write(data);
+  writer.write(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength));
   writer.close();
 
   const chunks: Uint8Array[] = [];
@@ -33,7 +33,7 @@ async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Pro
 async function decompressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
   const ds = new DecompressionStream(format);
   const writer = ds.writable.getWriter();
-  writer.write(data);
+  writer.write(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength));
   writer.close();
 
   const chunks: Uint8Array[] = [];

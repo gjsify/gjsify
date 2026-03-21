@@ -309,7 +309,7 @@ export class FileHandle implements IFileHandle {
             encoding?: null | undefined;
             flag?: OpenMode | undefined;
         } | null
-    ): Promise<Buffer>
+    ): Promise<Buffer<ArrayBuffer>>
     /**
      * Asynchronously reads the entire contents of a file. The underlying file will _not_ be closed automatically.
      * The `FileHandle` must have been opened for reading.
@@ -337,7 +337,7 @@ export class FileHandle implements IFileHandle {
               })
             | BufferEncoding
             | null
-    ): Promise<string | Buffer> {
+    ): Promise<string | Buffer<ArrayBuffer>> {
         const encoding = getEncodingFromOptions(options, 'buffer');
         if (encoding) this._file.set_encoding(encoding);
 
@@ -474,6 +474,13 @@ export class FileHandle implements IFileHandle {
         bytesWritten: number;
         buffer: TBuffer;
     }>;
+    async write<TBuffer extends Uint8Array>(
+        buffer: TBuffer,
+        options?: { offset?: number; length?: number; position?: number },
+    ): Promise<{
+        bytesWritten: number;
+        buffer: TBuffer;
+    }>;
     async write(
         data: string,
         position?: number | null,
@@ -563,11 +570,11 @@ export class FileHandle implements IFileHandle {
      * @param position The offset from the beginning of the file where the data from `buffers` should be written. If `position` is not a `number`, the data will be written at the current
      * position.
      */
-    async writev(buffers: ReadonlyArray<NodeJS.ArrayBufferView>, position?: number): Promise<WriteVResult> {
+    async writev<TBuffers extends readonly NodeJS.ArrayBufferView[]>(buffers: TBuffers, position?: number): Promise<WriteVResult<TBuffers>> {
         warnNotImplemented('fs.FileHandle.writev');
         return {
             bytesWritten: 0,
-            buffers: [],
+            buffers: buffers as unknown as TBuffers,
         }
     }
     /**
@@ -576,11 +583,11 @@ export class FileHandle implements IFileHandle {
      * @param position The offset from the beginning of the file where the data should be read from. If `position` is not a `number`, the data will be read from the current position.
      * @return Fulfills upon success an object containing two properties:
      */
-    async readv(buffers: ReadonlyArray<NodeJS.ArrayBufferView>, position?: number): Promise<ReadVResult> {
+    async readv<TBuffers extends readonly NodeJS.ArrayBufferView[]>(buffers: TBuffers, position?: number): Promise<ReadVResult<TBuffers>> {
         warnNotImplemented('fs.FileHandle.readv');
         return {
             bytesRead: 0,
-            buffers: [],
+            buffers: buffers as unknown as TBuffers,
         }
     }
     /**
@@ -602,5 +609,9 @@ export class FileHandle implements IFileHandle {
      */
     async close(): Promise<void> {
         this._file.close();
+    }
+
+    async [Symbol.asyncDispose](): Promise<void> {
+        await this.close();
     }
 }

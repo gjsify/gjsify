@@ -244,9 +244,15 @@ export class Buffer extends Uint8Array {
     return Buffer.allocUnsafe(size);
   }
 
+  static from(arrayLike: ArrayLike<number>): Buffer;
+  static from<T>(arrayLike: ArrayLike<T>, mapfn: (v: T, k: number) => number, thisArg?: unknown): Buffer;
+  static from(elements: Iterable<number>): Buffer;
+  static from(value: string, encoding?: string): Buffer;
+  static from(value: ArrayBuffer | SharedArrayBuffer, byteOffset?: number, length?: number): Buffer;
+  static from(value: Uint8Array | Buffer): Buffer;
   static from(
-    value: ArrayBuffer | number[] | Uint8Array | Buffer | string,
-    encodingOrOffset?: string | number,
+    value: ArrayBuffer | SharedArrayBuffer | ArrayLike<number> | Iterable<number> | Uint8Array | Buffer | string,
+    encodingOrOffset?: string | number | ((v: unknown, k: number) => number),
     length?: number
   ): Buffer {
     if (typeof value === 'string') {
@@ -259,23 +265,29 @@ export class Buffer extends Uint8Array {
           checkEncoding(encodingOrOffset);
         }
       }
-      const encoded = encodeString(value, encoding);
-      const buf = new Buffer(encoded.buffer, encoded.byteOffset, encoded.byteLength);
+      const encoded = encodeString(value as string, encoding);
+      const buf = new Buffer(encoded.buffer as ArrayBuffer, encoded.byteOffset, encoded.byteLength);
       return buf;
     }
 
     if (ArrayBuffer.isView(value)) {
-      const buf = new Buffer(value.buffer, value.byteOffset, value.byteLength);
+      const buf = new Buffer(value.buffer as ArrayBuffer, value.byteOffset, value.byteLength);
       // Make a copy to avoid shared memory
       const copy = new Buffer(buf.length);
       copy.set(buf);
       return copy;
     }
 
-    if (value instanceof ArrayBuffer || (hasSharedArrayBuffer && value instanceof SharedArrayBuffer)) {
+    if (value instanceof ArrayBuffer) {
       const offset = (encodingOrOffset as number) || 0;
       const len = length !== undefined ? length : value.byteLength - offset;
       return new Buffer(value, offset, len);
+    }
+
+    if (hasSharedArrayBuffer && value instanceof SharedArrayBuffer) {
+      const offset = (encodingOrOffset as number) || 0;
+      const len = length !== undefined ? length : value.byteLength - offset;
+      return new Buffer(new Uint8Array(value, offset, len));
     }
 
     if (Array.isArray(value)) {
@@ -301,10 +313,11 @@ export class Buffer extends Uint8Array {
     return ['utf8', 'ascii', 'latin1', 'binary', 'base64', 'base64url', 'hex', 'ucs2', 'utf16le'].includes(lower);
   }
 
-  static byteLength(string: string | ArrayBuffer | ArrayBufferView, encoding?: string): number {
+  static byteLength(string: string | ArrayBuffer | SharedArrayBuffer | ArrayBufferView, encoding?: string): number {
     if (typeof string !== 'string') {
       if (ArrayBuffer.isView(string)) return string.byteLength;
-      if (string instanceof ArrayBuffer || (hasSharedArrayBuffer && string instanceof SharedArrayBuffer)) return string.byteLength;
+      if (string instanceof ArrayBuffer) return string.byteLength;
+      if (hasSharedArrayBuffer && string instanceof SharedArrayBuffer) return string.byteLength;
       throw new TypeError('The "string" argument must be one of type string, Buffer, or ArrayBuffer');
     }
 
