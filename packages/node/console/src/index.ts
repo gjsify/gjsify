@@ -171,12 +171,12 @@ export const profileEnd = (_label?: string) => {};
 export const timeStamp = (_label?: string) => {};
 
 // Default export: console-like object with Console class attached
-const consoleModule = Object.assign(Object.create(null), {
+const consoleModule = {
   Console,
   log, info, debug, warn, error, dir, dirxml, table,
   time, timeEnd, timeLog, trace, assert, clear,
   count, countReset, group, groupCollapsed, groupEnd,
   profile, profileEnd, timeStamp,
-});
+};
 
 export default consoleModule;

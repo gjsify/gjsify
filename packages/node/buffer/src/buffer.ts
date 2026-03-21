@@ -6,6 +6,51 @@ type BufferEncoding = 'utf8' | 'utf-8' | 'ascii' | 'latin1' | 'binary' | 'base64
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
+// Base64 helpers — atob/btoa may not be available in GJS
+const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const b64lookup = new Uint8Array(256);
+for (let i = 0; i < b64chars.length; i++) b64lookup[b64chars.charCodeAt(i)] = i;
+
+function _atob(str: string): string {
+  if (typeof globalThis.atob === 'function') return globalThis.atob(str);
+  // Manual base64 decode
+  const cleaned = str.replace(/[=\s]/g, '');
+  let result = '';
+  let bits = 0;
+  let collected = 0;
+  for (let i = 0; i < cleaned.length; i++) {
+    bits = (bits << 6) | b64lookup[cleaned.charCodeAt(i)];
+    collected += 6;
+    if (collected >= 8) {
+      collected -= 8;
+      result += String.fromCharCode((bits >> collected) & 0xff);
+    }
+  }
+  return result;
+}
+
+function _btoa(str: string): string {
+  if (typeof globalThis.btoa === 'function') return globalThis.btoa(str);
+  // Manual base64 encode
+  let result = '';
+  let i = 0;
+  for (; i + 2 < str.length; i += 3) {
+    const n = (str.charCodeAt(i) << 16) | (str.charCodeAt(i + 1) << 8) | str.charCodeAt(i + 2);
+    result += b64chars[(n >> 18) & 63] + b64chars[(n >> 12) & 63] + b64chars[(n >> 6) & 63] + b64chars[n & 63];
+  }
+  if (i + 1 === str.length) {
+    const n = str.charCodeAt(i) << 16;
+    result += b64chars[(n >> 18) & 63] + b64chars[(n >> 12) & 63] + '==';
+  } else if (i + 2 === str.length) {
+    const n = (str.charCodeAt(i) << 16) | (str.charCodeAt(i + 1) << 8);
+    result += b64chars[(n >> 18) & 63] + b64chars[(n >> 12) & 63] + b64chars[(n >> 6) & 63] + '=';
+  }
+  return result;
+}
+
+// SharedArrayBuffer may not be available in GJS
+const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
+
 function normalizeEncoding(enc?: string): BufferEncoding {
   if (!enc || enc === 'utf8' || enc === 'utf-8') return 'utf8';
   const lower = ('' + enc).toLowerCase().replace(/-/g, '');
@@ -54,7 +99,7 @@ function encodeString(str: string, encoding: BufferEncoding): Uint8Array {
     case 'base64': {
       // Remove padding and whitespace
       const cleaned = str.replace(/[\s=]/g, '');
-      const binary = atob(cleaned.replace(/-/g, '+').replace(/_/g, '/'));
+      const binary = _atob(cleaned.replace(/-/g, '+').replace(/_/g, '/'));
       const buf = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) {
         buf[i] = binary.charCodeAt(i);
@@ -125,7 +170,7 @@ function decodeString(buf: Uint8Array, encoding: BufferEncoding, start?: number,
       for (let i = 0; i < slice.length; i++) {
         binary += String.fromCharCode(slice[i]);
       }
-      return btoa(binary);
+      return _btoa(binary);
     }
 
     case 'base64url': {
@@ -200,7 +245,7 @@ export class Buffer extends Uint8Array {
   }
 
   static from(
-    value: ArrayBuffer | SharedArrayBuffer | number[] | Uint8Array | Buffer | string,
+    value: ArrayBuffer | number[] | Uint8Array | Buffer | string,
     encodingOrOffset?: string | number,
     length?: number
   ): Buffer {
@@ -227,7 +272,7 @@ export class Buffer extends Uint8Array {
       return copy;
     }
 
-    if (value instanceof ArrayBuffer || value instanceof SharedArrayBuffer) {
+    if (value instanceof ArrayBuffer || (hasSharedArrayBuffer && value instanceof SharedArrayBuffer)) {
       const offset = (encodingOrOffset as number) || 0;
       const len = length !== undefined ? length : value.byteLength - offset;
       return new Buffer(value, offset, len);
@@ -256,10 +301,10 @@ export class Buffer extends Uint8Array {
     return ['utf8', 'ascii', 'latin1', 'binary', 'base64', 'base64url', 'hex', 'ucs2', 'utf16le'].includes(lower);
   }
 
-  static byteLength(string: string | ArrayBuffer | SharedArrayBuffer | ArrayBufferView, encoding?: string): number {
+  static byteLength(string: string | ArrayBuffer | ArrayBufferView, encoding?: string): number {
     if (typeof string !== 'string') {
       if (ArrayBuffer.isView(string)) return string.byteLength;
-      if (string instanceof ArrayBuffer || string instanceof SharedArrayBuffer) return string.byteLength;
+      if (string instanceof ArrayBuffer || (hasSharedArrayBuffer && string instanceof SharedArrayBuffer)) return string.byteLength;
       throw new TypeError('The "string" argument must be one of type string, Buffer, or ArrayBuffer');
     }
 
