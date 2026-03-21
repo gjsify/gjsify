@@ -13,3 +13,6 @@
 [submodule "refs/node"]
 	path = refs/node
 	url = git@github.com:nodejs/node.git
+[submodule "refs/gjs"]
+	path = refs/gjs
+	url = https://gitlab.gnome.org/GNOME/gjs.git

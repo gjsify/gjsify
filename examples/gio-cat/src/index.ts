@@ -1,8 +1,6 @@
 import '@girs/gjs';
 import Gio from '@girs/gio-2.0';
 
-const ByteArray = imports.byteArray;
-
 Gio._promisify(Gio.File.prototype, 'load_contents_async', 'load_contents_finish');
 
 async function cat(filename: string) {
@@ -11,7 +9,6 @@ async function cat(filename: string) {
     const [contents] = await file.load_contents_async(null);
     const decoder = new TextDecoder();
     const decoded = decoder.decode(contents);
-    // const decoded = ByteArray.toString(contents);
     print(decoded);
 }
 
