@@ -1,5 +1,7 @@
 // Native util module for GJS — no Deno dependency
 
+import type { InspectOptions } from 'node:util';
+
 import * as types from './types.js';
 import { getSystemErrorName, getSystemErrorMap } from './errors.js';
 
@@ -9,17 +11,6 @@ export { getSystemErrorName, getSystemErrorMap };
 // ---- inspect ----
 
 const kCustomInspect = Symbol.for('nodejs.util.inspect.custom');
-
-interface InspectOptions {
-  depth?: number | null;
-  colors?: boolean;
-  showHidden?: boolean;
-  maxArrayLength?: number;
-  maxStringLength?: number;
-  compact?: boolean | number;
-  sorted?: boolean;
-  breakLength?: number;
-}
 
 function inspectValue(value: unknown, opts: InspectOptions, depth: number): string {
   if (value === null) return opts.colors ? '\x1b[1mnull\x1b[22m' : 'null';

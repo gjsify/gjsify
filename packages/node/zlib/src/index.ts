@@ -2,20 +2,9 @@
 // Uses Web Compression API (CompressionStream/DecompressionStream) where available,
 // falls back to Gio.ZlibCompressor/Decompressor on GJS.
 
-type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
+import type { ZlibOptions } from 'node:zlib';
 
-interface ZlibOptions {
-  flush?: number;
-  finishFlush?: number;
-  chunkSize?: number;
-  windowBits?: number;
-  level?: number;
-  memLevel?: number;
-  strategy?: number;
-  dictionary?: Uint8Array | ArrayBuffer;
-  info?: boolean;
-  maxOutputLength?: number;
-}
+type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
 // ---- Compression helpers using Web Compression API ----
 

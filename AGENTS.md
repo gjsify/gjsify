@@ -198,6 +198,39 @@ When replacing a Deno re-export with a native GJS implementation:
 6. Verify tests pass on Node.js first (`yarn test:node`), then GJS (`yarn test:gjs`)
 7. Remove `@gjsify/deno_std` from the package's `package.json` dependencies
 
+## Type Safety Patterns
+
+### Import Node.js types instead of defining custom interfaces
+
+When implementing a Node.js API, **import types from the corresponding `node:*` module** instead of defining your own interfaces. This ensures compatibility with the Node.js type system and avoids drift:
+
+```typescript
+// Good — import from Node.js
+import type { ReadableOptions } from 'node:stream';
+import type { InspectOptions } from 'node:util';
+import type { ZlibOptions } from 'node:zlib';
+
+// Bad — don't redefine what Node.js already provides
+interface ReadableOptions { highWaterMark?: number; ... }
+```
+
+Global types from `@types/node` (like `BufferEncoding`, `NodeJS.Platform`) don't need an import — they're available automatically.
+
+### Avoid `any` — use proper types
+
+- Use `unknown` instead of `any` where values are truly dynamic
+- Keep `any` only where the Node.js API contract requires it (e.g., `stream.write(chunk: any)`, `EventEmitter.emit(event, ...args: any[])`)
+- Use `as unknown as TargetType` instead of `as any` for type casts between unrelated types
+- Type error callbacks as `NodeJS.ErrnoException | null`, not `any`
+
+### Type checking
+
+Run `yarn check` (uses `tsc --noEmit` per package) to validate types without building:
+
+```bash
+yarn check              # Check all packages
+```
+
 ## Constraints
 
 - Target: GJS 1.86.0 (SpiderMonkey 128 / esbuild target `firefox128`)

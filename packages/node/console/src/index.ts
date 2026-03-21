@@ -2,14 +2,7 @@
 // GJS already provides a full console global (log, warn, error, info, debug, table, etc.)
 // The Node.js console module additionally exports a Console class constructor.
 
-interface ConsoleConstructorOptions {
-  stdout?: { write: (data: string) => void };
-  stderr?: { write: (data: string) => void };
-  ignoreErrors?: boolean;
-  colorMode?: boolean | 'auto';
-  inspectOptions?: object;
-  groupIndentation?: number;
-}
+import type { ConsoleOptions } from 'node:console';
 
 /**
  * The Console class can be used to create a simple logger with configurable output streams.
@@ -25,14 +18,14 @@ export class Console {
   private _counters = new Map<string, number>();
 
   constructor(
-    stdoutOrOptions?: { write: (data: string) => void } | ConsoleConstructorOptions,
+    stdoutOrOptions?: { write: (data: string) => void } | ConsoleOptions,
     stderr?: { write: (data: string) => void }
   ) {
     if (stdoutOrOptions && typeof (stdoutOrOptions as { write?: unknown }).write === 'function') {
       this._stdout = stdoutOrOptions as { write: (data: string) => void };
       this._stderr = stderr || this._stdout;
     } else if (stdoutOrOptions && typeof stdoutOrOptions === 'object') {
-      const opts = stdoutOrOptions as ConsoleConstructorOptions;
+      const opts = stdoutOrOptions as ConsoleOptions;
       this._stdout = opts.stdout;
       this._stderr = opts.stderr || opts.stdout;
     }

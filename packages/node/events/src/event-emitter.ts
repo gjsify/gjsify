@@ -1,17 +1,9 @@
 // Native EventEmitter implementation for GJS
 // Reference: Node.js lib/events.js, Deno ext/node/polyfills/_events.mjs
 
+import type { EventEmitterOptions, OnOptions, OnceOptions } from 'node:events';
+
 type EventListener = (...args: any[]) => void;
-
-interface EventEmitterOptions {
-  captureRejections?: boolean;
-}
-
-interface AbortableOptions {
-  signal?: AbortSignal;
-}
-
-interface OnceOptions extends AbortableOptions {}
 
 /** An EventListener that may have been wrapped by `once`, carrying the original listener. */
 interface WrappedEventListener extends EventListener {
@@ -28,19 +20,6 @@ interface NodeError extends Error {
 /** Array of listeners augmented with a `warned` flag for max-listener leak detection. */
 interface WarnableListenerArray extends Array<EventListener> {
   warned?: boolean;
-}
-
-interface OnOptions extends AbortableOptions {
-  /**
-   * When the unconsumed event count exceeds this, pause the emitter.
-   * @default Number.MAX_SAFE_INTEGER
-   */
-  highWaterMark?: number;
-  /**
-   * When the unconsumed event count drops below this, resume the emitter.
-   * @default 1
-   */
-  lowWaterMark?: number;
 }
 
 // Internal symbols

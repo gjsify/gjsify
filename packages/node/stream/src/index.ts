@@ -2,6 +2,7 @@
 // Implements core Node.js stream classes built on EventEmitter.
 
 import { EventEmitter } from '@gjsify/events';
+import type { ReadableOptions, WritableOptions, DuplexOptions, TransformOptions, FinishedOptions } from 'node:stream';
 
 // ---- Types ----
 
@@ -13,40 +14,7 @@ export interface StreamOptions {
   captureRejections?: boolean;
 }
 
-export interface ReadableOptions extends StreamOptions {
-  encoding?: string;
-  autoDestroy?: boolean;
-  read?(this: Readable, size: number): void;
-  destroy?(this: Readable, error: Error | null, callback: (error?: Error | null) => void): void;
-}
-
-export interface WritableOptions extends StreamOptions {
-  decodeStrings?: boolean;
-  defaultEncoding?: string;
-  autoDestroy?: boolean;
-  write?(this: Writable, chunk: any, encoding: string, callback: (error?: Error | null) => void): void;
-  writev?(this: Writable, chunks: Array<{ chunk: any; encoding: string }>, callback: (error?: Error | null) => void): void;
-  final?(this: Writable, callback: (error?: Error | null) => void): void;
-  destroy?(this: Writable, error: Error | null, callback: (error?: Error | null) => void): void;
-}
-
-export interface DuplexOptions extends ReadableOptions, WritableOptions {
-  allowHalfOpen?: boolean;
-  readableObjectMode?: boolean;
-  writableObjectMode?: boolean;
-  destroy?(this: Readable & Writable, error: Error | null, callback: (error?: Error | null) => void): void;
-}
-
-export interface TransformOptions extends DuplexOptions {
-  transform?(this: Transform, chunk: any, encoding: string, callback: (error?: Error | null, data?: any) => void): void;
-  flush?(this: Transform, callback: (error?: Error | null, data?: any) => void): void;
-}
-
-export interface FinishedOptions {
-  error?: boolean;
-  readable?: boolean;
-  writable?: boolean;
-}
+export type { ReadableOptions, WritableOptions, DuplexOptions, TransformOptions, FinishedOptions };
 
 // ---- Stream base class ----
 

@@ -1,7 +1,7 @@
 // Native Buffer implementation for GJS
 // Reference: Node.js lib/buffer.js, Deno ext/node/polyfills/buffer.ts
 
-type BufferEncoding = 'utf8' | 'utf-8' | 'ascii' | 'latin1' | 'binary' | 'base64' | 'base64url' | 'hex' | 'ucs2' | 'ucs-2' | 'utf16le' | 'utf-16le';
+// BufferEncoding is a global type provided by @types/node
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();

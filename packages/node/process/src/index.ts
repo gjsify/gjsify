@@ -3,8 +3,8 @@
 
 import { EventEmitter } from '@gjsify/events';
 
-type ProcessPlatform = 'linux' | 'darwin' | 'win32' | 'freebsd' | 'openbsd' | 'sunos' | 'aix';
-type ProcessArch = 'x64' | 'arm' | 'arm64' | 'ia32' | 'ppc64' | 'riscv64' | 's390x';
+type ProcessPlatform = NodeJS.Platform;
+type ProcessArch = NodeJS.Architecture;
 
 // GJS-specific global type for accessing GNOME libraries
 interface GjsGlobalThis {

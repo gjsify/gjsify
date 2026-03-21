@@ -1,6 +1,8 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 // https://github.com/denoland/deno_std/blob/main/node/querystring.ts
 
+import type { ParsedUrlQuery } from 'node:querystring';
+
 import { Buffer } from "buffer";
 import { NodeURIError } from "./error.js";
 
@@ -110,9 +112,7 @@ function qsEscape(str: unknown): string {
  */
 export const escape = qsEscape;
 
-export interface ParsedUrlQuery {
-  [key: string]: string | string[] | undefined;
-}
+export type { ParsedUrlQuery };
 
 interface ParseOptions {
   /** The function to use when decoding percent-encoded characters in the query string. */
