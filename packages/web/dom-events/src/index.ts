@@ -38,11 +38,39 @@ interface ListenerEntry {
   removed: boolean;
 }
 
+// Standard DOMException error code mapping
+const DOMExceptionCodes: Record<string, number> = {
+  IndexSizeError: 1,
+  HierarchyRequestError: 3,
+  WrongDocumentError: 4,
+  InvalidCharacterError: 5,
+  NoModificationAllowedError: 7,
+  NotFoundError: 8,
+  NotSupportedError: 9,
+  InUseAttributeError: 10,
+  InvalidStateError: 11,
+  SyntaxError: 12,
+  InvalidModificationError: 13,
+  NamespaceError: 14,
+  InvalidAccessError: 15,
+  TypeMismatchError: 17,
+  SecurityError: 18,
+  NetworkError: 19,
+  AbortError: 20,
+  URLMismatchError: 21,
+  QuotaExceededError: 22,
+  TimeoutError: 23,
+  InvalidNodeTypeError: 24,
+  DataCloneError: 25,
+};
+
 // DOMException polyfill — exported for use by abort-controller and fetch
 class _DOMExceptionPolyfill extends Error {
+  code: number;
   constructor(message?: string, name?: string) {
     super(message);
     this.name = name || 'Error';
+    this.code = DOMExceptionCodes[this.name] || 0;
   }
 }
 export const DOMException: typeof globalThis.DOMException = typeof globalThis.DOMException !== 'undefined'
@@ -91,7 +119,7 @@ export class Event {
   get currentTarget(): EventTarget | null { return this[kCurrentTarget]; }
   get eventPhase(): number { return this[kEventPhase]; }
   get defaultPrevented(): boolean { return this[kDefaultPrevented]; }
-  get isTrusted(): boolean { return this[kIsTrusted]; }
+  // isTrusted is defined as a non-configurable own property in the constructor
   get timeStamp(): number { return this[kTimeStamp]; }
 
   // Legacy compat
@@ -121,6 +149,13 @@ export class Event {
     this[kCancelable] = eventInitDict?.cancelable ?? false;
     this[kComposed] = eventInitDict?.composed ?? false;
     this[kTimeStamp] = Date.now();
+
+    // isTrusted must be a non-configurable own property so subclasses cannot override it
+    Object.defineProperty(this, 'isTrusted', {
+      get: () => this[kIsTrusted],
+      enumerable: true,
+      configurable: false,
+    });
   }
 
   composedPath(): EventTarget[] {
@@ -235,8 +270,8 @@ export class EventTarget {
           if (entry.passive) (event as any)[kInPassiveListener] = true;
           if (typeof entry.listener === 'function') {
             entry.listener.call(this, event);
-          } else {
-            entry.listener.handleEvent(event);
+          } else if (typeof entry.listener.handleEvent === 'function') {
+            entry.listener.handleEvent.call(entry.listener, event);
           }
         } catch (err) {
           console.error(err);
@@ -254,9 +289,10 @@ export class EventTarget {
   }
 }
 
-// Define phase constants as non-writable, non-configurable on Event.prototype
+// Define phase constants as non-writable, non-configurable on Event.prototype and Event constructor
 for (const [name, value] of [['NONE', 0], ['CAPTURING_PHASE', 1], ['AT_TARGET', 2], ['BUBBLING_PHASE', 3]] as const) {
   Object.defineProperty(Event.prototype, name, { value, writable: false, enumerable: true, configurable: false });
+  Object.defineProperty(Event, name, { value, writable: false, enumerable: true, configurable: false });
 }
 
 export default { Event, CustomEvent, EventTarget };
