@@ -40,7 +40,7 @@ const supportedSchemas = new Set(['data:', 'http:', 'https:']);
  * @param url Absolute url or Request instance
  * @param init Fetch options
  */
-export default async function fetch(url: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+export default async function fetch(url: RequestInfo | URL | Request, init: RequestInit = {}): Promise<Response> {
   // Build request object
   const request = new Request(url, init);
   const { parsedURL, options } = getSoupRequestOptions(request);
@@ -51,7 +51,7 @@ export default async function fetch(url: RequestInfo | URL, init: RequestInit = 
   // Handle data: URIs
   if (parsedURL.protocol === 'data:') {
     const { buffer, typeFull } = parseDataUri(request.url);
-    const response = new Response(buffer, { headers: { 'Content-Type': typeFull } });
+    const response = new Response(Buffer.from(buffer), { headers: { 'Content-Type': typeFull } });
     return response;
   }
 
@@ -179,7 +179,7 @@ export default async function fetch(url: RequestInfo | URL, init: RequestInit = 
         }
 
         finalize();
-        return fetch(new Request(locationURL, requestOptions));
+        return fetch(new Request(locationURL, requestOptions as RequestInit));
       }
 
       default:
@@ -225,9 +225,9 @@ export default async function fetch(url: RequestInfo | URL, init: RequestInit = 
     if (format) {
       const webBody = new Response(readable, responseOptions).body;
       if (webBody) {
-        const decompressed = webBody.pipeThrough(new DecompressionStream(format));
+        const decompressed = webBody.pipeThrough(new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
         finalize();
-        return new Response(decompressed as any, responseOptions);
+        return new Response(decompressed as unknown as ReadableStream, responseOptions);
       }
     }
   }

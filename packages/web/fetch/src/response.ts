@@ -18,7 +18,23 @@ import type { Readable } from 'stream';
 
 const INTERNALS = Symbol('Response internals');
 
-interface ResponseInit extends globalThis.ResponseInit {
+interface ResponseOptions {
+    status?: number;
+    statusText?: string;
+    headers?: HeadersInit | Headers;
+    url?: string;
+    type?: ResponseType;
+    ok?: boolean;
+    redirected?: boolean;
+    size?: number;
+    counter?: number;
+    highWaterMark?: number;
+}
+
+interface ResponseInit {
+    status?: number;
+    statusText?: string;
+    headers?: HeadersInit | Headers;
     type?: ResponseType;
     url?: string;
     counter?: number;
@@ -36,7 +52,7 @@ interface ResponseInit extends globalThis.ResponseInit {
  * @param body Readable stream
  * @param opts Response options
  */
-export class Response extends Body implements globalThis.Response {
+export class Response extends Body {
 
     [INTERNALS]: {
         type: ResponseType;
@@ -50,7 +66,7 @@ export class Response extends Body implements globalThis.Response {
 
     _inputStream: Gio.InputStream | null = null;
 
-    constructor(body: BodyInit | Readable | Blob | Buffer | null = null, options: ResponseInit = {}) {
+    constructor(body: BodyInit | Readable | Blob | Buffer | null = null, options: ResponseOptions = {}) {
         super(body, options);
 
         // eslint-disable-next-line no-eq-null, eqeqeq, no-negated-condition

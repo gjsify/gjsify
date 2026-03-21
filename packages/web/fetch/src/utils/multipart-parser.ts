@@ -381,7 +381,7 @@ export async function toFormData(Body, ct) {
 
 	const appendFileToFormData = () => {
 		const file = new File(entryChunks, filename, {type: contentType});
-		formData.append(entryName, file);
+		formData.append(entryName, file as unknown as Blob);
 	};
 
 	const appendEntryToFormData = () => {

@@ -8,7 +8,7 @@
 const _encoder = new TextEncoder();
 
 const Blob = globalThis.Blob ?? class Blob {
-  private _parts: any[];
+  _parts: BlobPart[];
   readonly size: number;
   readonly type: string;
   constructor(parts?: any[], options?: BlobPropertyBag) {
@@ -21,6 +21,10 @@ const Blob = globalThis.Blob ?? class Blob {
       if (part && typeof part.size === 'number') return acc + part.size;
       return acc;
     }, 0);
+  }
+  async bytes(): Promise<Uint8Array<ArrayBuffer>> {
+    const ab = await this.arrayBuffer();
+    return new Uint8Array(ab);
   }
   async text(): Promise<string> { return new TextDecoder().decode(await this.arrayBuffer()); }
   async arrayBuffer(): Promise<ArrayBuffer> {

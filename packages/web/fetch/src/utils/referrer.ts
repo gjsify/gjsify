@@ -327,7 +327,7 @@ export function determineRequestsReferrer(request: Request, obj: {referrerURLCal
  * @param {Headers} headers Response headers
  * @returns {string} policy
  */
-export function parseReferrerPolicyFromHeader(headers: Headers): ReferrerPolicy {
+export function parseReferrerPolicyFromHeader(headers: { get(name: string): string | null }): ReferrerPolicy {
 	// 1. Let policy-tokens be the result of extracting header list values given `Referrer-Policy`
 	//    and response’s header list.
 	const policyTokens = (headers.get('referrer-policy') || '').split(/[,\s]+/);

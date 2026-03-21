@@ -71,7 +71,7 @@ export default class Body {
 
     size = 0;
 
-    constructor(body: BodyInit | Readable | Blob | Buffer | null, options: ResponseInit & { size?: number } = { size: 0 }) {
+    constructor(body: BodyInit | Readable | Blob | Buffer | null, options: { size?: number; headers?: unknown } = { size: 0 }) {
         this.size = options.size || 0;
         if (body === null || body === undefined) {
             // Body is undefined or null
@@ -172,7 +172,7 @@ export default class Body {
      */
     async arrayBuffer(): Promise<ArrayBuffer> {
         const {buffer, byteOffset, byteLength} = await consumeBody(this);
-        return buffer.slice(byteOffset, byteOffset + byteLength);
+        return buffer.slice(byteOffset, byteOffset + byteLength) as ArrayBuffer;
     }
 
     async formData(): Promise<FormData> {
@@ -235,7 +235,7 @@ Object.defineProperties(Body.prototype, {
 /**
  * Consume and convert an entire Body to a Buffer.
  */
-async function consumeBody(data: Body & Partial<Request>): Promise<Buffer> {
+async function consumeBody(data: Body & { url?: string }): Promise<Buffer> {
     if (data[INTERNALS].disturbed) {
         throw new TypeError(`body used already for: ${data.url}`);
     }

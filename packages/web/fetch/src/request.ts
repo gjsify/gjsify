@@ -12,19 +12,39 @@ import { Readable } from 'stream';
 import Headers from './headers.js';
 import Body, {clone, extractContentType, getTotalBytes} from './body.js';
 import {isAbortSignal} from './utils/is.js';
+import type { FormData } from '@gjsify/formdata';
 import {
 	validateReferrerPolicy, determineRequestsReferrer, DEFAULT_REFERRER_POLICY
 } from './utils/referrer.js';
 
 const INTERNALS = Symbol('Request internals');
 
+/** Properties that may exist on a Request-like object (used for safe casting). */
+interface RequestLike {
+  url?: string;
+  method?: string;
+  headers?: Headers | HeadersInit;
+  redirect?: RequestRedirect;
+  signal?: AbortSignal | null;
+  referrer?: string;
+  referrerPolicy?: ReferrerPolicy;
+  body?: BodyInit | null;
+  follow?: number;
+  compress?: boolean;
+  counter?: number;
+  agent?: string | ((url: URL) => string);
+  highWaterMark?: number;
+  insecureHTTPParser?: boolean;
+  size?: number;
+}
+
 /**
  * Check if `obj` is an instance of Request.
  */
- const isRequest = (obj: RequestInfo | URL) => {
+ const isRequest = (obj: RequestInfo | URL | Request): boolean => {
 	return (
 		typeof obj === 'object' &&
-		typeof (obj as Request).url === 'string'
+		typeof (obj as RequestLike).url === 'string'
 	);
 };
 
@@ -138,13 +158,16 @@ export class Request extends Body {
   highWaterMark = 16384;
   insecureHTTPParser = false;
 
-  constructor(input: RequestInfo | URL, init?: RequestInit) {
+  constructor(input: RequestInfo | URL | Request, init?: RequestInit) {
+    const inputRL = input as unknown as RequestLike;
+    const initRL = (init || {}) as unknown as RequestLike;
+
     let parsedURL: URL;
-    let requestObj: Partial<Request> = {};
+    let requestObj: RequestLike = {};
 
     if(isRequest(input)) {
-      parsedURL = new URL((input as Request).url);
-      requestObj = input as Request;
+      parsedURL = new URL(inputRL.url);
+      requestObj = inputRL;
     } else {
       parsedURL = new URL(input as string | URL);
     }
@@ -153,23 +176,23 @@ export class Request extends Body {
       throw new TypeError(`${parsedURL} is an url with embedded credentials.`);
     }
 
-    let method = init.method || requestObj.method || 'GET';
+    let method = initRL.method || requestObj.method || 'GET';
     if (/^(delete|get|head|options|post|put)$/i.test(method)) {
       method = method.toUpperCase();
     }
 
-    if ((init.body != null || (isRequest(input) && (input as Request).body !== null)) &&
+    if ((init?.body != null || (isRequest(input) && inputRL.body !== null)) &&
       (method === 'GET' || method === 'HEAD')) {
       throw new TypeError('Request with GET/HEAD method cannot have body');
     }
 
-    const inputBody = init.body ? init.body : (isRequest(input) && (input as Request).body !== null ? clone(input as Request & Body) : null);
+    const inputBody = init?.body ? init.body : (isRequest(input) && inputRL.body !== null ? clone(input as unknown as Request & Body) : null);
 
     super(inputBody, {
-      size: (init as Request).size || (init as any).size || 0
+      size: initRL.size || 0
     });
 
-    const headers = new Headers((init.headers || (input as Request).headers || {}) as HeadersInit);
+    const headers = new Headers((init?.headers || inputRL.headers || {}) as HeadersInit);
 
     if (inputBody !== null && !headers.has('Content-Type')) {
       const contentType = extractContentType(inputBody, this);
@@ -179,9 +202,9 @@ export class Request extends Body {
     }
 
     let signal = isRequest(input) ?
-      (input as Request).signal :
+      inputRL.signal :
       null;
-    if ('signal' in init) {
+    if (init && 'signal' in init) {
       signal = init.signal;
     }
 
@@ -190,7 +213,7 @@ export class Request extends Body {
     }
 
     // §5.4, Request constructor steps, step 15.1
-    let referrer: string | URL = init.referrer == null ? (input as Request).referrer : init.referrer;
+    let referrer: string | URL = init?.referrer == null ? inputRL.referrer : init.referrer;
     if (referrer === '') {
       // §5.4, Request constructor steps, step 15.2
       referrer = 'no-referrer';
@@ -211,7 +234,7 @@ export class Request extends Body {
 
     this[INTERNALS] = {
       method,
-      redirect: init.redirect || (input as Request).redirect || 'follow',
+      redirect: init?.redirect || inputRL.redirect || 'follow',
       headers,
       parsedURL,
       signal,
@@ -222,16 +245,16 @@ export class Request extends Body {
     };
 
     // Node-fetch-only options
-    this.follow = (init as Request).follow === undefined ? ((input as Request).follow === undefined ? 20 : (input as Request).follow) : (init as Request).follow;
-    this.compress = (init as Request).compress === undefined ? ((input as Request).compress === undefined ? true : (input as Request).compress) : (init as Request).compress;
-    this.counter = (init as Request).counter || (input as Request).counter || 0;
-    this.agent = (init as Request).agent || (input as Request).agent;
-    this.highWaterMark = (init as Request).highWaterMark || (input as Request).highWaterMark || 16384;
-    this.insecureHTTPParser = (init as Request).insecureHTTPParser || (input as Request).insecureHTTPParser || false;
+    this.follow = initRL.follow === undefined ? (inputRL.follow === undefined ? 20 : inputRL.follow) : initRL.follow;
+    this.compress = initRL.compress === undefined ? (inputRL.compress === undefined ? true : inputRL.compress) : initRL.compress;
+    this.counter = initRL.counter || inputRL.counter || 0;
+    this.agent = initRL.agent || inputRL.agent;
+    this.highWaterMark = initRL.highWaterMark || inputRL.highWaterMark || 16384;
+    this.insecureHTTPParser = initRL.insecureHTTPParser || inputRL.insecureHTTPParser || false;
 
     // §5.4, Request constructor steps, step 16.
     // Default is empty string per https://fetch.spec.whatwg.org/#concept-request-referrer-policy
-    this.referrerPolicy = init.referrerPolicy || (input as Request).referrerPolicy || '';
+    this.referrerPolicy = init?.referrerPolicy || inputRL.referrerPolicy || '';
   }
 
   /**

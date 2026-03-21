@@ -5,7 +5,7 @@
  * All header names are lowercased per the Fetch spec.
  */
 
-import type Soup from '@girs/soup-3.0';
+import Soup from '@girs/soup-3.0';
 import { validateHeaderName, validateHeaderValue } from '@gjsify/http';
 
 const _headers = Symbol('Headers.headers');
@@ -114,6 +114,10 @@ export default class Headers implements Iterable<[string, string]> {
 
     getAll(name: string): string[] {
         return this[_headers].get(String(name).toLowerCase()) ?? [];
+    }
+
+    getSetCookie(): string[] {
+        return this[_headers].get('set-cookie') ?? [];
     }
 
     forEach(callback: (value: string, name: string, parent: Headers) => void, thisArg?: any): void {
