@@ -1,4 +1,4 @@
-import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
+import { URL } from '@gjsify/url';
 
 import { isIP } from 'net';
 import Request from '../request.js';

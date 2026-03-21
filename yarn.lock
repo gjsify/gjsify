@@ -676,8 +676,6 @@ __metadata:
   resolution: "@gjsify/abort-controller@workspace:packages/web/abort-controller"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@gjsify/deno-runtime": "workspace:^"
-    "@gjsify/deno_std": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
@@ -737,63 +735,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/deno-globals@workspace:packages/deno/globals":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/deno-globals@workspace:packages/deno/globals"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/deno-runtime": "workspace:^"
-    "@gjsify/process": "workspace:^"
-    "@gjsify/stream": "workspace:^"
-    "@gjsify/unit": "workspace:^"
-    "@gjsify/utils": "workspace:^"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/deno-runtime@workspace:^, @gjsify/deno-runtime@workspace:packages/deno/runtime":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/deno-runtime@workspace:packages/deno/runtime"
-  dependencies:
-    "@girs/gjs": "npm:^4.0.0-beta.41"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/empty": "workspace:^"
-    "@gjsify/unit": "workspace:^"
-    "@gjsify/utils": "workspace:^"
-    "@tsconfig/deno": "npm:^1.0.9"
-    fast-glob: "npm:^3.3.2"
-    open-cli: "npm:^8.0.0"
-    typescript: "npm:^5.9.3"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/deno_std@workspace:^, @gjsify/deno_std@workspace:packages/deno/std":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/deno_std@workspace:packages/deno/std"
-  dependencies:
-    "@girs/gjs": "npm:^4.0.0-beta.41"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/deno-runtime": "workspace:^"
-    "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
-    "@gjsify/unit": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    open-cli: "npm:^8.0.0"
-    typescript: "npm:^5.9.3"
-  languageName: unknown
-  linkType: soft
-
 "@gjsify/dom-events@workspace:^, @gjsify/dom-events@workspace:packages/web/dom-events":
   version: 0.0.0-use.local
   resolution: "@gjsify/dom-events@workspace:packages/web/dom-events"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@gjsify/deno-runtime": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 
-"@gjsify/empty@workspace:^, @gjsify/empty@workspace:packages/infra/empty":
+"@gjsify/empty@workspace:packages/infra/empty":
   version: 0.0.0-use.local
   resolution: "@gjsify/empty@workspace:packages/infra/empty"
   languageName: unknown
@@ -1055,11 +1008,11 @@ __metadata:
   resolution: "@gjsify/fetch@workspace:packages/web/fetch"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@gjsify/deno-runtime": "workspace:^"
     "@gjsify/gio-2.0": "workspace:^"
     "@gjsify/http": "workspace:^"
     "@gjsify/soup-3.0": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/url": "workspace:^"
     "@types/node": "npm:^25.5.0"
     "@types/node-fetch": "npm:^2.6.13"
     data-uri-to-buffer: "npm:^6.0.1"
@@ -1717,13 +1670,6 @@ __metadata:
   version: 4.0.0-beta.41
   resolution: "@ts-for-gir/templates@npm:4.0.0-beta.41"
   checksum: 10/6285d3642b8a5acfbb162431fccb74f9a6dd578ecc83be39712a2dd20d6474ffee28d946a3272319129b54b26500b370a610e4921c2e51a4d470a9bf98155584
-  languageName: node
-  linkType: hard
-
-"@tsconfig/deno@npm:^1.0.9":
-  version: 1.0.9
-  resolution: "@tsconfig/deno@npm:1.0.9"
-  checksum: 10/975cf5e499ef42dae11a4f00ea408377101654085abef3664fb853a691f7084a0e45e4b0853f7fdb8b6ffa7294b52cb56dcea0e0390485c930666b64a3e51aa0
   languageName: node
   linkType: hard
 

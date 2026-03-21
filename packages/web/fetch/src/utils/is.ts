@@ -1,5 +1,5 @@
-import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
-import { Blob } from "@gjsify/deno-runtime/ext/web/09_file";
+import { URL } from '@gjsify/url';
+import { Blob } from './blob-from.js';
 
 /**
  * Is.js

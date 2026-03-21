@@ -5,7 +5,7 @@
  */
 
 import Soup from '@girs/soup-3.0';
-import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
+import { URLSearchParams } from '@gjsify/url';
 
 import { types } from 'util';
 import * as http from 'http';

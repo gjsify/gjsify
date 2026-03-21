@@ -5,8 +5,8 @@
  * Body interface provides common methods for Request and Response
  */
 
-import { URLSearchParams } from '@gjsify/deno-runtime/ext/url/00_url';
-import { Blob } from "@gjsify/deno-runtime/ext/web/09_file";
+import { URLSearchParams } from '@gjsify/url';
+import { Blob } from './utils/blob-from.js';
 
 import { PassThrough, pipeline as pipelineCb, Readable, Stream, Writable } from 'stream';
 import { ReadableStream as StreamWebReadableStream } from "stream/web";

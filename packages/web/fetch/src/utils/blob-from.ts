@@ -1,5 +1,59 @@
-import { DOMException } from "@gjsify/deno-runtime/ext/web/01_dom_exception";
-import { Blob, File } from "@gjsify/deno-runtime/ext/web/09_file";
+// Use global Blob/File if available, otherwise provide minimal shims
+const Blob = globalThis.Blob ?? class Blob {
+  private _parts: any[];
+  private _options: BlobPropertyBag;
+  readonly size: number;
+  readonly type: string;
+  constructor(parts?: any[], options?: BlobPropertyBag) {
+    this._parts = parts || [];
+    this._options = options || {};
+    this.type = options?.type || '';
+    this.size = this._parts.reduce((acc: number, part: any) => {
+      if (typeof part === 'string') return acc + new TextEncoder().encode(part).byteLength;
+      if (part instanceof ArrayBuffer) return acc + part.byteLength;
+      if (ArrayBuffer.isView(part)) return acc + part.byteLength;
+      if (part && typeof part.size === 'number') return acc + part.size;
+      return acc;
+    }, 0);
+  }
+  async text(): Promise<string> { return new TextDecoder().decode(await this.arrayBuffer()); }
+  async arrayBuffer(): Promise<ArrayBuffer> {
+    const chunks: Uint8Array[] = [];
+    for (const part of this._parts) {
+      if (typeof part === 'string') chunks.push(new TextEncoder().encode(part));
+      else if (part instanceof ArrayBuffer) chunks.push(new Uint8Array(part));
+      else if (ArrayBuffer.isView(part)) chunks.push(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
+      else if (part && typeof part.stream === 'function') {
+        for await (const chunk of part.stream()) {
+          chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
+        }
+      }
+    }
+    const total = chunks.reduce((a, c) => a + c.byteLength, 0);
+    const result = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) { result.set(c, offset); offset += c.byteLength; }
+    return result.buffer;
+  }
+  slice(start?: number, end?: number, type?: string): Blob { return new Blob([], { type }); }
+};
+
+const File = globalThis.File ?? class File extends Blob {
+  readonly name: string;
+  readonly lastModified: number;
+  constructor(parts: any[], name: string, options?: FilePropertyBag) {
+    super(parts, options);
+    this.name = name;
+    this.lastModified = options?.lastModified ?? Date.now();
+  }
+};
+
+class DOMException extends Error {
+  constructor(message?: string, name?: string) {
+    super(message);
+    this.name = name || 'Error';
+  }
+}
 
 import {
     realpathSync,

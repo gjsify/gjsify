@@ -7,8 +7,8 @@ import Gio from '@girs/gio-2.0';
 import * as GioExt from '@gjsify/gio-2.0';
 import * as SoupExt from '@gjsify/soup-3.0';
 
-import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
-import { Blob } from '@gjsify/deno-runtime/ext/web/09_file';
+import { URL } from '@gjsify/url';
+import { Blob } from './utils/blob-from.js';
 
 import { Readable } from 'stream';
 

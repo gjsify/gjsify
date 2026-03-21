@@ -11,8 +11,8 @@ import Headers from './headers.js';
 import Body, { clone, extractContentType } from './body.js';
 import { isRedirect } from './utils/is-redirect.js';
 
-import { URL } from '@gjsify/deno-runtime/ext/url/00_url';
-import { Blob } from '@gjsify/deno-runtime/ext/web/09_file';
+import { URL } from '@gjsify/url';
+import { Blob } from './utils/blob-from.js';
 
 import type { Readable } from 'stream';
 

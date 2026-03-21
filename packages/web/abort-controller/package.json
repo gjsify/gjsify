@@ -43,8 +43,6 @@
         "typescript": "^5.9.3"
     },
     "dependencies": {
-        "@gjsify/deno-runtime": "workspace:^",
-        "@gjsify/deno_std": "workspace:^",
         "@gjsify/dom-events": "workspace:^"
     }
 }
