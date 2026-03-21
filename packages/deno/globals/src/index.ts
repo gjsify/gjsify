@@ -1,1 +1,0 @@
-import '@gjsify/deno-runtime/globals';
