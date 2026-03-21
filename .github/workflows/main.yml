@@ -14,11 +14,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
       - name: Setup Deno
@@ -27,7 +27,7 @@ jobs:
           deno-version: ${{ matrix.deno-version }}
       - run: sudo apt-get update
       - name: Install Gjs, Gtk and more...
-        run: sudo apt-get --yes install gjs gir1.2-giounix-2.0 libgda-6.0-dev libgirepository-1.0-dev libgtk-4-dev libsoup-3.0-dev libwebkitgtk-6.0-dev libadwaita-1-dev
+        run: sudo apt-get --yes install gjs gir1.2-glib-2.0 gir1.2-giounix-2.0 libgda-5.0-dev libgirepository-1.0-dev libgtk-4-dev libsoup-3.0-dev libwebkitgtk-6.0-dev libadwaita-1-dev
       - name: Install meson and valac
         run: sudo apt-get --yes install meson valac
       - name: Install NPM dependencies
