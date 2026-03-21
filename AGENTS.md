@@ -63,6 +63,11 @@ When implementing a Node.js API, consult these sources (vendored as git submodul
 | Deno | `refs/deno/` | TypeScript, closest to our use case |
 | Bun | `refs/bun/` | Alternative TS/Zig implementation |
 | GJS | `refs/gjs/` | GJS runtime internals (C++/JS), check for built-in capabilities and SpiderMonkey integration details |
+| node-fetch | `refs/node-fetch/` | Fetch API polyfill for Node.js — reference for `@gjsify/fetch` |
+| fetch-ie8 | `refs/fetch-ie8/` | Minimal fetch polyfill — reference for fetch internals |
+| stream-http | `refs/stream-http/` | HTTP requests using Node.js streams — reference for `@gjsify/http` |
+| headless-gl | `refs/headless-gl/` | Headless WebGL implementation — reference for `packages/web/webgl/` |
+| Troll | `refs/troll/` | GJS utility library (Sonny Piers) — patterns for GJS app development with GNOME libs |
 
 Do NOT copy code blindly. GJS must use GNOME libraries internally. Use `refs/gjs/` to understand GJS internals — e.g. `modules/` for built-in JS modules, `gjs/` for the C++ runtime, `gi/` for GObject Introspection bindings.
 
