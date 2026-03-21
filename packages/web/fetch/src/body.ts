@@ -19,6 +19,7 @@ import { isBlob, isURLSearchParameters } from './utils/is.js';
 
 import type { Request } from './request.js';
 import type { Response } from './response.js';
+import type { SystemError } from './types/index.js';
 
 const pipeline = (source: Readable, dest: Writable): Promise<void> =>
     new Promise((resolve, reject) => {
@@ -41,7 +42,7 @@ function isBoxedPrimitive(val: unknown): boolean {
         val instanceof Number ||
         val instanceof Boolean ||
         (typeof Symbol !== 'undefined' && val instanceof Symbol) ||
-        (typeof BigInt !== 'undefined' && val instanceof (BigInt as any))
+        (typeof BigInt !== 'undefined' && val instanceof (BigInt as unknown as typeof Number))
     );
 }
 
@@ -126,7 +127,7 @@ export default class Body {
             b.on('error', (error_: Error) => {
                 const error = error_ instanceof FetchBaseError
                     ? error_
-                    : new FetchError(`Invalid response body while trying to fetch ${(this as any).url}: ${error_.message}`, 'system', error_ as any);
+                    : new FetchError(`Invalid response body while trying to fetch ${(this as unknown as Request).url}: ${error_.message}`, 'system', error_ as unknown as SystemError);
                 this[INTERNALS].error = error;
             });
         }
@@ -208,7 +209,7 @@ export default class Body {
     /**
      * Decode response as json
      */
-    async json(): Promise<any> {
+    async json(): Promise<unknown> {
         const text = await this.text();
         return JSON.parse(text);
     }
@@ -272,8 +273,9 @@ async function consumeBody(data: Body & { url?: string }): Promise<Buffer> {
             accumBytes += chunk.length;
             accum.push(chunk);
         }
-    } catch (error: any) {
-        const error_ = error instanceof FetchBaseError ? error : new FetchError(`Invalid response body while trying to fetch ${data.url}: ${error.message}`, 'system', error);
+    } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        const error_ = error instanceof FetchBaseError ? error : new FetchError(`Invalid response body while trying to fetch ${data.url}: ${err.message}`, 'system', err as unknown as SystemError);
         throw error_;
     }
 
@@ -283,8 +285,9 @@ async function consumeBody(data: Body & { url?: string }): Promise<Buffer> {
         }
 
         return Buffer.concat(accum as Buffer[], accumBytes);
-    } catch (error: any) {
-        throw new FetchError(`Could not create Buffer from response body for ${data.url}: ${error.message}`, 'system', error);
+    } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        throw new FetchError(`Could not create Buffer from response body for ${data.url}: ${err.message}`, 'system', err as unknown as SystemError);
     }
 }
 
@@ -300,7 +303,7 @@ export const clone = <T extends Request | Response>(instance: T, highWaterMark?:
         throw new Error('cannot clone body after it is used');
     }
 
-    if ((body instanceof Stream) && (typeof (body as any).getBoundary !== 'function')) {
+    if ((body instanceof Stream) && (typeof (body as unknown as Record<string, unknown>).getBoundary !== 'function')) {
         p1 = new PassThrough({highWaterMark});
         p2 = new PassThrough({highWaterMark});
         body.pipe(p1);
@@ -315,7 +318,7 @@ export const clone = <T extends Request | Response>(instance: T, highWaterMark?:
 /**
  * Extract a Content-Type value from a body.
  */
-export const extractContentType = (body: any, request: Request | Response): string | null => {
+export const extractContentType = (body: BodyInit | Readable | Blob | Buffer | null, request: Request | Response): string | null => {
     if (body === null) {
         return null;
     }
@@ -365,9 +368,9 @@ export const getTotalBytes = (request: Request): number | null => {
         return body.length;
     }
 
-    if (body && typeof (body as any).getLengthSync === 'function') {
-        const anyBody = body as any;
-        return anyBody.hasKnownLength && anyBody.hasKnownLength() ? anyBody.getLengthSync() : null;
+    if (body && typeof (body as unknown as Record<string, unknown>).getLengthSync === 'function') {
+        const streamBody = body as unknown as { getLengthSync(): number; hasKnownLength?(): boolean };
+        return streamBody.hasKnownLength && streamBody.hasKnownLength() ? streamBody.getLengthSync() : null;
     }
 
     return null;
@@ -376,7 +379,7 @@ export const getTotalBytes = (request: Request): number | null => {
 /**
  * Write a Body to a Node.js WritableStream.
  */
-export const writeToStream = async (dest: Writable, {body}: {body: any}): Promise<void> => {
+export const writeToStream = async (dest: Writable, {body}: {body: Readable | null}): Promise<void> => {
     if (body === null) {
         dest.end();
     } else {

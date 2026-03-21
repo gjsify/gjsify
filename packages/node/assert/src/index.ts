@@ -28,7 +28,7 @@ function innerFail(obj: {
 }
 
 function isPromiseLike(val: unknown): val is PromiseLike<unknown> {
-  return val !== null && typeof val === 'object' && typeof (val as any).then === 'function';
+  return val !== null && typeof val === 'object' && typeof (val as { then?: unknown }).then === 'function';
 }
 
 // ---- Core functions ----
@@ -198,7 +198,7 @@ function expectedException(
   // Validation function
   if (typeof expected === 'function') {
     // Error class constructor
-    if (expected.prototype !== undefined && actual instanceof (expected as any)) {
+    if (expected.prototype !== undefined && actual instanceof (expected as new (...args: unknown[]) => unknown)) {
       return true;
     }
     // Error class but not instance
@@ -446,7 +446,7 @@ function ifError(value: unknown): void {
     // Attach original error info
     const origStack = value instanceof Error ? value.stack : undefined;
     if (origStack) {
-      (err as any).origStack = origStack;
+      (err as Error & { origStack?: string }).origStack = origStack;
     }
 
     throw err;
@@ -514,7 +514,7 @@ const strict = Object.assign(
     ifError,
     match,
     doesNotMatch,
-    strict: undefined as any,
+    strict: undefined as unknown as typeof strict,
   },
 );
 strict.strict = strict;

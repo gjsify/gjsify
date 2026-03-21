@@ -6,10 +6,31 @@ import { EventEmitter } from '@gjsify/events';
 type ProcessPlatform = 'linux' | 'darwin' | 'win32' | 'freebsd' | 'openbsd' | 'sunos' | 'aix';
 type ProcessArch = 'x64' | 'arm' | 'arm64' | 'ia32' | 'ppc64' | 'riscv64' | 's390x';
 
+// GJS-specific global type for accessing GNOME libraries
+interface GjsGlobalThis {
+  imports?: {
+    gi?: {
+      GLib?: Record<string, Function>;
+      [key: string]: unknown;
+    };
+    system?: {
+      programArgs?: string[];
+      programInvocationName?: string;
+      exit?: (code: number) => never;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
+}
+
+function getGjsGlobal(): GjsGlobalThis {
+  return globalThis as unknown as GjsGlobalThis;
+}
+
 // Detect platform
 function detectPlatform(): ProcessPlatform {
   try {
-    const GLib = (globalThis as any).imports?.gi?.GLib;
+    const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib) {
       const osInfo = GLib.get_os_info('ID');
       if (osInfo) return 'linux'; // GLib is primarily Linux
@@ -17,7 +38,7 @@ function detectPlatform(): ProcessPlatform {
   } catch { /* ignore */ }
 
   // Check if running in GJS
-  if (typeof (globalThis as any).imports?.system !== 'undefined') {
+  if (typeof getGjsGlobal().imports?.system !== 'undefined') {
     return 'linux'; // GJS is primarily Linux
   }
 
@@ -37,7 +58,7 @@ function detectArch(): ProcessArch {
 
   // Try to detect via GJS system module
   try {
-    const system = (globalThis as any).imports?.system;
+    const system = getGjsGlobal().imports?.system;
     if (system?.programInvocationName) {
       // On GJS we can't easily determine arch without system calls
       // Default to x64 for now — could use GLib.spawn to check `uname -m`
@@ -52,7 +73,7 @@ function getCwd(): string {
     return globalThis.process.cwd();
   }
   try {
-    const GLib = (globalThis as any).imports?.gi?.GLib;
+    const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib?.get_current_dir) return GLib.get_current_dir();
   } catch { /* ignore */ }
   return '/';
@@ -66,7 +87,7 @@ function getEnvProxy(): Record<string, string | undefined> {
 
   // On GJS, create a Proxy that uses GLib.getenv/setenv
   try {
-    const GLib = (globalThis as any).imports?.gi?.GLib;
+    const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib) {
       return new Proxy({} as Record<string, string | undefined>, {
         get(_target, prop: string) {
@@ -99,7 +120,7 @@ function getArgv(): string[] {
     return globalThis.process.argv;
   }
   try {
-    const system = (globalThis as any).imports?.system;
+    const system = getGjsGlobal().imports?.system;
     if (system?.programArgs) {
       return [system.programInvocationName || 'gjs', ...system.programArgs];
     }
@@ -112,7 +133,7 @@ function getExecPath(): string {
     return globalThis.process.execPath;
   }
   try {
-    const system = (globalThis as any).imports?.system;
+    const system = getGjsGlobal().imports?.system;
     if (system?.programInvocationName) return system.programInvocationName;
   } catch { /* ignore */ }
   return '/usr/bin/gjs';
@@ -123,7 +144,7 @@ function getPid(): number {
     return globalThis.process.pid;
   }
   try {
-    const GLib = (globalThis as any).imports?.gi?.GLib;
+    const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib) {
       // GLib doesn't have a direct getpid, read from /proc/self
       const [, contents] = GLib.file_get_contents('/proc/self/stat');
@@ -142,7 +163,7 @@ const startTime = Date.now();
 // Use GLib.get_monotonic_time() for hrtime if available
 function getMonotonicTime(): bigint {
   try {
-    const GLib = (globalThis as any).imports?.gi?.GLib;
+    const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib?.get_monotonic_time) {
       // GLib returns microseconds, convert to nanoseconds
       return BigInt(GLib.get_monotonic_time()) * 1000n;
@@ -196,7 +217,7 @@ class Process extends EventEmitter {
 
   chdir(directory: string): void {
     try {
-      const GLib = (globalThis as any).imports?.gi?.GLib;
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
       if (GLib?.chdir) {
         GLib.chdir(directory);
         return;
@@ -216,7 +237,7 @@ class Process extends EventEmitter {
     this.emit('exit', this.exitCode);
 
     try {
-      const system = (globalThis as any).imports?.system;
+      const system = getGjsGlobal().imports?.system;
       if (system?.exit) {
         system.exit(this.exitCode);
       }
@@ -230,7 +251,7 @@ class Process extends EventEmitter {
     throw new Error(`process.exit(${this.exitCode})`);
   }
 
-  nextTick(callback: Function, ...args: any[]): void {
+  nextTick(callback: Function, ...args: unknown[]): void {
     if (typeof queueMicrotask === 'function') {
       queueMicrotask(() => callback(...args));
     } else {
@@ -263,7 +284,7 @@ class Process extends EventEmitter {
   memoryUsage(): { rss: number; heapTotal: number; heapUsed: number; external: number; arrayBuffers: number } {
     // On GJS, try reading from /proc/self/status
     try {
-      const GLib = (globalThis as any).imports?.gi?.GLib;
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
       if (GLib) {
         const [, contents] = GLib.file_get_contents('/proc/self/status');
         if (contents) {
@@ -290,18 +311,18 @@ class Process extends EventEmitter {
   }
 
   // Stub: stdout/stderr/stdin — these need stream to be implemented fully
-  get stdout(): any {
-    if (typeof globalThis.process?.stdout !== 'undefined') return globalThis.process.stdout;
+  get stdout(): { write: (data: string) => boolean; fd: number } {
+    if (typeof globalThis.process?.stdout !== 'undefined') return globalThis.process.stdout as { write: (data: string) => boolean; fd: number };
     return { write: (data: string) => { console.log(data); return true; }, fd: 1 };
   }
 
-  get stderr(): any {
-    if (typeof globalThis.process?.stderr !== 'undefined') return globalThis.process.stderr;
+  get stderr(): { write: (data: string) => boolean; fd: number } {
+    if (typeof globalThis.process?.stderr !== 'undefined') return globalThis.process.stderr as { write: (data: string) => boolean; fd: number };
     return { write: (data: string) => { console.error(data); return true; }, fd: 2 };
   }
 
-  get stdin(): any {
-    if (typeof globalThis.process?.stdin !== 'undefined') return globalThis.process.stdin;
+  get stdin(): { fd: number } {
+    if (typeof globalThis.process?.stdin !== 'undefined') return globalThis.process.stdin as { fd: number };
     return { fd: 0 };
   }
 
@@ -321,7 +342,7 @@ class Process extends EventEmitter {
 }
 
 // Add hrtime.bigint
-(Process.prototype.hrtime as any).bigint = function(): bigint {
+(Process.prototype.hrtime as unknown as Record<string, () => bigint>).bigint = function(): bigint {
   return getMonotonicTime() - hrtimeBase;
 };
 

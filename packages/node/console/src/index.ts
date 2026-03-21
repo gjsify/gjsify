@@ -28,7 +28,7 @@ export class Console {
     stdoutOrOptions?: { write: (data: string) => void } | ConsoleConstructorOptions,
     stderr?: { write: (data: string) => void }
   ) {
-    if (stdoutOrOptions && typeof (stdoutOrOptions as any).write === 'function') {
+    if (stdoutOrOptions && typeof (stdoutOrOptions as { write?: unknown }).write === 'function') {
       this._stdout = stdoutOrOptions as { write: (data: string) => void };
       this._stderr = stderr || this._stdout;
     } else if (stdoutOrOptions && typeof stdoutOrOptions === 'object') {
@@ -39,7 +39,7 @@ export class Console {
     this._groupIndentation = 2;
   }
 
-  private _write(stream: 'stdout' | 'stderr', ...args: any[]): void {
+  private _write(stream: 'stdout' | 'stderr', ...args: unknown[]): void {
     const target = stream === 'stderr' ? (this._stderr || this._stdout) : this._stdout;
     if (target) {
       const indent = ' '.repeat(this._groupDepth * this._groupIndentation);
@@ -56,16 +56,16 @@ export class Console {
     }
   }
 
-  log(...args: any[]): void { this._write('stdout', ...args); }
-  info(...args: any[]): void { this._write('stdout', ...args); }
-  debug(...args: any[]): void { this._write('stdout', ...args); }
-  warn(...args: any[]): void { this._write('stderr', ...args); }
-  error(...args: any[]): void { this._write('stderr', ...args); }
+  log(...args: unknown[]): void { this._write('stdout', ...args); }
+  info(...args: unknown[]): void { this._write('stdout', ...args); }
+  debug(...args: unknown[]): void { this._write('stdout', ...args); }
+  warn(...args: unknown[]): void { this._write('stderr', ...args); }
+  error(...args: unknown[]): void { this._write('stderr', ...args); }
 
-  dir(obj: any, _options?: object): void { this._write('stdout', obj); }
-  dirxml(...args: any[]): void { this.log(...args); }
+  dir(obj: unknown, _options?: object): void { this._write('stdout', obj); }
+  dirxml(...args: unknown[]): void { this.log(...args); }
 
-  assert(value: any, ...args: any[]): void {
+  assert(value: unknown, ...args: unknown[]): void {
     if (!value) {
       this.error('Assertion failed:', ...args);
     }
@@ -89,12 +89,12 @@ export class Console {
     this._counters.delete(label);
   }
 
-  group(...args: any[]): void {
+  group(...args: unknown[]): void {
     if (args.length > 0) this.log(...args);
     this._groupDepth++;
   }
 
-  groupCollapsed(...args: any[]): void {
+  groupCollapsed(...args: unknown[]): void {
     this.group(...args);
   }
 
@@ -102,7 +102,7 @@ export class Console {
     if (this._groupDepth > 0) this._groupDepth--;
   }
 
-  table(tabularData: any, _properties?: string[]): void {
+  table(tabularData: unknown, _properties?: string[]): void {
     if (this._stdout) {
       // Simple table fallback for custom streams
       this._write('stdout', tabularData);
@@ -125,7 +125,7 @@ export class Console {
     }
   }
 
-  timeLog(label: string = 'default', ...args: any[]): void {
+  timeLog(label: string = 'default', ...args: unknown[]): void {
     const start = this._timers.get(label);
     if (start !== undefined) {
       this.log(`${label}: ${Date.now() - start}ms`, ...args);
@@ -134,7 +134,7 @@ export class Console {
     }
   }
 
-  trace(...args: any[]): void {
+  trace(...args: unknown[]): void {
     const err = new Error();
     const stack = err.stack?.split('\n').slice(1).join('\n') || '';
     this._write('stderr', 'Trace:', ...args, '\n' + stack);
@@ -153,18 +153,18 @@ export const debug = gc.debug.bind(gc);
 export const warn = gc.warn.bind(gc);
 export const error = gc.error.bind(gc);
 export const dir = gc.dir.bind(gc);
-export const dirxml = (gc as any).dirxml?.bind(gc) || gc.log.bind(gc);
+export const dirxml = (gc as unknown as Record<string, Function | undefined>).dirxml?.bind(gc) || gc.log.bind(gc);
 export const table = gc.table.bind(gc);
 export const time = gc.time.bind(gc);
 export const timeEnd = gc.timeEnd.bind(gc);
-export const timeLog = (gc as any).timeLog?.bind(gc) || gc.log.bind(gc);
+export const timeLog = (gc as unknown as Record<string, Function | undefined>).timeLog?.bind(gc) || gc.log.bind(gc);
 export const trace = gc.trace.bind(gc);
-export const assert = (gc as any).assert?.bind(gc) || function(value: any, ...args: any[]) { if (!value) gc.error('Assertion failed:', ...args); };
+export const assert = (gc as unknown as Record<string, Function | undefined>).assert?.bind(gc) || function(value: unknown, ...args: unknown[]) { if (!value) gc.error('Assertion failed:', ...args); };
 export const clear = gc.clear.bind(gc);
 export const count = gc.count.bind(gc);
 export const countReset = gc.countReset.bind(gc);
 export const group = gc.group.bind(gc);
-export const groupCollapsed = (gc as any).groupCollapsed?.bind(gc) || gc.group.bind(gc);
+export const groupCollapsed = (gc as unknown as Record<string, Function | undefined>).groupCollapsed?.bind(gc) || gc.group.bind(gc);
 export const groupEnd = gc.groupEnd.bind(gc);
 export const profile = (_label?: string) => {};
 export const profileEnd = (_label?: string) => {};

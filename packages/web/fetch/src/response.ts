@@ -183,7 +183,7 @@ export class Response extends Body {
         const outputStream = Gio.MemoryOutputStream.new_resizable();
 
         await new Promise<number>((resolve, reject) => {
-          outputStream.splice_async(this._inputStream, Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, GLib.PRIORITY_DEFAULT, null, (_self: any, res: any) => {
+          outputStream.splice_async(this._inputStream, Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, GLib.PRIORITY_DEFAULT, null, (_self: Gio.OutputStream, res: Gio.AsyncResult) => {
             try {
               resolve(outputStream.splice_finish(res));
             } catch (error) {

@@ -28,8 +28,14 @@ function inspectValue(value: unknown, opts: InspectOptions, depth: number): stri
   const maxDepth = opts.depth ?? 2;
 
   if (typeof value === 'string') {
-    const escaped = value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    return opts.colors ? `\x1b[32m'${escaped}'\x1b[39m` : `'${escaped}'`;
+    const escaped = value.replace(/\\/g, '\\\\');
+    // Smart quoting: use double quotes if string contains single quote but no double quote
+    if (value.includes("'") && !value.includes('"')) {
+      const dq = escaped.replace(/"/g, '\\"');
+      return opts.colors ? `\x1b[32m"${dq}"\x1b[39m` : `"${dq}"`;
+    }
+    const sq = escaped.replace(/'/g, "\\'");
+    return opts.colors ? `\x1b[32m'${sq}'\x1b[39m` : `'${sq}'`;
   }
   if (typeof value === 'number') {
     return opts.colors ? `\x1b[33m${value}\x1b[39m` : String(value);
@@ -108,7 +114,40 @@ function inspectArray(arr: any[], opts: InspectOptions, depth: number): string {
     items.push(`... ${arr.length - maxLen} more items`);
   }
 
+  // Show hidden properties like [length] when showHidden is true
+  if (opts.showHidden) {
+    items.push(`[length]: ${arr.length}`);
+  }
+
   const breakLength = opts.breakLength ?? 72;
+  const compact = opts.compact ?? 3;
+
+  // Compact grouping: when array has more elements than compact threshold,
+  // use grouped multiline format (multiple items per line)
+  if (typeof compact === 'number' && compact > 0 && arr.length > compact) {
+    const indent = '  ';
+    const indentLen = indent.length;
+    // Calculate max item length (strip ANSI for measurement)
+    const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
+    const maxItemLen = Math.max(...items.map(item => stripAnsi(item).length));
+    const biasedMax = Math.max(maxItemLen - 2, 1);
+    const numItems = items.length;
+    const approxCharHeights = 2.5;
+    const columns = Math.min(
+      Math.round(Math.sqrt(approxCharHeights * biasedMax * numItems) / biasedMax),
+      Math.floor((breakLength - indentLen) / biasedMax),
+      Math.floor((2.5 + numItems - 1) / 2),
+      15
+    );
+    if (columns > 1) {
+      const rows: string[] = [];
+      for (let i = 0; i < numItems; i += columns) {
+        rows.push(indent + items.slice(i, Math.min(i + columns, numItems)).join(', '));
+      }
+      return `[\n${rows.join(',\n')}\n]`;
+    }
+  }
+
   const singleLine = `[ ${items.join(', ')} ]`;
   if (singleLine.length <= breakLength) return singleLine;
 

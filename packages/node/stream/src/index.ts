@@ -5,23 +5,25 @@ import { EventEmitter } from '@gjsify/events';
 
 // ---- Types ----
 
-export interface ReadableOptions {
+/** Base options accepted by the Stream constructor (superset used by subclass options). */
+export interface StreamOptions {
   highWaterMark?: number;
-  encoding?: string;
   objectMode?: boolean;
-  autoDestroy?: boolean;
   signal?: AbortSignal;
+  captureRejections?: boolean;
+}
+
+export interface ReadableOptions extends StreamOptions {
+  encoding?: string;
+  autoDestroy?: boolean;
   read?(this: Readable, size: number): void;
   destroy?(this: Readable, error: Error | null, callback: (error?: Error | null) => void): void;
 }
 
-export interface WritableOptions {
-  highWaterMark?: number;
+export interface WritableOptions extends StreamOptions {
   decodeStrings?: boolean;
   defaultEncoding?: string;
-  objectMode?: boolean;
   autoDestroy?: boolean;
-  signal?: AbortSignal;
   write?(this: Writable, chunk: any, encoding: string, callback: (error?: Error | null) => void): void;
   writev?(this: Writable, chunks: Array<{ chunk: any; encoding: string }>, callback: (error?: Error | null) => void): void;
   final?(this: Writable, callback: (error?: Error | null) => void): void;
@@ -40,18 +42,30 @@ export interface TransformOptions extends DuplexOptions {
   flush?(this: Transform, callback: (error?: Error | null, data?: any) => void): void;
 }
 
+export interface FinishedOptions {
+  error?: boolean;
+  readable?: boolean;
+  writable?: boolean;
+}
+
 // ---- Stream base class ----
 
+/** A stream-like emitter that may have `pause` and `resume` methods (duck-typed). */
+interface StreamLike extends EventEmitter {
+  pause?(): void;
+  resume?(): void;
+}
+
 export class Stream extends EventEmitter {
-  constructor(opts?: any) {
+  constructor(opts?: StreamOptions) {
     super(opts);
   }
 
   pipe<T extends Writable>(destination: T, options?: { end?: boolean }): T {
-    const source = this as any;
+    const source: StreamLike = this;
     const doEnd = options?.end !== false;
 
-    function ondata(chunk: any) {
+    function ondata(chunk: unknown) {
       if (destination.writable) {
         if (destination.write(chunk) === false && typeof source.pause === 'function') {
           source.pause();
@@ -103,7 +117,7 @@ export class Readable extends Stream {
   readableEnded = false;
   destroyed = false;
 
-  private _buffer: any[] = [];
+  private _buffer: unknown[] = [];
   private _readableState = { ended: false, endEmitted: false, reading: false };
   private _readImpl: ((size: number) => void) | undefined;
   private _destroyImpl: ((error: Error | null, cb: (error?: Error | null) => void) => void) | undefined;
@@ -144,7 +158,7 @@ export class Readable extends Stream {
         this._readableState.endEmitted = true;
         this.emit('end');
       }
-      return result.length === 1 ? result[0] : Buffer.concat ? (globalThis as any).Buffer?.concat(result) : result;
+      return result.length === 1 ? result[0] : Buffer.concat ? (globalThis as unknown as Record<string, { concat: (list: unknown[]) => unknown }>).Buffer?.concat(result) : result;
     }
 
     return this._buffer.shift();
@@ -218,14 +232,14 @@ export class Readable extends Stream {
     return this;
   }
 
-  [Symbol.asyncIterator](): AsyncIterableIterator<any> {
+  [Symbol.asyncIterator](): AsyncIterableIterator<unknown> {
     const readable = this;
-    const buffer: any[] = [];
+    const buffer: unknown[] = [];
     let done = false;
     let error: Error | null = null;
-    let waiting: ((value: IteratorResult<any>) => void) | null = null;
+    let waiting: ((value: IteratorResult<unknown>) => void) | null = null;
 
-    readable.on('data', (chunk: any) => {
+    readable.on('data', (chunk: unknown) => {
       if (waiting) {
         const resolve = waiting;
         waiting = null;
@@ -254,13 +268,13 @@ export class Readable extends Stream {
     });
 
     return {
-      next(): Promise<IteratorResult<any>> {
+      next(): Promise<IteratorResult<unknown>> {
         if (error) return Promise.reject(error);
         if (buffer.length > 0) return Promise.resolve({ value: buffer.shift(), done: false });
         if (done) return Promise.resolve({ value: undefined, done: true });
         return new Promise(resolve => { waiting = resolve; });
       },
-      return(): Promise<IteratorResult<any>> {
+      return(): Promise<IteratorResult<unknown>> {
         readable.destroy();
         return Promise.resolve({ value: undefined, done: true });
       },
@@ -268,7 +282,7 @@ export class Readable extends Stream {
     };
   }
 
-  static from(iterable: Iterable<any> | AsyncIterable<any>, opts?: ReadableOptions): Readable {
+  static from(iterable: Iterable<unknown> | AsyncIterable<unknown>, opts?: ReadableOptions): Readable {
     const readable = new Readable({
       ...opts,
       read() {}
@@ -276,7 +290,7 @@ export class Readable extends Stream {
 
     (async () => {
       try {
-        for await (const chunk of iterable as AsyncIterable<any>) {
+        for await (const chunk of iterable as AsyncIterable<unknown>) {
           if (!readable.push(chunk)) {
             // Backpressure — wait for drain
             await new Promise<void>(resolve => readable.once('drain', resolve));
@@ -596,9 +610,14 @@ export class PassThrough extends Transform {
 
 type PipelineCallback = (err: Error | null) => void;
 
-export function pipeline(...args: any[]): any {
+/** A stream that can be destroyed (duck-typed for pipeline). */
+interface DestroyableStream extends Stream {
+  destroy?(error?: Error): void;
+}
+
+export function pipeline(...args: [...streams: DestroyableStream[], callback: PipelineCallback] | DestroyableStream[]): DestroyableStream {
   const callback = typeof args[args.length - 1] === 'function' ? args.pop() as PipelineCallback : undefined;
-  const streams = args as (Stream | Readable | Writable | Transform)[];
+  const streams = args as DestroyableStream[];
 
   if (streams.length < 2) {
     throw new Error('pipeline requires at least 2 streams');
@@ -611,8 +630,8 @@ export function pipeline(...args: any[]): any {
       error = err;
       // Destroy all streams
       for (const stream of streams) {
-        if (typeof (stream as any).destroy === 'function') {
-          (stream as any).destroy();
+        if (typeof stream.destroy === 'function') {
+          stream.destroy();
         }
       }
       if (callback) callback(err);
@@ -620,18 +639,18 @@ export function pipeline(...args: any[]): any {
   }
 
   // Pipe streams together
-  let current = streams[0];
+  let current: Stream = streams[0];
   for (let i = 1; i < streams.length; i++) {
     const next = streams[i];
-    (current as any).pipe(next);
-    (current as any).on('error', onError);
+    current.pipe(next as unknown as Writable);
+    current.on('error', onError);
     current = next;
   }
 
   // Listen for end on last stream
   const last = streams[streams.length - 1];
-  (last as any).on('error', onError);
-  (last as any).on('finish', () => {
+  last.on('error', onError);
+  last.on('finish', () => {
     if (callback && !error) callback(null);
   });
 
@@ -641,15 +660,15 @@ export function pipeline(...args: any[]): any {
 // ---- finished ----
 
 export function finished(stream: Stream | Readable | Writable, callback: (err?: Error | null) => void): () => void;
-export function finished(stream: Stream | Readable | Writable, opts: { error?: boolean; readable?: boolean; writable?: boolean }, callback: (err?: Error | null) => void): () => void;
-export function finished(stream: Stream | Readable | Writable, optsOrCb: any, callback?: (err?: Error | null) => void): () => void {
+export function finished(stream: Stream | Readable | Writable, opts: FinishedOptions, callback: (err?: Error | null) => void): () => void;
+export function finished(stream: Stream | Readable | Writable, optsOrCb: FinishedOptions | ((err?: Error | null) => void), callback?: (err?: Error | null) => void): () => void {
   let cb: (err?: Error | null) => void;
-  let opts: any = {};
+  let _opts: FinishedOptions = {};
 
   if (typeof optsOrCb === 'function') {
     cb = optsOrCb;
   } else {
-    opts = optsOrCb || {};
+    _opts = optsOrCb || {};
     cb = callback!;
   }
 
@@ -665,7 +684,7 @@ export function finished(stream: Stream | Readable | Writable, optsOrCb: any, ca
   const onEnd = () => done();
   const onError = (err: Error) => done(err);
   const onClose = () => {
-    if (!(stream as any).writableFinished && !(stream as any).readableEnded) {
+    if (!(stream as Writable).writableFinished && !(stream as Readable).readableEnded) {
       done(new Error('premature close'));
     }
   };

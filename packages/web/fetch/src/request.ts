@@ -294,7 +294,7 @@ export class Request extends Body {
   async formData(): Promise<FormData> {
     return super.formData();
   }
-  async json(): Promise<any> {
+  async json(): Promise<unknown> {
     return super.json();
   }
   async text(): Promise<string> {

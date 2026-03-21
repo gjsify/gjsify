@@ -11,10 +11,10 @@ const Blob = globalThis.Blob ?? class Blob {
   _parts: BlobPart[];
   readonly size: number;
   readonly type: string;
-  constructor(parts?: any[], options?: BlobPropertyBag) {
+  constructor(parts?: BlobPart[], options?: BlobPropertyBag) {
     this._parts = parts || [];
     this.type = options?.type || '';
-    this.size = this._parts.reduce((acc: number, part: any) => {
+    this.size = this._parts.reduce((acc: number, part: BlobPart) => {
       if (typeof part === 'string') return acc + _encoder.encode(part).byteLength;
       if (part instanceof ArrayBuffer) return acc + part.byteLength;
       if (ArrayBuffer.isView(part)) return acc + part.byteLength;
@@ -52,7 +52,7 @@ const File = globalThis.File ?? class File extends Blob {
   readonly name: string;
   readonly lastModified: number;
   readonly webkitRelativePath: string = '';
-  constructor(parts: any[], name: string, options?: FilePropertyBag) {
+  constructor(parts: BlobPart[], name: string, options?: FilePropertyBag) {
     super(parts, options);
     this.name = name;
     this.lastModified = options?.lastModified ?? Date.now();

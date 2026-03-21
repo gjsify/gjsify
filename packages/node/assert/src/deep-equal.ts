@@ -114,8 +114,8 @@ function areSimilarFloatArrays(a: ArrayBufferView, b: ArrayBufferView): boolean 
   if (a.byteLength !== b.byteLength) return false;
   const viewA = a as unknown as ArrayLike<number>;
   const viewB = b as unknown as ArrayLike<number>;
-  for (let i = 0; i < (viewA as any).length; i++) {
-    if ((viewA as any)[i] !== (viewB as any)[i]) return false;
+  for (let i = 0; i < viewA.length; i++) {
+    if (viewA[i] !== viewB[i]) return false;
   }
   return true;
 }
@@ -152,7 +152,7 @@ function isEqualBoxedPrimitive(val1: unknown, val2: unknown): boolean {
   }
   if (isBigIntObject(val1)) {
     return isBigIntObject(val2) &&
-      (val1 as any)[Symbol.toPrimitive]('number') === (val2 as any)[Symbol.toPrimitive]('number');
+      (val1 as object & { [Symbol.toPrimitive]: (hint: string) => unknown })[Symbol.toPrimitive]('number') === (val2 as object & { [Symbol.toPrimitive]: (hint: string) => unknown })[Symbol.toPrimitive]('number');
   }
   if (isSymbolObject(val1)) {
     return isSymbolObject(val2) &&
@@ -291,7 +291,7 @@ function objectComparisonStart(
     if (hasOwn(val1, 'cause') !== hasOwn(val2, 'cause')) {
       return false;
     }
-    if (hasOwn(val1, 'cause') && !innerDeepEqual((val1 as any).cause, (val2 as any).cause, mode, memos)) {
+    if (hasOwn(val1, 'cause') && !innerDeepEqual((val1 as Error & { cause?: unknown }).cause, (val2 as Error & { cause?: unknown }).cause, mode, memos)) {
       return false;
     }
   } else if (isBoxedPrimitive(val1)) {
@@ -361,8 +361,8 @@ function keyCheck(
 
   if (keys2.length === 0 &&
     (iterationType === ValueType.noIterator ||
-      (iterationType === ValueType.isArray && (val2 as any[]).length === 0) ||
-      (val2 as any).size === 0)) {
+      (iterationType === ValueType.isArray && (val2 as unknown[]).length === 0) ||
+      (val2 as unknown as { size?: number }).size === 0)) {
     return true;
   }
 
@@ -567,12 +567,14 @@ function objEquiv(
   iterationType: ValueType,
 ): boolean {
   if (keys2.length > 0) {
+    const aRec = a as Record<PropertyKey, unknown>;
+    const bRec = b as Record<PropertyKey, unknown>;
     let i = 0;
     if (keys1 !== undefined) {
       for (; i < keys2.length; i++) {
         const key = keys2[i];
         if (keys1[i] !== key) break;
-        if (!innerDeepEqual((a as any)[key], (b as any)[key], mode, memos)) return false;
+        if (!innerDeepEqual(aRec[key], bRec[key], mode, memos)) return false;
       }
     }
     for (; i < keys2.length; i++) {
@@ -580,24 +582,26 @@ function objEquiv(
       const descriptor = Object.getOwnPropertyDescriptor(a, key);
       if (!descriptor?.enumerable ||
           !innerDeepEqual(
-            descriptor.value !== undefined ? descriptor.value : (a as any)[key],
-            (b as any)[key], mode, memos)) {
+            descriptor.value !== undefined ? descriptor.value : aRec[key],
+            bRec[key], mode, memos)) {
         return false;
       }
     }
   }
 
   if (iterationType === ValueType.isArray) {
-    for (let i = 0; i < (a as any[]).length; i++) {
-      if ((b as any)[i] === undefined && !hasOwn(b as object, i)) {
+    const aArr = a as unknown[];
+    const bArr = b as unknown[];
+    for (let i = 0; i < aArr.length; i++) {
+      if (bArr[i] === undefined && !hasOwn(b as object, i)) {
         // Sparse array
-        if ((a as any)[i] !== undefined || hasOwn(a as object, i)) return false;
+        if (aArr[i] !== undefined || hasOwn(a as object, i)) return false;
         continue;
       }
-      if (mode !== kLoose && (a as any)[i] === undefined && !hasOwn(a as object, i)) {
+      if (mode !== kLoose && aArr[i] === undefined && !hasOwn(a as object, i)) {
         return false;
       }
-      if (!innerDeepEqual((a as any)[i], (b as any)[i], mode, memos)) return false;
+      if (!innerDeepEqual(aArr[i], bArr[i], mode, memos)) return false;
     }
   } else if (iterationType === ValueType.isSet) {
     if (!setEquiv(a as Set<unknown>, b as Set<unknown>, mode, memos)) return false;
@@ -613,7 +617,7 @@ let detectCycles = function (val1: unknown, val2: unknown, mode: number): boolea
   try {
     return innerDeepEqual(val1, val2, mode, null);
   } catch {
-    detectCycles = innerDeepEqual as any;
+    detectCycles = (v1: unknown, v2: unknown, m: number) => innerDeepEqual(v1, v2, m, undefined);
     return innerDeepEqual(val1, val2, mode, undefined);
   }
 };

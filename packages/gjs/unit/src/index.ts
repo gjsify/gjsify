@@ -45,8 +45,10 @@ class MatcherFactory {
 	triggerResult(success: boolean, msg: string) {
 		if( (success && !this.positive) ||
 			(!success && this.positive) ) {
+			const error = new Error(msg);
+			(error as any).__testFailureCounted = true;
 			++countTestsFailed;
-			throw new Error(msg);
+			throw error;
 		}
 	}
 
@@ -270,6 +272,9 @@ export const it = async function(expectation: string, callback: () => void | Pro
 		print(`  ${GREEN}✔${RESET} ${GRAY}${expectation}${RESET}`);
 	}
 	catch(e) {
+		if (!e.__testFailureCounted) {
+			++countTestsFailed;
+		}
 		print(`  ${RED}❌${RESET} ${GRAY}${expectation}${RESET}`);
 		print(`${RED}${e.message}${RESET}`);
 		if (e.stack) print(e.stack);
@@ -291,7 +296,12 @@ export const assert = function(success: any, message?: string | Error) {
 		++countTestsFailed;
 	}
 
-	nodeAssert(success, message);
+	try {
+		nodeAssert(success, message);
+	} catch (error) {
+		(error as any).__testFailureCounted = true;
+		throw error;
+	}
 }
 
 assert.strictEqual = function<T>(actual: unknown, expected: T, message?: string | Error): asserts actual is T {
@@ -300,7 +310,8 @@ assert.strictEqual = function<T>(actual: unknown, expected: T, message?: string 
 		nodeAssert.strictEqual(actual, expected, message);
 	} catch (error) {
 		++countTestsFailed;
-		throw error
+		(error as any).__testFailureCounted = true;
+		throw error;
 	}
 }
 
@@ -324,7 +335,8 @@ assert.deepStrictEqual = function<T>(actual: unknown, expected: T, message?: str
 		nodeAssert.deepStrictEqual(actual, expected, message);
 	} catch (error) {
 		++countTestsFailed;
-		throw error
+		(error as any).__testFailureCounted = true;
+		throw error;
 	}
 }
 
@@ -401,10 +413,20 @@ export const run = async (namespaces: Namespaces) => {
 	printRuntime()
 	.then(async () => {
 		return runTests(namespaces)
-		.then(() => {
+		.then(async () => {
 			printResult();
 			print();
+
 			mainloop?.quit();
+
+			if (countTestsFailed > 0) {
+				try {
+					const process = globalThis.process || await import('process');
+					process.exit(1);
+				} catch (_e) {
+					// If process is unavailable, we can't set the exit code
+				}
+			}
 		})
 	});
 

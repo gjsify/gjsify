@@ -4,6 +4,19 @@
 
 type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
+interface ZlibOptions {
+  flush?: number;
+  finishFlush?: number;
+  chunkSize?: number;
+  windowBits?: number;
+  level?: number;
+  memLevel?: number;
+  strategy?: number;
+  dictionary?: Uint8Array | ArrayBuffer;
+  info?: boolean;
+  maxOutputLength?: number;
+}
+
 // ---- Compression helpers using Web Compression API ----
 
 async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
@@ -67,8 +80,8 @@ function toUint8Array(data: string | Uint8Array | ArrayBuffer): Uint8Array {
 // ---- Callback-based API ----
 
 export function gzip(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function gzip(data: string | Uint8Array | ArrayBuffer, options: any, callback: ZlibCallback): void;
-export function gzip(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: any, callback?: ZlibCallback): void {
+export function gzip(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
+export function gzip(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
   const buf = toUint8Array(data);
   compressWithWeb(buf, 'gzip').then(
@@ -78,8 +91,8 @@ export function gzip(data: string | Uint8Array | ArrayBuffer, optionsOrCallback:
 }
 
 export function gunzip(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function gunzip(data: string | Uint8Array | ArrayBuffer, options: any, callback: ZlibCallback): void;
-export function gunzip(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: any, callback?: ZlibCallback): void {
+export function gunzip(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
+export function gunzip(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
   const buf = toUint8Array(data);
   decompressWithWeb(buf, 'gzip').then(
@@ -89,8 +102,8 @@ export function gunzip(data: string | Uint8Array | ArrayBuffer, optionsOrCallbac
 }
 
 export function deflate(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function deflate(data: string | Uint8Array | ArrayBuffer, options: any, callback: ZlibCallback): void;
-export function deflate(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: any, callback?: ZlibCallback): void {
+export function deflate(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
+export function deflate(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
   const buf = toUint8Array(data);
   compressWithWeb(buf, 'deflate').then(
@@ -100,8 +113,8 @@ export function deflate(data: string | Uint8Array | ArrayBuffer, optionsOrCallba
 }
 
 export function inflate(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function inflate(data: string | Uint8Array | ArrayBuffer, options: any, callback: ZlibCallback): void;
-export function inflate(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: any, callback?: ZlibCallback): void {
+export function inflate(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
+export function inflate(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
   const buf = toUint8Array(data);
   decompressWithWeb(buf, 'deflate').then(
@@ -111,8 +124,8 @@ export function inflate(data: string | Uint8Array | ArrayBuffer, optionsOrCallba
 }
 
 export function deflateRaw(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function deflateRaw(data: string | Uint8Array | ArrayBuffer, options: any, callback: ZlibCallback): void;
-export function deflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: any, callback?: ZlibCallback): void {
+export function deflateRaw(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
+export function deflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
   const buf = toUint8Array(data);
   compressWithWeb(buf, 'deflate-raw').then(
@@ -122,8 +135,8 @@ export function deflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCal
 }
 
 export function inflateRaw(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function inflateRaw(data: string | Uint8Array | ArrayBuffer, options: any, callback: ZlibCallback): void;
-export function inflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: any, callback?: ZlibCallback): void {
+export function inflateRaw(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
+export function inflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
   const buf = toUint8Array(data);
   decompressWithWeb(buf, 'deflate-raw').then(
@@ -136,27 +149,27 @@ export function inflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCal
 // Note: True sync compression is not possible with Web Compression API.
 // These stubs throw to indicate sync is not supported yet.
 
-export function gzipSync(_data: string | Uint8Array | ArrayBuffer, _options?: any): Uint8Array {
+export function gzipSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
   throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
 }
 
-export function gunzipSync(_data: string | Uint8Array | ArrayBuffer, _options?: any): Uint8Array {
+export function gunzipSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
   throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
 }
 
-export function deflateSync(_data: string | Uint8Array | ArrayBuffer, _options?: any): Uint8Array {
+export function deflateSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
   throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
 }
 
-export function inflateSync(_data: string | Uint8Array | ArrayBuffer, _options?: any): Uint8Array {
+export function inflateSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
   throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
 }
 
-export function deflateRawSync(_data: string | Uint8Array | ArrayBuffer, _options?: any): Uint8Array {
+export function deflateRawSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
   throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
 }
 
-export function inflateRawSync(_data: string | Uint8Array | ArrayBuffer, _options?: any): Uint8Array {
+export function inflateRawSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
   throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
 }
 

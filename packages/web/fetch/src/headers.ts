@@ -16,7 +16,7 @@ function isBoxedPrimitive(val: unknown): boolean {
         val instanceof Number ||
         val instanceof Boolean ||
         (typeof Symbol !== 'undefined' && val instanceof Symbol) ||
-        (typeof BigInt !== 'undefined' && val instanceof (BigInt as any))
+        (typeof BigInt !== 'undefined' && val instanceof (BigInt as unknown as typeof Number))
     );
 }
 
@@ -38,7 +38,7 @@ export default class Headers implements Iterable<[string, string]> {
         }
 
         if (typeof init === 'object' && !isBoxedPrimitive(init)) {
-            const method = (init as any)[Symbol.iterator];
+            const method = (init as Iterable<string[]>)[Symbol.iterator];
             if (method == null) {
                 // Record<string, string>
                 for (const [name, value] of Object.entries(init)) {
@@ -120,7 +120,7 @@ export default class Headers implements Iterable<[string, string]> {
         return this[_headers].get('set-cookie') ?? [];
     }
 
-    forEach(callback: (value: string, name: string, parent: Headers) => void, thisArg?: any): void {
+    forEach(callback: (value: string, name: string, parent: Headers) => void, thisArg?: unknown): void {
         for (const name of this.keys()) {
             Reflect.apply(callback, thisArg, [this.get(name), name, this]);
         }

@@ -33,15 +33,15 @@ export const isURLSearchParameters = object => {
  * Check if `object` is a W3C `Blob` object (which `File` inherits from)
  * @param object Object to check for
  */
-export const isBlob = (value: any): value is Blob => {
+export const isBlob = (value: unknown): value is Blob => {
+	if (!value || typeof value !== 'object') return false;
+	const obj = value as Record<string | symbol, unknown>;
 	return (
-		value &&
-		typeof value === 'object' &&
-		typeof value.arrayBuffer === 'function' &&
-		typeof value.type === 'string' &&
-		typeof value.stream === 'function' &&
-		typeof value.constructor === 'function' &&
-		/^(Blob|File)$/.test(value[NAME])
+		typeof obj.arrayBuffer === 'function' &&
+		typeof obj.type === 'string' &&
+		typeof obj.stream === 'function' &&
+		typeof obj.constructor === 'function' &&
+		/^(Blob|File)$/.test(obj[NAME] as string)
 	);
 };
 
@@ -49,12 +49,12 @@ export const isBlob = (value: any): value is Blob => {
  * Check if `obj` is an instance of AbortSignal.
  * @param object - Object to check for
  */
-export const isAbortSignal = (object: any) => {
+export const isAbortSignal = (object: unknown): object is AbortSignal => {
+	if (typeof object !== 'object' || object === null) return false;
+	const obj = object as Record<string | symbol, unknown>;
 	return (
-		typeof object === 'object' && (
-			object[NAME] === 'AbortSignal' ||
-			object[NAME] === 'EventTarget'
-		)
+		obj[NAME] === 'AbortSignal' ||
+		obj[NAME] === 'EventTarget'
 	);
 };
 

@@ -379,8 +379,7 @@ const noEscape = new Int8Array([
   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,  // 112 - 127
 ]);
 
-// deno-lint-ignore no-explicit-any
-function stringifyPrimitive(v: any): string {
+function stringifyPrimitive(v: unknown): string {
   if (typeof v === "string") {
     return v;
   }
@@ -397,15 +396,13 @@ function stringifyPrimitive(v: any): string {
 }
 
 function encodeStringifiedCustom(
-  // deno-lint-ignore no-explicit-any
-  v: any,
+  v: unknown,
   encode: (string: string) => string,
 ): string {
   return encode(stringifyPrimitive(v));
 }
 
-// deno-lint-ignore no-explicit-any
-function encodeStringified(v: any, encode: (string: string) => string): string {
+function encodeStringified(v: unknown, encode: (string: string) => string): string {
   if (typeof v === "string") {
     return (v.length ? encode(v) : "");
   }
@@ -434,8 +431,7 @@ function encodeStringified(v: any, encode: (string: string) => string): string {
  * @see Tested in `test-querystring.js`
  */
 export function stringify(
-  // deno-lint-ignore no-explicit-any
-  obj: Record<string, any>,
+  obj: Record<string, unknown>,
   sep?: string,
   eq?: string,
   options?: StringifyOptions,

@@ -70,8 +70,9 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
     const sendRes = await request._send(options);
     readable = sendRes.readable;
     cancellable = sendRes.cancellable;
-  } catch (error: any) {
-    throw new FetchError(`request to ${request.url} failed, reason: ${error.message}`, 'system', error);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    throw new FetchError(`request to ${request.url} failed, reason: ${err.message}`, 'system', err as unknown as SystemError);
   }
 
   // Wire up abort signal to cancellable
@@ -138,14 +139,21 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
           throw new FetchError(`maximum redirect reached at: ${request.url}`, 'max-redirect');
         }
 
-        const requestOptions: any = {
+        const requestOptions: Omit<RequestInit, 'headers'> & {
+          headers: Headers;
+          follow: number;
+          counter: number;
+          agent: string | ((url: URL) => string);
+          compress: boolean;
+          size: number;
+        } = {
           headers: new Headers(request.headers),
           follow: request.follow,
           counter: request.counter + 1,
           agent: request.agent,
           compress: request.compress,
           method: request.method,
-          body: clone(request),
+          body: clone(request) as unknown as BodyInit | null,
           signal: request.signal,
           size: request.size,
           referrer: request.referrer,
@@ -179,7 +187,7 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
         }
 
         finalize();
-        return fetch(new Request(locationURL, requestOptions as RequestInit));
+        return fetch(new Request(locationURL, requestOptions as unknown as RequestInit));
       }
 
       default:

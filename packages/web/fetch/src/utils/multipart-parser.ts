@@ -44,7 +44,7 @@ const Z = 122;
 
 const lower = c => c | 0x20;
 
-const noop = (...args: any[]): any => {};
+const noop = (..._args: unknown[]): void => {};
 
 class MultipartParser {
 

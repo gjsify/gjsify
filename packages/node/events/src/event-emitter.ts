@@ -13,6 +13,23 @@ interface AbortableOptions {
 
 interface OnceOptions extends AbortableOptions {}
 
+/** An EventListener that may have been wrapped by `once`, carrying the original listener. */
+interface WrappedEventListener extends EventListener {
+  listener?: EventListener;
+}
+
+/** Error subtype with optional `code` and `cause` fields (used for abort errors, etc.). */
+interface NodeError extends Error {
+  code?: string;
+  cause?: unknown;
+  context?: unknown;
+}
+
+/** Array of listeners augmented with a `warned` flag for max-listener leak detection. */
+interface WarnableListenerArray extends Array<EventListener> {
+  warned?: boolean;
+}
+
 interface OnOptions extends AbortableOptions {
   /**
    * When the unconsumed event count exceeds this, pause the emitter.
@@ -70,7 +87,7 @@ function validateNumber(value: unknown, name: string): void {
   }
 }
 
-function spliceOne(list: any[], index: number): void {
+function spliceOne(list: unknown[], index: number): void {
   for (; index + 1 < list.length; index++) {
     list[index] = list[index + 1];
   }
@@ -82,7 +99,7 @@ function spliceOne(list: any[], index: number): void {
  */
 export class EventEmitter {
   static defaultMaxListeners = 10;
-  static readonly errorMonitor: unique symbol = Symbol('events.errorMonitor') as any;
+  static readonly errorMonitor: unique symbol = Symbol('events.errorMonitor') as unknown as typeof EventEmitter.errorMonitor;
   static readonly captureRejectionSymbol: symbol = kRejection;
 
   private static _captureRejections = false;
@@ -148,8 +165,8 @@ export class EventEmitter {
       if (er instanceof Error) {
         throw er;
       }
-      const err = new Error('Unhandled error. (' + er + ')');
-      (err as any).context = er;
+      const err = new Error('Unhandled error. (' + er + ')') as NodeError;
+      err.context = er;
       throw err;
     }
 
@@ -178,11 +195,11 @@ export class EventEmitter {
     return true;
   }
 
-  private _addCatch(result: any, type: string | symbol, args: any[]): void {
-    if (typeof result?.then === 'function') {
-      result.then(undefined, (err: Error) => {
+  private _addCatch(result: PromiseLike<unknown> | unknown, type: string | symbol, args: unknown[]): void {
+    if (typeof (result as PromiseLike<unknown>)?.then === 'function') {
+      (result as PromiseLike<unknown>).then(undefined, (err: Error) => {
         // Check if instance has a custom rejection handler
-        const handler = (this as any)[kRejection];
+        const handler = (this as Record<symbol, unknown>)[kRejection];
         if (typeof handler === 'function') {
           handler.call(this, err, type, ...args);
         } else {
@@ -218,7 +235,7 @@ export class EventEmitter {
 
     // Emit newListener before adding
     if (events.newListener !== undefined) {
-      this.emit('newListener', type, (listener as any).listener ?? listener);
+      this.emit('newListener', type, (listener as WrappedEventListener).listener ?? listener);
       // Re-read in case newListener handler modified _events
       events = this._events;
     }
@@ -242,9 +259,9 @@ export class EventEmitter {
     const m = this.getMaxListeners();
     if (m > 0) {
       const count = typeof events[type] === 'function' ? 1 : (events[type] as EventListener[]).length;
-      if (count > m && !(events[type] as any).warned) {
+      if (count > m && !(events[type] as WarnableListenerArray).warned) {
         if (typeof events[type] !== 'function') {
-          (events[type] as any).warned = true;
+          (events[type] as WarnableListenerArray).warned = true;
         }
         const w = new Error(
           `Possible EventEmitter memory leak detected. ${count} ${String(type)} listeners ` +
@@ -279,19 +296,19 @@ export class EventEmitter {
       return this;
     }
 
-    if (list === listener || (list as any).listener === listener) {
+    if (list === listener || (list as WrappedEventListener).listener === listener) {
       if (--this._eventsCount === 0) {
         this._events = Object.create(null);
       } else {
         delete events[type];
         if (events.removeListener) {
-          this.emit('removeListener', type, (list as any).listener ?? listener);
+          this.emit('removeListener', type, (list as WrappedEventListener).listener ?? listener);
         }
       }
     } else if (typeof list !== 'function') {
       let position = -1;
       for (let i = list.length - 1; i >= 0; i--) {
-        if (list[i] === listener || (list[i] as any).listener === listener) {
+        if (list[i] === listener || (list[i] as WrappedEventListener).listener === listener) {
           position = i;
           break;
         }
@@ -312,7 +329,7 @@ export class EventEmitter {
       }
 
       if (events.removeListener !== undefined) {
-        this.emit('removeListener', type, (listener as any).listener ?? listener);
+        this.emit('removeListener', type, (listener as WrappedEventListener).listener ?? listener);
       }
     }
 
@@ -377,7 +394,7 @@ export class EventEmitter {
     }
 
     if (typeof evlistener === 'function') {
-      return [(evlistener as any).listener ?? evlistener];
+      return [(evlistener as WrappedEventListener).listener ?? evlistener];
     }
 
     return unwrapListeners(evlistener);
@@ -425,7 +442,7 @@ export class EventEmitter {
    * Returns a promise that resolves when the emitter emits the given event,
    * or rejects if the emitter emits 'error' while waiting.
    */
-  static once(emitter: EventEmitter | EventTarget, name: string | symbol, options?: OnceOptions): Promise<any[]> {
+  static once(emitter: EventEmitter | EventTarget, name: string | symbol, options?: OnceOptions): Promise<unknown[]> {
     return new Promise((resolve, reject) => {
       const signal = options?.signal;
       if (signal?.aborted) {
@@ -442,7 +459,7 @@ export class EventEmitter {
           }
           resolve(args);
         };
-        const errorHandler = (err: any) => {
+        const errorHandler = (err: unknown) => {
           if (signal) {
             signal.removeEventListener('abort', abortHandler);
           }
@@ -507,7 +524,7 @@ export class EventEmitter {
   /**
    * Returns an async iterator that yields event arguments each time the emitter emits.
    */
-  static on(emitter: EventEmitter, event: string | symbol, options?: OnOptions): AsyncIterableIterator<any[]> {
+  static on(emitter: EventEmitter, event: string | symbol, options?: OnOptions): AsyncIterableIterator<unknown[]> {
     const signal = options?.signal;
     if (signal?.aborted) {
       throw createAbortError(signal);
@@ -519,8 +536,8 @@ export class EventEmitter {
     validateNumber(highWaterMark, 'highWaterMark');
     validateNumber(lowWaterMark, 'lowWaterMark');
 
-    const unconsumedEvents: any[][] = [];
-    const unconsumedPromises: { resolve: (value: IteratorResult<any[]>) => void; reject: (reason?: any) => void }[] = [];
+    const unconsumedEvents: unknown[][] = [];
+    const unconsumedPromises: { resolve: (value: IteratorResult<unknown[]>) => void; reject: (reason?: unknown) => void }[] = [];
     let error: Error | null = null;
     let finished = false;
     let paused = false;
@@ -533,8 +550,8 @@ export class EventEmitter {
         unconsumedEvents.push(args);
         if (unconsumedEvents.length >= highWaterMark && !paused) {
           paused = true;
-          if (typeof (emitter as any).pause === 'function') {
-            (emitter as any).pause();
+          if (typeof (emitter as unknown as Record<string, unknown>).pause === 'function') {
+            ((emitter as unknown as Record<string, () => void>).pause)();
           }
         }
       }
@@ -570,20 +587,20 @@ export class EventEmitter {
       finished = true;
       // Resolve remaining promises
       for (const { resolve } of unconsumedPromises) {
-        resolve({ value: undefined as any, done: true });
+        resolve({ value: undefined, done: true as const });
       }
       unconsumedPromises.length = 0;
       unconsumedEvents.length = 0;
     };
 
-    const iterator: AsyncIterableIterator<any[]> = {
-      next(): Promise<IteratorResult<any[]>> {
+    const iterator: AsyncIterableIterator<unknown[]> = {
+      next(): Promise<IteratorResult<unknown[]>> {
         if (unconsumedEvents.length > 0) {
           const value = unconsumedEvents.shift()!;
           if (paused && unconsumedEvents.length < lowWaterMark) {
             paused = false;
-            if (typeof (emitter as any).resume === 'function') {
-              (emitter as any).resume();
+            if (typeof (emitter as unknown as Record<string, unknown>).resume === 'function') {
+              ((emitter as unknown as Record<string, () => void>).resume)();
             }
           }
           return Promise.resolve({ value, done: false });
@@ -596,7 +613,7 @@ export class EventEmitter {
         }
 
         if (finished) {
-          return Promise.resolve({ value: undefined as any, done: true });
+          return Promise.resolve({ value: undefined, done: true as const });
         }
 
         return new Promise((resolve, reject) => {
@@ -604,12 +621,12 @@ export class EventEmitter {
         });
       },
 
-      return(): Promise<IteratorResult<any[]>> {
+      return(): Promise<IteratorResult<unknown[]>> {
         cleanup();
-        return Promise.resolve({ value: undefined as any, done: true });
+        return Promise.resolve({ value: undefined, done: true as const });
       },
 
-      throw(err: Error): Promise<IteratorResult<any[]>> {
+      throw(err: Error): Promise<IteratorResult<unknown[]>> {
         if (!finished) {
           error = err;
           cleanup();
@@ -690,22 +707,22 @@ export class EventEmitter {
 }
 
 // Make EventEmitter reference itself for backwards compatibility
-(EventEmitter as any).EventEmitter = EventEmitter;
+(EventEmitter as unknown as Record<string, typeof EventEmitter>).EventEmitter = EventEmitter;
 
 function unwrapListeners(arr: EventListener[]): EventListener[] {
   const ret = new Array(arr.length);
   for (let i = 0; i < ret.length; ++i) {
-    ret[i] = (arr[i] as any).listener ?? arr[i];
+    ret[i] = (arr[i] as WrappedEventListener).listener ?? arr[i];
   }
   return ret;
 }
 
-function createAbortError(signal?: AbortSignal): Error {
-  const err = new Error('The operation was aborted');
+function createAbortError(signal?: AbortSignal): NodeError {
+  const err: NodeError = new Error('The operation was aborted');
   err.name = 'AbortError';
-  (err as any).code = 'ABORT_ERR';
+  err.code = 'ABORT_ERR';
   if (signal?.reason) {
-    (err as any).cause = signal.reason;
+    err.cause = signal.reason;
   }
   return err;
 }
