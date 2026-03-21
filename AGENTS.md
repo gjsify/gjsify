@@ -62,8 +62,9 @@ When implementing a Node.js API, consult these sources (vendored as git submodul
 | Node.js | `refs/node/` | Canonical behavior — the spec |
 | Deno | `refs/deno/` | TypeScript, closest to our use case |
 | Bun | `refs/bun/` | Alternative TS/Zig implementation |
+| GJS | `refs/gjs/` | GJS runtime internals (C++/JS), check for built-in capabilities and SpiderMonkey integration details |
 
-Do NOT copy code blindly. GJS must use GNOME libraries internally.
+Do NOT copy code blindly. GJS must use GNOME libraries internally. Use `refs/gjs/` to understand GJS internals — e.g. `modules/` for built-in JS modules, `gjs/` for the C++ runtime, `gi/` for GObject Introspection bindings.
 
 ## GNOME Libraries (`node_modules/@girs/*`)
 

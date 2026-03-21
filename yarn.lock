@@ -690,7 +690,6 @@ __metadata:
   resolution: "@gjsify/assert@workspace:packages/node/assert"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@gjsify/deno_std": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^5.9.3"
