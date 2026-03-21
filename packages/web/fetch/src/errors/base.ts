@@ -5,7 +5,9 @@ export class FetchBaseError extends Error {
 	constructor(message: string, type?: string) {
 		super(message);
 		// Hide custom error implementation details from end-users
-		Error.captureStackTrace(this, this.constructor);
+		if (typeof Error.captureStackTrace === 'function') {
+			Error.captureStackTrace(this, this.constructor);
+		}
 
 		this.type = type;
 	}

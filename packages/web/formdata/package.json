@@ -1,10 +1,11 @@
 {
-    "name": "@gjsify/fetch",
+    "name": "@gjsify/formdata",
     "version": "0.0.4",
-    "description": "Web and Node.js fetch module for Gjs",
+    "description": "Web FormData implementation for Gjs",
+    "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
-    "type": "module",
+    "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
             "import": {
@@ -19,30 +20,27 @@
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
-        "print:name": "echo '@gjsify/fetch'",
-        "build": "yarn print:name && yarn build:gjsify",
+        "print:name": "echo '@gjsify/formdata'",
+        "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc --project tsconfig.json || exit 0",
+        "build:test": "yarn build:test:gjs && yarn build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-        "test": "yarn print:name && echo 'Tests run via yarn test from root (GJS integration only)'",
-        "test:gjs": "gjs -m test.gjs.mjs"
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:node",
+        "test:gjs": "gjs -m test.gjs.mjs",
+        "test:node": "node test.node.mjs"
     },
     "keywords": [
         "gjs",
         "node",
-        "fetch"
+        "formdata",
+        "web"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@gjsify/http": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.5.0"
-    },
-    "dependencies": {
-        "@gjsify/dom-events": "workspace:^",
-        "@gjsify/formdata": "workspace:^",
-        "@gjsify/gio-2.0": "workspace:^",
-        "@gjsify/soup-3.0": "workspace:^",
-        "@gjsify/url": "workspace:^"
+        "@types/node": "^25.5.0",
+        "typescript": "^5.9.3"
     }
 }

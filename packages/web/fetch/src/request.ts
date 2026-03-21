@@ -355,7 +355,7 @@ export const getSoupRequestOptions = (request: Request) => {
 
 	// HTTP-network-or-cache fetch step 2.11
 	if (!headers.has('User-Agent')) {
-		headers.set('User-Agent', 'node-fetch');
+		headers.set('User-Agent', 'gjsify-fetch');
 	}
 
 	// HTTP-network-or-cache fetch step 2.15

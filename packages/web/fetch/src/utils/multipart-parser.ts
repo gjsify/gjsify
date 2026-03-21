@@ -1,5 +1,5 @@
 import {File} from './blob-from.js';
-import {FormData} from 'formdata-polyfill/esm.min.js';
+import {FormData} from '@gjsify/formdata';
 
 // let s = 0;
 // const S = {

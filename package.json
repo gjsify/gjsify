@@ -18,7 +18,7 @@
     "build:infra": "yarn workspaces foreach -pR --topological-dev --from '@gjsify/cli' run build",
     "build:native-libs": "(yarn workspace @gjsify/webgl run build:meson || true) && yarn workspace @gjsify/types run build",
     "build:gjs": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/gio-2.0,@gjsify/soup-3.0,@gjsify/utils,@gjsify/unit}' run build",
-    "build:web": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/abort-controller,@gjsify/dom-events,@gjsify/fetch,@gjsify/web-globals,@gjsify/html-image-element}' run build",
+    "build:web": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/abort-controller,@gjsify/dom-events,@gjsify/formdata,@gjsify/fetch,@gjsify/web-globals,@gjsify/html-image-element}' run build",
     "build:node": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/assert,@gjsify/buffer,@gjsify/console,@gjsify/events,@gjsify/fs,@gjsify/node-globals,@gjsify/http,@gjsify/net,@gjsify/os,@gjsify/path,@gjsify/process,@gjsify/querystring,@gjsify/require,@gjsify/stream,@gjsify/string_decoder,@gjsify/tty,@gjsify/url,@gjsify/util,@gjsify/zlib}' run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",

@@ -16,3 +16,6 @@
 [submodule "refs/fetch-ie8"]
 	path = refs/fetch-ie8
 	url = git@github.com:camsong/fetch-ie8.git
+[submodule "refs/troll"]
+	path = refs/troll
+	url = git@github.com:sonnyp/troll.git

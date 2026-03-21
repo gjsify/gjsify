@@ -1,176 +1,106 @@
 /**
- * Headers.js
+ * Headers class — standalone implementation without URLSearchParams inheritance.
  *
- * Headers class offers convenient helpers
+ * Uses an internal Map<string, string[]> for header storage.
+ * All header names are lowercased per the Fetch spec.
  */
 
 import Soup from '@girs/soup-3.0';
-import { URLSearchParams } from '@gjsify/url';
+import { validateHeaderName, validateHeaderValue } from '@gjsify/http';
 
-import { types } from 'util';
-import * as http from 'http';
-import type { IncomingMessage } from 'http';
+const _headers = Symbol('Headers.headers');
 
+function isBoxedPrimitive(val: unknown): boolean {
+    return (
+        val instanceof String ||
+        val instanceof Number ||
+        val instanceof Boolean ||
+        (typeof Symbol !== 'undefined' && val instanceof Symbol) ||
+        (typeof BigInt !== 'undefined' && val instanceof (BigInt as any))
+    );
+}
 
-/* c8 ignore next 9 */
+export default class Headers implements Iterable<[string, string]> {
+    [_headers]: Map<string, string[]>;
 
-const validateHeaderName = http.validateHeaderName;
-const validateHeaderValue = http.validateHeaderValue;
+    constructor(init?: HeadersInit | Headers | null) {
+        this[_headers] = new Map();
 
-/**
- * This Fetch API interface allows you to perform various actions on HTTP request and response headers.
- * These actions include retrieving, setting, adding to, and removing.
- * A Headers object has an associated header list, which is initially empty and consists of zero or more name and value pairs.
- * You can add to this using methods like append() (see Examples.)
- * In all methods of this interface, header names are matched by case-insensitive byte sequence.
- *
- */
-export default class Headers extends URLSearchParams implements globalThis.Headers, Iterable<[string, string]> {
-    /**
-     * Headers class
-     *
-     * @constructor
-     * @param init Response headers
-     */
-    constructor(init?: HeadersInit) {
-        // Validate and normalize init object in [name, value(s)][]
-        let result: string[][] = [];
+        if (init == null) {
+            return;
+        }
+
         if (init instanceof Headers) {
-            const raw = init.raw();
-            for (const [name, values] of Object.entries(raw)) {
-                result.push(...values.map(value => [name, value]));
+            for (const [name, values] of init[_headers]) {
+                this[_headers].set(name, [...values]);
             }
-        } else if (init == null) { // eslint-disable-line no-eq-null, eqeqeq
-            // No op
-        } else if (typeof init === 'object' && !types.isBoxedPrimitive(init)) {
-            const method = init[Symbol.iterator];
-            // eslint-disable-next-line no-eq-null, eqeqeq
+            return;
+        }
+
+        if (typeof init === 'object' && !isBoxedPrimitive(init)) {
+            const method = (init as any)[Symbol.iterator];
             if (method == null) {
-                // Record<ByteString, ByteString>
-                result.push(...Object.entries(init));
+                // Record<string, string>
+                for (const [name, value] of Object.entries(init)) {
+                    validateHeaderName(name);
+                    validateHeaderValue(name, String(value));
+                    this.append(name, String(value));
+                }
             } else {
                 if (typeof method !== 'function') {
                     throw new TypeError('Header pairs must be iterable');
                 }
 
-                // Sequence<sequence<ByteString>>
-                // Note: per spec we have to first exhaust the lists then process them
-                result = [...(init as  string[][])] // TODO check if this works with Objects
-                    .map(pair => {
-                        if (
-                            typeof pair !== 'object' || types.isBoxedPrimitive(pair)
-                        ) {
-                            throw new TypeError('Each header pair must be an iterable object');
-                        }
+                for (const pair of init as Iterable<string[]>) {
+                    if (typeof pair !== 'object' || isBoxedPrimitive(pair)) {
+                        throw new TypeError('Each header pair must be an iterable object');
+                    }
 
-                        return [...pair];
-                    }).map(pair => {
-                        if (pair.length !== 2) {
-                            throw new TypeError('Each header pair must be a name/value tuple');
-                        }
+                    const arr = [...pair];
+                    if (arr.length !== 2) {
+                        throw new TypeError('Each header pair must be a name/value tuple');
+                    }
 
-                        return [...pair];
-                    });
-            }
-        } else {
-            throw new TypeError('Failed to construct \'Headers\': The provided value is not of type \'(sequence<sequence<ByteString>> or record<ByteString, ByteString>)');
-        }
-
-        // Validate and lowercase
-        result =
-            result.length > 0 ?
-                result.map(([name, value]) => {
-                    validateHeaderName(name);
-                    validateHeaderValue(name, String(value));
-                    return [String(name).toLowerCase(), String(value)];
-                }) :
-                undefined;
-
-        super(result);
-
-        // Returning a Proxy that will lowercase key names, validate parameters and sort keys
-        // eslint-disable-next-line no-constructor-return
-        return new Proxy(this, {
-            get(target, p, receiver) {
-                switch (p) {
-                    case 'append':
-                    case 'set':
-                        return (name: string, value: any) => {
-                            validateHeaderName(name);
-                            validateHeaderValue(name, String(value));
-                            return URLSearchParams.prototype[p].call(
-                                target,
-                                String(name).toLowerCase(),
-                                String(value)
-                            );
-                        };
-
-                    case 'delete':
-                    case 'has':
-                    case 'getAll':
-                        return (name: string) => {
-                            validateHeaderName(name);
-                            return URLSearchParams.prototype[p].call(
-                                target,
-                                String(name).toLowerCase()
-                            );
-                        };
-
-                    case 'keys':
-                        return () => {
-                            target.sort();
-                            return new Set(URLSearchParams.prototype.keys.call(target)).keys();
-                        };
-
-                    default:
-                        return Reflect.get(target, p, receiver);
+                    validateHeaderName(arr[0]);
+                    validateHeaderValue(arr[0], String(arr[1]));
+                    this.append(arr[0], String(arr[1]));
                 }
             }
-        });
-        /* c8 ignore next */
-    }
-
-    get [Symbol.toStringTag]() {
-        return this.constructor.name;
-    }
-
-    toString() {
-        return Object.prototype.toString.call(this);
-    }
-
-    _appendToSoupMessage(message?: Soup.Message, type = Soup.MessageHeadersType.REQUEST) {
-        const soupHeaders = message ? message.get_request_headers() : new Soup.MessageHeaders(type);
-        for (const header in this.entries()) {
-            soupHeaders.append(header, this.get(header));
-        }
-        return soupHeaders;
-    }
-
-
-    static _newFromSoupMessage(message: Soup.Message, type: Soup.MessageHeadersType = Soup.MessageHeadersType.RESPONSE) {
-        let soupHeaders: Soup.MessageHeaders;
-        const headers = new Headers();
-        
-        if (type === Soup.MessageHeadersType.RESPONSE) {
-            soupHeaders = message.get_response_headers();
-        } else if(type === Soup.MessageHeadersType.REQUEST)  {
-            soupHeaders = message.get_request_headers();
         } else {
-            for (const header in message.get_request_headers()) {
-                headers.append(header, soupHeaders[header]);
-            }
-            soupHeaders = message.get_response_headers();
+            throw new TypeError(
+                'Failed to construct \'Headers\': The provided value is not of type ' +
+                '\'(sequence<sequence<ByteString>> or record<ByteString, ByteString>)\''
+            );
         }
-
-        for (const header in soupHeaders) {
-            headers.append(header, soupHeaders[header]);
-        }
-        return headers;
     }
 
-    get(name: string) {
-        const values = this.getAll(name);
-        if (values.length === 0) {
+    append(name: string, value: string): void {
+        const lowerName = String(name).toLowerCase();
+        const strValue = String(value);
+        const existing = this[_headers].get(lowerName);
+        if (existing) {
+            existing.push(strValue);
+        } else {
+            this[_headers].set(lowerName, [strValue]);
+        }
+    }
+
+    set(name: string, value: string): void {
+        const lowerName = String(name).toLowerCase();
+        this[_headers].set(lowerName, [String(value)]);
+    }
+
+    delete(name: string): void {
+        this[_headers].delete(String(name).toLowerCase());
+    }
+
+    has(name: string): boolean {
+        return this[_headers].has(String(name).toLowerCase());
+    }
+
+    get(name: string): string | null {
+        const values = this[_headers].get(String(name).toLowerCase());
+        if (!values || values.length === 0) {
             return null;
         }
 
@@ -182,98 +112,115 @@ export default class Headers extends URLSearchParams implements globalThis.Heade
         return value;
     }
 
-    forEach(callback, thisArg = undefined) {
+    getAll(name: string): string[] {
+        return this[_headers].get(String(name).toLowerCase()) ?? [];
+    }
+
+    forEach(callback: (value: string, name: string, parent: Headers) => void, thisArg?: any): void {
         for (const name of this.keys()) {
             Reflect.apply(callback, thisArg, [this.get(name), name, this]);
         }
     }
 
-    * values() {
-        for (const name of this.keys()) {
-            yield this.get(name);
+    *keys(): IterableIterator<string> {
+        const sorted = [...this[_headers].keys()].sort();
+        const seen = new Set<string>();
+        for (const key of sorted) {
+            if (!seen.has(key)) {
+                seen.add(key);
+                yield key;
+            }
         }
     }
 
-    /**
-     * 
-     */
-    * entries(): IterableIterator<[string, string]> {
+    *values(): IterableIterator<string> {
         for (const name of this.keys()) {
-            yield [name, this.get(name)];
+            yield this.get(name)!;
         }
     }
 
-	[Symbol.iterator]() {
-		return this.entries();
-	}
+    *entries(): IterableIterator<[string, string]> {
+        for (const name of this.keys()) {
+            yield [name, this.get(name)!];
+        }
+    }
+
+    [Symbol.iterator](): IterableIterator<[string, string]> {
+        return this.entries();
+    }
+
+    get [Symbol.toStringTag](): string {
+        return 'Headers';
+    }
+
+    toString(): string {
+        return Object.prototype.toString.call(this);
+    }
 
     /**
-     * Node-fetch non-spec method
-     * returning all headers and their values as array
+     * Node-fetch non-spec method: return all headers and their values as arrays.
      */
     raw(): Record<string, string[]> {
-        return [...this.keys()].reduce((result, key) => {
-            result[key] = this.getAll(key);
-            return result;
-        }, {});
+        const result: Record<string, string[]> = {};
+        for (const name of this.keys()) {
+            result[name] = this.getAll(name);
+        }
+        return result;
     }
 
     /**
-     * For better console.log(headers) and also to convert Headers into Node.js Request compatible format
+     * Append all headers to a Soup.Message for sending.
+     */
+    _appendToSoupMessage(message?: Soup.Message, type = Soup.MessageHeadersType.REQUEST): Soup.MessageHeaders {
+        const soupHeaders = message ? message.get_request_headers() : new Soup.MessageHeaders(type);
+        for (const [name, value] of this.entries()) {
+            soupHeaders.append(name, value);
+        }
+        return soupHeaders;
+    }
+
+    /**
+     * Create a Headers instance from a Soup.Message's headers.
+     */
+    static _newFromSoupMessage(message: Soup.Message, type: Soup.MessageHeadersType = Soup.MessageHeadersType.RESPONSE): Headers {
+        const headers = new Headers();
+        let soupHeaders: Soup.MessageHeaders;
+
+        if (type === Soup.MessageHeadersType.RESPONSE) {
+            soupHeaders = message.get_response_headers();
+        } else {
+            soupHeaders = message.get_request_headers();
+        }
+
+        // Soup.MessageHeaders.foreach iterates all header name/value pairs
+        soupHeaders.foreach((name: string, value: string) => {
+            headers.append(name, value);
+        });
+
+        return headers;
+    }
+
+    /**
+     * For better console.log(headers)
      */
     [Symbol.for('nodejs.util.inspect.custom')]() {
-        return [...this.keys()].reduce((result, key) => {
+        const result: Record<string, string | string[]> = {};
+        for (const key of this.keys()) {
             const values = this.getAll(key);
-            // Http.request() only supports string as Host header.
-            // This hack makes specifying custom Host header possible.
             if (key === 'host') {
                 result[key] = values[0];
             } else {
                 result[key] = values.length > 1 ? values : values[0];
             }
-
-            return result;
-        }, {});
+        }
+        return result;
     }
 }
 
-/**
- * Re-shaping object for Web IDL tests
- * Only need to do it for overridden methods
- */
 Object.defineProperties(
     Headers.prototype,
-    ['get', 'entries', 'forEach', 'values'].reduce((result, property) => {
+    ['get', 'entries', 'forEach', 'values'].reduce((result: PropertyDescriptorMap, property) => {
         result[property] = { enumerable: true };
         return result;
     }, {})
 );
-
-/**
- * Create a Headers object from an http.IncomingMessage.rawHeaders, ignoring those that do
- * not conform to HTTP grammar productions.
- * @param headers
- */
-export function fromRawHeaders(headers: IncomingMessage['rawHeaders'] = []) {
-    return new Headers(
-        headers
-            // Split into pairs
-            .reduce((result, value, index, array) => {
-                if (index % 2 === 0) {
-                    result.push(array.slice(index, index + 2));
-                }
-
-                return result;
-            }, [])
-            .filter(([name, value]) => {
-                try {
-                    validateHeaderName(name);
-                    validateHeaderValue(name, String(value));
-                    return true;
-                } catch {
-                    return false;
-                }
-            })
-
-    );
-}
