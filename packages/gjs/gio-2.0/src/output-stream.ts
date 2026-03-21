@@ -34,7 +34,7 @@ export class ExtOutputStream<T extends Gio.OutputStream = Gio.OutputStream> /*im
      * @param config 
      * @returns 
      */
-     static newMemoryOutputStream(config: Gio.MemoryOutputStream.ConstructorProperties = {}) {
+     static newMemoryOutputStream(config: Partial<Gio.MemoryOutputStream.ConstructorProps> = {}) {
         const memoryOutputStream = new Gio.MemoryOutputStream(config);
         return new this<Gio.MemoryOutputStream>(memoryOutputStream);
     }
@@ -45,7 +45,7 @@ export class ExtOutputStream<T extends Gio.OutputStream = Gio.OutputStream> /*im
      * @param config 
      * @returns 
      */
-     static newMemoryOutputStreamResizable(config: Gio.MemoryOutputStream.ConstructorProperties = {}) {
+     static newMemoryOutputStreamResizable(config: Partial<Gio.MemoryOutputStream.ConstructorProps> = {}) {
         const memoryOutputStream = Gio.MemoryOutputStream.new_resizable();
         return new this<Gio.MemoryOutputStream>(memoryOutputStream);
     }

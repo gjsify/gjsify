@@ -18,6 +18,8 @@
 		"preserveConstEnums": true,
 		"sourceMap": true,
 		"skipLibCheck": true,
+		"allowJs": true,
+		"checkJs": false,
 		"baseUrl": ".",
 		"composite": true,
 		"incremental": true,
@@ -29,9 +31,6 @@
 			"DOM"
 		]
 	},
-	"skipLibCheck": true,
-	"allowJs": true,
-	"checkJs": false,
 	"reflection": false,
 	"include": ["src/ts/**/*.ts"],
 	"exclude": ["src/ts/test.ts", "src/ts/**/*.spec.ts"]

@@ -1,12 +1,15 @@
 [submodule "packages/node/deno_std"]
 	path = packages/deno/std
 	url = git@github.com:gjsify/deno_std.git
-[submodule "packages/infra/esbuild-plugin-deno-loader"]
-	path = packages/infra/esbuild-plugin-deno-loader
-	url = git@github.com:gjsify/esbuild-plugin-deno-loader.git
 [submodule "packages/deno/runtime/src"]
 	path = packages/deno/runtime/src
 	url = git@github.com:gjsify/deno.git
-[submodule "packages/deno/runtime-2/src"]
-	path = packages/deno/runtime-2/src
-	url = git@github.com:gjsify/deno.git
+[submodule "refs/deno"]
+	path = refs/deno
+	url = git@github.com:denoland/deno.git
+[submodule "refs/bun"]
+	path = refs/bun
+	url = git@github.com:oven-sh/bun.git
+[submodule "refs/node"]
+	path = refs/node
+	url = git@github.com:nodejs/node.git

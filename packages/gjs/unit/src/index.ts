@@ -2,7 +2,7 @@
 
 import "@girs/gjs";
 
-import type GLib from 'gi://GLib?version=2.0';
+import type GLib from '@girs/glib-2.0';
 export * from './spy.js';
 import nodeAssert from 'assert';
 

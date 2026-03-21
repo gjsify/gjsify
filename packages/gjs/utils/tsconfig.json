@@ -9,11 +9,11 @@
     "outDir": "lib",
     "declarationDir": "lib",
     "rootDir": "src",
-    "composite": true
+    "composite": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false
   },
-  "skipLibCheck": true,
-  "allowJs": true,
-  "checkJs": false,
   "reflection": false,
   "files": ["src/index.ts"],
   "include": ["../../../node_modules/@girs/gjs/gjs.d.ts", "../../../node_modules/@girs/gjs/dom.d.ts", "src/**/*.mts", "src/**/*.ts"],

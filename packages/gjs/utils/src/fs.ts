@@ -1,9 +1,9 @@
 import Gio from '@girs/gio-2.0';
-
+import GioUnix from '@girs/giounix-2.0';
 /** Check if a file descriptor exists */
 export const existsFD = (fd: number) => {
     try {
-        let stream = Gio.UnixInputStream.new(fd, false);
+        let stream = GioUnix.InputStream.new(fd, false);
         stream.close(null);
         // File descriptor 12345 exists
         return true

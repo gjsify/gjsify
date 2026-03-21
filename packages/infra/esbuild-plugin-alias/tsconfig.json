@@ -9,7 +9,7 @@
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "emitDeclarationOnly": true,
+    "emitDeclarationOnly": true
   },
   "files": ["src/index.ts"]
 }

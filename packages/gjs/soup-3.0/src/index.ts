@@ -38,7 +38,7 @@ export class ExtSession<T extends Soup.Session = Soup.Session> {
      * @param config 
      * @returns 
      */
-    static new<T extends Soup.Session = Soup.Session>(config: Soup.Session.ConstructorProperties = {}) {
+    static new<T extends Soup.Session = Soup.Session>(config: Partial<Soup.Session.ConstructorProps> = {}) {
         const session = new Soup.Session(config) as T & ExtSession<T>;
         return new this<Soup.Session>(session);
     }

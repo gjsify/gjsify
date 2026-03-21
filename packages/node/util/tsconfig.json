@@ -9,11 +9,11 @@
     "declarationDir": "lib/types",
     "rootDir": "src",
     "composite": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false,
   },
-  "skipLibCheck": true,
-  "allowJs": true,
-  "checkJs": false,
   "reflection": false,
   "include": ["src/**/*.ts"]
 }

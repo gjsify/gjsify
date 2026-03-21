@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ESNext",
+    "outDir": "dist",
+    "declarationDir": "dist/types",
+    "declaration": true,
+    "allowSyntheticDefaultImports": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly":true
+  },
+  "files": ["mod.ts"]
+}

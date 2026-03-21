@@ -8,11 +8,11 @@
     "rootDir": "src",
     "composite": true,
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false
   },
-  "skipLibCheck": true,
-  "allowJs": true,
-  "checkJs": false,
   "reflection": false,
   "include": ["src/**/*.ts"],
   "exclude": ["src/test.mts", "src/**/*.spec.ts"]

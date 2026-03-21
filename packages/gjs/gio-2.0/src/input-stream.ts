@@ -1,4 +1,5 @@
 import Gio from '@girs/gio-2.0';
+import GioUnix from '@girs/giounix-2.0';
 import GLib from '@girs/glib-2.0';
 import { ExtOutputStream } from './output-stream.js'
 
@@ -55,7 +56,7 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @param config 
      * @returns 
      */
-    static newDataInputStream(config: Gio.DataInputStream.ConstructorProperties = {}) {
+    static newDataInputStream(config: Partial<Gio.DataInputStream.ConstructorProps> = {}) {
         const dataInputStream = new Gio.DataInputStream(config);
         return this.extend<Gio.DataInputStream>(dataInputStream)
     }
@@ -65,9 +66,9 @@ export class ExtInputStream<T extends Gio.InputStream = Gio.InputStream> impleme
      * @param config 
      * @returns 
      */
-    static newInputStream(config: Gio.InputStream.ConstructorProperties = {}) {
-        const inputStream = new Gio.InputStream(config);
-        return this.extend<Gio.InputStream>(inputStream)
+    static newInputStream(config: Partial<GioUnix.InputStream.ConstructorProps> = {}) {
+        const inputStream = new GioUnix.InputStream(config);
+        return this.extend<GioUnix.InputStream>(inputStream)
     }
 
     /**

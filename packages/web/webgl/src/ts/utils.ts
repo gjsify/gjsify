@@ -158,7 +158,7 @@ export function arrayToUint8Array(array: TypedArray | Float32List | Array<number
 }
 
 export function Uint8ArrayToVariant(array: Uint8Array | null) {
-    const variant = new GLib.Variant("ay", Array.from(array || []));
+    const variant = new GLib.Variant("ay", array);
     return variant
 }
 

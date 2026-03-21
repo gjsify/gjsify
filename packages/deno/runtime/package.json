@@ -54,14 +54,14 @@
         "lib"
     ],
     "devDependencies": {
-        "@girs/gjs": "^3.2.6",
+        "@girs/gjs": "^4.0.0-beta.41",
         "@gjsify/cli": "workspace:^",
         "@gjsify/empty": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@tsconfig/deno": "^1.0.9",
         "fast-glob": "^3.3.2",
         "open-cli": "^8.0.0",
-        "typescript": "^5.3.3"
+        "typescript": "^5.9.3"
     },
     "dependencies": {
         "@gjsify/utils": "workspace:^"

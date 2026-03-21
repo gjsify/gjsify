@@ -8,11 +8,11 @@
       "outDir": "lib",
       "rootDir": "src",
       "composite": true,
-      "strict": true
+      "strict": true,
+      "skipLibCheck": true,
+      "allowJs": true,
+      "checkJs": false,
     },
-    "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false,
     "reflection": false,
     "include": ["src/**/*.ts"],
     "exclude": ["src/test.ts", "src/**/*.spec.ts"]
