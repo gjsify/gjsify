@@ -42,7 +42,6 @@
         "typescript": "^5.9.3"
     },
     "dependencies": {
-        "@gjsify/deno_std": "workspace:^",
         "@types/node": "^25.5.0"
     }
 }

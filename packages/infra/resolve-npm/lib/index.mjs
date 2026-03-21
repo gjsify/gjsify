@@ -94,12 +94,12 @@ export const ALIASES_NODE_FOR_GJS = {
     'module': '@gjsify/deno_std/node/module', // TODO
     'net': '@gjsify/net',
     'os': '@gjsify/os',
-    'path': '@gjsify/deno_std/node/path', // TODO
+    'path': '@gjsify/path',
     'path/common': '@gjsify/deno_std/node/path/common', // TODO
     'path/glob': '@gjsify/deno_std/node/path/glob', // TODO
-    'path/posix': '@gjsify/deno_std/node/path/posix', // TODO
+    'path/posix': '@gjsify/path/posix',
     'path/separator': '@gjsify/deno_std/node/path/separator', // TODO
-    'path/win32': '@gjsify/deno_std/node/path/win32', // TODO
+    'path/win32': '@gjsify/path/win32',
     'perf_hooks': '@gjsify/deno_std/node/perf_hooks', // TODO
     'process': '@gjsify/process',
     'punycode': '@gjsify/deno_std/node/punycode', // TODO

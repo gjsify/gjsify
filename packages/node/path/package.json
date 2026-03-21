@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/util",
+    "name": "@gjsify/path",
     "version": "0.0.4",
-    "description": "Node.js util module for Gjs",
+    "description": "Node.js path module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
@@ -17,26 +17,36 @@
                 "default": "./lib/cjs/index.js"
             }
         },
-        "./types": {
+        "./posix": {
             "import": {
-                "types": "./lib/types/types.d.ts",
-                "default": "./lib/esm/types.js"
+                "types": "./lib/types/posix.d.ts",
+                "default": "./lib/esm/posix.js"
             },
             "require": {
-                "types": "./lib/types/types.d.ts",
-                "default": "./lib/cjs/types.js"
+                "types": "./lib/types/posix.d.ts",
+                "default": "./lib/cjs/posix.js"
+            }
+        },
+        "./win32": {
+            "import": {
+                "types": "./lib/types/win32.d.ts",
+                "default": "./lib/esm/win32.js"
+            },
+            "require": {
+                "types": "./lib/types/win32.d.ts",
+                "default": "./lib/cjs/win32.js"
             }
         }
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
-        "print:name": "echo '@gjsify/util'",
-        "build": "yarn print:name && yarn build:gjsify && yarn build:types",
+        "print:name": "echo '@gjsify/path'",
+        "build": "yarn print:name && yarn build:gjsify",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "yarn build:test:gjs && yarn build:test:node",
-        "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.mjs",
-        "build:test:node": "gjsify build src/test.ts --app node --outfile test.node.mjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
         "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
         "test:gjs": "gjs -m test.gjs.mjs",
         "test:node": "node test.node.mjs"
@@ -44,14 +54,12 @@
     "keywords": [
         "gjs",
         "node",
-        "util"
+        "path"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/inherits": "^0.0.33",
         "@types/node": "^25.5.0",
         "typescript": "^5.9.3"
-    },
-    "dependencies": {}
+    }
 }

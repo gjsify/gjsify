@@ -44,141 +44,137 @@ export default async () => {
 		});
 	});
 
-	await describe("[util] isBoolean", async () => {
-
-		await it('should return the right results', async () => {
-			expect(util.isBoolean(true)).toBeTruthy();
-			// TODO: this is true in Gjs / Deno but false in Node.js
-			// expect(util.isBoolean(new Boolean())).toBeTruthy();
-			// expect(util.isBoolean(new Boolean(true))).toBeTruthy();
-			expect(util.isBoolean(false)).toBeTruthy();
-			expect(util.isBoolean("deno")).toBeFalsy();
-			expect(util.isBoolean("true")).toBeFalsy();
+	// Legacy type-check functions are deprecated and removed in Node.js v24+
+	// They only exist in our GJS implementation, so skip on Node.js if not available.
+	if (typeof util.isBoolean === 'function') {
+		await describe("[util] isBoolean", async () => {
+			await it('should return the right results', async () => {
+				expect(util.isBoolean(true)).toBeTruthy();
+				expect(util.isBoolean(false)).toBeTruthy();
+				expect(util.isBoolean("deno")).toBeFalsy();
+				expect(util.isBoolean("true")).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isNull", async () => {
-		await it('should return the right results', async () => {
-			let n;
-			expect(util.isNull(null)).toBeTruthy();
-			expect(util.isNull(n)).toBeFalsy();
-			expect(util.isNull(0)).toBeFalsy();
-			expect(util.isNull({})).toBeFalsy();
+		await describe("[util] isNull", async () => {
+			await it('should return the right results', async () => {
+				let n;
+				expect(util.isNull(null)).toBeTruthy();
+				expect(util.isNull(n)).toBeFalsy();
+				expect(util.isNull(0)).toBeFalsy();
+				expect(util.isNull({})).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isNullOrUndefined", async () => {
-		await it('should return the right results', async () => {
-			let n;
-			expect(util.isNullOrUndefined(null)).toBeTruthy();
-			expect(util.isNullOrUndefined(n)).toBeTruthy();
-			expect(util.isNullOrUndefined({})).toBeFalsy();
-			expect(util.isNullOrUndefined("undefined")).toBeFalsy();
+		await describe("[util] isNullOrUndefined", async () => {
+			await it('should return the right results', async () => {
+				let n;
+				expect(util.isNullOrUndefined(null)).toBeTruthy();
+				expect(util.isNullOrUndefined(n)).toBeTruthy();
+				expect(util.isNullOrUndefined({})).toBeFalsy();
+				expect(util.isNullOrUndefined("undefined")).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isNumber", async () => {
-		await it('should return the right results', async () => {
-			expect(util.isNumber(666)).toBeTruthy();
-			// TODO: this is true in Gjs / Deno but false in Node.js
-			// expect(util.isNumber(new Number(666))).toBeTruthy();
-			expect(util.isNumber("999")).toBeFalsy();
-			expect(util.isNumber(null)).toBeFalsy();
+		await describe("[util] isNumber", async () => {
+			await it('should return the right results', async () => {
+				expect(util.isNumber(666)).toBeTruthy();
+				expect(util.isNumber("999")).toBeFalsy();
+				expect(util.isNumber(null)).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isString", async () => {
-		await it('should return the right results', async () => {
-			expect(util.isString("deno")).toBeTruthy();
-			// TODO: this is true in Gjs / Deno but false in Node.js
-			// expect(util.isString(new String("DIO"))).toBeTruthy();
-			expect(util.isString(1337)).toBeFalsy();
+		await describe("[util] isString", async () => {
+			await it('should return the right results', async () => {
+				expect(util.isString("deno")).toBeTruthy();
+				expect(util.isString(1337)).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isSymbol", async () => {
-		await it('should return the right results', async () => {
-			expect(util.isSymbol(Symbol())).toBeTruthy();
-			expect(util.isSymbol(123)).toBeFalsy();
-			expect(util.isSymbol("string")).toBeFalsy();
+		await describe("[util] isSymbol", async () => {
+			await it('should return the right results', async () => {
+				expect(util.isSymbol(Symbol())).toBeTruthy();
+				expect(util.isSymbol(123)).toBeFalsy();
+				expect(util.isSymbol("string")).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isUndefined", async () => {
-		await it('should return the right results', async () => {
-			let t;
-			expect(util.isUndefined(t)).toBeTruthy();
-			expect(util.isUndefined("undefined")).toBeFalsy();
-			expect(util.isUndefined({})).toBeFalsy();
+		await describe("[util] isUndefined", async () => {
+			await it('should return the right results', async () => {
+				let t;
+				expect(util.isUndefined(t)).toBeTruthy();
+				expect(util.isUndefined("undefined")).toBeFalsy();
+				expect(util.isUndefined({})).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isObject", async () => {
-		await it('should return the right results', async () => {
-			const dio = { stand: "Za Warudo" };
-			expect(util.isObject(dio)).toBeTruthy();
-			expect(util.isObject(new RegExp(/Toki Wo Tomare/))).toBeTruthy();
-			expect(util.isObject("Jotaro")).toBeFalsy();
+		await describe("[util] isObject", async () => {
+			await it('should return the right results', async () => {
+				const dio = { stand: "Za Warudo" };
+				expect(util.isObject(dio)).toBeTruthy();
+				expect(util.isObject(new RegExp(/Toki Wo Tomare/))).toBeTruthy();
+				expect(util.isObject("Jotaro")).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isError", async () => {
-		await it('should return the right results', async () => {
-			const java = new Error();
-			const nodejs = new TypeError();
-			const deno = "Future";
-			expect(util.isError(java)).toBeTruthy();
-			expect(util.isError(nodejs)).toBeTruthy();
-			expect(util.isError(deno)).toBeFalsy();
+		await describe("[util] isError", async () => {
+			await it('should return the right results', async () => {
+				const java = new Error();
+				const nodejs = new TypeError();
+				const deno = "Future";
+				expect(util.isError(java)).toBeTruthy();
+				expect(util.isError(nodejs)).toBeTruthy();
+				expect(util.isError(deno)).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isFunction", async () => {
-		await it('should return the right results', async () => {
-			const f = function () { };
-			expect(util.isFunction(f)).toBeTruthy();
-			expect(util.isFunction({})).toBeFalsy();
-			expect(util.isFunction(new RegExp(/f/))).toBeFalsy();
+		await describe("[util] isFunction", async () => {
+			await it('should return the right results', async () => {
+				const f = function () { };
+				expect(util.isFunction(f)).toBeTruthy();
+				expect(util.isFunction({})).toBeFalsy();
+				expect(util.isFunction(new RegExp(/f/))).toBeFalsy();
+			});
 		});
-	});
 
-	await describe("[util] isRegExp", async () => {
-		await it('should return the right results', async () => {
-			expect(util.isRegExp(new RegExp(/f/))).toBeTruthy();
-			expect(util.isRegExp(/fuManchu/)).toBeTruthy();
-			expect(util.isRegExp({ evil: "eye" })).toBeFalsy();
-			expect(util.isRegExp(null)).toBeFalsy();
+		await describe("[util] isRegExp", async () => {
+			await it('should return the right results', async () => {
+				expect(util.isRegExp(new RegExp(/f/))).toBeTruthy();
+				expect(util.isRegExp(/fuManchu/)).toBeTruthy();
+				expect(util.isRegExp({ evil: "eye" })).toBeFalsy();
+				expect(util.isRegExp(null)).toBeFalsy();
+			});
 		});
-	});
+
+		await describe("[util] isPrimitive", async () => {
+			await it('should return the right results', async () => {
+				const stringType = "hasti";
+				const booleanType = true;
+				const integerType = 2;
+				const symbolType = Symbol("anything");
+
+				const functionType = function doBest() { };
+				const objectType = { name: "ali" };
+				const arrayType = [1, 2, 3];
+
+				expect(util.isPrimitive(stringType)).toBeTruthy();
+				expect(util.isPrimitive(booleanType)).toBeTruthy();
+				expect(util.isPrimitive(integerType)).toBeTruthy();
+				expect(util.isPrimitive(symbolType)).toBeTruthy();
+				expect(util.isPrimitive(null)).toBeTruthy();
+				expect(util.isPrimitive(undefined)).toBeTruthy();
+				expect(util.isPrimitive(functionType)).toBeFalsy();
+				expect(util.isPrimitive(arrayType)).toBeFalsy();
+				expect(util.isPrimitive(objectType)).toBeFalsy();
+			});
+		});
+	}
 
 	await describe("[util] isArray", async () => {
 		await it('should return the right results', async () => {
 			expect(util.isArray([])).toBeTruthy();
 			expect(util.isArray({ yaNo: "array" })).toBeFalsy();
 			expect(util.isArray(null)).toBeFalsy();
-		});
-	});
-
-	await describe("[util] isPrimitive", async () => {
-		await it('should return the right results', async () => {
-			const stringType = "hasti";
-			const booleanType = true;
-			const integerType = 2;
-			const symbolType = Symbol("anything");
-
-			const functionType = function doBest() { };
-			const objectType = { name: "ali" };
-			const arrayType = [1, 2, 3];
-
-			expect(util.isPrimitive(stringType)).toBeTruthy();
-			expect(util.isPrimitive(booleanType)).toBeTruthy();
-			expect(util.isPrimitive(integerType)).toBeTruthy();
-			expect(util.isPrimitive(symbolType)).toBeTruthy();
-			expect(util.isPrimitive(null)).toBeTruthy();
-			expect(util.isPrimitive(undefined)).toBeTruthy();
-			expect(util.isPrimitive(functionType)).toBeFalsy();
-			expect(util.isPrimitive(arrayType)).toBeFalsy();
-			expect(util.isPrimitive(objectType)).toBeFalsy();
 		});
 	});
 

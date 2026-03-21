@@ -1,11 +1,19 @@
-// import "@gjsify/deno-runtime/ext/web/00_infra";
-// import "@gjsify/deno-runtime/ext/web/01_dom_exception";
-// import "@gjsify/deno-runtime/ext/web/01_mimesniff";
-// import "@gjsify/deno-runtime/ext/web/02_event";
-// import "@gjsify/deno-runtime/ext/web/02_structured_clone";
-// import "@gjsify/deno-runtime/ext/web/02_timers";
-// import "@gjsify/deno-runtime/ext/web/03_abort_signal";
+// Native EventEmitter implementation for GJS — no Deno dependency
 
-export * from '@gjsify/deno_std/node/events';
-import events from '@gjsify/deno_std/node/events';
-export default events;
+import { EventEmitter } from './event-emitter.js';
+
+export { EventEmitter };
+
+// Named static exports matching Node.js events module API
+export const captureRejectionSymbol = EventEmitter.captureRejectionSymbol;
+export const errorMonitor = EventEmitter.errorMonitor;
+export const defaultMaxListeners = EventEmitter.defaultMaxListeners;
+export const setMaxListeners = EventEmitter.setMaxListeners;
+export const getMaxListeners = EventEmitter.getMaxListeners;
+export const once = EventEmitter.once;
+export const on = EventEmitter.on;
+export const getEventListeners = EventEmitter.getEventListeners;
+export const listenerCount = EventEmitter.listenerCount;
+export const addAbortListener = EventEmitter.addAbortListener;
+
+export default EventEmitter;
