@@ -111,7 +111,7 @@ export const ALIASES_NODE_FOR_GJS = {
     'stream/web': '@gjsify/stream/web',
     'stream/consumers': '@gjsify/stream/consumers', // TODO
     'stream/promises': '@gjsify/stream/promises', // TODO
-    'string_decoder': '@gjsify/deno_std/node/string_decoder', // TODO
+    'string_decoder': '@gjsify/string_decoder',
     'sys': '@gjsify/deno_std/node/sys', // TODO
     // 'test': '@gjsify/deno_std/node/test', // TODO
     'timers': '@gjsify/deno_std/node/timers', // TODO

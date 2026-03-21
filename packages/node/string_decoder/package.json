@@ -1,10 +1,11 @@
 {
-    "name": "@gjsify/buffer",
+    "name": "@gjsify/string_decoder",
     "version": "0.0.4",
-    "description": "Node.js buffer module for Gjs",
+    "description": "Node.js string_decoder module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
             "import": {
@@ -19,8 +20,8 @@
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
-        "print:name": "echo '@gjsify/buffer'",
-        "build": "yarn print:name && yarn build:gjsify && yarn build:types",
+        "print:name": "echo '@gjsify/string_decoder'",
+        "build": "yarn print:name && yarn build:gjsify",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc --project tsconfig.types.json || exit 0",
         "build:test": "yarn build:test:gjs && yarn build:test:node",
@@ -33,7 +34,7 @@
     "keywords": [
         "gjs",
         "node",
-        "buffer"
+        "string_decoder"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
