@@ -1235,7 +1235,7 @@ __metadata:
   resolution: "@gjsify/stream@workspace:packages/node/stream"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@gjsify/deno_std": "workspace:^"
+    "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^5.9.3"
