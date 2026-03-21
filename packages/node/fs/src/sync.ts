@@ -311,9 +311,7 @@ export function rmSync(path: PathLike, options?: RmOptions): void {
     }
   
     for (const childFile of childFiles) {
-      if (typeof childFile !== 'string' && childFile.isDirectory()) {
-        rmdirSync(join(path.toString(), childFile.name), options);
-      } else if (typeof childFile !== 'string' && childFile.isFile()) {
+      if (typeof childFile !== 'string') {
         rmSync(join(path.toString(), childFile.name), options);
       }
     }

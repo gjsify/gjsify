@@ -330,9 +330,7 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
     }
 
     for (const childFile of childFiles) {
-      if (typeof childFile !== 'string' && childFile.isDirectory()) {
-        await rmdir(join(path.toString(), childFile.name), options);
-      } else if (typeof childFile !== 'string' && childFile.isFile()) {
+      if (typeof childFile !== 'string') {
         await rm(join(path.toString(), childFile.name), options);
       }
     }
