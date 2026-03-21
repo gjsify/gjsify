@@ -1,19 +1,21 @@
 {
   "compilerOptions": {
     "module": "ESNext",
-    "types": ["node"],
     "target": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
     "experimentalDecorators": true,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "allowImportingTsExtensions": true,
     "outDir": "lib",
     "rootDir": "src",
+    "declarationDir": "lib/types",
     "composite": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false
   },
-  "reflection": false,
   "include": ["src/**/*.ts"],
-  "exclude": ["src/test.mts", "src/**/*.spec.ts"]
+  "exclude": ["src/test.ts", "src/test.mts", "src/**/*.spec.ts", "src/**/*.spec.mts"]
 }

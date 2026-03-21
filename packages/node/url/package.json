@@ -18,12 +18,12 @@
         }
     },
     "scripts": {
-        "clear": "rm -rf lib/cjs lib/esm tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
+        "clear": "rm -rf lib/cjs lib/esm tsconfig.tsbuildinfo || exit 0",
         "print:name": "echo '@gjsify/url'",
         "build": "yarn print:name && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.ts' 'src/test.ts'",
         "build:types": "echo 'The types are currently handwritten'",
-        "build:real_types": "tsc --project tsconfig.types.json || exit 0",
+        "build:real_types": "tsc --project tsconfig.json || exit 0",
         "build:test": "yarn build:test:gjs && yarn build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.ts --app node --outfile test.node.mjs",
