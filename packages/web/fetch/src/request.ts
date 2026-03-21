@@ -1,3 +1,9 @@
+import GLib from '@girs/glib-2.0';
+import Soup from '@girs/soup-3.0';
+import Gio from '@girs/gio-2.0';
+import * as GioExt from '@gjsify/gio-2.0';
+import * as SoupExt from '@gjsify/soup-3.0';
+
 import { URL } from '@gjsify/url';
 import { Blob } from './utils/blob-from.js';
 
@@ -88,6 +94,10 @@ export class Request extends Body {
     return this[INTERNALS].parsedURL.toString();
   }
 
+  get _uri() {
+    return GLib.Uri.parse(this.url, GLib.UriFlags.NONE);
+  }
+
   get _session() {
     return this[INTERNALS].session;
   }
@@ -113,10 +123,10 @@ export class Request extends Body {
     signal: AbortSignal;
     referrer: string | URL;
     referrerPolicy: ReferrerPolicy;
-    // Gjsify (lazy-initialized in _send)
-    session?: any;
-    message?: any;
-    inputStream?: any;
+    // Gjsify
+    session: SoupExt.ExtSession & Soup.Session;
+    message: Soup.Message;
+    inputStream?: Gio.InputStream & GioExt.ExtInputStream<Gio.InputStream>;
     readable?: Readable
   };
 
@@ -193,6 +203,12 @@ export class Request extends Body {
       referrer = undefined;
     }
 
+    const session = SoupExt.ExtSession.new();
+    const message = new Soup.Message({
+      method,
+      uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.NONE),
+    });
+
     this[INTERNALS] = {
       method,
       redirect: init.redirect || (input as Request).redirect || 'follow',
@@ -201,6 +217,8 @@ export class Request extends Body {
       signal,
       referrer,
       referrerPolicy: '',
+      session,
+      message,
     };
 
     // Node-fetch-only options
@@ -217,34 +235,10 @@ export class Request extends Body {
   }
 
   /**
-   * Initialize GJS-specific Soup session and message.
-   * Called lazily from _send() to avoid importing GJS bindings at module load.
-   */
-  private async _initSoup() {
-    const GLib = (await import('@girs/glib-2.0')).default;
-    const Soup = (await import('@girs/soup-3.0')).default;
-    const GioExt = await import('@gjsify/gio-2.0');
-    const SoupExt = await import('@gjsify/soup-3.0');
-
-    const uri = GLib.Uri.parse(this.url, GLib.UriFlags.NONE);
-    const session = SoupExt.ExtSession.new();
-    const message = new Soup.Message({
-      method: this[INTERNALS].method,
-      uri,
-    });
-
-    this[INTERNALS].session = session;
-    this[INTERNALS].message = message;
-
-    return { GLib, Soup, GioExt, SoupExt, session, message, uri };
-  }
-
-  /**
-   * Custom send method using Soup, used in fetch to send the request
+   * Send the request using Soup.
    */
   async _send(options: { headers: Headers }) {
-    const { GLib, session, message } = await this._initSoup();
-    const Gio = (await import('@girs/gio-2.0')).default;
+    const { session, message } = this[INTERNALS];
 
     options.headers._appendToSoupMessage(message);
 

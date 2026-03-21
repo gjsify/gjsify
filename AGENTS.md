@@ -147,7 +147,17 @@ yarn test:gjs          # gjs -m test.gjs.mjs
 
 ### Test Design Principle
 
-Tests import from the bare module specifier (e.g., `from 'assert'`). The bundler resolves this to the appropriate implementation per platform. Running tests on Node.js validates test correctness against the reference implementation. Running on GJS validates our implementation. Both must pass.
+Tests **must** import from the bare module specifier (e.g., `from 'assert'`, `from 'fetch'`), **never** from relative paths like `'./index.ts'`. The bundler resolves bare specifiers to the appropriate implementation per platform:
+
+- **Node.js build**: bare specifiers resolve to Node.js built-ins or native globals (e.g., `'assert'` → Node's `assert`, `'fetch'` → Node's native `fetch`/`Headers`/`Request`/`Response`)
+- **GJS build**: bare specifiers resolve to `@gjsify/*` packages (e.g., `'assert'` → `@gjsify/assert`, `'fetch'` → `@gjsify/fetch`)
+
+This applies equally to `packages/node/*` and `packages/web/*`. For web packages like `fetch`, this means:
+- Tests import from `'fetch'`, not from `'./index.ts'`
+- On Node.js, the native Web API implementation is used — no GJS-specific code (`@girs/*`, Soup, Gio) is ever imported or bundled
+- No workarounds like lazy-loading GJS bindings or stub loaders should be needed for the Node.js test build
+
+Running tests on Node.js validates **test correctness** against the reference implementation. Running on GJS validates **our implementation**. Both must pass.
 
 ## Build Commands
 

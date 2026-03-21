@@ -72,95 +72,60 @@ export const ALIASES_NODE_FOR_GJS = {
     // Internal Node.js modules
     'assert': '@gjsify/assert',
     'assert/strict': '@gjsify/assert/strict',
-    'async_hooks': '@gjsify/deno_std/node/async_hooks', // TODO
+    'async_hooks': '@gjsify/async_hooks', // TODO: refs/bun/src/js/node/async_hooks.ts, refs/deno/ext/node/polyfills/async_hooks.ts, refs/node/lib/async_hooks.js
     'buffer': '@gjsify/buffer',
-    'child_process': '@gjsify/deno_std/node/child_process', // TODO
-    'cluster': '@gjsify/deno_std/node/cluster', // TODO
+    'child_process': '@gjsify/child_process', // TODO: refs/bun/src/js/node/child_process.ts, refs/deno/ext/node/polyfills/child_process.ts, refs/node/lib/child_process.js
+    'cluster': '@gjsify/cluster', // TODO: refs/bun/src/js/node/cluster.ts, refs/deno/ext/node/polyfills/cluster.ts, refs/node/lib/cluster.js
     'console': '@gjsify/console',
-    'constants': '@gjsify/deno_std/node/constants', // TODO
-    'crypto': '@gjsify/deno_std/node/crypto', // TODO
-    'dgram': '@gjsify/deno_std/node/dgram', // TODO
-    'diagnostics_channel': '@gjsify/deno_std/node/diagnostics_channel', // TODO
-    'dns': '@gjsify/deno_std/node/dns', // TODO
-    'dns/promises': '@gjsify/deno_std/node/dns/promises', // TODO
-    'domain': '@gjsify/deno_std/node/domain', // TODO
+    'constants': '@gjsify/constants', // TODO: refs/bun/src/js/node/constants.ts, refs/deno/ext/node/polyfills/constants.ts, refs/node/lib/constants.js
+    'crypto': '@gjsify/crypto', // TODO: refs/bun/src/js/node/crypto.ts, refs/deno/ext/node/polyfills/crypto.ts, refs/node/lib/crypto.js
+    'dgram': '@gjsify/dgram', // TODO: refs/bun/src/js/node/dgram.ts, refs/deno/ext/node/polyfills/dgram.ts, refs/node/lib/dgram.js
+    'diagnostics_channel': '@gjsify/diagnostics_channel', // TODO: refs/bun/src/js/node/diagnostics_channel.ts, refs/deno/ext/node/polyfills/diagnostics_channel.js, refs/node/lib/diagnostics_channel.js
+    'dns': '@gjsify/dns', // TODO: refs/bun/src/js/node/dns.ts, refs/deno/ext/node/polyfills/dns.ts, refs/node/lib/dns.js
+    'dns/promises': '@gjsify/dns/promises', // TODO: refs/bun/src/js/node/dns.promises.ts, refs/deno/ext/node/polyfills/dns.ts, refs/node/lib/dns.js
+    'domain': '@gjsify/domain', // TODO: refs/bun/src/js/node/domain.ts, refs/deno/ext/node/polyfills/domain.ts, refs/node/lib/domain.js
     'events': '@gjsify/events',
     'fs': '@gjsify/fs',
     'fs/promises': '@gjsify/fs/promises',
     'http': '@gjsify/http',
-    'http2': '@gjsify/deno_std/node/http2', // TODO
-    'https': '@gjsify/deno_std/node/https', // TODO
-    'inspector': '@gjsify/deno_std/node/inspector', // TODO
-    'module': '@gjsify/deno_std/node/module', // TODO
+    'http2': '@gjsify/http2', // TODO: refs/bun/src/js/node/http2.ts, refs/deno/ext/node/polyfills/http2.ts, refs/node/lib/http2.js
+    'https': '@gjsify/https', // TODO: refs/bun/src/js/node/https.ts, refs/deno/ext/node/polyfills/https.ts, refs/node/lib/https.js
+    'inspector': '@gjsify/inspector', // TODO: refs/bun/src/js/node/inspector.ts, refs/deno/ext/node/polyfills/inspector.js, refs/node/lib/inspector.js
+    'module': '@gjsify/module', // TODO: refs/node/lib/module.js
     'net': '@gjsify/net',
     'os': '@gjsify/os',
     'path': '@gjsify/path',
-    'path/common': '@gjsify/deno_std/node/path/common', // TODO
-    'path/glob': '@gjsify/deno_std/node/path/glob', // TODO
+    'path/common': '@gjsify/path/common', // TODO: refs/deno/ext/node/polyfills/path/common.ts
+    'path/glob': '@gjsify/path/glob', // TODO: refs/node/lib/path.js
     'path/posix': '@gjsify/path/posix',
-    'path/separator': '@gjsify/deno_std/node/path/separator', // TODO
+    'path/separator': '@gjsify/path/separator', // TODO: refs/deno/ext/node/polyfills/path/separator.ts
     'path/win32': '@gjsify/path/win32',
-    'perf_hooks': '@gjsify/deno_std/node/perf_hooks', // TODO
+    'perf_hooks': '@gjsify/perf_hooks', // TODO: refs/bun/src/js/node/perf_hooks.ts, refs/deno/ext/node/polyfills/perf_hooks.js, refs/node/lib/perf_hooks.js
     'process': '@gjsify/process',
-    'punycode': '@gjsify/deno_std/node/punycode', // TODO
+    'punycode': '@gjsify/punycode', // TODO: refs/bun/src/js/node/punycode.ts, refs/deno/ext/node/polyfills/punycode.ts, refs/node/lib/punycode.js
     'querystring': '@gjsify/querystring',
-    'readline': '@gjsify/deno_std/node/readline', // TODO
-    'readline/promises': '@gjsify/deno_std/node/readline/promises', // TODO
-    'repl': '@gjsify/deno_std/node/repl', // TODO
+    'readline': '@gjsify/readline', // TODO: refs/bun/src/js/node/readline.ts, refs/deno/ext/node/polyfills/readline.ts, refs/node/lib/readline.js
+    'readline/promises': '@gjsify/readline/promises', // TODO: refs/bun/src/js/node/readline.promises.ts, refs/deno/ext/node/polyfills/readline/promises.ts, refs/node/lib/readline.js
+    'repl': '@gjsify/repl', // TODO: refs/bun/src/js/node/repl.ts, refs/deno/ext/node/polyfills/repl.ts, refs/node/lib/repl.js
     'stream': '@gjsify/stream',
     'stream/web': '@gjsify/stream/web',
-    'stream/consumers': '@gjsify/stream/consumers', // TODO
-    'stream/promises': '@gjsify/stream/promises', // TODO
+    'stream/consumers': '@gjsify/stream/consumers', // TODO: refs/bun/src/js/node/stream.consumers.ts, refs/deno/ext/node/polyfills/stream/consumers.js, refs/node/lib/stream.js
+    'stream/promises': '@gjsify/stream/promises', // TODO: refs/bun/src/js/node/stream.promises.ts, refs/deno/ext/node/polyfills/stream/promises.js, refs/node/lib/stream.js
     'string_decoder': '@gjsify/string_decoder',
-    'sys': '@gjsify/deno_std/node/sys', // TODO
-    // 'test': '@gjsify/deno_std/node/test', // TODO
-    'timers': '@gjsify/deno_std/node/timers', // TODO
-    'timers/promises': '@gjsify/deno_std/node/timers/promises', // TODO
-    'tls': '@gjsify/deno_std/node/tls', // TODO
+    'sys': '@gjsify/sys', // TODO: refs/deno/ext/node/polyfills/sys.ts, refs/node/lib/sys.js
+    // 'test': '@gjsify/test', // TODO: refs/bun/src/js/node/test.ts, refs/deno/ext/node/polyfills/testing.ts, refs/node/lib/test.js
+    'timers': '@gjsify/timers', // TODO: refs/bun/src/js/node/timers.ts, refs/deno/ext/node/polyfills/timers.ts, refs/node/lib/timers.js
+    'timers/promises': '@gjsify/timers/promises', // TODO: refs/bun/src/js/node/timers.promises.ts, refs/deno/ext/node/polyfills/timers/promises.ts, refs/node/lib/timers.js
+    'tls': '@gjsify/tls', // TODO: refs/bun/src/js/node/tls.ts, refs/deno/ext/node/polyfills/tls.ts, refs/node/lib/tls.js
     'tty': '@gjsify/tty',
     'url': '@gjsify/url',
     'util': '@gjsify/util',
     'util/types': '@gjsify/util/types',
-    'v8': '@gjsify/deno_std/node/v8', // TODO
-    'vm': '@gjsify/deno_std/node/vm', // TODO
-    'wasi': '@gjsify/deno_std/node/wasi', // TODO
-    'worker_threads': '@gjsify/deno_std/node/worker_threads', // TODO
+    'v8': '@gjsify/v8', // TODO: refs/bun/src/js/node/v8.ts, refs/deno/ext/node/polyfills/v8.ts, refs/node/lib/v8.js
+    'vm': '@gjsify/vm', // TODO: refs/bun/src/js/node/vm.ts, refs/deno/ext/node/polyfills/vm.js, refs/node/lib/vm.js
+    'wasi': '@gjsify/wasi', // TODO: refs/bun/src/js/node/wasi.ts, refs/deno/ext/node/polyfills/wasi.ts, refs/node/lib/wasi.js
+    'worker_threads': '@gjsify/worker_threads', // TODO: refs/bun/src/js/node/worker_threads.ts, refs/deno/ext/node/polyfills/worker_threads.ts, refs/node/lib/worker_threads.js
     'zlib': '@gjsify/zlib',
-
-
-
-    // 'cluster': '@gjsify/deno_std/node/cluster',
-    // 'domain': '@gjsify/deno_std/node/domain',
-    // 'stream': '@gjsify/deno_std/node/stream',
-    // 'assertion_error': '@gjsify/deno_std/node/assertion_error',
-    // 'console': '@@gjsify/deno_std/nodeconsole',
-    // 'module': '@gjsify/deno_std/node/module',
-    // 'v8': '@gjsify/deno_std/node/v8',
-    // assert: 'assert', // https://github.com/browserify/commonjs-assert
-    // constants: 'constants-browserify', // https://github.com/juliangruber/constants-browserify
-    // punycode: 'punycode',
-    // string_decoder: 'string_decoder', // https://github.com/nodejs/string_decoder
-    // 'async_hooks': '@gjsify/deno_std/node/async_hooks',
-    // 'sys': '@gjsify/deno_std/node/sys',
-    // 'vm': '@gjsify/deno_std/node/vm',
-    // 'upstream_modules': '@gjsify/deno_std/node/upstream_modules',
-    // 'wasi': '@gjsify/deno_std/node/wasi',
-    // crypto: 'crypto-browserify',
-    // 'inspector': '@gjsify/deno_std/node/inspector',
-    // 'timers': '@gjsify/deno_std/node/timers',
-    // 'dgram': '@gjsify/deno_std/node/dgram',
-    // path: 'path-browserify',
-    // 'readline': '@gjsify/deno_std/node/readline',
-    // 'worker_threads': '@gjsify/deno_std/node/worker_threads',
-    // 'diagnostics_channel': '@gjsify/deno_std/node/diagnostics_channel',
-    // 'http2': '@gjsify/deno_std/node/http2',
-    // 'module_all': '@gjsify/deno_std/node/module_all',
-    // 'repl': '@gjsify/deno_std/node/repl',
-    // 'child_process': '@gjsify/deno_std/node/child_process',
-    // 'dns': '@gjsify/deno_std/node/dns',
-    // 'module_esm': '@gjsify/deno_std/node/module_esm',
-    // 'perf_hooks': '@gjsify/deno_std/node/perf_hooks',
-    // 'tls': '@gjsify/deno_std/node/tls',
 
     // Third party Node Modules
     'node-fetch': '@gjsify/fetch',
@@ -170,6 +135,7 @@ export const ALIASES_NODE_FOR_GJS = {
 export const ALIASES_WEB_FOR_GJS = {
     'abort-controller': '@gjsify/abort-controller',
     'event-target-shim': '@gjsify/dom-events',
+    'fetch': '@gjsify/fetch',
 }
 
 /** General record of modules for Node */
@@ -184,5 +150,7 @@ const ALIASES_GJS_FOR_NODE = {}
 export { ALIASES_GJS_FOR_NODE };
 
 /** Record of Web modules and his replacement for Node */
-export const ALIASES_WEB_FOR_NODE = {}
+export const ALIASES_WEB_FOR_NODE = {
+    'fetch': '@gjsify/fetch/globals',
+}
 

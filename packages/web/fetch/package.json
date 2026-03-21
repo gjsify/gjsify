@@ -15,7 +15,8 @@
                 "types": "./lib/types/index.d.ts",
                 "default": "./lib/cjs/index.js"
             }
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
@@ -28,7 +29,7 @@
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
         "test": "yarn print:name && yarn build:gjsify && yarn build:test:node && yarn test:node",
         "test:gjs": "gjs -m test.gjs.mjs",
-        "test:node": "node --import ./gjs-stub-loader.mjs test.node.mjs"
+        "test:node": "node test.node.mjs"
     },
     "keywords": [
         "gjs",

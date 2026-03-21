@@ -22,3 +22,6 @@
 [submodule "refs/stream-http"]
 	path = refs/stream-http
 	url = git@github.com:jhiesey/stream-http.git
+[submodule "refs/headless-gl"]
+	path = refs/headless-gl
+	url = git@github.com:stackgl/headless-gl.git

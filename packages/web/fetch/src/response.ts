@@ -4,8 +4,8 @@
  * Response class provides content decoding
  */
 
-import type GLib from '@girs/glib-2.0';
-import type Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
+import Gio from '@girs/gio-2.0';
 
 import Headers from './headers.js';
 import Body, { clone, extractContentType } from './body.js';
@@ -164,14 +164,10 @@ export class Response extends Body implements globalThis.Response {
           return super.text();
         }
 
-        // Lazy-load GJS bindings only when needed (not available on Node.js)
-        const GLibMod = (await import('@girs/glib-2.0')).default;
-        const GioMod = (await import('@girs/gio-2.0')).default;
-
-        const outputStream = GioMod.MemoryOutputStream.new_resizable();
+        const outputStream = Gio.MemoryOutputStream.new_resizable();
 
         await new Promise<number>((resolve, reject) => {
-          outputStream.splice_async(this._inputStream, GioMod.OutputStreamSpliceFlags.CLOSE_TARGET | GioMod.OutputStreamSpliceFlags.CLOSE_SOURCE, GLibMod.PRIORITY_DEFAULT, null, (_self: any, res: any) => {
+          outputStream.splice_async(this._inputStream, Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, GLib.PRIORITY_DEFAULT, null, (_self: any, res: any) => {
             try {
               resolve(outputStream.splice_finish(res));
             } catch (error) {

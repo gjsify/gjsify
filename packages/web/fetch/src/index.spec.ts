@@ -1,6 +1,6 @@
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 
-import fetch, { Headers, Request, Response, FormData } from './index.ts';
+import fetch, { Headers, Request, Response, FormData } from 'fetch';
 
 export default async () => {
 
@@ -60,14 +60,17 @@ export default async () => {
 			expect(keys[1]).toBe('z-header');
 		});
 
-		await it('should support raw() method', async () => {
-			const h = new Headers();
-			h.append('x-multi', 'a');
-			h.append('x-multi', 'b');
-			const raw = h.raw();
-			expect(raw['x-multi'].length).toBe(2);
-			expect(raw['x-multi'][0]).toBe('a');
-			expect(raw['x-multi'][1]).toBe('b');
+		// raw() is a node-fetch extension, not part of the standard Web API
+		await on('Gjs', async () => {
+			await it('should support raw() method', async () => {
+				const h = new Headers();
+				h.append('x-multi', 'a');
+				h.append('x-multi', 'b');
+				const raw = (h as any).raw();
+				expect(raw['x-multi'].length).toBe(2);
+				expect(raw['x-multi'][0]).toBe('a');
+				expect(raw['x-multi'][1]).toBe('b');
+			});
 		});
 
 		await it('should have correct Symbol.toStringTag', async () => {
