@@ -89,6 +89,16 @@ Available TypeScript bindings for GObject Introspection:
 - `crypto` hashes → `GLib.Checksum`, `GLib.Hmac`
 - `process.env` → `GLib.getenv()`, `GLib.setenv()`
 
+## Native Extensions (Vala)
+
+When TypeScript alone is not sufficient (e.g. low-level graphics, system APIs without GIR bindings), native extensions are written in **Vala**. Vala transpiles to GObject C code but is far more readable. The compiled library is exposed to GJS via GObject Introspection (GIR).
+
+Example: `packages/web/webgl/` — WebGL implementation using Vala + Meson build system.
+
+Pattern: Vala source → Meson build → shared library + GIR typelib → usable from GJS via `gi://` imports.
+
+Prefer TypeScript whenever possible. Only use Vala when direct C-level system access is required.
+
 ## Testing
 
 ### Framework: `@gjsify/unit`

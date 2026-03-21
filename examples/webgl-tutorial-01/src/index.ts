@@ -44,7 +44,7 @@ function tick(glarea: Gtk.GLArea) {
 
 function activate(app: Gtk.Application) {
     console.log("activate");
-    const win = new Gtk.ApplicationWindow(app);
+    const win = new Gtk.ApplicationWindow({ application: app });
     win.set_default_size(800, 600);
     const glarea = new Gtk.GLArea();
 

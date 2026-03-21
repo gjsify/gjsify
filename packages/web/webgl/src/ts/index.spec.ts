@@ -35,7 +35,7 @@ export default async () => {
 			});
 		});
 	
-		win = new Gtk.ApplicationWindow(app);
+		win = new Gtk.ApplicationWindow({ application: app });
 		win.set_default_size(800, 600);
 
 		app.run([]);

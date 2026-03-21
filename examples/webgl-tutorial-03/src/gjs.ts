@@ -22,7 +22,7 @@ function render(glarea: Gtk.GLArea) {
 }
 
 function activate(app: Gtk.Application) {
-    const win = new Gtk.ApplicationWindow(app);
+    const win = new Gtk.ApplicationWindow({ application: app });
     win.set_default_size(800, 600);
     const glarea = new Gtk.GLArea();
 
