@@ -2,7 +2,7 @@
 {
 	"compilerOptions": {
 		"outDir": "lib",
-    	"declarationDir": "lib",
+    	"declarationDir": "lib/types",
 		"rootDir": "src",
 		"tsBuildInfoFile": "tsconfig.tsbuildinfo",
 		"target": "es2020",

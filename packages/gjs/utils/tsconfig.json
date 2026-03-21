@@ -6,8 +6,10 @@
     "target": "ESNext",
     "moduleResolution": "NodeNext",
     "experimentalDecorators": true,
+    "emitDeclarationOnly": true,
+    "declaration": true,
     "outDir": "lib",
-    "declarationDir": "lib",
+    "declarationDir": "lib/types",
     "rootDir": "src",
     "composite": true,
     "skipLibCheck": true,
@@ -17,5 +19,5 @@
   "reflection": false,
   "files": ["src/index.ts"],
   "include": ["../../../node_modules/@girs/gjs/gjs.d.ts", "../../../node_modules/@girs/gjs/dom.d.ts", "src/**/*.mts", "src/**/*.ts"],
-  "exclude": ["src/test.ts", "src/**/*.spec.ts"]
+  "exclude": ["src/test.ts", "src/test.mts", "src/**/*.spec.ts", "src/**/*.spec.mts"]
 }

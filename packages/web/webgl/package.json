@@ -20,15 +20,15 @@
     },
     "scripts": {
         "clear": "rm -rf lib tmp build test.gjs.js tsconfig.tsbuildinfo",
-        "print:name": "echo '@gjsify/webgl'",
+        "check": "tsc --noEmit",
         "init:meson": "meson setup build .",
         "init:meson:wipe": "yarn init:meson --wipe",
-        "build": "yarn print:name && yarn build:meson && yarn build:gjsify && yarn build:types",
+        "build": "yarn build:meson && yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
         "build:meson": "yarn init:meson && meson compile -C build",
-        "build:types": "tsc --project tsconfig.types.json || exit 0",
+        "build:types": "tsc",
         "build:test": "gjsify build src/ts/test.ts --app gjs --outfile test.gjs.js",
-        "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:gjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
         "test:gjs": "LD_LIBRARY_PATH=build GI_TYPELIB_PATH=build gjs -m test.gjs.js"
     },
     "keywords": [

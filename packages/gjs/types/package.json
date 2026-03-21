@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "clear": "rm -rf @types",
-    "print:name": "echo '@gjsify/types'",
+    "check": "true",
     "build": "echo 'Please build the types by hand and commit the changes'",
     "build:types": "ts-for-gir generate && yarn install",
     "list": "ts-for-gir list Gio-2.0 GLib-2.0 GTop-2.0"

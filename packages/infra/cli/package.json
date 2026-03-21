@@ -11,9 +11,9 @@
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
-        "print:name": "echo '@gjsify/cli'",
+        "check": "tsc --noEmit",
         "start": "node lib/index.js",
-        "build": "yarn print:name && tsc && yarn chmod",
+        "build": "tsc && yarn chmod",
         "chmod": "chmod +x ./lib/index.js"
     },
     "keywords": [

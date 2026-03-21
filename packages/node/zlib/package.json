@@ -20,14 +20,14 @@
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
-        "print:name": "echo '@gjsify/zlib'",
-        "build": "yarn print:name && yarn build:gjsify && yarn build:types",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-        "build:types": "tsc --project tsconfig.json || exit 0",
+        "build:types": "tsc",
         "build:test": "yarn build:test:gjs && yarn build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
-        "test": "yarn print:name && yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
         "test:gjs": "gjs -m test.gjs.mjs",
         "test:node": "node test.node.mjs"
     },

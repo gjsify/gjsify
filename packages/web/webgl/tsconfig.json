@@ -2,10 +2,11 @@
   "compilerOptions": {
     "rootDir": "src/ts",
 		"outDir": "lib",
-    	"declarationDir": "lib",
+    	"declarationDir": "lib/types",
 		"tsBuildInfoFile": "tmp/.tsbuildinfo",
 		"target": "es2020",
 		"declaration": true,
+		"emitDeclarationOnly": true,
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"esModuleInterop": true,

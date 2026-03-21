@@ -8,8 +8,8 @@
     "types": "dist/types/index.d.ts",
     "scripts": {
         "clear": "rm -rf dist tsconfig.tsbuildinfo",
-        "print:name": "echo '@gjsify/esbuild-plugin-alias'",
-        "build": "yarn print:name && yarn build:js && yarn build:types",
+        "check": "tsc --noEmit",
+        "build": "yarn build:js && yarn build:types",
         "build:js": "node esbuild.mjs",
         "build:types": "tsc --emitDeclarationOnly"
     },

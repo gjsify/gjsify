@@ -7,9 +7,9 @@
     "types": "index.d.ts",
     "scripts": {
         "clear": "echo 'Noting to do'",
-        "print:name": "echo '@gjsify/empty'",
-        "build": "yarn print:name && echo 'Noting to do'",
-        "test": "yarn print:name && echo 'Noting to do'"
+        "check": "true",
+        "build": "echo 'Noting to do'",
+        "test": "echo 'Noting to do'"
     },
     "keywords": [
         "gjs",

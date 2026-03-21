@@ -5,15 +5,18 @@
       "target": "ESNext",
       "moduleResolution": "bundler",
       "experimentalDecorators": true,
+      "emitDeclarationOnly": true,
+      "declaration": true,
       "outDir": "lib",
       "rootDir": "src",
+      "declarationDir": "lib/types",
       "composite": true,
       "strict": true,
       "skipLibCheck": true,
       "allowJs": true,
-      "checkJs": false,
+      "checkJs": false
     },
     "reflection": false,
     "include": ["src/**/*.ts"],
-    "exclude": ["src/test.ts", "src/**/*.spec.ts"]
+    "exclude": ["src/test.ts", "src/test.mts", "src/**/*.spec.ts", "src/**/*.spec.mts"]
 }
