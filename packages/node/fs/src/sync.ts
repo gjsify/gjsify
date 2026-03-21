@@ -31,9 +31,9 @@ export function statSync(path: PathLike, options?: StatSyncOptions): Stats | Big
   try {
     const file = Gio.File.new_for_path(path.toString());
     const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NONE, null);
-    return (options as any)?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
+    return options?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
   } catch (err: any) {
-    if ((options as any)?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
+    if (options?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
     throw createNodeError(err, 'stat', path);
   }
 }
@@ -42,9 +42,9 @@ export function lstatSync(path: PathLike, options?: StatSyncOptions): Stats | Bi
   try {
     const file = Gio.File.new_for_path(path.toString());
     const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
-    return (options as any)?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
+    return options?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
   } catch (err: any) {
-    if ((options as any)?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
+    if (options?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
     throw createNodeError(err, 'lstat', path);
   }
 }
@@ -95,9 +95,11 @@ export function readdirSync(
 
 // --- realpath ---
 
+const MAX_SYMLINK_DEPTH = 40; // matches Linux MAXSYMLINKS
+
 export function realpathSync(path: PathLike): string {
   let current = Gio.File.new_for_path(path.toString());
-  const seen = new Set<string>();
+  let depth = 0;
 
   while (true) {
     const info = current.query_info(
@@ -114,11 +116,9 @@ export function realpathSync(path: PathLike): string {
     const parent = current.get_parent();
     current = parent ? parent.resolve_relative_path(target) : Gio.File.new_for_path(target);
 
-    const resolvedPath = current.get_path()!;
-    if (seen.has(resolvedPath)) {
+    if (++depth > MAX_SYMLINK_DEPTH) {
       throw new Error(`ELOOP: too many levels of symbolic links, realpath '${path}'`);
     }
-    seen.add(resolvedPath);
   }
 }
 (realpathSync as any).native = realpathSync;

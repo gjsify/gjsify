@@ -1,15 +1,17 @@
+import { DOMException } from '@gjsify/dom-events';
+
 // Use global Blob/File if available, otherwise provide minimal shims
+const _encoder = new TextEncoder();
+
 const Blob = globalThis.Blob ?? class Blob {
   private _parts: any[];
-  private _options: BlobPropertyBag;
   readonly size: number;
   readonly type: string;
   constructor(parts?: any[], options?: BlobPropertyBag) {
     this._parts = parts || [];
-    this._options = options || {};
     this.type = options?.type || '';
     this.size = this._parts.reduce((acc: number, part: any) => {
-      if (typeof part === 'string') return acc + new TextEncoder().encode(part).byteLength;
+      if (typeof part === 'string') return acc + _encoder.encode(part).byteLength;
       if (part instanceof ArrayBuffer) return acc + part.byteLength;
       if (ArrayBuffer.isView(part)) return acc + part.byteLength;
       if (part && typeof part.size === 'number') return acc + part.size;
@@ -20,7 +22,7 @@ const Blob = globalThis.Blob ?? class Blob {
   async arrayBuffer(): Promise<ArrayBuffer> {
     const chunks: Uint8Array[] = [];
     for (const part of this._parts) {
-      if (typeof part === 'string') chunks.push(new TextEncoder().encode(part));
+      if (typeof part === 'string') chunks.push(_encoder.encode(part));
       else if (part instanceof ArrayBuffer) chunks.push(new Uint8Array(part));
       else if (ArrayBuffer.isView(part)) chunks.push(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
       else if (part && typeof part.stream === 'function') {
@@ -47,13 +49,6 @@ const File = globalThis.File ?? class File extends Blob {
     this.lastModified = options?.lastModified ?? Date.now();
   }
 };
-
-class DOMException extends Error {
-  constructor(message?: string, name?: string) {
-    super(message);
-    this.name = name || 'Error';
-  }
-}
 
 import {
     realpathSync,

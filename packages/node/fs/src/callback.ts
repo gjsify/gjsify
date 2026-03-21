@@ -6,110 +6,58 @@ import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallba
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'buffer';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
-import { Dirent } from './dirent.js';
-import { createNodeError, isNotFoundError } from './errors.js';
-import { realpathSync, readdirSync, symlinkSync } from './sync.js';
-import { join } from 'path';
+import { createNodeError } from './errors.js';
+import { realpathSync, readdirSync } from './sync.js';
+
+// --- helpers ---
+
+function parseOptsCb(optionsOrCallback: any, maybeCallback?: any): { options: any; callback: Function } {
+  return typeof optionsOrCallback === 'function'
+    ? { options: {}, callback: optionsOrCallback }
+    : { options: optionsOrCallback ?? {}, callback: maybeCallback };
+}
+
+function statImpl(path: PathLike, flags: Gio.FileQueryInfoFlags, syscall: string, options: any, callback: Function): void {
+  const file = Gio.File.new_for_path(path.toString());
+  file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+    try {
+      const info = file.query_info_finish(res);
+      callback(null, options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
+    } catch (err: any) {
+      callback(createNodeError(err, syscall, path));
+    }
+  });
+}
 
 // --- stat / lstat ---
 
 export function stat(path: PathLike, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
 export function stat(path: PathLike, options: any, callback: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void): void;
 export function stat(path: PathLike, optionsOrCallback: any, maybeCallback?: any): void {
-  const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
-  const options = typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
-
-  const file = Gio.File.new_for_path(path.toString());
-  file.query_info_async(
-    STAT_ATTRIBUTES,
-    Gio.FileQueryInfoFlags.NONE,
-    GLib.PRIORITY_DEFAULT,
-    null,
-    (_self: any, res: Gio.AsyncResult) => {
-      try {
-        const info = file.query_info_finish(res);
-        const stats = options?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
-        callback(null, stats);
-      } catch (err: any) {
-        callback(createNodeError(err, 'stat', path));
-      }
-    },
-  );
+  const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
+  statImpl(path, Gio.FileQueryInfoFlags.NONE, 'stat', options, callback);
 }
 
 export function lstat(path: PathLike, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
 export function lstat(path: PathLike, options: any, callback: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void): void;
 export function lstat(path: PathLike, optionsOrCallback: any, maybeCallback?: any): void {
-  const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
-  const options = typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
-
-  const file = Gio.File.new_for_path(path.toString());
-  file.query_info_async(
-    STAT_ATTRIBUTES,
-    Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
-    GLib.PRIORITY_DEFAULT,
-    null,
-    (_self: any, res: Gio.AsyncResult) => {
-      try {
-        const info = file.query_info_finish(res);
-        const stats = options?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
-        callback(null, stats);
-      } catch (err: any) {
-        callback(createNodeError(err, 'lstat', path));
-      }
-    },
-  );
+  const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
+  statImpl(path, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, 'lstat', options, callback);
 }
 
 // --- readdir ---
 
 export function readdir(path: PathLike, callback: (err: NodeJS.ErrnoException | null, files: string[]) => void): void;
-export function readdir(path: PathLike, options: any, callback: (err: NodeJS.ErrnoException | null, files: string[] | Dirent[]) => void): void;
+export function readdir(path: PathLike, options: any, callback: (err: NodeJS.ErrnoException | null, files: string[] | any[]) => void): void;
 export function readdir(path: PathLike, optionsOrCallback: any, maybeCallback?: any): void {
-  const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
-  const options = typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
-
-  const file = Gio.File.new_for_path(path.toString());
-  file.enumerate_children_async(
-    'standard::name,standard::type',
-    Gio.FileQueryInfoFlags.NONE,
-    GLib.PRIORITY_DEFAULT,
-    null,
-    (_self: any, res: Gio.AsyncResult) => {
-      try {
-        const enumerator = file.enumerate_children_finish(res);
-        const result: (string | Dirent)[] = [];
-        let info = enumerator.next_file(null);
-        const pathStr = path.toString();
-
-        while (info !== null) {
-          const childName = info.get_name();
-          if (options?.withFileTypes) {
-            result.push(new Dirent(join(pathStr, childName), childName));
-          } else {
-            result.push(childName);
-          }
-
-          if (options?.recursive && info.get_file_type() === Gio.FileType.DIRECTORY) {
-            const subEntries = readdirSync(join(pathStr, childName), options);
-            for (const entry of subEntries) {
-              if (typeof entry === 'string') {
-                result.push(join(childName, entry));
-              } else {
-                result.push(entry);
-              }
-            }
-          }
-
-          info = enumerator.next_file(null);
-        }
-
-        callback(null, result as any);
-      } catch (err: any) {
-        callback(createNodeError(err, 'readdir', path));
-      }
-    },
-  );
+  const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
+  queueMicrotask(() => {
+    try {
+      callback(null, readdirSync(path, options));
+    } catch (err: any) {
+      callback(createNodeError(err, 'readdir', path));
+    }
+  });
 }
 
 // --- realpath ---
@@ -117,12 +65,10 @@ export function readdir(path: PathLike, optionsOrCallback: any, maybeCallback?: 
 export function realpath(path: PathLike, callback: (err: NodeJS.ErrnoException | null, resolvedPath: string) => void): void;
 export function realpath(path: PathLike, options: any, callback: (err: NodeJS.ErrnoException | null, resolvedPath: string) => void): void;
 export function realpath(path: PathLike, optionsOrCallback: any, maybeCallback?: any): void {
-  const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
-  // Use microtask to make it async (no Gio async API for realpath)
+  const { callback } = parseOptsCb(optionsOrCallback, maybeCallback);
   queueMicrotask(() => {
     try {
-      const result = realpathSync(path);
-      callback(null, result);
+      callback(null, realpathSync(path));
     } catch (err: any) {
       callback(err);
     }
@@ -135,21 +81,15 @@ export function symlink(target: PathLike, path: PathLike, callback: NoParamCallb
 export function symlink(target: PathLike, path: PathLike, type: string | null, callback: NoParamCallback): void;
 export function symlink(target: PathLike, path: PathLike, typeOrCallback: any, maybeCallback?: any): void {
   const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
-
   const file = Gio.File.new_for_path(path.toString());
-  file.make_symbolic_link_async(
-    target.toString(),
-    GLib.PRIORITY_DEFAULT,
-    null,
-    (_self: any, res: Gio.AsyncResult) => {
-      try {
-        file.make_symbolic_link_finish(res);
-        callback(null);
-      } catch (err: any) {
-        callback(createNodeError(err, 'symlink', target, path));
-      }
-    },
-  );
+  file.make_symbolic_link_async(target.toString(), GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+    try {
+      file.make_symbolic_link_finish(res);
+      callback(null);
+    } catch (err: any) {
+      callback(createNodeError(err, 'symlink', target, path));
+    }
+  });
 }
 
 type OpenCallback = (err: NodeJS.ErrnoException | null, fd: number) => void;

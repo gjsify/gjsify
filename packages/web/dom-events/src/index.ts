@@ -38,16 +38,16 @@ interface ListenerEntry {
   removed: boolean;
 }
 
-// DOMException polyfill (defined early so it's available in dispatchEvent)
+// DOMException polyfill — exported for use by abort-controller and fetch
 class _DOMExceptionPolyfill extends Error {
   constructor(message?: string, name?: string) {
     super(message);
     this.name = name || 'Error';
   }
 }
-const DOMException = typeof globalThis.DOMException !== 'undefined'
+export const DOMException: typeof globalThis.DOMException = typeof globalThis.DOMException !== 'undefined'
   ? globalThis.DOMException
-  : _DOMExceptionPolyfill;
+  : _DOMExceptionPolyfill as any;
 
 // Internal symbols for writable access to readonly properties
 const kType = Symbol('type');
@@ -204,6 +204,7 @@ export class EventTarget {
     if (idx !== -1) {
       list[idx].removed = true;
       list.splice(idx, 1);
+      if (list.length === 0) this._listeners.delete(type);
     }
   }
 

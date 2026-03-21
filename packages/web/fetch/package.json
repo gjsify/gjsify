@@ -42,6 +42,7 @@
         "@types/node": "^25.5.0"
     },
     "dependencies": {
+        "@gjsify/dom-events": "workspace:^",
         "@gjsify/gio-2.0": "workspace:^",
         "@gjsify/soup-3.0": "workspace:^",
         "@gjsify/url": "workspace:^",

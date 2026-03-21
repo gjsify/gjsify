@@ -1,6 +1,8 @@
 // Native AbortController/AbortSignal implementation for GJS — no Deno dependency.
 
-import { Event, EventTarget } from '@gjsify/dom-events';
+import { Event, EventTarget, DOMException } from '@gjsify/dom-events';
+
+const kAbort = Symbol('abort');
 
 export class AbortSignal extends EventTarget {
   aborted: boolean = false;
@@ -16,8 +18,7 @@ export class AbortSignal extends EventTarget {
     }
   }
 
-  /** @internal — used by AbortController */
-  _abort(reason?: any): void {
+  [kAbort](reason?: any): void {
     if (this.aborted) return;
 
     this.aborted = true;
@@ -32,14 +33,14 @@ export class AbortSignal extends EventTarget {
 
   static abort(reason?: any): AbortSignal {
     const signal = new AbortSignal();
-    signal._abort(reason);
+    signal[kAbort](reason);
     return signal;
   }
 
   static timeout(milliseconds: number): AbortSignal {
     const signal = new AbortSignal();
     setTimeout(() => {
-      signal._abort(new DOMException('The operation timed out.', 'TimeoutError'));
+      signal[kAbort](new DOMException('The operation timed out.', 'TimeoutError'));
     }, milliseconds);
     return signal;
   }
@@ -49,17 +50,20 @@ export class AbortSignal extends EventTarget {
 
     for (const signal of signals) {
       if (signal.aborted) {
-        combined._abort(signal.reason);
+        combined[kAbort](signal.reason);
         return combined;
       }
     }
 
+    const onAbort = () => {
+      if (!combined.aborted) {
+        const aborted = signals.find(s => s.aborted);
+        combined[kAbort](aborted?.reason);
+      }
+    };
+
     for (const signal of signals) {
-      signal.addEventListener('abort', () => {
-        if (!combined.aborted) {
-          combined._abort(signal.reason);
-        }
-      }, { once: true });
+      signal.addEventListener('abort', onAbort, { once: true });
     }
 
     return combined;
@@ -74,26 +78,10 @@ export class AbortController {
   }
 
   abort(reason?: any): void {
-    this.signal._abort(reason);
+    this.signal[kAbort](reason);
   }
 }
 
-// DOMException polyfill for environments that don't have it
-class DOMException extends Error {
-  readonly code: number;
-
-  constructor(message?: string, name?: string) {
-    super(message);
-    this.name = name || 'Error';
-    this.code = 0;
-  }
-}
-
-// Use globalThis.DOMException if available, otherwise our polyfill
-const _DOMException = typeof globalThis.DOMException !== 'undefined'
-  ? globalThis.DOMException
-  : DOMException;
-
-export { _DOMException as DOMException };
+export { DOMException };
 
 export default { AbortController, AbortSignal };

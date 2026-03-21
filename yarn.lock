@@ -1008,6 +1008,7 @@ __metadata:
   resolution: "@gjsify/fetch@workspace:packages/web/fetch"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
     "@gjsify/gio-2.0": "workspace:^"
     "@gjsify/http": "workspace:^"
     "@gjsify/soup-3.0": "workspace:^"

@@ -260,128 +260,53 @@ async function _writeStr(
   }
 }
 
-// --- stat / lstat ---
+// --- helpers ---
 
-async function stat(path: PathLike, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
+function queryInfoAsync(path: PathLike, flags: Gio.FileQueryInfoFlags, syscall: string, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
   return new Promise((resolve, reject) => {
     const file = Gio.File.new_for_path(path.toString());
-    file.query_info_async(
-      STAT_ATTRIBUTES,
-      Gio.FileQueryInfoFlags.NONE,
-      GLib.PRIORITY_DEFAULT,
-      null,
-      (_self: any, res: Gio.AsyncResult) => {
-        try {
-          const info = file.query_info_finish(res);
-          resolve(options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
-        } catch (err: any) {
-          reject(createNodeError(err, 'stat', path));
-        }
-      },
-    );
-  });
-}
-
-async function lstat(path: PathLike, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
-  return new Promise((resolve, reject) => {
-    const file = Gio.File.new_for_path(path.toString());
-    file.query_info_async(
-      STAT_ATTRIBUTES,
-      Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
-      GLib.PRIORITY_DEFAULT,
-      null,
-      (_self: any, res: Gio.AsyncResult) => {
-        try {
-          const info = file.query_info_finish(res);
-          resolve(options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
-        } catch (err: any) {
-          reject(createNodeError(err, 'lstat', path));
-        }
-      },
-    );
-  });
-}
-
-// --- readdir ---
-
-async function readdir(path: PathLike, options?: { withFileTypes?: boolean; encoding?: string; recursive?: boolean }): Promise<string[] | Dirent[]> {
-  return new Promise((resolve, reject) => {
-    const file = Gio.File.new_for_path(path.toString());
-    file.enumerate_children_async(
-      'standard::name,standard::type',
-      Gio.FileQueryInfoFlags.NONE,
-      GLib.PRIORITY_DEFAULT,
-      null,
-      (_self: any, res: Gio.AsyncResult) => {
-        try {
-          const enumerator = file.enumerate_children_finish(res);
-          const result: (string | Dirent)[] = [];
-          const pathStr = path.toString();
-          let info = enumerator.next_file(null);
-
-          while (info !== null) {
-            const childName = info.get_name();
-            if (options?.withFileTypes) {
-              result.push(new Dirent(join(pathStr, childName), childName));
-            } else {
-              result.push(childName);
-            }
-
-            if (options?.recursive && info.get_file_type() === Gio.FileType.DIRECTORY) {
-              const subEntries = readdirSyncFn(join(pathStr, childName), options);
-              for (const entry of subEntries) {
-                if (typeof entry === 'string') {
-                  result.push(join(childName, entry));
-                } else {
-                  result.push(entry);
-                }
-              }
-            }
-
-            info = enumerator.next_file(null);
-          }
-
-          resolve(result as any);
-        } catch (err: any) {
-          reject(createNodeError(err, 'readdir', path));
-        }
-      },
-    );
-  });
-}
-
-// --- realpath ---
-
-async function realpath(path: PathLike): Promise<string> {
-  return new Promise((resolve, reject) => {
-    queueMicrotask(() => {
+    file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
       try {
-        resolve(realpathSync(path));
+        const info = file.query_info_finish(res);
+        resolve(options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
       } catch (err: any) {
-        reject(err);
+        reject(createNodeError(err, syscall, path));
       }
     });
   });
 }
 
-// --- symlink ---
+// --- stat / lstat ---
+
+async function stat(path: PathLike, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
+  return queryInfoAsync(path, Gio.FileQueryInfoFlags.NONE, 'stat', options);
+}
+
+async function lstat(path: PathLike, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
+  return queryInfoAsync(path, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, 'lstat', options);
+}
+
+// --- readdir / realpath / symlink — delegate to sync (sync is the canonical impl) ---
+
+async function readdir(path: PathLike, options?: { withFileTypes?: boolean; encoding?: string; recursive?: boolean }): Promise<string[] | Dirent[]> {
+  return readdirSyncFn(path, options);
+}
+
+async function realpath(path: PathLike): Promise<string> {
+  return realpathSync(path);
+}
 
 async function symlink(target: PathLike, path: PathLike, _type?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const file = Gio.File.new_for_path(path.toString());
-    file.make_symbolic_link_async(
-      target.toString(),
-      GLib.PRIORITY_DEFAULT,
-      null,
-      (_self: any, res: Gio.AsyncResult) => {
-        try {
-          file.make_symbolic_link_finish(res);
-          resolve();
-        } catch (err: any) {
-          reject(createNodeError(err, 'symlink', target, path));
-        }
-      },
-    );
+    file.make_symbolic_link_async(target.toString(), GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+      try {
+        file.make_symbolic_link_finish(res);
+        resolve();
+      } catch (err: any) {
+        reject(createNodeError(err, 'symlink', target, path));
+      }
+    });
   });
 }
 
