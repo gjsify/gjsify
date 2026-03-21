@@ -172,91 +172,10 @@ export const ALIASES_WEB_FOR_GJS = {
     'event-target-shim': '@gjsify/dom-events',
 }
 
-/** General record of modules for Deno */
-export const ALIASES_GENERAL_FOR_DENO = {
-    '@gjsify/deno-runtime/globals': '@gjsify/empty',
-    '@gjsify/deno-globals': '@gjsify/empty',
-}
-
-/** Record of Node.js modules (build in or not) and his replacement for Deno */
-export const ALIASES_NODE_FOR_DENO = {
-    // Node packages
-    // TODO std@0.177.0 is the latest version that has the node directory
-    'assert': 'https://deno.land/std@0.177.0/node/assert.ts',
-    'assert/strict': 'https://deno.land/std@0.177.0/node/assert/strict.ts',
-    'async_hooks': 'https://deno.land/std@0.177.0/node/async_hooks.ts',
-    'buffer': 'https://deno.land/std@0.177.0/node/buffer.ts',
-    'child_process': 'https://deno.land/std@0.177.0/node/child_process.ts',
-    'cluster': 'https://deno.land/std@0.177.0/node/cluster.ts',
-    'console': 'https://deno.land/std@0.177.0/node/console.ts',
-    'constants': 'https://deno.land/std@0.177.0/node/constants.ts',
-    'crypto': 'https://deno.land/std@0.177.0/node/crypto.ts',
-    'dgram': 'https://deno.land/std@0.177.0/node/dgram.ts',
-    'diagnostics_channel': 'https://deno.land/std@0.177.0/node/diagnostics_channel.ts',
-    'dns': 'https://deno.land/std@0.177.0/node/dns.ts',
-    'dns/promises': 'https://deno.land/std@0.177.0/node/dns/promises.ts',
-    'domain': 'https://deno.land/std@0.177.0/node/domain.ts',
-    'events': 'https://deno.land/std@0.177.0/node/events.ts',
-    'fs': 'https://deno.land/std@0.177.0/node/fs.ts',
-    'fs/promises': 'https://deno.land/std@0.177.0/node/fs/promises.ts',
-    'http': 'https://deno.land/std@0.177.0/node/http.ts',
-    'http2': 'https://deno.land/std@0.177.0/node/http2.ts',
-    'https': 'https://deno.land/std@0.177.0/node/https.ts',
-    'inspector': 'https://deno.land/std@0.177.0/node/inspector.ts',
-    'module': 'https://deno.land/std@0.177.0/node/module.ts',
-    'net': 'https://deno.land/std@0.177.0/node/net.ts',
-    'os': 'https://deno.land/std@0.177.0/node/os.ts',
-    'path': 'https://deno.land/std@0.177.0/node/path.ts',
-    'path/common': 'https://deno.land/std@0.177.0/node/path/common.ts',
-    'path/glob': 'https://deno.land/std@0.177.0/node/path/glob.ts',
-    'path/posix': 'https://deno.land/std@0.177.0/node/path/posix.ts',
-    'path/separator': 'https://deno.land/std@0.177.0/node/path/separator.ts',
-    'path/win32': 'https://deno.land/std@0.177.0/node/path/win32.ts',
-    'perf_hooks': 'https://deno.land/std@0.177.0/node/perf_hooks.ts',
-    'process': 'https://deno.land/std@0.177.0/node/process.ts',
-    'punycode': 'https://deno.land/std@0.177.0/node/punycode.ts',
-    'querystring': 'https://deno.land/std@0.177.0/node/querystring.ts',
-    'readline': 'https://deno.land/std@0.177.0/node/readline.ts',
-    'readline/promises': 'https://deno.land/std@0.177.0/node/readline/promises.ts',
-    'repl': 'https://deno.land/std@0.177.0/node/repl.ts',
-    'stream': 'https://deno.land/std@0.177.0/node/stream.ts',
-    'stream/web': 'https://deno.land/std@0.177.0/node/stream/web.ts',
-    'stream/consumers': 'https://deno.land/std@0.177.0/node/stream/consumers.mjs',
-    'stream/promises': 'https://deno.land/std@0.177.0/node/stream/promises.mjs',
-    'string_decoder': 'https://deno.land/std@0.177.0/node/string_decoder.ts',
-    'sys': 'https://deno.land/std@0.177.0/node/sys.ts',
-    // 'test': 'https://deno.land/std@0.177.0/node/test.ts',
-    'timers': 'https://deno.land/std@0.177.0/node/timers.ts',
-    'timers/promises': 'https://deno.land/std@0.177.0/node/timers/promises.ts',
-    'tls': 'https://deno.land/std@0.177.0/node/tls.ts',
-    'tty': 'https://deno.land/std@0.177.0/node/tty.ts',
-    'url': 'https://deno.land/std@0.177.0/node/url.ts',
-    'util': 'https://deno.land/std@0.177.0/node/util.ts',
-    'util/types': 'https://deno.land/std@0.177.0/node/util/types.ts',
-    'v8': 'https://deno.land/std@0.177.0/node/v8.ts',
-    'vm': 'https://deno.land/std@0.177.0/node/vm.ts',
-    'wasi': 'https://deno.land/std@0.177.0/node/wasi.ts',
-    'worker_threads': 'https://deno.land/std@0.177.0/node/worker_threads.ts',
-    'zlib': 'https://deno.land/std@0.177.0/node/zlib.ts',
-}
-
-/** Record of Gjs modules (build in or not) and his replacement for Deno */
-export const ALIASES_GJS_FOR_DENO = {
-    '@gjsify/node-globals': 'https://deno.land/std@0.177.0/node/global.ts',
-}
-
-/** Record of Web modules and his replacement for Deno */
-export const ALIASES_WEB_FOR_DENO = {}
-
-
 /** General record of modules for Node */
 export const ALIASES_GENERAL_FOR_NODE = {
     '@gjsify/node-globals': '@gjsify/empty',
     '@gjsify/require': '@gjsify/empty',
-
-    // TODO we need a real replacement for this in the future
-    '@gjsify/deno-runtime/globals': '@gjsify/empty',
-    '@gjsify/deno-globals': '@gjsify/empty',
 }
 
 /** Record of Gjs modules (build in or not) and his replacement for Node */

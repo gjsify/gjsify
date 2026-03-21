@@ -1,5 +1,4 @@
 import { aliasPlugin } from '@gjsify/esbuild-plugin-alias';
-import { denoPlugin } from '@gjsify/esbuild-plugin-deno-loader';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "lodash";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
@@ -63,6 +62,5 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
-    await denoPlugin({reflection: pluginOptions.reflection}).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 }

@@ -1,7 +1,7 @@
 import type { Plugin } from "esbuild";
 import type { PluginOptions } from './types/plugin-options.js';
 import { setupLib } from './lib/index.js';
-import { setupForGjs, setupForNode, setupForDeno, setupForBrowser } from './app/index.js';
+import { setupForGjs, setupForNode, setupForBrowser } from './app/index.js';
 
 export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
     const plugin: Plugin = {
@@ -19,15 +19,13 @@ export const gjsifyPlugin = (pluginOptions: PluginOptions = {}) => {
             }
 
             pluginOptions.app ||= 'gjs'
-            
+
             // End user applications or tests
             switch (pluginOptions.app) {
                 case 'gjs':
                     return await setupForGjs(build, pluginOptions);
                 case 'node':
                     return await setupForNode(build, pluginOptions);
-                case 'deno':
-                    return await setupForDeno(build, pluginOptions);
                 case 'browser':
                     return await setupForBrowser(build, pluginOptions);
                 default:

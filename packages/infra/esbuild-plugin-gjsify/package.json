@@ -22,7 +22,6 @@
     "dependencies": {
         "@gjsify/esbuild-plugin-alias": "workspace:^",
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
-        "@gjsify/esbuild-plugin-deno-loader": "workspace:^",
         "@gjsify/esbuild-plugin-transform-ext": "workspace:^",
         "fast-glob": "^3.3.2",
         "lodash": "^4.17.21"

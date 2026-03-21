@@ -23,7 +23,6 @@ const baseConfig = {
         '@deepkit/type-compiler',
         'esbuild',
         // '@gjsify/resolve-npm', can't be required in cjs builds
-        '@gjsify/esbuild-plugin-deno-loader',
         '@gjsify/esbuild-plugin-deepkit',
         '@gjsify/esbuild-plugin-gjsify',
     ]
