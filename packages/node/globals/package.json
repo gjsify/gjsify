@@ -37,7 +37,7 @@
     "test:node": "node test.node.mjs"
   },
   "dependencies": {
-    "@gjsify/deno_std": "workspace:^",
+    "@gjsify/buffer": "workspace:^",
     "@gjsify/process": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },

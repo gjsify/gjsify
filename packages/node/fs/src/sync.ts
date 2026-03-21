@@ -8,15 +8,9 @@ import FSWatcher from './fs-watcher.js';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
 import { FileHandle } from './file-handle.js';
 import { Dirent } from './dirent.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { createNodeError, isNotFoundError } from './errors.js';
 import { tempDirPath } from './utils.js';
-
-export { realpathSync } from '@gjsify/deno_std/node/_fs/_fs_realpath';
-import { readdirSync } from '@gjsify/deno_std/node/_fs/_fs_readdir';
-export { symlinkSync } from '@gjsify/deno_std/node/_fs/_fs_symlink';
-export { lstatSync } from '@gjsify/deno_std/node/_fs/_fs_lstat';
-export { statSync } from '@gjsify/deno_std/node/_fs/_fs_stat';
-
-
 
 import type { OpenFlags, EncodingOption } from './types/index.js';
 import type {
@@ -26,9 +20,115 @@ import type {
   BufferEncodingOption,
   RmOptions,
   RmDirOptions,
+  StatSyncOptions,
 } from 'fs'; // Types from @types/node
 
-export { existsSync, readdirSync }
+export { existsSync }
+
+// --- stat / lstat ---
+
+export function statSync(path: PathLike, options?: StatSyncOptions): Stats | BigIntStats | undefined {
+  try {
+    const file = Gio.File.new_for_path(path.toString());
+    const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NONE, null);
+    return (options as any)?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
+  } catch (err: any) {
+    if ((options as any)?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
+    throw createNodeError(err, 'stat', path);
+  }
+}
+
+export function lstatSync(path: PathLike, options?: StatSyncOptions): Stats | BigIntStats | undefined {
+  try {
+    const file = Gio.File.new_for_path(path.toString());
+    const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+    return (options as any)?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
+  } catch (err: any) {
+    if ((options as any)?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
+    throw createNodeError(err, 'lstat', path);
+  }
+}
+
+// --- readdir ---
+
+export function readdirSync(
+  path: PathLike,
+  options?: { withFileTypes?: boolean; encoding?: string; recursive?: boolean }
+): string[] | Dirent[] {
+  const pathStr = path.toString();
+  const file = Gio.File.new_for_path(pathStr);
+  const enumerator = file.enumerate_children(
+    'standard::name,standard::type',
+    Gio.FileQueryInfoFlags.NONE,
+    null,
+  );
+
+  const result: (string | Dirent)[] = [];
+  let info = enumerator.next_file(null);
+
+  while (info !== null) {
+    const childName = info.get_name();
+    const childPath = join(pathStr, childName);
+
+    if (options?.withFileTypes) {
+      result.push(new Dirent(childPath, childName));
+    } else {
+      result.push(childName);
+    }
+
+    if (options?.recursive && info.get_file_type() === Gio.FileType.DIRECTORY) {
+      const subEntries = readdirSync(childPath, options);
+      for (const entry of subEntries) {
+        if (typeof entry === 'string') {
+          result.push(join(childName, entry));
+        } else {
+          result.push(entry);
+        }
+      }
+    }
+
+    info = enumerator.next_file(null);
+  }
+
+  return result as any;
+}
+
+// --- realpath ---
+
+export function realpathSync(path: PathLike): string {
+  let current = Gio.File.new_for_path(path.toString());
+  const seen = new Set<string>();
+
+  while (true) {
+    const info = current.query_info(
+      'standard::is-symlink,standard::symlink-target',
+      Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+      null,
+    );
+
+    if (!info.get_is_symlink()) {
+      return current.get_path()!;
+    }
+
+    const target = info.get_symlink_target()!;
+    const parent = current.get_parent();
+    current = parent ? parent.resolve_relative_path(target) : Gio.File.new_for_path(target);
+
+    const resolvedPath = current.get_path()!;
+    if (seen.has(resolvedPath)) {
+      throw new Error(`ELOOP: too many levels of symbolic links, realpath '${path}'`);
+    }
+    seen.add(resolvedPath);
+  }
+}
+(realpathSync as any).native = realpathSync;
+
+// --- symlink ---
+
+export function symlinkSync(target: PathLike, path: PathLike, _type?: 'file' | 'dir' | 'junction'): void {
+  const file = Gio.File.new_for_path(path.toString());
+  file.make_symbolic_link(target.toString(), null);
+}
 
 export function readFileSync(path: string, options = { encoding: null, flag: 'r' }) {
   const file = Gio.File.new_for_path(path);

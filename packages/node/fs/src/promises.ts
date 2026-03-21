@@ -3,16 +3,12 @@ import GLib from '@girs/glib-2.0';
 import { warnNotImplemented } from '@gjsify/utils';
 import { join } from 'path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
-import { writeFileSync, mkdirSync, rmdirSync, unlinkSync } from './sync.js';
+import { writeFileSync, mkdirSync, rmdirSync, unlinkSync, realpathSync, readdirSync as readdirSyncFn } from './sync.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath } from './utils.js';
 import { Dirent } from './dirent.js';
-
-import { realpathPromise as realpath } from '@gjsify/deno_std/node/_fs/_fs_realpath';
-import { readdirPromise as readdir } from '@gjsify/deno_std/node/_fs/_fs_readdir';
-import { symlinkPromise as symlink } from '@gjsify/deno_std/node/_fs/_fs_symlink';
-import { lstatPromise as lstat } from '@gjsify/deno_std/node/_fs/_fs_lstat';
-import { statPromise as stat } from '@gjsify/deno_std/node/_fs/_fs_stat';
+import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
+import { createNodeError } from './errors.js';
 
 import type { 
   OpenFlags,
@@ -264,6 +260,131 @@ async function _writeStr(
   }
 }
 
+// --- stat / lstat ---
+
+async function stat(path: PathLike, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
+  return new Promise((resolve, reject) => {
+    const file = Gio.File.new_for_path(path.toString());
+    file.query_info_async(
+      STAT_ATTRIBUTES,
+      Gio.FileQueryInfoFlags.NONE,
+      GLib.PRIORITY_DEFAULT,
+      null,
+      (_self: any, res: Gio.AsyncResult) => {
+        try {
+          const info = file.query_info_finish(res);
+          resolve(options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
+        } catch (err: any) {
+          reject(createNodeError(err, 'stat', path));
+        }
+      },
+    );
+  });
+}
+
+async function lstat(path: PathLike, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
+  return new Promise((resolve, reject) => {
+    const file = Gio.File.new_for_path(path.toString());
+    file.query_info_async(
+      STAT_ATTRIBUTES,
+      Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+      GLib.PRIORITY_DEFAULT,
+      null,
+      (_self: any, res: Gio.AsyncResult) => {
+        try {
+          const info = file.query_info_finish(res);
+          resolve(options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
+        } catch (err: any) {
+          reject(createNodeError(err, 'lstat', path));
+        }
+      },
+    );
+  });
+}
+
+// --- readdir ---
+
+async function readdir(path: PathLike, options?: { withFileTypes?: boolean; encoding?: string; recursive?: boolean }): Promise<string[] | Dirent[]> {
+  return new Promise((resolve, reject) => {
+    const file = Gio.File.new_for_path(path.toString());
+    file.enumerate_children_async(
+      'standard::name,standard::type',
+      Gio.FileQueryInfoFlags.NONE,
+      GLib.PRIORITY_DEFAULT,
+      null,
+      (_self: any, res: Gio.AsyncResult) => {
+        try {
+          const enumerator = file.enumerate_children_finish(res);
+          const result: (string | Dirent)[] = [];
+          const pathStr = path.toString();
+          let info = enumerator.next_file(null);
+
+          while (info !== null) {
+            const childName = info.get_name();
+            if (options?.withFileTypes) {
+              result.push(new Dirent(join(pathStr, childName), childName));
+            } else {
+              result.push(childName);
+            }
+
+            if (options?.recursive && info.get_file_type() === Gio.FileType.DIRECTORY) {
+              const subEntries = readdirSyncFn(join(pathStr, childName), options);
+              for (const entry of subEntries) {
+                if (typeof entry === 'string') {
+                  result.push(join(childName, entry));
+                } else {
+                  result.push(entry);
+                }
+              }
+            }
+
+            info = enumerator.next_file(null);
+          }
+
+          resolve(result as any);
+        } catch (err: any) {
+          reject(createNodeError(err, 'readdir', path));
+        }
+      },
+    );
+  });
+}
+
+// --- realpath ---
+
+async function realpath(path: PathLike): Promise<string> {
+  return new Promise((resolve, reject) => {
+    queueMicrotask(() => {
+      try {
+        resolve(realpathSync(path));
+      } catch (err: any) {
+        reject(err);
+      }
+    });
+  });
+}
+
+// --- symlink ---
+
+async function symlink(target: PathLike, path: PathLike, _type?: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const file = Gio.File.new_for_path(path.toString());
+    file.make_symbolic_link_async(
+      target.toString(),
+      GLib.PRIORITY_DEFAULT,
+      null,
+      (_self: any, res: Gio.AsyncResult) => {
+        try {
+          file.make_symbolic_link_finish(res);
+          resolve();
+        } catch (err: any) {
+          reject(createNodeError(err, 'symlink', target, path));
+        }
+      },
+    );
+  });
+}
+
 /**
  * Removes files and directories (modeled on the standard POSIX `rm` utility).
  * @since v14.14.0
@@ -282,7 +403,7 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
     if (!recursive && childFiles.length) {
       throw new Error('Dir is not empty!');
     }
-  
+
     for (const childFile of childFiles) {
       if (childFile.isDirectory()) {
         await rmdir(join(path.toString(), childFile.name), options);
@@ -308,7 +429,6 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
   });
 
   if (!ok) {
-    // TODO: throw a better error
     const err = new Error('failed to remove file ' + path);
     throw err;
   }
