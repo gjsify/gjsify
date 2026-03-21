@@ -5,7 +5,7 @@
  * https://fetch.spec.whatwg.org/
  */
 
-import Gio from '@girs/gio-2.0';
+import type Gio from '@girs/gio-2.0';
 import Stream from 'stream';
 
 import { parseDataUri } from './utils/data-uri.js';

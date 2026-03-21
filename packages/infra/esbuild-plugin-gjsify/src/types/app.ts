@@ -1,1 +1,1 @@
-export type App = 'gjs' | 'node' | 'deno' | 'browser';
+export type App = 'gjs' | 'node' | 'browser';

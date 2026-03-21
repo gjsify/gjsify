@@ -181,11 +181,6 @@ export const ALIASES_GENERAL_FOR_NODE = {
 /** Record of Gjs modules (build in or not) and his replacement for Node */
 const ALIASES_GJS_FOR_NODE = {}
 
-// Revert the alias
-for (const ALIAS_NODE_FOR_GJS in ALIASES_NODE_FOR_GJS) {
-    ALIASES_GJS_FOR_NODE[ALIASES_NODE_FOR_GJS[ALIAS_NODE_FOR_GJS]] = ALIAS_NODE_FOR_GJS
-}
-
 export { ALIASES_GJS_FOR_NODE };
 
 /** Record of Web modules and his replacement for Node */

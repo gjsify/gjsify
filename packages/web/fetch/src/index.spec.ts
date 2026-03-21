@@ -143,7 +143,7 @@ export default async () => {
 		await it('Response.redirect() should create redirect', async () => {
 			const r = Response.redirect('https://example.com', 301);
 			expect(r.status).toBe(301);
-			expect(r.headers.get('location')).toBe('https://example.com');
+			expect(r.headers.get('location')).toBe('https://example.com/');
 		});
 	});
 

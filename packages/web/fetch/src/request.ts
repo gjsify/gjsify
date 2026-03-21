@@ -1,12 +1,3 @@
-import '@girs/gjs';
-import '@girs/gio-2.0';
-
-import GLib from '@girs/glib-2.0';
-import Soup from '@girs/soup-3.0';
-import Gio from '@girs/gio-2.0';
-import * as GioExt from '@gjsify/gio-2.0';
-import * as SoupExt from '@gjsify/soup-3.0';
-
 import { URL } from '@gjsify/url';
 import { Blob } from './utils/blob-from.js';
 
@@ -15,7 +6,6 @@ import { Readable } from 'stream';
 import Headers from './headers.js';
 import Body, {clone, extractContentType, getTotalBytes} from './body.js';
 import {isAbortSignal} from './utils/is.js';
-// import { getSearch } from './utils/get-search.js';
 import {
 	validateReferrerPolicy, determineRequestsReferrer, DEFAULT_REFERRER_POLICY
 } from './utils/referrer.js';
@@ -98,10 +88,6 @@ export class Request extends Body {
     return this[INTERNALS].parsedURL.toString();
   }
 
-  get _uri() {
-    return GLib.Uri.parse(this.url, GLib.UriFlags.NONE);
-  }
-
   get _session() {
     return this[INTERNALS].session;
   }
@@ -127,10 +113,10 @@ export class Request extends Body {
     signal: AbortSignal;
     referrer: string | URL;
     referrerPolicy: ReferrerPolicy;
-    // Gjsify
-    session: SoupExt.ExtSession & Soup.Session;
-    message: Soup.Message;
-    inputStream?: Gio.InputStream & GioExt.ExtInputStream<Gio.InputStream>;
+    // Gjsify (lazy-initialized in _send)
+    session?: any;
+    message?: any;
+    inputStream?: any;
     readable?: Readable
   };
 
@@ -207,12 +193,6 @@ export class Request extends Body {
       referrer = undefined;
     }
 
-    const session = SoupExt.ExtSession.new();
-    const message = new Soup.Message({
-      method,
-      uri: this._uri,
-    });
-
     this[INTERNALS] = {
       method,
       redirect: init.redirect || (input as Request).redirect || 'follow',
@@ -221,8 +201,6 @@ export class Request extends Body {
       signal,
       referrer,
       referrerPolicy: '',
-      session,
-      message,
     };
 
     // Node-fetch-only options
@@ -239,19 +217,42 @@ export class Request extends Body {
   }
 
   /**
+   * Initialize GJS-specific Soup session and message.
+   * Called lazily from _send() to avoid importing GJS bindings at module load.
+   */
+  private async _initSoup() {
+    const GLib = (await import('@girs/glib-2.0')).default;
+    const Soup = (await import('@girs/soup-3.0')).default;
+    const GioExt = await import('@gjsify/gio-2.0');
+    const SoupExt = await import('@gjsify/soup-3.0');
+
+    const uri = GLib.Uri.parse(this.url, GLib.UriFlags.NONE);
+    const session = SoupExt.ExtSession.new();
+    const message = new Soup.Message({
+      method: this[INTERNALS].method,
+      uri,
+    });
+
+    this[INTERNALS].session = session;
+    this[INTERNALS].message = message;
+
+    return { GLib, Soup, GioExt, SoupExt, session, message, uri };
+  }
+
+  /**
    * Custom send method using Soup, used in fetch to send the request
-   * @param options 
-   * @returns 
    */
   async _send(options: { headers: Headers }) {
-    options.headers._appendToSoupMessage(this._message);
+    const { GLib, session, message } = await this._initSoup();
+    const Gio = (await import('@girs/gio-2.0')).default;
+
+    options.headers._appendToSoupMessage(message);
 
     const cancellable = new Gio.Cancellable();
 
-    this[INTERNALS].inputStream = await this._session.sendAsync(this._message, GLib.PRIORITY_DEFAULT, cancellable);
-
+    this[INTERNALS].inputStream = await session.sendAsync(message, GLib.PRIORITY_DEFAULT, cancellable);
     this[INTERNALS].readable = this[INTERNALS].inputStream.toReadable({});
-    
+
     return {
       inputStream: this[INTERNALS].inputStream,
       readable: this[INTERNALS].readable,
@@ -298,10 +299,7 @@ Object.defineProperties(Request.prototype, {
 export default Request;
 
 /**
- * Convert a Request to Soup request options.
- *
- * @param request - A Request instance
- * @return The options object to be passed to http.request
+ * @param request
  */
 export const getSoupRequestOptions = (request: Request) => {
 	const { parsedURL } = request[INTERNALS];
@@ -313,14 +311,14 @@ export const getSoupRequestOptions = (request: Request) => {
 	}
 
 	// HTTP-network-or-cache fetch steps 2.4-2.7
-	let contentLengthValue = null;
+	let contentLengthValue: string | null = null;
 	if (request.body === null && /^(post|put)$/i.test(request.method)) {
 		contentLengthValue = '0';
 	}
 
 	if (request.body !== null) {
 		const totalBytes = getTotalBytes(request);
-		// Set Content-Length if totalBytes is a number (that is not NaN)
+		// Set Content-Length if totalBytes is a Number (that is not NaN)
 		if (typeof totalBytes === 'number' && !Number.isNaN(totalBytes)) {
 			contentLengthValue = String(totalBytes);
 		}
@@ -331,15 +329,11 @@ export const getSoupRequestOptions = (request: Request) => {
 	}
 
 	// 4.1. Main fetch, step 2.6
-	// > If request's referrer policy is the empty string, then set request's referrer policy to the
-	// > default referrer policy.
 	if (request.referrerPolicy === '') {
 		request.referrerPolicy = DEFAULT_REFERRER_POLICY;
 	}
 
 	// 4.1. Main fetch, step 2.7
-	// > If request's referrer is not "no-referrer", set request's referrer to the result of invoking
-	// > determine request's referrer.
 	if (request.referrer && request.referrer !== 'no-referrer') {
 		request[INTERNALS].referrer = determineRequestsReferrer(request);
 	} else {
@@ -347,8 +341,6 @@ export const getSoupRequestOptions = (request: Request) => {
 	}
 
 	// 4.5. HTTP-network-or-cache fetch, step 6.9
-	// > If httpRequest's referrer is a URL, then append `Referer`/httpRequest's referrer, serialized
-	// >  and isomorphic encoded, to httpRequest's header list.
 	if (request[INTERNALS].referrer instanceof URL) {
 		headers.set('Referer', request.referrer);
 	}
@@ -372,21 +364,8 @@ export const getSoupRequestOptions = (request: Request) => {
 		headers.set('Connection', 'close');
 	}
 
-	// HTTP-network fetch step 4.2
-	// chunked encoding is handled by Node.js
-
-	// const search = getSearch(parsedURL);
-
-	// Pass the full URL directly to request(), but overwrite the following
-	// options:
 	const options = {
-		// Overwrite search to retain trailing ? (issue #776)
-		// path: parsedURL.pathname + search,
-		// The following options are not expressed in the URL
-		// method: request.method,
 		headers,
-		// insecureHTTPParser: request.insecureHTTPParser,
-		// agent
 	};
 
 	return {

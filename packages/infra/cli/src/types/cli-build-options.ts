@@ -18,7 +18,7 @@ export interface CliBuildOptions {
    * @see https://esbuild.github.io/api/#format
    */
   format?: 'iife' | 'esm' | 'cjs';
-  /** Use this if you want to build a application or test, the platforms node and deno are usually only used internally to build the tests for Gjsify */
+  /** Use this if you want to build an application or test, the platform node is usually only used internally to build the tests for Gjsify */
   app?: App;
   /** Use this if you want to build a library for Gjsify */
   library?: boolean;

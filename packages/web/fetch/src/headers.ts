@@ -5,7 +5,7 @@
  * All header names are lowercased per the Fetch spec.
  */
 
-import Soup from '@girs/soup-3.0';
+import type Soup from '@girs/soup-3.0';
 import { validateHeaderName, validateHeaderValue } from '@gjsify/http';
 
 const _headers = Symbol('Headers.headers');

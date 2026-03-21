@@ -45,6 +45,8 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
           if (resolvedAlias.errors.length > 0) {
             console.error(resolvedAlias.errors);
             return resolvedAlias;
+          } else if (resolvedAlias.external) {
+            return { path: resolvedAlias.path, external: true };
           } else {
             resolvedAliasPath = resolvedAlias.path;
             namespace = resolvedAlias.namespace;

@@ -10,7 +10,7 @@ import type { PluginOptions } from '../types/plugin-options.js';
 
 export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
-    const external = [...EXTERNALS_NODE, 'gi://*'];
+    const external = [...EXTERNALS_NODE, 'gi://*', '@girs/*', '@gjsify/gio-2.0', '@gjsify/soup-3.0'];
     const format = pluginOptions.format || 'esm';
 
     pluginOptions.aliases ||= {};

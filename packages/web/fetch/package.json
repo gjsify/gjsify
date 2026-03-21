@@ -23,9 +23,12 @@
         "build": "yarn print:name && yarn build:gjsify",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc --project tsconfig.json || exit 0",
+        "build:test": "yarn build:test:gjs && yarn build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-        "test": "yarn print:name && echo 'Tests run via yarn test from root (GJS integration only)'",
-        "test:gjs": "gjs -m test.gjs.mjs"
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "yarn print:name && yarn build:gjsify && yarn build:test:node && yarn test:node",
+        "test:gjs": "gjs -m test.gjs.mjs",
+        "test:node": "node --import ./gjs-stub-loader.mjs test.node.mjs"
     },
     "keywords": [
         "gjs",

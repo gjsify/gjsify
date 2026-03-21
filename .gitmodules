@@ -19,3 +19,6 @@
 [submodule "refs/troll"]
 	path = refs/troll
 	url = git@github.com:sonnyp/troll.git
+[submodule "refs/stream-http"]
+	path = refs/stream-http
+	url = git@github.com:jhiesey/stream-http.git
