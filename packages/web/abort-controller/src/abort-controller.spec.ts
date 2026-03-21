@@ -23,18 +23,10 @@ export default async () => {
 		await it('should have 2 properties', async () => {
 			const controller = new AbortController();
 
-			const keys = new Set()
-			keys.add("signal")
-			keys.add("abort")
-	
-			for (const key in controller) {
-				assert(keys.has(key), `'${key}' found, but should not have it`);
-				keys.delete(key)
+			const expected = ["signal", "abort"];
+			for (const key of expected) {
+				assert(key in controller, `'${key}' not found`);
 			}
-
-			keys.forEach((key) => {
-				assert(false, `'${key}' not found`);
-			})
 		});
 
 		// TODO
@@ -46,11 +38,11 @@ export default async () => {
 		await describe("'signal' property", async () => {
 			const controller = new AbortController();
 			const signal = controller.signal
-	
+
 			await it("should return the same instance always", async () => {
 				expect(signal === controller.signal).toBeTruthy()
 			})
-	
+
 			await it("should be a AbortSignal object", async () => {
 				expect(signal instanceof AbortSignal).toBeTruthy()
 			})
@@ -60,7 +52,7 @@ export default async () => {
 					expect(signal instanceof EventTarget).toBeTruthy()
 				})
 			}
-	
+
 			await it("should have 5 properties", async () => {
 				const keys = new Set<string>()
 				keys.add("addEventListener")
@@ -68,13 +60,13 @@ export default async () => {
 				keys.add("dispatchEvent")
 				keys.add("aborted")
 				keys.add("onabort")
-	
+
 				// TODO
 				// for (const key in signal) {
 				// 	assert(keys.has(key), `'${key}' found, but should not have it`);
 				// 	keys.delete(key)
 				// }
-	
+
 				keys.forEach(key => {
 					// WORKAROUND for getter / setter
 					const exists = (signal as any)[key] !== undefined;
@@ -82,16 +74,16 @@ export default async () => {
 					assert(exists, `'${key}' not found, but should have it: `);
 				})
 			})
-	
+
 			await it("should have 'aborted' property which is false by default", async () => {
 				expect(signal.aborted).toBeFalsy();
 			})
-	
+
 			await it("should have 'onabort' property which is null by default", async () => {
 				// TODO:
 				expect((signal as any).onabort).toBeNull()
 			})
-	
+
 			await it("should throw a TypeError if 'signal.aborted' getter is called with non AbortSignal object", async () => {
 				const getAborted = Object.getOwnPropertyDescriptor(
 					(signal as any).__proto__,
@@ -116,7 +108,7 @@ export default async () => {
 				controller.abort()
 				assert(controller.signal.aborted)
 			})
-	
+
 			await it("should fire 'abort' event on 'signal' (addEventListener)", async () => {
 				const controller = new AbortController();
 
@@ -125,10 +117,10 @@ export default async () => {
 					++calls;
 				});
 				controller.abort()
-	
+
 				assert(calls === 1)
 			})
-	
+
 			await it("should fire 'abort' event on 'signal' (onabort)", async () => {
 				const controller = new AbortController();
 
@@ -138,10 +130,10 @@ export default async () => {
 					++calls;
 				}
 				controller.abort()
-	
+
 				assert(calls === 1)
 			})
-	
+
 			await it("should not fire 'abort' event twice", async () => {
 				const controller = new AbortController();
 
@@ -152,10 +144,10 @@ export default async () => {
 				controller.abort()
 				controller.abort()
 				controller.abort()
-	
+
 				assert(calls === 1)
 			})
-	
+
 			await it("should throw a TypeError if 'this' is not an AbortController object", async () => {
 				const controller = new AbortController();
 

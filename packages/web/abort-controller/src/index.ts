@@ -3,25 +3,40 @@
 import { Event, EventTarget, DOMException } from '@gjsify/dom-events';
 
 const kAbort = Symbol('abort');
+const kInternal = Symbol('internal');
 
 export class AbortSignal extends EventTarget {
-  aborted: boolean = false;
+  #aborted: boolean = false;
   reason: any = undefined;
 
   onabort: ((this: AbortSignal, ev: Event) => any) | null = null;
 
+  constructor(key?: symbol) {
+    super();
+    if (key !== kInternal) {
+      throw new TypeError('Illegal constructor.');
+    }
+  }
+
+  get aborted(): boolean {
+    if (!(this instanceof AbortSignal)) {
+      throw new TypeError("'get aborted' called on an object that is not a valid instance of AbortSignal.");
+    }
+    return this.#aborted;
+  }
+
   get [Symbol.toStringTag]() { return 'AbortSignal'; }
 
   throwIfAborted(): void {
-    if (this.aborted) {
+    if (this.#aborted) {
       throw this.reason;
     }
   }
 
   [kAbort](reason?: any): void {
-    if (this.aborted) return;
+    if (this.#aborted) return;
 
-    this.aborted = true;
+    this.#aborted = true;
     this.reason = reason ?? new DOMException('The operation was aborted.', 'AbortError');
 
     const event = new Event('abort');
@@ -32,13 +47,13 @@ export class AbortSignal extends EventTarget {
   }
 
   static abort(reason?: any): AbortSignal {
-    const signal = new AbortSignal();
+    const signal = new AbortSignal(kInternal);
     signal[kAbort](reason);
     return signal;
   }
 
   static timeout(milliseconds: number): AbortSignal {
-    const signal = new AbortSignal();
+    const signal = new AbortSignal(kInternal);
     setTimeout(() => {
       signal[kAbort](new DOMException('The operation timed out.', 'TimeoutError'));
     }, milliseconds);
@@ -46,7 +61,7 @@ export class AbortSignal extends EventTarget {
   }
 
   static any(signals: AbortSignal[]): AbortSignal {
-    const combined = new AbortSignal();
+    const combined = new AbortSignal(kInternal);
 
     for (const signal of signals) {
       if (signal.aborted) {
@@ -74,10 +89,13 @@ export class AbortController {
   readonly signal: AbortSignal;
 
   constructor() {
-    this.signal = new AbortSignal();
+    this.signal = new AbortSignal(kInternal);
   }
 
   abort(reason?: any): void {
+    if (!(this instanceof AbortController)) {
+      throw new TypeError("'abort' called on an object that is not a valid instance of AbortController.");
+    }
     this.signal[kAbort](reason);
   }
 }

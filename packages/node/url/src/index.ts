@@ -1,11 +1,241 @@
-// Native url module for GJS — no Deno dependency
-// WHATWG URL and URLSearchParams are already globals in SpiderMonkey 128
-// This module adds the Node.js-specific legacy API and file URL helpers.
+// Node.js url module for GJS
+// Uses GLib.Uri for WHATWG URL parsing since globalThis.URL is not available in GJS 1.86
+// See refs/deno/ext/node/polyfills/url.ts, refs/bun/src/js/node/url.ts, refs/node/lib/url.js
 
-// Re-export WHATWG URL API from globals
-const _URL = globalThis.URL;
-const _URLSearchParams = globalThis.URLSearchParams;
-export { _URL as URL, _URLSearchParams as URLSearchParams };
+import GLib from '@girs/glib-2.0';
+
+// ---- URLSearchParams ----
+
+const PARSE_FLAGS = GLib.UriFlags.HAS_PASSWORD | GLib.UriFlags.ENCODED | GLib.UriFlags.SCHEME_NORMALIZE;
+
+export class URLSearchParams {
+  _entries: [string, string][] = [];
+
+  constructor(init?: string | Record<string, string> | [string, string][] | URLSearchParams) {
+    if (!init) return;
+    if (typeof init === 'string') {
+      const s = init.startsWith('?') ? init.slice(1) : init;
+      if (s) {
+        for (const pair of s.split('&')) {
+          const eqIdx = pair.indexOf('=');
+          if (eqIdx === -1) {
+            this._entries.push([decodeComponent(pair), '']);
+          } else {
+            this._entries.push([decodeComponent(pair.slice(0, eqIdx)), decodeComponent(pair.slice(eqIdx + 1))]);
+          }
+        }
+      }
+    } else if (Array.isArray(init)) {
+      for (const [k, v] of init) {
+        this._entries.push([String(k), String(v)]);
+      }
+    } else if (init instanceof URLSearchParams) {
+      this._entries = init._entries.slice();
+    } else {
+      for (const key of Object.keys(init)) {
+        this._entries.push([key, String(init[key])]);
+      }
+    }
+  }
+
+  get(name: string): string | null {
+    for (const [k, v] of this._entries) {
+      if (k === name) return v;
+    }
+    return null;
+  }
+
+  getAll(name: string): string[] {
+    return this._entries.filter(([k]) => k === name).map(([, v]) => v);
+  }
+
+  set(name: string, value: string): void {
+    let found = false;
+    this._entries = this._entries.filter(([k]) => {
+      if (k === name) {
+        if (!found) { found = true; return true; }
+        return false;
+      }
+      return true;
+    });
+    if (found) {
+      for (let i = 0; i < this._entries.length; i++) {
+        if (this._entries[i][0] === name) { this._entries[i][1] = value; break; }
+      }
+    } else {
+      this._entries.push([name, value]);
+    }
+  }
+
+  has(name: string): boolean {
+    return this._entries.some(([k]) => k === name);
+  }
+
+  delete(name: string): void {
+    this._entries = this._entries.filter(([k]) => k !== name);
+  }
+
+  append(name: string, value: string): void {
+    this._entries.push([name, value]);
+  }
+
+  toString(): string {
+    return this._entries.map(([k, v]) => encodeComponent(k) + '=' + encodeComponent(v)).join('&');
+  }
+
+  forEach(callback: (value: string, key: string, parent: URLSearchParams) => void): void {
+    for (const [k, v] of this._entries) {
+      callback(v, k, this);
+    }
+  }
+
+  *entries(): IterableIterator<[string, string]> {
+    yield* this._entries;
+  }
+
+  *keys(): IterableIterator<string> {
+    for (const [k] of this._entries) yield k;
+  }
+
+  *values(): IterableIterator<string> {
+    for (const [, v] of this._entries) yield v;
+  }
+
+  [Symbol.iterator](): IterableIterator<[string, string]> {
+    return this.entries();
+  }
+
+  get size(): number {
+    return this._entries.length;
+  }
+}
+
+function decodeComponent(s: string): string {
+  try { return decodeURIComponent(s.replace(/\+/g, ' ')); } catch { return s; }
+}
+
+function encodeComponent(s: string): string {
+  return encodeURIComponent(s).replace(/%20/g, '+');
+}
+
+// ---- URL class using GLib.Uri ----
+
+export class URL {
+  #uri: any; // GLib.Uri
+  #searchParams: URLSearchParams;
+
+  constructor(url: string | URL, base?: string | URL) {
+    const urlStr = url instanceof URL ? url.href : String(url);
+
+    try {
+      if (base !== undefined) {
+        const baseStr = base instanceof URL ? base.href : String(base);
+        const baseUri = GLib.Uri.parse(baseStr, PARSE_FLAGS);
+        this.#uri = baseUri.parse_relative(urlStr, PARSE_FLAGS);
+      } else {
+        this.#uri = GLib.Uri.parse(urlStr, PARSE_FLAGS);
+      }
+    } catch (e: any) {
+      throw new TypeError(`Invalid URL: ${urlStr}`);
+    }
+
+    if (!this.#uri) {
+      throw new TypeError(`Invalid URL: ${urlStr}`);
+    }
+
+    this.#searchParams = new URLSearchParams(this.#uri.get_query() || '');
+  }
+
+  get protocol(): string {
+    return this.#uri.get_scheme() + ':';
+  }
+
+  get hostname(): string {
+    return (this.#uri.get_host() || '').toLowerCase();
+  }
+
+  get port(): string {
+    const p = this.#uri.get_port();
+    return p === -1 ? '' : String(p);
+  }
+
+  get host(): string {
+    const hostname = this.hostname;
+    const port = this.port;
+    return port ? `${hostname}:${port}` : hostname;
+  }
+
+  get pathname(): string {
+    return this.#uri.get_path() || '/';
+  }
+
+  get search(): string {
+    const q = this.#uri.get_query();
+    return q ? '?' + q : '';
+  }
+
+  get hash(): string {
+    const f = this.#uri.get_fragment();
+    return f ? '#' + f : '';
+  }
+
+  get origin(): string {
+    const p = this.protocol;
+    if (p === 'http:' || p === 'https:' || p === 'ftp:') {
+      return `${p}//${this.host}`;
+    }
+    return 'null';
+  }
+
+  get username(): string {
+    return this.#uri.get_user() || '';
+  }
+
+  get password(): string {
+    return this.#uri.get_password() || '';
+  }
+
+  get href(): string {
+    let result = this.protocol;
+    const scheme = this.#uri.get_scheme();
+    const isSpecial = scheme === 'http' || scheme === 'https' || scheme === 'ftp' || scheme === 'file' || scheme === 'ws' || scheme === 'wss';
+
+    if (isSpecial || this.hostname) {
+      result += '//';
+    }
+
+    const user = this.username;
+    const pass = this.password;
+    if (user) {
+      result += user;
+      if (pass) result += ':' + pass;
+      result += '@';
+    }
+
+    result += this.hostname;
+    if (this.port) result += ':' + this.port;
+
+    const pathname = this.pathname;
+    result += pathname;
+
+    result += this.search;
+    result += this.hash;
+
+    return result;
+  }
+
+  get searchParams(): URLSearchParams {
+    return this.#searchParams;
+  }
+
+  toString(): string {
+    return this.href;
+  }
+
+  toJSON(): string {
+    return this.href;
+  }
+}
 
 // ---- Legacy url.parse / url.format / url.resolve ----
 
@@ -28,9 +258,6 @@ export interface Url extends UrlObject {
   href: string;
 }
 
-/**
- * Legacy URL parser. Parses a URL string into its components.
- */
 export function parse(urlString: string, parseQueryString?: boolean, slashesDenoteHost?: boolean): Url {
   if (typeof urlString !== 'string') {
     throw new TypeError('The "url" argument must be of type string. Received type ' + typeof urlString);
@@ -65,7 +292,7 @@ export function parse(urlString: string, parseQueryString?: boolean, slashesDeno
   if (qIdx !== -1) {
     result.search = rest.slice(qIdx);
     result.query = parseQueryString
-      ? Object.fromEntries(new _URLSearchParams(rest.slice(qIdx + 1)))
+      ? Object.fromEntries(new URLSearchParams(rest.slice(qIdx + 1)))
       : rest.slice(qIdx + 1);
     rest = rest.slice(0, qIdx);
   }
@@ -88,7 +315,6 @@ export function parse(urlString: string, parseQueryString?: boolean, slashesDeno
 
   // Extract host portion (only if we had slashes or protocol)
   if (result.slashes || (result.protocol && !['javascript:', 'data:', 'mailto:'].includes(result.protocol))) {
-    // Find the end of host portion
     let hostEnd = -1;
     for (let i = 0; i < rest.length; i++) {
       const ch = rest[i];
@@ -101,7 +327,6 @@ export function parse(urlString: string, parseQueryString?: boolean, slashesDeno
     const hostPart = hostEnd === -1 ? rest : rest.slice(0, hostEnd);
     rest = hostEnd === -1 ? '' : rest.slice(hostEnd);
 
-    // Extract auth
     const atIdx = hostPart.lastIndexOf('@');
     if (atIdx !== -1) {
       result.auth = decodeURIComponent(hostPart.slice(0, atIdx));
@@ -112,15 +337,12 @@ export function parse(urlString: string, parseQueryString?: boolean, slashesDeno
     }
   }
 
-  // Pathname
   result.pathname = rest || (result.slashes ? '/' : null);
 
-  // Build path
   if (result.pathname !== null || result.search !== null) {
     result.path = (result.pathname || '') + (result.search || '');
   }
 
-  // Build href
   result.href = format(result);
 
   return result;
@@ -129,7 +351,6 @@ export function parse(urlString: string, parseQueryString?: boolean, slashesDeno
 function parseHostPort(hostPart: string, result: Url): void {
   if (!hostPart) return;
 
-  // Handle IPv6
   const bracketIdx = hostPart.indexOf('[');
   if (bracketIdx !== -1) {
     const bracketEnd = hostPart.indexOf(']', bracketIdx);
@@ -160,16 +381,12 @@ function parseHostPort(hostPart: string, result: Url): void {
   result.host = result.hostname + (result.port ? ':' + result.port : '');
 }
 
-/**
- * Format a URL object into a URL string.
- */
 export function format(urlObject: UrlObject | string | URL): string {
   if (typeof urlObject === 'string') {
     return urlObject;
   }
 
-  // Handle WHATWG URL
-  if (urlObject instanceof _URL) {
+  if (urlObject instanceof URL) {
     return urlObject.href;
   }
 
@@ -206,7 +423,7 @@ export function format(urlObject: UrlObject | string | URL): string {
   if (obj.search) {
     result += obj.search;
   } else if (obj.query && typeof obj.query === 'object') {
-    const qs = new _URLSearchParams(obj.query as Record<string, string>).toString();
+    const qs = new URLSearchParams(obj.query as Record<string, string>).toString();
     if (qs) result += '?' + qs;
   }
 
@@ -217,24 +434,18 @@ export function format(urlObject: UrlObject | string | URL): string {
   return result;
 }
 
-/**
- * Resolve a target URL relative to a base URL.
- */
 export function resolve(from: string, to: string): string {
-  return new _URL(to, new _URL(from, 'resolve://')).href.replace(/^resolve:\/\//, '');
+  return new URL(to, new URL(from, 'resolve://')).href.replace(/^resolve:\/\//, '');
 }
 
 // ---- File URL helpers ----
 
-/**
- * Convert a file: URL to a path string.
- */
 export function fileURLToPath(url: string | URL): string {
   if (typeof url === 'string') {
-    url = new _URL(url);
+    url = new URL(url);
   }
 
-  if (!(url instanceof _URL)) {
+  if (!(url instanceof URL)) {
     throw new TypeError('The "url" argument must be of type string or URL. Received type ' + typeof url);
   }
 
@@ -249,12 +460,10 @@ export function fileURLToPath(url: string | URL): string {
   }
 
   const pathname = url.pathname;
-  // Check for encoded separators
   for (let i = 0; i < pathname.length; i++) {
     if (pathname[i] === '%') {
       const third = pathname.codePointAt(i + 2)! | 0x20;
       if (pathname[i + 1] === '2' && third === 102) {
-        // %2f or %2F — encoded slash
         throw new TypeError('File URL path must not include encoded / characters');
       }
     }
@@ -263,20 +472,14 @@ export function fileURLToPath(url: string | URL): string {
   return decodeURIComponent(pathname);
 }
 
-/**
- * Convert a path string to a file: URL.
- */
 export function pathToFileURL(filepath: string): URL {
   let resolved = filepath;
 
-  // Resolve relative paths
   if (filepath[0] !== '/') {
-    // Use process.cwd() if available, otherwise try GLib
     if (typeof globalThis.process?.cwd === 'function') {
       resolved = globalThis.process.cwd() + '/' + filepath;
     } else {
       try {
-        const GLib = (globalThis as any).imports?.gi?.GLib;
         if (GLib?.get_current_dir) {
           resolved = GLib.get_current_dir() + '/' + filepath;
         }
@@ -286,14 +489,13 @@ export function pathToFileURL(filepath: string): URL {
     }
   }
 
-  return new _URL('file://' + encodePathForURL(resolved));
+  return new URL('file://' + encodePathForURL(resolved));
 }
 
 function encodePathForURL(filepath: string): string {
   let result = '';
   for (let i = 0; i < filepath.length; i++) {
     const ch = filepath[i];
-    // Characters that don't need encoding in file URLs
     if (
       (ch >= 'a' && ch <= 'z') ||
       (ch >= 'A' && ch <= 'Z') ||
@@ -303,35 +505,23 @@ function encodePathForURL(filepath: string): string {
     ) {
       result += ch;
     } else {
-      // Percent-encode
-      const encoded = encodeURIComponent(ch);
-      result += encoded;
+      result += encodeURIComponent(ch);
     }
   }
   return result;
 }
 
-/**
- * Convert a domain to ASCII (punycode).
- */
 export function domainToASCII(domain: string): string {
   try {
-    // Use URL constructor to convert to punycode
-    return new _URL(`http://${domain}`).hostname;
+    return new URL(`http://${domain}`).hostname;
   } catch {
     return '';
   }
 }
 
-/**
- * Convert a domain from ASCII (punycode) to Unicode.
- */
 export function domainToUnicode(domain: string): string {
-  // In SpiderMonkey, hostname from URL is already ASCII/punycode
-  // Full Unicode conversion would require a punycode decoder
-  // For now, return as-is since most domains are already readable
   try {
-    return new _URL(`http://${domain}`).hostname;
+    return new URL(`http://${domain}`).hostname;
   } catch {
     return '';
   }
@@ -339,8 +529,8 @@ export function domainToUnicode(domain: string): string {
 
 // Default export
 export default {
-  URL: _URL,
-  URLSearchParams: _URLSearchParams,
+  URL,
+  URLSearchParams,
   parse,
   format,
   resolve,

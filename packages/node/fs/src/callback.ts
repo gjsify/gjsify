@@ -81,6 +81,9 @@ export function symlink(target: PathLike, path: PathLike, callback: NoParamCallb
 export function symlink(target: PathLike, path: PathLike, type: string | null, callback: NoParamCallback): void;
 export function symlink(target: PathLike, path: PathLike, typeOrCallback: any, maybeCallback?: any): void {
   const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
+  if (typeof callback !== 'function') {
+    throw new TypeError('Callback must be a function. Received ' + typeof callback);
+  }
   const file = Gio.File.new_for_path(path.toString());
   file.make_symbolic_link_async(target.toString(), GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
     try {
