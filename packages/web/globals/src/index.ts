@@ -1,6 +1,6 @@
 import '@gjsify/dom-events';
 import '@gjsify/abort-controller';
 
-// TODO: Use url module from deno
+// TODO:
 // import 'core-js/features/url/';
 // import 'core-js/features/url-search-params/';
