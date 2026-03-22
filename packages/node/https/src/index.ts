@@ -1,19 +1,23 @@
 // Node.js https module for GJS
-// Thin wrapper combining http and tls
+// Thin wrapper — Soup.Session handles HTTPS natively via GnuTLS.
 // Reference: Node.js lib/https.js
 
-import { validateHeaderName, validateHeaderValue } from 'http';
+import { request as httpRequest, get as httpGet, ClientRequest, IncomingMessage } from 'http';
 import { TLSSocket, createSecureContext } from 'tls';
 
 export { TLSSocket, createSecureContext };
 
 export interface RequestOptions {
+  protocol?: string;
   hostname?: string;
   host?: string;
-  port?: number;
+  port?: number | string;
   path?: string;
   method?: string;
-  headers?: Record<string, string | string[]>;
+  headers?: Record<string, string | number | string[]>;
+  timeout?: number;
+  agent?: any;
+  setHost?: boolean;
   ca?: string | Buffer | Array<string | Buffer>;
   cert?: string | Buffer | Array<string | Buffer>;
   key?: string | Buffer | Array<string | Buffer>;
@@ -21,7 +25,7 @@ export interface RequestOptions {
 }
 
 /**
- * HTTPS Agent for connection pooling (stub).
+ * HTTPS Agent for connection pooling (stub — Soup.Session handles TLS internally).
  */
 export class Agent {
   defaultPort = 443;
@@ -37,20 +41,51 @@ export class Agent {
 export const globalAgent = new Agent();
 
 /**
- * Make an HTTPS request (stub — delegates to TLS + HTTP when http module is complete).
+ * Make an HTTPS request.
+ * Soup.Session handles TLS natively — we just ensure protocol is https:.
  */
-export function request(_options: RequestOptions | string, _callback?: (res: any) => void): any {
-  // Full implementation requires @gjsify/http to be complete (ClientRequest, IncomingMessage)
-  // For now, throw a descriptive error
-  throw new Error('https.request() requires @gjsify/http to be fully implemented. Use @gjsify/fetch for HTTP requests.');
+export function request(url: string | URL | RequestOptions, options?: RequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
+  if (typeof url === 'string') {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      return httpRequest(url, options as any, callback);
+    }
+    const opts: RequestOptions = { hostname: url, protocol: 'https:', port: 443 };
+    if (typeof options === 'object') Object.assign(opts, options);
+    if (typeof options === 'function') callback = options;
+    return httpRequest(opts as any, callback);
+  }
+
+  if (url instanceof URL) {
+    return httpRequest(url, options as any, callback);
+  }
+
+  // url is RequestOptions
+  const opts = { protocol: 'https:', port: 443, ...url };
+  if (typeof options === 'function') callback = options;
+  return httpRequest(opts as any, callback);
 }
 
 /**
  * Make an HTTPS GET request (convenience wrapper).
  */
-export function get(options: RequestOptions | string, callback?: (res: any) => void): any {
-  const opts = typeof options === 'string' ? { hostname: options, method: 'GET' } : { ...options, method: 'GET' };
-  return request(opts, callback);
+export function get(url: string | URL | RequestOptions, options?: RequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
+  if (typeof url === 'string') {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      return httpGet(url, options as any, callback) as ClientRequest;
+    }
+    const opts: RequestOptions = { hostname: url, protocol: 'https:', port: 443 };
+    if (typeof options === 'object') Object.assign(opts, options);
+    if (typeof options === 'function') callback = options;
+    return httpGet(opts as any, callback) as ClientRequest;
+  }
+
+  if (url instanceof URL) {
+    return httpGet(url, options as any, callback) as ClientRequest;
+  }
+
+  const opts = { protocol: 'https:', port: 443, ...url, method: 'GET' };
+  if (typeof options === 'function') callback = options;
+  return httpGet(opts as any, callback) as ClientRequest;
 }
 
 export default {

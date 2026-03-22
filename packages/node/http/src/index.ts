@@ -3,8 +3,13 @@
 // Reference: Node.js lib/http.js
 
 export { STATUS_CODES, METHODS } from './constants.js';
-export { Server, IncomingMessage, ServerResponse } from './server.js';
-import { Server, IncomingMessage, ServerResponse } from './server.js';
+export { IncomingMessage } from './incoming-message.js';
+export { Server, ServerResponse } from './server.js';
+export { ClientRequest } from './client-request.js';
+import { IncomingMessage } from './incoming-message.js';
+import { Server, ServerResponse } from './server.js';
+import { ClientRequest } from './client-request.js';
+import type { ClientRequestOptions } from './client-request.js';
 
 /**
  * Performs the low-level validations on the provided `name` that are done when `res.setHeader(name, value)` is called.
@@ -55,18 +60,38 @@ export function createServer(requestListener?: (req: IncomingMessage, res: Serve
 }
 
 /**
- * Make an HTTP request (stub — use @gjsify/fetch for now).
+ * Make an HTTP request.
+ *
+ * @param url URL string, URL object, or request options
+ * @param options Request options (if url is string/URL)
+ * @param callback Response callback
  */
-export function request(_options: any, _callback?: (res: IncomingMessage) => void): any {
-  throw new Error('http.request() is not yet fully implemented. Use @gjsify/fetch for HTTP requests.');
+export function request(url: string | URL | ClientRequestOptions, options?: ClientRequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
+  return new ClientRequest(url, options, callback);
 }
 
 /**
- * Make an HTTP GET request (convenience wrapper).
+ * Make an HTTP GET request (convenience wrapper that calls req.end() automatically).
  */
-export function get(options: any, callback?: (res: IncomingMessage) => void): any {
-  const opts = typeof options === 'string' ? { hostname: options, method: 'GET' } : { ...options, method: 'GET' };
-  return request(opts, callback);
+export function get(url: string | URL | ClientRequestOptions, options?: ClientRequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
+  // Normalize arguments
+  let opts: ClientRequestOptions;
+  let cb: ((res: IncomingMessage) => void) | undefined = callback;
+
+  if (typeof url === 'string' || url instanceof URL) {
+    opts = typeof options === 'object' ? { ...options, method: 'GET' } : { method: 'GET' };
+    if (typeof options === 'function') cb = options;
+  } else {
+    opts = { ...url, method: 'GET' };
+    if (typeof options === 'function') cb = options;
+    url = opts as ClientRequestOptions;
+  }
+
+  const req = typeof url === 'string' || url instanceof URL
+    ? new ClientRequest(url, { ...opts, method: 'GET' }, cb)
+    : new ClientRequest({ ...opts, method: 'GET' }, cb);
+  req.end();
+  return req;
 }
 
 /** Max header size in bytes. */
@@ -80,6 +105,7 @@ export default {
   Server,
   IncomingMessage,
   ServerResponse,
+  ClientRequest,
   Agent,
   globalAgent,
   createServer,

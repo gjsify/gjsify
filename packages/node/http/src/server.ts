@@ -3,39 +3,10 @@
 
 import Soup from '@girs/soup-3.0';
 import { EventEmitter } from 'events';
-import { Readable, Writable } from 'stream';
+import { Writable } from 'stream';
 import { Buffer } from 'buffer';
 import { STATUS_CODES } from './constants.js';
-
-/**
- * IncomingMessage — Readable stream representing an HTTP request.
- */
-export class IncomingMessage extends Readable {
-  httpVersion = '1.1';
-  httpVersionMajor = 1;
-  httpVersionMinor = 1;
-  headers: Record<string, string | string[]> = {};
-  rawHeaders: string[] = [];
-  method?: string;
-  url?: string;
-  statusCode?: number;
-  statusMessage?: string;
-  complete = false;
-  socket: any = null;
-
-  constructor() {
-    super();
-  }
-
-  /** Finish the readable stream with the body data. */
-  _pushBody(body: Uint8Array | null): void {
-    if (body && body.length > 0) {
-      this.push(Buffer.from(body));
-    }
-    this.push(null);
-    this.complete = true;
-  }
-}
+import { IncomingMessage } from './incoming-message.js';
 
 /**
  * ServerResponse — Writable stream representing an HTTP response.
