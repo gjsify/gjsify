@@ -1,24 +1,28 @@
 // Sign/Verify wrappers around browserify-sign (pure-JS RSA/ECDSA)
 // Reference: Node.js lib/internal/crypto/sig.js
+//
+// Uses lazy loading to avoid circular dependency.
 
-// @ts-ignore — browserify-sign has no types
-import browserifySign from 'browserify-sign';
+let _signMod: any = null;
 
-const {
-  createSign: _createSign,
-  createVerify: _createVerify,
-} = browserifySign;
+function getSignModule() {
+  if (!_signMod) {
+    // @ts-ignore — browserify-sign has no types
+    _signMod = require('browserify-sign/browser');
+  }
+  return _signMod;
+}
 
 /**
  * Creates and returns a Sign object using the given algorithm.
  */
 export function createSign(algorithm: string): any {
-  return _createSign(algorithm);
+  return getSignModule().createSign(algorithm);
 }
 
 /**
  * Creates and returns a Verify object using the given algorithm.
  */
 export function createVerify(algorithm: string): any {
-  return _createVerify(algorithm);
+  return getSignModule().createVerify(algorithm);
 }

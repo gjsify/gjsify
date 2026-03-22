@@ -2,7 +2,7 @@
 // Hash/Hmac via GLib, random via WebCrypto/GLib, ciphers/sign/DH via browserify pure-JS
 // Reference: Node.js lib/crypto.js
 
-// Native GLib implementations
+// === Native GLib implementations (no external deps) ===
 export { Hash, getHashes, hash } from './hash.js';
 export { Hmac } from './hmac.js';
 export {
@@ -19,21 +19,6 @@ export { constants } from './constants.js';
 export { pbkdf2, pbkdf2Sync } from './pbkdf2.js';
 export { hkdf, hkdfSync } from './hkdf.js';
 
-// Cipher/Decipher (browserify-cipher — pure-JS AES/DES)
-export { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers } from './cipher.js';
-
-// Sign/Verify (browserify-sign — pure-JS RSA/ECDSA)
-export { createSign, createVerify } from './sign.js';
-
-// Diffie-Hellman (pure-JS)
-export { createDiffieHellman, getDiffieHellman } from './dh.js';
-
-// ECDH (pure-JS via elliptic)
-export { createECDH, getCurves } from './ecdh.js';
-
-// RSA public-key encryption (pure-JS)
-export { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';
-
 import { Hash } from './hash.js';
 import { Hmac } from './hmac.js';
 
@@ -46,3 +31,14 @@ export function createHash(algorithm: string): Hash {
 export function createHmac(algorithm: string, key: string | Buffer | Uint8Array): Hmac {
   return new Hmac(algorithm, key);
 }
+
+// === Browserify pure-JS wrappers (lazy-loaded to break circular deps) ===
+// These packages internally use create-hash/create-hmac/randombytes which
+// the bundler aliases back to this module. Lazy loading ensures the native
+// exports above are available before the browserify modules initialize.
+
+export { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers } from './cipher.js';
+export { createSign, createVerify } from './sign.js';
+export { createDiffieHellman, getDiffieHellman } from './dh.js';
+export { createECDH, getCurves } from './ecdh.js';
+export { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';

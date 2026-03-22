@@ -1,14 +1,23 @@
 // ECDH (Elliptic Curve Diffie-Hellman) wrapper around create-ecdh (pure-JS)
 // Reference: Node.js lib/internal/crypto/diffiehellman.js
+//
+// Uses lazy loading to avoid circular dependency.
 
-// @ts-ignore — create-ecdh has no types
-import _createECDH from 'create-ecdh';
+let _ecdhMod: any = null;
+
+function getEcdhModule() {
+  if (!_ecdhMod) {
+    // @ts-ignore — create-ecdh has no types
+    _ecdhMod = require('create-ecdh/browser');
+  }
+  return _ecdhMod;
+}
 
 /**
  * Creates an Elliptic Curve Diffie-Hellman key exchange object.
  */
 export function createECDH(curveName: string): any {
-  return _createECDH(curveName);
+  return getEcdhModule()(curveName);
 }
 
 /**
