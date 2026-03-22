@@ -33,6 +33,6 @@
     "@girs/gjs": "^4.0.0-beta.41",
     "@girs/gtk-4.0": "4.22.1-4.0.0-beta.41",
     "@gjsify/webgl": "workspace:^",
-    "gl-matrix": "^3.4.3"
+    "gl-matrix": "^3.4.4"
   }
 }

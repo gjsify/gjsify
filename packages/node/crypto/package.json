@@ -38,7 +38,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/diffie-hellman": "^5",
+        "@types/diffie-hellman": "^5.0.3",
         "@types/node": "^25.5.0",
         "typescript": "^5.9.3"
     },

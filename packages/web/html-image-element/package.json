@@ -43,6 +43,6 @@
     "dependencies": {
         "@girs/gjs": "^4.0.0-beta.41",
         "@gjsify/dom-events": "workspace:^",
-        "happy-dom": "^12.10.3"
+        "happy-dom": "^20.8.4"
     }
 }

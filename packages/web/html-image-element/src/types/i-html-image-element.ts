@@ -1,4 +1,4 @@
-import type { IHTMLElement } from 'happy-dom';
+import type { HTMLElement } from 'happy-dom';
 
 /**
  * HTML Image Element.
@@ -6,7 +6,7 @@ import type { IHTMLElement } from 'happy-dom';
  * Reference:
  * https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement.
  */
-export interface IHTMLImageElement extends IHTMLElement {
+export interface IHTMLImageElement extends HTMLElement {
 	alt: string;
 	readonly complete: boolean;
 	crossOrigin: string | null;
