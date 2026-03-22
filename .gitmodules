@@ -34,3 +34,36 @@
 [submodule "refs/undici"]
 	path = refs/undici
 	url = https://github.com/nodejs/undici.git
+[submodule "refs/browserify-cipher"]
+	path = refs/browserify-cipher
+	url = https://github.com/crypto-browserify/browserify-cipher.git
+[submodule "refs/browserify-sign"]
+	path = refs/browserify-sign
+	url = https://github.com/crypto-browserify/browserify-sign.git
+[submodule "refs/create-ecdh"]
+	path = refs/create-ecdh
+	url = https://github.com/crypto-browserify/createECDH.git
+[submodule "refs/create-hash"]
+	path = refs/create-hash
+	url = https://github.com/crypto-browserify/createHash.git
+[submodule "refs/create-hmac"]
+	path = refs/create-hmac
+	url = https://github.com/crypto-browserify/createHmac.git
+[submodule "refs/diffie-hellman"]
+	path = refs/diffie-hellman
+	url = https://github.com/crypto-browserify/diffie-hellman.git
+[submodule "refs/hash-base"]
+	path = refs/hash-base
+	url = https://github.com/crypto-browserify/hash-base.git
+[submodule "refs/pbkdf2"]
+	path = refs/pbkdf2
+	url = https://github.com/browserify/pbkdf2.git
+[submodule "refs/public-encrypt"]
+	path = refs/public-encrypt
+	url = https://github.com/crypto-browserify/publicEncrypt.git
+[submodule "refs/randombytes"]
+	path = refs/randombytes
+	url = https://github.com/crypto-browserify/randombytes.git
+[submodule "refs/randomfill"]
+	path = refs/randomfill
+	url = https://github.com/crypto-browserify/randomfill.git

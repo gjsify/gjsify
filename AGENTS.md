@@ -14,7 +14,10 @@ packages/
              globals, html-image-element, webgl
 refs/     — read-only git submodules (node, deno, bun, gjs, node-fetch,
              fetch-ie8, stream-http, headless-gl, troll,
-             crypto-browserify, readable-stream, undici)
+             crypto-browserify, readable-stream, undici,
+             browserify-cipher, browserify-sign, create-ecdh,
+             create-hash, create-hmac, diffie-hellman, hash-base,
+             pbkdf2, public-encrypt, randombytes, randomfill)
 ```
 
 ## Node.js Packages (`packages/node/*`)
@@ -32,7 +35,7 @@ Each is `@gjsify/<name>`. All have native GJS implementations — no Deno re-exp
 | fs | Gio | Full | sync, callback, promises, streams, FSWatcher |
 | globals | GLib | Partial | setImmediate polyfill, global setup |
 | dns | Gio | Full | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
-| http | — | Partial | header validation only (validateHeaderName/Value) |
+| http | Soup 3.0 | Partial | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, METHODS. TODO: ClientRequest |
 | https | — | Partial | Agent, stub request/get (requires http completion) |
 | net | Gio | Full | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), connect/createServer |
 | os | GLib | Full | homedir, hostname, cpus, platform-specific (linux.ts, darwin.ts) |
@@ -133,7 +136,18 @@ Read-only git submodules — do NOT modify. Use GNOME libraries internally, not 
 | `refs/stream-http/` | HTTP via Node.js streams — reference for `@gjsify/http` |
 | `refs/headless-gl/` | Headless WebGL — reference for `packages/web/webgl/` |
 | `refs/troll/` | GJS utility patterns (Sonny Piers) |
-| `refs/crypto-browserify/` | Pure-JS crypto implementations — reference for `@gjsify/crypto` |
+| `refs/crypto-browserify/` | Pure-JS crypto orchestrator — wires together the sub-packages below for `@gjsify/crypto` |
+| `refs/browserify-cipher/` | AES cipher/decipher (createCipher, createCipheriv, getCiphers) — dep of crypto-browserify |
+| `refs/browserify-sign/` | Sign/Verify (createSign, createVerify) + algo list — dep of crypto-browserify |
+| `refs/create-ecdh/` | ECDH key exchange (createECDH) — dep of crypto-browserify |
+| `refs/create-hash/` | Hash streaming (createHash, MD5/SHA) — dep of crypto-browserify |
+| `refs/create-hmac/` | HMAC streaming (createHmac) — dep of crypto-browserify |
+| `refs/diffie-hellman/` | DH key agreement (createDiffieHellman, getDiffieHellman) — dep of crypto-browserify |
+| `refs/hash-base/` | Base class for streaming hash transforms — dep of create-hash/create-hmac |
+| `refs/pbkdf2/` | PBKDF2 key derivation (pbkdf2, pbkdf2Sync) — dep of crypto-browserify |
+| `refs/public-encrypt/` | RSA encrypt/decrypt (publicEncrypt, privateDecrypt) — dep of crypto-browserify |
+| `refs/randombytes/` | Random byte generation (randomBytes) — dep of crypto-browserify |
+| `refs/randomfill/` | Random buffer filling (randomFill, randomFillSync) — dep of crypto-browserify |
 | `refs/readable-stream/` | Maintained Node.js stream polyfill — reference for edge cases |
 | `refs/undici/` | Official Node.js HTTP client — reference for `@gjsify/http` client-side |
 
