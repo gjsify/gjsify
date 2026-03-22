@@ -67,3 +67,18 @@
 [submodule "refs/randomfill"]
 	path = refs/randomfill
 	url = https://github.com/crypto-browserify/randomfill.git
+[submodule "refs/quickjs"]
+	path = refs/quickjs
+	url = git@github.com:quickjs-ng/quickjs.git
+[submodule "refs/edgejs"]
+	path = refs/edgejs
+	url = https://github.com/wasmerio/edgejs
+[submodule "refs/node-test"]
+	path = refs/node-test
+	url = git@github.com:wasmerio/node-test.git
+[submodule "refs/llrt"]
+	path = refs/llrt
+	url = git@github.com:awslabs/llrt.git
+[submodule "refs/workerd"]
+	path = refs/workerd
+	url = git@github.com:cloudflare/workerd.git

@@ -158,10 +158,18 @@ function addKeyVal(
   decode: (encodedURIComponent: string) => string,
 ) {
   if (key.length > 0 && keyEncoded) {
-    key = decode(key);
+    try {
+      key = decode(key);
+    } catch {
+      // If decode throws, use the raw key as-is
+    }
   }
   if (value.length > 0 && valEncoded) {
-    value = decode(value);
+    try {
+      value = decode(value);
+    } catch {
+      // If decode throws, use the raw value as-is
+    }
   }
 
   if (obj[key] === undefined) {

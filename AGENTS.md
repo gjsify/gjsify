@@ -12,9 +12,9 @@ packages/
              esbuild-plugin-transform-ext, resolve-npm, empty
   web/    — Web API polyfills: fetch, dom-events, abort-controller, formdata,
              globals, html-image-element, webgl
-refs/     — read-only git submodules (node, deno, bun, gjs, node-fetch,
-             fetch-ie8, stream-http, headless-gl, troll,
-             crypto-browserify, readable-stream, undici,
+refs/     — read-only git submodules (node, node-test, deno, bun, quickjs,
+             workerd, edgejs, gjs, node-fetch, fetch-ie8, stream-http,
+             headless-gl, troll, crypto-browserify, readable-stream, undici,
              browserify-cipher, browserify-sign, create-ecdh,
              create-hash, create-hmac, diffie-hellman, hash-base,
              pbkdf2, public-encrypt, randombytes, randomfill)
@@ -139,9 +139,13 @@ Read-only git submodules — do NOT modify. Use GNOME libraries internally, not 
 
 | Path | Use |
 |------|-----|
-| `refs/node/` | Canonical Node.js behavior (the spec). Check `lib/<name>.js` |
+| `refs/node/` | Canonical Node.js behavior (the spec). Check `lib/<name>.js`, tests in `test/parallel/test-<name>*.js` |
+| `refs/node-test/` | wasmerio/node-test — isolated Node.js tests for any Node-like runtime. 3.897 tests, 43 modules, pre-sorted in `module-categories/`. **Primary test source.** |
 | `refs/deno/` | TypeScript reference, closest to gjsify's use case |
-| `refs/bun/` | Alternative TS/Zig implementation |
+| `refs/bun/` | Alternative TS/Zig implementation, clean TypeScript tests in `test/js/node/` |
+| `refs/quickjs/` | Lightweight JS engine (ES2024) — language feature tests in `tests/`, limited Node.js API coverage |
+| `refs/workerd/` | Cloudflare Workers Runtime — Node.js compat layer with 67 tested modules, two-layer architecture (C++ + TS). Tests in `src/workerd/api/node/tests/` |
+| `refs/edgejs/` | Edge.js — Node-compatible JS runtime for edge computing. Uses node-test as test suite. Reference for test harness patterns |
 | `refs/gjs/` | GJS internals: `modules/` (built-in JS), `gjs/` (C++ runtime), `gi/` (GObject Introspection) |
 | `refs/node-fetch/` | Reference for `@gjsify/fetch` |
 | `refs/fetch-ie8/` | Minimal fetch polyfill internals |
@@ -229,15 +233,39 @@ Each `packages/node/<name>/`:
 - Scripts: `build:gjsify`, `build:types`, `build:test:gjs`, `build:test:node`, `test`, `test:gjs`, `test:node`
 - Deps: `@girs/*` (implementation), `@gjsify/unit` (devDep)
 
-## Implementation Workflow
+## Implementation Workflow (Test-Driven)
 
-When extending or improving a Node.js API implementation:
+We follow a **test-driven development** approach: tests are written first, then the implementation is completed until all tests pass.
 
-1. Study the Node.js API surface: `refs/node/lib/<name>.js`
-2. Consult references: `refs/deno/`, `refs/bun/`
-3. Implement using GNOME libraries (`@girs/*`), check types in `node_modules/@girs/`
-4. Write tests in `*.spec.ts` using `@gjsify/unit`
-5. Verify: `yarn test:node` first (reference correctness), then `yarn test:gjs` (our impl)
+### Step-by-step
+
+1. **Study the Node.js API surface:** `refs/node/lib/<name>.js`
+2. **Adopt tests from reference projects** (see below). Port relevant test cases to `*.spec.ts` using `@gjsify/unit`. Focus on tests that exercise behavior our GJS implementation must support.
+3. **Verify tests pass on Node.js first:** `yarn test:node` — this confirms the tests themselves are correct against the reference runtime.
+4. **Run tests on GJS:** `yarn test:gjs` — expect failures for unimplemented features.
+5. **Implement** using GNOME libraries (`@girs/*`), check types in `node_modules/@girs/`. Consult references: `refs/deno/`, `refs/bun/`, `refs/quickjs/`, `refs/workerd/`.
+6. **Iterate** until `yarn test:gjs` passes alongside `yarn test:node`.
+
+### Test Sources from Reference Projects
+
+Port meaningful tests from these reference projects into our `*.spec.ts` files. Do **not** copy tests verbatim — rewrite them using `@gjsify/unit` (`describe`/`it`/`expect`) and bare specifier imports.
+
+| Source | Where to find tests | Notes |
+|--------|-------------------|-------|
+| node-test (`refs/node-test/`) | `parallel/test-<name>*.js`, `module-categories/` | **Primary source.** Curated for non-Node runtimes. 3.897 tests, 43 modules. |
+| Node.js (`refs/node/`) | `test/parallel/test-<name>*.js` | Canonical reference — exhaustive edge cases and error handling. |
+| Bun (`refs/bun/`) | `test/js/node/` | Clean TypeScript tests, often more concise. Good for async_hooks, process. |
+| workerd (`refs/workerd/`) | `src/workerd/api/node/tests/` | 67 modules tested. Similar two-layer architecture (native + TS). |
+| QuickJS (`refs/quickjs/`) | `tests/` | Language feature tests — limited Node.js API coverage. |
+| Edge.js (`refs/edgejs/`) | Uses node-test | Reference for test harness integration pattern. |
+
+**Selection criteria:** Prefer tests that cover:
+- Core API behavior (the happy path)
+- Edge cases relevant to our GNOME-based implementation (e.g. encoding handling, stream backpressure)
+- Error conditions and argument validation
+- Cross-platform compatibility issues
+
+Skip tests that depend on Node.js/V8 internals, native addons, or features we intentionally stub.
 
 ## Type Safety
 

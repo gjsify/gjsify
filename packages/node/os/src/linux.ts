@@ -44,14 +44,14 @@ export const cpus = () => {
   const NAME = /^model[\s_]+name\s*:([^\r\n]+)/i;
   const FREQ = /^cpu[\s_]+MHz\s*:\s*(\d+)/i;
   const cpus = [];
-  let cpu: { model: string, speed: number, times: {} };
+  let cpu: { model: string, speed: number, times: { user: number, nice: number, sys: number, idle: number, irq: number } };
   cli('cat /proc/cpuinfo').split(EOL).forEach(line => {
     switch (true) {
       case PROCESSOR.test(line):
         cpus[RegExp.$1.trim()] = (cpu = {
           model: '',
           speed: 0,
-          get times() { return {}; }
+          times: { user: 0, nice: 0, sys: 0, idle: 0, irq: 0 },
         });
         break;
       case NAME.test(line):
@@ -97,9 +97,8 @@ export const totalmem = () => {
   return parseFloat(mem[1].split(/\s+/)[I + 1]);
 };
 
-// PORTED TO deno runtime
-export const uptime = () => (
-  Date.now() -
-  Date.parse(cli('uptime -s').replace(' ', 'T'))
-) / 1000;
+export const uptime = () => {
+  const content = cli('cat /proc/uptime').trim();
+  return parseFloat(content.split(' ')[0]) || 0;
+};
 
