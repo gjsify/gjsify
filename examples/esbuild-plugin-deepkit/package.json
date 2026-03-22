@@ -7,7 +7,6 @@
   "type": "module",
   "scripts": {
     "clear": "rm -rf dist",
-    "print:name": "echo '@gjsify/example-esbuild-plugin-deepkit'",
     "start": "node dist/index.js",
     "build": "node esbuild.mjs"
   },

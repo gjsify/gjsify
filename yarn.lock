@@ -697,6 +697,73 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-node-buffer@workspace:examples/node-buffer":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-buffer@workspace:examples/node-buffer"
+  dependencies:
+    "@gjsify/buffer": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-events@workspace:examples/node-events":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-events@workspace:examples/node-events"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-fs@workspace:examples/node-fs":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-fs@workspace:examples/node-fs"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/fs": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/path": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-os@workspace:examples/node-os":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-os@workspace:examples/node-os"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/os": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-path@workspace:examples/node-path":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-path@workspace:examples/node-path"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/path": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-url@workspace:examples/node-url":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-url@workspace:examples/node-url"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/url": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-webgl-demo-fade@workspace:examples/webgl-demo-fade":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-webgl-demo-fade@workspace:examples/webgl-demo-fade"
@@ -850,7 +917,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/fs@workspace:packages/node/fs":
+"@gjsify/fs@workspace:^, @gjsify/fs@workspace:packages/node/fs":
   version: 0.0.0-use.local
   resolution: "@gjsify/fs@workspace:packages/node/fs"
   dependencies:
@@ -917,7 +984,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/os@workspace:packages/node/os":
+"@gjsify/os@workspace:^, @gjsify/os@workspace:packages/node/os":
   version: 0.0.0-use.local
   resolution: "@gjsify/os@workspace:packages/node/os"
   dependencies:
@@ -927,7 +994,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/path@workspace:packages/node/path":
+"@gjsify/path@workspace:^, @gjsify/path@workspace:packages/node/path":
   version: 0.0.0-use.local
   resolution: "@gjsify/path@workspace:packages/node/path"
   dependencies:

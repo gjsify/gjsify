@@ -1,5 +1,5 @@
 {
-  "name": "@gjsify/example-deepkit-types",
+  "name": "@gjsify/example-node-path",
   "private": true,
   "version": "0.0.4",
   "description": "",
@@ -20,12 +20,12 @@
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
+  "dependencies": {
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/path": "workspace:^"
+  },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.5.0"
-  },
-  "dependencies": {
-    "@deepkit/core": "^1.0.1-alpha.108",
-    "@deepkit/type": "^1.0.1-alpha.108"
   }
 }
