@@ -32,9 +32,12 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         // firefox128 // Since GJS 1.86.0
         target: [ "firefox128" ],
         platform: 'neutral',
-        mainFields: format === 'esm' ? ['module', 'main'] : ['main', 'module'],
+        // 'browser' field is needed so packages like create-hash, create-hmac, randombytes
+        // use their pure-JS browser entry instead of index.js (which does require('crypto')
+        // and causes circular dependencies via the crypto → @gjsify/crypto alias).
+        mainFields: format === 'esm' ? ['browser', 'module', 'main'] : ['browser', 'main', 'module'],
         // https://esbuild.github.io/api/#conditions
-        conditions: format === 'esm' ? ['import', 'require'] : ['require', 'import'],
+        conditions: format === 'esm' ? ['browser', 'import', 'require'] : ['browser', 'require', 'import'],
         external,
         loader: {
             '.ts': 'ts',
@@ -50,6 +53,9 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         define: {
             global: 'globalThis',
             window: 'globalThis',
+            // Make readable-stream delegate to @gjsify/stream instead of using
+            // its own implementation (avoids 'process is not defined' at load time)
+            'process.env.READABLE_STREAM': '"disable"',
         },
     };
 

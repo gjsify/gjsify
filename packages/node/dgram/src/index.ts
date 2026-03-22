@@ -50,16 +50,10 @@ export class Socket extends EventEmitter {
     const family = this.type === 'udp6' ? Gio.SocketFamily.IPV6 : Gio.SocketFamily.IPV4;
 
     try {
-      this._socket = new Gio.Socket({
-        family,
-        type: Gio.SocketType.DATAGRAM,
-        protocol: Gio.SocketProtocol.UDP,
-      });
-
-      if (this._reuseAddr) {
-        // Gio.Socket doesn't expose SO_REUSEADDR directly, but it's set by default
-      }
+      this._socket = Gio.Socket.new(family, Gio.SocketType.DATAGRAM, Gio.SocketProtocol.UDP);
+      this._socket.set_blocking(false);
     } catch (err) {
+      this._socket = null;
       // Defer error emission
       setTimeout(() => this.emit('error', err), 0);
     }
@@ -146,24 +140,29 @@ export class Socket extends EventEmitter {
       buf = this._toBuffer(msg);
       destPort = this._address.port;
       destAddress = this._address.address;
-    } else if (typeof length === 'undefined' || typeof port === 'undefined') {
-      // send(msg, port, address, callback) — offset is port, length is address
-      destPort = offset as number;
-      destAddress = (length as unknown as string) || (this.type === 'udp6' ? '::1' : '127.0.0.1');
+    } else if (typeof offset === 'number' && typeof length === 'string') {
+      // send(msg, port, address, callback) — offset=port, length=address, port=callback
+      destPort = offset;
+      destAddress = length;
       cb = port as unknown as ((err: Error | null, bytes: number) => void) | undefined;
       buf = this._toBuffer(msg);
-    } else if (typeof address === 'function') {
+    } else if (typeof offset === 'number' && typeof length === 'number' && typeof address === 'function') {
       // send(msg, offset, length, port, callback)
       cb = address;
-      destPort = port;
+      destPort = port!;
       destAddress = this.type === 'udp6' ? '::1' : '127.0.0.1';
-      buf = this._toBufferSlice(msg, offset as number, length);
-    } else {
+      buf = this._toBufferSlice(msg, offset, length);
+    } else if (typeof offset === 'number' && typeof length === 'number') {
       // send(msg, offset, length, port, address, callback)
-      destPort = port;
+      destPort = port!;
       destAddress = (address as string) || (this.type === 'udp6' ? '::1' : '127.0.0.1');
       cb = callback;
-      buf = this._toBufferSlice(msg, offset as number, length);
+      buf = this._toBufferSlice(msg, offset, length);
+    } else {
+      // send(msg, port) or similar — best effort
+      destPort = Number(offset) || 0;
+      destAddress = this.type === 'udp6' ? '::1' : '127.0.0.1';
+      buf = this._toBuffer(msg);
     }
 
     try {
@@ -353,10 +352,12 @@ export class Socket extends EventEmitter {
       }
 
       const buf = new Uint8Array(65536);
-      const [bytesRead, srcAddr] = (this._socket as any).receive_from(buf, this._cancellable) as [number, Gio.SocketAddress];
+      const result = (this._socket as any).receive_from(buf, this._cancellable);
+      const bytesRead = Array.isArray(result) ? result[0] : result;
+      const srcAddr = Array.isArray(result) ? result[1] : null;
 
-      if (bytesRead > 0) {
-        const data = Buffer.from(buf.buffer, 0, bytesRead);
+      if (bytesRead > 0 && srcAddr) {
+        const data = Buffer.from(buf.subarray(0, bytesRead));
         const inetSockAddr = srcAddr as Gio.InetSocketAddress;
         const rinfo: AddressInfo = {
           address: inetSockAddr.get_address().to_string(),

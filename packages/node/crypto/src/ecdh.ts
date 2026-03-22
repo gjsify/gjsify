@@ -1,28 +1,14 @@
-// ECDH (Elliptic Curve Diffie-Hellman) wrapper around create-ecdh (pure-JS)
-// Reference: Node.js lib/internal/crypto/diffiehellman.js
-//
-// Uses lazy loading to avoid circular dependency.
+// ECDH — stub pending native TypeScript reimplementation
+// TODO: Reimplement ECDH using refs/create-ecdh as reference
 
-let _ecdhMod: any = null;
-
-function getEcdhModule() {
-  if (!_ecdhMod) {
-    // @ts-ignore — create-ecdh has no types
-    _ecdhMod = require('create-ecdh/browser');
-  }
-  return _ecdhMod;
+function notImplemented(name: string): never {
+  throw new Error(`crypto.${name}() is not yet implemented for GJS. See refs/create-ecdh/ for reference.`);
 }
 
-/**
- * Creates an Elliptic Curve Diffie-Hellman key exchange object.
- */
-export function createECDH(curveName: string): any {
-  return getEcdhModule()(curveName);
+export function createECDH(_curveName: string): any {
+  notImplemented('createECDH');
 }
 
-/**
- * Returns the list of supported EC curve names.
- */
 export function getCurves(): string[] {
   return [
     'secp256k1', 'secp224r1', 'secp192k1', 'secp192r1',

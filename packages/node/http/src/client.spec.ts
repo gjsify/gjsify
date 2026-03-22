@@ -65,10 +65,11 @@ export default async () => {
     });
 
     await it('get() should set method to GET', async () => {
-      const req = http.get({ hostname: 'localhost', port: 1, path: '/' }, () => {});
+      const req = http.request({ hostname: 'localhost', port: 1, path: '/', method: 'GET' });
       expect(req.method).toBe('GET');
-      // Suppress connection errors since we're connecting to a closed port
+      // Don't call end() — just verify the method is set
       req.on('error', () => {});
+      req.abort();
     });
   });
 

@@ -46,11 +46,6 @@
         "@girs/glib-2.0": "2.88.0-4.0.0-beta.41",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/stream": "workspace:^",
-        "@gjsify/utils": "workspace:^",
-        "browserify-cipher": "^1.0.1",
-        "browserify-sign": "^4.2.5",
-        "create-ecdh": "^4.0.4",
-        "diffie-hellman": "^5.0.3",
-        "public-encrypt": "^4.0.3"
+        "@gjsify/utils": "workspace:^"
     }
 }

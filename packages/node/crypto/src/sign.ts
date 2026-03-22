@@ -1,28 +1,14 @@
-// Sign/Verify wrappers around browserify-sign (pure-JS RSA/ECDSA)
-// Reference: Node.js lib/internal/crypto/sig.js
-//
-// Uses lazy loading to avoid circular dependency.
+// Sign/Verify — stub pending native TypeScript reimplementation
+// TODO: Reimplement RSA/ECDSA signing using refs/browserify-sign as reference
 
-let _signMod: any = null;
-
-function getSignModule() {
-  if (!_signMod) {
-    // @ts-ignore — browserify-sign has no types
-    _signMod = require('browserify-sign/browser');
-  }
-  return _signMod;
+function notImplemented(name: string): never {
+  throw new Error(`crypto.${name}() is not yet implemented for GJS. See refs/browserify-sign/ for reference.`);
 }
 
-/**
- * Creates and returns a Sign object using the given algorithm.
- */
-export function createSign(algorithm: string): any {
-  return getSignModule().createSign(algorithm);
+export function createSign(_algorithm: string): any {
+  notImplemented('createSign');
 }
 
-/**
- * Creates and returns a Verify object using the given algorithm.
- */
-export function createVerify(algorithm: string): any {
-  return getSignModule().createVerify(algorithm);
+export function createVerify(_algorithm: string): any {
+  notImplemented('createVerify');
 }

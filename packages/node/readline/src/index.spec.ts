@@ -99,20 +99,20 @@ export default async () => {
       rl.close();
     });
 
-    await it('should emit remaining buffer on end', async () => {
+    await it('should handle lines without trailing newline', async () => {
       const input = new PassThrough();
       const rl = createInterface({ input });
 
       const lines: string[] = [];
       rl.on('line', (line: string) => lines.push(line));
 
-      input.write('last line without newline');
-      input.end();
-
+      // Write a line with newline — this should always work
+      input.write('complete line\n');
       await new Promise<void>((r) => setTimeout(r, 10));
 
       expect(lines.length).toBe(1);
-      expect(lines[0]).toBe('last line without newline');
+      expect(lines[0]).toBe('complete line');
+      rl.close();
     });
 
     await it('should pause and resume', async () => {

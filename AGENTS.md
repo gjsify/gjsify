@@ -101,7 +101,7 @@ yarn check                # Type-check all packages (tsc --noEmit)
 
 Per-package:
 ```bash
-yarn build:gjsify         # Build library (ESM + CJS → lib/)
+yarn build:gjsify         # Build library (ESM → lib/)
 yarn build:types          # Generate .d.ts
 yarn build:test:gjs       # gjsify build src/test.mts --app gjs --outfile test.gjs.mjs
 yarn build:test:node      # gjsify build src/test.mts --app node --outfile test.node.mjs
@@ -180,7 +180,13 @@ Some Node.js core modules are published as standalone npm packages (pure JS, bro
 |-------------|-------------------|
 | `undici` (v7) | HTTP client — uses net, tls, crypto internally. Useful after Phase 2 networking is done |
 
-**Decision guideline:** Prefer official npm packages when available and their dependency chains resolve through our bundler aliases. Reimplement only when GJS-specific optimizations (GLib, Gio) provide significant benefit over the pure-JS version, or when the npm package depends on APIs we haven't implemented yet.
+**Decision guideline:** Prefer reimplementing in TypeScript over depending on npm packages. Third-party npm packages cause problems in GJS because:
+1. They use legacy patterns (`Transform.call(this)`, `inherits()`) incompatible with ES6 classes in SpiderMonkey
+2. They reference globals like `Buffer` or `process` that aren't available at module load time in GJS
+3. Circular dependencies arise when the bundler aliases `crypto`/`stream`/`buffer` back to our implementations
+4. The `"browser"` field in package.json may not be respected by the bundler depending on `mainFields` config
+
+Use npm packages only as **references** (read the source, understand the algorithm, rewrite in TypeScript). Use `refs/` submodules for the same purpose. The resulting TypeScript implementation should use our own modules (`@gjsify/stream`, `@gjsify/buffer`, etc.) directly via imports, not through bundler aliases.
 
 ## Native Extensions (Vala)
 
@@ -219,7 +225,7 @@ Matchers: `toBe`, `toEqual`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeDefined
 
 Each `packages/node/<name>/`:
 - `package.json`: `@gjsify/<name>`, v0.0.4, `"type": "module"`
-- Exports: `./lib/esm/index.js` (import), `./lib/cjs/index.js` (require)
+- Exports: `./lib/esm/index.js` (import) — ESM-only, kein CJS
 - Scripts: `build:gjsify`, `build:types`, `build:test:gjs`, `build:test:node`, `test`, `test:gjs`, `test:node`
 - Deps: `@girs/*` (implementation), `@gjsify/unit` (devDep)
 
@@ -245,7 +251,7 @@ When extending or improving a Node.js API implementation:
 ## Constraints
 
 - Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128`
-- ESM-first, also emit CJS
+- ESM-only — kein CJS-Support, alle Pakete sind ausschließlich ESM
 - No Deno APIs — GNOME libs + standard JS only
 - Tests must pass on both Node.js and GJS from same source
 - Do not modify `refs/` — read-only submodules

@@ -1,52 +1,36 @@
-// Cipher/Decipher wrappers around browserify-cipher (pure-JS AES/DES)
-// Reference: Node.js lib/internal/crypto/cipher.js
-//
-// Uses lazy loading to avoid circular dependency:
-// browserify-cipher -> create-hash -> crypto.createHash -> this module
+// Cipher/Decipher — stub pending native TypeScript reimplementation
+// The browserify-cipher npm package cannot be used in GJS because:
+// - Its dependencies use Transform.call(this) incompatible with ES6 classes
+// - It depends on global Buffer and process not available in GJS at load time
+// TODO: Reimplement AES/DES in TypeScript using refs/browserify-cipher as reference
 
-let _cipherMod: any = null;
+import { Buffer } from 'buffer';
 
-function getCipherModule() {
-  if (!_cipherMod) {
-    // @ts-ignore — browserify-cipher has no types
-    _cipherMod = require('browserify-cipher/browser');
-  }
-  return _cipherMod;
+function notImplemented(name: string): never {
+  throw new Error(`crypto.${name}() is not yet implemented for GJS. See refs/browserify-cipher/ for reference.`);
 }
 
-/**
- * Creates and returns a Cipher object using the given algorithm and password.
- * @deprecated Use createCipheriv() instead.
- */
-export function createCipher(algorithm: string, password: string | Buffer | Uint8Array): any {
-  return getCipherModule().createCipher(algorithm, password);
+export function createCipher(_algorithm: string, _password: string | Buffer | Uint8Array): any {
+  notImplemented('createCipher');
 }
 
-/**
- * Creates and returns a Cipher object with the given algorithm, key, and IV.
- */
-export function createCipheriv(algorithm: string, key: string | Buffer | Uint8Array, iv: string | Buffer | Uint8Array | null): any {
-  return getCipherModule().createCipheriv(algorithm, key, iv);
+export function createCipheriv(_algorithm: string, _key: string | Buffer | Uint8Array, _iv: string | Buffer | Uint8Array | null): any {
+  notImplemented('createCipheriv');
 }
 
-/**
- * Creates and returns a Decipher object using the given algorithm and password.
- * @deprecated Use createDecipheriv() instead.
- */
-export function createDecipher(algorithm: string, password: string | Buffer | Uint8Array): any {
-  return getCipherModule().createDecipher(algorithm, password);
+export function createDecipher(_algorithm: string, _password: string | Buffer | Uint8Array): any {
+  notImplemented('createDecipher');
 }
 
-/**
- * Creates and returns a Decipher object with the given algorithm, key, and IV.
- */
-export function createDecipheriv(algorithm: string, key: string | Buffer | Uint8Array, iv: string | Buffer | Uint8Array | null): any {
-  return getCipherModule().createDecipheriv(algorithm, key, iv);
+export function createDecipheriv(_algorithm: string, _key: string | Buffer | Uint8Array, _iv: string | Buffer | Uint8Array | null): any {
+  notImplemented('createDecipheriv');
 }
 
-/**
- * Returns an array of the names of the supported cipher algorithms.
- */
 export function getCiphers(): string[] {
-  return getCipherModule().getCiphers();
+  return [
+    'aes-128-cbc', 'aes-128-ecb', 'aes-192-cbc', 'aes-192-ecb',
+    'aes-256-cbc', 'aes-256-ecb', 'aes-128-ctr', 'aes-192-ctr', 'aes-256-ctr',
+    'aes-128-cfb', 'aes-192-cfb', 'aes-256-cfb',
+    'des-cbc', 'des-ecb', 'des-ede3-cbc', 'des-ede3',
+  ];
 }
