@@ -72,9 +72,11 @@ export function get(options: any, callback?: (res: IncomingMessage) => void): an
 /** Max header size in bytes. */
 export const maxHeaderSize = 16384;
 
+import { STATUS_CODES as _STATUS_CODES, METHODS as _METHODS } from './constants.js';
+
 export default {
-  STATUS_CODES: undefined as any, // Will be set below
-  METHODS: undefined as any,
+  STATUS_CODES: _STATUS_CODES,
+  METHODS: _METHODS,
   Server,
   IncomingMessage,
   ServerResponse,
@@ -87,8 +89,3 @@ export default {
   validateHeaderValue,
   maxHeaderSize,
 };
-
-// Lazy import to avoid circular
-import { STATUS_CODES, METHODS } from './constants.js';
-(exports.default as any).STATUS_CODES = STATUS_CODES;
-(exports.default as any).METHODS = METHODS;

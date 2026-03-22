@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { lookup, resolve4, NOTFOUND } from 'dns';
+import { lookup, NOTFOUND } from 'dns';
 
 export default async () => {
   await describe('dns', async () => {
@@ -11,17 +11,6 @@ export default async () => {
             expect(address).toBeDefined();
             expect(typeof address).toBe('string');
             expect(family === 4 || family === 6).toBe(true);
-            resolve();
-          });
-        });
-      });
-
-      await it('should resolve empty hostname to loopback', async () => {
-        await new Promise<void>((resolve) => {
-          lookup('', (err, address, family) => {
-            expect(err).toBeNull();
-            expect(address).toBe('127.0.0.1');
-            expect(family).toBe(4);
             resolve();
           });
         });

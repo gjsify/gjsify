@@ -5,6 +5,7 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { createNodeError } from '@gjsify/utils';
+import { isIP } from 'net';
 
 // Error codes
 export const NODATA = 'ENODATA';
@@ -91,7 +92,6 @@ export function lookup(hostname: string, ...args: any[]): void {
   }
 
   // Handle IP addresses directly (no DNS needed)
-  const { isIP } = require('net') as { isIP: (input: string) => 0 | 4 | 6 };
   const ipVersion = isIP(hostname);
   if (ipVersion) {
     callback(null, hostname, ipVersion);

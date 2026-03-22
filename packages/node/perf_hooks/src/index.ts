@@ -2,8 +2,34 @@
 // Wraps the Web Performance API available in SpiderMonkey 128
 // Reference: Node.js lib/perf_hooks.js
 
-// Re-export the global Performance object
-const performance = globalThis.performance;
+// Re-export the global Performance object, with GLib fallback for GJS
+let performance: Performance;
+if (globalThis.performance) {
+  performance = globalThis.performance;
+} else {
+  // GJS may not have globalThis.performance; create a minimal shim using GLib
+  let _startTime: number;
+  try {
+    const GLib = imports.gi.GLib;
+    _startTime = GLib.get_monotonic_time();
+    performance = {
+      now() { return (GLib.get_monotonic_time() - _startTime) / 1000; },
+      mark() {},
+      measure() {},
+      getEntries() { return []; },
+      getEntriesByName() { return []; },
+      getEntriesByType() { return []; },
+      clearMarks() {},
+      clearMeasures() {},
+      clearResourceTimings() {},
+      setResourceTimingBufferSize() {},
+      toJSON() { return {}; },
+    } as unknown as Performance;
+  } catch {
+    const _start = Date.now();
+    performance = { now: () => Date.now() - _start } as unknown as Performance;
+  }
+}
 
 // Re-export Web Performance API classes if available
 const PerformanceObserver = (globalThis as any).PerformanceObserver;

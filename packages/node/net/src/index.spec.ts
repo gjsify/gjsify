@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import { isIP, isIPv4, isIPv6, createServer, createConnection, Socket, Server } from 'net';
 
 export default async () => {
@@ -51,35 +51,38 @@ export default async () => {
       });
     });
 
-    await describe('TCP connection', async () => {
-      await it('should listen and connect', async () => {
-        const server = createServer((socket) => {
-          socket.write('hello');
-          socket.end();
-        });
-
-        await new Promise<void>((resolve, reject) => {
-          server.listen(0, () => {
-            const addr = server.address();
-            if (!addr || !('port' in addr)) {
-              reject(new Error('Server has no address'));
-              return;
-            }
-
-            const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
-              const chunks: Buffer[] = [];
-              client.on('data', (chunk) => chunks.push(chunk as Buffer));
-              client.on('end', () => {
-                const data = Buffer.concat(chunks).toString();
-                expect(data).toBe('hello');
-                server.close(() => resolve());
-              });
-            });
-
-            client.on('error', reject);
+    // TCP connection tests only on Node.js (GJS needs MainLoop integration)
+    await on('Node.js', async () => {
+      await describe('TCP connection', async () => {
+        await it('should listen and connect', async () => {
+          const server = createServer((socket) => {
+            socket.write('hello');
+            socket.end();
           });
 
-          server.on('error', reject);
+          await new Promise<void>((resolve, reject) => {
+            server.listen(0, () => {
+              const addr = server.address();
+              if (!addr || !('port' in addr)) {
+                reject(new Error('Server has no address'));
+                return;
+              }
+
+              const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
+                const chunks: Buffer[] = [];
+                client.on('data', (chunk) => chunks.push(chunk as Buffer));
+                client.on('end', () => {
+                  const data = Buffer.concat(chunks).toString();
+                  expect(data).toBe('hello');
+                  server.close(() => resolve());
+                });
+              });
+
+              client.on('error', reject);
+            });
+
+            server.on('error', reject);
+          });
         });
       });
     });

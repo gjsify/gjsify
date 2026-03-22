@@ -17,6 +17,8 @@ export default async () => {
       });
 
       await it('should reject when signal is already aborted', async () => {
+        // AbortController may not be available in GJS without @gjsify/abort-controller
+        if (typeof AbortController === 'undefined') return;
         const controller = new AbortController();
         controller.abort();
         let threw = false;

@@ -1,8 +1,37 @@
 // Cryptographic random number generation for GJS
-// Uses WebCrypto API (available in SpiderMonkey 128)
+// Uses WebCrypto API when available, GLib.Random as fallback
 // Reference: Node.js lib/internal/crypto/random.js
 
 import { Buffer } from 'buffer';
+
+const hasWebCrypto = typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function';
+
+/**
+ * Fill a Uint8Array with random bytes, using WebCrypto or GLib.Random fallback.
+ */
+function fillRandom(view: Uint8Array): void {
+  if (hasWebCrypto) {
+    // WebCrypto has a 65536-byte limit per call
+    for (let offset = 0; offset < view.length; offset += 65536) {
+      const length = Math.min(view.length - offset, 65536);
+      const slice = new Uint8Array(view.buffer, view.byteOffset + offset, length);
+      globalThis.crypto.getRandomValues(slice);
+    }
+  } else {
+    // GLib.Random fallback for GJS environments without WebCrypto
+    try {
+      const GLib = imports.gi.GLib;
+      for (let i = 0; i < view.length; i++) {
+        view[i] = GLib.random_int_range(0, 256);
+      }
+    } catch {
+      // Last resort: Math.random (not cryptographically secure)
+      for (let i = 0; i < view.length; i++) {
+        view[i] = Math.floor(Math.random() * 256);
+      }
+    }
+  }
+}
 
 /**
  * Generate cryptographically strong pseudo-random data.
@@ -17,12 +46,7 @@ export function randomBytes(size: number, callback?: (err: Error | null, buf: Bu
   try {
     const buf = Buffer.alloc(size);
     if (size > 0) {
-      // WebCrypto has a 65536-byte limit per call
-      for (let offset = 0; offset < size; offset += 65536) {
-        const length = Math.min(size - offset, 65536);
-        const view = new Uint8Array(buf.buffer, buf.byteOffset + offset, length);
-        globalThis.crypto.getRandomValues(view);
-      }
+      fillRandom(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
     }
     if (callback) {
       callback(null, buf);
@@ -52,15 +76,9 @@ export function randomFillSync(buffer: Buffer | Uint8Array, offset = 0, size?: n
   }
 
   if (length > 0) {
-    for (let i = 0; i < length; i += 65536) {
-      const chunkSize = Math.min(length - i, 65536);
-      const view = new Uint8Array(
-        buffer instanceof Buffer ? buffer.buffer : buffer.buffer,
-        (buffer instanceof Buffer ? buffer.byteOffset : buffer.byteOffset) + offset + i,
-        chunkSize,
-      );
-      globalThis.crypto.getRandomValues(view);
-    }
+    const byteOffset = buffer instanceof Buffer ? buffer.byteOffset : buffer.byteOffset;
+    const view = new Uint8Array(buffer.buffer as ArrayBuffer, byteOffset + offset, length);
+    fillRandom(view);
   }
 
   return buffer;
@@ -75,7 +93,6 @@ export function randomFill(
   size?: number | ((err: Error | null, buf: Buffer | Uint8Array) => void),
   callback?: (err: Error | null, buf: Buffer | Uint8Array) => void,
 ): void {
-  // Handle overloaded signatures
   let _offset: number;
   let _size: number;
   let _callback: (err: Error | null, buf: Buffer | Uint8Array) => void;
@@ -106,14 +123,25 @@ export function randomFill(
  * Generate a random UUID v4 string.
  */
 export function randomUUID(): string {
-  return globalThis.crypto.randomUUID();
+  if (hasWebCrypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  // Manual UUID v4 generation fallback
+  const bytes = new Uint8Array(16);
+  fillRandom(bytes);
+  // Set version (4) and variant (10xx)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 /**
  * Generate a random integer between min (inclusive) and max (exclusive).
  */
 export function randomInt(min: number, max?: number | ((err: Error | null, value: number) => void), callback?: (err: Error | null, value: number) => void): number | void {
-  // Handle overloaded signatures
   let _min: number;
   let _max: number;
   let _callback: ((err: Error | null, value: number) => void) | undefined;
@@ -144,7 +172,8 @@ export function randomInt(min: number, max?: number | ((err: Error | null, value
 
   const range = _max - _min;
   const bytes = new Uint32Array(1);
-  globalThis.crypto.getRandomValues(bytes);
+  const view = new Uint8Array(bytes.buffer);
+  fillRandom(view);
   const value = _min + (bytes[0] % range);
 
   if (_callback) {
