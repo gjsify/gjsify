@@ -979,6 +979,7 @@ __metadata:
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/process": "workspace:^"
+    "@gjsify/require": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
   languageName: unknown
@@ -1029,7 +1030,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/require@workspace:packages/node/require":
+"@gjsify/require@workspace:^, @gjsify/require@workspace:packages/node/require":
   version: 0.0.0-use.local
   resolution: "@gjsify/require@workspace:packages/node/require"
   dependencies:
