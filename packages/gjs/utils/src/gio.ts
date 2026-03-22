@@ -4,6 +4,29 @@ import GLib from '@girs/glib-2.0';
 const byteArray = imports.byteArray;
 
 /**
+ * Generic promise wrapper for Gio async/finish method pairs.
+ *
+ * Example:
+ *   const stream = await gioAsync<Gio.InputStream>(session, 'send_async', 'send_finish', msg, priority, null);
+ */
+export function gioAsync<T>(
+    obj: any,
+    asyncMethod: string,
+    finishMethod: string,
+    ...args: any[]
+): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        obj[asyncMethod](...args, (_self: any, asyncRes: Gio.AsyncResult) => {
+            try {
+                resolve(obj[finishMethod](asyncRes));
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
+/**
  * Promise wrapper around `Gio.InputStream.read_bytes_async` / `read_bytes_finish`.
  * Returns a `Uint8Array` or `null` if the end of the stream is reached.
  */

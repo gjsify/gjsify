@@ -25,3 +25,9 @@
 [submodule "refs/headless-gl"]
 	path = refs/headless-gl
 	url = git@github.com:stackgl/headless-gl.git
+[submodule "refs/crypto-browserify"]
+	path = refs/crypto-browserify
+	url = https://github.com/browserify/crypto-browserify.git
+[submodule "refs/readable-stream"]
+	path = refs/readable-stream
+	url = https://github.com/nodejs/readable-stream.git

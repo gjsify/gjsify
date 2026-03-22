@@ -6,14 +6,15 @@ Node.js API implementation for GJS (GNOME JavaScript). Monorepo (`Yarn workspace
 
 ```
 packages/
-  node/   — 19 Node.js API polyfills (see table below)
+  node/   — 23 Node.js API polyfills (see table below)
   gjs/    — GJS modules: unit (test framework), utils, types
   infra/  — cli, esbuild-plugin-gjsify, esbuild-plugin-alias, esbuild-plugin-deepkit,
              esbuild-plugin-transform-ext, resolve-npm, empty
   web/    — Web API polyfills: fetch, dom-events, abort-controller, formdata,
              globals, html-image-element, webgl
 refs/     — read-only git submodules (node, deno, bun, gjs, node-fetch,
-             fetch-ie8, stream-http, headless-gl, troll)
+             fetch-ie8, stream-http, headless-gl, troll,
+             crypto-browserify, readable-stream)
 ```
 
 ## Node.js Packages (`packages/node/*`)
@@ -25,6 +26,8 @@ Each is `@gjsify/<name>`. All have native GJS implementations — no Deno re-exp
 | assert | — | Full | AssertionError, deepEqual, throws, strict mode |
 | buffer | — | Full | Buffer via global Blob/File/atob/btoa |
 | console | — | Full | Console class with stream support |
+| crypto | GLib | Partial | Hash (GLib.Checksum), Hmac (GLib.Hmac), randomBytes/UUID (WebCrypto) |
+| diagnostics_channel | — | Full | Channel, TracingChannel, subscribe/unsubscribe |
 | events | — | Full | EventEmitter, once, on, listenerCount |
 | fs | Gio | Full | sync, callback, promises, streams, FSWatcher |
 | globals | GLib | Partial | setImmediate polyfill, global setup |
@@ -32,11 +35,13 @@ Each is `@gjsify/<name>`. All have native GJS implementations — no Deno re-exp
 | net | Gio | Partial | isIP/isIPv4/isIPv6 via Gio.InetAddress |
 | os | GLib | Full | homedir, hostname, cpus, platform-specific (linux.ts, darwin.ts) |
 | path | — | Full | POSIX + Win32 path operations |
+| perf_hooks | — | Full | performance (Web API wrapper), monitorEventLoopDelay stub |
 | process | GLib | Full | Process extends EventEmitter, env, cwd, platform |
 | querystring | — | Full | parse/stringify |
 | require | Gio, GLib | Full | CommonJS require() for GJS |
 | stream | — | Full | Readable, Writable, Duplex, Transform, PassThrough |
 | string_decoder | — | Full | UTF-8, Base64, hex, streaming support |
+| timers | — | Full | setTimeout/setInterval/setImmediate + Timeout class + timers/promises |
 | tty | — | Partial | ReadStream/WriteStream stubs |
 | url | GLib | Full | URL, URLSearchParams via GLib.Uri |
 | util | — | Full | inspect, format, promisify, types |
@@ -125,6 +130,8 @@ Read-only git submodules — do NOT modify. Use GNOME libraries internally, not 
 | `refs/stream-http/` | HTTP via Node.js streams — reference for `@gjsify/http` |
 | `refs/headless-gl/` | Headless WebGL — reference for `packages/web/webgl/` |
 | `refs/troll/` | GJS utility patterns (Sonny Piers) |
+| `refs/crypto-browserify/` | Pure-JS crypto implementations — reference for `@gjsify/crypto` |
+| `refs/readable-stream/` | Maintained Node.js stream polyfill — reference for edge cases |
 
 ## Native Extensions (Vala)
 

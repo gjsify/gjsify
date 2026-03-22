@@ -78,9 +78,9 @@ export const ALIASES_NODE_FOR_GJS = {
     'cluster': '@gjsify/cluster', // TODO: refs/bun/src/js/node/cluster.ts, refs/deno/ext/node/polyfills/cluster.ts, refs/node/lib/cluster.js
     'console': '@gjsify/console',
     'constants': '@gjsify/constants', // TODO: refs/bun/src/js/node/constants.ts, refs/deno/ext/node/polyfills/constants.ts, refs/node/lib/constants.js
-    'crypto': '@gjsify/crypto', // TODO: refs/bun/src/js/node/crypto.ts, refs/deno/ext/node/polyfills/crypto.ts, refs/node/lib/crypto.js
+    'crypto': '@gjsify/crypto', // Core: Hash, Hmac, random (GLib.Checksum, WebCrypto). TODO: Cipher, Sign, KeyPair
     'dgram': '@gjsify/dgram', // TODO: refs/bun/src/js/node/dgram.ts, refs/deno/ext/node/polyfills/dgram.ts, refs/node/lib/dgram.js
-    'diagnostics_channel': '@gjsify/diagnostics_channel', // TODO: refs/bun/src/js/node/diagnostics_channel.ts, refs/deno/ext/node/polyfills/diagnostics_channel.js, refs/node/lib/diagnostics_channel.js
+    'diagnostics_channel': '@gjsify/diagnostics_channel',
     'dns': '@gjsify/dns', // TODO: refs/bun/src/js/node/dns.ts, refs/deno/ext/node/polyfills/dns.ts, refs/node/lib/dns.js
     'dns/promises': '@gjsify/dns/promises', // TODO: refs/bun/src/js/node/dns.promises.ts, refs/deno/ext/node/polyfills/dns.ts, refs/node/lib/dns.js
     'domain': '@gjsify/domain', // TODO: refs/bun/src/js/node/domain.ts, refs/deno/ext/node/polyfills/domain.ts, refs/node/lib/domain.js
@@ -100,7 +100,7 @@ export const ALIASES_NODE_FOR_GJS = {
     'path/posix': '@gjsify/path/posix',
     'path/separator': '@gjsify/path/separator', // TODO: refs/deno/ext/node/polyfills/path/separator.ts
     'path/win32': '@gjsify/path/win32',
-    'perf_hooks': '@gjsify/perf_hooks', // TODO: refs/bun/src/js/node/perf_hooks.ts, refs/deno/ext/node/polyfills/perf_hooks.js, refs/node/lib/perf_hooks.js
+    'perf_hooks': '@gjsify/perf_hooks',
     'process': '@gjsify/process',
     'punycode': '@gjsify/punycode', // TODO: refs/bun/src/js/node/punycode.ts, refs/deno/ext/node/polyfills/punycode.ts, refs/node/lib/punycode.js
     'querystring': '@gjsify/querystring',
@@ -114,8 +114,8 @@ export const ALIASES_NODE_FOR_GJS = {
     'string_decoder': '@gjsify/string_decoder',
     'sys': '@gjsify/sys', // TODO: refs/deno/ext/node/polyfills/sys.ts, refs/node/lib/sys.js
     // 'test': '@gjsify/test', // TODO: refs/bun/src/js/node/test.ts, refs/deno/ext/node/polyfills/testing.ts, refs/node/lib/test.js
-    'timers': '@gjsify/timers', // TODO: refs/bun/src/js/node/timers.ts, refs/deno/ext/node/polyfills/timers.ts, refs/node/lib/timers.js
-    'timers/promises': '@gjsify/timers/promises', // TODO: refs/bun/src/js/node/timers.promises.ts, refs/deno/ext/node/polyfills/timers/promises.ts, refs/node/lib/timers.js
+    'timers': '@gjsify/timers',
+    'timers/promises': '@gjsify/timers/promises',
     'tls': '@gjsify/tls', // TODO: refs/bun/src/js/node/tls.ts, refs/deno/ext/node/polyfills/tls.ts, refs/node/lib/tls.js
     'tty': '@gjsify/tty',
     'url': '@gjsify/url',

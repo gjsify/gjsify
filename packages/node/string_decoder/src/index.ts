@@ -1,21 +1,13 @@
 // Native string_decoder module for GJS — no Deno dependency
 // Handles incremental decoding of multi-byte character sequences across chunk boundaries.
 
+import { normalizeEncoding, checkEncoding } from '@gjsify/utils';
+
 type Encoding = 'utf8' | 'utf-8' | 'ascii' | 'latin1' | 'binary' | 'base64' | 'hex' | 'ucs2' | 'ucs-2' | 'utf16le' | 'utf-16le';
 
-function normalizeEncoding(enc?: string): string {
-  if (!enc) return 'utf8';
-  const lower = ('' + enc).toLowerCase().replace(/-/g, '');
-  switch (lower) {
-    case 'utf8': return 'utf8';
-    case 'ascii': return 'ascii';
-    case 'latin1': case 'binary': return 'latin1';
-    case 'base64': return 'base64';
-    case 'hex': return 'hex';
-    case 'ucs2': case 'utf16le': return 'utf16le';
-    default:
-      throw new TypeError(`Unknown encoding: ${enc}`);
-  }
+function normalizeAndValidateEncoding(enc?: string): string {
+  if (enc) checkEncoding(enc);
+  return normalizeEncoding(enc);
 }
 
 // Check if TextDecoder supports the stream option
@@ -49,7 +41,7 @@ export class StringDecoder {
   private _lastChar: Uint8Array;
 
   constructor(encoding?: string) {
-    this.encoding = normalizeEncoding(encoding);
+    this.encoding = normalizeAndValidateEncoding(encoding);
 
     if (this.encoding === 'utf8') {
       if (_textDecoderSupportsStream) {

@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/buffer",
+    "name": "@gjsify/crypto",
     "version": "0.0.4",
-    "description": "Node.js buffer module for Gjs",
+    "description": "Node.js crypto module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
@@ -33,7 +33,7 @@
     "keywords": [
         "gjs",
         "node",
-        "buffer"
+        "crypto"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
@@ -42,6 +42,9 @@
         "typescript": "^5.9.3"
     },
     "dependencies": {
+        "@girs/glib-2.0": "2.88.0-4.0.0-beta.41",
+        "@gjsify/buffer": "workspace:^",
+        "@gjsify/stream": "workspace:^",
         "@gjsify/utils": "workspace:^"
     }
 }

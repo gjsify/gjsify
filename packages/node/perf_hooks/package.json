@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/buffer",
+    "name": "@gjsify/perf_hooks",
     "version": "0.0.4",
-    "description": "Node.js buffer module for Gjs",
+    "description": "Node.js perf_hooks module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
@@ -33,15 +33,12 @@
     "keywords": [
         "gjs",
         "node",
-        "buffer"
+        "perf_hooks"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
         "typescript": "^5.9.3"
-    },
-    "dependencies": {
-        "@gjsify/utils": "workspace:^"
     }
 }

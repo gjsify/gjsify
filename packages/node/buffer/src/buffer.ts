@@ -3,6 +3,12 @@
 
 // BufferEncoding is a global type provided by @types/node
 
+import { normalizeEncoding as _normalizeEncoding, checkEncoding } from '@gjsify/utils';
+
+function normalizeEncoding(enc?: string): BufferEncoding {
+  return _normalizeEncoding(enc) as BufferEncoding;
+}
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
@@ -51,28 +57,7 @@ function _btoa(str: string): string {
 // SharedArrayBuffer may not be available in GJS
 const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
 
-function normalizeEncoding(enc?: string): BufferEncoding {
-  if (!enc || enc === 'utf8' || enc === 'utf-8') return 'utf8';
-  const lower = ('' + enc).toLowerCase().replace(/-/g, '');
-  switch (lower) {
-    case 'utf8': return 'utf8';
-    case 'ascii': return 'ascii';
-    case 'latin1': case 'binary': return 'latin1';
-    case 'base64': return 'base64';
-    case 'base64url': return 'base64url';
-    case 'hex': return 'hex';
-    case 'ucs2': case 'utf16le': return 'utf16le';
-    default: return 'utf8';
-  }
-}
-
-function checkEncoding(encoding: string): void {
-  const lower = ('' + encoding).toLowerCase().replace(/-/g, '');
-  const valid = ['utf8', 'ascii', 'latin1', 'binary', 'base64', 'base64url', 'hex', 'ucs2', 'utf16le'];
-  if (!valid.includes(lower)) {
-    throw new TypeError(`Unknown encoding: ${encoding}`);
-  }
-}
+// normalizeEncoding and checkEncoding are imported from @gjsify/utils
 
 // Encode string to Uint8Array
 function encodeString(str: string, encoding: BufferEncoding): Uint8Array {

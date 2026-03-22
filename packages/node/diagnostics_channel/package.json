@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/buffer",
+    "name": "@gjsify/diagnostics_channel",
     "version": "0.0.4",
-    "description": "Node.js buffer module for Gjs",
+    "description": "Node.js diagnostics_channel module for Gjs",
     "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
@@ -33,15 +33,12 @@
     "keywords": [
         "gjs",
         "node",
-        "buffer"
+        "diagnostics_channel"
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
         "typescript": "^5.9.3"
-    },
-    "dependencies": {
-        "@gjsify/utils": "workspace:^"
     }
 }

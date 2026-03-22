@@ -539,6 +539,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^5.9.3"
   languageName: unknown
@@ -566,6 +567,32 @@ __metadata:
 "@gjsify/console@workspace:packages/node/console":
   version: 0.0.0-use.local
   resolution: "@gjsify/console@workspace:packages/node/console"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/crypto@workspace:packages/node/crypto":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/crypto@workspace:packages/node/crypto"
+  dependencies:
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.41"
+    "@gjsify/buffer": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/stream": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/diagnostics_channel@workspace:packages/node/diagnostics_channel":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/diagnostics_channel@workspace:packages/node/diagnostics_channel"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -1006,6 +1033,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/perf_hooks@workspace:packages/node/perf_hooks":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/perf_hooks@workspace:packages/node/perf_hooks"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/process@workspace:^, @gjsify/process@workspace:packages/node/process":
   version: 0.0.0-use.local
   resolution: "@gjsify/process@workspace:packages/node/process"
@@ -1065,6 +1103,18 @@ __metadata:
 "@gjsify/string_decoder@workspace:packages/node/string_decoder":
   version: 0.0.0-use.local
   resolution: "@gjsify/string_decoder@workspace:packages/node/string_decoder"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/timers@workspace:packages/node/timers":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/timers@workspace:packages/node/timers"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
