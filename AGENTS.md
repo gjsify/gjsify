@@ -6,7 +6,7 @@ Node.js API implementation for GJS (GNOME JavaScript). Monorepo (`Yarn workspace
 
 ```
 packages/
-  node/   — 28 Node.js API polyfills (see table below)
+  node/   — 39 Node.js API polyfills (see table below)
   gjs/    — GJS modules: unit (test framework), utils, types
   infra/  — cli, esbuild-plugin-gjsify, esbuild-plugin-alias, esbuild-plugin-deepkit,
              esbuild-plugin-transform-ext, resolve-npm, empty
@@ -27,22 +27,31 @@ Each is `@gjsify/<name>`. All have native GJS implementations — no Deno re-exp
 | Package | GNOME Libs | Status | Notes |
 |---------|-----------|--------|-------|
 | assert | — | Full | AssertionError, deepEqual, throws, strict mode |
+| async_hooks | — | Full | AsyncLocalStorage, AsyncResource, createHook |
 | buffer | — | Full | Buffer via global Blob/File/atob/btoa |
+| child_process | Gio | Full | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess |
+| cluster | — | Stub | isPrimary, isMaster, isWorker, fork throws |
 | console | — | Full | Console class with stream support |
-| crypto | GLib | Partial | Hash (GLib.Checksum), Hmac (GLib.Hmac), randomBytes/UUID (WebCrypto) |
+| crypto | GLib | Partial | Hash (GLib.Checksum), Hmac (GLib.Hmac), randomBytes/UUID (WebCrypto/GLib) |
+| dgram | — | Stub | Socket stub, createSocket |
 | diagnostics_channel | — | Full | Channel, TracingChannel, subscribe/unsubscribe |
+| dns | Gio | Full | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
+| domain | — | Stub | Deprecated. Domain stub with run/bind/intercept |
 | events | — | Full | EventEmitter, once, on, listenerCount |
 | fs | Gio | Full | sync, callback, promises, streams, FSWatcher |
 | globals | GLib | Partial | setImmediate polyfill, global setup |
-| dns | Gio | Full | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
-| http | Soup 3.0 | Partial | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, METHODS. TODO: ClientRequest |
+| http | Soup 3.0 | Partial | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, METHODS |
+| http2 | — | Stub | constants, createServer/connect throw |
 | https | — | Partial | Agent, stub request/get (requires http completion) |
+| inspector | — | Stub | Session stub, open/close/url |
+| module | — | Full | builtinModules, isBuiltin, createRequire |
 | net | Gio | Full | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), connect/createServer |
 | os | GLib | Full | homedir, hostname, cpus, platform-specific (linux.ts, darwin.ts) |
 | path | — | Full | POSIX + Win32 path operations |
-| perf_hooks | — | Full | performance (Web API wrapper), monitorEventLoopDelay stub |
+| perf_hooks | — | Full | performance (Web API / GLib fallback), monitorEventLoopDelay stub |
 | process | GLib | Full | Process extends EventEmitter, env, cwd, platform |
 | querystring | — | Full | parse/stringify |
+| readline | — | Stub | Interface, createInterface, clearLine, cursorTo |
 | require | Gio, GLib | Full | CommonJS require() for GJS |
 | stream | — | Full | Readable, Writable, Duplex, Transform, PassThrough |
 | string_decoder | — | Full | UTF-8, Base64, hex, streaming support |
@@ -51,6 +60,9 @@ Each is `@gjsify/<name>`. All have native GJS implementations — no Deno re-exp
 | tty | — | Full | ReadStream/WriteStream with ANSI escapes, clearLine, cursorTo, getColorDepth |
 | url | GLib | Full | URL, URLSearchParams via GLib.Uri |
 | util | — | Full | inspect, format, promisify, types |
+| v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON-based) |
+| vm | — | Stub | runInThisContext (eval), Script class |
+| worker_threads | — | Stub | isMainThread, Worker throws |
 | zlib | — | Full | gzip/deflate via Web Compression API, Gio.ZlibCompressor fallback |
 
 ## Web Packages (`packages/web/*`)

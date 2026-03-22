@@ -10,7 +10,7 @@ if (globalThis.performance) {
   // GJS may not have globalThis.performance; create a minimal shim using GLib
   let _startTime: number;
   try {
-    const GLib = imports.gi.GLib;
+    const GLib = (globalThis as any).imports.gi.GLib;
     _startTime = GLib.get_monotonic_time();
     performance = {
       now() { return (GLib.get_monotonic_time() - _startTime) / 1000; },

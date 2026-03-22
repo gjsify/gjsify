@@ -72,48 +72,48 @@ export const ALIASES_NODE_FOR_GJS = {
     // Internal Node.js modules
     'assert': '@gjsify/assert',
     'assert/strict': '@gjsify/assert/strict',
-    'async_hooks': '@gjsify/async_hooks', // TODO: refs/bun/src/js/node/async_hooks.ts, refs/deno/ext/node/polyfills/async_hooks.ts, refs/node/lib/async_hooks.js
+    'async_hooks': '@gjsify/async_hooks',
     'buffer': '@gjsify/buffer',
-    'child_process': '@gjsify/child_process', // TODO: refs/bun/src/js/node/child_process.ts, refs/deno/ext/node/polyfills/child_process.ts, refs/node/lib/child_process.js
-    'cluster': '@gjsify/cluster', // TODO: refs/bun/src/js/node/cluster.ts, refs/deno/ext/node/polyfills/cluster.ts, refs/node/lib/cluster.js
+    'child_process': '@gjsify/child_process',
+    'cluster': '@gjsify/cluster',
     'console': '@gjsify/console',
-    'constants': '@gjsify/constants', // TODO: refs/bun/src/js/node/constants.ts, refs/deno/ext/node/polyfills/constants.ts, refs/node/lib/constants.js
-    'crypto': '@gjsify/crypto', // Core: Hash, Hmac, random (GLib.Checksum, WebCrypto). TODO: Cipher, Sign, KeyPair
-    'dgram': '@gjsify/dgram', // TODO: refs/bun/src/js/node/dgram.ts, refs/deno/ext/node/polyfills/dgram.ts, refs/node/lib/dgram.js
+    'constants': '@gjsify/constants', // TODO
+    'crypto': '@gjsify/crypto',
+    'dgram': '@gjsify/dgram',
     'diagnostics_channel': '@gjsify/diagnostics_channel',
     'dns': '@gjsify/dns',
     'dns/promises': '@gjsify/dns/promises',
-    'domain': '@gjsify/domain', // TODO: refs/bun/src/js/node/domain.ts, refs/deno/ext/node/polyfills/domain.ts, refs/node/lib/domain.js
+    'domain': '@gjsify/domain',
     'events': '@gjsify/events',
     'fs': '@gjsify/fs',
     'fs/promises': '@gjsify/fs/promises',
     'http': '@gjsify/http',
-    'http2': '@gjsify/http2', // TODO: refs/bun/src/js/node/http2.ts, refs/deno/ext/node/polyfills/http2.ts, refs/node/lib/http2.js
+    'http2': '@gjsify/http2',
     'https': '@gjsify/https',
-    'inspector': '@gjsify/inspector', // TODO: refs/bun/src/js/node/inspector.ts, refs/deno/ext/node/polyfills/inspector.js, refs/node/lib/inspector.js
-    'module': '@gjsify/module', // TODO: refs/node/lib/module.js
+    'inspector': '@gjsify/inspector',
+    'module': '@gjsify/module',
     'net': '@gjsify/net',
     'os': '@gjsify/os',
     'path': '@gjsify/path',
-    'path/common': '@gjsify/path/common', // TODO: refs/deno/ext/node/polyfills/path/common.ts
-    'path/glob': '@gjsify/path/glob', // TODO: refs/node/lib/path.js
+    'path/common': '@gjsify/path/common', // TODO
+    'path/glob': '@gjsify/path/glob', // TODO
     'path/posix': '@gjsify/path/posix',
-    'path/separator': '@gjsify/path/separator', // TODO: refs/deno/ext/node/polyfills/path/separator.ts
+    'path/separator': '@gjsify/path/separator', // TODO
     'path/win32': '@gjsify/path/win32',
     'perf_hooks': '@gjsify/perf_hooks',
     'process': '@gjsify/process',
-    'punycode': '@gjsify/punycode', // TODO: refs/bun/src/js/node/punycode.ts, refs/deno/ext/node/polyfills/punycode.ts, refs/node/lib/punycode.js
+    'punycode': '@gjsify/punycode', // TODO
     'querystring': '@gjsify/querystring',
-    'readline': '@gjsify/readline', // TODO: refs/bun/src/js/node/readline.ts, refs/deno/ext/node/polyfills/readline.ts, refs/node/lib/readline.js
-    'readline/promises': '@gjsify/readline/promises', // TODO: refs/bun/src/js/node/readline.promises.ts, refs/deno/ext/node/polyfills/readline/promises.ts, refs/node/lib/readline.js
-    'repl': '@gjsify/repl', // TODO: refs/bun/src/js/node/repl.ts, refs/deno/ext/node/polyfills/repl.ts, refs/node/lib/repl.js
+    'readline': '@gjsify/readline',
+    'readline/promises': '@gjsify/readline/promises', // TODO
+    'repl': '@gjsify/repl', // TODO
     'stream': '@gjsify/stream',
     'stream/web': '@gjsify/stream/web',
-    'stream/consumers': '@gjsify/stream/consumers', // TODO: refs/bun/src/js/node/stream.consumers.ts, refs/deno/ext/node/polyfills/stream/consumers.js, refs/node/lib/stream.js
-    'stream/promises': '@gjsify/stream/promises', // TODO: refs/bun/src/js/node/stream.promises.ts, refs/deno/ext/node/polyfills/stream/promises.js, refs/node/lib/stream.js
+    'stream/consumers': '@gjsify/stream/consumers', // TODO
+    'stream/promises': '@gjsify/stream/promises', // TODO
     'string_decoder': '@gjsify/string_decoder',
-    'sys': '@gjsify/sys', // TODO: refs/deno/ext/node/polyfills/sys.ts, refs/node/lib/sys.js
-    // 'test': '@gjsify/test', // TODO: refs/bun/src/js/node/test.ts, refs/deno/ext/node/polyfills/testing.ts, refs/node/lib/test.js
+    'sys': '@gjsify/sys', // TODO
+    // 'test': '@gjsify/test', // TODO
     'timers': '@gjsify/timers',
     'timers/promises': '@gjsify/timers/promises',
     'tls': '@gjsify/tls',
@@ -121,10 +121,10 @@ export const ALIASES_NODE_FOR_GJS = {
     'url': '@gjsify/url',
     'util': '@gjsify/util',
     'util/types': '@gjsify/util/types',
-    'v8': '@gjsify/v8', // TODO: refs/bun/src/js/node/v8.ts, refs/deno/ext/node/polyfills/v8.ts, refs/node/lib/v8.js
-    'vm': '@gjsify/vm', // TODO: refs/bun/src/js/node/vm.ts, refs/deno/ext/node/polyfills/vm.js, refs/node/lib/vm.js
-    'wasi': '@gjsify/wasi', // TODO: refs/bun/src/js/node/wasi.ts, refs/deno/ext/node/polyfills/wasi.ts, refs/node/lib/wasi.js
-    'worker_threads': '@gjsify/worker_threads', // TODO: refs/bun/src/js/node/worker_threads.ts, refs/deno/ext/node/polyfills/worker_threads.ts, refs/node/lib/worker_threads.js
+    'v8': '@gjsify/v8',
+    'vm': '@gjsify/vm',
+    'wasi': '@gjsify/wasi', // TODO
+    'worker_threads': '@gjsify/worker_threads',
     'zlib': '@gjsify/zlib',
 
     // Third party Node Modules
@@ -153,4 +153,3 @@ export { ALIASES_GJS_FOR_NODE };
 export const ALIASES_WEB_FOR_NODE = {
     'fetch': '@gjsify/fetch/globals',
 }
-

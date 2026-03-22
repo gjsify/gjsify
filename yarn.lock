@@ -533,11 +533,39 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/async_hooks@workspace:packages/node/async_hooks":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/async_hooks@workspace:packages/node/async_hooks"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/buffer@workspace:^, @gjsify/buffer@workspace:packages/node/buffer":
   version: 0.0.0-use.local
   resolution: "@gjsify/buffer@workspace:packages/node/buffer"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/child_process@workspace:packages/node/child_process":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/child_process@workspace:packages/node/child_process"
+  dependencies:
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-beta.41"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.41"
+    "@gjsify/buffer": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
@@ -564,6 +592,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/cluster@workspace:packages/node/cluster":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/cluster@workspace:packages/node/cluster"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/console@workspace:packages/node/console":
   version: 0.0.0-use.local
   resolution: "@gjsify/console@workspace:packages/node/console"
@@ -585,6 +625,18 @@ __metadata:
     "@gjsify/stream": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/dgram@workspace:packages/node/dgram":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/dgram@workspace:packages/node/dgram"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^5.9.3"
   languageName: unknown
@@ -621,6 +673,18 @@ __metadata:
   resolution: "@gjsify/dom-events@workspace:packages/web/dom-events"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/domain@workspace:packages/node/domain":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/domain@workspace:packages/node/domain"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^5.9.3"
@@ -990,6 +1054,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/http2@workspace:packages/node/http2":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/http2@workspace:packages/node/http2"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/http@workspace:^, @gjsify/http@workspace:packages/node/http":
   version: 0.0.0-use.local
   resolution: "@gjsify/http@workspace:packages/node/http"
@@ -1016,6 +1091,28 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/http": "workspace:^"
     "@gjsify/tls": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/inspector@workspace:packages/node/inspector":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/inspector@workspace:packages/node/inspector"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/module@workspace:packages/node/module":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/module@workspace:packages/node/module"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^5.9.3"
@@ -1105,6 +1202,18 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@types/inherits": "npm:^0.0.33"
     "@types/node": "npm:^25.5.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/readline@workspace:packages/node/readline":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/readline@workspace:packages/node/readline"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 
@@ -1246,6 +1355,28 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/v8@workspace:packages/node/v8":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/v8@workspace:packages/node/v8"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/vm@workspace:packages/node/vm":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/vm@workspace:packages/node/vm"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/web-globals@workspace:packages/web/globals":
   version: 0.0.0-use.local
   resolution: "@gjsify/web-globals@workspace:packages/web/globals"
@@ -1272,6 +1403,17 @@ __metadata:
     "@types/node": "npm:^25.5.0"
     bit-twiddle: "npm:^1.0.2"
     glsl-tokenizer: "npm:^2.1.5"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/worker_threads@workspace:packages/node/worker_threads":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/worker_threads@workspace:packages/node/worker_threads"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
     typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
