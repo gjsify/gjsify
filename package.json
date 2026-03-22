@@ -18,7 +18,7 @@
     "build:native-libs": "(yarn workspace @gjsify/webgl run build:meson || true) && yarn workspace @gjsify/types run build",
     "build:gjs": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/utils,@gjsify/unit}' run build",
     "build:web": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/abort-controller,@gjsify/dom-events,@gjsify/formdata,@gjsify/fetch,@gjsify/web-globals,@gjsify/html-image-element}' run build",
-    "build:node": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/assert,@gjsify/buffer,@gjsify/console,@gjsify/crypto,@gjsify/diagnostics_channel,@gjsify/events,@gjsify/fs,@gjsify/node-globals,@gjsify/http,@gjsify/net,@gjsify/os,@gjsify/path,@gjsify/perf_hooks,@gjsify/process,@gjsify/querystring,@gjsify/require,@gjsify/stream,@gjsify/string_decoder,@gjsify/timers,@gjsify/tty,@gjsify/url,@gjsify/util,@gjsify/zlib}' run build"
+    "build:node": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/assert,@gjsify/buffer,@gjsify/console,@gjsify/crypto,@gjsify/diagnostics_channel,@gjsify/dns,@gjsify/events,@gjsify/fs,@gjsify/node-globals,@gjsify/http,@gjsify/https,@gjsify/net,@gjsify/os,@gjsify/path,@gjsify/perf_hooks,@gjsify/process,@gjsify/querystring,@gjsify/require,@gjsify/stream,@gjsify/string_decoder,@gjsify/timers,@gjsify/tls,@gjsify/tty,@gjsify/url,@gjsify/util,@gjsify/zlib}' run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

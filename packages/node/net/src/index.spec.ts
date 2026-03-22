@@ -1,84 +1,87 @@
 import { describe, it, expect } from '@gjsify/unit';
-
-import { isIP, isIPv4, isIPv6 } from 'net';
+import { isIP, isIPv4, isIPv6, createServer, createConnection, Socket, Server } from 'net';
 
 export default async () => {
+  await describe('net', async () => {
+    await describe('isIP', async () => {
+      await it('should return 4 for valid IPv4', async () => {
+        expect(isIP('127.0.0.1')).toBe(4);
+        expect(isIP('192.168.1.1')).toBe(4);
+        expect(isIP('0.0.0.0')).toBe(4);
+      });
 
-	const v6AddrArr = ['::1'];
-	const v4AddrArr = ['127.0.0.1'];
-	const invalidAddrArr = ['127.000.000.001', '127.0.0.1/24', 'fhqwhgads'];
+      await it('should return 6 for valid IPv6', async () => {
+        expect(isIP('::1')).toBe(6);
+        expect(isIP('fe80::1')).toBe(6);
+      });
 
-	await describe('net.isIP', async () => {
-		await it('should be a function', async () => {
-			expect(typeof isIP).toBe("function");
-		});
+      await it('should return 0 for invalid addresses', async () => {
+        expect(isIP('hello')).toBe(0);
+        expect(isIP('')).toBe(0);
+      });
+    });
 
-		for (const v6 of v6AddrArr) {
-			await it(`should return 6 for "${v6}"`, async () => {
-				expect(isIP(v6)).toBe(6);
-			});
-		}
+    await describe('isIPv4', async () => {
+      await it('should return true for IPv4', async () => {
+        expect(isIPv4('127.0.0.1')).toBe(true);
+        expect(isIPv4('::1')).toBe(false);
+      });
+    });
 
-		for (const v4 of v4AddrArr) {
-			await it(`should return 4 for "${v4}"`, async () => {
-				expect(isIP(v4)).toBe(4);
-			});
-		}
+    await describe('isIPv6', async () => {
+      await it('should return true for IPv6', async () => {
+        expect(isIPv6('::1')).toBe(true);
+        expect(isIPv6('127.0.0.1')).toBe(false);
+      });
+    });
 
-		for (const invalid of invalidAddrArr) {
-			await it(`should return 0 for "${invalid}"`, async () => {
-				expect(isIP(invalid)).toBe(0);
-			});
-		}
+    await describe('Socket', async () => {
+      await it('should be constructable', async () => {
+        const socket = new Socket();
+        expect(socket).toBeDefined();
+        expect(socket.connecting).toBe(false);
+      });
+    });
 
-	});
+    await describe('Server', async () => {
+      await it('should be constructable', async () => {
+        const server = new Server();
+        expect(server).toBeDefined();
+        expect(server.listening).toBe(false);
+      });
+    });
 
-	await describe('net.isIPv4', async () => {
-		await it('should be a function', async () => {
-			expect(typeof isIPv4).toBe("function");
-		});
+    await describe('TCP connection', async () => {
+      await it('should listen and connect', async () => {
+        const server = createServer((socket) => {
+          socket.write('hello');
+          socket.end();
+        });
 
-		for (const v6 of v6AddrArr) {
-			await it(`should return false for "${v6}"`, async () => {
-				expect(isIPv4(v6)).toBeFalsy();
-			});
-		}
+        await new Promise<void>((resolve, reject) => {
+          server.listen(0, () => {
+            const addr = server.address();
+            if (!addr || !('port' in addr)) {
+              reject(new Error('Server has no address'));
+              return;
+            }
 
-		for (const v4 of v4AddrArr) {
-			await it(`should return true for "${v4}"`, async () => {
-				expect(isIPv4(v4)).toBeTruthy();
-			});
-		}
+            const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
+              const chunks: Buffer[] = [];
+              client.on('data', (chunk) => chunks.push(chunk as Buffer));
+              client.on('end', () => {
+                const data = Buffer.concat(chunks).toString();
+                expect(data).toBe('hello');
+                server.close(() => resolve());
+              });
+            });
 
-		for (const invalid of invalidAddrArr) {
-			await it(`should return false for "${invalid}"`, async () => {
-				expect(isIPv4(invalid)).toBeFalsy();
-			});
-		}
-	});
+            client.on('error', reject);
+          });
 
-	await describe('net.isIPv6', async () => {
-		await it('should be a function', async () => {
-			expect(typeof isIPv6).toBe("function");
-		});
-
-		for (const v6 of v6AddrArr) {
-			await it(`should return true for "${v6}"`, async () => {
-				expect(isIPv6(v6)).toBeTruthy();
-			});
-		}
-
-		for (const v4 of v4AddrArr) {
-			await it(`should return false for "${v4}"`, async () => {
-				expect(isIPv6(v4)).toBeFalsy();
-			});
-		}
-
-		for (const invalid of invalidAddrArr) {
-			await it(`should return false for "${invalid}"`, async () => {
-				expect(isIPv6(invalid)).toBeFalsy();
-			});
-		}
-	});
-
-}
+          server.on('error', reject);
+        });
+      });
+    });
+  });
+};

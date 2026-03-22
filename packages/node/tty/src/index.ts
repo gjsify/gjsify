@@ -1,122 +1,221 @@
-/**
- * based on:
- * - https://github.com/jvilk/bfs-process/blob/master/ts/tty.ts
- * - https://github.com/geut/brode/blob/main/packages/browser-node-core/src/tty.js
- */
-// import '@gjsify/node-globals';
+// Node.js tty module for GJS
+// Reference: Node.js lib/tty.js
+// Uses ANSI escape sequences for terminal control.
+
 import { Writable, Readable } from 'stream';
-import { warnNotImplemented } from '@gjsify/utils';
+
 export class ReadStream extends Readable {
   isRaw = false;
 
   get isTTY() {
-    return true
+    return true;
   }
 
   setRawMode(mode: boolean) {
     if (this.isRaw !== mode) {
-      this.isRaw = mode
-      this.emit('modeChange')
+      this.isRaw = mode;
+      this.emit('modeChange');
     }
+    return this;
   }
 }
 
 export class WriteStream extends Writable {
-
   isRaw = false;
   columns = 80;
-  rows = 120;
+  rows = 24;
 
-  // TODO stdout / stderr
   protected _print = console.log;
 
-  // TODO fd
   constructor(fd: number) {
     super();
+    this._detectSize();
   }
 
   get isTTY() {
-    return true
+    return true;
   }
 
+  /** Detect terminal size from environment or defaults. */
+  private _detectSize(): void {
+    const cols = parseInt(
+      (globalThis as any).process?.env?.COLUMNS ||
+      (typeof GLib !== 'undefined' ? GLib.getenv('COLUMNS') : '') || '0',
+      10,
+    );
+    const rows = parseInt(
+      (globalThis as any).process?.env?.LINES ||
+      (typeof GLib !== 'undefined' ? GLib.getenv('LINES') : '') || '0',
+      10,
+    );
+    if (cols > 0) this.columns = cols;
+    if (rows > 0) this.rows = rows;
+  }
+
+  /**
+   * Clear the current line.
+   * dir: -1 = left of cursor, 0 = entire line, 1 = right of cursor
+   */
   clearLine(dir: number, callback?: () => void): boolean {
-    warnNotImplemented("WriteStream.clearLine");
-    if (callback) callback();
-    return true;
+    let seq: string;
+    if (dir === -1) {
+      seq = '\x1b[1K'; // clear left
+    } else if (dir === 1) {
+      seq = '\x1b[0K'; // clear right
+    } else {
+      seq = '\x1b[2K'; // clear entire line
+    }
+    return this.write(seq, callback);
   }
 
-
+  /** Clear the screen from the cursor down. */
   clearScreenDown(callback?: () => void): boolean {
-    warnNotImplemented("WriteStream.clearScreenDown");
-    if (callback) callback();
-    return true;
+    return this.write('\x1b[0J', callback);
   }
 
-  cursorTo(x: number, y: number, callback?: () => void): boolean {
-    warnNotImplemented("WriteStream.cursorTo");
-    if (callback) callback();
-    return true;
+  /**
+   * Move cursor to absolute position (x, y).
+   * If y is omitted, only move horizontally.
+   */
+  cursorTo(x: number, y?: number | (() => void), callback?: () => void): boolean {
+    if (typeof y === 'function') {
+      callback = y;
+      y = undefined;
+    }
+
+    let seq: string;
+    if (y == null) {
+      seq = `\x1b[${x + 1}G`; // move to column x
+    } else {
+      seq = `\x1b[${(y as number) + 1};${x + 1}H`; // move to row;col
+    }
+    return this.write(seq, callback);
   }
 
-  getColorDepth(env: Record<string, string>) {
-    warnNotImplemented("WriteStream.getColorDepth");
-    return 8;
+  /**
+   * Move cursor relative to its current position.
+   */
+  moveCursor(dx: number, dy: number, callback?: () => void): boolean {
+    let seq = '';
+    if (dx > 0) seq += `\x1b[${dx}C`;      // right
+    else if (dx < 0) seq += `\x1b[${-dx}D`; // left
+    if (dy > 0) seq += `\x1b[${dy}B`;       // down
+    else if (dy < 0) seq += `\x1b[${-dy}A`; // up
+
+    if (seq.length === 0) {
+      if (callback) callback();
+      return true;
+    }
+    return this.write(seq, callback);
   }
 
-  getWindowSize() {
-    warnNotImplemented("WriteStream.getWindowSize");
-    return [this.columns, this.rows]
+  /**
+   * Get the color depth of the terminal.
+   * Returns 1 (no color), 4 (16 colors), 8 (256 colors), or 24 (true color).
+   */
+  getColorDepth(env?: Record<string, string>): number {
+    const e = env || (globalThis as any).process?.env || {};
+
+    // FORCE_COLOR takes precedence
+    if ('FORCE_COLOR' in e) {
+      const force = e.FORCE_COLOR;
+      if (force === '0' || force === 'false') return 1;
+      if (force === '1') return 4;
+      if (force === '2') return 8;
+      if (force === '3') return 24;
+      return 4; // truthy value
+    }
+
+    if ('NO_COLOR' in e) return 1;
+
+    const term = e.TERM || '';
+    const colorterm = e.COLORTERM || '';
+
+    if (colorterm === 'truecolor' || colorterm === '24bit') return 24;
+    if (term === 'xterm-256color' || term.endsWith('-256color')) return 8;
+    if (colorterm) return 4;
+    if (term === 'dumb') return 1;
+    if (term.startsWith('xterm') || term.startsWith('screen') || term.startsWith('vt100') || term.startsWith('linux')) return 4;
+
+    return 1;
   }
 
-  hasColors(count = 16, env?: Record<string, string>) {
-    switch (this.getColorDepth(env)) {
-      case 1:
-        return count >= 2
-      case 4:
-        return count >= 16
-      case 8:
-        return count >= 256
-      case 24:
-        return count >= 16777216
-      default:
-        return false
+  /** Get the terminal window size as [columns, rows]. */
+  getWindowSize(): [number, number] {
+    return [this.columns, this.rows];
+  }
+
+  /**
+   * Check if the terminal supports the given number of colors.
+   */
+  hasColors(count?: number | Record<string, string>, env?: Record<string, string>): boolean {
+    let _count: number;
+    let _env: Record<string, string> | undefined;
+
+    if (typeof count === 'object') {
+      _env = count;
+      _count = 16;
+    } else {
+      _count = count ?? 16;
+      _env = env;
+    }
+
+    const depth = this.getColorDepth(_env);
+    switch (depth) {
+      case 1: return _count >= 2;
+      case 4: return _count >= 16;
+      case 8: return _count >= 256;
+      case 24: return _count >= 16777216;
+      default: return false;
     }
   }
 
   setRawMode(mode: boolean) {
     if (this.isRaw !== mode) {
-      this.isRaw = mode
-      this.emit('modeChange')
+      this.isRaw = mode;
+      this.emit('modeChange');
     }
+    return this;
   }
 
-  override _write (chunk, enc: string, cb: Function) {
-    // TODO stderr / stdout
-    this._print(enc === 'buffer' ? chunk.toString('utf-8') : chunk)
-    cb(null)
+  override _write(chunk: any, enc: string, cb: Function) {
+    this._print(enc === 'buffer' ? chunk.toString('utf-8') : chunk);
+    cb(null);
   }
 
   _changeColumns(columns: number) {
     if (columns !== this.columns) {
-      this.columns = columns
-      this.emit('resize')
+      this.columns = columns;
+      this.emit('resize');
     }
   }
 
   _changeRows(rows: number) {
     if (rows !== this.rows) {
-      this.rows = rows
-      this.emit('resize')
+      this.rows = rows;
+      this.emit('resize');
     }
   }
 }
 
-export const isatty = (fd: ReadStream | WriteStream) => {
-  return fd && (fd instanceof ReadStream || fd instanceof WriteStream)
+// GLib import for env detection (declared but not imported to avoid bundling issues)
+declare const GLib: any;
+
+/**
+ * Check if a file descriptor refers to a TTY.
+ * In GJS, we check if the fd matches known TTY file descriptors.
+ */
+export function isatty(fd: number | ReadStream | WriteStream): boolean {
+  if (fd instanceof ReadStream || fd instanceof WriteStream) return true;
+  // In a real GJS environment, stdin=0, stdout=1, stderr=2 are typically TTYs
+  if (typeof fd === 'number') {
+    return fd === 0 || fd === 1 || fd === 2;
+  }
+  return false;
 }
 
 export default {
   isatty,
   WriteStream,
-  ReadStream
-}
+  ReadStream,
+};

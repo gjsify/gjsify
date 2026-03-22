@@ -6,7 +6,7 @@ Node.js API implementation for GJS (GNOME JavaScript). Monorepo (`Yarn workspace
 
 ```
 packages/
-  node/   — 23 Node.js API polyfills (see table below)
+  node/   — 28 Node.js API polyfills (see table below)
   gjs/    — GJS modules: unit (test framework), utils, types
   infra/  — cli, esbuild-plugin-gjsify, esbuild-plugin-alias, esbuild-plugin-deepkit,
              esbuild-plugin-transform-ext, resolve-npm, empty
@@ -31,8 +31,10 @@ Each is `@gjsify/<name>`. All have native GJS implementations — no Deno re-exp
 | events | — | Full | EventEmitter, once, on, listenerCount |
 | fs | Gio | Full | sync, callback, promises, streams, FSWatcher |
 | globals | GLib | Partial | setImmediate polyfill, global setup |
+| dns | Gio | Full | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
 | http | — | Partial | header validation only (validateHeaderName/Value) |
-| net | Gio | Partial | isIP/isIPv4/isIPv6 via Gio.InetAddress |
+| https | — | Partial | Agent, stub request/get (requires http completion) |
+| net | Gio | Full | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), connect/createServer |
 | os | GLib | Full | homedir, hostname, cpus, platform-specific (linux.ts, darwin.ts) |
 | path | — | Full | POSIX + Win32 path operations |
 | perf_hooks | — | Full | performance (Web API wrapper), monitorEventLoopDelay stub |
@@ -42,7 +44,8 @@ Each is `@gjsify/<name>`. All have native GJS implementations — no Deno re-exp
 | stream | — | Full | Readable, Writable, Duplex, Transform, PassThrough |
 | string_decoder | — | Full | UTF-8, Base64, hex, streaming support |
 | timers | — | Full | setTimeout/setInterval/setImmediate + Timeout class + timers/promises |
-| tty | — | Partial | ReadStream/WriteStream stubs |
+| tls | Gio | Partial | TLSSocket via Gio.TlsClientConnection, connect, createSecureContext |
+| tty | — | Full | ReadStream/WriteStream with ANSI escapes, clearLine, cursorTo, getColorDepth |
 | url | GLib | Full | URL, URLSearchParams via GLib.Uri |
 | util | — | Full | inspect, format, promisify, types |
 | zlib | — | Full | gzip/deflate via Web Compression API, Gio.ZlibCompressor fallback |

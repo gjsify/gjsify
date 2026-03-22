@@ -81,15 +81,15 @@ export const ALIASES_NODE_FOR_GJS = {
     'crypto': '@gjsify/crypto', // Core: Hash, Hmac, random (GLib.Checksum, WebCrypto). TODO: Cipher, Sign, KeyPair
     'dgram': '@gjsify/dgram', // TODO: refs/bun/src/js/node/dgram.ts, refs/deno/ext/node/polyfills/dgram.ts, refs/node/lib/dgram.js
     'diagnostics_channel': '@gjsify/diagnostics_channel',
-    'dns': '@gjsify/dns', // TODO: refs/bun/src/js/node/dns.ts, refs/deno/ext/node/polyfills/dns.ts, refs/node/lib/dns.js
-    'dns/promises': '@gjsify/dns/promises', // TODO: refs/bun/src/js/node/dns.promises.ts, refs/deno/ext/node/polyfills/dns.ts, refs/node/lib/dns.js
+    'dns': '@gjsify/dns',
+    'dns/promises': '@gjsify/dns/promises',
     'domain': '@gjsify/domain', // TODO: refs/bun/src/js/node/domain.ts, refs/deno/ext/node/polyfills/domain.ts, refs/node/lib/domain.js
     'events': '@gjsify/events',
     'fs': '@gjsify/fs',
     'fs/promises': '@gjsify/fs/promises',
     'http': '@gjsify/http',
     'http2': '@gjsify/http2', // TODO: refs/bun/src/js/node/http2.ts, refs/deno/ext/node/polyfills/http2.ts, refs/node/lib/http2.js
-    'https': '@gjsify/https', // TODO: refs/bun/src/js/node/https.ts, refs/deno/ext/node/polyfills/https.ts, refs/node/lib/https.js
+    'https': '@gjsify/https',
     'inspector': '@gjsify/inspector', // TODO: refs/bun/src/js/node/inspector.ts, refs/deno/ext/node/polyfills/inspector.js, refs/node/lib/inspector.js
     'module': '@gjsify/module', // TODO: refs/node/lib/module.js
     'net': '@gjsify/net',
@@ -116,7 +116,7 @@ export const ALIASES_NODE_FOR_GJS = {
     // 'test': '@gjsify/test', // TODO: refs/bun/src/js/node/test.ts, refs/deno/ext/node/polyfills/testing.ts, refs/node/lib/test.js
     'timers': '@gjsify/timers',
     'timers/promises': '@gjsify/timers/promises',
-    'tls': '@gjsify/tls', // TODO: refs/bun/src/js/node/tls.ts, refs/deno/ext/node/polyfills/tls.ts, refs/node/lib/tls.js
+    'tls': '@gjsify/tls',
     'tty': '@gjsify/tty',
     'url': '@gjsify/url',
     'util': '@gjsify/util',
