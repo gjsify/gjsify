@@ -1,6 +1,5 @@
 // Native string_decoder module for GJS — no Deno dependency
 // Handles incremental decoding of multi-byte character sequences across chunk boundaries.
-// Uses TextDecoder with stream: true for UTF-8.
 
 type Encoding = 'utf8' | 'utf-8' | 'ascii' | 'latin1' | 'binary' | 'base64' | 'hex' | 'ucs2' | 'ucs-2' | 'utf16le' | 'utf-16le';
 
@@ -19,6 +18,24 @@ function normalizeEncoding(enc?: string): string {
   }
 }
 
+// Check if TextDecoder supports the stream option
+let _textDecoderSupportsStream = false;
+try {
+  new TextDecoder().decode(new Uint8Array(0), { stream: true });
+  _textDecoderSupportsStream = true;
+} catch {
+  _textDecoderSupportsStream = false;
+}
+
+/** Returns the expected total byte length of a UTF-8 character given its first byte. */
+function utf8CharLength(byte: number): number {
+  if ((byte & 0x80) === 0) return 1;
+  if ((byte & 0xe0) === 0xc0) return 2;
+  if ((byte & 0xf0) === 0xe0) return 3;
+  if ((byte & 0xf8) === 0xf0) return 4;
+  return 1; // invalid leading byte, treat as single byte
+}
+
 /**
  * StringDecoder provides an interface for efficiently decoding Buffer data
  * into strings while preserving multi-byte characters that are split across
@@ -35,7 +52,9 @@ export class StringDecoder {
     this.encoding = normalizeEncoding(encoding);
 
     if (this.encoding === 'utf8') {
-      this._decoder = new TextDecoder('utf-8', { fatal: false });
+      if (_textDecoderSupportsStream) {
+        this._decoder = new TextDecoder('utf-8', { fatal: false });
+      }
       this._lastChar = new Uint8Array(4); // max UTF-8 char size
     } else if (this.encoding === 'utf16le') {
       this._lastChar = new Uint8Array(4); // 2 bytes per char, but surrogate pairs need 4
@@ -81,6 +100,11 @@ export class StringDecoder {
       // Flush the TextDecoder
       result += this._decoder.decode(new Uint8Array(0), { stream: false });
       this._decoder = new TextDecoder('utf-8', { fatal: false });
+    } else if (this.encoding === 'utf8' && this._lastNeed > 0) {
+      // Flush remaining incomplete bytes as replacement character
+      result += '\ufffd';
+      this._lastNeed = 0;
+      this._lastTotal = 0;
     } else if (this.encoding === 'utf16le' && this._lastNeed > 0) {
       // Output remaining byte as replacement character
       result += '\ufffd';
@@ -100,11 +124,64 @@ export class StringDecoder {
   }
 
   private _writeUtf8(buf: Uint8Array): string {
-    // Use TextDecoder with stream: true for incremental decoding
+    // Fast path: use TextDecoder with stream: true if supported
     if (this._decoder) {
       return this._decoder.decode(buf, { stream: true });
     }
-    return new TextDecoder().decode(buf);
+
+    // Manual streaming UTF-8 decode for runtimes without stream support (e.g. GJS)
+    let consumedFromBuf = 0;
+    let completedChar: Uint8Array | null = null;
+
+    // Step 1: Complete any leftover bytes from a previous write
+    if (this._lastNeed > 0) {
+      const needed = Math.min(this._lastNeed, buf.length);
+      const offset = this._lastTotal - this._lastNeed;
+      for (let j = 0; j < needed; j++) {
+        this._lastChar[offset + j] = buf[j];
+      }
+      this._lastNeed -= needed;
+      consumedFromBuf = needed;
+      if (this._lastNeed > 0) return ''; // still incomplete
+      // We completed the pending character
+      completedChar = this._lastChar.subarray(0, this._lastTotal);
+      this._lastTotal = 0;
+    }
+
+    // Step 2: Scan backward from end of buf to find any trailing incomplete character
+    let completeEnd = buf.length;
+    for (let j = 0; j < Math.min(4, buf.length - consumedFromBuf); j++) {
+      const idx = buf.length - 1 - j;
+      if (idx < consumedFromBuf) break;
+      const byte = buf[idx];
+      if ((byte & 0xc0) !== 0x80) {
+        // This is either ASCII or a leading byte
+        if (byte >= 0x80) {
+          const charLen = utf8CharLength(byte);
+          const available = buf.length - idx;
+          if (available < charLen) {
+            completeEnd = idx;
+            for (let k = 0; k < available; k++) {
+              this._lastChar[k] = buf[idx + k];
+            }
+            this._lastNeed = charLen - available;
+            this._lastTotal = charLen;
+          }
+        }
+        break;
+      }
+    }
+
+    // Step 3: Decode
+    const mainSlice = buf.subarray(consumedFromBuf, completeEnd);
+    if (completedChar) {
+      const combined = new Uint8Array(completedChar.length + mainSlice.length);
+      combined.set(completedChar, 0);
+      combined.set(mainSlice, completedChar.length);
+      return new TextDecoder('utf-8', { fatal: false }).decode(combined);
+    }
+    if (mainSlice.length === 0) return '';
+    return new TextDecoder('utf-8', { fatal: false }).decode(mainSlice);
   }
 
   private _writeUtf16le(buf: Uint8Array): string {
