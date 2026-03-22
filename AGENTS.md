@@ -14,7 +14,7 @@ packages/
              globals, html-image-element, webgl
 refs/     — read-only git submodules (node, deno, bun, gjs, node-fetch,
              fetch-ie8, stream-http, headless-gl, troll,
-             crypto-browserify, readable-stream)
+             crypto-browserify, readable-stream, undici)
 ```
 
 ## Node.js Packages (`packages/node/*`)
@@ -132,6 +132,26 @@ Read-only git submodules — do NOT modify. Use GNOME libraries internally, not 
 | `refs/troll/` | GJS utility patterns (Sonny Piers) |
 | `refs/crypto-browserify/` | Pure-JS crypto implementations — reference for `@gjsify/crypto` |
 | `refs/readable-stream/` | Maintained Node.js stream polyfill — reference for edge cases |
+| `refs/undici/` | Official Node.js HTTP client — reference for `@gjsify/http` client-side |
+
+## Official Node.js npm Packages
+
+Some Node.js core modules are published as standalone npm packages (pure JS, browser-compatible). Because our esbuild bundler aliases `buffer` → `@gjsify/buffer`, `events` → `@gjsify/events`, etc., these packages can work in GJS builds without modification — the bundler injects our GJS-compatible implementations.
+
+**Usable as direct dependencies (instead of reimplementing):**
+
+| npm Package | Published By | Can Replace | Notes |
+|-------------|-------------|-------------|-------|
+| `readable-stream` (v4) | nodejs-foundation | `@gjsify/stream` | Official Node.js streams for userland. Deps: buffer, events, process, string_decoder — all aliased to @gjsify/* |
+| `string_decoder` (v1.3) | nodejs-foundation | `@gjsify/string_decoder` | Official. Dep: safe-buffer → buffer (aliased) |
+
+**Useful as references only (need native APIs we don't have yet):**
+
+| npm Package | Why Reference-Only |
+|-------------|-------------------|
+| `undici` (v7) | HTTP client — uses net, tls, crypto internally. Useful after Phase 2 networking is done |
+
+**Decision guideline:** Prefer official npm packages when available and their dependency chains resolve through our bundler aliases. Reimplement only when GJS-specific optimizations (GLib, Gio) provide significant benefit over the pure-JS version, or when the npm package depends on APIs we haven't implemented yet.
 
 ## Native Extensions (Vala)
 

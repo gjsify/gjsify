@@ -31,3 +31,6 @@
 [submodule "refs/readable-stream"]
 	path = refs/readable-stream
 	url = https://github.com/nodejs/readable-stream.git
+[submodule "refs/undici"]
+	path = refs/undici
+	url = https://github.com/nodejs/undici.git
