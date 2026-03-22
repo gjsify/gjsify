@@ -5,6 +5,7 @@ export * from './cli.js';
 export * from './error.js';
 export * from './file.js';
 export * from './fs.js';
+export * from './gio.js';
 export * from './log.js';
 export * from './message.js';
 export * from './os.js';

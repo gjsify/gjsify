@@ -1,8 +1,7 @@
 import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
-import * as GioExt from '@gjsify/gio-2.0';
-import * as SoupExt from '@gjsify/soup-3.0';
+import { soupSendAsync, inputStreamToReadable } from './utils/soup-helpers.js';
 
 import { URL } from '@gjsify/url';
 import { Blob } from './utils/blob-from.js';
@@ -144,9 +143,9 @@ export class Request extends Body {
     referrer: string | URL;
     referrerPolicy: ReferrerPolicy;
     // Gjsify
-    session: SoupExt.ExtSession & Soup.Session;
+    session: Soup.Session;
     message: Soup.Message;
-    inputStream?: Gio.InputStream & GioExt.ExtInputStream<Gio.InputStream>;
+    inputStream?: Gio.InputStream;
     readable?: Readable
   };
 
@@ -226,7 +225,7 @@ export class Request extends Body {
       referrer = undefined;
     }
 
-    const session = SoupExt.ExtSession.new();
+    const session = new Soup.Session();
     const message = new Soup.Message({
       method,
       uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.NONE),
@@ -267,8 +266,8 @@ export class Request extends Body {
 
     const cancellable = new Gio.Cancellable();
 
-    this[INTERNALS].inputStream = await session.sendAsync(message, GLib.PRIORITY_DEFAULT, cancellable);
-    this[INTERNALS].readable = this[INTERNALS].inputStream.toReadable({});
+    this[INTERNALS].inputStream = await soupSendAsync(session, message, GLib.PRIORITY_DEFAULT, cancellable);
+    this[INTERNALS].readable = inputStreamToReadable(this[INTERNALS].inputStream);
 
     return {
       inputStream: this[INTERNALS].inputStream,
