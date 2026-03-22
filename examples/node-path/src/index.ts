@@ -6,6 +6,9 @@ console.log('=== @gjsify/path example ===\n');
 // path.join
 console.log('path.join("/usr", "local", "bin"):', path.join('/usr', 'local', 'bin'));
 
+// path.resolve
+console.log('path.resolve("foo", "bar"):', path.resolve('foo', 'bar'));
+
 // path.basename
 console.log('path.basename("/home/user/file.txt"):', path.basename('/home/user/file.txt'));
 console.log('path.basename("/home/user/file.txt", ".txt"):', path.basename('/home/user/file.txt', '.txt'));

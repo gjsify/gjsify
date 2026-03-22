@@ -69,9 +69,8 @@ function detectArch(): ProcessArch {
 }
 
 function getCwd(): string {
-  if (typeof globalThis.process?.cwd === 'function') {
-    return globalThis.process.cwd();
-  }
+  // Try GLib first to avoid recursion — under GJS, globalThis.process.cwd
+  // is our own method which calls getCwd(), causing infinite recursion.
   try {
     const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib?.get_current_dir) return GLib.get_current_dir();
