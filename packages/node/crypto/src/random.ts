@@ -1,6 +1,5 @@
-// Cryptographic random number generation for GJS
-// Uses WebCrypto API when available, GLib.Random as fallback
 // Reference: Node.js lib/internal/crypto/random.js
+// Reimplemented for GJS using WebCrypto API / GLib.Random
 
 import { Buffer } from 'buffer';
 

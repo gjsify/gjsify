@@ -1,9 +1,7 @@
-
-/**
- * Body.js
- *
- * Body interface provides common methods for Request and Response
- */
+// SPDX-License-Identifier: MIT
+// Adapted from node-fetch (refs/node-fetch/src/body.js)
+// Copyright (c) node-fetch contributors. MIT license.
+// Modifications: Rewritten for GJS using libsoup 3.0 and @gjsify/url
 
 import { URLSearchParams } from '@gjsify/url';
 import { Blob } from './utils/blob-from.js';

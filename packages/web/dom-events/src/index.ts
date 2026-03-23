@@ -1,4 +1,5 @@
-// Native EventTarget/Event implementation for GJS — no Deno dependency.
+// Reference: DOM Living Standard (https://dom.spec.whatwg.org/)
+// EventTarget/Event implementation for GJS
 
 type EventListenerOrEventListenerObject = EventListener | EventListenerObject;
 

@@ -1,8 +1,7 @@
-/**
- * Response.js
- *
- * Response class provides content decoding
- */
+// SPDX-License-Identifier: MIT
+// Adapted from node-fetch (refs/node-fetch/src/response.js)
+// Copyright (c) node-fetch contributors. MIT license.
+// Modifications: Rewritten for GJS using Gio streams and GLib
 
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';

@@ -1,5 +1,5 @@
-// HKDF (HMAC-based Key Derivation Function) using our pure-JS Hmac
 // Reference: Node.js lib/internal/crypto/hkdf.js, RFC 5869
+// Reimplemented for GJS using pure-JS Hmac
 
 import { Buffer } from 'buffer';
 import { Hmac } from './hmac.js';

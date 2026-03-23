@@ -7,7 +7,8 @@ const HAS_EVENT_TARGET_INTERFACE = typeof EventTarget !== "undefined"
 
 export default async () => {
 
-	// Credits https://github.com/mysticatea/abort-controller/tree/master/test
+	// Ported from abort-controller (https://github.com/mysticatea/abort-controller/tree/master/test)
+	// Original: MIT license, Toru Nagashima
 
 	await describe('AbortController', async () => {
 		await it('should have a callable constructor', async () => {

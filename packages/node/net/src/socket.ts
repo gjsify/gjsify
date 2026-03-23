@@ -1,5 +1,5 @@
-// net.Socket — Duplex stream wrapping Gio.SocketClient / Gio.SocketConnection
 // Reference: Node.js lib/net.js, refs/deno/ext/node/polyfills/net.ts
+// Reimplemented for GJS using Gio.SocketClient / Gio.SocketConnection
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';

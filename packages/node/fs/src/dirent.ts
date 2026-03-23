@@ -1,3 +1,6 @@
+// Reference: Node.js lib/internal/fs/utils.js (Dirent class)
+// Reimplemented for GJS using Gio.FileInfo
+
 import Gio from '@girs/gio-2.0';
 import { basename, dirname } from 'path';
 

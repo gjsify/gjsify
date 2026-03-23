@@ -2,6 +2,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import * as os from 'os';
 
 // Ported from refs/node/test/parallel/test-os.js
+// Original: MIT license, Node.js contributors
 
 export default async () => {
 	// ==================== basic return types ====================

@@ -7,7 +7,8 @@ import { AbortSignal } from '@gjsify/abort-controller';
 
 export default async () => {
 
-	// Credits https://github.com/mysticatea/abort-controller/tree/master/test
+	// Ported from abort-controller (https://github.com/mysticatea/abort-controller/tree/master/test)
+	// Original: MIT license, Toru Nagashima
 
 	await describe("AbortSignal", async () => {
 		await it("should not be callable", async () => {

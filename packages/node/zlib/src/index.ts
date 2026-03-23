@@ -1,6 +1,5 @@
-// Native zlib module for GJS — no Deno dependency
-// Uses Web Compression API (CompressionStream/DecompressionStream) where available,
-// falls back to Gio.ZlibCompressor/Decompressor on GJS.
+// Reference: Node.js lib/zlib.js
+// Reimplemented for GJS using Web Compression API / Gio.ZlibCompressor
 
 import type { ZlibOptions } from 'node:zlib';
 

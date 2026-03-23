@@ -1,4 +1,8 @@
-// Shared utility functions for path module
+// SPDX-License-Identifier: MIT
+// Adapted from Deno (refs/deno/ext/node/polyfills/path/) and Node.js (refs/node/lib/path.js)
+// Copyright (c) 2018-2026 the Deno authors. MIT license.
+// Copyright (c) Node.js contributors. MIT license.
+// Modifications: TypeScript types, no primordials
 
 import {
   CHAR_DOT,

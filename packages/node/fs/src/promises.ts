@@ -1,3 +1,6 @@
+// Reference: Node.js lib/internal/fs/promises.js
+// Reimplemented for GJS using Gio.File
+
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { warnNotImplemented } from '@gjsify/utils';

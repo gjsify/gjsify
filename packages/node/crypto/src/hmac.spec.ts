@@ -3,6 +3,7 @@ import { createHmac } from 'crypto';
 import { Buffer } from 'buffer';
 
 // Ported from refs/node/test/parallel/test-crypto-hmac.js
+// Original: MIT license, Node.js contributors
 
 export default async () => {
 	await describe('crypto.createHmac', async () => {

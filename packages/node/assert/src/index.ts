@@ -1,7 +1,5 @@
-/**
- * Node.js assert module implementation for GJS.
- * Replaces the previous re-export from @gjsify/deno_std.
- */
+// Reference: Node.js lib/assert.js
+// Reimplemented for GJS
 
 import { AssertionError } from './assertion-error.js';
 import { isDeepEqual, isDeepStrictEqual } from './deep-equal.js';

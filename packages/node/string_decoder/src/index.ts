@@ -1,5 +1,5 @@
-// Native string_decoder module for GJS — no Deno dependency
-// Handles incremental decoding of multi-byte character sequences across chunk boundaries.
+// Reference: Node.js lib/string_decoder.js
+// Reimplemented for GJS — handles incremental decoding of multi-byte character sequences
 
 import { normalizeEncoding, checkEncoding } from '@gjsify/utils';
 

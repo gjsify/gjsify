@@ -1,5 +1,5 @@
-// HTTP Server wrapping Soup.Server for GJS
 // Reference: Node.js lib/_http_server.js
+// Reimplemented for GJS using Soup.Server
 
 import Soup from '@girs/soup-3.0';
 import { EventEmitter } from 'events';

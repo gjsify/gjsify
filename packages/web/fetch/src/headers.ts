@@ -1,9 +1,7 @@
-/**
- * Headers class — standalone implementation without URLSearchParams inheritance.
- *
- * Uses an internal Map<string, string[]> for header storage.
- * All header names are lowercased per the Fetch spec.
- */
+// SPDX-License-Identifier: MIT
+// Adapted from node-fetch (refs/node-fetch/src/headers.js)
+// Copyright (c) node-fetch contributors. MIT license.
+// Modifications: Standalone implementation using internal Map, libsoup integration
 
 import Soup from '@girs/soup-3.0';
 import { validateHeaderName, validateHeaderValue } from '@gjsify/http';

@@ -1,5 +1,5 @@
-// net.Server — TCP server wrapping Gio.SocketService
 // Reference: Node.js lib/net.js
+// Reimplemented for GJS using Gio.SocketService
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';

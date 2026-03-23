@@ -4,6 +4,7 @@ import * as qs from 'querystring';
 // Ported from refs/node/test/parallel/test-querystring.js,
 // test-querystring-escape.js, test-querystring-maxKeys-non-finite.js,
 // test-querystring-multichar-separator.js
+// Original: MIT license, Node.js contributors
 
 // Helper: create object with null prototype (like Node.js qs.parse results)
 function createWithNoPrototype(properties: { key: string; value: string | string[] }[]) {

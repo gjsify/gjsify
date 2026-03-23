@@ -1,7 +1,6 @@
-// HMAC implementation for GJS using createHash (GLib.Checksum)
-// GLib.Hmac bindings crash in GJS (segfault), so we implement HMAC manually.
-// HMAC(K, m) = H((K' ⊕ opad) || H((K' ⊕ ipad) || m))
 // Reference: RFC 2104, Node.js lib/internal/crypto/hash.js
+// Reimplemented for GJS using pure-JS HMAC over GLib.Checksum
+// (GLib.Hmac bindings crash in GJS with segfault)
 
 import { Transform } from 'stream';
 import type { TransformCallback } from 'node:stream';

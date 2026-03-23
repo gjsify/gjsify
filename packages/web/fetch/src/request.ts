@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: MIT
+// Adapted from node-fetch (refs/node-fetch/src/request.js)
+// Copyright (c) node-fetch contributors. MIT license.
+// Modifications: Rewritten for GJS using Soup.Message and Gio
+
 import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';

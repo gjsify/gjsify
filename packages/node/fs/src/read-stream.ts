@@ -1,4 +1,7 @@
-// Credits https://github.com/denoland/deno_std/blob/main/node/_fs/_fs_streams.ts
+// SPDX-License-Identifier: MIT
+// Adapted from Deno (refs/deno/ext/node/polyfills/_fs/_fs_streams.ts)
+// Copyright (c) 2018-2026 the Deno authors. MIT license.
+// Modifications: Rewritten to use Gio.File for GJS
 import GLib from '@girs/glib-2.0';
 import { notImplemented } from "@gjsify/utils";
 import { Buffer } from "buffer";

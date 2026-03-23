@@ -286,6 +286,99 @@ Skip tests that depend on Node.js/V8 internals, native addons, or features we in
 - Type error callbacks as `NodeJS.ErrnoException | null`
 - Validate with `yarn check` (`tsc --noEmit`)
 
+## Source Attribution
+
+This project reimplements Node.js APIs using GNOME libraries, consulting reference implementations in `refs/` and external projects. Proper attribution is required for legal compliance and intellectual honesty.
+
+### When Attribution Is Required
+
+| Derivation Level | When It Applies | Required Format |
+|-----------------|-----------------|-----------------|
+| **Direct adaptation** | Code structure/logic closely follows a specific source file (control flow, algorithms, data tables) | Template A (SPDX + copyright) |
+| **API-compatible reimplementation** | API surface matches Node.js but implementation is original using GNOME libs | Template B (Reference comment) |
+| **Ported tests** | Test cases adapted from reference project test suites | Template C |
+| **Algorithm from spec/RFC** | Implementation follows a published standard | Template D |
+
+### Attribution Templates
+
+**Template A — Direct adaptation** (code structure follows a source):
+
+```typescript
+// SPDX-License-Identifier: MIT
+// Adapted from <project> (<refs/ path or URL>)
+// Copyright (c) <year> <copyright holder>
+// Modifications: <brief description, e.g. "Rewritten to use Gio.File instead of libuv">
+```
+
+**Template B — API-compatible reimplementation** (only the API matches):
+
+```typescript
+// Reference: Node.js lib/<name>.js
+// Reimplemented for GJS using <GNOME library>
+```
+
+Multiple references:
+
+```typescript
+// Reference: Node.js lib/<name>.js, refs/deno/ext/node/polyfills/<name>.ts
+// Reimplemented for GJS using <GNOME library>
+```
+
+**Template C — Ported tests** (in `*.spec.ts` files):
+
+```typescript
+// Ported from refs/<project>/test/parallel/test-<name>.js
+// Original: MIT license, <copyright holder>
+```
+
+**Template D — Algorithm from spec** (crypto, protocol implementations):
+
+```typescript
+// Implements <algorithm> per <spec> (<RFC number or URL>)
+// Reference: refs/<project>/path/to/file.js
+// Copyright (c) <copyright holder>. <license>.
+```
+
+### Rules
+
+1. **Every implementation file** (`src/*.ts`, excluding pure type re-exports and barrel `index.ts` that only re-export) must have a Template A or B comment at the top.
+2. **Every test file** (`*.spec.ts`) that ports tests from reference projects must have a Template C comment.
+3. **Do not fabricate attributions.** If the implementation is wholly original: `// <Module> for GJS — original implementation using <library>`.
+4. **Preserve existing correct attributions** (copyright headers, "Credits" comments). Only add missing ones or upgrade vague ones.
+5. **Use `refs/` paths** instead of external URLs where possible — they remain valid even if upstream URLs change.
+6. When multiple sources were consulted, list all of them.
+
+### Reference Project Copyright Lines
+
+Use these canonical copyright lines when applying Template A or D:
+
+| Source | Copyright Line |
+|--------|---------------|
+| `refs/node/` | `Copyright (c) Node.js contributors. MIT license.` |
+| `refs/node-test/` | `Copyright (c) Node.js contributors. MIT license.` |
+| `refs/deno/` | `Copyright (c) 2018-2026 the Deno authors. MIT license.` |
+| `refs/bun/` | `Copyright (c) Oven (oven-sh). MIT license.` |
+| `refs/quickjs/` | `Copyright (c) Fabrice Bellard, Charlie Gordon. MIT license.` |
+| `refs/workerd/` | `Copyright (c) Cloudflare, Inc. Apache 2.0 license.` |
+| `refs/edgejs/` | `Copyright (c) Wasmer, Inc. MIT license.` |
+| `refs/crypto-browserify/` | `Copyright (c) crypto-browserify contributors. MIT license.` |
+| `refs/browserify-cipher/` | `Copyright (c) crypto-browserify contributors. MIT license.` |
+| `refs/browserify-sign/` | `Copyright (c) Calvin Metcalf. ISC license.` |
+| `refs/create-ecdh/` | `Copyright (c) createECDH contributors. MIT license.` |
+| `refs/create-hash/`, `refs/create-hmac/` | `Copyright (c) crypto-browserify contributors. MIT license.` |
+| `refs/diffie-hellman/` | `Copyright (c) Calvin Metcalf. MIT license.` |
+| `refs/hash-base/` | `Copyright (c) Kirill Fomichev. MIT license.` |
+| `refs/pbkdf2/` | `Copyright (c) Daniel Cousens. MIT license.` |
+| `refs/public-encrypt/` | `Copyright (c) Calvin Metcalf. MIT license.` |
+| `refs/randombytes/`, `refs/randomfill/` | `Copyright (c) crypto-browserify contributors. MIT license.` |
+| `refs/readable-stream/` | `Copyright (c) Node.js contributors. MIT license.` |
+| `refs/undici/` | `Copyright (c) Matteo Collina and Undici contributors. MIT license.` |
+| `refs/gjs/` | `Copyright (c) GNOME contributors. MIT/LGPLv2+ license.` |
+| `refs/node-gst-webrtc/` | `Copyright (c) Ratchanan Srirattanamet. ISC license.` |
+| node-fetch | `Copyright (c) node-fetch contributors. MIT license.` |
+| event-target-shim | `Copyright (c) Toru Nagashima. MIT license.` |
+| gjs-require | `Copyright (c) Andrea Giammarchi. ISC license.` |
+
 ## STATUS.md Maintenance
 
 `STATUS.md` tracks overall project progress. **Update it when making significant changes:**

@@ -1,7 +1,8 @@
-// Cipher/Decipher — pure-JS AES implementation for GJS
-// Implements AES-128/192/256 in CBC, CTR, ECB modes
-// Based on FIPS-197 (Rijndael) with PKCS#7 padding
-// Reference: refs/browserify-cipher/, NIST FIPS-197
+// SPDX-License-Identifier: MIT
+// Implements AES-128/192/256 (CBC, CTR, ECB) per FIPS-197 (Rijndael) with PKCS#7 padding
+// Adapted from browserify-cipher (refs/browserify-cipher/)
+// Copyright (c) crypto-browserify contributors. MIT license.
+// Modifications: Pure-JS implementation for GJS, no OpenSSL dependency
 
 import { Buffer } from 'buffer';
 

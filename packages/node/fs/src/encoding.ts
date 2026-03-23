@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: MIT
+// Adapted from Deno (refs/deno/ext/node/polyfills/_fs/_fs_mkdtemp.ts)
+// Copyright (c) 2018-2026 the Deno authors. MIT license.
+// Modifications: Extracted encoding helpers, adapted for GJS
+
 import { Buffer } from 'buffer';
 
 import type { ReadOptions } from './types/index.js';

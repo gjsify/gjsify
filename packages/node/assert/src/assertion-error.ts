@@ -1,3 +1,6 @@
+// Reference: Node.js lib/internal/assert/assertion_error.js
+// Reimplemented for GJS
+
 import { safeInspect } from './inspect-fallback.js';
 
 interface AssertionErrorOptions {

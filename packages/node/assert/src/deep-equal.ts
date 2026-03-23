@@ -1,11 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Adapted from Deno (refs/deno/ext/node/polyfills/internal/util/comparisons.ts)
+// Copyright (c) 2018-2026 the Deno authors. MIT license.
+// Modifications: No primordials, no Buffer.compare, no C++ bindings, no kPartial mode
+
 /**
  * Deep equality comparison for Node.js assert module.
- * Ported from Deno's internal/util/comparisons.ts with simplifications:
- * - No primordials (direct JS calls)
- * - No Buffer.compare (byte-by-byte comparison)
- * - No getOwnNonIndexProperties C++ binding (JS approximation)
- * - No kPartial mode (partialDeepStrictEqual not implemented)
- * - No isKeyObject, isCryptoKey, isURL checks
  */
 
 type Memo = {

@@ -1,6 +1,5 @@
-// Native console module for GJS — no Deno dependency
-// GJS already provides a full console global (log, warn, error, info, debug, table, etc.)
-// The Node.js console module additionally exports a Console class constructor.
+// Reference: Node.js lib/internal/console/constructor.js
+// Reimplemented for GJS using native GJS console global
 
 import type { ConsoleOptions } from 'node:console';
 

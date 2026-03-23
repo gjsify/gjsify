@@ -1,5 +1,8 @@
-// POSIX path implementation for GJS
-// Reference: Node.js lib/path.js, Deno ext/node/polyfills/path/_posix.ts
+// SPDX-License-Identifier: MIT
+// Adapted from Deno (refs/deno/ext/node/polyfills/path/_posix.ts) and Node.js (refs/node/lib/path.js)
+// Copyright (c) 2018-2026 the Deno authors. MIT license.
+// Copyright (c) Node.js contributors. MIT license.
+// Modifications: TypeScript types, no primordials, GJS-compatible
 
 import { CHAR_DOT, CHAR_FORWARD_SLASH } from './constants.js';
 import {

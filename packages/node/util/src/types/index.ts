@@ -1,6 +1,8 @@
-// Native util.types implementation for GJS — no Deno dependency.
-// Adapted from Node.js and Deno. Uses robust prototype-method-detection
-// instead of instanceof checks for cross-realm correctness.
+// SPDX-License-Identifier: MIT
+// Adapted from Node.js (refs/node/lib/internal/util/types.js) and Deno (refs/deno/ext/node/polyfills/internal/util/types.ts)
+// Copyright (c) Node.js contributors. MIT license.
+// Copyright (c) 2018-2026 the Deno authors. MIT license.
+// Modifications: Uses prototype-method-detection instead of V8 C++ bindings, no primordials
 
 // Cached prototype methods and getters for type detection
 const _toString = Object.prototype.toString;

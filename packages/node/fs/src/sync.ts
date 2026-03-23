@@ -1,3 +1,6 @@
+// Reference: Node.js lib/fs.js (sync API)
+// Reimplemented for GJS using Gio.File synchronous operations
+
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { existsSync } from '@gjsify/utils';

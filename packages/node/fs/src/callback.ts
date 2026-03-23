@@ -1,3 +1,6 @@
+// Reference: Node.js lib/fs.js (callback API)
+// Reimplemented for GJS using Gio.File async operations
+
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { open as openP, rm as rmP } from './promises.js'

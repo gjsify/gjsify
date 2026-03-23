@@ -1,9 +1,7 @@
-/**
- * fetch() implementation for GJS using libsoup 3.0.
- *
- * Based on the Fetch API spec:
- * https://fetch.spec.whatwg.org/
- */
+// SPDX-License-Identifier: MIT
+// Adapted from node-fetch (refs/node-fetch/) and the Fetch API spec (https://fetch.spec.whatwg.org/)
+// Copyright (c) node-fetch contributors. MIT license.
+// Modifications: Rewritten for GJS using libsoup 3.0 (Soup.Session)
 
 import type Gio from '@girs/gio-2.0';
 import Stream from 'stream';

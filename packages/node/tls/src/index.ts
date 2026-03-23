@@ -1,6 +1,5 @@
-// Node.js tls module for GJS
-// Uses Gio.TlsClientConnection / Gio.TlsServerConnection
 // Reference: Node.js lib/tls.js
+// Reimplemented for GJS using Gio.TlsClientConnection / Gio.TlsServerConnection
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';

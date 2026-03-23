@@ -1,5 +1,5 @@
-// Native stream module for GJS — no Deno dependency
-// Implements core Node.js stream classes built on EventEmitter.
+// Reference: Node.js lib/stream.js, lib/internal/streams/*.js
+// Reimplemented for GJS using EventEmitter and microtask scheduling
 
 import { EventEmitter } from '@gjsify/events';
 import type { ReadableOptions, WritableOptions, DuplexOptions, TransformOptions, FinishedOptions } from 'node:stream';

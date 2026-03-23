@@ -1,3 +1,6 @@
+// Reference: Node.js lib/os.js
+// Reimplemented for GJS using GLib (get_home_dir, get_host_name, etc.)
+
 import { cli, getPathSeparator, getOs } from '@gjsify/utils';
 
 export { constants }

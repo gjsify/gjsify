@@ -1,3 +1,6 @@
+// Reference: Node.js lib/internal/fs/promises.js (FileHandle)
+// Reimplemented for GJS using Gio.File
+
 import { warnNotImplemented, notImplemented } from '@gjsify/utils';
 import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";

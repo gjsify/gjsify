@@ -1,5 +1,5 @@
-// Hash class wrapping GLib.Checksum for GJS
 // Reference: Node.js lib/internal/crypto/hash.js
+// Reimplemented for GJS using GLib.Checksum
 
 import GLib from '@girs/glib-2.0';
 import { Transform } from 'stream';

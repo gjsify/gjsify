@@ -1,3 +1,6 @@
+// Reference: Node.js lib/internal/fs/watchers.js
+// Reimplemented for GJS using Gio.FileMonitor
+
 import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'events';
 const privates = new WeakMap;

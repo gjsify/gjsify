@@ -3,6 +3,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { execSync, execFileSync, spawnSync, exec, execFile } from 'child_process';
 
 // Ported from refs/node/test/parallel/test-child-process-exec*.js
+// Original: MIT license, Node.js contributors
 
 export default async () => {
 	// ==================== execSync ====================

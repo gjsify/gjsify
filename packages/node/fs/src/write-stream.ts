@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: MIT
+// Adapted from Deno (refs/deno/ext/node/polyfills/internal/fs/streams.ts)
+// Copyright (c) 2018-2026 the Deno authors. MIT license.
+// Modifications: Rewritten to use Gio.File for GJS
+
 import { Writable } from "stream";
 import { fileURLToPath, URL } from "url";
 import { open, write, close } from "./callback.js";
@@ -6,7 +11,6 @@ import type { OpenFlags } from './types/index.js';
 import type { PathLike, WriteStream as IWriteStream } from 'fs';
 import type { CreateWriteStreamOptions } from 'fs/promises'; // Types from @types/node
 
-// From Deno
 const kIsPerformingIO = Symbol("kIsPerformingIO");
 const kIoDone = Symbol("kIoDone");
 
@@ -18,8 +22,6 @@ export function toPathIfFileURL(
   }
   return fileURLToPath(fileURLOrPath);
 }
-
-// Credits https://github.com/denoland/deno_std/blob/main/node/internal/fs/streams.ts
 export class WriteStream extends Writable implements IWriteStream {
 
     /**

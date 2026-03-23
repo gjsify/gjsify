@@ -1,5 +1,5 @@
-// Native process module for GJS — no Deno dependency
-// Uses GNOME libraries (GLib) for system information and EventEmitter for events.
+// Reference: Node.js lib/internal/process/*.js
+// Reimplemented for GJS using GLib (env, paths, platform detection) and EventEmitter
 
 import { EventEmitter } from '@gjsify/events';
 

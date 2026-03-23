@@ -1,3 +1,6 @@
+// Reference: Node.js lib/module.js
+// Reimplemented for GJS
+
 export const builtinModules = [
   'assert',
   'buffer',

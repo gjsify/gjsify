@@ -3,7 +3,8 @@ import { describe, it, expect, assert } from '@gjsify/unit';
 import { Event, EventTarget } from '@gjsify/dom-events';
 
 
-// Credits https://github.com/mysticatea/event-target-shim/blob/master/test/event.ts
+// Ported from event-target-shim (https://github.com/mysticatea/event-target-shim/blob/master/test/event.ts)
+// Original: MIT license, Toru Nagashima
 
 export const EventTest = async () => {
 

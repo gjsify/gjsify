@@ -1,6 +1,8 @@
-// Win32 path implementation stub
-// Full win32 support is secondary since GJS runs on POSIX systems.
-// This provides the basic API shape for compatibility.
+// SPDX-License-Identifier: MIT
+// Adapted from Deno (refs/deno/ext/node/polyfills/path/_win32.ts) and Node.js (refs/node/lib/path.js)
+// Copyright (c) 2018-2026 the Deno authors. MIT license.
+// Copyright (c) Node.js contributors. MIT license.
+// Modifications: Stub — full win32 support is secondary since GJS runs on POSIX systems
 
 import {
   CHAR_DOT,

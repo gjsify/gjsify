@@ -2,7 +2,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { Stream, Readable, Writable, Duplex, Transform, PassThrough, pipeline, finished } from 'stream';
 
 // Ported from refs/node/test/parallel/test-stream-*.js
-// Tests use async Promises to match Node.js async event delivery.
+// Original: MIT license, Node.js contributors
 
 export default async () => {
 	// ==================== Stream base ====================

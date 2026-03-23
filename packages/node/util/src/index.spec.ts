@@ -3,6 +3,7 @@ import * as util from 'util';
 
 // Ported from refs/node/test/parallel/test-util-format.js,
 // test-util-promisify.js, test-util-inherits.js, test-util-types.js
+// Original: MIT license, Node.js contributors
 
 // Helper to strip ANSI colors
 const ANSI_PATTERN = new RegExp(

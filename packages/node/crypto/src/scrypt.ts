@@ -1,7 +1,7 @@
-// scrypt key derivation — pure JavaScript implementation for GJS
-// Based on RFC 7914 (The scrypt Password-Based Key Derivation Function)
-// Uses PBKDF2 internally (already implemented via Hmac)
+// Implements scrypt per RFC 7914 (The scrypt Password-Based Key Derivation Function)
 // Reference: refs/node/lib/internal/crypto/scrypt.js
+// Copyright (c) Node.js contributors. MIT license.
+// Modifications: Pure-JS implementation for GJS using internal PBKDF2/Hmac
 
 import { Buffer } from 'buffer';
 import { pbkdf2Sync } from './pbkdf2.js';

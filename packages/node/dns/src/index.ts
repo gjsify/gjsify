@@ -1,6 +1,5 @@
-// Node.js dns module for GJS
-// Uses Gio.Resolver for DNS resolution
 // Reference: Node.js lib/dns.js
+// Reimplemented for GJS using Gio.Resolver
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';

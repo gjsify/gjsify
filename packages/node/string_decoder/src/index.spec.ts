@@ -4,6 +4,7 @@ import { Buffer } from 'buffer';
 
 // Ported from refs/node/test/parallel/test-string-decoder.js
 // and test-string-decoder-end.js
+// Original: MIT license, Node.js contributors
 
 // Helper: test that decoding input with given encoding produces expected output.
 // Tests all possible write sequences (byte-at-a-time, all-at-once, and various splits).

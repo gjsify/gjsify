@@ -1,9 +1,11 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { Buffer } from 'buffer';
 
-export default async () => {
+// Ported from Deno (https://github.com/denoland/deno_std/blob/main/node/buffer_test.ts)
+// and refs/node/test/parallel/test-buffer-*.js
+// Original: MIT license, Deno authors / Node.js contributors
 
-	// Tests ported from https://github.com/denoland/deno_std/blob/main/node/buffer_test.ts
+export default async () => {
 
 	await describe('alloc fails if size is not a number', async () => {
 		const invalidSizes = [{}, "1", "foo", []];
