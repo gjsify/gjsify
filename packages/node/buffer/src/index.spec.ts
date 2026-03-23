@@ -180,404 +180,237 @@ export default async () => {
 		});
 	});
 
-	// TODO: ALso port the tests below
+	// Ported from refs/node/test/parallel/test-buffer-*.js
 
-	// Deno.test({
-	// 	name: "A single buffer concatenates and return the same buffer",
-	// 	fn() {
-	// 		const buffer1 = Buffer.alloc(1);
-	// 		const resultBuffer = Buffer.concat([buffer1]);
-	// 		assertEquals(resultBuffer.length, 1, "Buffer length should be 1");
-	// 	},
-	// });
+	await describe('Buffer.concat edge cases', async () => {
+		await it('single buffer concat', async () => {
+			const buffer1 = Buffer.alloc(1);
+			const result = Buffer.concat([buffer1]);
+			expect(result.length).toBe(1);
+		});
 
-	// Deno.test({
-	// 	name: "No buffers concat returns an empty buffer",
-	// 	fn() {
-	// 		const resultBuffer = Buffer.concat([]);
-	// 		assertEquals(resultBuffer.length, 0, "Buffer length should be 0");
-	// 	},
-	// });
+		await it('empty concat returns empty buffer', async () => {
+			const result = Buffer.concat([]);
+			expect(result.length).toBe(0);
+		});
 
-	// Deno.test({
-	// 	name: "Buffer concat respects totalLength parameter",
-	// 	fn() {
-	// 		const maxLength1 = 10;
-	// 		const buffer1 = Buffer.alloc(2);
-	// 		const buffer2 = Buffer.alloc(2);
-	// 		assertEquals(
-	// 			Buffer.concat([buffer1, buffer2], maxLength1).length,
-	// 			maxLength1,
-	// 		);
+		await it('respects totalLength parameter', async () => {
+			const buffer1 = Buffer.alloc(2);
+			const buffer2 = Buffer.alloc(2);
+			expect(Buffer.concat([buffer1, buffer2], 10).length).toBe(10);
+			expect(Buffer.concat([buffer1, buffer2], 3).length).toBe(3);
+		});
+	});
 
-	// 		const maxLength2 = 3;
-	// 		const buffer3 = Buffer.alloc(2);
-	// 		const buffer4 = Buffer.alloc(2);
-	// 		assertEquals(
-	// 			Buffer.concat([buffer3, buffer4], maxLength2).length,
-	// 			maxLength2,
-	// 		);
-	// 	},
-	// });
+	// Ported from commented-out Deno tests and refs/node/test/parallel/test-buffer-*.js
 
-	// Deno.test({
-	// 	name: "Buffer 8 bit unsigned integers",
-	// 	fn() {
-	// 		const buffer = Buffer.from([0xff, 0x2a, 0x2a, 0x2a]);
-	// 		assertEquals(buffer.readUInt8(0), 255);
-	// 		assertEquals(buffer.readUInt8(1), 42);
-	// 		assertEquals(buffer.readUInt8(2), 42);
-	// 		assertEquals(buffer.readUInt8(3), 42);
-	// 	},
-	// });
+	await describe('Buffer.readUInt8', async () => {
+		await it('should read 8-bit unsigned integers', async () => {
+			const buffer = Buffer.from([0xff, 0x2a, 0x2a, 0x2a]);
+			expect(buffer.readUInt8(0)).toBe(255);
+			expect(buffer.readUInt8(1)).toBe(42);
+			expect(buffer.readUInt8(2)).toBe(42);
+			expect(buffer.readUInt8(3)).toBe(42);
+		});
+	});
 
-	// Deno.test({
-	// 	name: "Buffer 16 bit unsigned integers",
-	// 	fn() {
-	// 		const buffer = Buffer.from([0x00, 0x2a, 0x42, 0x3f]);
-	// 		assertEquals(buffer.readUInt16BE(0), 0x2a);
-	// 		assertEquals(buffer.readUInt16BE(1), 0x2a42);
-	// 		assertEquals(buffer.readUInt16BE(2), 0x423f);
-	// 		assertEquals(buffer.readUInt16LE(0), 0x2a00);
-	// 		assertEquals(buffer.readUInt16LE(1), 0x422a);
-	// 		assertEquals(buffer.readUInt16LE(2), 0x3f42);
+	await describe('Buffer.readUInt16BE/LE', async () => {
+		await it('should read 16-bit unsigned integers', async () => {
+			const buffer = Buffer.from([0x00, 0x2a, 0x42, 0x3f]);
+			expect(buffer.readUInt16BE(0)).toBe(0x002a);
+			expect(buffer.readUInt16BE(1)).toBe(0x2a42);
+			expect(buffer.readUInt16BE(2)).toBe(0x423f);
+			expect(buffer.readUInt16LE(0)).toBe(0x2a00);
+			expect(buffer.readUInt16LE(1)).toBe(0x422a);
+			expect(buffer.readUInt16LE(2)).toBe(0x3f42);
+		});
+	});
 
-	// 		buffer[0] = 0xfe;
-	// 		buffer[1] = 0xfe;
-	// 		assertEquals(buffer.readUInt16BE(0), 0xfefe);
-	// 		assertEquals(buffer.readUInt16LE(0), 0xfefe);
-	// 	},
-	// });
+	await describe('Buffer.readUInt32BE/LE', async () => {
+		await it('should read 32-bit unsigned integers', async () => {
+			const buffer = Buffer.from([0x32, 0x65, 0x42, 0x56, 0x23, 0xff]);
+			expect(buffer.readUInt32BE(0)).toBe(0x32654256);
+			expect(buffer.readUInt32BE(1)).toBe(0x65425623);
+			expect(buffer.readUInt32BE(2)).toBe(0x425623ff);
+			expect(buffer.readUInt32LE(0)).toBe(0x56426532);
+			expect(buffer.readUInt32LE(1)).toBe(0x23564265);
+			expect(buffer.readUInt32LE(2)).toBe(0xff235642);
+		});
+	});
 
-	// Deno.test({
-	// 	name: "Buffer 32 bit unsigned integers",
-	// 	fn() {
-	// 		const buffer = Buffer.from([0x32, 0x65, 0x42, 0x56, 0x23, 0xff]);
-	// 		assertEquals(buffer.readUInt32BE(0), 0x32654256);
-	// 		assertEquals(buffer.readUInt32BE(1), 0x65425623);
-	// 		assertEquals(buffer.readUInt32BE(2), 0x425623ff);
-	// 		assertEquals(buffer.readUInt32LE(0), 0x56426532);
-	// 		assertEquals(buffer.readUInt32LE(1), 0x23564265);
-	// 		assertEquals(buffer.readUInt32LE(2), 0xff235642);
-	// 	},
-	// });
+	await describe('Buffer.from string', async () => {
+		await it('should create buffer from utf8 string', async () => {
+			const buffer = Buffer.from('test');
+			expect(buffer.length).toBe(4);
+			expect(buffer.toString()).toBe('test');
+		});
 
-	// Deno.test({
-	// 	name: "Buffer readUIntBE",
-	// 	fn() {
-	// 		const buffer = Buffer.from([
-	// 			0x01,
-	// 			0x02,
-	// 			0x03,
-	// 			0x04,
-	// 			0x05,
-	// 			0x06,
-	// 			0x07,
-	// 			0x08,
-	// 		]);
-	// 		assertEquals(buffer.readUIntBE(0, 1), 0x01);
-	// 		assertEquals(buffer.readUIntBE(0, 2), 0x0102);
-	// 		assertEquals(buffer.readUIntBE(0, 4), 0x01020304);
-	// 	},
-	// });
+		await it('should create buffer from hex string', async () => {
+			const buffer = Buffer.from('7468697320697320612074c3a97374', 'hex');
+			expect(buffer.length).toBe(15);
+			expect(buffer.toString()).toBe('this is a tést');
+		});
 
-	// Deno.test({
-	// 	name: "Buffer readUIntLE",
-	// 	fn() {
-	// 		const buffer = Buffer.from([
-	// 			0x01,
-	// 			0x02,
-	// 			0x03,
-	// 			0x04,
-	// 			0x05,
-	// 			0x06,
-	// 			0x07,
-	// 			0x08,
-	// 		]);
-	// 		assertEquals(buffer.readUIntLE(0, 1), 0x01);
-	// 		assertEquals(buffer.readUIntLE(0, 2), 0x0201);
-	// 		assertEquals(buffer.readUIntLE(0, 4), 0x04030201);
-	// 	},
-	// });
+		await it('should create buffer from base64 string', async () => {
+			const buffer = Buffer.from('dGhpcyBpcyBhIHTDqXN0', 'base64');
+			expect(buffer.length).toBe(15);
+			expect(buffer.toString()).toBe('this is a tést');
+		});
 
-	// Deno.test({
-	// 	name: "Buffer copy works as expected",
-	// 	fn() {
-	// 		const data1 = new Uint8Array([1, 2, 3]);
-	// 		const data2 = new Uint8Array([4, 5, 6]);
+		await it('should create buffer from another buffer', async () => {
+			const buffer = Buffer.from(Buffer.from('test'));
+			expect(buffer.length).toBe(4);
+			expect(buffer.toString()).toBe('test');
+		});
 
-	// 		const buffer1 = Buffer.from(data1);
-	// 		const buffer2 = Buffer.from(data2);
+		await it('should create buffer from array', async () => {
+			const buffer = Buffer.from([65, 66, 67]);
+			expect(buffer.toString()).toBe('ABC');
+		});
 
-	// 		//Mutates data_1
-	// 		data1.set(data2);
-	// 		//Mutates buffer_1
-	// 		buffer2.copy(buffer1);
+		await it('should create buffer from ArrayBuffer', async () => {
+			const ab = new ArrayBuffer(4);
+			const view = new Uint8Array(ab);
+			view[0] = 65; view[1] = 66; view[2] = 67; view[3] = 68;
+			const buffer = Buffer.from(ab);
+			expect(buffer.toString()).toBe('ABCD');
+		});
+	});
 
-	// 		assertEquals(
-	// 			Buffer.from(data1),
-	// 			buffer1,
-	// 		);
-	// 	},
-	// });
+	await describe('Buffer.toString encodings', async () => {
+		await it('should convert to hex', async () => {
+			const buffer = Buffer.from('deno land');
+			expect(buffer.toString('hex')).toBe('64656e6f206c616e64');
+		});
 
-	// Deno.test({
-	// 	name: "Buffer copy respects the starting point for copy",
-	// 	fn() {
-	// 		const buffer1 = Buffer.from([1, 2, 3]);
-	// 		const buffer2 = Buffer.alloc(8);
+		await it('should convert to base64', async () => {
+			const buffer = Buffer.from('deno land');
+			expect(buffer.toString('base64')).toBe('ZGVubyBsYW5k');
+		});
 
-	// 		buffer1.copy(buffer2, 5);
+		await it('should round-trip hex', async () => {
+			const hex = '64656e6f206c616e64';
+			expect(Buffer.from(hex, 'hex').toString('hex')).toBe(hex);
+		});
 
-	// 		const expected = Buffer.from([0, 0, 0, 0, 0, 1, 2, 3]);
+		await it('should round-trip base64', async () => {
+			const b64 = 'dGhpcyBpcyBhIHTDqXN0';
+			expect(Buffer.from(b64, 'base64').toString('base64')).toBe(b64);
+		});
+	});
 
-	// 		assertEquals(
-	// 			buffer2,
-	// 			expected,
-	// 		);
-	// 	},
-	// });
+	await describe('Buffer.isBuffer', async () => {
+		await it('should return true for buffers', async () => {
+			expect(Buffer.isBuffer(Buffer.from('test'))).toBeTruthy();
+		});
 
-	// Deno.test({
-	// 	name: "Buffer copy doesn't throw on offset but copies until offset reached",
-	// 	fn() {
-	// 		const buffer1 = Buffer.from([1, 2, 3]);
-	// 		const buffer2 = Buffer.alloc(8);
+		await it('should return false for non-buffers', async () => {
+			expect(Buffer.isBuffer({ test: 3 })).toBeFalsy();
+			expect(Buffer.isBuffer(new Uint8Array())).toBeFalsy();
+		});
+	});
 
-	// 		const writtenBytes1 = buffer1.copy(buffer2, 6);
+	await describe('Buffer.isEncoding', async () => {
+		await it('should return true for valid encodings', async () => {
+			const valid = ['hex', 'utf8', 'utf-8', 'ascii', 'latin1', 'binary', 'base64', 'ucs2', 'utf16le'];
+			for (const enc of valid) {
+				expect(Buffer.isEncoding(enc)).toBeTruthy();
+			}
+		});
 
-	// 		assertEquals(
-	// 			writtenBytes1,
-	// 			2,
-	// 		);
+		await it('should return false for invalid encodings', async () => {
+			expect(Buffer.isEncoding('utf9')).toBeFalsy();
+			expect(Buffer.isEncoding('Unicode-FTW')).toBeFalsy();
+		});
+	});
 
-	// 		assertEquals(
-	// 			buffer2,
-	// 			Buffer.from([0, 0, 0, 0, 0, 0, 1, 2]),
-	// 		);
+	await describe('Buffer.toJSON', async () => {
+		await it('should serialize to JSON', async () => {
+			const json = JSON.stringify(Buffer.from('deno'));
+			const parsed = JSON.parse(json);
+			expect(parsed.type).toBe('Buffer');
+			expect(parsed.data.length).toBe(4);
+			expect(parsed.data[0]).toBe(100);
+			expect(parsed.data[1]).toBe(101);
+			expect(parsed.data[2]).toBe(110);
+			expect(parsed.data[3]).toBe(111);
+		});
+	});
 
-	// 		const buffer3 = Buffer.from([1, 2, 3]);
-	// 		const buffer4 = Buffer.alloc(8);
+	await describe('Buffer.copy', async () => {
+		await it('should copy data between buffers', async () => {
+			const buffer1 = Buffer.from([1, 2, 3]);
+			const buffer2 = Buffer.alloc(8);
+			buffer1.copy(buffer2, 5);
+			expect(buffer2[5]).toBe(1);
+			expect(buffer2[6]).toBe(2);
+			expect(buffer2[7]).toBe(3);
+		});
+	});
 
-	// 		const writtenBytes2 = buffer3.copy(buffer4, 8);
+	await describe('Buffer.compare', async () => {
+		await it('should return 0 for equal buffers', async () => {
+			const a = Buffer.from('abc');
+			const b = Buffer.from('abc');
+			expect(Buffer.compare(a, b)).toBe(0);
+		});
 
-	// 		assertEquals(
-	// 			writtenBytes2,
-	// 			0,
-	// 		);
+		await it('should return negative for a < b', async () => {
+			const a = Buffer.from('abc');
+			const b = Buffer.from('abd');
+			expect(Buffer.compare(a, b) < 0).toBeTruthy();
+		});
 
-	// 		assertEquals(
-	// 			buffer4,
-	// 			Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]),
-	// 		);
-	// 	},
-	// });
+		await it('should return positive for a > b', async () => {
+			const a = Buffer.from('abd');
+			const b = Buffer.from('abc');
+			expect(Buffer.compare(a, b) > 0).toBeTruthy();
+		});
+	});
 
-	// Deno.test({
-	// 	name: "Buffer from string creates a Buffer",
-	// 	fn() {
-	// 		const buffer: Buffer = Buffer.from("test");
-	// 		assertEquals(buffer.length, 4, "Buffer length should be 4");
-	// 		assertEquals(
-	// 			buffer.toString(),
-	// 			"test",
-	// 			"Buffer to string should recover the string",
-	// 		);
-	// 	},
-	// });
+	await describe('Buffer.equals', async () => {
+		await it('should return true for equal buffers', async () => {
+			expect(Buffer.from('abc').equals(Buffer.from('abc'))).toBeTruthy();
+		});
 
-	// Deno.test({
-	// 	name: "Buffer from string hex",
-	// 	fn() {
-	// 		for (const encoding of ["hex", "HEX"]) {
-	// 			const buffer: Buffer = Buffer.from(
-	// 				"7468697320697320612074c3a97374",
-	// 				encoding,
-	// 			);
-	// 			assertEquals(buffer.length, 15, "Buffer length should be 15");
-	// 			assertEquals(
-	// 				buffer.toString(),
-	// 				"this is a tést",
-	// 				"Buffer to string should recover the string",
-	// 			);
-	// 		}
-	// 	},
-	// });
+		await it('should return false for different buffers', async () => {
+			expect(Buffer.from('abc').equals(Buffer.from('abd'))).toBeFalsy();
+		});
+	});
 
-	// Deno.test({
-	// 	name: "Buffer from string base64",
-	// 	fn() {
-	// 		for (const encoding of ["base64", "BASE64"]) {
-	// 			const buffer: Buffer = Buffer.from("dGhpcyBpcyBhIHTDqXN0", encoding);
-	// 			assertEquals(buffer.length, 15, "Buffer length should be 15");
-	// 			assertEquals(
-	// 				buffer.toString(),
-	// 				"this is a tést",
-	// 				"Buffer to string should recover the string",
-	// 			);
-	// 		}
-	// 	},
-	// });
+	await describe('Buffer.slice', async () => {
+		await it('should return a view (not copy)', async () => {
+			const buf = Buffer.from('ceno');
+			const slice = buf.slice();
+			slice[0]++;
+			expect(slice.toString()).toBe('deno');
+		});
+	});
 
-	// Deno.test({
-	// 	name: "Buffer to string base64",
-	// 	fn() {
-	// 		for (const encoding of ["base64", "BASE64"]) {
-	// 			const buffer: Buffer = Buffer.from("deno land");
-	// 			assertEquals(
-	// 				buffer.toString(encoding),
-	// 				"ZGVubyBsYW5k",
-	// 				"Buffer to string should recover the string in base64",
-	// 			);
-	// 		}
-	// 		const b64 = "dGhpcyBpcyBhIHTDqXN0";
-	// 		assertEquals(Buffer.from(b64, "base64").toString("base64"), b64);
-	// 	},
-	// });
+	await describe('Buffer.indexOf', async () => {
+		await it('should find byte value', async () => {
+			const buf = Buffer.from('hello world');
+			expect(buf.indexOf(111)).toBe(4); // 'o'
+		});
 
-	// Deno.test({
-	// 	name: "Buffer to string hex",
-	// 	fn() {
-	// 		for (const encoding of ["hex", "HEX"]) {
-	// 			const buffer: Buffer = Buffer.from("deno land");
-	// 			assertEquals(
-	// 				buffer.toString(encoding),
-	// 				"64656e6f206c616e64",
-	// 				"Buffer to string should recover the string",
-	// 			);
-	// 		}
-	// 		const hex = "64656e6f206c616e64";
-	// 		assertEquals(Buffer.from(hex, "hex").toString("hex"), hex);
-	// 	},
-	// });
+		await it('should find string', async () => {
+			const buf = Buffer.from('hello world');
+			expect(buf.indexOf('world')).toBe(6);
+		});
 
-	// Deno.test({
-	// 	name: "Buffer from string invalid encoding",
-	// 	fn() {
-	// 		const defaultToUtf8Encodings = [null, 5, {}, true, false, ""];
-	// 		const invalidEncodings = ["deno", "base645"];
+		await it('should return -1 if not found', async () => {
+			const buf = Buffer.from('hello');
+			expect(buf.indexOf('xyz')).toBe(-1);
+		});
+	});
 
-	// 		for (const encoding of defaultToUtf8Encodings) {
-	// 			assertEquals(Buffer.from("yes", encoding).toString(), "yes");
-	// 		}
+	await describe('Buffer.includes', async () => {
+		await it('should return true if value found', async () => {
+			expect(Buffer.from('hello world').includes('world')).toBeTruthy();
+		});
 
-	// 		for (const encoding of invalidEncodings) {
-	// 			assertThrows(
-	// 				() => {
-	// 					Buffer.from("yes", encoding);
-	// 				},
-	// 				TypeError,
-	// 				`Unknown encoding: ${encoding}`,
-	// 			);
-	// 		}
-	// 	},
-	// });
-
-	// Deno.test({
-	// 	name: "Buffer from another buffer creates a Buffer",
-	// 	fn() {
-	// 		const buffer: Buffer = Buffer.from(Buffer.from("test"));
-	// 		assertEquals(buffer.length, 4, "Buffer length should be 4");
-	// 		assertEquals(
-	// 			buffer.toString(),
-	// 			"test",
-	// 			"Buffer to string should recover the string",
-	// 		);
-	// 	},
-	// });
-
-	// Deno.test({
-	// 	name: "isBuffer returns true if the object is a buffer",
-	// 	fn() {
-	// 		assertEquals(Buffer.isBuffer(Buffer.from("test")), true);
-	// 	},
-	// });
-
-	// Deno.test({
-	// 	name: "isBuffer returns false if the object is not a buffer",
-	// 	fn() {
-	// 		assertEquals(Buffer.isBuffer({ test: 3 }), false);
-	// 		assertEquals(Buffer.isBuffer(new Uint8Array()), false);
-	// 	},
-	// });
-
-	// Deno.test({
-	// 	name: "Buffer toJSON",
-	// 	fn() {
-	// 		assertEquals(
-	// 			JSON.stringify(Buffer.from("deno")),
-	// 			'{"type":"Buffer","data":[100,101,110,111]}',
-	// 		);
-	// 	},
-	// });
-
-	// Deno.test({
-	// 	name: "buf.slice does not create a copy",
-	// 	fn() {
-	// 		const buf = Buffer.from("ceno");
-	// 		// This method is not compatible with the Uint8Array.prototype.slice()
-	// 		const slice = buf.slice();
-	// 		slice[0]++;
-	// 		assertEquals(slice.toString(), "deno");
-	// 	},
-	// });
-
-	// Deno.test({
-	// 	name: "isEncoding returns true for valid encodings",
-	// 	fn() {
-	// 		[
-	// 			"hex",
-	// 			"HEX",
-	// 			"HeX",
-	// 			"utf8",
-	// 			"utf-8",
-	// 			"ascii",
-	// 			"latin1",
-	// 			"binary",
-	// 			"base64",
-	// 			"BASE64",
-	// 			"BASe64",
-	// 			"ucs2",
-	// 			"ucs-2",
-	// 			"utf16le",
-	// 			"utf-16le",
-	// 		].forEach((enc) => {
-	// 			assertEquals(Buffer.isEncoding(enc), true);
-	// 		});
-	// 	},
-	// });
-
-	// Deno.test({
-	// 	name: "isEncoding returns false for invalid encodings",
-	// 	fn() {
-	// 		[
-	// 			"utf9",
-	// 			"utf-7",
-	// 			"Unicode-FTW",
-	// 			"new gnu gun",
-	// 			false,
-	// 			NaN,
-	// 			{},
-	// 			Infinity,
-	// 			[],
-	// 			1,
-	// 			0,
-	// 			-1,
-	// 		].forEach((enc) => {
-	// 			// @ts-expect-error This deliberately ignores the type constraint
-	// 			assertEquals(Buffer.isEncoding(enc), false);
-	// 		});
-	// 	},
-	// });
-
-	// Deno.test({
-	// 	name:
-	// 		"utf8Write handle missing optional length argument (https://github.com/denoland/deno_std/issues/2046)",
-	// 	fn() {
-	// 		const buf = Buffer.alloc(8);
-	// 		// @ts-expect-error Buffer.prototype.utf8Write is an undocumented API
-	// 		assertEquals(buf.utf8Write("abc", 0), 3);
-	// 		assertEquals([...buf], [0x61, 0x62, 0x63, 0, 0, 0, 0, 0]);
-	// 	},
-	// });
+		await it('should return false if value not found', async () => {
+			expect(Buffer.from('hello').includes('xyz')).toBeFalsy();
+		});
+	});
 }
