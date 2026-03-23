@@ -3,6 +3,8 @@ import "@gjsify/require";
 
 import process from '@gjsify/process';
 import { Buffer } from '@gjsify/buffer';
+import { URL, URLSearchParams } from '@gjsify/url';
+import GLib from '@girs/glib-2.0';
 
 // queueMicrotask polyfill for GJS (SpiderMonkey does not provide it)
 if (typeof queueMicrotask !== 'function') {
@@ -70,6 +72,60 @@ if (!('clearImmediate' in globalThis)) {
   Object.defineProperty(globalThis, "clearImmediate", {
     value: clearImmediate,
     enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
+// btoa/atob polyfill via GLib.base64_encode/decode
+if (typeof globalThis.btoa !== 'function') {
+  Object.defineProperty(globalThis, "btoa", {
+    value: function btoa(data: string): string {
+      return GLib.base64_encode(new TextEncoder().encode(data));
+    },
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
+if (typeof globalThis.atob !== 'function') {
+  Object.defineProperty(globalThis, "atob", {
+    value: function atob(data: string): string {
+      return new TextDecoder().decode(GLib.base64_decode(data));
+    },
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
+// structuredClone polyfill via JSON round-trip
+if (typeof globalThis.structuredClone !== 'function') {
+  Object.defineProperty(globalThis, "structuredClone", {
+    value: function structuredClone<T>(value: T): T {
+      return JSON.parse(JSON.stringify(value));
+    },
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
+// URL / URLSearchParams globals via @gjsify/url (GLib.Uri-based)
+if (typeof globalThis.URL !== 'function') {
+  Object.defineProperty(globalThis, "URL", {
+    value: URL,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+}
+
+if (typeof globalThis.URLSearchParams !== 'function') {
+  Object.defineProperty(globalThis, "URLSearchParams", {
+    value: URLSearchParams,
+    enumerable: false,
     writable: true,
     configurable: true,
   });
