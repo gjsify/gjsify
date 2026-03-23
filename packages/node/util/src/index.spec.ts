@@ -21,6 +21,10 @@ export default async () => {
 	// ==================== format — no args / single values ====================
 
 	await describe('util.format: basic', async () => {
+		await it('should return empty string with no args', async () => {
+			expect(util.format()).toBe('');
+		});
+
 		await it('should format empty string', async () => {
 			expect(util.format('')).toBe('');
 		});
@@ -41,6 +45,23 @@ export default async () => {
 		await it('should format plain string', async () => {
 			expect(util.format('test')).toBe('test');
 		});
+
+		await it('should join multiple args with space', async () => {
+			expect(util.format('foo', 'bar', 'baz')).toBe('foo bar baz');
+		});
+
+		await it('should format Symbol', async () => {
+			expect(util.format(Symbol('foo'))).toBe('Symbol(foo)');
+		});
+	});
+
+	// ==================== format — %% (literal percent) ====================
+
+	await describe('util.format: %%', async () => {
+		await it('should handle %% with args', async () => {
+			expect(util.format('%% %s', 'foo')).toBe('% foo');
+			expect(util.format('%%', 'x')).toBe('% x');
+		});
 	});
 
 	// ==================== format — %d (number) ====================
@@ -56,6 +77,18 @@ export default async () => {
 			expect(util.format('%d', -0.5)).toBe('-0.5');
 		});
 
+		await it('should format -0', async () => {
+			expect(util.format('%d', -0.0)).toBe('-0');
+		});
+
+		await it('should format Symbol as NaN', async () => {
+			expect(util.format('%d', Symbol())).toBe('NaN');
+		});
+
+		await it('should format BigInt', async () => {
+			expect(util.format('%d', 1180591620717411303424n)).toBe('1180591620717411303424n');
+		});
+
 		await it('should format Infinity', async () => {
 			expect(util.format('%d', Infinity)).toBe('Infinity');
 			expect(util.format('%d', -Infinity)).toBe('-Infinity');
@@ -63,6 +96,48 @@ export default async () => {
 
 		await it('should handle multiple %d', async () => {
 			expect(util.format('%d %d', 42, 43)).toBe('42 43');
+		});
+
+		await it('should return %d with no args', async () => {
+			expect(util.format('%d')).toBe('%d');
+		});
+	});
+
+	// ==================== format — %i (integer) ====================
+
+	await describe('util.format: %i', async () => {
+		await it('should truncate to integer', async () => {
+			expect(util.format('%i', 42)).toBe('42');
+			expect(util.format('%i', 1.5)).toBe('1');
+		});
+
+		await it('should format -0.5 as -0', async () => {
+			expect(util.format('%i', -0.5)).toBe('-0');
+		});
+
+		await it('should format Infinity as NaN', async () => {
+			expect(util.format('%i', Infinity)).toBe('NaN');
+		});
+
+		await it('should format BigInt', async () => {
+			expect(util.format('%i', 1180591620717411303424n)).toBe('1180591620717411303424n');
+		});
+	});
+
+	// ==================== format — %f (float) ====================
+
+	await describe('util.format: %f', async () => {
+		await it('should format numbers', async () => {
+			expect(util.format('%f', 42)).toBe('42');
+			expect(util.format('%f', 1.5)).toBe('1.5');
+		});
+
+		await it('should format Symbol as NaN', async () => {
+			expect(util.format('%f', Symbol('foo'))).toBe('NaN');
+		});
+
+		await it('should format BigInt', async () => {
+			expect(util.format('%f', 5n)).toBe('5');
 		});
 	});
 
@@ -75,6 +150,18 @@ export default async () => {
 			expect(util.format('%s', 'foo')).toBe('foo');
 			expect(util.format('%s', 42)).toBe('42');
 			expect(util.format('%s', true)).toBe('true');
+		});
+
+		await it('should format -0', async () => {
+			expect(util.format('%s', -0)).toBe('-0');
+		});
+
+		await it('should format BigInt with n suffix', async () => {
+			expect(util.format('%s', 42n)).toBe('42n');
+		});
+
+		await it('should format Symbol', async () => {
+			expect(util.format('%s', Symbol('foo'))).toBe('Symbol(foo)');
 		});
 
 		await it('should format Infinity', async () => {
@@ -99,9 +186,6 @@ export default async () => {
 			expect(util.format('%j', obj)).toBe('[Circular]');
 		});
 	});
-
-	// NOTE: %o, %O, %%, %i, %f, -0, BigInt, Symbol in format specifiers
-	// have known limitations in our implementation. Tests skipped until format() is improved.
 
 	// ==================== inspect ====================
 

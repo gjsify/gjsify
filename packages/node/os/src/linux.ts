@@ -38,19 +38,21 @@ function parseInterfaces(info) {
   if (mac) this[info.slice(0, info.indexOf(':'))] = iface;
 };
 
-// PORTED TO deno runtime
+// CPU info from /proc/cpuinfo (model, speed) and /proc/stat (times)
 export const cpus = () => {
   const PROCESSOR = /^processor\s*:\s*(\d+)/i;
   const NAME = /^model[\s_]+name\s*:([^\r\n]+)/i;
   const FREQ = /^cpu[\s_]+MHz\s*:\s*(\d+)/i;
-  const cpus = [];
-  let cpu: { model: string, speed: number, times: { user: number, nice: number, sys: number, idle: number, irq: number } };
+  type CpuInfo = { model: string; speed: number; times: { user: number; nice: number; sys: number; idle: number; irq: number } };
+  const result: CpuInfo[] = [];
+  let cpu: CpuInfo;
+
+  // Parse model and speed from /proc/cpuinfo
   cli('cat /proc/cpuinfo').split(EOL).forEach(line => {
     switch (true) {
       case PROCESSOR.test(line):
-        cpus[RegExp.$1.trim()] = (cpu = {
-          model: '',
-          speed: 0,
+        result[RegExp.$1.trim() as unknown as number] = (cpu = {
+          model: '', speed: 0,
           times: { user: 0, nice: 0, sys: 0, idle: 0, irq: 0 },
         });
         break;
@@ -62,7 +64,25 @@ export const cpus = () => {
         break;
     }
   });
-  return cpus;
+
+  // Parse CPU times from /proc/stat (jiffies to ms: 1 jiffy = 10ms)
+  try {
+    const statLines = cli('cat /proc/stat').split(EOL);
+    for (const line of statLines) {
+      const m = /^cpu(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+(\d+)/.exec(line);
+      if (m && result[parseInt(m[1], 10)]) {
+        result[parseInt(m[1], 10)].times = {
+          user: parseInt(m[2], 10) * 10,
+          nice: parseInt(m[3], 10) * 10,
+          sys:  parseInt(m[4], 10) * 10,
+          idle: parseInt(m[5], 10) * 10,
+          irq:  parseInt(m[6], 10) * 10,
+        };
+      }
+    }
+  } catch { /* /proc/stat unavailable */ }
+
+  return result;
 };
 
 export const endianness = () => 'LE';

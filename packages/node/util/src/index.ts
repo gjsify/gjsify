@@ -194,6 +194,9 @@ inspect.defaultOptions = {
 // ---- format ----
 
 export function format(fmt: string, ...args: any[]): string {
+  // format() with no args returns ''
+  if (fmt === undefined && args.length === 0) return '';
+
   if (typeof fmt !== 'string') {
     if (args.length === 0) return inspect(fmt);
     const parts = [inspect(fmt)];
@@ -211,6 +214,15 @@ export function format(fmt: string, ...args: any[]): string {
     if (p > lastIdx) result += fmt.slice(lastIdx, p);
 
     const next = fmt[p + 1];
+
+    // %% always produces literal % (no arg consumed)
+    if (next === '%') {
+      result += '%';
+      lastIdx = p + 2;
+      p++;
+      continue;
+    }
+
     if (i >= args.length) {
       result += '%' + next;
       lastIdx = p + 2;
@@ -218,19 +230,80 @@ export function format(fmt: string, ...args: any[]): string {
       continue;
     }
 
+    const arg = args[i];
     switch (next) {
-      case 's':
-        result += String(args[i++]);
+      case 's': {
+        if (typeof arg === 'bigint') {
+          result += `${arg}n`;
+        } else if (typeof arg === 'symbol') {
+          result += arg.toString();
+        } else if (typeof arg === 'number' && Object.is(arg, -0)) {
+          result += '-0';
+        } else if (typeof arg === 'object' && arg !== null) {
+          // Objects with custom toString use it, others get inspect
+          const proto = Object.getPrototypeOf(arg);
+          if (proto === null || (typeof arg.toString === 'function' && arg.toString !== Object.prototype.toString && arg.toString !== Array.prototype.toString)) {
+            try {
+              const str = arg.toString();
+              if (typeof str === 'string' && str !== '[object Object]') {
+                result += str;
+              } else {
+                result += inspect(arg, { depth: 0 });
+              }
+            } catch {
+              result += inspect(arg, { depth: 0 });
+            }
+          } else {
+            result += inspect(arg, { depth: 0 });
+          }
+        } else {
+          result += String(arg);
+        }
+        i++;
         break;
-      case 'd':
-        result += Number(args[i++]).toString();
+      }
+      case 'd': {
+        if (typeof arg === 'bigint') {
+          result += `${arg}n`;
+        } else if (typeof arg === 'symbol') {
+          result += 'NaN';
+        } else {
+          const n = Number(arg);
+          result += Object.is(n, -0) ? '-0' : String(n);
+        }
+        i++;
         break;
-      case 'i':
-        result += parseInt(String(args[i++]), 10).toString();
+      }
+      case 'i': {
+        if (typeof arg === 'bigint') {
+          result += `${arg}n`;
+        } else if (typeof arg === 'symbol') {
+          result += 'NaN';
+        } else {
+          const n = Number(arg);
+          if (!isFinite(n)) {
+            // Node.js: parseInt('Infinity') → NaN, parseInt('-Infinity') → NaN
+            result += 'NaN';
+          } else {
+            const truncated = Math.trunc(n);
+            result += Object.is(truncated, -0) ? '-0' : String(truncated);
+          }
+        }
+        i++;
         break;
-      case 'f':
-        result += parseFloat(String(args[i++])).toString();
+      }
+      case 'f': {
+        if (typeof arg === 'bigint') {
+          result += Number(arg).toString();
+        } else if (typeof arg === 'symbol') {
+          result += 'NaN';
+        } else {
+          const n = parseFloat(String(arg));
+          result += Object.is(n, -0) ? '-0' : String(n);
+        }
+        i++;
         break;
+      }
       case 'j':
         try {
           result += JSON.stringify(args[i++]);
@@ -244,9 +317,6 @@ export function format(fmt: string, ...args: any[]): string {
       case 'O':
         result += inspect(args[i++], { depth: 4 });
         break;
-      case '%':
-        result += '%';
-        break;
       default:
         result += '%' + next;
         break;
@@ -259,9 +329,14 @@ export function format(fmt: string, ...args: any[]): string {
     result += fmt.slice(lastIdx);
   }
 
-  // Append remaining args
+  // Append remaining args (strings passed as-is, objects inspected)
   for (; i < args.length; i++) {
-    result += ' ' + inspect(args[i]);
+    const arg = args[i];
+    if (typeof arg === 'string') {
+      result += ' ' + arg;
+    } else {
+      result += ' ' + inspect(arg);
+    }
   }
 
   return result;

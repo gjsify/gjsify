@@ -1,16 +1,8 @@
-// HKDF (HMAC-based Key Derivation Function) using GLib.Hmac
+// HKDF (HMAC-based Key Derivation Function) using our pure-JS Hmac
 // Reference: Node.js lib/internal/crypto/hkdf.js, RFC 5869
 
-import GLib from '@girs/glib-2.0';
 import { Buffer } from 'buffer';
-
-const CHECKSUM_TYPES: Record<string, GLib.ChecksumType> = {
-  md5: GLib.ChecksumType.MD5,
-  sha1: GLib.ChecksumType.SHA1,
-  sha256: GLib.ChecksumType.SHA256,
-  sha384: GLib.ChecksumType.SHA384,
-  sha512: GLib.ChecksumType.SHA512,
-};
+import { Hmac } from './hmac.js';
 
 const DIGEST_SIZES: Record<string, number> = {
   md5: 16,
@@ -20,14 +12,16 @@ const DIGEST_SIZES: Record<string, number> = {
   sha512: 64,
 };
 
+const SUPPORTED_ALGORITHMS = new Set(['md5', 'sha1', 'sha256', 'sha384', 'sha512']);
+
 function normalizeAlgorithm(algorithm: string): string {
   return algorithm.toLowerCase().replace(/-/g, '');
 }
 
-function hmacDigest(type: GLib.ChecksumType, key: Uint8Array, data: Uint8Array) {
-  const hmac = new GLib.Hmac(type, key);
+function hmacDigest(algo: string, key: Uint8Array, data: Uint8Array) {
+  const hmac = new Hmac(algo, key);
   hmac.update(data);
-  return Buffer.from(hmac.get_string(), 'hex');
+  return hmac.digest() as Buffer;
 }
 
 function toBuffer(input: string | Buffer | Uint8Array | DataView | ArrayBuffer): Buffer {
@@ -40,15 +34,15 @@ function toBuffer(input: string | Buffer | Uint8Array | DataView | ArrayBuffer):
 /**
  * HKDF-Extract: PRK = HMAC-Hash(salt, IKM)
  */
-function hkdfExtract(checksumType: GLib.ChecksumType, ikm: Buffer, salt: Buffer): Buffer {
-  return hmacDigest(checksumType, salt, ikm);
+function hkdfExtract(algo: string, ikm: Buffer, salt: Buffer): Buffer {
+  return hmacDigest(algo, salt, ikm);
 }
 
 /**
  * HKDF-Expand: OKM = T(1) || T(2) || ... || T(N)
  *   T(i) = HMAC-Hash(PRK, T(i-1) || info || i)
  */
-function hkdfExpand(checksumType: GLib.ChecksumType, prk: Buffer, info: Buffer, length: number, hashLen: number): Buffer {
+function hkdfExpand(algo: string, prk: Buffer, info: Buffer, length: number, hashLen: number): Buffer {
   const n = Math.ceil(length / hashLen);
   if (n > 255) {
     throw new Error('HKDF cannot generate more than 255 * HashLen bytes');
@@ -59,7 +53,7 @@ function hkdfExpand(checksumType: GLib.ChecksumType, prk: Buffer, info: Buffer, 
 
   for (let i = 1; i <= n; i++) {
     const input = Buffer.concat([prev, info, Buffer.from([i])]);
-    prev = hmacDigest(checksumType, prk, input);
+    prev = hmacDigest(algo, prk, input);
     prev.copy(okm, (i - 1) * hashLen);
   }
 
@@ -77,10 +71,9 @@ export function hkdfSync(
   keylen: number
 ): ArrayBuffer {
   const algo = normalizeAlgorithm(digest);
-  const checksumType = CHECKSUM_TYPES[algo];
   const hashLen = DIGEST_SIZES[algo];
 
-  if (checksumType === undefined || hashLen === undefined) {
+  if (!SUPPORTED_ALGORITHMS.has(algo) || hashLen === undefined) {
     throw new TypeError(`Unknown message digest: ${digest}`);
   }
 
@@ -95,8 +88,8 @@ export function hkdfSync(
   // If salt is empty, use a zero-filled buffer of hash length
   const effectiveSalt = saltBuf.length === 0 ? Buffer.alloc(hashLen, 0) : saltBuf;
 
-  const prk = hkdfExtract(checksumType, ikmBuf, effectiveSalt);
-  const okm = hkdfExpand(checksumType, prk, infoBuf, keylen, hashLen);
+  const prk = hkdfExtract(algo, ikmBuf, effectiveSalt);
+  const okm = hkdfExpand(algo, prk, infoBuf, keylen, hashLen);
 
   // Node.js returns ArrayBuffer — copy to ensure a clean ArrayBuffer
   const result = new ArrayBuffer(okm.length);

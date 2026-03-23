@@ -1,16 +1,8 @@
-// PBKDF2 key derivation using GLib.Hmac
+// PBKDF2 key derivation using our pure-JS Hmac (which uses GLib.Checksum internally)
 // Reference: Node.js lib/internal/crypto/pbkdf2.js, RFC 2898
 
-import GLib from '@girs/glib-2.0';
 import { Buffer } from 'buffer';
-
-const CHECKSUM_TYPES: Record<string, GLib.ChecksumType> = {
-  md5: GLib.ChecksumType.MD5,
-  sha1: GLib.ChecksumType.SHA1,
-  sha256: GLib.ChecksumType.SHA256,
-  sha384: GLib.ChecksumType.SHA384,
-  sha512: GLib.ChecksumType.SHA512,
-};
+import { Hmac } from './hmac.js';
 
 const DIGEST_SIZES: Record<string, number> = {
   md5: 16,
@@ -20,14 +12,16 @@ const DIGEST_SIZES: Record<string, number> = {
   sha512: 64,
 };
 
+const SUPPORTED_ALGORITHMS = new Set(['md5', 'sha1', 'sha256', 'sha384', 'sha512']);
+
 function normalizeAlgorithm(algorithm: string): string {
   return algorithm.toLowerCase().replace(/-/g, '');
 }
 
-function hmacDigest(type: GLib.ChecksumType, key: Uint8Array, data: Uint8Array): Buffer {
-  const hmac = new GLib.Hmac(type, key);
+function hmacDigest(algo: string, key: Uint8Array, data: Uint8Array): Buffer {
+  const hmac = new Hmac(algo, key);
   hmac.update(data);
-  return Buffer.from(hmac.get_string(), 'hex');
+  return hmac.digest() as Buffer;
 }
 
 function validateParameters(iterations: number, keylen: number): void {
@@ -67,10 +61,9 @@ export function pbkdf2Sync(
   const passwordBuf = toBuffer(password);
   const saltBuf = toBuffer(salt);
   const algo = normalizeAlgorithm(digest || 'sha1');
-  const checksumType = CHECKSUM_TYPES[algo];
   const hashLen = DIGEST_SIZES[algo];
 
-  if (checksumType === undefined || hashLen === undefined) {
+  if (!SUPPORTED_ALGORITHMS.has(algo) || hashLen === undefined) {
     throw new TypeError(`Unknown message digest: ${digest || 'sha1'}`);
   }
 
@@ -88,12 +81,12 @@ export function pbkdf2Sync(
     saltBuf.copy(block, 0);
     block.writeUInt32BE(blockIndex, saltBuf.length);
 
-    let u = hmacDigest(checksumType, passwordBuf, block);
+    let u = hmacDigest(algo, passwordBuf, block);
     let t = Buffer.from(u);
 
     // U_2 ... U_c
     for (let iter = 1; iter < iterations; iter++) {
-      u = hmacDigest(checksumType, passwordBuf, u);
+      u = hmacDigest(algo, passwordBuf, u);
       for (let k = 0; k < hashLen; k++) {
         t[k] ^= u[k];
       }

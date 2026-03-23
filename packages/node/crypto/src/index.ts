@@ -1,8 +1,8 @@
 // Node.js crypto module for GJS
-// Hash/Hmac via GLib, random via WebCrypto/GLib, ciphers/sign/DH via browserify pure-JS
+// Hash via GLib.Checksum, Hmac via pure-JS (using Hash), random via WebCrypto/GLib
 // Reference: Node.js lib/crypto.js
 
-// === Native GLib implementations (no external deps) ===
+// === GLib.Checksum-based implementations ===
 export { Hash, getHashes, hash } from './hash.js';
 export { Hmac } from './hmac.js';
 export {
@@ -15,7 +15,7 @@ export {
 export { timingSafeEqual } from './timing-safe-equal.js';
 export { constants } from './constants.js';
 
-// Native PBKDF2/HKDF implementations (GLib.Hmac based)
+// PBKDF2/HKDF implementations (using pure-JS Hmac)
 export { pbkdf2, pbkdf2Sync } from './pbkdf2.js';
 export { hkdf, hkdfSync } from './hkdf.js';
 

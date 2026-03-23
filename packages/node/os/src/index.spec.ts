@@ -90,6 +90,13 @@ export default async () => {
 				expect(typeof cpu.times.irq).toBe('number');
 			}
 		});
+
+		await it('cpu times should have non-zero values', async () => {
+			const cpus = os.cpus();
+			// At least one CPU should have non-zero idle time
+			const hasNonZeroIdle = cpus.some(cpu => cpu.times.idle > 0);
+			expect(hasNonZeroIdle).toBeTruthy();
+		});
 	});
 
 	// ==================== memory ====================
