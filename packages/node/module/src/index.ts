@@ -265,7 +265,7 @@ export function createRequire(filenameOrURL: string | URL): NodeRequire {
   } as NodeRequire['resolve'];
 
   req.resolve.paths = (_request: string): string[] | null => null;
-  req.cache = cache;
+  req.cache = cache as NodeRequire['cache'];
   req.extensions = Object.create(null) as NodeRequire['extensions'];
   req.main = undefined;
 
