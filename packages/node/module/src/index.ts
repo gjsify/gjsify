@@ -1,7 +1,8 @@
 // Reference: Node.js lib/module.js
 // Reimplemented for GJS using Gio and GLib
-// Resolution logic adapted from @gjsify/require (c) Andrea Giammarchi - ISC
+// CJS loading logic adapted from @gjsify/require (c) Andrea Giammarchi - ISC
 
+import '@girs/gjs';
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 
@@ -160,6 +161,56 @@ function resolveModulePath(id: string, callerDir: string): string {
   return resolvedPath;
 }
 
+// --- CJS file loading via GJS imports system ---
+// Ported from @gjsify/require (c) Andrea Giammarchi - ISC
+
+function requireJsFile(filePath: string, cache: Record<string, unknown>): unknown {
+  if (filePath in cache) return cache[filePath];
+
+  let fd = Gio.File.new_for_path(filePath);
+  const dir = fd.get_parent()!.get_path()!;
+  let basename = fd.get_basename()!;
+
+  if (basename.endsWith('.mjs')) {
+    throw new Error(`Cannot require .mjs files. Use import instead. Path: "${filePath}"`);
+  }
+
+  // GJS can't import files with .cjs extension — copy to .js
+  if (basename.endsWith('.cjs')) {
+    const dest = resolveFile(dir, '__gjsify__' + basename.replace(/\.cjs$/, '.js'));
+    if (dest.query_exists(null)) {
+      dest.delete(null);
+    }
+    fd.copy(dest, Gio.FileCopyFlags.NONE, null, null);
+    fd = dest;
+    basename = fd.get_basename()!;
+  }
+
+  // Save current global CJS state
+  const savedExports = globalThis.exports;
+  const savedModule = globalThis.module;
+
+  const moduleExports = {};
+  const moduleObj = { exports: moduleExports };
+  globalThis.exports = moduleExports;
+  globalThis.module = moduleObj as NodeModule;
+
+  // Use GJS imports system to evaluate the CJS file
+  const { searchPath } = imports;
+  searchPath.unshift(dir);
+  imports[basename.replace(/\.(js|cjs)$/, '')];
+  searchPath.shift();
+
+  // Capture result and restore global state
+  const result = moduleObj.exports;
+  cache[filePath] = result;
+
+  globalThis.exports = savedExports;
+  globalThis.module = savedModule;
+
+  return result;
+}
+
 export function createRequire(filenameOrURL: string | URL): NodeRequire {
   let filename: string;
 
@@ -183,17 +234,29 @@ export function createRequire(filenameOrURL: string | URL): NodeRequire {
   }
 
   const callerDir = GLib.path_get_dirname(filename);
+  const cache: Record<string, unknown> = Object.create(null);
 
   const req = function require(id: string): unknown {
-    // JSON files can be loaded directly
-    if (id.endsWith('.json')) {
-      const resolved = resolveModulePath(id, callerDir);
-      return readJsonFile(resolved);
+    const resolved = resolveModulePath(id, callerDir);
+
+    if (resolved in cache) return cache[resolved];
+
+    // JSON files
+    if (resolved.endsWith('.json')) {
+      const result = readJsonFile(resolved);
+      cache[resolved] = result;
+      return result;
     }
 
-    throw new Error(
-      `createRequire: Cannot require("${id}"). GJS is ESM-only; use import instead.`
-    );
+    // Builtin modules can't be required synchronously in ESM
+    if (isBuiltin(id)) {
+      throw new Error(
+        `createRequire: Cannot require builtin module "${id}" synchronously in GJS. Use import instead.`
+      );
+    }
+
+    // .js/.cjs files — load via GJS imports system
+    return requireJsFile(resolved, cache);
   } as NodeRequire;
 
   req.resolve = function resolve(id: string): string {
@@ -204,7 +267,7 @@ export function createRequire(filenameOrURL: string | URL): NodeRequire {
     return null;
   };
 
-  req.cache = Object.create(null);
+  req.cache = cache;
   req.extensions = Object.create(null) as NodeRequire['extensions'];
   req.main = undefined;
 
