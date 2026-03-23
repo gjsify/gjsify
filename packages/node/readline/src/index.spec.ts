@@ -131,6 +131,96 @@ export default async () => {
       expect(resumed).toBe(true);
       rl.close();
     });
+
+    // Additional tests ported from refs/node-test
+
+    await it('should handle \\r line endings', async () => {
+      const input = new PassThrough();
+      const rl = createInterface({ input });
+
+      const lines: string[] = [];
+      rl.on('line', (line: string) => lines.push(line));
+
+      input.write('line1\rline2\r');
+
+      await new Promise<void>((r) => setTimeout(r, 10));
+
+      expect(lines.length).toBe(2);
+      expect(lines[0]).toBe('line1');
+      expect(lines[1]).toBe('line2');
+      rl.close();
+    });
+
+    await it('should handle chunked input across line boundary', async () => {
+      const input = new PassThrough();
+      const rl = createInterface({ input });
+
+      const lines: string[] = [];
+      rl.on('line', (line: string) => lines.push(line));
+
+      input.write('hel');
+      input.write('lo\nwor');
+      input.write('ld\n');
+
+      await new Promise<void>((r) => setTimeout(r, 10));
+
+      expect(lines.length).toBe(2);
+      expect(lines[0]).toBe('hello');
+      expect(lines[1]).toBe('world');
+      rl.close();
+    });
+
+    await it('should handle empty lines', async () => {
+      const input = new PassThrough();
+      const rl = createInterface({ input });
+
+      const lines: string[] = [];
+      rl.on('line', (line: string) => lines.push(line));
+
+      input.write('\n\n\n');
+
+      await new Promise<void>((r) => setTimeout(r, 10));
+
+      expect(lines.length).toBe(3);
+      expect(lines[0]).toBe('');
+      expect(lines[1]).toBe('');
+      expect(lines[2]).toBe('');
+      rl.close();
+    });
+
+    await it('close should be safe to call twice', async () => {
+      const input = new Readable({ read() {} });
+      const rl = createInterface({ input });
+
+      rl.close();
+      rl.close(); // should not throw
+      expect(true).toBeTruthy();
+    });
+
+    await it('should have write method', async () => {
+      const input = new Readable({ read() {} });
+      const rl = createInterface({ input });
+      expect(typeof rl.write).toBe('function');
+      rl.close();
+    });
+
+    await it('should emit line on input end with pending data', async () => {
+      const input = new PassThrough();
+      const rl = createInterface({ input });
+
+      const lines: string[] = [];
+      rl.on('line', (line: string) => lines.push(line));
+
+      input.write('no newline');
+      input.end();
+
+      await new Promise<void>((r) => setTimeout(r, 50));
+
+      // When input ends, pending data should be emitted as a line
+      expect(lines.length).toBe(1);
+      expect(lines[0]).toBe('no newline');
+      rl.close();
+    });
   });
 
   await describe('readline utility functions', async () => {
@@ -176,6 +266,39 @@ export default async () => {
       moveCursor(stream, 3, -2);
       expect(chunks.length).toBe(1);
       expect(chunks[0]).toBe('\x1b[3C\x1b[2A');
+    });
+
+    await it('cursorTo with x and y should write correct escape', async () => {
+      const chunks: string[] = [];
+      const stream = new Writable({
+        write(chunk, _enc, cb) { chunks.push(chunk.toString()); cb(); }
+      });
+
+      cursorTo(stream, 10, 5);
+      expect(chunks.length).toBe(1);
+      expect(chunks[0]).toBe('\x1b[6;11H'); // row+1;col+1
+    });
+
+    await it('clearLine with direction -1 should clear left', async () => {
+      const chunks: string[] = [];
+      const stream = new Writable({
+        write(chunk, _enc, cb) { chunks.push(chunk.toString()); cb(); }
+      });
+
+      clearLine(stream, -1);
+      expect(chunks.length).toBe(1);
+      expect(chunks[0]).toBe('\x1b[1K');
+    });
+
+    await it('clearLine with direction 1 should clear right', async () => {
+      const chunks: string[] = [];
+      const stream = new Writable({
+        write(chunk, _enc, cb) { chunks.push(chunk.toString()); cb(); }
+      });
+
+      clearLine(stream, 1);
+      expect(chunks.length).toBe(1);
+      expect(chunks[0]).toBe('\x1b[0K');
     });
   });
 };

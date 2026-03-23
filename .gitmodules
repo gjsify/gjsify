@@ -82,3 +82,6 @@
 [submodule "refs/workerd"]
 	path = refs/workerd
 	url = git@github.com:cloudflare/workerd.git
+[submodule "refs/node-gst-webrtc"]
+	path = refs/node-gst-webrtc
+	url = git@github.com:peat-psuwit/node-gst-webrtc.git

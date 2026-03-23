@@ -71,16 +71,12 @@ export class Interface extends EventEmitter {
     const str = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     this._lineBuffer += str;
 
-    let newlineIndex: number;
-    while ((newlineIndex = this._lineBuffer.indexOf('\n')) !== -1) {
-      let line = this._lineBuffer.substring(0, newlineIndex);
-      this._lineBuffer = this._lineBuffer.substring(newlineIndex + 1);
-
-      // Handle \r\n
-      if (line.endsWith('\r')) {
-        line = line.slice(0, -1);
-      }
-
+    // Process lines separated by \n, \r\n, or standalone \r
+    const lineEnd = /\r\n|\r|\n/;
+    let m: RegExpExecArray | null;
+    while ((m = lineEnd.exec(this._lineBuffer)) !== null) {
+      const line = this._lineBuffer.substring(0, m.index);
+      this._lineBuffer = this._lineBuffer.substring(m.index + m[0].length);
       this._onLine(line);
     }
   }
