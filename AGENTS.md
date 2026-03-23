@@ -233,7 +233,7 @@ Matchers: `toBe`, `toEqual`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeDefined
 
 Each `packages/node/<name>/`:
 - `package.json`: `@gjsify/<name>`, v0.0.4, `"type": "module"`
-- Exports: `./lib/esm/index.js` (import) — ESM-only, kein CJS
+- Exports: `./lib/esm/index.js` (import) — ESM-only, no CJS
 - Scripts: `build:gjsify`, `build:types`, `build:test:gjs`, `build:test:node`, `test`, `test:gjs`, `test:node`
 - Deps: `@girs/*` (implementation), `@gjsify/unit` (devDep)
 
@@ -384,15 +384,15 @@ Use these canonical copyright lines when applying Template A or D:
 `STATUS.md` tracks overall project progress. **Update it when making significant changes:**
 
 - After adding/expanding tests: update test counts in the package tables
-- After fixing implementations: update the "Was funktioniert" / "Was fehlt" columns
+- After fixing implementations: update the "Working" / "Missing" columns
 - After completing a stub or partial package: move it to the correct category
 - After a work session with multiple changes: add a Changelog entry with date and summary
-- Keep the Metriken section (total test count, package counts) current
+- Keep the Metrics section (total test count, package counts) current
 
 ## Constraints
 
 - Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128`
-- ESM-only — kein CJS-Support, alle Pakete sind ausschließlich ESM
+- ESM-only — no CJS support, all packages are exclusively ESM
 - GNOME libs + standard JS only
 - Tests must pass on both Node.js and GJS from same source
 - Do not modify `refs/` — read-only submodules
