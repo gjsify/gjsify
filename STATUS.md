@@ -14,7 +14,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | GJS-Infrastruktur | 3 | 2 | 1 (types) | — |
 | Build-Tools | 7 | 7 | — | — |
 
-**Testabdeckung:** ~1.900 Testfälle in 65+ Spec-Dateien. CI via GitHub Actions (Node.js 24.x + GJS auf Ubuntu 24.04).
+**Testabdeckung:** ~2.000 Testfälle in 67+ Spec-Dateien. CI via GitHub Actions (Node.js 24.x + GJS auf Ubuntu 24.04).
 
 ---
 
@@ -57,9 +57,9 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | **crypto** | GLib | 78 (6 Specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, **Cipher/Decipher (AES-CBC/CTR/ECB)**, **scrypt (RFC 7914)** | Sign/Verify, ECDH, DH, KeyObject, X509Certificate, AES-GCM |
 | **globals** | — | 15 | setImmediate Polyfill | Vollständige globalThis-Konfiguration |
 | **http** | Soup 3.0, Gio, GLib | 42 (2 Specs) | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, Agent, Round-Trip | Client-seitig: http.request(), http.get() noch unvollständig |
-| **https** | — | ✓ | Agent-Stub | Vollständige Implementierung benötigt fertiges http |
+| **https** | — | 17 | Agent (defaultPort 443, protocol https:), request/get Wrapper | Client-Integration, createServer mit TLS |
 | **readline** | — | 50 | Interface, createInterface, \r Line-Ending Support | Cursor-Navigation, History, Completion, Prompt |
-| **tls** | Gio, GLib | ✓ | TLSSocket via Gio.TlsClientConnection, connect | createServer, TLS Session Resumption, ALPN |
+| **tls** | Gio, GLib | 19 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher), connect, createSecureContext | createServer, TLS Session Resumption, ALPN |
 
 ### Stubs (8)
 
@@ -150,8 +150,8 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 | Davon teilweise | 6 (15%) |
 | Davon Stubs | 8 (21%) |
 | Web-API-Pakete | 7 (alle implementiert) |
-| Testfälle gesamt | ~1.900 |
-| Spec-Dateien | 65+ |
+| Testfälle gesamt | ~2.000 |
+| Spec-Dateien | 67+ |
 | GNOME-integrierte Pakete | 13 (28%) |
 | Alias-Mappings (GJS) | 60+ |
 | Referenz-Submodule | 27 |
@@ -185,6 +185,15 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 ---
 
 ## Changelog
+
+### 2026-03-23 — Wave 7
+
+**Networking-Vervollständigung — HTTPS & TLS Tests:**
+
+| Paket | Vorher | Nachher | Schwerpunkte |
+|-------|--------|---------|-------------|
+| https | 2 | 17 | Agent (defaultPort/protocol), request/get Wrapper, Exports, globalAgent |
+| tls | 2 | 19 | TLSSocket API (encrypted, getPeerCert, getProtocol, getCipher), createSecureContext, Konstanten |
 
 ### 2026-03-23 — Wave 6
 
