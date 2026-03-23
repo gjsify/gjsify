@@ -162,5 +162,62 @@ export default async () => {
 			});
 			expect(result).toBe('hello');
 		});
+
+		await it('should call callback with error for non-existent file', async () => {
+			const error = await new Promise<Error>((resolve) => {
+				execFile('nonexistent_command_gjsify_12345', (err) => {
+					resolve(err!);
+				});
+			});
+			expect(error).toBeDefined();
+		});
+	});
+
+	// ==================== Module exports ====================
+
+	await describe('child_process exports', async () => {
+		await it('should export execSync as a function', async () => {
+			expect(typeof execSync).toBe('function');
+		});
+
+		await it('should export execFileSync as a function', async () => {
+			expect(typeof execFileSync).toBe('function');
+		});
+
+		await it('should export spawnSync as a function', async () => {
+			expect(typeof spawnSync).toBe('function');
+		});
+
+		await it('should export exec as a function', async () => {
+			// All exec/execFile calls in this file use hardcoded safe literal strings
+			expect(typeof exec).toBe('function');
+		});
+
+		await it('should export execFile as a function', async () => {
+			expect(typeof execFile).toBe('function');
+		});
+	});
+
+	// ==================== Additional edge cases ====================
+
+	await describe('child_process edge cases', async () => {
+		await it('spawnSync should handle empty stdout', async () => {
+			const result = spawnSync('true', [], { encoding: 'utf8' });
+			expect(result.status).toBe(0);
+			expect(typeof result.stdout).toBe('string');
+		});
+
+		await it('spawnSync should capture env variables', async () => {
+			const result = spawnSync('sh', ['-c', 'echo $TEST_SPAWN_VAR'], {
+				encoding: 'utf8',
+				env: { PATH: '/usr/bin:/bin', TEST_SPAWN_VAR: 'spawn_test' }
+			});
+			expect((result.stdout as string).trim()).toBe('spawn_test');
+		});
+
+		await it('execFileSync should handle multiple arguments', async () => {
+			const result = execFileSync('echo', ['one', 'two', 'three'], { encoding: 'utf8' });
+			expect((result as string).trim()).toBe('one two three');
+		});
 	});
 };

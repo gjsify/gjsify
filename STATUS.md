@@ -14,7 +14,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | GJS-Infrastruktur | 3 | 2 | 1 (types) | — |
 | Build-Tools | 7 | 7 | — | — |
 
-**Testabdeckung:** ~2.000 Testfälle in 67+ Spec-Dateien. CI via GitHub Actions (Node.js 24.x + GJS auf Ubuntu 24.04).
+**Testabdeckung:** ~2.050 Testfälle in 68+ Spec-Dateien. CI via GitHub Actions (Node.js 24.x + GJS auf Ubuntu 24.04).
 
 ---
 
@@ -27,7 +27,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | **assert** | — | 73 | AssertionError, deepEqual, throws, strict mode |
 | **async_hooks** | — | 26 | AsyncLocalStorage, AsyncResource, createHook |
 | **buffer** | — | 123 | Buffer via Blob/atob/btoa, alloc, from, concat |
-| **child_process** | Gio, GLib | 26 | exec/execSync, execFile, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
+| **child_process** | Gio, GLib | 35 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
 | **console** | — | 57 | Console-Klasse mit Stream-Support |
 | **diagnostics_channel** | — | 26 | Channel, TracingChannel, subscribe/unsubscribe |
 | **dns** | Gio, GLib | 50 (2 Specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
@@ -55,7 +55,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | Paket | GNOME Libs | Tests | Was funktioniert | Was fehlt |
 |-------|-----------|-------|-----------------|-----------|
 | **crypto** | GLib | 78 (6 Specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, **Cipher/Decipher (AES-CBC/CTR/ECB)**, **scrypt (RFC 7914)** | Sign/Verify, ECDH, DH, KeyObject, X509Certificate, AES-GCM |
-| **globals** | — | 15 | setImmediate Polyfill | Vollständige globalThis-Konfiguration |
+| **globals** | — | 40 | setImmediate, process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL | Vollständige globalThis-Konfiguration |
 | **http** | Soup 3.0, Gio, GLib | 42 (2 Specs) | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, Agent, Round-Trip | Client-seitig: http.request(), http.get() noch unvollständig |
 | **https** | — | 17 | Agent (defaultPort 443, protocol https:), request/get Wrapper | Client-Integration, createServer mit TLS |
 | **readline** | — | 50 | Interface, createInterface, \r Line-Ending Support | Cursor-Navigation, History, Completion, Prompt |
@@ -150,8 +150,8 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 | Davon teilweise | 6 (15%) |
 | Davon Stubs | 8 (21%) |
 | Web-API-Pakete | 7 (alle implementiert) |
-| Testfälle gesamt | ~2.000 |
-| Spec-Dateien | 67+ |
+| Testfälle gesamt | ~2.050 |
+| Spec-Dateien | 68+ |
 | GNOME-integrierte Pakete | 13 (28%) |
 | Alias-Mappings (GJS) | 60+ |
 | Referenz-Submodule | 27 |
@@ -185,6 +185,15 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 ---
 
 ## Changelog
+
+### 2026-03-23 — Wave 8
+
+**Restliche Pakete — Tests erweitern:**
+
+| Paket | Vorher | Nachher | Schwerpunkte |
+|-------|--------|---------|-------------|
+| globals | 15 | 40 | process (platform/argv/pid), Buffer (alloc/isBuffer), structuredClone, TextEncoder/Decoder, atob/btoa, URL/URLSearchParams, console |
+| child_process | 26 | 35 | execFile error, spawnSync env, exports validation, edge cases |
 
 ### 2026-03-23 — Wave 7
 
