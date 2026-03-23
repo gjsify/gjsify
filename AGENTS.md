@@ -34,13 +34,13 @@ Each is `@gjsify/<name>`. All have native GJS implementations.
 | cluster | — | Stub | isPrimary, isMaster, isWorker, fork throws |
 | console | — | Full | Console class with stream support |
 | crypto | GLib | Partial | Hash (GLib.Checksum), Hmac (GLib.Hmac), randomBytes/UUID (WebCrypto/GLib) |
-| dgram | — | Stub | Socket stub, createSocket |
+| dgram | Gio | Full | UDP Socket via Gio.Socket, bind, send, receive, multicast |
 | diagnostics_channel | — | Full | Channel, TracingChannel, subscribe/unsubscribe |
 | dns | Gio | Full | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
 | domain | — | Stub | Deprecated. Domain stub with run/bind/intercept |
 | events | — | Full | EventEmitter, once, on, listenerCount |
 | fs | Gio | Full | sync, callback, promises, streams, FSWatcher |
-| globals | GLib | Partial | setImmediate polyfill, global setup |
+| globals | GLib | Full | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | http | Soup 3.0 | Partial | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, METHODS |
 | http2 | — | Stub | constants, createServer/connect throw |
 | https | — | Partial | Agent, stub request/get (requires http completion) |
@@ -52,7 +52,7 @@ Each is `@gjsify/<name>`. All have native GJS implementations.
 | perf_hooks | — | Full | performance (Web API / GLib fallback), monitorEventLoopDelay stub |
 | process | GLib | Full | Process extends EventEmitter, env, cwd, platform |
 | querystring | — | Full | parse/stringify |
-| readline | — | Stub | Interface, createInterface, clearLine, cursorTo |
+| readline | — | Full | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
 | stream | — | Full | Readable, Writable, Duplex, Transform, PassThrough |
 | string_decoder | — | Full | UTF-8, Base64, hex, streaming support |
 | timers | — | Full | setTimeout/setInterval/setImmediate + Timeout class + timers/promises |

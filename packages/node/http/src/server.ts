@@ -124,7 +124,7 @@ export class ServerResponse extends Writable {
     }
 
     this.finished = true;
-    this.emit('finish');
+    // Note: 'finish' is emitted by Writable.end() — do NOT emit here to avoid double emission
   }
 
   /** Write status + headers + body in one call (convenience). */

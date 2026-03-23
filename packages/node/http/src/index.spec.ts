@@ -1,4 +1,5 @@
 import { describe, it, expect, on } from '@gjsify/unit';
+import { Buffer } from 'buffer';
 
 import * as http from 'http';
 import type { validateHeaderName as gjsifyValidateHeaderName, validateHeaderValue as gjsifyValidateHeaderValue } from './index.js';
@@ -162,9 +163,8 @@ export default async () => {
     });
   });
 
-  // --- Server round-trip (Node.js only) ---
-  await on('Node.js', async () => {
-    await describe('http.createServer round-trip', async () => {
+  // --- Server round-trip ---
+  await describe('http.createServer round-trip', async () => {
       await it('should create a server and handle a GET request', async () => {
         const server = http.createServer((req, res) => {
           res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -322,5 +322,4 @@ export default async () => {
         });
       });
     });
-  });
 };

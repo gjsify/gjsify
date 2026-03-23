@@ -6,12 +6,15 @@ import type { ReadableOptions, WritableOptions, DuplexOptions, TransformOptions,
 
 // ---- Async scheduling ----
 // Node.js uses process.nextTick for stream event emission.
-// We use microtask scheduling for cross-platform async delivery.
-// Promise.resolve().then() works as microtask in all JS engines including SpiderMonkey (GJS).
+// In GJS, we use queueMicrotask which fires as a microtask but does NOT create
+// a Promise, avoiding "Unhandled promise rejection" warnings when callbacks throw.
+// queueMicrotask is available in SpiderMonkey 69+ (GJS uses SpiderMonkey 128).
 const nextTick: (fn: (...args: unknown[]) => void, ...args: unknown[]) => void =
   typeof globalThis.process?.nextTick === 'function'
     ? globalThis.process.nextTick
-    : (fn: (...args: unknown[]) => void, ...args: unknown[]) => Promise.resolve().then(() => fn(...args));
+    : typeof globalThis.queueMicrotask === 'function'
+      ? (fn: (...args: unknown[]) => void, ...args: unknown[]) => queueMicrotask(() => fn(...args))
+      : (fn: (...args: unknown[]) => void, ...args: unknown[]) => Promise.resolve().then(() => fn(...args));
 
 // ---- Types ----
 

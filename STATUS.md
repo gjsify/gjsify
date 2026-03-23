@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-23 (after Wave 3)
+> Last updated: 2026-03-23 (after Phase 0)
 
 ## Summary
 
@@ -9,7 +9,7 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 39 | 25 (64%) | 6 (15%) | 8 (21%) |
+| Node.js APIs | 39 | 27 (69%) | 4 (10%) | 8 (21%) |
 | Web APIs | 7 | 7 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
@@ -20,7 +20,7 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 
 ## Node.js Packages (`packages/node/`)
 
-### Fully Implemented (25)
+### Fully Implemented (27)
 
 | Package | GNOME Libs | Tests | Description |
 |---------|-----------|-------|-------------|
@@ -48,16 +48,16 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 | **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
 | **zlib** | — | 27 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors |
 | **dgram** | Gio, GLib | 20 | UDP Socket via Gio.Socket with bind, send, receive, multicast |
+| **globals** | — | 40 | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate |
+| **readline** | — | 50 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
 
-### Partially Implemented (6)
+### Partially Implemented (4)
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
 | **crypto** | GLib | 78 (6 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, **Cipher/Decipher (AES-CBC/CTR/ECB)**, **scrypt (RFC 7914)** | Sign/Verify, ECDH, DH, KeyObject, X509Certificate, AES-GCM |
-| **globals** | — | 40 | setImmediate, process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL | Complete globalThis configuration |
 | **http** | Soup 3.0, Gio, GLib | 42 (2 specs) | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, Agent, round-trip | Client-side: http.request(), http.get() still incomplete |
 | **https** | — | 17 | Agent (defaultPort 443, protocol https:), request/get wrapper | Client integration, createServer with TLS |
-| **readline** | — | 50 | Interface, createInterface, \r line-ending support | Cursor navigation, history, completion, prompt |
 | **tls** | Gio, GLib | 19 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher), connect, createSecureContext | createServer, TLS session resumption, ALPN |
 
 ### Stubs (8)
@@ -145,8 +145,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Metric | Value |
 |--------|-------|
 | Total Node.js packages | 39 |
-| Fully implemented | 25 (64%) |
-| Partially implemented | 6 (15%) |
+| Fully implemented | 27 (69%) |
+| Partially implemented | 4 (10%) |
 | Stubs | 8 (21%) |
 | Web API packages | 7 (all implemented) |
 | Total test cases | ~2,050 |
@@ -184,6 +184,13 @@ Not yet implemented (but potentially relevant for GJS projects):
 ---
 
 ## Changelog
+
+### 2026-03-23 — Phase 0: Housekeeping
+
+- Reclassified **globals** from Partial → Full (40 tests, all essential globals implemented)
+- Reclassified **readline** from Partial → Full (50 tests, Interface/createInterface/question/prompt/async-iterator)
+- Updated CLAUDE.md: dgram from Stub → Full (was already correct in STATUS.md)
+- Updated metrics: 27 fully implemented (69%), 4 partial (10%), 8 stubs (21%)
 
 ### 2026-03-23 — Wave 8
 

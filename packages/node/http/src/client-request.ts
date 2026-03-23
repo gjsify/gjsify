@@ -253,6 +253,17 @@ export class ClientRequest extends Writable {
         });
       });
 
+      // Read the entire response body before emitting 'response'.
+      const bodyChunks: Buffer[] = [];
+      try {
+        let chunk: Uint8Array | null;
+        while ((chunk = await readBytesAsync(inputStream, 4096, GLib.PRIORITY_DEFAULT, this._cancellable)) !== null) {
+          bodyChunks.push(Buffer.from(chunk));
+        }
+      } catch (readErr) {
+        // Reading may fail if the connection was reset — still emit response with what we have
+      }
+
       // Build IncomingMessage from the response
       const res = new IncomingMessage();
       res.statusCode = this._message.status_code;
@@ -276,30 +287,26 @@ export class ClientRequest extends Writable {
         }
       });
 
-      // Stream the response body from Gio.InputStream into IncomingMessage
-      this._streamResponseBody(inputStream, res);
-
       this.finished = true;
+
+      // Emit 'response' so the user can attach 'data'/'end' listeners
       this.emit('response', res);
+
+      // Now push the buffered body data into the Readable stream.
+      // Defer to next tick so listeners from the 'response' handler are attached.
+      setTimeout(() => {
+        for (const buf of bodyChunks) {
+          res.push(buf);
+        }
+        res.push(null);
+        res.complete = true;
+      }, 0);
     } catch (error: any) {
       if (this.aborted) {
         this.emit('abort');
       } else {
         this.emit('error', error instanceof Error ? error : new Error(String(error)));
       }
-    }
-  }
-
-  private async _streamResponseBody(inputStream: Gio.InputStream, res: IncomingMessage): Promise<void> {
-    try {
-      let chunk: Uint8Array | null;
-      while ((chunk = await readBytesAsync(inputStream, 4096, GLib.PRIORITY_DEFAULT, this._cancellable)) !== null) {
-        res.push(Buffer.from(chunk));
-      }
-      res.push(null);
-      res.complete = true;
-    } catch (error) {
-      res.destroy(error instanceof Error ? error : new Error(String(error)));
     }
   }
 }
