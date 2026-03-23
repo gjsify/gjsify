@@ -2,34 +2,89 @@
 // Wraps the Web Performance API available in SpiderMonkey 128
 // Reference: Node.js lib/perf_hooks.js
 
+// Entry types for the GLib-based performance shim
+interface PerfEntry {
+  name: string;
+  entryType: 'mark' | 'measure';
+  startTime: number;
+  duration: number;
+}
+
 // Re-export the global Performance object, with GLib fallback for GJS
 let performance: Performance;
 if (globalThis.performance) {
   performance = globalThis.performance;
 } else {
-  // GJS may not have globalThis.performance; create a minimal shim using GLib
+  // GJS may not have globalThis.performance; create a shim using GLib
   let _startTime: number;
+  let _now: () => number;
+
   try {
     const GLib = (globalThis as any).imports.gi.GLib;
     _startTime = GLib.get_monotonic_time();
-    performance = {
-      timeOrigin: Date.now() - (GLib.get_monotonic_time() - _startTime) / 1000,
-      now() { return (GLib.get_monotonic_time() - _startTime) / 1000; },
-      mark() {},
-      measure() {},
-      getEntries() { return []; },
-      getEntriesByName() { return []; },
-      getEntriesByType() { return []; },
-      clearMarks() {},
-      clearMeasures() {},
-      clearResourceTimings() {},
-      setResourceTimingBufferSize() {},
-      toJSON() { return {}; },
-    } as unknown as Performance;
+    _now = () => (GLib.get_monotonic_time() - _startTime) / 1000;
   } catch {
     const _start = Date.now();
-    performance = { timeOrigin: _start, now: () => Date.now() - _start } as unknown as Performance;
+    _startTime = 0;
+    _now = () => Date.now() - _start;
   }
+
+  const _entries: PerfEntry[] = [];
+  const _timeOrigin = Date.now() - _now();
+
+  performance = {
+    timeOrigin: _timeOrigin,
+    now: _now,
+
+    mark(name: string): PerfEntry {
+      const entry: PerfEntry = { name, entryType: 'mark', startTime: _now(), duration: 0 };
+      _entries.push(entry);
+      return entry;
+    },
+
+    measure(name: string, startMark?: string, endMark?: string): PerfEntry {
+      let startTime = 0;
+      let endTime = _now();
+
+      if (startMark) {
+        const s = _entries.find(e => e.entryType === 'mark' && e.name === startMark);
+        if (s) startTime = s.startTime;
+      }
+      if (endMark) {
+        const e = _entries.find(e => e.entryType === 'mark' && e.name === endMark);
+        if (e) endTime = e.startTime;
+      }
+
+      const entry: PerfEntry = { name, entryType: 'measure', startTime, duration: endTime - startTime };
+      _entries.push(entry);
+      return entry;
+    },
+
+    getEntries() { return [..._entries]; },
+    getEntriesByName(name: string) { return _entries.filter(e => e.name === name); },
+    getEntriesByType(type: string) { return _entries.filter(e => e.entryType === type); },
+
+    clearMarks(name?: string) {
+      for (let i = _entries.length - 1; i >= 0; i--) {
+        if (_entries[i].entryType === 'mark' && (!name || _entries[i].name === name)) {
+          _entries.splice(i, 1);
+        }
+      }
+    },
+
+    clearMeasures(name?: string) {
+      for (let i = _entries.length - 1; i >= 0; i--) {
+        if (_entries[i].entryType === 'measure' && (!name || _entries[i].name === name)) {
+          _entries.splice(i, 1);
+        }
+      }
+    },
+
+    clearResourceTimings() {},
+    setResourceTimingBufferSize() {},
+
+    toJSON() { return { timeOrigin: _timeOrigin }; },
+  } as unknown as Performance;
 }
 
 // Re-export Web Performance API classes if available

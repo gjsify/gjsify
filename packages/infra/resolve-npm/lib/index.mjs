@@ -141,7 +141,6 @@ export const ALIASES_WEB_FOR_GJS = {
 /** General record of modules for Node */
 export const ALIASES_GENERAL_FOR_NODE = {
     '@gjsify/node-globals': '@gjsify/empty',
-    '@gjsify/require': '@gjsify/empty',
 }
 
 /** Record of Gjs modules (build in or not) and his replacement for Node */

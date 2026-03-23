@@ -45,7 +45,7 @@ Each is `@gjsify/<name>`. All have native GJS implementations.
 | http2 | — | Stub | constants, createServer/connect throw |
 | https | — | Partial | Agent, stub request/get (requires http completion) |
 | inspector | — | Stub | Session stub, open/close/url |
-| module | — | Full | builtinModules, isBuiltin, createRequire |
+| module | Gio, GLib | Full | builtinModules, isBuiltin, createRequire (with JSON loading and module resolution) |
 | net | Gio | Full | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), connect/createServer |
 | os | GLib | Full | homedir, hostname, cpus, platform-specific (linux.ts, darwin.ts) |
 | path | — | Full | POSIX + Win32 path operations |
@@ -53,7 +53,6 @@ Each is `@gjsify/<name>`. All have native GJS implementations.
 | process | GLib | Full | Process extends EventEmitter, env, cwd, platform |
 | querystring | — | Full | parse/stringify |
 | readline | — | Stub | Interface, createInterface, clearLine, cursorTo |
-| require | Gio, GLib | Full | CommonJS require() for GJS |
 | stream | — | Full | Readable, Writable, Duplex, Transform, PassThrough |
 | string_decoder | — | Full | UTF-8, Base64, hex, streaming support |
 | timers | — | Full | setTimeout/setInterval/setImmediate + Timeout class + timers/promises |

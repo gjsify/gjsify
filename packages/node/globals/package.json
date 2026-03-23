@@ -39,7 +39,6 @@
   "dependencies": {
     "@gjsify/buffer": "workspace:^",
     "@gjsify/process": "workspace:^",
-    "@gjsify/require": "workspace:^",
     "@gjsify/utils": "workspace:^"
   },
   "devDependencies": {

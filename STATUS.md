@@ -33,14 +33,13 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 | **dns** | Gio, GLib | 50 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
 | **events** | — | 119 | EventEmitter, once, on, listenerCount (707 lines) |
 | **fs** | Gio, GLib | 40 (6 specs) | sync, callback, promises, streams, FSWatcher |
-| **module** | — | 21 | builtinModules, isBuiltin, createRequire |
+| **module** | Gio, GLib | 21 | builtinModules, isBuiltin, createRequire (with JSON loading and module resolution) |
 | **net** | Gio, GLib | 35 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
 | **os** | GLib | 240 | homedir, hostname, cpus (real times from /proc/stat), platform-specific |
 | **path** | — | 41 | POSIX + Win32 (1,052 lines total) |
 | **perf_hooks** | — | 30 | performance (Web API / GLib fallback), monitorEventLoopDelay, mark/measure/getEntries |
 | **process** | GLib | 47 | EventEmitter-based, env, cwd, platform, exit |
 | **querystring** | — | 63 | parse/stringify with full encoding |
-| **require** | Gio, GLib | ✓ | CommonJS require() for GJS |
 | **stream** | — | 66 | Readable, Writable, Duplex, Transform, PassThrough |
 | **string_decoder** | — | 65 | UTF-8, Base64, hex, streaming |
 | **timers** | — | 43 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
@@ -132,8 +131,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | GNOME Lib | Used In |
 |-----------|---------|
-| **Gio 2.0** | fs, net, dns, child_process, dgram, tls, require, fetch |
-| **GLib 2.0** | crypto, url, os, process, dns, child_process, dgram, tls, require |
+| **Gio 2.0** | fs, net, dns, child_process, dgram, tls, module, fetch |
+| **GLib 2.0** | crypto, url, os, process, dns, child_process, dgram, tls, module |
 | **Soup 3.0** | http, fetch |
 | **Gtk 4.0** | webgl |
 | **GdkPixbuf 2.0** | html-image-element |

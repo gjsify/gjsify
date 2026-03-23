@@ -118,14 +118,53 @@ export default async () => {
         expect(typeof createRequire).toBe('function');
       });
 
-      await it('should return a function', async () => {
+      await it('should accept import.meta.url (file: URL string)', async () => {
         const require = createRequire(import.meta.url);
         expect(typeof require).toBe('function');
+      });
+
+      await it('should throw for relative path', async () => {
+        let threw = false;
+        try {
+          createRequire('relative/path.js');
+        } catch {
+          threw = true;
+        }
+        expect(threw).toBe(true);
       });
 
       await it('returned require should have resolve property', async () => {
         const require = createRequire(import.meta.url);
         expect(typeof require.resolve).toBe('function');
+      });
+
+      await it('returned require should have resolve.paths property', async () => {
+        const require = createRequire(import.meta.url);
+        expect(typeof require.resolve.paths).toBe('function');
+      });
+
+      await it('returned require should have cache property', async () => {
+        const require = createRequire(import.meta.url);
+        expect(require.cache).toBeDefined();
+        expect(typeof require.cache).toBe('object');
+      });
+
+      await it('returned require should have extensions property', async () => {
+        const require = createRequire(import.meta.url);
+        expect(require.extensions).toBeDefined();
+        expect(typeof require.extensions).toBe('object');
+      });
+
+      await it('resolve.paths should return null', async () => {
+        const require = createRequire(import.meta.url);
+        const result = require.resolve.paths('fs');
+        expect(result).toBeNull();
+      });
+
+      await it('resolve should return the module name for builtins', async () => {
+        const require = createRequire(import.meta.url);
+        expect(require.resolve('fs')).toBe('fs');
+        expect(require.resolve('path')).toBe('path');
       });
     });
 

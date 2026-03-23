@@ -1137,6 +1137,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/module@workspace:packages/node/module"
   dependencies:
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-beta.41"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.41"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
@@ -1168,7 +1170,6 @@ __metadata:
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/process": "workspace:^"
-    "@gjsify/require": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
   languageName: unknown
@@ -1242,21 +1243,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/require@workspace:^, @gjsify/require@workspace:packages/node/require":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/require@workspace:packages/node/require"
-  dependencies:
-    "@girs/gio-2.0": "npm:2.88.0-4.0.0-beta.41"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/process": "workspace:^"
-    "@gjsify/resolve-npm": "workspace:^"
-    "@gjsify/unit": "workspace:^"
-    "@gjsify/utils": "workspace:^"
-    cowsay2: "npm:^2.0.4"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/resolve-npm@workspace:^, @gjsify/resolve-npm@workspace:packages/infra/resolve-npm":
+"@gjsify/resolve-npm@workspace:packages/infra/resolve-npm":
   version: 0.0.0-use.local
   resolution: "@gjsify/resolve-npm@workspace:packages/infra/resolve-npm"
   languageName: unknown
@@ -1928,13 +1915,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ansi-regex@npm:^5.0.1":
-  version: 5.0.1
-  resolution: "ansi-regex@npm:5.0.1"
-  checksum: 10/2aa4bb54caf2d622f1afdad09441695af2a83aa3fe8b8afa581d205e57ed4261c183c4d3877cee25794443fde5876417d859c108078ab788d6af7e4fe52eb66b
-  languageName: node
-  linkType: hard
-
 "ansi-regex@npm:^6.2.2":
   version: 6.2.2
   resolution: "ansi-regex@npm:6.2.2"
@@ -2226,17 +2206,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"cowsay2@npm:^2.0.4":
-  version: 2.0.4
-  resolution: "cowsay2@npm:2.0.4"
-  dependencies:
-    string-width: "npm:^4"
-  bin:
-    cowsay2: cli.js
-  checksum: 10/8e84bc5988ba152973e55666837fc6f40835d4801639499d8a9223740aa613002322712158f96be72bc6c270a38cf9cee5945c31b042f20f7557b1fd7c0fdc5b
-  languageName: node
-  linkType: hard
-
 "crypto-random-string@npm:^4.0.0":
   version: 4.0.0
   resolution: "crypto-random-string@npm:4.0.0"
@@ -2313,13 +2282,6 @@ __metadata:
   version: 10.6.0
   resolution: "emoji-regex@npm:10.6.0"
   checksum: 10/98cc0b0e1daed1ed25afbf69dcb921fee00f712f51aab93aa1547e4e4e8171725cc4f0098aaa645b4f611a19da11ec9f4623eb6ff2b72314b39a8f2ae7c12bf2
-  languageName: node
-  linkType: hard
-
-"emoji-regex@npm:^8.0.0":
-  version: 8.0.0
-  resolution: "emoji-regex@npm:8.0.0"
-  checksum: 10/c72d67a6821be15ec11997877c437491c313d924306b8da5d87d2a2bcc2cec9903cb5b04ee1a088460501d8e5b44f10df82fdc93c444101a7610b80c8b6938e1
   languageName: node
   linkType: hard
 
@@ -2847,13 +2809,6 @@ __metadata:
   version: 2.1.1
   resolution: "is-extglob@npm:2.1.1"
   checksum: 10/df033653d06d0eb567461e58a7a8c9f940bd8c22274b94bf7671ab36df5719791aae15eef6d83bbb5e23283967f2f984b8914559d4449efda578c775c4be6f85
-  languageName: node
-  linkType: hard
-
-"is-fullwidth-code-point@npm:^3.0.0":
-  version: 3.0.0
-  resolution: "is-fullwidth-code-point@npm:3.0.0"
-  checksum: 10/44a30c29457c7fb8f00297bce733f0a64cd22eca270f83e58c105e0d015e45c019491a4ab2faef91ab51d4738c670daff901c799f6a700e27f7314029e99e348
   languageName: node
   linkType: hard
 
@@ -3409,17 +3364,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"string-width@npm:^4":
-  version: 4.2.3
-  resolution: "string-width@npm:4.2.3"
-  dependencies:
-    emoji-regex: "npm:^8.0.0"
-    is-fullwidth-code-point: "npm:^3.0.0"
-    strip-ansi: "npm:^6.0.1"
-  checksum: 10/e52c10dc3fbfcd6c3a15f159f54a90024241d0f149cf8aed2982a2d801d2e64df0bf1dc351cf8e95c3319323f9f220c16e740b06faecd53e2462df1d2b5443fb
-  languageName: node
-  linkType: hard
-
 "string-width@npm:^7.0.0, string-width@npm:^7.2.0":
   version: 7.2.0
   resolution: "string-width@npm:7.2.0"
@@ -3444,15 +3388,6 @@ __metadata:
   version: 0.10.31
   resolution: "string_decoder@npm:0.10.31"
   checksum: 10/cc43e6b1340d4c7843da0e37d4c87a4084c2342fc99dcf6563c3ec273bb082f0cbd4ebf25d5da19b04fb16400d393885fda830be5128e1c416c73b5a6165f175
-  languageName: node
-  linkType: hard
-
-"strip-ansi@npm:^6.0.1":
-  version: 6.0.1
-  resolution: "strip-ansi@npm:6.0.1"
-  dependencies:
-    ansi-regex: "npm:^5.0.1"
-  checksum: 10/ae3b5436d34fadeb6096367626ce987057713c566e1e7768818797e00ac5d62023d0f198c4e681eae9e20701721980b26a64a8f5b91238869592a9c6800719a2
   languageName: node
   linkType: hard
 
