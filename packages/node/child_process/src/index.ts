@@ -43,7 +43,7 @@ export interface SpawnOptions {
 
 export interface SpawnSyncResult {
   pid: number;
-  output: (Buffer | null)[];
+  output: (Buffer | string | null)[];
   stdout: Buffer | string;
   stderr: Buffer | string;
   status: number | null;

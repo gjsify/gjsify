@@ -49,7 +49,7 @@ function hkdfExpand(algo: string, prk: Buffer, info: Buffer, length: number, has
   }
 
   const okm = Buffer.allocUnsafe(n * hashLen);
-  let prev = Buffer.alloc(0);
+  let prev: Buffer = Buffer.alloc(0);
 
   for (let i = 1; i <= n; i++) {
     const input = Buffer.concat([prev, info, Buffer.from([i])]);

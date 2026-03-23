@@ -23,7 +23,6 @@ const baseConfig = {
         'typescript',
         '@deepkit/type-compiler',
         'esbuild',
-        // '@gjsify/resolve-npm', can't be required in cjs builds
         '@gjsify/esbuild-plugin-transform-ext',
         '@gjsify/esbuild-plugin-deepkit',
     ]
@@ -44,5 +43,8 @@ if (pkg.module) {
         outdir: dirname(pkg.module),
         format: 'esm',
         outExtension: {'.js': extname(pkg.module)},
+        banner: {
+            js: 'import { createRequire } from "module"; const require = createRequire(import.meta.url);',
+        },
     });
 }
