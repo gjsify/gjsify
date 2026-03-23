@@ -83,11 +83,10 @@ export function lookup(hostname: string, ...args: any[]): void {
     callback = args[1];
   }
 
-  // Handle empty hostname
+  // Handle empty hostname — Node.js returns null for address
   if (!hostname) {
     const family = options.family || 4;
-    const address = family === 6 ? '::1' : '127.0.0.1';
-    callback(null, address, family);
+    callback(null, null as unknown as string, family);
     return;
   }
 

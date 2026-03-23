@@ -234,6 +234,36 @@ function encodeOutput(data: Uint8Array, encoding?: string): string | Buffer {
   return Buffer.from(data).toString(encoding as BufferEncoding);
 }
 
+/**
+ * Count how many trailing bytes at the end of a Uint8Array form an incomplete
+ * UTF-8 multibyte sequence. Returns 0 if the last character is complete.
+ */
+function incompleteUtf8Tail(buf: Uint8Array): number {
+  if (buf.length === 0) return 0;
+  // Walk backwards from the end to find the lead byte of the last character
+  const end = buf.length;
+  for (let back = 1; back <= Math.min(4, end); back++) {
+    const b = buf[end - back];
+    if ((b & 0x80) === 0) {
+      // ASCII byte — this is a complete 1-byte character
+      return 0;
+    }
+    if ((b & 0xC0) === 0x80) {
+      // Continuation byte — keep searching backwards for the lead byte
+      continue;
+    }
+    // This is a lead byte — determine expected sequence length
+    let expected: number;
+    if ((b & 0xE0) === 0xC0) expected = 2;
+    else if ((b & 0xF0) === 0xE0) expected = 3;
+    else if ((b & 0xF8) === 0xF0) expected = 4;
+    else return 0; // Invalid lead byte
+    // `back` is how many bytes we have from the lead to the end
+    return back < expected ? back : 0;
+  }
+  return 0;
+}
+
 // ---- PKCS#7 Padding ----
 
 function pkcs7Pad(data: Uint8Array): Uint8Array {
@@ -255,7 +285,7 @@ function pkcs7Unpad(data: Uint8Array): Uint8Array {
   for (let i = data.length - padLen; i < data.length; i++) {
     if (data[i] !== padLen) throw new Error('bad decrypt');
   }
-  return data.slice(0, data.length - padLen);
+  return new Uint8Array(data.slice(0, data.length - padLen));
 }
 
 // ---- Cipher class ----
@@ -393,11 +423,40 @@ class Cipher extends CipherBase {
 class Decipher extends CipherBase {
   private _prevBlock: Uint8Array;
   private _counter: Uint8Array;
+  private _pendingUtf8: Uint8Array = new Uint8Array(0);
 
   constructor(algorithm: string, key: Uint8Array, iv: Uint8Array | null) {
     super(algorithm, key, iv);
     this._prevBlock = new Uint8Array(this._iv);
     this._counter = new Uint8Array(this._iv);
+  }
+
+  private _encodeWithUtf8Handling(bytes: Uint8Array, encoding: string | undefined, isFinal: boolean): any {
+    if (!encoding || (encoding !== 'utf8' && encoding !== 'utf-8')) {
+      return encodeOutput(bytes, encoding);
+    }
+
+    // Prepend any leftover bytes from previous call
+    let data: Uint8Array;
+    if (this._pendingUtf8.length > 0) {
+      data = new Uint8Array(this._pendingUtf8.length + bytes.length);
+      data.set(this._pendingUtf8);
+      data.set(bytes, this._pendingUtf8.length);
+      this._pendingUtf8 = new Uint8Array(0);
+    } else {
+      data = bytes;
+    }
+
+    if (!isFinal) {
+      // Check for incomplete UTF-8 at the end
+      const tail = incompleteUtf8Tail(data);
+      if (tail > 0) {
+        this._pendingUtf8 = new Uint8Array(data.slice(data.length - tail));
+        data = new Uint8Array(data.slice(0, data.length - tail));
+      }
+    }
+
+    return Buffer.from(data).toString('utf8');
   }
 
   update(data: string | Buffer | Uint8Array, inputEncoding?: string, outputEncoding?: string): any {
@@ -410,14 +469,14 @@ class Decipher extends CipherBase {
     if (this._mode === 'ctr' || this._mode === 'cfb' || this._mode === 'ofb') {
       const output = this._processStream(combined);
       this._buffer = new Uint8Array(0);
-      return encodeOutput(output, outputEncoding);
+      return this._encodeWithUtf8Handling(output, outputEncoding, false);
     }
 
     // Block cipher modes: need to keep last block for padding check in final()
     const fullBlocks = Math.floor(combined.length / 16);
     if (fullBlocks === 0) {
       this._buffer = combined;
-      return encodeOutput(new Uint8Array(0), outputEncoding);
+      return this._encodeWithUtf8Handling(new Uint8Array(0), outputEncoding, false);
     }
 
     // Keep last block in buffer for padding removal in final()
@@ -433,7 +492,7 @@ class Decipher extends CipherBase {
     this._buffer = combined.slice(processLen);
     const result = new Uint8Array(output.length * 16);
     for (let i = 0; i < output.length; i++) result.set(output[i], i * 16);
-    return encodeOutput(result, outputEncoding);
+    return this._encodeWithUtf8Handling(result, outputEncoding, false);
   }
 
   final(outputEncoding?: string): any {
@@ -444,17 +503,13 @@ class Decipher extends CipherBase {
       if (this._buffer.length > 0) {
         const output = this._processStream(this._buffer);
         this._buffer = new Uint8Array(0);
-        return encodeOutput(output, outputEncoding);
+        return this._encodeWithUtf8Handling(output, outputEncoding, true);
       }
-      return encodeOutput(new Uint8Array(0), outputEncoding);
+      return this._encodeWithUtf8Handling(new Uint8Array(0), outputEncoding, true);
     }
 
     if (this._buffer.length === 0) {
-      if (this._autoPadding) {
-        // With auto padding, empty buffer means empty plaintext (padding block was processed)
-        return encodeOutput(new Uint8Array(0), outputEncoding);
-      }
-      return encodeOutput(new Uint8Array(0), outputEncoding);
+      return this._encodeWithUtf8Handling(new Uint8Array(0), outputEncoding, true);
     }
 
     if (this._buffer.length % 16 !== 0) {
@@ -467,15 +522,13 @@ class Decipher extends CipherBase {
       output.push(this._decryptBlock(this._buffer.slice(i, i + 16)));
     }
 
-    let result = new Uint8Array(output.length * 16);
-    for (let i = 0; i < output.length; i++) result.set(output[i], i * 16);
+    const combined = new Uint8Array(output.length * 16);
+    for (let i = 0; i < output.length; i++) combined.set(output[i], i * 16);
 
-    if (this._autoPadding) {
-      result = pkcs7Unpad(result);
-    }
+    const result = this._autoPadding ? pkcs7Unpad(combined) : combined;
 
     this._buffer = new Uint8Array(0);
-    return encodeOutput(result, outputEncoding);
+    return this._encodeWithUtf8Handling(result, outputEncoding, true);
   }
 
   private _decryptBlock(block: Uint8Array): Uint8Array {
