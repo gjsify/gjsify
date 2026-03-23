@@ -54,7 +54,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 
 | Paket | GNOME Libs | Tests | Was funktioniert | Was fehlt |
 |-------|-----------|-------|-----------------|-----------|
-| **crypto** | GLib | 144 | Hash (GLib.Checksum), Hmac (pure-JS RFC 2104, GLib.Hmac Segfault behoben), randomBytes, randomUUID, PBKDF2, HKDF | Cipher/Decipher (AES etc.), Sign/Verify, ECDH, DH, KeyObject, X509Certificate, scrypt |
+| **crypto** | GLib | 78 (6 Specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, **Cipher/Decipher (AES-CBC/CTR/ECB)**, **scrypt (RFC 7914)** | Sign/Verify, ECDH, DH, KeyObject, X509Certificate, AES-GCM |
 | **globals** | — | 15 | setImmediate Polyfill | Vollständige globalThis-Konfiguration |
 | **http** | Soup 3.0, Gio, GLib | 42 (2 Specs) | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, Agent, Round-Trip | Client-seitig: http.request(), http.get() noch unvollständig |
 | **https** | — | ✓ | Agent-Stub | Vollständige Implementierung benötigt fertiges http |
@@ -162,7 +162,7 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 
 ### Hohe Priorität
 
-1. **crypto vervollständigen** — Cipher/Decipher (AES), Sign/Verify, DH/ECDH, scrypt, KeyObject. Referenzen: `refs/crypto-browserify/`, `refs/browserify-cipher/`, `refs/browserify-sign/`, `refs/create-ecdh/`, `refs/diffie-hellman/`, `refs/pbkdf2/`, `refs/public-encrypt/`. GNOME: GLib.Checksum ist limitiert; evtl. GnuTLS oder libgcrypt via GIR.
+1. **crypto vervollständigen** — ~~Cipher/Decipher (AES)~~✓, ~~scrypt~~✓. Noch offen: Sign/Verify, DH/ECDH, KeyObject, AES-GCM. Referenzen: `refs/browserify-sign/`, `refs/create-ecdh/`, `refs/diffie-hellman/`.
 2. **http Client-Seite** — `http.request()`, `http.get()` vollständig via Soup.Session implementieren. Referenzen: `refs/undici/`, `refs/stream-http/`.
 3. **https** — Aufbauend auf http + tls.
 4. **WebSocket (Web-API)** — Soup.WebsocketConnection als Basis.
@@ -185,6 +185,19 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 ---
 
 ## Changelog
+
+### 2026-03-23 — Wave 6
+
+**Crypto-Ausbau — Implementierung + Tests:**
+
+| Paket | Komponente | Tests | Beschreibung |
+|-------|-----------|-------|-------------|
+| crypto | Cipher/Decipher | +25 | Pure-JS AES (FIPS-197): CBC, CTR, ECB; PKCS#7 Padding; NIST-Testvektoren |
+| crypto | scrypt | +11 | RFC 7914 (Salsa20/8 + BlockMix + ROMix); Sync + Async; RFC-Testvektoren |
+
+**Neue Implementierungen:**
+- **cipher.ts:** Vollständige AES-128/192/256 Implementierung in reinem TypeScript. S-Box, InvS-Box, KeyExpansion, MixColumns, ShiftRows. Modi: CBC (mit IV-Chaining), CTR (Stream-Cipher), ECB (kein IV). PKCS#7 Padding mit setAutoPadding().
+- **scrypt.ts:** RFC 7914 scrypt in reinem TypeScript. Nutzt Salsa20/8 Core, BlockMix, ROMix. Verwendet intern pbkdf2Sync (bereits vorhanden).
 
 ### 2026-03-23 — Wave 5
 

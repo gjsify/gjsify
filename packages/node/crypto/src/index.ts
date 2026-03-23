@@ -15,9 +15,10 @@ export {
 export { timingSafeEqual } from './timing-safe-equal.js';
 export { constants } from './constants.js';
 
-// PBKDF2/HKDF implementations (using pure-JS Hmac)
+// PBKDF2/HKDF/scrypt implementations (using pure-JS Hmac)
 export { pbkdf2, pbkdf2Sync } from './pbkdf2.js';
 export { hkdf, hkdfSync } from './hkdf.js';
+export { scrypt, scryptSync } from './scrypt.js';
 
 import { Hash } from './hash.js';
 import { Hmac } from './hmac.js';
