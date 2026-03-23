@@ -52,11 +52,11 @@ export class AsyncLocalStorage<T = any> {
     return this._store;
   }
 
-  run<R>(store: T, callback: () => R): R {
+  run<R>(store: T, callback: (...args: any[]) => R, ...args: any[]): R {
     const prev = this._store;
     this._store = store;
     try {
-      return callback();
+      return callback(...args);
     } finally {
       this._store = prev;
     }

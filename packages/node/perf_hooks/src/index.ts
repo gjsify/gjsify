@@ -13,6 +13,7 @@ if (globalThis.performance) {
     const GLib = (globalThis as any).imports.gi.GLib;
     _startTime = GLib.get_monotonic_time();
     performance = {
+      timeOrigin: Date.now() - (GLib.get_monotonic_time() - _startTime) / 1000,
       now() { return (GLib.get_monotonic_time() - _startTime) / 1000; },
       mark() {},
       measure() {},
@@ -27,7 +28,7 @@ if (globalThis.performance) {
     } as unknown as Performance;
   } catch {
     const _start = Date.now();
-    performance = { now: () => Date.now() - _start } as unknown as Performance;
+    performance = { timeOrigin: _start, now: () => Date.now() - _start } as unknown as Performance;
   }
 }
 

@@ -4,6 +4,15 @@
 import { EventEmitter } from '@gjsify/events';
 import type { ReadableOptions, WritableOptions, DuplexOptions, TransformOptions, FinishedOptions } from 'node:stream';
 
+// ---- Async scheduling ----
+// Node.js uses process.nextTick for stream event emission.
+// We use microtask scheduling for cross-platform async delivery.
+// Promise.resolve().then() works as microtask in all JS engines including SpiderMonkey (GJS).
+const nextTick: (fn: (...args: unknown[]) => void, ...args: unknown[]) => void =
+  typeof globalThis.process?.nextTick === 'function'
+    ? globalThis.process.nextTick
+    : (fn: (...args: unknown[]) => void, ...args: unknown[]) => Promise.resolve().then(() => fn(...args));
+
 // ---- Types ----
 
 /** Base options accepted by the Stream constructor (superset used by subclass options). */
@@ -136,18 +145,31 @@ export class Readable extends Stream {
     if (chunk === null) {
       this._readableState.ended = true;
       this.readableEnded = true;
-      if (this._buffer.length === 0) {
+      if (this._buffer.length === 0 && !this._readableState.endEmitted) {
         this._readableState.endEmitted = true;
-        this.emit('end');
+        nextTick(() => this.emit('end'));
       }
       return false;
     }
 
     this._buffer.push(chunk);
     this.readableLength += this.readableObjectMode ? 1 : (chunk.length ?? 1);
-    this.emit('data', chunk);
+
+    // In flowing mode, schedule draining (unless already flowing)
+    if (this.readableFlowing && !this._flowing) {
+      nextTick(() => this._flow());
+    }
 
     return this.readableLength < this.readableHighWaterMark;
+  }
+
+  on(event: string | symbol, listener: (...args: any[]) => void): this {
+    super.on(event, listener);
+    // Attaching a 'data' listener switches to flowing mode (like Node.js)
+    if (event === 'data' && this.readableFlowing !== false) {
+      this.resume();
+    }
+    return this;
   }
 
   unshift(chunk: any): void {
@@ -167,9 +189,50 @@ export class Readable extends Stream {
   }
 
   resume(): this {
-    this.readableFlowing = true;
-    this.emit('resume');
+    if (this.readableFlowing !== true) {
+      this.readableFlowing = true;
+      this.emit('resume');
+      // Start flowing: drain buffered data and call _read
+      this._flow();
+    }
     return this;
+  }
+
+  private _flowing = false;
+
+  private _flow(): void {
+    if (this.readableFlowing !== true || this._flowing) return;
+    this._flowing = true;
+
+    try {
+      // Drain buffered data synchronously (like Node.js flow())
+      while (this._buffer.length > 0 && this.readableFlowing) {
+        const chunk = this._buffer.shift()!;
+        this.readableLength -= this.readableObjectMode ? 1 : ((chunk as any).length ?? 1);
+        this.emit('data', chunk);
+      }
+
+      // If ended and buffer drained, emit end
+      if (this._readableState.ended && this._buffer.length === 0 && !this._readableState.endEmitted) {
+        this._readableState.endEmitted = true;
+        nextTick(() => this.emit('end'));
+        return;
+      }
+
+      // Call _read to get more data (may push synchronously)
+      if (!this._readableState.ended && !this._readableState.reading) {
+        this._readableState.reading = true;
+        this._read(this.readableHighWaterMark);
+        this._readableState.reading = false;
+      }
+    } finally {
+      this._flowing = false;
+    }
+
+    // After _read, if new data was pushed, schedule another flow
+    if (this._buffer.length > 0 && this.readableFlowing) {
+      nextTick(() => this._flow());
+    }
   }
 
   isPaused(): boolean {
@@ -187,8 +250,10 @@ export class Readable extends Stream {
     this.readable = false;
 
     const cb = (err?: Error | null) => {
-      if (err) this.emit('error', err);
-      this.emit('close');
+      nextTick(() => {
+        if (err) this.emit('error', err);
+        this.emit('close');
+      });
     };
 
     if (this._destroyImpl) {
@@ -325,8 +390,10 @@ export class Writable extends Stream {
 
     if (this.writableEnded) {
       const err = new Error('write after end');
-      if (callback) callback(err);
-      this.emit('error', err);
+      nextTick(() => {
+        if (callback) callback(err);
+        this.emit('error', err);
+      });
       return false;
     }
 
@@ -336,11 +403,15 @@ export class Writable extends Stream {
     this._write(chunk, encoding as string, (err) => {
       this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
       if (err) {
-        if (cb) cb(err);
-        this.emit('error', err);
+        nextTick(() => {
+          if (cb) cb(err);
+          this.emit('error', err);
+        });
       } else {
-        if (cb) cb();
-        this.emit('drain');
+        nextTick(() => {
+          if (cb) cb();
+          this.emit('drain');
+        });
       }
     });
 
@@ -367,11 +438,13 @@ export class Writable extends Stream {
     this._final((err) => {
       this.writableFinished = true;
       this._writableState.finished = true;
-      if (err) {
-        this.emit('error', err);
-      }
-      this.emit('finish');
-      if (callback) callback();
+      nextTick(() => {
+        if (err) {
+          this.emit('error', err);
+        }
+        this.emit('finish');
+        if (callback) callback();
+      });
     });
 
     return this;
@@ -397,8 +470,10 @@ export class Writable extends Stream {
     this.writable = false;
 
     const cb = (err?: Error | null) => {
-      if (err) this.emit('error', err);
-      this.emit('close');
+      nextTick(() => {
+        if (err) this.emit('error', err);
+        this.emit('close');
+      });
     };
 
     if (this._destroyImpl) {
@@ -462,11 +537,15 @@ export class Duplex extends Readable {
     this._write(chunk, encoding as string, (err) => {
       this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
       if (err) {
-        cb(err);
-        this.emit('error', err);
+        nextTick(() => {
+          cb(err);
+          this.emit('error', err);
+        });
       } else {
-        cb();
-        this.emit('drain');
+        nextTick(() => {
+          cb();
+          this.emit('drain');
+        });
       }
     });
 
@@ -490,9 +569,11 @@ export class Duplex extends Readable {
     this.writableEnded = true;
     this._final((err) => {
       this.writableFinished = true;
-      if (err) this.emit('error', err);
-      this.emit('finish');
-      if (callback) callback();
+      nextTick(() => {
+        if (err) this.emit('error', err);
+        this.emit('finish');
+        if (callback) callback();
+      });
     });
 
     return this;
@@ -556,6 +637,8 @@ export class Transform extends Duplex {
       if (data !== undefined && data !== null) {
         this.push(data);
       }
+      // Signal readable side is done
+      this.push(null);
       callback();
     });
   }

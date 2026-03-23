@@ -224,6 +224,8 @@ Matchers: `toBe`, `toEqual`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeDefined
 2. Node.js tests validate **test correctness** against the reference. GJS tests validate **our implementation**. Both must pass.
 3. No GJS-specific code (`@girs/*`, Soup, Gio) in test files — the bundler handles platform separation.
 4. File layout: `src/index.ts` (impl), `src/*.spec.ts` (specs), `src/test.mts` (entry point).
+5. **Tests define the specification — never weaken tests to match implementation gaps.** If a test fails on GJS, fix the implementation, not the test. If a Web API like `CompressionStream` is missing in GJS, implement a polyfill using GNOME libraries (e.g. `Gio.ZlibCompressor`). If event timing differs (sync vs async), fix the implementation to match Node.js behavior.
+6. **Both platforms must behave identically.** Do not use platform guards (`if (typeof X === 'undefined') return`) to skip tests on GJS. The whole point of gjsify is Node.js API compatibility — if something works on Node.js, our GJS implementation must match. The only exception is features we **intentionally** stub (see Status column in package table).
 
 ## Package Convention
 
@@ -237,13 +239,19 @@ Each `packages/node/<name>/`:
 
 We follow a **test-driven development** approach: tests are written first, then the implementation is completed until all tests pass.
 
+**Core principle:** Tests are the specification. They define the correct Node.js behavior. When a test fails on GJS, the implementation must be fixed — never the test. This applies to:
+- Missing Web APIs (e.g. `CompressionStream`) → implement using GNOME libraries
+- Different event timing (sync vs async) → fix implementation to match Node.js async scheduling
+- Missing globals (e.g. `btoa`) → implement polyfills
+- Any behavioral difference between Node.js and GJS → the GJS implementation is wrong, fix it
+
 ### Step-by-step
 
 1. **Study the Node.js API surface:** `refs/node/lib/<name>.js`
 2. **Adopt tests from reference projects** (see below). Port relevant test cases to `*.spec.ts` using `@gjsify/unit`. Focus on tests that exercise behavior our GJS implementation must support.
 3. **Verify tests pass on Node.js first:** `yarn test:node` — this confirms the tests themselves are correct against the reference runtime.
-4. **Run tests on GJS:** `yarn test:gjs` — expect failures for unimplemented features.
-5. **Implement** using GNOME libraries (`@girs/*`), check types in `node_modules/@girs/`. Consult references: `refs/deno/`, `refs/bun/`, `refs/quickjs/`, `refs/workerd/`.
+4. **Run tests on GJS:** `yarn test:gjs` — expect failures. **This is the signal to fix the implementation, not to weaken the tests.**
+5. **Implement/fix** using GNOME libraries (`@girs/*`), check types in `node_modules/@girs/`. Consult references: `refs/deno/`, `refs/bun/`, `refs/quickjs/`, `refs/workerd/`.
 6. **Iterate** until `yarn test:gjs` passes alongside `yarn test:node`.
 
 ### Test Sources from Reference Projects

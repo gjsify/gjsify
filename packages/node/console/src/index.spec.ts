@@ -131,4 +131,87 @@ export default async () => {
 			expect(typeof customConsole.groupEnd).toBe('function');
 		});
 	});
+
+	// ==================== behavioral tests ====================
+
+	await describe('console: assert behavior', async () => {
+		await it('should not throw on truthy assertion', async () => {
+			expect(() => console.assert(true)).not.toThrow();
+			expect(() => console.assert(1)).not.toThrow();
+			expect(() => console.assert('non-empty')).not.toThrow();
+		});
+	});
+
+	await describe('console: count/countReset behavior', async () => {
+		await it('count should not throw', async () => {
+			expect(() => console.count('test-label')).not.toThrow();
+			expect(() => console.count('test-label')).not.toThrow();
+		});
+
+		await it('countReset should not throw', async () => {
+			expect(() => console.countReset('test-label')).not.toThrow();
+		});
+	});
+
+	await describe('console: time/timeEnd behavior', async () => {
+		await it('time and timeEnd should not throw', async () => {
+			expect(() => console.time('test-timer')).not.toThrow();
+			expect(() => console.timeEnd('test-timer')).not.toThrow();
+		});
+
+		await it('timeEnd without time should not throw', async () => {
+			expect(() => console.timeEnd('nonexistent-timer')).not.toThrow();
+		});
+	});
+
+	await describe('console: group/groupEnd behavior', async () => {
+		await it('group and groupEnd should not throw', async () => {
+			expect(() => console.group('test-group')).not.toThrow();
+			expect(() => console.groupEnd()).not.toThrow();
+		});
+
+		await it('nested groups should not throw', async () => {
+			expect(() => {
+				console.group('outer');
+				console.group('inner');
+				console.groupEnd();
+				console.groupEnd();
+			}).not.toThrow();
+		});
+	});
+
+	await describe('console: log/warn/error should not throw', async () => {
+		await it('log should handle various argument types', async () => {
+			expect(() => console.log('string')).not.toThrow();
+			expect(() => console.log(42)).not.toThrow();
+			expect(() => console.log({ key: 'value' })).not.toThrow();
+			expect(() => console.log(null)).not.toThrow();
+			expect(() => console.log(undefined)).not.toThrow();
+			expect(() => console.log([1, 2, 3])).not.toThrow();
+		});
+
+		await it('log should handle multiple arguments', async () => {
+			expect(() => console.log('a', 'b', 'c')).not.toThrow();
+		});
+
+		await it('warn should not throw', async () => {
+			expect(() => console.warn('warning')).not.toThrow();
+		});
+
+		await it('error should not throw', async () => {
+			expect(() => console.error('error')).not.toThrow();
+		});
+	});
+
+	await describe('console: dir should not throw', async () => {
+		await it('should accept objects', async () => {
+			expect(() => console.dir({ key: 'value' })).not.toThrow();
+		});
+	});
+
+	await describe('console: clear should not throw', async () => {
+		await it('should not throw', async () => {
+			expect(() => console.clear()).not.toThrow();
+		});
+	});
 }

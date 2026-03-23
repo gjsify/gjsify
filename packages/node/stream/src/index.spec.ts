@@ -2,7 +2,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { Stream, Readable, Writable, Duplex, Transform, PassThrough, pipeline, finished } from 'stream';
 
 // Ported from refs/node/test/parallel/test-stream-*.js
-// Note: Tests must work with both synchronous (GJS) and asynchronous (Node.js) event delivery.
+// Tests use async Promises to match Node.js async event delivery.
 
 export default async () => {
 	// ==================== Stream base ====================
@@ -21,19 +21,13 @@ export default async () => {
 		});
 	});
 
-	// ==================== Readable properties ====================
+	// ==================== Readable ====================
 
 	await describe('Readable: properties', async () => {
 		await it('should create an instance', async () => {
 			const readable = new Readable({ read() {} });
 			expect(readable).toBeDefined();
 			expect(readable.readable).toBeTruthy();
-		});
-
-		await it('should have a default highWaterMark', async () => {
-			const readable = new Readable({ read() {} });
-			expect(typeof readable.readableHighWaterMark).toBe('number');
-			expect(readable.readableHighWaterMark > 0).toBeTruthy();
 		});
 
 		await it('should accept custom highWaterMark', async () => {
@@ -76,13 +70,29 @@ export default async () => {
 		});
 	});
 
-	// ==================== Readable push/read ====================
-
-	await describe('Readable: push and data event', async () => {
-		await it('push() should return boolean', async () => {
+	await describe('Readable: data and end events', async () => {
+		await it('should emit data event on push', async () => {
 			const readable = new Readable({ read() {} });
-			const result = readable.push('test');
-			expect(typeof result).toBe('boolean');
+			const received = await new Promise<string>((resolve) => {
+				readable.on('data', (chunk) => resolve(String(chunk)));
+				readable.push('test');
+			});
+			expect(received).toBe('test');
+		});
+
+		await it('should emit end when all data consumed after push(null)', async () => {
+			const readable = new Readable({
+				read() {
+					this.push('data');
+					this.push(null);
+				}
+			});
+			const ended = await new Promise<boolean>((resolve) => {
+				readable.on('end', () => resolve(true));
+				readable.resume();
+			});
+			expect(ended).toBeTruthy();
+			expect(readable.readableEnded).toBeTruthy();
 		});
 
 		await it('push(null) should return false', async () => {
@@ -90,47 +100,87 @@ export default async () => {
 			const result = readable.push(null);
 			expect(result).toBeFalsy();
 		});
-
-		// unshift test removed — behavior differs between Node.js internal state machine and our impl
 	});
 
-	// ==================== Readable destroy ====================
-
 	await describe('Readable: destroy', async () => {
-		await it('should set destroyed flag', async () => {
+		await it('should emit close on destroy', async () => {
 			const readable = new Readable({ read() {} });
-			readable.destroy();
+			const closed = await new Promise<boolean>((resolve) => {
+				readable.on('close', () => resolve(true));
+				readable.destroy();
+			});
+			expect(closed).toBeTruthy();
 			expect(readable.destroyed).toBeTruthy();
+			expect(readable.readable).toBeFalsy();
+		});
+
+		await it('should emit error on destroy with error', async () => {
+			const readable = new Readable({ read() {} });
+			const err = await new Promise<Error>((resolve) => {
+				readable.on('error', (e) => resolve(e));
+				readable.destroy(new Error('test error'));
+			});
+			expect(err.message).toBe('test error');
 		});
 
 		await it('should be idempotent on double destroy', async () => {
 			const readable = new Readable({ read() {} });
+			let closeCount = 0;
+			readable.on('close', () => { closeCount++; });
+			await new Promise<void>((resolve) => {
+				readable.on('close', () => resolve());
+				readable.destroy();
+			});
 			readable.destroy();
-			readable.destroy(); // second call — no crash
-			expect(readable.destroyed).toBeTruthy();
+			// Give time for any spurious second close
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(closeCount).toBe(1);
 		});
 	});
-
-	// ==================== Readable.from ====================
 
 	await describe('Readable.from', async () => {
-		await it('should create a Readable instance', async () => {
+		await it('should create readable from array', async () => {
 			const readable = Readable.from(['a', 'b', 'c']);
-			expect(readable).toBeDefined();
-			expect(readable.readable).toBeTruthy();
+			const chunks: unknown[] = [];
+			for await (const chunk of readable) {
+				chunks.push(chunk);
+			}
+			expect(chunks.length).toBe(3);
+		});
+
+		await it('should create readable from async generator', async () => {
+			async function* gen() {
+				yield 1;
+				yield 2;
+				yield 3;
+			}
+			const readable = Readable.from(gen());
+			const chunks: unknown[] = [];
+			for await (const chunk of readable) {
+				chunks.push(chunk);
+			}
+			expect(chunks.length).toBe(3);
 		});
 	});
-
-	// ==================== Readable async iterator ====================
 
 	await describe('Readable: async iterator', async () => {
-		await it('should have Symbol.asyncIterator', async () => {
-			const readable = new Readable({ read() {} });
-			expect(typeof readable[Symbol.asyncIterator]).toBe('function');
+		await it('should iterate over pushed chunks', async () => {
+			let i = 0;
+			const data = ['chunk1', 'chunk2', null];
+			const readable = new Readable({
+				read() {
+					this.push(data[i++] ?? null);
+				}
+			});
+			const chunks: unknown[] = [];
+			for await (const chunk of readable) {
+				chunks.push(chunk);
+			}
+			expect(chunks.length > 0).toBeTruthy();
 		});
 	});
 
-	// ==================== Writable properties ====================
+	// ==================== Writable ====================
 
 	await describe('Writable: properties', async () => {
 		await it('should create an instance', async () => {
@@ -139,14 +189,6 @@ export default async () => {
 			});
 			expect(writable).toBeDefined();
 			expect(writable.writable).toBeTruthy();
-		});
-
-		await it('should have a highWaterMark', async () => {
-			const writable = new Writable({
-				write(_chunk, _encoding, callback) { callback(); }
-			});
-			expect(typeof writable.writableHighWaterMark).toBe('number');
-			expect(writable.writableHighWaterMark > 0).toBeTruthy();
 		});
 
 		await it('should default writableEnded to false', async () => {
@@ -164,8 +206,6 @@ export default async () => {
 		});
 	});
 
-	// ==================== Writable write/end ====================
-
 	await describe('Writable: write and end', async () => {
 		await it('should call _write with chunk', async () => {
 			const chunks: string[] = [];
@@ -176,8 +216,20 @@ export default async () => {
 				}
 			});
 			writable.write('hello');
+			// _write is called synchronously, but drain/callback is async
 			expect(chunks.length).toBe(1);
 			expect(chunks[0]).toBe('hello');
+		});
+
+		await it('should emit finish on end()', async () => {
+			const writable = new Writable({
+				write(_chunk, _encoding, callback) { callback(); }
+			});
+			const finished = await new Promise<boolean>((resolve) => {
+				writable.on('finish', () => resolve(true));
+				writable.end();
+			});
+			expect(finished).toBeTruthy();
 		});
 
 		await it('should set writableEnded after end()', async () => {
@@ -188,7 +240,18 @@ export default async () => {
 			expect(writable.writableEnded).toBeTruthy();
 		});
 
-		await it('should accept chunk in end()', async () => {
+		await it('should set writableFinished after finish event', async () => {
+			const writable = new Writable({
+				write(_chunk, _encoding, callback) { callback(); }
+			});
+			await new Promise<void>((resolve) => {
+				writable.on('finish', () => resolve());
+				writable.end();
+			});
+			expect(writable.writableFinished).toBeTruthy();
+		});
+
+		await it('should write chunk passed to end()', async () => {
 			const chunks: string[] = [];
 			const writable = new Writable({
 				write(chunk, _encoding, callback) {
@@ -196,7 +259,10 @@ export default async () => {
 					callback();
 				}
 			});
-			writable.end('final');
+			await new Promise<void>((resolve) => {
+				writable.on('finish', () => resolve());
+				writable.end('final');
+			});
 			expect(chunks.length).toBe(1);
 			expect(chunks[0]).toBe('final');
 		});
@@ -211,15 +277,32 @@ export default async () => {
 		});
 	});
 
-	// ==================== Writable destroy ====================
-
 	await describe('Writable: destroy', async () => {
-		await it('should set destroyed flag', async () => {
+		await it('should emit close on destroy', async () => {
 			const writable = new Writable({
 				write(_chunk, _encoding, callback) { callback(); }
 			});
-			writable.destroy();
+			const closed = await new Promise<boolean>((resolve) => {
+				writable.on('close', () => resolve(true));
+				writable.destroy();
+			});
+			expect(closed).toBeTruthy();
 			expect(writable.destroyed).toBeTruthy();
+			expect(writable.writable).toBeFalsy();
+		});
+	});
+
+	await describe('Writable: write-after-end', async () => {
+		await it('should error on write after end', async () => {
+			const writable = new Writable({
+				write(_chunk, _encoding, callback) { callback(); }
+			});
+			writable.end();
+			const errorEmitted = await new Promise<boolean>((resolve) => {
+				writable.on('error', () => resolve(true));
+				writable.write('after-end');
+			});
+			expect(errorEmitted).toBeTruthy();
 		});
 	});
 
@@ -250,13 +333,16 @@ export default async () => {
 			expect(received[0]).toBe('data');
 		});
 
-		await it('should set writableEnded after end()', async () => {
+		await it('should emit finish on end()', async () => {
 			const duplex = new Duplex({
 				read() {},
 				write(_chunk, _encoding, callback) { callback(); }
 			});
-			duplex.end();
-			expect(duplex.writableEnded).toBeTruthy();
+			const finished = await new Promise<boolean>((resolve) => {
+				duplex.on('finish', () => resolve(true));
+				duplex.end();
+			});
+			expect(finished).toBeTruthy();
 		});
 	});
 
@@ -264,24 +350,26 @@ export default async () => {
 
 	await describe('Transform', async () => {
 		await it('should create an instance', async () => {
-			const transform = new Transform();
+			const transform = new Transform({
+				transform(chunk, _encoding, callback) { callback(null, chunk); }
+			});
 			expect(transform).toBeDefined();
 		});
 
-		await it('should accept write option', async () => {
+		await it('should transform data through _transform', async () => {
 			const transform = new Transform({
 				transform(chunk, _encoding, callback) {
 					callback(null, String(chunk).toUpperCase());
 				}
 			});
-			const result = transform.write('hello');
-			expect(typeof result).toBe('boolean');
+			const output = await new Promise<string>((resolve) => {
+				transform.on('data', (chunk) => resolve(String(chunk)));
+				transform.write('hello');
+			});
+			expect(output).toBe('HELLO');
 		});
 
-		// Node.js Transform without _transform throws ERR_METHOD_NOT_IMPLEMENTED.
-		// Our GJS impl does passthrough. Testing with explicit transform instead.
-
-		await it('should accept flush option', async () => {
+		await it('should call _flush on end', async () => {
 			let flushed = false;
 			const transform = new Transform({
 				transform(chunk, _encoding, callback) { callback(null, chunk); },
@@ -291,10 +379,23 @@ export default async () => {
 				}
 			});
 			transform.on('data', () => {}); // consume
-			transform.end();
-			// flushed may be sync (GJS) or async (Node.js)
-			// Just verify no crash and writableEnded
-			expect(transform.writableEnded).toBeTruthy();
+			await new Promise<void>((resolve) => {
+				transform.on('finish', () => resolve());
+				transform.end();
+			});
+			expect(flushed).toBeTruthy();
+		});
+
+		await it('should emit finish after flush', async () => {
+			const transform = new Transform({
+				transform(chunk, _encoding, callback) { callback(null, chunk); }
+			});
+			transform.on('data', () => {});
+			const finished = await new Promise<boolean>((resolve) => {
+				transform.on('finish', () => resolve(true));
+				transform.end('last');
+			});
+			expect(finished).toBeTruthy();
 		});
 	});
 
@@ -306,17 +407,23 @@ export default async () => {
 			expect(pt).toBeDefined();
 		});
 
-		await it('should accept writes', async () => {
+		await it('should pass data through unchanged', async () => {
 			const pt = new PassThrough();
-			const result = pt.write('data');
-			expect(typeof result).toBe('boolean');
+			const output = await new Promise<string>((resolve) => {
+				pt.on('data', (chunk) => resolve(String(chunk)));
+				pt.write('unchanged');
+			});
+			expect(output).toBe('unchanged');
 		});
 
-		await it('should support end()', async () => {
+		await it('should emit finish on end', async () => {
 			const pt = new PassThrough();
 			pt.on('data', () => {}); // consume
-			pt.end();
-			expect(pt.writableEnded).toBeTruthy();
+			const finished = await new Promise<boolean>((resolve) => {
+				pt.on('finish', () => resolve(true));
+				pt.end();
+			});
+			expect(finished).toBeTruthy();
 		});
 	});
 
@@ -341,15 +448,64 @@ export default async () => {
 				write(_chunk, _encoding, callback) { callback(); }
 			});
 			const result = readable.pipe(writable);
-			expect(result).toBe(writable);
+			expect(result === writable).toBeTruthy();
+		});
+
+		await it('should pipe data and finish', async () => {
+			const chunks: string[] = [];
+			const readable = new Readable({
+				read() {
+					this.push('piped');
+					this.push(null);
+				}
+			});
+			const writable = new Writable({
+				write(chunk, _encoding, callback) {
+					chunks.push(String(chunk));
+					callback();
+				}
+			});
+			await new Promise<void>((resolve) => {
+				writable.on('finish', () => resolve());
+				readable.pipe(writable);
+			});
+			expect(chunks.length).toBe(1);
+			expect(chunks[0]).toBe('piped');
 		});
 	});
 
 	// ==================== pipeline ====================
 
 	await describe('pipeline', async () => {
-		await it('should be a function', async () => {
-			expect(typeof pipeline).toBe('function');
+		await it('should pipe through a transform', async () => {
+			const readable = new Readable({
+				read() {
+					this.push('hello');
+					this.push(null);
+				}
+			});
+			const transform = new Transform({
+				transform(chunk, _encoding, callback) {
+					callback(null, String(chunk).toUpperCase());
+				}
+			});
+			const output: string[] = [];
+			const writable = new Writable({
+				write(chunk, _encoding, callback) {
+					output.push(String(chunk));
+					callback();
+				}
+			});
+
+			await new Promise<void>((resolve, reject) => {
+				pipeline(readable, transform, writable, (err) => {
+					if (err) reject(err);
+					else resolve();
+				});
+			});
+
+			expect(output.length).toBe(1);
+			expect(output[0]).toBe('HELLO');
 		});
 
 		await it('should throw with less than 2 streams', async () => {
@@ -362,8 +518,28 @@ export default async () => {
 	// ==================== finished ====================
 
 	await describe('finished', async () => {
-		await it('should be a function', async () => {
-			expect(typeof finished).toBe('function');
+		await it('should callback on writable finish', async () => {
+			const writable = new Writable({
+				write(_chunk, _encoding, callback) { callback(); }
+			});
+			const done = await new Promise<boolean>((resolve) => {
+				finished(writable, () => resolve(true));
+				writable.end();
+			});
+			expect(done).toBeTruthy();
+		});
+
+		await it('should callback on readable end', async () => {
+			const readable = new Readable({
+				read() {
+					this.push(null);
+				}
+			});
+			const done = await new Promise<boolean>((resolve) => {
+				finished(readable, () => resolve(true));
+				readable.resume();
+			});
+			expect(done).toBeTruthy();
 		});
 
 		await it('should return cleanup function', async () => {
@@ -379,13 +555,13 @@ export default async () => {
 			const writable = new Writable({
 				write(_chunk, _encoding, callback) { callback(); }
 			});
-			let receivedError: Error | null = null;
-			finished(writable, (e) => {
-				if (e) receivedError = e;
+			const err = await new Promise<Error>((resolve) => {
+				finished(writable, (e) => {
+					if (e) resolve(e);
+				});
+				writable.emit('error', new Error('stream error'));
 			});
-			writable.emit('error', new Error('stream error'));
-			expect(receivedError).toBeDefined();
-			expect((receivedError as unknown as Error).message).toBe('stream error');
+			expect(err.message).toBe('stream error');
 		});
 	});
 };

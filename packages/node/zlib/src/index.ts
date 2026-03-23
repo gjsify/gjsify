@@ -6,6 +6,75 @@ import type { ZlibOptions } from 'node:zlib';
 
 type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
+const hasWebCompression = typeof globalThis.CompressionStream !== 'undefined';
+
+// ---- Gio-based compression for GJS ----
+
+type GioFormat = 'gzip' | 'deflate' | 'deflate-raw';
+
+function compressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
+  const Gio = (globalThis as any).imports?.gi?.Gio;
+  if (!Gio) throw new Error('Gio not available');
+
+  const formatMap: Record<GioFormat, number> = {
+    'gzip': Gio.ZlibCompressorFormat.GZIP,
+    'deflate': Gio.ZlibCompressorFormat.ZLIB,
+    'deflate-raw': Gio.ZlibCompressorFormat.RAW,
+  };
+
+  const compressor = new Gio.ZlibCompressor({ format: formatMap[format] });
+  const converter = new Gio.ConverterOutputStream({
+    base_stream: Gio.MemoryOutputStream.new_resizable(),
+    converter: compressor,
+  });
+
+  converter.write_bytes(new (globalThis as any).imports.gi.GLib.Bytes(data), null);
+  converter.close(null);
+
+  const memStream = converter.get_base_stream() as any;
+  const bytes = memStream.steal_as_bytes();
+  return new Uint8Array(bytes.get_data() ?? []);
+}
+
+function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
+  const Gio = (globalThis as any).imports?.gi?.Gio;
+  if (!Gio) throw new Error('Gio not available');
+
+  const formatMap: Record<GioFormat, number> = {
+    'gzip': Gio.ZlibCompressorFormat.GZIP,
+    'deflate': Gio.ZlibCompressorFormat.ZLIB,
+    'deflate-raw': Gio.ZlibCompressorFormat.RAW,
+  };
+
+  const decompressor = new Gio.ZlibDecompressor({ format: formatMap[format] });
+  const memInput = Gio.MemoryInputStream.new_from_bytes(
+    new (globalThis as any).imports.gi.GLib.Bytes(data)
+  );
+  const converter = new Gio.ConverterInputStream({
+    base_stream: memInput,
+    converter: decompressor,
+  });
+
+  const chunks: Uint8Array[] = [];
+  const bufSize = 4096;
+  while (true) {
+    const bytes = converter.read_bytes(bufSize, null);
+    const size = bytes.get_size();
+    if (size === 0) break;
+    chunks.push(new Uint8Array(bytes.get_data()!));
+  }
+  converter.close(null);
+
+  const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
 // ---- Compression helpers using Web Compression API ----
 
 async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
@@ -56,6 +125,22 @@ async function decompressWithWeb(data: Uint8Array, format: CompressionFormat): P
   return result;
 }
 
+// ---- Unified compress/decompress ----
+
+async function compress(data: Uint8Array, format: GioFormat): Promise<Uint8Array> {
+  if (hasWebCompression) {
+    return compressWithWeb(data, format as CompressionFormat);
+  }
+  return compressWithGio(data, format);
+}
+
+async function decompress(data: Uint8Array, format: GioFormat): Promise<Uint8Array> {
+  if (hasWebCompression) {
+    return decompressWithWeb(data, format as CompressionFormat);
+  }
+  return decompressWithGio(data, format);
+}
+
 function toUint8Array(data: string | Uint8Array | ArrayBuffer): Uint8Array {
   if (typeof data === 'string') {
     return new TextEncoder().encode(data);
@@ -72,8 +157,7 @@ export function gzip(data: string | Uint8Array | ArrayBuffer, callback: ZlibCall
 export function gzip(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
 export function gzip(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-  const buf = toUint8Array(data);
-  compressWithWeb(buf, 'gzip').then(
+  compress(toUint8Array(data), 'gzip').then(
     result => cb(null, result),
     err => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0))
   );
@@ -83,8 +167,7 @@ export function gunzip(data: string | Uint8Array | ArrayBuffer, callback: ZlibCa
 export function gunzip(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
 export function gunzip(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-  const buf = toUint8Array(data);
-  decompressWithWeb(buf, 'gzip').then(
+  decompress(toUint8Array(data), 'gzip').then(
     result => cb(null, result),
     err => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0))
   );
@@ -94,8 +177,7 @@ export function deflate(data: string | Uint8Array | ArrayBuffer, callback: ZlibC
 export function deflate(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
 export function deflate(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-  const buf = toUint8Array(data);
-  compressWithWeb(buf, 'deflate').then(
+  compress(toUint8Array(data), 'deflate').then(
     result => cb(null, result),
     err => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0))
   );
@@ -105,8 +187,7 @@ export function inflate(data: string | Uint8Array | ArrayBuffer, callback: ZlibC
 export function inflate(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
 export function inflate(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-  const buf = toUint8Array(data);
-  decompressWithWeb(buf, 'deflate').then(
+  decompress(toUint8Array(data), 'deflate').then(
     result => cb(null, result),
     err => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0))
   );
@@ -116,8 +197,7 @@ export function deflateRaw(data: string | Uint8Array | ArrayBuffer, callback: Zl
 export function deflateRaw(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
 export function deflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-  const buf = toUint8Array(data);
-  compressWithWeb(buf, 'deflate-raw').then(
+  compress(toUint8Array(data), 'deflate-raw').then(
     result => cb(null, result),
     err => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0))
   );
@@ -127,8 +207,7 @@ export function inflateRaw(data: string | Uint8Array | ArrayBuffer, callback: Zl
 export function inflateRaw(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
 export function inflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-  const buf = toUint8Array(data);
-  decompressWithWeb(buf, 'deflate-raw').then(
+  decompress(toUint8Array(data), 'deflate-raw').then(
     result => cb(null, result),
     err => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0))
   );
