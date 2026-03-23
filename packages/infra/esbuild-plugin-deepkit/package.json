@@ -2,10 +2,15 @@
     "name": "@gjsify/esbuild-plugin-deepkit",
     "version": "0.0.4",
     "description": "Deepkit type compiler plugin for esbuild",
-    "type": "commonjs",
-    "main": "dist/cjs/index.cjs",
-    "module": "dist/esm/index.mjs",
+    "type": "module",
+    "main": "dist/esm/index.mjs",
     "types": "dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/esm/index.mjs"
+        }
+    },
     "scripts": {
         "clear": "rm -rf dist tsconfig.tsbuildinfo",
         "check": "tsc --noEmit",

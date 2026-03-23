@@ -2,9 +2,15 @@
     "name": "@gjsify/empty",
     "version": "0.0.4",
     "description": "Empty module for Gjs",
-    "main": "index.cjs",
-    "module": "index.mjs",
+    "type": "module",
+    "main": "index.mjs",
     "types": "index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./index.d.ts",
+            "import": "./index.mjs"
+        }
+    },
     "scripts": {
         "clear": "echo 'Noting to do'",
         "check": "true",
