@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Implements AES-128/192/256 (CBC, CTR, ECB) per FIPS-197 (Rijndael) with PKCS#7 padding
+// Implements AES-128/192/256 (CBC, CTR, ECB, CFB, OFB, GCM) per FIPS-197 (Rijndael) with PKCS#7 padding
+// GCM mode implements NIST SP 800-38D (Galois/Counter Mode)
 // Adapted from browserify-cipher (refs/browserify-cipher/)
 // Copyright (c) crypto-browserify contributors. MIT license.
 // Modifications: Pure-JS implementation for GJS, no OpenSSL dependency
@@ -198,17 +199,145 @@ function incrementCounter(counter: Uint8Array): void {
   }
 }
 
+// ---- GCM counter increment (only the last 32 bits) ----
+
+function gcmIncrementCounter(counter: Uint8Array): void {
+  for (let i = 15; i >= 12; i--) {
+    if (++counter[i] !== 0) break;
+  }
+}
+
+// ---- GF(2^128) multiplication for GHASH ----
+
+/**
+ * Multiply two 128-bit values in GF(2^128) using the irreducible polynomial
+ * x^128 + x^7 + x^2 + x + 1 (represented as R = 0xe1 << 120).
+ *
+ * X and Y are 16-byte Uint8Arrays (big-endian bit ordering).
+ * Returns a new 16-byte Uint8Array.
+ */
+function gfMul(X: Uint8Array, Y: Uint8Array): Uint8Array {
+  // Z starts at 0, V starts as a copy of X
+  const Z = new Uint8Array(16);
+  const V = new Uint8Array(X);
+
+  for (let i = 0; i < 128; i++) {
+    // Check bit i of Y (big-endian: byte i>>3, bit 7-(i&7))
+    if (Y[i >>> 3] & (1 << (7 - (i & 7)))) {
+      // Z = Z XOR V
+      for (let j = 0; j < 16; j++) Z[j] ^= V[j];
+    }
+
+    // Check if the LSB (rightmost bit) of V is set
+    const lsb = V[15] & 1;
+
+    // Right-shift V by 1 bit
+    for (let j = 15; j > 0; j--) {
+      V[j] = (V[j] >>> 1) | ((V[j - 1] & 1) << 7);
+    }
+    V[0] = V[0] >>> 1;
+
+    // If LSB was set, XOR with R (0xe1 in the most significant byte)
+    if (lsb) {
+      V[0] ^= 0xe1;
+    }
+  }
+
+  return Z;
+}
+
+/**
+ * GHASH function per NIST SP 800-38D.
+ *
+ * H:    the hash subkey (AES_K(0^128)), 16 bytes
+ * aad:  additional authenticated data (arbitrary length)
+ * ciphertext: ciphertext (arbitrary length)
+ *
+ * Returns a 16-byte authentication hash.
+ */
+function ghash(H: Uint8Array, aad: Uint8Array, ciphertext: Uint8Array): Uint8Array {
+  const X = new Uint8Array(16); // X_0 = 0^128
+
+  // Process AAD blocks (pad to 128-bit boundary)
+  const aadBlocks = Math.ceil(aad.length / 16) || 0;
+  for (let i = 0; i < aadBlocks; i++) {
+    const start = i * 16;
+    const end = Math.min(start + 16, aad.length);
+    // XOR the block into X (zero-padded if partial)
+    for (let j = 0; j < 16; j++) {
+      const idx = start + j;
+      if (idx < end) {
+        X[j] ^= aad[idx];
+      }
+      // else: XOR with 0 (no-op)
+    }
+    const product = gfMul(X, H);
+    X.set(product);
+  }
+
+  // Process ciphertext blocks (pad to 128-bit boundary)
+  const ctBlocks = Math.ceil(ciphertext.length / 16) || 0;
+  for (let i = 0; i < ctBlocks; i++) {
+    const start = i * 16;
+    const end = Math.min(start + 16, ciphertext.length);
+    for (let j = 0; j < 16; j++) {
+      const idx = start + j;
+      if (idx < end) {
+        X[j] ^= ciphertext[idx];
+      }
+    }
+    const product = gfMul(X, H);
+    X.set(product);
+  }
+
+  // Final block: len(A) || len(C) as 64-bit big-endian bit counts
+  const lenBlock = new Uint8Array(16);
+  const aadBits = aad.length * 8;
+  const ctBits = ciphertext.length * 8;
+
+  // Write aadBits as 64-bit big-endian into bytes 0..7
+  // JavaScript bitwise ops are 32-bit, so we handle high and low 32 bits
+  const aadHi = Math.floor(aadBits / 0x100000000);
+  const aadLo = aadBits >>> 0;
+  lenBlock[0] = (aadHi >>> 24) & 0xff;
+  lenBlock[1] = (aadHi >>> 16) & 0xff;
+  lenBlock[2] = (aadHi >>> 8) & 0xff;
+  lenBlock[3] = aadHi & 0xff;
+  lenBlock[4] = (aadLo >>> 24) & 0xff;
+  lenBlock[5] = (aadLo >>> 16) & 0xff;
+  lenBlock[6] = (aadLo >>> 8) & 0xff;
+  lenBlock[7] = aadLo & 0xff;
+
+  // Write ctBits as 64-bit big-endian into bytes 8..15
+  const ctHi = Math.floor(ctBits / 0x100000000);
+  const ctLo = ctBits >>> 0;
+  lenBlock[8] = (ctHi >>> 24) & 0xff;
+  lenBlock[9] = (ctHi >>> 16) & 0xff;
+  lenBlock[10] = (ctHi >>> 8) & 0xff;
+  lenBlock[11] = ctHi & 0xff;
+  lenBlock[12] = (ctLo >>> 24) & 0xff;
+  lenBlock[13] = (ctLo >>> 16) & 0xff;
+  lenBlock[14] = (ctLo >>> 8) & 0xff;
+  lenBlock[15] = ctLo & 0xff;
+
+  for (let j = 0; j < 16; j++) X[j] ^= lenBlock[j];
+  const product = gfMul(X, H);
+  X.set(product);
+
+  return X;
+}
+
 // ---- Algorithm parsing ----
 
 interface AlgorithmInfo {
   keySize: number; // bytes
   ivSize: number;  // bytes
-  mode: 'cbc' | 'ctr' | 'ecb' | 'cfb' | 'ofb';
+  mode: 'cbc' | 'ctr' | 'ecb' | 'cfb' | 'ofb' | 'gcm';
 }
 
 function parseAlgorithm(algorithm: string): AlgorithmInfo {
   const lower = algorithm.toLowerCase();
-  const match = lower.match(/^aes-(128|192|256)-(cbc|ctr|ecb|cfb|ofb)$/);
+  const match = lower.match(/^aes-(128|192|256)-(cbc|ctr|ecb|cfb|ofb|gcm)$/);
   if (!match) {
     throw new Error(`Unsupported cipher algorithm: ${algorithm}`);
   }
@@ -216,7 +345,7 @@ function parseAlgorithm(algorithm: string): AlgorithmInfo {
   const mode = match[2] as AlgorithmInfo['mode'];
   return {
     keySize: keyBits / 8,
-    ivSize: mode === 'ecb' ? 0 : 16,
+    ivSize: mode === 'ecb' ? 0 : (mode === 'gcm' ? 12 : 16),
     mode,
   };
 }
@@ -322,10 +451,65 @@ class Cipher extends CipherBase {
   private _prevBlock: Uint8Array;
   private _counter: Uint8Array;
 
+  // GCM state
+  private _gcmH: Uint8Array | null = null;       // Hash subkey H = AES_K(0^128)
+  private _gcmJ0: Uint8Array | null = null;       // Initial counter J0
+  private _gcmAAD: Uint8Array = new Uint8Array(0); // Additional authenticated data
+  private _gcmCiphertext: Uint8Array[] = [];       // Accumulated ciphertext for GHASH
+  private _gcmCiphertextLen = 0;                   // Total ciphertext length
+  private _gcmAuthTag: Buffer | null = null;       // Computed authentication tag
+  private _gcmAADSet = false;                      // Whether setAAD was called
+
   constructor(algorithm: string, key: Uint8Array, iv: Uint8Array | null) {
     super(algorithm, key, iv);
     this._prevBlock = new Uint8Array(this._iv);
-    this._counter = new Uint8Array(this._iv);
+
+    if (this._mode === 'gcm') {
+      // GCM initialization
+      // H = AES_K(0^128) — encrypt zero block with the key
+      this._gcmH = aesEncryptBlock(new Uint8Array(16), this._roundKeys);
+
+      // J0 = IV || 0^31 || 1 (when IV is 96 bits / 12 bytes)
+      this._gcmJ0 = new Uint8Array(16);
+      this._gcmJ0.set(this._iv.subarray(0, 12));
+      this._gcmJ0[15] = 1; // last byte = 1 (0^31 || 1)
+
+      // Counter starts at J0 incremented by 1 (ICB = inc32(J0))
+      this._counter = new Uint8Array(this._gcmJ0);
+      gcmIncrementCounter(this._counter);
+    } else {
+      this._counter = new Uint8Array(this._iv);
+    }
+  }
+
+  /**
+   * Set Additional Authenticated Data for GCM mode.
+   * Must be called before any update() calls.
+   */
+  setAAD(data: Buffer | Uint8Array): this {
+    if (this._mode !== 'gcm') {
+      throw new Error('setAAD is only supported in GCM mode');
+    }
+    if (this._gcmCiphertextLen > 0) {
+      throw new Error('setAAD must be called before update()');
+    }
+    this._gcmAAD = new Uint8Array(data);
+    this._gcmAADSet = true;
+    return this;
+  }
+
+  /**
+   * Get the authentication tag after final() has been called.
+   * Only valid for GCM mode.
+   */
+  getAuthTag(): Buffer {
+    if (this._mode !== 'gcm') {
+      throw new Error('getAuthTag is only supported in GCM mode');
+    }
+    if (!this._gcmAuthTag) {
+      throw new Error('getAuthTag must be called after final()');
+    }
+    return Buffer.from(this._gcmAuthTag);
   }
 
   update(data: string | Buffer | Uint8Array, inputEncoding?: string, outputEncoding?: string): string | Buffer {
@@ -335,6 +519,13 @@ class Cipher extends CipherBase {
     const combined = new Uint8Array(this._buffer.length + input.length);
     combined.set(this._buffer);
     combined.set(input, this._buffer.length);
+
+    if (this._mode === 'gcm') {
+      // GCM uses CTR mode for encryption — process all available bytes
+      const output = this._processGcmEncrypt(combined);
+      this._buffer = new Uint8Array(0);
+      return encodeOutput(output, outputEncoding);
+    }
 
     if (this._mode === 'ctr' || this._mode === 'cfb' || this._mode === 'ofb') {
       // Stream cipher modes: process all available bytes
@@ -362,6 +553,35 @@ class Cipher extends CipherBase {
   final(outputEncoding?: string): string | Buffer {
     if (this._finalized) throw new Error('Cipher already finalized');
     this._finalized = true;
+
+    if (this._mode === 'gcm') {
+      // GCM: process any remaining buffer, then compute auth tag
+      let finalOutput = new Uint8Array(0);
+      if (this._buffer.length > 0) {
+        finalOutput = this._processGcmEncrypt(this._buffer) as Uint8Array<ArrayBuffer>;
+        this._buffer = new Uint8Array(0);
+      }
+
+      // Concatenate all ciphertext chunks for GHASH
+      const allCiphertext = new Uint8Array(this._gcmCiphertextLen);
+      let offset = 0;
+      for (const chunk of this._gcmCiphertext) {
+        allCiphertext.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // Compute GHASH(H, AAD, ciphertext)
+      const ghashResult = ghash(this._gcmH!, this._gcmAAD, allCiphertext);
+
+      // Tag = GHASH(H, AAD, C) XOR AES_K(J0)
+      const encJ0 = aesEncryptBlock(this._gcmJ0!, this._roundKeys);
+      const tag = new Uint8Array(16);
+      for (let i = 0; i < 16; i++) tag[i] = ghashResult[i] ^ encJ0[i];
+
+      this._gcmAuthTag = Buffer.from(tag);
+
+      return encodeOutput(finalOutput, outputEncoding);
+    }
 
     if (this._mode === 'ctr' || this._mode === 'cfb' || this._mode === 'ofb') {
       // Stream modes: no padding needed, just process remaining
@@ -419,6 +639,25 @@ class Cipher extends CipherBase {
     }
     return output;
   }
+
+  /**
+   * GCM encryption: CTR mode encryption, also accumulates ciphertext for GHASH.
+   */
+  private _processGcmEncrypt(data: Uint8Array): Uint8Array {
+    const output = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i += 16) {
+      const keystream = aesEncryptBlock(this._counter, this._roundKeys);
+      const remaining = Math.min(16, data.length - i);
+      for (let j = 0; j < remaining; j++) {
+        output[i + j] = data[i + j] ^ keystream[j];
+      }
+      gcmIncrementCounter(this._counter);
+    }
+    // Accumulate ciphertext for auth tag computation
+    this._gcmCiphertext.push(new Uint8Array(output));
+    this._gcmCiphertextLen += output.length;
+    return output;
+  }
 }
 
 class Decipher extends CipherBase {
@@ -426,10 +665,60 @@ class Decipher extends CipherBase {
   private _counter: Uint8Array;
   private _pendingUtf8: Uint8Array = new Uint8Array(0);
 
+  // GCM state
+  private _gcmH: Uint8Array | null = null;       // Hash subkey H = AES_K(0^128)
+  private _gcmJ0: Uint8Array | null = null;       // Initial counter J0
+  private _gcmAAD: Uint8Array = new Uint8Array(0); // Additional authenticated data
+  private _gcmCiphertext: Uint8Array[] = [];       // Accumulated ciphertext for GHASH
+  private _gcmCiphertextLen = 0;                   // Total ciphertext length
+  private _gcmExpectedTag: Buffer | null = null;   // Expected authentication tag
+  private _gcmAADSet = false;                      // Whether setAAD was called
+
   constructor(algorithm: string, key: Uint8Array, iv: Uint8Array | null) {
     super(algorithm, key, iv);
     this._prevBlock = new Uint8Array(this._iv);
-    this._counter = new Uint8Array(this._iv);
+
+    if (this._mode === 'gcm') {
+      // GCM initialization (same as Cipher)
+      this._gcmH = aesEncryptBlock(new Uint8Array(16), this._roundKeys);
+
+      this._gcmJ0 = new Uint8Array(16);
+      this._gcmJ0.set(this._iv.subarray(0, 12));
+      this._gcmJ0[15] = 1;
+
+      this._counter = new Uint8Array(this._gcmJ0);
+      gcmIncrementCounter(this._counter);
+    } else {
+      this._counter = new Uint8Array(this._iv);
+    }
+  }
+
+  /**
+   * Set Additional Authenticated Data for GCM mode.
+   * Must be called before any update() calls.
+   */
+  setAAD(data: Buffer | Uint8Array): this {
+    if (this._mode !== 'gcm') {
+      throw new Error('setAAD is only supported in GCM mode');
+    }
+    if (this._gcmCiphertextLen > 0) {
+      throw new Error('setAAD must be called before update()');
+    }
+    this._gcmAAD = new Uint8Array(data);
+    this._gcmAADSet = true;
+    return this;
+  }
+
+  /**
+   * Set the expected authentication tag for GCM decryption.
+   * Must be called before final().
+   */
+  setAuthTag(tag: Buffer | Uint8Array): this {
+    if (this._mode !== 'gcm') {
+      throw new Error('setAuthTag is only supported in GCM mode');
+    }
+    this._gcmExpectedTag = Buffer.from(tag);
+    return this;
   }
 
   private _encodeWithUtf8Handling(bytes: Uint8Array, encoding: string | undefined, isFinal: boolean): string | Buffer {
@@ -467,6 +756,16 @@ class Decipher extends CipherBase {
     combined.set(this._buffer);
     combined.set(input, this._buffer.length);
 
+    if (this._mode === 'gcm') {
+      // GCM uses CTR mode for decryption — process all available bytes
+      // Accumulate ciphertext BEFORE decryption (for GHASH)
+      this._gcmCiphertext.push(new Uint8Array(combined));
+      this._gcmCiphertextLen += combined.length;
+      const output = this._processGcmDecrypt(combined);
+      this._buffer = new Uint8Array(0);
+      return this._encodeWithUtf8Handling(output, outputEncoding, false);
+    }
+
     if (this._mode === 'ctr' || this._mode === 'cfb' || this._mode === 'ofb') {
       const output = this._processStream(combined);
       this._buffer = new Uint8Array(0);
@@ -499,6 +798,52 @@ class Decipher extends CipherBase {
   final(outputEncoding?: string): string | Buffer {
     if (this._finalized) throw new Error('Decipher already finalized');
     this._finalized = true;
+
+    if (this._mode === 'gcm') {
+      // GCM: process any remaining buffer, then verify auth tag
+      let finalOutput = new Uint8Array(0);
+      if (this._buffer.length > 0) {
+        // Accumulate remaining ciphertext for GHASH
+        this._gcmCiphertext.push(new Uint8Array(this._buffer));
+        this._gcmCiphertextLen += this._buffer.length;
+        finalOutput = this._processGcmDecrypt(this._buffer) as Uint8Array<ArrayBuffer>;
+        this._buffer = new Uint8Array(0);
+      }
+
+      // Verify the authentication tag
+      if (!this._gcmExpectedTag) {
+        throw new Error('Unsupported state or unable to authenticate data');
+      }
+
+      // Concatenate all ciphertext chunks for GHASH
+      const allCiphertext = new Uint8Array(this._gcmCiphertextLen);
+      let offset = 0;
+      for (const chunk of this._gcmCiphertext) {
+        allCiphertext.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // Compute GHASH(H, AAD, ciphertext)
+      const ghashResult = ghash(this._gcmH!, this._gcmAAD, allCiphertext);
+
+      // Tag = GHASH(H, AAD, C) XOR AES_K(J0)
+      const encJ0 = aesEncryptBlock(this._gcmJ0!, this._roundKeys);
+      const computedTag = new Uint8Array(16);
+      for (let i = 0; i < 16; i++) computedTag[i] = ghashResult[i] ^ encJ0[i];
+
+      // Compare tags (constant-time comparison)
+      const expectedTag = this._gcmExpectedTag;
+      const tagLen = Math.min(expectedTag.length, 16);
+      let diff = 0;
+      for (let i = 0; i < tagLen; i++) {
+        diff |= computedTag[i] ^ expectedTag[i];
+      }
+      if (diff !== 0) {
+        throw new Error('Unsupported state or unable to authenticate data');
+      }
+
+      return this._encodeWithUtf8Handling(finalOutput, outputEncoding, true);
+    }
 
     if (this._mode === 'ctr' || this._mode === 'cfb' || this._mode === 'ofb') {
       if (this._buffer.length > 0) {
@@ -557,6 +902,22 @@ class Decipher extends CipherBase {
     }
     return output;
   }
+
+  /**
+   * GCM decryption: CTR mode decryption (same as encryption, since CTR is symmetric).
+   */
+  private _processGcmDecrypt(data: Uint8Array): Uint8Array {
+    const output = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i += 16) {
+      const keystream = aesEncryptBlock(this._counter, this._roundKeys);
+      const remaining = Math.min(16, data.length - i);
+      for (let j = 0; j < remaining; j++) {
+        output[i + j] = data[i + j] ^ keystream[j];
+      }
+      gcmIncrementCounter(this._counter);
+    }
+    return output;
+  }
 }
 
 // ---- Public API ----
@@ -586,5 +947,6 @@ export function getCiphers(): string[] {
     'aes-128-cbc', 'aes-128-ecb', 'aes-192-cbc', 'aes-192-ecb',
     'aes-256-cbc', 'aes-256-ecb', 'aes-128-ctr', 'aes-192-ctr', 'aes-256-ctr',
     'aes-128-cfb', 'aes-192-cfb', 'aes-256-cfb',
+    'aes-128-gcm', 'aes-192-gcm', 'aes-256-gcm',
   ];
 }
