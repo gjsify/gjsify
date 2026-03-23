@@ -74,5 +74,80 @@ export default async () => {
         expect(called).toBe(false);
       });
     });
+
+    // Ported from refs/node/test/parallel/test-timers-clear-null-does-not-throw-error.js
+    await describe('clearTimeout/clearInterval with null/undefined', async () => {
+      await it('clearTimeout(null) should not throw', async () => {
+        expect(() => timers.clearTimeout(null as any)).not.toThrow();
+      });
+
+      await it('clearTimeout(undefined) should not throw', async () => {
+        expect(() => timers.clearTimeout(undefined as any)).not.toThrow();
+      });
+
+      await it('clearInterval(null) should not throw', async () => {
+        expect(() => timers.clearInterval(null as any)).not.toThrow();
+      });
+
+      await it('clearInterval(undefined) should not throw', async () => {
+        expect(() => timers.clearInterval(undefined as any)).not.toThrow();
+      });
+
+      await it('clearImmediate(null) should not throw', async () => {
+        expect(() => timers.clearImmediate(null as any)).not.toThrow();
+      });
+    });
+
+    await describe('setTimeout with 0 delay', async () => {
+      await it('should execute with 0 delay', async () => {
+        const result = await new Promise<string>((resolve) => {
+          timers.setTimeout(() => resolve('zero'), 0);
+        });
+        expect(result).toBe('zero');
+      });
+    });
+
+    await describe('Timeout properties', async () => {
+      await it('should have refresh method', async () => {
+        const timeout = timers.setTimeout(() => {}, 1000);
+        expect(typeof timeout.refresh).toBe('function');
+        timers.clearTimeout(timeout);
+      });
+
+      await it('refresh should return the same object', async () => {
+        const timeout = timers.setTimeout(() => {}, 1000);
+        const result = timeout.refresh();
+        expect(result === timeout).toBeTruthy();
+        timers.clearTimeout(timeout);
+      });
+
+      await it('should have close method (alias for clearTimeout)', async () => {
+        const timeout = timers.setTimeout(() => {}, 1000);
+        expect(typeof timeout.close).toBe('function');
+        timeout.close();
+      });
+    });
+
+    await describe('Immediate properties', async () => {
+      await it('should have ref/unref/hasRef', async () => {
+        const immediate = timers.setImmediate(() => {});
+        expect(typeof immediate.ref).toBe('function');
+        expect(typeof immediate.unref).toBe('function');
+        expect(typeof immediate.hasRef).toBe('function');
+        timers.clearImmediate(immediate);
+      });
+    });
+
+    await describe('setInterval stops on clearInterval', async () => {
+      await it('should stop calling after clearInterval', async () => {
+        let count = 0;
+        const interval = timers.setInterval(() => { count++; }, 10);
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 35));
+        timers.clearInterval(interval);
+        const countAfterClear = count;
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 50));
+        expect(count).toBe(countAfterClear);
+      });
+    });
   });
 };

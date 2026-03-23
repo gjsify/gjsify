@@ -433,6 +433,91 @@ export default async () => {
 		});
 	});
 
+	// ==================== additional tests ported from refs/node ====================
+
+	await describe('EventEmitter: defaultMaxListeners static', async () => {
+		await it('should have defaultMaxListeners property', async () => {
+			expect(typeof EventEmitter.defaultMaxListeners).toBe('number');
+			expect(EventEmitter.defaultMaxListeners).toBe(10);
+		});
+	});
+
+	await describe('EventEmitter: Symbol event names', async () => {
+		await it('should support Symbol as event name', async () => {
+			const emitter = new EventEmitter();
+			const sym = Symbol('myEvent');
+			let called = false;
+			emitter.on(sym, () => { called = true; });
+			emitter.emit(sym);
+			expect(called).toBeTruthy();
+		});
+
+		await it('should support removing Symbol listeners', async () => {
+			const emitter = new EventEmitter();
+			const sym = Symbol('myEvent');
+			const fn = () => {};
+			emitter.on(sym, fn);
+			expect(emitter.listenerCount(sym)).toBe(1);
+			emitter.removeListener(sym, fn);
+			expect(emitter.listenerCount(sym)).toBe(0);
+		});
+	});
+
+	await describe('EventEmitter: removeAllListeners', async () => {
+		await it('should remove all listeners for a specific event', async () => {
+			const emitter = new EventEmitter();
+			emitter.on('test', () => {});
+			emitter.on('test', () => {});
+			emitter.on('other', () => {});
+			emitter.removeAllListeners('test');
+			expect(emitter.listenerCount('test')).toBe(0);
+			expect(emitter.listenerCount('other')).toBe(1);
+		});
+
+		await it('should remove all listeners when no event specified', async () => {
+			const emitter = new EventEmitter();
+			emitter.on('test', () => {});
+			emitter.on('other', () => {});
+			emitter.removeAllListeners();
+			expect(emitter.eventNames().length).toBe(0);
+		});
+
+		await it('should return this for chaining', async () => {
+			const emitter = new EventEmitter();
+			const result = emitter.removeAllListeners();
+			expect(result).toBe(emitter);
+		});
+	});
+
+	await describe('EventEmitter: listener removal during emit', async () => {
+		await it('should not skip listeners when one removes itself', async () => {
+			const emitter = new EventEmitter();
+			const calls: number[] = [];
+			const fn1 = () => {
+				calls.push(1);
+				emitter.removeListener('test', fn1);
+			};
+			const fn2 = () => { calls.push(2); };
+			emitter.on('test', fn1);
+			emitter.on('test', fn2);
+			emitter.emit('test');
+			expect(calls.length).toBe(2);
+			expect(calls[0]).toBe(1);
+			expect(calls[1]).toBe(2);
+		});
+	});
+
+	await describe('EventEmitter: off alias', async () => {
+		await it('off should be an alias for removeListener', async () => {
+			const emitter = new EventEmitter();
+			const fn = () => {};
+			emitter.on('test', fn);
+			expect(emitter.listenerCount('test')).toBe(1);
+			emitter.off('test', fn);
+			expect(emitter.listenerCount('test')).toBe(0);
+		});
+	});
+
 	// Keep original tests for backwards compatibility
 	await describe('events.EventEmitter: emit (original)', async () => {
 		await it('1. Add two listeners on a single event and emit the event', async () => {
