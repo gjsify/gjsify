@@ -284,6 +284,16 @@ Skip tests that depend on Node.js/V8 internals, native addons, or features we in
 - Type error callbacks as `NodeJS.ErrnoException | null`
 - Validate with `yarn check` (`tsc --noEmit`)
 
+## STATUS.md Maintenance
+
+`STATUS.md` tracks overall project progress. **Update it when making significant changes:**
+
+- After adding/expanding tests: update test counts in the package tables
+- After fixing implementations: update the "Was funktioniert" / "Was fehlt" columns
+- After completing a stub or partial package: move it to the correct category
+- After a work session with multiple changes: add a Changelog entry with date and summary
+- Keep the Metriken section (total test count, package counts) current
+
 ## Constraints
 
 - Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128`
