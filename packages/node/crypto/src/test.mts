@@ -10,5 +10,6 @@ import testSuiteScrypt from './scrypt.spec.js';
 import testSuiteDh from './dh.spec.js';
 import testSuiteEcdh from './ecdh.spec.js';
 import testSuiteGcm from './gcm.spec.js';
+import testSuiteSign from './sign.spec.js';
 
-run({ testSuiteHash, testSuiteHmac, testSuiteRandom, testSuitePbkdf2, testSuiteCipher, testSuiteScrypt, testSuiteDh, testSuiteEcdh, testSuiteGcm });
+run({ testSuiteHash, testSuiteHmac, testSuiteRandom, testSuitePbkdf2, testSuiteCipher, testSuiteScrypt, testSuiteDh, testSuiteEcdh, testSuiteGcm, testSuiteSign });
