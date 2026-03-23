@@ -2,9 +2,11 @@
 // Reimplemented for GJS using Soup.Server
 
 import Soup from '@girs/soup-3.0';
+import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'events';
 import { Writable } from 'stream';
 import { Buffer } from 'buffer';
+import { deferEmit } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
 
@@ -16,7 +18,7 @@ export class ServerResponse extends Writable {
   statusMessage = '';
   headersSent = false;
   finished = false;
-  socket: any = null;
+  socket: import('net').Socket | null = null;
 
   private _headers: Map<string, string | string[]> = new Map();
   private _chunks: Buffer[] = [];
@@ -126,9 +128,9 @@ export class ServerResponse extends Writable {
   }
 
   /** Write status + headers + body in one call (convenience). */
-  end(chunk?: any, encoding?: any, callback?: any): this {
+  end(chunk?: unknown, encoding?: BufferEncoding | (() => void), callback?: () => void): this {
     if (typeof chunk === 'function') {
-      callback = chunk;
+      callback = chunk as () => void;
       chunk = undefined;
     } else if (typeof encoding === 'function') {
       callback = encoding;
@@ -136,7 +138,7 @@ export class ServerResponse extends Writable {
     }
 
     if (chunk != null) {
-      this.write(chunk, encoding);
+      this.write(chunk as string | Buffer, encoding as BufferEncoding);
     }
 
     super.end(callback);
@@ -168,7 +170,7 @@ export class Server extends EventEmitter {
   listen(port?: number, hostname?: string, backlog?: number, callback?: () => void): this;
   listen(port?: number, hostname?: string, callback?: () => void): this;
   listen(port?: number, callback?: () => void): this;
-  listen(...args: any[]): this {
+  listen(...args: unknown[]): this {
     let port = 0;
     let hostname = '0.0.0.0';
     let callback: (() => void) | undefined;
@@ -176,7 +178,7 @@ export class Server extends EventEmitter {
     for (const arg of args) {
       if (typeof arg === 'number') port = arg;
       else if (typeof arg === 'string') hostname = arg;
-      else if (typeof arg === 'function') callback = arg;
+      else if (typeof arg === 'function') callback = arg as () => void;
     }
 
     if (callback) this.once('listening', callback);
@@ -195,7 +197,7 @@ export class Server extends EventEmitter {
       const listeners = this._soupServer.get_listeners();
       let actualPort = port;
       if (listeners && listeners.length > 0) {
-        const addr = listeners[0].get_local_address() as any;
+        const addr = listeners[0].get_local_address() as Gio.InetSocketAddress;
         if (addr && typeof addr.get_port === 'function') {
           actualPort = addr.get_port();
         }
@@ -204,9 +206,9 @@ export class Server extends EventEmitter {
       this.listening = true;
       this._address = { port: actualPort, family: 'IPv4', address: hostname };
 
-      setTimeout(() => this.emit('listening'), 0);
-    } catch (err: any) {
-      setTimeout(() => this.emit('error', err), 0);
+      deferEmit(this, 'listening');
+    } catch (err: unknown) {
+      deferEmit(this, 'error', err instanceof Error ? err : new Error(String(err)));
     }
 
     return this;
@@ -271,7 +273,7 @@ export class Server extends EventEmitter {
     }
 
     this.listening = false;
-    setTimeout(() => this.emit('close'), 0);
+    deferEmit(this, 'close');
     return this;
   }
 

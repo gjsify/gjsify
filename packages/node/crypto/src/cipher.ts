@@ -328,7 +328,7 @@ class Cipher extends CipherBase {
     this._counter = new Uint8Array(this._iv);
   }
 
-  update(data: string | Buffer | Uint8Array, inputEncoding?: string, outputEncoding?: string): any {
+  update(data: string | Buffer | Uint8Array, inputEncoding?: string, outputEncoding?: string): string | Buffer {
     const input = toBuffer(data, inputEncoding);
 
     // Append to buffer
@@ -359,7 +359,7 @@ class Cipher extends CipherBase {
     return encodeOutput(result, outputEncoding);
   }
 
-  final(outputEncoding?: string): any {
+  final(outputEncoding?: string): string | Buffer {
     if (this._finalized) throw new Error('Cipher already finalized');
     this._finalized = true;
 
@@ -432,7 +432,7 @@ class Decipher extends CipherBase {
     this._counter = new Uint8Array(this._iv);
   }
 
-  private _encodeWithUtf8Handling(bytes: Uint8Array, encoding: string | undefined, isFinal: boolean): any {
+  private _encodeWithUtf8Handling(bytes: Uint8Array, encoding: string | undefined, isFinal: boolean): string | Buffer {
     if (!encoding || (encoding !== 'utf8' && encoding !== 'utf-8')) {
       return encodeOutput(bytes, encoding);
     }
@@ -460,7 +460,7 @@ class Decipher extends CipherBase {
     return Buffer.from(data).toString('utf8');
   }
 
-  update(data: string | Buffer | Uint8Array, inputEncoding?: string, outputEncoding?: string): any {
+  update(data: string | Buffer | Uint8Array, inputEncoding?: string, outputEncoding?: string): string | Buffer {
     const input = toBuffer(data, inputEncoding);
 
     const combined = new Uint8Array(this._buffer.length + input.length);
@@ -496,7 +496,7 @@ class Decipher extends CipherBase {
     return this._encodeWithUtf8Handling(result, outputEncoding, false);
   }
 
-  final(outputEncoding?: string): any {
+  final(outputEncoding?: string): string | Buffer {
     if (this._finalized) throw new Error('Decipher already finalized');
     this._finalized = true;
 
@@ -561,7 +561,7 @@ class Decipher extends CipherBase {
 
 // ---- Public API ----
 
-export function createCipher(_algorithm: string, _password: string | Buffer | Uint8Array): any {
+export function createCipher(_algorithm: string, _password: string | Buffer | Uint8Array): never {
   throw new Error('crypto.createCipher() is deprecated. Use createCipheriv() instead.');
 }
 
@@ -571,7 +571,7 @@ export function createCipheriv(algorithm: string, key: string | Buffer | Uint8Ar
   return new Cipher(algorithm, keyBuf, ivBuf);
 }
 
-export function createDecipher(_algorithm: string, _password: string | Buffer | Uint8Array): any {
+export function createDecipher(_algorithm: string, _password: string | Buffer | Uint8Array): never {
   throw new Error('crypto.createDecipher() is deprecated. Use createDecipheriv() instead.');
 }
 

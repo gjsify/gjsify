@@ -515,8 +515,6 @@ export class FileHandle implements IFileHandle {
 
         encoding = getEncodingFromOptions(encoding, typeof data === 'string' ? 'utf8' : null);
         if (encoding) {
-            console.log("set_encoding", encoding, this._file.get_encoding(), typeof data);
-            
             this._file.set_encoding(encoding === 'buffer' ? null : encoding);
         }
 

@@ -5,7 +5,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { Duplex } from 'stream';
 import { Buffer } from 'buffer';
-import { createNodeError } from '@gjsify/utils';
+import { createNodeError, gbytesToUint8Array } from '@gjsify/utils';
 import type { DuplexOptions } from 'node:stream';
 
 export interface SocketConnectOptions {
@@ -46,11 +46,16 @@ export class Socket extends Duplex {
     super(options);
   }
 
+  /** @internal Set the connection from an accepted server socket. */
+  _setConnection(connection: Gio.SocketConnection): void {
+    this._connection = connection;
+  }
+
   /**
    * Initiate a TCP connection.
    */
   connect(options: SocketConnectOptions | number, host?: string | (() => void), connectionListener?: () => void): this;
-  connect(options: any, host?: any, connectionListener?: any): this {
+  connect(options: SocketConnectOptions | number, host?: string | (() => void), connectionListener?: () => void): this {
     // Normalize arguments
     let opts: SocketConnectOptions;
     if (typeof options === 'number') {
@@ -83,11 +88,11 @@ export class Socket extends Duplex {
       targetHost,
       targetPort,
       this._cancellable,
-      (_source: any, asyncResult: Gio.AsyncResult) => {
+      (_source: Gio.SocketClient | null, asyncResult: Gio.AsyncResult) => {
         try {
           this._connection = client.connect_to_host_finish(asyncResult);
           this._setupConnection(opts);
-        } catch (err: any) {
+        } catch (err: unknown) {
           this.connecting = false;
           this.readyState = 'closed';
           const nodeErr = createNodeError(err, 'connect', {
@@ -102,7 +107,8 @@ export class Socket extends Duplex {
     return this;
   }
 
-  private _setupConnection(opts: SocketConnectOptions): void {
+  /** @internal Set up streams and emit connect after connection is established. */
+  _setupConnection(opts: SocketConnectOptions | Record<string, never>): void {
     if (!this._connection) return;
 
     const sock = this._connection.get_socket();
@@ -110,10 +116,10 @@ export class Socket extends Duplex {
     this._outputStream = this._connection.get_output_stream();
 
     // Set socket options
-    if (opts.keepAlive) {
+    if ('keepAlive' in opts && opts.keepAlive) {
       sock.set_keepalive(true);
     }
-    if (opts.noDelay !== false) {
+    if (!('noDelay' in opts) || opts.noDelay !== false) {
       // TCP_NODELAY: level=6 (IPPROTO_TCP), optname=1 (TCP_NODELAY)
       try { sock.set_option(6, 1, 1); } catch { /* may not be supported */ }
     }
@@ -162,7 +168,7 @@ export class Socket extends Duplex {
             CHUNK_SIZE,
             GLib.PRIORITY_DEFAULT,
             this._cancellable,
-            (_source: any, asyncResult: Gio.AsyncResult) => {
+            (_source: Gio.InputStream | null, asyncResult: Gio.AsyncResult) => {
               try {
                 resolve(inputStream.read_bytes_finish(asyncResult));
               } catch (err) {
@@ -180,7 +186,7 @@ export class Socket extends Duplex {
           break;
         }
 
-        const data = (imports as any).byteArray.fromGBytes(bytes) as Uint8Array;
+        const data = gbytesToUint8Array(bytes);
         this.bytesRead += data.length;
         this._resetTimeout();
 
@@ -190,7 +196,7 @@ export class Socket extends Duplex {
           break;
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!this._cancellable.is_cancelled()) {
         this.destroy(createNodeError(err, 'read', { address: this.remoteAddress }));
       }
@@ -216,13 +222,13 @@ export class Socket extends Duplex {
       new GLib.Bytes(data),
       GLib.PRIORITY_DEFAULT,
       this._cancellable,
-      (_source: any, asyncResult: Gio.AsyncResult) => {
+      (_source: Gio.OutputStream | null, asyncResult: Gio.AsyncResult) => {
         try {
           const written = this._outputStream!.write_bytes_finish(asyncResult);
           this.bytesWritten += written;
           this._resetTimeout();
           callback(null);
-        } catch (err: any) {
+        } catch (err: unknown) {
           callback(createNodeError(err, 'write', { address: this.remoteAddress }));
         }
       },

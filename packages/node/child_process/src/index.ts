@@ -6,6 +6,16 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'events';
 import { Buffer } from 'buffer';
+import type { Readable, Writable } from 'node:stream';
+import { gbytesToUint8Array, deferEmit } from '@gjsify/utils';
+
+interface ExecError extends Error {
+  status?: number;
+  code?: number | string;
+  killed?: boolean;
+  stdout?: string;
+  stderr?: string;
+}
 
 export interface ExecOptions {
   cwd?: string;
@@ -24,7 +34,7 @@ export interface ExecSyncOptions {
   cwd?: string;
   env?: Record<string, string>;
   encoding?: BufferEncoding | 'buffer';
-  shell?: string;
+  shell?: string | boolean;
   timeout?: number;
   maxBuffer?: number;
   killSignal?: string | number;
@@ -60,11 +70,18 @@ export class ChildProcess extends EventEmitter {
   signalCode: string | null = null;
   killed = false;
   connected = false;
-  stdin: any = null;
-  stdout: any = null;
-  stderr: any = null;
+  stdin: Writable | null = null;
+  stdout: Readable | null = null;
+  stderr: Readable | null = null;
 
   private _subprocess: Gio.Subprocess | null = null;
+
+  /** @internal Set the underlying Gio.Subprocess and extract PID. */
+  _setSubprocess(proc: Gio.Subprocess): void {
+    this._subprocess = proc;
+    const pid = proc.get_identifier();
+    if (pid) this.pid = parseInt(pid, 10);
+  }
 
   /** Send a signal to the child process. */
   kill(signal?: string | number): boolean {
@@ -124,19 +141,19 @@ export function execSync(command: string, options?: ExecSyncOptions): Buffer | s
   const status = proc.get_exit_status();
   if (status !== 0) {
     const stderrStr = stderrBytes
-      ? new TextDecoder().decode((imports as any).byteArray.fromGBytes(stderrBytes))
+      ? new TextDecoder().decode(gbytesToUint8Array(stderrBytes))
       : '';
-    const error = new Error(`Command failed: ${command}\n${stderrStr}`) as any;
+    const error = new Error(`Command failed: ${command}\n${stderrStr}`) as ExecError;
     error.status = status;
     error.stderr = stderrStr;
     error.stdout = stdoutBytes
-      ? new TextDecoder().decode((imports as any).byteArray.fromGBytes(stdoutBytes))
+      ? new TextDecoder().decode(gbytesToUint8Array(stdoutBytes))
       : '';
     throw error;
   }
 
   if (!stdoutBytes) return encoding && encoding !== 'buffer' ? '' : Buffer.alloc(0);
-  const data = (imports as any).byteArray.fromGBytes(stdoutBytes) as Uint8Array;
+  const data = gbytesToUint8Array(stdoutBytes);
   if (encoding && encoding !== 'buffer') {
     return new TextDecoder().decode(data);
   }
@@ -163,19 +180,16 @@ function _exec(
 
   try {
     const proc = _spawnSubprocess([shell, '-c', command], flags, opts);
-    (child as any)._subprocess = proc;
+    child._setSubprocess(proc);
 
-    const pid = proc.get_identifier();
-    if (pid) child.pid = parseInt(pid, 10);
-
-    proc.communicate_utf8_async(null, null, (_source: any, result: Gio.AsyncResult) => {
+    proc.communicate_utf8_async(null, null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {
         const [, stdout, stderr] = proc.communicate_utf8_finish(result);
         const exitStatus = proc.get_exit_status();
         child.exitCode = exitStatus;
 
         if (exitStatus !== 0) {
-          const error = new Error(`Command failed: ${command}`) as any;
+          const error = new Error(`Command failed: ${command}`) as ExecError;
           error.code = exitStatus;
           error.killed = child.killed;
           error.stdout = stdout || '';
@@ -187,15 +201,17 @@ function _exec(
 
         child.emit('close', exitStatus, null);
         child.emit('exit', exitStatus, null);
-      } catch (err: any) {
-        if (callback) callback(err, '', '');
-        child.emit('error', err);
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        if (callback) callback(error, '', '');
+        child.emit('error', error);
       }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
     setTimeout(() => {
-      if (callback) callback(err, '', '');
-      child.emit('error', err);
+      if (callback) callback(error, '', '');
+      child.emit('error', error);
     }, 0);
   }
 
@@ -234,19 +250,16 @@ export function execFile(
 
   try {
     const proc = _spawnSubprocess([file, ..._args], flags, _opts);
-    (child as any)._subprocess = proc;
+    child._setSubprocess(proc);
 
-    const pid = proc.get_identifier();
-    if (pid) child.pid = parseInt(pid, 10);
-
-    proc.communicate_utf8_async(null, null, (_source: any, result: Gio.AsyncResult) => {
+    proc.communicate_utf8_async(null, null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {
         const [, stdout, stderr] = proc.communicate_utf8_finish(result);
         const exitStatus = proc.get_exit_status();
         child.exitCode = exitStatus;
 
         if (exitStatus !== 0) {
-          const error = new Error(`Command failed: ${file}`) as any;
+          const error = new Error(`Command failed: ${file}`) as ExecError;
           error.code = exitStatus;
           error.stdout = stdout || '';
           error.stderr = stderr || '';
@@ -257,15 +270,17 @@ export function execFile(
 
         child.emit('close', exitStatus, null);
         child.emit('exit', exitStatus, null);
-      } catch (err: any) {
-        if (_callback) _callback(err, '', '');
-        child.emit('error', err);
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        if (_callback) _callback(error, '', '');
+        child.emit('error', error);
       }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
     setTimeout(() => {
-      if (_callback) _callback(err, '', '');
-      child.emit('error', err);
+      if (_callback) _callback(error, '', '');
+      child.emit('error', error);
     }, 0);
   }
 
@@ -294,16 +309,16 @@ export function execFileSync(file: string, args?: string[], options?: ExecSyncOp
   const status = proc.get_exit_status();
   if (status !== 0) {
     const stderrStr = stderrBytes
-      ? new TextDecoder().decode((imports as any).byteArray.fromGBytes(stderrBytes))
+      ? new TextDecoder().decode(gbytesToUint8Array(stderrBytes))
       : '';
-    const error = new Error(`Command failed: ${file} ${_args.join(' ')}`) as any;
+    const error = new Error(`Command failed: ${file} ${_args.join(' ')}`) as ExecError;
     error.status = status;
     error.stderr = stderrStr;
     throw error;
   }
 
   if (!stdoutBytes) return encoding && encoding !== 'buffer' ? '' : Buffer.alloc(0);
-  const data = (imports as any).byteArray.fromGBytes(stdoutBytes) as Uint8Array;
+  const data = gbytesToUint8Array(stdoutBytes);
   if (encoding && encoding !== 'buffer') {
     return new TextDecoder().decode(data);
   }
@@ -331,12 +346,9 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
 
   try {
     const proc = _spawnSubprocess(argv, flags, options);
-    (child as any)._subprocess = proc;
+    child._setSubprocess(proc);
 
-    const pid = proc.get_identifier();
-    if (pid) child.pid = parseInt(pid, 10);
-
-    proc.wait_async(null, (_source: any, result: Gio.AsyncResult) => {
+    proc.wait_async(null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {
         proc.wait_finish(result);
         const exitStatus = proc.get_if_exited() ? proc.get_exit_status() : null;
@@ -345,14 +357,14 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
         child.signalCode = signal;
         child.emit('exit', exitStatus, signal);
         child.emit('close', exitStatus, signal);
-      } catch (err: any) {
-        child.emit('error', err);
+      } catch (err: unknown) {
+        child.emit('error', err instanceof Error ? err : new Error(String(err)));
       }
     });
 
-    setTimeout(() => child.emit('spawn'), 0);
-  } catch (err: any) {
-    setTimeout(() => child.emit('error', err), 0);
+    deferEmit(child, 'spawn');
+  } catch (err: unknown) {
+    deferEmit(child, 'error', err instanceof Error ? err : new Error(String(err)));
   }
 
   return child;
@@ -363,7 +375,7 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
  */
 export function spawnSync(command: string, args?: string[], options?: ExecSyncOptions): SpawnSyncResult {
   const _args = args || [];
-  const useShell = (options as any)?.shell;
+  const useShell = options?.shell;
   const input = options?.input;
 
   let argv: string[];
@@ -388,8 +400,8 @@ export function spawnSync(command: string, args?: string[], options?: ExecSyncOp
 
     const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
 
-    const stdoutBuf = stdoutBytes ? Buffer.from((imports as any).byteArray.fromGBytes(stdoutBytes)) : Buffer.alloc(0);
-    const stderrBuf = stderrBytes ? Buffer.from((imports as any).byteArray.fromGBytes(stderrBytes)) : Buffer.alloc(0);
+    const stdoutBuf = stdoutBytes ? Buffer.from(gbytesToUint8Array(stdoutBytes)) : Buffer.alloc(0);
+    const stderrBuf = stderrBytes ? Buffer.from(gbytesToUint8Array(stderrBytes)) : Buffer.alloc(0);
 
     const encoding = options?.encoding;
     const stdoutData: Buffer | string = encoding && encoding !== 'buffer' ? new TextDecoder().decode(stdoutBuf) : stdoutBuf;
@@ -406,7 +418,7 @@ export function spawnSync(command: string, args?: string[], options?: ExecSyncOp
       status,
       signal,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const empty: Buffer | string = options?.encoding && options.encoding !== 'buffer' ? '' : Buffer.alloc(0);
     return {
       pid: 0,
@@ -415,7 +427,7 @@ export function spawnSync(command: string, args?: string[], options?: ExecSyncOp
       stderr: empty,
       status: null,
       signal: null,
-      error: err,
+      error: err instanceof Error ? err : new Error(String(err)),
     };
   }
 }

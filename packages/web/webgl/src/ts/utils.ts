@@ -15,7 +15,7 @@ export function bindPublics(props: Array<keyof GjsifyWebGLRenderingContext>, wra
         const value = privateInstance[prop]
         if (typeof value === 'function') {
             if (privateMethods.indexOf(prop) === -1) {
-                // @ts-ignore
+                // @ts-expect-error — dynamic property assignment on wrapper using string key from props array
                 wrapper[prop] = value.bind(privateInstance)
             }
         } else {
@@ -24,7 +24,7 @@ export function bindPublics(props: Array<keyof GjsifyWebGLRenderingContext>, wra
                 prop[0] === '1') {
                 continue
             }
-            // @ts-ignore
+            // @ts-expect-error — dynamic property assignment on wrapper using string key from props array
             wrapper[prop] = value
         }
     }

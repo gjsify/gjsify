@@ -16,7 +16,7 @@ export interface RequestOptions {
   method?: string;
   headers?: Record<string, string | number | string[]>;
   timeout?: number;
-  agent?: any;
+  agent?: unknown;
   setHost?: boolean;
   ca?: string | Buffer | Array<string | Buffer>;
   cert?: string | Buffer | Array<string | Buffer>;
@@ -33,7 +33,7 @@ export class Agent {
   maxSockets = Infinity;
   maxFreeSockets = 256;
 
-  constructor(_options?: any) {}
+  constructor(_options?: Record<string, unknown>) {}
 
   destroy(): void {}
 }

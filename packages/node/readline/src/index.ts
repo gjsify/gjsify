@@ -40,7 +40,7 @@ export class Interface extends EventEmitter {
     super();
 
     let opts: InterfaceOptions;
-    if (input && typeof input === 'object' && !('read' in input && typeof (input as any).read === 'function')) {
+    if (input && typeof input === 'object' && !('read' in input && typeof input.read === 'function')) {
       opts = input as InterfaceOptions;
     } else {
       opts = { input: input as Readable, output };
@@ -59,8 +59,8 @@ export class Interface extends EventEmitter {
       this._input.on('end', () => this._onEnd());
       this._input.on('error', (err: Error) => this.emit('error', err));
 
-      if (typeof (this._input as any).setEncoding === 'function') {
-        (this._input as any).setEncoding('utf8');
+      if ('setEncoding' in this._input && typeof this._input.setEncoding === 'function') {
+        this._input.setEncoding('utf8');
       }
     }
   }
@@ -132,8 +132,8 @@ export class Interface extends EventEmitter {
    * Display the query and wait for user input.
    */
   question(query: string, callback: (answer: string) => void): void;
-  question(query: string, options: any, callback: (answer: string) => void): void;
-  question(query: string, optionsOrCallback: any, callback?: (answer: string) => void): void {
+  question(query: string, options: Record<string, unknown>, callback: (answer: string) => void): void;
+  question(query: string, optionsOrCallback: Record<string, unknown> | ((answer: string) => void), callback?: (answer: string) => void): void {
     if (this._closed) {
       throw new Error('readline was closed');
     }
@@ -176,8 +176,8 @@ export class Interface extends EventEmitter {
     if (this._closed) return this;
     this._paused = true;
 
-    if (this._input && typeof (this._input as any).pause === 'function') {
-      (this._input as any).pause();
+    if (this._input && 'pause' in this._input && typeof this._input.pause === 'function') {
+      this._input.pause();
     }
 
     this.emit('pause');
@@ -189,8 +189,8 @@ export class Interface extends EventEmitter {
     if (this._closed) return this;
     this._paused = false;
 
-    if (this._input && typeof (this._input as any).resume === 'function') {
-      (this._input as any).resume();
+    if (this._input && 'resume' in this._input && typeof this._input.resume === 'function') {
+      this._input.resume();
     }
 
     this.emit('resume');
@@ -222,7 +222,7 @@ export class Interface extends EventEmitter {
       if (resolve) {
         const r = resolve;
         resolve = null;
-        r({ value: undefined as any, done: true });
+        r({ value: undefined as unknown as string, done: true });
       }
     });
 
@@ -232,13 +232,13 @@ export class Interface extends EventEmitter {
           return Promise.resolve({ value: lines.shift()!, done: false });
         }
         if (done) {
-          return Promise.resolve({ value: undefined as any, done: true });
+          return Promise.resolve({ value: undefined as unknown as string, done: true });
         }
         return new Promise<IteratorResult<string>>((r) => { resolve = r; });
       },
       return(): Promise<IteratorResult<string>> {
         done = true;
-        return Promise.resolve({ value: undefined as any, done: true });
+        return Promise.resolve({ value: undefined as unknown as string, done: true });
       },
       [Symbol.asyncIterator]() { return this; },
     };
@@ -248,8 +248,8 @@ export class Interface extends EventEmitter {
 /**
  * Create a readline Interface.
  */
-export function createInterface(input?: Readable | InterfaceOptions, output?: Writable, completer?: any, terminal?: boolean): Interface {
-  if (typeof input === 'object' && input !== null && !('read' in input && typeof (input as any).read === 'function')) {
+export function createInterface(input?: Readable | InterfaceOptions, output?: Writable, completer?: InterfaceOptions['completer'], terminal?: boolean): Interface {
+  if (typeof input === 'object' && input !== null && !('read' in input && typeof input.read === 'function')) {
     return new Interface(input);
   }
   return new Interface({ input: input as Readable, output, completer, terminal });
@@ -342,7 +342,7 @@ export function moveCursor(
  * Enable keypress events on a stream (no-op in GJS — full implementation
  * requires raw terminal mode which depends on the input stream type).
  */
-export function emitKeypressEvents(_stream: any, _interface?: Interface): void {
+export function emitKeypressEvents(_stream: Readable, _interface?: Interface): void {
   // Keypress event emission requires raw terminal mode.
   // This is a best-effort no-op; real keypress detection needs platform-specific code.
 }

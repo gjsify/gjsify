@@ -131,7 +131,6 @@ export class Response extends Body {
      *
      * @return  Response
      */
-    // @ts-ignore
     clone() {
         return new Response(clone(this, this.highWaterMark), {
             type: this.type,

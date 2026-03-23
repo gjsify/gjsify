@@ -51,6 +51,9 @@ export interface ErrnoException extends Error {
   code?: string;
   path?: string;
   syscall?: string;
+  address?: string;
+  port?: number;
+  hostname?: string;
 }
 
 /**
@@ -58,13 +61,14 @@ export interface ErrnoException extends Error {
  * Works for fs, net, dns, child-process, and other modules.
  */
 export function createNodeError(
-  err: any,
+  err: unknown,
   syscall: string,
   details?: NodeErrorDetails
 ): ErrnoException {
-  const code = GIO_ERROR_TO_NODE[err?.code] || 'EIO';
+  const errObj = err as { code?: number; message?: string } | null | undefined;
+  const code = GIO_ERROR_TO_NODE[errObj?.code ?? -1] || 'EIO';
 
-  let msg = `${code}: ${err?.message || 'unknown error'}, ${syscall}`;
+  let msg = `${code}: ${errObj?.message || 'unknown error'}, ${syscall}`;
   if (details?.path) msg += ` '${details.path}'`;
   if (details?.dest) msg += ` -> '${details.dest}'`;
   if (details?.address) msg += ` ${details.address}`;
@@ -73,11 +77,11 @@ export function createNodeError(
   const error = new Error(msg) as ErrnoException;
   error.code = code;
   error.syscall = syscall;
-  error.errno = -(err?.code || 0);
+  error.errno = -(errObj?.code || 0);
 
   if (details?.path) error.path = details.path;
-  if (details?.address) (error as any).address = details.address;
-  if (details?.port != null) (error as any).port = details.port;
+  if (details?.address) error.address = details.address;
+  if (details?.port != null) error.port = details.port;
 
   return error;
 }
@@ -85,6 +89,7 @@ export function createNodeError(
 /**
  * Check if a Gio error is a "not found" error.
  */
-export function isNotFoundError(err: any): boolean {
-  return err?.code === 1 || err?.code === 'ENOENT';
+export function isNotFoundError(err: unknown): boolean {
+  const errObj = err as { code?: number | string } | null | undefined;
+  return errObj?.code === 1 || errObj?.code === 'ENOENT';
 }

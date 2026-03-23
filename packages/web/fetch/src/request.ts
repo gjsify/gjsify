@@ -52,7 +52,7 @@ interface RequestLike {
 	);
 };
 
-// @ts-ignore
+// @ts-expect-error — declaration merging with globalThis.Request for Fetch API compatibility
 export interface Request extends globalThis.Request {}
 
 /** This Fetch API interface represents a resource request. */
@@ -285,7 +285,6 @@ export class Request extends Body {
    * Clone this request
    */
   clone(): Request {
-    // @ts-ignores
     return new Request(this);
   }
 

@@ -4,6 +4,7 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { createNodeError } from '@gjsify/utils';
+import type { ErrnoException } from '@gjsify/utils';
 import { isIP } from 'net';
 
 // Error codes
@@ -44,13 +45,13 @@ export interface LookupAddress {
   family: 4 | 6;
 }
 
-function createDnsError(hostname: string, syscall: string, err?: any): NodeJS.ErrnoException {
+function createDnsError(hostname: string, syscall: string, _err?: unknown): ErrnoException {
   const code = NOTFOUND;
   const message = `${syscall} ${code} ${hostname}`;
-  const error = new Error(message) as NodeJS.ErrnoException;
+  const error = new Error(message) as ErrnoException;
   error.code = code;
   error.syscall = syscall;
-  (error as any).hostname = hostname;
+  error.hostname = hostname;
   error.errno = undefined;
   return error;
 }
@@ -67,7 +68,10 @@ export function lookup(
   hostname: string,
   callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
 ): void;
-export function lookup(hostname: string, ...args: any[]): void {
+export function lookup(
+  hostname: string,
+  ...args: [LookupOptions | number | null | undefined, Function] | [Function]
+): void {
   let options: LookupOptions = {};
   let callback: Function;
 
@@ -101,7 +105,7 @@ export function lookup(hostname: string, ...args: any[]): void {
   resolver.lookup_by_name_async(
     hostname,
     null, // cancellable
-    (_source: any, asyncResult: Gio.AsyncResult) => {
+    (_source: Gio.Resolver | null, asyncResult: Gio.AsyncResult) => {
       try {
         const addresses = resolver.lookup_by_name_finish(asyncResult);
 
@@ -140,7 +144,7 @@ export function lookup(hostname: string, ...args: any[]): void {
           const addrFamily = first.get_family() === Gio.SocketFamily.IPV6 ? 6 : 4;
           callback(null, addrStr, addrFamily);
         }
-      } catch (err: any) {
+      } catch (_err: unknown) {
         callback(createDnsError(hostname, 'getaddrinfo'), '', 0);
       }
     },
@@ -151,12 +155,12 @@ export function lookup(hostname: string, ...args: any[]): void {
  * Resolve a hostname to an array of IPv4 addresses.
  */
 export function resolve4(hostname: string, callback: (err: NodeJS.ErrnoException | null, addresses: string[]) => void): void {
-  lookup(hostname, { family: 4, all: true }, (err, addresses: any) => {
+  lookup(hostname, { family: 4, all: true }, (err, addresses) => {
     if (err) {
       callback(err, []);
       return;
     }
-    callback(null, (addresses as LookupAddress[]).map((a) => a.address));
+    callback(null, (addresses as unknown as LookupAddress[]).map((a) => a.address));
   });
 }
 
@@ -164,12 +168,12 @@ export function resolve4(hostname: string, callback: (err: NodeJS.ErrnoException
  * Resolve a hostname to an array of IPv6 addresses.
  */
 export function resolve6(hostname: string, callback: (err: NodeJS.ErrnoException | null, addresses: string[]) => void): void {
-  lookup(hostname, { family: 6, all: true }, (err, addresses: any) => {
+  lookup(hostname, { family: 6, all: true }, (err, addresses) => {
     if (err) {
       callback(err, []);
       return;
     }
-    callback(null, (addresses as LookupAddress[]).map((a) => a.address));
+    callback(null, (addresses as unknown as LookupAddress[]).map((a) => a.address));
   });
 }
 
@@ -190,11 +194,11 @@ export function reverse(ip: string, callback: (err: NodeJS.ErrnoException | null
   resolver.lookup_by_address_async(
     addr,
     null,
-    (_source: any, asyncResult: Gio.AsyncResult) => {
+    (_source: Gio.Resolver | null, asyncResult: Gio.AsyncResult) => {
       try {
         const hostname = resolver.lookup_by_address_finish(asyncResult);
         callback(null, hostname ? [hostname] : []);
-      } catch (err: any) {
+      } catch (_err: unknown) {
         callback(createDnsError(ip, 'getnameinfo'), []);
       }
     },
@@ -204,9 +208,9 @@ export function reverse(ip: string, callback: (err: NodeJS.ErrnoException | null
 /**
  * Resolve hostname using specified record type.
  */
-export function resolve(hostname: string, rrtype: string, callback: (err: NodeJS.ErrnoException | null, records: any[]) => void): void;
+export function resolve(hostname: string, rrtype: string, callback: (err: NodeJS.ErrnoException | null, records: unknown[]) => void): void;
 export function resolve(hostname: string, callback: (err: NodeJS.ErrnoException | null, records: string[]) => void): void;
-export function resolve(hostname: string, ...args: any[]): void {
+export function resolve(hostname: string, ...args: [string, Function] | [Function]): void {
   let rrtype = 'A';
   let callback: Function;
 
@@ -219,10 +223,10 @@ export function resolve(hostname: string, ...args: any[]): void {
 
   switch (rrtype.toUpperCase()) {
     case 'A':
-      resolve4(hostname, callback as any);
+      resolve4(hostname, callback as (err: NodeJS.ErrnoException | null, addresses: string[]) => void);
       break;
     case 'AAAA':
-      resolve6(hostname, callback as any);
+      resolve6(hostname, callback as (err: NodeJS.ErrnoException | null, addresses: string[]) => void);
       break;
     default:
       // For other record types (MX, TXT, SRV, etc.), use Gio.Resolver.lookup_records
@@ -253,13 +257,13 @@ function _resolveRecords(hostname: string, rrtype: string, callback: Function): 
     hostname,
     gioType,
     null,
-    (_source: any, asyncResult: Gio.AsyncResult) => {
+    (_source: Gio.Resolver | null, asyncResult: Gio.AsyncResult) => {
       try {
         const records = resolver.lookup_records_finish(asyncResult);
         // Records are GLib.Variant arrays — convert to JS
-        const results = records.map((r: any) => r.deep_unpack());
-        callback(null, results);
-      } catch (err: any) {
+        const results = records.map((r: GLib.Variant) => r.deep_unpack());
+        callback(null, results as unknown[]);
+      } catch (_err: unknown) {
         callback(createDnsError(hostname, 'queryDns'), []);
       }
     },

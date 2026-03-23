@@ -4,7 +4,8 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'events';
-import { createNodeError } from '@gjsify/utils';
+import { createNodeError, deferEmit } from '@gjsify/utils';
+import type { ErrnoException } from '@gjsify/utils';
 import { Socket } from './socket.js';
 
 export interface ListenOptions {
@@ -24,7 +25,10 @@ export class Server extends EventEmitter {
 
   constructor(connectionListener?: (socket: Socket) => void);
   constructor(options?: { allowHalfOpen?: boolean }, connectionListener?: (socket: Socket) => void);
-  constructor(optionsOrListener?: any, connectionListener?: (socket: Socket) => void) {
+  constructor(
+    optionsOrListener?: { allowHalfOpen?: boolean } | ((socket: Socket) => void),
+    connectionListener?: (socket: Socket) => void,
+  ) {
     super();
 
     if (typeof optionsOrListener === 'function') {
@@ -43,7 +47,7 @@ export class Server extends EventEmitter {
   listen(port?: number, host?: string, callback?: () => void): this;
   listen(port?: number, callback?: () => void): this;
   listen(options?: ListenOptions, callback?: () => void): this;
-  listen(...args: any[]): this {
+  listen(...args: unknown[]): this {
     let port = 0;
     let host = '0.0.0.0';
     let backlog = 511;
@@ -55,13 +59,13 @@ export class Server extends EventEmitter {
       port = opts.port ?? 0;
       host = opts.host ?? '0.0.0.0';
       backlog = opts.backlog ?? 511;
-      callback = args[1];
+      callback = args[1] as (() => void) | undefined;
     } else {
       if (typeof args[0] === 'number') port = args[0];
       for (let i = 1; i < args.length; i++) {
-        if (typeof args[i] === 'string') host = args[i];
-        else if (typeof args[i] === 'number') backlog = args[i];
-        else if (typeof args[i] === 'function') callback = args[i];
+        if (typeof args[i] === 'string') host = args[i] as string;
+        else if (typeof args[i] === 'number') backlog = args[i] as number;
+        else if (typeof args[i] === 'function') callback = args[i] as () => void;
       }
     }
 
@@ -95,10 +99,10 @@ export class Server extends EventEmitter {
       this._address = { port: actualPort, family, address: host };
 
       // Emit listening asynchronously (matching Node.js behavior)
-      setTimeout(() => this.emit('listening'), 0);
-    } catch (err: any) {
+      deferEmit(this, 'listening');
+    } catch (err: unknown) {
       const nodeErr = createNodeError(err, 'listen', { address: host, port });
-      setTimeout(() => this.emit('error', nodeErr), 0);
+      deferEmit(this, 'error', nodeErr);
     }
 
     return this;
@@ -114,8 +118,8 @@ export class Server extends EventEmitter {
     const socket = new Socket();
 
     // Inject the connection directly (bypass connect())
-    (socket as any)._connection = connection;
-    (socket as any)._setupConnection({});
+    socket._setConnection(connection);
+    socket._setupConnection({});
 
     this._connections.add(socket);
     socket.on('close', () => {
@@ -138,8 +142,8 @@ export class Server extends EventEmitter {
 
     if (!this._service || !this.listening) {
       setTimeout(() => {
-        const err = new Error('Server is not running');
-        (err as any).code = 'ERR_SERVER_NOT_RUNNING';
+        const err = new Error('Server is not running') as ErrnoException;
+        err.code = 'ERR_SERVER_NOT_RUNNING';
         this.emit('error', err);
       }, 0);
       return this;
@@ -156,7 +160,7 @@ export class Server extends EventEmitter {
     }
     this._connections.clear();
 
-    setTimeout(() => this.emit('close'), 0);
+    deferEmit(this, 'close');
     return this;
   }
 

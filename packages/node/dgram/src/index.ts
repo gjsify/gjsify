@@ -5,6 +5,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'events';
 import { Buffer } from 'buffer';
+import { deferEmit } from '@gjsify/utils';
 
 export interface SocketOptions {
   type: 'udp4' | 'udp6';
@@ -55,7 +56,7 @@ export class Socket extends EventEmitter {
     } catch (err) {
       this._socket = null;
       // Defer error emission
-      setTimeout(() => this.emit('error', err), 0);
+      deferEmit(this, 'error', err);
     }
   }
 
@@ -107,7 +108,7 @@ export class Socket extends EventEmitter {
         this._startReceiving();
       }, 0);
     } catch (err) {
-      setTimeout(() => this.emit('error', err), 0);
+      deferEmit(this, 'error', err);
     }
 
     return this;
@@ -219,7 +220,7 @@ export class Socket extends EventEmitter {
       this._socket = null;
     }
 
-    setTimeout(() => this.emit('close'), 0);
+    deferEmit(this, 'close');
     return this;
   }
 
@@ -352,12 +353,12 @@ export class Socket extends EventEmitter {
       }
 
       const buf = new Uint8Array(65536);
-      const result = (this._socket as any).receive_from(buf, this._cancellable);
+      const result = (this._socket as unknown as { receive_from(buf: Uint8Array, cancellable: Gio.Cancellable): [number, Gio.SocketAddress | null] }).receive_from(buf, this._cancellable);
       const bytesRead = Array.isArray(result) ? result[0] : result;
       const srcAddr = Array.isArray(result) ? result[1] : null;
 
       if (bytesRead > 0 && srcAddr) {
-        const data = Buffer.from(buf.subarray(0, bytesRead));
+        const data = Buffer.from(buf.subarray(0, bytesRead as number));
         const inetSockAddr = srcAddr as Gio.InetSocketAddress;
         const rinfo: AddressInfo = {
           address: inetSockAddr.get_address().to_string(),
@@ -372,10 +373,11 @@ export class Socket extends EventEmitter {
       if (!this._closed) {
         setTimeout(() => this._receiveLoop(), 0);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!this._closed) {
         // IOErrorEnum CANCELLED is expected when socket is closed
-        if (err.code !== Gio.IOErrorEnum.CANCELLED) {
+        const errObj = err as { code?: number };
+        if (errObj.code !== Gio.IOErrorEnum.CANCELLED) {
           this.emit('error', err);
         }
       }
