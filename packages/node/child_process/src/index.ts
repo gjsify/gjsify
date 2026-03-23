@@ -86,9 +86,25 @@ export class ChildProcess extends EventEmitter {
   unref(): this { return this; }
 }
 
-/**
- * Execute a command in a shell and buffer the output (sync).
- */
+// Create a Gio.Subprocess with cwd and env support via SubprocessLauncher.
+function _spawnSubprocess(
+  argv: string[],
+  flags: Gio.SubprocessFlags,
+  options?: { cwd?: string; env?: Record<string, string> }
+): Gio.Subprocess {
+  const launcher = new Gio.SubprocessLauncher({ flags });
+  if (options?.cwd) {
+    launcher.set_cwd(options.cwd);
+  }
+  if (options?.env) {
+    for (const [key, value] of Object.entries(options.env)) {
+      launcher.setenv(key, value, true);
+    }
+  }
+  return launcher.spawnv(argv);
+}
+
+// Execute a command in a shell and buffer the output (sync).
 export function execSync(command: string, options?: ExecSyncOptions): Buffer | string {
   const encoding = options?.encoding;
   const input = options?.input;
@@ -97,7 +113,7 @@ export function execSync(command: string, options?: ExecSyncOptions): Buffer | s
     | (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
 
   const shell = typeof options?.shell === 'string' ? options.shell : '/bin/sh';
-  const proc = Gio.Subprocess.new([shell, '-c', command], flags);
+  const proc = _spawnSubprocess([shell, '-c', command], flags, options);
 
   const stdinBytes = input
     ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
@@ -146,7 +162,7 @@ function _exec(
   const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE;
 
   try {
-    const proc = Gio.Subprocess.new([shell, '-c', command], flags);
+    const proc = _spawnSubprocess([shell, '-c', command], flags, opts);
     (child as any)._subprocess = proc;
 
     const pid = proc.get_identifier();
@@ -217,7 +233,7 @@ export function execFile(
   const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE;
 
   try {
-    const proc = Gio.Subprocess.new([file, ..._args], flags);
+    const proc = _spawnSubprocess([file, ..._args], flags, _opts);
     (child as any)._subprocess = proc;
 
     const pid = proc.get_identifier();
@@ -267,7 +283,7 @@ export function execFileSync(file: string, args?: string[], options?: ExecSyncOp
   const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
     | (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
 
-  const proc = Gio.Subprocess.new([file, ..._args], flags);
+  const proc = _spawnSubprocess([file, ..._args], flags, options);
 
   const stdinBytes = input
     ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
@@ -314,7 +330,7 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
   const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE | Gio.SubprocessFlags.STDIN_PIPE;
 
   try {
-    const proc = Gio.Subprocess.new(argv, flags);
+    const proc = _spawnSubprocess(argv, flags, options);
     (child as any)._subprocess = proc;
 
     const pid = proc.get_identifier();
@@ -363,7 +379,7 @@ export function spawnSync(command: string, args?: string[], options?: ExecSyncOp
     | (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
 
   try {
-    const proc = Gio.Subprocess.new(argv, flags);
+    const proc = _spawnSubprocess(argv, flags, options);
     const pid = proc.get_identifier();
 
     const stdinBytes = input
@@ -372,8 +388,12 @@ export function spawnSync(command: string, args?: string[], options?: ExecSyncOp
 
     const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
 
-    const stdoutData = stdoutBytes ? Buffer.from((imports as any).byteArray.fromGBytes(stdoutBytes)) : Buffer.alloc(0);
-    const stderrData = stderrBytes ? Buffer.from((imports as any).byteArray.fromGBytes(stderrBytes)) : Buffer.alloc(0);
+    const stdoutBuf = stdoutBytes ? Buffer.from((imports as any).byteArray.fromGBytes(stdoutBytes)) : Buffer.alloc(0);
+    const stderrBuf = stderrBytes ? Buffer.from((imports as any).byteArray.fromGBytes(stderrBytes)) : Buffer.alloc(0);
+
+    const encoding = options?.encoding;
+    const stdoutData: Buffer | string = encoding && encoding !== 'buffer' ? new TextDecoder().decode(stdoutBuf) : stdoutBuf;
+    const stderrData: Buffer | string = encoding && encoding !== 'buffer' ? new TextDecoder().decode(stderrBuf) : stderrBuf;
 
     const status = proc.get_if_exited() ? proc.get_exit_status() : null;
     const signal = proc.get_if_signaled() ? 'SIGTERM' : null;
@@ -387,11 +407,12 @@ export function spawnSync(command: string, args?: string[], options?: ExecSyncOp
       signal,
     };
   } catch (err: any) {
+    const empty: Buffer | string = options?.encoding && options.encoding !== 'buffer' ? '' : Buffer.alloc(0);
     return {
       pid: 0,
-      output: [null, Buffer.alloc(0), Buffer.alloc(0)],
-      stdout: Buffer.alloc(0),
-      stderr: Buffer.alloc(0),
+      output: [null, empty, empty],
+      stdout: empty,
+      stderr: empty,
       status: null,
       signal: null,
       error: err,

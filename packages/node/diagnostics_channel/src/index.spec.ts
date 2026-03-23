@@ -71,6 +71,77 @@ export default async () => {
         expect(tc.end).toBeDefined();
         expect(tc.error).toBeDefined();
       });
+
+      await it('should have asyncStart and asyncEnd channels', async () => {
+        const tc = tracingChannel('test:trace:async:' + Date.now());
+        expect(tc.asyncStart).toBeDefined();
+        expect(tc.asyncEnd).toBeDefined();
+      });
+
+      await it('traceSync should publish to start and end channels', async () => {
+        const tc = tracingChannel('test:tracesync:' + Date.now());
+        const events: string[] = [];
+        tc.start.subscribe(() => events.push('start'));
+        tc.end.subscribe(() => events.push('end'));
+        tc.traceSync(() => {}, {});
+        expect(events.length).toBe(2);
+        expect(events[0]).toBe('start');
+        expect(events[1]).toBe('end');
+      });
+
+      await it('traceSync should publish to error channel on throw', async () => {
+        const tc = tracingChannel('test:tracesync:err:' + Date.now());
+        let errorReceived = false;
+        tc.error.subscribe(() => { errorReceived = true; });
+        try {
+          tc.traceSync(() => { throw new Error('test'); }, {});
+        } catch {
+          // expected
+        }
+        expect(errorReceived).toBeTruthy();
+      });
+    });
+
+    // Additional tests ported from refs/node-test
+
+    await describe('multiple subscribers', async () => {
+      await it('should notify all subscribers', async () => {
+        const ch = channel('test:multi:' + Date.now());
+        let count = 0;
+        ch.subscribe(() => { count++; });
+        ch.subscribe(() => { count++; });
+        ch.subscribe(() => { count++; });
+        ch.publish('msg');
+        expect(count).toBe(3);
+      });
+    });
+
+    await describe('channel hasSubscribers lifecycle', async () => {
+      await it('should track subscriber count correctly', async () => {
+        const ch = channel('test:lifecycle:' + Date.now());
+        expect(ch.hasSubscribers).toBeFalsy();
+        const fn1 = () => {};
+        const fn2 = () => {};
+        ch.subscribe(fn1);
+        expect(ch.hasSubscribers).toBeTruthy();
+        ch.subscribe(fn2);
+        expect(ch.hasSubscribers).toBeTruthy();
+        ch.unsubscribe(fn1);
+        expect(ch.hasSubscribers).toBeTruthy();
+        ch.unsubscribe(fn2);
+        expect(ch.hasSubscribers).toBeFalsy();
+      });
+    });
+
+    await describe('subscriber receives correct data', async () => {
+      await it('should pass message data faithfully', async () => {
+        const ch = channel('test:data:' + Date.now());
+        let received: any = null;
+        ch.subscribe((msg: unknown) => { received = msg; });
+        const obj = { key: 'value', num: 42 };
+        ch.publish(obj);
+        expect(received).toBe(obj);
+      });
     });
   });
 };
