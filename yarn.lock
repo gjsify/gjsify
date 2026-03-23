@@ -1421,6 +1421,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/websocket@workspace:packages/web/websocket":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/websocket@workspace:packages/web/websocket"
+  dependencies:
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-beta.41"
+    "@girs/gjs": "npm:^4.0.0-beta.41"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.41"
+    "@girs/soup-3.0": "npm:3.6.6-4.0.0-beta.41"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/worker_threads@workspace:packages/node/worker_threads":
   version: 0.0.0-use.local
   resolution: "@gjsify/worker_threads@workspace:packages/node/worker_threads"
