@@ -16,7 +16,7 @@ import type { ClientRequestOptions } from './client-request.js';
  * @since v14.3.0
  */
 export function validateHeaderName(name: string) {
-  if (!/^[\^`\-\w!#$%&'*+.|~]+$/.test(name)) {
+  if (typeof name !== 'string' || !/^[\^`\-\w!#$%&'*+.|~]+$/.test(name)) {
     const error = new TypeError(`Header name must be a valid HTTP token ["${name}"]`);
     Object.defineProperty(error, 'code', { value: 'ERR_INVALID_HTTP_TOKEN' });
     throw error;
