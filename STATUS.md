@@ -14,7 +14,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | GJS-Infrastruktur | 3 | 2 | 1 (types) | — |
 | Build-Tools | 7 | 7 | — | — |
 
-**Testabdeckung:** ~1.800 Testfälle in 65+ Spec-Dateien. CI via GitHub Actions (Node.js 24.x + GJS auf Ubuntu 24.04).
+**Testabdeckung:** ~1.900 Testfälle in 65+ Spec-Dateien. CI via GitHub Actions (Node.js 24.x + GJS auf Ubuntu 24.04).
 
 ---
 
@@ -34,7 +34,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | **events** | — | 119 | EventEmitter, once, on, listenerCount (707 Zeilen) |
 | **fs** | Gio, GLib | 40 (6 Specs) | sync, callback, promises, streams, FSWatcher |
 | **module** | — | 21 | builtinModules, isBuiltin, createRequire |
-| **net** | Gio, GLib | ✓ | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService) |
+| **net** | Gio, GLib | 35 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
 | **os** | GLib | 240 | homedir, hostname, cpus (echte times aus /proc/stat), platform-spezifisch |
 | **path** | — | 41 | POSIX + Win32 (1.052 Zeilen gesamt) |
 | **perf_hooks** | — | 30 | performance (Web API / GLib Fallback), monitorEventLoopDelay, mark/measure/getEntries |
@@ -48,7 +48,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | **url** | GLib | 82 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
 | **zlib** | — | 27 | gzip/deflate/deflateRaw Round-Trip, Konstanten, Unicode, Binary, Cross-Format-Fehler |
-| **dgram** | Gio, GLib | ✓ | UDP Socket via Gio.Socket mit bind, send, multicast |
+| **dgram** | Gio, GLib | 20 | UDP Socket via Gio.Socket mit bind, send, receive, multicast |
 
 ### Teilweise implementiert (6)
 
@@ -56,7 +56,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 |-------|-----------|-------|-----------------|-----------|
 | **crypto** | GLib | 144 | Hash (GLib.Checksum), Hmac (pure-JS RFC 2104, GLib.Hmac Segfault behoben), randomBytes, randomUUID, PBKDF2, HKDF | Cipher/Decipher (AES etc.), Sign/Verify, ECDH, DH, KeyObject, X509Certificate, scrypt |
 | **globals** | — | 15 | setImmediate Polyfill | Vollständige globalThis-Konfiguration |
-| **http** | Soup 3.0, Gio, GLib | ✓ (3 Specs) | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES | Client-seitig: http.request(), http.get() noch unvollständig |
+| **http** | Soup 3.0, Gio, GLib | 42 (2 Specs) | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, Agent, Round-Trip | Client-seitig: http.request(), http.get() noch unvollständig |
 | **https** | — | ✓ | Agent-Stub | Vollständige Implementierung benötigt fertiges http |
 | **readline** | — | 50 | Interface, createInterface, \r Line-Ending Support | Cursor-Navigation, History, Completion, Prompt |
 | **tls** | Gio, GLib | ✓ | TLSSocket via Gio.TlsClientConnection, connect | createServer, TLS Session Resumption, ALPN |
@@ -150,7 +150,7 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 | Davon teilweise | 6 (15%) |
 | Davon Stubs | 8 (21%) |
 | Web-API-Pakete | 7 (alle implementiert) |
-| Testfälle gesamt | ~1.800 |
+| Testfälle gesamt | ~1.900 |
 | Spec-Dateien | 65+ |
 | GNOME-integrierte Pakete | 13 (28%) |
 | Alias-Mappings (GJS) | 60+ |
@@ -185,6 +185,16 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 ---
 
 ## Changelog
+
+### 2026-03-23 — Wave 5
+
+**Networking-Fundament — Tests + Implementierungs-Polish:**
+
+| Paket | Vorher | Nachher | Schwerpunkte |
+|-------|--------|---------|-------------|
+| net | 8 | 35 | isIP/isIPv4/isIPv6 komplett, Socket/Server API, TCP echo/multi-connect (Node.js) |
+| dgram | 10 | 20 | createSocket Optionen, bind, UDP send/receive Round-Trip (Node.js) |
+| http | 24 | 42 (2 Specs) | STATUS_CODES/METHODS, Agent, Server Round-Trip (GET/POST/404/Headers, Node.js) |
 
 ### 2026-03-23 — Wave 4
 
