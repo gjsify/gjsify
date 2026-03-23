@@ -14,7 +14,7 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | GJS-Infrastruktur | 3 | 2 | 1 (types) | — |
 | Build-Tools | 7 | 7 | — | — |
 
-**Testabdeckung:** ~1.700 Testfälle in 63+ Spec-Dateien. CI via GitHub Actions (Node.js 24.x + GJS auf Ubuntu 24.04).
+**Testabdeckung:** ~1.800 Testfälle in 65+ Spec-Dateien. CI via GitHub Actions (Node.js 24.x + GJS auf Ubuntu 24.04).
 
 ---
 
@@ -30,24 +30,24 @@ Das Projekt umfasst **39 Node.js-Pakete**, **7 Web-API-Pakete**, **3 GJS-Infrast
 | **child_process** | Gio, GLib | 26 | exec/execSync, execFile, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
 | **console** | — | 57 | Console-Klasse mit Stream-Support |
 | **diagnostics_channel** | — | 26 | Channel, TracingChannel, subscribe/unsubscribe |
-| **dns** | Gio, GLib | ✓ | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
+| **dns** | Gio, GLib | 50 (2 Specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
 | **events** | — | 119 | EventEmitter, once, on, listenerCount (707 Zeilen) |
 | **fs** | Gio, GLib | 40 (6 Specs) | sync, callback, promises, streams, FSWatcher |
-| **module** | — | 14 | builtinModules, isBuiltin, createRequire |
+| **module** | — | 21 | builtinModules, isBuiltin, createRequire |
 | **net** | Gio, GLib | ✓ | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService) |
 | **os** | GLib | 240 | homedir, hostname, cpus (echte times aus /proc/stat), platform-spezifisch |
 | **path** | — | 41 | POSIX + Win32 (1.052 Zeilen gesamt) |
-| **perf_hooks** | — | 18 | performance (Web API / GLib Fallback), monitorEventLoopDelay |
+| **perf_hooks** | — | 30 | performance (Web API / GLib Fallback), monitorEventLoopDelay, mark/measure/getEntries |
 | **process** | GLib | 47 | EventEmitter-Basis, env, cwd, platform, exit |
 | **querystring** | — | 63 | parse/stringify mit vollem Encoding |
 | **require** | Gio, GLib | ✓ | CommonJS require() für GJS |
 | **stream** | — | 66 | Readable, Writable, Duplex, Transform, PassThrough |
 | **string_decoder** | — | 65 | UTF-8, Base64, hex, Streaming |
-| **timers** | — | 28 (3 Specs) | setTimeout/setInterval/setImmediate + timers/promises |
-| **tty** | — | 14 | ReadStream/WriteStream, ANSI, clearLine, cursorTo, getColorDepth |
+| **timers** | — | 43 (2 Specs) | setTimeout/setInterval/setImmediate + timers/promises |
+| **tty** | — | 23 | ReadStream/WriteStream, isatty, ANSI, clearLine, cursorTo, getColorDepth |
 | **url** | GLib | 82 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
-| **zlib** | — | 15 | gzip/deflate via CompressionStream + Gio.ZlibCompressor Fallback |
+| **zlib** | — | 27 | gzip/deflate/deflateRaw Round-Trip, Konstanten, Unicode, Binary, Cross-Format-Fehler |
 | **dgram** | Gio, GLib | ✓ | UDP Socket via Gio.Socket mit bind, send, multicast |
 
 ### Teilweise implementiert (6)
@@ -150,8 +150,8 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 | Davon teilweise | 6 (15%) |
 | Davon Stubs | 8 (21%) |
 | Web-API-Pakete | 7 (alle implementiert) |
-| Testfälle gesamt | ~1.700 |
-| Spec-Dateien | 63+ |
+| Testfälle gesamt | ~1.800 |
+| Spec-Dateien | 65+ |
 | GNOME-integrierte Pakete | 13 (28%) |
 | Alias-Mappings (GJS) | 60+ |
 | Referenz-Submodule | 27 |
@@ -185,6 +185,19 @@ Noch nicht implementiert (aber potenziell relevant für GJS-Projekte):
 ---
 
 ## Changelog
+
+### 2026-03-23 — Wave 4
+
+**Test-Erweiterungen (Quick Wins für bereits implementierte Pakete):**
+
+| Paket | Vorher | Nachher | Schwerpunkte |
+|-------|--------|---------|-------------|
+| dns | 3 | 50 (2 Specs) | Konstanten, lookup-Optionen (family/all), resolve4/6, reverse, dns/promises komplett |
+| timers | 28 | 43 (2 Specs) | Ordering, negative Delays, nested Timers, refresh, setInterval mit AbortController |
+| zlib | 15 | 27 | Unicode, Binary, große Daten, Konstanten, Cross-Format-Fehler, Gzip-Magic-Bytes |
+| module | 14 | 21 | createRequire, builtinModules Validierung, isBuiltin mit Subpaths/Prefixes |
+| tty | 14 | 23 | isatty mit verschiedenen fds, ReadStream/WriteStream Properties |
+| perf_hooks | 18 | 30 | mark/measure/getEntries, clearMarks, toJSON, timeOrigin-Validierung |
 
 ### 2026-03-23 — Wave 1–3
 

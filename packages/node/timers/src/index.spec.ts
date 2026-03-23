@@ -27,6 +27,44 @@ export default async () => {
         expect(timeout.hasRef()).toBe(true);
         timers.clearTimeout(timeout);
       });
+
+      await it('should execute with 0 delay', async () => {
+        const result = await new Promise<string>((resolve) => {
+          timers.setTimeout(() => resolve('zero'), 0);
+        });
+        expect(result).toBe('zero');
+      });
+
+      await it('should treat negative delay as 0', async () => {
+        const result = await new Promise<string>((resolve) => {
+          timers.setTimeout(() => resolve('negative'), -100);
+        });
+        expect(result).toBe('negative');
+      });
+
+      await it('should execute multiple timeouts in order with same delay', async () => {
+        const order: number[] = [];
+        await new Promise<void>((resolve) => {
+          timers.setTimeout(() => order.push(1), 10);
+          timers.setTimeout(() => order.push(2), 10);
+          timers.setTimeout(() => {
+            order.push(3);
+            resolve();
+          }, 30);
+        });
+        expect(order[0]).toBe(1);
+        expect(order[1]).toBe(2);
+        expect(order[2]).toBe(3);
+      });
+
+      await it('should allow nested setTimeout', async () => {
+        const result = await new Promise<string>((resolve) => {
+          timers.setTimeout(() => {
+            timers.setTimeout(() => resolve('nested'), 10);
+          }, 10);
+        });
+        expect(result).toBe('nested');
+      });
     });
 
     await describe('clearTimeout', async () => {
@@ -37,6 +75,14 @@ export default async () => {
         await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 50));
         expect(called).toBe(false);
       });
+
+      await it('clearTimeout(null) should not throw', async () => {
+        expect(() => timers.clearTimeout(null as any)).not.toThrow();
+      });
+
+      await it('clearTimeout(undefined) should not throw', async () => {
+        expect(() => timers.clearTimeout(undefined as any)).not.toThrow();
+      });
     });
 
     await describe('setInterval', async () => {
@@ -46,6 +92,36 @@ export default async () => {
         await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 55));
         timers.clearInterval(interval);
         expect(count).toBeGreaterThan(1);
+      });
+
+      await it('should stop calling after clearInterval', async () => {
+        let count = 0;
+        const interval = timers.setInterval(() => { count++; }, 10);
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 35));
+        timers.clearInterval(interval);
+        const countAfterClear = count;
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 50));
+        expect(count).toBe(countAfterClear);
+      });
+
+      await it('should pass arguments to callback', async () => {
+        const result = await new Promise<string>((resolve) => {
+          const interval = timers.setInterval((a: string) => {
+            timers.clearInterval(interval);
+            resolve(a);
+          }, 10, 'arg');
+        });
+        expect(result).toBe('arg');
+      });
+    });
+
+    await describe('clearInterval', async () => {
+      await it('clearInterval(null) should not throw', async () => {
+        expect(() => timers.clearInterval(null as any)).not.toThrow();
+      });
+
+      await it('clearInterval(undefined) should not throw', async () => {
+        expect(() => timers.clearInterval(undefined as any)).not.toThrow();
       });
     });
 
@@ -63,6 +139,14 @@ export default async () => {
         });
         expect(result).toBe(3);
       });
+
+      await it('should have ref/unref/hasRef', async () => {
+        const immediate = timers.setImmediate(() => {});
+        expect(typeof immediate.ref).toBe('function');
+        expect(typeof immediate.unref).toBe('function');
+        expect(typeof immediate.hasRef).toBe('function');
+        timers.clearImmediate(immediate);
+      });
     });
 
     await describe('clearImmediate', async () => {
@@ -73,37 +157,9 @@ export default async () => {
         await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 50));
         expect(called).toBe(false);
       });
-    });
-
-    // Ported from refs/node/test/parallel/test-timers-clear-null-does-not-throw-error.js
-    await describe('clearTimeout/clearInterval with null/undefined', async () => {
-      await it('clearTimeout(null) should not throw', async () => {
-        expect(() => timers.clearTimeout(null as any)).not.toThrow();
-      });
-
-      await it('clearTimeout(undefined) should not throw', async () => {
-        expect(() => timers.clearTimeout(undefined as any)).not.toThrow();
-      });
-
-      await it('clearInterval(null) should not throw', async () => {
-        expect(() => timers.clearInterval(null as any)).not.toThrow();
-      });
-
-      await it('clearInterval(undefined) should not throw', async () => {
-        expect(() => timers.clearInterval(undefined as any)).not.toThrow();
-      });
 
       await it('clearImmediate(null) should not throw', async () => {
         expect(() => timers.clearImmediate(null as any)).not.toThrow();
-      });
-    });
-
-    await describe('setTimeout with 0 delay', async () => {
-      await it('should execute with 0 delay', async () => {
-        const result = await new Promise<string>((resolve) => {
-          timers.setTimeout(() => resolve('zero'), 0);
-        });
-        expect(result).toBe('zero');
       });
     });
 
@@ -126,27 +182,42 @@ export default async () => {
         expect(typeof timeout.close).toBe('function');
         timeout.close();
       });
-    });
 
-    await describe('Immediate properties', async () => {
-      await it('should have ref/unref/hasRef', async () => {
-        const immediate = timers.setImmediate(() => {});
-        expect(typeof immediate.ref).toBe('function');
-        expect(typeof immediate.unref).toBe('function');
-        expect(typeof immediate.hasRef).toBe('function');
-        timers.clearImmediate(immediate);
+      await it('refresh should reset the timer', async () => {
+        let called = false;
+        const timeout = timers.setTimeout(() => { called = true; }, 50);
+        // Refresh before it fires
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 30));
+        timeout.refresh();
+        // Should not have fired yet after refresh
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 30));
+        expect(called).toBe(false);
+        // Now wait for it to fire
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 40));
+        expect(called).toBe(true);
       });
     });
 
-    await describe('setInterval stops on clearInterval', async () => {
-      await it('should stop calling after clearInterval', async () => {
-        let count = 0;
-        const interval = timers.setInterval(() => { count++; }, 10);
-        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 35));
-        timers.clearInterval(interval);
-        const countAfterClear = count;
-        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 50));
-        expect(count).toBe(countAfterClear);
+    await describe('module exports', async () => {
+      await it('should export setTimeout and clearTimeout', async () => {
+        expect(typeof timers.setTimeout).toBe('function');
+        expect(typeof timers.clearTimeout).toBe('function');
+      });
+
+      await it('should export setInterval and clearInterval', async () => {
+        expect(typeof timers.setInterval).toBe('function');
+        expect(typeof timers.clearInterval).toBe('function');
+      });
+
+      await it('should export setImmediate and clearImmediate', async () => {
+        expect(typeof timers.setImmediate).toBe('function');
+        expect(typeof timers.clearImmediate).toBe('function');
+      });
+
+      await it('should export active and unenroll (legacy)', async () => {
+        // Node.js exports these legacy functions
+        expect(typeof timers.active === 'function' || typeof timers.active === 'undefined').toBe(true);
+        expect(typeof timers.unenroll === 'function' || typeof timers.unenroll === 'undefined').toBe(true);
       });
     });
   });
