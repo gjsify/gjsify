@@ -1,6 +1,6 @@
 # AGENTS.md — gjsify
 
-Node.js API implementation for GJS (GNOME JavaScript). Monorepo (`Yarn workspaces`, v0.0.4, ESM-first). All packages use native GNOME libraries — no Deno dependency remains.
+Node.js API implementation for GJS (GNOME JavaScript). Monorepo (`Yarn workspaces`, v0.0.4, ESM-first). All packages use native GNOME libraries.
 
 ## Structure
 
@@ -17,12 +17,13 @@ refs/     — read-only git submodules (node, node-test, deno, bun, quickjs,
              headless-gl, troll, crypto-browserify, readable-stream, undici,
              browserify-cipher, browserify-sign, create-ecdh,
              create-hash, create-hmac, diffie-hellman, hash-base,
-             pbkdf2, public-encrypt, randombytes, randomfill)
+             pbkdf2, public-encrypt, randombytes, randomfill,
+             node-gst-webrtc)
 ```
 
 ## Node.js Packages (`packages/node/*`)
 
-Each is `@gjsify/<name>`. All have native GJS implementations — no Deno re-exports remain.
+Each is `@gjsify/<name>`. All have native GJS implementations.
 
 | Package | GNOME Libs | Status | Notes |
 |---------|-----------|--------|-------|
@@ -166,6 +167,7 @@ Read-only git submodules — do NOT modify. Use GNOME libraries internally, not 
 | `refs/randomfill/` | Random buffer filling (randomFill, randomFillSync) — dep of crypto-browserify |
 | `refs/readable-stream/` | Maintained Node.js stream polyfill — reference for edge cases |
 | `refs/undici/` | Official Node.js HTTP client — reference for `@gjsify/http` client-side |
+| `refs/node-gst-webrtc/` | WebRTC JS API via GStreamer's webrtcbin — incomplete but useful approach for RTCPeerConnection, RTCDataChannel, RTCSessionDescription, MediaStreamTrack using GStreamer/GObject bindings |
 
 ## Official Node.js npm Packages
 
@@ -298,7 +300,7 @@ Skip tests that depend on Node.js/V8 internals, native addons, or features we in
 
 - Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128`
 - ESM-only — kein CJS-Support, alle Pakete sind ausschließlich ESM
-- No Deno APIs — GNOME libs + standard JS only
+- GNOME libs + standard JS only
 - Tests must pass on both Node.js and GJS from same source
 - Do not modify `refs/` — read-only submodules
 
