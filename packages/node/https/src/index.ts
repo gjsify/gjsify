@@ -4,6 +4,7 @@
 
 import { request as httpRequest, get as httpGet, ClientRequest, IncomingMessage } from 'http';
 import { TLSSocket, createSecureContext } from 'tls';
+import { URL } from 'url';
 
 export { TLSSocket, createSecureContext };
 
