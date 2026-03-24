@@ -11,6 +11,8 @@ import { WritableStream, WritableStreamDefaultWriter, WritableStreamDefaultContr
 import { ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController } from './readable-stream.js';
 import { TransformStream, TransformStreamDefaultController } from './transform-stream.js';
 import { ByteLengthQueuingStrategy, CountQueuingStrategy } from './queuing-strategies.js';
+import { TextEncoderStream } from './text-encoder-stream.js';
+import { TextDecoderStream } from './text-decoder-stream.js';
 
 // Use native if available (Node.js 18+), polyfill otherwise
 const _WritableStream = typeof globalThis.WritableStream === 'function'
@@ -28,6 +30,12 @@ const _ByteLengthQueuingStrategy = typeof globalThis.ByteLengthQueuingStrategy =
 const _CountQueuingStrategy = typeof globalThis.CountQueuingStrategy === 'function'
   ? globalThis.CountQueuingStrategy
   : CountQueuingStrategy;
+const _TextEncoderStream = typeof globalThis.TextEncoderStream === 'function'
+  ? globalThis.TextEncoderStream
+  : TextEncoderStream;
+const _TextDecoderStream = typeof globalThis.TextDecoderStream === 'function'
+  ? globalThis.TextDecoderStream
+  : TextDecoderStream;
 
 // Register globals on GJS
 if (typeof globalThis.WritableStream === 'undefined') {
@@ -45,6 +53,12 @@ if (typeof globalThis.ByteLengthQueuingStrategy === 'undefined') {
 if (typeof globalThis.CountQueuingStrategy === 'undefined') {
   (globalThis as any).CountQueuingStrategy = CountQueuingStrategy;
 }
+if (typeof globalThis.TextEncoderStream === 'undefined') {
+  (globalThis as any).TextEncoderStream = TextEncoderStream;
+}
+if (typeof globalThis.TextDecoderStream === 'undefined') {
+  (globalThis as any).TextDecoderStream = TextDecoderStream;
+}
 
 export {
   _WritableStream as WritableStream,
@@ -52,6 +66,8 @@ export {
   _TransformStream as TransformStream,
   _ByteLengthQueuingStrategy as ByteLengthQueuingStrategy,
   _CountQueuingStrategy as CountQueuingStrategy,
+  _TextEncoderStream as TextEncoderStream,
+  _TextDecoderStream as TextDecoderStream,
 };
 
 // Re-export class types for direct import
@@ -98,4 +114,6 @@ export default {
   TransformStream: _TransformStream,
   ByteLengthQueuingStrategy: _ByteLengthQueuingStrategy,
   CountQueuingStrategy: _CountQueuingStrategy,
+  TextEncoderStream: _TextEncoderStream,
+  TextDecoderStream: _TextDecoderStream,
 };

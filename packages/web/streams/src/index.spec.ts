@@ -9,6 +9,8 @@ import {
   TransformStream,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
+  TextEncoderStream,
+  TextDecoderStream,
 } from './index.js';
 
 export default async () => {
@@ -552,6 +554,331 @@ export default async () => {
       expect(reader.closed).toBeDefined();
       expect(typeof reader.closed.then).toBe('function');
       await reader.closed;
+    });
+  });
+
+  // ==================== Helpers for stream tests ====================
+  // Native Web Streams use backpressure, so writes and reads must run
+  // concurrently. These helpers collect all output from a readable side
+  // while a write function feeds the writable side.
+
+  async function collectEncoderOutput(
+    stream: InstanceType<typeof TextEncoderStream>,
+    writeFn: (writer: WritableStreamDefaultWriter<string>) => Promise<void>,
+  ): Promise<Uint8Array> {
+    const writer = stream.writable.getWriter();
+    const reader = stream.readable.getReader();
+
+    const chunks: Uint8Array[] = [];
+    const [, ] = await Promise.all([
+      writeFn(writer),
+      (async () => {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      })(),
+    ]);
+    const result = new Uint8Array(chunks.reduce((a, c) => a + c.byteLength, 0));
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return result;
+  }
+
+  async function collectDecoderOutput(
+    stream: InstanceType<typeof TextDecoderStream>,
+    writeFn: (writer: WritableStreamDefaultWriter<BufferSource>) => Promise<void>,
+  ): Promise<string> {
+    const writer = stream.writable.getWriter();
+    const reader = stream.readable.getReader();
+
+    const chunks: string[] = [];
+    await Promise.all([
+      writeFn(writer),
+      (async () => {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      })(),
+    ]);
+    return chunks.join('');
+  }
+
+  // ==================== TextEncoderStream ====================
+
+  await describe('TextEncoderStream', async () => {
+    await it('should be a constructor', async () => {
+      expect(typeof TextEncoderStream).toBe('function');
+      const stream = new TextEncoderStream();
+      expect(stream).toBeDefined();
+    });
+
+    await it('encoding should be utf-8', async () => {
+      const stream = new TextEncoderStream();
+      expect(stream.encoding).toBe('utf-8');
+    });
+
+    await it('should have readable and writable', async () => {
+      const stream = new TextEncoderStream();
+      expect(stream.readable).toBeDefined();
+      expect(stream.writable).toBeDefined();
+    });
+
+    await it('should encode ASCII string to bytes', async () => {
+      const result = await collectEncoderOutput(new TextEncoderStream(), async (w) => {
+        await w.write('hello');
+        await w.close();
+      });
+
+      // 'hello' = [104, 101, 108, 108, 111]
+      expect(result.length).toBe(5);
+      expect(result[0]).toBe(104); // 'h'
+      expect(result[1]).toBe(101); // 'e'
+      expect(result[2]).toBe(108); // 'l'
+      expect(result[3]).toBe(108); // 'l'
+      expect(result[4]).toBe(111); // 'o'
+    });
+
+    await it('should encode multi-byte UTF-8 characters', async () => {
+      const result = await collectEncoderOutput(new TextEncoderStream(), async (w) => {
+        await w.write('€');
+        await w.close();
+      });
+
+      // '€' (U+20AC) in UTF-8: [0xE2, 0x82, 0xAC]
+      expect(result.length).toBe(3);
+      expect(result[0]).toBe(0xE2);
+      expect(result[1]).toBe(0x82);
+      expect(result[2]).toBe(0xAC);
+    });
+
+    await it('should handle multiple chunks', async () => {
+      const result = await collectEncoderOutput(new TextEncoderStream(), async (w) => {
+        await w.write('ab');
+        await w.write('cd');
+        await w.close();
+      });
+
+      // 'abcd'
+      expect(result.length).toBe(4);
+      expect(result[0]).toBe(97);  // 'a'
+      expect(result[3]).toBe(100); // 'd'
+    });
+
+    await it('should skip empty string chunks', async () => {
+      const result = await collectEncoderOutput(new TextEncoderStream(), async (w) => {
+        await w.write('');
+        await w.write('x');
+        await w.close();
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]).toBe(120); // 'x'
+    });
+
+    await it('should handle surrogate pairs split across chunks', async () => {
+      const result = await collectEncoderOutput(new TextEncoderStream(), async (w) => {
+        // U+1F600 (😀) as surrogate pair: \uD83D\uDE00, split across writes
+        await w.write('\uD83D');
+        await w.write('\uDE00');
+        await w.close();
+      });
+
+      // U+1F600 in UTF-8: [0xF0, 0x9F, 0x98, 0x80]
+      expect(result[0]).toBe(0xF0);
+      expect(result[1]).toBe(0x9F);
+      expect(result[2]).toBe(0x98);
+      expect(result[3]).toBe(0x80);
+    });
+
+    await it('should emit U+FFFD for unpaired high surrogate at end', async () => {
+      const result = await collectEncoderOutput(new TextEncoderStream(), async (w) => {
+        await w.write('\uD83D');
+        await w.close();
+      });
+
+      // U+FFFD in UTF-8: [0xEF, 0xBF, 0xBD]
+      expect(result[0]).toBe(0xEF);
+      expect(result[1]).toBe(0xBF);
+      expect(result[2]).toBe(0xBD);
+    });
+  });
+
+  // ==================== TextDecoderStream ====================
+
+  await describe('TextDecoderStream', async () => {
+    await it('should be a constructor', async () => {
+      expect(typeof TextDecoderStream).toBe('function');
+      const stream = new TextDecoderStream();
+      expect(stream).toBeDefined();
+    });
+
+    await it('encoding should default to utf-8', async () => {
+      const stream = new TextDecoderStream();
+      expect(stream.encoding).toBe('utf-8');
+    });
+
+    await it('fatal should default to false', async () => {
+      const stream = new TextDecoderStream();
+      expect(stream.fatal).toBe(false);
+    });
+
+    await it('ignoreBOM should default to false', async () => {
+      const stream = new TextDecoderStream();
+      expect(stream.ignoreBOM).toBe(false);
+    });
+
+    await it('should accept fatal option', async () => {
+      const stream = new TextDecoderStream('utf-8', { fatal: true });
+      expect(stream.fatal).toBe(true);
+    });
+
+    await it('should have readable and writable', async () => {
+      const stream = new TextDecoderStream();
+      expect(stream.readable).toBeDefined();
+      expect(stream.writable).toBeDefined();
+    });
+
+    await it('should decode ASCII bytes to string', async () => {
+      const result = await collectDecoderOutput(new TextDecoderStream(), async (w) => {
+        await w.write(new Uint8Array([104, 101, 108, 108, 111]));
+        await w.close();
+      });
+      expect(result).toBe('hello');
+    });
+
+    await it('should decode multi-byte UTF-8', async () => {
+      const result = await collectDecoderOutput(new TextDecoderStream(), async (w) => {
+        await w.write(new Uint8Array([0xE2, 0x82, 0xAC]));
+        await w.close();
+      });
+      expect(result).toBe('€');
+    });
+
+    await it('should handle multi-byte sequence split across chunks', async () => {
+      const result = await collectDecoderOutput(new TextDecoderStream(), async (w) => {
+        // '€' in UTF-8: [0xE2, 0x82, 0xAC] — split across two writes
+        await w.write(new Uint8Array([0xE2]));
+        await w.write(new Uint8Array([0x82, 0xAC]));
+        await w.close();
+      });
+      expect(result).toBe('€');
+    });
+
+    await it('should handle 4-byte sequence split across chunks', async () => {
+      const result = await collectDecoderOutput(new TextDecoderStream(), async (w) => {
+        // U+1F600 (😀) in UTF-8: [0xF0, 0x9F, 0x98, 0x80]
+        await w.write(new Uint8Array([0xF0, 0x9F]));
+        await w.write(new Uint8Array([0x98, 0x80]));
+        await w.close();
+      });
+      expect(result).toBe('😀');
+    });
+
+    await it('should handle multiple chunks', async () => {
+      const result = await collectDecoderOutput(new TextDecoderStream(), async (w) => {
+        await w.write(new Uint8Array([72, 101]));      // 'He'
+        await w.write(new Uint8Array([108, 108, 111])); // 'llo'
+        await w.close();
+      });
+      expect(result).toBe('Hello');
+    });
+
+    await it('should accept ArrayBuffer chunks', async () => {
+      const result = await collectDecoderOutput(new TextDecoderStream(), async (w) => {
+        await w.write(new Uint8Array([79, 75]).buffer); // 'OK'
+        await w.close();
+      });
+      expect(result).toBe('OK');
+    });
+  });
+
+  // ==================== TextEncoderStream + TextDecoderStream round-trip ====================
+
+  await describe('TextEncoderStream + TextDecoderStream round-trip', async () => {
+    await it('should round-trip ASCII text', async () => {
+      const encoder = new TextEncoderStream();
+      const decoder = new TextDecoderStream();
+
+      const pipePromise = encoder.readable.pipeTo(decoder.writable);
+      const writer = encoder.writable.getWriter();
+      const reader = decoder.readable.getReader();
+
+      const chunks: string[] = [];
+      const [, ] = await Promise.all([
+        (async () => {
+          await writer.write('Hello, World!');
+          await writer.close();
+        })(),
+        (async () => {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+        })(),
+      ]);
+      await pipePromise;
+      expect(chunks.join('')).toBe('Hello, World!');
+    });
+
+    await it('should round-trip Unicode text', async () => {
+      const encoder = new TextEncoderStream();
+      const decoder = new TextDecoderStream();
+
+      const pipePromise = encoder.readable.pipeTo(decoder.writable);
+      const writer = encoder.writable.getWriter();
+      const reader = decoder.readable.getReader();
+
+      const chunks: string[] = [];
+      await Promise.all([
+        (async () => {
+          await writer.write('Héllo 世界 😀');
+          await writer.close();
+        })(),
+        (async () => {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+        })(),
+      ]);
+      await pipePromise;
+      expect(chunks.join('')).toBe('Héllo 世界 😀');
+    });
+
+    await it('should round-trip with surrogate pair split across chunks', async () => {
+      const encoder = new TextEncoderStream();
+      const decoder = new TextDecoderStream();
+
+      const pipePromise = encoder.readable.pipeTo(decoder.writable);
+      const writer = encoder.writable.getWriter();
+      const reader = decoder.readable.getReader();
+
+      const chunks: string[] = [];
+      await Promise.all([
+        (async () => {
+          await writer.write('A\uD83D');
+          await writer.write('\uDE00B');
+          await writer.close();
+        })(),
+        (async () => {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+        })(),
+      ]);
+      await pipePromise;
+      expect(chunks.join('')).toBe('A😀B');
     });
   });
 };

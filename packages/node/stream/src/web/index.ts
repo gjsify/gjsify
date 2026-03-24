@@ -7,6 +7,8 @@ export {
   TransformStream,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
+  TextEncoderStream,
+  TextDecoderStream,
 } from '@gjsify/web-streams';
 
 import {
@@ -15,6 +17,8 @@ import {
   TransformStream,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
+  TextEncoderStream,
+  TextDecoderStream,
 } from '@gjsify/web-streams';
 
 export default {
@@ -23,4 +27,6 @@ export default {
   TransformStream,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
+  TextEncoderStream,
+  TextDecoderStream,
 } as Record<string, any>;

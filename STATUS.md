@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-24 (after Phase 10)
+> Last updated: 2026-03-24 (after Phase 12)
 
 ## Summary
 
@@ -88,7 +88,7 @@ All 11 packages have real implementations:
 | **html-image-element** | 347 | GdkPixbuf | 2 | HTMLImageElement, Image() |
 | **webgl** | 5,662 | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
 | **websocket** | 230 | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
-| **streams** | 3,500 | — | 95 | ReadableStream, WritableStream, TransformStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
+| **streams** | 3,800 | — | 117 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **compression-streams** | 120 | — | 29 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
 | **webstorage** | 100 | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
@@ -98,11 +98,10 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | API | Priority | Notes |
 |-----|----------|-------|
-| **TextEncoder/TextDecoder** | Medium | Partially available natively in GJS; polyfill for encoding variants |
-| **crypto.subtle (WebCrypto)** | Medium | Partially possible via GLib.Checksum |
+| **crypto.subtle (WebCrypto)** | High | SubtleCrypto wrapping existing @gjsify/crypto primitives |
+| **EventSource** | Medium | Server-Sent Events via Soup.Session + dom-events EventTarget |
 | **URL/URLSearchParams (global)** | Low | Exists in @gjsify/url, missing as global export |
 | **Blob/File (global)** | Low | Partially native in GJS; globals package could re-export |
-| **ReadableStream/WritableStream** | Low | Web Streams API — foundation for fetch body |
 | **structuredClone** | Low | Natively available in SpiderMonkey 128 |
 | **Performance (global)** | Low | @gjsify/perf_hooks exists; Web export missing |
 
@@ -152,7 +151,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Partially implemented | 3 (8%) |
 | Stubs | 5 (13%) |
 | Web API packages | 11 (all implemented) |
-| Total test cases | ~2,700 |
+| Total test cases | ~2,720 |
 | Spec files | 80+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
@@ -195,6 +194,17 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-24 — Phase 12: TextEncoderStream / TextDecoderStream
+
+**Added to `@gjsify/web-streams`** — WHATWG Encoding Streams:
+
+- **TextEncoderStream**: Encodes string chunks to UTF-8 Uint8Array via TransformStream. Handles surrogate pairs split across chunks (buffers pending high surrogates, emits U+FFFD for unpaired surrogates at stream end). Reference: `refs/deno/ext/web/08_text_encoding.js`.
+- **TextDecoderStream**: Decodes byte chunks to strings via TransformStream wrapping `TextDecoder` with `stream: true`. Supports `encoding`, `fatal`, `ignoreBOM` options. Handles multi-byte UTF-8 sequences split across chunks.
+- **Global registration**: On GJS, registers `TextEncoderStream` and `TextDecoderStream` as globals (not natively available in GJS 1.86).
+- **Re-exports**: Available via `stream/web` module (same as `@gjsify/web-streams`).
+- **22 new tests** (117 total for web-streams): Constructor, encoding properties, ASCII/multi-byte/4-byte encode/decode, empty chunks, surrogate pair split, unpaired surrogate replacement, ArrayBuffer input, round-trip (ASCII, Unicode, split surrogates).
+- All 117 tests pass on Node.js 24. Foundation for Phase 14 (EventSource).
 
 ### 2026-03-24 — Phase 11: WHATWG Web Streams API (@gjsify/web-streams)
 
