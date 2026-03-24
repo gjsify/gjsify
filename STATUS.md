@@ -1,20 +1,20 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-24 (after Phase 12)
+> Last updated: 2026-03-24 (after Phase 15)
 
 ## Summary
 
 gjsify implements Node.js and Web Standard APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **11 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
+The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 31 (79%) | 3 (8%) | 5 (13%) |
-| Web APIs | 11 | 11 (100%) | — | — |
+| Web APIs | 14 | 14 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,600 test cases in 80+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~2,800 test cases in 85+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -40,7 +40,7 @@ The project comprises **39 Node.js packages**, **11 Web API packages**, **3 GJS 
 | **perf_hooks** | — | 30 | performance (Web API / GLib fallback), monitorEventLoopDelay, mark/measure/getEntries |
 | **process** | GLib | 47 | EventEmitter-based, env, cwd, platform, exit |
 | **querystring** | — | 63 | parse/stringify with full encoding |
-| **stream** | — | 66 | Readable, Writable, Duplex, Transform, PassThrough |
+| **stream** | — | 87 | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy |
 | **string_decoder** | — | 65 | UTF-8, Base64, hex, streaming |
 | **timers** | — | 43 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
 | **tty** | — | 23 | ReadStream/WriteStream, isatty, ANSI, clearLine, cursorTo, getColorDepth |
@@ -76,7 +76,7 @@ The project comprises **39 Node.js packages**, **11 Web API packages**, **3 GJS 
 
 ## Web API Packages (`packages/web/`)
 
-All 11 packages have real implementations:
+All 14 packages have real implementations:
 
 | Package | LOC | GNOME Libs | Tests | Web APIs |
 |---------|-----|-----------|-------|----------|
@@ -91,6 +91,8 @@ All 11 packages have real implementations:
 | **streams** | 3,800 | — | 117 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **compression-streams** | 120 | — | 29 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
 | **webstorage** | 100 | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
+| **webcrypto** | 650 | — | 37 | SubtleCrypto (digest, encrypt/decrypt, sign/verify, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey. Wraps @gjsify/crypto primitives |
+| **eventsource** | 260 | — | 24 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
 
 ### Missing Web APIs
 
@@ -98,8 +100,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | API | Priority | Notes |
 |-----|----------|-------|
-| **crypto.subtle (WebCrypto)** | High | SubtleCrypto wrapping existing @gjsify/crypto primitives |
-| **EventSource** | Medium | Server-Sent Events via Soup.Session + dom-events EventTarget |
+| **ECDSA sign/verify** | Medium | WebCrypto ECDSA — EC curve math exists in @gjsify/crypto, needs RFC 6979 |
+| **RSA-PSS / RSA-OAEP** | Medium | WebCrypto padding modes — RSA math exists, needs MGF1 |
 | **URL/URLSearchParams (global)** | Low | Exists in @gjsify/url, missing as global export |
 | **Blob/File (global)** | Low | Partially native in GJS; globals package could re-export |
 | **structuredClone** | Low | Natively available in SpiderMonkey 128 |
@@ -150,9 +152,9 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Fully implemented | 31 (79%) |
 | Partially implemented | 3 (8%) |
 | Stubs | 5 (13%) |
-| Web API packages | 11 (all implemented) |
-| Total test cases | ~2,720 |
-| Spec files | 80+ |
+| Web API packages | 14 (all implemented) |
+| Total test cases | ~2,800 |
+| Spec files | 85+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -163,15 +165,18 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### High Priority
 
-1. ~~**Web Streams API**~~✓ — Implemented as `@gjsify/web-streams` (95 tests). ReadableStream, WritableStream, TransformStream, queuing strategies. Polyfill on GJS, native on Node.js.
-2. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
-3. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, http).
+1. ~~**Web Streams API**~~✓ — Implemented as `@gjsify/web-streams` (117 tests). ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, queuing strategies.
+2. ~~**WebCrypto (crypto.subtle)**~~✓ — Implemented as `@gjsify/webcrypto` (37 tests). SubtleCrypto: digest, AES-CBC/CTR/GCM, HMAC, PBKDF2, HKDF, ECDH, importKey/exportKey, generateKey.
+3. ~~**EventSource**~~✓ — Implemented as `@gjsify/eventsource` (24 tests). Server-Sent Events via fetch + Web Streams.
+4. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
+5. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, http).
 
 ### Medium Priority
 
 4. **WebCrypto (crypto.subtle)** — SubtleCrypto API wrapping existing @gjsify/crypto primitives. Useful for GJS apps doing authentication/encryption.
-5. **EventSource** — Server-Sent Events via Soup.Session + dom-events EventTarget.
-6. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API.
+6. **WebCrypto ECDSA/RSA-PSS/RSA-OAEP** — Remaining SubtleCrypto algorithms. EC math exists, needs RFC 6979 and MGF1.
+7. **BYOB Byte Streams** — ReadableByteStreamController for optimized binary streaming.
+8. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API.
 
 ### Low Priority
 
@@ -194,6 +199,46 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-24 — Phase 15: Test Coverage Expansion
+
+**Stream package** test expansion (66 → 87 tests):
+- Writable backpressure: HWM threshold, drain event, writableLength, writableEnded/Finished state tracking
+- ObjectMode: Transform with objects, Readable objectMode, readableObjectMode property
+- Destroy behavior: idempotent destroy, error emission, close events on both Readable and Writable
+- Pipe error handling: unpipe stops data flow, error isolation between piped streams
+
+### 2026-03-24 — Phase 14: EventSource (Server-Sent Events)
+
+**New package `@gjsify/eventsource`** — W3C EventSource (Server-Sent Events):
+
+- **EventSource** class extending EventTarget with CONNECTING/OPEN/CLOSED states
+- **TextLineStream** utility: TransformStream splitting stream into lines (\n, \r\n, standalone \r)
+- SSE field parsing: event, data, id, retry fields per HTML spec
+- Multi-line data support (multiple `data:` fields concatenated with \n)
+- Comment filtering (lines starting with `:`)
+- Auto-reconnection with configurable retry delay, new AbortController per attempt
+- `onopen`/`onmessage`/`onerror` attribute handlers + addEventListener support
+- `lastEventId` tracking via `id:` field
+- Global registration on GJS
+- **24 tests**: 4 TextLineStream + 11 unit tests + 9 SSE integration tests (real HTTP server)
+
+### 2026-03-24 — Phase 13: WebCrypto (crypto.subtle)
+
+**New package `@gjsify/webcrypto`** — W3C WebCrypto API for GJS:
+
+- **SubtleCrypto** class with all major methods:
+  - `digest`: SHA-1, SHA-256, SHA-384, SHA-512 (wraps @gjsify/crypto Hash/GLib.Checksum)
+  - `encrypt`/`decrypt`: AES-CBC, AES-CTR, AES-GCM (wraps @gjsify/crypto cipher.ts)
+  - `sign`/`verify`: HMAC (wraps @gjsify/crypto hmac.ts)
+  - `generateKey`: AES (128/192/256), HMAC, ECDH (P-256/P-384/P-521), ECDSA key pairs
+  - `importKey`/`exportKey`: raw, jwk formats for symmetric + EC keys
+  - `deriveBits`/`deriveKey`: PBKDF2, HKDF, ECDH
+- **CryptoKey** class with type/extractable/algorithm/usages + frozen properties
+- **Crypto** polyfill: `getRandomValues()`, `randomUUID()`, `subtle`
+- Native passthrough on Node.js (uses globalThis.crypto.subtle), polyfill on GJS
+- Global `crypto` registration on GJS
+- **37 tests**: digest, generateKey, importKey/exportKey round-trip, AES encrypt/decrypt (CBC/CTR/GCM with AAD), HMAC sign/verify, PBKDF2/HKDF deriveBits, ECDH shared secret, deriveKey, CryptoKey properties, getRandomValues, randomUUID
 
 ### 2026-03-24 — Phase 12: TextEncoderStream / TextDecoderStream
 
