@@ -19,7 +19,7 @@
         }
     },
     "scripts": {
-        "clear": "rm -rf lib tmp build test.gjs.js tsconfig.tsbuildinfo",
+        "clear": "rm -rf lib tmp build test.gjs.mjs tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "init:meson": "meson setup build .",
         "init:meson:wipe": "yarn init:meson --wipe",

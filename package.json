@@ -13,7 +13,8 @@
     "check": "yarn workspaces foreach -ptv --all --exclude '@girs/*' run check",
     "clear": "yarn workspaces foreach -v --no-private --all --parallel run clear",
     "npm:publish": "yarn run build && yarn workspaces foreach -v --no-private npm publish --tolerate-republish --tag latest --access public",
-    "build": "yarn workspaces foreach --topological -p --no-private --all --exclude '@girs/*' run build"
+    "build": "yarn run build:infra && yarn workspaces foreach --topological -p --no-private --all --exclude '@girs/*' run build",
+    "build:infra": "yarn workspaces foreach -pR --topological-dev --from '@gjsify/cli' run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

@@ -19,7 +19,7 @@
         "./globals": "./globals.mjs"
     },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
         "check": "tsc --noEmit",
         "build": "yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
@@ -50,6 +50,7 @@
         "@girs/soup-3.0": "3.6.6-4.0.0-beta.41",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/formdata": "workspace:^",
+        "@gjsify/http": "workspace:^",
         "@gjsify/url": "workspace:^",
         "@gjsify/utils": "workspace:^"
     }

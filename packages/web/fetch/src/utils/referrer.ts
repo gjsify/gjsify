@@ -24,37 +24,37 @@ export function stripURLForUseAsAReferrer(url: null | URL | "no-referrer", origi
 		return 'no-referrer';
 	}
 
-	url = new URL(url);
+	const u = new URL(url) as any;
 
 	// 2. If url's scheme is a local scheme, then return no referrer.
-	if (/^(about|blob|data):$/.test(url.protocol)) {
+	if (/^(about|blob|data):$/.test(u.protocol)) {
 		return 'no-referrer';
 	}
 
 	// 3. Set url's username to the empty string.
-	url.username = '';
+	u.username = '';
 
 	// 4. Set url's password to null.
 	// Note: `null` appears to be a mistake as this actually results in the password being `"null"`.
-	url.password = '';
+	u.password = '';
 
 	// 5. Set url's fragment to null.
 	// Note: `null` appears to be a mistake as this actually results in the fragment being `"#null"`.
-	url.hash = '';
+	u.hash = '';
 
 	// 6. If the origin-only flag is true, then:
 	if (originOnly) {
 		// 6.1. Set url's path to null.
 		// Note: `null` appears to be a mistake as this actually results in the path being `"/null"`.
-		url.pathname = '';
+		u.pathname = '';
 
 		// 6.2. Set url's query to null.
 		// Note: `null` appears to be a mistake as this actually results in the query being `"?null"`.
-		url.search = '';
+		u.search = '';
 	}
 
 	// 7. Return url.
-	return url;
+	return u as URL;
 }
 
 /**

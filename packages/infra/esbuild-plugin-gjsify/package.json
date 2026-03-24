@@ -12,7 +12,7 @@
         }
     },
     "scripts": {
-        "clear": "rm -rf dist tsconfig.tsbuildinfo",
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "test": "echo 'nothing to do'",
         "build": "yarn build:js && yarn build:types",
