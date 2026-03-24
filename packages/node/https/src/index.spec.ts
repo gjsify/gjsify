@@ -1,5 +1,5 @@
 import { describe, it, expect, on } from '@gjsify/unit';
-import https, { Agent, globalAgent, request, get } from 'https';
+import https, { Agent, globalAgent, request, get, createServer, Server } from 'https';
 
 export default async () => {
   await describe('https', async () => {
@@ -108,6 +108,42 @@ export default async () => {
         const req = get({ hostname: 'localhost', port: 1, path: '/' });
         expect(req).toBeDefined();
         req.on('error', () => {});
+      });
+    });
+
+    // --- createServer ---
+    await describe('createServer', async () => {
+      await it('should export createServer as a function', async () => {
+        expect(typeof createServer).toBe('function');
+      });
+
+      await it('should export Server as a function', async () => {
+        expect(typeof Server).toBe('function');
+      });
+
+      await it('should create a server without options', async () => {
+        const server = createServer();
+        expect(server).toBeDefined();
+      });
+
+      await it('should create a server with options', async () => {
+        const server = createServer({});
+        expect(server).toBeDefined();
+      });
+
+      await it('should create a server with listener', async () => {
+        const server = createServer((_req, _res) => {});
+        expect(server).toBeDefined();
+      });
+
+      await it('should create a server with options and listener', async () => {
+        const server = createServer({}, (_req, _res) => {});
+        expect(server).toBeDefined();
+      });
+
+      await it('should have all exports on default export', async () => {
+        expect(typeof https.createServer).toBe('function');
+        expect(typeof https.Server).toBe('function');
       });
     });
   });

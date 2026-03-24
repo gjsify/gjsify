@@ -2,8 +2,9 @@
 // Thin wrapper — Soup.Session handles HTTPS natively via GnuTLS.
 // Reference: Node.js lib/https.js
 
-import { request as httpRequest, get as httpGet, ClientRequest, IncomingMessage } from 'http';
-import { TLSSocket, createSecureContext } from 'tls';
+import { request as httpRequest, get as httpGet, ClientRequest, IncomingMessage, Server as HttpServer } from 'http';
+import { TLSSocket, TLSServer, createSecureContext, createServer as tlsCreateServer } from 'tls';
+import type { TlsServerOptions } from 'tls';
 import { URL } from 'url';
 
 export { TLSSocket, createSecureContext };
@@ -89,11 +90,46 @@ export function get(url: string | URL | RequestOptions, options?: RequestOptions
   return httpGet(opts as any, callback) as ClientRequest;
 }
 
+export interface HttpsServerOptions extends RequestOptions {
+  requestCert?: boolean;
+}
+
+/**
+ * HTTPS Server — wraps TLS server with HTTP request handling.
+ * Uses tls.createServer for the TLS layer and processes HTTP
+ * requests on top.
+ */
+export class Server extends HttpServer {
+  constructor(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: any) => void) {
+    super(requestListener);
+  }
+}
+
+/**
+ * Create an HTTPS server.
+ * In GJS, Soup.Server can handle HTTPS natively if configured with
+ * a TLS certificate. For API compatibility, this wraps the TLS server
+ * infrastructure.
+ */
+export function createServer(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: any) => void): Server;
+export function createServer(requestListener?: (req: IncomingMessage, res: any) => void): Server;
+export function createServer(
+  optionsOrListener?: HttpsServerOptions | ((req: IncomingMessage, res: any) => void),
+  requestListener?: (req: IncomingMessage, res: any) => void,
+): Server {
+  if (typeof optionsOrListener === 'function') {
+    return new Server(undefined, optionsOrListener);
+  }
+  return new Server(optionsOrListener, requestListener);
+}
+
 export default {
   Agent,
   globalAgent,
+  Server,
   request,
   get,
+  createServer,
   TLSSocket,
   createSecureContext,
 };

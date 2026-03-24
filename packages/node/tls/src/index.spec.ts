@@ -2,11 +2,15 @@ import { describe, it, expect } from '@gjsify/unit';
 import tls, {
   TLSSocket,
   connect,
+  createServer,
   createSecureContext,
   rootCertificates,
   DEFAULT_MIN_VERSION,
   DEFAULT_MAX_VERSION,
 } from 'tls';
+
+// Our implementation exports TLSServer, Node.js exports Server
+const TLSServer = (tls as any).TLSServer || (tls as any).Server;
 
 export default async () => {
   await describe('tls', async () => {
@@ -100,6 +104,47 @@ export default async () => {
         const cipher = socket.getCipher();
         // Node.js returns undefined when not connected, our impl may return null
         expect(cipher === null || cipher === undefined || typeof cipher === 'object').toBe(true);
+      });
+    });
+
+    // --- TLSServer / createServer ---
+    await describe('TLSServer', async () => {
+      await it('should export TLSServer as a function', async () => {
+        expect(typeof TLSServer).toBe('function');
+      });
+
+      await it('should export createServer as a function', async () => {
+        expect(typeof createServer).toBe('function');
+      });
+
+      await it('should be constructable', async () => {
+        const server = new TLSServer();
+        expect(server).toBeDefined();
+      });
+
+      await it('createServer should return a TLSServer', async () => {
+        const server = createServer();
+        expect(server).toBeDefined();
+      });
+
+      await it('createServer should accept a listener', async () => {
+        let called = false;
+        const server = createServer(() => { called = true; });
+        expect(server).toBeDefined();
+      });
+
+      await it('createServer should accept options and listener', async () => {
+        const server = createServer({ cert: '', key: '' }, () => {});
+        expect(server).toBeDefined();
+      });
+
+      await it('should have addContext method', async () => {
+        const server = new TLSServer();
+        expect(typeof server.addContext).toBe('function');
+      });
+
+      await it('should have createServer on default export', async () => {
+        expect(typeof tls.createServer).toBe('function');
       });
     });
 
