@@ -533,7 +533,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@gjsify/abort-controller@workspace:packages/web/abort-controller":
+"@gjsify/abort-controller@workspace:^, @gjsify/abort-controller@workspace:packages/web/abort-controller":
   version: 0.0.0-use.local
   resolution: "@gjsify/abort-controller@workspace:packages/web/abort-controller"
   dependencies:
@@ -1399,7 +1399,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/web-globals@workspace:packages/web/globals"
   dependencies:
+    "@gjsify/abort-controller": "workspace:^"
     "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
