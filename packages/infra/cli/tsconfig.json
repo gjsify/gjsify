@@ -1,10 +1,13 @@
 {
     "compilerOptions": {
+      "rootDir": "src",
       "outDir": "lib",
       "declarationDir": "lib",
       "declaration": true,
       "target": "ESNext",
-      "moduleResolution":"Node",
+      "types": ["node"],
+      "moduleResolution":"Node10",
+      "ignoreDeprecations": "6.0",
       "allowSyntheticDefaultImports": true,
       "strict": true
     },

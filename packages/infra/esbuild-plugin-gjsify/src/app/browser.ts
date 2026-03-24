@@ -9,7 +9,7 @@ import type { PluginOptions } from '../types/plugin-options.js';
 
 export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
-    const external = [];
+    const external: string[] = [];
 
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];

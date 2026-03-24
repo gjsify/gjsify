@@ -13,7 +13,7 @@ function fillRandom(view: Uint8Array): void {
     // WebCrypto has a 65536-byte limit per call
     for (let offset = 0; offset < view.length; offset += 65536) {
       const length = Math.min(view.length - offset, 65536);
-      const slice = new Uint8Array(view.buffer, view.byteOffset + offset, length);
+      const slice = new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset + offset, length);
       globalThis.crypto.getRandomValues(slice);
     }
   } else {

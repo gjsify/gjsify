@@ -1,12 +1,18 @@
 {
-    "compilerOptions": {
-      "outDir": "dist",
-      "declarationDir": "dist/types",
-      "declaration": true,
-      "target": "ESNext",
-      "module": "ESNext",
-      "types": ["node"],
-      "moduleResolution": "bundler"
-    },
-    "files": ["src/index.ts"]
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "declarationDir": "dist/types",
+    "declaration": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "types": [
+      "node"
+    ],
+    "moduleResolution": "bundler",
+    "strict": false
+  },
+  "files": [
+    "src/index.ts"
+  ]
 }

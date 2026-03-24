@@ -36,15 +36,15 @@
         "module"
     ],
     "dependencies": {
-        "@girs/gio-2.0": "2.88.0-4.0.0-beta.41",
-        "@girs/gjs": "^4.0.0-beta.41",
-        "@girs/glib-2.0": "2.88.0-4.0.0-beta.41",
+        "@girs/gio-2.0": "2.88.0-4.0.0-beta.42",
+        "@girs/gjs": "^4.0.0-beta.42",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-beta.42",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.2"
     }
 }

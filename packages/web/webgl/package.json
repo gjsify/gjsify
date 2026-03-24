@@ -39,12 +39,12 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/gio-2.0": "2.88.0-4.0.0-beta.41",
-        "@girs/gjs": "^4.0.0-beta.41",
-        "@girs/gtk-4.0": "4.22.1-4.0.0-beta.41",
+        "@girs/gio-2.0": "^2.88.0-4.0.0-beta.42",
+        "@girs/gjs": "^4.0.0-beta.42",
+        "@girs/gtk-4.0": "4.22.1-4.0.0-beta.42",
         "@girs/gwebgl-0.1": "workspace:^",
         "@gjsify/html-image-element": "workspace:^",
         "@gjsify/utils": "workspace:^",

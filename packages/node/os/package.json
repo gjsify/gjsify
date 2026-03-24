@@ -36,11 +36,11 @@
         "os"
     ],
     "dependencies": {
-        "@girs/gjs": "^4.0.0-beta.41",
+        "@girs/gjs": "^4.0.0-beta.42",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.2"
     }
 }

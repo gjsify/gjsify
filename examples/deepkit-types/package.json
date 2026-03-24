@@ -25,7 +25,7 @@
     "@types/node": "^25.5.0"
   },
   "dependencies": {
-    "@deepkit/core": "^1.0.1-alpha.108",
-    "@deepkit/type": "^1.0.1-alpha.108"
+    "@deepkit/core": "^1.0.19",
+    "@deepkit/type": "^1.0.19"
   }
 }

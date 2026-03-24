@@ -12,6 +12,7 @@
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,
+    "strict": false
   },
   "reflection": false,
   "include": ["src/**/*.ts"],

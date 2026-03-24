@@ -2,14 +2,20 @@
   "compilerOptions": {
     "module": "ESNext",
     "target": "ESNext",
+    "rootDir": "src",
     "outDir": "dist",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "declarationDir": "dist/types",
     "declaration": true,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "strict": false
   },
-  "files": ["src/index.ts"]
+  "files": [
+    "src/index.ts"
+  ]
 }

@@ -32,8 +32,8 @@
         "fs"
     ],
     "dependencies": {
-        "@deepkit/type-compiler": "^1.0.1-alpha.108",
-        "typescript": "^5.9.3"
+        "@deepkit/type-compiler": "^1.0.19",
+        "typescript": "^6.0.2"
     },
     "devDependencies": {
         "@types/node": "^25.5.0",

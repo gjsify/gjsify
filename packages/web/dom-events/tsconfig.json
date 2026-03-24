@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "module": "ESNext",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "target": "ESNext",
     "experimentalDecorators": true,
     "emitDeclarationOnly": true,
@@ -14,9 +16,17 @@
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "allowJs": true,
-    "checkJs": false
+    "checkJs": false,
+    "strict": false
   },
   "reflection": false,
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/test.ts", "src/test.mts", "src/**/*.spec.ts", "src/**/*.spec.mts"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/test.ts",
+    "src/test.mts",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.mts"
+  ]
 }

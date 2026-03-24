@@ -2,16 +2,27 @@
   "compilerOptions": {
     "module": "ESNext",
     "target": "ESNext",
+    "rootDir": "src",
     "outDir": "dist",
-    "types": ["node"],
-    "lib": ["ESNext", "DOM"],
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
     "declarationDir": "dist/types",
     "declaration": true,
     "emitDeclarationOnly": true,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "strict": false
   },
-  "include": ["src/lodash.d.ts"],
-  "files": ["src/index.ts"]
+  "include": [
+    "src/lodash.d.ts"
+  ],
+  "files": [
+    "src/index.ts"
+  ]
 }
