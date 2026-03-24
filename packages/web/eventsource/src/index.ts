@@ -5,10 +5,54 @@
 
 // Ensure Web Streams are available (polyfill on GJS)
 import '@gjsify/web-streams';
+// Import DOM Events polyfill — provides Event, EventTarget, etc. on GJS
+import {
+  Event as DomEvent,
+  EventTarget as DomEventTarget,
+} from '@gjsify/dom-events';
 
 const CONNECTING = 0;
 const OPEN = 1;
 const CLOSED = 2;
+
+// Use native globals if available (Node.js, browser), polyfill otherwise (GJS)
+const _Event: typeof Event = typeof globalThis.Event === 'function'
+  ? globalThis.Event
+  : DomEvent as any;
+const _EventTarget: { new(): EventTarget } = typeof globalThis.EventTarget === 'function'
+  ? globalThis.EventTarget
+  : DomEventTarget as any;
+
+// Register globals on GJS if missing
+if (typeof globalThis.Event === 'undefined') {
+  (globalThis as any).Event = _Event;
+}
+if (typeof globalThis.EventTarget === 'undefined') {
+  (globalThis as any).EventTarget = _EventTarget;
+}
+
+// MessageEvent polyfill for GJS (not globally available)
+const _MessageEvent: typeof MessageEvent = typeof globalThis.MessageEvent === 'function'
+  ? globalThis.MessageEvent
+  : class MessageEvent extends (_Event as any) {
+      readonly data: any;
+      readonly origin: string;
+      readonly lastEventId: string;
+      readonly source: null;
+      readonly ports: readonly MessagePort[];
+      constructor(type: string, init?: MessageEventInit) {
+        super(type);
+        this.data = init?.data ?? null;
+        this.origin = init?.origin ?? '';
+        this.lastEventId = init?.lastEventId ?? '';
+        this.source = null;
+        this.ports = [];
+      }
+    } as any;
+
+if (typeof globalThis.MessageEvent === 'undefined') {
+  (globalThis as any).MessageEvent = _MessageEvent;
+}
 
 /**
  * TextLineStream splits a string stream into individual lines.
@@ -69,7 +113,7 @@ export interface EventSourceInit {
  * Connects to an SSE endpoint via fetch, pipes the response through
  * TextDecoderStream and TextLineStream, then parses SSE fields.
  */
-export class EventSource extends EventTarget {
+export class EventSource extends (_EventTarget as any) {
   static readonly CONNECTING = CONNECTING;
   static readonly OPEN = OPEN;
   static readonly CLOSED = CLOSED;
@@ -126,7 +170,7 @@ export class EventSource extends EventTarget {
     }
   }
 
-  override dispatchEvent(event: Event): boolean {
+  dispatchEvent(event: Event): boolean {
     // Wire up on* attribute handlers
     const type = event.type;
     if (type === 'open' && this.onopen) {
@@ -170,7 +214,7 @@ export class EventSource extends EventTarget {
       return;
     }
     this.#readyState = OPEN;
-    this.dispatchEvent(new Event('open'));
+    this.dispatchEvent(new _Event('open'));
 
     let data = '';
     let eventType = '';
@@ -203,7 +247,7 @@ export class EventSource extends EventTarget {
           if (data.endsWith('\n')) {
             data = data.slice(0, -1);
           }
-          const event = new MessageEvent(eventType || 'message', {
+          const event = new _MessageEvent(eventType || 'message', {
             data,
             origin: this.#url,
             lastEventId: this.#lastEventId,
@@ -263,7 +307,7 @@ export class EventSource extends EventTarget {
       return;
     }
     this.#readyState = CONNECTING;
-    this.dispatchEvent(new Event('error'));
+    this.dispatchEvent(new _Event('error'));
     this.#reconnectionTimerId = setTimeout(() => {
       if (this.#readyState !== CONNECTING) {
         return;
@@ -276,7 +320,7 @@ export class EventSource extends EventTarget {
   #failConnection(): void {
     if (this.#readyState !== CLOSED) {
       this.#readyState = CLOSED;
-      this.dispatchEvent(new Event('error'));
+      this.dispatchEvent(new _Event('error'));
     }
   }
 }

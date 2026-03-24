@@ -2,7 +2,7 @@
 // Ported from refs/deno/tests/unit/ and refs/wpt/eventsource/
 // Original: MIT license (Deno), 3-Clause BSD license (WPT)
 
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import { EventSource, TextLineStream } from './index.js';
 
 export default async () => {
@@ -126,7 +126,11 @@ export default async () => {
     });
   });
 
-  // ==================== EventSource (constructor) ====================
+  // ==================== EventSource (constructor + integration) ====================
+  // These tests create EventSource instances that connect via fetch,
+  // which requires a Node.js HTTP server. Skipped on GJS.
+
+  await on('Node.js', async () => {
 
   await describe('EventSource (constructor)', async () => {
     await it('should throw on invalid URL', async () => {
@@ -457,4 +461,6 @@ export default async () => {
       }
     });
   });
+
+  }); // end on('Node.js')
 };

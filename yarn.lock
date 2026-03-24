@@ -788,6 +788,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/eventsource@workspace:packages/web/eventsource":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/eventsource@workspace:packages/web/eventsource"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/web-streams": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-deepkit-di@workspace:examples/deepkit-di":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-deepkit-di@workspace:examples/deepkit-di"
@@ -1425,6 +1438,17 @@ __metadata:
 "@gjsify/web-streams@workspace:^, @gjsify/web-streams@workspace:packages/web/streams":
   version: 0.0.0-use.local
   resolution: "@gjsify/web-streams@workspace:packages/web/streams"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/webcrypto@workspace:packages/web/webcrypto":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/webcrypto@workspace:packages/web/webcrypto"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"

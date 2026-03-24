@@ -37,6 +37,10 @@
         "sse",
         "server-sent-events"
     ],
+    "dependencies": {
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/web-streams": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
