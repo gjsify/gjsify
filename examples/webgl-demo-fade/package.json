@@ -23,9 +23,9 @@
     "@types/node": "^25.5.0"
   },
   "dependencies": {
-    "@girs/gio-2.0": "2.88.0-4.0.0-beta.42",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-beta.42",
     "@girs/gjs": "^4.0.0-beta.42",
-    "@girs/gtk-4.0": "4.22.1-4.0.0-beta.42",
+    "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.42",
     "@gjsify/webgl": "workspace:^"
   }
 }
