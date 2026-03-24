@@ -259,9 +259,9 @@ We follow a **test-driven development** approach: tests are written first, then 
 6. **Iterate** until `yarn test:gjs` passes alongside `yarn test:node`.
 7. **Full validation:** After completing the implementation, run the full project pipeline and fix any issues:
    ```bash
-   yarn install && yarn build && yarn check && yarn test
+   yarn install && yarn clear && yarn build && yarn check && yarn test
    ```
-   This ensures the new code doesn't break other packages. Fix any install, build, type-check, or test failures before considering the task done.
+   The `clear` step removes all build artifacts to ensure a clean rebuild. This ensures the new code doesn't break other packages. Fix any install, build, type-check, or test failures before considering the task done.
 
 ### Test Sources from Reference Projects
 
