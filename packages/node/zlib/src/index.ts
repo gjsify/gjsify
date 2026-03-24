@@ -1,6 +1,8 @@
 // Reference: Node.js lib/zlib.js
 // Reimplemented for GJS using Web Compression API / Gio.ZlibCompressor
 
+import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import type { ZlibOptions } from 'node:zlib';
 
 type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
@@ -11,44 +13,32 @@ const hasWebCompression = typeof globalThis.CompressionStream !== 'undefined';
 
 type GioFormat = 'gzip' | 'deflate' | 'deflate-raw';
 
+function getGioFormat(format: GioFormat): Gio.ZlibCompressorFormat {
+  switch (format) {
+    case 'gzip': return Gio.ZlibCompressorFormat.GZIP;
+    case 'deflate': return Gio.ZlibCompressorFormat.ZLIB;
+    case 'deflate-raw': return Gio.ZlibCompressorFormat.RAW;
+  }
+}
+
 function compressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
-  const Gio = (globalThis as any).imports?.gi?.Gio;
-  if (!Gio) throw new Error('Gio not available');
-
-  const formatMap: Record<GioFormat, number> = {
-    'gzip': Gio.ZlibCompressorFormat.GZIP,
-    'deflate': Gio.ZlibCompressorFormat.ZLIB,
-    'deflate-raw': Gio.ZlibCompressorFormat.RAW,
-  };
-
-  const compressor = new Gio.ZlibCompressor({ format: formatMap[format] });
+  const compressor = new Gio.ZlibCompressor({ format: getGioFormat(format) });
   const converter = new Gio.ConverterOutputStream({
     base_stream: Gio.MemoryOutputStream.new_resizable(),
     converter: compressor,
   });
 
-  converter.write_bytes(new (globalThis as any).imports.gi.GLib.Bytes(data), null);
+  converter.write_bytes(new GLib.Bytes(data), null);
   converter.close(null);
 
-  const memStream = converter.get_base_stream() as any;
+  const memStream = converter.get_base_stream() as Gio.MemoryOutputStream;
   const bytes = memStream.steal_as_bytes();
   return new Uint8Array(bytes.get_data() ?? []);
 }
 
 function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
-  const Gio = (globalThis as any).imports?.gi?.Gio;
-  if (!Gio) throw new Error('Gio not available');
-
-  const formatMap: Record<GioFormat, number> = {
-    'gzip': Gio.ZlibCompressorFormat.GZIP,
-    'deflate': Gio.ZlibCompressorFormat.ZLIB,
-    'deflate-raw': Gio.ZlibCompressorFormat.RAW,
-  };
-
-  const decompressor = new Gio.ZlibDecompressor({ format: formatMap[format] });
-  const memInput = Gio.MemoryInputStream.new_from_bytes(
-    new (globalThis as any).imports.gi.GLib.Bytes(data)
-  );
+  const decompressor = new Gio.ZlibDecompressor({ format: getGioFormat(format) });
+  const memInput = Gio.MemoryInputStream.new_from_bytes(new GLib.Bytes(data));
   const converter = new Gio.ConverterInputStream({
     base_stream: memInput,
     converter: decompressor,
@@ -212,32 +202,30 @@ export function inflateRaw(data: string | Uint8Array | ArrayBuffer, optionsOrCal
   );
 }
 
-// ---- Sync API ----
-// Note: True sync compression is not possible with Web Compression API.
-// These stubs throw to indicate sync is not supported yet.
+// ---- Sync API (uses Gio.ZlibCompressor / Gio.ZlibDecompressor) ----
 
-export function gzipSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-  throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
+export function gzipSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+  return compressWithGio(toUint8Array(data), 'gzip');
 }
 
-export function gunzipSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-  throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
+export function gunzipSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+  return decompressWithGio(toUint8Array(data), 'gzip');
 }
 
-export function deflateSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-  throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
+export function deflateSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+  return compressWithGio(toUint8Array(data), 'deflate');
 }
 
-export function inflateSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-  throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
+export function inflateSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+  return decompressWithGio(toUint8Array(data), 'deflate');
 }
 
-export function deflateRawSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-  throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
+export function deflateRawSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+  return compressWithGio(toUint8Array(data), 'deflate-raw');
 }
 
-export function inflateRawSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-  throw new Error('zlib sync methods are not yet supported in GJS. Use the async API.');
+export function inflateRawSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+  return decompressWithGio(toUint8Array(data), 'deflate-raw');
 }
 
 // ---- Constants ----

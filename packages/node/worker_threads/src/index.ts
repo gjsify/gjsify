@@ -2,6 +2,15 @@
 // Reimplemented for GJS — MessageChannel/BroadcastChannel are pure JS,
 // Worker uses Gio.Subprocess (subprocess-based workers)
 
+/** Clone a value, preferring structuredClone when available, falling back to JSON round-trip. */
+function cloneValue(value: unknown): unknown {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(value);
+  }
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+
 export { MessagePort } from './message-port.ts';
 export { Worker } from './worker.ts';
 export type { WorkerOptions } from './worker.ts';
@@ -60,12 +69,12 @@ export class BroadcastChannel {
     for (const channel of channels) {
       if (channel !== this && !channel._closed) {
         // Clone per receiver per W3C spec — each recipient gets an independent copy
-        const cloned = structuredClone(message);
-        Promise.resolve().then(() => {
+        const cloned = cloneValue(message);
+        setTimeout(() => {
           if (!channel._closed && channel.onmessage) {
             channel.onmessage({ data: cloned });
           }
-        });
+        }, 0);
       }
     }
   }

@@ -3,6 +3,16 @@
 
 import { EventEmitter } from 'events';
 
+/** Clone a value, preferring structuredClone when available, falling back to JSON round-trip. */
+function cloneValue(value: unknown): unknown {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(value);
+  }
+  // JSON round-trip: handles primitives, plain objects, arrays. Loses Date/RegExp/etc.
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+
 export class MessagePort extends EventEmitter {
   private _started = false;
   private _closed = false;
@@ -33,7 +43,7 @@ export class MessagePort extends EventEmitter {
 
     let cloned: unknown;
     try {
-      cloned = structuredClone(value);
+      cloned = cloneValue(value);
     } catch (err) {
       this.emit('messageerror', err instanceof Error ? err : new Error('Could not clone message'));
       return;
@@ -68,11 +78,11 @@ export class MessagePort extends EventEmitter {
   }
 
   private _dispatchMessage(message: unknown): void {
-    Promise.resolve().then(() => {
+    setTimeout(() => {
       if (!this._closed) {
         this.emit('message', message);
       }
-    });
+    }, 0);
   }
 
   on(event: string | symbol, listener: (...args: unknown[]) => void): this {
