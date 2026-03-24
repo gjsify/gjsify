@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-24 (after Phase 5)
+> Last updated: 2026-03-24 (after Phase 7)
 
 ## Summary
 
@@ -9,12 +9,12 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 39 | 27 (69%) | 4 (10%) | 8 (21%) |
+| Node.js APIs | 39 | 27 (69%) | 5 (13%) | 7 (18%) |
 | Web APIs | 7 | 7 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,050 test cases in 68+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~2,100 test cases in 69+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -51,7 +51,7 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 | **globals** | — | 40 | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **readline** | — | 50 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
 
-### Partially Implemented (4)
+### Partially Implemented (5)
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
@@ -59,8 +59,9 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 | **http** | Soup 3.0, Gio, GLib | 93 (2 specs) | Server (Soup.Server), **ClientRequest (Soup.Session)**, IncomingMessage, ServerResponse, STATUS_CODES, Agent, **round-trip on GJS** | — (fully functional) |
 | **https** | — | 17 | Agent (defaultPort 443, protocol https:), request/get wrapper | createServer with TLS |
 | **tls** | Gio, GLib | 19 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher), connect, createSecureContext | createServer, TLS session resumption, ALPN |
+| **worker_threads** | Gio, GLib | 56 | MessageChannel, MessagePort (EventEmitter-based, auto-start, clone via structuredClone), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC, bootstrap script, eval mode) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
 
-### Stubs (8)
+### Stubs (7)
 
 | Package | Tests | Description | Effort |
 |---------|-------|-------------|--------|
@@ -70,7 +71,6 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 | **inspector** | ✓ | Session.post(), open/close; empty | Medium — V8-specific, hard to port |
 | **v8** | ✓ | getHeapStatistics (JSON-based), serialize/deserialize | Medium — V8-specific |
 | **vm** | ✓ | runInThisContext (eval), Script class | Medium — sandbox isolation limited |
-| **worker_threads** | ✓ | isMainThread; Worker throws | High — GJS has no native threading API |
 
 ---
 
@@ -146,11 +146,11 @@ Not yet implemented (but potentially relevant for GJS projects):
 |--------|-------|
 | Total Node.js packages | 39 |
 | Fully implemented | 27 (69%) |
-| Partially implemented | 4 (10%) |
-| Stubs | 8 (21%) |
+| Partially implemented | 5 (13%) |
+| Stubs | 7 (18%) |
 | Web API packages | 7 (all implemented) |
-| Total test cases | ~2,050 |
-| Spec files | 68+ |
+| Total test cases | ~2,100 |
+| Spec files | 69+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -184,6 +184,26 @@ Not yet implemented (but potentially relevant for GJS projects):
 ---
 
 ## Changelog
+
+### 2026-03-24 — Phase 7: worker_threads — From Stub to Partial
+
+**Promoted worker_threads from Stub → Partial** with full MessageChannel/MessagePort/BroadcastChannel implementation and subprocess-based Worker prototype:
+
+- **MessagePort** (EventEmitter-based): `postMessage` with `structuredClone`, auto-start on `on('message')`, message queue for pre-start delivery, `close()` with cleanup, `ref()`/`unref()` stubs
+- **MessageChannel**: Creates paired MessagePorts for bidirectional communication
+- **BroadcastChannel** (W3C API): Global registry by name, `onmessage` property, `addEventListener`/`removeEventListener`, `close()` with registry cleanup, no self-delivery
+- **Worker** (Gio.Subprocess): Spawns `gjs` child process with embedded bootstrap script, stdin/stdout IPC (newline-delimited JSON), `postMessage`/`on('message')`/`terminate()`, `eval: true` mode, environment variable passthrough
+- **Worker context detection**: `globalThis.__gjsify_worker_context` flag lets bundled worker scripts import correct `parentPort`/`workerData`/`threadId` from `worker_threads`
+- **Utility functions**: `receiveMessageOnPort` (synchronous dequeue), `getEnvironmentData`/`setEnvironmentData`, `markAsUntransferable`, `markAsUncloneable`, `moveMessagePortToContext`
+- **56 tests** (was 6): exports, MessageChannel message delivery (string/object/multi/order), clone verification, MessagePort auto-start/close/once, receiveMessageOnPort (empty/sync/dequeue), BroadcastChannel (same-name/self/different-name/closed/multi-receiver), environmentData CRUD, utility functions
+- All 56 tests pass on both Node.js 24 and GJS 1.86
+
+**Research findings documented:**
+- GJS intentionally blocks `GLib.Thread.new()` (throws "Use GIO async methods or Promise()")
+- SpiderMonkey JSContext is thread-bound — no parallel JS execution possible in-process
+- Subprocess-based approach (Ansatz A) is the only viable path for true parallelism
+- Vala extension approach (Ansatz B) would require wrapping `gjs_context_new()` — unstable API
+- libpeas (Ansatz C) is designed for plugins, not worker pools
 
 ### 2026-03-24 — Phases 1–5: Major Feature Implementation
 

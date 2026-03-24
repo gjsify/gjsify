@@ -40,5 +40,10 @@
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
         "typescript": "^6.0.2"
+    },
+    "dependencies": {
+        "@girs/gio-2.0": "^2.88.0-4.0.0-beta.42",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-beta.42",
+        "@gjsify/events": "workspace:^"
     }
 }
