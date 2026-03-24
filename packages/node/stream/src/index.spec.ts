@@ -1187,6 +1187,211 @@ export default async () => {
 		});
 	});
 
+	// ==================== Writable (backpressure & state) ====================
+
+	await describe('Writable (backpressure)', async () => {
+		await it('write should return false when HWM reached', async () => {
+			const writable = new Writable({
+				highWaterMark: 5,
+				write(_chunk, _enc, cb) { setTimeout(cb, 5); },
+			});
+			const result = writable.write('123456'); // > HWM
+			expect(result).toBe(false);
+			writable.destroy();
+		});
+
+		await it('write should return true when below HWM', async () => {
+			const writable = new Writable({
+				highWaterMark: 100,
+				write(_chunk, _enc, cb) { cb(); },
+			});
+			const result = writable.write('hi');
+			expect(result).toBe(true);
+		});
+
+		await it('should emit drain after write returns false', async () => {
+			const writable = new Writable({
+				highWaterMark: 1,
+				write(_chunk, _enc, cb) { setTimeout(cb, 5); },
+			});
+			writable.write('x');
+			const drained = await new Promise<boolean>((resolve) => {
+				writable.on('drain', () => resolve(true));
+				setTimeout(() => resolve(false), 2000);
+			});
+			expect(drained).toBe(true);
+			writable.destroy();
+		});
+
+		await it('writableEnded should be true after end()', async () => {
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			expect(writable.writableEnded).toBe(false);
+			writable.end();
+			expect(writable.writableEnded).toBe(true);
+		});
+
+		await it('writableFinished should be true after finish event', async () => {
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			expect(writable.writableFinished).toBe(false);
+			writable.end();
+			await new Promise<void>((resolve) => writable.on('finish', () => resolve()));
+			expect(writable.writableFinished).toBe(true);
+		});
+
+		await it('writableLength should track buffered bytes', async () => {
+			const writable = new Writable({
+				highWaterMark: 100,
+				write(_chunk, _enc, cb) { setTimeout(cb, 50); },
+			});
+			writable.write('abc');
+			expect(writable.writableLength).toBeGreaterThan(0);
+			writable.destroy();
+		});
+	});
+
+	// ==================== Transform (objectMode) ====================
+
+	await describe('Transform (objectMode)', async () => {
+		await it('should pass objects through in objectMode', async () => {
+			const transform = new Transform({
+				objectMode: true,
+				transform(chunk, _enc, cb) { cb(null, chunk); },
+			});
+			const obj = { key: 'value' };
+			const result = await new Promise<unknown>((resolve) => {
+				transform.on('data', (chunk) => resolve(chunk));
+				transform.write(obj);
+			});
+			expect(result).toBe(obj);
+		});
+
+		await it('should transform objects', async () => {
+			const transform = new Transform({
+				objectMode: true,
+				transform(chunk: any, _enc, cb) {
+					cb(null, { ...chunk, transformed: true });
+				},
+			});
+			const result = await new Promise<any>((resolve) => {
+				transform.on('data', (chunk) => resolve(chunk));
+				transform.write({ id: 1 });
+			});
+			expect(result.id).toBe(1);
+			expect(result.transformed).toBe(true);
+		});
+	});
+
+	// ==================== Readable (objectMode) ====================
+
+	await describe('Readable (objectMode)', async () => {
+		await it('should read objects in objectMode', async () => {
+			const objects = [{ a: 1 }, { b: 2 }, { c: 3 }];
+			let i = 0;
+			const readable = new Readable({
+				objectMode: true,
+				read() {
+					if (i < objects.length) {
+						this.push(objects[i++]);
+					} else {
+						this.push(null);
+					}
+				}
+			});
+			const results: unknown[] = [];
+			readable.on('data', (chunk) => results.push(chunk));
+			await new Promise<void>((resolve) => readable.on('end', () => resolve()));
+			expect(results.length).toBe(3);
+			expect((results[0] as any).a).toBe(1);
+		});
+
+		await it('readableObjectMode should return true', async () => {
+			const readable = new Readable({ objectMode: true, read() {} });
+			expect(readable.readableObjectMode).toBe(true);
+		});
+
+		await it('readableObjectMode should return false by default', async () => {
+			const readable = new Readable({ read() {} });
+			expect(readable.readableObjectMode).toBe(false);
+		});
+	});
+
+	// ==================== Destroy behavior ====================
+
+	await describe('Stream destroy', async () => {
+		await it('destroy should be idempotent', async () => {
+			const readable = new Readable({ read() {} });
+			readable.destroy();
+			readable.destroy(); // Should not throw
+			expect(readable.destroyed).toBe(true);
+		});
+
+		await it('destroy with error should emit error event', async () => {
+			const readable = new Readable({ read() {} });
+			const err = await new Promise<Error>((resolve) => {
+				readable.on('error', (e) => resolve(e));
+				readable.destroy(new Error('test destroy'));
+			});
+			expect(err.message).toBe('test destroy');
+		});
+
+		await it('destroy should emit close event', async () => {
+			const readable = new Readable({ read() {} });
+			const closed = await new Promise<boolean>((resolve) => {
+				readable.on('close', () => resolve(true));
+				readable.destroy();
+			});
+			expect(closed).toBe(true);
+		});
+
+		await it('writable destroy should emit close', async () => {
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			const closed = await new Promise<boolean>((resolve) => {
+				writable.on('close', () => resolve(true));
+				writable.destroy();
+			});
+			expect(closed).toBe(true);
+		});
+	});
+
+	// ==================== Stream.pipe error handling ====================
+
+	await describe('Stream.pipe (error handling)', async () => {
+		await it('pipe should not destroy writable on readable error by default', async () => {
+			const readable = new Readable({ read() {} });
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			readable.pipe(writable);
+			readable.on('error', () => {}); // Prevent unhandled error
+			readable.destroy(new Error('source error'));
+			await new Promise<void>((resolve) => setTimeout(resolve, 20));
+			// The writable should NOT be destroyed by default
+			// (pipe only calls end() on normal EOF, not on error)
+			expect(writable.destroyed).toBe(false);
+			writable.destroy();
+		});
+
+		await it('unpipe should stop data flow', async () => {
+			const chunks: string[] = [];
+			const readable = new Readable({ read() {} });
+			const writable = new Writable({
+				write(chunk, _e, cb) {
+					chunks.push(String(chunk));
+					cb();
+				}
+			});
+			readable.pipe(writable);
+			readable.push('before');
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			readable.unpipe(writable);
+			readable.push('after');
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			// 'after' should NOT reach writable
+			expect(chunks).toContain('before');
+			expect(chunks.indexOf('after')).toBe(-1);
+			readable.destroy();
+			writable.destroy();
+		});
+	});
+
 	// ==================== stream/promises ====================
 
 	await describe('stream/promises', async () => {
