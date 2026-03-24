@@ -1,6 +1,6 @@
 import { aliasPlugin } from '@gjsify/esbuild-plugin-alias';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
-import { merge } from "lodash";
+import { merge } from "../utils/merge.js";
 import { globToEntryPoints } from "../utils/index.js";
 
 // Types
