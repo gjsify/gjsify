@@ -183,7 +183,23 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ---
 
+## Upstream GJS Patch Candidates
+
+Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey patches. These are ordered by impact — features where an upstream fix would benefit the most gjsify packages.
+
+| Workaround | Affected Packages | Current Solution | Upstream Fix |
+|-----------|-------------------|------------------|-------------|
+| `structuredClone` not available as global in GJS ESM | worker_threads, potentially all packages using message passing | JSON round-trip fallback (`cloneValue()`) — loses Date, RegExp, Map, Set, ArrayBuffer transfer | Expose `structuredClone` as global in GJS ESM context (already available in SpiderMonkey 128) |
+| `TextDecoder` malformed UTF-8 handling differs across SpiderMonkey versions | string_decoder | Pure manual UTF-8 decoder implementing W3C maximal subpart algorithm (`utf8DecodeMaximalSubpart`) | Fix SpiderMonkey 115's `TextDecoder` to follow W3C encoding spec for maximal subpart replacement |
+| `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
+
 ## Changelog
+
+### 2026-03-24 — Phase 9: Fix worker_threads, zlib, string_decoder for CI
+
+- **worker_threads**: Fixed `structuredClone` unavailability in GJS by adding `cloneValue()` fallback (JSON round-trip). Switched message dispatch from `Promise.resolve().then()` to `setTimeout(fn, 0)` for GLib main loop integration. All 56 tests pass on GJS.
+- **zlib**: Implemented sync methods (`gzipSync`, `gunzipSync`, `deflateSync`, `inflateSync`, `deflateRawSync`, `inflateRawSync`) using `Gio.ZlibCompressor`/`Gio.ZlibDecompressor`. Replaced legacy `imports.gi` access with proper `@girs/*` imports. All 340 tests pass on both platforms.
+- **string_decoder**: Replaced `TextDecoder` dependency with pure manual UTF-8 decoder implementing W3C maximal subpart algorithm. Fixes `F0 B8 41` handling on GJS 1.80 (SpiderMonkey 115) where `TextDecoder` produces incorrect replacement character count.
 
 ### 2026-03-24 — Phase 8: http2 — From Stub to Partial
 

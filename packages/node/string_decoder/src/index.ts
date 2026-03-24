@@ -27,22 +27,185 @@ function normalizeAndValidateEncoding(enc?: string): string {
   return normalizeEncoding(enc);
 }
 
-// Check if TextDecoder supports the stream option
-let _textDecoderSupportsStream = false;
-try {
-  new TextDecoder().decode(new Uint8Array(0), { stream: true });
-  _textDecoderSupportsStream = true;
-} catch {
-  _textDecoderSupportsStream = false;
+/**
+ * Decode a complete (non-streaming) chunk of UTF-8 bytes into a string,
+ * using the W3C "maximal subpart" replacement algorithm (Unicode 3.9 D93b).
+ *
+ * This avoids relying on TextDecoder which may produce incorrect replacement
+ * counts on older SpiderMonkey versions (e.g., GJS 1.80 / SpiderMonkey 115).
+ *
+ * Valid UTF-8 byte ranges per position:
+ *   1-byte: 00-7F
+ *   2-byte: C2-DF, 80-BF
+ *   3-byte: E0 A0-BF 80-BF | E1-EC 80-BF 80-BF | ED 80-9F 80-BF | EE-EF 80-BF 80-BF
+ *   4-byte: F0 90-BF 80-BF 80-BF | F1-F3 80-BF 80-BF 80-BF | F4 80-8F 80-BF 80-BF
+ */
+function utf8DecodeMaximalSubpart(bytes: Uint8Array, start: number, end: number): string {
+  let result = '';
+  let i = start;
+
+  while (i < end) {
+    const b0 = bytes[i];
+
+    // 1-byte (ASCII): 00-7F
+    if (b0 <= 0x7F) {
+      result += String.fromCharCode(b0);
+      i++;
+      continue;
+    }
+
+    // 2-byte: C2-DF, 80-BF
+    if (b0 >= 0xC2 && b0 <= 0xDF) {
+      if (i + 1 < end && bytes[i + 1] >= 0x80 && bytes[i + 1] <= 0xBF) {
+        result += String.fromCharCode(((b0 & 0x1F) << 6) | (bytes[i + 1] & 0x3F));
+        i += 2;
+      } else {
+        // Maximal subpart: just b0
+        result += '\ufffd';
+        i++;
+      }
+      continue;
+    }
+
+    // 3-byte sequences
+    if (b0 >= 0xE0 && b0 <= 0xEF) {
+      // Determine valid range for second byte
+      let lo2: number, hi2: number;
+      if (b0 === 0xE0) { lo2 = 0xA0; hi2 = 0xBF; }
+      else if (b0 === 0xED) { lo2 = 0x80; hi2 = 0x9F; }
+      else { lo2 = 0x80; hi2 = 0xBF; }
+
+      if (i + 1 >= end) {
+        // Only lead byte available — maximal subpart is b0
+        result += '\ufffd';
+        i++;
+        continue;
+      }
+      const b1 = bytes[i + 1];
+      if (b1 < lo2 || b1 > hi2) {
+        // Second byte out of range — maximal subpart is just b0
+        result += '\ufffd';
+        i++;
+        continue;
+      }
+      if (i + 2 >= end) {
+        // Two valid bytes but third missing — maximal subpart is b0 b1
+        result += '\ufffd';
+        i += 2;
+        continue;
+      }
+      const b2 = bytes[i + 2];
+      if (b2 < 0x80 || b2 > 0xBF) {
+        // Third byte invalid — maximal subpart is b0 b1
+        result += '\ufffd';
+        i += 2;
+        continue;
+      }
+      // Valid 3-byte sequence
+      const cp = ((b0 & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F);
+      result += String.fromCharCode(cp);
+      i += 3;
+      continue;
+    }
+
+    // 4-byte sequences
+    if (b0 >= 0xF0 && b0 <= 0xF4) {
+      // Determine valid range for second byte
+      let lo2: number, hi2: number;
+      if (b0 === 0xF0) { lo2 = 0x90; hi2 = 0xBF; }
+      else if (b0 === 0xF4) { lo2 = 0x80; hi2 = 0x8F; }
+      else { lo2 = 0x80; hi2 = 0xBF; }
+
+      if (i + 1 >= end) {
+        result += '\ufffd';
+        i++;
+        continue;
+      }
+      const b1 = bytes[i + 1];
+      if (b1 < lo2 || b1 > hi2) {
+        // Second byte out of range — maximal subpart is just b0
+        result += '\ufffd';
+        i++;
+        continue;
+      }
+      if (i + 2 >= end) {
+        // Two valid bytes but incomplete — maximal subpart is b0 b1
+        result += '\ufffd';
+        i += 2;
+        continue;
+      }
+      const b2 = bytes[i + 2];
+      if (b2 < 0x80 || b2 > 0xBF) {
+        // Third byte invalid — maximal subpart is b0 b1
+        result += '\ufffd';
+        i += 2;
+        continue;
+      }
+      if (i + 3 >= end) {
+        // Three valid bytes but incomplete — maximal subpart is b0 b1 b2
+        result += '\ufffd';
+        i += 3;
+        continue;
+      }
+      const b3 = bytes[i + 3];
+      if (b3 < 0x80 || b3 > 0xBF) {
+        // Fourth byte invalid — maximal subpart is b0 b1 b2
+        result += '\ufffd';
+        i += 3;
+        continue;
+      }
+      // Valid 4-byte sequence — produces a surrogate pair
+      const cp = ((b0 & 0x07) << 18) | ((b1 & 0x3F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F);
+      // Encode as surrogate pair
+      result += String.fromCharCode(
+        0xD800 + ((cp - 0x10000) >> 10),
+        0xDC00 + ((cp - 0x10000) & 0x3FF)
+      );
+      i += 4;
+      continue;
+    }
+
+    // Invalid lead byte (80-BF = orphan continuation, C0-C1 = overlong, F5-FF = too high)
+    result += '\ufffd';
+    i++;
+  }
+
+  return result;
 }
 
-/** Returns the expected total byte length of a UTF-8 character given its first byte. */
+/**
+ * Returns the expected total byte length of a UTF-8 character given its first byte,
+ * and validates the lead byte is in a valid range.
+ * Returns 0 for invalid lead bytes.
+ */
 function utf8CharLength(byte: number): number {
   if ((byte & 0x80) === 0) return 1;
-  if ((byte & 0xe0) === 0xc0) return 2;
-  if ((byte & 0xf0) === 0xe0) return 3;
-  if ((byte & 0xf8) === 0xf0) return 4;
-  return 1; // invalid leading byte, treat as single byte
+  if (byte >= 0xC2 && byte <= 0xDF) return 2;
+  if (byte >= 0xE0 && byte <= 0xEF) return 3;
+  if (byte >= 0xF0 && byte <= 0xF4) return 4;
+  return 0; // invalid leading byte (C0-C1 overlong, F5+ too high, 80-BF continuation)
+}
+
+/**
+ * Check if a continuation byte is valid for its position in a multi-byte sequence.
+ * Returns true if the byte is in the expected range for that position.
+ */
+function isValidContinuation(leadByte: number, charLen: number, position: number, byte: number): boolean {
+  if (position === 1) {
+    // Second byte has restricted ranges for some lead bytes
+    if (charLen === 3) {
+      if (leadByte === 0xE0) return byte >= 0xA0 && byte <= 0xBF;
+      if (leadByte === 0xED) return byte >= 0x80 && byte <= 0x9F;
+      return byte >= 0x80 && byte <= 0xBF;
+    }
+    if (charLen === 4) {
+      if (leadByte === 0xF0) return byte >= 0x90 && byte <= 0xBF;
+      if (leadByte === 0xF4) return byte >= 0x80 && byte <= 0x8F;
+      return byte >= 0x80 && byte <= 0xBF;
+    }
+  }
+  // All other positions: standard continuation range
+  return byte >= 0x80 && byte <= 0xBF;
 }
 
 /**
@@ -52,18 +215,17 @@ function utf8CharLength(byte: number): number {
  */
 export class StringDecoder {
   readonly encoding: string;
-  private _decoder: TextDecoder | null = null;
   private _lastNeed = 0;
   private _lastTotal = 0;
   private _lastChar: Uint8Array;
+  // Store the lead byte when buffering incomplete UTF-8 sequences,
+  // needed for validating continuation bytes per W3C maximal subpart rules
+  private _lastLeadByte = 0;
 
   constructor(encoding?: string) {
     this.encoding = normalizeAndValidateEncoding(encoding);
 
     if (this.encoding === 'utf8') {
-      if (_textDecoderSupportsStream) {
-        this._decoder = new TextDecoder('utf-8', { fatal: false });
-      }
       this._lastChar = new Uint8Array(4); // max UTF-8 char size
     } else if (this.encoding === 'utf16le') {
       this._lastChar = new Uint8Array(4); // 2 bytes per char, but surrogate pairs need 4
@@ -107,11 +269,7 @@ export class StringDecoder {
       result = this.write(buf);
     }
 
-    if (this.encoding === 'utf8' && this._decoder) {
-      // Flush the TextDecoder
-      result += this._decoder.decode(new Uint8Array(0), { stream: false });
-      this._decoder = new TextDecoder('utf-8', { fatal: false });
-    } else if (this.encoding === 'utf8' && this._lastNeed > 0) {
+    if (this.encoding === 'utf8' && this._lastNeed > 0) {
       // Flush remaining incomplete bytes as replacement character
       result += '\ufffd';
       this._lastNeed = 0;
@@ -136,12 +294,9 @@ export class StringDecoder {
   }
 
   private _writeUtf8(buf: Uint8Array): string {
-    // Fast path: use TextDecoder with stream: true if supported
-    if (this._decoder) {
-      return this._decoder.decode(buf, { stream: true });
-    }
-
-    // Manual streaming UTF-8 decode for runtimes without stream support (e.g. GJS)
+    // Pure manual streaming UTF-8 decoder using W3C maximal subpart replacement.
+    // Does NOT use TextDecoder to avoid inconsistencies across SpiderMonkey versions
+    // (GJS 1.80 / SpiderMonkey 115 produces incorrect replacement counts for some sequences).
     let i = 0;
     let result = '';
 
@@ -149,27 +304,28 @@ export class StringDecoder {
     if (this._lastNeed > 0) {
       while (i < buf.length && this._lastNeed > 0) {
         const byte = buf[i];
-        if ((byte & 0xC0) === 0x80) {
-          // Valid continuation byte
-          const offset = this._lastTotal - this._lastNeed;
-          this._lastChar[offset] = byte;
+        const position = this._lastTotal - this._lastNeed; // which byte position we're filling
+        if (isValidContinuation(this._lastLeadByte, this._lastTotal, position, byte)) {
+          this._lastChar[position] = byte;
           this._lastNeed--;
           i++;
         } else {
-          // Invalid continuation — emit replacement for incomplete sequence
+          // Invalid continuation — emit replacement for the buffered bytes
+          // as one maximal subpart, then reprocess this byte
           result += '\ufffd';
           this._lastNeed = 0;
           this._lastTotal = 0;
+          this._lastLeadByte = 0;
           // Don't advance i — reprocess this byte as a new character start
           break;
         }
       }
 
       if (this._lastNeed === 0 && this._lastTotal > 0) {
-        // Completed the character — decode it
-        result += new TextDecoder('utf-8', { fatal: false }).decode(
-          this._lastChar.subarray(0, this._lastTotal));
+        // Completed the character — decode the buffered bytes
+        result += utf8DecodeMaximalSubpart(this._lastChar, 0, this._lastTotal);
         this._lastTotal = 0;
+        this._lastLeadByte = 0;
       }
 
       if (this._lastNeed > 0) {
@@ -177,36 +333,49 @@ export class StringDecoder {
       }
     }
 
-    // Step 2: Find trailing incomplete character at end of remaining buffer
+    // Step 2: Find trailing incomplete character at end of remaining buffer.
+    // We need to check if the last few bytes form a valid but incomplete
+    // multi-byte sequence that should be buffered for the next write.
     let completeEnd = buf.length;
-    // Scan backward from end to find any incomplete multi-byte char
+    // Scan backward from end to find any leading byte
     for (let j = 0; j < Math.min(4, buf.length - i); j++) {
       const idx = buf.length - 1 - j;
       if (idx < i) break;
       const byte = buf[idx];
       if ((byte & 0xC0) !== 0x80) {
         // Found a non-continuation byte (ASCII or leading byte)
-        if (byte >= 0x80) {
-          const charLen = utf8CharLength(byte);
+        const charLen = utf8CharLength(byte);
+        if (charLen > 0 && byte >= 0x80) {
+          // It's a multi-byte lead byte — check if the sequence is incomplete
           const available = buf.length - idx;
           if (available < charLen) {
-            // Incomplete character at the end — save for next write
-            completeEnd = idx;
-            for (let k = 0; k < available; k++) {
-              this._lastChar[k] = buf[idx + k];
+            // Check that all available continuation bytes are valid for this lead
+            let allValid = true;
+            for (let k = 1; k < available; k++) {
+              if (!isValidContinuation(byte, charLen, k, buf[idx + k])) {
+                allValid = false;
+                break;
+              }
             }
-            this._lastNeed = charLen - available;
-            this._lastTotal = charLen;
+            if (allValid) {
+              // Incomplete but valid-so-far sequence — save for next write
+              completeEnd = idx;
+              for (let k = 0; k < available; k++) {
+                this._lastChar[k] = buf[idx + k];
+              }
+              this._lastNeed = charLen - available;
+              this._lastTotal = charLen;
+              this._lastLeadByte = byte;
+            }
           }
         }
         break;
       }
     }
 
-    // Step 3: Decode the complete portion using TextDecoder (handles invalid sequences)
-    const mainSlice = buf.subarray(i, completeEnd);
-    if (mainSlice.length > 0) {
-      result += new TextDecoder('utf-8', { fatal: false }).decode(mainSlice);
+    // Step 3: Decode the complete portion using our manual W3C decoder
+    if (completeEnd > i) {
+      result += utf8DecodeMaximalSubpart(buf, i, completeEnd);
     }
 
     return result;

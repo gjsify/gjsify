@@ -238,6 +238,7 @@ Each `packages/node/<name>/`:
 - Exports: `./lib/esm/index.js` (import) — ESM-only, no CJS
 - Scripts: `build:gjsify`, `build:types`, `build:test:gjs`, `build:test:node`, `test`, `test:gjs`, `test:node`
 - Deps: `@girs/*` (implementation), `@gjsify/unit` (devDep)
+- **Workspace dependencies** must always use `workspace:^` (e.g. `"@gjsify/cli": "workspace:^"`). Never use fixed versions for packages that exist in this monorepo.
 
 ## Implementation Workflow (Test-Driven)
 
@@ -399,6 +400,7 @@ Use these canonical copyright lines when applying Template A or D:
 - After completing a stub or partial package: move it to the correct category
 - After a work session with multiple changes: add a Changelog entry with date and summary
 - Keep the Metrics section (total test count, package counts) current
+- **Upstream GJS patches:** When a workaround is implemented for a missing or broken GJS/SpiderMonkey feature (e.g. `structuredClone` not available as global, `TextDecoder` handling malformed UTF-8 differently, `queueMicrotask` not exposed), add it to the "Upstream GJS Patch Candidates" section in STATUS.md. These are features where an upstream GJS/SpiderMonkey patch would eliminate the need for our workaround and benefit the broader GJS ecosystem.
 
 ## Constraints
 
