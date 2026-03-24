@@ -84,6 +84,58 @@ export class ServerResponse extends Writable {
     return this;
   }
 
+  /** Append a header value instead of replacing. */
+  appendHeader(name: string, value: string | string[]): this {
+    const lower = name.toLowerCase();
+    const existing = this._headers.get(lower);
+    if (existing === undefined) {
+      this._headers.set(lower, value);
+    } else if (Array.isArray(existing)) {
+      if (Array.isArray(value)) {
+        existing.push(...value);
+      } else {
+        existing.push(value);
+      }
+    } else {
+      if (Array.isArray(value)) {
+        this._headers.set(lower, [existing as string, ...value]);
+      } else {
+        this._headers.set(lower, [existing as string, value]);
+      }
+    }
+    return this;
+  }
+
+  /** Send a 100 Continue response. */
+  writeContinue(callback?: () => void): void {
+    // Soup.Server handles 100-Continue automatically, but we track the call
+    if (callback) queueMicrotask(callback);
+  }
+
+  /** Send a 102 Processing response (WebDAV). */
+  writeProcessing(callback?: () => void): void {
+    if (callback) queueMicrotask(callback);
+  }
+
+  /** Flush headers (send them immediately). */
+  flushHeaders(): void {
+    // In our Soup-based implementation, headers are sent with the body.
+    // This is a no-op but marks headersSent for compatibility.
+    if (!this.headersSent) {
+      this.headersSent = true;
+    }
+  }
+
+  /** Add trailing headers for chunked transfer encoding. */
+  addTrailers(headers: Record<string, string>): void {
+    // Soup.Server doesn't support HTTP trailers natively.
+    // Store for compatibility but they won't be sent.
+    for (const [key, value] of Object.entries(headers)) {
+      // Trailers are appended after the body in chunked encoding
+      this._headers.set('trailer-' + key.toLowerCase(), value);
+    }
+  }
+
   /** Writable stream _write implementation. */
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);

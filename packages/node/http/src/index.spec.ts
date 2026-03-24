@@ -322,4 +322,301 @@ export default async () => {
         });
       });
     });
+
+  // --- ServerResponse API ---
+  await describe('ServerResponse API', async () => {
+    await it('should support setHeader/getHeader/hasHeader/removeHeader', async () => {
+      const server = http.createServer((req, res) => {
+        res.setHeader('X-Custom', 'value1');
+        expect(res.getHeader('X-Custom')).toBe('value1');
+        expect(res.hasHeader('X-Custom')).toBeTruthy();
+        res.removeHeader('X-Custom');
+        expect(res.hasHeader('X-Custom')).toBeFalsy();
+        res.writeHead(200);
+        res.end('ok');
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            res.on('data', () => {});
+            res.on('end', () => server.close(() => resolve()));
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should support getHeaderNames and getHeaders', async () => {
+      const server = http.createServer((req, res) => {
+        res.setHeader('X-A', 'a');
+        res.setHeader('X-B', 'b');
+        const names = res.getHeaderNames();
+        expect(names.length).toBe(2);
+        const headers = res.getHeaders();
+        expect(headers['x-a']).toBe('a');
+        expect(headers['x-b']).toBe('b');
+        res.writeHead(200);
+        res.end('ok');
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            res.on('data', () => {});
+            res.on('end', () => server.close(() => resolve()));
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should support appendHeader', async () => {
+      const server = http.createServer((req, res) => {
+        res.setHeader('X-Multi', 'first');
+        (res as any).appendHeader('X-Multi', 'second');
+        const val = res.getHeader('X-Multi');
+        expect(Array.isArray(val)).toBeTruthy();
+        res.writeHead(200);
+        res.end('ok');
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            res.on('data', () => {});
+            res.on('end', () => server.close(() => resolve()));
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should support writeContinue', async () => {
+      const server = http.createServer((req, res) => {
+        let continueCalled = false;
+        (res as any).writeContinue(() => { continueCalled = true; });
+        res.writeHead(200);
+        res.end('ok');
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            res.on('data', () => {});
+            res.on('end', () => server.close(() => resolve()));
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should support flushHeaders', async () => {
+      const server = http.createServer((req, res) => {
+        res.writeHead(200, { 'X-Flush': 'test' });
+        (res as any).flushHeaders();
+        expect(res.headersSent).toBeTruthy();
+        res.end('ok');
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            res.on('data', () => {});
+            res.on('end', () => server.close(() => resolve()));
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should set statusCode and statusMessage', async () => {
+      const server = http.createServer((req, res) => {
+        res.statusCode = 201;
+        res.statusMessage = 'Created';
+        res.end('created');
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            expect(res.statusCode).toBe(201);
+            res.on('data', () => {});
+            res.on('end', () => server.close(() => resolve()));
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should handle query strings', async () => {
+      const server = http.createServer((req, res) => {
+        res.writeHead(200);
+        res.end(req.url);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/path?key=value`, (res) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () => {
+              expect(Buffer.concat(chunks).toString()).toBe('/path?key=value');
+              server.close(() => resolve());
+            });
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should handle multiple sequential requests', async () => {
+      let requestCount = 0;
+      const server = http.createServer((req, res) => {
+        requestCount++;
+        res.writeHead(200);
+        res.end(`request ${requestCount}`);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          // First request
+          http.get(`http://127.0.0.1:${addr.port}/`, (res1) => {
+            res1.on('data', () => {});
+            res1.on('end', () => {
+              // Second request
+              http.get(`http://127.0.0.1:${addr.port}/`, (res2) => {
+                res2.on('data', () => {});
+                res2.on('end', () => {
+                  expect(requestCount).toBe(2);
+                  server.close(() => resolve());
+                });
+              }).on('error', reject);
+            });
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should support JSON response', async () => {
+      const server = http.createServer((req, res) => {
+        const body = JSON.stringify({ hello: 'world' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(body);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () => {
+              const data = JSON.parse(Buffer.concat(chunks).toString());
+              expect(data.hello).toBe('world');
+              server.close(() => resolve());
+            });
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+  });
+
+  // --- Server lifecycle ---
+  await describe('http.Server lifecycle', async () => {
+    await it('should emit listening event', async () => {
+      const server = http.createServer();
+      const listened = await new Promise<boolean>((resolve) => {
+        server.on('listening', () => resolve(true));
+        server.listen(0);
+      });
+      expect(listened).toBeTruthy();
+      expect(server.listening).toBeTruthy();
+      server.close();
+    });
+
+    await it('should emit close event', async () => {
+      const server = http.createServer();
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => {
+          server.close(() => resolve());
+        });
+      });
+      expect(server.listening).toBeFalsy();
+    });
+
+    await it('should return address info', async () => {
+      const server = http.createServer();
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number; family: string };
+          expect(typeof addr.port).toBe('number');
+          expect(addr.port > 0).toBeTruthy();
+          server.close(() => resolve());
+        });
+      });
+    });
+
+    await it('should support setTimeout', async () => {
+      const server = http.createServer();
+      server.setTimeout(5000);
+      expect(server.timeout).toBe(5000);
+    });
+  });
+
+  // --- IncomingMessage ---
+  await describe('http.IncomingMessage', async () => {
+    await it('should have httpVersion', async () => {
+      const server = http.createServer((req, res) => {
+        res.writeHead(200);
+        res.end(req.httpVersion);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            expect(res.httpVersion).toBeDefined();
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () => {
+              server.close(() => resolve());
+            });
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should expose rawHeaders', async () => {
+      const server = http.createServer((req, res) => {
+        // rawHeaders should be an array of [name, value, name, value, ...]
+        expect(Array.isArray(req.rawHeaders)).toBeTruthy();
+        expect(req.rawHeaders.length > 0).toBeTruthy();
+        res.writeHead(200);
+        res.end('ok');
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            res.on('data', () => {});
+            res.on('end', () => server.close(() => resolve()));
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+  });
 };
