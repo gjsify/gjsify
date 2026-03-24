@@ -39,7 +39,7 @@ export function createHmac(algorithm: string, key: string | Buffer | Uint8Array)
 // exports above are available before the browserify modules initialize.
 
 export { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers } from './cipher.js';
-export { createSign, createVerify } from './sign.js';
-export { createDiffieHellman, getDiffieHellman } from './dh.js';
+export { Sign, Verify, createSign, createVerify } from './sign.js';
+export { createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGroup, createDiffieHellmanGroup } from './dh.js';
 export { createECDH, getCurves } from './ecdh.js';
 export { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';
