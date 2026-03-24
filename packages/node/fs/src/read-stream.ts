@@ -1,95 +1,111 @@
 // SPDX-License-Identifier: MIT
 // Adapted from Deno (refs/deno/ext/node/polyfills/_fs/_fs_streams.ts)
 // Copyright (c) 2018-2026 the Deno authors. MIT license.
-// Modifications: Rewritten to use Gio.File for GJS
+// Modifications: Rewritten to use Gio.File / Gio.FileInputStream for GJS
+import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { notImplemented } from "@gjsify/utils";
 import { Buffer } from "buffer";
 import { Readable } from "stream";
-import { URL } from "url";
+import { URL, fileURLToPath } from "url";
 
-import type { CreateReadStreamOptions } from 'fs/promises'; // Types from @types/node
-import type { PathLike, ReadStream as IReadStream } from 'fs'; // Types from @types/node
-
-/**
- * Converts a file URL to a path string.
- *
- * ```ts
- *      import { fromFileUrl } from "./posix.ts";
- *      fromFileUrl("file:///home/foo"); // "/home/foo"
- * ```
- * @param url of a file URL
- * @credits https://github.com/denoland/deno_std/blob/44d05e7a8d445888d989d49eb3e59eee3055f2c5/node/path/posix.ts#L486
- */
-export function fromFileUrl(url: string | URL): string {
-  url = url instanceof URL ? url : new URL(url);
-  if (url.protocol != "file:") {
-    throw new TypeError("Must be a file URL.");
-  }
-  return decodeURIComponent(
-    url.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"),
-  );
-}
+import type { CreateReadStreamOptions } from 'fs/promises';
+import type { PathLike, ReadStream as IReadStream } from 'fs';
 
 export class ReadStream extends Readable implements IReadStream {
-  close(callback?: (err?: NodeJS.ErrnoException | null) => void): void {
-    // TODO
-    callback(notImplemented('ReadStream.close'));
-  }
-  /**
-   * The number of bytes that have been read so far.
-   * @since v6.4.0
-   */
-  bytesRead: number;
-  /**
-   * The path to the file the stream is reading from as specified in the first
-   * argument to `fs.createReadStream()`. If `path` is passed as a string, then`readStream.path` will be a string. If `path` is passed as a `Buffer`, then`readStream.path` will be a
-   * `Buffer`. If `fd` is specified, then`readStream.path` will be `undefined`.
-   * @since v0.1.93
-   */
+  bytesRead = 0;
   path: string | Buffer;
-  /**
-   * This property is `true` if the underlying file has not been opened yet,
-   * i.e. before the `'ready'` event is emitted.
-   * @since v11.2.0, v10.16.0
-   */
-  pending: boolean;
+  pending = true;
+  fd: number | null = null;
+
+  private _gioFile: Gio.File;
+  private _inputStream: Gio.FileInputStream | null = null;
+  private _start: number;
+  private _end: number;
+  private _pos: number;
+
+  close(callback?: (err?: NodeJS.ErrnoException | null) => void): void {
+    if (this._inputStream) {
+      try { this._inputStream.close(null); } catch {}
+      this._inputStream = null;
+    }
+    this.destroy();
+    if (callback) callback(null);
+  }
 
   constructor(path: PathLike, opts?: CreateReadStreamOptions) {
-    path = path instanceof URL ? fromFileUrl(path) : path;
-    const hasBadOptions = opts && (
-      opts.start || opts.end
-    );
-    if (hasBadOptions) {
-      notImplemented(
-        `fs.ReadStream.prototype.constructor with unsupported options (${
-          JSON.stringify(opts)
-        })`,
-      );
+    if (path instanceof URL) {
+      path = fileURLToPath(path);
     }
-    const file = GLib.IOChannel.new_file(path.toString(), "r")
-    const buffer = "";
+
     super({
-      autoDestroy: true,
-      emitClose: true,
+      highWaterMark: opts?.highWaterMark ?? 64 * 1024,
+      encoding: opts?.encoding as BufferEncoding | undefined,
+      autoDestroy: opts?.autoDestroy ?? true,
+      emitClose: opts?.emitClose ?? true,
       objectMode: false,
-      read: async function (_size) {
-        try {
-          let n = 0
-          file.read(buffer, 16 * 1024, n);
-          this.push(n ? Buffer.from(buffer.slice(0, n)) : null);
-        } catch (err) {
-          this.destroy(err as Error);
-        }
-      },
-      destroy: (err, cb) => {
-        try {
-          file.close();
-        } catch {}
-        cb(err);
-      },
     });
+
     this.path = path.toString();
+    this._gioFile = Gio.File.new_for_path(this.path.toString());
+    this._start = (opts?.start as number) ?? 0;
+    this._end = (opts?.end as number) ?? Infinity;
+    this._pos = this._start;
+  }
+
+  override _read(size: number): void {
+    // Open the stream lazily on first read
+    if (!this._inputStream) {
+      try {
+        this._inputStream = this._gioFile.read(null);
+        this.pending = false;
+        this.emit('open', 0);
+        this.emit('ready');
+
+        // Seek to start position if needed
+        if (this._start > 0 && this._inputStream.can_seek()) {
+          this._inputStream.seek(this._start, GLib.SeekType.SET, null);
+        }
+      } catch (err) {
+        this.destroy(err as Error);
+        return;
+      }
+    }
+
+    // Calculate how many bytes to read
+    let toRead = size;
+    if (this._end !== Infinity) {
+      const remaining = this._end - this._pos + 1;
+      if (remaining <= 0) {
+        this.push(null);
+        return;
+      }
+      toRead = Math.min(size, remaining);
+    }
+
+    try {
+      const gbytes = this._inputStream!.read_bytes(toRead, null);
+      const data = gbytes.get_data();
+
+      if (!data || data.length === 0) {
+        // EOF
+        this.push(null);
+        return;
+      }
+
+      this.bytesRead += data.length;
+      this._pos += data.length;
+      this.push(Buffer.from(data));
+    } catch (err) {
+      this.destroy(err as Error);
+    }
+  }
+
+  override _destroy(error: Error | null, callback: (error?: Error | null) => void): void {
+    if (this._inputStream) {
+      try { this._inputStream.close(null); } catch {}
+      this._inputStream = null;
+    }
+    callback(error);
   }
 }
 

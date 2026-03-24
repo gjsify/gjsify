@@ -3,10 +3,9 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { warnNotImplemented } from '@gjsify/utils';
 import { join, dirname } from 'path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
-import { rmdirSync, unlinkSync, realpathSync, readdirSync as readdirSyncFn } from './sync.js';
+import { rmdirSync, unlinkSync, realpathSync, readdirSync as readdirSyncFn, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, linkSync } from './sync.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath } from './utils.js';
 import { Dirent } from './dirent.js';
@@ -353,11 +352,9 @@ async function _writeBuf<TBuffer extends Uint8Array>(
   bytesWritten: number;
   buffer: TBuffer;
 }> {
-  warnNotImplemented("fs.promises.write");
-  return {
-    bytesWritten: 0,
-    buffer
-  }
+  const fileHandle = FileHandle.getInstance(fd);
+  const result = await fileHandle.write(buffer, offset, length, position);
+  return { bytesWritten: result.bytesWritten, buffer };
 }
 
 async function _writeStr(
@@ -369,11 +366,9 @@ async function _writeStr(
   bytesWritten: number;
   buffer: string;
 }> {
-  warnNotImplemented("fs.promises.write");
-  return {
-    bytesWritten: 0,
-    buffer: data,
-  }
+  const fileHandle = FileHandle.getInstance(fd);
+  const result = await fileHandle.write(data, position, encoding);
+  return { bytesWritten: result.bytesWritten, buffer: data };
 }
 
 // --- helpers ---
@@ -473,6 +468,51 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
   }
 }
 
+// --- rename ---
+async function rename(oldPath: PathLike, newPath: PathLike): Promise<void> {
+  renameSync(oldPath, newPath);
+}
+
+// --- copyFile ---
+async function copyFile(src: PathLike, dest: PathLike, mode?: number): Promise<void> {
+  copyFileSync(src, dest, mode);
+}
+
+// --- access ---
+async function access(path: PathLike, mode?: number): Promise<void> {
+  accessSync(path, mode);
+}
+
+// --- appendFile ---
+async function appendFile(path: PathLike, data: string | Uint8Array, options?: { encoding?: string; mode?: number; flag?: string } | string): Promise<void> {
+  appendFileSync(path, data, options);
+}
+
+// --- readlink ---
+async function readlink(path: PathLike, options?: { encoding?: string } | string): Promise<string | Buffer> {
+  return readlinkSync(path, options);
+}
+
+// --- truncate ---
+async function truncate(path: PathLike, len?: number): Promise<void> {
+  truncateSync(path, len);
+}
+
+// --- chmod ---
+async function chmod(path: PathLike, mode: number | string): Promise<void> {
+  chmodSync(path, mode);
+}
+
+// --- chown ---
+async function chown(path: PathLike, uid: number, gid: number): Promise<void> {
+  chownSync(path, uid, gid);
+}
+
+// --- link ---
+async function link(existingPath: PathLike, newPath: PathLike): Promise<void> {
+  linkSync(existingPath, newPath);
+}
+
 export {
   readFile,
   mkdir,
@@ -488,6 +528,15 @@ export {
   lstat,
   symlink,
   stat,
+  rename,
+  copyFile,
+  access,
+  appendFile,
+  readlink,
+  truncate,
+  chmod,
+  chown,
+  link,
 };
 
 export default {
@@ -505,4 +554,13 @@ export default {
   lstat,
   symlink,
   stat,
+  rename,
+  copyFile,
+  access,
+  appendFile,
+  readlink,
+  truncate,
+  chmod,
+  chown,
+  link,
 };

@@ -4,13 +4,14 @@
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { open as openP, rm as rmP } from './promises.js'
-import { warnNotImplemented } from '@gjsify/utils';
-import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions } from 'fs';
+import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions, MakeDirectoryOptions } from 'fs';
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'buffer';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError } from './errors.js';
-import { realpathSync, readdirSync } from './sync.js';
+import { realpathSync, readdirSync, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, mkdirSync, readFileSync, writeFileSync } from './sync.js';
+// encoding helpers available if needed in future
+
 import type { OpenFlags } from './types/index.js';
 
 // --- helpers ---
@@ -375,15 +376,15 @@ export function read(fd: number, ...args: unknown[]): void {
     const fileHandle = FileHandle.getInstance(fd);
 
     const callback: ReadCallback = args[args.length -1] as ReadCallback;
-    const err = new Error(warnNotImplemented('fs.read'));
-    callback(err, 0, Buffer.from(''));
 
     let buffer: NodeJS.ArrayBufferView | undefined;
     let offset: number | null | undefined;
     let length: number | null | undefined;
     let position: ReadPosition | null | undefined;
 
-    if (typeof args[0] === 'object') {
+    if (args.length <= 1) {
+        // read(fd, callback) — use defaults
+    } else if (typeof args[0] === 'object' && !ArrayBuffer.isView(args[0])) {
         const options = args[0] as ReadAsyncOptions<NodeJS.ArrayBufferView>;
         buffer = options.buffer;
         offset = options.offset;
@@ -395,7 +396,6 @@ export function read(fd: number, ...args: unknown[]): void {
         length = args[2] as number | null | undefined;
         position = args[3] as ReadPosition | null | undefined;
     }
-
 
     fileHandle.read(buffer, offset, length, position)
     .then((res) => {
@@ -448,4 +448,189 @@ export function rm(path: PathLike, ...args: (RmOptions | NoParamCallback)[]): vo
     .catch((err) => {
         callback(err);
     });
+}
+
+// --- rename ---
+
+export function rename(oldPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
+  queueMicrotask(() => {
+    try {
+      renameSync(oldPath, newPath);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- copyFile ---
+
+export function copyFile(src: PathLike, dest: PathLike, callback: NoParamCallback): void;
+export function copyFile(src: PathLike, dest: PathLike, mode: number, callback: NoParamCallback): void;
+export function copyFile(src: PathLike, dest: PathLike, modeOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
+  const mode = typeof modeOrCb === 'function' ? 0 : modeOrCb;
+  const callback = typeof modeOrCb === 'function' ? modeOrCb : maybeCb!;
+  queueMicrotask(() => {
+    try {
+      copyFileSync(src, dest, mode);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- access ---
+
+export function access(path: PathLike, callback: NoParamCallback): void;
+export function access(path: PathLike, mode: number, callback: NoParamCallback): void;
+export function access(path: PathLike, modeOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
+  const mode = typeof modeOrCb === 'function' ? undefined : modeOrCb;
+  const callback = typeof modeOrCb === 'function' ? modeOrCb : maybeCb!;
+  queueMicrotask(() => {
+    try {
+      accessSync(path, mode);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- appendFile ---
+
+export function appendFile(path: PathLike, data: string | Uint8Array, callback: NoParamCallback): void;
+export function appendFile(path: PathLike, data: string | Uint8Array, options: { encoding?: string; mode?: number; flag?: string } | string, callback: NoParamCallback): void;
+export function appendFile(path: PathLike, data: string | Uint8Array, optsOrCb: any, maybeCb?: NoParamCallback): void {
+  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+  queueMicrotask(() => {
+    try {
+      appendFileSync(path, data, options);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- readlink ---
+
+export function readlink(path: PathLike, callback: (err: NodeJS.ErrnoException | null, linkString: string) => void): void;
+export function readlink(path: PathLike, options: { encoding?: string } | string, callback: (err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void): void;
+export function readlink(path: PathLike, optsOrCb: any, maybeCb?: any): void {
+  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+  queueMicrotask(() => {
+    try {
+      callback(null, readlinkSync(path, options));
+    } catch (err: any) {
+      callback(err, '');
+    }
+  });
+}
+
+// --- truncate ---
+
+export function truncate(path: PathLike, callback: NoParamCallback): void;
+export function truncate(path: PathLike, len: number, callback: NoParamCallback): void;
+export function truncate(path: PathLike, lenOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
+  const len = typeof lenOrCb === 'function' ? 0 : lenOrCb;
+  const callback = typeof lenOrCb === 'function' ? lenOrCb : maybeCb!;
+  queueMicrotask(() => {
+    try {
+      truncateSync(path, len);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- chmod ---
+
+export function chmod(path: PathLike, mode: Mode, callback: NoParamCallback): void {
+  queueMicrotask(() => {
+    try {
+      chmodSync(path, mode);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- chown ---
+
+export function chown(path: PathLike, uid: number, gid: number, callback: NoParamCallback): void {
+  queueMicrotask(() => {
+    try {
+      chownSync(path, uid, gid);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- mkdir (callback) ---
+
+export function mkdir(path: PathLike, callback: NoParamCallback): void;
+export function mkdir(path: PathLike, options: MakeDirectoryOptions | Mode, callback: NoParamCallback): void;
+export function mkdir(path: PathLike, optsOrCb: MakeDirectoryOptions | Mode | NoParamCallback, maybeCb?: NoParamCallback): void {
+  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+  queueMicrotask(() => {
+    try {
+      mkdirSync(path, options as any);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- readFile (callback) ---
+
+export function readFile(path: PathLike, callback: (err: NodeJS.ErrnoException | null, data: Buffer) => void): void;
+export function readFile(path: PathLike, options: { encoding?: string; flag?: string } | string, callback: (err: NodeJS.ErrnoException | null, data: string | Buffer) => void): void;
+export function readFile(path: PathLike, optsOrCb: any, maybeCb?: any): void {
+  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+  queueMicrotask(() => {
+    try {
+      callback(null, readFileSync(path.toString(), options));
+    } catch (err: any) {
+      callback(err, null);
+    }
+  });
+}
+
+// --- writeFile (callback) ---
+
+export function writeFile(path: PathLike, data: string | Uint8Array, callback: NoParamCallback): void;
+export function writeFile(path: PathLike, data: string | Uint8Array, options: { encoding?: string; mode?: number; flag?: string } | string, callback: NoParamCallback): void;
+export function writeFile(path: PathLike, data: string | Uint8Array, optsOrCb: any, maybeCb?: NoParamCallback): void {
+  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+  queueMicrotask(() => {
+    try {
+      writeFileSync(path.toString(), data);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- unlink (callback) ---
+
+export function unlink(path: PathLike, callback: NoParamCallback): void {
+  queueMicrotask(() => {
+    try {
+      GLib.unlink(path.toString());
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
 }

@@ -252,7 +252,154 @@ export function writeFileSync(path: string, data: any) {
   GLib.file_set_contents(path, data);
 }
 
-export function watch(filename: string, options, listener) {
+// --- rename ---
+
+export function renameSync(oldPath: PathLike, newPath: PathLike): void {
+  const src = Gio.File.new_for_path(oldPath.toString());
+  const dest = Gio.File.new_for_path(newPath.toString());
+  try {
+    src.move(dest, Gio.FileCopyFlags.OVERWRITE, null, null);
+  } catch (err: any) {
+    throw createNodeError(err, 'rename', oldPath, newPath);
+  }
+}
+
+// --- copyFile ---
+
+export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void {
+  const srcFile = Gio.File.new_for_path(src.toString());
+  const destFile = Gio.File.new_for_path(dest.toString());
+  let flags = Gio.FileCopyFlags.NONE;
+  // mode 0 = default (overwrite), COPYFILE_EXCL (1) = no overwrite
+  if (mode && (mode & 1) === 0) {
+    flags = Gio.FileCopyFlags.OVERWRITE;
+  } else if (!mode) {
+    flags = Gio.FileCopyFlags.OVERWRITE;
+  }
+  try {
+    srcFile.copy(destFile, flags, null, null);
+  } catch (err: any) {
+    throw createNodeError(err, 'copyfile', src, dest);
+  }
+}
+
+// --- access ---
+
+export function accessSync(path: PathLike, mode?: number): void {
+  const file = Gio.File.new_for_path(path.toString());
+  try {
+    const info = file.query_info('access::*', Gio.FileQueryInfoFlags.NONE, null);
+    // mode: F_OK=0, R_OK=4, W_OK=2, X_OK=1
+    if (mode !== undefined && mode !== 0) {
+      if ((mode & 4) && !info.get_attribute_boolean('access::can-read')) {
+        throw Object.assign(new Error(`EACCES: permission denied, access '${path}'`), { code: 'EACCES', errno: -13, syscall: 'access', path: path.toString() });
+      }
+      if ((mode & 2) && !info.get_attribute_boolean('access::can-write')) {
+        throw Object.assign(new Error(`EACCES: permission denied, access '${path}'`), { code: 'EACCES', errno: -13, syscall: 'access', path: path.toString() });
+      }
+      if ((mode & 1) && !info.get_attribute_boolean('access::can-execute')) {
+        throw Object.assign(new Error(`EACCES: permission denied, access '${path}'`), { code: 'EACCES', errno: -13, syscall: 'access', path: path.toString() });
+      }
+    }
+  } catch (err: any) {
+    if (err.code) throw err; // Already a Node-style error
+    throw createNodeError(err, 'access', path);
+  }
+}
+
+// --- appendFile ---
+
+export function appendFileSync(path: PathLike, data: string | Uint8Array, options?: { encoding?: string; mode?: number; flag?: string } | string): void {
+  const file = Gio.File.new_for_path(path.toString());
+  let bytes: Uint8Array;
+  if (typeof data === 'string') {
+    bytes = new TextEncoder().encode(data);
+  } else {
+    bytes = data;
+  }
+
+  try {
+    const stream = file.append_to(Gio.FileCreateFlags.NONE, null);
+    if (bytes.length > 0) {
+      stream.write_bytes(new GLib.Bytes(bytes), null);
+    }
+    stream.close(null);
+  } catch (err: any) {
+    throw createNodeError(err, 'appendfile', path);
+  }
+}
+
+// --- readlink ---
+
+export function readlinkSync(path: PathLike, options?: { encoding?: string } | string): string | Buffer {
+  const file = Gio.File.new_for_path(path.toString());
+  try {
+    const info = file.query_info('standard::symlink-target', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+    const target = info.get_symlink_target();
+    if (!target) {
+      throw Object.assign(new Error(`EINVAL: invalid argument, readlink '${path}'`), { code: 'EINVAL', errno: -22, syscall: 'readlink', path: path.toString() });
+    }
+    const encoding = typeof options === 'string' ? options : options?.encoding;
+    if (encoding === 'buffer') {
+      return Buffer.from(target);
+    }
+    return target;
+  } catch (err: any) {
+    if (err.code) throw err;
+    throw createNodeError(err, 'readlink', path);
+  }
+}
+
+// --- link ---
+
+export function linkSync(existingPath: PathLike, newPath: PathLike): void {
+  // Gio doesn't have a direct hard link API, use GLib
+  const result = GLib.spawn_command_line_sync(`ln ${existingPath.toString()} ${newPath.toString()}`);
+  if (!result[0]) {
+    throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingPath}' -> '${newPath}'`), { code: 'EPERM', errno: -1, syscall: 'link', path: existingPath.toString(), dest: newPath.toString() });
+  }
+}
+
+// --- truncate ---
+
+export function truncateSync(path: PathLike, len?: number): void {
+  const file = Gio.File.new_for_path(path.toString());
+  try {
+    const stream = file.replace(null, false, Gio.FileCreateFlags.NONE, null);
+    if (len && len > 0) {
+      // Read existing content, truncate to len
+      const [, data] = file.load_contents(null);
+      const truncated = data.slice(0, len);
+      if (truncated.length > 0) {
+        stream.write_bytes(new GLib.Bytes(truncated), null);
+      }
+    }
+    stream.close(null);
+  } catch (err: any) {
+    throw createNodeError(err, 'truncate', path);
+  }
+}
+
+// --- chmodSync ---
+
+export function chmodSync(path: PathLike, mode: Mode): void {
+  const modeNum = typeof mode === 'string' ? parseInt(mode, 8) : mode;
+  const result = GLib.spawn_command_line_sync(`chmod ${modeNum.toString(8)} ${path.toString()}`);
+  if (!result[0]) {
+    throw Object.assign(new Error(`EPERM: operation not permitted, chmod '${path}'`), { code: 'EPERM', errno: -1, syscall: 'chmod', path: path.toString() });
+  }
+}
+
+// --- chownSync ---
+
+export function chownSync(path: PathLike, uid: number, gid: number): void {
+  const result = GLib.spawn_command_line_sync(`chown ${uid}:${gid} ${path.toString()}`);
+  if (!result[0]) {
+    throw Object.assign(new Error(`EPERM: operation not permitted, chown '${path}'`), { code: 'EPERM', errno: -1, syscall: 'chown', path: path.toString() });
+  }
+}
+
+export function watch(filename: string, options: any, listener: any) {
   return new FSWatcher(filename, options, listener);
 }
 
