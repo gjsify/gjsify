@@ -13,6 +13,69 @@ let countTestsFailed = 0;
 let countTestsIgnored = 0;
 let runtime = '';
 
+export interface TimeoutConfig {
+	/** Per-it() timeout in ms. Default: 5000. 0 = disabled. */
+	testTimeout: number;
+	/** Per-describe() timeout in ms. Default: 30000. 0 = disabled. */
+	suiteTimeout: number;
+	/** Global run timeout in ms. Default: 120000. 0 = disabled. */
+	runTimeout: number;
+}
+
+const DEFAULT_TIMEOUT_CONFIG: TimeoutConfig = {
+	testTimeout: 5000,
+	suiteTimeout: 30000,
+	runTimeout: 120000,
+};
+
+let timeoutConfig: TimeoutConfig = { ...DEFAULT_TIMEOUT_CONFIG };
+
+class TimeoutError extends Error {
+	constructor(label: string, timeoutMs: number) {
+		super(`Timeout: "${label}" exceeded ${timeoutMs}ms`);
+		this.name = 'TimeoutError';
+	}
+}
+
+async function withTimeout<T>(
+	fn: () => T | Promise<T>,
+	timeoutMs: number,
+	label: string
+): Promise<T> {
+	if (timeoutMs <= 0) return fn();
+
+	let timeoutId: ReturnType<typeof setTimeout>;
+	const timeoutPromise = new Promise<never>((_, reject) => {
+		timeoutId = setTimeout(() => reject(new TimeoutError(label, timeoutMs)), timeoutMs);
+	});
+
+	const fnPromise = Promise.resolve(fn());
+	fnPromise.catch(() => {}); // Prevent unhandled rejection if it fails after timeout
+
+	try {
+		return await Promise.race([fnPromise, timeoutPromise]);
+	} finally {
+		clearTimeout(timeoutId!);
+	}
+}
+
+export const configure = (overrides: Partial<TimeoutConfig>) => {
+	timeoutConfig = { ...timeoutConfig, ...overrides };
+};
+
+function applyEnvOverrides() {
+	try {
+		const env = (globalThis as any).process?.env;
+		if (!env) return;
+		const t = parseInt(env.GJSIFY_TEST_TIMEOUT, 10);
+		if (!isNaN(t) && t >= 0) timeoutConfig.testTimeout = t;
+		const s = parseInt(env.GJSIFY_SUITE_TIMEOUT, 10);
+		if (!isNaN(s) && s >= 0) timeoutConfig.suiteTimeout = s;
+		const r = parseInt(env.GJSIFY_RUN_TIMEOUT, 10);
+		if (!isNaN(r) && r >= 0) timeoutConfig.runTimeout = r;
+	} catch (_e) { /* process.env may not be available */ }
+}
+
 const RED = '\x1B[31m';
 const GREEN = '\x1B[32m';
 const BLUE = '\x1b[34m';
@@ -182,10 +245,23 @@ class MatcherFactory {
 	}
 }
 
-export const describe = async function(moduleName: string, callback: Callback) {
+export const describe = async function(moduleName: string, callback: Callback, options?: { timeout?: number } | number) {
+	const suiteTimeoutMs = typeof options === 'number'
+		? options
+		: (options?.timeout ?? timeoutConfig.suiteTimeout);
+
 	print('\n' + moduleName);
 
-	await callback();
+	try {
+		await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);
+	} catch (e) {
+		if (e instanceof TimeoutError) {
+			++countTestsFailed;
+			print(`  ${RED}⏱ Suite timed out: ${e.message}${RESET}`);
+		} else {
+			throw e;
+		}
+	}
 
 	// Reset after and before callbacks
 	beforeEachCb = null;
@@ -257,13 +333,17 @@ export const afterEach = function (callback?: Callback) {
 }
 
 
-export const it = async function(expectation: string, callback: () => void | Promise<void>) {
+export const it = async function(expectation: string, callback: () => void | Promise<void>, options?: { timeout?: number } | number) {
+	const timeoutMs = typeof options === 'number'
+		? options
+		: (options?.timeout ?? timeoutConfig.testTimeout);
+
 	try {
 		if(typeof beforeEachCb === 'function') {
 			await beforeEachCb();
 		}
-		
-		await callback();
+
+		await withTimeout(callback, timeoutMs, expectation);
 
 		if(typeof afterEachCb === 'function') {
 			await afterEachCb();
@@ -275,7 +355,8 @@ export const it = async function(expectation: string, callback: () => void | Pro
 		if (!e.__testFailureCounted) {
 			++countTestsFailed;
 		}
-		print(`  ${RED}❌${RESET} ${GRAY}${expectation}${RESET}`);
+		const icon = e instanceof TimeoutError ? '⏱' : '❌';
+		print(`  ${RED}${icon}${RESET} ${GRAY}${expectation}${RESET}`);
 		print(`${RED}${e.message}${RESET}`);
 		if (e.stack) print(e.stack);
 	}
@@ -408,26 +489,47 @@ const printRuntime = async () => {
 	print(`\nRunning on ${runtime}`);	
 }
 
-export const run = async (namespaces: Namespaces) => {
+export const run = async (namespaces: Namespaces, options?: { timeout?: number; testTimeout?: number; suiteTimeout?: number } | number) => {
+
+	applyEnvOverrides();
+
+	if (options) {
+		if (typeof options === 'number') {
+			timeoutConfig.runTimeout = options;
+		} else {
+			if (options.timeout !== undefined) timeoutConfig.runTimeout = options.timeout;
+			if (options.testTimeout !== undefined) timeoutConfig.testTimeout = options.testTimeout;
+			if (options.suiteTimeout !== undefined) timeoutConfig.suiteTimeout = options.suiteTimeout;
+		}
+	}
 
 	printRuntime()
 	.then(async () => {
-		return runTests(namespaces)
-		.then(async () => {
-			printResult();
-			print();
-
-			mainloop?.quit();
-
-			if (countTestsFailed > 0) {
-				try {
-					const process = globalThis.process || await import('process');
-					process.exit(1);
-				} catch (_e) {
-					// If process is unavailable, we can't set the exit code
-				}
+		try {
+			await withTimeout(() => runTests(namespaces), timeoutConfig.runTimeout, 'entire test run');
+		} catch (e) {
+			if (e instanceof TimeoutError) {
+				print(`\n${RED}⏱ ${e.message}${RESET}`);
+				++countTestsFailed;
+			} else {
+				throw e;
 			}
-		})
+		}
+	})
+	.then(async () => {
+		printResult();
+		print();
+
+		mainloop?.quit();
+
+		if (countTestsFailed > 0) {
+			try {
+				const process = globalThis.process || await import('process');
+				process.exit(1);
+			} catch (_e) {
+				// If process is unavailable, we can't set the exit code
+			}
+		}
 	});
 
 	// Run the GJS mainloop for async operations
@@ -443,5 +545,6 @@ export default {
 	beforeEach,
 	on,
 	describe,
-	print,	
+	configure,
+	print,
 }
