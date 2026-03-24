@@ -3,8 +3,8 @@
 // Reference: Node.js lib/https.js
 
 import { request as httpRequest, get as httpGet, ClientRequest, IncomingMessage, Server as HttpServer } from 'http';
-import { TLSSocket, TLSServer, createSecureContext, createServer as tlsCreateServer } from 'tls';
-import type { TlsServerOptions } from 'tls';
+import { TLSSocket, createSecureContext } from 'tls';
+import type { TlsOptions } from 'tls';
 import { URL } from 'url';
 
 export { TLSSocket, createSecureContext };

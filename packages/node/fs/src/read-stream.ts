@@ -40,8 +40,6 @@ export class ReadStream extends Readable implements IReadStream {
     super({
       highWaterMark: opts?.highWaterMark ?? 64 * 1024,
       encoding: opts?.encoding as BufferEncoding | undefined,
-      autoDestroy: opts?.autoDestroy ?? true,
-      emitClose: opts?.emitClose ?? true,
       objectMode: false,
     });
 

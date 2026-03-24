@@ -314,9 +314,13 @@ export function createServer(
   return new TLSServer(optionsOrListener, secureConnectionListener);
 }
 
+// Node.js compat alias — Node.js exports tls.Server
+export { TLSServer as Server };
+
 export default {
   TLSSocket,
   TLSServer,
+  Server: TLSServer,
   connect,
   createServer,
   createSecureContext,
