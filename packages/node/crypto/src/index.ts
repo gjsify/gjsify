@@ -43,3 +43,4 @@ export { Sign, Verify, createSign, createVerify } from './sign.js';
 export { createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGroup, createDiffieHellmanGroup } from './dh.js';
 export { createECDH, getCurves } from './ecdh.js';
 export { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';
+export { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from './key-object.js';
