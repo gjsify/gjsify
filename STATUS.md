@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-23 (after Phase 0)
+> Last updated: 2026-03-24 (after Phase 5)
 
 ## Summary
 
@@ -55,9 +55,9 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
-| **crypto** | GLib | 78 (6 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, **Cipher/Decipher (AES-CBC/CTR/ECB)**, **scrypt (RFC 7914)** | Sign/Verify, ECDH, DH, KeyObject, X509Certificate, AES-GCM |
-| **http** | Soup 3.0, Gio, GLib | 42 (2 specs) | Server (Soup.Server), IncomingMessage, ServerResponse, STATUS_CODES, Agent, round-trip | Client-side: http.request(), http.get() still incomplete |
-| **https** | — | 17 | Agent (defaultPort 443, protocol https:), request/get wrapper | Client integration, createServer with TLS |
+| **crypto** | GLib | 119 (9 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, Cipher/Decipher (AES-CBC/CTR/ECB/GCM), scrypt, **DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt** | KeyObject, X509Certificate |
+| **http** | Soup 3.0, Gio, GLib | 93 (2 specs) | Server (Soup.Server), **ClientRequest (Soup.Session)**, IncomingMessage, ServerResponse, STATUS_CODES, Agent, **round-trip on GJS** | — (fully functional) |
+| **https** | — | 17 | Agent (defaultPort 443, protocol https:), request/get wrapper | createServer with TLS |
 | **tls** | Gio, GLib | 19 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher), connect, createSecureContext | createServer, TLS session resumption, ALPN |
 
 ### Stubs (8)
@@ -76,7 +76,7 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 
 ## Web API Packages (`packages/web/`)
 
-All 7 packages have real implementations:
+All 8 packages have real implementations:
 
 | Package | LOC | GNOME Libs | Tests | Web APIs |
 |---------|-----|-----------|-------|----------|
@@ -87,6 +87,7 @@ All 7 packages have real implementations:
 | **globals** | 14 | — | 1 | Re-export of dom-events + abort-controller |
 | **html-image-element** | 347 | GdkPixbuf | 2 | HTMLImageElement, Image() |
 | **webgl** | 5,662 | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
+| **websocket** | 230 | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
 
 ### Missing Web APIs
 
@@ -94,7 +95,6 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | API | Priority | Notes |
 |-----|----------|-------|
-| **WebSocket** | High | Soup 3.0 has WebSocket support (Soup.WebsocketConnection) |
 | **TextEncoder/TextDecoder** | Medium | Partially available natively in GJS; polyfill for encoding variants |
 | **crypto.subtle (WebCrypto)** | Medium | Partially possible via GLib.Checksum |
 | **URL/URLSearchParams (global)** | Low | Exists in @gjsify/url, missing as global export |
@@ -184,6 +184,33 @@ Not yet implemented (but potentially relevant for GJS projects):
 ---
 
 ## Changelog
+
+### 2026-03-24 — Phases 1–5: Major Feature Implementation
+
+**Phase 1 — HTTP client round-trip on GJS:**
+- Fixed ClientRequest to buffer response body before emitting 'response' (race condition fix)
+- Fixed ServerResponse double 'finish' emission
+- Fixed stream nextTick to prefer queueMicrotask
+- All 93 HTTP tests now pass on GJS (6 round-trip tests: GET, POST, headers, 404, etc.)
+
+**Phase 2 — WebSocket Web API:**
+- New package `@gjsify/websocket` using Soup 3.0 WebsocketConnection
+- W3C spec: WebSocket, MessageEvent, CloseEvent, text + binary support
+- 27 tests including 3 round-trip tests with echo server
+
+**Phase 3 — Crypto DH/ECDH/AES-GCM:**
+- DiffieHellman: BigInt-based, RFC 2409/3526 groups (modp1–modp18)
+- ECDH: Pure TypeScript elliptic curve arithmetic (secp256k1, P-256, P-384, P-521)
+- AES-GCM: GHASH authentication in GF(2^128), AAD support
+- 30 new tests
+
+**Phase 4 — Crypto Sign/Verify/RSA:**
+- ASN.1/DER/PEM parser for RSA keys (PKCS#1 and PKCS#8)
+- createSign/createVerify: RSA PKCS#1 v1.5 signatures
+- publicEncrypt/privateDecrypt: RSA encryption
+- 11 new tests
+
+**Phase 5 — TLS server, fs async, STATUS.md updates**
 
 ### 2026-03-23 — Phase 0: Housekeeping
 

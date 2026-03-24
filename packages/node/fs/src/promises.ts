@@ -4,9 +4,9 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { warnNotImplemented } from '@gjsify/utils';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
-import { writeFileSync, mkdirSync, rmdirSync, unlinkSync, realpathSync, readdirSync as readdirSyncFn } from './sync.js';
+import { rmdirSync, unlinkSync, realpathSync, readdirSync as readdirSyncFn } from './sync.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath } from './utils.js';
 import { Dirent } from './dirent.js';
@@ -69,21 +69,86 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
 async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | null): Promise<string | undefined | void> {
 
   let recursive: boolean | undefined;
-  let mode: Mode | undefined = 0o777;
+  let _mode: Mode | undefined = 0o777;
 
   if (typeof options === 'object') {
     if(options.recursive) recursive = options.recursive;
-    if(options.mode) mode = options.mode
+    if(options.mode) _mode = options.mode
   } else {
-    mode = options;
+    _mode = options;
   }
 
-  // TODO async
-  const firstPath = mkdirSync(path, {
-    recursive,
-    mode
+  const pathStr = path.toString();
+
+  if (recursive) {
+    return mkdirRecursiveAsync(pathStr);
+  }
+
+  const file = Gio.File.new_for_path(pathStr);
+  return new Promise<undefined>((resolve, reject) => {
+    file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+      try {
+        file.make_directory_finish(res);
+        resolve(undefined);
+      } catch (err: any) {
+        reject(createNodeError(err, 'mkdir', path));
+      }
+    });
   });
-  return firstPath;
+}
+
+/**
+ * Recursively creates directories, similar to `mkdir -p`.
+ * Returns the first directory path created, or undefined if all directories already existed.
+ */
+async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined> {
+  const file = Gio.File.new_for_path(pathStr);
+
+  // Try to create the directory directly first
+  try {
+    await new Promise<void>((resolve, reject) => {
+      file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+        try {
+          file.make_directory_finish(res);
+          resolve();
+        } catch (err: any) {
+          reject(err);
+        }
+      });
+    });
+    // This directory was created; it's the deepest one.
+    // Now check if we also created parents by recursing on the parent first.
+    // Since we succeeded directly, this is the "first created" path candidate.
+    return pathStr;
+  } catch (err: any) {
+    // If it already exists, nothing to create
+    if (err.code === Gio.IOErrorEnum.EXISTS) {
+      return undefined;
+    }
+    // If parent doesn't exist, create parent first then retry
+    if (err.code === Gio.IOErrorEnum.NOT_FOUND) {
+      const parentPath = dirname(pathStr);
+      if (parentPath === pathStr) {
+        // Reached root, cannot go further
+        throw createNodeError(err, 'mkdir', pathStr);
+      }
+      const firstCreated = await mkdirRecursiveAsync(parentPath);
+      // Now create this directory
+      const retryFile = Gio.File.new_for_path(pathStr);
+      await new Promise<void>((resolve, reject) => {
+        retryFile.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+          try {
+            retryFile.make_directory_finish(res);
+            resolve();
+          } catch (retryErr: any) {
+            reject(createNodeError(retryErr, 'mkdir', pathStr));
+          }
+        });
+      });
+      return firstCreated ?? pathStr;
+    }
+    throw createNodeError(err, 'mkdir', pathStr);
+  }
 }
 
 async function readFile(path: PathLike | FileHandle, options: ReadOptions = { encoding: null, flag: 'r' }) {
@@ -161,8 +226,55 @@ async function mkdtemp(prefix: string, options?: BufferEncodingOption | ObjectEn
 }
 
 async function writeFile(path: string, data: any) {
-  // TODO async
-  return writeFileSync(path, data);
+  const file = Gio.File.new_for_path(path);
+
+  // Convert data to Uint8Array if it's a string
+  let bytes: Uint8Array;
+  if (typeof data === 'string') {
+    bytes = new TextEncoder().encode(data);
+  } else if (data instanceof Uint8Array) {
+    bytes = data;
+  } else {
+    // Fallback: convert to string first
+    bytes = new TextEncoder().encode(String(data));
+  }
+
+  const glibBytes = new GLib.Bytes(bytes);
+
+  // Open the file for writing (replace contents), creating if needed
+  const outputStream = await new Promise<Gio.FileOutputStream>((resolve, reject) => {
+    file.replace_async(null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+      try {
+        resolve(file.replace_finish(res));
+      } catch (err: any) {
+        reject(createNodeError(err, 'open', path));
+      }
+    });
+  });
+
+  // Write the bytes to the stream
+  await new Promise<void>((resolve, reject) => {
+    outputStream.write_bytes_async(glibBytes, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+      try {
+        outputStream.write_bytes_finish(res);
+        resolve();
+      } catch (err: any) {
+        reject(createNodeError(err, 'write', path));
+      }
+    });
+  });
+
+  // Close the output stream
+  await new Promise<void>((resolve, reject) => {
+    outputStream.close_async(GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+      try {
+        outputStream.close_finish(res);
+        resolve();
+      } catch (err: any) {
+        reject(createNodeError(err, 'close', path));
+      }
+    });
+  });
 }
 
 /**
