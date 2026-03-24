@@ -23,6 +23,10 @@ packages/**/*/test.*.cjs.map
 packages/**/*/test.*.mjs
 packages/**/*/test.*.mjs.map
 
-// Metafile 
+# Test artifacts (fs tests create temp dirs/files)
+fs-test-*/
+symlink_tsconfig.json
+
+# Metafile
 *.meta.json
 meta.json
