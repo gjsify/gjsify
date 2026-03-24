@@ -722,6 +722,10 @@ function readableStreamDefaultControllerGetDesiredSize(controller: any): number 
   }
 }
 
+function readableStreamDefaultControllerHasBackpressure(controller: any): boolean {
+  return !readableStreamDefaultControllerShouldCallPull(controller);
+}
+
 function readableStreamDefaultControllerShouldCallPull(controller: any): boolean {
   const { stream } = controller[kState];
   if (!readableStreamDefaultControllerCanCloseOrEnqueue(controller) ||
@@ -1334,6 +1338,7 @@ export {
   readableStreamDefaultControllerError,
   readableStreamDefaultControllerGetDesiredSize,
   readableStreamDefaultControllerCanCloseOrEnqueue,
+  readableStreamDefaultControllerHasBackpressure,
   setupReadableStreamDefaultController,
   createReadableStream,
 };

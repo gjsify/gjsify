@@ -9,12 +9,8 @@
 
 import { WritableStream, WritableStreamDefaultWriter, WritableStreamDefaultController } from './writable-stream.js';
 import { ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController } from './readable-stream.js';
+import { TransformStream, TransformStreamDefaultController } from './transform-stream.js';
 import { ByteLengthQueuingStrategy, CountQueuingStrategy } from './queuing-strategies.js';
-
-// Phase 3 will add: TransformStream, TransformStreamDefaultController
-
-// For now, TransformStream uses native if available, undefined otherwise
-const _TransformStream = globalThis.TransformStream;
 
 // Use native if available (Node.js 18+), polyfill otherwise
 const _WritableStream = typeof globalThis.WritableStream === 'function'
@@ -23,6 +19,9 @@ const _WritableStream = typeof globalThis.WritableStream === 'function'
 const _ReadableStream = typeof globalThis.ReadableStream === 'function'
   ? globalThis.ReadableStream
   : ReadableStream;
+const _TransformStream = typeof globalThis.TransformStream === 'function'
+  ? globalThis.TransformStream
+  : TransformStream;
 const _ByteLengthQueuingStrategy = typeof globalThis.ByteLengthQueuingStrategy === 'function'
   ? globalThis.ByteLengthQueuingStrategy
   : ByteLengthQueuingStrategy;
@@ -36,6 +35,9 @@ if (typeof globalThis.WritableStream === 'undefined') {
 }
 if (typeof globalThis.ReadableStream === 'undefined') {
   (globalThis as any).ReadableStream = ReadableStream;
+}
+if (typeof globalThis.TransformStream === 'undefined') {
+  (globalThis as any).TransformStream = TransformStream;
 }
 if (typeof globalThis.ByteLengthQueuingStrategy === 'undefined') {
   (globalThis as any).ByteLengthQueuingStrategy = ByteLengthQueuingStrategy;
@@ -55,6 +57,7 @@ export {
 // Re-export class types for direct import
 export { WritableStreamDefaultWriter, WritableStreamDefaultController } from './writable-stream.js';
 export { ReadableStreamDefaultReader, ReadableStreamDefaultController } from './readable-stream.js';
+export { TransformStreamDefaultController } from './transform-stream.js';
 
 // Re-export internals needed by other packages
 export {
@@ -79,9 +82,15 @@ export {
   readableStreamDefaultControllerError,
   readableStreamDefaultControllerGetDesiredSize,
   readableStreamDefaultControllerCanCloseOrEnqueue,
+  readableStreamDefaultControllerHasBackpressure,
   setupReadableStreamDefaultController,
   createReadableStream,
 } from './readable-stream.js';
+
+export {
+  isTransformStream,
+  isTransformStreamDefaultController,
+} from './transform-stream.js';
 
 export default {
   WritableStream: _WritableStream,

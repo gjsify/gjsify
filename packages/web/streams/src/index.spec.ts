@@ -6,6 +6,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import {
   WritableStream,
   ReadableStream,
+  TransformStream,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
 } from './index.js';
@@ -391,6 +392,144 @@ export default async () => {
       expect(r3.value).toBe(3);
       const r4 = await reader.read();
       expect(r4.done).toBe(true);
+    });
+  });
+
+  // ==================== TransformStream ====================
+
+  await describe('TransformStream', async () => {
+    await it('should be a constructor', async () => {
+      expect(typeof TransformStream).toBe('function');
+    });
+
+    await it('should be constructable with no arguments', async () => {
+      const ts = new TransformStream();
+      expect(ts).toBeDefined();
+      expect(ts.readable).toBeDefined();
+      expect(ts.writable).toBeDefined();
+    });
+
+    await it('should pass through chunks by default', async () => {
+      const ts = new TransformStream();
+      const writer = ts.writable.getWriter();
+      const reader = ts.readable.getReader();
+
+      writer.write('hello');
+      writer.close();
+
+      const r1 = await reader.read();
+      expect(r1.value).toBe('hello');
+      const r2 = await reader.read();
+      expect(r2.done).toBe(true);
+    });
+
+    await it('should transform chunks', async () => {
+      const ts = new TransformStream({
+        transform(chunk: string, controller: any) {
+          controller.enqueue(chunk.toUpperCase());
+        },
+      });
+      const writer = ts.writable.getWriter();
+      const reader = ts.readable.getReader();
+
+      writer.write('hello');
+      writer.write('world');
+      writer.close();
+
+      const r1 = await reader.read();
+      expect(r1.value).toBe('HELLO');
+      const r2 = await reader.read();
+      expect(r2.value).toBe('WORLD');
+      const r3 = await reader.read();
+      expect(r3.done).toBe(true);
+    });
+
+    await it('should support flush', async () => {
+      let flushed = false;
+      const ts = new TransformStream({
+        flush() { flushed = true; },
+      });
+      const writer = ts.writable.getWriter();
+      const reader = ts.readable.getReader();
+
+      writer.close();
+      // Read to drain the stream
+      await reader.read();
+      expect(flushed).toBe(true);
+    });
+
+    await it('should work with pipeThrough', async () => {
+      const rs = new ReadableStream({
+        start(controller: any) {
+          controller.enqueue(1);
+          controller.enqueue(2);
+          controller.enqueue(3);
+          controller.close();
+        },
+      });
+
+      const doubled = rs.pipeThrough(new TransformStream({
+        transform(chunk: number, controller: any) {
+          controller.enqueue(chunk * 2);
+        },
+      }));
+
+      const reader = doubled.getReader();
+      const r1 = await reader.read();
+      expect(r1.value).toBe(2);
+      const r2 = await reader.read();
+      expect(r2.value).toBe(4);
+      const r3 = await reader.read();
+      expect(r3.value).toBe(6);
+      const r4 = await reader.read();
+      expect(r4.done).toBe(true);
+    });
+
+    await it('should support start callback', async () => {
+      let startCalled = false;
+      const ts = new TransformStream({
+        start() { startCalled = true; },
+      });
+      expect(startCalled).toBe(true);
+    });
+
+    await it('should propagate transform errors to readable', async () => {
+      const ts = new TransformStream({
+        transform() { throw new Error('transform error'); },
+      });
+      const writer = ts.writable.getWriter();
+      const reader = ts.readable.getReader();
+
+      // Write triggers the transform — error propagates to reader
+      writer.write('data').catch(() => {});
+      let readError: any;
+      try {
+        await reader.read();
+      } catch (e) {
+        readError = e;
+      }
+      expect(readError).toBeDefined();
+    });
+
+    await it('controller.desiredSize should reflect backpressure', async () => {
+      let savedController: any;
+      const ts = new TransformStream({
+        start(controller: any) { savedController = controller; },
+        transform(chunk: any, controller: any) { controller.enqueue(chunk); },
+      });
+      // desiredSize should be available
+      expect(typeof savedController.desiredSize).toBe('number');
+    });
+
+    await it('controller.terminate should close readable', async () => {
+      let savedController: any;
+      const ts = new TransformStream({
+        start(controller: any) { savedController = controller; },
+      });
+      const reader = ts.readable.getReader();
+      savedController.terminate();
+      const result = await reader.read();
+      expect(result.done).toBe(true);
     });
   });
 
