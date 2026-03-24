@@ -1,5 +1,14 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { Stream, Readable, Writable, Duplex, Transform, PassThrough, pipeline, finished } from 'stream';
+import Stream, {
+	Readable, Writable, Duplex, Transform, PassThrough,
+	pipeline, finished, addAbortSignal,
+	isReadable, isWritable,
+	getDefaultHighWaterMark, setDefaultHighWaterMark,
+} from 'stream';
+
+// These are exported from our implementation but not in @types/node's stream module,
+// so we access them via the default export.
+const { isDestroyed, isDisturbed, isErrored } = Stream as any;
 
 // Ported from refs/node/test/parallel/test-stream-*.js
 // Original: MIT license, Node.js contributors
@@ -68,6 +77,11 @@ export default async () => {
 			readable.resume();
 			expect(readable.isPaused()).toBeFalsy();
 		});
+
+		await it('should use getDefaultHighWaterMark when no hwm specified', async () => {
+			const readable = new Readable({ read() {} });
+			expect(readable.readableHighWaterMark).toBe(getDefaultHighWaterMark(false));
+		});
 	});
 
 	await describe('Readable: data and end events', async () => {
@@ -99,6 +113,26 @@ export default async () => {
 			const readable = new Readable({ read() {} });
 			const result = readable.push(null);
 			expect(result).toBeFalsy();
+		});
+
+		await it('should emit multiple data events', async () => {
+			const readable = new Readable({
+				read() {
+					this.push('a');
+					this.push('b');
+					this.push('c');
+					this.push(null);
+				}
+			});
+			const chunks: string[] = [];
+			await new Promise<void>((resolve) => {
+				readable.on('data', (chunk) => chunks.push(String(chunk)));
+				readable.on('end', () => resolve());
+			});
+			expect(chunks.length).toBe(3);
+			expect(chunks[0]).toBe('a');
+			expect(chunks[1]).toBe('b');
+			expect(chunks[2]).toBe('c');
 		});
 	});
 
@@ -135,6 +169,71 @@ export default async () => {
 			// Give time for any spurious second close
 			await new Promise<void>((resolve) => setTimeout(resolve, 10));
 			expect(closeCount).toBe(1);
+		});
+
+		await it('should set readableAborted when destroyed before end', async () => {
+			const readable = new Readable({ read() {} });
+			readable.push('data');
+			await new Promise<void>((resolve) => {
+				readable.on('close', () => resolve());
+				readable.destroy();
+			});
+			expect(readable.readableAborted).toBeTruthy();
+		});
+	});
+
+	await describe('Readable: _construct', async () => {
+		await it('should call _construct before first read', async () => {
+			let constructCalled = false;
+			const readable = new Readable({
+				construct(callback) {
+					constructCalled = true;
+					callback();
+				},
+				read() {
+					this.push('data');
+					this.push(null);
+				}
+			});
+			// construct is async, should be called on next tick
+			expect(constructCalled).toBeFalsy();
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(constructCalled).toBeTruthy();
+		});
+
+		await it('should delay flowing until construct completes', async () => {
+			const chunks: string[] = [];
+			const readable = new Readable({
+				construct(callback) {
+					setTimeout(() => callback(), 20);
+				},
+				read() {
+					this.push('hello');
+					this.push(null);
+				}
+			});
+			readable.on('data', (chunk) => chunks.push(String(chunk)));
+			// Data should not flow yet
+			expect(chunks.length).toBe(0);
+			await new Promise<void>((resolve) => {
+				readable.on('end', () => resolve());
+			});
+			expect(chunks.length).toBe(1);
+			expect(chunks[0]).toBe('hello');
+		});
+
+		await it('should destroy stream if construct errors', async () => {
+			const readable = new Readable({
+				construct(callback) {
+					callback(new Error('construct failed'));
+				},
+				read() {}
+			});
+			const err = await new Promise<Error>((resolve) => {
+				readable.on('error', (e) => resolve(e));
+			});
+			expect(err.message).toBe('construct failed');
+			expect(readable.destroyed).toBeTruthy();
 		});
 	});
 
@@ -180,6 +279,66 @@ export default async () => {
 		});
 	});
 
+	await describe('Readable: unshift', async () => {
+		await it('should put data back at the front of the buffer', async () => {
+			const readable = new Readable({ read() {} });
+			readable.push('second');
+			readable.unshift('first');
+			const chunks: string[] = [];
+			readable.on('data', (chunk) => chunks.push(String(chunk)));
+			await new Promise<void>((resolve) => setTimeout(resolve, 20));
+			expect(chunks[0]).toBe('first');
+			expect(chunks[1]).toBe('second');
+		});
+	});
+
+	await describe('Readable: unpipe', async () => {
+		await it('should remove specific piped destination', async () => {
+			const readable = new Readable({ read() {} });
+			const chunks1: string[] = [];
+			const chunks2: string[] = [];
+			const w1 = new Writable({ write(chunk, _enc, cb) { chunks1.push(String(chunk)); cb(); } });
+			const w2 = new Writable({ write(chunk, _enc, cb) { chunks2.push(String(chunk)); cb(); } });
+
+			readable.pipe(w1);
+			readable.pipe(w2);
+			readable.unpipe(w1);
+
+			readable.push('data');
+			await new Promise<void>((resolve) => setTimeout(resolve, 20));
+			expect(chunks1.length).toBe(0);
+			expect(chunks2.length).toBe(1);
+		});
+
+		await it('should emit unpipe event on destination', async () => {
+			const readable = new Readable({ read() {} });
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			readable.pipe(writable);
+
+			const unpiped = await new Promise<boolean>((resolve) => {
+				writable.on('unpipe', () => resolve(true));
+				readable.unpipe(writable);
+			});
+			expect(unpiped).toBeTruthy();
+		});
+
+		await it('should remove all destinations when called without args', async () => {
+			const readable = new Readable({ read() {} });
+			const w1 = new Writable({ write(_c, _e, cb) { cb(); } });
+			const w2 = new Writable({ write(_c, _e, cb) { cb(); } });
+
+			readable.pipe(w1);
+			readable.pipe(w2);
+
+			let unpipeCount = 0;
+			w1.on('unpipe', () => unpipeCount++);
+			w2.on('unpipe', () => unpipeCount++);
+			readable.unpipe();
+
+			expect(unpipeCount).toBe(2);
+		});
+	});
+
 	// ==================== Writable ====================
 
 	await describe('Writable: properties', async () => {
@@ -203,6 +362,20 @@ export default async () => {
 				write(_chunk, _encoding, callback) { callback(); }
 			});
 			expect(writable.destroyed).toBeFalsy();
+		});
+
+		await it('should expose writableCorked', async () => {
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			expect(writable.writableCorked).toBe(0);
+			writable.cork();
+			expect(writable.writableCorked).toBe(1);
+			writable.uncork();
+			expect(writable.writableCorked).toBe(0);
+		});
+
+		await it('should use getDefaultHighWaterMark when no hwm specified', async () => {
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			expect(writable.writableHighWaterMark).toBe(getDefaultHighWaterMark(false));
 		});
 	});
 
@@ -275,6 +448,114 @@ export default async () => {
 			writable.uncork();
 			expect(true).toBeTruthy();
 		});
+
+		await it('should invoke write callback', async () => {
+			const writable = new Writable({
+				write(_chunk, _encoding, callback) { callback(); }
+			});
+			const called = await new Promise<boolean>((resolve) => {
+				writable.write('data', () => resolve(true));
+			});
+			expect(called).toBeTruthy();
+		});
+	});
+
+	await describe('Writable: _construct', async () => {
+		await it('should call _construct before first write', async () => {
+			let constructCalled = false;
+			const chunks: string[] = [];
+			const writable = new Writable({
+				construct(callback) {
+					constructCalled = true;
+					callback();
+				},
+				write(chunk, _enc, callback) {
+					chunks.push(String(chunk));
+					callback();
+				}
+			});
+			expect(constructCalled).toBeFalsy();
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(constructCalled).toBeTruthy();
+		});
+
+		await it('should destroy stream if construct errors', async () => {
+			const writable = new Writable({
+				construct(callback) {
+					callback(new Error('construct failed'));
+				},
+				write(_c, _e, cb) { cb(); }
+			});
+			const err = await new Promise<Error>((resolve) => {
+				writable.on('error', (e) => resolve(e));
+			});
+			expect(err.message).toBe('construct failed');
+			expect(writable.destroyed).toBeTruthy();
+		});
+	});
+
+	await describe('Writable: cork/uncork buffering', async () => {
+		await it('should buffer writes while corked', async () => {
+			const chunks: string[] = [];
+			const writable = new Writable({
+				write(chunk, _enc, callback) {
+					chunks.push(String(chunk));
+					callback();
+				}
+			});
+			writable.cork();
+			writable.write('a');
+			writable.write('b');
+			// Writes should be buffered, not yet passed to _write
+			expect(chunks.length).toBe(0);
+			writable.uncork();
+			// After uncork, buffered writes should flush
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(chunks.length).toBe(2);
+			expect(chunks[0]).toBe('a');
+			expect(chunks[1]).toBe('b');
+		});
+
+		await it('should support nested cork/uncork', async () => {
+			const chunks: string[] = [];
+			const writable = new Writable({
+				write(chunk, _enc, callback) {
+					chunks.push(String(chunk));
+					callback();
+				}
+			});
+			writable.cork();
+			writable.cork();
+			writable.write('x');
+			writable.uncork();
+			// Still corked (count = 1)
+			expect(chunks.length).toBe(0);
+			writable.uncork();
+			// Now fully uncorked
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(chunks.length).toBe(1);
+		});
+
+		await it('should use _writev for batched writes when available', async () => {
+			let writevCalled = false;
+			let batchSize = 0;
+			const writable = new Writable({
+				write(_c, _e, cb) { cb(); },
+				writev(chunks, cb) {
+					writevCalled = true;
+					batchSize = chunks.length;
+					cb();
+				}
+			});
+			writable.cork();
+			writable.write('a');
+			writable.write('b');
+			writable.write('c');
+			writable.uncork();
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(writevCalled).toBeTruthy();
+			expect(batchSize).toBe(3);
+		});
 	});
 
 	await describe('Writable: destroy', async () => {
@@ -303,6 +584,38 @@ export default async () => {
 				writable.write('after-end');
 			});
 			expect(errorEmitted).toBeTruthy();
+		});
+	});
+
+	await describe('Writable: _final', async () => {
+		await it('should call _final on end', async () => {
+			let finalCalled = false;
+			const writable = new Writable({
+				write(_c, _e, cb) { cb(); },
+				final(cb) {
+					finalCalled = true;
+					cb();
+				}
+			});
+			await new Promise<void>((resolve) => {
+				writable.on('finish', () => resolve());
+				writable.end();
+			});
+			expect(finalCalled).toBeTruthy();
+		});
+
+		await it('should emit error if _final fails', async () => {
+			const writable = new Writable({
+				write(_c, _e, cb) { cb(); },
+				final(cb) {
+					cb(new Error('final error'));
+				}
+			});
+			const err = await new Promise<Error>((resolve) => {
+				writable.on('error', (e) => resolve(e));
+				writable.end();
+			});
+			expect(err.message).toBe('final error');
 		});
 	});
 
@@ -343,6 +656,31 @@ export default async () => {
 				duplex.end();
 			});
 			expect(finished).toBeTruthy();
+		});
+
+		await it('should support cork/uncork', async () => {
+			const chunks: string[] = [];
+			const duplex = new Duplex({
+				read() {},
+				write(chunk, _enc, callback) {
+					chunks.push(String(chunk));
+					callback();
+				}
+			});
+			duplex.cork();
+			duplex.write('a');
+			duplex.write('b');
+			expect(chunks.length).toBe(0);
+			duplex.uncork();
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(chunks.length).toBe(2);
+		});
+
+		await it('should expose writableCorked', async () => {
+			const duplex = new Duplex({ read() {}, write(_c, _e, cb) { cb(); } });
+			expect(duplex.writableCorked).toBe(0);
+			duplex.cork();
+			expect(duplex.writableCorked).toBe(1);
 		});
 	});
 
@@ -397,6 +735,40 @@ export default async () => {
 			});
 			expect(finished).toBeTruthy();
 		});
+
+		await it('should propagate transform errors', async () => {
+			const transform = new Transform({
+				transform(_chunk, _encoding, callback) {
+					callback(new Error('transform error'));
+				}
+			});
+			const err = await new Promise<Error>((resolve) => {
+				transform.on('error', (e) => resolve(e));
+				transform.write('data');
+			});
+			expect(err.message).toBe('transform error');
+		});
+
+		await it('should flush extra data on end', async () => {
+			const chunks: string[] = [];
+			const transform = new Transform({
+				transform(chunk, _encoding, callback) {
+					callback(null, chunk);
+				},
+				flush(callback) {
+					this.push('flushed');
+					callback();
+				}
+			});
+			transform.on('data', (chunk) => chunks.push(String(chunk)));
+			await new Promise<void>((resolve) => {
+				transform.on('end', () => resolve());
+				transform.write('regular');
+				transform.end();
+			});
+			expect(chunks).toContain('regular');
+			expect(chunks).toContain('flushed');
+		});
 	});
 
 	// ==================== PassThrough ====================
@@ -424,6 +796,17 @@ export default async () => {
 				pt.end();
 			});
 			expect(finished).toBeTruthy();
+		});
+
+		await it('should support multiple writes', async () => {
+			const pt = new PassThrough();
+			const chunks: string[] = [];
+			pt.on('data', (chunk) => chunks.push(String(chunk)));
+			pt.write('a');
+			pt.write('b');
+			pt.write('c');
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(chunks.length).toBe(3);
 		});
 	});
 
@@ -472,6 +855,25 @@ export default async () => {
 			expect(chunks.length).toBe(1);
 			expect(chunks[0]).toBe('piped');
 		});
+
+		await it('should not end destination when end: false', async () => {
+			const readable = new Readable({
+				read() {
+					this.push('data');
+					this.push(null);
+				}
+			});
+			const writable = new Writable({
+				write(_c, _e, cb) { cb(); }
+			});
+			readable.pipe(writable, { end: false });
+			await new Promise<void>((resolve) => {
+				readable.on('end', () => resolve());
+				readable.resume();
+			});
+			// Writable should NOT be ended
+			expect(writable.writableEnded).toBeFalsy();
+		});
 	});
 
 	// ==================== pipeline ====================
@@ -512,6 +914,22 @@ export default async () => {
 			expect(() => {
 				(pipeline as any)(new Readable({ read() {} }), () => {});
 			}).toThrow();
+		});
+
+		await it('should callback with error on stream error', async () => {
+			const readable = new Readable({
+				read() {
+					this.destroy(new Error('read error'));
+				}
+			});
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+
+			const err = await new Promise<Error>((resolve) => {
+				pipeline(readable, writable, (e) => {
+					if (e) resolve(e);
+				});
+			});
+			expect(err.message).toBe('read error');
 		});
 	});
 
@@ -562,6 +980,246 @@ export default async () => {
 				writable.emit('error', new Error('stream error'));
 			});
 			expect(err.message).toBe('stream error');
+		});
+
+		await it('should detect premature close', async () => {
+			const writable = new Writable({
+				write(_chunk, _encoding, callback) { callback(); }
+			});
+			const err = await new Promise<Error>((resolve) => {
+				finished(writable, (e) => {
+					if (e) resolve(e);
+				});
+				writable.destroy();
+			});
+			expect(err.message.toLowerCase()).toBe('premature close');
+		});
+	});
+
+	// ==================== addAbortSignal ====================
+	// AbortController may not be globally available in GJS unless @gjsify/globals is loaded.
+	// These tests use a feature check — they will pass on both platforms once AbortController is global.
+
+	const hasAbortController = typeof globalThis.AbortController !== 'undefined';
+
+	await describe('addAbortSignal', async () => {
+		await it('should destroy stream when signal aborts', async () => {
+			if (!hasAbortController) return;
+			const ac = new AbortController();
+			const readable = new Readable({ read() {} });
+			addAbortSignal(ac.signal, readable);
+
+			const errPromise = new Promise<Error>((resolve) => {
+				readable.on('error', (e) => resolve(e));
+			});
+			ac.abort();
+			const err = await errPromise;
+			expect(err.message.toLowerCase().includes('aborted')).toBeTruthy();
+			expect(readable.destroyed).toBeTruthy();
+		});
+
+		await it('should destroy immediately if signal already aborted', async () => {
+			if (!hasAbortController) return;
+			const ac = new AbortController();
+			ac.abort();
+			const readable = new Readable({ read() {} });
+			// Must listen for error to prevent unhandled error crash on Node.js
+			readable.on('error', () => {});
+			addAbortSignal(ac.signal, readable);
+
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(readable.destroyed).toBeTruthy();
+		});
+
+		await it('should throw if first arg is not AbortSignal', async () => {
+			if (!hasAbortController) return;
+			expect(() => {
+				addAbortSignal({} as any, new Readable({ read() {} }));
+			}).toThrow();
+		});
+
+		await it('should throw if second arg is not a Stream', async () => {
+			if (!hasAbortController) return;
+			const ac = new AbortController();
+			expect(() => {
+				addAbortSignal(ac.signal, {} as any);
+			}).toThrow();
+		});
+
+		await it('should work with Writable', async () => {
+			if (!hasAbortController) return;
+			const ac = new AbortController();
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			addAbortSignal(ac.signal, writable);
+			ac.abort();
+
+			await new Promise<void>((resolve) => {
+				writable.on('close', () => resolve());
+			});
+			expect(writable.destroyed).toBeTruthy();
+		});
+	});
+
+	// ==================== Utility functions ====================
+
+	await describe('isReadable', async () => {
+		await it('should return true for a readable stream', async () => {
+			const readable = new Readable({ read() {} });
+			expect(isReadable(readable)).toBeTruthy();
+		});
+
+		await it('should return false for a destroyed stream', async () => {
+			const readable = new Readable({ read() {} });
+			readable.destroy();
+			await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			expect(isReadable(readable)).toBeFalsy();
+		});
+
+		await it('should return false for an ended stream', async () => {
+			const readable = new Readable({ read() { this.push(null); } });
+			readable.resume();
+			await new Promise<void>((resolve) => readable.on('end', () => resolve()));
+			expect(isReadable(readable)).toBeFalsy();
+		});
+
+		await it('should return false for null', async () => {
+			expect(isReadable(null as any)).toBeFalsy();
+		});
+
+		await it('should return false for plain objects', async () => {
+			expect(isReadable({} as any)).toBeFalsy();
+		});
+	});
+
+	await describe('isWritable', async () => {
+		await it('should return true for a writable stream', async () => {
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			expect(isWritable(writable)).toBeTruthy();
+		});
+
+		await it('should return false for an ended writable', async () => {
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			writable.end();
+			expect(isWritable(writable)).toBeFalsy();
+		});
+
+		await it('should return false for null', async () => {
+			expect(isWritable(null as any)).toBeFalsy();
+		});
+	});
+
+	await describe('isDestroyed', async () => {
+		await it('should return false for a new stream', async () => {
+			const readable = new Readable({ read() {} });
+			expect(isDestroyed(readable)).toBeFalsy();
+		});
+
+		await it('should return true for a destroyed stream', async () => {
+			const readable = new Readable({ read() {} });
+			readable.destroy();
+			expect(isDestroyed(readable)).toBeTruthy();
+		});
+
+		await it('should return false for null', async () => {
+			expect(isDestroyed(null)).toBeFalsy();
+		});
+	});
+
+	await describe('isDisturbed', async () => {
+		await it('should return false for a new stream', async () => {
+			const readable = new Readable({ read() {} });
+			expect(isDisturbed(readable)).toBeFalsy();
+		});
+
+		await it('should return true after data is read', async () => {
+			const readable = new Readable({
+				read() {
+					this.push('data');
+					this.push(null);
+				}
+			});
+			const chunks: unknown[] = [];
+			readable.on('data', (chunk) => chunks.push(chunk));
+			await new Promise<void>((resolve) => readable.on('end', () => resolve()));
+			expect(isDisturbed(readable)).toBeTruthy();
+		});
+
+		await it('should return false for null', async () => {
+			expect(isDisturbed(null)).toBeFalsy();
+		});
+	});
+
+	await describe('isErrored', async () => {
+		await it('should return false for a new stream', async () => {
+			const readable = new Readable({ read() {} });
+			expect(isErrored(readable)).toBeFalsy();
+		});
+
+		await it('should return false for null', async () => {
+			expect(isErrored(null)).toBeFalsy();
+		});
+	});
+
+	// ==================== getDefaultHighWaterMark / setDefaultHighWaterMark ====================
+
+	await describe('getDefaultHighWaterMark / setDefaultHighWaterMark', async () => {
+		await it('should return a positive number for non-object mode by default', async () => {
+			const hwm = getDefaultHighWaterMark(false);
+			expect(typeof hwm).toBe('number');
+			expect(hwm > 0).toBeTruthy();
+		});
+
+		await it('should return 16 for object mode by default', async () => {
+			expect(getDefaultHighWaterMark(true)).toBe(16);
+		});
+
+		await it('should allow setting custom default', async () => {
+			const original = getDefaultHighWaterMark(false);
+			setDefaultHighWaterMark(false, 32768);
+			expect(getDefaultHighWaterMark(false)).toBe(32768);
+			// Restore
+			setDefaultHighWaterMark(false, original);
+		});
+
+		await it('should reject invalid values', async () => {
+			expect(() => setDefaultHighWaterMark(false, -1)).toThrow();
+			expect(() => setDefaultHighWaterMark(false, NaN)).toThrow();
+		});
+	});
+
+	// ==================== stream/promises ====================
+
+	await describe('stream/promises', async () => {
+		await it('pipeline should return a promise', async () => {
+			// Import dynamically to test the sub-module
+			const { pipeline: pipelineP } = await import('stream/promises');
+
+			const readable = new Readable({
+				read() {
+					this.push('data');
+					this.push(null);
+				}
+			});
+			const chunks: string[] = [];
+			const writable = new Writable({
+				write(chunk, _enc, cb) {
+					chunks.push(String(chunk));
+					cb();
+				}
+			});
+
+			await pipelineP(readable, writable);
+			expect(chunks.length).toBe(1);
+			expect(chunks[0]).toBe('data');
+		});
+
+		await it('finished should return a promise', async () => {
+			const { finished: finishedP } = await import('stream/promises');
+
+			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
+			writable.end();
+			await finishedP(writable);
+			expect(writable.writableFinished).toBeTruthy();
 		});
 	});
 };

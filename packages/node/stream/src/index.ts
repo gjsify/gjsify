@@ -16,6 +16,26 @@ const nextTick: (fn: (...args: unknown[]) => void, ...args: unknown[]) => void =
       ? (fn: (...args: unknown[]) => void, ...args: unknown[]) => queueMicrotask(() => fn(...args))
       : (fn: (...args: unknown[]) => void, ...args: unknown[]) => Promise.resolve().then(() => fn(...args));
 
+// ---- Default high water marks ----
+
+let defaultHighWaterMark = 16384;
+let defaultObjectHighWaterMark = 16;
+
+export function getDefaultHighWaterMark(objectMode: boolean): number {
+  return objectMode ? defaultObjectHighWaterMark : defaultHighWaterMark;
+}
+
+export function setDefaultHighWaterMark(objectMode: boolean, value: number): void {
+  if (typeof value !== 'number' || value < 0 || Number.isNaN(value)) {
+    throw new TypeError(`Invalid highWaterMark: ${value}`);
+  }
+  if (objectMode) {
+    defaultObjectHighWaterMark = value;
+  } else {
+    defaultHighWaterMark = value;
+  }
+}
+
 // ---- Types ----
 
 /** Base options accepted by the Stream constructor (superset used by subclass options). */
@@ -36,49 +56,64 @@ interface StreamLike extends EventEmitter {
   resume?(): void;
 }
 
+/** Tracked pipe destination for unpipe support. */
+interface PipeState {
+  dest: Writable;
+  ondata: (chunk: unknown) => void;
+  ondrain: () => void;
+  onend: () => void;
+  cleanup: () => void;
+  doEnd: boolean;
+}
+
 export class Stream extends EventEmitter {
   constructor(opts?: StreamOptions) {
     super(opts);
   }
 
   pipe<T extends Writable>(destination: T, options?: { end?: boolean }): T {
-    const source: StreamLike = this;
+    const source = this as unknown as Readable;
     const doEnd = options?.end !== false;
 
-    function ondata(chunk: unknown) {
+    const ondata = (chunk: unknown) => {
       if (destination.writable) {
-        if (destination.write(chunk) === false && typeof source.pause === 'function') {
-          source.pause();
+        if (destination.write(chunk) === false && typeof (source as StreamLike).pause === 'function') {
+          (source as StreamLike).pause!();
         }
       }
-    }
+    };
 
     source.on('data', ondata);
 
-    function ondrain() {
-      if (typeof source.resume === 'function') {
-        source.resume();
+    const ondrain = () => {
+      if (typeof (source as StreamLike).resume === 'function') {
+        (source as StreamLike).resume!();
       }
-    }
+    };
     destination.on('drain', ondrain);
 
-    function onend() {
+    const onend = () => {
       if (doEnd) {
         destination.end();
       }
-    }
+    };
     if (doEnd) {
       source.on('end', onend);
     }
 
-    function cleanup() {
+    const cleanup = () => {
       source.removeListener('data', ondata);
       destination.removeListener('drain', ondrain);
       source.removeListener('end', onend);
-    }
+    };
 
     source.on('close', cleanup);
     destination.on('close', cleanup);
+
+    // Track piped destinations for unpipe
+    if (source instanceof Readable) {
+      source._pipeDests.push({ dest: destination, ondata, ondrain, onend, cleanup, doEnd });
+    }
 
     destination.emit('pipe', source);
     return destination;
@@ -95,20 +130,52 @@ export class Readable extends Stream {
   readableEncoding: string | null;
   readableObjectMode: boolean;
   readableEnded = false;
+  readableAborted = false;
   destroyed = false;
 
+  /** @internal Tracked pipe destinations for unpipe. */
+  _pipeDests: PipeState[] = [];
+
   private _buffer: unknown[] = [];
-  private _readableState = { ended: false, endEmitted: false, reading: false };
+  private _readableState = { ended: false, endEmitted: false, reading: false, constructed: true };
   private _readImpl: ((size: number) => void) | undefined;
   private _destroyImpl: ((error: Error | null, cb: (error?: Error | null) => void) => void) | undefined;
+  private _constructImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
 
   constructor(opts?: ReadableOptions) {
     super(opts);
-    this.readableHighWaterMark = opts?.highWaterMark ?? 16384;
+    this.readableHighWaterMark = opts?.highWaterMark ?? getDefaultHighWaterMark(opts?.objectMode ?? false);
     this.readableEncoding = opts?.encoding ?? null;
     this.readableObjectMode = opts?.objectMode ?? false;
     if (opts?.read) this._readImpl = opts.read;
     if (opts?.destroy) this._destroyImpl = opts.destroy;
+    if (opts?.construct) this._constructImpl = opts.construct;
+
+    // Call _construct if provided
+    if (this._constructImpl) {
+      this._readableState.constructed = false;
+      nextTick(() => {
+        this._construct((err) => {
+          this._readableState.constructed = true;
+          if (err) {
+            this.destroy(err);
+          } else {
+            // If data was requested before construct finished, start reading
+            if (this.readableFlowing === true) {
+              this._flow();
+            }
+          }
+        });
+      });
+    }
+  }
+
+  _construct(callback: (error?: Error | null) => void): void {
+    if (this._constructImpl) {
+      this._constructImpl.call(this, callback);
+    } else {
+      callback();
+    }
   }
 
   _read(_size: number): void {
@@ -118,6 +185,9 @@ export class Readable extends Stream {
   }
 
   read(size?: number): any {
+    // Don't read until constructed
+    if (!this._readableState.constructed) return null;
+
     if (this._buffer.length === 0) {
       if (this._readableState.ended) return null;
       this._readableState.reading = true;
@@ -196,7 +266,9 @@ export class Readable extends Stream {
       this.readableFlowing = true;
       this.emit('resume');
       // Start flowing: drain buffered data and call _read
-      this._flow();
+      if (this._readableState.constructed) {
+        this._flow();
+      }
     }
     return this;
   }
@@ -205,6 +277,7 @@ export class Readable extends Stream {
 
   private _flow(): void {
     if (this.readableFlowing !== true || this._flowing) return;
+    if (!this._readableState.constructed) return;
     this._flowing = true;
 
     try {
@@ -243,7 +316,26 @@ export class Readable extends Stream {
   }
 
   unpipe(destination?: Writable): this {
-    // Simplified — full implementation needs tracking piped destinations
+    if (!destination) {
+      // Remove all piped destinations
+      for (const state of this._pipeDests) {
+        state.cleanup();
+        state.dest.emit('unpipe', this);
+      }
+      this._pipeDests = [];
+      this.readableFlowing = false;
+    } else {
+      const idx = this._pipeDests.findIndex(s => s.dest === destination);
+      if (idx !== -1) {
+        const state = this._pipeDests[idx];
+        state.cleanup();
+        this._pipeDests.splice(idx, 1);
+        destination.emit('unpipe', this);
+        if (this._pipeDests.length === 0) {
+          this.readableFlowing = false;
+        }
+      }
+    }
     return this;
   }
 
@@ -251,6 +343,7 @@ export class Readable extends Stream {
     if (this.destroyed) return this;
     this.destroyed = true;
     this.readable = false;
+    this.readableAborted = !this.readableEnded;
 
     const cb = (err?: Error | null) => {
       nextTick(() => {
@@ -351,20 +444,48 @@ export class Writable extends Stream {
   writableObjectMode: boolean;
   writableEnded = false;
   writableFinished = false;
+  writableCorked = 0;
+  writableNeedDrain = false;
   destroyed = false;
 
-  private _writableState = { ended: false, finished: false, corked: 0 };
+  private _writableState = { ended: false, finished: false, constructed: true };
+  private _corkedBuffer: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
   private _writeImpl: ((chunk: any, encoding: string, cb: (error?: Error | null) => void) => void) | undefined;
+  private _writev: ((chunks: Array<{ chunk: any; encoding: string }>, cb: (error?: Error | null) => void) => void) | undefined;
   private _finalImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
   private _destroyImpl: ((error: Error | null, cb: (error?: Error | null) => void) => void) | undefined;
+  private _constructImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
 
   constructor(opts?: WritableOptions) {
     super(opts);
-    this.writableHighWaterMark = opts?.highWaterMark ?? 16384;
+    this.writableHighWaterMark = opts?.highWaterMark ?? getDefaultHighWaterMark(opts?.objectMode ?? false);
     this.writableObjectMode = opts?.objectMode ?? false;
     if (opts?.write) this._writeImpl = opts.write;
+    if (opts?.writev) this._writev = opts.writev;
     if (opts?.final) this._finalImpl = opts.final;
     if (opts?.destroy) this._destroyImpl = opts.destroy;
+    if (opts?.construct) this._constructImpl = opts.construct;
+
+    // Call _construct if provided
+    if (this._constructImpl) {
+      this._writableState.constructed = false;
+      nextTick(() => {
+        this._construct((err) => {
+          this._writableState.constructed = true;
+          if (err) {
+            this.destroy(err);
+          }
+        });
+      });
+    }
+  }
+
+  _construct(callback: (error?: Error | null) => void): void {
+    if (this._constructImpl) {
+      this._constructImpl.call(this, callback);
+    } else {
+      callback();
+    }
   }
 
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
@@ -402,6 +523,12 @@ export class Writable extends Stream {
 
     this.writableLength += this.writableObjectMode ? 1 : (chunk?.length ?? 1);
 
+    // If corked, buffer the write
+    if (this.writableCorked > 0) {
+      this._corkedBuffer.push({ chunk, encoding: encoding as string, callback });
+      return this.writableLength < this.writableHighWaterMark;
+    }
+
     const cb = callback;
     this._write(chunk, encoding as string, (err) => {
       this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
@@ -413,12 +540,19 @@ export class Writable extends Stream {
       } else {
         nextTick(() => {
           if (cb) cb();
-          this.emit('drain');
+          if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+            this.writableNeedDrain = false;
+            this.emit('drain');
+          }
         });
       }
     });
 
-    return this.writableLength < this.writableHighWaterMark;
+    const belowHWM = this.writableLength < this.writableHighWaterMark;
+    if (!belowHWM) {
+      this.writableNeedDrain = true;
+    }
+    return belowHWM;
   }
 
   end(chunk?: any, encoding?: string | (() => void), callback?: () => void): this {
@@ -454,12 +588,56 @@ export class Writable extends Stream {
   }
 
   cork(): void {
-    this._writableState.corked++;
+    this.writableCorked++;
   }
 
   uncork(): void {
-    if (this._writableState.corked > 0) {
-      this._writableState.corked--;
+    if (this.writableCorked > 0) {
+      this.writableCorked--;
+      if (this.writableCorked === 0 && this._corkedBuffer.length > 0) {
+        this._flushCorkedBuffer();
+      }
+    }
+  }
+
+  private _flushCorkedBuffer(): void {
+    // If _writev is available, flush as a batch
+    if (this._writev && this._corkedBuffer.length > 1) {
+      const buffered = this._corkedBuffer.splice(0);
+      const chunks = buffered.map(b => ({ chunk: b.chunk, encoding: b.encoding }));
+      this._writev.call(this, chunks, (err) => {
+        for (const b of buffered) {
+          this.writableLength -= this.writableObjectMode ? 1 : (b.chunk?.length ?? 1);
+        }
+        if (err) {
+          for (const b of buffered) b.callback(err);
+          this.emit('error', err);
+        } else {
+          for (const b of buffered) b.callback();
+          if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+            this.writableNeedDrain = false;
+            this.emit('drain');
+          }
+        }
+      });
+    } else {
+      // Flush one by one
+      const buffered = this._corkedBuffer.splice(0);
+      for (const { chunk, encoding, callback } of buffered) {
+        this._write(chunk, encoding, (err) => {
+          this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
+          if (err) {
+            callback(err);
+            this.emit('error', err);
+          } else {
+            callback();
+          }
+        });
+      }
+      if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+        this.writableNeedDrain = false;
+        nextTick(() => this.emit('drain'));
+      }
     }
   }
 
@@ -498,16 +676,19 @@ export class Duplex extends Readable {
   writableObjectMode: boolean;
   writableEnded = false;
   writableFinished = false;
+  writableCorked = 0;
+  writableNeedDrain = false;
 
-  private _duplexWritableState = { ended: false, finished: false, corked: 0 };
+  private _duplexCorkedBuffer: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
   private _writeImpl: ((chunk: any, encoding: string, cb: (error?: Error | null) => void) => void) | undefined;
   private _finalImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
 
   constructor(opts?: DuplexOptions) {
     super(opts);
-    this.writableHighWaterMark = opts?.highWaterMark ?? 16384;
+    this.writableHighWaterMark = opts?.writableHighWaterMark ?? opts?.highWaterMark ?? getDefaultHighWaterMark(opts?.writableObjectMode ?? opts?.objectMode ?? false);
     this.writableObjectMode = opts?.writableObjectMode ?? opts?.objectMode ?? false;
     if (opts?.write) this._writeImpl = opts.write;
+    // writev not yet supported on Duplex
     if (opts?.final) this._finalImpl = opts.final;
   }
 
@@ -534,7 +715,23 @@ export class Duplex extends Readable {
     }
     encoding = encoding || 'utf8';
 
+    if (this.writableEnded) {
+      const err = new Error('write after end');
+      const cb = callback || (() => {});
+      nextTick(() => {
+        cb(err);
+        this.emit('error', err);
+      });
+      return false;
+    }
+
     this.writableLength += this.writableObjectMode ? 1 : (chunk?.length ?? 1);
+
+    // If corked, buffer the write
+    if (this.writableCorked > 0) {
+      this._duplexCorkedBuffer.push({ chunk, encoding: encoding as string, callback: callback || (() => {}) });
+      return this.writableLength < this.writableHighWaterMark;
+    }
 
     const cb = callback || (() => {});
     this._write(chunk, encoding as string, (err) => {
@@ -547,12 +744,19 @@ export class Duplex extends Readable {
       } else {
         nextTick(() => {
           cb();
-          this.emit('drain');
+          if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+            this.writableNeedDrain = false;
+            this.emit('drain');
+          }
         });
       }
     });
 
-    return this.writableLength < this.writableHighWaterMark;
+    const belowHWM = this.writableLength < this.writableHighWaterMark;
+    if (!belowHWM) {
+      this.writableNeedDrain = true;
+    }
+    return belowHWM;
   }
 
   end(chunk?: any, encoding?: string | (() => void), callback?: () => void): this {
@@ -582,8 +786,32 @@ export class Duplex extends Readable {
     return this;
   }
 
-  cork(): void { this._duplexWritableState.corked++; }
-  uncork(): void { if (this._duplexWritableState.corked > 0) this._duplexWritableState.corked--; }
+  cork(): void { this.writableCorked++; }
+
+  uncork(): void {
+    if (this.writableCorked > 0) {
+      this.writableCorked--;
+      if (this.writableCorked === 0 && this._duplexCorkedBuffer.length > 0) {
+        const buffered = this._duplexCorkedBuffer.splice(0);
+        for (const { chunk, encoding, callback } of buffered) {
+          this._write(chunk, encoding, (err) => {
+            this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
+            if (err) {
+              callback(err);
+              this.emit('error', err);
+            } else {
+              callback();
+            }
+          });
+        }
+        if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+          this.writableNeedDrain = false;
+          nextTick(() => this.emit('drain'));
+        }
+      }
+    }
+  }
+
   setDefaultEncoding(_encoding: string): this { return this; }
 }
 
@@ -756,6 +984,75 @@ export function finished(stream: Stream | Readable | Writable, optsOrCb: Finishe
   };
 }
 
+// ---- addAbortSignal ----
+
+export function addAbortSignal(signal: AbortSignal, stream: Stream): typeof stream {
+  if (!(signal instanceof AbortSignal)) {
+    throw new TypeError('The first argument must be an AbortSignal');
+  }
+  if (!(stream instanceof Stream)) {
+    throw new TypeError('The second argument must be a Stream');
+  }
+
+  if (signal.aborted) {
+    (stream as Readable | Writable).destroy(new Error('The operation was aborted'));
+  } else {
+    const onAbort = () => {
+      (stream as Readable | Writable).destroy(new Error('The operation was aborted'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    // Cleanup when stream closes
+    stream.once('close', () => {
+      signal.removeEventListener('abort', onAbort);
+    });
+  }
+
+  return stream;
+}
+
+// ---- Utility functions ----
+
+export function isReadable(stream: unknown): boolean {
+  if (stream == null) return false;
+  const s = stream as Record<string, unknown>;
+  if (typeof s.readable !== 'boolean') return false;
+  if (typeof s.read !== 'function') return false;
+  if (s.destroyed === true) return false;
+  if (s.readableEnded === true) return false;
+  return (s.readable as boolean) === true;
+}
+
+export function isWritable(stream: unknown): boolean {
+  if (stream == null) return false;
+  const s = stream as Record<string, unknown>;
+  if (typeof s.writable !== 'boolean') return false;
+  if (typeof s.write !== 'function') return false;
+  if (s.destroyed === true) return false;
+  if (s.writableEnded === true) return false;
+  return (s.writable as boolean) === true;
+}
+
+export function isDestroyed(stream: unknown): boolean {
+  if (stream == null) return false;
+  return (stream as Record<string, unknown>).destroyed === true;
+}
+
+export function isDisturbed(stream: unknown): boolean {
+  if (stream == null) return false;
+  const s = stream as Record<string, unknown>;
+  // A stream is disturbed if data has been read from it
+  return s.readableDidRead === true || (s.readableFlowing !== null && s.readableFlowing !== undefined);
+}
+
+export function isErrored(stream: unknown): boolean {
+  if (stream == null) return false;
+  // Check for errored state on either side
+  const s = stream as Record<string, unknown>;
+  if (s.destroyed === true && typeof s.readable === 'boolean' && s.readable === false) return true;
+  if (s.destroyed === true && typeof s.writable === 'boolean' && s.writable === false) return true;
+  return false;
+}
+
 // ---- Exports ----
 
 // Default export
@@ -768,6 +1065,14 @@ const _default = Object.assign(Stream, {
   PassThrough,
   pipeline,
   finished,
+  addAbortSignal,
+  isReadable,
+  isWritable,
+  isDestroyed,
+  isDisturbed,
+  isErrored,
+  getDefaultHighWaterMark,
+  setDefaultHighWaterMark,
 });
 
 export default _default;
