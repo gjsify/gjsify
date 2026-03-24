@@ -1,48 +1,49 @@
 {
-  "name": "@gjsify/node-globals",
-  "version": "0.0.4",
-  "description": "Node.js globals module for Gjs",
-  "keywords": [
-    "gjs",
-    "node",
-    "globals"
-  ],
-  "author": "Pascal Garber",
-  "main": "lib/cjs/index.js",
-  "module": "lib/esm/index.js",
-  "type": "module",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./lib/types/index.d.ts",
-        "default": "./lib/esm/index.js"
-      },
-      "require": {
-        "types": "./lib/types/index.d.ts",
-        "default": "./lib/cjs/index.js"
-      }
+    "name": "@gjsify/node-globals",
+    "version": "0.0.4",
+    "description": "Node.js globals module for Gjs",
+    "keywords": [
+        "gjs",
+        "node",
+        "globals"
+    ],
+    "author": "Pascal Garber",
+    "main": "lib/cjs/index.js",
+    "module": "lib/esm/index.js",
+    "type": "module",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/esm/index.js"
+            },
+            "require": {
+                "types": "./lib/types/index.d.ts",
+                "default": "./lib/cjs/index.js"
+            }
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo test.node.mjs test.gjs.mjs",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc",
+        "build:test": "yarn build:test:gjs && yarn build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
+        "test:gjs": "gjs -m test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "dependencies": {
+        "@gjsify/buffer": "workspace:^",
+        "@gjsify/process": "workspace:^",
+        "@gjsify/utils": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "typescript": "^5.9.3"
     }
-  },
-  "scripts": {
-    "clear": "rm -rf lib tsconfig.tsbuildinfo test.node.mjs test.gjs.mjs",
-    "check": "tsc --noEmit",
-    "build": "yarn build:gjsify && yarn build:types",
-    "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-    "build:types": "tsc",
-    "build:test": "yarn build:test:gjs && yarn build:test:node",
-    "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-    "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
-    "test": "yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
-    "test:gjs": "gjs -m test.gjs.mjs",
-    "test:node": "node test.node.mjs"
-  },
-  "dependencies": {
-    "@gjsify/buffer": "workspace:^",
-    "@gjsify/process": "workspace:^",
-    "@gjsify/utils": "workspace:^"
-  },
-  "devDependencies": {
-    "@gjsify/cli": "workspace:^",
-    "@gjsify/unit": "workspace:^"
-  }
 }

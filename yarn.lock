@@ -1034,6 +1034,7 @@ __metadata:
     "@gjsify/url": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 
@@ -1174,6 +1175,7 @@ __metadata:
     "@gjsify/process": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
+    typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 
@@ -1184,6 +1186,7 @@ __metadata:
     "@girs/gjs": "npm:^4.0.0-beta.41"
     "@gjsify/cli": "workspace:^"
     "@gjsify/utils": "workspace:^"
+    typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 
@@ -1230,6 +1233,7 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@types/inherits": "npm:^2.0.0"
     "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 
@@ -1398,6 +1402,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
+    typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 

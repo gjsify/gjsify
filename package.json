@@ -13,12 +13,7 @@
     "check": "yarn workspaces foreach -ptv --all --exclude '@girs/*' run check",
     "clear": "yarn workspaces foreach -v --no-private --all --parallel run clear",
     "npm:publish": "yarn run build && yarn workspaces foreach -v --no-private npm publish --tolerate-republish --tag latest --access public",
-    "build": "yarn run build:infra && yarn run build:native-libs && yarn run build:gjs && yarn run build:node && yarn run build:web",
-    "build:infra": "yarn workspaces foreach -pR --topological-dev --from '@gjsify/cli' run build",
-    "build:native-libs": "(yarn workspace @gjsify/webgl run build:meson || true) && yarn workspace @gjsify/types run build",
-    "build:gjs": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/utils,@gjsify/unit}' run build",
-    "build:web": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/abort-controller,@gjsify/dom-events,@gjsify/formdata,@gjsify/fetch,@gjsify/web-globals,@gjsify/html-image-element}' run build",
-    "build:node": "yarn workspaces foreach -ptR --no-private --from '{@gjsify/assert,@gjsify/async_hooks,@gjsify/buffer,@gjsify/child_process,@gjsify/cluster,@gjsify/console,@gjsify/crypto,@gjsify/dgram,@gjsify/diagnostics_channel,@gjsify/dns,@gjsify/domain,@gjsify/events,@gjsify/fs,@gjsify/node-globals,@gjsify/http,@gjsify/http2,@gjsify/https,@gjsify/inspector,@gjsify/module,@gjsify/net,@gjsify/os,@gjsify/path,@gjsify/perf_hooks,@gjsify/process,@gjsify/querystring,@gjsify/readline,@gjsify/stream,@gjsify/string_decoder,@gjsify/timers,@gjsify/tls,@gjsify/tty,@gjsify/url,@gjsify/util,@gjsify/v8,@gjsify/vm,@gjsify/worker_threads,@gjsify/zlib}' run build"
+    "build": "yarn workspaces foreach --topological -p --no-private --all --exclude '@girs/*' run build"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

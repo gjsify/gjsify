@@ -40,6 +40,7 @@
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/inherits": "^2.0.0",
-        "@types/node": "^25.5.0"
+        "@types/node": "^25.5.0",
+        "typescript": "^5.9.3"
     }
 }
