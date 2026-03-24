@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Adapted from node-fetch (refs/node-fetch/src/response.js)
+// Adapted from node-fetch (https://github.com/node-fetch/node-fetch/blob/main/src/response.js)
 // Copyright (c) node-fetch contributors. MIT license.
 // Modifications: Rewritten for GJS using Gio streams and GLib
 

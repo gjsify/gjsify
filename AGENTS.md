@@ -11,9 +11,9 @@ packages/
   infra/  — cli, esbuild-plugin-gjsify, esbuild-plugin-alias, esbuild-plugin-deepkit,
              esbuild-plugin-transform-ext, resolve-npm, empty
   web/    — Web API polyfills: fetch, dom-events, abort-controller, formdata,
-             globals, html-image-element, webgl
+             globals, html-image-element, websocket, webgl
 refs/     — read-only git submodules (node, node-test, deno, bun, quickjs,
-             workerd, edgejs, llrt, gjs, node-fetch, fetch-ie8, stream-http,
+             workerd, edgejs, llrt, gjs, wpt, stream-http,
              headless-gl, troll, crypto-browserify, readable-stream, undici,
              browserify-cipher, browserify-sign, create-ecdh,
              create-hash, create-hmac, diffie-hellman, hash-base,
@@ -74,8 +74,19 @@ Each is `@gjsify/<name>`. All have native GJS implementations.
 | abort-controller | — | AbortController, AbortSignal (uses @gjsify/dom-events) |
 | formdata | — | FormData, File |
 | globals | — | Re-exports dom-events + abort-controller for global scope |
-| html-image-element | — | HTMLImageElement, Image (uses happy-dom) |
+| html-image-element | GdkPixbuf | HTMLImageElement, Image (uses happy-dom) |
+| websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
 | webgl | Gtk 4.0, Gio | WebGL 1.0 via Vala native extension (@gwebgl-0.1) |
+
+### Planned Web Packages
+
+| Package (planned) | GNOME Libs | Reference | Priority |
+|-------------------|-----------|----------|----------|
+| web-streams | Gio | `refs/deno/ext/web/06_streams.js` | High — foundation for CompressionStream, TextEncoderStream |
+| compression-streams | Gio | `refs/deno/ext/web/14_compression.js` | Medium — uses Gio.ZlibCompressor |
+| webcrypto | GLib | `refs/deno/ext/crypto/00_crypto.js` | Medium — partial via GLib.Checksum/Hmac |
+| eventsource | Soup 3.0 | `refs/deno/ext/fetch/27_eventsource.js`, `refs/undici/lib/web/eventsource/` | Low |
+| webstorage | Gio | `refs/deno/ext/webstorage/01_webstorage.js` | Low |
 
 ## Build System
 
@@ -133,24 +144,55 @@ process.env   → GLib.getenv(), GLib.setenv()
 url.URL       → GLib.Uri
 ```
 
+### Web→GNOME Mapping
+
+```
+fetch()            → Soup.Session (already in @gjsify/fetch)
+WebSocket          → Soup.WebsocketConnection (already in @gjsify/websocket)
+Web Streams        → Gio.InputStream/OutputStream wrapper + Gio.ConverterInputStream
+CompressionStream  → Gio.ZlibCompressor/Decompressor (already used in @gjsify/zlib)
+SubtleCrypto       → GLib.Checksum + GLib.Hmac + extern (RSA/EC not natively available)
+localStorage       → Gio.File (JSON-based) or GLib.KeyFile
+Cache API          → Gio.File + Soup.Cache
+ImageBitmap        → GdkPixbuf.Pixbuf
+EventSource        → Soup.Session (SSE via streaming response)
+```
+
 ## Reference Implementations (`refs/`)
 
 Read-only git submodules — do NOT modify. Use GNOME libraries internally, not copied code.
+
+### Node.js References
 
 | Path | Use |
 |------|-----|
 | `refs/node/` | Canonical Node.js behavior (the spec). Check `lib/<name>.js`, tests in `test/parallel/test-<name>*.js` |
 | `refs/node-test/` | wasmerio/node-test — isolated Node.js tests for any Node-like runtime. 3.897 tests, 43 modules, pre-sorted in `module-categories/`. **Primary test source.** |
-| `refs/deno/` | TypeScript reference, closest to gjsify's use case |
+| `refs/deno/` | TypeScript reference, closest to gjsify's use case. Node.js polyfills in `ext/node/polyfills/`. **Also primary Web API reference** — see Web API References below |
 | `refs/bun/` | Alternative TS/Zig implementation, clean TypeScript tests in `test/js/node/` |
 | `refs/quickjs/` | Lightweight JS engine (ES2024) — language feature tests in `tests/`, limited Node.js API coverage |
 | `refs/workerd/` | Cloudflare Workers Runtime — Node.js compat layer with 67 tested modules, two-layer architecture (C++ + TS). Tests in `src/workerd/api/node/tests/` |
 | `refs/edgejs/` | Edge.js — Node-compatible JS runtime for edge computing. Uses node-test as test suite. Reference for test harness patterns |
+| `refs/llrt/` | AWS LLRT (Low Latency Runtime) — lightweight JS runtime (Rust + QuickJS) with Node.js compat. Tests in `tests/unit/` cover assert, buffer, crypto, events, fs, net, path, stream, etc. |
+
+### Web API References
+
+| Path | Use |
+|------|-----|
+| `refs/deno/` | **Primary Web API reference.** `ext/web/` (Streams, Events, Compression, TextEncoding, Performance, Blob/File, structuredClone, MessagePort, BroadcastChannel, URLPattern, ImageData), `ext/fetch/` (fetch, Headers, Request, Response, FormData, EventSource), `ext/crypto/` (SubtleCrypto, CryptoKey), `ext/websocket/` (WebSocket), `ext/webstorage/` (localStorage, sessionStorage), `ext/cache/` (Cache, CacheStorage), `ext/image/` (ImageBitmap). Tests in `tests/unit/` |
+| `refs/wpt/` | W3C Web Platform Tests — canonical test suite for web standards. Equivalent of `refs/node-test/` for Web APIs. Tests for fetch, DOM events, AbortController, WebSocket, Streams, Encoding, URL, and more. Shallow clone |
+| `refs/happy-dom/` | Pure-JS browser environment (no GUI) — DOM (60+ element types), HTML parsing, CSS, MutationObserver, IntersectionObserver, TreeWalker, Range, Selection. **296 test files.** Reference for `packages/web/dom-events/`, `packages/web/html-image-element/` |
+| `refs/jsdom/` | JS implementation of web standards (DOM, HTML, CSS) — 30+ modules in `lib/jsdom/living/` (DOM, CSS, Fetch, File API, Web Crypto, WebSocket, XHR, Storage). **WPT integration** in `test/web-platform-tests/` for W3C compliance testing |
+| `refs/undici/` | Official Node.js HTTP client. `lib/web/` contains: fetch (Headers, Request, Response, FormData), WebSocket, Cache API, EventSource, cookies. **366 test files.** Reference for `@gjsify/fetch` and `@gjsify/http` |
+| `refs/headless-gl/` | Headless WebGL — 42 test files (shaders, buffers, textures, extensions). Reference for `packages/web/webgl/` |
+| `refs/node-gst-webrtc/` | WebRTC JS API via GStreamer's webrtcbin — incomplete but useful approach for RTCPeerConnection, RTCDataChannel, RTCSessionDescription, MediaStreamTrack using GStreamer/GObject bindings |
+
+### Other References
+
+| Path | Use |
+|------|-----|
 | `refs/gjs/` | GJS internals: `modules/` (built-in JS), `gjs/` (C++ runtime), `gi/` (GObject Introspection) |
-| `refs/node-fetch/` | Reference for `@gjsify/fetch` |
-| `refs/fetch-ie8/` | Minimal fetch polyfill internals |
 | `refs/stream-http/` | HTTP via Node.js streams — reference for `@gjsify/http` |
-| `refs/headless-gl/` | Headless WebGL — reference for `packages/web/webgl/` |
 | `refs/troll/` | GJS utility patterns (Sonny Piers) |
 | `refs/crypto-browserify/` | Pure-JS crypto orchestrator — wires together the sub-packages below for `@gjsify/crypto` |
 | `refs/browserify-cipher/` | AES cipher/decipher (createCipher, createCipheriv, getCiphers) — dep of crypto-browserify |
@@ -165,11 +207,6 @@ Read-only git submodules — do NOT modify. Use GNOME libraries internally, not 
 | `refs/randombytes/` | Random byte generation (randomBytes) — dep of crypto-browserify |
 | `refs/randomfill/` | Random buffer filling (randomFill, randomFillSync) — dep of crypto-browserify |
 | `refs/readable-stream/` | Maintained Node.js stream polyfill — reference for edge cases |
-| `refs/undici/` | Official Node.js HTTP client — reference for `@gjsify/http` client-side |
-| `refs/node-gst-webrtc/` | WebRTC JS API via GStreamer's webrtcbin — incomplete but useful approach for RTCPeerConnection, RTCDataChannel, RTCSessionDescription, MediaStreamTrack using GStreamer/GObject bindings |
-| `refs/llrt/` | AWS LLRT (Low Latency Runtime) — lightweight JS runtime (Rust + QuickJS) with Node.js compat. Tests in `tests/unit/` cover assert, buffer, crypto, events, fs, net, path, stream, etc. |
-| `refs/happy-dom/` | Pure-JS browser environment (no GUI) — DOM, HTML parsing, CSS, Web APIs. Reference for `packages/web/` (HTMLImageElement, DOM events, etc.) |
-| `refs/jsdom/` | JS implementation of web standards (DOM, HTML, CSS) — reference for `packages/web/` DOM and HTML APIs |
 
 ## Official Node.js npm Packages
 
@@ -286,6 +323,45 @@ Port meaningful tests from these reference projects into our `*.spec.ts` files. 
 
 Skip tests that depend on Node.js/V8 internals, native addons, or features we intentionally stub.
 
+### Web API Test Sources from Reference Projects
+
+Port meaningful tests from these reference projects into `packages/web/*/src/*.spec.ts` files. Same rules as Node.js test sources: rewrite using `@gjsify/unit`, bare specifier imports, no verbatim copying.
+
+| Source | Where to find tests | Web APIs covered |
+|--------|-------------------|-----------------|
+| WPT (`refs/wpt/`) | `fetch/`, `dom/`, `websockets/`, `streams/`, `encoding/`, `url/`, `FileAPI/`, `compression/`, `eventsource/`, `webstorage/`, `webgl/` | **Canonical W3C/WHATWG test suite.** Authoritative for all Web APIs. Equivalent of `refs/node-test/` for web standards. |
+| Deno (`refs/deno/`) | `tests/unit/fetch_test.ts` (~2.400 lines), `tests/unit/webcrypto_test.ts` (~2.200 lines), `tests/unit/websocket_test.ts` (~1.200 lines), `tests/unit/streams_test.ts` (~750 lines), `tests/unit/event_target_test.ts`, `tests/unit/event_test.ts`, `tests/unit/abort_controller_test.ts`, `tests/unit/dom_exception_test.ts` | TypeScript unit tests — largest Web API test corpus. Good for fetch, crypto, WebSocket, streams, events. |
+| happy-dom (`refs/happy-dom/`) | `packages/happy-dom/test/` (296 test files) | DOM elements (60+ types), events, CSS, MutationObserver, IntersectionObserver, TreeWalker, Range, Selection, fetch, FormData, WebSocket, Storage |
+| jsdom (`refs/jsdom/`) | `test/web-platform-tests/` (WPT runner), `test/to-port-to-wpts/` | W3C-compliant DOM/HTML tests, web-platform-tests integration |
+| undici (`refs/undici/`) | `test/` (366 test files) | fetch (Headers, Request, Response), FormData, WebSocket, Cache API, EventSource, cookies |
+
+### Deno Web API Implementation Files
+
+Use these as implementation references when building `packages/web/` packages:
+
+| Deno file | Web APIs | Notes |
+|-----------|----------|-------|
+| `ext/web/06_streams.js` | ReadableStream, WritableStream, TransformStream, ByteLengthQueuingStrategy, CountQueuingStrategy | Complete WHATWG Streams implementation |
+| `ext/web/14_compression.js` | CompressionStream, DecompressionStream | Uses Rust ops internally; reimplement with Gio.ZlibCompressor |
+| `ext/web/02_event.js` | Event, EventTarget, CustomEvent, ErrorEvent, CloseEvent, MessageEvent, ProgressEvent | Full DOM Events spec |
+| `ext/web/03_abort_signal.js` | AbortController, AbortSignal | Signal.abort(), Signal.timeout(), Signal.any() |
+| `ext/web/08_text_encoding.js` | TextEncoder, TextDecoder, TextEncoderStream, TextDecoderStream | Streaming variants useful for web-streams |
+| `ext/web/09_file.js` | Blob, File | WHATWG File API |
+| `ext/web/10_filereader.js` | FileReader | Async file reading |
+| `ext/web/15_performance.js` | Performance, PerformanceMark, PerformanceMeasure, PerformanceObserver | High Resolution Time + User Timing |
+| `ext/web/02_structured_clone.js` | structuredClone() | Structured clone algorithm |
+| `ext/web/13_message_port.js` | MessageChannel, MessagePort | Cross-context messaging |
+| `ext/web/16_image_data.js` | ImageData | Pixel data for canvas |
+| `ext/web/01_broadcast_channel.js` | BroadcastChannel | Cross-tab messaging |
+| `ext/web/01_urlpattern.js` | URLPattern | URL pattern matching |
+| `ext/fetch/20_headers.js` — `ext/fetch/26_fetch.js` | fetch(), Headers, Request, Response, FormData | Complete WHATWG Fetch |
+| `ext/fetch/27_eventsource.js` | EventSource | Server-Sent Events |
+| `ext/crypto/00_crypto.js` | SubtleCrypto, CryptoKey, getRandomValues(), randomUUID() | WebCrypto API (Rust-backed; reference for API surface) |
+| `ext/websocket/01_websocket.js` | WebSocket | WHATWG WebSocket |
+| `ext/webstorage/01_webstorage.js` | localStorage, sessionStorage (Storage) | Web Storage API |
+| `ext/cache/01_cache.js` | Cache, CacheStorage | Service Worker Cache API |
+| `ext/image/01_image.js` | ImageBitmap, createImageBitmap() | Async image decoding |
+
 ## Type Safety
 
 - **Import Node.js types** from `node:*` modules, don't redefine: `import type { ReadableOptions } from 'node:stream'`
@@ -387,6 +463,7 @@ Use these canonical copyright lines when applying Template A or D:
 | `refs/llrt/` | `Copyright (c) Amazon.com, Inc. Apache 2.0 license.` |
 | `refs/happy-dom/` | `Copyright (c) David Ortner (capricorn86). MIT license.` |
 | `refs/jsdom/` | `Copyright (c) Elijah Insua. MIT license.` |
+| `refs/wpt/` | `Copyright (c) web-platform-tests contributors. 3-Clause BSD license.` |
 | node-fetch | `Copyright (c) node-fetch contributors. MIT license.` |
 | event-target-shim | `Copyright (c) Toru Nagashima. MIT license.` |
 | gjs-require | `Copyright (c) Andrea Giammarchi. ISC license.` |

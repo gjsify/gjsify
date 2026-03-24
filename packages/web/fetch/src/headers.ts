@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Adapted from node-fetch (refs/node-fetch/src/headers.js)
+// Adapted from node-fetch (https://github.com/node-fetch/node-fetch/blob/main/src/headers.js)
 // Copyright (c) node-fetch contributors. MIT license.
 // Modifications: Standalone implementation using internal Map, libsoup integration
 

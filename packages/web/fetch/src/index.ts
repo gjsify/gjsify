@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Adapted from node-fetch (refs/node-fetch/) and the Fetch API spec (https://fetch.spec.whatwg.org/)
+// Adapted from node-fetch (https://github.com/node-fetch/node-fetch) and the Fetch API spec (https://fetch.spec.whatwg.org/)
 // Copyright (c) node-fetch contributors. MIT license.
 // Modifications: Rewritten for GJS using libsoup 3.0 (Soup.Session)
 

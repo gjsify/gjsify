@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Adapted from node-fetch (refs/node-fetch/src/body.js)
+// Adapted from node-fetch (https://github.com/node-fetch/node-fetch/blob/main/src/body.js)
 // Copyright (c) node-fetch contributors. MIT license.
 // Modifications: Rewritten for GJS using libsoup 3.0 and @gjsify/url
 

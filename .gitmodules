@@ -10,12 +10,6 @@
 [submodule "refs/gjs"]
 	path = refs/gjs
 	url = https://gitlab.gnome.org/GNOME/gjs.git
-[submodule "refs/node-fetch"]
-	path = refs/node-fetch
-	url = git@github.com:node-fetch/node-fetch.git
-[submodule "refs/fetch-ie8"]
-	path = refs/fetch-ie8
-	url = git@github.com:camsong/fetch-ie8.git
 [submodule "refs/troll"]
 	path = refs/troll
 	url = git@github.com:sonnyp/troll.git
@@ -91,3 +85,7 @@
 [submodule "refs/jsdom"]
 	path = refs/jsdom
 	url = git@github.com:jsdom/jsdom.git
+[submodule "refs/wpt"]
+	path = refs/wpt
+	url = https://github.com/web-platform-tests/wpt.git
+	shallow = true
