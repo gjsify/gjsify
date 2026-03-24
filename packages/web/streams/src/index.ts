@@ -8,19 +8,21 @@
 // On GJS, it provides a full polyfill and registers globals.
 
 import { WritableStream, WritableStreamDefaultWriter, WritableStreamDefaultController } from './writable-stream.js';
+import { ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController } from './readable-stream.js';
 import { ByteLengthQueuingStrategy, CountQueuingStrategy } from './queuing-strategies.js';
 
-// Phase 2 will add: ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController
 // Phase 3 will add: TransformStream, TransformStreamDefaultController
 
-// For now, ReadableStream and TransformStream use native if available, undefined otherwise
-const _ReadableStream = globalThis.ReadableStream;
+// For now, TransformStream uses native if available, undefined otherwise
 const _TransformStream = globalThis.TransformStream;
 
 // Use native if available (Node.js 18+), polyfill otherwise
 const _WritableStream = typeof globalThis.WritableStream === 'function'
   ? globalThis.WritableStream
   : WritableStream;
+const _ReadableStream = typeof globalThis.ReadableStream === 'function'
+  ? globalThis.ReadableStream
+  : ReadableStream;
 const _ByteLengthQueuingStrategy = typeof globalThis.ByteLengthQueuingStrategy === 'function'
   ? globalThis.ByteLengthQueuingStrategy
   : ByteLengthQueuingStrategy;
@@ -31,6 +33,9 @@ const _CountQueuingStrategy = typeof globalThis.CountQueuingStrategy === 'functi
 // Register globals on GJS
 if (typeof globalThis.WritableStream === 'undefined') {
   (globalThis as any).WritableStream = WritableStream;
+}
+if (typeof globalThis.ReadableStream === 'undefined') {
+  (globalThis as any).ReadableStream = ReadableStream;
 }
 if (typeof globalThis.ByteLengthQueuingStrategy === 'undefined') {
   (globalThis as any).ByteLengthQueuingStrategy = ByteLengthQueuingStrategy;
@@ -47,8 +52,11 @@ export {
   _CountQueuingStrategy as CountQueuingStrategy,
 };
 
-// Re-export internals needed by other packages
+// Re-export class types for direct import
 export { WritableStreamDefaultWriter, WritableStreamDefaultController } from './writable-stream.js';
+export { ReadableStreamDefaultReader, ReadableStreamDefaultController } from './readable-stream.js';
+
+// Re-export internals needed by other packages
 export {
   isWritableStream,
   isWritableStreamLocked,
@@ -59,6 +67,21 @@ export {
   writableStreamDefaultControllerErrorIfNeeded,
   createWritableStream,
 } from './writable-stream.js';
+
+export {
+  isReadableStream,
+  isReadableStreamLocked,
+  readableStreamCancel,
+  readableStreamClose,
+  readableStreamError,
+  readableStreamDefaultControllerClose,
+  readableStreamDefaultControllerEnqueue,
+  readableStreamDefaultControllerError,
+  readableStreamDefaultControllerGetDesiredSize,
+  readableStreamDefaultControllerCanCloseOrEnqueue,
+  setupReadableStreamDefaultController,
+  createReadableStream,
+} from './readable-stream.js';
 
 export default {
   WritableStream: _WritableStream,

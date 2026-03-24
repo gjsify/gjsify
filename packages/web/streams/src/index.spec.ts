@@ -5,6 +5,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import {
   WritableStream,
+  ReadableStream,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
 } from './index.js';
@@ -204,6 +205,214 @@ export default async () => {
       expect(typeof writer.closed.then).toBe('function');
       expect(typeof writer.ready.then).toBe('function');
       await writer.close();
+    });
+  });
+
+  // ==================== ReadableStream ====================
+
+  await describe('ReadableStream', async () => {
+    await it('should be a constructor', async () => {
+      expect(typeof ReadableStream).toBe('function');
+    });
+
+    await it('should be constructable with no arguments', async () => {
+      const rs = new ReadableStream();
+      expect(rs).toBeDefined();
+      expect(rs.locked).toBe(false);
+    });
+
+    await it('should accept an underlying source', async () => {
+      const rs = new ReadableStream({
+        start(controller: any) {
+          controller.enqueue('hello');
+          controller.close();
+        },
+      });
+      expect(rs).toBeDefined();
+    });
+
+    await it('should read chunks from source', async () => {
+      const rs = new ReadableStream({
+        start(controller: any) {
+          controller.enqueue('a');
+          controller.enqueue('b');
+          controller.close();
+        },
+      });
+      const reader = rs.getReader();
+      const r1 = await reader.read();
+      expect(r1.done).toBe(false);
+      expect(r1.value).toBe('a');
+      const r2 = await reader.read();
+      expect(r2.done).toBe(false);
+      expect(r2.value).toBe('b');
+      const r3 = await reader.read();
+      expect(r3.done).toBe(true);
+    });
+
+    await it('should be locked when reader is acquired', async () => {
+      const rs = new ReadableStream();
+      expect(rs.locked).toBe(false);
+      const reader = rs.getReader();
+      expect(rs.locked).toBe(true);
+      reader.releaseLock();
+      expect(rs.locked).toBe(false);
+    });
+
+    await it('should cancel', async () => {
+      let cancelReason: any;
+      const rs = new ReadableStream({
+        cancel(reason: any) { cancelReason = reason; },
+      });
+      await rs.cancel('test');
+      expect(cancelReason).toBe('test');
+    });
+
+    await it('should support tee', async () => {
+      const rs = new ReadableStream({
+        start(controller: any) {
+          controller.enqueue(1);
+          controller.enqueue(2);
+          controller.close();
+        },
+      });
+      const [branch1, branch2] = rs.tee();
+      const reader1 = branch1.getReader();
+      const reader2 = branch2.getReader();
+
+      const r1 = await reader1.read();
+      expect(r1.value).toBe(1);
+      const r2 = await reader2.read();
+      expect(r2.value).toBe(1);
+
+      const r3 = await reader1.read();
+      expect(r3.value).toBe(2);
+      const r4 = await reader2.read();
+      expect(r4.value).toBe(2);
+
+      const r5 = await reader1.read();
+      expect(r5.done).toBe(true);
+      const r6 = await reader2.read();
+      expect(r6.done).toBe(true);
+    });
+
+    await it('should support async iteration', async () => {
+      const rs = new ReadableStream({
+        start(controller: any) {
+          controller.enqueue('x');
+          controller.enqueue('y');
+          controller.close();
+        },
+      });
+      const collected: string[] = [];
+      for await (const chunk of rs) {
+        collected.push(chunk as string);
+      }
+      expect(collected.length).toBe(2);
+      expect(collected[0]).toBe('x');
+      expect(collected[1]).toBe('y');
+    });
+
+    await it('should pipeTo a WritableStream', async () => {
+      const chunks: string[] = [];
+      const rs = new ReadableStream({
+        start(controller: any) {
+          controller.enqueue('hello');
+          controller.enqueue('world');
+          controller.close();
+        },
+      });
+      const ws = new WritableStream({
+        write(chunk: string) { chunks.push(chunk); },
+      });
+      await rs.pipeTo(ws);
+      expect(chunks.length).toBe(2);
+      expect(chunks[0]).toBe('hello');
+      expect(chunks[1]).toBe('world');
+    });
+
+    await it('should support ReadableStream.from with array', async () => {
+      const rs = ReadableStream.from(['a', 'b', 'c']);
+      const reader = rs.getReader();
+      const r1 = await reader.read();
+      expect(r1.value).toBe('a');
+      const r2 = await reader.read();
+      expect(r2.value).toBe('b');
+      const r3 = await reader.read();
+      expect(r3.value).toBe('c');
+      const r4 = await reader.read();
+      expect(r4.done).toBe(true);
+    });
+
+    await it('should support ReadableStream.from with async generator', async () => {
+      async function* gen() {
+        yield 1;
+        yield 2;
+        yield 3;
+      }
+      const rs = ReadableStream.from(gen());
+      const reader = rs.getReader();
+      const r1 = await reader.read();
+      expect(r1.value).toBe(1);
+      const r2 = await reader.read();
+      expect(r2.value).toBe(2);
+      const r3 = await reader.read();
+      expect(r3.value).toBe(3);
+      const r4 = await reader.read();
+      expect(r4.done).toBe(true);
+    });
+
+    await it('reader.closed should resolve on stream close', async () => {
+      const rs = new ReadableStream({
+        start(controller: any) { controller.close(); },
+      });
+      const reader = rs.getReader();
+      await reader.closed;
+    });
+
+    await it('should handle pull-based source', async () => {
+      let callCount = 0;
+      const rs = new ReadableStream({
+        pull(controller: any) {
+          callCount++;
+          if (callCount <= 3) {
+            controller.enqueue(callCount);
+          } else {
+            controller.close();
+          }
+        },
+      });
+      const reader = rs.getReader();
+      const r1 = await reader.read();
+      expect(r1.value).toBe(1);
+      const r2 = await reader.read();
+      expect(r2.value).toBe(2);
+      const r3 = await reader.read();
+      expect(r3.value).toBe(3);
+      const r4 = await reader.read();
+      expect(r4.done).toBe(true);
+    });
+  });
+
+  // ==================== ReadableStreamDefaultReader ====================
+
+  await describe('ReadableStreamDefaultReader', async () => {
+    await it('should have read, releaseLock, cancel methods', async () => {
+      const rs = new ReadableStream();
+      const reader = rs.getReader();
+      expect(typeof reader.read).toBe('function');
+      expect(typeof reader.releaseLock).toBe('function');
+      expect(typeof reader.cancel).toBe('function');
+    });
+
+    await it('should have closed promise', async () => {
+      const rs = new ReadableStream({
+        start(controller: any) { controller.close(); },
+      });
+      const reader = rs.getReader();
+      expect(reader.closed).toBeDefined();
+      expect(typeof reader.closed.then).toBe('function');
+      await reader.closed;
     });
   });
 };

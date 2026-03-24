@@ -494,7 +494,7 @@ function writableStreamAddWriteRequest(stream: any): Promise<void> {
   return promise;
 }
 
-function writableStreamDefaultWriterWrite(writer: any, chunk: any): Promise<void> {
+export function writableStreamDefaultWriterWrite(writer: any, chunk: any): Promise<void> {
   const { stream } = writer[kState];
   const { controller } = stream[kState];
   const chunkSize = writableStreamDefaultControllerGetChunkSize(controller, chunk);
@@ -513,7 +513,7 @@ function writableStreamDefaultWriterWrite(writer: any, chunk: any): Promise<void
   return promise;
 }
 
-function writableStreamDefaultWriterRelease(writer: any): void {
+export function writableStreamDefaultWriterRelease(writer: any): void {
   const { stream } = writer[kState];
   const releasedError = new TypeError('Writer has been released');
   writableStreamDefaultWriterEnsureReadyPromiseRejected(writer, releasedError);
