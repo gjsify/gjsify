@@ -1,5 +1,3 @@
-// WORKAROUND: for error "EventTarget is undefined"
-import '@gjsify/deno-runtime/globals';
 import '@girs/gjs';
 import '@girs/gtk-4.0';
 
