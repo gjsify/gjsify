@@ -220,5 +220,106 @@ export default async () => {
         expect(typeof timers.unenroll === 'function' || typeof timers.unenroll === 'undefined').toBe(true);
       });
     });
+
+    // ==================== Additional tests ====================
+
+    await describe('setTimeout additional', async () => {
+      await it('should not throw with very large delay', async () => {
+        const timeout = timers.setTimeout(() => {}, 2147483647);
+        expect(timeout).toBeDefined();
+        timers.clearTimeout(timeout);
+      });
+
+      await it('should handle string delay by coercing to number', async () => {
+        const result = await new Promise<string>((resolve) => {
+          timers.setTimeout(() => resolve('coerced'), '10' as any);
+        });
+        expect(result).toBe('coerced');
+      });
+    });
+
+    await describe('setInterval additional', async () => {
+      await it('should fire at least 3 times then be clearable', async () => {
+        let count = 0;
+        await new Promise<void>((resolve) => {
+          const interval = timers.setInterval(() => {
+            count++;
+            if (count >= 3) {
+              timers.clearInterval(interval);
+              resolve();
+            }
+          }, 15);
+        });
+        expect(count).toBeGreaterThan(2);
+      });
+
+      await it('should handle 0 interval without hanging', async () => {
+        let count = 0;
+        await new Promise<void>((resolve) => {
+          const interval = timers.setInterval(() => {
+            count++;
+            if (count >= 3) {
+              timers.clearInterval(interval);
+              resolve();
+            }
+          }, 0);
+        });
+        expect(count).toBeGreaterThan(2);
+      });
+    });
+
+    await describe('clearTimeout additional', async () => {
+      await it('clearTimeout on already fired timer should not throw', async () => {
+        const timeout = timers.setTimeout(() => {}, 5);
+        // Wait for the timer to fire
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 50));
+        // Clearing after it has fired should be safe
+        expect(() => timers.clearTimeout(timeout)).not.toThrow();
+      });
+    });
+
+    await describe('Timeout.refresh additional', async () => {
+      await it('refresh() on cleared timer should not throw', async () => {
+        const timeout = timers.setTimeout(() => {}, 1000);
+        timers.clearTimeout(timeout);
+        // Calling refresh on a cleared timer should not throw
+        expect(() => timeout.refresh()).not.toThrow();
+      });
+    });
+
+    await describe('setImmediate ordering', async () => {
+      await it('should execute before setTimeout(0)', async () => {
+        const order: string[] = [];
+        await new Promise<void>((resolve) => {
+          timers.setTimeout(() => {
+            order.push('timeout');
+            if (order.length === 2) resolve();
+          }, 0);
+          timers.setImmediate(() => {
+            order.push('immediate');
+            if (order.length === 2) resolve();
+          });
+        });
+        // setImmediate should fire before or at least at the same time as setTimeout(0)
+        // In Node.js, order can vary in the top level, but setImmediate is generally prioritized
+        expect(order.length).toBe(2);
+        expect(order[0]).toBe('immediate');
+      });
+
+      await it('multiple setImmediates should execute in order', async () => {
+        const order: number[] = [];
+        await new Promise<void>((resolve) => {
+          timers.setImmediate(() => order.push(1));
+          timers.setImmediate(() => order.push(2));
+          timers.setImmediate(() => {
+            order.push(3);
+            resolve();
+          });
+        });
+        expect(order[0]).toBe(1);
+        expect(order[1]).toBe(2);
+        expect(order[2]).toBe(3);
+      });
+    });
   });
 };

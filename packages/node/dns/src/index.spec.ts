@@ -306,5 +306,91 @@ export default async () => {
         expect(getDefaultResultOrder()).toBe('verbatim');
       });
     });
+
+    // --- Additional export checks ---
+    await describe('additional exports', async () => {
+      await it('resolve6 should be a function', async () => {
+        expect(typeof resolve6).toBe('function');
+      });
+
+      await it('resolve6 should resolve localhost', async () => {
+        await new Promise<void>((resolve) => {
+          resolve6('localhost', (err, addresses) => {
+            // May fail if no IPv6 configured, but should not crash
+            if (err) {
+              expect(typeof (err as any).code).toBe('string');
+            } else {
+              expect(Array.isArray(addresses)).toBe(true);
+              expect(addresses.length).toBeGreaterThan(0);
+              for (const addr of addresses) {
+                expect(typeof addr).toBe('string');
+              }
+            }
+            resolve();
+          });
+        });
+      });
+
+      await it('dns.getServers should be a function if exported', async () => {
+        // getServers may or may not be implemented
+        expect(typeof dns.getServers === 'function' || typeof dns.getServers === 'undefined').toBe(true);
+      });
+
+      await it('dns.setServers should be a function if exported', async () => {
+        // setServers may or may not be implemented
+        expect(typeof dns.setServers === 'function' || typeof dns.setServers === 'undefined').toBe(true);
+      });
+
+      await it('dns.Resolver should be a constructor if exported', async () => {
+        // Resolver class may or may not be implemented
+        expect(typeof dns.Resolver === 'function' || typeof dns.Resolver === 'undefined').toBe(true);
+      });
+    });
+
+    // --- lookup with hints option ---
+    await describe('lookup with hints', async () => {
+      await it('lookup with hints option should not throw', async () => {
+        await new Promise<void>((resolve) => {
+          lookup('127.0.0.1', { hints: 0 }, (err, address, family) => {
+            expect(err).toBeNull();
+            expect(address).toBe('127.0.0.1');
+            expect(family).toBe(4);
+            resolve();
+          });
+        });
+      });
+    });
+
+    // --- resolve with different rrtypes ---
+    await describe('resolve with rrtypes', async () => {
+      await it('resolve with MX rrtype should be supported', async () => {
+        // We just verify the function accepts the rrtype without crashing
+        await new Promise<void>((resolve) => {
+          dns.resolve('localhost', 'MX', (err: any, records: any) => {
+            // MX for localhost may return error (no MX records), that's fine
+            if (err) {
+              expect(typeof err.code === 'string' || typeof err.message === 'string').toBe(true);
+            } else {
+              expect(Array.isArray(records)).toBe(true);
+            }
+            resolve();
+          });
+        });
+      });
+
+      await it('resolve with TXT rrtype should be supported', async () => {
+        await new Promise<void>((resolve) => {
+          dns.resolve('localhost', 'TXT', (err: any, records: any) => {
+            // TXT for localhost may return error (no TXT records), that's fine
+            if (err) {
+              expect(typeof err.code === 'string' || typeof err.message === 'string').toBe(true);
+            } else {
+              expect(Array.isArray(records)).toBe(true);
+            }
+            resolve();
+          });
+        });
+      });
+    });
   });
 };

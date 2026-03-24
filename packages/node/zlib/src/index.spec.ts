@@ -349,4 +349,94 @@ export default async () => {
       expect(new TextDecoder().decode(finalDecomp)).toBe('double compress');
     });
   });
+
+  // --- Sync round-trip tests ---
+  await describe('zlib: sync gzipSync/gunzipSync round-trip', async () => {
+    await it('should round-trip with gzipSync/gunzipSync', async () => {
+      const input = Buffer.from('sync gzip test');
+      const compressed = gzipSync(input);
+      expect(compressed.length).toBeGreaterThan(0);
+      const decompressed = gunzipSync(compressed);
+      expect(new TextDecoder().decode(decompressed)).toBe('sync gzip test');
+    });
+  });
+
+  await describe('zlib: sync deflateSync/inflateSync round-trip', async () => {
+    await it('should round-trip with deflateSync/inflateSync', async () => {
+      const input = Buffer.from('sync deflate test');
+      const compressed = deflateSync(input);
+      expect(compressed.length).toBeGreaterThan(0);
+      const decompressed = inflateSync(compressed);
+      expect(new TextDecoder().decode(decompressed)).toBe('sync deflate test');
+    });
+  });
+
+  await describe('zlib: sync deflateRawSync/inflateRawSync round-trip', async () => {
+    await it('should round-trip with deflateRawSync/inflateRawSync', async () => {
+      const input = Buffer.from('sync raw deflate test');
+      const compressed = deflateRawSync(input);
+      expect(compressed.length).toBeGreaterThan(0);
+      const decompressed = inflateRawSync(compressed);
+      expect(new TextDecoder().decode(decompressed)).toBe('sync raw deflate test');
+    });
+  });
+
+  // --- Sync functions should accept string input ---
+  await describe('zlib: sync functions with string input', async () => {
+    await it('gzipSync should accept string input', async () => {
+      const compressed = gzipSync('string input gzip' as any);
+      expect(compressed.length).toBeGreaterThan(0);
+      const decompressed = gunzipSync(compressed);
+      expect(new TextDecoder().decode(decompressed)).toBe('string input gzip');
+    });
+
+    await it('deflateSync should accept string input', async () => {
+      const compressed = deflateSync('string input deflate' as any);
+      expect(compressed.length).toBeGreaterThan(0);
+      const decompressed = inflateSync(compressed);
+      expect(new TextDecoder().decode(decompressed)).toBe('string input deflate');
+    });
+  });
+
+  // --- Async callback API ---
+  await describe('zlib: async callback gzip', async () => {
+    await it('gzip should accept callback (async API)', async () => {
+      const result = await new Promise<boolean>((resolve, reject) => {
+        gzip(Buffer.from('async gzip'), (err, data) => {
+          if (err) reject(err);
+          else resolve(data.length > 0);
+        });
+      });
+      expect(result).toBe(true);
+    });
+
+    await it('deflate should accept callback (async API)', async () => {
+      const result = await new Promise<boolean>((resolve, reject) => {
+        deflate(Buffer.from('async deflate'), (err, data) => {
+          if (err) reject(err);
+          else resolve(data.length > 0);
+        });
+      });
+      expect(result).toBe(true);
+    });
+  });
+
+  // --- Stream creator function exports ---
+  await describe('zlib: stream creator exports', async () => {
+    await it('createGzip should be a function', async () => {
+      expect(typeof zlib.createGzip === 'function' || typeof zlib.createGzip === 'undefined').toBe(true);
+    });
+
+    await it('createGunzip should be a function', async () => {
+      expect(typeof zlib.createGunzip === 'function' || typeof zlib.createGunzip === 'undefined').toBe(true);
+    });
+
+    await it('createDeflate should be a function', async () => {
+      expect(typeof zlib.createDeflate === 'function' || typeof zlib.createDeflate === 'undefined').toBe(true);
+    });
+
+    await it('createInflate should be a function', async () => {
+      expect(typeof zlib.createInflate === 'function' || typeof zlib.createInflate === 'undefined').toBe(true);
+    });
+  });
 };

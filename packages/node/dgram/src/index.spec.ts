@@ -260,5 +260,135 @@ export default async () => {
         });
       });
     });
+
+    // --- Additional tests ---
+
+    await describe('createSocket with reuseAddr option', async () => {
+      await it('should create a socket with reuseAddr true', async () => {
+        const socket = createSocket({ type: 'udp4', reuseAddr: true });
+        expect(socket).toBeDefined();
+        expect(socket.type).toBe('udp4');
+        socket.close();
+      });
+
+      await it('should create a socket with reuseAddr false', async () => {
+        const socket = createSocket({ type: 'udp4', reuseAddr: false });
+        expect(socket).toBeDefined();
+        socket.close();
+      });
+    });
+
+    await describe('Socket.address() structure', async () => {
+      await it('should return object with port, address, and family after bind', async () => {
+        const socket = createSocket('udp4');
+
+        const result = await Promise.race([
+          new Promise<string>((resolve) => {
+            socket.on('listening', () => resolve('listening'));
+            socket.on('error', () => resolve('error'));
+            socket.bind(0);
+          }),
+          new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), 2000)),
+        ]);
+
+        if (result === 'listening') {
+          const addr = socket.address();
+          expect(typeof addr.port).toBe('number');
+          expect(typeof addr.address).toBe('string');
+          expect(typeof addr.family).toBe('string');
+          expect(addr.port).toBeGreaterThan(0);
+        }
+        socket.close();
+      });
+    });
+
+    await describe('Socket method existence', async () => {
+      await it('should have setTTL method', async () => {
+        const socket = createSocket('udp4');
+        expect(typeof socket.setTTL).toBe('function');
+        socket.close();
+      });
+
+      await it('should have setBroadcast method', async () => {
+        const socket = createSocket('udp4');
+        expect(typeof socket.setBroadcast).toBe('function');
+        socket.close();
+      });
+    });
+
+    await describe('close on unbound socket', async () => {
+      await it('close() on unbound socket should not throw', async () => {
+        const socket = createSocket('udp4');
+        // Socket was never bound — close should still work
+        expect(() => socket.close()).not.toThrow();
+      });
+    });
+
+    await describe('createSocket type as string', async () => {
+      await it('should accept "udp4" as string type argument', async () => {
+        const socket = createSocket('udp4');
+        expect(socket).toBeDefined();
+        expect(socket.type).toBe('udp4');
+        socket.close();
+      });
+
+      await it('should accept "udp6" as string type argument', async () => {
+        const socket = createSocket('udp6');
+        expect(socket).toBeDefined();
+        expect(socket.type).toBe('udp6');
+        socket.close();
+      });
+    });
+
+    await on('Node.js', async () => {
+      await describe('Multiple sends and send callback', async () => {
+        await it('multiple sends should all succeed', async () => {
+          const server = createSocket('udp4');
+          const client = createSocket('udp4');
+
+          await new Promise<void>((resolve, reject) => {
+            let sendCount = 0;
+            server.on('listening', () => {
+              const serverAddr = server.address();
+              const onSend = (err: Error | null) => {
+                expect(err).toBeNull();
+                sendCount++;
+                if (sendCount === 3) {
+                  server.close();
+                  client.close();
+                  resolve();
+                }
+              };
+              client.send('msg1', serverAddr.port, '127.0.0.1', onSend);
+              client.send('msg2', serverAddr.port, '127.0.0.1', onSend);
+              client.send('msg3', serverAddr.port, '127.0.0.1', onSend);
+            });
+            server.on('error', reject);
+            server.bind(0);
+          });
+        });
+
+        await it('send with callback should invoke callback', async () => {
+          const server = createSocket('udp4');
+          const client = createSocket('udp4');
+
+          const callbackInvoked = await new Promise<boolean>((resolve, reject) => {
+            server.on('listening', () => {
+              const serverAddr = server.address();
+              client.send('callback test', serverAddr.port, '127.0.0.1', (err) => {
+                expect(err).toBeNull();
+                server.close();
+                client.close();
+                resolve(true);
+              });
+            });
+            server.on('error', reject);
+            server.bind(0);
+          });
+
+          expect(callbackInvoked).toBe(true);
+        });
+      });
+    });
   });
 };

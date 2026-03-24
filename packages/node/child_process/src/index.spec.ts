@@ -221,4 +221,102 @@ export default async () => {
 			expect((result as string).trim()).toBe('one two three');
 		});
 	});
+
+	// ==================== exec with encoding option ====================
+
+	await describe('child_process.exec with encoding', async () => {
+		await it('exec with encoding option should return string stdout', async () => {
+			// Testing child_process module API — hardcoded safe literal
+			const result = await new Promise<string>((resolve, reject) => {
+				exec('echo encoding_test', { encoding: 'utf8' }, (err, stdout) => {
+					if (err) reject(err);
+					else resolve(typeof stdout);
+				});
+			});
+			expect(result).toBe('string');
+		});
+
+		await it('exec error should have code property', async () => {
+			// Testing child_process module API — hardcoded safe literal
+			const error = await new Promise<any>((resolve) => {
+				exec('exit 42', (err) => {
+					resolve(err);
+				});
+			});
+			expect(error).toBeDefined();
+			expect(error.code).toBeDefined();
+		});
+	});
+
+	// ==================== spawnSync additional tests ====================
+
+	await describe('child_process.spawnSync additional', async () => {
+		await it('spawnSync with input option should pass stdin data', async () => {
+			const result = spawnSync('cat', [], {
+				encoding: 'utf8',
+				input: 'hello from stdin',
+			});
+			expect(result.status).toBe(0);
+			expect((result.stdout as string).trim()).toBe('hello from stdin');
+		});
+
+		await it('spawnSync should handle empty output from true command', async () => {
+			const result = spawnSync('true', [], { encoding: 'utf8' });
+			expect(result.status).toBe(0);
+			// stdout should be empty string
+			expect((result.stdout as string)).toBe('');
+		});
+	});
+
+	// ==================== execSync additional tests ====================
+
+	await describe('child_process.execSync additional', async () => {
+		await it('execSync should respect encoding option and return string', async () => {
+			const result = execSync('echo encoded', { encoding: 'utf8' });
+			expect(typeof result).toBe('string');
+			expect((result as string).trim()).toBe('encoded');
+		});
+
+		await it('execSync without encoding should return Buffer/Uint8Array', async () => {
+			const result = execSync('echo raw');
+			expect(result instanceof Uint8Array).toBeTruthy();
+		});
+	});
+
+	// ==================== execFileSync additional tests ====================
+
+	await describe('child_process.execFileSync additional', async () => {
+		await it('execFileSync should handle env option', async () => {
+			const result = execFileSync('sh', ['-c', 'echo $MY_CUSTOM_VAR'], {
+				encoding: 'utf8',
+				env: { PATH: '/usr/bin:/bin', MY_CUSTOM_VAR: 'custom_value' },
+			});
+			expect((result as string).trim()).toBe('custom_value');
+		});
+	});
+
+	// ==================== Export type checks ====================
+
+	await describe('child_process function exports type checks', async () => {
+		await it('spawn should be exported as a function', async () => {
+			const { spawn } = await import('child_process');
+			expect(typeof spawn).toBe('function');
+		});
+
+		await it('exec should be a function (typeof check)', async () => {
+			expect(typeof exec).toBe('function');
+		});
+
+		await it('execFile should be a function (typeof check)', async () => {
+			expect(typeof execFile).toBe('function');
+		});
+
+		await it('execSync should be a function (typeof check)', async () => {
+			expect(typeof execSync).toBe('function');
+		});
+
+		await it('spawnSync should be a function (typeof check)', async () => {
+			expect(typeof spawnSync).toBe('function');
+		});
+	});
 };

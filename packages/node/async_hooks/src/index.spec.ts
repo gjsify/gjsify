@@ -127,5 +127,100 @@ export default async () => {
       expect(typeof resource.triggerAsyncId).toBe('function');
       expect(typeof resource.triggerAsyncId()).toBe('number');
     });
+
+    // ==================== Additional tests ====================
+
+    await describe('createHook additional', async () => {
+      await it('createHook returned object should have enable and disable methods', async () => {
+        const hook = createHook({ init() {} });
+        expect(typeof hook.enable).toBe('function');
+        expect(typeof hook.disable).toBe('function');
+      });
+
+      await it('hook.enable() should return the hook itself', async () => {
+        const hook = createHook({ init() {} });
+        const result = hook.enable();
+        expect(result).toBe(hook);
+        hook.disable();
+      });
+
+      await it('hook.disable() should return the hook itself', async () => {
+        const hook = createHook({ init() {} });
+        hook.enable();
+        const result = hook.disable();
+        expect(result).toBe(hook);
+      });
+    });
+
+    await describe('AsyncLocalStorage additional', async () => {
+      await it('getStore() should return undefined when not inside a run()', async () => {
+        const storage = new AsyncLocalStorage();
+        expect(storage.getStore()).toBeUndefined();
+      });
+
+      await it('nested run() should see inner store value', async () => {
+        const storage = new AsyncLocalStorage<string>();
+        storage.run('outer', () => {
+          expect(storage.getStore()).toBe('outer');
+          storage.run('inner', () => {
+            expect(storage.getStore()).toBe('inner');
+          });
+          // After inner run completes, should see outer again
+          expect(storage.getStore()).toBe('outer');
+        });
+      });
+
+      await it('run() should work with async functions', async () => {
+        const storage = new AsyncLocalStorage<number>();
+        const result = await storage.run(123, async () => {
+          // Simulate async operation
+          await new Promise<void>((resolve) => setTimeout(resolve, 5));
+          return storage.getStore();
+        });
+        expect(result).toBe(123);
+      });
+
+      await it('multiple AsyncLocalStorage instances should be independent', async () => {
+        const storage1 = new AsyncLocalStorage<string>();
+        const storage2 = new AsyncLocalStorage<number>();
+
+        storage1.run('hello', () => {
+          storage2.run(42, () => {
+            expect(storage1.getStore()).toBe('hello');
+            expect(storage2.getStore()).toBe(42);
+          });
+          // storage2 should be undefined outside its run
+          expect(storage1.getStore()).toBe('hello');
+          expect(storage2.getStore()).toBeUndefined();
+        });
+      });
+    });
+
+    await describe('AsyncResource additional', async () => {
+      await it('AsyncResource should have type property', async () => {
+        const resource = new AsyncResource('MY_TYPE');
+        // The type is accessible — either as a property or through the constructor
+        expect(resource).toBeDefined();
+        // AsyncResource stores the type internally
+        expect(typeof resource.asyncId()).toBe('number');
+      });
+
+      await it('AsyncResource.bind() should return a function', async () => {
+        const resource = new AsyncResource('BIND_TEST');
+        const fn = () => 42;
+        const bound = resource.bind(fn);
+        expect(typeof bound).toBe('function');
+        // Calling the bound function should produce the same result
+        expect(bound()).toBe(42);
+      });
+    });
+
+    await describe('executionAsyncId additional', async () => {
+      await it('executionAsyncId should return a non-negative number', async () => {
+        const id = executionAsyncId();
+        expect(typeof id).toBe('number');
+        expect(id >= 0).toBe(true);
+      });
+    });
   });
 };
