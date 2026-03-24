@@ -1420,6 +1420,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/web-streams@workspace:packages/web/streams":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/web-streams@workspace:packages/web/streams"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/webgl@workspace:^, @gjsify/webgl@workspace:packages/web/webgl":
   version: 0.0.0-use.local
   resolution: "@gjsify/webgl@workspace:packages/web/webgl"
