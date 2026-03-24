@@ -537,8 +537,10 @@ export class FileHandle implements IFileHandle {
         let status: GLib.IOStatus;
 
         if(typeof data === 'string') {
-            status = this._file.write_unichar(data);
-            bytesWritten = data.length;
+            const encoded = new TextEncoder().encode(data);
+            const [_status, _bytesWritten] = this._file.write_chars(encoded, encoded.length);
+            bytesWritten = _bytesWritten;
+            status = _status;
         } else {
             const [_status, _bytesWritten] = this._file.write_chars(data as Uint8Array, length);
             bytesWritten = _bytesWritten;
@@ -548,7 +550,10 @@ export class FileHandle implements IFileHandle {
         if(status === GLib.IOStatus.ERROR) {
             throw new Error("Error on write to file!")
         }
-        
+
+        // Flush the IOChannel to ensure data is written to disk
+        this._file.flush();
+
         return {
             bytesWritten,
             buffer: data
@@ -609,7 +614,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async close(): Promise<void> {
-        this._file.close();
+        this._file.shutdown(true);
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

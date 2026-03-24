@@ -394,8 +394,8 @@ export function callbackify(fn: (...args: any[]) => Promise<any>): (...args: any
       throw new TypeError('The last argument must be of type Function');
     }
     fn.apply(this, args).then(
-      (result: any) => queueMicrotask(() => callback(null, result)),
-      (err: Error) => queueMicrotask(() => callback(err || new Error()))
+      (result: any) => Promise.resolve().then(() => callback(null, result)),
+      (err: Error) => Promise.resolve().then(() => callback(err || new Error()))
     );
   };
 }

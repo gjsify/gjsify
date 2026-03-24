@@ -85,11 +85,17 @@ export class Timeout {
 }
 
 export class Immediate {
-  private _id: ReturnType<typeof setTimeout> | null;
+  private _id: ReturnType<typeof setTimeout> | null = null;
   private _ref = true;
+  private _cancelled = false;
 
   constructor(callback: (...args: any[]) => void, args: any[]) {
-    this._id = setTimeout(callback, 0, ...args);
+    // Use a microtask so setImmediate fires before setTimeout(0)
+    Promise.resolve().then(() => {
+      if (!this._cancelled) {
+        callback(...args);
+      }
+    });
   }
 
   ref(): this {
@@ -107,6 +113,7 @@ export class Immediate {
   }
 
   close(): void {
+    this._cancelled = true;
     if (this._id != null) {
       clearTimeout(this._id);
       this._id = null;

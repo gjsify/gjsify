@@ -43,6 +43,17 @@ export class AsyncResource {
   triggerAsyncId(): number {
     return 0;
   }
+
+  bind<Func extends (...args: any[]) => any>(fn: Func): Func {
+    return ((...args: any[]) => {
+      return this.runInAsyncScope(fn, undefined, ...args);
+    }) as unknown as Func;
+  }
+
+  static bind<Func extends (...args: any[]) => any>(fn: Func, type?: string): Func {
+    const resource = new AsyncResource(type || fn.name || 'bound-anonymous-fn');
+    return resource.bind(fn);
+  }
 }
 
 export class AsyncLocalStorage<T = any> {
@@ -56,9 +67,20 @@ export class AsyncLocalStorage<T = any> {
     const prev = this._store;
     this._store = store;
     try {
-      return callback(...args);
-    } finally {
+      const result = callback(...args);
+      if (result != null && typeof (result as any).then === 'function') {
+        // Async callback — restore store when the promise settles
+        return (result as any).then(
+          (value: any) => { this._store = prev; return value; },
+          (err: any) => { this._store = prev; throw err; },
+        ) as R;
+      }
+      // Sync callback — restore immediately
       this._store = prev;
+      return result;
+    } catch (err) {
+      this._store = prev;
+      throw err;
     }
   }
 

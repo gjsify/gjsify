@@ -109,12 +109,12 @@ export class ServerResponse extends Writable {
   /** Send a 100 Continue response. */
   writeContinue(callback?: () => void): void {
     // Soup.Server handles 100-Continue automatically, but we track the call
-    if (callback) queueMicrotask(callback);
+    if (callback) Promise.resolve().then(callback);
   }
 
   /** Send a 102 Processing response (WebDAV). */
   writeProcessing(callback?: () => void): void {
-    if (callback) queueMicrotask(callback);
+    if (callback) Promise.resolve().then(callback);
   }
 
   /** Flush headers (send them immediately). */

@@ -673,7 +673,7 @@ export class EventEmitter {
    */
   static addAbortListener(signal: AbortSignal, listener: EventListener): { [Symbol.dispose](): void } {
     if (signal.aborted) {
-      queueMicrotask(() => listener());
+      Promise.resolve().then(() => listener());
     }
     const handler = () => listener();
     signal.addEventListener('abort', handler, { once: true });

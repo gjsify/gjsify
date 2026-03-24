@@ -151,8 +151,9 @@ export class Readable extends Stream {
     if (opts?.destroy) this._destroyImpl = opts.destroy;
     if (opts?.construct) this._constructImpl = opts.construct;
 
-    // Call _construct if provided
-    if (this._constructImpl) {
+    // Call _construct if provided via options or overridden by subclass
+    const hasConstruct = this._constructImpl || this._construct !== Readable.prototype._construct;
+    if (hasConstruct) {
       this._readableState.constructed = false;
       nextTick(() => {
         this._construct((err) => {
@@ -450,6 +451,8 @@ export class Writable extends Stream {
 
   private _writableState = { ended: false, finished: false, constructed: true };
   private _corkedBuffer: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
+  private _pendingConstruct: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
+  private _pendingEnd: { chunk?: any; encoding?: string; callback?: () => void } | null = null;
   private _writeImpl: ((chunk: any, encoding: string, cb: (error?: Error | null) => void) => void) | undefined;
   private _writev: ((chunks: Array<{ chunk: any; encoding: string }>, cb: (error?: Error | null) => void) => void) | undefined;
   private _finalImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
@@ -466,14 +469,17 @@ export class Writable extends Stream {
     if (opts?.destroy) this._destroyImpl = opts.destroy;
     if (opts?.construct) this._constructImpl = opts.construct;
 
-    // Call _construct if provided
-    if (this._constructImpl) {
+    // Call _construct if provided via options or overridden by subclass
+    const hasConstruct = this._constructImpl || this._construct !== Writable.prototype._construct;
+    if (hasConstruct) {
       this._writableState.constructed = false;
       nextTick(() => {
         this._construct((err) => {
           this._writableState.constructed = true;
           if (err) {
             this.destroy(err);
+          } else {
+            this._maybeFlush();
           }
         });
       });
@@ -504,6 +510,39 @@ export class Writable extends Stream {
     }
   }
 
+  private _maybeFlush(): void {
+    // Flush writes that were buffered while waiting for _construct
+    const pending = this._pendingConstruct.splice(0);
+    for (const { chunk, encoding, callback } of pending) {
+      this._doWrite(chunk, encoding, callback);
+    }
+    if (this._pendingEnd) {
+      const { chunk, encoding, callback } = this._pendingEnd;
+      this._pendingEnd = null;
+      this._doEnd(chunk, encoding, callback);
+    }
+  }
+
+  private _doWrite(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
+    this._write(chunk, encoding, (err) => {
+      this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
+      if (err) {
+        nextTick(() => {
+          callback(err);
+          this.emit('error', err);
+        });
+      } else {
+        nextTick(() => {
+          callback();
+          if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+            this.writableNeedDrain = false;
+            this.emit('drain');
+          }
+        });
+      }
+    });
+  }
+
   write(chunk: any, encoding?: string | ((error?: Error | null) => void), callback?: (error?: Error | null) => void): boolean {
     if (typeof encoding === 'function') {
       callback = encoding;
@@ -529,24 +568,13 @@ export class Writable extends Stream {
       return this.writableLength < this.writableHighWaterMark;
     }
 
-    const cb = callback;
-    this._write(chunk, encoding as string, (err) => {
-      this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
-      if (err) {
-        nextTick(() => {
-          if (cb) cb(err);
-          this.emit('error', err);
-        });
-      } else {
-        nextTick(() => {
-          if (cb) cb();
-          if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
-            this.writableNeedDrain = false;
-            this.emit('drain');
-          }
-        });
-      }
-    });
+    // If not yet constructed, buffer writes until construction finishes
+    if (!this._writableState.constructed) {
+      this._pendingConstruct.push({ chunk, encoding: encoding as string, callback });
+      return this.writableLength < this.writableHighWaterMark;
+    }
+
+    this._doWrite(chunk, encoding as string, callback);
 
     const belowHWM = this.writableLength < this.writableHighWaterMark;
     if (!belowHWM) {
@@ -555,16 +583,7 @@ export class Writable extends Stream {
     return belowHWM;
   }
 
-  end(chunk?: any, encoding?: string | (() => void), callback?: () => void): this {
-    if (typeof chunk === 'function') {
-      callback = chunk;
-      chunk = undefined;
-    }
-    if (typeof encoding === 'function') {
-      callback = encoding;
-      encoding = undefined;
-    }
-
+  private _doEnd(chunk?: any, encoding?: string, callback?: () => void): void {
     if (chunk !== undefined && chunk !== null) {
       this.write(chunk, encoding as string);
     }
@@ -583,6 +602,25 @@ export class Writable extends Stream {
         if (callback) callback();
       });
     });
+  }
+
+  end(chunk?: any, encoding?: string | (() => void), callback?: () => void): this {
+    if (typeof chunk === 'function') {
+      callback = chunk;
+      chunk = undefined;
+    }
+    if (typeof encoding === 'function') {
+      callback = encoding;
+      encoding = undefined;
+    }
+
+    // If not yet constructed, defer end until construction finishes
+    if (!this._writableState.constructed) {
+      this._pendingEnd = { chunk, encoding: encoding as string, callback };
+      return this;
+    }
+
+    this._doEnd(chunk, encoding as string, callback);
 
     return this;
   }
