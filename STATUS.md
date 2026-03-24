@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-24 (after Phase 7)
+> Last updated: 2026-03-24 (after Phase 8)
 
 ## Summary
 
@@ -9,12 +9,12 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 39 | 27 (69%) | 5 (13%) | 7 (18%) |
+| Node.js APIs | 39 | 27 (69%) | 6 (15%) | 6 (15%) |
 | Web APIs | 7 | 7 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,100 test cases in 69+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~2,200 test cases in 70+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -60,14 +60,14 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 | **https** | — | 17 | Agent (defaultPort 443, protocol https:), request/get wrapper | createServer with TLS |
 | **tls** | Gio, GLib | 19 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher), connect, createSecureContext | createServer, TLS session resumption, ALPN |
 | **worker_threads** | Gio, GLib | 56 | MessageChannel, MessagePort (EventEmitter-based, auto-start, clone via structuredClone), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC, bootstrap script, eval mode) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
+| **http2** | — | 102 | Complete constants (NGHTTP2 error codes, settings IDs, stream states, frame flags, HTTP headers/methods/status codes), getDefaultSettings, getPackedSettings/getUnpackedSettings (RFC 7540 binary encoding), Http2Session/Stream/ServerRequest/ServerResponse class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
 
-### Stubs (7)
+### Stubs (6)
 
 | Package | Tests | Description | Effort |
 |---------|-------|-------------|--------|
 | **cluster** | ✓ | isPrimary, isMaster, isWorker; fork() throws | High — requires multi-process architecture |
 | **domain** | ✓ | Deprecated Node.js API; pass-through | Low — intentionally minimal |
-| **http2** | ✓ | Only constants exported; create* throws | High — HTTP/2 protocol is complex |
 | **inspector** | ✓ | Session.post(), open/close; empty | Medium — V8-specific, hard to port |
 | **v8** | ✓ | getHeapStatistics (JSON-based), serialize/deserialize | Medium — V8-specific |
 | **vm** | ✓ | runInThisContext (eval), Script class | Medium — sandbox isolation limited |
@@ -146,11 +146,11 @@ Not yet implemented (but potentially relevant for GJS projects):
 |--------|-------|
 | Total Node.js packages | 39 |
 | Fully implemented | 27 (69%) |
-| Partially implemented | 5 (13%) |
-| Stubs | 7 (18%) |
+| Partially implemented | 6 (15%) |
+| Stubs | 6 (15%) |
 | Web API packages | 7 (all implemented) |
-| Total test cases | ~2,100 |
-| Spec files | 69+ |
+| Total test cases | ~2,200 |
+| Spec files | 70+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -184,6 +184,18 @@ Not yet implemented (but potentially relevant for GJS projects):
 ---
 
 ## Changelog
+
+### 2026-03-24 — Phase 8: http2 — From Stub to Partial
+
+**Promoted http2 from Stub → Partial** with complete constants, settings functions, and class stubs:
+
+- **Complete constants** (200+ entries): All NGHTTP2 error codes (RFC 7540 §7), session types, stream states, frame flags, settings IDs, default settings values, frame size constraints, padding strategies, HTTP/2 pseudo-headers, 70+ standard HTTP headers, 40+ HTTP methods, 60+ HTTP status codes
+- **Settings functions**: `getDefaultSettings()` returns RFC 7540 defaults, `getPackedSettings()` / `getUnpackedSettings()` implement binary SETTINGS frame encoding (6-byte pairs: 2-byte ID + 4-byte value, big-endian)
+- **Class stubs** (EventEmitter-based): `Http2Session` (localSettings/remoteSettings, settings/goaway/ping/close/destroy), `Http2Stream` (state machine, close/destroy/priority), `ServerHttp2Session`, `ClientHttp2Session`, `ServerHttp2Stream`, `ClientHttp2Stream`, `Http2ServerRequest` (headers/method/url/authority/scheme), `Http2ServerResponse` (setHeader/getHeader/writeHead/write/end)
+- **102 tests** (was 5): constants (error codes, session types, stream states, settings IDs, default values, frame flags, pseudo-headers, HTTP headers/methods/status codes, frame size constraints), getDefaultSettings properties, getPackedSettings/getUnpackedSettings round-trip, sensitiveHeaders, factory functions, class exports
+- All 102 tests pass on both Node.js 24 and GJS 1.86
+
+**Soup 3.0 HTTP/2 findings**: Soup can negotiate HTTP/2 via ALPN but treats it as transparent — no multiplexed stream API. Full createServer/connect would require nghttp2 bindings (Vala extension) or a pure-JS HTTP/2 frame parser.
 
 ### 2026-03-24 — Phase 7: worker_threads — From Stub to Partial
 

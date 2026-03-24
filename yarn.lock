@@ -1085,6 +1085,7 @@ __metadata:
   resolution: "@gjsify/http2@workspace:packages/node/http2"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
