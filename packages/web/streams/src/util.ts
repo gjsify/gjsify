@@ -72,7 +72,7 @@ export function cloneAsUint8Array(view: ArrayBufferView): Uint8Array {
 }
 
 export function ArrayBufferViewGetBuffer(view: ArrayBufferView): ArrayBuffer {
-  return view.buffer;
+  return view.buffer as ArrayBuffer;
 }
 
 export function ArrayBufferViewGetByteLength(view: ArrayBufferView): number {

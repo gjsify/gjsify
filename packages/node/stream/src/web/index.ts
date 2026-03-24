@@ -23,4 +23,4 @@ export default {
   TransformStream,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
-};
+} as Record<string, any>;
