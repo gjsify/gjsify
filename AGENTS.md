@@ -13,12 +13,12 @@ packages/
   web/    — Web API polyfills: fetch, dom-events, abort-controller, formdata,
              globals, html-image-element, webgl
 refs/     — read-only git submodules (node, node-test, deno, bun, quickjs,
-             workerd, edgejs, gjs, node-fetch, fetch-ie8, stream-http,
+             workerd, edgejs, llrt, gjs, node-fetch, fetch-ie8, stream-http,
              headless-gl, troll, crypto-browserify, readable-stream, undici,
              browserify-cipher, browserify-sign, create-ecdh,
              create-hash, create-hmac, diffie-hellman, hash-base,
              pbkdf2, public-encrypt, randombytes, randomfill,
-             node-gst-webrtc)
+             node-gst-webrtc, happy-dom, jsdom)
 ```
 
 ## Node.js Packages (`packages/node/*`)
@@ -167,6 +167,9 @@ Read-only git submodules — do NOT modify. Use GNOME libraries internally, not 
 | `refs/readable-stream/` | Maintained Node.js stream polyfill — reference for edge cases |
 | `refs/undici/` | Official Node.js HTTP client — reference for `@gjsify/http` client-side |
 | `refs/node-gst-webrtc/` | WebRTC JS API via GStreamer's webrtcbin — incomplete but useful approach for RTCPeerConnection, RTCDataChannel, RTCSessionDescription, MediaStreamTrack using GStreamer/GObject bindings |
+| `refs/llrt/` | AWS LLRT (Low Latency Runtime) — lightweight JS runtime (Rust + QuickJS) with Node.js compat. Tests in `tests/unit/` cover assert, buffer, crypto, events, fs, net, path, stream, etc. |
+| `refs/happy-dom/` | Pure-JS browser environment (no GUI) — DOM, HTML parsing, CSS, Web APIs. Reference for `packages/web/` (HTMLImageElement, DOM events, etc.) |
+| `refs/jsdom/` | JS implementation of web standards (DOM, HTML, CSS) — reference for `packages/web/` DOM and HTML APIs |
 
 ## Official Node.js npm Packages
 
@@ -267,6 +270,7 @@ Port meaningful tests from these reference projects into our `*.spec.ts` files. 
 | workerd (`refs/workerd/`) | `src/workerd/api/node/tests/` | 67 modules tested. Similar two-layer architecture (native + TS). |
 | QuickJS (`refs/quickjs/`) | `tests/` | Language feature tests — limited Node.js API coverage. |
 | Edge.js (`refs/edgejs/`) | Uses node-test | Reference for test harness integration pattern. |
+| LLRT (`refs/llrt/`) | `tests/unit/*.test.ts` | AWS runtime (Rust + QuickJS). TypeScript tests for assert, buffer, crypto, events, fs, net, path, stream. |
 
 **Selection criteria:** Prefer tests that cover:
 - Core API behavior (the happy path)
@@ -374,6 +378,9 @@ Use these canonical copyright lines when applying Template A or D:
 | `refs/undici/` | `Copyright (c) Matteo Collina and Undici contributors. MIT license.` |
 | `refs/gjs/` | `Copyright (c) GNOME contributors. MIT/LGPLv2+ license.` |
 | `refs/node-gst-webrtc/` | `Copyright (c) Ratchanan Srirattanamet. ISC license.` |
+| `refs/llrt/` | `Copyright (c) Amazon.com, Inc. Apache 2.0 license.` |
+| `refs/happy-dom/` | `Copyright (c) David Ortner (capricorn86). MIT license.` |
+| `refs/jsdom/` | `Copyright (c) Elijah Insua. MIT license.` |
 | node-fetch | `Copyright (c) node-fetch contributors. MIT license.` |
 | event-target-shim | `Copyright (c) Toru Nagashima. MIT license.` |
 | gjs-require | `Copyright (c) Andrea Giammarchi. ISC license.` |

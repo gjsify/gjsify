@@ -85,3 +85,9 @@
 [submodule "refs/node-gst-webrtc"]
 	path = refs/node-gst-webrtc
 	url = git@github.com:peat-psuwit/node-gst-webrtc.git
+[submodule "refs/happy-dom"]
+	path = refs/happy-dom
+	url = git@github.com:capricorn86/happy-dom.git
+[submodule "refs/jsdom"]
+	path = refs/jsdom
+	url = git@github.com:jsdom/jsdom.git
