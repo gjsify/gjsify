@@ -1,9 +1,30 @@
 import { APP_NAME } from  './constants.js';
-import { cosmiconfig, Options as LoadOptions } from 'cosmiconfig';
+import { cosmiconfig, type Options as LoadOptions } from 'cosmiconfig';
 import { readPackageJSON, resolvePackageJSON } from 'pkg-types';
 import { getTsconfig } from 'get-tsconfig';
-import lodash from "lodash";
-const { merge } = lodash;
+
+/** Deep merge objects (replaces lodash.merge) */
+function merge<T extends Record<string, any>>(target: T, ...sources: Record<string, any>[]): T {
+    for (const source of sources) {
+        if (!source) continue;
+        for (const key of Object.keys(source)) {
+            const targetVal = (target as any)[key];
+            const sourceVal = source[key];
+            if (sourceVal !== undefined) {
+                if (isPlainObject(targetVal) && isPlainObject(sourceVal)) {
+                    merge(targetVal, sourceVal);
+                } else {
+                    (target as any)[key] = sourceVal;
+                }
+            }
+        }
+    }
+    return target;
+}
+
+function isPlainObject(val: unknown): val is Record<string, any> {
+    return typeof val === 'object' && val !== null && !Array.isArray(val) && Object.getPrototypeOf(val) === Object.prototype;
+}
 
 import type { CliBuildOptions, ConfigData, CosmiconfigResult, ConfigDataTypescript, ConfigDataLibrary} from './types/index.js';
 import type { ArgumentsCamelCase } from 'yargs';
@@ -61,9 +82,9 @@ export class Config {
         configData.verbose = cliArgs.verbose || false;
         configData.exclude = cliArgs.exclude || [];
 
-        merge(configData.library, pkg, configData.library);
-        merge(configData.typescript, tsConfig, configData.typescript);
-        merge(configData.esbuild, {
+        merge(configData.library ??= {}, pkg, configData.library);
+        merge(configData.typescript ??= {}, tsConfig, configData.typescript);
+        merge(configData.esbuild ??= {}, {
             format: cliArgs.format,
             minify: cliArgs.minify,
             entryPoints: cliArgs.entryPoints,

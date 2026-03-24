@@ -5,12 +5,13 @@
       "declarationDir": "lib",
       "declaration": true,
       "target": "ESNext",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
       "types": ["node"],
-      "moduleResolution":"Node10",
-      "ignoreDeprecations": "6.0",
       "allowSyntheticDefaultImports": true,
-      "strict": true
+      "esModuleInterop": true,
+      "strict": true,
+      "skipLibCheck": true
     },
-    "include": ["src/lodash.d.ts"],
     "files": ["src/index.ts"]
 }
