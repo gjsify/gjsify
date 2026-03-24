@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-24 (after Phase 15)
+> Last updated: 2026-03-24 (after Phase 16)
 
 ## Summary
 
@@ -14,7 +14,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,800 test cases in 85+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~2,840 test cases in 85+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -34,7 +34,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **events** | — | 119 | EventEmitter, once, on, listenerCount (707 lines) |
 | **fs** | Gio, GLib | 40 (6 specs) | sync, callback, promises, streams, FSWatcher |
 | **module** | Gio, GLib | 21 | builtinModules, isBuiltin, createRequire (with JSON loading and module resolution) |
-| **net** | Gio, GLib | 35 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
+| **net** | Gio, GLib | 64 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
 | **os** | GLib | 240 | homedir, hostname, cpus (real times from /proc/stat), platform-specific |
 | **path** | — | 41 | POSIX + Win32 (1,052 lines total) |
 | **perf_hooks** | — | 30 | performance (Web API / GLib fallback), monitorEventLoopDelay, mark/measure/getEntries |
@@ -47,7 +47,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **url** | GLib | 82 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
 | **zlib** | — | 27 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors |
-| **dgram** | Gio, GLib | 20 | UDP Socket via Gio.Socket with bind, send, receive, multicast |
+| **dgram** | Gio, GLib | 30 | UDP Socket via Gio.Socket with bind, send, receive, multicast |
 | **globals** | — | 40 | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **readline** | — | 50 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
 | **http** | Soup 3.0, Gio, GLib | 136 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
@@ -153,7 +153,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Partially implemented | 3 (8%) |
 | Stubs | 5 (13%) |
 | Web API packages | 14 (all implemented) |
-| Total test cases | ~2,800 |
+| Total test cases | ~2,840 |
 | Spec files | 85+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
@@ -163,24 +163,27 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ## Priorities / Next Steps
 
+### Completed
+
+- ~~**Web Streams API**~~✓ — `@gjsify/web-streams` (117 tests). ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, queuing strategies.
+- ~~**WebCrypto (crypto.subtle)**~~✓ — `@gjsify/webcrypto` (37 tests). SubtleCrypto: digest, AES-CBC/CTR/GCM, HMAC, PBKDF2, HKDF, ECDH, importKey/exportKey, generateKey.
+- ~~**EventSource**~~✓ — `@gjsify/eventsource` (24 tests). Server-Sent Events via fetch + Web Streams.
+
 ### High Priority
 
-1. ~~**Web Streams API**~~✓ — Implemented as `@gjsify/web-streams` (117 tests). ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, queuing strategies.
-2. ~~**WebCrypto (crypto.subtle)**~~✓ — Implemented as `@gjsify/webcrypto` (37 tests). SubtleCrypto: digest, AES-CBC/CTR/GCM, HMAC, PBKDF2, HKDF, ECDH, importKey/exportKey, generateKey.
-3. ~~**EventSource**~~✓ — Implemented as `@gjsify/eventsource` (24 tests). Server-Sent Events via fetch + Web Streams.
-4. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
-5. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, http).
+1. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, dgram) and fs. Many tests hidden behind `on('Node.js')` guards need cross-platform verification.
+2. **Unified web-globals package** — `@gjsify/web-globals` as single entry point for all Web API globals. Extract DOMException into own package (`@gjsify/dom-exception`).
+3. **WebCrypto ECDSA/RSA-PSS/RSA-OAEP** — Remaining SubtleCrypto algorithms. EC math exists, needs RFC 6979 and MGF1.
 
 ### Medium Priority
 
-4. **WebCrypto (crypto.subtle)** — SubtleCrypto API wrapping existing @gjsify/crypto primitives. Useful for GJS apps doing authentication/encryption.
-6. **WebCrypto ECDSA/RSA-PSS/RSA-OAEP** — Remaining SubtleCrypto algorithms. EC math exists, needs RFC 6979 and MGF1.
-7. **BYOB Byte Streams** — ReadableByteStreamController for optimized binary streaming.
-8. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API.
+4. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
+5. **BYOB Byte Streams** — ReadableByteStreamController for optimized binary streaming.
+6. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API. Requires nghttp2 bindings or pure-JS HTTP/2 frame parser.
 
 ### Low Priority
 
-7. **vm** — Sandbox isolation via SpiderMonkey Realms (experimental).
+7. **vm** — Enhance from stub to partial (createContext, runInNewContext via Function constructor).
 8. **v8** — Approximate heap statistics via GJS runtime info.
 9. **cluster** — Multi-process via Gio.Subprocess pool.
 10. **inspector** — GJS debugger integration (gjs --debugger).
@@ -199,6 +202,17 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-24 — Phase 16: Networking Test Expansion + Housekeeping
+
+**Housekeeping:**
+- Committed pending eventsource GJS compatibility changes (Event/EventTarget polyfill fallbacks, runtime deps)
+- Committed TextDecoderStream GJS fallback (manual UTF-8 buffering for missing `stream` option)
+- Cleaned up STATUS.md priorities (removed duplicate WebCrypto entry, reordered by impact)
+
+**Networking test expansion:**
+- **net** (35 → 64 tests): isIP edge cases (full/compressed IPv6, zone IDs, IPv4-mapped, malformed, non-string input), Socket properties (pending, readyState, destroy, address), TCP connection lifecycle (connect state transitions, localAddress/localPort, bytesRead/bytesWritten, setEncoding, setTimeout, getConnections, remoteFamily, connection event, multi-byte UTF-8 echo, large data transfer, server address family)
+- **dgram** (20 → 30 tests): Multiple sends, UDP echo round-trip, rinfo.size, Socket as EventEmitter, ipv6Only option
 
 ### 2026-03-24 — Phase 15: Test Coverage Expansion
 
