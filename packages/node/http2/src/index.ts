@@ -5,12 +5,8 @@
 
 import { EventEmitter } from 'events';
 
-// ---------------------------------------------------------------------------
-// Constants — complete set matching Node.js http2.constants
-// ---------------------------------------------------------------------------
-
 export const constants = {
-  // --- NGHTTP2 Error Codes (RFC 7540 Section 7) ---
+  // NGHTTP2 Error Codes (RFC 7540 §7)
   NGHTTP2_NO_ERROR: 0x00,
   NGHTTP2_PROTOCOL_ERROR: 0x01,
   NGHTTP2_INTERNAL_ERROR: 0x02,
@@ -25,20 +21,15 @@ export const constants = {
   NGHTTP2_ENHANCE_YOUR_CALM: 0x0b,
   NGHTTP2_INADEQUATE_SECURITY: 0x0c,
   NGHTTP2_HTTP_1_1_REQUIRED: 0x0d,
-
-  // --- NGHTTP2 Internal Error Codes ---
   NGHTTP2_ERR_FRAME_SIZE_ERROR: -522,
   NGHTTP2_ERR_DEFERRED: -508,
   NGHTTP2_ERR_STREAM_ID_NOT_AVAILABLE: -509,
   NGHTTP2_ERR_INVALID_ARGUMENT: -501,
   NGHTTP2_ERR_STREAM_CLOSED: -510,
   NGHTTP2_ERR_NOMEM: -901,
-
-  // --- Session Types ---
   NGHTTP2_SESSION_SERVER: 0,
   NGHTTP2_SESSION_CLIENT: 1,
 
-  // --- Stream States ---
   NGHTTP2_STREAM_STATE_IDLE: 1,
   NGHTTP2_STREAM_STATE_OPEN: 2,
   NGHTTP2_STREAM_STATE_RESERVED_LOCAL: 3,
@@ -47,7 +38,6 @@ export const constants = {
   NGHTTP2_STREAM_STATE_HALF_CLOSED_REMOTE: 6,
   NGHTTP2_STREAM_STATE_CLOSED: 7,
 
-  // --- Frame Flags ---
   NGHTTP2_FLAG_NONE: 0,
   NGHTTP2_FLAG_END_STREAM: 0x01,
   NGHTTP2_FLAG_END_HEADERS: 0x04,
@@ -55,17 +45,14 @@ export const constants = {
   NGHTTP2_FLAG_PADDED: 0x08,
   NGHTTP2_FLAG_PRIORITY: 0x20,
 
-  // --- Header Categories ---
   NGHTTP2_HCAT_REQUEST: 0,
   NGHTTP2_HCAT_RESPONSE: 1,
   NGHTTP2_HCAT_PUSH_RESPONSE: 2,
   NGHTTP2_HCAT_HEADERS: 3,
 
-  // --- NV Flags ---
   NGHTTP2_NV_FLAG_NONE: 0,
   NGHTTP2_NV_FLAG_NO_INDEX: 0x01,
 
-  // --- Settings IDs (RFC 7540 Section 6.5.2) ---
   NGHTTP2_SETTINGS_HEADER_TABLE_SIZE: 0x01,
   NGHTTP2_SETTINGS_ENABLE_PUSH: 0x02,
   NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS: 0x03,
@@ -74,7 +61,6 @@ export const constants = {
   NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE: 0x06,
   NGHTTP2_SETTINGS_ENABLE_CONNECT_PROTOCOL: 0x08,
 
-  // --- Default Settings Values ---
   DEFAULT_SETTINGS_HEADER_TABLE_SIZE: 4096,
   DEFAULT_SETTINGS_ENABLE_PUSH: 1,
   DEFAULT_SETTINGS_MAX_CONCURRENT_STREAMS: 0xffffffff,
@@ -83,19 +69,16 @@ export const constants = {
   DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: 65535,
   DEFAULT_SETTINGS_ENABLE_CONNECT_PROTOCOL: 0,
 
-  // --- Frame Size Constraints ---
   MAX_MAX_FRAME_SIZE: 16777215,
   MIN_MAX_FRAME_SIZE: 16384,
   MAX_INITIAL_WINDOW_SIZE: 2147483647,
   NGHTTP2_DEFAULT_WEIGHT: 16,
 
-  // --- Padding Strategies ---
   PADDING_STRATEGY_NONE: 0,
   PADDING_STRATEGY_ALIGNED: 1,
   PADDING_STRATEGY_MAX: 2,
   PADDING_STRATEGY_CALLBACK: 1,
 
-  // --- HTTP/2 Pseudo-Headers ---
   HTTP2_HEADER_STATUS: ':status',
   HTTP2_HEADER_METHOD: ':method',
   HTTP2_HEADER_AUTHORITY: ':authority',
@@ -103,7 +86,6 @@ export const constants = {
   HTTP2_HEADER_PATH: ':path',
   HTTP2_HEADER_PROTOCOL: ':protocol',
 
-  // --- Standard HTTP Headers ---
   HTTP2_HEADER_ACCEPT: 'accept',
   HTTP2_HEADER_ACCEPT_CHARSET: 'accept-charset',
   HTTP2_HEADER_ACCEPT_ENCODING: 'accept-encoding',
@@ -185,7 +167,6 @@ export const constants = {
   HTTP2_HEADER_X_XSS_PROTECTION: 'x-xss-protection',
   HTTP2_HEADER_PURPOSE: 'purpose',
 
-  // --- HTTP Methods ---
   HTTP2_METHOD_ACL: 'ACL',
   HTTP2_METHOD_BASELINE_CONTROL: 'BASELINE-CONTROL',
   HTTP2_METHOD_BIND: 'BIND',
@@ -226,7 +207,6 @@ export const constants = {
   HTTP2_METHOD_UPDATEREDIRECTREF: 'UPDATEREDIRECTREF',
   HTTP2_METHOD_VERSION_CONTROL: 'VERSION-CONTROL',
 
-  // --- HTTP Status Codes ---
   HTTP_STATUS_CONTINUE: 100,
   HTTP_STATUS_SWITCHING_PROTOCOLS: 101,
   HTTP_STATUS_PROCESSING: 102,
@@ -292,9 +272,6 @@ export const constants = {
   HTTP_STATUS_NETWORK_AUTHENTICATION_REQUIRED: 511,
 } as const;
 
-// ---------------------------------------------------------------------------
-// Settings — RFC 7540 Section 6.5
-// ---------------------------------------------------------------------------
 
 export interface Http2Settings {
   headerTableSize?: number;
@@ -306,7 +283,6 @@ export interface Http2Settings {
   enableConnectProtocol?: boolean;
 }
 
-/** Setting ID → key mapping for pack/unpack. */
 const SETTINGS_MAP: [number, keyof Http2Settings, boolean][] = [
   [0x01, 'headerTableSize', false],
   [0x02, 'enablePush', true],
@@ -317,7 +293,7 @@ const SETTINGS_MAP: [number, keyof Http2Settings, boolean][] = [
   [0x08, 'enableConnectProtocol', true],
 ];
 
-/** Returns the default HTTP/2 settings per RFC 7540. */
+// RFC 7540 §6.5
 export function getDefaultSettings(): Http2Settings {
   return {
     headerTableSize: 4096,
@@ -330,11 +306,7 @@ export function getDefaultSettings(): Http2Settings {
   };
 }
 
-/**
- * Encode HTTP/2 settings into the binary format used in SETTINGS frames.
- * Each setting is encoded as 6 bytes: 2-byte ID (big-endian) + 4-byte value (big-endian).
- * RFC 7540 Section 6.5.1
- */
+// RFC 7540 §6.5.1 — each setting: 2-byte ID + 4-byte value (big-endian)
 export function getPackedSettings(settings?: Http2Settings): Uint8Array {
   if (!settings) return new Uint8Array(0);
 
@@ -356,10 +328,6 @@ export function getPackedSettings(settings?: Http2Settings): Uint8Array {
   return buf;
 }
 
-/**
- * Decode a binary SETTINGS frame payload into an Http2Settings object.
- * RFC 7540 Section 6.5.1
- */
 export function getUnpackedSettings(buf: Uint8Array | ArrayBuffer): Http2Settings {
   const data = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
   if (data.byteLength % 6 !== 0) {
@@ -383,15 +351,7 @@ export function getUnpackedSettings(buf: Uint8Array | ArrayBuffer): Http2Setting
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// Http2Session — base class for HTTP/2 sessions (stub with proper API shape)
-// ---------------------------------------------------------------------------
-
-/**
- * Http2Session represents an active HTTP/2 session.
- * Stub implementation — Soup 3.0 handles HTTP/2 transparently and does not
- * expose the session/stream multiplexing API needed for full implementation.
- */
+// Stub — Soup 3.0 handles HTTP/2 transparently but lacks multiplexed stream API
 export class Http2Session extends EventEmitter {
   readonly alpnProtocol: string | undefined = undefined;
   readonly encrypted: boolean = false;
@@ -451,7 +411,6 @@ export class Http2Session extends EventEmitter {
   unref(): void {}
 }
 
-/** Server-side HTTP/2 session. */
 export class ServerHttp2Session extends Http2Session {
   readonly type = constants.NGHTTP2_SESSION_SERVER;
 
@@ -460,20 +419,12 @@ export class ServerHttp2Session extends Http2Session {
   origin(..._origins: string[]): void {}
 }
 
-/** Client-side HTTP/2 session. */
 export class ClientHttp2Session extends Http2Session {
-  readonly type = constants.NGHTTP2_SESSION_CLIENT;
-
   request(_headers?: Record<string, string | string[]>, _options?: unknown): Http2Stream {
     throw new Error('http2 client requests are not yet implemented in GJS');
   }
 }
 
-// ---------------------------------------------------------------------------
-// Http2Stream — base class for HTTP/2 streams (stub)
-// ---------------------------------------------------------------------------
-
-/** Represents a single HTTP/2 stream within a session. */
 export class Http2Stream extends EventEmitter {
   readonly id: number = 0;
   readonly session: Http2Session | null = null;
@@ -517,7 +468,6 @@ export class Http2Stream extends EventEmitter {
   }
 }
 
-/** Server-side HTTP/2 stream. */
 export class ServerHttp2Stream extends Http2Stream {
   readonly headersSent: boolean = false;
   readonly pushAllowed: boolean = false;
@@ -545,14 +495,8 @@ export class ServerHttp2Stream extends Http2Stream {
   additionalHeaders(_headers: Record<string, string | string[]>): void {}
 }
 
-/** Client-side HTTP/2 stream. */
 export class ClientHttp2Stream extends Http2Stream {}
 
-// ---------------------------------------------------------------------------
-// Http2ServerRequest / Http2ServerResponse — compat layer stubs
-// ---------------------------------------------------------------------------
-
-/** HTTP/2 request object (compat layer, mirrors http.IncomingMessage). */
 export class Http2ServerRequest extends EventEmitter {
   readonly headers: Record<string, string | string[] | undefined> = {};
   readonly httpVersion: string = '2.0';
@@ -570,7 +514,6 @@ export class Http2ServerRequest extends EventEmitter {
   }
 }
 
-/** HTTP/2 response object (compat layer, mirrors http.ServerResponse). */
 export class Http2ServerResponse extends EventEmitter {
   statusCode: number = 200;
   readonly stream: Http2Stream | null = null;
@@ -628,15 +571,6 @@ export class Http2ServerResponse extends EventEmitter {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Factory functions — stubs with clear error messages
-// ---------------------------------------------------------------------------
-
-/**
- * Create an HTTP/2 server (cleartext, h2c).
- * Not yet implemented — Soup 3.0 handles HTTP/2 transparently but does not
- * expose the multiplexed stream API required by Node.js http2.createServer().
- */
 export function createServer(
   _options?: Record<string, unknown>,
   _onRequestHandler?: (request: Http2ServerRequest, response: Http2ServerResponse) => void,
@@ -648,10 +582,6 @@ export function createServer(
   );
 }
 
-/**
- * Create an HTTPS + HTTP/2 server (h2 over TLS).
- * Not yet implemented — requires TLS + HTTP/2 multiplexing support.
- */
 export function createSecureServer(
   _options?: Record<string, unknown>,
   _onRequestHandler?: (request: Http2ServerRequest, response: Http2ServerResponse) => void,
@@ -662,10 +592,6 @@ export function createSecureServer(
   );
 }
 
-/**
- * Connect to an HTTP/2 server.
- * Not yet implemented — would need HTTP/2 frame parsing over a raw TLS connection.
- */
 export function connect(
   _authority: string | URL,
   _options?: Record<string, unknown>,
@@ -678,24 +604,11 @@ export function connect(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Misc exports
-// ---------------------------------------------------------------------------
-
-/** Symbol for marking headers as sensitive (not to be compressed). */
 export const sensitiveHeaders = Symbol('http2.sensitiveHeaders');
 
-/**
- * Perform an HTTP/2 server handshake on an existing socket.
- * Not yet implemented.
- */
 export function performServerHandshake(_socket: unknown): unknown {
   throw new Error('http2.performServerHandshake() is not yet implemented in GJS');
 }
-
-// ---------------------------------------------------------------------------
-// Default export
-// ---------------------------------------------------------------------------
 
 export default {
   constants,

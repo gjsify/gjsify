@@ -11,14 +11,11 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'events';
 
-/** @internal Thread ID counter */
 let _nextThreadId = 1;
+const _encoder = new TextEncoder();
 
-/**
- * GJS worker bootstrap script.
- * Runs in the child gjs process, sets up IPC via stdin/stdout pipes.
- * Uses gi:// imports (available natively in GJS, no bundler needed).
- */
+// GJS worker bootstrap script — runs in the child gjs process,
+// sets up IPC via stdin/stdout pipes using gi:// imports.
 const BOOTSTRAP_CODE = `\
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
@@ -30,7 +27,7 @@ const stdoutStream = Gio.UnixOutputStream.new(1, false);
 
 function send(obj) {
   const line = JSON.stringify(obj) + '\\n';
-  stdoutStream.write_all(new TextEncoder().encode(line), null);
+  stdoutStream.write_all(_encoder.encode(line), null);
 }
 
 // Read init data (first line, blocking)
@@ -105,6 +102,8 @@ try {
 loop.run();
 `;
 
+const BOOTSTRAP_BYTES = _encoder.encode(BOOTSTRAP_CODE);
+
 export interface WorkerOptions {
   argv?: unknown[];
   env?: Record<string, string> | symbol;
@@ -119,10 +118,6 @@ export interface WorkerOptions {
   name?: string;
 }
 
-/**
- * Worker implementation for GJS using Gio.Subprocess.
- * Each worker runs in a separate GJS process with IPC via stdin/stdout pipes.
- */
 export class Worker extends EventEmitter {
   readonly threadId: number;
   readonly resourceLimits: Record<string, unknown>;
@@ -147,7 +142,7 @@ export class Worker extends EventEmitter {
 
     try {
       this._bootstrapFile.replace_contents(
-        new TextEncoder().encode(BOOTSTRAP_CODE),
+        BOOTSTRAP_BYTES,
         null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null
       );
     } catch (err) {
@@ -187,7 +182,7 @@ export class Worker extends EventEmitter {
     }) + '\n';
 
     try {
-      this._stdinPipe!.write_all(new TextEncoder().encode(initData), null);
+      this._stdinPipe!.write_all(_encoder.encode(initData), null);
     } catch (err) {
       this._cleanup();
       throw new Error(`Failed to send init data: ${err instanceof Error ? err.message : err}`);
@@ -205,47 +200,40 @@ export class Worker extends EventEmitter {
     });
   }
 
-  /** Send a message to the worker. */
   postMessage(value: unknown, _transferList?: unknown[]): void {
     if (this._exited || !this._stdinPipe) return;
     try {
       const line = JSON.stringify({ type: 'message', data: value }) + '\n';
-      this._stdinPipe.write_all(new TextEncoder().encode(line), null);
+      this._stdinPipe.write_all(_encoder.encode(line), null);
     } catch {
       // Worker stdin closed
     }
   }
 
-  /** Terminate the worker. Returns a promise resolving to the exit code. */
   terminate(): Promise<number> {
     if (this._exited) return Promise.resolve(0);
+
+    // Register listener before sending terminate to avoid race
+    const exitPromise = new Promise<number>((resolve) => {
+      this.once('exit', (code: number) => resolve(code));
+    });
 
     // Send terminate command
     try {
       if (this._stdinPipe) {
         const msg = JSON.stringify({ type: 'terminate' }) + '\n';
-        this._stdinPipe.write_all(new TextEncoder().encode(msg), null);
+        this._stdinPipe.write_all(_encoder.encode(msg), null);
       }
     } catch {}
 
     // Force-exit after timeout
-    const timeoutId = setTimeout(() => {
+    setTimeout(() => {
       if (!this._exited && this._subprocess) {
         this._subprocess.force_exit();
       }
     }, 500);
 
-    return new Promise<number>((resolve) => {
-      if (this._exited) {
-        clearTimeout(timeoutId);
-        resolve(0);
-      } else {
-        this.once('exit', (code: number) => {
-          clearTimeout(timeoutId);
-          resolve(code);
-        });
-      }
-    });
+    return exitPromise;
   }
 
   ref(): this { return this; }
@@ -301,7 +289,10 @@ export class Worker extends EventEmitter {
       try { this._bootstrapFile.delete(null); } catch {}
       this._bootstrapFile = null;
     }
-    this._stdinPipe = null;
+    if (this._stdinPipe) {
+      try { this._stdinPipe.close(null); } catch {}
+      this._stdinPipe = null;
+    }
     this._subprocess = null;
   }
 }
