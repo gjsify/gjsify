@@ -257,6 +257,11 @@ We follow a **test-driven development** approach: tests are written first, then 
 4. **Run tests on GJS:** `yarn test:gjs` — expect failures. **This is the signal to fix the implementation, not to weaken the tests.**
 5. **Implement/fix** using GNOME libraries (`@girs/*`), check types in `node_modules/@girs/`. Consult references: `refs/deno/`, `refs/bun/`, `refs/quickjs/`, `refs/workerd/`.
 6. **Iterate** until `yarn test:gjs` passes alongside `yarn test:node`.
+7. **Full validation:** After completing the implementation, run the full project pipeline and fix any issues:
+   ```bash
+   yarn install && yarn build && yarn check && yarn test
+   ```
+   This ensures the new code doesn't break other packages. Fix any install, build, type-check, or test failures before considering the task done.
 
 ### Test Sources from Reference Projects
 
@@ -403,11 +408,42 @@ Use these canonical copyright lines when applying Template A or D:
 - Tests must pass on both Node.js and GJS from same source
 - Do not modify `refs/` — read-only submodules
 
-## SpiderMonkey 128 — JS Feature Availability
+## JS Feature Availability
+
+### SpiderMonkey 128 (GJS 1.84–1.86, current target)
 
 **Available (ES2024):** `Object.groupBy`, `Map.groupBy`, `Promise.withResolvers`, `Set` methods (intersection, union, difference, symmetricDifference, isSubsetOf, isSupersetOf, isDisjointFrom), `Array.fromAsync`, `structuredClone`, `SharedArrayBuffer`, `Intl.Segmenter`, `globalThis`, `??`, `?.`, `??=`, `||=`, `&&=`, top-level `await`, private/static class fields, `WeakRef`, `FinalizationRegistry`.
 
-**NOT available (V8-only, never in SpiderMonkey):**
-- `Error.captureStackTrace` — guard: `if (typeof Error.captureStackTrace === 'function')`
+**NOT available in SpiderMonkey 128:**
+- `Error.captureStackTrace` — polyfill: `packages/gjs/utils/src/error.ts`
 - `Error.stackTraceLimit` — guard with typeof check
-- Polyfill: `packages/gjs/utils/src/error.ts`
+- `queueMicrotask` — not exposed as global in GJS 1.86; use `Promise.resolve().then()`
+- `Float16Array`, `Math.f16round()`, `DataView.getFloat16()`/`setFloat16()`
+- Iterator helpers (`Iterator.prototype.map/filter/take/drop/...`)
+- `Uint8Array.fromBase64()`/`.toBase64()`/`.fromHex()`/`.toHex()`
+- `RegExp.escape()`, regex modifiers `(?ims-ims:...)`
+- `Promise.try()`
+- `JSON.rawJSON()`, `JSON.isRawJSON()`, reviver context
+- `Intl.DurationFormat`
+- `Math.sumPrecise()`
+- `Atomics.pause()`
+- `Error.isError()`
+- `Temporal` API
+- `import ... with { type: "json" }` (JSON modules)
+
+### SpiderMonkey 140 (GJS 1.85.2+/1.87+, upcoming)
+
+All of the above become available, plus (from GJS 1.85.2 NEWS):
+- `Float16Array`, `Math.f16round()`, `DataView.getFloat16/setFloat16`
+- Iterator helpers: `Iterator.prototype.drop/every/filter/find/flatMap/forEach/map/reduce/some/take`
+- `Uint8Array.fromBase64()`, `.fromHex()`, `.setFromBase64()`, `.setFromHex()`, `.toBase64()`, `.toHex()`
+- Regex: `RegExp.escape()`, modifiers `(?ims-ims:...)`, duplicate named capturing groups
+- `Promise.try()`
+- `JSON.rawJSON()`, `JSON.isRawJSON()`, reviver context argument
+- `Intl.DurationFormat`
+- `Math.sumPrecise()`
+- `Atomics.pause()`
+- `Error.captureStackTrace()` (native! — polyfill no longer needed)
+- `Error.isError()`
+- `import ... with { type: "json" }` (JSON modules)
+- `Temporal` API (`Temporal.Instant`, `Temporal.ZonedDateTime`, `Temporal.PlainDate`, `Temporal.Duration`, `Temporal.Now`, etc.)
