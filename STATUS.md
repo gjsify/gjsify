@@ -5,12 +5,12 @@
 ## Summary
 
 gjsify implements Node.js and Web Standard APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **10 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
+The project comprises **39 Node.js packages**, **11 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 31 (79%) | 3 (8%) | 5 (13%) |
-| Web APIs | 10 | 10 (100%) | — | — |
+| Web APIs | 11 | 11 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
@@ -76,7 +76,7 @@ The project comprises **39 Node.js packages**, **10 Web API packages**, **3 GJS 
 
 ## Web API Packages (`packages/web/`)
 
-All 10 packages have real implementations:
+All 11 packages have real implementations:
 
 | Package | LOC | GNOME Libs | Tests | Web APIs |
 |---------|-----|-----------|-------|----------|
@@ -88,7 +88,8 @@ All 10 packages have real implementations:
 | **html-image-element** | 347 | GdkPixbuf | 2 | HTMLImageElement, Image() |
 | **webgl** | 5,662 | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
 | **websocket** | 230 | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
-| **compression-streams** | 150 | — | 25 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Node.js native; GJS requires Web Streams API |
+| **streams** | 3,500 | — | 95 | ReadableStream, WritableStream, TransformStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
+| **compression-streams** | 120 | — | 29 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
 | **webstorage** | 100 | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
 ### Missing Web APIs
@@ -150,8 +151,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Fully implemented | 31 (79%) |
 | Partially implemented | 3 (8%) |
 | Stubs | 5 (13%) |
-| Web API packages | 10 (all implemented) |
-| Total test cases | ~2,600 |
+| Web API packages | 11 (all implemented) |
+| Total test cases | ~2,700 |
 | Spec files | 80+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
@@ -163,7 +164,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### High Priority
 
-1. **Web Streams API** — `ReadableStream`, `WritableStream`, `TransformStream` are NOT available in GJS 1.86. Needed for: CompressionStream on GJS, fetch body streaming, EventSource. Foundation for all stream-based Web APIs.
+1. ~~**Web Streams API**~~✓ — Implemented as `@gjsify/web-streams` (95 tests). ReadableStream, WritableStream, TransformStream, queuing strategies. Polyfill on GJS, native on Node.js.
 2. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
 3. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, http).
 
@@ -194,6 +195,19 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-24 — Phase 11: WHATWG Web Streams API (@gjsify/web-streams)
+
+**New package `@gjsify/web-streams`** — complete WHATWG Streams polyfill for GJS, ported from `refs/node/lib/internal/webstreams/` (pure TypeScript, no native bindings):
+
+- **WritableStream** (Phase 1): WritableStream, WritableStreamDefaultWriter, WritableStreamDefaultController, backpressure, abort/close lifecycle
+- **ReadableStream** (Phase 2): ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController, tee, pipeTo, pipeThrough, async iteration, `ReadableStream.from()` (iterables/async iterables)
+- **TransformStream** (Phase 3): TransformStream, TransformStreamDefaultController, backpressure coordination, flush/cancel
+- **Queuing strategies**: ByteLengthQueuingStrategy, CountQueuingStrategy
+- **Consumer integration** (Phase 4): `stream/web` re-exports from `@gjsify/web-streams`, `compression-streams` uses real TransformStream (SimpleReadable/SimpleWritable shims removed)
+- **Global registration**: On GJS, registers ReadableStream/WritableStream/TransformStream as globals
+- **95 tests** pass on both Node.js 24 and GJS 1.86
+- BYOB/byte streams deferred (Phase 5, optional)
 
 ### 2026-03-24 — Phase 10: Promote 4 packages to Full, add 2 Web API packages
 
