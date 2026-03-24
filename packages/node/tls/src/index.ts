@@ -1,10 +1,6 @@
 // Reference: Node.js lib/tls.js
 // Reimplemented for GJS using Gio.TlsClientConnection / Gio.TlsServerConnection
 
-// TLS server — createServer via Gio.TlsServerConnection
-// Reference: Node.js lib/tls.js, refs/deno/ext/node/polyfills/_tls_wrap.ts
-// Reimplemented for GJS using Gio.TlsServerConnection + Gio.TlsCertificate
-
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { Socket, Server } from 'net';
@@ -25,22 +21,36 @@ export interface TlsConnectOptions extends SecureContextOptions {
   port?: number;
   socket?: Socket;
   servername?: string;
+  ALPNProtocols?: string[];
 }
 
 /**
- * TLSSocket wraps a net.Socket with TLS via Gio.TlsClientConnection.
+ * TLSSocket wraps a net.Socket with TLS via Gio.TlsConnection.
  */
 export class TLSSocket extends Socket {
   encrypted = true;
   authorized = false;
   authorizationError?: string;
+  alpnProtocol: string | false = false;
 
-  private _tlsConnection: Gio.TlsClientConnection | null = null;
-  private _secureConnecting = false;
+  /** @internal */
+  _tlsConnection: Gio.TlsConnection | null = null;
 
   constructor(socket?: Socket, options?: SecureContextOptions) {
     super();
-    // TLS upgrade of existing socket will be handled in connect()
+  }
+
+  /**
+   * @internal Wire the TLS connection's I/O streams into this socket
+   * so that read/write operations go through the encrypted channel.
+   */
+  _setupTlsStreams(tlsConn: Gio.TlsConnection): void {
+    this._tlsConnection = tlsConn;
+    // Replace the underlying I/O streams with the TLS connection's streams
+    (this as any)._inputStream = tlsConn.get_input_stream();
+    (this as any)._outputStream = tlsConn.get_output_stream();
+    // Store connection for teardown
+    (this as any)._connection = tlsConn as unknown as Gio.SocketConnection;
   }
 
   /** Get the peer certificate info. */
@@ -54,7 +64,6 @@ export class TLSSocket extends Socket {
         issuer: {},
         valid_from: '',
         valid_to: '',
-        // Full certificate parsing would require deeper GIO integration
       };
     } catch {
       return {};
@@ -88,10 +97,24 @@ export class TLSSocket extends Socket {
       return null;
     }
   }
+
+  /** Get the negotiated ALPN protocol. */
+  getAlpnProtocol(): string | false {
+    if (!this._tlsConnection) return false;
+    try {
+      const proto = this._tlsConnection.get_negotiated_protocol();
+      return proto || false;
+    } catch {
+      return false;
+    }
+  }
 }
 
 /**
  * Create a TLS client connection.
+ *
+ * Connects via TCP first (using net.Socket.connect), then upgrades
+ * the connection to TLS using Gio.TlsClientConnection.
  */
 export function connect(options: TlsConnectOptions, callback?: () => void): TLSSocket {
   const socket = new TLSSocket(undefined, options);
@@ -100,11 +123,86 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
     socket.once('secureConnect', callback);
   }
 
-  // Connect via net.Socket.connect, then upgrade to TLS
   const port = options.port || 443;
   const host = options.host || 'localhost';
-  socket.connect({ port, host });
+  const servername = options.servername || host;
+  const rejectUnauthorized = options.rejectUnauthorized !== false;
 
+  // Listen for TCP connect, then upgrade to TLS
+  socket.once('connect', () => {
+    const rawConnection: Gio.SocketConnection | null = (socket as any)._connection;
+    if (!rawConnection) {
+      socket.destroy(new Error('No underlying connection for TLS upgrade'));
+      return;
+    }
+
+    try {
+      // Create TLS client connection wrapping the raw TCP connection
+      const connectable = Gio.NetworkAddress.new(servername, port);
+      const tlsConn = Gio.TlsClientConnection.new(
+        rawConnection as Gio.IOStream,
+        connectable,
+      ) as Gio.TlsClientConnection;
+
+      // Set server identity for certificate validation
+      tlsConn.set_server_identity(connectable);
+
+      // Set ALPN protocols if provided
+      if (options.ALPNProtocols && options.ALPNProtocols.length > 0) {
+        try {
+          (tlsConn as Gio.TlsClientConnection).set_advertised_protocols(options.ALPNProtocols);
+        } catch {
+          // ALPN may not be supported on all GnuTLS versions
+        }
+      }
+
+      // Handle certificate validation
+      if (!rejectUnauthorized) {
+        (tlsConn as Gio.TlsConnection).connect(
+          'accept-certificate',
+          () => true,
+        );
+      }
+
+      // Perform TLS handshake asynchronously
+      const cancellable = new Gio.Cancellable();
+      (tlsConn as Gio.TlsConnection).handshake_async(
+        GLib.PRIORITY_DEFAULT,
+        cancellable,
+        (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
+          try {
+            (tlsConn as Gio.TlsConnection).handshake_finish(asyncResult);
+            socket.authorized = true;
+            socket._setupTlsStreams(tlsConn as Gio.TlsConnection);
+
+            // Get ALPN result
+            socket.alpnProtocol = socket.getAlpnProtocol();
+
+            // Restart reading with TLS streams
+            (socket as any)._reading = false;
+            (socket as any)._startReading();
+
+            socket.emit('secureConnect');
+          } catch (err: unknown) {
+            socket.authorized = false;
+            socket.authorizationError = err instanceof Error ? err.message : String(err);
+            if (rejectUnauthorized) {
+              socket.destroy(err instanceof Error ? err : new Error(String(err)));
+            } else {
+              // Still emit secureConnect but with authorized=false
+              socket._setupTlsStreams(tlsConn as Gio.TlsConnection);
+              socket.emit('secureConnect');
+            }
+          }
+        },
+      );
+    } catch (err: unknown) {
+      socket.destroy(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
+
+  // Initiate TCP connection
+  socket.connect({ port, host });
   return socket;
 }
 
@@ -112,8 +210,6 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
  * Create a TLS secure context.
  */
 export function createSecureContext(options?: SecureContextOptions): { context: any } {
-  // In GJS, TLS context is managed by GIO/GnuTLS internally
-  // This returns a stub context object for API compatibility
   return { context: options || {} };
 }
 
@@ -122,12 +218,11 @@ export const rootCertificates: string[] = [];
 export interface TlsServerOptions extends SecureContextOptions {
   requestCert?: boolean;
   rejectUnauthorized?: boolean;
+  ALPNProtocols?: string[];
 }
 
 /**
  * Build a Gio.TlsCertificate from PEM cert+key strings.
- * Concatenates cert and key into a single PEM block so
- * Gio.TlsCertificate.new_from_pem() can parse both.
  */
 function buildGioCertificate(cert: string | Buffer | Array<string | Buffer>, key?: string | Buffer | Array<string | Buffer>): Gio.TlsCertificate {
   const certStr = Array.isArray(cert)
@@ -140,18 +235,12 @@ function buildGioCertificate(cert: string | Buffer | Array<string | Buffer>, key
       : typeof key === 'string' ? key : key.toString('utf-8')
     : '';
 
-  // Gio.TlsCertificate.new_from_pem() accepts a single PEM string
-  // containing both the certificate and the private key.
   const pem = keyStr ? `${certStr}\n${keyStr}` : certStr;
   return Gio.TlsCertificate.new_from_pem(pem, pem.length);
 }
 
 /**
  * TLSServer wraps a net.Server to accept TLS connections.
- *
- * Incoming TCP connections are upgraded to TLS using
- * Gio.TlsServerConnection before being emitted as
- * 'secureConnection' events with a TLSSocket.
  */
 export class TLSServer extends Server {
   private _tlsCertificate: Gio.TlsCertificate | null = null;
@@ -159,22 +248,17 @@ export class TLSServer extends Server {
   private _sniContexts = new Map<string, Gio.TlsCertificate>();
 
   constructor(options?: TlsServerOptions, secureConnectionListener?: (socket: TLSSocket) => void) {
-    // Do not pass secureConnectionListener to super as 'connection' —
-    // we emit 'secureConnection' instead after TLS handshake.
     super();
-
     this._tlsOptions = options || {};
 
     if (secureConnectionListener) {
       this.on('secureConnection', secureConnectionListener);
     }
 
-    // Build the server certificate from PEM options
     if (this._tlsOptions.cert) {
       try {
         this._tlsCertificate = buildGioCertificate(this._tlsOptions.cert, this._tlsOptions.key);
       } catch (err: unknown) {
-        // Defer the error so the caller can attach an 'error' listener
         deferEmit(this, 'error', createNodeError(err, 'createServer', {}));
       }
     }
@@ -182,8 +266,6 @@ export class TLSServer extends Server {
 
   /**
    * Add a context for SNI (Server Name Indication).
-   * When a client connects with the given hostname, the corresponding
-   * certificate will be used instead of the default one.
    */
   addContext(hostname: string, context: SecureContextOptions): void {
     if (context.cert) {
@@ -196,33 +278,17 @@ export class TLSServer extends Server {
     }
   }
 
-  /**
-   * Override the internal connection handler from net.Server.
-   * Instead of emitting 'connection' directly, we upgrade the
-   * raw TCP connection to TLS and then emit 'secureConnection'.
-   *
-   * net.Server calls _handleConnection via the 'incoming' signal
-   * on Gio.SocketService. We intercept by listening to the
-   * 'connection' event emitted by net.Server._handleConnection.
-   */
   listen(...args: unknown[]): this {
-    // Attach a one-time setup: intercept 'connection' events from
-    // the base class and upgrade them to TLS before re-emitting
-    // as 'secureConnection'.
     this.on('connection', (socket: Socket) => {
       this._upgradeTls(socket);
     });
-
     return super.listen(...(args as [any]));
   }
 
   /**
-   * Upgrade a raw TCP socket to TLS using Gio.TlsServerConnection,
-   * perform the handshake, and emit 'secureConnection'.
+   * Upgrade a raw TCP socket to TLS using Gio.TlsServerConnection.
    */
   private _upgradeTls(socket: Socket): void {
-    // Access the underlying Gio.SocketConnection from the net.Socket.
-    // The net.Socket stores it via _setConnection().
     const rawConnection: Gio.SocketConnection | null = (socket as any)._connection;
     if (!rawConnection) {
       const err = new Error('Cannot upgrade socket: no underlying connection');
@@ -239,13 +305,12 @@ export class TLSServer extends Server {
     }
 
     try {
-      // Create a TLS server connection wrapping the raw TCP IOStream
       const tlsConn = Gio.TlsServerConnection.new(
         rawConnection as Gio.IOStream,
         this._tlsCertificate,
       );
 
-      // Configure client authentication mode
+      // Configure client authentication
       if (this._tlsOptions.requestCert) {
         tlsConn.authenticationMode = this._tlsOptions.rejectUnauthorized !== false
           ? Gio.TlsAuthenticationMode.REQUIRED
@@ -254,7 +319,6 @@ export class TLSServer extends Server {
         tlsConn.authenticationMode = Gio.TlsAuthenticationMode.NONE;
       }
 
-      // When rejectUnauthorized is false, accept all peer certificates
       if (this._tlsOptions.rejectUnauthorized === false) {
         (tlsConn as Gio.TlsConnection).connect(
           'accept-certificate',
@@ -262,7 +326,16 @@ export class TLSServer extends Server {
         );
       }
 
-      // Perform the TLS handshake asynchronously
+      // Set ALPN protocols
+      if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
+        try {
+          (tlsConn as any).set_advertised_protocols(this._tlsOptions.ALPNProtocols);
+        } catch {
+          // ALPN may not be supported
+        }
+      }
+
+      // Perform TLS handshake
       const cancellable = new Gio.Cancellable();
       (tlsConn as Gio.TlsConnection).handshake_async(
         GLib.PRIORITY_DEFAULT,
@@ -271,13 +344,17 @@ export class TLSServer extends Server {
           try {
             (tlsConn as Gio.TlsConnection).handshake_finish(asyncResult);
 
-            // Create a TLSSocket wrapping the now-handshaked connection
+            // Create TLSSocket with TLS I/O streams wired up
             const tlsSocket = new TLSSocket();
             tlsSocket.encrypted = true;
             tlsSocket.authorized = true;
+            tlsSocket._setupTlsStreams(tlsConn as Gio.TlsConnection);
 
-            // Set the TLS connection on the socket
-            (tlsSocket as any)._tlsConnection = tlsConn;
+            // Get ALPN result
+            tlsSocket.alpnProtocol = tlsSocket.getAlpnProtocol();
+
+            // Start reading on the TLS streams
+            (tlsSocket as any)._startReading();
 
             this.emit('secureConnection', tlsSocket);
           } catch (err: unknown) {
@@ -297,10 +374,6 @@ export class TLSServer extends Server {
 
 /**
  * Create a TLS server.
- *
- * The server uses Gio.TlsServerConnection to wrap accepted TCP
- * connections with TLS. When the TLS handshake completes, a
- * 'secureConnection' event is emitted with a TLSSocket.
  */
 export function createServer(options?: TlsServerOptions, secureConnectionListener?: (socket: TLSSocket) => void): TLSServer;
 export function createServer(secureConnectionListener?: (socket: TLSSocket) => void): TLSServer;
@@ -314,7 +387,6 @@ export function createServer(
   return new TLSServer(optionsOrListener, secureConnectionListener);
 }
 
-// Node.js compat alias — Node.js exports tls.Server
 export { TLSServer as Server };
 
 export default {

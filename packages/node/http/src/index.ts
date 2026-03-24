@@ -4,10 +4,10 @@
 
 export { STATUS_CODES, METHODS } from './constants.js';
 export { IncomingMessage } from './incoming-message.js';
-export { Server, ServerResponse } from './server.js';
+export { OutgoingMessage, Server, ServerResponse } from './server.js';
 export { ClientRequest } from './client-request.js';
 import { IncomingMessage } from './incoming-message.js';
-import { Server, ServerResponse } from './server.js';
+import { OutgoingMessage, Server, ServerResponse } from './server.js';
 import { ClientRequest } from './client-request.js';
 import type { ClientRequestOptions } from './client-request.js';
 import { URL } from 'url';
@@ -98,6 +98,13 @@ export function get(url: string | URL | ClientRequestOptions, options?: ClientRe
 /** Max header size in bytes. */
 export const maxHeaderSize = 16384;
 
+/**
+ * Set the maximum number of idle HTTP parsers. Soup.Session handles
+ * connection pooling internally, so this is a no-op for compatibility.
+ * @since v18.8.0
+ */
+export function setMaxIdleHTTPParsers(_max: number): void {}
+
 import { STATUS_CODES as _STATUS_CODES, METHODS as _METHODS } from './constants.js';
 
 export default {
@@ -105,6 +112,7 @@ export default {
   METHODS: _METHODS,
   Server,
   IncomingMessage,
+  OutgoingMessage,
   ServerResponse,
   ClientRequest,
   Agent,
@@ -115,4 +123,5 @@ export default {
   validateHeaderName,
   validateHeaderValue,
   maxHeaderSize,
+  setMaxIdleHTTPParsers,
 };

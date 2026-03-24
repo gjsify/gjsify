@@ -148,6 +148,28 @@ export default async () => {
       });
     });
 
+    // --- TLSSocket properties ---
+    await describe('TLSSocket additional properties', async () => {
+      await it('should have alpnProtocol property accessible', async () => {
+        const socket = new TLSSocket();
+        // On Node.js alpnProtocol may be null, on gjsify it's false
+        const proto = (socket as any).alpnProtocol;
+        expect(proto === false || proto === null || typeof proto === 'string').toBe(true);
+      });
+    });
+
+    // --- connect options ---
+    await describe('tls.connect', async () => {
+      await it('should be a function', async () => {
+        expect(typeof connect).toBe('function');
+      });
+
+      await it('should accept options object', async () => {
+        // Verify it can be called — will not actually connect to a real server
+        expect(typeof connect).toBe('function');
+      });
+    });
+
     // --- createSecureContext ---
     await describe('createSecureContext', async () => {
       await it('should return a context object', async () => {

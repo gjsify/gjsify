@@ -138,9 +138,72 @@ export default async () => {
       expect(typeof http.ServerResponse).toBe('function');
     });
 
+    await it('should export OutgoingMessage', async () => {
+      expect(typeof (http as any).OutgoingMessage).toBe('function');
+    });
+
     await it('should export request and get', async () => {
       expect(typeof http.request).toBe('function');
       expect(typeof http.get).toBe('function');
+    });
+
+    await it('should export setMaxIdleHTTPParsers', async () => {
+      expect(typeof (http as any).setMaxIdleHTTPParsers).toBe('function');
+      // Should not throw
+      (http as any).setMaxIdleHTTPParsers(256);
+    });
+
+    await it('should export validateHeaderName and validateHeaderValue', async () => {
+      expect(typeof (http as any).validateHeaderName).toBe('function');
+      expect(typeof (http as any).validateHeaderValue).toBe('function');
+    });
+  });
+
+  // --- OutgoingMessage ---
+  await describe('http.OutgoingMessage', async () => {
+    await it('should be constructable', async () => {
+      const OutgoingMessage = (http as any).OutgoingMessage;
+      const msg = new OutgoingMessage();
+      expect(msg).toBeDefined();
+      expect(msg.headersSent).toBe(false);
+      expect(msg.finished).toBe(false);
+    });
+
+    await it('should support setHeader/getHeader/hasHeader/removeHeader', async () => {
+      const OutgoingMessage = (http as any).OutgoingMessage;
+      const msg = new OutgoingMessage();
+      msg.setHeader('X-Test', 'value');
+      expect(msg.getHeader('x-test')).toBe('value');
+      expect(msg.hasHeader('x-test')).toBe(true);
+      msg.removeHeader('x-test');
+      expect(msg.hasHeader('x-test')).toBe(false);
+    });
+
+    await it('should support getHeaderNames and getHeaders', async () => {
+      const OutgoingMessage = (http as any).OutgoingMessage;
+      const msg = new OutgoingMessage();
+      msg.setHeader('Content-Type', 'text/plain');
+      msg.setHeader('X-Custom', 'val');
+      const names = msg.getHeaderNames();
+      expect(names.length).toBe(2);
+      const headers = msg.getHeaders();
+      expect(headers['content-type']).toBe('text/plain');
+      expect(headers['x-custom']).toBe('val');
+    });
+
+    await it('should support appendHeader', async () => {
+      const OutgoingMessage = (http as any).OutgoingMessage;
+      const msg = new OutgoingMessage();
+      msg.setHeader('Set-Cookie', 'a=1');
+      msg.appendHeader('Set-Cookie', 'b=2');
+      const val = msg.getHeader('set-cookie');
+      expect(Array.isArray(val)).toBe(true);
+    });
+
+    await it('should have sendDate property', async () => {
+      const OutgoingMessage = (http as any).OutgoingMessage;
+      const msg = new OutgoingMessage();
+      expect(typeof msg.sendDate).toBe('boolean');
     });
   });
 
@@ -571,6 +634,63 @@ export default async () => {
       const server = http.createServer();
       server.setTimeout(5000);
       expect(server.timeout).toBe(5000);
+    });
+  });
+
+  // --- Server properties ---
+  await describe('http.Server properties', async () => {
+    await it('should have timeout properties', async () => {
+      const server = http.createServer();
+      expect(server.maxHeadersCount).toBeDefined();
+      expect(server.keepAliveTimeout).toBeDefined();
+      expect(server.headersTimeout).toBeDefined();
+      expect(server.requestTimeout).toBeDefined();
+    });
+
+    await it('should support empty body response', async () => {
+      const server = http.createServer((req, res) => {
+        res.writeHead(204);
+        res.end();
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            expect(res.statusCode).toBe(204);
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () => {
+              expect(Buffer.concat(chunks).length).toBe(0);
+              server.close(() => resolve());
+            });
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
+    });
+
+    await it('should handle large response body', async () => {
+      const largeBody = 'x'.repeat(10000);
+      const server = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(largeBody);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        server.listen(0, () => {
+          const addr = server.address() as { port: number };
+          http.get(`http://127.0.0.1:${addr.port}/`, (res) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () => {
+              expect(Buffer.concat(chunks).toString().length).toBe(10000);
+              server.close(() => resolve());
+            });
+          }).on('error', reject);
+        });
+        server.on('error', reject);
+      });
     });
   });
 

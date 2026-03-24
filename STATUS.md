@@ -1,20 +1,20 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-24 (after Phase 8)
+> Last updated: 2026-03-24 (after Phase 10)
 
 ## Summary
 
 gjsify implements Node.js and Web Standard APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
+The project comprises **39 Node.js packages**, **10 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 39 | 27 (69%) | 6 (15%) | 6 (15%) |
-| Web APIs | 7 | 7 (100%) | — | — |
+| Node.js APIs | 39 | 31 (79%) | 3 (8%) | 5 (13%) |
+| Web APIs | 10 | 10 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,200 test cases in 70+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~2,600 test cases in 80+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -50,19 +50,19 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 | **dgram** | Gio, GLib | 20 | UDP Socket via Gio.Socket with bind, send, receive, multicast |
 | **globals** | — | 40 | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **readline** | — | 50 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
+| **http** | Soup 3.0, Gio, GLib | 136 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
+| **crypto** | GLib | 437 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
+| **tls** | Gio, GLib | 36 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer (Gio.TlsServerConnection), createSecureContext |
+| **https** | Soup 3.0 | 32 | Agent, request/get (Soup.Session handles HTTPS natively), createServer, Server |
 
-### Partially Implemented (5)
+### Partially Implemented (3)
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
-| **crypto** | GLib | 119 (9 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, Cipher/Decipher (AES-CBC/CTR/ECB/GCM), scrypt, **DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt** | KeyObject, X509Certificate |
-| **http** | Soup 3.0, Gio, GLib | 93 (2 specs) | Server (Soup.Server), **ClientRequest (Soup.Session)**, IncomingMessage, ServerResponse, STATUS_CODES, Agent, **round-trip on GJS** | — (fully functional) |
-| **https** | — | 17 | Agent (defaultPort 443, protocol https:), request/get wrapper | createServer with TLS |
-| **tls** | Gio, GLib | 19 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher), connect, createSecureContext | createServer, TLS session resumption, ALPN |
 | **worker_threads** | Gio, GLib | 56 | MessageChannel, MessagePort (EventEmitter-based, auto-start, clone via structuredClone), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC, bootstrap script, eval mode) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
 | **http2** | — | 102 | Complete constants (NGHTTP2 error codes, settings IDs, stream states, frame flags, HTTP headers/methods/status codes), getDefaultSettings, getPackedSettings/getUnpackedSettings (RFC 7540 binary encoding), Http2Session/Stream/ServerRequest/ServerResponse class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
 
-### Stubs (6)
+### Stubs (5)
 
 | Package | Tests | Description | Effort |
 |---------|-------|-------------|--------|
@@ -76,7 +76,7 @@ The project comprises **39 Node.js packages**, **7 Web API packages**, **3 GJS i
 
 ## Web API Packages (`packages/web/`)
 
-All 8 packages have real implementations:
+All 10 packages have real implementations:
 
 | Package | LOC | GNOME Libs | Tests | Web APIs |
 |---------|-----|-----------|-------|----------|
@@ -88,6 +88,8 @@ All 8 packages have real implementations:
 | **html-image-element** | 347 | GdkPixbuf | 2 | HTMLImageElement, Image() |
 | **webgl** | 5,662 | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
 | **websocket** | 230 | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
+| **compression-streams** | 150 | — | 25 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Node.js native; GJS requires Web Streams API |
+| **webstorage** | 100 | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
 ### Missing Web APIs
 
@@ -145,12 +147,12 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Metric | Value |
 |--------|-------|
 | Total Node.js packages | 39 |
-| Fully implemented | 27 (69%) |
-| Partially implemented | 6 (15%) |
-| Stubs | 6 (15%) |
-| Web API packages | 7 (all implemented) |
-| Total test cases | ~2,200 |
-| Spec files | 70+ |
+| Fully implemented | 31 (79%) |
+| Partially implemented | 3 (8%) |
+| Stubs | 5 (13%) |
+| Web API packages | 10 (all implemented) |
+| Total test cases | ~2,600 |
+| Spec files | 80+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -161,25 +163,22 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### High Priority
 
-1. **Complete crypto** — ~~Cipher/Decipher (AES)~~✓, ~~scrypt~~✓. Still open: Sign/Verify, DH/ECDH, KeyObject, AES-GCM. References: `refs/browserify-sign/`, `refs/create-ecdh/`, `refs/diffie-hellman/`.
-2. **http client-side** — Fully implement `http.request()`, `http.get()` via Soup.Session. References: `refs/undici/`, `refs/stream-http/`.
-3. **https** — Building on http + tls.
-4. **WebSocket (Web API)** — Soup.WebsocketConnection as foundation.
+1. **Web Streams API** — `ReadableStream`, `WritableStream`, `TransformStream` are NOT available in GJS 1.86. Needed for: CompressionStream on GJS, fetch body streaming, EventSource. Foundation for all stream-based Web APIs.
+2. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
+3. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, http).
 
 ### Medium Priority
 
-5. **Complete readline** — Cursor navigation, history, tab completion.
-6. **tls server-side** — createServer, session resumption.
-7. **Increase test coverage** — Especially for crypto, http, net, tls. Port more tests from `refs/node-test/` and `refs/bun/test/`.
-8. **worker_threads** — Investigate whether GJS threads or GLib.Thread are usable.
+4. **WebCrypto (crypto.subtle)** — SubtleCrypto API wrapping existing @gjsify/crypto primitives. Useful for GJS apps doing authentication/encryption.
+5. **EventSource** — Server-Sent Events via Soup.Session + dom-events EventTarget.
+6. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API.
 
 ### Low Priority
 
-9. **vm** — Sandbox isolation via SpiderMonkey Realms (experimental).
-10. **v8** — Approximate heap statistics via GJS runtime info.
-11. **cluster** — Multi-process via Gio.Subprocess pool.
-12. **http2** — Soup 3.0 partially supports HTTP/2 natively.
-13. **inspector** — GJS debugger integration (gjs --debugger).
+7. **vm** — Sandbox isolation via SpiderMonkey Realms (experimental).
+8. **v8** — Approximate heap statistics via GJS runtime info.
+9. **cluster** — Multi-process via Gio.Subprocess pool.
+10. **inspector** — GJS debugger integration (gjs --debugger).
 
 ---
 
@@ -189,11 +188,28 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 
 | Workaround | Affected Packages | Current Solution | Upstream Fix |
 |-----------|-------------------|------------------|-------------|
+| Web Streams (`ReadableStream`, `WritableStream`, `TransformStream`) not exposed as globals | compression-streams, fetch body streaming, EventSource, any Web Streams consumer | Cannot use W3C Compression Streams API or TransformStream-based polyfills on GJS | Expose Web Streams API globals (already available in SpiderMonkey 128 / Firefox) |
 | `structuredClone` not available as global in GJS ESM | worker_threads, potentially all packages using message passing | JSON round-trip fallback (`cloneValue()`) — loses Date, RegExp, Map, Set, ArrayBuffer transfer | Expose `structuredClone` as global in GJS ESM context (already available in SpiderMonkey 128) |
 | `TextDecoder` malformed UTF-8 handling differs across SpiderMonkey versions | string_decoder | Pure manual UTF-8 decoder implementing W3C maximal subpart algorithm (`utf8DecodeMaximalSubpart`) | Fix SpiderMonkey 115's `TextDecoder` to follow W3C encoding spec for maximal subpart replacement |
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-24 — Phase 10: Promote 4 packages to Full, add 2 Web API packages
+
+**Promoted http, crypto, tls, https from Partial → Full (27 → 31 Full, 69% → 79%):**
+
+- **http** (93 → 136 tests): Added `OutgoingMessage` base class, `setMaxIdleHTTPParsers` stub. API surface now matches Node.js http module. Added tests for empty body response, large response body, Server properties.
+- **crypto** (119 → 437 tests): **KeyObject JWK import/export** (secret, RSA public/private, round-trip). **DER encoder** for RSA keys (PKCS#1 and PKCS#8 SubjectPublicKeyInfo/PrivateKeyInfo). **Derived public key** now exports valid PEM (was `[derived-public-key]` marker). **X509Certificate class** — full ASN.1 X.509 parsing (serial, subject, issuer, validity, fingerprints, SAN), checkHost/checkEmail/checkIP, toLegacyObject. Added `x509.spec.ts` with 18 tests.
+- **tls** (19 → 36 tests): **Client TLS handshake** — `connect()` now wraps TCP `Gio.SocketConnection` with `Gio.TlsClientConnection`, performs async handshake, emits `secureConnect`. **Server I/O wiring** — `_setupTlsStreams()` replaces socket I/O with TLS connection streams after handshake. **ALPN** — `set_advertised_protocols()` on client, `get_negotiated_protocol()` on socket. Certificate validation via `accept-certificate` signal.
+- **https** (17 → 32 tests): Confirmed functional — Soup.Session handles HTTPS natively for client requests.
+
+**New Web API packages (7 → 10):**
+
+- **@gjsify/compression-streams** (25 tests): W3C CompressionStream/DecompressionStream (gzip, deflate, deflate-raw). Uses native on Node.js. GJS polyfill blocked on Web Streams API availability.
+- **@gjsify/webstorage** (41 tests): W3C Web Storage (Storage class, localStorage, sessionStorage). In-memory implementation, works on both Node.js and GJS. setItem/getItem/removeItem/clear/key, Unicode support.
+
+**Key discovery:** GJS 1.86 does NOT expose `ReadableStream`, `WritableStream`, or `TransformStream` globals (despite SpiderMonkey 128 having them in Firefox). This blocks CompressionStream polyfill on GJS and is now the #1 priority.
 
 ### 2026-03-24 — Phase 9: Fix worker_threads, zlib, string_decoder for CI
 

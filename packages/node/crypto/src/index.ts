@@ -44,3 +44,4 @@ export { createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGrou
 export { createECDH, getCurves } from './ecdh.js';
 export { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';
 export { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from './key-object.js';
+export { X509Certificate } from './x509.js';
