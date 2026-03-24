@@ -43,8 +43,10 @@ export default async () => {
 
     await it('should have readable and writable properties', async () => {
       const cs = new CompressionStream('gzip');
-      expect(cs.readable instanceof ReadableStream).toBe(true);
-      expect(cs.writable instanceof WritableStream).toBe(true);
+      expect(cs.readable).toBeDefined();
+      expect(cs.writable).toBeDefined();
+      expect(typeof cs.readable.getReader).toBe('function');
+      expect(typeof cs.writable.getWriter).toBe('function');
     });
 
     await it('should compress data with gzip', async () => {
@@ -111,8 +113,10 @@ export default async () => {
 
     await it('should have readable and writable properties', async () => {
       const ds = new DecompressionStream('gzip');
-      expect(ds.readable instanceof ReadableStream).toBe(true);
-      expect(ds.writable instanceof WritableStream).toBe(true);
+      expect(ds.readable).toBeDefined();
+      expect(ds.writable).toBeDefined();
+      expect(typeof ds.readable.getReader).toBe('function');
+      expect(typeof ds.writable.getWriter).toBe('function');
     });
   });
 

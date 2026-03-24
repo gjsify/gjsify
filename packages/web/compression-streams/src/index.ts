@@ -18,17 +18,81 @@ function validateFormat(format: string): CompressionFormat {
 const hasNative = typeof globalThis.CompressionStream === 'function'
   && typeof globalThis.DecompressionStream === 'function';
 
-// Check for native TransformStream
+// Check for Web Streams availability
 const hasTransformStream = typeof globalThis.TransformStream === 'function';
+const hasWebStreams = typeof globalThis.ReadableStream === 'function'
+  && typeof globalThis.WritableStream === 'function';
 
 /**
- * A simple stream pair that collects input on the writable side,
- * processes it (compress/decompress), and produces output on the readable side.
- * Uses TransformStream if available, otherwise builds a manual pair.
+ * Minimal ReadableStream shim for environments without Web Streams (GJS).
+ * Only supports getReader() → read()/cancel() for consuming compressed output.
+ */
+class SimpleReadable {
+  private _chunks: Uint8Array[] = [];
+  private _closed = false;
+  private _waiters: Array<() => void> = [];
+
+  /** @internal */
+  _enqueue(chunk: Uint8Array): void {
+    this._chunks.push(chunk);
+    for (const w of this._waiters.splice(0)) w();
+  }
+
+  /** @internal */
+  _close(): void {
+    this._closed = true;
+    for (const w of this._waiters.splice(0)) w();
+  }
+
+  getReader() {
+    const self = this;
+    return {
+      async read(): Promise<{ done: boolean; value?: Uint8Array }> {
+        while (self._chunks.length === 0 && !self._closed) {
+          await new Promise<void>((r) => self._waiters.push(r));
+        }
+        if (self._chunks.length > 0) {
+          return { done: false, value: self._chunks.shift()! };
+        }
+        return { done: true, value: undefined };
+      },
+      releaseLock() {},
+      cancel() { self._closed = true; },
+    };
+  }
+}
+
+/**
+ * Minimal WritableStream shim for environments without Web Streams (GJS).
+ * Only supports getWriter() → write()/close() for feeding data.
+ */
+class SimpleWritable {
+  private _writeFn: (chunk: Uint8Array) => void;
+  private _closeFn: () => void;
+
+  constructor(writeFn: (chunk: Uint8Array) => void, closeFn: () => void) {
+    this._writeFn = writeFn;
+    this._closeFn = closeFn;
+  }
+
+  getWriter() {
+    const self = this;
+    return {
+      write(chunk: Uint8Array) { self._writeFn(chunk); return Promise.resolve(); },
+      close() { self._closeFn(); return Promise.resolve(); },
+      releaseLock() {},
+      get ready() { return Promise.resolve(); },
+    };
+  }
+}
+
+/**
+ * Create a stream pair that processes chunks through processFn.
+ * Uses native Web Streams when available, otherwise minimal shims.
  */
 function createStreamPair(
   processFn: (chunk: Uint8Array) => Uint8Array,
-): { readable: ReadableStream<Uint8Array>; writable: WritableStream<Uint8Array> } {
+): { readable: any; writable: any } {
   if (hasTransformStream) {
     const ts = new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
@@ -42,37 +106,35 @@ function createStreamPair(
     return { readable: ts.readable, writable: ts.writable };
   }
 
-  // Manual implementation without TransformStream (for GJS)
-  const chunks: Uint8Array[] = [];
-  let resolveReadable: ((value: ReadableStream<Uint8Array>) => void) | null = null;
-  let streamClosed = false;
+  if (hasWebStreams) {
+    const chunks: Uint8Array[] = [];
+    let closed = false;
+    const waiters: Array<() => void> = [];
 
-  const writable = new WritableStream<Uint8Array>({
-    write(chunk) {
-      try {
-        chunks.push(processFn(chunk));
-      } catch (err) {
-        throw err;
-      }
-    },
-    close() {
-      streamClosed = true;
-    },
-  });
+    const writable = new WritableStream<Uint8Array>({
+      write(chunk) { chunks.push(processFn(chunk)); },
+      close() { closed = true; for (const w of waiters.splice(0)) w(); },
+    });
 
-  const readable = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      // Wait for writable to close
-      while (!streamClosed) {
-        await new Promise((r) => setTimeout(r, 1));
-      }
-      for (const chunk of chunks) {
-        controller.enqueue(chunk);
-      }
-      controller.close();
-    },
-  });
+    const readable = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        while (chunks.length === 0 && !closed) {
+          await new Promise<void>((r) => waiters.push(r));
+        }
+        for (const c of chunks.splice(0)) controller.enqueue(c);
+        if (closed) controller.close();
+      },
+    });
 
+    return { readable, writable };
+  }
+
+  // GJS fallback: no Web Streams available — use minimal shims
+  const readable = new SimpleReadable();
+  const writable = new SimpleWritable(
+    (chunk) => readable._enqueue(processFn(chunk)),
+    () => readable._close(),
+  );
   return { readable, writable };
 }
 
