@@ -239,8 +239,6 @@ async function writeFile(path: string, data: any) {
     bytes = new TextEncoder().encode(String(data));
   }
 
-  const glibBytes = new GLib.Bytes(bytes);
-
   // Open the file for writing (replace contents), creating if needed
   const outputStream = await new Promise<Gio.FileOutputStream>((resolve, reject) => {
     file.replace_async(null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
@@ -252,17 +250,20 @@ async function writeFile(path: string, data: any) {
     });
   });
 
-  // Write the bytes to the stream
-  await new Promise<void>((resolve, reject) => {
-    outputStream.write_bytes_async(glibBytes, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
-      try {
-        outputStream.write_bytes_finish(res);
-        resolve();
-      } catch (err: any) {
-        reject(createNodeError(err, 'write', path));
-      }
+  // Write the bytes to the stream (skip if empty — GLib rejects null/empty buffer)
+  if (bytes.length > 0) {
+    const glibBytes = new GLib.Bytes(bytes);
+    await new Promise<void>((resolve, reject) => {
+      outputStream.write_bytes_async(glibBytes, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+        try {
+          outputStream.write_bytes_finish(res);
+          resolve();
+        } catch (err: any) {
+          reject(createNodeError(err, 'write', path));
+        }
+      });
     });
-  });
+  }
 
   // Close the output stream
   await new Promise<void>((resolve, reject) => {
