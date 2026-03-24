@@ -1,11 +1,21 @@
-// stream/web — Re-export Web Streams API from globals
-// These are available natively in GJS (SpiderMonkey 128)
+// stream/web — Re-export WHATWG Streams API
+// Uses @gjsify/web-streams polyfill (provides native on Node.js, polyfill on GJS)
 
-export const ReadableStream = globalThis.ReadableStream;
-export const WritableStream = globalThis.WritableStream;
-export const TransformStream = globalThis.TransformStream;
-export const ByteLengthQueuingStrategy = globalThis.ByteLengthQueuingStrategy;
-export const CountQueuingStrategy = globalThis.CountQueuingStrategy;
+export {
+  ReadableStream,
+  WritableStream,
+  TransformStream,
+  ByteLengthQueuingStrategy,
+  CountQueuingStrategy,
+} from '@gjsify/web-streams';
+
+import {
+  ReadableStream,
+  WritableStream,
+  TransformStream,
+  ByteLengthQueuingStrategy,
+  CountQueuingStrategy,
+} from '@gjsify/web-streams';
 
 export default {
   ReadableStream,

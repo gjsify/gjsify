@@ -73,6 +73,7 @@
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@gjsify/events": "workspace:^"
+        "@gjsify/events": "workspace:^",
+        "@gjsify/web-streams": "workspace:^"
     }
 }

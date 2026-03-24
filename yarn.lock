@@ -632,6 +632,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/web-streams": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1274,6 +1275,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/web-streams": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1420,7 +1422,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/web-streams@workspace:packages/web/streams":
+"@gjsify/web-streams@workspace:^, @gjsify/web-streams@workspace:packages/web/streams":
   version: 0.0.0-use.local
   resolution: "@gjsify/web-streams@workspace:packages/web/streams"
   dependencies:
