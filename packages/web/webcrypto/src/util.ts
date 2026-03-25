@@ -91,25 +91,54 @@ export function checkUsage(key: { usages: KeyUsage[] }, required: KeyUsage): voi
   }
 }
 
+// Base64 lookup tables (avoid dependency on btoa/atob which may not exist on GJS)
+const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const B64_LOOKUP = new Uint8Array(128);
+for (let i = 0; i < B64_CHARS.length; i++) B64_LOOKUP[B64_CHARS.charCodeAt(i)] = i;
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let result = '';
+  const len = bytes.length;
+  for (let i = 0; i < len; i += 3) {
+    const b0 = bytes[i];
+    const b1 = i + 1 < len ? bytes[i + 1] : 0;
+    const b2 = i + 2 < len ? bytes[i + 2] : 0;
+    result += B64_CHARS[(b0 >> 2) & 0x3f];
+    result += B64_CHARS[((b0 << 4) | (b1 >> 4)) & 0x3f];
+    result += i + 1 < len ? B64_CHARS[((b1 << 2) | (b2 >> 6)) & 0x3f] : '=';
+    result += i + 2 < len ? B64_CHARS[b2 & 0x3f] : '=';
+  }
+  return result;
+}
+
+function base64ToBytes(str: string): Uint8Array {
+  // Strip padding
+  let s = str;
+  while (s.endsWith('=')) s = s.slice(0, -1);
+  const out: number[] = [];
+  let bits = 0;
+  let val = 0;
+  for (let i = 0; i < s.length; i++) {
+    val = (val << 6) | B64_LOOKUP[s.charCodeAt(i)];
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push((val >> bits) & 0xff);
+    }
+  }
+  return new Uint8Array(out);
+}
+
 /** Base64url encode */
 export function base64urlEncode(data: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < data.length; i++) {
-    binary += String.fromCharCode(data[i]);
-  }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return bytesToBase64(data).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 /** Base64url decode */
 export function base64urlDecode(str: string): Uint8Array {
   let s = str.replace(/-/g, '+').replace(/_/g, '/');
   while (s.length % 4) s += '=';
-  const binary = atob(s);
-  const result = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    result[i] = binary.charCodeAt(i);
-  }
-  return result;
+  return base64ToBytes(s);
 }
 
 /** Convert ArrayBuffer or view to Uint8Array */

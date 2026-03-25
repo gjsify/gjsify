@@ -264,7 +264,14 @@ export class SubtleCrypto {
         if (format === 'raw') {
           // Raw import of public key (uncompressed point)
           const bytes = toUint8Array(keyData as BufferSource);
-          validateUsages(keyUsages, name === 'ECDH' ? ['deriveKey', 'deriveBits'] : ['verify']);
+          // ECDH public keys are allowed to have empty usages per the W3C spec
+          if (name === 'ECDH') {
+            if (keyUsages.length > 0) {
+              validateUsages(keyUsages, ['deriveKey', 'deriveBits']);
+            }
+          } else {
+            validateUsages(keyUsages, ['verify']);
+          }
           return new CryptoKey('public', extractable, { name: alg.name, namedCurve }, keyUsages, new Uint8Array(bytes));
         }
         if (format === 'jwk') {
@@ -291,8 +298,14 @@ export class SubtleCrypto {
             pubBytes[0] = 0x04;
             pubBytes.set(xBytes, 1);
             pubBytes.set(yBytes, 1 + xBytes.length);
-            const allowedUsages: KeyUsage[] = name === 'ECDH' ? [] : ['verify'];
-            validateUsages(keyUsages.length > 0 ? keyUsages : allowedUsages, name === 'ECDH' ? ['deriveKey', 'deriveBits'] : ['verify']);
+            // ECDH public keys are allowed to have empty usages per the W3C spec
+            if (name === 'ECDH') {
+              if (keyUsages.length > 0) {
+                validateUsages(keyUsages, ['deriveKey', 'deriveBits']);
+              }
+            } else {
+              validateUsages(keyUsages, ['verify']);
+            }
             return new CryptoKey('public', extractable, { name: alg.name, namedCurve }, keyUsages, pubBytes);
           }
         }
@@ -630,13 +643,13 @@ export class SubtleCrypto {
 
   // ==================== deriveBits ====================
 
-  async deriveBits(
+  /** Internal deriveBits without usage check (used by deriveKey) */
+  private async _deriveBitsInternal(
     algorithm: AlgorithmIdentifier,
     baseKey: CryptoKey,
     length: number,
   ): Promise<ArrayBuffer> {
     await cryptoReady;
-    checkUsage(baseKey, 'deriveBits');
     const alg = normalizeAlgorithm(algorithm);
     const name = alg.name.toUpperCase();
 
@@ -680,6 +693,15 @@ export class SubtleCrypto {
     }
   }
 
+  async deriveBits(
+    algorithm: AlgorithmIdentifier,
+    baseKey: CryptoKey,
+    length: number,
+  ): Promise<ArrayBuffer> {
+    checkUsage(baseKey, 'deriveBits');
+    return this._deriveBitsInternal(algorithm, baseKey, length);
+  }
+
   // ==================== deriveKey ====================
 
   async deriveKey(
@@ -689,6 +711,7 @@ export class SubtleCrypto {
     extractable: boolean,
     keyUsages: KeyUsage[],
   ): Promise<CryptoKey> {
+    checkUsage(baseKey, 'deriveKey');
     const derivedAlg = normalizeAlgorithm(derivedKeyAlgorithm);
     let length: number;
     const dName = derivedAlg.name.toUpperCase();
@@ -703,7 +726,7 @@ export class SubtleCrypto {
       throw new DOMException(`Unsupported derived key algorithm: ${derivedAlg.name}`, 'NotSupportedError');
     }
 
-    const bits = await this.deriveBits(algorithm, baseKey, length);
+    const bits = await this._deriveBitsInternal(algorithm, baseKey, length);
     return this.importKey('raw', bits, derivedKeyAlgorithm, extractable, keyUsages);
   }
 
