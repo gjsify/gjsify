@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-25 (after coverage & stability sprint, Day 10)
+> Last updated: 2026-03-25 (after Phase 1–3 test expansion sprint)
 
 ## Summary
 
@@ -14,7 +14,7 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** 2,540 test cases in 83 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** 3,260 test cases in 83 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
 
 ---
 
@@ -25,32 +25,32 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 | Package | GNOME Libs | Tests | Description |
 |---------|-----------|-------|-------------|
 | **assert** | — | 73 | AssertionError, deepEqual, throws, strict mode |
-| **async_hooks** | — | 28 | AsyncLocalStorage, AsyncResource, createHook |
-| **buffer** | — | 52 | Buffer via Blob/atob/btoa, alloc, from, concat |
+| **async_hooks** | — | 74 | AsyncLocalStorage (run, enterWith, snapshot, exit), AsyncResource (bind, runInAsyncScope, triggerAsyncId), createHook |
+| **buffer** | — | 152 | Buffer via Blob/atob/btoa, alloc, from, concat, encodings, fill, indexOf/lastIndexOf, slice/subarray, copy, int/float read/write, swap16/32/64, equals, compare |
 | **child_process** | Gio, GLib | 79 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
-| **console** | — | 37 | Console class with stream support |
+| **console** | — | 84 | Console class with stream support, format specifiers, table, dir, time/timeLog, count, group, assert, trace, stdout/stderr routing |
 | **crypto** | GLib | 160 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
-| **dgram** | Gio, GLib | 37 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress |
+| **dgram** | Gio, GLib | 80 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress, broadcast, TTL, ref/unref, IPv6, EventEmitter |
 | **diagnostics_channel** | — | 14 | Channel, TracingChannel, subscribe/unsubscribe |
 | **dns** | Gio, GLib | 58 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
-| **events** | — | 60 | EventEmitter, once, on, listenerCount |
-| **fs** | Gio, GLib | 153 (8 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, ENOENT error mapping |
+| **events** | — | 127 | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator |
+| **fs** | Gio, GLib | 182 (8 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping |
 | **globals** | — | 96 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **http** | Soup 3.0, Gio, GLib | 71 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
-| **https** | Soup 3.0 | 24 | Agent, request/get (Soup.Session handles HTTPS natively), createServer, Server |
-| **module** | Gio, GLib | 27 | builtinModules, isBuiltin, createRequire (with JSON loading and module resolution) |
+| **https** | Soup 3.0 | 62 | Agent (defaultPort, protocol, maxSockets, destroy, options), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server |
+| **module** | Gio, GLib | 158 | builtinModules (all 37+ modules verified), isBuiltin (bare/prefixed/subpath/scoped), createRequire (resolve, cache, extensions) |
 | **net** | Gio, GLib | 84 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
-| **os** | GLib | 32 | homedir, hostname, cpus (real times from /proc/stat), platform-specific |
+| **os** | GLib | 62 | homedir, hostname, cpus, platform, arch, type, release, endianness, EOL, devNull, availableParallelism, userInfo, networkInterfaces, constants (signals/errno), loadavg, uptime, memory |
 | **path** | — | 41 | POSIX + Win32 (1,052 lines total) |
-| **perf_hooks** | — | 31 | performance (Web API / GLib fallback), monitorEventLoopDelay, mark/measure/getEntries |
-| **process** | GLib | 37 | EventEmitter-based, env, cwd, platform, exit |
+| **perf_hooks** | — | 70 | performance (now, timeOrigin, mark/measure, getEntries/ByName/ByType, clearMarks/clearMeasures, toJSON), monitorEventLoopDelay, PerformanceObserver, eventLoopUtilization, timerify |
+| **process** | GLib | 75 | EventEmitter-based, env (CRUD, enumerate), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint, memoryUsage, nextTick (ordering, args), exit/kill, config, execArgv, cpuUsage |
 | **querystring** | — | 63 | parse/stringify with full encoding |
-| **readline** | — | 24 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
+| **readline** | — | 130 | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor (all directions, callbacks, null streams) |
 | **stream** | — | 196 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
 | **string_decoder** | — | 65 | UTF-8, Base64, hex, streaming |
 | **timers** | — | 51 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
 | **tls** | Gio, GLib | 48 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer, createSecureContext, **checkServerIdentity** (wildcard, SAN, FQDN), **getCiphers**, DEFAULT_CIPHERS |
-| **tty** | — | 23 | ReadStream/WriteStream, isatty, ANSI, clearLine, cursorTo, getColorDepth |
+| **tty** | — | 29 | ReadStream/WriteStream, isatty (various fds), ANSI, clearLine, cursorTo, getColorDepth (env-based), hasColors, getWindowSize |
 | **url** | GLib | 32 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 70 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
 | **zlib** | — | 38 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors |
@@ -155,7 +155,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Partially implemented | 3 (8%) |
 | Stubs | 4 (11%) |
 | Web API packages | 15 (all implemented) |
-| Total test cases | 2,540 |
+| Total test cases | 3,260 |
 | Spec files | 83 |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
@@ -204,6 +204,33 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — Test Expansion Sprint (+720 tests)
+
+**Phase 1 — Underserved packages (8 packages, +442 tests):**
+- readline: 24→130 (line events, mixed endings, Unicode, history, async iterator, CSI utilities)
+- https: 24→62 (Agent options, globalAgent, request/get methods, createServer/Server)
+- tty: 23→29 (isatty, ReadStream/WriteStream prototype, getColorDepth env)
+- module: 27→158 (builtinModules completeness, isBuiltin edge cases, createRequire)
+- async_hooks: 28→74 (enterWith, snapshot, exit with args, triggerAsyncId option)
+- process: 37→75 (env CRUD, pid/ppid, hrtime ordering, memoryUsage, nextTick, cpuUsage)
+- os: 32→62 (type/platform/arch validation, constants signals/errno, userInfo, networkInterfaces)
+- console: 37→84 (format specifiers, table, dir, time/timeLog, Console stdout/stderr routing)
+
+**Phase 2 — Core packages (2 packages, +167 tests):**
+- events: 60→127 (setMaxListeners, errorMonitor, captureRejections, prependListener, rawListeners, Symbol events, async iterator)
+- buffer: 52→152 (encodings, TypedArray/ArrayBuffer, fill, indexOf/lastIndexOf, swap16/32/64, int/float read/write, equals)
+
+**Phase 3 — Coverage gaps (3 packages, +111 tests):**
+- dgram: 37→80 (socket methods, broadcast/TTL/multicast, ref/unref, IPv6, connect/disconnect, I/O)
+- fs/promises: 30→59 (writeFile/readFile round-trip, mkdir/rmdir, stat, rename, copyFile, chmod, mkdtemp, truncate)
+- perf_hooks: 31→70 (mark/measure lifecycle, getEntries filtering, clearMarks/Measures, toJSON, exports)
+
+**Implementation fixes:**
+- `async_hooks`: Fixed AsyncResource.asyncId() to return stable per-instance id; added snapshot(), exit() with args, triggerAsyncId option
+- `os`: Fixed trailing newline from cli() output in type()/platform()/release()
+- `buffer`: Fixed lastIndexOf with undefined byteOffset on SpiderMonkey (was searching from index 0)
+- `module`: Added async_hooks to builtinModules list
 
 ### 2026-03-25 — Coverage & Stability Sprint (Day 7–10)
 
