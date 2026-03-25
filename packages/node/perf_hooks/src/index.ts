@@ -87,12 +87,37 @@ if (globalThis.performance) {
   } as unknown as Performance;
 }
 
-// Re-export Web Performance API classes if available
-const PerformanceObserver = (globalThis as any).PerformanceObserver;
-const PerformanceEntry = (globalThis as any).PerformanceEntry;
-const PerformanceObserverEntryList = (globalThis as any).PerformanceObserverEntryList;
-const PerformanceMark = (globalThis as any).PerformanceMark;
-const PerformanceMeasure = (globalThis as any).PerformanceMeasure;
+// Re-export Web Performance API classes if available, with stubs for GJS
+
+class PerformanceObserverStub {
+  private _callback: (list: any, observer: any) => void;
+  constructor(callback: (list: any, observer: any) => void) {
+    this._callback = callback;
+  }
+  observe(_options?: { entryTypes?: string[]; type?: string }) {}
+  disconnect() {}
+  takeRecords(): any[] { return []; }
+}
+
+class PerformanceEntryStub {
+  readonly name: string = '';
+  readonly entryType: string = '';
+  readonly startTime: number = 0;
+  readonly duration: number = 0;
+  toJSON() { return { name: this.name, entryType: this.entryType, startTime: this.startTime, duration: this.duration }; }
+}
+
+class PerformanceObserverEntryListStub {
+  getEntries(): any[] { return []; }
+  getEntriesByName(_name: string): any[] { return []; }
+  getEntriesByType(_type: string): any[] { return []; }
+}
+
+const PerformanceObserver = (globalThis as any).PerformanceObserver || PerformanceObserverStub;
+const PerformanceEntry = (globalThis as any).PerformanceEntry || PerformanceEntryStub;
+const PerformanceObserverEntryList = (globalThis as any).PerformanceObserverEntryList || PerformanceObserverEntryListStub;
+const PerformanceMark = (globalThis as any).PerformanceMark || class PerformanceMark extends PerformanceEntryStub {};
+const PerformanceMeasure = (globalThis as any).PerformanceMeasure || class PerformanceMeasure extends PerformanceEntryStub {};
 
 /** Stub: event loop utilization metrics (not available in GJS). */
 function eventLoopUtilization(_utilization1?: any, _utilization2?: any): { idle: number; active: number; utilization: number } {

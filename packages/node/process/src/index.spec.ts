@@ -5,7 +5,7 @@
 import { describe, it, expect } from '@gjsify/unit'
 
 import process from 'node:process';
-import os from 'node:os';
+import * as os from 'node:os';
 
 export default async () => {
   await describe("process: properties", async () => {

@@ -30,7 +30,7 @@ export class Interface extends EventEmitter {
   private _prompt: string;
   private _closed = false;
   private _paused = false;
-  private _history: string[];
+  history: string[];
   private _historySize: number;
   private _crlfDelay: number;
   private _lineBuffer = '';
@@ -51,7 +51,7 @@ export class Interface extends EventEmitter {
     this._prompt = opts.prompt || '> ';
     this.terminal = opts.terminal ?? (this._output !== null);
     this._historySize = opts.historySize ?? 30;
-    this._history = [];
+    this.history = [];
     this._crlfDelay = opts.crlfDelay ?? 100;
 
     if (this._input) {
@@ -84,10 +84,10 @@ export class Interface extends EventEmitter {
   private _onLine(line: string): void {
     // Add to history
     if (line.length > 0 && this._historySize > 0) {
-      if (this._history.length === 0 || this._history[0] !== line) {
-        this._history.unshift(line);
-        if (this._history.length > this._historySize) {
-          this._history.pop();
+      if (this.history.length === 0 || this.history[0] !== line) {
+        this.history.unshift(line);
+        if (this.history.length > this._historySize) {
+          this.history.pop();
         }
       }
     }
@@ -122,7 +122,9 @@ export class Interface extends EventEmitter {
 
   /** Write the prompt to the output stream. */
   prompt(preserveCursor?: boolean): void {
-    if (this._closed) return;
+    if (this._closed) {
+      throw new Error('readline was closed');
+    }
     if (this._output) {
       this._output.write(this._prompt);
     }

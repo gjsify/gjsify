@@ -513,6 +513,14 @@ export class Readable extends Stream {
       read() {}
     });
 
+    // Buffer, Uint8Array, and strings should be pushed as a single chunk,
+    // not iterated element-by-element (matching Node.js Readable.from behavior)
+    if (typeof iterable === 'string' || ArrayBuffer.isView(iterable)) {
+      readable.push(iterable);
+      readable.push(null);
+      return readable;
+    }
+
     (async () => {
       try {
         for await (const chunk of iterable as AsyncIterable<unknown>) {

@@ -156,7 +156,13 @@ export class URL {
 
   get port(): string {
     const p = this.#uri.get_port();
-    return p === -1 ? '' : String(p);
+    if (p === -1) return '';
+    // WHATWG URL spec: port should be empty string for default ports
+    const scheme = this.#uri.get_scheme();
+    if ((scheme === 'http' || scheme === 'ws') && p === 80) return '';
+    if ((scheme === 'https' || scheme === 'wss') && p === 443) return '';
+    if (scheme === 'ftp' && p === 21) return '';
+    return String(p);
   }
 
   get host(): string {

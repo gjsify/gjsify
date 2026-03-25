@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import tty, { isatty, ReadStream, WriteStream } from 'node:tty';
+import process from 'node:process';
 
 export default async () => {
   await describe('tty exports', async () => {

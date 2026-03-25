@@ -148,8 +148,8 @@ export class Request extends Body {
     referrer: string | URL;
     referrerPolicy: ReferrerPolicy;
     // Gjsify
-    session: Soup.Session;
-    message: Soup.Message;
+    session: Soup.Session | null;
+    message: Soup.Message | null;
     inputStream?: Gio.InputStream;
     readable?: Readable
   };
@@ -230,11 +230,17 @@ export class Request extends Body {
       referrer = undefined;
     }
 
-    const session = new Soup.Session();
-    const message = new Soup.Message({
-      method,
-      uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.NONE),
-    });
+    // Only create Soup objects for HTTP/HTTPS — data: URIs etc. don't go through Soup
+    const scheme = parsedURL.protocol;
+    let session: Soup.Session | null = null;
+    let message: Soup.Message | null = null;
+    if (scheme === 'http:' || scheme === 'https:') {
+      session = new Soup.Session();
+      message = new Soup.Message({
+        method,
+        uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.NONE),
+      });
+    }
 
     this[INTERNALS] = {
       method,
@@ -266,6 +272,10 @@ export class Request extends Body {
    */
   async _send(options: { headers: Headers }) {
     const { session, message } = this[INTERNALS];
+
+    if (!session || !message) {
+      throw new Error('Cannot send request: no Soup session (non-HTTP URL?)');
+    }
 
     options.headers._appendToSoupMessage(message);
 

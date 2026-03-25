@@ -1,4 +1,6 @@
-import tests from './index.spec.ts';
+import '@gjsify/node-globals';
 import { run } from '@gjsify/unit';
-tests();
-run();
+
+import testSuite from './index.spec.js';
+
+run({testSuite});

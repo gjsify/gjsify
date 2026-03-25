@@ -175,6 +175,16 @@ function getEnvProxy(): Record<string, string | undefined> {
           if (typeof prop !== 'string') return false;
           return GLib.getenv(prop) !== null;
         },
+        ownKeys(_target) {
+          const envp: string[] = GLib.listenv();
+          return envp;
+        },
+        getOwnPropertyDescriptor(_target, prop: string) {
+          if (typeof prop !== 'string') return undefined;
+          const val = GLib.getenv(prop);
+          if (val === null) return undefined;
+          return { configurable: true, enumerable: true, writable: true, value: val };
+        },
       });
     }
   } catch { /* ignore */ }
@@ -257,6 +267,8 @@ class Process extends EventEmitter {
   readonly version: string;
   readonly versions: Record<string, string>;
   title: string;
+  readonly execArgv: string[];
+  readonly config: Record<string, unknown>;
   exitCode: number | undefined;
 
   constructor() {
@@ -268,6 +280,8 @@ class Process extends EventEmitter {
     this.argv = getArgv();
     this.argv0 = this.argv[0] || 'gjs';
     this.execPath = getExecPath();
+    this.execArgv = globalThis.process?.execArgv ?? [];
+    this.config = (globalThis.process?.config as unknown as Record<string, unknown>) ?? { target_defaults: {}, variables: {} };
     this.pid = getPid();
     this.ppid = detectPpid();
     const versionInfo = detectVersionInfo();
@@ -284,10 +298,21 @@ class Process extends EventEmitter {
     try {
       const GLib = getGjsGlobal().imports?.gi?.GLib;
       if (GLib?.chdir) {
+        // Check if directory exists first
+        if (!GLib.file_test(directory, 16 /* G_FILE_TEST_EXISTS */)) {
+          const err = new Error(`ENOENT: no such file or directory, chdir '${directory}'`) as NodeJS.ErrnoException;
+          err.code = 'ENOENT';
+          err.syscall = 'chdir';
+          err.path = directory;
+          throw err;
+        }
         GLib.chdir(directory);
         return;
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      // Re-throw our own ENOENT errors
+      if (e && typeof e === 'object' && (e as NodeJS.ErrnoException).code === 'ENOENT') throw e;
+    }
 
     if (typeof globalThis.process?.chdir === 'function') {
       globalThis.process.chdir(directory);
@@ -295,6 +320,23 @@ class Process extends EventEmitter {
     }
 
     throw new Error('process.chdir() is not supported in this environment');
+  }
+
+  kill(pid: number, signal?: string | number): boolean {
+    if (typeof globalThis.process?.kill === 'function') {
+      return globalThis.process.kill(pid, signal);
+    }
+    // On GJS, use GLib.spawn to send signals via /bin/kill
+    try {
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
+      if (GLib) {
+        const sig = typeof signal === 'number' ? String(signal) : (signal || 'SIGTERM');
+        const sigArg = sig.startsWith('SIG') ? `-${sig.slice(3)}` : `-${sig}`;
+        GLib.spawn_command_line_sync(`kill ${sigArg} ${pid}`);
+        return true;
+      }
+    } catch { /* ignore */ }
+    throw new Error('process.kill() is not supported in this environment');
   }
 
   exit(code?: number): never {
@@ -376,20 +418,11 @@ class Process extends EventEmitter {
   }
 
   // Stub: stdout/stderr/stdin — these need stream to be implemented fully
-  get stdout(): { write: (data: string) => boolean; fd: number } {
-    if (typeof globalThis.process?.stdout !== 'undefined') return globalThis.process.stdout as { write: (data: string) => boolean; fd: number };
-    return { write: (data: string) => { console.log(data); return true; }, fd: 1 };
-  }
-
-  get stderr(): { write: (data: string) => boolean; fd: number } {
-    if (typeof globalThis.process?.stderr !== 'undefined') return globalThis.process.stderr as { write: (data: string) => boolean; fd: number };
-    return { write: (data: string) => { console.error(data); return true; }, fd: 2 };
-  }
-
-  get stdin(): { fd: number } {
-    if (typeof globalThis.process?.stdin !== 'undefined') return globalThis.process.stdin as { fd: number };
-    return { fd: 0 };
-  }
+  // Note: Cannot check globalThis.process.stdout here — on GJS globalThis.process
+  // IS this instance, so that would cause infinite recursion.
+  readonly stdout: { write: (data: string) => boolean; fd: number } = { write: (data: string) => { console.log(data); return true; }, fd: 1 };
+  readonly stderr: { write: (data: string) => boolean; fd: number } = { write: (data: string) => { console.error(data); return true; }, fd: 2 };
+  readonly stdin: { fd: number } = { fd: 0 };
 
   abort(): void {
     this.exit(1);
@@ -433,9 +466,12 @@ export const hrtime = process.hrtime.bind(process);
 export const uptime = process.uptime.bind(process);
 export const memoryUsage = process.memoryUsage.bind(process);
 export const cpuUsage = process.cpuUsage.bind(process);
+export const kill = process.kill.bind(process);
 export const abort = process.abort.bind(process);
 export const umask = process.umask.bind(process);
 export const emitWarning = process.emitWarning.bind(process);
+export const execArgv = process.execArgv;
+export const config = process.config;
 export const stdout = process.stdout;
 export const stderr = process.stderr;
 export const stdin = process.stdin;

@@ -1,23 +1,23 @@
-import { describe, it, expect, run } from '@gjsify/unit';
+import { describe, it, expect } from '@gjsify/unit';
 import { FormData, File, formDataToBlob } from 'formdata';
 
-export default () => {
-    describe('FormData', () => {
-        describe('constructor', () => {
-            it('should create an empty FormData', () => {
+export default async () => {
+    await describe('FormData', async () => {
+        await describe('constructor', async () => {
+            await it('should create an empty FormData', async () => {
                 const fd = new FormData();
                 expect([...fd.entries()].length).toBe(0);
             });
         });
 
-        describe('append and get', () => {
-            it('should append and get string values', () => {
+        await describe('append and get', async () => {
+            await it('should append and get string values', async () => {
                 const fd = new FormData();
                 fd.append('key', 'value');
                 expect(fd.get('key')).toBe('value');
             });
 
-            it('should append multiple values for same key', () => {
+            await it('should append multiple values for same key', async () => {
                 const fd = new FormData();
                 fd.append('key', 'a');
                 fd.append('key', 'b');
@@ -27,19 +27,19 @@ export default () => {
                 expect(all[1]).toBe('b');
             });
 
-            it('should return null for missing key', () => {
+            await it('should return null for missing key', async () => {
                 const fd = new FormData();
                 expect(fd.get('missing')).toBe(null);
             });
 
-            it('should return empty array for missing key with getAll', () => {
+            await it('should return empty array for missing key with getAll', async () => {
                 const fd = new FormData();
                 expect(fd.getAll('missing').length).toBe(0);
             });
         });
 
-        describe('set', () => {
-            it('should set a value replacing previous', () => {
+        await describe('set', async () => {
+            await it('should set a value replacing previous', async () => {
                 const fd = new FormData();
                 fd.append('key', 'a');
                 fd.append('key', 'b');
@@ -48,15 +48,15 @@ export default () => {
                 expect(fd.get('key')).toBe('c');
             });
 
-            it('should add if key does not exist', () => {
+            await it('should add if key does not exist', async () => {
                 const fd = new FormData();
                 fd.set('key', 'value');
                 expect(fd.get('key')).toBe('value');
             });
         });
 
-        describe('delete', () => {
-            it('should remove all entries for a key', () => {
+        await describe('delete', async () => {
+            await it('should remove all entries for a key', async () => {
                 const fd = new FormData();
                 fd.append('key', 'a');
                 fd.append('key', 'b');
@@ -67,21 +67,21 @@ export default () => {
             });
         });
 
-        describe('has', () => {
-            it('should return true for existing key', () => {
+        await describe('has', async () => {
+            await it('should return true for existing key', async () => {
                 const fd = new FormData();
                 fd.append('key', 'value');
                 expect(fd.has('key')).toBe(true);
             });
 
-            it('should return false for missing key', () => {
+            await it('should return false for missing key', async () => {
                 const fd = new FormData();
                 expect(fd.has('key')).toBe(false);
             });
         });
 
-        describe('iterators', () => {
-            it('should iterate entries', () => {
+        await describe('iterators', async () => {
+            await it('should iterate entries', async () => {
                 const fd = new FormData();
                 fd.append('a', '1');
                 fd.append('b', '2');
@@ -93,7 +93,7 @@ export default () => {
                 expect(entries[1][1]).toBe('2');
             });
 
-            it('should iterate keys', () => {
+            await it('should iterate keys', async () => {
                 const fd = new FormData();
                 fd.append('a', '1');
                 fd.append('b', '2');
@@ -103,7 +103,7 @@ export default () => {
                 expect(keys[1]).toBe('b');
             });
 
-            it('should iterate values', () => {
+            await it('should iterate values', async () => {
                 const fd = new FormData();
                 fd.append('a', '1');
                 fd.append('b', '2');
@@ -113,7 +113,7 @@ export default () => {
                 expect(values[1]).toBe('2');
             });
 
-            it('should work with for...of', () => {
+            await it('should work with for...of', async () => {
                 const fd = new FormData();
                 fd.append('x', 'y');
                 let count = 0;
@@ -126,8 +126,8 @@ export default () => {
             });
         });
 
-        describe('forEach', () => {
-            it('should call callback for each entry', () => {
+        await describe('forEach', async () => {
+            await it('should call callback for each entry', async () => {
                 const fd = new FormData();
                 fd.append('a', '1');
                 fd.append('b', '2');
@@ -141,41 +141,41 @@ export default () => {
             });
         });
 
-        describe('Symbol.toStringTag', () => {
-            it('should return FormData', () => {
+        await describe('Symbol.toStringTag', async () => {
+            await it('should return FormData', async () => {
                 const fd = new FormData();
                 expect(Object.prototype.toString.call(fd)).toBe('[object FormData]');
             });
         });
     });
 
-    describe('File', () => {
-        it('should create a File with name', () => {
+    await describe('File', async () => {
+        await it('should create a File with name', async () => {
             const f = new File(['hello'], 'test.txt', { type: 'text/plain' });
             expect(f.name).toBe('test.txt');
             expect(f.type).toBe('text/plain');
             expect(f.size).toBe(5);
         });
 
-        it('should have lastModified', () => {
+        await it('should have lastModified', async () => {
             const now = Date.now();
             const f = new File(['data'], 'file.bin');
             expect(f.lastModified >= now - 1000).toBeTruthy();
         });
 
-        it('should accept custom lastModified', () => {
+        await it('should accept custom lastModified', async () => {
             const f = new File(['data'], 'file.bin', { lastModified: 12345 });
             expect(f.lastModified).toBe(12345);
         });
 
-        it('should have correct Symbol.toStringTag', () => {
+        await it('should have correct Symbol.toStringTag', async () => {
             const f = new File([], 'empty');
             expect(Object.prototype.toString.call(f)).toBe('[object File]');
         });
     });
 
-    describe('FormData with Blob/File', () => {
-        it('should wrap Blob in File when appending', () => {
+    await describe('FormData with Blob/File', async () => {
+        await it('should wrap Blob in File when appending', async () => {
             const fd = new FormData();
             const blob = new Blob(['data'], { type: 'text/plain' });
             fd.append('file', blob, 'test.txt');
@@ -184,7 +184,7 @@ export default () => {
             expect((val as File).name).toBe('test.txt');
         });
 
-        it('should keep File as File', () => {
+        await it('should keep File as File', async () => {
             const fd = new FormData();
             const file = new File(['data'], 'original.txt');
             fd.append('file', file);
@@ -194,8 +194,8 @@ export default () => {
         });
     });
 
-    describe('formDataToBlob', () => {
-        it('should create a Blob from FormData', async () => {
+    await describe('formDataToBlob', async () => {
+        await it('should create a Blob from FormData', async () => {
             const fd = new FormData();
             fd.append('name', 'world');
             const blob = formDataToBlob(fd);
@@ -206,7 +206,7 @@ export default () => {
             expect(text.includes('world')).toBeTruthy();
         });
 
-        it('should include file entries', async () => {
+        await it('should include file entries', async () => {
             const fd = new FormData();
             fd.append('doc', new File(['content'], 'doc.txt', { type: 'text/plain' }));
             const blob = formDataToBlob(fd);

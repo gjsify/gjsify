@@ -169,6 +169,23 @@ export class Response extends Body {
         return response;
     }
 
+    /**
+     * Create a Response with a JSON body.
+     * @param data The data to serialize as JSON.
+     * @param init Optional response init options.
+     * @returns A Response with the JSON body and appropriate content-type header.
+     */
+    static json(data: unknown, init?: ResponseOptions) {
+        const body = JSON.stringify(data);
+        const options: ResponseOptions = { ...init };
+        const headers = new Headers(options.headers);
+        if (!headers.has('content-type')) {
+            headers.set('content-type', 'application/json');
+        }
+        options.headers = headers;
+        return new Response(body, options);
+    }
+
     get [Symbol.toStringTag]() {
         return 'Response';
     }
