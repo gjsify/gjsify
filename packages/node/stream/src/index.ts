@@ -1014,6 +1014,24 @@ export function finished(stream: Stream | Readable | Writable, optsOrCb: Finishe
   stream.on('error', onError);
   stream.on('close', onClose);
 
+  // Check initial state — handle already-finished/destroyed streams
+  // Reference: refs/node/lib/internal/streams/end-of-stream.js lines 228-249
+  const isWritableStream = typeof (stream as Writable).write === 'function';
+  const isReadableStream = typeof (stream as Readable).read === 'function';
+  const writableFinished = (stream as any).writableFinished === true;
+  const readableEnded = (stream as any).readableEnded === true;
+  const destroyed = (stream as any).destroyed === true;
+
+  if (destroyed) {
+    queueMicrotask(() => done((stream as any)._err || null));
+  } else if (isWritableStream && !isReadableStream && writableFinished) {
+    queueMicrotask(() => done());
+  } else if (!isWritableStream && isReadableStream && readableEnded) {
+    queueMicrotask(() => done());
+  } else if (isWritableStream && isReadableStream && writableFinished && readableEnded) {
+    queueMicrotask(() => done());
+  }
+
   return function cleanup() {
     stream.removeListener('finish', onFinish);
     stream.removeListener('end', onEnd);

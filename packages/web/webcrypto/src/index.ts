@@ -11,6 +11,9 @@ import { SubtleCrypto } from './subtle.js';
 import { CryptoKey } from './crypto-key.js';
 export type { CryptoKeyPair, KeyUsage, KeyAlgorithm, KeyType } from './crypto-key.js';
 
+// Save reference to native crypto BEFORE any overwriting to avoid recursion
+const _nativeCrypto = typeof globalThis.crypto !== 'undefined' ? globalThis.crypto : null;
+
 /**
  * Crypto object per the W3C WebCrypto API.
  * Provides getRandomValues(), randomUUID(), and subtle (SubtleCrypto).
@@ -30,9 +33,9 @@ class CryptoPolyfill {
       throw new DOMException('The ArrayBufferView\'s byte length exceeds the number of bytes of entropy available via this API (65536)', 'QuotaExceededError');
     }
     const bytes = new Uint8Array(array.buffer as ArrayBuffer, array.byteOffset, array.byteLength);
-    // Use the existing global crypto.getRandomValues if partially available
-    if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
-      globalThis.crypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>);
+    // Use saved reference to native crypto (NOT globalThis.crypto which may be this polyfill)
+    if (_nativeCrypto && typeof _nativeCrypto.getRandomValues === 'function') {
+      _nativeCrypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>);
     } else {
       // Fallback: use GLib or Math.random
       for (let i = 0; i < bytes.length; i++) {
@@ -43,8 +46,8 @@ class CryptoPolyfill {
   }
 
   randomUUID(): `${string}-${string}-${string}-${string}-${string}` {
-    if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
-      return globalThis.crypto.randomUUID();
+    if (_nativeCrypto && typeof _nativeCrypto.randomUUID === 'function') {
+      return _nativeCrypto.randomUUID();
     }
     // Manual UUID v4 generation
     const bytes = new Uint8Array(16);
@@ -57,12 +60,12 @@ class CryptoPolyfill {
 }
 
 // Use native if available (Node.js, browser), polyfill otherwise
-const hasNativeSubtle = typeof globalThis.crypto !== 'undefined'
-  && typeof globalThis.crypto.subtle !== 'undefined'
-  && typeof globalThis.crypto.subtle.digest === 'function';
+const hasNativeSubtle = _nativeCrypto !== null
+  && typeof _nativeCrypto.subtle !== 'undefined'
+  && typeof _nativeCrypto.subtle.digest === 'function';
 
-const cryptoInstance = hasNativeSubtle ? globalThis.crypto : new CryptoPolyfill();
-const subtleInstance = hasNativeSubtle ? globalThis.crypto.subtle : new SubtleCrypto();
+const cryptoInstance = hasNativeSubtle ? _nativeCrypto! : new CryptoPolyfill();
+const subtleInstance = hasNativeSubtle ? _nativeCrypto!.subtle : new SubtleCrypto();
 
 // Register globals on GJS if needed
 if (typeof globalThis.crypto === 'undefined' || typeof globalThis.crypto.subtle === 'undefined') {

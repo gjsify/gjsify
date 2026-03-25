@@ -6,7 +6,7 @@ import {
   open, close, write, read, rm,
   stat, lstat, readdir, readFile, writeFile,
   rename, copyFile, access, appendFile, truncate,
-  mkdir, chmod,
+  mkdir, rmdir, chmod,
 } from 'fs';
 import { constants } from 'fs';
 import { Buffer } from 'buffer';
@@ -33,12 +33,11 @@ export default async () => {
       });
 
       await it('should return error for non-existent path', async () => {
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve) => {
           stat('/non/existent/path/xyz', (err) => {
-            try {
-              expect(err).toBeDefined();
-              resolve();
-            } catch (e) { reject(e); }
+            expect(err).toBeDefined();
+            expect(err!.code).toBe('ENOENT');
+            resolve();
           });
         });
       });
@@ -71,8 +70,8 @@ export default async () => {
       });
     });
 
-    // ==================== mkdir / rm ====================
-    await describe('mkdir and rm', async () => {
+    // ==================== mkdir / rmdir ====================
+    await describe('mkdir and rmdir', async () => {
       await it('should create and remove a directory', async () => {
         const dir = TEST_DIR + '-mkdir';
         await new Promise<void>((resolve, reject) => {
@@ -81,7 +80,7 @@ export default async () => {
             stat(dir, (err2, stats) => {
               if (err2) return reject(err2);
               expect(stats.isDirectory()).toBe(true);
-              rm(dir, { recursive: true }, (err3) => {
+              rmdir(dir, (err3) => {
                 if (err3) return reject(err3);
                 resolve();
               });
@@ -130,12 +129,11 @@ export default async () => {
       });
 
       await it('should return error when reading non-existent file', async () => {
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve) => {
           readFile('/non/existent/file.txt', (err) => {
-            try {
-              expect(err).toBeDefined();
-              resolve();
-            } catch (e) { reject(e); }
+            expect(err).toBeDefined();
+            expect(err!.code).toBe('ENOENT');
+            resolve();
           });
         });
       });
@@ -182,12 +180,11 @@ export default async () => {
       });
 
       await it('should fail for non-existent file', async () => {
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve) => {
           access('/non/existent/file', constants.F_OK, (err) => {
-            try {
-              expect(err).toBeDefined();
-              resolve();
-            } catch (e) { reject(e); }
+            expect(err).toBeDefined();
+            expect(err!.code).toBe('ENOENT');
+            resolve();
           });
         });
       });

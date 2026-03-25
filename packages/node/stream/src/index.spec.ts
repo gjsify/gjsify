@@ -997,14 +997,8 @@ export default async () => {
 	});
 
 	// ==================== addAbortSignal ====================
-	// AbortController may not be globally available in GJS unless @gjsify/globals is loaded.
-	// These tests use a feature check — they will pass on both platforms once AbortController is global.
-
-	const hasAbortController = typeof globalThis.AbortController !== 'undefined';
-
 	await describe('addAbortSignal', async () => {
 		await it('should destroy stream when signal aborts', async () => {
-			if (!hasAbortController) return;
 			const ac = new AbortController();
 			const readable = new Readable({ read() {} });
 			addAbortSignal(ac.signal, readable);
@@ -1019,7 +1013,6 @@ export default async () => {
 		});
 
 		await it('should destroy immediately if signal already aborted', async () => {
-			if (!hasAbortController) return;
 			const ac = new AbortController();
 			ac.abort();
 			const readable = new Readable({ read() {} });
@@ -1032,14 +1025,12 @@ export default async () => {
 		});
 
 		await it('should throw if first arg is not AbortSignal', async () => {
-			if (!hasAbortController) return;
 			expect(() => {
 				addAbortSignal({} as any, new Readable({ read() {} }));
 			}).toThrow();
 		});
 
 		await it('should throw if second arg is not a Stream', async () => {
-			if (!hasAbortController) return;
 			const ac = new AbortController();
 			expect(() => {
 				addAbortSignal(ac.signal, {} as any);
@@ -1047,7 +1038,6 @@ export default async () => {
 		});
 
 		await it('should work with Writable', async () => {
-			if (!hasAbortController) return;
 			const ac = new AbortController();
 			const writable = new Writable({ write(_c, _e, cb) { cb(); } });
 			addAbortSignal(ac.signal, writable);

@@ -136,14 +136,18 @@ export function symlinkSync(target: PathLike, path: PathLike, _type?: 'file' | '
 export function readFileSync(path: string, options = { encoding: null, flag: 'r' }) {
   const file = Gio.File.new_for_path(path);
 
-  const [ok, data] = file.load_contents(null);
+  try {
+    const [ok, data] = file.load_contents(null);
 
-  if (!ok) {
-    // TODO: throw a better error
-    throw new Error('failed to read file');
+    if (!ok) {
+      throw createNodeError(new Error('failed to read file'), 'read', path);
+    }
+
+    return encodeUint8Array(getEncodingFromOptions(options, "buffer"), data);
+  } catch (err: any) {
+    if (err.code && typeof err.code === 'string') throw err; // Already a Node error
+    throw createNodeError(err, 'read', path);
   }
-
-  return encodeUint8Array(getEncodingFromOptions(options, "buffer"), data);
 }
 
 /**
@@ -228,24 +232,37 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
  * To get a behavior similar to the `rm -rf` Unix command, use {@link rmSync} with options `{ recursive: true, force: true }`.
  * @since v0.1.21
  */
-export function rmdirSync(path: PathLike, options?: RmDirOptions): void {
-
-  const childFiles = readdirSync(path, { withFileTypes: true });
-
-  if (childFiles.length) {
-    throw new Error('Dir is not empty!');
-  }
-
-  const result = GLib.rmdir(path.toString());
-
-  if (result !== 0) {
-    // TODO: throw a better error
-    throw new Error(`Failed to remove ${path} directory`);
+export function rmdirSync(path: PathLike, _options?: RmDirOptions): void {
+  const file = Gio.File.new_for_path(path.toString());
+  try {
+    // Check if it's a directory
+    const info = file.query_info('standard::type', Gio.FileQueryInfoFlags.NONE, null);
+    if (info.get_file_type() !== Gio.FileType.DIRECTORY) {
+      const err = new Error() as any;
+      err.code = 4; // Gio.IOErrorEnum.NOT_DIRECTORY
+      throw createNodeError(err, 'rmdir', path);
+    }
+    // Check if empty — rmdir only removes empty directories (use rmSync for recursive)
+    const enumerator = file.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
+    if (enumerator.next_file(null) !== null) {
+      const err = new Error() as any;
+      err.code = 5; // Gio.IOErrorEnum.NOT_EMPTY
+      throw createNodeError(err, 'rmdir', path);
+    }
+    file.delete(null);
+  } catch (err: any) {
+    if (err.code && typeof err.code === 'string') throw err; // Already a Node error
+    throw createNodeError(err, 'rmdir', path);
   }
 }
 
-export function unlinkSync(path: string) {
-  GLib.unlink(path);
+export function unlinkSync(path: PathLike): void {
+  const file = Gio.File.new_for_path(path.toString());
+  try {
+    file.delete(null);
+  } catch (err: any) {
+    throw createNodeError(err, 'unlink', path);
+  }
 }
 
 export function writeFileSync(path: string, data: any) {
@@ -302,7 +319,7 @@ export function accessSync(path: PathLike, mode?: number): void {
       }
     }
   } catch (err: any) {
-    if (err.code) throw err; // Already a Node-style error
+    if (err.code && typeof err.code === 'string') throw err; // Already a Node-style error
     throw createNodeError(err, 'access', path);
   }
 }

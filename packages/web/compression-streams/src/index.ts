@@ -125,6 +125,14 @@ if (hasNative) {
   } as any;
 }
 
+// Register globals on GJS if needed (pattern: @gjsify/web-streams)
+if (typeof globalThis.CompressionStream === 'undefined') {
+  (globalThis as any).CompressionStream = CompressionStreamImpl;
+}
+if (typeof globalThis.DecompressionStream === 'undefined') {
+  (globalThis as any).DecompressionStream = DecompressionStreamImpl;
+}
+
 export { CompressionStreamImpl as CompressionStream, DecompressionStreamImpl as DecompressionStream };
 
 export default {

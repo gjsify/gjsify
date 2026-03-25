@@ -4,12 +4,12 @@
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { open as openP, rm as rmP } from './promises.js'
-import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions, MakeDirectoryOptions } from 'fs';
+import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions, RmDirOptions, MakeDirectoryOptions } from 'fs';
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'buffer';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError } from './errors.js';
-import { realpathSync, readdirSync, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, mkdirSync, readFileSync, writeFileSync } from './sync.js';
+import { realpathSync, readdirSync, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, mkdirSync, rmdirSync, readFileSync, writeFileSync } from './sync.js';
 // encoding helpers available if needed in future
 
 import type { OpenFlags } from './types/index.js';
@@ -585,6 +585,23 @@ export function mkdir(path: PathLike, optsOrCb: MakeDirectoryOptions | Mode | No
   Promise.resolve().then(() => {
     try {
       mkdirSync(path, options as any);
+      callback(null);
+    } catch (err: any) {
+      callback(err);
+    }
+  });
+}
+
+// --- rmdir (callback) ---
+
+export function rmdir(path: PathLike, callback: NoParamCallback): void;
+export function rmdir(path: PathLike, options: RmDirOptions, callback: NoParamCallback): void;
+export function rmdir(path: PathLike, optsOrCb: RmDirOptions | NoParamCallback, maybeCb?: NoParamCallback): void {
+  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+  Promise.resolve().then(() => {
+    try {
+      rmdirSync(path, options);
       callback(null);
     } catch (err: any) {
       callback(err);

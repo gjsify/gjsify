@@ -1,4 +1,4 @@
-
+import '@gjsify/node-globals';
 import { run } from '@gjsify/unit';
 
 import testSuiteCallback from './callback.spec.js';

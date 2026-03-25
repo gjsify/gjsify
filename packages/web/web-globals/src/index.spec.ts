@@ -1,5 +1,5 @@
 // Tests for @gjsify/web-globals — verify all Web API globals are registered
-import { describe, it, expect, on } from '@gjsify/unit';
+import { describe, it, expect } from '@gjsify/unit';
 
 // Side-effect import — registers all globals
 import '@gjsify/web-globals';
@@ -62,23 +62,23 @@ export default async () => {
     });
 
     // ==================== AbortController / AbortSignal ====================
-    // AbortController is native on Node.js but not registered as global on GJS
     await describe('AbortController', async () => {
-      await it('AbortController import should be available', async () => {
-        const { AbortController: AC } = await import('@gjsify/abort-controller');
-        expect(typeof AC).toBe('function');
+      await it('AbortController should be available as global', async () => {
+        expect(typeof globalThis.AbortController).toBe('function');
       });
 
-      await it('should create controller with signal via import', async () => {
-        const { AbortController: AC } = await import('@gjsify/abort-controller');
-        const ac = new AC();
+      await it('AbortSignal should be available as global', async () => {
+        expect(typeof globalThis.AbortSignal).toBe('function');
+      });
+
+      await it('should create controller with signal', async () => {
+        const ac = new AbortController();
         expect(ac.signal).toBeDefined();
         expect(ac.signal.aborted).toBe(false);
       });
 
       await it('abort() should set signal.aborted to true', async () => {
-        const { AbortController: AC } = await import('@gjsify/abort-controller');
-        const ac = new AC();
+        const ac = new AbortController();
         ac.abort();
         expect(ac.signal.aborted).toBe(true);
       });
@@ -145,61 +145,52 @@ export default async () => {
     });
 
     // ==================== Compression Streams ====================
-    // CompressionStream is native on Node.js but not registered as global on GJS
     await describe('Compression Streams', async () => {
-      await it('CompressionStream import should be available', async () => {
-        const cs = await import('@gjsify/compression-streams');
-        expect(typeof cs.CompressionStream).toBe('function');
+      await it('CompressionStream should be available as global', async () => {
+        expect(typeof globalThis.CompressionStream).toBe('function');
       });
 
-      await it('DecompressionStream import should be available', async () => {
-        const cs = await import('@gjsify/compression-streams');
-        expect(typeof cs.DecompressionStream).toBe('function');
+      await it('DecompressionStream should be available as global', async () => {
+        expect(typeof globalThis.DecompressionStream).toBe('function');
       });
     });
 
     // ==================== WebCrypto ====================
     await describe('WebCrypto', async () => {
-      await it('webcrypto import should be available', async () => {
-        const wc = await import('@gjsify/webcrypto');
-        expect(wc.Crypto).toBeDefined();
+      await it('crypto should be available as global', async () => {
+        expect(typeof globalThis.crypto).toBe('object');
       });
 
-      // crypto global tests — Node.js only (GJS has recursion issues with the polyfill)
-      await on('Node.js', async () => {
-        await it('crypto should be available as global', async () => {
-          expect(typeof globalThis.crypto).toBe('object');
-        });
+      await it('crypto.subtle should be available', async () => {
+        expect(globalThis.crypto.subtle).toBeDefined();
+      });
 
-        await it('crypto.subtle should be available', async () => {
-          expect(globalThis.crypto.subtle).toBeDefined();
-        });
+      await it('crypto.getRandomValues should work', async () => {
+        const buf = new Uint8Array(16);
+        crypto.getRandomValues(buf);
+        // At least one byte should be non-zero (statistically almost certain)
+        expect(buf.some(b => b !== 0)).toBe(true);
+      });
 
-        await it('crypto.getRandomValues should work', async () => {
-          const buf = new Uint8Array(16);
-          crypto.getRandomValues(buf);
-          expect(buf.some(b => b !== 0)).toBe(true);
-        });
-
-        await it('crypto.randomUUID should return a UUID string', async () => {
-          const uuid = crypto.randomUUID();
-          expect(typeof uuid).toBe('string');
-          expect(uuid.length).toBe(36);
-          expect(uuid[8]).toBe('-');
-          expect(uuid[13]).toBe('-');
-        });
+      await it('crypto.randomUUID should return a UUID string', async () => {
+        const uuid = crypto.randomUUID();
+        expect(typeof uuid).toBe('string');
+        expect(uuid.length).toBe(36);
+        expect(uuid[8]).toBe('-');
+        expect(uuid[13]).toBe('-');
       });
     });
 
     // ==================== EventSource ====================
-    // EventSource is registered as global on GJS only (Node.js 24 does not have it as global)
     await describe('EventSource', async () => {
-      await it('EventSource import should be available', async () => {
-        const { EventSource: ES } = await import('@gjsify/eventsource');
-        expect(typeof ES).toBe('function');
-        expect(ES.CONNECTING).toBe(0);
-        expect(ES.OPEN).toBe(1);
-        expect(ES.CLOSED).toBe(2);
+      await it('EventSource should be available as global', async () => {
+        expect(typeof globalThis.EventSource).toBe('function');
+      });
+
+      await it('EventSource should have readyState constants', async () => {
+        expect(EventSource.CONNECTING).toBe(0);
+        expect(EventSource.OPEN).toBe(1);
+        expect(EventSource.CLOSED).toBe(2);
       });
     });
   });
