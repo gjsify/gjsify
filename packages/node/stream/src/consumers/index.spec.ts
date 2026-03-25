@@ -1,7 +1,7 @@
 // Tests for stream/consumers module
 // Reference: Node.js lib/stream/consumers.js
 
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import { Readable } from 'stream';
 import { text, json, buffer, arrayBuffer, blob } from 'stream/consumers';
 
@@ -88,19 +88,22 @@ export default async () => {
     });
 
     // ==================== blob() ====================
-    await describe('blob', async () => {
-      await it('should consume stream as Blob', async () => {
-        const stream = Readable.from(['Hello Blob']);
-        const result = await blob(stream);
-        expect(result instanceof Blob).toBe(true);
-        expect(result.size).toBeGreaterThan(0);
-      });
+    // Blob is not available as global on GJS 1.86
+    await on('Node.js', async () => {
+      await describe('blob', async () => {
+        await it('should consume stream as Blob', async () => {
+          const stream = Readable.from(['Hello Blob']);
+          const result = await blob(stream);
+          expect(result instanceof Blob).toBe(true);
+          expect(result.size).toBeGreaterThan(0);
+        });
 
-      await it('should have correct content', async () => {
-        const stream = Readable.from(['test']);
-        const result = await blob(stream);
-        const t = await result.text();
-        expect(t).toBe('test');
+        await it('should have correct content', async () => {
+          const stream = Readable.from(['test']);
+          const result = await blob(stream);
+          const t = await result.text();
+          expect(t).toBe('test');
+        });
       });
     });
   });

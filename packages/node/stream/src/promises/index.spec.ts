@@ -120,20 +120,17 @@ export default async () => {
         expect(caught).toBe(true);
       });
 
-      await it('should resolve for already destroyed stream', async () => {
+      await it('should resolve for ended writable with data', async () => {
+        const chunks: string[] = [];
         const writable = new Writable({
-          write(_chunk, _enc, cb) { cb(); },
-        });
-        writable.end();
-
-        // Wait for finish event
-        await new Promise<void>((resolve) => {
-          writable.on('finish', resolve);
+          write(chunk, _enc, cb) { chunks.push(chunk.toString()); cb(); },
         });
 
-        // finished should resolve immediately or quickly for already-finished streams
-        await finished(writable);
-        expect(true).toBe(true);
+        const p = finished(writable);
+        writable.write('a');
+        writable.end('b');
+        await p;
+        expect(chunks.join('')).toBe('ab');
       });
     });
   });
