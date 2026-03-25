@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "types": ["node"],
+    "target": "ESNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist"
+  },
+  "files": ["src/index.ts"]
+}

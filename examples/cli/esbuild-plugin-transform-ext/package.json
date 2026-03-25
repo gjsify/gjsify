@@ -1,0 +1,21 @@
+{
+  "name": "@gjsify/example-cli-esbuild-plugin-transform-ext",
+  "private": true,
+  "version": "0.0.4",
+  "description": "",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "clear": "rm -rf dist",
+    "check": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "build": "node esbuild.mjs",
+    "test": "yarn start"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "devDependencies": {
+    "@gjsify/esbuild-plugin-transform-ext": "workspace:^",
+    "typescript": "^6.0.2"
+  }
+}

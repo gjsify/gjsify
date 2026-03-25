@@ -1,0 +1,35 @@
+import '@gjsify/node-globals';
+import { serialize, deserialize } from '@deepkit/type';
+
+const printGjs = (globalThis as unknown as { print?: (msg: string) => void }).print;
+const log: (...args: unknown[]) => void = printGjs
+    ? (...args) => printGjs(args.map((a) => String(a)).join(' '))
+    : console.log.bind(console);
+
+class MyModel {
+    id: number = 0;
+    created: Date = new Date;
+
+    constructor(public name: string) {
+    }
+}
+
+const myModel = new MyModel('Peter');
+const jsonObject = serialize<MyModel>(myModel);
+const json = JSON.stringify(jsonObject);
+
+log("json", json);
+log("jsonObject", jsonObject, typeof jsonObject.created, jsonObject.created instanceof Date );
+log("myModel", myModel, typeof myModel.created, myModel.created instanceof Date );
+
+
+const myModelBack = deserialize<MyModel>(myModel);
+log("myModelBack", myModelBack, typeof myModelBack.created, myModelBack.created instanceof Date );
+
+log(deserialize<boolean>('false')); // false
+log(deserialize<boolean>('0')); // false
+log(deserialize<boolean>('1')); // true
+
+log(deserialize<number>('1'), typeof deserialize<number>('1')); // 1 number
+
+log(deserialize<string>(1), typeof deserialize<string>(1)); // '1' string

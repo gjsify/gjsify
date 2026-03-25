@@ -56,11 +56,24 @@ jobs:
       - name: Install NPM dependencies
         run: yarn install --immutable
 
+      - name: Clear
+        run: yarn run clear
+
       - name: Build
         run: yarn run build
+
+      # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
+      - name: Build examples
+        run: yarn run build:examples
 
       - name: Check
         run: yarn run check
 
+      - name: Check examples
+        run: yarn run check:examples
+
       - name: Test
         run: yarn run test
+
+      - name: Test CLI examples
+        run: yarn run test:examples
