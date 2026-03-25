@@ -840,6 +840,8 @@ export class Duplex extends Readable {
   private _writeImpl: ((chunk: any, encoding: string, cb: (error?: Error | null) => void) => void) | undefined;
   private _finalImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
   private _defaultEncoding = 'utf8';
+  private _pendingWrites = 0;
+  private _pendingEndCb: (() => void) | null = null;
 
   constructor(opts?: DuplexOptions) {
     super(opts);
@@ -931,7 +933,9 @@ export class Duplex extends Readable {
     }
 
     const cb = callback || (() => {});
+    this._pendingWrites++;
     this._write(chunk, encoding as string, (err) => {
+      this._pendingWrites--;
       this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
       if (err) {
         nextTick(() => {
@@ -944,6 +948,12 @@ export class Duplex extends Readable {
           if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
             this.writableNeedDrain = false;
             this.emit('drain');
+          }
+          // If end() is waiting for pending writes to complete, trigger it now
+          if (this._pendingWrites === 0 && this._pendingEndCb) {
+            const endCb = this._pendingEndCb;
+            this._pendingEndCb = null;
+            endCb();
           }
         });
       }
@@ -967,15 +977,25 @@ export class Duplex extends Readable {
     }
 
     this.writableEnded = true;
-    this._final((err) => {
-      this.writableFinished = true;
-      nextTick(() => {
-        if (err) this.emit('error', err);
-        this.emit('finish');
-        nextTick(() => this.emit('close'));
-        if (callback) callback();
+
+    const doFinal = () => {
+      this._final((err) => {
+        this.writableFinished = true;
+        nextTick(() => {
+          if (err) this.emit('error', err);
+          this.emit('finish');
+          nextTick(() => this.emit('close'));
+          if (callback) callback();
+        });
       });
-    });
+    };
+
+    // Wait for all pending writes to complete before calling _final
+    if (this._pendingWrites > 0) {
+      this._pendingEndCb = doFinal;
+    } else {
+      doFinal();
+    }
 
     return this;
   }
