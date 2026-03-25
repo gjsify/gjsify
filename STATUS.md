@@ -5,16 +5,16 @@
 ## Summary
 
 gjsify implements Node.js and Web Standard APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
+The project comprises **39 Node.js packages**, **15 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 31 (79%) | 3 (8%) | 5 (13%) |
-| Web APIs | 14 | 14 (100%) | — | — |
+| Web APIs | 15 | 15 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,900 test cases in 88+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~2,930 test cases in 89+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -76,15 +76,16 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 
 ## Web API Packages (`packages/web/`)
 
-All 14 packages have real implementations:
+All 15 packages have real implementations:
 
 | Package | LOC | GNOME Libs | Tests | Web APIs |
 |---------|-----|-----------|-------|----------|
-| **dom-events** | 1,323 | — | 97 | Event, EventTarget, CustomEvent, DOMException |
+| **dom-exception** | 55 | — | (via web-globals) | DOMException polyfill (WebIDL standard) |
+| **dom-events** | 1,270 | — | 97 | Event, EventTarget, CustomEvent |
 | **fetch** | 1,674 | Soup 3.0, Gio, GLib | 24 | fetch(), Request, Response, Headers, Referrer-Policy |
 | **formdata** | 438 | — | ✓ | FormData, File, multipart encoding |
 | **abort-controller** | 291 | — | 19 | AbortController, AbortSignal (.abort, .timeout, .any) |
-| **globals** | 14 | — | 1 | Re-export of dom-events + abort-controller |
+| **web-globals** | 30 | — | 27 | Unified entry point: imports all Web API packages, registers globals |
 | **html-image-element** | 347 | GdkPixbuf | 2 | HTMLImageElement, Image() |
 | **webgl** | 5,662 | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
 | **websocket** | 230 | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
@@ -152,9 +153,9 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Fully implemented | 31 (79%) |
 | Partially implemented | 3 (8%) |
 | Stubs | 5 (13%) |
-| Web API packages | 14 (all implemented) |
-| Total test cases | ~2,900 |
-| Spec files | 88+ |
+| Web API packages | 15 (all implemented) |
+| Total test cases | ~2,930 |
+| Spec files | 89+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -202,6 +203,26 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — Phase 18: Web-Layer-Refactoring + Unified Web-Globals
+
+**18a: DOMException extracted to own package:**
+- New package `@gjsify/dom-exception` — DOMException polyfill per WebIDL standard
+- Extracted from `@gjsify/dom-events` (was mixed with DOM Events, but DOMException is WebIDL, not DOM Events)
+- `@gjsify/dom-events` now re-exports DOMException from `@gjsify/dom-exception` (backwards compatible)
+- Registers `globalThis.DOMException` on GJS if missing
+
+**18b: Unified web-globals package:**
+- Redesigned `@gjsify/web-globals` from 2-line side-effect import to unified entry point
+- Single `import '@gjsify/web-globals'` registers all Web API globals on GJS:
+  - DOMException, Event, EventTarget, CustomEvent (dom-exception + dom-events)
+  - AbortController, AbortSignal (abort-controller)
+  - ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream (web-streams)
+  - CompressionStream, DecompressionStream (compression-streams)
+  - crypto.subtle, getRandomValues, randomUUID (webcrypto)
+  - EventSource (eventsource)
+- Re-exports key types for programmatic use
+- **27 tests**: DOMException (constructable, error codes, instanceof), DOM Events (Event, EventTarget dispatch), AbortController (signal, abort), Web Streams (Readable/Writable/Transform constructable), Encoding Streams, Compression Streams, WebCrypto (subtle, getRandomValues, randomUUID), EventSource import
 
 ### 2026-03-25 — Phase 17: fs + Stream Submodule Test Expansion
 

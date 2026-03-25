@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/web-globals",
     "version": "0.0.4",
-    "description": "Web global module for Gjs",
+    "description": "Unified Web API globals for GJS — single import for all Web standard polyfills",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "exports": {
@@ -31,12 +31,18 @@
     },
     "keywords": [
         "gjs",
-        "node",
-        "fs"
+        "web-globals",
+        "polyfill",
+        "web-apis"
     ],
     "dependencies": {
         "@gjsify/abort-controller": "workspace:^",
-        "@gjsify/dom-events": "workspace:^"
+        "@gjsify/compression-streams": "workspace:^",
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/dom-exception": "workspace:^",
+        "@gjsify/eventsource": "workspace:^",
+        "@gjsify/web-streams": "workspace:^",
+        "@gjsify/webcrypto": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

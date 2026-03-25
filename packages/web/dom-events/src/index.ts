@@ -1,6 +1,10 @@
 // Reference: DOM Living Standard (https://dom.spec.whatwg.org/)
 // EventTarget/Event implementation for GJS
 
+// Re-export DOMException from dedicated package for backwards compatibility
+import { DOMException } from '@gjsify/dom-exception';
+export { DOMException };
+
 type EventListenerOrEventListenerObject = EventListener | EventListenerObject;
 
 interface EventListener {
@@ -38,45 +42,6 @@ interface ListenerEntry {
   passive: boolean;
   removed: boolean;
 }
-
-// Standard DOMException error code mapping
-const DOMExceptionCodes: Record<string, number> = {
-  IndexSizeError: 1,
-  HierarchyRequestError: 3,
-  WrongDocumentError: 4,
-  InvalidCharacterError: 5,
-  NoModificationAllowedError: 7,
-  NotFoundError: 8,
-  NotSupportedError: 9,
-  InUseAttributeError: 10,
-  InvalidStateError: 11,
-  SyntaxError: 12,
-  InvalidModificationError: 13,
-  NamespaceError: 14,
-  InvalidAccessError: 15,
-  TypeMismatchError: 17,
-  SecurityError: 18,
-  NetworkError: 19,
-  AbortError: 20,
-  URLMismatchError: 21,
-  QuotaExceededError: 22,
-  TimeoutError: 23,
-  InvalidNodeTypeError: 24,
-  DataCloneError: 25,
-};
-
-// DOMException polyfill — exported for use by abort-controller and fetch
-class _DOMExceptionPolyfill extends Error {
-  code: number;
-  constructor(message?: string, name?: string) {
-    super(message);
-    this.name = name || 'Error';
-    this.code = DOMExceptionCodes[this.name] || 0;
-  }
-}
-export const DOMException: typeof globalThis.DOMException = typeof globalThis.DOMException !== 'undefined'
-  ? globalThis.DOMException
-  : _DOMExceptionPolyfill as any;
 
 // Internal symbols for writable access to readonly properties
 const kType = Symbol('type');

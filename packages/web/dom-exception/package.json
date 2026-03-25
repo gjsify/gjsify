@@ -1,10 +1,10 @@
 {
-    "name": "@gjsify/dom-events",
+    "name": "@gjsify/dom-exception",
     "version": "0.0.4",
-    "description": "Web events module for Gjs",
+    "description": "DOMException polyfill for GJS (WebIDL standard)",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
-    "types": "lib/types/index.d.js",
+    "types": "lib/types/index.d.ts",
     "type": "module",
     "exports": {
         ".": {
@@ -19,27 +19,20 @@
         }
     },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "build": "yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-        "build:types": "tsc",
-        "build:test": "yarn build:test:gjs",
-        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-        "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
-        "test:gjs": "gjs -m test.gjs.mjs"
+        "build:types": "tsc"
     },
     "keywords": [
         "gjs",
-        "node",
-        "event"
+        "dom-exception",
+        "webidl",
+        "polyfill"
     ],
-    "dependencies": {
-        "@gjsify/dom-exception": "workspace:^"
-    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
         "typescript": "^6.0.2"
     }

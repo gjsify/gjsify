@@ -626,7 +626,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/compression-streams@workspace:packages/web/compression-streams":
+"@gjsify/compression-streams@workspace:^, @gjsify/compression-streams@workspace:packages/web/compression-streams":
   version: 0.0.0-use.local
   resolution: "@gjsify/compression-streams@workspace:packages/web/compression-streams"
   dependencies:
@@ -711,7 +711,18 @@ __metadata:
   resolution: "@gjsify/dom-events@workspace:packages/web/dom-events"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-exception": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/dom-exception@workspace:^, @gjsify/dom-exception@workspace:packages/web/dom-exception":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/dom-exception@workspace:packages/web/dom-exception"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -788,7 +799,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/eventsource@workspace:packages/web/eventsource":
+"@gjsify/eventsource@workspace:^, @gjsify/eventsource@workspace:packages/web/eventsource":
   version: 0.0.0-use.local
   resolution: "@gjsify/eventsource@workspace:packages/web/eventsource"
   dependencies:
@@ -1428,8 +1439,13 @@ __metadata:
   dependencies:
     "@gjsify/abort-controller": "workspace:^"
     "@gjsify/cli": "workspace:^"
+    "@gjsify/compression-streams": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
+    "@gjsify/dom-exception": "workspace:^"
+    "@gjsify/eventsource": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/web-streams": "workspace:^"
+    "@gjsify/webcrypto": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1446,7 +1462,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/webcrypto@workspace:packages/web/webcrypto":
+"@gjsify/webcrypto@workspace:^, @gjsify/webcrypto@workspace:packages/web/webcrypto":
   version: 0.0.0-use.local
   resolution: "@gjsify/webcrypto@workspace:packages/web/webcrypto"
   dependencies:
