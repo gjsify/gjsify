@@ -19,13 +19,13 @@ export const homedir = () => GLib.get_home_dir();
 
 export const hostname = () => GLib.get_host_name();
 
-export const release = () => cli('uname -r');
+export const release = () => cli('uname -r').trim();
 
 export const tmpdir = () => GLib.get_tmp_dir();
 
-export const type = () => cli('uname');
+export const type = () => cli('uname').trim();
 
-export const platform = () => cli('uname -s').toLowerCase() as NodeJS.Platform;
+export const platform = () => cli('uname -s').trim().toLowerCase() as NodeJS.Platform;
 
 export const arch = () => {
   const machine = cli('uname -m').trim();
