@@ -101,7 +101,7 @@ export class Stats extends Dirent implements NodeStats {
             info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
         }
 
-        super(pathStr, filename);
+        super(pathStr, filename, info.get_file_type());
         this._info = info;
 
         const data = populateFromInfo(info);
@@ -177,7 +177,7 @@ export class BigIntStats extends Dirent implements NodeBigIntStats {
             info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
         }
 
-        super(pathStr, filename);
+        super(pathStr, filename, info.get_file_type());
         this._info = info;
 
         const data = populateFromInfo(info);

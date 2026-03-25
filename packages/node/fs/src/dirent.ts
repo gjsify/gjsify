@@ -42,12 +42,12 @@ export class Dirent implements OriginalDirent {
     protected _file: Gio.File;
 
     /** This is not part of node.fs and is used internal by gjsify */
-    constructor(path: string, filename?: string) {
+    constructor(path: string, filename?: string, fileType?: Gio.FileType) {
         if (!filename) filename = basename(path);
         this.name = filename;
         this.parentPath = dirname(path);
         this._file = Gio.File.new_for_path(path);
-        const type = this._file.query_file_type(Gio.FileQueryInfoFlags.NONE, null);
+        const type = fileType ?? this._file.query_file_type(Gio.FileQueryInfoFlags.NONE, null);
 
         switch (type) {
             case Gio.FileType.DIRECTORY:

@@ -48,25 +48,32 @@ export class ReadStream extends Readable implements IReadStream {
     this._start = (opts?.start as number) ?? 0;
     this._end = (opts?.end as number) ?? Infinity;
     this._pos = this._start;
+
+    // Validate file existence eagerly (like Node.js) to emit error event
+    Promise.resolve().then(() => {
+      if (!this._inputStream && !this.destroyed) {
+        try {
+          this._inputStream = this._gioFile.read(null);
+          this.pending = false;
+          this.emit('open', 0);
+          this.emit('ready');
+          if (this._start > 0 && this._inputStream.can_seek()) {
+            this._inputStream.seek(this._start, GLib.SeekType.SET, null);
+          }
+        } catch (err) {
+          this.destroy(err as Error);
+        }
+      }
+    });
   }
 
   override _read(size: number): void {
-    // Open the stream lazily on first read
+    // Stream is opened eagerly in constructor; if not yet ready, wait
     if (!this._inputStream) {
-      try {
-        this._inputStream = this._gioFile.read(null);
-        this.pending = false;
-        this.emit('open', 0);
-        this.emit('ready');
-
-        // Seek to start position if needed
-        if (this._start > 0 && this._inputStream.can_seek()) {
-          this._inputStream.seek(this._start, GLib.SeekType.SET, null);
-        }
-      } catch (err) {
-        this.destroy(err as Error);
-        return;
-      }
+      if (this.destroyed) return;
+      // Retry on next tick (constructor's async open hasn't completed yet)
+      Promise.resolve().then(() => this._read(size));
+      return;
     }
 
     // Calculate how many bytes to read
