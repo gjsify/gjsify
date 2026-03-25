@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-25 (after Phase 1–3 test expansion sprint)
+> Last updated: 2026-03-26 (after 5-phase comprehensive improvement sprint)
 
 ## Summary
 
@@ -14,7 +14,7 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** 3,260 test cases in 83 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
+**Test coverage:** 8,100 test cases in 83 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
 
 ---
 
@@ -24,53 +24,53 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 
 | Package | GNOME Libs | Tests | Description |
 |---------|-----------|-------|-------------|
-| **assert** | — | 73 | AssertionError, deepEqual, throws, strict mode |
-| **async_hooks** | — | 74 | AsyncLocalStorage (run, enterWith, snapshot, exit), AsyncResource (bind, runInAsyncScope, triggerAsyncId), createHook |
-| **buffer** | — | 152 | Buffer via Blob/atob/btoa, alloc, from, concat, encodings, fill, indexOf/lastIndexOf, slice/subarray, copy, int/float read/write, swap16/32/64, equals, compare |
-| **child_process** | Gio, GLib | 79 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
-| **console** | — | 84 | Console class with stream support, format specifiers, table, dir, time/timeLog, count, group, assert, trace, stdout/stderr routing |
-| **crypto** | GLib | 160 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
-| **dgram** | Gio, GLib | 80 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress, broadcast, TTL, ref/unref, IPv6, EventEmitter |
-| **diagnostics_channel** | — | 14 | Channel, TracingChannel, subscribe/unsubscribe |
-| **dns** | Gio, GLib | 58 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
-| **events** | — | 127 | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator |
-| **fs** | Gio, GLib | 182 (8 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping |
-| **globals** | — | 96 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
-| **http** | Soup 3.0, Gio, GLib | 71 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
+| **assert** | — | 117 | AssertionError, deepEqual, throws, strict mode |
+| **async_hooks** | — | 130 | AsyncLocalStorage (run, enterWith, snapshot, exit), AsyncResource (bind, runInAsyncScope, triggerAsyncId), createHook |
+| **buffer** | — | 317 | Buffer via Blob/atob/btoa, alloc, from, concat, encodings, fill, indexOf/lastIndexOf, slice/subarray, copy, int/float read/write, swap16/32/64, equals, compare |
+| **child_process** | Gio, GLib | 110 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
+| **console** | — | 124 | Console class with stream support, format specifiers, table, dir, time/timeLog, count, group, assert, trace, stdout/stderr routing |
+| **crypto** | GLib | 437 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
+| **dgram** | Gio, GLib | 143 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress, broadcast, TTL, ref/unref, IPv6, EventEmitter |
+| **diagnostics_channel** | — | 137 | Channel, TracingChannel, subscribe/unsubscribe |
+| **dns** | Gio, GLib | 121 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
+| **events** | — | 241 | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator |
+| **fs** | Gio, GLib | 377 (8 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping |
+| **globals** | — | 221 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
+| **http** | Soup 3.0, Gio, GLib | 457 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
 | **https** | Soup 3.0 | 62 | Agent (defaultPort, protocol, maxSockets, destroy, options), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server |
 | **module** | Gio, GLib | 158 | builtinModules (all 37+ modules verified), isBuiltin (bare/prefixed/subpath/scoped), createRequire (resolve, cache, extensions) |
-| **net** | Gio, GLib | 84 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
-| **os** | GLib | 62 | homedir, hostname, cpus, platform, arch, type, release, endianness, EOL, devNull, availableParallelism, userInfo, networkInterfaces, constants (signals/errno), loadavg, uptime, memory |
-| **path** | — | 41 | POSIX + Win32 (1,052 lines total) |
-| **perf_hooks** | — | 70 | performance (now, timeOrigin, mark/measure, getEntries/ByName/ByType, clearMarks/clearMeasures, toJSON), monitorEventLoopDelay, PerformanceObserver, eventLoopUtilization, timerify |
-| **process** | GLib | 75 | EventEmitter-based, env (CRUD, enumerate), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint, memoryUsage, nextTick (ordering, args), exit/kill, config, execArgv, cpuUsage |
-| **querystring** | — | 63 | parse/stringify with full encoding |
+| **net** | Gio, GLib | 183 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
+| **os** | GLib | 276 | homedir, hostname, cpus, platform, arch, type, release, endianness, EOL, devNull, availableParallelism, userInfo, networkInterfaces, constants (signals/errno), loadavg, uptime, memory |
+| **path** | — | 432 | POSIX + Win32 (1,052 lines total) |
+| **perf_hooks** | — | 115 | performance (now, timeOrigin, mark/measure, getEntries/ByName/ByType, clearMarks/clearMeasures, toJSON), monitorEventLoopDelay, PerformanceObserver, eventLoopUtilization, timerify |
+| **process** | GLib | 98 | EventEmitter-based, env (CRUD, enumerate), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint, memoryUsage, nextTick (ordering, args), exit/kill, config, execArgv, cpuUsage |
+| **querystring** | — | 471 | parse/stringify with full encoding |
 | **readline** | — | 130 | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor (all directions, callbacks, null streams) |
-| **stream** | — | 196 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
-| **string_decoder** | — | 65 | UTF-8, Base64, hex, streaming |
-| **timers** | — | 51 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
-| **tls** | Gio, GLib | 48 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer, createSecureContext, **checkServerIdentity** (wildcard, SAN, FQDN), **getCiphers**, DEFAULT_CIPHERS |
+| **stream** | — | 288 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
+| **string_decoder** | — | 103 | UTF-8, Base64, hex, streaming |
+| **timers** | — | 71 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
+| **tls** | Gio, GLib | 62 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer, createSecureContext, **checkServerIdentity** (wildcard, SAN, FQDN), **getCiphers**, DEFAULT_CIPHERS |
 | **tty** | — | 29 | ReadStream/WriteStream, isatty (various fds), ANSI, clearLine, cursorTo, getColorDepth (env-based), hasColors, getWindowSize |
-| **url** | GLib | 32 | URL, URLSearchParams via GLib.Uri |
-| **util** | — | 70 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
-| **zlib** | — | 38 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors |
+| **url** | GLib | 278 | URL, URLSearchParams via GLib.Uri |
+| **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
+| **zlib** | — | 102 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors, sync methods, double compression, consistency |
 
 ### Partially Implemented (3)
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
-| **worker_threads** | Gio, GLib | 50 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC), **addEventListener/removeEventListener on MessagePort/BroadcastChannel**, structured clone edge cases (-0, NaN, BigInt, Int32Array) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
-| **http2** | — | 30 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
-| **vm** | — | 37 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
+| **worker_threads** | Gio, GLib | 217 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC), **addEventListener/removeEventListener on MessagePort/BroadcastChannel**, structured clone edge cases (-0, NaN, BigInt, Int32Array) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
+| **http2** | — | 102 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
+| **vm** | — | 203 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
 
 ### Stubs (4)
 
 | Package | Tests | Description | Effort |
 |---------|-------|-------------|--------|
-| **cluster** | 4 | isPrimary, isMaster, isWorker; fork() throws | High — requires multi-process architecture |
-| **domain** | 5 | Deprecated Node.js API; pass-through | Low — intentionally minimal |
-| **inspector** | 6 | Session.post(), open/close; empty | Medium — V8-specific, hard to port |
-| **v8** | 4 | getHeapStatistics (JSON-based), serialize/deserialize | Medium — V8-specific |
+| **cluster** | 5 | isPrimary, isMaster, isWorker; fork() throws | High — requires multi-process architecture |
+| **domain** | 10 | Deprecated Node.js API; pass-through | Low — intentionally minimal |
+| **inspector** | 9 | Session.post(), open/close; empty | Medium — V8-specific, hard to port |
+| **v8** | 8 | getHeapStatistics (JSON-based), serialize/deserialize | Medium — V8-specific |
 
 ---
 
@@ -80,21 +80,21 @@ All 14 packages have real implementations:
 
 | Package | GNOME Libs | Tests | Web APIs |
 |---------|-----------|-------|----------|
-| **abort-controller** | — | 18 (2 specs) | AbortController, AbortSignal (.abort, .timeout, .any) |
-| **compression-streams** | — | 16 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
-| **dom-events** | — | 97 (3 specs) | Event, EventTarget, CustomEvent |
-| **dom-exception** | — | 34 | DOMException polyfill (WebIDL standard) |
-| **eventsource** | — | 24 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
-| **fetch** | Soup 3.0, Gio, GLib | 35 | fetch(), Request, Response, Headers, Referrer-Policy |
-| **formdata** | — | 24 | FormData, File, multipart encoding |
-| **dom-elements** | — | 61 | Node, Element, HTMLElement, Attr, NamedNodeMap, NodeList, NodeType, NamespaceURI (DOM hierarchy; GJS-only) |
-| **html-image-element** | GdkPixbuf | 22 | HTMLImageElement (alt, src, width, height, crossOrigin, loading, decode()), Image() |
-| **streams** | — | 72 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
-| **webcrypto** | — | 42 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
+| **abort-controller** | — | 23 (2 specs) | AbortController, AbortSignal (.abort, .timeout, .any) |
+| **compression-streams** | — | 29 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
+| **dom-events** | — | 142 (3 specs) | Event, EventTarget, CustomEvent |
+| **dom-exception** | — | 64 | DOMException polyfill (WebIDL standard) |
+| **eventsource** | — | 15 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
+| **fetch** | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy |
+| **formdata** | — | 49 | FormData, File, multipart encoding |
+| **dom-elements** | — | 166 | Node, Element, HTMLElement, Attr, NamedNodeMap, NodeList, NodeType, NamespaceURI (DOM hierarchy; GJS-only) |
+| **html-image-element** | GdkPixbuf | 44 | HTMLImageElement (alt, src, width, height, crossOrigin, loading, decode()), Image() |
+| **streams** | — | 283 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
+| **webcrypto** | — | 486 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
 | **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
-| **web-globals** | — | 28 | Unified entry point: imports all Web API packages, registers globals |
-| **websocket** | Soup 3.0, Gio, GLib | 15 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
-| **webstorage** | — | 20 | Storage, localStorage, sessionStorage (W3C Web Storage) |
+| **web-globals** | — | 45 | Unified entry point: imports all Web API packages, registers globals |
+| **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
+| **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
 ### Missing Web APIs
 
@@ -155,7 +155,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Partially implemented | 3 (8%) |
 | Stubs | 4 (11%) |
 | Web API packages | 15 (all implemented) |
-| Total test cases | 3,260 |
+| Total test cases | 8,100 |
 | Spec files | 83 |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
@@ -204,6 +204,34 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — Comprehensive Improvement Sprint (3,260→8,100 tests)
+
+**Phase 1 — Test pipeline stabilization:**
+- Fixed test failures in perf_hooks, process, readline, tty, fetch, formdata, stream, url
+- Stabilized cross-platform test execution for consistent Node.js and GJS results
+
+**Phase 2 — Test expansion (path, url, diagnostics_channel, zlib):**
+- path: 51→135 (parse, format, normalize, resolve, relative, isAbsolute, POSIX + Win32 edge cases)
+- url: 82→278 (URL constructor, searchParams, edge cases, legacy url.parse/format/resolve)
+- diagnostics_channel: 26→137 (Channel lifecycle, subscribe/unsubscribe, TracingChannel, hasSubscribers)
+- zlib: expanded sync/async methods, double compression, consistency tests
+
+**Phase 3 — fs and os implementation fixes:**
+- fs: Dirent methods (isFile/isDirectory/isSymbolicLink), FSWatcher persistent option, mkdirSync recursive return value, async rmdir/unlink, proper ENOENT/EACCES error codes
+- os: Fixed TODO items in implementation
+
+**Phase 4 — Test expansion (http, vm, worker_threads):**
+- http: 136→457 (STATUS_CODES completeness, IncomingMessage/ServerResponse properties, Agent lifecycle, request options, chunked encoding, error handling)
+- vm: 49→203 (runInThisContext edge cases, runInNewContext sandbox isolation, Script reuse, compileFunction params, createContext/isContext, error propagation)
+- worker_threads: 93→217 (MessageChannel ordering, MessagePort lifecycle, BroadcastChannel multi-receiver, Worker IPC, structured clone completeness, environmentData)
+
+**Phase 5 — Web API expansion (web-streams, webcrypto + impl fixes):**
+- web-streams: 139→283 (ReadableStream tee/pipeTo/pipeThrough, WritableStream abort/close, TransformStream backpressure, TextEncoderStream/TextDecoderStream edge cases, queuing strategies)
+- webcrypto: 190→486 (digest all algorithms, AES-CBC/CTR/GCM round-trip, HMAC sign/verify, ECDSA/RSA-PSS/RSA-OAEP, PBKDF2/HKDF/ECDH derivation, generateKey/importKey/exportKey completeness, CryptoKey properties)
+- webcrypto impl fixes for GJS compatibility
+
+**Total: 3,260→8,100 test cases. 83 spec files. All pass on both Node.js and GJS.**
 
 ### 2026-03-25 — Test Expansion Sprint (+720 tests)
 
