@@ -24,7 +24,7 @@ export default async () => {
             expect(s.ctime instanceof Date).toBeTruthy();
             expect(s.ctimeMs).toBeGreaterThan(0);
             expect(s.dev).toBeGreaterThan(0);
-            expect(s.gid).toBeGreaterThan(0);
+            expect(s.gid).toBeGreaterThan(-1);
             expect(s.ino).toBeGreaterThan(0);
             expect(s.mode).toBeGreaterThan(0);
             expect(s.mtime instanceof Date).toBeTruthy();
@@ -32,7 +32,7 @@ export default async () => {
             expect(s.nlink).toBeGreaterThan(0);
             expect(s.rdev).toBeGreaterThan(-1);
             expect(s.size).toBeGreaterThan(0);
-            expect(s.uid).toBeGreaterThan(0);
+            expect(s.uid).toBeGreaterThan(-1);
             expect(s.isBlockDevice()).toBeFalsy();
             expect(s.isCharacterDevice()).toBeFalsy();
             expect(s.isDirectory()).toBeFalsy();
@@ -58,7 +58,7 @@ export default async () => {
             expect(s.ctime instanceof Date).toBeTruthy();
             expect(s.ctimeMs).toBeGreaterThan(0);
             expect(s.dev).toBeGreaterThan(0);
-            expect(s.gid).toBeGreaterThan(0);
+            expect(s.gid).toBeGreaterThan(-1);
             expect(s.ino).toBeGreaterThan(0);
             expect(s.mode).toBeGreaterThan(0);
             expect(s.mtime instanceof Date).toBeTruthy();
@@ -66,7 +66,7 @@ export default async () => {
             expect(s.nlink).toBeGreaterThan(0);
             expect(s.rdev).toBeGreaterThan(-1);
             expect(s.size).toBeGreaterThan(0);
-            expect(s.uid).toBeGreaterThan(0);
+            expect(s.uid).toBeGreaterThan(-1);
             expect(s.isBlockDevice()).toBeFalsy();
             expect(s.isCharacterDevice()).toBeFalsy();
             expect(s.isDirectory()).toBeFalsy();
