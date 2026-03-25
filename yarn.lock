@@ -1212,6 +1212,7 @@ __metadata:
     "@gjsify/process": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
@@ -1222,7 +1223,9 @@ __metadata:
   dependencies:
     "@girs/gjs": "npm:^4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
@@ -1371,6 +1374,7 @@ __metadata:
     "@gjsify/assert": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/process": "workspace:^"
+    "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
@@ -1467,6 +1471,7 @@ __metadata:
   resolution: "@gjsify/webcrypto@workspace:packages/web/webcrypto"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-exception": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
