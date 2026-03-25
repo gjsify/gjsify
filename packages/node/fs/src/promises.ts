@@ -154,19 +154,24 @@ async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined>
 async function readFile(path: PathLike | FileHandle, options: ReadOptions = { encoding: null, flag: 'r' }) {
   const file = Gio.File.new_for_path(path.toString());
 
-  const [ok, data] = await new Promise<[boolean, Uint8Array, string]>((resolve, reject) => {
-    file.load_contents_async(null, (self, res) => {
-      try {
-        resolve(file.load_contents_finish(res));
-      } catch (error) {
-        reject(error);
-      }
+  let ok: boolean;
+  let data: Uint8Array;
+  try {
+    [ok, data] = await new Promise<[boolean, Uint8Array, string]>((resolve, reject) => {
+      file.load_contents_async(null, (self, res) => {
+        try {
+          resolve(file.load_contents_finish(res));
+        } catch (error) {
+          reject(error);
+        }
+      });
     });
-  });
+  } catch (error) {
+    throw createNodeError(error, 'open', path.toString() as PathLike);
+  }
 
   if (!ok) {
-    // TODO: throw a better error
-    throw new Error('failed to read file');
+    throw createNodeError(new Error('failed to read file'), 'open', path.toString() as PathLike);
   }
 
   return encodeUint8Array(getEncodingFromOptions(options, 'buffer'), data);
@@ -398,7 +403,11 @@ async function lstat(path: PathLike, options?: { bigint?: boolean }): Promise<St
 // --- readdir / realpath / symlink — delegate to sync (sync is the canonical impl) ---
 
 async function readdir(path: PathLike, options?: { withFileTypes?: boolean; encoding?: string; recursive?: boolean }): Promise<string[] | Dirent[]> {
-  return readdirSyncFn(path, options);
+  try {
+    return readdirSyncFn(path, options);
+  } catch (error) {
+    throw createNodeError(error, 'scandir', path);
+  }
 }
 
 async function realpath(path: PathLike): Promise<string> {

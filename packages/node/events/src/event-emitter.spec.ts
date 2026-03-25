@@ -2,6 +2,7 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
+import 'abort-controller'; // Registers AbortController/AbortSignal globals on GJS; no-op on Node.js
 
 import { EventEmitter } from 'node:events';
 
@@ -877,32 +878,29 @@ export default async () => {
 			expect(err).toBe(expectedErr);
 		});
 
-		// AbortSignal/AbortController tests — require global availability
-		if (typeof globalThis.AbortSignal !== 'undefined') {
-			await it('should reject with AbortError when signal is already aborted', async () => {
-				const emitter = new EventEmitter();
-				const abortedSignal = AbortSignal.abort();
-				try {
-					await EventEmitter.once(emitter, 'test', { signal: abortedSignal });
-					expect(false).toBeTruthy();
-				} catch (err: any) {
-					expect(err.name).toBe('AbortError');
-				}
-			});
+		await it('should reject with AbortError when signal is already aborted', async () => {
+			const emitter = new EventEmitter();
+			const abortedSignal = AbortSignal.abort();
+			try {
+				await EventEmitter.once(emitter, 'test', { signal: abortedSignal });
+				expect(false).toBeTruthy();
+			} catch (err: any) {
+				expect(err.name).toBe('AbortError');
+			}
+		});
 
-			await it('should reject when abort signal fires after call', async () => {
-				const emitter = new EventEmitter();
-				const ac = new AbortController();
-				const promise = EventEmitter.once(emitter, 'test', { signal: ac.signal });
-				ac.abort();
-				try {
-					await promise;
-					expect(false).toBeTruthy();
-				} catch (err: any) {
-					expect(err.name).toBe('AbortError');
-				}
-			});
-		}
+		await it('should reject when abort signal fires after call', async () => {
+			const emitter = new EventEmitter();
+			const ac = new AbortController();
+			const promise = EventEmitter.once(emitter, 'test', { signal: ac.signal });
+			ac.abort();
+			try {
+				await promise;
+				expect(false).toBeTruthy();
+			} catch (err: any) {
+				expect(err.name).toBe('AbortError');
+			}
+		});
 	});
 
 	// ==================== expanded tests: prependListener / prependOnceListener ====================
