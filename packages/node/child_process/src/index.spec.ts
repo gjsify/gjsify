@@ -299,7 +299,7 @@ export default async () => {
 
 	await describe('child_process function exports type checks', async () => {
 		await it('spawn should be exported as a function', async () => {
-			const { spawn } = await import('child_process');
+			const { spawn } = await import('node:child_process');
 			expect(typeof spawn).toBe('function');
 		});
 
@@ -317,6 +317,367 @@ export default async () => {
 
 		await it('spawnSync should be a function (typeof check)', async () => {
 			expect(typeof spawnSync).toBe('function');
+		});
+	});
+
+	// ==================== spawn (async event-based) ====================
+	// Ported from refs/node-test/parallel/test-child-process-spawn*.js
+	// Original: MIT license, Node.js contributors
+
+	await describe('child_process.spawn', async () => {
+		await it('should return a ChildProcess with pid', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('echo', ['test']);
+			expect(child).toBeDefined();
+			expect(typeof child.pid).toBe('number');
+			expect(child.pid! > 0).toBeTruthy();
+			await new Promise<void>((resolve) => child.on('close', () => resolve()));
+		});
+
+		await it('should emit spawn event', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('echo', ['test']);
+			const spawned = await new Promise<boolean>((resolve) => {
+				child.on('spawn', () => resolve(true));
+				setTimeout(() => resolve(false), 5000);
+			});
+			expect(spawned).toBeTruthy();
+			await new Promise<void>((resolve) => child.on('close', () => resolve()));
+		});
+
+		await it('should emit exit event with exit code', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('echo', ['hello']);
+			const code = await new Promise<number | null>((resolve) => {
+				child.on('exit', (exitCode) => resolve(exitCode));
+			});
+			expect(code).toBe(0);
+		});
+
+		await it('should emit close event after exit', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('echo', ['hello']);
+			const events: string[] = [];
+			child.on('exit', () => events.push('exit'));
+			child.on('close', () => events.push('close'));
+			await new Promise<void>((resolve) => child.on('close', () => resolve()));
+			expect(events.length).toBe(2);
+			expect(events[0]).toBe('exit');
+			expect(events[1]).toBe('close');
+		});
+
+		await it('should emit non-zero exit code for failing command', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('false');
+			const code = await new Promise<number | null>((resolve) => {
+				child.on('exit', (exitCode) => resolve(exitCode));
+			});
+			expect(code).not.toBe(0);
+		});
+
+		await it('should emit error for non-existent command', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('nonexistent_command_gjsify_test_12345');
+			const err = await new Promise<Error>((resolve) => {
+				child.on('error', (e) => resolve(e));
+			});
+			expect(err).toBeDefined();
+		});
+
+		await it('should support shell option', async () => {
+			const { spawn } = await import('node:child_process');
+			// Testing child_process API — hardcoded safe shell expression
+			const child = spawn('echo $((1+2))', [], { shell: true });
+			const code = await new Promise<number | null>((resolve) => {
+				child.on('exit', (exitCode) => resolve(exitCode));
+			});
+			expect(code).toBe(0);
+		});
+
+		await it('should support cwd option', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('pwd', [], { cwd: '/tmp' });
+			const code = await new Promise<number | null>((resolve) => {
+				child.on('exit', (exitCode) => resolve(exitCode));
+			});
+			expect(code).toBe(0);
+		});
+
+		await it('should support env option', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('sh', ['-c', 'echo $MY_SPAWN_VAR'], {
+				env: { PATH: '/usr/bin:/bin', MY_SPAWN_VAR: 'spawn_val' }
+			});
+			const code = await new Promise<number | null>((resolve) => {
+				child.on('exit', (exitCode) => resolve(exitCode));
+			});
+			expect(code).toBe(0);
+		});
+	});
+
+	// ==================== ChildProcess kill ====================
+	// Ported from refs/node-test/parallel/test-child-process-kill.js
+	// Original: MIT license, Node.js contributors
+
+	await describe('ChildProcess.kill', async () => {
+		await it('should kill a running process', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('sleep', ['10']);
+			expect(child.killed).toBeFalsy();
+
+			const killed = child.kill();
+			expect(killed).toBeTruthy();
+			expect(child.killed).toBeTruthy();
+
+			await new Promise<void>((resolve) => child.on('close', () => resolve()));
+		});
+
+		await it('should kill with SIGKILL', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('sleep', ['10']);
+
+			child.kill('SIGKILL');
+			expect(child.killed).toBeTruthy();
+
+			await new Promise<void>((resolve) => child.on('close', () => resolve()));
+		});
+
+		await it('should set exitCode after process exits', async () => {
+			const { spawn } = await import('node:child_process');
+			const child = spawn('echo', ['test']);
+
+			await new Promise<void>((resolve) => child.on('close', () => resolve()));
+			expect(child.exitCode).toBe(0);
+		});
+	});
+
+	// ==================== exec edge cases ====================
+	// Ported from refs/node-test/parallel/test-child-process-exec-*.js
+	// Original: MIT license, Node.js contributors
+
+	await describe('child_process.exec edge cases', async () => {
+		await it('should handle multi-line output', async () => {
+			// Testing child_process API — hardcoded safe shell command
+			const result = await new Promise<string>((resolve, reject) => {
+				exec('echo line1 && echo line2', { encoding: 'utf8' }, (err, stdout) => {
+					if (err) reject(err);
+					else resolve(stdout);
+				});
+			});
+			const lines = result.trim().split('\n');
+			expect(lines.length).toBe(2);
+			expect(lines[0]).toBe('line1');
+			expect(lines[1]).toBe('line2');
+		});
+
+		await it('should return ChildProcess with pid', async () => {
+			// Testing child_process API — hardcoded safe literal
+			const child = exec('echo test', () => {});
+			expect(typeof child.pid).toBe('number');
+			expect(child.pid! > 0).toBeTruthy();
+			await new Promise<void>((resolve) => child.on('close', () => resolve()));
+		});
+
+		await it('should call callback with error for syntax error', async () => {
+			// Testing child_process error handling — hardcoded safe literal
+			const error = await new Promise<Error>((resolve) => {
+				exec('if', (err) => {
+					resolve(err!);
+				});
+			});
+			expect(error).toBeDefined();
+		});
+
+		await it('exec with custom env should override process env', async () => {
+			// Testing child_process API — hardcoded safe env variable
+			const result = await new Promise<string>((resolve, reject) => {
+				exec('echo $EXEC_TEST_CUSTOM', {
+					encoding: 'utf8',
+					env: { PATH: '/usr/bin:/bin', EXEC_TEST_CUSTOM: 'custom_val' }
+				}, (err, stdout) => {
+					if (err) reject(err);
+					else resolve(stdout.trim());
+				});
+			});
+			expect(result).toBe('custom_val');
+		});
+
+		await it('exec with cwd should change working directory', async () => {
+			// Testing child_process API — hardcoded safe literal
+			const result = await new Promise<string>((resolve, reject) => {
+				exec('pwd', { encoding: 'utf8', cwd: '/tmp' }, (err, stdout) => {
+					if (err) reject(err);
+					else resolve(stdout.trim());
+				});
+			});
+			expect(result).toBe('/tmp');
+		});
+	});
+
+	// ==================== execFile edge cases ====================
+
+	await describe('child_process.execFile edge cases', async () => {
+		await it('should pass arguments correctly', async () => {
+			const result = await new Promise<string>((resolve, reject) => {
+				execFile('echo', ['arg1', 'arg2', 'arg3'], { encoding: 'utf8' }, (err, stdout) => {
+					if (err) reject(err);
+					else resolve(stdout.trim());
+				});
+			});
+			expect(result).toBe('arg1 arg2 arg3');
+		});
+
+		await it('should handle empty args', async () => {
+			const result = await new Promise<string>((resolve, reject) => {
+				execFile('echo', [], { encoding: 'utf8' }, (err, stdout) => {
+					if (err) reject(err);
+					else resolve(stdout);
+				});
+			});
+			expect(typeof result).toBe('string');
+		});
+
+		await it('execFile should set exitCode on ChildProcess', async () => {
+			const child = execFile('echo', ['test'], { encoding: 'utf8' }, () => {});
+			await new Promise<void>((resolve) => child.on('close', () => resolve()));
+			expect(child.exitCode).toBe(0);
+		});
+	});
+
+	// ==================== spawnSync extended ====================
+	// Ported from refs/node-test/parallel/test-child-process-spawnsync*.js
+	// Original: MIT license, Node.js contributors
+
+	await describe('child_process.spawnSync extended', async () => {
+		await it('should return output array with stdout and stderr', async () => {
+			const result = spawnSync('echo', ['out'], { encoding: 'utf8' });
+			expect(result.output).toBeDefined();
+			expect(Array.isArray(result.output)).toBeTruthy();
+			// output[0] is stdin (null), output[1] is stdout, output[2] is stderr
+			expect(result.output.length).toBeGreaterThanOrEqual(3);
+		});
+
+		await it('should handle shell option', async () => {
+			const result = spawnSync('echo', ['$((2+3))'], { encoding: 'utf8', shell: true });
+			expect(result.status).toBe(0);
+			expect((result.stdout as string).trim()).toBe('5');
+		});
+
+		await it('should handle large output', async () => {
+			const result = spawnSync('seq', ['1', '1000'], { encoding: 'utf8' });
+			expect(result.status).toBe(0);
+			const lines = (result.stdout as string).trim().split('\n');
+			expect(lines.length).toBe(1000);
+			expect(lines[0]).toBe('1');
+			expect(lines[999]).toBe('1000');
+		});
+
+		await it('should handle process that outputs nothing to stderr', async () => {
+			const result = spawnSync('echo', ['clean'], { encoding: 'utf8' });
+			expect(result.status).toBe(0);
+			expect(result.stderr).toBe('');
+		});
+
+		await it('signal should be null for normal exit', async () => {
+			const result = spawnSync('true');
+			expect(result.signal).toBeNull();
+		});
+
+		await it('should handle input with special characters', async () => {
+			const input = 'hello\nworld\ttab "quotes" \'single\'';
+			const result = spawnSync('cat', [], {
+				encoding: 'utf8',
+				input,
+			});
+			expect(result.status).toBe(0);
+			expect(result.stdout).toBe(input);
+		});
+	});
+
+	// ==================== execSync extended ====================
+	// Ported from refs/node-test/parallel/test-child-process-execsync*.js
+	// Original: MIT license, Node.js contributors
+
+	await describe('child_process.execSync extended', async () => {
+		await it('should handle multi-line command output', async () => {
+			const result = execSync('echo line1 && echo line2', { encoding: 'utf8' });
+			const lines = (result as string).trim().split('\n');
+			expect(lines.length).toBe(2);
+		});
+
+		await it('error should have status property', async () => {
+			let error: any = null;
+			try {
+				execSync('exit 42');
+			} catch (e) {
+				error = e;
+			}
+			expect(error).toBeDefined();
+			expect(error.status).toBe(42);
+		});
+
+		await it('error should have stderr property', async () => {
+			let error: any = null;
+			try {
+				execSync('echo err_msg >&2; exit 1');
+			} catch (e) {
+				error = e;
+			}
+			expect(error).toBeDefined();
+			expect(error.stderr).toBeDefined();
+			expect(error.stderr.includes('err_msg')).toBeTruthy();
+		});
+
+		await it('should handle shell that outputs to both stdout and stderr', async () => {
+			const result = execSync('echo out && echo err >&2', { encoding: 'utf8' });
+			expect((result as string).trim()).toBe('out');
+		});
+
+		await it('should handle input option', async () => {
+			const result = execSync('cat', { encoding: 'utf8', input: 'piped_input' });
+			expect((result as string).trim()).toBe('piped_input');
+		});
+
+		await it('should handle command with pipe', async () => {
+			const result = execSync('echo hello world | tr a-z A-Z', { encoding: 'utf8' });
+			expect((result as string).trim()).toBe('HELLO WORLD');
+		});
+	});
+
+	// ==================== execFileSync extended ====================
+
+	await describe('child_process.execFileSync extended', async () => {
+		await it('should return Buffer without encoding', async () => {
+			const result = execFileSync('echo', ['raw']);
+			expect(result instanceof Uint8Array).toBeTruthy();
+		});
+
+		await it('error should have status and stderr', async () => {
+			let error: any = null;
+			try {
+				execFileSync('sh', ['-c', 'echo err >&2; exit 3']);
+			} catch (e) {
+				error = e;
+			}
+			expect(error).toBeDefined();
+			expect(error.status).toBe(3);
+		});
+
+		await it('should handle empty arguments', async () => {
+			const result = execFileSync('true');
+			// true produces no output
+			expect(result instanceof Uint8Array).toBeTruthy();
+		});
+
+		await it('should handle cwd and env together', async () => {
+			const result = execFileSync('sh', ['-c', 'echo $COMBO_VAR && pwd'], {
+				encoding: 'utf8',
+				cwd: '/tmp',
+				env: { PATH: '/usr/bin:/bin', COMBO_VAR: 'combined' },
+			});
+			const lines = (result as string).trim().split('\n');
+			expect(lines[0]).toBe('combined');
+			expect(lines[1]).toBe('/tmp');
 		});
 	});
 };
