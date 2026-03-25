@@ -709,4 +709,104 @@ export default async () => {
 			await rmdir(dir);
 		});
 	});
+
+	await describe('fs.promises.mkdir recursive return value', async () => {
+		await it('should return the first directory created', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pmkdir-retval-'));
+			const nested = join(dir, 'x', 'y', 'z');
+			const result = await mkdir(nested, { recursive: true });
+			// Should return the first directory created (x)
+			expect(typeof result).toBe('string');
+			expect(result).toBe(join(dir, 'x'));
+			expect(existsSync(nested)).toBe(true);
+			await promises.rm(dir, { recursive: true });
+		});
+
+		await it('should return undefined when directory already exists', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pmkdir-exist-'));
+			const result = await mkdir(dir, { recursive: true });
+			expect(result).toBeUndefined();
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.rmdir error handling', async () => {
+		await it('should throw ENOTEMPTY when directory is not empty', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-prmdir-notempty-'));
+			const file = join(dir, 'file.txt');
+			await writeFile(file, 'data');
+			let threw = false;
+			try {
+				await rmdir(dir);
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('ENOTEMPTY');
+			}
+			expect(threw).toBe(true);
+			await promises.rm(dir, { recursive: true });
+		});
+
+		await it('should throw ENOENT when directory does not exist', async () => {
+			let threw = false;
+			try {
+				await rmdir('/nonexistent/xyz789/no-dir');
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('ENOENT');
+			}
+			expect(threw).toBe(true);
+		});
+	});
+
+	await describe('fs.promises.unlink error handling', async () => {
+		await it('should throw ENOENT for non-existent file', async () => {
+			let threw = false;
+			try {
+				await unlink('/nonexistent/xyz789/file.txt');
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('ENOENT');
+			}
+			expect(threw).toBe(true);
+		});
+
+		await it('should actually delete the file asynchronously', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-punlink-async-'));
+			const file = join(dir, 'async-delete.txt');
+			await writeFile(file, 'data');
+			expect(existsSync(file)).toBe(true);
+			await unlink(file);
+			expect(existsSync(file)).toBe(false);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.rm error handling', async () => {
+		await it('should throw when removing non-empty dir without recursive', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-prm-notempty-'));
+			await writeFile(join(dir, 'file.txt'), 'data');
+			let threw = false;
+			try {
+				await promises.rm(dir, { recursive: false });
+			} catch (e: unknown) {
+				threw = true;
+				// Node.js throws ERR_FS_EISDIR, GJS throws ENOTEMPTY — both are correct
+				const code = (e as NodeJS.ErrnoException).code;
+				expect(code === 'ENOTEMPTY' || code === 'ERR_FS_EISDIR').toBe(true);
+			}
+			expect(threw).toBe(true);
+			await promises.rm(dir, { recursive: true });
+		});
+
+		await it('should not throw with force: true for non-existent path', async () => {
+			const path = join(tmpdir(), 'fs-prm-force-nonexistent-' + Date.now());
+			let threw = false;
+			try {
+				await promises.rm(path, { force: true });
+			} catch {
+				threw = true;
+			}
+			expect(threw).toBe(false);
+		});
+	});
 }

@@ -6,6 +6,16 @@ import { basename, dirname } from 'node:path';
 
 import type { Dirent as OriginalDirent } from 'node:fs'; // Types from @types/node
 
+// POSIX file type constants from stat mode bits (S_IFMT mask = 0o170000)
+const S_IFMT   = 0o170000;
+const S_IFSOCK = 0o140000;
+const S_IFLNK  = 0o120000;
+const S_IFREG  = 0o100000;
+const S_IFBLK  = 0o060000;
+const S_IFDIR  = 0o040000;
+const S_IFCHR  = 0o020000;
+const S_IFIFO  = 0o010000;
+
 /**
  * A representation of a directory entry, which can be a file or a subdirectory
  * within the directory, as returned by reading from an `fs.Dir`. The
@@ -64,15 +74,41 @@ export class Dirent implements OriginalDirent {
                 break;
             case Gio.FileType.SPECIAL:
                 // File is a "special" file, such as a socket, fifo, block device, or character device.
-                if (typeof (Gio as Record<string, unknown>).unix_is_system_device_path === 'function') {
-                    this._isBlockDevice = (Gio as Record<string, unknown> as { unix_is_system_device_path: (path: string) => boolean }).unix_is_system_device_path(path);
-                }
-                // TODO: this._isCharacterDevice =
-                // TODO: this._isSocket =
-                // TODO: this._isFifo =
+                // Use unix::mode from Gio.FileInfo to distinguish the exact type via POSIX S_IFMT bits.
+                this._classifySpecialFile(path);
                 break;
         }
 
+    }
+
+    /**
+     * Classify a SPECIAL file type using the unix::mode attribute from Gio.FileInfo.
+     * Falls back to marking nothing if the mode attribute is unavailable.
+     */
+    private _classifySpecialFile(path: string): void {
+        try {
+            const file = Gio.File.new_for_path(path);
+            const info = file.query_info('unix::mode', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+            const mode = info.get_attribute_uint32('unix::mode');
+            if (mode === 0) return;
+            const fmt = mode & S_IFMT;
+            switch (fmt) {
+                case S_IFBLK:
+                    this._isBlockDevice = true;
+                    break;
+                case S_IFCHR:
+                    this._isCharacterDevice = true;
+                    break;
+                case S_IFSOCK:
+                    this._isSocket = true;
+                    break;
+                case S_IFIFO:
+                    this._isFIFO = true;
+                    break;
+            }
+        } catch {
+            // If we can't query the mode (e.g. permission denied), leave all flags as false
+        }
     }
 
     /**

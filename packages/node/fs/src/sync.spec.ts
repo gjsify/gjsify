@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync, realpathSync, symlinkSync, statSync } from 'node:fs';
 import { Buffer } from 'node:buffer';
 import { tmpdir } from 'node:os';
 
@@ -224,6 +224,154 @@ export default async () => {
 			unlinkSync(link);
 			rmSync(target);
 			rmdirSync(dir);
+		});
+	});
+
+	await describe('fs.mkdirSync recursive', async () => {
+		await it('should return the first directory created when recursive is true', () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-mkdir-rec-'));
+			const nested = join(dir, 'a', 'b', 'c');
+			const result = mkdirSync(nested, { recursive: true });
+			// The first created directory should be 'a' (the top-level new dir)
+			expect(typeof result).toBe('string');
+			expect(result).toBe(join(dir, 'a'));
+			expect(existsSync(nested)).toBe(true);
+			rmSync(dir, { recursive: true });
+		});
+
+		await it('should return undefined when all directories already exist', () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-mkdir-rec-exist-'));
+			const result = mkdirSync(dir, { recursive: true });
+			expect(result).toBeUndefined();
+			rmdirSync(dir);
+		});
+
+		await it('should throw EEXIST when non-recursive and dir exists', () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-mkdir-exist-'));
+			let threw = false;
+			try {
+				mkdirSync(dir);
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('EEXIST');
+			}
+			expect(threw).toBe(true);
+			rmdirSync(dir);
+		});
+
+		await it('should throw ENOENT when non-recursive and parent missing', () => {
+			const dir = join(tmpdir(), 'fs-mkdir-noparent-' + Date.now(), 'child');
+			let threw = false;
+			try {
+				mkdirSync(dir);
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('ENOENT');
+			}
+			expect(threw).toBe(true);
+		});
+	});
+
+	await describe('fs.rmSync error handling', async () => {
+		await it('should throw when removing non-empty dir without recursive', () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-rmsync-notempty-'));
+			writeFileSync(join(dir, 'file.txt'), 'data');
+			let threw = false;
+			try {
+				rmSync(dir);
+			} catch (e: unknown) {
+				threw = true;
+				// Node.js throws ERR_FS_EISDIR, GJS throws ENOTEMPTY — both are correct
+				const code = (e as NodeJS.ErrnoException).code;
+				expect(code === 'ENOTEMPTY' || code === 'ERR_FS_EISDIR').toBe(true);
+			}
+			expect(threw).toBe(true);
+			rmSync(dir, { recursive: true });
+		});
+
+		await it('should not throw when force is true and path does not exist', () => {
+			const path = join(tmpdir(), 'fs-rmsync-force-nonexistent-' + Date.now());
+			let threw = false;
+			try {
+				rmSync(path, { force: true });
+			} catch {
+				threw = true;
+			}
+			expect(threw).toBe(false);
+		});
+
+		await it('should remove non-empty directory with recursive: true', () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-rmsync-rec-'));
+			mkdirSync(join(dir, 'sub'));
+			writeFileSync(join(dir, 'sub', 'file.txt'), 'data');
+			writeFileSync(join(dir, 'root.txt'), 'data');
+			rmSync(dir, { recursive: true });
+			expect(existsSync(dir)).toBe(false);
+		});
+	});
+
+	await describe('fs.Dirent type methods', async () => {
+		await it('should return false for isCharacterDevice, isSocket, isFIFO on regular file', () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-dirent-'));
+			const filePath = join(dir, 'test.txt');
+			writeFileSync(filePath, 'data');
+			const entries = readdirSync(dir, { withFileTypes: true });
+			const entry = entries[0];
+			expect(entry.isCharacterDevice()).toBe(false);
+			expect(entry.isSocket()).toBe(false);
+			expect(entry.isFIFO()).toBe(false);
+			expect(entry.isBlockDevice()).toBe(false);
+			expect(entry.isFile()).toBe(true);
+			rmSync(filePath);
+			rmdirSync(dir);
+		});
+
+		await it('should return false for isCharacterDevice, isSocket, isFIFO on directory', () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-dirent-dir-'));
+			const subdir = join(dir, 'sub');
+			mkdirSync(subdir);
+			const entries = readdirSync(dir, { withFileTypes: true });
+			const entry = entries[0];
+			expect(entry.isCharacterDevice()).toBe(false);
+			expect(entry.isSocket()).toBe(false);
+			expect(entry.isFIFO()).toBe(false);
+			expect(entry.isBlockDevice()).toBe(false);
+			expect(entry.isDirectory()).toBe(true);
+			rmdirSync(subdir);
+			rmdirSync(dir);
+		});
+
+		await it('statSync should detect isCharacterDevice for /dev/null', () => {
+			const s = statSync('/dev/null');
+			expect(s.isCharacterDevice()).toBe(true);
+			expect(s.isFile()).toBe(false);
+			expect(s.isDirectory()).toBe(false);
+			expect(s.isSocket()).toBe(false);
+			expect(s.isFIFO()).toBe(false);
+			expect(s.isBlockDevice()).toBe(false);
+		});
+	});
+
+	await describe('fs.FSWatcher ref/unref', async () => {
+		await it('ref() and unref() should return the watcher itself', () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-watcher-'));
+			const filePath = join(dir, 'watch.txt');
+			writeFileSync(filePath, 'data');
+			let watcher: ReturnType<typeof watch> | null = null;
+			try {
+				watcher = watch(filePath);
+				const refResult = watcher.ref();
+				expect(refResult).toBe(watcher);
+				const unrefResult = watcher.unref();
+				expect(unrefResult).toBe(watcher);
+			} catch (err: any) {
+				// EMFILE is a system-level issue, not a code bug
+				if (err?.code !== 'EMFILE') throw err;
+			} finally {
+				if (watcher) watcher.close();
+				rmSync(filePath);
+				rmdirSync(dir);
+			}
 		});
 	});
 }

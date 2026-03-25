@@ -62,7 +62,7 @@ export const cpus = () => {
   let cpu: CpuInfo;
 
   // Parse model and speed from /proc/cpuinfo
-  cli('cat /proc/cpuinfo').split(EOL).forEach(line => {
+  readTextFile('/proc/cpuinfo').split(EOL).forEach(line => {
     switch (true) {
       case PROCESSOR.test(line):
         result[RegExp.$1.trim() as unknown as number] = (cpu = {
@@ -81,7 +81,7 @@ export const cpus = () => {
 
   // Parse CPU times from /proc/stat (jiffies to ms: 1 jiffy = 10ms)
   try {
-    const statLines = cli('cat /proc/stat').split(EOL);
+    const statLines = readTextFile('/proc/stat').split(EOL);
     for (const line of statLines) {
       const m = /^cpu(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+(\d+)/.exec(line);
       if (m && result[parseInt(m[1], 10)]) {
@@ -118,7 +118,7 @@ export const freemem = () => {
 // PORTED TO deno runtime
 export const loadavg = () =>
   /(\d+(?:\.\d+))\s+(\d+(?:\.\d+))\s+(\d+(?:\.\d+))/.test(
-    cli('cat /proc/loadavg')
+    readTextFile('/proc/loadavg')
   ) && [
     parseFloat(RegExp.$1),
     parseFloat(RegExp.$2),
@@ -209,7 +209,7 @@ export const totalmem = () => {
 };
 
 export const uptime = () => {
-  const content = cli('cat /proc/uptime').trim();
+  const content = readTextFile('/proc/uptime').trim();
   return parseFloat(content.split(' ')[0]) || 0;
 };
 

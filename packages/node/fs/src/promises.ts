@@ -5,7 +5,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { join, dirname } from 'node:path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
-import { rmdirSync, unlinkSync, realpathSync, readdirSync as readdirSyncFn, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, linkSync } from './sync.js';
+import { realpathSync, readdirSync as readdirSyncFn, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, linkSync } from './sync.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath } from './utils.js';
 import { Dirent } from './dirent.js';
@@ -293,14 +293,62 @@ async function writeFile(path: string, data: string | Uint8Array | unknown) {
  * @since v10.0.0
  * @return Fulfills with `undefined` upon success.
  */
-async function rmdir(path: PathLike, options?: RmDirOptions): Promise<void> {
-  // TODO async
-  return rmdirSync(path, options);
+async function rmdir(path: PathLike, _options?: RmDirOptions): Promise<void> {
+  const file = Gio.File.new_for_path(path.toString());
+  // Check if it's a directory
+  const info = await new Promise<Gio.FileInfo>((resolve, reject) => {
+    file.query_info_async('standard::type', Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
+      try {
+        resolve(file.query_info_finish(res));
+      } catch (err: unknown) {
+        reject(createNodeError(err, 'rmdir', path));
+      }
+    });
+  });
+  if (info.get_file_type() !== Gio.FileType.DIRECTORY) {
+    const err = Object.assign(new Error(), { code: 4 }); // Gio.IOErrorEnum.NOT_DIRECTORY
+    throw createNodeError(err, 'rmdir', path);
+  }
+  // Check if empty
+  const children = await new Promise<Gio.FileEnumerator>((resolve, reject) => {
+    file.enumerate_children_async('standard::name', Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
+      try {
+        resolve(file.enumerate_children_finish(res));
+      } catch (err: unknown) {
+        reject(createNodeError(err, 'rmdir', path));
+      }
+    });
+  });
+  const firstChild = children.next_file(null);
+  if (firstChild !== null) {
+    const err = Object.assign(new Error(), { code: 5 }); // Gio.IOErrorEnum.NOT_EMPTY
+    throw createNodeError(err, 'rmdir', path);
+  }
+  // Delete the empty directory
+  await new Promise<void>((resolve, reject) => {
+    file.delete_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
+      try {
+        file.delete_finish(res);
+        resolve();
+      } catch (err: unknown) {
+        reject(createNodeError(err, 'rmdir', path));
+      }
+    });
+  });
 }
 
-async function unlink(path: string) {
-  // TODO async
-  return unlinkSync(path);
+async function unlink(path: string): Promise<void> {
+  const file = Gio.File.new_for_path(path);
+  await new Promise<void>((resolve, reject) => {
+    file.delete_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
+      try {
+        file.delete_finish(res);
+        resolve();
+      } catch (err: unknown) {
+        reject(createNodeError(err, 'unlink', path));
+      }
+    });
+  });
 }
 
 async function open(path: PathLike, flags?: OpenFlags, mode?: Mode): Promise<FileHandle> {
@@ -434,45 +482,45 @@ async function symlink(target: PathLike, path: PathLike, _type?: string): Promis
  * @return Fulfills with `undefined` upon success.
  */
 async function rm(path: PathLike, options?: RmOptions): Promise<void> {
-  const file = Gio.File.new_for_path(path.toString());
-
+  const pathStr = path.toString();
+  const file = Gio.File.new_for_path(pathStr);
   const recursive = options?.recursive || false;
+  const force = options?.force || false;
 
-  const dirent = new Dirent(path.toString());
+  let dirent: Dirent;
+  try {
+    dirent = new Dirent(pathStr);
+  } catch (err: unknown) {
+    if (force) return; // force: ignore non-existent paths
+    throw createNodeError(err, 'rm', path);
+  }
 
   if (dirent.isDirectory()) {
     const childFiles = await readdir(path, { withFileTypes: true });
 
     if (!recursive && childFiles.length) {
-      throw new Error('Dir is not empty!');
+      const err = Object.assign(new Error(), { code: 5 }); // Gio.IOErrorEnum.NOT_EMPTY
+      throw createNodeError(err, 'rm', path);
     }
 
     for (const childFile of childFiles) {
       if (typeof childFile !== 'string') {
-        await rm(join(path.toString(), childFile.name), options);
+        await rm(join(pathStr, childFile.name), options);
       }
     }
   }
 
-  const ok = await new Promise<boolean>((resolve, reject) => {
-    try {
-      file.delete_async(GLib.PRIORITY_DEFAULT, null, (self, res) => {
-        try {
-          resolve(file.delete_finish(res));
-        } catch (error) {
-          reject(error);
-        }
-      });
-    } catch (error) {
-      reject(error);
-    }
-
+  await new Promise<void>((resolve, reject) => {
+    file.delete_async(GLib.PRIORITY_DEFAULT, null, (_self: unknown, res: Gio.AsyncResult) => {
+      try {
+        file.delete_finish(res);
+        resolve();
+      } catch (err: unknown) {
+        if (force) { resolve(); return; }
+        reject(createNodeError(err, 'rm', path));
+      }
+    });
   });
-
-  if (!ok) {
-    const err = new Error('failed to remove file ' + path);
-    throw err;
-  }
 }
 
 // --- rename ---

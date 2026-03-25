@@ -211,16 +211,58 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
     throw new TypeError("mode as string is currently not supported!");
   }
 
-  if (GLib.mkdir_with_parents(path, mode) !== 0) {
-    // TODO: throw a better error
-    throw new Error(`failed to make ${path} directory`);
+  if (recursive) {
+    return mkdirSyncRecursive(path, mode as number);
   }
 
-  if (recursive) {
-    // TODO: Returns `undefined`, or if `recursive` is`true`, the first directory path created.
-    return path.split('/')[0];
+  // Non-recursive: create a single directory
+  const file = Gio.File.new_for_path(path);
+  try {
+    file.make_directory(null);
+  } catch (err: unknown) {
+    throw createNodeError(err, 'mkdir', path);
   }
   return undefined;
+}
+
+/**
+ * Recursively creates directories, similar to `mkdir -p`.
+ * Returns the first directory path created, or undefined if all directories already existed.
+ */
+function mkdirSyncRecursive(pathStr: string, mode: number): string | undefined {
+  const file = Gio.File.new_for_path(pathStr);
+
+  // Try to create the directory directly
+  try {
+    file.make_directory(null);
+    // This directory was created successfully — it's a candidate for "first created"
+    return pathStr;
+  } catch (err: unknown) {
+    const gErr = err as { code?: number };
+    // If it already exists, nothing to create
+    if (gErr.code === Gio.IOErrorEnum.EXISTS) {
+      return undefined;
+    }
+    // If parent doesn't exist, create parent first then retry
+    if (gErr.code === Gio.IOErrorEnum.NOT_FOUND) {
+      const parentPath = join(pathStr, '..');
+      const resolvedParent = Gio.File.new_for_path(parentPath).get_path()!;
+      if (resolvedParent === pathStr) {
+        // Reached root, cannot go further
+        throw createNodeError(err, 'mkdir', pathStr);
+      }
+      const firstCreated = mkdirSyncRecursive(resolvedParent, mode);
+      // Now create this directory
+      const retryFile = Gio.File.new_for_path(pathStr);
+      try {
+        retryFile.make_directory(null);
+      } catch (retryErr: unknown) {
+        throw createNodeError(retryErr, 'mkdir', pathStr);
+      }
+      return firstCreated ?? pathStr;
+    }
+    throw createNodeError(err, 'mkdir', pathStr);
+  }
 }
 
 /**
@@ -465,30 +507,38 @@ export function mkdtempSync(prefix: string, options?: EncodingOption | BufferEnc
  * @since v14.14.0
  */
 export function rmSync(path: PathLike, options?: RmOptions): void {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = path.toString();
+  const file = Gio.File.new_for_path(pathStr);
   const recursive = options?.recursive || false;
+  const force = options?.force || false;
 
-  const dirent = new Dirent(path.toString());
+  let dirent: Dirent;
+  try {
+    dirent = new Dirent(pathStr);
+  } catch (err: unknown) {
+    if (force && isNotFoundError(err)) return;
+    throw createNodeError(err, 'rm', path);
+  }
 
   if (dirent.isDirectory()) {
     const childFiles = readdirSync(path, { withFileTypes: true });
 
     if (!recursive && childFiles.length) {
-      throw new Error('Dir is not empty!');
+      const err = Object.assign(new Error(), { code: 5 }); // Gio.IOErrorEnum.NOT_EMPTY
+      throw createNodeError(err, 'rm', path);
     }
-  
+
     for (const childFile of childFiles) {
       if (typeof childFile !== 'string') {
-        rmSync(join(path.toString(), childFile.name), options);
+        rmSync(join(pathStr, childFile.name), options);
       }
     }
   }
 
-  const ok = file.delete(null);
-
-  if (!ok) {
-    // TODO: throw a better error
-    const err = new Error('failed to remove file ' + path);
-    throw err;
+  try {
+    file.delete(null);
+  } catch (err: unknown) {
+    if (force && isNotFoundError(err)) return;
+    throw createNodeError(err, 'rm', path);
   }
 }

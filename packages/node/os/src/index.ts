@@ -1,7 +1,7 @@
 // Reference: Node.js lib/os.js
 // Reimplemented for GJS using GLib (get_home_dir, get_host_name, etc.)
 
-import { cli, getPathSeparator, getOs } from '@gjsify/utils';
+import { cli, getPathSeparator, getOs, getPid } from '@gjsify/utils';
 
 export { constants }
 
@@ -44,6 +44,8 @@ export const version = () => cli('uname -v').trim();
 export const uptime = () => {
   const _os = getOs();
   switch (_os) {
+    case "darwin":
+      return darwin.uptime();
     case "linux":
       return linux.uptime();
     default:
@@ -55,7 +57,7 @@ export const totalmem = () => {
   const _os = getOs();
   switch (_os) {
     case "darwin":
-      return 0; // TODO: implement for darwin
+      return darwin.totalmem();
     case "linux":
       return linux.totalmem();
     default:
@@ -154,5 +156,54 @@ export const networkInterfaces = () => {
     default:
       console.warn(`${_os} is not supported!`);
       break;
+  }
+};
+
+/**
+ * Get process scheduling priority.
+ * Uses `ps -o ni=` to read the nice value for a given process.
+ * pid 0 (or omitted) means the current process.
+ */
+export const getPriority = (pid?: number): number => {
+  const targetPid = (pid === undefined || pid === 0) ? getPid() : pid;
+  try {
+    const nice = cli(`ps -o ni= -p ${targetPid}`).trim();
+    const val = parseInt(nice, 10);
+    if (!isNaN(val)) return val;
+  } catch {
+    // fallback
+  }
+  return 0;
+};
+
+/**
+ * Set process scheduling priority.
+ * Uses `renice` command. Requires appropriate permissions for other processes.
+ */
+export const setPriority = (pidOrPriority: number, priority?: number): void => {
+  let pid: number;
+  let prio: number;
+  if (priority === undefined) {
+    prio = pidOrPriority;
+    pid = 0;
+  } else {
+    pid = pidOrPriority;
+    prio = priority;
+  }
+
+  if (typeof pid !== 'number' || !Number.isInteger(pid)) {
+    throw new TypeError('The "pid" argument must be an integer');
+  }
+  if (typeof prio !== 'number' || !Number.isInteger(prio) || prio < -20 || prio > 19) {
+    throw new RangeError('The "priority" argument must be an integer between -20 and 19');
+  }
+
+  try {
+    const actualPid = pid === 0 ? getPid() : pid;
+    cli(`renice -n ${prio} -p ${actualPid}`);
+  } catch (err) {
+    const error = new Error(`A system error occurred: priority could not be set`);
+    (error as any).code = 'ERR_SYSTEM_ERROR';
+    throw error;
   }
 };
