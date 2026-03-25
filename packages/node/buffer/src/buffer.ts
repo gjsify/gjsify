@@ -435,7 +435,8 @@ export class Buffer extends Uint8Array {
 
   lastIndexOf(value: number | string | Uint8Array | Buffer, byteOffset?: number, encoding?: string): number {
     if (typeof value === 'number') {
-      return super.lastIndexOf(value & 0xff, byteOffset);
+      // SpiderMonkey treats undefined fromIndex as 0, not array end
+      return byteOffset !== undefined ? super.lastIndexOf(value & 0xff, byteOffset) : super.lastIndexOf(value & 0xff);
     }
     const needle = typeof value === 'string' ? encodeString(value, normalizeEncoding(encoding)) : value;
     const start = byteOffset !== undefined ? Math.min(byteOffset, this.length - needle.length) : this.length - needle.length;
