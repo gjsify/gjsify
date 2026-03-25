@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises';
+import { readFile } from 'fs/promises';
 import * as DkType from '@deepkit/type-compiler';
-import { inspect } from 'node:util';
+import { inspect } from 'util';
 import { Utf8ArrayToStr } from './utils.js';
 
 import type { Plugin, OnLoadArgs, OnLoadResult, OnLoadOptions } from 'esbuild';

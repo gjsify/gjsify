@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import { realpath } from "node:fs/promises";
+import { existsSync } from "fs";
+import { realpath } from "fs/promises";
 
 import type { Plugin } from "esbuild";
 
