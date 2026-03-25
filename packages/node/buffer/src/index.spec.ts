@@ -415,4 +415,725 @@ export default async () => {
 			expect(Buffer.from('hello').includes('xyz')).toBeFalsy();
 		});
 	});
+
+	// =========================================================================
+	// New tests below — ported from refs/node/test/parallel/test-buffer-*.js
+	// and refs/node-test/parallel/test-buffer-*.js
+	// Original: MIT license, Node.js contributors
+	// =========================================================================
+
+	await describe('Buffer.from with various string encodings', async () => {
+		await it('should create buffer from latin1 string', async () => {
+			const buf = Buffer.from('\xe4\xf6\xfc', 'latin1');
+			expect(buf.length).toBe(3);
+			expect(buf[0]).toBe(0xe4);
+			expect(buf[1]).toBe(0xf6);
+			expect(buf[2]).toBe(0xfc);
+		});
+
+		await it('should create buffer from binary string (alias for latin1)', async () => {
+			const buf = Buffer.from('\xe4\xf6\xfc', 'binary');
+			expect(buf.length).toBe(3);
+			expect(buf[0]).toBe(0xe4);
+			expect(buf[1]).toBe(0xf6);
+			expect(buf[2]).toBe(0xfc);
+		});
+
+		await it('should create buffer from ascii string', async () => {
+			const buf = Buffer.from('hello', 'ascii');
+			expect(buf.length).toBe(5);
+			expect(buf.toString('ascii')).toBe('hello');
+		});
+
+		await it('should create buffer from utf16le string', async () => {
+			const buf = Buffer.from('AB', 'utf16le');
+			expect(buf.length).toBe(4);
+			// 'A' = 0x41, 'B' = 0x42 in LE: [0x41, 0x00, 0x42, 0x00]
+			expect(buf[0]).toBe(0x41);
+			expect(buf[1]).toBe(0x00);
+			expect(buf[2]).toBe(0x42);
+			expect(buf[3]).toBe(0x00);
+		});
+
+		await it('should create buffer from empty string', async () => {
+			const buf = Buffer.from('');
+			expect(buf.length).toBe(0);
+		});
+
+		await it('should create buffer from base64url string', async () => {
+			// base64url uses - and _ instead of + and /
+			const buf = Buffer.from('SGVsbG8', 'base64url');
+			expect(buf.toString()).toBe('Hello');
+		});
+	});
+
+	await describe('Buffer.from Uint8Array', async () => {
+		await it('should create buffer from Uint8Array', async () => {
+			const u8 = new Uint8Array([1, 2, 3, 4]);
+			const buf = Buffer.from(u8);
+			expect(buf.length).toBe(4);
+			expect(buf[0]).toBe(1);
+			expect(buf[1]).toBe(2);
+			expect(buf[2]).toBe(3);
+			expect(buf[3]).toBe(4);
+		});
+
+		await it('should not share memory with source Uint8Array', async () => {
+			const u8 = new Uint8Array([10, 20, 30]);
+			const buf = Buffer.from(u8);
+			u8[0] = 99;
+			expect(buf[0]).toBe(10); // should not have changed
+		});
+	});
+
+	await describe('Buffer.from ArrayBuffer with offset and length', async () => {
+		await it('should create buffer from ArrayBuffer with byteOffset', async () => {
+			const ab = new ArrayBuffer(8);
+			const view = new Uint8Array(ab);
+			for (let i = 0; i < 8; i++) view[i] = i + 1;
+			const buf = Buffer.from(ab, 2, 4);
+			expect(buf.length).toBe(4);
+			expect(buf[0]).toBe(3);
+			expect(buf[1]).toBe(4);
+			expect(buf[2]).toBe(5);
+			expect(buf[3]).toBe(6);
+		});
+
+		await it('should share memory with source ArrayBuffer', async () => {
+			const ab = new ArrayBuffer(4);
+			const view = new Uint8Array(ab);
+			view[0] = 1; view[1] = 2; view[2] = 3; view[3] = 4;
+			const buf = Buffer.from(ab);
+			view[0] = 99;
+			expect(buf[0]).toBe(99); // shares memory
+		});
+	});
+
+	await describe('Buffer.allocUnsafe various sizes', async () => {
+		await it('should return correct size for larger allocations', async () => {
+			const buf = Buffer.allocUnsafe(256);
+			expect(buf.length).toBe(256);
+		});
+
+		await it('should throw on non-number size', async () => {
+			expect(() => {
+				// @ts-expect-error
+				Buffer.allocUnsafe('5');
+			}).toThrow(TypeError);
+		});
+	});
+
+	await describe('Buffer.alloc with fill parameter', async () => {
+		await it('should fill with byte value 0xff', async () => {
+			const buf = Buffer.alloc(4, 0xff);
+			expect(buf[0]).toBe(255);
+			expect(buf[1]).toBe(255);
+			expect(buf[2]).toBe(255);
+			expect(buf[3]).toBe(255);
+		});
+
+		await it('should fill with multi-character string repeating', async () => {
+			const buf = Buffer.alloc(6, 'ab');
+			expect(buf.toString()).toBe('ababab');
+		});
+
+		await it('should fill with Buffer repeating', async () => {
+			const fill = Buffer.from([0xaa, 0xbb]);
+			const buf = Buffer.alloc(5, fill);
+			expect(buf[0]).toBe(0xaa);
+			expect(buf[1]).toBe(0xbb);
+			expect(buf[2]).toBe(0xaa);
+			expect(buf[3]).toBe(0xbb);
+			expect(buf[4]).toBe(0xaa);
+		});
+	});
+
+	await describe('Buffer.compare static method edge cases', async () => {
+		await it('should return 0 for two empty buffers', async () => {
+			expect(Buffer.compare(Buffer.alloc(0), Buffer.alloc(0))).toBe(0);
+		});
+
+		await it('should compare buffers of different lengths', async () => {
+			const a = Buffer.from('abc');
+			const b = Buffer.from('abcd');
+			expect(Buffer.compare(a, b) < 0).toBeTruthy();
+			expect(Buffer.compare(b, a) > 0).toBeTruthy();
+		});
+
+		await it('should return -1 or 1 not just negative/positive', async () => {
+			const a = Buffer.from([1]);
+			const b = Buffer.from([2]);
+			expect(Buffer.compare(a, b)).toBe(-1);
+			expect(Buffer.compare(b, a)).toBe(1);
+		});
+	});
+
+	await describe('Buffer.concat additional edge cases', async () => {
+		await it('should handle three buffers', async () => {
+			const a = Buffer.from('hello');
+			const b = Buffer.from(' ');
+			const c = Buffer.from('world');
+			const result = Buffer.concat([a, b, c]);
+			expect(result.toString()).toBe('hello world');
+			expect(result.length).toBe(11);
+		});
+
+		await it('should truncate with smaller totalLength', async () => {
+			const a = Buffer.from('hello');
+			const b = Buffer.from('world');
+			const result = Buffer.concat([a, b], 5);
+			expect(result.toString()).toBe('hello');
+		});
+
+		await it('should zero-pad with larger totalLength', async () => {
+			const a = Buffer.from([1, 2]);
+			const result = Buffer.concat([a], 5);
+			expect(result.length).toBe(5);
+			expect(result[0]).toBe(1);
+			expect(result[1]).toBe(2);
+			expect(result[2]).toBe(0);
+			expect(result[3]).toBe(0);
+			expect(result[4]).toBe(0);
+		});
+	});
+
+	await describe('Buffer.isBuffer additional checks', async () => {
+		await it('should return false for null and undefined', async () => {
+			expect(Buffer.isBuffer(null)).toBeFalsy();
+			expect(Buffer.isBuffer(undefined)).toBeFalsy();
+		});
+
+		await it('should return false for numbers and strings', async () => {
+			expect(Buffer.isBuffer(42)).toBeFalsy();
+			expect(Buffer.isBuffer('hello')).toBeFalsy();
+		});
+
+		await it('should return true for Buffer.alloc result', async () => {
+			expect(Buffer.isBuffer(Buffer.alloc(0))).toBeTruthy();
+		});
+
+		await it('should return true for Buffer.allocUnsafe result', async () => {
+			expect(Buffer.isBuffer(Buffer.allocUnsafe(5))).toBeTruthy();
+		});
+	});
+
+	await describe('Buffer.isEncoding additional checks', async () => {
+		await it('should return true for base64url', async () => {
+			expect(Buffer.isEncoding('base64url')).toBeTruthy();
+		});
+
+		await it('should return false for empty string', async () => {
+			expect(Buffer.isEncoding('')).toBeFalsy();
+		});
+
+		await it('should return false for non-string values', async () => {
+			expect(Buffer.isEncoding(null as any)).toBeFalsy();
+			expect(Buffer.isEncoding(undefined as any)).toBeFalsy();
+			expect(Buffer.isEncoding(42 as any)).toBeFalsy();
+		});
+	});
+
+	await describe('Buffer.byteLength with different encodings', async () => {
+		await it('should return correct byte length for hex encoding', async () => {
+			expect(Buffer.byteLength('deadbeef', 'hex')).toBe(4);
+			expect(Buffer.byteLength('ff', 'hex')).toBe(1);
+			expect(Buffer.byteLength('', 'hex')).toBe(0);
+		});
+
+		await it('should return correct byte length for utf16le', async () => {
+			expect(Buffer.byteLength('hello', 'utf16le')).toBe(10);
+		});
+
+		await it('should return correct byte length for Buffer argument', async () => {
+			const buf = Buffer.from('hello');
+			expect(Buffer.byteLength(buf)).toBe(5);
+		});
+
+		await it('should return correct byte length for ArrayBuffer argument', async () => {
+			const ab = new ArrayBuffer(16);
+			expect(Buffer.byteLength(ab)).toBe(16);
+		});
+	});
+
+	await describe('Buffer.fill instance method', async () => {
+		await it('should fill entire buffer with a byte value', async () => {
+			const buf = Buffer.alloc(4);
+			buf.fill(0xab);
+			expect(buf[0]).toBe(0xab);
+			expect(buf[1]).toBe(0xab);
+			expect(buf[2]).toBe(0xab);
+			expect(buf[3]).toBe(0xab);
+		});
+
+		await it('should fill with string', async () => {
+			const buf = Buffer.alloc(5);
+			buf.fill('x');
+			expect(buf.toString()).toBe('xxxxx');
+		});
+
+		await it('should fill partial range with offset and end', async () => {
+			const buf = Buffer.alloc(6, 0);
+			buf.fill(0xff, 2, 4);
+			expect(buf[0]).toBe(0);
+			expect(buf[1]).toBe(0);
+			expect(buf[2]).toBe(0xff);
+			expect(buf[3]).toBe(0xff);
+			expect(buf[4]).toBe(0);
+			expect(buf[5]).toBe(0);
+		});
+
+		await it('should return the buffer for chaining', async () => {
+			const buf = Buffer.alloc(3);
+			const result = buf.fill(1);
+			expect(result[0]).toBe(1);
+		});
+	});
+
+	await describe('Buffer.indexOf additional cases', async () => {
+		await it('should find string with byteOffset', async () => {
+			const buf = Buffer.from('abcabc');
+			expect(buf.indexOf('abc', 1)).toBe(3);
+		});
+
+		await it('should find Buffer value', async () => {
+			const buf = Buffer.from('hello world');
+			const search = Buffer.from('world');
+			expect(buf.indexOf(search)).toBe(6);
+		});
+
+		await it('should return -1 for byte not in buffer', async () => {
+			const buf = Buffer.from([1, 2, 3]);
+			expect(buf.indexOf(4)).toBe(-1);
+		});
+	});
+
+	await describe('Buffer.includes additional cases', async () => {
+		await it('should return true for byte value', async () => {
+			const buf = Buffer.from([1, 2, 3, 4, 5]);
+			expect(buf.includes(3)).toBeTruthy();
+		});
+
+		await it('should return false for byte value not in buffer', async () => {
+			const buf = Buffer.from([1, 2, 3]);
+			expect(buf.includes(99)).toBeFalsy();
+		});
+
+		await it('should respect byteOffset parameter', async () => {
+			const buf = Buffer.from('abcabc');
+			expect(buf.includes('abc', 1)).toBeTruthy();
+			expect(buf.includes('abc', 4)).toBeFalsy();
+		});
+	});
+
+	await describe('Buffer.lastIndexOf', async () => {
+		await it('should find last occurrence of a byte', async () => {
+			const buf = Buffer.from([1, 2, 3, 1, 2, 3]);
+			expect(buf.lastIndexOf(1)).toBe(3);
+		});
+
+		await it('should find last occurrence of a string', async () => {
+			const buf = Buffer.from('abcabc');
+			expect(buf.lastIndexOf('abc')).toBe(3);
+		});
+
+		await it('should return -1 if not found', async () => {
+			const buf = Buffer.from('hello');
+			expect(buf.lastIndexOf('xyz')).toBe(-1);
+		});
+
+		await it('should respect byteOffset', async () => {
+			const buf = Buffer.from('abcabc');
+			expect(buf.lastIndexOf('abc', 2)).toBe(0);
+		});
+	});
+
+	await describe('Buffer.slice and Buffer.subarray', async () => {
+		await it('slice should share memory with original buffer', async () => {
+			const buf = Buffer.from([1, 2, 3, 4, 5]);
+			const sliced = buf.slice(1, 4);
+			expect(sliced.length).toBe(3);
+			expect(sliced[0]).toBe(2);
+			expect(sliced[1]).toBe(3);
+			expect(sliced[2]).toBe(4);
+			sliced[0] = 99;
+			expect(buf[1]).toBe(99); // shared memory
+		});
+
+		await it('subarray should share memory with original buffer', async () => {
+			const buf = Buffer.from([10, 20, 30, 40, 50]);
+			const sub = buf.subarray(2, 4);
+			expect(sub.length).toBe(2);
+			expect(sub[0]).toBe(30);
+			expect(sub[1]).toBe(40);
+			sub[0] = 99;
+			expect(buf[2]).toBe(99); // shared memory
+		});
+
+		await it('slice with negative indices', async () => {
+			const buf = Buffer.from([1, 2, 3, 4, 5]);
+			const sliced = buf.slice(-2);
+			expect(sliced.length).toBe(2);
+			expect(sliced[0]).toBe(4);
+			expect(sliced[1]).toBe(5);
+		});
+
+		await it('subarray with no arguments returns full view', async () => {
+			const buf = Buffer.from([1, 2, 3]);
+			const sub = buf.subarray();
+			expect(sub.length).toBe(3);
+			expect(sub[0]).toBe(1);
+		});
+	});
+
+	await describe('Buffer.copy additional cases', async () => {
+		await it('should copy partial source', async () => {
+			const src = Buffer.from([1, 2, 3, 4, 5]);
+			const dst = Buffer.alloc(3);
+			src.copy(dst, 0, 1, 4);
+			expect(dst[0]).toBe(2);
+			expect(dst[1]).toBe(3);
+			expect(dst[2]).toBe(4);
+		});
+
+		await it('should return number of bytes copied', async () => {
+			const src = Buffer.from([1, 2, 3]);
+			const dst = Buffer.alloc(5);
+			const copied = src.copy(dst);
+			expect(copied).toBe(3);
+		});
+
+		await it('should not overwrite beyond target', async () => {
+			const src = Buffer.from([1, 2, 3, 4, 5]);
+			const dst = Buffer.alloc(3);
+			const copied = src.copy(dst);
+			expect(copied).toBe(3);
+			expect(dst[0]).toBe(1);
+			expect(dst[1]).toBe(2);
+			expect(dst[2]).toBe(3);
+		});
+	});
+
+	await describe('Buffer.write with encoding', async () => {
+		await it('should write utf8 string', async () => {
+			const buf = Buffer.alloc(10);
+			const bytesWritten = buf.write('hello');
+			expect(bytesWritten).toBe(5);
+			expect(buf.toString('utf8', 0, 5)).toBe('hello');
+		});
+
+		await it('should write hex string', async () => {
+			const buf = Buffer.alloc(4);
+			buf.write('deadbeef', 0, 4, 'hex');
+			expect(buf[0]).toBe(0xde);
+			expect(buf[1]).toBe(0xad);
+			expect(buf[2]).toBe(0xbe);
+			expect(buf[3]).toBe(0xef);
+		});
+
+		await it('should write at offset', async () => {
+			const buf = Buffer.alloc(10);
+			buf.write('AB', 3);
+			expect(buf[3]).toBe(65); // 'A'
+			expect(buf[4]).toBe(66); // 'B'
+		});
+
+		await it('should truncate if string exceeds remaining space', async () => {
+			const buf = Buffer.alloc(3);
+			const written = buf.write('hello');
+			expect(written).toBe(3);
+			expect(buf.toString('utf8', 0, 3)).toBe('hel');
+		});
+	});
+
+	await describe('Buffer.toString with encoding', async () => {
+		await it('should decode as ascii', async () => {
+			const buf = Buffer.from([72, 101, 108, 108, 111]);
+			expect(buf.toString('ascii')).toBe('Hello');
+		});
+
+		await it('should decode as latin1', async () => {
+			const buf = Buffer.from([0xe4, 0xf6, 0xfc]);
+			expect(buf.toString('latin1')).toBe('\xe4\xf6\xfc');
+		});
+
+		await it('should decode as utf16le', async () => {
+			const buf = Buffer.from([0x41, 0x00, 0x42, 0x00]);
+			expect(buf.toString('utf16le')).toBe('AB');
+		});
+
+		await it('should decode substring with start and end', async () => {
+			const buf = Buffer.from('hello world');
+			expect(buf.toString('utf8', 6, 11)).toBe('world');
+		});
+
+		await it('should decode as base64url', async () => {
+			const buf = Buffer.from('Hello');
+			const result = buf.toString('base64url');
+			// base64url should not contain + / or =
+			expect(result.indexOf('+')).toBe(-1);
+			expect(result.indexOf('/')).toBe(-1);
+			expect(result.indexOf('=')).toBe(-1);
+		});
+	});
+
+	await describe('Buffer.readInt8 and Buffer.writeInt8', async () => {
+		await it('should read positive int8', async () => {
+			const buf = Buffer.from([0x7f]);
+			expect(buf.readInt8(0)).toBe(127);
+		});
+
+		await it('should read negative int8', async () => {
+			const buf = Buffer.from([0x80]);
+			expect(buf.readInt8(0)).toBe(-128);
+		});
+
+		await it('should read -1 from 0xff', async () => {
+			const buf = Buffer.from([0xff]);
+			expect(buf.readInt8(0)).toBe(-1);
+		});
+
+		await it('should write positive int8', async () => {
+			const buf = Buffer.alloc(1);
+			buf.writeInt8(127, 0);
+			expect(buf[0]).toBe(0x7f);
+		});
+
+		await it('should write negative int8', async () => {
+			const buf = Buffer.alloc(1);
+			buf.writeInt8(-128, 0);
+			expect(buf[0]).toBe(0x80);
+		});
+
+		await it('writeInt8 should return offset + 1', async () => {
+			const buf = Buffer.alloc(2);
+			expect(buf.writeInt8(0, 0)).toBe(1);
+		});
+	});
+
+	await describe('Buffer.writeUInt8 and readUInt8 round-trip', async () => {
+		await it('should round-trip values 0-255', async () => {
+			const buf = Buffer.alloc(1);
+			for (const val of [0, 1, 127, 128, 255]) {
+				buf.writeUInt8(val, 0);
+				expect(buf.readUInt8(0)).toBe(val);
+			}
+		});
+
+		await it('writeUInt8 should return offset + 1', async () => {
+			const buf = Buffer.alloc(2);
+			expect(buf.writeUInt8(42, 0)).toBe(1);
+			expect(buf.writeUInt8(43, 1)).toBe(2);
+		});
+	});
+
+	await describe('Buffer.readUInt16BE/LE and writeUInt16BE/LE round-trip', async () => {
+		await it('should round-trip UInt16BE', async () => {
+			const buf = Buffer.alloc(2);
+			buf.writeUInt16BE(0x1234, 0);
+			expect(buf.readUInt16BE(0)).toBe(0x1234);
+		});
+
+		await it('should round-trip UInt16LE', async () => {
+			const buf = Buffer.alloc(2);
+			buf.writeUInt16LE(0x1234, 0);
+			expect(buf.readUInt16LE(0)).toBe(0x1234);
+		});
+
+		await it('should correctly byte-order UInt16BE', async () => {
+			const buf = Buffer.alloc(2);
+			buf.writeUInt16BE(0xABCD, 0);
+			expect(buf[0]).toBe(0xAB);
+			expect(buf[1]).toBe(0xCD);
+		});
+
+		await it('should correctly byte-order UInt16LE', async () => {
+			const buf = Buffer.alloc(2);
+			buf.writeUInt16LE(0xABCD, 0);
+			expect(buf[0]).toBe(0xCD);
+			expect(buf[1]).toBe(0xAB);
+		});
+	});
+
+	await describe('Buffer.swap16', async () => {
+		await it('should swap bytes in 16-bit groups', async () => {
+			const buf = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+			buf.swap16();
+			expect(buf[0]).toBe(0x02);
+			expect(buf[1]).toBe(0x01);
+			expect(buf[2]).toBe(0x04);
+			expect(buf[3]).toBe(0x03);
+		});
+
+		await it('should throw if buffer length is not a multiple of 2', async () => {
+			const buf = Buffer.from([0x01, 0x02, 0x03]);
+			expect(() => buf.swap16()).toThrow(RangeError);
+		});
+
+		await it('should return this for chaining', async () => {
+			const buf = Buffer.from([0x01, 0x02]);
+			const result = buf.swap16();
+			expect(result[0]).toBe(0x02);
+		});
+	});
+
+	await describe('Buffer.swap32', async () => {
+		await it('should swap bytes in 32-bit groups', async () => {
+			const buf = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+			buf.swap32();
+			expect(buf[0]).toBe(0x04);
+			expect(buf[1]).toBe(0x03);
+			expect(buf[2]).toBe(0x02);
+			expect(buf[3]).toBe(0x01);
+		});
+
+		await it('should throw if buffer length is not a multiple of 4', async () => {
+			const buf = Buffer.from([0x01, 0x02, 0x03]);
+			expect(() => buf.swap32()).toThrow(RangeError);
+		});
+	});
+
+	await describe('Buffer.swap64', async () => {
+		await it('should swap bytes in 64-bit groups', async () => {
+			const buf = Buffer.from([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+			buf.swap64();
+			expect(buf[0]).toBe(0x08);
+			expect(buf[1]).toBe(0x07);
+			expect(buf[2]).toBe(0x06);
+			expect(buf[3]).toBe(0x05);
+			expect(buf[4]).toBe(0x04);
+			expect(buf[5]).toBe(0x03);
+			expect(buf[6]).toBe(0x02);
+			expect(buf[7]).toBe(0x01);
+		});
+
+		await it('should throw if buffer length is not a multiple of 8', async () => {
+			const buf = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+			expect(() => buf.swap64()).toThrow(RangeError);
+		});
+	});
+
+	await describe('Buffer.equals additional cases', async () => {
+		await it('should return true for two empty buffers', async () => {
+			expect(Buffer.alloc(0).equals(Buffer.alloc(0))).toBeTruthy();
+		});
+
+		await it('should return false for buffers of different length', async () => {
+			expect(Buffer.from('abc').equals(Buffer.from('ab'))).toBeFalsy();
+		});
+
+		await it('should return true for buffers from same data', async () => {
+			const data = [0, 1, 127, 128, 255];
+			expect(Buffer.from(data).equals(Buffer.from(data))).toBeTruthy();
+		});
+	});
+
+	await describe('Buffer instance compare method', async () => {
+		await it('should compare to another buffer', async () => {
+			const a = Buffer.from('abc');
+			const b = Buffer.from('abc');
+			expect(a.compare(b)).toBe(0);
+		});
+
+		await it('should compare with target range', async () => {
+			const a = Buffer.from('bc');
+			const b = Buffer.from('abcd');
+			// compare a against b[1..3] which is 'bc'
+			expect(a.compare(b, 1, 3)).toBe(0);
+		});
+
+		await it('should compare with source range', async () => {
+			const a = Buffer.from('abcd');
+			const b = Buffer.from('bc');
+			// compare a[1..3] against b which is 'bc'
+			expect(a.compare(b, 0, 2, 1, 3)).toBe(0);
+		});
+	});
+
+	await describe('Buffer.toJSON additional', async () => {
+		await it('should serialize empty buffer', async () => {
+			const json = JSON.parse(JSON.stringify(Buffer.alloc(0)));
+			expect(json.type).toBe('Buffer');
+			expect(json.data.length).toBe(0);
+		});
+
+		await it('should serialize single byte buffer', async () => {
+			const json = JSON.parse(JSON.stringify(Buffer.from([42])));
+			expect(json.data.length).toBe(1);
+			expect(json.data[0]).toBe(42);
+		});
+	});
+
+	await describe('Buffer.readInt32BE/LE', async () => {
+		await it('should read positive int32', async () => {
+			const buf = Buffer.alloc(4);
+			buf.writeInt32BE(12345, 0);
+			expect(buf.readInt32BE(0)).toBe(12345);
+		});
+
+		await it('should read negative int32', async () => {
+			const buf = Buffer.alloc(4);
+			buf.writeInt32BE(-1, 0);
+			expect(buf.readInt32BE(0)).toBe(-1);
+		});
+
+		await it('should round-trip Int32LE', async () => {
+			const buf = Buffer.alloc(4);
+			buf.writeInt32LE(-123456, 0);
+			expect(buf.readInt32LE(0)).toBe(-123456);
+		});
+	});
+
+	await describe('Buffer.readFloatBE/LE', async () => {
+		await it('should round-trip float BE', async () => {
+			const buf = Buffer.alloc(4);
+			buf.writeFloatBE(3.14, 0);
+			const result = buf.readFloatBE(0);
+			// Float has limited precision
+			expect(Math.abs(result - 3.14) < 0.001).toBeTruthy();
+		});
+
+		await it('should round-trip float LE', async () => {
+			const buf = Buffer.alloc(4);
+			buf.writeFloatLE(2.718, 0);
+			const result = buf.readFloatLE(0);
+			expect(Math.abs(result - 2.718) < 0.001).toBeTruthy();
+		});
+	});
+
+	await describe('Buffer.readDoubleBE/LE', async () => {
+		await it('should round-trip double BE', async () => {
+			const buf = Buffer.alloc(8);
+			buf.writeDoubleBE(Math.PI, 0);
+			expect(buf.readDoubleBE(0)).toBe(Math.PI);
+		});
+
+		await it('should round-trip double LE', async () => {
+			const buf = Buffer.alloc(8);
+			buf.writeDoubleLE(Math.E, 0);
+			expect(buf.readDoubleLE(0)).toBe(Math.E);
+		});
+	});
+
+	await describe('Buffer offset out of range', async () => {
+		await it('readUInt8 should throw on out-of-range offset', async () => {
+			const buf = Buffer.alloc(1);
+			expect(() => buf.readUInt8(1)).toThrow(RangeError);
+		});
+
+		await it('readUInt16BE should throw on out-of-range offset', async () => {
+			const buf = Buffer.alloc(1);
+			expect(() => buf.readUInt16BE(0)).toThrow(RangeError);
+		});
+
+		await it('readUInt32BE should throw on out-of-range offset', async () => {
+			const buf = Buffer.alloc(2);
+			expect(() => buf.readUInt32BE(0)).toThrow(RangeError);
+		});
+	});
+
+	await describe('Buffer.poolSize', async () => {
+		await it('should have default poolSize of 8192', async () => {
+			expect(Buffer.poolSize).toBe(8192);
+		});
+	});
 }
