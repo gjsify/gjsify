@@ -1,3 +1,5 @@
+// HTMLImageElement for GJS — original implementation using GdkPixbuf
+
 import { notImplemented, warnNotImplemented } from '@gjsify/utils';
 import GLib from '@girs/glib-2.0';
 import GdkPixbuf from '@girs/gdkpixbuf-2.0';

@@ -1,3 +1,5 @@
+// HTMLImageElement Image constructor for GJS — original implementation using GdkPixbuf
+
 import { HTMLImageElement } from './html-image-element.js';
 
 /**

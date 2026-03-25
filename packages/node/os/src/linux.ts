@@ -1,3 +1,6 @@
+// Reference: Node.js lib/os.js — Linux-specific os module helpers
+// Reimplemented for GJS using GLib
+
 import { createSubnet } from './createSubnet.js';
 import { cli } from '@gjsify/utils';
 

@@ -1,5 +1,5 @@
-// Shared BigInt math utilities for RSA and elliptic curve operations.
-// Centralizes modular exponentiation and BigInt↔bytes conversion
+// BigInt math utilities for GJS — original implementation
+// Centralizes modular exponentiation and BigInt-to-bytes conversion
 // used across sign, rsa-pss, rsa-oaep, public-encrypt, ecdsa, ecdh, and dh modules.
 
 /**

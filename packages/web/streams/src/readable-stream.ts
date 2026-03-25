@@ -78,10 +78,10 @@ import { nextTick as _queueMicrotask } from '@gjsify/utils';
 function createReadableStreamState() {
   return {
     disturbed: false,
-    reader: undefined as any,
+    reader: undefined as ReadableStreamDefaultReader | undefined,
     state: 'readable' as string,
-    storedError: undefined as any,
-    controller: undefined as any,
+    storedError: undefined as unknown,
+    controller: undefined as ReadableStreamDefaultController | undefined,
     // closedPromise tracks stream-level close for watchers (pipeTo, etc.)
     closedPromise: Promise.withResolvers<void>(),
   };
@@ -128,11 +128,11 @@ class ReadableStream {
     return isReadableStreamLocked(this);
   }
 
-  static from(iterable: any): ReadableStream {
+  static from(iterable: unknown): ReadableStream {
     return readableStreamFromIterable(iterable);
   }
 
-  cancel(reason: any = undefined): Promise<void> {
+  cancel(reason: unknown = undefined): Promise<void> {
     if (!isReadableStream(this))
       return Promise.reject(new TypeError('Invalid this'));
     if (isReadableStreamLocked(this))
@@ -247,11 +247,11 @@ class ReadableStream {
 
     const state = {
       done: false,
-      current: undefined as any,
+      current: undefined as Promise<unknown> | undefined,
     };
     let started = false;
 
-    function nextSteps(): Promise<IteratorResult<any>> {
+    function nextSteps(): Promise<IteratorResult<unknown>> {
       if (state.done)
         return Promise.resolve({ done: true, value: undefined });
 
@@ -259,10 +259,10 @@ class ReadableStream {
         return Promise.reject(
           new TypeError('The reader is not bound to a ReadableStream'));
       }
-      const { promise, resolve, reject } = Promise.withResolvers<IteratorResult<any>>();
+      const { promise, resolve, reject } = Promise.withResolvers<IteratorResult<unknown>>();
 
       readableStreamDefaultReaderRead(reader, {
-        [kChunk](chunk: any) {
+        [kChunk](chunk: unknown) {
           state.current = undefined;
           resolve({ value: chunk, done: false });
         },
@@ -272,7 +272,7 @@ class ReadableStream {
           readableStreamReaderGenericRelease(reader);
           resolve({ done: true, value: undefined });
         },
-        [kError](error: any) {
+        [kError](error: unknown) {
           state.current = undefined;
           state.done = true;
           readableStreamReaderGenericRelease(reader);
@@ -282,7 +282,7 @@ class ReadableStream {
       return promise;
     }
 
-    async function returnSteps(value: any): Promise<IteratorResult<any>> {
+    async function returnSteps(value: unknown): Promise<IteratorResult<unknown>> {
       if (state.done)
         return { done: true, value };
       state.done = true;
@@ -313,7 +313,7 @@ class ReadableStream {
         return state.current;
       },
 
-      return(error: any) {
+      return(error: unknown) {
         started = true;
         state.current = state.current !== undefined
           ? state.current.then(
@@ -342,13 +342,13 @@ class ReadableStream {
 // ---- DefaultReadRequest ----
 
 class DefaultReadRequest {
-  [kState]: { promise: Promise<any>; resolve: ((v: any) => void) | undefined; reject: ((e: any) => void) | undefined };
+  [kState]: { promise: Promise<ReadableStreamReadResult<unknown>>; resolve: ((v: ReadableStreamReadResult<unknown>) => void) | undefined; reject: ((e: unknown) => void) | undefined };
 
   constructor() {
-    this[kState] = Promise.withResolvers<any>();
+    this[kState] = Promise.withResolvers<ReadableStreamReadResult<unknown>>();
   }
 
-  [kChunk](value: any) {
+  [kChunk](value: unknown) {
     this[kState].resolve?.({ value, done: false });
   }
 
@@ -356,7 +356,7 @@ class DefaultReadRequest {
     this[kState].resolve?.({ value: undefined, done: true });
   }
 
-  [kError](error: any) {
+  [kError](error: unknown) {
     this[kState].reject?.(error);
   }
 
@@ -369,16 +369,16 @@ class ReadableStreamDefaultReader {
   [kType] = 'ReadableStreamDefaultReader';
   [kState]: any;
 
-  constructor(stream: any) {
+  constructor(stream: ReadableStream) {
     if (!isReadableStream(stream))
       throw new TypeError('Expected a ReadableStream');
     this[kState] = {
-      readRequests: [] as any[],
-      stream: undefined as any,
+      readRequests: [] as DefaultReadRequest[],
+      stream: undefined as ReadableStream | undefined,
       close: {
-        promise: undefined as any,
-        resolve: undefined as any,
-        reject: undefined as any,
+        promise: undefined as Promise<void> | undefined,
+        resolve: undefined as (() => void) | undefined,
+        reject: undefined as ((reason?: unknown) => void) | undefined,
       },
     };
     setupReadableStreamDefaultReader(this, stream);
@@ -433,7 +433,7 @@ class ReadableStreamDefaultReader {
     return this[kState].close.promise;
   }
 
-  cancel(reason: any = undefined): Promise<void> {
+  cancel(reason: unknown = undefined): Promise<void> {
     if (!isReadableStreamDefaultReader(this))
       return Promise.reject(new TypeError('Invalid this'));
     if (this[kState].stream === undefined) {
@@ -475,11 +475,11 @@ class ReadableStreamDefaultController {
     readableStreamDefaultControllerEnqueue(this, chunk);
   }
 
-  error(error: any = undefined): void {
+  error(error: unknown = undefined): void {
     readableStreamDefaultControllerError(this, error);
   }
 
-  [kCancel](reason: any) {
+  [kCancel](reason: unknown) {
     return readableStreamDefaultControllerCancelSteps(this, reason);
   }
 
@@ -506,7 +506,7 @@ function isReadableStreamLocked(stream: any): boolean {
   return stream[kState].reader !== undefined;
 }
 
-function readableStreamCancel(stream: any, reason: any): Promise<void> {
+function readableStreamCancel(stream: any, reason: unknown): Promise<void> {
   stream[kState].disturbed = true;
   switch (stream[kState].state) {
     case 'closed':
@@ -535,7 +535,7 @@ function readableStreamClose(stream: any): void {
   }
 }
 
-function readableStreamError(stream: any, error: any): void {
+function readableStreamError(stream: any, error: unknown): void {
   stream[kState].state = 'errored';
   stream[kState].storedError = error;
   setPromiseHandled(stream[kState].closedPromise.promise);
@@ -565,7 +565,7 @@ function readableStreamGetNumReadRequests(stream: any): number {
   return stream[kState].reader[kState].readRequests.length;
 }
 
-function readableStreamFulfillReadRequest(stream: any, chunk: any, done: boolean): void {
+function readableStreamFulfillReadRequest(stream: any, chunk: unknown, done: boolean): void {
   const { reader } = stream[kState];
   const readRequest = reader[kState].readRequests.shift();
 
@@ -581,7 +581,7 @@ function readableStreamAddReadRequest(stream: any, readRequest: any): void {
 
 // ---- Reader generic operations ----
 
-function readableStreamReaderGenericCancel(reader: any, reason: any): Promise<void> {
+function readableStreamReaderGenericCancel(reader: any, reason: unknown): Promise<void> {
   const { stream } = reader[kState];
   return readableStreamCancel(stream, reason);
 }
@@ -637,7 +637,7 @@ function readableStreamDefaultReaderRelease(reader: any): void {
   readableStreamDefaultReaderErrorReadRequests(reader, lazyReadableReleasingError());
 }
 
-function readableStreamDefaultReaderErrorReadRequests(reader: any, e: any): void {
+function readableStreamDefaultReaderErrorReadRequests(reader: any, e: unknown): void {
   for (let n = 0; n < reader[kState].readRequests.length; ++n) {
     reader[kState].readRequests[n][kError](e);
   }
@@ -750,7 +750,7 @@ function readableStreamDefaultControllerCallPullIfNeeded(controller: any): void 
         readableStreamDefaultControllerCallPullIfNeeded(controller);
       }
     },
-    (error: any) => readableStreamDefaultControllerError(controller, error),
+    (error: unknown) => readableStreamDefaultControllerError(controller, error),
   );
 }
 
@@ -760,7 +760,7 @@ function readableStreamDefaultControllerClearAlgorithms(controller: any): void {
   controller[kState].sizeAlgorithm = undefined;
 }
 
-function readableStreamDefaultControllerError(controller: any, error: any): void {
+function readableStreamDefaultControllerError(controller: any, error: unknown): void {
   const { stream } = controller[kState];
   if (stream[kState].state === 'readable') {
     resetQueue(controller);
@@ -769,7 +769,7 @@ function readableStreamDefaultControllerError(controller: any, error: any): void
   }
 }
 
-function readableStreamDefaultControllerCancelSteps(controller: any, reason: any): Promise<void> {
+function readableStreamDefaultControllerCancelSteps(controller: any, reason: unknown): Promise<void> {
   resetQueue(controller);
   const result = controller[kState].cancelAlgorithm(reason);
   readableStreamDefaultControllerClearAlgorithms(controller);
@@ -811,7 +811,7 @@ function setupReadableStreamDefaultController(
     pullAgain: false,
     pullAlgorithm,
     pulling: false,
-    queue: [] as any[],
+    queue: [] as { value: unknown; size: number }[],
     queueTotalSize: 0,
     started: false,
     sizeAlgorithm,
@@ -883,16 +883,16 @@ function createReadableStream(
 
 // ---- readableStreamFromIterable (static from()) ----
 
-function readableStreamFromIterable(iterable: any): ReadableStream {
+function readableStreamFromIterable(iterable: unknown): ReadableStream {
   let stream: any;
-  const iteratorRecord = getIterator(iterable, 'async');
+  const iteratorRecord = getIterator(iterable as Record<string | symbol, unknown>, 'async');
 
   const startAlgorithm = nonOpStart;
 
   async function pullAlgorithm() {
     const nextResult = iteratorNext(iteratorRecord);
     const nextPromise = Promise.resolve(nextResult);
-    return nextPromise.then((iterResult: any) => {
+    return nextPromise.then((iterResult: Record<string, unknown>) => {
       if (typeof iterResult !== 'object' || iterResult === null) {
         throw new TypeError(
           'The promise returned by the iterator.next() method must fulfill with an object');
@@ -905,7 +905,7 @@ function readableStreamFromIterable(iterable: any): ReadableStream {
     });
   }
 
-  async function cancelAlgorithm(reason: any) {
+  async function cancelAlgorithm(reason: unknown) {
     const iterator = iteratorRecord.iterator;
     const returnMethod = iterator.return;
     if (returnMethod === undefined) {
@@ -913,7 +913,7 @@ function readableStreamFromIterable(iterable: any): ReadableStream {
     }
     const returnResult = returnMethod.call(iterator, reason);
     const returnPromise = Promise.resolve(returnResult);
-    return returnPromise.then((iterResult: any) => {
+    return returnPromise.then((iterResult: Record<string, unknown>) => {
       if (typeof iterResult !== 'object' || iterResult === null) {
         throw new TypeError(
           'The promise returned by the iterator.return() method must fulfill with an object');
@@ -961,7 +961,7 @@ function readableStreamPipeTo(
   const { promise, resolve, reject } = Promise.withResolvers<void>();
 
   const state = {
-    currentWrite: Promise.resolve() as Promise<any>,
+    currentWrite: Promise.resolve() as Promise<void>,
   };
 
   let abortListener: (() => void) | undefined;
@@ -969,7 +969,7 @@ function readableStreamPipeTo(
   // The error here can be undefined. The rejected arg
   // tells us that the promise must be rejected even
   // when error is undefined.
-  function finalize(rejected: boolean, error?: any) {
+  function finalize(rejected: boolean, error?: unknown) {
     writableStreamDefaultWriterRelease(writer);
     readableStreamReaderGenericRelease(reader);
     if (signal !== undefined && abortListener) {
@@ -990,9 +990,9 @@ function readableStreamPipeTo(
   }
 
   function shutdownWithAnAction(
-    action: () => Promise<any>,
+    action: () => Promise<unknown>,
     rejected?: boolean,
-    originalError?: any,
+    originalError?: unknown,
   ) {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -1011,7 +1011,7 @@ function readableStreamPipeTo(
     }
   }
 
-  function shutdown(rejected?: boolean, error?: any) {
+  function shutdown(rejected?: boolean, error?: unknown) {
     if (shuttingDown) return;
     shuttingDown = true;
     if (dest[kState].state === 'writable' &&
@@ -1026,15 +1026,15 @@ function readableStreamPipeTo(
   }
 
   function abortAlgorithm() {
-    let error: any;
-    if (signal.reason && signal.reason.name === 'AbortError') {
+    let error: unknown;
+    if (signal.reason && (signal.reason as { name?: string }).name === 'AbortError') {
       // Cannot use the signal.reason directly if it's not a DOMException.
       error = createAbortError();
     } else {
       error = signal.reason;
     }
 
-    const actions: (() => Promise<any>)[] = [];
+    const actions: (() => Promise<void>)[] = [];
     if (!preventAbort) {
       actions.push(() => {
         if (dest[kState].state === 'writable')
@@ -1057,14 +1057,14 @@ function readableStreamPipeTo(
     );
   }
 
-  function watchErrored(stream: any, watchPromise: Promise<any>, action: (error: any) => void) {
+  function watchErrored(stream: any, watchPromise: Promise<unknown>, action: (error: unknown) => void) {
     if (stream[kState].state === 'errored')
       action(stream[kState].storedError);
     else
       watchPromise.then(undefined, action);
   }
 
-  function watchClosed(stream: any, watchPromise: Promise<any>, action: () => void) {
+  function watchClosed(stream: any, watchPromise: Promise<unknown>, action: () => void) {
     if (stream[kState].state === 'closed')
       action();
     else
@@ -1073,7 +1073,7 @@ function readableStreamPipeTo(
 
   // PipeTo read request for the slow path
   class PipeToReadRequest {
-    [kChunk](chunk: any) {
+    [kChunk](chunk: unknown) {
       // Per spec, pipeTo must queue a microtask for the write to avoid
       // synchronous write during enqueue().
       _queueMicrotask(() => {
@@ -1085,12 +1085,12 @@ function readableStreamPipeTo(
     [kClose]() {
       stepPromise.resolve!(true);
     }
-    [kError](error: any) {
+    [kError](error: unknown) {
       stepPromise.reject!(error);
     }
   }
 
-  let stepPromise: { resolve: ((v: any) => void) | null; reject: ((e: any) => void) | null } = {
+  let stepPromise: { resolve: ((v: boolean) => void) | null; reject: ((e: unknown) => void) | null } = {
     resolve: null,
     reject: null,
   };
@@ -1168,7 +1168,7 @@ function readableStreamPipeTo(
 
   setPromiseHandled(run());
 
-  watchErrored(source, reader[kState].close.promise, (error: any) => {
+  watchErrored(source, reader[kState].close.promise, (error: unknown) => {
     if (!preventAbort) {
       return shutdownWithAnAction(
         () => writableStreamAbort(dest, error),
@@ -1179,7 +1179,7 @@ function readableStreamPipeTo(
     shutdown(true, error);
   });
 
-  watchErrored(dest, writer[kState].close.promise, (error: any) => {
+  watchErrored(dest, writer[kState].close.promise, (error: unknown) => {
     if (!preventCancel) {
       return shutdownWithAnAction(
         () => readableStreamCancel(source, error),
@@ -1219,17 +1219,17 @@ function readableStreamDefaultTee(stream: any, cloneForBranch2: boolean): [Reada
   let reading = false;
   let canceled1 = false;
   let canceled2 = false;
-  let reason1: any;
-  let reason2: any;
+  let reason1: unknown;
+  let reason2: unknown;
   let branch1: any;
   let branch2: any;
-  const cancelPromise = Promise.withResolvers<any>();
+  const cancelPromise = Promise.withResolvers<unknown>();
 
   async function pullAlgorithm() {
     if (reading) return;
     reading = true;
     const readRequest = {
-      [kChunk](value: any) {
+      [kChunk](value: unknown) {
         _queueMicrotask(() => {
           reading = false;
           const value1 = value;
@@ -1275,7 +1275,7 @@ function readableStreamDefaultTee(stream: any, cloneForBranch2: boolean): [Reada
     readableStreamDefaultReaderRead(reader, readRequest);
   }
 
-  function cancel1Algorithm(reason: any) {
+  function cancel1Algorithm(reason: unknown) {
     canceled1 = true;
     reason1 = reason;
     if (canceled2) {
@@ -1285,7 +1285,7 @@ function readableStreamDefaultTee(stream: any, cloneForBranch2: boolean): [Reada
     return cancelPromise.promise;
   }
 
-  function cancel2Algorithm(reason: any) {
+  function cancel2Algorithm(reason: unknown) {
     canceled2 = true;
     reason2 = reason;
     if (canceled1) {
@@ -1300,7 +1300,7 @@ function readableStreamDefaultTee(stream: any, cloneForBranch2: boolean): [Reada
 
   reader[kState].close.promise.then(
     undefined,
-    (error: any) => {
+    (error: unknown) => {
       readableStreamDefaultControllerError(branch1[kState].controller, error);
       readableStreamDefaultControllerError(branch2[kState].controller, error);
       if (!canceled1 || !canceled2)

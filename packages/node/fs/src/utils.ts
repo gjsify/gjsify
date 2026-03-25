@@ -1,3 +1,5 @@
+// Shared filesystem utilities for GJS — original implementation using Gio
+
 import { existsSync } from './sync.js';
 
 const CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";

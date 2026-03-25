@@ -1,5 +1,5 @@
-// Node.js dns/promises module for GJS
-// Promise-based versions of dns functions
+// Reference: Node.js lib/dns/promises.js
+// Reimplemented for GJS using Gio.Resolver
 
 import { lookup as _lookup, resolve4 as _resolve4, resolve6 as _resolve6, reverse as _reverse, resolve as _resolve } from './index.js';
 import type { LookupOptions, LookupAddress } from './index.js';

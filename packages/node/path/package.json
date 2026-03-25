@@ -3,39 +3,20 @@
     "version": "0.0.4",
     "description": "Node.js path module for Gjs",
     "type": "module",
-    "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
-            "import": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/esm/index.js"
-            },
-            "require": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/cjs/index.js"
-            }
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
         },
         "./posix": {
-            "import": {
-                "types": "./lib/types/posix.d.ts",
-                "default": "./lib/esm/posix.js"
-            },
-            "require": {
-                "types": "./lib/types/posix.d.ts",
-                "default": "./lib/cjs/posix.js"
-            }
+            "types": "./lib/types/posix.d.ts",
+            "default": "./lib/esm/posix.js"
         },
         "./win32": {
-            "import": {
-                "types": "./lib/types/win32.d.ts",
-                "default": "./lib/esm/win32.js"
-            },
-            "require": {
-                "types": "./lib/types/win32.d.ts",
-                "default": "./lib/cjs/win32.js"
-            }
+            "types": "./lib/types/win32.d.ts",
+            "default": "./lib/esm/win32.js"
         }
     },
     "scripts": {

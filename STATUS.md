@@ -1,99 +1,99 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-25 (after Phase 20)
+> Last updated: 2026-03-25 (after stabilization & verification)
 
 ## Summary
 
 gjsify implements Node.js and Web Standard APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **15 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
+The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 39 | 31 (79%) | 4 (10%) | 4 (10%) |
-| Web APIs | 15 | 15 (100%) | — | — |
+| Node.js APIs | 37 | 30 (81%) | 3 (8%) | 4 (11%) |
+| Web APIs | 14 | 14 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~3,030 test cases in 89+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** 2,130 test cases in 75 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
 ## Node.js Packages (`packages/node/`)
 
-### Fully Implemented (27)
+### Fully Implemented (30)
 
 | Package | GNOME Libs | Tests | Description |
 |---------|-----------|-------|-------------|
 | **assert** | — | 73 | AssertionError, deepEqual, throws, strict mode |
-| **async_hooks** | — | 26 | AsyncLocalStorage, AsyncResource, createHook |
-| **buffer** | — | 123 | Buffer via Blob/atob/btoa, alloc, from, concat |
-| **child_process** | Gio, GLib | 35 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
-| **console** | — | 57 | Console class with stream support |
-| **diagnostics_channel** | — | 26 | Channel, TracingChannel, subscribe/unsubscribe |
-| **dns** | Gio, GLib | 50 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
-| **events** | — | 119 | EventEmitter, once, on, listenerCount (707 lines) |
-| **fs** | Gio, GLib | 80 (7 specs) | sync, callback, promises, streams, FSWatcher |
-| **module** | Gio, GLib | 21 | builtinModules, isBuiltin, createRequire (with JSON loading and module resolution) |
+| **async_hooks** | — | 28 | AsyncLocalStorage, AsyncResource, createHook |
+| **buffer** | — | 52 | Buffer via Blob/atob/btoa, alloc, from, concat |
+| **child_process** | Gio, GLib | 43 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
+| **console** | — | 37 | Console class with stream support |
+| **crypto** | GLib | 160 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
+| **dgram** | Gio, GLib | 30 | UDP Socket via Gio.Socket with bind, send, receive, multicast |
+| **diagnostics_channel** | — | 14 | Channel, TracingChannel, subscribe/unsubscribe |
+| **dns** | Gio, GLib | 58 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
+| **events** | — | 60 | EventEmitter, once, on, listenerCount |
+| **fs** | Gio, GLib | 83 (7 specs) | sync, callback, promises, streams, FSWatcher |
+| **globals** | — | 96 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
+| **http** | Soup 3.0, Gio, GLib | 71 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
+| **https** | Soup 3.0 | 24 | Agent, request/get (Soup.Session handles HTTPS natively), createServer, Server |
+| **module** | Gio, GLib | 27 | builtinModules, isBuiltin, createRequire (with JSON loading and module resolution) |
 | **net** | Gio, GLib | 64 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
-| **os** | GLib | 240 | homedir, hostname, cpus (real times from /proc/stat), platform-specific |
+| **os** | GLib | 32 | homedir, hostname, cpus (real times from /proc/stat), platform-specific |
 | **path** | — | 41 | POSIX + Win32 (1,052 lines total) |
-| **perf_hooks** | — | 30 | performance (Web API / GLib fallback), monitorEventLoopDelay, mark/measure/getEntries |
-| **process** | GLib | 47 | EventEmitter-based, env, cwd, platform, exit |
+| **perf_hooks** | — | 31 | performance (Web API / GLib fallback), monitorEventLoopDelay, mark/measure/getEntries |
+| **process** | GLib | 37 | EventEmitter-based, env, cwd, platform, exit |
 | **querystring** | — | 63 | parse/stringify with full encoding |
+| **readline** | — | 24 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
 | **stream** | — | 141 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
 | **string_decoder** | — | 65 | UTF-8, Base64, hex, streaming |
-| **timers** | — | 43 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
+| **timers** | — | 51 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
+| **tls** | Gio, GLib | 30 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer (Gio.TlsServerConnection), createSecureContext |
 | **tty** | — | 23 | ReadStream/WriteStream, isatty, ANSI, clearLine, cursorTo, getColorDepth |
-| **url** | GLib | 82 | URL, URLSearchParams via GLib.Uri |
-| **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
-| **zlib** | — | 27 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors |
-| **dgram** | Gio, GLib | 30 | UDP Socket via Gio.Socket with bind, send, receive, multicast |
-| **globals** | — | 96 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
-| **readline** | — | 50 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
-| **http** | Soup 3.0, Gio, GLib | 136 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
-| **crypto** | GLib | 437 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
-| **tls** | Gio, GLib | 36 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer (Gio.TlsServerConnection), createSecureContext |
-| **https** | Soup 3.0 | 32 | Agent, request/get (Soup.Session handles HTTPS natively), createServer, Server |
+| **url** | GLib | 32 | URL, URLSearchParams via GLib.Uri |
+| **util** | — | 70 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
+| **zlib** | — | 38 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors |
 
-### Partially Implemented (4)
+### Partially Implemented (3)
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
-| **worker_threads** | Gio, GLib | 82 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
-| **http2** | — | 102 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
-| **vm** | — | 49 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
+| **worker_threads** | Gio, GLib | 41 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
+| **http2** | — | 30 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
+| **vm** | — | 37 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
 
 ### Stubs (4)
 
 | Package | Tests | Description | Effort |
 |---------|-------|-------------|--------|
-| **cluster** | ✓ | isPrimary, isMaster, isWorker; fork() throws | High — requires multi-process architecture |
-| **domain** | ✓ | Deprecated Node.js API; pass-through | Low — intentionally minimal |
-| **inspector** | ✓ | Session.post(), open/close; empty | Medium — V8-specific, hard to port |
-| **v8** | ✓ | getHeapStatistics (JSON-based), serialize/deserialize | Medium — V8-specific |
+| **cluster** | 4 | isPrimary, isMaster, isWorker; fork() throws | High — requires multi-process architecture |
+| **domain** | 5 | Deprecated Node.js API; pass-through | Low — intentionally minimal |
+| **inspector** | 6 | Session.post(), open/close; empty | Medium — V8-specific, hard to port |
+| **v8** | 4 | getHeapStatistics (JSON-based), serialize/deserialize | Medium — V8-specific |
 
 ---
 
 ## Web API Packages (`packages/web/`)
 
-All 15 packages have real implementations:
+All 14 packages have real implementations:
 
-| Package | LOC | GNOME Libs | Tests | Web APIs |
-|---------|-----|-----------|-------|----------|
-| **dom-exception** | 55 | — | (via web-globals) | DOMException polyfill (WebIDL standard) |
-| **dom-events** | 1,270 | — | 97 | Event, EventTarget, CustomEvent |
-| **fetch** | 1,674 | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy |
-| **formdata** | 438 | — | ✓ | FormData, File, multipart encoding |
-| **abort-controller** | 291 | — | 19 | AbortController, AbortSignal (.abort, .timeout, .any) |
-| **web-globals** | 30 | — | 27 | Unified entry point: imports all Web API packages, registers globals |
-| **html-image-element** | 347 | GdkPixbuf | 2 | HTMLImageElement, Image() |
-| **webgl** | 5,662 | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
-| **websocket** | 230 | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
-| **streams** | 3,800 | — | 117 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
-| **compression-streams** | 120 | — | 29 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
-| **webstorage** | 100 | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
-| **webcrypto** | 850 | — | 43 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
-| **eventsource** | 260 | — | 24 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
+| Package | GNOME Libs | Tests | Web APIs |
+|---------|-----------|-------|----------|
+| **abort-controller** | — | 18 (2 specs) | AbortController, AbortSignal (.abort, .timeout, .any) |
+| **compression-streams** | — | 16 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
+| **dom-events** | — | 97 (3 specs) | Event, EventTarget, CustomEvent |
+| **dom-exception** | — | 34 | DOMException polyfill (WebIDL standard) |
+| **eventsource** | — | 24 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
+| **fetch** | Soup 3.0, Gio, GLib | 35 | fetch(), Request, Response, Headers, Referrer-Policy |
+| **formdata** | — | 24 | FormData, File, multipart encoding |
+| **html-image-element** | GdkPixbuf | 2 | HTMLImageElement, Image() |
+| **streams** | — | 72 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
+| **webcrypto** | — | 42 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
+| **web-globals** | — | 28 | Unified entry point: imports all Web API packages, registers globals |
+| **websocket** | Soup 3.0, Gio, GLib | 15 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
+| **webstorage** | — | 20 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
 ### Missing Web APIs
 
@@ -149,14 +149,14 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Metric | Value |
 |--------|-------|
-| Total Node.js packages | 39 |
-| Fully implemented | 31 (79%) |
-| Partially implemented | 4 (10%) |
-| Stubs | 4 (10%) |
-| Web API packages | 15 (all implemented) |
-| Total test cases | ~3,030 |
-| Spec files | 89+ |
-| GNOME-integrated packages | 13 (28%) |
+| Total Node.js packages | 37 |
+| Fully implemented | 30 (81%) |
+| Partially implemented | 3 (8%) |
+| Stubs | 4 (11%) |
+| Web API packages | 14 (all implemented) |
+| Total test cases | 2,130 |
+| Spec files | 75 |
+| GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
 
@@ -166,28 +166,28 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### Completed
 
-- ~~**Web Streams API**~~✓ — `@gjsify/web-streams` (117 tests). ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, queuing strategies.
-- ~~**WebCrypto (crypto.subtle)**~~✓ — `@gjsify/webcrypto` (37 tests). SubtleCrypto: digest, AES-CBC/CTR/GCM, HMAC, PBKDF2, HKDF, ECDH, importKey/exportKey, generateKey.
+- ~~**Web Streams API**~~✓ — `@gjsify/web-streams` (72 tests). ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, queuing strategies.
+- ~~**WebCrypto (crypto.subtle)**~~✓ — `@gjsify/webcrypto` (42 tests). SubtleCrypto: digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, importKey/exportKey, generateKey.
 - ~~**EventSource**~~✓ — `@gjsify/eventsource` (24 tests). Server-Sent Events via fetch + Web Streams.
+- ~~**WebCrypto ECDSA/RSA-PSS/RSA-OAEP**~~✓ — Implemented: ECDSA (RFC 6979), RSA-PSS (RFC 8017), RSA-OAEP (RFC 8017), MGF1.
+- ~~**Unified web-globals package**~~✓ — `@gjsify/web-globals` as single entry point for all Web API globals. DOMException extracted to `@gjsify/dom-exception`.
+- ~~**vm promoted to Partial**~~✓ — createContext, runInNewContext, compileFunction, Script class (37 tests).
 
 ### High Priority
 
-1. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, dgram) and fs. Many tests hidden behind `on('Node.js')` guards need cross-platform verification.
-2. **Unified web-globals package** — `@gjsify/web-globals` as single entry point for all Web API globals. Extract DOMException into own package (`@gjsify/dom-exception`).
-3. ~~**WebCrypto ECDSA/RSA-PSS/RSA-OAEP**~~✓ — Implemented: ECDSA (RFC 6979), RSA-PSS (RFC 8017), RSA-OAEP (RFC 8017), MGF1.
+1. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, dgram) and fs.
 
 ### Medium Priority
 
-4. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
-5. **BYOB Byte Streams** — ReadableByteStreamController for optimized binary streaming.
-6. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API. Requires nghttp2 bindings or pure-JS HTTP/2 frame parser.
+2. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
+3. **BYOB Byte Streams** — ReadableByteStreamController for optimized binary streaming.
+4. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API. Requires nghttp2 bindings or pure-JS HTTP/2 frame parser.
 
 ### Low Priority
 
-7. **vm** — Enhance from stub to partial (createContext, runInNewContext via Function constructor).
-8. **v8** — Approximate heap statistics via GJS runtime info.
-9. **cluster** — Multi-process via Gio.Subprocess pool.
-10. **inspector** — GJS debugger integration (gjs --debugger).
+5. **v8** — Approximate heap statistics via GJS runtime info.
+6. **cluster** — Multi-process via Gio.Subprocess pool.
+7. **inspector** — GJS debugger integration (gjs --debugger).
 
 ---
 

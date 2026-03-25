@@ -723,6 +723,7 @@ __metadata:
   resolution: "@gjsify/dom-exception@workspace:packages/web/dom-exception"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown

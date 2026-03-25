@@ -1,4 +1,5 @@
-// Native AbortController/AbortSignal implementation for GJS — no Deno dependency.
+// Reference: W3C DOM Abort API
+// Reimplemented for GJS
 
 import { Event, EventTarget, DOMException } from '@gjsify/dom-events';
 

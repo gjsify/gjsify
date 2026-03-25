@@ -1,3 +1,5 @@
+// Reference: Node.js lib/inspector.js — stub for GJS
+
 export function open(_port?: number, _host?: string, _wait?: boolean): void {}
 
 export function close(): void {}

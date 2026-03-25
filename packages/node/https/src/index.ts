@@ -49,22 +49,22 @@ export const globalAgent = new Agent();
 export function request(url: string | URL | RequestOptions, options?: RequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
   if (typeof url === 'string') {
     if (url.startsWith('https://') || url.startsWith('http://')) {
-      return httpRequest(url, options as any, callback);
+      return httpRequest(url, options as unknown as Record<string, unknown>, callback);
     }
     const opts: RequestOptions = { hostname: url, protocol: 'https:', port: 443 };
     if (typeof options === 'object') Object.assign(opts, options);
     if (typeof options === 'function') callback = options;
-    return httpRequest(opts as any, callback);
+    return httpRequest(opts as unknown as Record<string, unknown>, callback);
   }
 
   if (url instanceof URL) {
-    return httpRequest(url, options as any, callback);
+    return httpRequest(url, options as unknown as Record<string, unknown>, callback);
   }
 
   // url is RequestOptions
   const opts = { protocol: 'https:', port: 443, ...url };
   if (typeof options === 'function') callback = options;
-  return httpRequest(opts as any, callback);
+  return httpRequest(opts as unknown as Record<string, unknown>, callback);
 }
 
 /**
@@ -73,21 +73,21 @@ export function request(url: string | URL | RequestOptions, options?: RequestOpt
 export function get(url: string | URL | RequestOptions, options?: RequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
   if (typeof url === 'string') {
     if (url.startsWith('https://') || url.startsWith('http://')) {
-      return httpGet(url, options as any, callback) as ClientRequest;
+      return httpGet(url, options as unknown as Record<string, unknown>, callback) as ClientRequest;
     }
     const opts: RequestOptions = { hostname: url, protocol: 'https:', port: 443 };
     if (typeof options === 'object') Object.assign(opts, options);
     if (typeof options === 'function') callback = options;
-    return httpGet(opts as any, callback) as ClientRequest;
+    return httpGet(opts as unknown as Record<string, unknown>, callback) as ClientRequest;
   }
 
   if (url instanceof URL) {
-    return httpGet(url, options as any, callback) as ClientRequest;
+    return httpGet(url, options as unknown as Record<string, unknown>, callback) as ClientRequest;
   }
 
   const opts = { protocol: 'https:', port: 443, ...url, method: 'GET' };
   if (typeof options === 'function') callback = options;
-  return httpGet(opts as any, callback) as ClientRequest;
+  return httpGet(opts as unknown as Record<string, unknown>, callback) as ClientRequest;
 }
 
 export interface HttpsServerOptions extends RequestOptions {
@@ -100,7 +100,7 @@ export interface HttpsServerOptions extends RequestOptions {
  * requests on top.
  */
 export class Server extends HttpServer {
-  constructor(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: any) => void) {
+  constructor(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: unknown) => void) {
     super(requestListener);
   }
 }
@@ -111,11 +111,11 @@ export class Server extends HttpServer {
  * a TLS certificate. For API compatibility, this wraps the TLS server
  * infrastructure.
  */
-export function createServer(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: any) => void): Server;
-export function createServer(requestListener?: (req: IncomingMessage, res: any) => void): Server;
+export function createServer(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: unknown) => void): Server;
+export function createServer(requestListener?: (req: IncomingMessage, res: unknown) => void): Server;
 export function createServer(
-  optionsOrListener?: HttpsServerOptions | ((req: IncomingMessage, res: any) => void),
-  requestListener?: (req: IncomingMessage, res: any) => void,
+  optionsOrListener?: HttpsServerOptions | ((req: IncomingMessage, res: unknown) => void),
+  requestListener?: (req: IncomingMessage, res: unknown) => void,
 ): Server {
   if (typeof optionsOrListener === 'function') {
     return new Server(undefined, optionsOrListener);

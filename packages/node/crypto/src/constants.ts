@@ -1,4 +1,4 @@
-// Crypto constants
+// Reference: Node.js lib/internal/crypto/util.js — crypto constants
 // Subset of Node.js crypto constants relevant to the GJS implementation
 
 export const constants = {

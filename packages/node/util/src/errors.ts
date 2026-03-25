@@ -1,4 +1,5 @@
-// System error name mapping (Linux errno codes)
+// Reference: Node.js lib/internal/errors.js — system error name mapping (Linux errno codes)
+// Reimplemented for GJS
 
 const linuxErrors: Record<number, string> = {
   [-1]: 'EPERM', [-2]: 'ENOENT', [-3]: 'ESRCH', [-4]: 'EINTR',

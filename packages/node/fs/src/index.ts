@@ -1,3 +1,6 @@
+// Reference: Node.js lib/fs.js
+// Reimplemented for GJS using Gio.File
+
 import {
   existsSync,
   readdirSync,

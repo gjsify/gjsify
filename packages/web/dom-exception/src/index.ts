@@ -34,7 +34,7 @@ class _DOMExceptionPolyfill extends Error {
   constructor(message?: string, name?: string) {
     super(message);
     this.name = name || 'Error';
-    this.code = DOMExceptionCodes[this.name] || 0;
+    this.code = Object.hasOwn(DOMExceptionCodes, this.name) ? DOMExceptionCodes[this.name] : 0;
   }
 }
 

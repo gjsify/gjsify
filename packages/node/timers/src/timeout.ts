@@ -1,5 +1,5 @@
-// Timeout class wrapping the native timer ID.
-// Provides ref/unref/hasRef/refresh semantics matching Node.js Timeout.
+// Reference: Node.js lib/internal/timers.js — Timeout/Immediate classes
+// Reimplemented for GJS
 
 export class Timeout {
   private _id: ReturnType<typeof setTimeout> | null;

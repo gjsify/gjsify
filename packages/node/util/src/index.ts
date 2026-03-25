@@ -1,4 +1,5 @@
-// Native util module for GJS — no Deno dependency
+// Reference: Node.js lib/util.js
+// Reimplemented for GJS
 
 import type { InspectOptions } from 'node:util';
 
@@ -46,8 +47,8 @@ function inspectValue(value: unknown, opts: InspectOptions, depth: number): stri
   }
 
   // Custom inspect
-  if (value !== null && typeof value === 'object' && kCustomInspect in (value as any)) {
-    const custom = (value as any)[kCustomInspect];
+  if (value !== null && typeof value === 'object' && kCustomInspect in (value as Record<symbol, unknown>)) {
+    const custom = (value as Record<symbol, unknown>)[kCustomInspect];
     if (typeof custom === 'function') {
       const result = custom.call(value, depth, opts);
       if (typeof result === 'string') return result;
@@ -94,7 +95,7 @@ function inspectValue(value: unknown, opts: InspectOptions, depth: number): stri
   return inspectObject(value as Record<string, unknown>, opts, depth);
 }
 
-function inspectArray(arr: any[], opts: InspectOptions, depth: number): string {
+function inspectArray(arr: unknown[], opts: InspectOptions, depth: number): string {
   const maxLen = opts.maxArrayLength ?? 100;
   const len = Math.min(arr.length, maxLen);
   const items: string[] = [];
@@ -193,7 +194,7 @@ inspect.defaultOptions = {
 
 // ---- format ----
 
-export function format(fmt: string, ...args: any[]): string {
+export function format(fmt: string, ...args: unknown[]): string {
   // format() with no args returns ''
   if (fmt === undefined && args.length === 0) return '';
 
@@ -342,7 +343,7 @@ export function format(fmt: string, ...args: any[]): string {
   return result;
 }
 
-export function formatWithOptions(inspectOptions: InspectOptions, fmt: string, ...args: any[]): string {
+export function formatWithOptions(inspectOptions: InspectOptions, fmt: string, ...args: unknown[]): string {
   // Apply inspect options to embedded inspect calls — simplified implementation
   return format(fmt, ...args);
 }
@@ -351,18 +352,18 @@ export function formatWithOptions(inspectOptions: InspectOptions, fmt: string, .
 
 const kCustomPromisify = Symbol.for('nodejs.util.promisify.custom');
 
-export function promisify<T extends (...args: any[]) => void>(fn: T): (...args: any[]) => Promise<any> {
+export function promisify<T extends (...args: unknown[]) => void>(fn: T): (...args: unknown[]) => Promise<unknown> {
   if (typeof fn !== 'function') {
     throw new TypeError('The "original" argument must be of type Function');
   }
 
   // Check for custom promisify
-  const custom = (fn as any)[kCustomPromisify];
-  if (typeof custom === 'function') return custom;
+  const custom = (fn as unknown as Record<symbol, unknown>)[kCustomPromisify];
+  if (typeof custom === 'function') return custom as (...args: unknown[]) => Promise<unknown>;
 
-  function promisified(this: any, ...args: any[]): Promise<any> {
+  function promisified(this: unknown, ...args: unknown[]): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      fn.call(this, ...args, (err: Error | null, ...values: any[]) => {
+      fn.call(this, ...args, (err: Error | null, ...values: unknown[]) => {
         if (err) {
           reject(err);
         } else if (values.length <= 1) {
@@ -382,19 +383,19 @@ export function promisify<T extends (...args: any[]) => void>(fn: T): (...args: 
 promisify.custom = kCustomPromisify;
 
 export function callbackify<T>(fn: () => Promise<T>): (callback: (err: Error | null, result?: T) => void) => void;
-export function callbackify<T>(fn: (...args: any[]) => Promise<T>): (...args: any[]) => void;
-export function callbackify(fn: (...args: any[]) => Promise<any>): (...args: any[]) => void {
+export function callbackify<T>(fn: (...args: unknown[]) => Promise<T>): (...args: unknown[]) => void;
+export function callbackify(fn: (...args: unknown[]) => Promise<unknown>): (...args: unknown[]) => void {
   if (typeof fn !== 'function') {
     throw new TypeError('The "original" argument must be of type Function');
   }
 
-  return function (this: any, ...args: any[]) {
+  return function (this: unknown, ...args: unknown[]) {
     const callback = args.pop();
     if (typeof callback !== 'function') {
       throw new TypeError('The last argument must be of type Function');
     }
     fn.apply(this, args).then(
-      (result: any) => Promise.resolve().then(() => callback(null, result)),
+      (result: unknown) => Promise.resolve().then(() => callback(null, result)),
       (err: Error) => Promise.resolve().then(() => callback(err || new Error()))
     );
   };
@@ -402,9 +403,9 @@ export function callbackify(fn: (...args: any[]) => Promise<any>): (...args: any
 
 // ---- deprecate ----
 
-export function deprecate<T extends (...args: any[]) => any>(fn: T, msg: string, code?: string): T {
+export function deprecate<T extends (...args: unknown[]) => unknown>(fn: T, msg: string, code?: string): T {
   let warned = false;
-  function deprecated(this: any, ...args: any[]): any {
+  function deprecated(this: unknown, ...args: unknown[]): unknown {
     if (!warned) {
       warned = true;
       const warning = code ? `[${code}] ${msg}` : msg;
@@ -413,15 +414,15 @@ export function deprecate<T extends (...args: any[]) => any>(fn: T, msg: string,
     return fn.apply(this, args);
   }
   Object.setPrototypeOf(deprecated, fn);
-  return deprecated as any;
+  return deprecated as unknown as T;
 }
 
 // ---- debuglog ----
 
-export function debuglog(section: string): (...args: any[]) => void {
-  let debug: ((...args: any[]) => void) | undefined;
+export function debuglog(section: string): (...args: unknown[]) => void {
+  let debug: ((...args: unknown[]) => void) | undefined;
 
-  return (...args: any[]) => {
+  return (...args: unknown[]) => {
     if (debug === undefined) {
       const nodeDebug = typeof globalThis.process?.env?.NODE_DEBUG === 'string'
         ? globalThis.process.env.NODE_DEBUG
@@ -429,7 +430,7 @@ export function debuglog(section: string): (...args: any[]) => void {
       const regex = new RegExp(`\\b${section}\\b`, 'i');
       if (regex.test(nodeDebug)) {
         const pid = typeof globalThis.process?.pid === 'number' ? globalThis.process.pid : 0;
-        debug = (...a: any[]) => {
+        debug = (...a: unknown[]) => {
           console.error(`${section.toUpperCase()} ${pid}:`, ...a);
         };
       } else {
@@ -502,7 +503,7 @@ export function isRegExp(value: unknown): value is RegExp {
   return value instanceof RegExp;
 }
 
-export function isArray(value: unknown): value is any[] {
+export function isArray(value: unknown): value is unknown[] {
   return Array.isArray(value);
 }
 
@@ -515,7 +516,7 @@ export function isDate(value: unknown): value is Date {
 }
 
 export function isBuffer(value: unknown): boolean {
-  return value instanceof Uint8Array && (value as any).constructor?.name === 'Buffer';
+  return value instanceof Uint8Array && (value as unknown as { constructor?: { name?: string } }).constructor?.name === 'Buffer';
 }
 
 // ---- Re-export globals ----
@@ -531,8 +532,8 @@ export function isDeepStrictEqual(a: unknown, b: unknown): boolean {
   if (a === null || b === null) return false;
   if (typeof a !== 'object') return false;
 
-  const aObj = a as any;
-  const bObj = b as any;
+  const aObj = a as Record<string, unknown>;
+  const bObj = b as Record<string, unknown>;
 
   if (Array.isArray(aObj) && Array.isArray(bObj)) {
     if (aObj.length !== bObj.length) return false;
@@ -557,7 +558,7 @@ export function isDeepStrictEqual(a: unknown, b: unknown): boolean {
   if (aKeys.length !== bKeys.length) return false;
 
   for (const key of aKeys) {
-    if (!bObj.hasOwnProperty(key)) return false;
+    if (!Object.prototype.hasOwnProperty.call(bObj, key)) return false;
     if (!isDeepStrictEqual(aObj[key], bObj[key])) return false;
   }
 
@@ -567,8 +568,8 @@ export function isDeepStrictEqual(a: unknown, b: unknown): boolean {
 // ---- toUSVString ----
 
 export function toUSVString(string: string): string {
-  if (typeof (string as any).toWellFormed === 'function') {
-    return (string as any).toWellFormed();
+  if (typeof (string as unknown as { toWellFormed?: () => string }).toWellFormed === 'function') {
+    return (string as unknown as { toWellFormed: () => string }).toWellFormed();
   }
   // Fallback
   return string.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD');

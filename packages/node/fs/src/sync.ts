@@ -35,7 +35,7 @@ export function statSync(path: PathLike, options?: StatSyncOptions): Stats | Big
     const file = Gio.File.new_for_path(path.toString());
     const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NONE, null);
     return options?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (options?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
     throw createNodeError(err, 'stat', path);
   }
@@ -46,7 +46,7 @@ export function lstatSync(path: PathLike, options?: StatSyncOptions): Stats | Bi
     const file = Gio.File.new_for_path(path.toString());
     const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
     return options?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (options?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
     throw createNodeError(err, 'lstat', path);
   }
@@ -93,7 +93,7 @@ export function readdirSync(
     info = enumerator.next_file(null);
   }
 
-  return result as any;
+  return result as string[] | Dirent[];
 }
 
 // --- realpath ---
@@ -124,7 +124,7 @@ export function realpathSync(path: PathLike): string {
     }
   }
 }
-(realpathSync as any).native = realpathSync;
+(realpathSync as unknown as { native: typeof realpathSync }).native = realpathSync;
 
 // --- symlink ---
 
@@ -144,8 +144,8 @@ export function readFileSync(path: string, options = { encoding: null, flag: 'r'
     }
 
     return encodeUint8Array(getEncodingFromOptions(options, "buffer"), data);
-  } catch (err: any) {
-    if (err.code && typeof err.code === 'string') throw err; // Already a Node error
+  } catch (err: unknown) {
+    if ((err as { code?: unknown }).code && typeof (err as { code?: unknown }).code === 'string') throw err; // Already a Node error
     throw createNodeError(err, 'read', path);
   }
 }
@@ -238,20 +238,18 @@ export function rmdirSync(path: PathLike, _options?: RmDirOptions): void {
     // Check if it's a directory
     const info = file.query_info('standard::type', Gio.FileQueryInfoFlags.NONE, null);
     if (info.get_file_type() !== Gio.FileType.DIRECTORY) {
-      const err = new Error() as any;
-      err.code = 4; // Gio.IOErrorEnum.NOT_DIRECTORY
+      const err = Object.assign(new Error(), { code: 4 }); // Gio.IOErrorEnum.NOT_DIRECTORY
       throw createNodeError(err, 'rmdir', path);
     }
     // Check if empty — rmdir only removes empty directories (use rmSync for recursive)
     const enumerator = file.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
     if (enumerator.next_file(null) !== null) {
-      const err = new Error() as any;
-      err.code = 5; // Gio.IOErrorEnum.NOT_EMPTY
+      const err = Object.assign(new Error(), { code: 5 }); // Gio.IOErrorEnum.NOT_EMPTY
       throw createNodeError(err, 'rmdir', path);
     }
     file.delete(null);
-  } catch (err: any) {
-    if (err.code && typeof err.code === 'string') throw err; // Already a Node error
+  } catch (err: unknown) {
+    if ((err as { code?: unknown }).code && typeof (err as { code?: unknown }).code === 'string') throw err; // Already a Node error
     throw createNodeError(err, 'rmdir', path);
   }
 }
@@ -260,12 +258,12 @@ export function unlinkSync(path: PathLike): void {
   const file = Gio.File.new_for_path(path.toString());
   try {
     file.delete(null);
-  } catch (err: any) {
+  } catch (err: unknown) {
     throw createNodeError(err, 'unlink', path);
   }
 }
 
-export function writeFileSync(path: string, data: any) {
+export function writeFileSync(path: string, data: string | Uint8Array) {
   GLib.file_set_contents(path, data);
 }
 
@@ -276,7 +274,7 @@ export function renameSync(oldPath: PathLike, newPath: PathLike): void {
   const dest = Gio.File.new_for_path(newPath.toString());
   try {
     src.move(dest, Gio.FileCopyFlags.OVERWRITE, null, null);
-  } catch (err: any) {
+  } catch (err: unknown) {
     throw createNodeError(err, 'rename', oldPath, newPath);
   }
 }
@@ -295,7 +293,7 @@ export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void
   }
   try {
     srcFile.copy(destFile, flags, null, null);
-  } catch (err: any) {
+  } catch (err: unknown) {
     throw createNodeError(err, 'copyfile', src, dest);
   }
 }
@@ -320,8 +318,8 @@ export function accessSync(path: PathLike, mode?: number): void {
         throw createNodeError(permErr, 'access', path);
       }
     }
-  } catch (err: any) {
-    if (err.code && typeof err.code === 'string') throw err; // Already a Node-style error
+  } catch (err: unknown) {
+    if ((err as { code?: unknown }).code && typeof (err as { code?: unknown }).code === 'string') throw err; // Already a Node-style error
     throw createNodeError(err, 'access', path);
   }
 }
@@ -343,7 +341,7 @@ export function appendFileSync(path: PathLike, data: string | Uint8Array, option
       stream.write_bytes(new GLib.Bytes(bytes), null);
     }
     stream.close(null);
-  } catch (err: any) {
+  } catch (err: unknown) {
     throw createNodeError(err, 'appendfile', path);
   }
 }
@@ -363,8 +361,8 @@ export function readlinkSync(path: PathLike, options?: { encoding?: string } | s
       return Buffer.from(target);
     }
     return target;
-  } catch (err: any) {
-    if (err.code) throw err;
+  } catch (err: unknown) {
+    if ((err as { code?: unknown }).code) throw err;
     throw createNodeError(err, 'readlink', path);
   }
 }
@@ -394,7 +392,7 @@ export function truncateSync(path: PathLike, len?: number): void {
       }
     }
     stream.close(null);
-  } catch (err: any) {
+  } catch (err: unknown) {
     throw createNodeError(err, 'truncate', path);
   }
 }
@@ -418,7 +416,7 @@ export function chownSync(path: PathLike, uid: number, gid: number): void {
   }
 }
 
-export function watch(filename: string, options: any, listener: any) {
+export function watch(filename: string, options: { persistent?: boolean; recursive?: boolean; encoding?: string } | undefined, listener: ((eventType: string, filename: string | null) => void) | undefined) {
   return new FSWatcher(filename, options, listener);
 }
 

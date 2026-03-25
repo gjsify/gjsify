@@ -1,3 +1,5 @@
+// Minimal inspect fallback for GJS — original implementation
+
 /**
  * Minimal value-to-string converter for assertion error messages.
  * This avoids depending on util.inspect (which itself depends on @gjsify/deno_std).

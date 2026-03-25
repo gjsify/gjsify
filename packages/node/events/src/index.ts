@@ -1,4 +1,5 @@
-// Native EventEmitter implementation for GJS — no Deno dependency
+// Reference: Node.js lib/events.js
+// Reimplemented for GJS
 
 import { EventEmitter } from './event-emitter.js';
 

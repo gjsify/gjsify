@@ -1,3 +1,5 @@
+// Node.js globals for GJS — original implementation using GLib
+
 import { initErrorV8Methods, structuredClone as structuredClonePolyfill } from "@gjsify/utils";
 
 import process from '@gjsify/process';

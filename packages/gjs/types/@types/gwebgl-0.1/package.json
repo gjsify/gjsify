@@ -15,14 +15,8 @@
         "./ambient": "./gwebgl-0.1-ambient.d.ts",
         "./import": "./gwebgl-0.1-import.d.ts",
         ".": {
-            "import": {
-                "types": "./gwebgl-0.1.d.ts",
-                "default": "./gwebgl-0.1.js"
-            },
-            "require": {
-                "types": "./gwebgl-0.1.d.cts",
-                "default": "./gwebgl-0.1.cjs"
-            }
+            "types": "./gwebgl-0.1.d.ts",
+            "default": "./gwebgl-0.1.js"
         }
     },
     "scripts": {

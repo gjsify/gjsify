@@ -3,29 +3,16 @@
     "version": "0.0.4",
     "description": "Node.js timers module for Gjs",
     "type": "module",
-    "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
-            "import": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/esm/index.js"
-            },
-            "require": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/cjs/index.js"
-            }
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
         },
         "./promises": {
-            "import": {
-                "types": "./lib/types/promises.d.ts",
-                "default": "./lib/esm/promises.js"
-            },
-            "require": {
-                "types": "./lib/types/promises.d.ts",
-                "default": "./lib/cjs/promises.js"
-            }
+            "types": "./lib/types/promises.d.ts",
+            "default": "./lib/esm/promises.js"
         }
     },
     "scripts": {

@@ -8,7 +8,7 @@
     "exports": {
         ".": {
             "types": "./index.d.ts",
-            "import": "./index.mjs"
+            "default": "./index.mjs"
         }
     },
     "scripts": {

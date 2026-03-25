@@ -15,7 +15,7 @@ const contextSymbol = Symbol('vm.context');
  * Run code in the current V8/SpiderMonkey context.
  * Equivalent to eval() but matches Node.js vm.runInThisContext() API.
  */
-export function runInThisContext(code: string, _options?: any): any {
+export function runInThisContext(code: string, _options?: Record<string, unknown>): unknown {
   // eslint-disable-next-line no-eval
   return eval(code);
 }
@@ -26,7 +26,7 @@ export function runInThisContext(code: string, _options?: any): any {
  * NOTE: This is NOT a security sandbox — code can still access globalThis.
  * This matches Node.js vm module behavior which also does not provide true isolation.
  */
-export function runInNewContext(code: string, context?: Record<string, unknown>, _options?: any): any {
+export function runInNewContext(code: string, context?: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
   const sandbox = context || {};
   const keys = Object.keys(sandbox);
   const values = keys.map(k => sandbox[k]);
@@ -43,7 +43,7 @@ export function runInNewContext(code: string, context?: Record<string, unknown>,
  * Run code in a previously created context.
  * Since we don't have real VM contexts, this delegates to runInNewContext.
  */
-export function runInContext(code: string, context: any, _options?: any): any {
+export function runInContext(code: string, context: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
   return runInNewContext(code, context);
 }
 
@@ -51,7 +51,7 @@ export function runInContext(code: string, context: any, _options?: any): any {
  * Create a "context" object. Marks it with a symbol so isContext() works.
  * In real Node.js, this creates a V8 Context. Here it just marks an object.
  */
-export function createContext(context?: Record<string, unknown>): any {
+export function createContext(context?: Record<string, unknown>): Record<string, unknown> {
   const ctx = context || {};
   Object.defineProperty(ctx, contextSymbol, { value: true, enumerable: false });
   return ctx;
@@ -60,8 +60,8 @@ export function createContext(context?: Record<string, unknown>): any {
 /**
  * Check if an object was created by createContext().
  */
-export function isContext(context: any): boolean {
-  return context != null && context[contextSymbol] === true;
+export function isContext(context: unknown): boolean {
+  return context != null && (context as Record<symbol, unknown>)[contextSymbol] === true;
 }
 
 /**
@@ -72,7 +72,7 @@ export function isContext(context: any): boolean {
 export function compileFunction(
   code: string,
   params?: string[],
-  _options?: { parsingContext?: any; contextExtensions?: object[] },
+  _options?: { parsingContext?: Record<string, unknown>; contextExtensions?: object[] },
 ): Function {
   const paramNames = params || [];
   // eslint-disable-next-line no-new-func
@@ -85,20 +85,20 @@ export function compileFunction(
 export class Script {
   private _code: string;
 
-  constructor(code: string, _options?: any) {
+  constructor(code: string, _options?: Record<string, unknown>) {
     this._code = code;
   }
 
-  runInThisContext(_options?: any): any {
+  runInThisContext(_options?: Record<string, unknown>): unknown {
     // eslint-disable-next-line no-eval
     return eval(this._code);
   }
 
-  runInNewContext(context?: Record<string, unknown>, _options?: any): any {
+  runInNewContext(context?: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
     return runInNewContext(this._code, context);
   }
 
-  runInContext(context: any, _options?: any): any {
+  runInContext(context: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
     return runInNewContext(this._code, context);
   }
 

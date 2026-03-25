@@ -1,3 +1,5 @@
+// Reference: Node.js lib/v8.js — stub for GJS
+
 export function getHeapStatistics(): Record<string, number> {
   return {
     total_heap_size: 0,

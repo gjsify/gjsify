@@ -1,3 +1,6 @@
+// Reference: Node.js lib/internal/errors.js — filesystem error helpers
+// Reimplemented for GJS using Gio error codes
+
 import type { PathLike } from 'fs';
 import { createNodeError as createNodeErrorGeneric, isNotFoundError } from '@gjsify/utils';
 

@@ -1,3 +1,6 @@
+// Reference: Node.js lib/os.js — subnet mask helper
+// Reimplemented for GJS
+
 export function createSubnet(size, segment, base, sep) {
   const empty = '0'.repeat(size);
   return  mask => {

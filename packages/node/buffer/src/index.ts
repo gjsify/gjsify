@@ -1,4 +1,5 @@
-// Native buffer module for GJS — no Deno dependency
+// Reference: Node.js lib/buffer.js
+// Reimplemented for GJS
 
 import { Buffer, SlowBuffer, kMaxLength, kStringMaxLength, constants } from './buffer.js';
 

@@ -1,4 +1,5 @@
-// Node.js path module for GJS — no Deno dependency
+// Reference: Node.js lib/path.js
+// Reimplemented for GJS
 // Exports POSIX implementation by default (GJS runs on POSIX systems)
 
 import * as posix from './posix.js';

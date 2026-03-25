@@ -274,7 +274,7 @@ export class Readable extends Stream {
       // Drain buffered data synchronously (like Node.js flow())
       while (this._buffer.length > 0 && this.readableFlowing) {
         const chunk = this._buffer.shift()!;
-        this.readableLength -= this.readableObjectMode ? 1 : ((chunk as any).length ?? 1);
+        this.readableLength -= this.readableObjectMode ? 1 : ((chunk as { length?: number }).length ?? 1);
         this.emit('data', chunk);
       }
 
@@ -1007,12 +1007,12 @@ export function finished(stream: Stream | Readable | Writable, optsOrCb: Finishe
   // Reference: refs/node/lib/internal/streams/end-of-stream.js lines 228-249
   const isWritableStream = typeof (stream as Writable).write === 'function';
   const isReadableStream = typeof (stream as Readable).read === 'function';
-  const writableFinished = (stream as any).writableFinished === true;
-  const readableEnded = (stream as any).readableEnded === true;
-  const destroyed = (stream as any).destroyed === true;
+  const writableFinished = (stream as unknown as Record<string, unknown>).writableFinished === true;
+  const readableEnded = (stream as unknown as Record<string, unknown>).readableEnded === true;
+  const destroyed = (stream as unknown as Record<string, unknown>).destroyed === true;
 
   if (destroyed) {
-    queueMicrotask(() => done((stream as any)._err || null));
+    queueMicrotask(() => done(((stream as unknown as Record<string, unknown>)._err as Error | null) || null));
   } else if (isWritableStream && !isReadableStream && writableFinished) {
     queueMicrotask(() => done());
   } else if (!isWritableStream && isReadableStream && readableEnded) {

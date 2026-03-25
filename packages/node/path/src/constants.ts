@@ -1,4 +1,4 @@
-// Character code constants for path operations
+// Reference: Node.js lib/path.js — character code constants for path operations
 
 export const CHAR_DOT = 46;              /* . */
 export const CHAR_FORWARD_SLASH = 47;    /* / */

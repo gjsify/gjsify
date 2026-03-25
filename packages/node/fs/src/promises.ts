@@ -85,11 +85,11 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
 
   const file = Gio.File.new_for_path(pathStr);
   return new Promise<undefined>((resolve, reject) => {
-    file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+    file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         file.make_directory_finish(res);
         resolve(undefined);
-      } catch (err: any) {
+      } catch (err: unknown) {
         reject(createNodeError(err, 'mkdir', path));
       }
     });
@@ -106,11 +106,11 @@ async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined>
   // Try to create the directory directly first
   try {
     await new Promise<void>((resolve, reject) => {
-      file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+      file.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
         try {
           file.make_directory_finish(res);
           resolve();
-        } catch (err: any) {
+        } catch (err: unknown) {
           reject(err);
         }
       });
@@ -119,13 +119,14 @@ async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined>
     // Now check if we also created parents by recursing on the parent first.
     // Since we succeeded directly, this is the "first created" path candidate.
     return pathStr;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const gErr = err as { code?: number };
     // If it already exists, nothing to create
-    if (err.code === Gio.IOErrorEnum.EXISTS) {
+    if (gErr.code === Gio.IOErrorEnum.EXISTS) {
       return undefined;
     }
     // If parent doesn't exist, create parent first then retry
-    if (err.code === Gio.IOErrorEnum.NOT_FOUND) {
+    if (gErr.code === Gio.IOErrorEnum.NOT_FOUND) {
       const parentPath = dirname(pathStr);
       if (parentPath === pathStr) {
         // Reached root, cannot go further
@@ -135,11 +136,11 @@ async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined>
       // Now create this directory
       const retryFile = Gio.File.new_for_path(pathStr);
       await new Promise<void>((resolve, reject) => {
-        retryFile.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+        retryFile.make_directory_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
           try {
             retryFile.make_directory_finish(res);
             resolve();
-          } catch (retryErr: any) {
+          } catch (retryErr: unknown) {
             reject(createNodeError(retryErr, 'mkdir', pathStr));
           }
         });
@@ -224,7 +225,7 @@ async function mkdtemp(prefix: string, options?: BufferEncodingOption | ObjectEn
   return decode(path, encoding);
 }
 
-async function writeFile(path: string, data: any) {
+async function writeFile(path: string, data: string | Uint8Array | unknown) {
   const file = Gio.File.new_for_path(path);
 
   // Convert data to Uint8Array if it's a string
@@ -240,10 +241,10 @@ async function writeFile(path: string, data: any) {
 
   // Open the file for writing (replace contents), creating if needed
   const outputStream = await new Promise<Gio.FileOutputStream>((resolve, reject) => {
-    file.replace_async(null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+    file.replace_async(null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         resolve(file.replace_finish(res));
-      } catch (err: any) {
+      } catch (err: unknown) {
         reject(createNodeError(err, 'open', path));
       }
     });
@@ -253,11 +254,11 @@ async function writeFile(path: string, data: any) {
   if (bytes.length > 0) {
     const glibBytes = new GLib.Bytes(bytes);
     await new Promise<void>((resolve, reject) => {
-      outputStream.write_bytes_async(glibBytes, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+      outputStream.write_bytes_async(glibBytes, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
         try {
           outputStream.write_bytes_finish(res);
           resolve();
-        } catch (err: any) {
+        } catch (err: unknown) {
           reject(createNodeError(err, 'write', path));
         }
       });
@@ -266,11 +267,11 @@ async function writeFile(path: string, data: any) {
 
   // Close the output stream
   await new Promise<void>((resolve, reject) => {
-    outputStream.close_async(GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+    outputStream.close_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         outputStream.close_finish(res);
         resolve();
-      } catch (err: any) {
+      } catch (err: unknown) {
         reject(createNodeError(err, 'close', path));
       }
     });
@@ -339,7 +340,7 @@ async function write<TBuffer extends Uint8Array>(
   if(typeof data === 'string') {
     return _writeStr(fd, data, positionOrOffset, encodingOrLength as BufferEncoding | null);
   }
-  return _writeBuf<any>(fd, data, positionOrOffset as number | null, encodingOrLength as  null | number, position);
+  return _writeBuf(fd, data, positionOrOffset as number | null, encodingOrLength as null | number, position) as unknown as Promise<{ bytesWritten: number; buffer: string }>;
 }
 
 async function _writeBuf<TBuffer extends Uint8Array>(
@@ -376,11 +377,11 @@ async function _writeStr(
 function queryInfoAsync(path: PathLike, flags: Gio.FileQueryInfoFlags, syscall: string, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
   return new Promise((resolve, reject) => {
     const file = Gio.File.new_for_path(path.toString());
-    file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+    file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         const info = file.query_info_finish(res);
         resolve(options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
-      } catch (err: any) {
+      } catch (err: unknown) {
         reject(createNodeError(err, syscall, path));
       }
     });
@@ -410,11 +411,11 @@ async function realpath(path: PathLike): Promise<string> {
 async function symlink(target: PathLike, path: PathLike, _type?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const file = Gio.File.new_for_path(path.toString());
-    file.make_symbolic_link_async(target.toString(), GLib.PRIORITY_DEFAULT, null, (_s: any, res: Gio.AsyncResult) => {
+    file.make_symbolic_link_async(target.toString(), GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         file.make_symbolic_link_finish(res);
         resolve();
-      } catch (err: any) {
+      } catch (err: unknown) {
         reject(createNodeError(err, 'symlink', target, path));
       }
     });

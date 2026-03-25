@@ -75,7 +75,7 @@ export function realpath(path: PathLike, optionsOrCallback: { encoding?: BufferE
     try {
       callback(null, realpathSync(path));
     } catch (err: unknown) {
-      callback(err);
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -459,8 +459,8 @@ export function rename(oldPath: PathLike, newPath: PathLike, callback: NoParamCa
     try {
       renameSync(oldPath, newPath);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -476,8 +476,8 @@ export function copyFile(src: PathLike, dest: PathLike, modeOrCb: number | NoPar
     try {
       copyFileSync(src, dest, mode);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -493,8 +493,8 @@ export function access(path: PathLike, modeOrCb: number | NoParamCallback, maybe
     try {
       accessSync(path, mode);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -503,15 +503,15 @@ export function access(path: PathLike, modeOrCb: number | NoParamCallback, maybe
 
 export function appendFile(path: PathLike, data: string | Uint8Array, callback: NoParamCallback): void;
 export function appendFile(path: PathLike, data: string | Uint8Array, options: { encoding?: string; mode?: number; flag?: string } | string, callback: NoParamCallback): void;
-export function appendFile(path: PathLike, data: string | Uint8Array, optsOrCb: any, maybeCb?: NoParamCallback): void {
+export function appendFile(path: PathLike, data: string | Uint8Array, optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback, maybeCb?: NoParamCallback): void {
   const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
   const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
   Promise.resolve().then(() => {
     try {
       appendFileSync(path, data, options);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -520,14 +520,14 @@ export function appendFile(path: PathLike, data: string | Uint8Array, optsOrCb: 
 
 export function readlink(path: PathLike, callback: (err: NodeJS.ErrnoException | null, linkString: string) => void): void;
 export function readlink(path: PathLike, options: { encoding?: string } | string, callback: (err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void): void;
-export function readlink(path: PathLike, optsOrCb: any, maybeCb?: any): void {
+export function readlink(path: PathLike, optsOrCb: { encoding?: string } | string | ((err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void), maybeCb?: (err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void): void {
   const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
   const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
   Promise.resolve().then(() => {
     try {
       callback(null, readlinkSync(path, options));
-    } catch (err: any) {
-      callback(err, '');
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException, '');
     }
   });
 }
@@ -543,8 +543,8 @@ export function truncate(path: PathLike, lenOrCb: number | NoParamCallback, mayb
     try {
       truncateSync(path, len);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -556,8 +556,8 @@ export function chmod(path: PathLike, mode: Mode, callback: NoParamCallback): vo
     try {
       chmodSync(path, mode);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -569,8 +569,8 @@ export function chown(path: PathLike, uid: number, gid: number, callback: NoPara
     try {
       chownSync(path, uid, gid);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -584,10 +584,10 @@ export function mkdir(path: PathLike, optsOrCb: MakeDirectoryOptions | Mode | No
   const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
   Promise.resolve().then(() => {
     try {
-      mkdirSync(path, options as any);
+      mkdirSync(path, options as MakeDirectoryOptions | Mode | undefined);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -603,8 +603,8 @@ export function rmdir(path: PathLike, optsOrCb: RmDirOptions | NoParamCallback, 
     try {
       rmdirSync(path, options);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -613,14 +613,15 @@ export function rmdir(path: PathLike, optsOrCb: RmDirOptions | NoParamCallback, 
 
 export function readFile(path: PathLike, callback: (err: NodeJS.ErrnoException | null, data: Buffer) => void): void;
 export function readFile(path: PathLike, options: { encoding?: string; flag?: string } | string, callback: (err: NodeJS.ErrnoException | null, data: string | Buffer) => void): void;
-export function readFile(path: PathLike, optsOrCb: any, maybeCb?: any): void {
+export function readFile(path: PathLike, optsOrCb: { encoding?: string; flag?: string } | string | ((err: NodeJS.ErrnoException | null, data: Buffer) => void), maybeCb?: (err: NodeJS.ErrnoException | null, data: string | Buffer | null) => void): void {
   const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
   const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
   Promise.resolve().then(() => {
     try {
-      callback(null, readFileSync(path.toString(), options));
-    } catch (err: any) {
-      callback(err, null);
+      const readOpts = typeof options === 'string' ? { encoding: options as string | null, flag: 'r' } : { encoding: (options?.encoding ?? null) as string | null, flag: options?.flag ?? 'r' };
+      callback(null, readFileSync(path.toString(), readOpts) as unknown as Buffer);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException, null as unknown as Buffer);
     }
   });
 }
@@ -629,14 +630,14 @@ export function readFile(path: PathLike, optsOrCb: any, maybeCb?: any): void {
 
 export function writeFile(path: PathLike, data: string | Uint8Array, callback: NoParamCallback): void;
 export function writeFile(path: PathLike, data: string | Uint8Array, options: { encoding?: string; mode?: number; flag?: string } | string, callback: NoParamCallback): void;
-export function writeFile(path: PathLike, data: string | Uint8Array, optsOrCb: any, maybeCb?: NoParamCallback): void {
+export function writeFile(path: PathLike, data: string | Uint8Array, optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback, maybeCb?: NoParamCallback): void {
   const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
   Promise.resolve().then(() => {
     try {
       writeFileSync(path.toString(), data);
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }
@@ -648,8 +649,8 @@ export function unlink(path: PathLike, callback: NoParamCallback): void {
     try {
       GLib.unlink(path.toString());
       callback(null);
-    } catch (err: any) {
-      callback(err);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
     }
   });
 }

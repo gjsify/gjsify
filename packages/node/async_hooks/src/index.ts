@@ -1,3 +1,6 @@
+// Reference: Node.js lib/async_hooks.js
+// Reimplemented for GJS
+
 import { EventEmitter } from 'events';
 
 let _id = 1;
@@ -10,7 +13,20 @@ export function triggerAsyncId(): number {
   return 0;
 }
 
-export function createHook(_callbacks: any): { enable(): any; disable(): any } {
+interface HookCallbacks {
+  init?(asyncId: number, type: string, triggerAsyncId: number, resource: object): void;
+  before?(asyncId: number): void;
+  after?(asyncId: number): void;
+  destroy?(asyncId: number): void;
+  promiseResolve?(asyncId: number): void;
+}
+
+interface AsyncHook {
+  enable(): AsyncHook;
+  disable(): AsyncHook;
+}
+
+export function createHook(_callbacks: HookCallbacks): AsyncHook {
   return {
     enable() {
       return this;
@@ -28,7 +44,7 @@ export class AsyncResource {
     this._type = type;
   }
 
-  runInAsyncScope<T>(fn: (...args: any[]) => T, thisArg?: any, ...args: any[]): T {
+  runInAsyncScope<T>(fn: (...args: unknown[]) => T, thisArg?: unknown, ...args: unknown[]): T {
     return fn.apply(thisArg, args);
   }
 
@@ -44,35 +60,35 @@ export class AsyncResource {
     return 0;
   }
 
-  bind<Func extends (...args: any[]) => any>(fn: Func): Func {
-    return ((...args: any[]) => {
+  bind<Func extends (...args: unknown[]) => unknown>(fn: Func): Func {
+    return ((...args: unknown[]) => {
       return this.runInAsyncScope(fn, undefined, ...args);
     }) as unknown as Func;
   }
 
-  static bind<Func extends (...args: any[]) => any>(fn: Func, type?: string): Func {
+  static bind<Func extends (...args: unknown[]) => unknown>(fn: Func, type?: string): Func {
     const resource = new AsyncResource(type || fn.name || 'bound-anonymous-fn');
     return resource.bind(fn);
   }
 }
 
-export class AsyncLocalStorage<T = any> {
+export class AsyncLocalStorage<T = unknown> {
   private _store: T | undefined;
 
   getStore(): T | undefined {
     return this._store;
   }
 
-  run<R>(store: T, callback: (...args: any[]) => R, ...args: any[]): R {
+  run<R>(store: T, callback: (...args: unknown[]) => R, ...args: unknown[]): R {
     const prev = this._store;
     this._store = store;
     try {
       const result = callback(...args);
-      if (result != null && typeof (result as any).then === 'function') {
+      if (result != null && typeof (result as unknown as PromiseLike<unknown>).then === 'function') {
         // Async callback — restore store when the promise settles
-        return (result as any).then(
-          (value: any) => { this._store = prev; return value; },
-          (err: any) => { this._store = prev; throw err; },
+        return (result as unknown as PromiseLike<unknown>).then(
+          (value: unknown) => { this._store = prev; return value; },
+          (err: unknown) => { this._store = prev; throw err; },
         ) as R;
       }
       // Sync callback — restore immediately

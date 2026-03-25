@@ -8,20 +8,13 @@
         "globals"
     ],
     "author": "Pascal Garber",
-    "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "type": "module",
     "exports": {
         ".": {
-            "import": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/esm/index.js"
-            },
-            "require": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/cjs/index.js"
-            }
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
         }
     },
     "scripts": {

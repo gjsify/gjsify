@@ -1,3 +1,5 @@
+// Reference: Node.js lib/domain.js — stub for GJS (deprecated)
+
 import { EventEmitter } from 'events';
 
 export class Domain extends EventEmitter {

@@ -3,19 +3,12 @@
     "version": "0.0.4",
     "description": "W3C WebSocket API for GJS using Soup 3.0",
     "type": "module",
-    "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
-            "import": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/esm/index.js"
-            },
-            "require": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/cjs/index.js"
-            }
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
         },
         "./globals": "./globals.mjs"
     },

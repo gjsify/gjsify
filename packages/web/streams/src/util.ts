@@ -9,10 +9,11 @@ export const kType = Symbol('kType');
 // ---- Brand checking ----
 
 export function isBrandCheck(brand: string) {
-  return (value: any): boolean => {
+  return (value: unknown): boolean => {
     return value != null &&
-           value[kState] !== undefined &&
-           value[kType] === brand;
+           typeof value === 'object' &&
+           (value as Record<symbol, unknown>)[kState] !== undefined &&
+           (value as Record<symbol, unknown>)[kType] === brand;
   };
 }
 
@@ -85,16 +86,16 @@ export function ArrayBufferViewGetByteOffset(view: ArrayBufferView): number {
 
 // ---- Promise utilities ----
 
-export function setPromiseHandled(promise: Promise<any>): void {
+export function setPromiseHandled(promise: Promise<unknown>): void {
   promise.then(() => {}, () => {});
 }
 
-export function createPromiseCallback(name: string, fn: Function, thisArg: any) {
+export function createPromiseCallback(name: string, fn: Function, thisArg: unknown) {
   if (typeof fn !== 'function') {
     throw new TypeError(`${name} must be a function`);
   }
   // Always return a Promise, even if fn is synchronous
-  return async (...args: any[]) => fn.call(thisArg, ...args);
+  return async (...args: unknown[]) => fn.call(thisArg, ...args);
 }
 
 // ---- No-op callbacks ----
@@ -113,11 +114,11 @@ const AsyncIteratorPrototype = Object.getPrototypeOf(
 
 export const AsyncIterator = {
   __proto__: AsyncIteratorPrototype,
-  next: undefined as any,
-  return: undefined as any,
+  next: undefined as (() => Promise<IteratorResult<unknown>>) | undefined,
+  return: undefined as ((value?: unknown) => Promise<IteratorResult<unknown>>) | undefined,
 };
 
-export function createAsyncFromSyncIterator(syncIteratorRecord: any) {
+export function createAsyncFromSyncIterator(syncIteratorRecord: { iterator: Iterator<unknown>; nextMethod: Function; done: boolean }) {
   const syncIterable = {
     [Symbol.iterator]: () => syncIteratorRecord.iterator,
   };
@@ -128,12 +129,12 @@ export function createAsyncFromSyncIterator(syncIteratorRecord: any) {
   return { iterator: asyncIterator, nextMethod, done: false };
 }
 
-export function getIterator(obj: any, kind: 'sync' | 'async' = 'sync', method?: Function) {
+export function getIterator(obj: Record<string | symbol, unknown>, kind: 'sync' | 'async' = 'sync', method?: Function) {
   if (method === undefined) {
     if (kind === 'async') {
-      method = obj[Symbol.asyncIterator];
+      method = obj[Symbol.asyncIterator] as Function | undefined;
       if (method == null) {
-        const syncMethod = obj[Symbol.iterator];
+        const syncMethod = obj[Symbol.iterator] as Function | undefined;
         if (syncMethod === undefined) {
           throw new TypeError('Object is not iterable');
         }
@@ -141,7 +142,7 @@ export function getIterator(obj: any, kind: 'sync' | 'async' = 'sync', method?: 
         return createAsyncFromSyncIterator(syncIteratorRecord);
       }
     } else {
-      method = obj[Symbol.iterator];
+      method = obj[Symbol.iterator] as Function | undefined;
     }
   }
   if (method === undefined) {
@@ -155,7 +156,7 @@ export function getIterator(obj: any, kind: 'sync' | 'async' = 'sync', method?: 
   return { iterator, nextMethod, done: false };
 }
 
-export function iteratorNext(iteratorRecord: any, value?: any) {
+export function iteratorNext(iteratorRecord: { iterator: unknown; nextMethod: Function; done: boolean }, value?: unknown) {
   let result;
   if (value === undefined) {
     result = iteratorRecord.nextMethod.call(iteratorRecord.iterator);

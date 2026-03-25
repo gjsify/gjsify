@@ -1,4 +1,5 @@
-// this is a copy and paste from node
+// Reference: Node.js lib/os.js — OS constants (errno, signals, priority)
+// Copied from Node.js
 export default {
   "UV_UDP_REUSEADDR": 4,
   "errno": {

@@ -2,19 +2,12 @@
     "name": "@gjsify/web-globals",
     "version": "0.0.4",
     "description": "Unified Web API globals for GJS — single import for all Web standard polyfills",
-    "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
-            "import": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/esm/index.js"
-            },
-            "require": {
-                "types": "./lib/types/index.d.ts",
-                "default": "./lib/cjs/index.js"
-            }
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
         }
     },
     "scripts": {

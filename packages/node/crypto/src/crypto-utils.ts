@@ -1,4 +1,4 @@
-// Shared crypto utility functions and constants.
+// Crypto utilities for GJS — original implementation
 // Centralizes algorithm normalization, digest/block sizes, and common helpers
 // used across hash, hmac, pbkdf2, hkdf, mgf1, rsa-pss, rsa-oaep, ecdsa, and sign modules.
 
