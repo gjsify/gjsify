@@ -308,14 +308,16 @@ export function accessSync(path: PathLike, mode?: number): void {
     const info = file.query_info('access::*', Gio.FileQueryInfoFlags.NONE, null);
     // mode: F_OK=0, R_OK=4, W_OK=2, X_OK=1
     if (mode !== undefined && mode !== 0) {
+      // Gio.IOErrorEnum.PERMISSION_DENIED = 14 → maps to EACCES via createNodeError
+      const permErr = { code: 14, message: `permission denied, access '${path}'` };
       if ((mode & 4) && !info.get_attribute_boolean('access::can-read')) {
-        throw Object.assign(new Error(`EACCES: permission denied, access '${path}'`), { code: 'EACCES', errno: -13, syscall: 'access', path: path.toString() });
+        throw createNodeError(permErr, 'access', path);
       }
       if ((mode & 2) && !info.get_attribute_boolean('access::can-write')) {
-        throw Object.assign(new Error(`EACCES: permission denied, access '${path}'`), { code: 'EACCES', errno: -13, syscall: 'access', path: path.toString() });
+        throw createNodeError(permErr, 'access', path);
       }
       if ((mode & 1) && !info.get_attribute_boolean('access::can-execute')) {
-        throw Object.assign(new Error(`EACCES: permission denied, access '${path}'`), { code: 'EACCES', errno: -13, syscall: 'access', path: path.toString() });
+        throw createNodeError(permErr, 'access', path);
       }
     }
   } catch (err: any) {

@@ -5,6 +5,7 @@
 
 import { Buffer } from 'buffer';
 import { randomBytes } from './random.js';
+import { modPow } from './bigint-math.js';
 
 // ---------------------------------------------------------------------------
 // Elliptic curve types
@@ -100,21 +101,7 @@ function mod(a: bigint, m: bigint): bigint {
   return r < 0n ? r + m : r;
 }
 
-/**
- * Modular exponentiation via square-and-multiply.
- */
-function modPow(base: bigint, exp: bigint, m: bigint): bigint {
-  base = mod(base, m);
-  let result = 1n;
-  while (exp > 0n) {
-    if (exp & 1n) {
-      result = mod(result * base, m);
-    }
-    exp >>= 1n;
-    base = mod(base * base, m);
-  }
-  return result;
-}
+// modPow imported from shared bigint-math module
 
 /**
  * Modular multiplicative inverse using extended Euclidean algorithm.

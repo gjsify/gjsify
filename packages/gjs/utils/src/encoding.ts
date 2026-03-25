@@ -10,7 +10,7 @@ const VALID_ENCODINGS = ['utf8', 'ascii', 'latin1', 'binary', 'base64', 'base64u
  * Normalize an encoding string to a canonical encoding value.
  * Returns 'utf8' as default for undefined/null/empty input.
  */
-export function normalizeEncoding(enc?: string): string {
+export function normalizeEncoding(enc?: string): Encoding {
   if (!enc || enc === 'utf8' || enc === 'utf-8') return 'utf8';
   const lower = ('' + enc).toLowerCase().replace(/-/g, '');
   switch (lower) {

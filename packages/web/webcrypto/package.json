@@ -35,6 +35,9 @@
         "subtle",
         "crypto"
     ],
+    "dependencies": {
+        "@gjsify/dom-exception": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",

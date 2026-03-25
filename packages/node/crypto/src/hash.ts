@@ -5,11 +5,8 @@ import GLib from '@girs/glib-2.0';
 import { Transform } from 'stream';
 import type { TransformCallback } from 'node:stream';
 import { Buffer } from 'buffer';
-import { normalizeEncoding as _normalizeEncoding } from '@gjsify/utils';
-
-function normalizeEncoding(enc?: string): BufferEncoding {
-  return _normalizeEncoding(enc) as BufferEncoding;
-}
+import { normalizeEncoding } from '@gjsify/utils';
+import { normalizeAlgorithm } from './crypto-utils.js';
 
 const CHECKSUM_TYPES: Record<string, GLib.ChecksumType> = {
   md5: GLib.ChecksumType.MD5,
@@ -18,10 +15,6 @@ const CHECKSUM_TYPES: Record<string, GLib.ChecksumType> = {
   sha384: GLib.ChecksumType.SHA384,
   sha512: GLib.ChecksumType.SHA512,
 };
-
-function normalizeAlgorithm(algorithm: string): string {
-  return algorithm.toLowerCase().replace(/-/g, '');
-}
 
 function getChecksumType(algorithm: string): GLib.ChecksumType {
   const normalized = normalizeAlgorithm(algorithm);

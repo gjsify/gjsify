@@ -5,6 +5,7 @@
 
 import { Buffer } from 'buffer';
 import { randomBytes } from './random.js';
+import { modPow } from './bigint-math.js';
 
 // ---------------------------------------------------------------------------
 // Predefined MODP groups (RFC 2409 Section 6.1-6.2, RFC 3526 Sections 2-7)
@@ -195,27 +196,7 @@ function bufferToBigInt(buf: Buffer | Uint8Array): bigint {
   return BigInt('0x' + hex);
 }
 
-/**
- * Modular exponentiation: base^exp mod modulus
- * Uses the square-and-multiply algorithm with BigInt.
- */
-function modPow(base: bigint, exp: bigint, modulus: bigint): bigint {
-  if (modulus === 1n) return 0n;
-  if (exp === 0n) return 1n;
-
-  let result = 1n;
-  base = ((base % modulus) + modulus) % modulus;
-
-  while (exp > 0n) {
-    if (exp & 1n) {
-      result = (result * base) % modulus;
-    }
-    exp >>= 1n;
-    base = (base * base) % modulus;
-  }
-
-  return result;
-}
+// modPow imported from shared bigint-math module
 
 /**
  * Count the bit length of a BigInt.

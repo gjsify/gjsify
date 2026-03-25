@@ -8,48 +8,8 @@ import { randomBytes } from './random.js';
 import { mgf1 } from './mgf1.js';
 import { parsePemKey, rsaKeySize } from './asn1.js';
 import type { RsaPrivateComponents, RsaPublicComponents } from './asn1.js';
-
-// ---------------------------------------------------------------------------
-// RSA math (shared with sign.ts)
-// ---------------------------------------------------------------------------
-
-function modPow(base: bigint, exp: bigint, m: bigint): bigint {
-  if (m === 1n) return 0n;
-  base = ((base % m) + m) % m;
-  let result = 1n;
-  while (exp > 0n) {
-    if (exp & 1n) result = (result * base) % m;
-    exp >>= 1n;
-    base = (base * base) % m;
-  }
-  return result;
-}
-
-function bigIntToBytes(value: bigint, length: number): Uint8Array {
-  const result = new Uint8Array(length);
-  let v = value;
-  for (let i = length - 1; i >= 0; i--) {
-    result[i] = Number(v & 0xffn);
-    v >>= 8n;
-  }
-  return result;
-}
-
-function bytesToBigInt(bytes: Uint8Array): bigint {
-  let result = 0n;
-  for (const b of bytes) result = (result << 8n) | BigInt(b);
-  return result;
-}
-
-function hashSize(algo: string): number {
-  switch (algo.toLowerCase().replace(/-/g, '')) {
-    case 'sha1': return 20;
-    case 'sha256': return 32;
-    case 'sha384': return 48;
-    case 'sha512': return 64;
-    default: throw new Error(`Unknown hash: ${algo}`);
-  }
-}
+import { hashSize } from './crypto-utils.js';
+import { modPow, bigIntToBytes, bytesToBigInt } from './bigint-math.js';
 
 function hashDigest(algo: string, data: Uint8Array): Uint8Array {
   const h = new Hash(algo);

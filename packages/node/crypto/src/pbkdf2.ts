@@ -3,20 +3,7 @@
 
 import { Buffer } from 'buffer';
 import { Hmac } from './hmac.js';
-
-const DIGEST_SIZES: Record<string, number> = {
-  md5: 16,
-  sha1: 20,
-  sha256: 32,
-  sha384: 48,
-  sha512: 64,
-};
-
-const SUPPORTED_ALGORITHMS = new Set(['md5', 'sha1', 'sha256', 'sha384', 'sha512']);
-
-function normalizeAlgorithm(algorithm: string): string {
-  return algorithm.toLowerCase().replace(/-/g, '');
-}
+import { normalizeAlgorithm, DIGEST_SIZES, SUPPORTED_ALGORITHMS, toBuffer } from './crypto-utils.js';
 
 function hmacDigest(algo: string, key: Uint8Array, data: Uint8Array): Buffer {
   const hmac = new Hmac(algo, key);
@@ -34,16 +21,6 @@ function validateParameters(iterations: number, keylen: number): void {
   if (typeof keylen !== 'number' || keylen < 0 || !Number.isFinite(keylen) || keylen > 2147483647) {
     throw new TypeError('keylen must be a positive number');
   }
-}
-
-function toBuffer(input: string | Buffer | Uint8Array | DataView, encoding?: string): Buffer {
-  if (typeof input === 'string') {
-    return Buffer.from(input, (encoding as BufferEncoding) || 'utf8');
-  }
-  if (input instanceof DataView) {
-    return Buffer.from(input.buffer, input.byteOffset, input.byteLength);
-  }
-  return Buffer.from(input);
 }
 
 /**

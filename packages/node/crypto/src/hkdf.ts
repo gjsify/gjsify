@@ -3,32 +3,12 @@
 
 import { Buffer } from 'buffer';
 import { Hmac } from './hmac.js';
-
-const DIGEST_SIZES: Record<string, number> = {
-  md5: 16,
-  sha1: 20,
-  sha256: 32,
-  sha384: 48,
-  sha512: 64,
-};
-
-const SUPPORTED_ALGORITHMS = new Set(['md5', 'sha1', 'sha256', 'sha384', 'sha512']);
-
-function normalizeAlgorithm(algorithm: string): string {
-  return algorithm.toLowerCase().replace(/-/g, '');
-}
+import { normalizeAlgorithm, DIGEST_SIZES, SUPPORTED_ALGORITHMS, toBuffer } from './crypto-utils.js';
 
 function hmacDigest(algo: string, key: Uint8Array, data: Uint8Array) {
   const hmac = new Hmac(algo, key);
   hmac.update(data);
   return hmac.digest() as Buffer;
-}
-
-function toBuffer(input: string | Buffer | Uint8Array | DataView | ArrayBuffer): Buffer {
-  if (typeof input === 'string') return Buffer.from(input, 'utf8');
-  if (input instanceof DataView) return Buffer.from(input.buffer, input.byteOffset, input.byteLength);
-  if (input instanceof ArrayBuffer) return Buffer.from(input);
-  return Buffer.from(input);
 }
 
 /**

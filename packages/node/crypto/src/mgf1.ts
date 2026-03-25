@@ -2,6 +2,7 @@
 // Used by RSA-PSS and RSA-OAEP
 
 import { Hash } from './hash.js';
+import { hashSize } from './crypto-utils.js';
 
 /**
  * MGF1 mask generation function.
@@ -33,14 +34,4 @@ export function mgf1(hashAlgo: string, seed: Uint8Array, length: number): Uint8A
   }
 
   return mask;
-}
-
-function hashSize(algo: string): number {
-  switch (algo.toLowerCase().replace(/-/g, '')) {
-    case 'sha1': return 20;
-    case 'sha256': return 32;
-    case 'sha384': return 48;
-    case 'sha512': return 64;
-    default: throw new Error(`Unknown hash algorithm: ${algo}`);
-  }
 }

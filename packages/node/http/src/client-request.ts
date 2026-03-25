@@ -4,32 +4,11 @@
 import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
-import { Writable } from 'stream';
 import { Buffer } from 'buffer';
 import { URL } from 'url';
+import { readBytesAsync } from '@gjsify/utils';
+import { OutgoingMessage } from './server.js';
 import { IncomingMessage } from './incoming-message.js';
-
-/** Read bytes from a Gio.InputStream asynchronously. */
-function readBytesAsync(
-  inputStream: Gio.InputStream,
-  count = 4096,
-  ioPriority = GLib.PRIORITY_DEFAULT,
-  cancellable: Gio.Cancellable | null = null
-): Promise<Uint8Array | null> {
-  return new Promise<Uint8Array | null>((resolve, reject) => {
-    inputStream.read_bytes_async(count, ioPriority, cancellable, (_self: any, asyncRes: Gio.AsyncResult) => {
-      try {
-        const bytes = inputStream.read_bytes_finish(asyncRes);
-        if (bytes.get_size() === 0) {
-          return resolve(null);
-        }
-        resolve(bytes.toArray());
-      } catch (error) {
-        reject(error);
-      }
-    });
-  });
-}
 
 export interface ClientRequestOptions {
   protocol?: string;
@@ -52,7 +31,7 @@ export interface ClientRequestOptions {
  *   req.write(body);
  *   req.end();
  */
-export class ClientRequest extends Writable {
+export class ClientRequest extends OutgoingMessage {
   method: string;
   path: string;
   protocol: string;
@@ -60,13 +39,9 @@ export class ClientRequest extends Writable {
   hostname: string;
   port: number;
   aborted = false;
-  finished = false;
-  headersSent = false;
-  socket: any = null;
   reusedSocket = false;
   maxHeadersCount = 2000;
 
-  private _headers: Map<string, string | string[]> = new Map();
   private _chunks: Buffer[] = [];
   private _session: Soup.Session;
   private _message: Soup.Message;
@@ -143,39 +118,13 @@ export class ClientRequest extends Writable {
     return `${proto}//${this.hostname}${portStr}${this.path}`;
   }
 
-  /** Set a request header. */
-  setHeader(name: string, value: string | number | string[]): this {
-    this._headers.set(name.toLowerCase(), typeof value === 'number' ? String(value) : value);
-    return this;
-  }
-
-  /** Get a request header. */
-  getHeader(name: string): string | string[] | undefined {
-    return this._headers.get(name.toLowerCase());
-  }
-
-  /** Remove a request header. */
-  removeHeader(name: string): void {
-    this._headers.delete(name.toLowerCase());
-  }
-
-  /** Check if a header has been set. */
-  hasHeader(name: string): boolean {
-    return this._headers.has(name.toLowerCase());
-  }
-
-  /** Get all header names. */
-  getHeaderNames(): string[] {
-    return Array.from(this._headers.keys());
-  }
-
   /** Get raw header names and values as a flat array. */
   getRawHeaderNames(): string[] {
     return Array.from(this._headers.keys());
   }
 
   /** Flush headers — marks headers as sent. */
-  flushHeaders(): void {
+  override flushHeaders(): void {
     if (!this.headersSent) {
       this._applyHeaders();
     }

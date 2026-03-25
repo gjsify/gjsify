@@ -3,6 +3,8 @@
 // Reimplemented for GJS.
 
 import type { KeyUsage } from './crypto-key.js';
+// Ensure DOMException is available globally (polyfilled on GJS)
+import '@gjsify/dom-exception';
 
 /** Normalize algorithm identifier to {name: string, ...} form */
 export function normalizeAlgorithm(
@@ -118,13 +120,4 @@ export function toUint8Array(data: BufferSource): Uint8Array {
   throw new TypeError('Expected BufferSource');
 }
 
-/** Polyfill DOMException if not available */
-if (typeof globalThis.DOMException === 'undefined') {
-  (globalThis as any).DOMException = class DOMException extends Error {
-    readonly name: string;
-    constructor(message?: string, name?: string) {
-      super(message);
-      this.name = name || 'Error';
-    }
-  };
-}
+// DOMException polyfill provided by @gjsify/dom-exception import above

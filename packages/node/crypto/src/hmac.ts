@@ -5,27 +5,9 @@
 import { Transform } from 'stream';
 import type { TransformCallback } from 'node:stream';
 import { Buffer } from 'buffer';
-import { normalizeEncoding as _normalizeEncoding } from '@gjsify/utils';
+import { normalizeEncoding } from '@gjsify/utils';
 import { Hash } from './hash.js';
-
-function normalizeEncoding(enc?: string): BufferEncoding {
-  return _normalizeEncoding(enc) as BufferEncoding;
-}
-
-function normalizeAlgorithm(algorithm: string): string {
-  return algorithm.toLowerCase().replace(/-/g, '');
-}
-
-// Hash block sizes per algorithm
-const BLOCK_SIZES: Record<string, number> = {
-  md5: 64,
-  sha1: 64,
-  sha256: 64,
-  sha384: 128,
-  sha512: 128,
-};
-
-const SUPPORTED_ALGORITHMS = new Set(['md5', 'sha1', 'sha256', 'sha384', 'sha512']);
+import { normalizeAlgorithm, BLOCK_SIZES, SUPPORTED_ALGORITHMS } from './crypto-utils.js';
 
 /**
  * Creates and returns an Hmac object that uses the given algorithm and key.

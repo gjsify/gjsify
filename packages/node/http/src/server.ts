@@ -20,7 +20,7 @@ export class OutgoingMessage extends Writable {
   finished = false;
   socket: import('net').Socket | null = null;
 
-  private _headers: Map<string, string | string[]> = new Map();
+  protected _headers: Map<string, string | string[]> = new Map();
 
   /** Set a header. */
   setHeader(name: string, value: string | number | string[]): this {
@@ -91,56 +91,18 @@ export class OutgoingMessage extends Writable {
 
 /**
  * ServerResponse — Writable stream representing an HTTP response.
+ * Extends OutgoingMessage for shared header management.
  */
-export class ServerResponse extends Writable {
+export class ServerResponse extends OutgoingMessage {
   statusCode = 200;
   statusMessage = '';
-  headersSent = false;
-  finished = false;
-  socket: import('net').Socket | null = null;
 
-  private _headers: Map<string, string | string[]> = new Map();
   private _chunks: Buffer[] = [];
   private _soupMsg: Soup.ServerMessage;
 
   constructor(soupMsg: Soup.ServerMessage) {
     super();
     this._soupMsg = soupMsg;
-  }
-
-  /** Set a response header. */
-  setHeader(name: string, value: string | number | string[]): this {
-    this._headers.set(name.toLowerCase(), typeof value === 'number' ? String(value) : value);
-    return this;
-  }
-
-  /** Get a response header. */
-  getHeader(name: string): string | string[] | undefined {
-    return this._headers.get(name.toLowerCase());
-  }
-
-  /** Remove a response header. */
-  removeHeader(name: string): void {
-    this._headers.delete(name.toLowerCase());
-  }
-
-  /** Check if a header has been set. */
-  hasHeader(name: string): boolean {
-    return this._headers.has(name.toLowerCase());
-  }
-
-  /** Get all header names. */
-  getHeaderNames(): string[] {
-    return Array.from(this._headers.keys());
-  }
-
-  /** Get all headers as an object. */
-  getHeaders(): Record<string, string | string[]> {
-    const result: Record<string, string | string[]> = {};
-    for (const [key, value] of this._headers) {
-      result[key] = value;
-    }
-    return result;
   }
 
   /** Write the status line and headers. */
@@ -160,28 +122,6 @@ export class ServerResponse extends Writable {
       }
     }
 
-    return this;
-  }
-
-  /** Append a header value instead of replacing. */
-  appendHeader(name: string, value: string | string[]): this {
-    const lower = name.toLowerCase();
-    const existing = this._headers.get(lower);
-    if (existing === undefined) {
-      this._headers.set(lower, value);
-    } else if (Array.isArray(existing)) {
-      if (Array.isArray(value)) {
-        existing.push(...value);
-      } else {
-        existing.push(value);
-      }
-    } else {
-      if (Array.isArray(value)) {
-        this._headers.set(lower, [existing as string, ...value]);
-      } else {
-        this._headers.set(lower, [existing as string, value]);
-      }
-    }
     return this;
   }
 

@@ -12,27 +12,11 @@ import {
   CURVES, CURVE_ALIASES,
   type ECPoint, type CurveParams,
 } from './ecdh.js';
+import { bigIntToBytes as bigintToBytes, bytesToBigInt as bytesToBigint } from './bigint-math.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function bigintToBytes(n: bigint, len: number): Uint8Array {
-  const hex = n.toString(16).padStart(len * 2, '0');
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
-}
-
-function bytesToBigint(bytes: Uint8Array): bigint {
-  let hex = '';
-  for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, '0');
-  }
-  return hex.length > 0 ? BigInt('0x' + hex) : 0n;
-}
 
 function getCurve(curveName: string): CurveParams {
   const alias = CURVE_ALIASES[curveName.toLowerCase()];
