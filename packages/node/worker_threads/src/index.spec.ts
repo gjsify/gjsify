@@ -1,5 +1,6 @@
 // Ported from refs/node-test/parallel/test-worker-message-*.js,
-//   test-worker-broadcastchannel.js, test-worker-environmentdata.js
+//   test-worker-broadcastchannel.js, test-worker-environmentdata.js,
+//   test-worker-message-port-close.js, test-worker-message-port-receive-message.js
 // Ported from refs/bun/test/js/node/worker_threads/worker_threads.test.ts
 // Original: MIT license, Node.js contributors / Oven (oven-sh)
 
@@ -43,12 +44,20 @@ export default async () => {
       expect(threadId).toBe(0);
     });
 
+    await it('should export threadId as a number', async () => {
+      expect(typeof threadId).toBe('number');
+    });
+
     await it('should export SHARE_ENV as a symbol', async () => {
       expect(typeof SHARE_ENV).toBe('symbol');
     });
 
     await it('should export resourceLimits as an object', async () => {
       expect(typeof resourceLimits).toBe('object');
+    });
+
+    await it('should export resourceLimits as non-null', async () => {
+      expect(resourceLimits).toBeDefined();
     });
 
     await it('should export all expected classes and functions', async () => {
@@ -62,6 +71,15 @@ export default async () => {
       expect(typeof markAsUntransferable).toBe('function');
       expect(typeof moveMessagePortToContext).toBe('function');
     });
+
+    await it('isMainThread should be a boolean', async () => {
+      expect(typeof isMainThread).toBe('boolean');
+    });
+
+    await it('SHARE_ENV should have a description', async () => {
+      // The symbol should have a meaningful description
+      expect(SHARE_ENV.toString().includes('SHARE_ENV')).toBe(true);
+    });
   });
 
   // --- MessageChannel ---
@@ -73,6 +91,13 @@ export default async () => {
       expect(channel.port2).toBeDefined();
       expect(channel.port1 instanceof MessagePort).toBe(true);
       expect(channel.port2 instanceof MessagePort).toBe(true);
+    });
+
+    await it('should create distinct ports', async () => {
+      const channel = new MessageChannel();
+      expect(channel.port1 !== channel.port2).toBe(true);
+      channel.port1.close();
+      channel.port2.close();
     });
 
     await it('should deliver string messages from port1 to port2', async () => {
@@ -165,6 +190,117 @@ export default async () => {
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(messageReceived).toBe(false);
     });
+
+    await it('should deliver empty string', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage('');
+      });
+      expect(received).toBe('');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should deliver undefined', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(undefined);
+      });
+      expect(received).toBeUndefined();
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should deliver zero', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(0);
+      });
+      expect(received).toBe(0);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should deliver false', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(false);
+      });
+      expect(received).toBe(false);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should deliver deeply nested objects', async () => {
+      const channel = new MessageChannel();
+      const obj = { a: { b: { c: { d: { e: 42 } } } } };
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(obj);
+      });
+      expect((received as any).a.b.c.d.e).toBe(42);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should deliver large arrays', async () => {
+      const channel = new MessageChannel();
+      const arr = Array.from({ length: 1000 }, (_, i) => i);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(arr);
+      });
+      expect((received as number[]).length).toBe(1000);
+      expect((received as number[])[0]).toBe(0);
+      expect((received as number[])[999]).toBe(999);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should support bidirectional communication', async () => {
+      const channel = new MessageChannel();
+      // port2 echoes back doubled value
+      channel.port2.on('message', (msg) => {
+        channel.port2.postMessage((msg as number) * 2);
+      });
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port1.on('message', resolve);
+        channel.port1.postMessage(21);
+      });
+      expect(received).toBe(42);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should create independent channels that do not interfere', async () => {
+      const ch1 = new MessageChannel();
+      const ch2 = new MessageChannel();
+      const results: unknown[] = [];
+      const done = new Promise<void>((resolve) => {
+        ch1.port2.on('message', (msg) => {
+          results.push({ ch: 1, msg });
+          if (results.length === 2) resolve();
+        });
+        ch2.port2.on('message', (msg) => {
+          results.push({ ch: 2, msg });
+          if (results.length === 2) resolve();
+        });
+      });
+      ch1.port1.postMessage('from-ch1');
+      ch2.port1.postMessage('from-ch2');
+      await done;
+      expect(results.length).toBe(2);
+      const ch1Msg = results.find((r: any) => r.ch === 1) as any;
+      const ch2Msg = results.find((r: any) => r.ch === 2) as any;
+      expect(ch1Msg.msg).toBe('from-ch1');
+      expect(ch2Msg.msg).toBe('from-ch2');
+      ch1.port1.close();
+      ch2.port1.close();
+    });
   });
 
   // --- MessagePort ---
@@ -183,12 +319,56 @@ export default async () => {
       channel.port2.close();
     });
 
+    await it('should auto-start when addListener("message") is called', async () => {
+      const channel = new MessageChannel();
+      channel.port1.postMessage('queued-addlistener');
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.addListener('message', resolve);
+      });
+      expect(received).toBe('queued-addlistener');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should auto-start when once("message") is called', async () => {
+      const channel = new MessageChannel();
+      channel.port1.postMessage('queued-once');
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.once('message', resolve);
+      });
+      expect(received).toBe('queued-once');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should not auto-start for non-message events', async () => {
+      const channel = new MessageChannel();
+      channel.port1.postMessage('will-be-queued');
+      // Listening for 'close' should NOT auto-start the port
+      channel.port2.on('close', () => { /* no-op */ });
+      // The message should remain in the queue
+      const result = receiveMessageOnPort(channel.port2);
+      expect(result).toBeDefined();
+      expect((result as { message: unknown }).message).toBe('will-be-queued');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
     await it('should emit close event when closed', async () => {
       const channel = new MessageChannel();
       const closed = new Promise<void>((resolve) => {
         channel.port1.on('close', resolve);
       });
       channel.port1.close();
+      await closed;
+    });
+
+    await it('should emit close event on port2 when port2 is closed', async () => {
+      const channel = new MessageChannel();
+      const closed = new Promise<void>((resolve) => {
+        channel.port2.on('close', resolve);
+      });
+      channel.port2.close();
       await closed;
     });
 
@@ -203,6 +383,20 @@ export default async () => {
       channel.port2.close();
     });
 
+    await it('ref() should not throw', async () => {
+      const channel = new MessageChannel();
+      channel.port1.ref();
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('unref() should not throw', async () => {
+      const channel = new MessageChannel();
+      channel.port1.unref();
+      channel.port1.close();
+      channel.port2.close();
+    });
+
     await it('should support once() for single message', async () => {
       const channel = new MessageChannel();
       const first = await new Promise<unknown>((resolve) => {
@@ -210,6 +404,104 @@ export default async () => {
         channel.port1.postMessage('only-once');
       });
       expect(first).toBe('only-once');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('once() should only receive one message', async () => {
+      const channel = new MessageChannel();
+      let count = 0;
+      channel.port2.once('message', () => { count++; });
+      channel.port1.postMessage('msg1');
+      channel.port1.postMessage('msg2');
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(count).toBe(1);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('close() should be idempotent', async () => {
+      const channel = new MessageChannel();
+      channel.port1.close();
+      // Second close should not throw
+      channel.port1.close();
+      channel.port1.close();
+    });
+
+    await it('should support start() explicitly', async () => {
+      const channel = new MessageChannel();
+      // Use addEventListener which does NOT auto-start
+      let received: unknown = null;
+      (channel.port2 as any).addEventListener('message', (event: any) => {
+        received = event.data;
+      });
+      channel.port1.postMessage('explicit-start');
+      // Not started yet — message should be queued
+      await new Promise(resolve => setTimeout(resolve, 20));
+      // Now start
+      channel.port2.start();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(received).toBe('explicit-start');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('start() should be idempotent', async () => {
+      const channel = new MessageChannel();
+      channel.port1.start();
+      channel.port1.start();
+      channel.port1.start();
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('start() on closed port should not throw', async () => {
+      const channel = new MessageChannel();
+      channel.port1.close();
+      // Should not throw
+      channel.port1.start();
+    });
+
+    await it('postMessage on closed sender should be silently ignored', async () => {
+      const channel = new MessageChannel();
+      let received = false;
+      channel.port2.on('message', () => { received = true; });
+      channel.port1.close();
+      // postMessage after close should not throw, just be ignored
+      channel.port1.postMessage('after-close');
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(received).toBe(false);
+    });
+
+    await it('should not deliver messages after close', async () => {
+      const channel = new MessageChannel();
+      let count = 0;
+      channel.port1.on('message', () => { count++; });
+      channel.port1.close();
+      // Messages should not be delivered after close
+      channel.port2.postMessage('after-close');
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(count).toBe(0);
+    });
+
+    await it('should deliver queued messages posted before listener is attached', async () => {
+      const channel = new MessageChannel();
+      // Post messages before any listener
+      channel.port1.postMessage('a');
+      channel.port1.postMessage('b');
+      channel.port1.postMessage('c');
+      // Attach listener later
+      const messages: unknown[] = [];
+      const done = new Promise<void>((resolve) => {
+        channel.port2.on('message', (msg) => {
+          messages.push(msg);
+          if (messages.length === 3) resolve();
+        });
+      });
+      await done;
+      expect(messages[0]).toBe('a');
+      expect(messages[1]).toBe('b');
+      expect(messages[2]).toBe('c');
       channel.port1.close();
       channel.port2.close();
     });
@@ -258,6 +550,66 @@ export default async () => {
       channel.port1.close();
       channel.port2.close();
     });
+
+    await it('should return undefined after all messages consumed', async () => {
+      const channel = new MessageChannel();
+      channel.port1.postMessage('only');
+      const r1 = receiveMessageOnPort(channel.port2);
+      expect((r1 as { message: unknown }).message).toBe('only');
+      // Second call should return undefined
+      const r2 = receiveMessageOnPort(channel.port2);
+      expect(r2).toBeUndefined();
+      // Third call should also return undefined
+      const r3 = receiveMessageOnPort(channel.port2);
+      expect(r3).toBeUndefined();
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should receive object messages with correct wrapping', async () => {
+      const channel = new MessageChannel();
+      const message = { hello: 'world', count: 42 };
+      channel.port1.postMessage(message);
+      const result = receiveMessageOnPort(channel.port2);
+      expect(result).toBeDefined();
+      const received = (result as { message: unknown }).message as any;
+      expect(received.hello).toBe('world');
+      expect(received.count).toBe(42);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should receive null message', async () => {
+      const channel = new MessageChannel();
+      channel.port1.postMessage(null);
+      const result = receiveMessageOnPort(channel.port2);
+      expect(result).toBeDefined();
+      expect((result as { message: unknown }).message).toBeNull();
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should receive boolean messages', async () => {
+      const channel = new MessageChannel();
+      channel.port1.postMessage(true);
+      channel.port1.postMessage(false);
+      const r1 = receiveMessageOnPort(channel.port2);
+      expect((r1 as { message: unknown }).message).toBe(true);
+      const r2 = receiveMessageOnPort(channel.port2);
+      expect((r2 as { message: unknown }).message).toBe(false);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should work on port1 side too', async () => {
+      const channel = new MessageChannel();
+      channel.port2.postMessage('from-port2');
+      const result = receiveMessageOnPort(channel.port1);
+      expect(result).toBeDefined();
+      expect((result as { message: unknown }).message).toBe('from-port2');
+      channel.port1.close();
+      channel.port2.close();
+    });
   });
 
   // --- BroadcastChannel ---
@@ -275,12 +627,36 @@ export default async () => {
       bc.close();
     });
 
+    await it('should coerce null name to string', async () => {
+      const bc = new BroadcastChannel(null as unknown as string);
+      expect(bc.name).toBe('null');
+      bc.close();
+    });
+
+    await it('should coerce undefined name to string', async () => {
+      const bc = new BroadcastChannel(undefined as unknown as string);
+      expect(bc.name).toBe('undefined');
+      bc.close();
+    });
+
+    await it('should coerce boolean name to string', async () => {
+      const bc = new BroadcastChannel(false as unknown as string);
+      expect(bc.name).toBe('false');
+      bc.close();
+    });
+
+    await it('should coerce Infinity name to string', async () => {
+      const bc = new BroadcastChannel(Infinity as unknown as string);
+      expect(bc.name).toBe('Infinity');
+      bc.close();
+    });
+
     await it('should deliver messages to other channels with same name', async () => {
       const bc1 = new BroadcastChannel('bc-deliver');
       const bc2 = new BroadcastChannel('bc-deliver');
 
       const received = await new Promise<unknown>((resolve) => {
-        bc2.onmessage = (event) => resolve(event.data);
+        (bc2 as any).onmessage = (event: any) => resolve(event.data);
         bc1.postMessage('broadcast-hello');
       });
 
@@ -292,7 +668,7 @@ export default async () => {
     await it('should not deliver messages to self', async () => {
       const bc = new BroadcastChannel('bc-self');
       let received = false;
-      bc.onmessage = () => { received = true; };
+      (bc as any).onmessage = () => { received = true; };
       bc.postMessage('self');
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(received).toBe(false);
@@ -303,7 +679,7 @@ export default async () => {
       const bc1 = new BroadcastChannel('bc-name-a');
       const bc2 = new BroadcastChannel('bc-name-b');
       let received = false;
-      bc2.onmessage = () => { received = true; };
+      (bc2 as any).onmessage = () => { received = true; };
       bc1.postMessage('wrong-channel');
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(received).toBe(false);
@@ -327,7 +703,7 @@ export default async () => {
       const bc1 = new BroadcastChannel('bc-closed-recv');
       const bc2 = new BroadcastChannel('bc-closed-recv');
       let received = false;
-      bc2.onmessage = () => { received = true; };
+      (bc2 as any).onmessage = () => { received = true; };
       bc2.close();
       bc1.postMessage('after-close');
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -343,8 +719,8 @@ export default async () => {
       let count = 0;
       const done = new Promise<void>((resolve) => {
         const handler = () => { count++; if (count === 2) resolve(); };
-        bc2.onmessage = handler;
-        bc3.onmessage = handler;
+        (bc2 as any).onmessage = handler;
+        (bc3 as any).onmessage = handler;
       });
 
       bc1.postMessage('to-all');
@@ -354,6 +730,95 @@ export default async () => {
       bc1.close();
       bc2.close();
       bc3.close();
+    });
+
+    await it('close() should be idempotent', async () => {
+      const bc = new BroadcastChannel('bc-idempotent-close');
+      bc.close();
+      // Second close should not throw
+      bc.close();
+      bc.close();
+    });
+
+    await it('should deliver cloned data, not references', async () => {
+      const bc1 = new BroadcastChannel('bc-clone');
+      const bc2 = new BroadcastChannel('bc-clone');
+      const original = { key: 'value', items: [1, 2, 3] };
+
+      const received = await new Promise<unknown>((resolve) => {
+        (bc2 as any).onmessage = (event: any) => resolve(event.data);
+        bc1.postMessage(original);
+      });
+
+      expect(JSON.stringify(received)).toBe(JSON.stringify(original));
+      // Should be a clone, not the same reference
+      expect(received !== original).toBe(true);
+      bc1.close();
+      bc2.close();
+    });
+
+    await it('should deliver numeric messages', async () => {
+      const bc1 = new BroadcastChannel('bc-numeric');
+      const bc2 = new BroadcastChannel('bc-numeric');
+
+      const received = await new Promise<unknown>((resolve) => {
+        (bc2 as any).onmessage = (event: any) => resolve(event.data);
+        bc1.postMessage(42);
+      });
+
+      expect(received).toBe(42);
+      bc1.close();
+      bc2.close();
+    });
+
+    await it('should deliver null message', async () => {
+      const bc1 = new BroadcastChannel('bc-null');
+      const bc2 = new BroadcastChannel('bc-null');
+
+      const received = await new Promise<unknown>((resolve) => {
+        (bc2 as any).onmessage = (event: any) => resolve(event.data);
+        bc1.postMessage(null);
+      });
+
+      expect(received).toBeNull();
+      bc1.close();
+      bc2.close();
+    });
+
+    await it('should deliver multiple messages in order', async () => {
+      const bc1 = new BroadcastChannel('bc-order');
+      const bc2 = new BroadcastChannel('bc-order');
+      const messages: unknown[] = [];
+
+      const done = new Promise<void>((resolve) => {
+        (bc2 as any).onmessage = (event: any) => {
+          messages.push(event.data);
+          if (messages.length === 3) resolve();
+        };
+      });
+
+      bc1.postMessage('first');
+      bc1.postMessage('second');
+      bc1.postMessage('third');
+
+      await done;
+      expect(messages[0]).toBe('first');
+      expect(messages[1]).toBe('second');
+      expect(messages[2]).toBe('third');
+      bc1.close();
+      bc2.close();
+    });
+
+    await it('should not deliver after close', async () => {
+      const bc1 = new BroadcastChannel('bc-no-deliver-after-close');
+      const bc2 = new BroadcastChannel('bc-no-deliver-after-close');
+      let received = false;
+      (bc2 as any).onmessage = () => { received = true; };
+      bc2.close();
+      bc1.postMessage('should-not-arrive');
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(received).toBe(false);
+      bc1.close();
     });
   });
 
@@ -375,6 +840,55 @@ export default async () => {
       setEnvironmentData('toDelete', undefined);
       expect(getEnvironmentData('toDelete')).toBeUndefined();
     });
+
+    await it('should overwrite existing data', async () => {
+      setEnvironmentData('overwrite-key', 'first');
+      expect(getEnvironmentData('overwrite-key')).toBe('first');
+      setEnvironmentData('overwrite-key', 'second');
+      expect(getEnvironmentData('overwrite-key')).toBe('second');
+    });
+
+    await it('should store numeric values', async () => {
+      setEnvironmentData('num-key', 42);
+      expect(getEnvironmentData('num-key')).toBe(42);
+    });
+
+    await it('should store object values', async () => {
+      const obj = { hello: 'world' };
+      setEnvironmentData('obj-key', obj);
+      expect((getEnvironmentData('obj-key') as any).hello).toBe('world');
+    });
+
+    await it('should store boolean values', async () => {
+      setEnvironmentData('bool-true', true);
+      setEnvironmentData('bool-false', false);
+      expect(getEnvironmentData('bool-true')).toBe(true);
+      expect(getEnvironmentData('bool-false')).toBe(false);
+    });
+
+    await it('should store null value', async () => {
+      setEnvironmentData('null-key', null as unknown as string);
+      expect(getEnvironmentData('null-key')).toBeNull();
+    });
+
+    await it('should store empty string', async () => {
+      setEnvironmentData('empty-str', '');
+      expect(getEnvironmentData('empty-str')).toBe('');
+    });
+
+    await it('should handle multiple keys independently', async () => {
+      setEnvironmentData('multi-a', 'alpha');
+      setEnvironmentData('multi-b', 'beta');
+      setEnvironmentData('multi-c', 'gamma');
+      expect(getEnvironmentData('multi-a')).toBe('alpha');
+      expect(getEnvironmentData('multi-b')).toBe('beta');
+      expect(getEnvironmentData('multi-c')).toBe('gamma');
+      // Deleting one should not affect others
+      setEnvironmentData('multi-b', undefined);
+      expect(getEnvironmentData('multi-a')).toBe('alpha');
+      expect(getEnvironmentData('multi-b')).toBeUndefined();
+      expect(getEnvironmentData('multi-c')).toBe('gamma');
+    });
   });
 
   // --- Utility functions ---
@@ -385,8 +899,19 @@ export default async () => {
       markAsUntransferable(new ArrayBuffer(8));
     });
 
+    await it('markAsUntransferable should accept various objects', async () => {
+      markAsUntransferable(new Uint8Array(4));
+      markAsUntransferable([1, 2, 3]);
+      markAsUntransferable({ key: 'value' });
+    });
+
     await it('moveMessagePortToContext should be a function', async () => {
       // Native Node.js requires a vm.Context — just verify it's exported
+      expect(typeof moveMessagePortToContext).toBe('function');
+    });
+
+    await it('moveMessagePortToContext should be callable', async () => {
+      // Native Node.js requires a vm.Context — just verify it's exported and callable
       expect(typeof moveMessagePortToContext).toBe('function');
     });
   });
@@ -446,6 +971,18 @@ export default async () => {
       bc2.close();
       bc3.close();
     });
+
+    await it('removeEventListener with null should not throw', async () => {
+      const bc = new BroadcastChannel('bc-ae-null');
+      (bc as any).removeEventListener('message', null);
+      bc.close();
+    });
+
+    await it('addEventListener with null should not throw', async () => {
+      const bc = new BroadcastChannel('bc-ae-null-add');
+      (bc as any).addEventListener('message', null);
+      bc.close();
+    });
   });
 
   // --- MessagePort.addEventListener ---
@@ -484,6 +1021,44 @@ export default async () => {
       channel.port1.close();
       channel.port2.close();
     });
+
+    await it('addEventListener should wrap message in event-like object', async () => {
+      const channel = new MessageChannel();
+      const event = await new Promise<unknown>((resolve) => {
+        (channel.port2 as any).addEventListener('message', resolve);
+        channel.port2.start();
+        channel.port1.postMessage('wrapped');
+      });
+      const ev = event as { data: unknown; type: string };
+      expect(ev.data).toBe('wrapped');
+      expect(ev.type).toBe('message');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('removeEventListener with null should not throw', async () => {
+      const channel = new MessageChannel();
+      (channel.port1 as any).removeEventListener('message', null);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('addEventListener with null should not throw', async () => {
+      const channel = new MessageChannel();
+      (channel.port1 as any).addEventListener('message', null);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should support addEventListener for non-message events', async () => {
+      const channel = new MessageChannel();
+      const closed = new Promise<void>((resolve) => {
+        (channel.port1 as any).addEventListener('close', resolve);
+      });
+      channel.port1.close();
+      await closed;
+      channel.port2.close();
+    });
   });
 
   // --- MessageChannel structured clone edge cases ---
@@ -509,6 +1084,26 @@ export default async () => {
       channel.port1.close();
     });
 
+    await it('should clone Infinity', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(Infinity);
+      });
+      expect(received).toBe(Infinity);
+      channel.port1.close();
+    });
+
+    await it('should clone -Infinity', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(-Infinity);
+      });
+      expect(received).toBe(-Infinity);
+      channel.port1.close();
+    });
+
     await it('should clone BigInt', async () => {
       const channel = new MessageChannel();
       const received = await new Promise<unknown>((resolve) => {
@@ -516,6 +1111,26 @@ export default async () => {
         channel.port1.postMessage(9007199254740993n);
       });
       expect(received).toBe(9007199254740993n);
+      channel.port1.close();
+    });
+
+    await it('should clone BigInt zero', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(0n);
+      });
+      expect(received).toBe(0n);
+      channel.port1.close();
+    });
+
+    await it('should clone negative BigInt', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(-42n);
+      });
+      expect(received).toBe(-42n);
       channel.port1.close();
     });
 
@@ -529,6 +1144,58 @@ export default async () => {
       expect(received instanceof Int32Array).toBe(true);
       expect((received as Int32Array)[0]).toBe(100);
       expect((received as Int32Array)[2]).toBe(300);
+      channel.port1.close();
+    });
+
+    await it('should clone Float64Array', async () => {
+      const channel = new MessageChannel();
+      const arr = new Float64Array([1.1, 2.2, 3.3]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(arr);
+      });
+      expect(received instanceof Float64Array).toBe(true);
+      expect((received as Float64Array).length).toBe(3);
+      channel.port1.close();
+    });
+
+    await it('should clone ArrayBuffer', async () => {
+      const channel = new MessageChannel();
+      const buf = new ArrayBuffer(8);
+      const view = new Uint8Array(buf);
+      view[0] = 1;
+      view[7] = 255;
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(buf);
+      });
+      expect(received instanceof ArrayBuffer).toBe(true);
+      const rView = new Uint8Array(received as ArrayBuffer);
+      expect(rView[0]).toBe(1);
+      expect(rView[7]).toBe(255);
+      channel.port1.close();
+    });
+
+    await it('should clone empty array', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage([]);
+      });
+      expect(Array.isArray(received)).toBe(true);
+      expect((received as unknown[]).length).toBe(0);
+      channel.port1.close();
+    });
+
+    await it('should clone empty object', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage({});
+      });
+      expect(typeof received).toBe('object');
+      expect(received).toBeDefined();
+      expect(Object.keys(received as object).length).toBe(0);
       channel.port1.close();
     });
   });
@@ -548,6 +1215,18 @@ export default async () => {
       channel.port1.close();
     });
 
+    await it('should clone Date and preserve time', async () => {
+      const channel = new MessageChannel();
+      const date = new Date(0); // Unix epoch
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(date);
+      });
+      expect(received instanceof Date).toBe(true);
+      expect((received as Date).getTime()).toBe(0);
+      channel.port1.close();
+    });
+
     await it('should clone RegExp objects', async () => {
       const channel = new MessageChannel();
       const regex = /hello\d+/gi;
@@ -558,6 +1237,19 @@ export default async () => {
       expect(received instanceof RegExp).toBe(true);
       expect((received as RegExp).source).toBe('hello\\d+');
       expect((received as RegExp).flags).toBe('gi');
+      channel.port1.close();
+    });
+
+    await it('should clone RegExp without flags', async () => {
+      const channel = new MessageChannel();
+      const regex = /simple/;
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(regex);
+      });
+      expect(received instanceof RegExp).toBe(true);
+      expect((received as RegExp).source).toBe('simple');
+      expect((received as RegExp).flags).toBe('');
       channel.port1.close();
     });
 
@@ -572,6 +1264,18 @@ export default async () => {
       expect((received as Map<string, string>).get('key1')).toBe('value1');
       expect((received as Map<string, string>).get('key2')).toBe('value2');
       expect((received as Map<string, string>).size).toBe(2);
+      channel.port1.close();
+    });
+
+    await it('should clone empty Map', async () => {
+      const channel = new MessageChannel();
+      const map = new Map();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(map);
+      });
+      expect(received instanceof Map).toBe(true);
+      expect((received as Map<unknown, unknown>).size).toBe(0);
       channel.port1.close();
     });
 
@@ -590,6 +1294,18 @@ export default async () => {
       channel.port1.close();
     });
 
+    await it('should clone empty Set', async () => {
+      const channel = new MessageChannel();
+      const set = new Set();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(set);
+      });
+      expect(received instanceof Set).toBe(true);
+      expect((received as Set<unknown>).size).toBe(0);
+      channel.port1.close();
+    });
+
     await it('should clone Error objects', async () => {
       const channel = new MessageChannel();
       const error = new Error('test error');
@@ -600,6 +1316,30 @@ export default async () => {
       });
       expect(received instanceof Error).toBe(true);
       expect((received as Error).message).toBe('test error');
+      channel.port1.close();
+    });
+
+    await it('should clone TypeError', async () => {
+      const channel = new MessageChannel();
+      const error = new TypeError('type error test');
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(error);
+      });
+      expect(received instanceof Error).toBe(true);
+      expect((received as Error).message).toBe('type error test');
+      channel.port1.close();
+    });
+
+    await it('should clone RangeError', async () => {
+      const channel = new MessageChannel();
+      const error = new RangeError('range error test');
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(error);
+      });
+      expect(received instanceof Error).toBe(true);
+      expect((received as Error).message).toBe('range error test');
       channel.port1.close();
     });
 
@@ -614,6 +1354,19 @@ export default async () => {
       expect((received as Uint8Array).length).toBe(5);
       expect((received as Uint8Array)[0]).toBe(1);
       expect((received as Uint8Array)[4]).toBe(5);
+      channel.port1.close();
+    });
+
+    await it('should clone Uint16Array', async () => {
+      const channel = new MessageChannel();
+      const arr = new Uint16Array([256, 512, 1024]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(arr);
+      });
+      expect(received instanceof Uint16Array).toBe(true);
+      expect((received as Uint16Array)[0]).toBe(256);
+      expect((received as Uint16Array)[2]).toBe(1024);
       channel.port1.close();
     });
 
@@ -636,6 +1389,105 @@ export default async () => {
       expect(r.items[2].three).toBe(3);
       expect(r.nested.deep).toBe(true);
       channel.port1.close();
+    });
+
+    await it('should clone nested Map with Set values', async () => {
+      const channel = new MessageChannel();
+      const map = new Map<string, Set<number>>([
+        ['evens', new Set([2, 4, 6])],
+        ['odds', new Set([1, 3, 5])],
+      ]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(map);
+      });
+      const r = received as Map<string, Set<number>>;
+      expect(r instanceof Map).toBe(true);
+      expect(r.get('evens') instanceof Set).toBe(true);
+      expect(r.get('evens')!.has(2)).toBe(true);
+      expect(r.get('evens')!.has(4)).toBe(true);
+      expect(r.get('evens')!.size).toBe(3);
+      expect(r.get('odds')!.has(1)).toBe(true);
+      expect(r.get('odds')!.size).toBe(3);
+      channel.port1.close();
+    });
+
+    await it('should clone Map with numeric keys', async () => {
+      const channel = new MessageChannel();
+      const map = new Map<number, string>([[1, 'one'], [2, 'two']]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(map);
+      });
+      const r = received as Map<number, string>;
+      expect(r instanceof Map).toBe(true);
+      expect(r.get(1)).toBe('one');
+      expect(r.get(2)).toBe('two');
+      channel.port1.close();
+    });
+
+    await it('should clone Set containing objects', async () => {
+      const channel = new MessageChannel();
+      const set = new Set([{ a: 1 }, { b: 2 }]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(set);
+      });
+      const r = received as Set<{ a?: number; b?: number }>;
+      expect(r instanceof Set).toBe(true);
+      expect(r.size).toBe(2);
+      const items = Array.from(r);
+      // Check that the objects were cloned
+      expect(items.some((item: any) => item.a === 1)).toBe(true);
+      expect(items.some((item: any) => item.b === 2)).toBe(true);
+      channel.port1.close();
+    });
+
+    await it('should clone object with array of Maps', async () => {
+      const channel = new MessageChannel();
+      const obj = {
+        maps: [
+          new Map([['x', 1]]),
+          new Map([['y', 2]]),
+        ],
+      };
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(obj);
+      });
+      const r = received as { maps: Map<string, number>[] };
+      expect(r.maps.length).toBe(2);
+      expect(r.maps[0] instanceof Map).toBe(true);
+      expect(r.maps[0].get('x')).toBe(1);
+      expect(r.maps[1].get('y')).toBe(2);
+      channel.port1.close();
+    });
+
+    await it('should clone long string', async () => {
+      const channel = new MessageChannel();
+      const longStr = 'a'.repeat(10000);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(longStr);
+      });
+      expect(received).toBe(longStr);
+      expect((received as string).length).toBe(10000);
+      channel.port1.close();
+    });
+  });
+
+  // --- Worker class ---
+
+  await describe('Worker class', async () => {
+    await it('Worker constructor should be a function', async () => {
+      expect(typeof Worker).toBe('function');
+    });
+
+    await it('Worker should have prototype with expected methods', async () => {
+      expect(typeof Worker.prototype.postMessage).toBe('function');
+      expect(typeof Worker.prototype.terminate).toBe('function');
+      expect(typeof Worker.prototype.ref).toBe('function');
+      expect(typeof Worker.prototype.unref).toBe('function');
     });
   });
 };

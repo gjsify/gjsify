@@ -59,9 +59,15 @@ export function createContext(context?: Record<string, unknown>): Record<string,
 
 /**
  * Check if an object was created by createContext().
+ * Throws TypeError for non-object arguments, matching Node.js behavior.
  */
 export function isContext(context: unknown): boolean {
-  return context != null && (context as Record<symbol, unknown>)[contextSymbol] === true;
+  if (typeof context !== 'object' || context === null) {
+    throw new TypeError(
+      `The "object" argument must be of type object. Received ${context === null ? 'null' : `type ${typeof context}`}`
+    );
+  }
+  return (context as Record<symbol, unknown>)[contextSymbol] === true;
 }
 
 /**
