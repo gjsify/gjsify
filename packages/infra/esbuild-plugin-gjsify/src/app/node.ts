@@ -24,7 +24,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         sourcemap: false,
         treeShaking: true,
         preserveSymlinks: false, // false means follow symlinks
-        target: [ "node18" ],
+        target: [ "node24" ],
         platform: "node",
         mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
         conditions: format === 'esm' ? ['module', 'import'] : ['require'],

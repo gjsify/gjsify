@@ -78,7 +78,7 @@ Node.js API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). Al
 esbuild with platform-specific plugins. Same test source, different resolution per platform.
 
 - **GJS** (`gjsify build --app gjs`): `assert`→`@gjsify/assert`. Externals: `gi://*`, `cairo`, `system`, `gettext`. Target: `firefox128`
-- **Node** (`gjsify build --app node`): `@gjsify/process`→`process`. Target: `node18`
+- **Node** (`gjsify build --app node`): `@gjsify/process`→`process`. Target: `node24`
 
 Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node}.ts` | `packages/infra/resolve-npm/lib/index.mjs`
 
