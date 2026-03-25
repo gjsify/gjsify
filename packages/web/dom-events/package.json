@@ -4,7 +4,7 @@
     "description": "Web events module for Gjs",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
-    "types": "lib/types/index.d.js",
+    "types": "lib/types/index.d.ts",
     "type": "module",
     "exports": {
         ".": {

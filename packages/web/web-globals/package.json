@@ -4,6 +4,7 @@
     "description": "Unified Web API globals for GJS — single import for all Web standard polyfills",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
             "import": {

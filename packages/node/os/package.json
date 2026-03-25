@@ -4,6 +4,7 @@
     "description": "Node.js os module for Gjs",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
     "type": "module",
     "exports": {
         ".": {
@@ -41,6 +42,8 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.5.0",
         "typescript": "^6.0.2"
     }
 }

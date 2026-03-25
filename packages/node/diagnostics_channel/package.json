@@ -5,6 +5,7 @@
     "type": "module",
     "main": "lib/cjs/index.js",
     "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
             "import": {
