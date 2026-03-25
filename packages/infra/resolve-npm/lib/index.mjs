@@ -162,7 +162,7 @@ export const ALIASES_WEB_FOR_NODE = {
     'abort-controller': '@gjsify/abort-controller/globals',
     'compression-streams': '@gjsify/compression-streams/globals',
     'dom-events': '@gjsify/dom-events/globals',
-    'eventsource': '@gjsify/eventsource',
+    'eventsource': '@gjsify/eventsource/globals',
     'fetch': '@gjsify/fetch/globals',
     'formdata': '@gjsify/formdata/globals',
     'html-image-element': '@gjsify/html-image-element',
