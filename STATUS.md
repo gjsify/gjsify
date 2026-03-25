@@ -14,7 +14,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,840 test cases in 85+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~2,900 test cases in 88+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -32,7 +32,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **diagnostics_channel** | — | 26 | Channel, TracingChannel, subscribe/unsubscribe |
 | **dns** | Gio, GLib | 50 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
 | **events** | — | 119 | EventEmitter, once, on, listenerCount (707 lines) |
-| **fs** | Gio, GLib | 40 (6 specs) | sync, callback, promises, streams, FSWatcher |
+| **fs** | Gio, GLib | 80 (7 specs) | sync, callback, promises, streams, FSWatcher |
 | **module** | Gio, GLib | 21 | builtinModules, isBuiltin, createRequire (with JSON loading and module resolution) |
 | **net** | Gio, GLib | 64 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
 | **os** | GLib | 240 | homedir, hostname, cpus (real times from /proc/stat), platform-specific |
@@ -40,7 +40,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **perf_hooks** | — | 30 | performance (Web API / GLib fallback), monitorEventLoopDelay, mark/measure/getEntries |
 | **process** | GLib | 47 | EventEmitter-based, env, cwd, platform, exit |
 | **querystring** | — | 63 | parse/stringify with full encoding |
-| **stream** | — | 87 | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy |
+| **stream** | — | 141 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
 | **string_decoder** | — | 65 | UTF-8, Base64, hex, streaming |
 | **timers** | — | 43 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
 | **tty** | — | 23 | ReadStream/WriteStream, isatty, ANSI, clearLine, cursorTo, getColorDepth |
@@ -153,8 +153,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Partially implemented | 3 (8%) |
 | Stubs | 5 (13%) |
 | Web API packages | 14 (all implemented) |
-| Total test cases | ~2,840 |
-| Spec files | 85+ |
+| Total test cases | ~2,900 |
+| Spec files | 88+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -202,6 +202,25 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — Phase 17: fs + Stream Submodule Test Expansion
+
+**fs callback test expansion** (1 → 15 tests):
+- stat/lstat: directory stat, ENOENT error
+- readdir: list files
+- mkdir/rmdir: create and remove directory
+- writeFile/readFile: string and Buffer data, ENOENT error
+- open/write/close: low-level file I/O
+- access: F_OK success and ENOENT failure
+- appendFile: append content
+- rename: file rename round-trip
+- copyFile: file copy round-trip
+- truncate: truncate file content
+- chmod: change file mode
+
+**stream submodule tests** (new 2 spec files):
+- **stream/consumers** (12 tests): text (empty, single, multi-chunk), json (object, array, number), buffer (data, empty), arrayBuffer (single, multi-chunk), blob (data, content verification)
+- **stream/promises** (8 tests): pipeline (readable→writable, through transform, PassThrough, source error rejection), finished (writable finish, readable end, error rejection, already-finished)
 
 ### 2026-03-24 — Phase 16: Networking Test Expansion + Housekeeping
 
