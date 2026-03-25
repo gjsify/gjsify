@@ -175,6 +175,8 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 
 `packages/node/<name>/`: `@gjsify/<name>`, v0.0.4, `"type":"module"` | exports `./lib/esm/index.js` (ESM-only) | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`, devDep: `@gjsify/unit` | workspace deps: always `workspace:^`
 
+Shared cross-package utilities live in `@gjsify/utils` (`packages/gjs/utils/`). Check there before duplicating helpers. Don't extract prematurely — only move code to utils when a second package actually needs it.
+
 ## Implementation Workflow (TDD)
 
 1. Study API: `refs/node/lib/<name>.js`

@@ -39,9 +39,19 @@ export function createHook(_callbacks: HookCallbacks): AsyncHook {
 
 export class AsyncResource {
   private _type: string;
+  private _asyncId: number;
+  private _triggerAsyncId: number;
 
-  constructor(type: string) {
+  constructor(type: string, triggerAsyncIdOrOpts?: number | { triggerAsyncId?: number; requireManualDestroy?: boolean }) {
     this._type = type;
+    this._asyncId = _id++;
+    if (typeof triggerAsyncIdOrOpts === 'number') {
+      this._triggerAsyncId = triggerAsyncIdOrOpts;
+    } else if (triggerAsyncIdOrOpts && typeof triggerAsyncIdOrOpts.triggerAsyncId === 'number') {
+      this._triggerAsyncId = triggerAsyncIdOrOpts.triggerAsyncId;
+    } else {
+      this._triggerAsyncId = executionAsyncId();
+    }
   }
 
   runInAsyncScope<T>(fn: (...args: unknown[]) => T, thisArg?: unknown, ...args: unknown[]): T {
@@ -53,11 +63,11 @@ export class AsyncResource {
   }
 
   asyncId(): number {
-    return _id++;
+    return this._asyncId;
   }
 
   triggerAsyncId(): number {
-    return 0;
+    return this._triggerAsyncId;
   }
 
   bind<Func extends (...args: unknown[]) => unknown>(fn: Func): Func {
@@ -72,8 +82,15 @@ export class AsyncResource {
   }
 }
 
+// Track all live AsyncLocalStorage instances for snapshot()
+const _allInstances = new Set<AsyncLocalStorage>();
+
 export class AsyncLocalStorage<T = unknown> {
   private _store: T | undefined;
+
+  constructor() {
+    _allInstances.add(this);
+  }
 
   getStore(): T | undefined {
     return this._store;
@@ -100,11 +117,11 @@ export class AsyncLocalStorage<T = unknown> {
     }
   }
 
-  exit<R>(callback: () => R): R {
+  exit<R>(callback: (...args: unknown[]) => R, ...args: unknown[]): R {
     const prev = this._store;
     this._store = undefined;
     try {
-      return callback();
+      return callback(...args);
     } finally {
       this._store = prev;
     }
@@ -116,6 +133,29 @@ export class AsyncLocalStorage<T = unknown> {
 
   disable(): void {
     this._store = undefined;
+  }
+
+  static snapshot(): <R>(fn: (...args: unknown[]) => R, ...args: unknown[]) => R {
+    // Capture the current store of every live AsyncLocalStorage instance
+    const captured = new Map<AsyncLocalStorage, unknown>();
+    for (const instance of _allInstances) {
+      captured.set(instance, instance.getStore());
+    }
+    return <R>(fn: (...args: unknown[]) => R, ...args: unknown[]): R => {
+      // Save current stores, restore captured stores, run fn, then restore
+      const saved = new Map<AsyncLocalStorage, unknown>();
+      for (const [instance, store] of captured) {
+        saved.set(instance, instance.getStore());
+        (instance as AsyncLocalStorage<unknown>)._store = store;
+      }
+      try {
+        return fn(...args);
+      } finally {
+        for (const [instance, store] of saved) {
+          (instance as AsyncLocalStorage<unknown>)._store = store;
+        }
+      }
+    };
   }
 }
 

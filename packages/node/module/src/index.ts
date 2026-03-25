@@ -9,6 +9,7 @@ import { resolve as resolvePath, readJSON } from '@gjsify/utils';
 
 export const builtinModules = [
   'assert',
+  'async_hooks',
   'buffer',
   'child_process',
   'cluster',
