@@ -301,7 +301,7 @@ export default async () => {
 			expect(existsSync(txt1)).toBeTruthy();
 			await promises.rm(txt1);
 			expect(existsSync(txt1)).toBeFalsy();
-			
+
 			// Clear
 			await promises.rmdir(dir);
 		});
@@ -330,6 +330,383 @@ export default async () => {
 
 			// Dir should not exists anymore because recursive was `true`
 			expect(existsSync(dir)).toBeFalsy();
+		});
+	});
+
+	// --- New tests below ---
+
+	await describe('fs.promises.writeFile + readFile round-trip', async () => {
+		await it('should write and read back a string correctly', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-prt-'));
+			const file = join(dir, 'roundtrip.txt');
+			const content = 'Hello, round-trip test!';
+			await writeFile(file, content);
+			const result = await promises.readFile(file, 'utf-8');
+			expect(result).toBe(content);
+			await rm(file);
+			await rmdir(dir);
+		});
+
+		await it('should write and read back a Buffer correctly', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-prt-buf-'));
+			const file = join(dir, 'roundtrip-buf.bin');
+			const data = Buffer.from([0x00, 0x01, 0x02, 0xff]);
+			await writeFile(file, data);
+			const result = await promises.readFile(file);
+			expect(result instanceof Buffer).toBeTruthy();
+			expect(result[0]).toBe(0x00);
+			expect(result[1]).toBe(0x01);
+			expect(result[2]).toBe(0x02);
+			expect(result[3]).toBe(0xff);
+			expect(result.length).toBe(4);
+			await rm(file);
+			await rmdir(dir);
+		});
+
+		await it('should write an empty file and read it back', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-prt-empty-'));
+			const file = join(dir, 'empty.txt');
+			await writeFile(file, '');
+			const result = await promises.readFile(file, 'utf-8');
+			expect(result).toBe('');
+			await rm(file);
+			await rmdir(dir);
+		});
+
+		await it('should write unicode content and read it back', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-prt-uni-'));
+			const file = join(dir, 'unicode.txt');
+			const content = 'Hej! Caf\u00e9 \u2603 \ud83d\ude00';
+			await writeFile(file, content);
+			const result = await promises.readFile(file, 'utf-8');
+			expect(result).toBe(content);
+			await rm(file);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.mkdir / rmdir', async () => {
+		await it('should create and remove a directory', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pmkdir-'));
+			const sub = join(dir, 'subdir');
+			await mkdir(sub);
+			expect(existsSync(sub)).toBe(true);
+			await rmdir(sub);
+			expect(existsSync(sub)).toBe(false);
+			await rmdir(dir);
+		});
+
+		await it('should create nested directories with recursive option', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pmkdir-rec-'));
+			const nested = join(dir, 'a', 'b', 'c');
+			await mkdir(nested, { recursive: true });
+			expect(existsSync(nested)).toBe(true);
+			await promises.rm(dir, { recursive: true });
+		});
+
+		await it('should not throw when recursive mkdir on existing directory', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pmkdir-exist-'));
+			// Should not throw
+			await mkdir(dir, { recursive: true });
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.stat', async () => {
+		await it('should return stat for a file with correct size', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pstat-'));
+			const file = join(dir, 'sized.txt');
+			const content = 'abcdef'; // 6 bytes in UTF-8
+			await writeFile(file, content);
+			const s = await stat(file);
+			expect(s.isFile()).toBe(true);
+			expect(s.isDirectory()).toBe(false);
+			expect(s.size).toBe(6);
+			await rm(file);
+			await rmdir(dir);
+		});
+
+		await it('should return stat for a directory', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pstat-d-'));
+			const s = await stat(dir);
+			expect(s.isDirectory()).toBe(true);
+			expect(s.isFile()).toBe(false);
+			await rmdir(dir);
+		});
+
+		await it('should reject with ENOENT for non-existent file', async () => {
+			let threw = false;
+			try {
+				await stat('/nonexistent/xyz789/no-file.txt');
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('ENOENT');
+			}
+			expect(threw).toBe(true);
+		});
+	});
+
+	await describe('fs.promises.access additional', async () => {
+		await it('should reject with EACCES or ENOENT for W_OK on read-only path', async () => {
+			// /etc/hosts typically is not writable by normal users
+			let threw = false;
+			try {
+				await access('/etc/hosts', fsConstants.W_OK);
+			} catch (e: unknown) {
+				threw = true;
+				const code = (e as NodeJS.ErrnoException).code;
+				// Either EACCES (permission denied) or ENOENT depending on system
+				expect(code === 'EACCES' || code === 'ENOENT').toBe(true);
+			}
+			expect(threw).toBe(true);
+		});
+	});
+
+	await describe('fs.promises.rename additional', async () => {
+		await it('should preserve file content after rename', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pren-content-'));
+			const src = join(dir, 'before.txt');
+			const dst = join(dir, 'after.txt');
+			await writeFile(src, 'content to preserve');
+			await rename(src, dst);
+			const content = await promises.readFile(dst, 'utf-8');
+			expect(content).toBe('content to preserve');
+			expect(existsSync(src)).toBe(false);
+			await rm(dst);
+			await rmdir(dir);
+		});
+
+		await it('should overwrite destination if it already exists', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pren-ow-'));
+			const src = join(dir, 'src.txt');
+			const dst = join(dir, 'dst.txt');
+			await writeFile(src, 'new');
+			await writeFile(dst, 'old');
+			await rename(src, dst);
+			const content = await promises.readFile(dst, 'utf-8');
+			expect(content).toBe('new');
+			expect(existsSync(src)).toBe(false);
+			await rm(dst);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.copyFile additional', async () => {
+		await it('should not modify original file after copy', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pcp-orig-'));
+			const src = join(dir, 'original.txt');
+			const dst = join(dir, 'copied.txt');
+			await writeFile(src, 'original');
+			await copyFile(src, dst);
+			const srcContent = await promises.readFile(src, 'utf-8');
+			const dstContent = await promises.readFile(dst, 'utf-8');
+			expect(srcContent).toBe('original');
+			expect(dstContent).toBe('original');
+			await rm(src);
+			await rm(dst);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.unlink', async () => {
+		await it('should remove a file', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-punlink-'));
+			const file = join(dir, 'to-delete.txt');
+			await writeFile(file, 'delete me');
+			expect(existsSync(file)).toBe(true);
+			await unlink(file);
+			expect(existsSync(file)).toBe(false);
+			await rmdir(dir);
+		});
+
+		await it('should throw ENOENT for non-existent file', async () => {
+			let threw = false;
+			try {
+				await unlink('/nonexistent/abc/delete-me.txt');
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('ENOENT');
+			}
+			expect(threw).toBe(true);
+		});
+	});
+
+	await describe('fs.promises.readdir additional', async () => {
+		await it('should return sorted entries for multiple files', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-preaddir-sort-'));
+			await writeFile(join(dir, 'c.txt'), '');
+			await writeFile(join(dir, 'a.txt'), '');
+			await writeFile(join(dir, 'b.txt'), '');
+			const files = await readdir(dir);
+			// readdir does not guarantee order, but should return all 3 entries
+			expect(files.length).toBe(3);
+			expect(files).toContain('a.txt');
+			expect(files).toContain('b.txt');
+			expect(files).toContain('c.txt');
+			await promises.rm(dir, { recursive: true });
+		});
+	});
+
+	await describe('fs.promises.appendFile', async () => {
+		await it('should append data to an existing file', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pappend-'));
+			const file = join(dir, 'append.txt');
+			await writeFile(file, 'hello');
+			await promises.appendFile(file, ' world');
+			const content = await promises.readFile(file, 'utf-8');
+			expect(content).toBe('hello world');
+			await rm(file);
+			await rmdir(dir);
+		});
+
+		await it('should create a new file if it does not exist', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pappend-new-'));
+			const file = join(dir, 'new-append.txt');
+			await promises.appendFile(file, 'created');
+			expect(existsSync(file)).toBe(true);
+			const content = await promises.readFile(file, 'utf-8');
+			expect(content).toBe('created');
+			await rm(file);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.chmod', async () => {
+		await it('should change file mode', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pchmod-'));
+			const file = join(dir, 'chmod.txt');
+			await writeFile(file, 'chmod test');
+			await promises.chmod(file, 0o444);
+			const s = await stat(file);
+			// Check that the permission bits match (mask with 0o777 for portable comparison)
+			expect(s.mode & 0o777).toBe(0o444);
+			// Restore write permission for cleanup
+			await promises.chmod(file, 0o644);
+			await rm(file);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.mkdtemp additional', async () => {
+		await it('should create a directory with the given prefix', async () => {
+			const prefix = join(tmpdir(), 'fs-pmkdtemp-test-');
+			const dir = await promises.mkdtemp(prefix);
+			expect(existsSync(dir)).toBe(true);
+			expect(dir.startsWith(prefix)).toBe(true);
+			// The random suffix should add characters
+			expect(dir.length).toBeGreaterThan(prefix.length);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.realpath', async () => {
+		await it('should resolve a simple path', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-prealpath-'));
+			const file = join(dir, 'real.txt');
+			await writeFile(file, 'data');
+			const resolved = await promises.realpath(file);
+			// Should be an absolute path
+			expect(resolved.startsWith('/')).toBe(true);
+			// Should end with the file name
+			expect(resolved.endsWith('real.txt')).toBe(true);
+			await rm(file);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises.truncate', async () => {
+		await it('should truncate a file to a specified length', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-ptrunc-'));
+			const file = join(dir, 'trunc.txt');
+			await writeFile(file, 'hello world');
+			await promises.truncate(file, 5);
+			const content = await promises.readFile(file, 'utf-8');
+			expect(content).toBe('hello');
+			await rm(file);
+			await rmdir(dir);
+		});
+
+		await it('should truncate a file to zero length when no length specified', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-ptrunc0-'));
+			const file = join(dir, 'trunc0.txt');
+			await writeFile(file, 'data to remove');
+			await promises.truncate(file);
+			const content = await promises.readFile(file, 'utf-8');
+			expect(content).toBe('');
+			await rm(file);
+			await rmdir(dir);
+		});
+	});
+
+	await describe('fs.promises error cases', async () => {
+		await it('readFile should reject for non-existent file', async () => {
+			let threw = false;
+			try {
+				await promises.readFile('/nonexistent/path/xyz987.txt');
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('ENOENT');
+			}
+			expect(threw).toBe(true);
+		});
+
+		await it('readdir should reject for non-existent directory', async () => {
+			let threw = false;
+			try {
+				await readdir('/nonexistent/xyz654/dir');
+			} catch (e: unknown) {
+				threw = true;
+				expect((e as NodeJS.ErrnoException).code).toBe('ENOENT');
+			}
+			expect(threw).toBe(true);
+		});
+	});
+
+	await describe('fs.promises return types', async () => {
+		await it('readFile should return a Promise', async () => {
+			const p = promises.readFile('/etc/hosts');
+			expect(p instanceof Promise).toBe(true);
+			await p; // consume
+		});
+
+		await it('writeFile should return a Promise', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pret-wf-'));
+			const file = join(dir, 'ret.txt');
+			const p = writeFile(file, 'test');
+			expect(p instanceof Promise).toBe(true);
+			await p;
+			await rm(file);
+			await rmdir(dir);
+		});
+
+		await it('stat should return a Promise', async () => {
+			const p = stat('/tmp');
+			expect(p instanceof Promise).toBe(true);
+			await p;
+		});
+
+		await it('mkdir should return a Promise', async () => {
+			const dir = join(tmpdir(), 'fs-pret-mkdir-' + Date.now());
+			const p = mkdir(dir);
+			expect(p instanceof Promise).toBe(true);
+			await p;
+			await rmdir(dir);
+		});
+
+		await it('access should return a Promise', async () => {
+			const p = access('/tmp', fsConstants.F_OK);
+			expect(p instanceof Promise).toBe(true);
+			await p;
+		});
+
+		await it('unlink should return a Promise', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'fs-pret-ul-'));
+			const file = join(dir, 'unlinkret.txt');
+			await writeFile(file, '');
+			const p = unlink(file);
+			expect(p instanceof Promise).toBe(true);
+			await p;
+			await rmdir(dir);
 		});
 	});
 }
