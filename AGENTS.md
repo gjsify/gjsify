@@ -207,6 +207,7 @@ Read-only git submodules — do NOT modify. Use GNOME libraries internally, not 
 | `refs/randombytes/` | Random byte generation (randomBytes) — dep of crypto-browserify |
 | `refs/randomfill/` | Random buffer filling (randomFill, randomFillSync) — dep of crypto-browserify |
 | `refs/readable-stream/` | Maintained Node.js stream polyfill — reference for edge cases |
+| `refs/ungap-structured-clone/` | Pure-JS structuredClone polyfill — serialize/deserialize pattern, type dispatch, circular refs. Reference for `packages/gjs/utils/src/structured-clone.ts` |
 
 ## Official Node.js npm Packages
 
@@ -466,6 +467,7 @@ Use these canonical copyright lines when applying Template A or D:
 | `refs/wpt/` | `Copyright (c) web-platform-tests contributors. 3-Clause BSD license.` |
 | node-fetch | `Copyright (c) node-fetch contributors. MIT license.` |
 | event-target-shim | `Copyright (c) Toru Nagashima. MIT license.` |
+| `refs/ungap-structured-clone/` | `Copyright (c) Andrea Giammarchi. ISC license.` |
 | gjs-require | `Copyright (c) Andrea Giammarchi. ISC license.` |
 
 ## STATUS.md Maintenance

@@ -48,7 +48,7 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **3 GJS 
 | **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
 | **zlib** | — | 27 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors |
 | **dgram** | Gio, GLib | 30 | UDP Socket via Gio.Socket with bind, send, receive, multicast |
-| **globals** | — | 40 | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate |
+| **globals** | — | 96 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **readline** | — | 50 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
 | **http** | Soup 3.0, Gio, GLib | 136 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
 | **crypto** | GLib | 437 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
@@ -198,11 +198,22 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | Workaround | Affected Packages | Current Solution | Upstream Fix |
 |-----------|-------------------|------------------|-------------|
 | Web Streams (`ReadableStream`, `WritableStream`, `TransformStream`) not exposed as globals | compression-streams, fetch body streaming, EventSource, any Web Streams consumer | Cannot use W3C Compression Streams API or TransformStream-based polyfills on GJS | Expose Web Streams API globals (already available in SpiderMonkey 128 / Firefox) |
-| `structuredClone` not available as global in GJS ESM | worker_threads, potentially all packages using message passing | JSON round-trip fallback (`cloneValue()`) — loses Date, RegExp, Map, Set, ArrayBuffer transfer | Expose `structuredClone` as global in GJS ESM context (already available in SpiderMonkey 128) |
+| `structuredClone` not available as global in GJS ESM | worker_threads, potentially all packages using message passing | Full polyfill in `@gjsify/utils` (`structured-clone.ts`) — supports Date, RegExp, Map, Set, Error types, ArrayBuffer, TypedArrays, DataView, Blob, File, circular refs, DataCloneError | Expose `structuredClone` as global in GJS ESM context (already available in SpiderMonkey 128) |
 | `TextDecoder` malformed UTF-8 handling differs across SpiderMonkey versions | string_decoder | Pure manual UTF-8 decoder implementing W3C maximal subpart algorithm (`utf8DecodeMaximalSubpart`) | Fix SpiderMonkey 115's `TextDecoder` to follow W3C encoding spec for maximal subpart replacement |
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — structuredClone Polyfill
+
+**Replaced JSON round-trip polyfill with full HTML structured clone algorithm:**
+- New `packages/gjs/utils/src/structured-clone.ts` implementing spec-compliant structuredClone
+- Supports: primitives (-0, NaN, BigInt), wrapper objects, Date, RegExp, Error types (with cause), ArrayBuffer, all TypedArrays, DataView, Map, Set, Blob, File, circular/shared references
+- Throws DataCloneError for functions, symbols, WeakMap, WeakSet, WeakRef
+- Removed duplicated `deepClone`/`cloneValue` from worker_threads (now uses global structuredClone)
+- Added `refs/ungap-structured-clone/` as reference submodule
+- globals tests: 40 → 96 (56 new structuredClone tests ported from WPT and node-test)
+- All 221 tests pass on both Node.js and GJS
 
 ### 2026-03-25 — Phase 20: worker_threads + vm Enhancement
 
@@ -446,7 +457,7 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 
 | Package | Before | After | Focus Areas |
 |---------|--------|-------|-------------|
-| globals | 15 | 40 | process (platform/argv/pid), Buffer (alloc/isBuffer), structuredClone, TextEncoder/Decoder, atob/btoa, URL/URLSearchParams, console |
+| globals | 15 | 96 | process (platform/argv/pid), Buffer (alloc/isBuffer), structuredClone (full polyfill: Date, RegExp, Error, TypedArrays, Map, Set, circular refs, DataCloneError), TextEncoder/Decoder, atob/btoa, URL/URLSearchParams, console |
 | child_process | 26 | 35 | execFile error, spawnSync env, exports validation, edge cases |
 
 ### 2026-03-23 — Wave 7
