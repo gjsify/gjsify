@@ -68,11 +68,11 @@ export class MessagePort extends EventEmitter {
   }
 
   private _dispatchMessage(message: unknown): void {
-    setTimeout(() => {
+    Promise.resolve().then(() => {
       if (!this._closed) {
         this.emit('message', message);
       }
-    }, 0);
+    });
   }
 
   on(event: string | symbol, listener: (...args: unknown[]) => void): this {

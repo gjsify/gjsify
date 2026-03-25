@@ -262,7 +262,11 @@ Matchers: `toBe`, `toEqual`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeDefined
 
 ### Test Rules
 
-1. Import from **bare specifiers** (`from 'assert'`), never relative paths (`'./index.ts'`). Bundler resolves per platform.
+1. **Always use bare specifiers in test imports — never relative paths or `@gjsify/*` package names.**
+   The bundler resolves bare specifiers to the correct implementation per platform: on GJS, `'stream'` → `@gjsify/stream`; on Node.js, `'stream'` stays as native `stream`. Relative imports (`'./index.js'`) bypass the bundler alias system entirely, causing the gjsify implementation to be bundled into the Node.js test — which defeats the purpose (Node.js tests should validate against the native implementation, not our polyfill).
+   - **Node.js packages:** Use the Node.js module name: `from 'assert'`, `from 'stream/web'`, `from 'crypto'`
+   - **Web packages:** Use the standard bare specifier registered in `ALIASES_WEB_FOR_GJS` (see `packages/infra/resolve-npm/lib/index.mjs`). If no bare specifier alias exists yet for a Web package, **add one** to both `ALIASES_WEB_FOR_GJS` and `ALIASES_WEB_FOR_NODE` (mapping to the native/global equivalent or `@gjsify/empty` if native). Do NOT fall back to relative imports.
+   - **Never import `@gjsify/*` directly** in test files (except `@gjsify/unit` for the test framework). The `@gjsify/*` namespace is an implementation detail — tests must be written against the standard API surface.
 2. Node.js tests validate **test correctness** against the reference. GJS tests validate **our implementation**. Both must pass.
 3. No GJS-specific code (`@girs/*`, Soup, Gio) in test files — the bundler handles platform separation.
 4. File layout: `src/index.ts` (impl), `src/*.spec.ts` (specs), `src/test.mts` (entry point).

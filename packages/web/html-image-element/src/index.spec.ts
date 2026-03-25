@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 
-import { HTMLImageElement } from "@gjsify/html-image-element";
+import { HTMLImageElement } from "html-image-element";
 
 export default async () => {
 	await describe('html-image-element', async () => {

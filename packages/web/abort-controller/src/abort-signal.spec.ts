@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 
-import { AbortSignal } from '@gjsify/abort-controller';
+import { AbortSignal } from 'abort-controller';
 
 // Use build in AbortSignal on Node.js tests and the custom implementation on Gjs
 // export const AbortSignal = globalThis.AbortSignal || GjsifyAbortSignal;

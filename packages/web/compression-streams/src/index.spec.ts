@@ -2,7 +2,7 @@
 // Reference: refs/wpt/compression/
 
 import { describe, it, expect } from '@gjsify/unit';
-import { CompressionStream, DecompressionStream } from './index.js';
+import { CompressionStream, DecompressionStream } from 'compression-streams';
 
 export default async () => {
 

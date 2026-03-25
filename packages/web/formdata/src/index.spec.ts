@@ -1,5 +1,5 @@
 import { describe, it, expect, run } from '@gjsify/unit';
-import { FormData, File, formDataToBlob } from './index.ts';
+import { FormData, File, formDataToBlob } from 'formdata';
 
 export default () => {
     describe('FormData', () => {

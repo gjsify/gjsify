@@ -1,7 +1,6 @@
 import { describe, it, expect, assert } from '@gjsify/unit';
 
-// TODO add a fake module for node and deno to run this tests also in his runtime?
-import { AbortController, AbortSignal } from '@gjsify/abort-controller';
+import { AbortController, AbortSignal } from 'abort-controller';
 
 const HAS_EVENT_TARGET_INTERFACE = typeof EventTarget !== "undefined"
 

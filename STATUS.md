@@ -14,7 +14,7 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **3 GJS 
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,960 test cases in 89+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~3,030 test cases in 89+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -59,9 +59,9 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **3 GJS 
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
-| **worker_threads** | Gio, GLib | 63 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
+| **worker_threads** | Gio, GLib | 82 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
 | **http2** | — | 102 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
-| **vm** | — | 22 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
+| **vm** | — | 49 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
 
 ### Stubs (4)
 
@@ -82,7 +82,7 @@ All 15 packages have real implementations:
 |---------|-----|-----------|-------|----------|
 | **dom-exception** | 55 | — | (via web-globals) | DOMException polyfill (WebIDL standard) |
 | **dom-events** | 1,270 | — | 97 | Event, EventTarget, CustomEvent |
-| **fetch** | 1,674 | Soup 3.0, Gio, GLib | 24 | fetch(), Request, Response, Headers, Referrer-Policy |
+| **fetch** | 1,674 | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy |
 | **formdata** | 438 | — | ✓ | FormData, File, multipart encoding |
 | **abort-controller** | 291 | — | 19 | AbortController, AbortSignal (.abort, .timeout, .any) |
 | **web-globals** | 30 | — | 27 | Unified entry point: imports all Web API packages, registers globals |
@@ -154,7 +154,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Partially implemented | 4 (10%) |
 | Stubs | 4 (10%) |
 | Web API packages | 15 (all implemented) |
-| Total test cases | ~2,960 |
+| Total test cases | ~3,030 |
 | Spec files | 89+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
@@ -203,6 +203,27 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — Stabilization & Deduplication
+
+**Fixed worker_threads GJS timeouts (17 tests → 0 failures):**
+- Added `@gjsify/node-globals` import to test.mts (registers structuredClone on GJS)
+- Replaced `setTimeout(..., 0)` with `Promise.resolve().then()` in MessagePort._dispatchMessage() and BroadcastChannel.postMessage() for correct microtask scheduling on GLib main loop
+- worker_threads tests: 63 → 82 (all pass on both Node.js and GJS)
+
+**Extracted shared base64 utilities to `@gjsify/utils/src/base64.ts`:**
+- Consolidated duplicate base64 encode/decode from `@gjsify/buffer` (58 lines) and `@gjsify/string_decoder` (16 lines)
+- Exports: `base64Encode`, `base64Decode`, `atobPolyfill`, `btoaPolyfill`
+- Both consumer packages now import from `@gjsify/utils` — no behavioral change
+
+**Extracted shared nextTick utility to `@gjsify/utils/src/next-tick.ts`:**
+- Consolidated duplicate microtask scheduling (process.nextTick → queueMicrotask → Promise fallback)
+- `@gjsify/stream` now imports `nextTick` from `@gjsify/utils` (was inline 6-line definition)
+
+**Expanded test coverage:**
+- fetch tests: 24 → 51 (Headers forEach/values, Request clone/redirect/signal/null-body, Response.json/clone/statusText/type/headers)
+- vm tests: 22 → 49 (SyntaxError/ReferenceError propagation, object literals, nested sandbox objects, Script invalid code, multi-context reuse)
+- Total test cases: ~2,960 → ~3,030
 
 ### 2026-03-25 — structuredClone Polyfill
 

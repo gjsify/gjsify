@@ -73,6 +73,20 @@ export default async () => {
         const result = runInThisContext('var __vmtest_x = 42');
         expect(result).toBeUndefined();
       });
+
+      await it('should throw SyntaxError for invalid code', async () => {
+        expect(() => runInThisContext('function(')).toThrow();
+      });
+
+      await it('should throw ReferenceError for undefined variables', async () => {
+        expect(() => runInThisContext('__nonexistent_var_abc123')).toThrow();
+      });
+
+      await it('should evaluate object literals', async () => {
+        const result = runInThisContext('({a: 1, b: 2})');
+        expect(result.a).toBe(1);
+        expect(result.b).toBe(2);
+      });
     });
 
     // ==================== runInNewContext ====================
@@ -98,6 +112,20 @@ export default async () => {
       await it('should access array methods via sandbox', async () => {
         const result = runInNewContext('items.join("-")', { items: ['a', 'b', 'c'] });
         expect(result).toBe('a-b-c');
+      });
+
+      await it('should evaluate expressions using sandbox values', async () => {
+        const result = runInNewContext('a * b + c', { a: 2, b: 3, c: 4 });
+        expect(result).toBe(10);
+      });
+
+      await it('should access nested objects in sandbox', async () => {
+        const result = runInNewContext('obj.nested.value', { obj: { nested: { value: 99 } } });
+        expect(result).toBe(99);
+      });
+
+      await it('should throw for invalid code in sandbox', async () => {
+        expect(() => runInNewContext('function(')).toThrow();
       });
     });
 
@@ -177,6 +205,24 @@ export default async () => {
         const script = new Script('1');
         const data = script.createCachedData();
         expect(data instanceof Uint8Array).toBe(true);
+      });
+
+      await it('should throw for invalid code at construction or execution', async () => {
+        let threw = false;
+        try {
+          const script = new Script('function(');
+          script.runInThisContext();
+        } catch {
+          threw = true;
+        }
+        expect(threw).toBe(true);
+      });
+
+      await it('should run same script with different contexts', async () => {
+        const script = new Script('x + y');
+        expect(script.runInNewContext({ x: 1, y: 2 })).toBe(3);
+        expect(script.runInNewContext({ x: 10, y: 20 })).toBe(30);
+        expect(script.runInNewContext({ x: 100, y: 200 })).toBe(300);
       });
     });
   });

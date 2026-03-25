@@ -16,7 +16,8 @@
                 "types": "./lib/types/index.d.ts",
                 "default": "./lib/cjs/index.js"
             }
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",

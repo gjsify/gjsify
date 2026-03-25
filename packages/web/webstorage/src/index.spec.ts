@@ -2,7 +2,7 @@
 // Reference: refs/deno/ext/webstorage/01_webstorage.js, refs/wpt/webstorage/
 
 import { describe, it, expect } from '@gjsify/unit';
-import { Storage, localStorage, sessionStorage } from './index.js';
+import { Storage, localStorage, sessionStorage } from 'webstorage';
 
 export default async () => {
 

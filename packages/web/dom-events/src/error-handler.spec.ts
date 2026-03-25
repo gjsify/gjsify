@@ -1,6 +1,6 @@
 import { describe, it, expect, assert, spy, on } from '@gjsify/unit';
 
-import { Event, EventTarget } from "@gjsify/dom-events";
+import { Event, EventTarget } from "dom-events";
 import process from 'process';
 
 export const ErrorHandlerTest = async () => {

@@ -74,6 +74,7 @@
     },
     "dependencies": {
         "@gjsify/events": "workspace:^",
+        "@gjsify/utils": "workspace:^",
         "@gjsify/web-streams": "workspace:^"
     }
 }

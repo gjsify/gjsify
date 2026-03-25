@@ -74,6 +74,8 @@ function createAbortError(): Error {
 // ---- queueMicrotask polyfill ----
 // GJS 1.86 may not expose queueMicrotask as a global; fall back to
 // Promise.resolve().then() which schedules on the microtask queue.
+// Note: Cannot import from @gjsify/utils here because utils contains gi://
+// imports that break Node.js builds of this pure-JS web-streams package.
 
 const _queueMicrotask: (fn: () => void) => void =
   typeof globalThis.queueMicrotask === 'function'

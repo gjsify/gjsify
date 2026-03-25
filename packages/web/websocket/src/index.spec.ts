@@ -5,7 +5,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
-import { WebSocket, MessageEvent, CloseEvent } from './index.js';
+import { WebSocket, MessageEvent, CloseEvent } from 'websocket';
 
 export default async () => {
 

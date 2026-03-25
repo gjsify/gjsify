@@ -134,8 +134,17 @@ export const ALIASES_NODE_FOR_GJS = {
 /** Record of Web modules and his replacement for Gjs */
 export const ALIASES_WEB_FOR_GJS = {
     'abort-controller': '@gjsify/abort-controller',
+    'compression-streams': '@gjsify/compression-streams',
+    'dom-events': '@gjsify/dom-events',
     'event-target-shim': '@gjsify/dom-events',
+    'eventsource': '@gjsify/eventsource',
     'fetch': '@gjsify/fetch',
+    'formdata': '@gjsify/formdata',
+    'html-image-element': '@gjsify/html-image-element',
+    'webcrypto': '@gjsify/webcrypto',
+    'webgl': '@gjsify/webgl',
+    'websocket': '@gjsify/websocket',
+    'webstorage': '@gjsify/webstorage',
 }
 
 /** General record of modules for Node */
@@ -150,5 +159,15 @@ export { ALIASES_GJS_FOR_NODE };
 
 /** Record of Web modules and his replacement for Node */
 export const ALIASES_WEB_FOR_NODE = {
+    'abort-controller': '@gjsify/abort-controller/globals',
+    'compression-streams': '@gjsify/compression-streams/globals',
+    'dom-events': '@gjsify/dom-events/globals',
+    'eventsource': '@gjsify/eventsource',
     'fetch': '@gjsify/fetch/globals',
+    'formdata': '@gjsify/formdata/globals',
+    'html-image-element': '@gjsify/html-image-element',
+    'webcrypto': '@gjsify/webcrypto/globals',
+    'webgl': '@gjsify/webgl',
+    'websocket': '@gjsify/websocket/globals',
+    'webstorage': '@gjsify/webstorage',
 }

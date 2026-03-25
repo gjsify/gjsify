@@ -79,6 +79,23 @@ export default async () => {
 		});
 	});
 
+	await describe('Headers forEach', async () => {
+		await it('should iterate all headers with forEach', async () => {
+			const h = new Headers({ 'a': '1', 'b': '2' });
+			const collected: string[] = [];
+			h.forEach((value, key) => { collected.push(`${key}:${value}`); });
+			expect(collected.length).toBe(2);
+			expect(collected[0]).toBe('a:1');
+			expect(collected[1]).toBe('b:2');
+		});
+
+		await it('should return correct values() iterator', async () => {
+			const h = new Headers({ 'x': 'hello', 'y': 'world' });
+			const values = [...h.values()];
+			expect(values.length).toBe(2);
+		});
+	});
+
 	await describe('Request', async () => {
 		await it('should create a request with URL string', async () => {
 			const r = new Request('https://example.com');
@@ -96,6 +113,32 @@ export default async () => {
 				headers: { 'X-Custom': 'test' }
 			});
 			expect(r.headers.get('x-custom')).toBe('test');
+		});
+
+		await it('should default redirect to "follow"', async () => {
+			const r = new Request('https://example.com');
+			expect(r.redirect).toBe('follow');
+		});
+
+		await it('should have a signal property', async () => {
+			const r = new Request('https://example.com');
+			expect(r.signal).toBeDefined();
+		});
+
+		await it('should clone a request', async () => {
+			const r = new Request('https://example.com', {
+				method: 'POST',
+				headers: { 'X-Test': 'value' },
+			});
+			const clone = r.clone();
+			expect(clone.url).toBe(r.url);
+			expect(clone.method).toBe('POST');
+			expect(clone.headers.get('x-test')).toBe('value');
+		});
+
+		await it('should create request with null body', async () => {
+			const r = new Request('https://example.com', { body: null });
+			expect(r.body).toBeNull();
 		});
 	});
 
@@ -147,6 +190,39 @@ export default async () => {
 			const r = Response.redirect('https://example.com', 301);
 			expect(r.status).toBe(301);
 			expect(r.headers.get('location')).toBe('https://example.com/');
+		});
+
+		await it('Response.json() should create JSON response', async () => {
+			const r = Response.json({ message: 'ok' });
+			expect(r.status).toBe(200);
+			const ct = r.headers.get('content-type') || '';
+			expect(ct.includes('application/json')).toBe(true);
+			const data = await r.json();
+			expect(data.message).toBe('ok');
+		});
+
+		await it('should clone a response', async () => {
+			const r = new Response('clone test');
+			const c = r.clone();
+			const text1 = await r.text();
+			const text2 = await c.text();
+			expect(text1).toBe('clone test');
+			expect(text2).toBe('clone test');
+		});
+
+		await it('should have correct statusText', async () => {
+			const r = new Response(null, { status: 201, statusText: 'Created' });
+			expect(r.statusText).toBe('Created');
+		});
+
+		await it('should have correct type for normal response', async () => {
+			const r = new Response();
+			expect(r.type).toBe('default');
+		});
+
+		await it('should have correct headers property', async () => {
+			const r = new Response(null, { headers: { 'X-Test': 'yes' } });
+			expect(r.headers.get('x-test')).toBe('yes');
 		});
 	});
 

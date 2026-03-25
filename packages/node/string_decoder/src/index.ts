@@ -1,26 +1,7 @@
 // Reference: Node.js lib/string_decoder.js
 // Reimplemented for GJS — handles incremental decoding of multi-byte character sequences
 
-import { normalizeEncoding, checkEncoding } from '@gjsify/utils';
-
-// Base64 encoding table
-const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-/** Encode bytes to base64 string (replaces btoa which may not be available in GJS) */
-function bytesToBase64(bytes: Uint8Array): string {
-  let result = '';
-  const len = bytes.length;
-  for (let i = 0; i < len; i += 3) {
-    const b0 = bytes[i];
-    const b1 = i + 1 < len ? bytes[i + 1] : 0;
-    const b2 = i + 2 < len ? bytes[i + 2] : 0;
-    result += base64Chars[b0 >> 2];
-    result += base64Chars[((b0 & 3) << 4) | (b1 >> 4)];
-    result += i + 1 < len ? base64Chars[((b1 & 0xf) << 2) | (b2 >> 6)] : '=';
-    result += i + 2 < len ? base64Chars[b2 & 0x3f] : '=';
-  }
-  return result;
-}
+import { normalizeEncoding, checkEncoding, base64Encode as bytesToBase64 } from '@gjsify/utils';
 
 function normalizeAndValidateEncoding(enc?: string): string {
   if (enc) checkEncoding(enc);

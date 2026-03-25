@@ -3,7 +3,7 @@
 // Original: MIT license (Deno), 3-Clause BSD license (WPT)
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import { EventSource, TextLineStream } from './index.js';
+import { EventSource, TextLineStream } from 'eventsource';
 
 export default async () => {
 

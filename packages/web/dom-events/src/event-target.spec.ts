@@ -1,7 +1,7 @@
 import { describe, it, assert, Spy, spy, beforeEach } from '@gjsify/unit';
 
-import { Event, EventTarget } from "@gjsify/dom-events";
-import { AbortSignal } from "@gjsify/abort-controller";
+import { Event, EventTarget } from "dom-events";
+import { AbortSignal } from "abort-controller";
 
 export const EventTargetTest = async () => {
     await describe("EventTarget.constructor", async () => {

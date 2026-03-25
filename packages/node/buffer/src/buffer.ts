@@ -3,70 +3,10 @@
 
 // BufferEncoding is a global type provided by @types/node
 
-import { normalizeEncoding, checkEncoding } from '@gjsify/utils';
+import { normalizeEncoding, checkEncoding, atobPolyfill as _atob, btoaPolyfill as _btoa, base64Decode } from '@gjsify/utils';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
-
-// Base64 helpers — atob/btoa may not be available in GJS
-const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-const b64lookup = new Uint8Array(256);
-for (let i = 0; i < b64chars.length; i++) b64lookup[b64chars.charCodeAt(i)] = i;
-
-function _atob(str: string): string {
-  if (typeof globalThis.atob === 'function') return globalThis.atob(str);
-  // Manual base64 decode
-  const cleaned = str.replace(/[=\s]/g, '');
-  let result = '';
-  let bits = 0;
-  let collected = 0;
-  for (let i = 0; i < cleaned.length; i++) {
-    bits = (bits << 6) | b64lookup[cleaned.charCodeAt(i)];
-    collected += 6;
-    if (collected >= 8) {
-      collected -= 8;
-      result += String.fromCharCode((bits >> collected) & 0xff);
-    }
-  }
-  return result;
-}
-
-function _btoa(str: string): string {
-  if (typeof globalThis.btoa === 'function') return globalThis.btoa(str);
-  // Manual base64 encode
-  let result = '';
-  let i = 0;
-  for (; i + 2 < str.length; i += 3) {
-    const n = (str.charCodeAt(i) << 16) | (str.charCodeAt(i + 1) << 8) | str.charCodeAt(i + 2);
-    result += b64chars[(n >> 18) & 63] + b64chars[(n >> 12) & 63] + b64chars[(n >> 6) & 63] + b64chars[n & 63];
-  }
-  if (i + 1 === str.length) {
-    const n = str.charCodeAt(i) << 16;
-    result += b64chars[(n >> 18) & 63] + b64chars[(n >> 12) & 63] + '==';
-  } else if (i + 2 === str.length) {
-    const n = (str.charCodeAt(i) << 16) | (str.charCodeAt(i + 1) << 8);
-    result += b64chars[(n >> 18) & 63] + b64chars[(n >> 12) & 63] + b64chars[(n >> 6) & 63] + '=';
-  }
-  return result;
-}
-
-// Direct base64 → Uint8Array decoding (avoids lossy atob string round-trip)
-function base64Decode(str: string): Uint8Array {
-  const cleaned = str.replace(/[=\s]/g, '');
-  const bytes = new Uint8Array((cleaned.length * 3) >> 2);
-  let bits = 0;
-  let collected = 0;
-  let pos = 0;
-  for (let i = 0; i < cleaned.length; i++) {
-    bits = (bits << 6) | b64lookup[cleaned.charCodeAt(i)];
-    collected += 6;
-    if (collected >= 8) {
-      collected -= 8;
-      bytes[pos++] = (bits >> collected) & 0xff;
-    }
-  }
-  return bytes.subarray(0, pos);
-}
 
 // SharedArrayBuffer may not be available in GJS
 const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';

@@ -11,7 +11,7 @@ import {
   CountQueuingStrategy,
   TextEncoderStream,
   TextDecoderStream,
-} from './index.js';
+} from 'stream/web';
 
 export default async () => {
 

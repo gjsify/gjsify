@@ -61,11 +61,11 @@ export class BroadcastChannel {
       if (channel !== this && !channel._closed) {
         // Clone per receiver per W3C spec — each recipient gets an independent copy
         const cloned = structuredClone(message);
-        setTimeout(() => {
+        Promise.resolve().then(() => {
           if (!channel._closed && channel.onmessage) {
             channel.onmessage({ data: cloned });
           }
-        }, 0);
+        });
       }
     }
   }

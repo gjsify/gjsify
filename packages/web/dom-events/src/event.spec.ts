@@ -1,6 +1,6 @@
 import { describe, it, expect, assert } from '@gjsify/unit';
 
-import { Event, EventTarget } from '@gjsify/dom-events';
+import { Event, EventTarget } from 'dom-events';
 
 
 // Ported from event-target-shim (https://github.com/mysticatea/event-target-shim/blob/master/test/event.ts)
