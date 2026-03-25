@@ -1,300 +1,235 @@
 // HTMLImageElement for GJS — original implementation using GdkPixbuf
+// Reference: refs/happy-dom/packages/happy-dom/src/nodes/html-image-element/HTMLImageElement.ts
 
-import { notImplemented, warnNotImplemented } from '@gjsify/utils';
 import GLib from '@girs/glib-2.0';
 import GdkPixbuf from '@girs/gdkpixbuf-2.0';
 import { Event } from '@gjsify/dom-events';
+import { HTMLElement, PropertySymbol, NamespaceURI } from '@gjsify/dom-elements';
 import System from 'system';
 
-import type { IHTMLImageElement, ImageData } from './types/index.js';
-import type { HTMLElement } from 'happy-dom';
-
-// WORKAROUND TODO: port HTMLElement from happy-dom
-export interface HTMLImageElement extends HTMLElement {}
+import type { ImageData } from './types/index.js';
 
 /**
  * HTML Image Element.
  *
- * Reference:
- * https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement.
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement
  */
-export class HTMLImageElement implements IHTMLImageElement {
-	public readonly tagName: string = 'IMG';
-	public readonly complete = false;
-	public readonly naturalHeight = 0;
-	public readonly naturalWidth = 0;
-	public crossOrigin = null;
-	public decoding = 'auto';
-	public loading = 'auto';
-	public readonly x = 0;
-	public readonly y = 0;
+export class HTMLImageElement extends HTMLElement {
+	private _complete = false;
+	private _naturalHeight = 0;
+	private _naturalWidth = 0;
+	protected _pixbuf?: GdkPixbuf.Pixbuf;
 
-	public onload: null | ((event: Event) => void) = null;
-
-    protected _pixbuf?: GdkPixbuf.Pixbuf;
-
-	/**
-	 * Custom method to get the pixels of `GdkPixbuf.Pixbuf`
-	 * @returns 
-	 */
-	public getImageData(): ImageData | null {
-		const data = this._pixbuf?.get_pixels() || null;
-		if(!data) {
-			return null;
-		}
-		const imageData: ImageData = {
-			colorSpace: 'srgb', // TODO?
-			data: new Uint8ClampedArray(data),
-			height: this.height,
-			width: this.width,
-		}
-		return imageData;
+	constructor() {
+		super();
+		this[PropertySymbol.tagName] = 'IMG';
+		this[PropertySymbol.localName] = 'img';
+		this[PropertySymbol.namespaceURI] = NamespaceURI.html;
 	}
 
-	/**
-	 * Custom method to check if this image is a `GdkPixbuf.Pixbuf`
-	 * @returns 
-	 */
-	public isPixbuf() {
-		return !!this._pixbuf;
+	// -- Read-only properties --
+
+	get complete(): boolean {
+		return this._complete;
 	}
 
-	/**
-	 * Returns alt.
-	 *
-	 * @returns Alt.
-	 */
-	public get alt(): string {
-		notImplemented('HTMLImageElement.alt');
-		return this.getAttributeNS("", 'alt') || '';
+	get naturalHeight(): number {
+		return this._naturalHeight;
 	}
 
-	/**
-	 * Sets alt.
-	 *
-	 * @param alt Alt.
-	 */
-	public set alt(alt: string) {
-		notImplemented('HTMLImageElement.alt');
-		this.setAttributeNS("", 'alt', alt);
+	get naturalWidth(): number {
+		return this._naturalWidth;
 	}
 
-	/**
-	 * Returns current src.
-	 *
-	 * @returns Current src.
-	 */
-	public get currentSrc(): string {
+	get currentSrc(): string {
 		return this.src;
 	}
 
-	/**
-	 * Returns height.
-	 *
-	 * @returns Height.
-	 */
-	public get height(): number {
-        if(this._pixbuf?.get_height) {
-            return this._pixbuf?.get_height();
-        }
-		// TODO
-		// const height = this.getAttributeNS("", 'height');
-		// return height !== null ? Number(height) : 0;
+	get x(): number {
 		return 0;
 	}
 
-	/**
-	 * Sets height.
-	 *
-	 * @param height Height.
-	 */
-	public set height(height: number) {
-		notImplemented('HTMLImageElement.height');
-		this.setAttributeNS("", 'height', String(height));
+	get y(): number {
+		return 0;
 	}
 
-	/**
-	 * Returns is map.
-	 *
-	 * @returns Is map.
-	 */
-	public get isMap(): boolean {
-		notImplemented('HTMLImageElement.isMap');
-		return this.getAttributeNS("", 'ismap') !== null;
+	// -- Attribute-backed string properties --
+
+	get alt(): string {
+		return this.getAttribute('alt') ?? '';
 	}
 
-	/**
-	 * Sets is map.
-	 *
-	 * @param ismap Is map.
-	 */
-	public set isMap(isMap: boolean) {
-		notImplemented('HTMLImageElement.isMap');
-		if (!isMap) {
-			this.removeAttributeNS("", 'ismap');
+	set alt(value: string) {
+		this.setAttribute('alt', value);
+	}
+
+	get crossOrigin(): string | null {
+		return this.getAttribute('crossorigin');
+	}
+
+	set crossOrigin(value: string | null) {
+		if (value === null) {
+			this.removeAttribute('crossorigin');
 		} else {
-			this.setAttributeNS("", 'ismap', '');
+			this.setAttribute('crossorigin', value);
 		}
 	}
 
-	/**
-	 * Returns referrer policy.
-	 *
-	 * @returns Referrer policy.
-	 */
-	public get referrerPolicy(): string {
-		notImplemented('HTMLImageElement.referrerPolicy');
-		return this.getAttributeNS("", 'referrerpolicy') || '';
+	get decoding(): string {
+		return this.getAttribute('decoding') ?? 'auto';
 	}
 
-	/**
-	 * Sets referrer policy.
-	 *
-	 * @param referrerPolicy Referrer policy.
-	 */
-	public set referrerPolicy(referrerPolicy: string) {
-		notImplemented('HTMLImageElement.referrerPolicy');
-		this.setAttributeNS("", 'referrerpolicy', referrerPolicy);
+	set decoding(value: string) {
+		this.setAttribute('decoding', value);
 	}
 
-	/**
-	 * Returns sizes.
-	 *
-	 * @returns Sizes.
-	 */
-	public get sizes(): string {
-		notImplemented('HTMLImageElement.sizes');
-		return this.getAttributeNS("", 'sizes') || '';
+	get loading(): string {
+		const value = this.getAttribute('loading');
+		if (value === 'lazy' || value === 'eager') return value;
+		return 'auto';
 	}
 
-	/**
-	 * Sets sizes.
-	 *
-	 * @param sizes Sizes.
-	 */
-	public set sizes(sizes: string) {
-		notImplemented('HTMLImageElement.sizes');
-		this.setAttributeNS("", 'sizes', sizes);
+	set loading(value: string) {
+		this.setAttribute('loading', value);
 	}
 
-	/**
-	 * Returns source.
-	 *
-	 * @returns Source.
-	 */
-	public get src(): string {
-		warnNotImplemented('HTMLImageElement.src');
-		return this.getAttributeNS?.("", 'src') || '';
+	get referrerPolicy(): string {
+		return this.getAttribute('referrerpolicy') ?? '';
 	}
 
-	/**
-	 * Sets source.
-	 *
-	 * @param src Source.
-	 */
-	public set src(src: string) {
-		// TODO
-		// this.setAttributeNS("", 'src', src);
+	set referrerPolicy(value: string) {
+		this.setAttribute('referrerpolicy', value);
+	}
 
-        const dir = GLib.path_get_dirname(System.programInvocationName);
-        const filename = GLib.build_filenamev([dir, src]);
+	get sizes(): string {
+		return this.getAttribute('sizes') ?? '';
+	}
 
-        this._pixbuf = GdkPixbuf.Pixbuf.new_from_file(filename);
+	set sizes(value: string) {
+		this.setAttribute('sizes', value);
+	}
 
-        const loadEvent = new Event("load");
+	get src(): string {
+		return this.getAttribute('src') ?? '';
+	}
 
-        if(typeof this.onload === 'function') {
-            this.onload(loadEvent);
-        }
-		// TODO
-		if(typeof this.dispatchEvent === 'function') {
-        	this.dispatchEvent(loadEvent as any);
+	set src(src: string) {
+		this.setAttribute('src', src);
+
+		const dir = GLib.path_get_dirname(System.programInvocationName);
+		const filename = GLib.build_filenamev([dir, src]);
+
+		try {
+			this._pixbuf = GdkPixbuf.Pixbuf.new_from_file(filename);
+			this._naturalWidth = this._pixbuf.get_width();
+			this._naturalHeight = this._pixbuf.get_height();
+			this._complete = true;
+
+			this.dispatchEvent(new Event('load'));
+		} catch (_error) {
+			this._complete = true;
+			this.dispatchEvent(new Event('error'));
 		}
 	}
 
-	/**
-	 * Returns srcset.
-	 *
-	 * @returns Source.
-	 */
-	public get srcset(): string {
-		notImplemented('HTMLImageElement.srcset');
-		return this.getAttributeNS("", 'srcset') || '';
+	get srcset(): string {
+		return this.getAttribute('srcset') ?? '';
 	}
 
-	/**
-	 * Sets src set.
-	 *
-	 * @param srcset Src set.
-	 */
-	public set srcset(srcset: string) {
-		notImplemented('HTMLImageElement.srcset');
-		this.setAttributeNS("", 'srcset', srcset);
+	set srcset(value: string) {
+		this.setAttribute('srcset', value);
 	}
 
-	/**
-	 * Returns use map.
-	 *
-	 * @returns Use map.
-	 */
-	public get useMap(): string {
-		notImplemented('HTMLImageElement.useMap');
-		return this.getAttributeNS("", 'usemap') || '';
+	get useMap(): string {
+		return this.getAttribute('usemap') ?? '';
 	}
 
-	/**
-	 * Sets is map.
-	 *
-	 * @param useMap Is map.
-	 */
-	public set useMap(useMap: string) {
-		notImplemented('HTMLImageElement.useMap');
-		this.setAttributeNS("", 'usemap', useMap);
+	set useMap(value: string) {
+		this.setAttribute('usemap', value);
 	}
 
-	/**
-	 * Returns width.
-	 *
-	 * @returns Width.
-	 */
-	public get width(): number {
-        if(this._pixbuf?.get_width) {
-            return this._pixbuf?.get_width();
-        }
+	// -- Attribute-backed numeric properties --
 
-		// const width = this.getAttributeNS("", 'width');
-		// return width !== null ? Number(width) : 0;
-		return 0;
+	get height(): number {
+		if (this._pixbuf) {
+			return this._pixbuf.get_height();
+		}
+		const attr = this.getAttribute('height');
+		return attr !== null ? Number(attr) : 0;
 	}
 
-	/**
-	 * Sets width.
-	 *
-	 * @param width Width.
-	 */
-	public set width(width: number) {
-		notImplemented('HTMLImageElement.width');
-		this.setAttributeNS("", 'width', String(width));
+	set height(value: number) {
+		this.setAttribute('height', String(value));
 	}
 
+	get width(): number {
+		if (this._pixbuf) {
+			return this._pixbuf.get_width();
+		}
+		const attr = this.getAttribute('width');
+		return attr !== null ? Number(attr) : 0;
+	}
+
+	set width(value: number) {
+		this.setAttribute('width', String(value));
+	}
+
+	// -- Attribute-backed boolean property --
+
+	get isMap(): boolean {
+		return this.hasAttribute('ismap');
+	}
+
+	set isMap(value: boolean) {
+		if (value) {
+			this.setAttribute('ismap', '');
+		} else {
+			this.removeAttribute('ismap');
+		}
+	}
+
+	// -- Methods --
+
 	/**
-	 * The decode() method of the HTMLImageElement interface returns a Promise that resolves when the image is decoded and it is safe to append the image to the DOM.
-	 *
-	 * @returns Promise.
+	 * Decode the image. Returns a promise that resolves when the image is decoded.
 	 */
-	public decode(): Promise<void> {
+	decode(): Promise<void> {
 		return Promise.resolve();
 	}
 
 	/**
-	 * Clones a node.
-	 *
-	 * @override
-	 * @param [_deep=false] "true" to clone deep.
-	 * @returns Cloned node.
+	 * Clone this node.
 	 */
-	public cloneNode(_deep = false): IHTMLImageElement {
-		notImplemented('HTMLImageElement.cloneNode');
-		// return <IHTMLImageElement>super.cloneNode(deep);
+	cloneNode(deep = false): HTMLImageElement {
+		return super.cloneNode(deep) as HTMLImageElement;
+	}
+
+	// -- GJS-specific extensions --
+
+	/**
+	 * Get the pixels of the loaded GdkPixbuf as ImageData.
+	 */
+	getImageData(): ImageData | null {
+		const data = this._pixbuf?.get_pixels() || null;
+		if (!data) {
+			return null;
+		}
+		return {
+			colorSpace: 'srgb',
+			data: new Uint8ClampedArray(data),
+			height: this.height,
+			width: this.width,
+		};
+	}
+
+	/**
+	 * Check if this image is backed by a GdkPixbuf.
+	 */
+	isPixbuf(): boolean {
+		return !!this._pixbuf;
+	}
+
+	get [Symbol.toStringTag](): string {
+		return 'HTMLImageElement';
 	}
 }

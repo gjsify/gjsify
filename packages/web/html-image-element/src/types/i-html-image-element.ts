@@ -1,4 +1,4 @@
-import type { HTMLElement } from 'happy-dom';
+import type { HTMLElement } from '@gjsify/dom-elements';
 
 /**
  * HTML Image Element.

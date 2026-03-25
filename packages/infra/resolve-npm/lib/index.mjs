@@ -135,6 +135,7 @@ export const ALIASES_NODE_FOR_GJS = {
 export const ALIASES_WEB_FOR_GJS = {
     'abort-controller': '@gjsify/abort-controller',
     'compression-streams': '@gjsify/compression-streams',
+    'dom-elements': '@gjsify/dom-elements',
     'dom-events': '@gjsify/dom-events',
     'dom-exception': '@gjsify/dom-exception',
     'event-target-shim': '@gjsify/dom-events',
@@ -162,6 +163,7 @@ export { ALIASES_GJS_FOR_NODE };
 export const ALIASES_WEB_FOR_NODE = {
     'abort-controller': '@gjsify/abort-controller/globals',
     'compression-streams': '@gjsify/compression-streams/globals',
+    'dom-elements': '@gjsify/dom-elements',
     'dom-events': '@gjsify/dom-events/globals',
     'dom-exception': '@gjsify/dom-exception/globals',
     'eventsource': '@gjsify/eventsource/globals',
