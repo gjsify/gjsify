@@ -212,7 +212,9 @@ export class Socket extends EventEmitter {
    * Close the socket.
    */
   close(callback?: () => void): this {
-    if (this._closed) return this;
+    if (this._closed) {
+      throw new Error('Not running');
+    }
     this._closed = true;
 
     if (callback) this.once('close', callback);
