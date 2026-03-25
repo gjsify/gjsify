@@ -17,6 +17,7 @@ interface GjsGlobalThis {
       programArgs?: string[];
       programInvocationName?: string;
       exit?: (code: number) => never;
+      version?: number;
       [key: string]: unknown;
     };
     [key: string]: unknown;
@@ -25,6 +26,73 @@ interface GjsGlobalThis {
 
 function getGjsGlobal(): GjsGlobalThis {
   return globalThis as unknown as GjsGlobalThis;
+}
+
+// Detect GJS version from imports.system.version (integer: MAJOR*10000 + MINOR*100 + PATCH)
+function detectGjsVersion(): string | undefined {
+  try {
+    const system = getGjsGlobal().imports?.system;
+    if (system?.version !== undefined) {
+      const v = Number(system.version);
+      const major = Math.floor(v / 10000);
+      const minor = Math.floor((v % 10000) / 100);
+      const patch = v % 100;
+      return `${major}.${minor}.${patch}`;
+    }
+  } catch { /* ignore */ }
+  return undefined;
+}
+
+// Detect Node.js version from native process
+function detectNodeVersion(): string | undefined {
+  if (typeof globalThis.process?.versions?.node === 'string') {
+    return globalThis.process.versions.node;
+  }
+  return undefined;
+}
+
+// Detect version and versions object dynamically
+function detectVersionInfo(): { version: string; versions: Record<string, string>; title: string } {
+  const nodeVersion = detectNodeVersion();
+
+  if (nodeVersion) {
+    // Running on Node.js — use native values
+    return {
+      version: globalThis.process.version,
+      versions: { ...globalThis.process.versions } as Record<string, string>,
+      title: globalThis.process?.title || 'node',
+    };
+  }
+
+  // Running on GJS
+  const gjsVersion = detectGjsVersion();
+  const versions: Record<string, string> = {};
+  if (gjsVersion) versions.gjs = gjsVersion;
+
+  return {
+    version: 'v20.0.0', // Compatibility version for Node.js API level checks
+    versions,
+    title: 'gjs',
+  };
+}
+
+// Detect parent process ID
+function detectPpid(): number {
+  if (typeof globalThis.process?.ppid === 'number') {
+    return globalThis.process.ppid;
+  }
+  try {
+    const GLib = getGjsGlobal().imports?.gi?.GLib;
+    if (GLib) {
+      const [, contents] = GLib.file_get_contents('/proc/self/status');
+      if (contents) {
+        const str = new TextDecoder().decode(contents);
+        const match = str.match(/PPid:\s+(\d+)/);
+        if (match) return parseInt(match[1], 10);
+      }
+    }
+  } catch { /* ignore */ }
+  return 0;
 }
 
 // Detect platform
@@ -201,13 +269,11 @@ class Process extends EventEmitter {
     this.argv0 = this.argv[0] || 'gjs';
     this.execPath = getExecPath();
     this.pid = getPid();
-    this.ppid = 0;
-    this.version = 'v20.0.0'; // Compatibility version string
-    this.versions = {
-      node: '20.0.0',
-      gjs: '1.86.0',
-    };
-    this.title = 'gjs';
+    this.ppid = detectPpid();
+    const versionInfo = detectVersionInfo();
+    this.version = versionInfo.version;
+    this.versions = versionInfo.versions;
+    this.title = versionInfo.title;
   }
 
   cwd(): string {

@@ -181,8 +181,11 @@ export default async () => {
       expect(process.stdin).toBeDefined();
     });
 
-    await it("process.versions.node should be a string", async () => {
-      expect(typeof process.versions.node).toBe("string");
+    await it("process.versions should contain a runtime version string", async () => {
+      // On Node.js: process.versions.node, on GJS: process.versions.gjs
+      const hasNodeVersion = typeof process.versions.node === 'string';
+      const hasGjsVersion = typeof process.versions.gjs === 'string';
+      expect(hasNodeVersion || hasGjsVersion).toBe(true);
     });
   });
 

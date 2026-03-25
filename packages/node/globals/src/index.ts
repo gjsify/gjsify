@@ -3,8 +3,21 @@ import { initErrorV8Methods } from "@gjsify/utils";
 import process from '@gjsify/process';
 import { Buffer } from '@gjsify/buffer';
 import { URL, URLSearchParams } from '@gjsify/url';
-import { AbortController, AbortSignal } from '@gjsify/abort-controller';
+import '@gjsify/abort-controller'; // triggers global registration of AbortController/AbortSignal
 import GLib from '@girs/glib-2.0';
+
+// Promise.withResolvers polyfill for SpiderMonkey < 121 (ES2024, not in GJS < 1.81.2)
+if (typeof Promise.withResolvers !== 'function') {
+  Promise.withResolvers = function <T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
 
 // queueMicrotask polyfill for GJS (SpiderMonkey does not provide it)
 if (typeof queueMicrotask !== 'function') {
@@ -125,25 +138,6 @@ if (typeof globalThis.URL !== 'function') {
 if (typeof globalThis.URLSearchParams !== 'function') {
   Object.defineProperty(globalThis, "URLSearchParams", {
     value: URLSearchParams,
-    enumerable: false,
-    writable: true,
-    configurable: true,
-  });
-}
-
-// AbortController / AbortSignal globals via @gjsify/abort-controller
-if (typeof globalThis.AbortController !== 'function') {
-  Object.defineProperty(globalThis, "AbortController", {
-    value: AbortController,
-    enumerable: false,
-    writable: true,
-    configurable: true,
-  });
-}
-
-if (typeof globalThis.AbortSignal !== 'function') {
-  Object.defineProperty(globalThis, "AbortSignal", {
-    value: AbortSignal,
     enumerable: false,
     writable: true,
     configurable: true,
