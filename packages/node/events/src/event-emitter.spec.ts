@@ -877,29 +877,32 @@ export default async () => {
 			expect(err).toBe(expectedErr);
 		});
 
-		await it('should reject with AbortError when signal is already aborted', async () => {
-			const emitter = new EventEmitter();
-			const abortedSignal = AbortSignal.abort();
-			try {
-				await EventEmitter.once(emitter, 'test', { signal: abortedSignal });
-				expect(false).toBeTruthy();
-			} catch (err: any) {
-				expect(err.name).toBe('AbortError');
-			}
-		});
+		// AbortSignal/AbortController tests — require global availability
+		if (typeof globalThis.AbortSignal !== 'undefined') {
+			await it('should reject with AbortError when signal is already aborted', async () => {
+				const emitter = new EventEmitter();
+				const abortedSignal = AbortSignal.abort();
+				try {
+					await EventEmitter.once(emitter, 'test', { signal: abortedSignal });
+					expect(false).toBeTruthy();
+				} catch (err: any) {
+					expect(err.name).toBe('AbortError');
+				}
+			});
 
-		await it('should reject when abort signal fires after call', async () => {
-			const emitter = new EventEmitter();
-			const ac = new AbortController();
-			const promise = EventEmitter.once(emitter, 'test', { signal: ac.signal });
-			ac.abort();
-			try {
-				await promise;
-				expect(false).toBeTruthy();
-			} catch (err: any) {
-				expect(err.name).toBe('AbortError');
-			}
-		});
+			await it('should reject when abort signal fires after call', async () => {
+				const emitter = new EventEmitter();
+				const ac = new AbortController();
+				const promise = EventEmitter.once(emitter, 'test', { signal: ac.signal });
+				ac.abort();
+				try {
+					await promise;
+					expect(false).toBeTruthy();
+				} catch (err: any) {
+					expect(err.name).toBe('AbortError');
+				}
+			});
+		}
 	});
 
 	// ==================== expanded tests: prependListener / prependOnceListener ====================
