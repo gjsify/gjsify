@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { HTMLImageElement, Image } from 'html-image-element';
+import { HTMLImageElement, Image } from '@gjsify/html-image-element';
 
 export default async () => {
 	await describe('HTMLImageElement', async () => {

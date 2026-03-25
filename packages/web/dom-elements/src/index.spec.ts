@@ -3,8 +3,8 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { Node, Element, HTMLElement, NodeType, NamespaceURI, Attr, NamedNodeMap } from 'dom-elements';
-import { Event } from 'dom-events';
+import { Node, Element, HTMLElement, NodeType, NamespaceURI, Attr, NamedNodeMap } from '@gjsify/dom-elements';
+import { Event } from '@gjsify/dom-events';
 
 export default async () => {
 	// -- Attr --

@@ -262,11 +262,12 @@ Matchers: `toBe`, `toEqual`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeDefined
 
 ### Test Rules
 
-1. **Always use bare specifiers in test imports — never relative paths or `@gjsify/*` package names.**
-   The bundler resolves bare specifiers to the correct implementation per platform: on GJS, `'stream'` → `@gjsify/stream`; on Node.js, `'stream'` stays as native `stream`. Relative imports (`'./index.js'`) bypass the bundler alias system entirely, causing the gjsify implementation to be bundled into the Node.js test — which defeats the purpose (Node.js tests should validate against the native implementation, not our polyfill).
-   - **Node.js packages:** Use the Node.js module name: `from 'assert'`, `from 'stream/web'`, `from 'crypto'`
-   - **Web packages:** Use the standard bare specifier registered in `ALIASES_WEB_FOR_GJS` (see `packages/infra/resolve-npm/lib/index.mjs`). If no bare specifier alias exists yet for a Web package, **add one** to both `ALIASES_WEB_FOR_GJS` and `ALIASES_WEB_FOR_NODE` (mapping to the native/global equivalent or `@gjsify/empty` if native). Do NOT fall back to relative imports.
-   - **Never import `@gjsify/*` directly** in test files (except `@gjsify/unit` for the test framework). The `@gjsify/*` namespace is an implementation detail — tests must be written against the standard API surface.
+1. **Import rules depend on whether the package has a Node.js native equivalent.**
+   - **Cross-platform packages (Node.js polyfills, aliased Web APIs):** Use bare specifiers. The bundler resolves them per platform: on GJS, `'stream'` → `@gjsify/stream`; on Node.js, `'stream'` stays native. This ensures Node.js tests validate against the reference implementation, not our polyfill.
+     - **Node.js packages:** `from 'assert'`, `from 'stream/web'`, `from 'crypto'`
+     - **Aliased Web packages:** Use the bare specifier registered in `ALIASES_WEB_FOR_GJS` (see `packages/infra/resolve-npm/lib/index.mjs`). If no alias exists, **add one** to both `ALIASES_WEB_FOR_GJS` and `ALIASES_WEB_FOR_NODE`. Do NOT use relative imports.
+     - **Never import `@gjsify/*` directly** in cross-platform test files (except `@gjsify/unit`). The `@gjsify/*` namespace is an implementation detail — tests must be written against the standard API surface.
+   - **GJS-only packages (no Node.js equivalent):** Import `@gjsify/*` directly. Packages like `dom-elements`, `html-image-element`, `webgl` implement browser-only APIs (Node, Element, HTMLElement, HTMLImageElement, WebGL) that don't exist in Node.js. There is no native module to alias to, so bare specifiers would be meaningless. These packages do NOT need aliases in `resolve-npm`, do NOT need `build:test:node`/`test:node` scripts, and their tests only run on GJS. Example: `from '@gjsify/dom-elements'`, `from '@gjsify/html-image-element'`.
 2. Node.js tests validate **test correctness** against the reference. GJS tests validate **our implementation**. Both must pass.
 3. **Common tests vs. platform-specific tests:**
    - **Common tests** (default, `*.spec.ts`): Must run on both Node.js and GJS. No `@girs/*`, `Soup`, `Gio`, or other GJS-specific imports. The bundler handles platform separation via aliases. These are the primary tests and should cover the full API surface.
