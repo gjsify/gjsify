@@ -8,5 +8,6 @@ import testSuiteSync from './sync.spec.js';
 import testSuiteSymlink from './symlink.spec.js';
 import testSuiteStat from './stat.spec.js';
 import testSuiteNewApis from './new-apis.spec.js';
+import testSuiteExtended from './extended.spec.js';
 
-run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis});
+run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended});

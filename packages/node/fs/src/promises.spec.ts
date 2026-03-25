@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { promises, existsSync } from 'node:fs';
+import { promises, existsSync, mkdtempSync, writeFileSync, rmdirSync, rmSync } from 'node:fs';
 import { mkdir, readdir, mkdtemp, writeFile, rm, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Buffer } from 'node:buffer';
@@ -91,8 +91,8 @@ export default async () => {
 			expect(typeof promises.readFile).toBe("function");
 		});
 
-		await it('should be a promise', async () => {
-			expect(promises.readFile('./test/file.txt', 'utf-8') instanceof Promise).toBeTruthy();
+		await it('should return a promise', async () => {
+			expect(promises.readFile('package.json', 'utf-8') instanceof Promise).toBeTruthy();
 		});
 
 		await it('should return a Buffer if no encoding was specified', async () => {
@@ -101,13 +101,23 @@ export default async () => {
 		});
 
 		await it('should return a string when encoding is utf-8', async () => {
-			const utf8Data = await promises.readFile('./test/file.txt', 'utf-8');
+			const dir = mkdtempSync('fs-prf-');
+			const filePath = join(dir, 'test.txt');
+			writeFileSync(filePath, 'Hello World');
+			const utf8Data = await promises.readFile(filePath, 'utf-8');
 			expect(typeof utf8Data === 'string').toBeTruthy();
+			rmSync(filePath);
+			rmdirSync(dir);
 		});
 
-		await it('should return a string with "Hello World"', async () => {
-			const utf8Data = await promises.readFile('./test/file.txt', 'utf-8');
+		await it('should return the correct file content', async () => {
+			const dir = mkdtempSync('fs-prf-content-');
+			const filePath = join(dir, 'test.txt');
+			writeFileSync(filePath, 'Hello World');
+			const utf8Data = await promises.readFile(filePath, 'utf-8');
 			expect(utf8Data).toBe('Hello World');
+			rmSync(filePath);
+			rmdirSync(dir);
 		});
 	});
 

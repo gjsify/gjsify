@@ -1,19 +1,18 @@
 import { describe, it, expect } from '@gjsify/unit';
-// import { join, dirname } from 'node:path';
-// import { fileURLToPath } from "node:url";
-
-// const __filename = fileURLToPath(import.meta.url)
-// const __dirname = dirname(__filename)
-
-import { statSync } from 'node:fs';
+import { statSync, mkdtempSync, writeFileSync, rmSync, rmdirSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 export default async () => {
 	await describe('fs.statSync', async () => {
 
 		await it('Should return the file stat', async () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-stat-'));
+			const filePath = join(dir, 'test.txt');
+			writeFileSync(filePath, 'stat test data');
 
-            const s = statSync('tsconfig.json');
+            const s = statSync(filePath);
 
             expect(s.atime instanceof Date).toBeTruthy();
             expect(s.atimeMs).toBeGreaterThan(0);
@@ -40,14 +39,20 @@ export default async () => {
             expect(s.isFile()).toBeTruthy();
             expect(s.isSocket()).toBeFalsy();
             expect(s.isSymbolicLink()).toBeFalsy();
+
+			rmSync(filePath);
+			rmdirSync(dir);
 		});
 	});
 
 	await describe('fs.stat (promise)', async () => {
 
 		await it('Should return the file stat', async () => {
+			const dir = mkdtempSync(join(tmpdir(), 'fs-pstat-'));
+			const filePath = join(dir, 'test.txt');
+			writeFileSync(filePath, 'stat test data');
 
-            const s = await stat('tsconfig.json');
+            const s = await stat(filePath);
 
             expect(s.atime instanceof Date).toBeTruthy();
             expect(s.atimeMs).toBeGreaterThan(0);
@@ -74,6 +79,9 @@ export default async () => {
             expect(s.isFile()).toBeTruthy();
             expect(s.isSocket()).toBeFalsy();
             expect(s.isSymbolicLink()).toBeFalsy();
+
+			rmSync(filePath);
+			rmdirSync(dir);
 		});
 	});
 }

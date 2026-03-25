@@ -7,11 +7,12 @@ const __dirname = dirname(__filename)
 
 import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
 import { Buffer } from 'node:buffer';
+import { tmpdir } from 'node:os';
 
 export default async () => {
 	await describe('fs.existsSync', async () => {
 
-		const existingFiles = ['tsconfig.json', 'package.json', 'README.md'];
+		const existingFiles = ['/tmp', '/etc/hosts'];
 		const nonExistingFiles = ['asdasd', '/asdasd', ''];
 
 		await it('should return true for existing files', () => {
@@ -89,11 +90,11 @@ export default async () => {
 			const fileWithTypes = files.find((f) => f.name === expectedFile);
 			const dirWithTypes = files.find((f) => f.name === expectedDir);
 
-			expect(fileWithTypes.isFile()).toBeTruthy();
-			expect(fileWithTypes.isDirectory()).toBeFalsy();
+			expect(fileWithTypes!.isFile()).toBeTruthy();
+			expect(fileWithTypes!.isDirectory()).toBeFalsy();
 
-			expect(dirWithTypes.isFile()).toBeFalsy();
-			expect(dirWithTypes.isDirectory()).toBeTruthy();
+			expect(dirWithTypes!.isFile()).toBeFalsy();
+			expect(dirWithTypes!.isDirectory()).toBeTruthy();
 
 			// Clear
 			rmSync(file);
@@ -104,18 +105,28 @@ export default async () => {
 
 	await describe('fs.readFileSync', async () => {
 		await it('should return a Buffer if no encoding was specified', () => {
-			const bufferData = readFileSync('package.json');
+			const bufferData = readFileSync('/etc/hosts');
 			expect(bufferData instanceof Buffer).toBeTruthy();
 		});
 
 		await it('should return a string when encoding is utf-8', () => {
-			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
+			const dir = mkdtempSync('fs-rfs-');
+			const filePath = join(dir, 'test.txt');
+			writeFileSync(filePath, 'Hello World');
+			const utf8Data = readFileSync(filePath, 'utf-8');
 			expect(typeof utf8Data === 'string').toBeTruthy();
+			rmSync(filePath);
+			rmdirSync(dir);
 		});
 
-		await it('should return a string with "Hello World"', () => {
-			const utf8Data = readFileSync('./test/file.txt', 'utf-8');
+		await it('should return the correct file content', () => {
+			const dir = mkdtempSync('fs-rfs-content-');
+			const filePath = join(dir, 'test.txt');
+			writeFileSync(filePath, 'Hello World');
+			const utf8Data = readFileSync(filePath, 'utf-8');
 			expect(utf8Data).toBe('Hello World');
+			rmSync(filePath);
+			rmdirSync(dir);
 		});
 	});
 
@@ -160,7 +171,9 @@ export default async () => {
 					if (err?.code === 'EMFILE') { resolve(); return; }
 					throw err;
 				}
-				watcher.on('change', console.log).on('rename', console.log);
+				// FSWatcher inherits from EventEmitter at runtime
+			const w = watcher as unknown as import('node:events').EventEmitter;
+			w.on('change', console.log).on('rename', console.log);
 
 				setTimeout(() => {
 					writeFileSync(watchMe, '// test');
@@ -196,20 +209,21 @@ export default async () => {
 		});
 
 		await it('should return the real and absolute path', () => {
-			const tsConfig = "./tsconfig.json";
-			const tsConfigSymlink = "./symlink_tsconfig.json";
+			const dir = mkdtempSync(join(tmpdir(), 'fs-rp-'));
+			const target = join(dir, 'target.txt');
+			const link = join(dir, 'link.txt');
+			writeFileSync(target, 'data');
+			symlinkSync(target, link);
 
-			if(!existsSync(tsConfigSymlink)) {
-				symlinkSync(tsConfig, tsConfigSymlink);
+			const realPath = realpathSync(target);
+			const realSymLinkPath = realpathSync(link);
 
-				const realPath = realpathSync(tsConfig);
-				const realSymLinkPath = realpathSync(tsConfigSymlink);
+			// Should point to the real file, not the symlink
+			expect(realSymLinkPath).toBe(realPath);
 
-				// Should point to the real file, not the symlink
-				expect(realSymLinkPath).toBe(realPath);
-			}
-
-			unlinkSync(tsConfigSymlink);
+			unlinkSync(link);
+			rmSync(target);
+			rmdirSync(dir);
 		});
 	});
 }
