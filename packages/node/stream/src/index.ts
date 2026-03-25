@@ -127,6 +127,7 @@ export class Readable extends Stream {
 
   private _buffer: unknown[] = [];
   private _readableState = { ended: false, endEmitted: false, reading: false, constructed: true };
+  private _readablePending = false;
   private _readImpl: ((size: number) => void) | undefined;
   private _destroyImpl: ((error: Error | null, cb: (error?: Error | null) => void) => void) | undefined;
   private _constructImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
@@ -188,20 +189,78 @@ export class Readable extends Stream {
     if (this._buffer.length === 0) return null;
 
     if (size === 0) return null;
-    if (size === undefined || size >= this._buffer.length) {
-      if (this.readableObjectMode) {
-        return this._buffer.shift();
+
+    if (this.readableObjectMode) {
+      if (size === undefined) {
+        const chunk = this._buffer.shift();
+        this.readableLength -= 1;
+        if (this._readableState.ended && this._buffer.length === 0 && !this._readableState.endEmitted) {
+          this._emitEnd();
+        }
+        return chunk;
       }
-      const result = this._buffer.splice(0);
-      this.readableLength = 0;
-      if (this._readableState.ended && this._buffer.length === 0) {
-        this._readableState.endEmitted = true;
-        this.emit('end');
-      }
-      return result.length === 1 ? result[0] : Buffer.concat ? (globalThis as unknown as Record<string, { concat: (list: unknown[]) => unknown }>).Buffer?.concat(result) : result;
+      // In objectMode, size means number of objects
+      if (size > this.readableLength) return null;
+      const chunk = this._buffer.shift();
+      this.readableLength -= 1;
+      return chunk;
     }
 
-    return this._buffer.shift();
+    // Byte mode: compute total buffered bytes
+    if (size !== undefined && size !== null) {
+      if (size > this.readableLength) return null;
+      // Partial read: extract exactly `size` bytes from buffer
+      return this._readBytes(size);
+    }
+
+    // Read all buffered data
+    const result = this._buffer.splice(0);
+    this.readableLength = 0;
+    if (this._readableState.ended && this._buffer.length === 0 && !this._readableState.endEmitted) {
+      this._emitEnd();
+    }
+    if (result.length === 1) return result[0];
+    if (result.length === 0) return null;
+    // Concatenate: strings with join, buffers with Buffer.concat
+    if (typeof result[0] === 'string') return result.join('');
+    const BufCtor = (globalThis as any).Buffer;
+    return BufCtor?.concat ? BufCtor.concat(result) : result;
+  }
+
+  /** @internal Extract exactly `size` bytes from the internal buffer. */
+  private _readBytes(size: number): any {
+    let collected = 0;
+    const parts: unknown[] = [];
+    while (collected < size && this._buffer.length > 0) {
+      const chunk = this._buffer[0];
+      const chunkLen = (chunk as any).length ?? 1;
+      if (collected + chunkLen <= size) {
+        // Take the whole chunk
+        parts.push(this._buffer.shift()!);
+        collected += chunkLen;
+        this.readableLength -= chunkLen;
+      } else {
+        // Split the chunk
+        const needed = size - collected;
+        const BufCtor = (globalThis as any).Buffer;
+        if (BufCtor && BufCtor.isBuffer(chunk)) {
+          parts.push((chunk as any).slice(0, needed));
+          this._buffer[0] = (chunk as any).slice(needed);
+        } else if (typeof chunk === 'string') {
+          parts.push(chunk.slice(0, needed));
+          this._buffer[0] = chunk.slice(needed);
+        } else {
+          // Uint8Array or similar
+          parts.push((chunk as Uint8Array).slice(0, needed));
+          this._buffer[0] = (chunk as Uint8Array).slice(needed);
+        }
+        this.readableLength -= needed;
+        collected += needed;
+      }
+    }
+    if (parts.length === 1) return parts[0];
+    const BufCtor = (globalThis as any).Buffer;
+    return BufCtor?.concat ? BufCtor.concat(parts) : parts;
   }
 
   push(chunk: any, encoding?: string): boolean {
@@ -209,9 +268,10 @@ export class Readable extends Stream {
       this._readableState.ended = true;
       this.readableEnded = true;
       if (this._buffer.length === 0 && !this._readableState.endEmitted) {
-        this._readableState.endEmitted = true;
-        nextTick(() => this.emit('end'));
+        nextTick(() => this._emitEnd());
       }
+      // Emit 'readable' for listeners waiting on EOF with buffered data
+      this._scheduleReadable();
       return false;
     }
 
@@ -223,7 +283,30 @@ export class Readable extends Stream {
       nextTick(() => this._flow());
     }
 
+    // In non-flowing mode, emit 'readable' to notify data is available
+    if (this.readableFlowing !== true) {
+      this._scheduleReadable();
+    }
+
     return this.readableLength < this.readableHighWaterMark;
+  }
+
+  /** Emit 'end' followed by 'close' (matches Node.js autoDestroy behavior). */
+  private _emitEnd(): void {
+    if (this._readableState.endEmitted) return;
+    this._readableState.endEmitted = true;
+    this.emit('end');
+    nextTick(() => this.emit('close'));
+  }
+
+  /** Schedule a single 'readable' event per microtask cycle (deduplicates multiple pushes). */
+  private _scheduleReadable(): void {
+    if (this._readablePending || this.listenerCount('readable') === 0) return;
+    this._readablePending = true;
+    nextTick(() => {
+      this._readablePending = false;
+      if (!this.destroyed) this.emit('readable');
+    });
   }
 
   on(event: string | symbol, listener: (...args: any[]) => void): this {
@@ -231,6 +314,10 @@ export class Readable extends Stream {
     // Attaching a 'data' listener switches to flowing mode (like Node.js)
     if (event === 'data' && this.readableFlowing !== false) {
       this.resume();
+    }
+    // Attaching a 'readable' listener: if data is already buffered, schedule event
+    if (event === 'readable' && (this._buffer.length > 0 || this._readableState.ended)) {
+      this._scheduleReadable();
     }
     return this;
   }
@@ -266,27 +353,37 @@ export class Readable extends Stream {
   private _flowing = false;
 
   private _flow(): void {
-    if (this.readableFlowing !== true || this._flowing) return;
+    if (this.readableFlowing !== true || this._flowing || this.destroyed) return;
     if (!this._readableState.constructed) return;
     this._flowing = true;
 
     try {
       // Drain buffered data synchronously (like Node.js flow())
-      while (this._buffer.length > 0 && this.readableFlowing) {
-        const chunk = this._buffer.shift()!;
+      while (this._buffer.length > 0 && this.readableFlowing && !this.destroyed) {
+        let chunk = this._buffer.shift()!;
         this.readableLength -= this.readableObjectMode ? 1 : ((chunk as { length?: number }).length ?? 1);
+        // Decode to string when setEncoding was called
+        if (this.readableEncoding && typeof chunk !== 'string') {
+          const BufCtor = (globalThis as any).Buffer;
+          if (BufCtor && BufCtor.isBuffer(chunk)) {
+            chunk = (chunk as any).toString(this.readableEncoding);
+          } else if (chunk instanceof Uint8Array) {
+            chunk = new TextDecoder(this.readableEncoding).decode(chunk as Uint8Array);
+          }
+        }
         this.emit('data', chunk);
       }
 
+      if (this.destroyed) return;
+
       // If ended and buffer drained, emit end
       if (this._readableState.ended && this._buffer.length === 0 && !this._readableState.endEmitted) {
-        this._readableState.endEmitted = true;
-        nextTick(() => this.emit('end'));
+        nextTick(() => this._emitEnd());
         return;
       }
 
       // Call _read to get more data (may push synchronously)
-      if (!this._readableState.ended && !this._readableState.reading) {
+      if (!this._readableState.ended && !this._readableState.reading && !this.destroyed) {
         this._readableState.reading = true;
         this._read(this.readableHighWaterMark);
         this._readableState.reading = false;
@@ -296,7 +393,7 @@ export class Readable extends Stream {
     }
 
     // After _read, if new data was pushed, schedule another flow
-    if (this._buffer.length > 0 && this.readableFlowing) {
+    if (this._buffer.length > 0 && this.readableFlowing && !this.destroyed) {
       nextTick(() => this._flow());
     }
   }
@@ -356,12 +453,14 @@ export class Readable extends Stream {
     const buffer: unknown[] = [];
     let done = false;
     let error: Error | null = null;
-    let waiting: ((value: IteratorResult<unknown>) => void) | null = null;
+    let waitingResolve: ((value: IteratorResult<unknown>) => void) | null = null;
+    let waitingReject: ((reason: unknown) => void) | null = null;
 
     readable.on('data', (chunk: unknown) => {
-      if (waiting) {
-        const resolve = waiting;
-        waiting = null;
+      if (waitingResolve) {
+        const resolve = waitingResolve;
+        waitingResolve = null;
+        waitingReject = null;
         resolve({ value: chunk, done: false });
       } else {
         buffer.push(chunk);
@@ -370,19 +469,22 @@ export class Readable extends Stream {
 
     readable.on('end', () => {
       done = true;
-      if (waiting) {
-        const resolve = waiting;
-        waiting = null;
+      if (waitingResolve) {
+        const resolve = waitingResolve;
+        waitingResolve = null;
+        waitingReject = null;
         resolve({ value: undefined, done: true });
       }
     });
 
     readable.on('error', (err: Error) => {
       error = err;
-      if (waiting) {
-        const reject = waiting;
-        waiting = null;
-        reject({ value: undefined, done: true });
+      done = true;
+      if (waitingReject) {
+        const reject = waitingReject;
+        waitingResolve = null;
+        waitingReject = null;
+        reject(err);
       }
     });
 
@@ -391,7 +493,10 @@ export class Readable extends Stream {
         if (error) return Promise.reject(error);
         if (buffer.length > 0) return Promise.resolve({ value: buffer.shift(), done: false });
         if (done) return Promise.resolve({ value: undefined, done: true });
-        return new Promise(resolve => { waiting = resolve; });
+        return new Promise((resolve, reject) => {
+          waitingResolve = resolve;
+          waitingReject = reject;
+        });
       },
       return(): Promise<IteratorResult<unknown>> {
         readable.destroy();
@@ -403,6 +508,7 @@ export class Readable extends Stream {
 
   static from(iterable: Iterable<unknown> | AsyncIterable<unknown>, opts?: ReadableOptions): Readable {
     const readable = new Readable({
+      objectMode: true,
       ...opts,
       read() {}
     });
@@ -447,11 +553,14 @@ export class Writable extends Stream {
   private _finalImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
   private _destroyImpl: ((error: Error | null, cb: (error?: Error | null) => void) => void) | undefined;
   private _constructImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
+  private _decodeStrings: boolean;
+  private _defaultEncoding = 'utf8';
 
   constructor(opts?: WritableOptions) {
     super(opts);
     this.writableHighWaterMark = opts?.highWaterMark ?? getDefaultHighWaterMark(opts?.objectMode ?? false);
     this.writableObjectMode = opts?.objectMode ?? false;
+    this._decodeStrings = opts?.decodeStrings !== false;
     if (opts?.write) this._writeImpl = opts.write;
     if (opts?.writev) this._writev = opts.writev;
     if (opts?.final) this._finalImpl = opts.final;
@@ -535,10 +644,26 @@ export class Writable extends Stream {
   write(chunk: any, encoding?: string | ((error?: Error | null) => void), callback?: (error?: Error | null) => void): boolean {
     if (typeof encoding === 'function') {
       callback = encoding;
-      encoding = 'utf8';
+      encoding = undefined;
     }
-    encoding = encoding || 'utf8';
+    if (encoding === undefined) encoding = this._defaultEncoding;
     callback = callback || (() => {});
+
+    // Convert strings to Buffer when decodeStrings is true (default), but not in objectMode
+    if (this._decodeStrings && !this.writableObjectMode && typeof chunk === 'string') {
+      const BufCtor = (globalThis as any).Buffer;
+      if (BufCtor) {
+        chunk = BufCtor.from(chunk, encoding);
+        encoding = 'buffer';
+      }
+    }
+    // Set encoding to 'buffer' for Buffer/Uint8Array chunks
+    if (typeof chunk !== 'string' && !this.writableObjectMode) {
+      const BufCtor = (globalThis as any).Buffer;
+      if ((BufCtor && BufCtor.isBuffer(chunk)) || chunk instanceof Uint8Array) {
+        encoding = 'buffer';
+      }
+    }
 
     if (this.writableEnded) {
       const err = new Error('write after end');
@@ -563,12 +688,14 @@ export class Writable extends Stream {
       return this.writableLength < this.writableHighWaterMark;
     }
 
-    this._doWrite(chunk, encoding as string, callback);
-
+    // Compute backpressure BEFORE _doWrite (sync transforms may decrement length immediately)
     const belowHWM = this.writableLength < this.writableHighWaterMark;
     if (!belowHWM) {
       this.writableNeedDrain = true;
     }
+
+    this._doWrite(chunk, encoding as string, callback);
+
     return belowHWM;
   }
 
@@ -588,6 +715,8 @@ export class Writable extends Stream {
           this.emit('error', err);
         }
         this.emit('finish');
+        // Emit 'close' after 'finish' (matches Node.js autoDestroy behavior)
+        nextTick(() => this.emit('close'));
         if (callback) callback();
       });
     });
@@ -669,6 +798,7 @@ export class Writable extends Stream {
   }
 
   setDefaultEncoding(encoding: string): this {
+    this._defaultEncoding = encoding;
     return this;
   }
 
@@ -678,8 +808,6 @@ export class Writable extends Stream {
     this.writable = false;
 
     const cb = (err?: Error | null) => {
-      // Emit error and close in separate nextTick calls (matches Node.js behavior)
-      // so an unhandled error doesn't prevent 'close' from firing
       if (err) nextTick(() => this.emit('error', err));
       nextTick(() => this.emit('close'));
     };
@@ -705,18 +833,32 @@ export class Duplex extends Readable {
   writableFinished = false;
   writableCorked = 0;
   writableNeedDrain = false;
+  allowHalfOpen: boolean;
+  private _decodeStrings: boolean;
 
   private _duplexCorkedBuffer: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
   private _writeImpl: ((chunk: any, encoding: string, cb: (error?: Error | null) => void) => void) | undefined;
   private _finalImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
+  private _defaultEncoding = 'utf8';
 
   constructor(opts?: DuplexOptions) {
     super(opts);
     this.writableHighWaterMark = opts?.writableHighWaterMark ?? opts?.highWaterMark ?? getDefaultHighWaterMark(opts?.writableObjectMode ?? opts?.objectMode ?? false);
     this.writableObjectMode = opts?.writableObjectMode ?? opts?.objectMode ?? false;
+    this.allowHalfOpen = opts?.allowHalfOpen !== false;
+    this._decodeStrings = opts?.decodeStrings !== false;
     if (opts?.write) this._writeImpl = opts.write;
     // writev not yet supported on Duplex
     if (opts?.final) this._finalImpl = opts.final;
+
+    // When allowHalfOpen=false, end writable when readable ends
+    if (!this.allowHalfOpen) {
+      this.once('end', () => {
+        if (!this.writableEnded) {
+          nextTick(() => this.end());
+        }
+      });
+    }
   }
 
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
@@ -735,12 +877,34 @@ export class Duplex extends Readable {
     }
   }
 
+  override destroy(error?: Error): this {
+    if (this.destroyed) return this;
+    this.writable = false;
+    return super.destroy(error);
+  }
+
   write(chunk: any, encoding?: string | ((error?: Error | null) => void), callback?: (error?: Error | null) => void): boolean {
     if (typeof encoding === 'function') {
       callback = encoding;
-      encoding = 'utf8';
+      encoding = undefined;
     }
-    encoding = encoding || 'utf8';
+    if (encoding === undefined) encoding = this._defaultEncoding;
+
+    // Convert strings to Buffer when decodeStrings is true (default), but not in objectMode
+    if (this._decodeStrings && !this.writableObjectMode && typeof chunk === 'string') {
+      const BufCtor = (globalThis as any).Buffer;
+      if (BufCtor) {
+        chunk = BufCtor.from(chunk, encoding);
+        encoding = 'buffer';
+      }
+    }
+    // Set encoding to 'buffer' for Buffer/Uint8Array chunks
+    if (typeof chunk !== 'string' && !this.writableObjectMode) {
+      const BufCtor = (globalThis as any).Buffer;
+      if ((BufCtor && BufCtor.isBuffer(chunk)) || chunk instanceof Uint8Array) {
+        encoding = 'buffer';
+      }
+    }
 
     if (this.writableEnded) {
       const err = new Error('write after end');
@@ -758,6 +922,12 @@ export class Duplex extends Readable {
     if (this.writableCorked > 0) {
       this._duplexCorkedBuffer.push({ chunk, encoding: encoding as string, callback: callback || (() => {}) });
       return this.writableLength < this.writableHighWaterMark;
+    }
+
+    // Compute backpressure BEFORE _write (sync transforms may decrement length immediately)
+    const belowHWM = this.writableLength < this.writableHighWaterMark;
+    if (!belowHWM) {
+      this.writableNeedDrain = true;
     }
 
     const cb = callback || (() => {});
@@ -779,10 +949,6 @@ export class Duplex extends Readable {
       }
     });
 
-    const belowHWM = this.writableLength < this.writableHighWaterMark;
-    if (!belowHWM) {
-      this.writableNeedDrain = true;
-    }
     return belowHWM;
   }
 
@@ -806,6 +972,7 @@ export class Duplex extends Readable {
       nextTick(() => {
         if (err) this.emit('error', err);
         this.emit('finish');
+        nextTick(() => this.emit('close'));
         if (callback) callback();
       });
     });
@@ -839,7 +1006,10 @@ export class Duplex extends Readable {
     }
   }
 
-  setDefaultEncoding(_encoding: string): this { return this; }
+  setDefaultEncoding(encoding: string): this {
+    this._defaultEncoding = encoding;
+    return this;
+  }
 }
 
 // ---- Transform ----

@@ -4,7 +4,7 @@ import "@girs/gjs";
 
 import type GLib from '@girs/glib-2.0';
 export * from './spy.js';
-import nodeAssert from 'assert';
+import nodeAssert from 'node:assert';
 
 const mainloop: GLib.MainLoop | undefined = (globalThis as any)?.imports?.mainloop;
 
@@ -137,6 +137,23 @@ class MatcherFactory {
 		);
 	}
 
+	toStrictEqual(expectedValue: any) {
+		let success = true;
+		let errorMessage = '';
+		try {
+			nodeAssert.deepStrictEqual(this.actualValue, expectedValue);
+		} catch (e) {
+			success = false;
+			errorMessage = e.message || '';
+		}
+		this.triggerResult(success,
+			`      Expected values to be deeply strictly equal\n` +
+			`      Expected: ${JSON.stringify(expectedValue)}\n` +
+			`      Actual: ${JSON.stringify(this.actualValue)}` +
+			(errorMessage ? `\n      ${errorMessage}` : '')
+		);
+	}
+
 	toEqualArray(expectedValue: Array<any> | Uint8Array) {
 
 		let success = Array.isArray(this.actualValue) && Array.isArray(expectedValue) && this.actualValue.length === expectedValue.length;
@@ -152,6 +169,21 @@ class MatcherFactory {
 			`      Expected array items to match using ==\n` +
 			`      Expected: ${expectedValue} (${typeof expectedValue})\n` +
 			`      Actual: ${this.actualValue} (${typeof this.actualValue})`
+		);
+	}
+
+	toBeInstanceOf(expectedType: Function) {
+		this.triggerResult(this.actualValue instanceof expectedType,
+			`      Expected value to be instance of ${expectedType.name || expectedType}\n` +
+			`      Actual: ${this.actualValue?.constructor?.name || typeof this.actualValue}`
+		);
+	}
+
+	toHaveLength(expectedLength: number) {
+		const actualLength = this.actualValue?.length;
+		this.triggerResult(actualLength === expectedLength,
+			`      Expected length: ${expectedLength}\n` +
+			`      Actual length: ${actualLength}`
 		);
 	}
 
@@ -211,16 +243,27 @@ class MatcherFactory {
 			`      Expected ` + this.actualValue + ` to be greater than ` + smallerValue
 		);
 	}
+	toBeGreaterThanOrEqual(value: number) {
+		this.triggerResult(this.actualValue >= value,
+			`      Expected ${this.actualValue} to be greater than or equal to ${value}`
+		);
+	}
+	toBeLessThanOrEqual(value: number) {
+		this.triggerResult(this.actualValue <= value,
+			`      Expected ${this.actualValue} to be less than or equal to ${value}`
+		);
+	}
 	toBeCloseTo(expectedValue: number, precision: number) {
 		const shiftHelper = Math.pow(10, precision);
 		this.triggerResult(Math.round((this.actualValue as unknown as number) * shiftHelper) / shiftHelper === Math.round(expectedValue * shiftHelper) / shiftHelper,
 			`      Expected ` + this.actualValue + ` with precision ` + precision + ` to be close to ` + expectedValue
 		);
 	}
-	toThrow(ErrorType?: typeof Error) {
-		let errorMessage = ''; 
+	toThrow(expected?: typeof Error | string | RegExp) {
+		let errorMessage = '';
 		let didThrow = false;
 		let typeMatch = true;
+		let messageMatch = true;
 		try {
 			this.actualValue();
 			didThrow = false;
@@ -228,8 +271,12 @@ class MatcherFactory {
 		catch(e) {
 			errorMessage = e.message || '';
 			didThrow = true;
-			if(ErrorType) {
-				typeMatch = (e instanceof ErrorType)
+			if (typeof expected === 'function') {
+				typeMatch = (e instanceof expected);
+			} else if (typeof expected === 'string') {
+				messageMatch = errorMessage.includes(expected);
+			} else if (expected instanceof RegExp) {
+				messageMatch = expected.test(errorMessage);
 			}
 		}
 		const functionName = this.actualValue.name || typeof this.actualValue === 'function' ? "[anonymous function]" : this.actualValue.toString();
@@ -237,11 +284,65 @@ class MatcherFactory {
 			`      Expected ${functionName} to ${this.positive ? 'throw' : 'not throw'} an exception ${!this.positive && errorMessage ? `, but an error with the message "${errorMessage}" was thrown` : ''}`
 		);
 
-		if(ErrorType) {
+		if (typeof expected === 'function') {
 			this.triggerResult(typeMatch,
-				`      Expected Error type '${ErrorType.name}', but the error is not an instance of it`
+				`      Expected Error type '${expected.name}', but the error is not an instance of it`
+			);
+		} else if (expected !== undefined) {
+			this.triggerResult(messageMatch,
+				`      Expected error message to match ${expected}\n` +
+				`      Actual message: "${errorMessage}"`
 			);
 		}
+	}
+
+	async toReject(expected?: typeof Error | string | RegExp) {
+		let didReject = false;
+		let errorMessage = '';
+		let typeMatch = true;
+		let messageMatch = true;
+		try {
+			await this.actualValue;
+			didReject = false;
+		} catch (e) {
+			didReject = true;
+			errorMessage = e?.message || String(e);
+			if (typeof expected === 'function') {
+				typeMatch = (e instanceof expected);
+			} else if (typeof expected === 'string') {
+				messageMatch = errorMessage.includes(expected);
+			} else if (expected instanceof RegExp) {
+				messageMatch = expected.test(errorMessage);
+			}
+		}
+		this.triggerResult(didReject,
+			`      Expected promise to ${this.positive ? 'reject' : 'resolve'}${!this.positive && errorMessage ? `, but it rejected with "${errorMessage}"` : ''}`
+		);
+		if (didReject && typeof expected === 'function') {
+			this.triggerResult(typeMatch,
+				`      Expected rejection type '${expected.name}', but the error is not an instance of it`
+			);
+		} else if (didReject && expected !== undefined) {
+			this.triggerResult(messageMatch,
+				`      Expected rejection message to match ${expected}\n` +
+				`      Actual message: "${errorMessage}"`
+			);
+		}
+	}
+
+	async toResolve() {
+		let didResolve = false;
+		let errorMessage = '';
+		try {
+			await this.actualValue;
+			didResolve = true;
+		} catch (e) {
+			didResolve = false;
+			errorMessage = e?.message || String(e);
+		}
+		this.triggerResult(didResolve,
+			`      Expected promise to ${this.positive ? 'resolve' : 'reject'}${!didResolve ? `, but it rejected with "${errorMessage}"` : ''}`
+		);
 	}
 }
 
@@ -266,6 +367,11 @@ export const describe = async function(moduleName: string, callback: Callback, o
 	// Reset after and before callbacks
 	beforeEachCb = null;
 	afterEachCb = null;
+};
+
+describe.skip = async function(moduleName: string, _callback?: Callback) {
+	++countTestsIgnored;
+	print(`\n${BLUE}- ${moduleName} (skipped)${RESET}`);
 };
 
 const runtimeMatch = async function(onRuntime: Runtime[], version?: string) {
@@ -360,6 +466,11 @@ export const it = async function(expectation: string, callback: () => void | Pro
 		print(`${RED}${e.message}${RESET}`);
 		if (e.stack) print(e.stack);
 	}
+}
+
+it.skip = async function(expectation: string, _callback?: () => void | Promise<void>) {
+	++countTestsIgnored;
+	print(`  ${BLUE}-${RESET} ${GRAY}${expectation} (skipped)${RESET}`);
 }
 
 export const expect = function(actualValue: any) {

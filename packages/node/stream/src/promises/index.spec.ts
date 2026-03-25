@@ -2,8 +2,8 @@
 // Reference: Node.js lib/stream/promises.js
 
 import { describe, it, expect } from '@gjsify/unit';
-import { Readable, Writable, Transform, PassThrough } from 'stream';
-import { pipeline, finished } from 'stream/promises';
+import { Readable, Writable, Transform, PassThrough } from 'node:stream';
+import { pipeline, finished } from 'node:stream/promises';
 
 export default async () => {
   await describe('stream/promises', async () => {

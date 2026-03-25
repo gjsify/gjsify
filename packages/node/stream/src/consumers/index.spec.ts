@@ -2,8 +2,8 @@
 // Reference: Node.js lib/stream/consumers.js
 
 import { describe, it, expect } from '@gjsify/unit';
-import { Readable } from 'stream';
-import { text, json, buffer, arrayBuffer, blob } from 'stream/consumers';
+import { Readable } from 'node:stream';
+import { text, json, buffer, arrayBuffer, blob } from 'node:stream/consumers';
 
 export default async () => {
   await describe('stream/consumers', async () => {
