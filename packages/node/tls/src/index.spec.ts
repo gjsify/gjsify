@@ -1,12 +1,18 @@
+// Ported from refs/node-test/parallel/test-tls-check-server-identity.js,
+//   test-tls-basic-validations.js
+// Original: MIT license, Node.js contributors
 import { describe, it, expect } from '@gjsify/unit';
 import tls, {
   TLSSocket,
   connect,
   createServer,
   createSecureContext,
+  checkServerIdentity,
+  getCiphers,
   rootCertificates,
   DEFAULT_MIN_VERSION,
   DEFAULT_MAX_VERSION,
+  DEFAULT_CIPHERS,
 } from 'node:tls';
 
 // Our implementation exports TLSServer, Node.js exports Server
@@ -165,7 +171,6 @@ export default async () => {
       });
 
       await it('should accept options object', async () => {
-        // Verify it can be called — will not actually connect to a real server
         expect(typeof connect).toBe('function');
       });
     });
@@ -186,6 +191,129 @@ export default async () => {
       await it('should have context property', async () => {
         const ctx = createSecureContext();
         expect(ctx.context).toBeDefined();
+      });
+    });
+
+    // --- DEFAULT_CIPHERS / getCiphers ---
+    await describe('DEFAULT_CIPHERS and getCiphers', async () => {
+      await it('should export DEFAULT_CIPHERS as a non-empty string', async () => {
+        expect(typeof DEFAULT_CIPHERS).toBe('string');
+        expect(DEFAULT_CIPHERS.length).toBeGreaterThan(0);
+      });
+
+      await it('should have DEFAULT_CIPHERS on the default export', async () => {
+        expect(typeof tls.DEFAULT_CIPHERS).toBe('string');
+      });
+
+      await it('getCiphers should return an array of strings', async () => {
+        const ciphers = getCiphers();
+        expect(Array.isArray(ciphers)).toBe(true);
+        expect(ciphers.length).toBeGreaterThan(0);
+        expect(typeof ciphers[0]).toBe('string');
+      });
+
+      await it('getCiphers should be on the default export', async () => {
+        expect(typeof tls.getCiphers).toBe('function');
+        const ciphers = tls.getCiphers();
+        expect(Array.isArray(ciphers)).toBe(true);
+      });
+    });
+
+    // --- checkServerIdentity ---
+    // Ported from refs/node-test/parallel/test-tls-check-server-identity.js
+    await describe('checkServerIdentity', async () => {
+      await it('should be a function', async () => {
+        expect(typeof checkServerIdentity).toBe('function');
+        expect(typeof tls.checkServerIdentity).toBe('function');
+      });
+
+      await it('should return undefined for matching CN', async () => {
+        const result = checkServerIdentity('a.com', { subject: { CN: 'a.com' } } as any);
+        expect(result).toBeUndefined();
+      });
+
+      await it('should match CN case-insensitively', async () => {
+        const result = checkServerIdentity('a.com', { subject: { CN: 'A.COM' } } as any);
+        expect(result).toBeUndefined();
+      });
+
+      await it('should return error for non-matching CN', async () => {
+        const err = checkServerIdentity('a.com', { subject: { CN: 'b.com' } } as any);
+        expect(err instanceof Error).toBe(true);
+        expect((err as Error).message).toContain('a.com');
+      });
+
+      await it('should match trailing-dot FQDN against CN', async () => {
+        const result = checkServerIdentity('a.com', { subject: { CN: 'a.com.' } } as any);
+        expect(result).toBeUndefined();
+      });
+
+      await it('should return error for IP not in altnames', async () => {
+        const err = checkServerIdentity('8.8.8.8', {
+          subject: { CN: '8.8.8.8' },
+        } as any);
+        expect(err instanceof Error).toBe(true);
+        expect((err as Error).message).toContain('8.8.8.8');
+      });
+
+      await it('should match IP in subjectaltname IP Address entry', async () => {
+        const result = checkServerIdentity('8.8.8.8', {
+          subject: { CN: '8.8.8.8' },
+          subjectaltname: 'IP Address:8.8.8.8',
+        } as any);
+        expect(result).toBeUndefined();
+      });
+
+      await it('should match hostname in DNS subjectaltname', async () => {
+        const result = checkServerIdentity('foo.example.com', {
+          subject: { CN: 'wrong.com' },
+          subjectaltname: 'DNS:foo.example.com',
+        } as any);
+        expect(result).toBeUndefined();
+      });
+
+      await it('should match wildcard DNS in subjectaltname', async () => {
+        const result = checkServerIdentity('bar.example.com', {
+          subject: { CN: 'wrong.com' },
+          subjectaltname: 'DNS:*.example.com',
+        } as any);
+        expect(result).toBeUndefined();
+      });
+
+      await it('should fail wildcard when subdomain does not match', async () => {
+        const err = checkServerIdentity('foo.bar.example.com', {
+          subject: { CN: 'wrong.com' },
+          subjectaltname: 'DNS:*.example.com',
+        } as any);
+        expect(err instanceof Error).toBe(true);
+      });
+
+      await it('should handle multiple DNS subjectaltnames', async () => {
+        const result = checkServerIdentity('b.com', {
+          subject: { CN: 'a.com' },
+          subjectaltname: 'DNS:a.com, DNS:b.com',
+        } as any);
+        expect(result).toBeUndefined();
+      });
+
+      await it('should return error when cert has no DNS name', async () => {
+        const err = checkServerIdentity('a.com', {} as any);
+        expect(err instanceof Error).toBe(true);
+        expect((err as Error).message).toContain('DNS');
+      });
+
+      await it('should handle false-y host values', async () => {
+        const err = checkServerIdentity(false as unknown as string, {
+          subject: { CN: 'a.com' },
+        } as any);
+        expect(err instanceof Error).toBe(true);
+      });
+
+      await it('should match array CN values', async () => {
+        const result = checkServerIdentity('b.com', {
+          subject: { CN: ['a.com', 'b.com'] },
+        } as any);
+        expect(result).toBeUndefined();
       });
     });
   });

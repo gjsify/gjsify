@@ -1,4 +1,5 @@
-// Ported from refs/node-test/parallel/test-worker-message-*.js
+// Ported from refs/node-test/parallel/test-worker-message-*.js,
+//   test-worker-broadcastchannel.js, test-worker-environmentdata.js
 // Ported from refs/bun/test/js/node/worker_threads/worker_threads.test.ts
 // Original: MIT license, Node.js contributors / Oven (oven-sh)
 
@@ -387,6 +388,148 @@ export default async () => {
     await it('moveMessagePortToContext should be a function', async () => {
       // Native Node.js requires a vm.Context — just verify it's exported
       expect(typeof moveMessagePortToContext).toBe('function');
+    });
+  });
+
+  // --- BroadcastChannel.addEventListener ---
+  // Ported from refs/node-test/parallel/test-worker-broadcastchannel.js
+
+  await describe('BroadcastChannel.addEventListener', async () => {
+    await it('should receive messages via addEventListener', async () => {
+      const bc1 = new BroadcastChannel('bc-ae');
+      const bc2 = new BroadcastChannel('bc-ae');
+
+      const received = await new Promise<unknown>((resolve) => {
+        bc1.addEventListener('message', (event) => resolve((event as unknown as { data: unknown }).data));
+        bc2.postMessage('addEventListener-hello');
+      });
+
+      expect(received).toBe('addEventListener-hello');
+      bc1.close();
+      bc2.close();
+    });
+
+    await it('should support removeEventListener to stop receiving', async () => {
+      const bc1 = new BroadcastChannel('bc-ael-remove');
+      const bc2 = new BroadcastChannel('bc-ael-remove');
+
+      let count = 0;
+      const handler = () => { count++; };
+      bc1.addEventListener('message', handler);
+      bc2.postMessage('msg1');
+      await new Promise(resolve => setTimeout(resolve, 50));
+      bc1.removeEventListener('message', handler);
+      bc2.postMessage('msg2');
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      expect(count).toBe(1);
+      bc1.close();
+      bc2.close();
+    });
+
+    await it('multiple channels with same name via addEventListener', async () => {
+      const bc1 = new BroadcastChannel('bc-multi-ae');
+      const bc2 = new BroadcastChannel('bc-multi-ae');
+      const bc3 = new BroadcastChannel('bc-multi-ae');
+
+      let count = 0;
+      const done = new Promise<void>((resolve) => {
+        const handler = () => { count++; if (count === 2) resolve(); };
+        bc2.addEventListener('message', handler);
+        bc3.addEventListener('message', handler);
+      });
+
+      bc1.postMessage('multi-ae');
+      await done;
+      expect(count).toBe(2);
+      bc1.close();
+      bc2.close();
+      bc3.close();
+    });
+  });
+
+  // --- MessagePort.addEventListener ---
+
+  await describe('MessagePort.addEventListener', async () => {
+    await it('should receive messages via addEventListener', async () => {
+      const channel = new MessageChannel();
+
+      const received = await new Promise<unknown>((resolve) => {
+        (channel.port2 as any).addEventListener('message', (event: unknown) => {
+          resolve((event as { data: unknown }).data);
+        });
+        channel.port2.start(); // must call start() when using addEventListener
+        channel.port1.postMessage('ae-message');
+      });
+
+      expect(received).toBe('ae-message');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should support removeEventListener on MessagePort', async () => {
+      const channel = new MessageChannel();
+      let count = 0;
+      const handler = (_event: unknown) => { count++; };
+
+      (channel.port2 as any).addEventListener('message', handler);
+      channel.port2.start();
+      channel.port1.postMessage('first');
+      await new Promise(resolve => setTimeout(resolve, 50));
+      (channel.port2 as any).removeEventListener('message', handler);
+      channel.port1.postMessage('second');
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      expect(count).toBe(1);
+      channel.port1.close();
+      channel.port2.close();
+    });
+  });
+
+  // --- MessageChannel structured clone edge cases ---
+
+  await describe('MessageChannel clone edge cases', async () => {
+    await it('should clone -0 as -0', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(-0);
+      });
+      expect(Object.is(received, -0)).toBe(true);
+      channel.port1.close();
+    });
+
+    await it('should clone NaN', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(NaN);
+      });
+      expect(Number.isNaN(received)).toBe(true);
+      channel.port1.close();
+    });
+
+    await it('should clone BigInt', async () => {
+      const channel = new MessageChannel();
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(9007199254740993n);
+      });
+      expect(received).toBe(9007199254740993n);
+      channel.port1.close();
+    });
+
+    await it('should clone Int32Array', async () => {
+      const channel = new MessageChannel();
+      const arr = new Int32Array([100, 200, 300]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(arr);
+      });
+      expect(received instanceof Int32Array).toBe(true);
+      expect((received as Int32Array)[0]).toBe(100);
+      expect((received as Int32Array)[2]).toBe(300);
+      channel.port1.close();
     });
   });
 

@@ -4,6 +4,7 @@
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import net, { isIP, isIPv4, isIPv6, createServer, createConnection, connect, Socket, Server } from 'node:net';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
   await describe('net', async () => {
@@ -77,15 +78,12 @@ export default async () => {
         expect(isIP('::anything')).toBe(0);
       });
 
-      // GJS: Gio.InetAddress throws on non-string input (needs implementation fix)
-      await on('Node.js', async () => {
-        await it('should return 0 for non-string input', async () => {
-          expect(isIP(undefined as any)).toBe(0);
-          expect(isIP(null as any)).toBe(0);
-          expect(isIP(123 as any)).toBe(0);
-          expect(isIP(true as any)).toBe(0);
-          expect(isIP({} as any)).toBe(0);
-        });
+      await it('should return 0 for non-string input', async () => {
+        expect(isIP(undefined as any)).toBe(0);
+        expect(isIP(null as any)).toBe(0);
+        expect(isIP(123 as any)).toBe(0);
+        expect(isIP(true as any)).toBe(0);
+        expect(isIP({} as any)).toBe(0);
       });
     });
 
@@ -104,14 +102,12 @@ export default async () => {
         expect(isIPv4('2001:252:0:1::2008:6')).toBe(false);
       });
 
-      await on('Node.js', async () => {
-        await it('should return false for non-string input', async () => {
-          expect(isIPv4(undefined as any)).toBe(false);
-          expect(isIPv4(null as any)).toBe(false);
-          expect(isIPv4(123 as any)).toBe(false);
-          expect(isIPv4(true as any)).toBe(false);
-          expect(isIPv4({} as any)).toBe(false);
-        });
+      await it('should return false for non-string input', async () => {
+        expect(isIPv4(undefined as any)).toBe(false);
+        expect(isIPv4(null as any)).toBe(false);
+        expect(isIPv4(123 as any)).toBe(false);
+        expect(isIPv4(true as any)).toBe(false);
+        expect(isIPv4({} as any)).toBe(false);
       });
     });
 
@@ -130,14 +126,12 @@ export default async () => {
         expect(isIPv6('example.com')).toBe(false);
       });
 
-      await on('Node.js', async () => {
-        await it('should return false for non-string input', async () => {
-          expect(isIPv6(undefined as any)).toBe(false);
-          expect(isIPv6(null as any)).toBe(false);
-          expect(isIPv6(123 as any)).toBe(false);
-          expect(isIPv6(true as any)).toBe(false);
-          expect(isIPv6({} as any)).toBe(false);
-        });
+      await it('should return false for non-string input', async () => {
+        expect(isIPv6(undefined as any)).toBe(false);
+        expect(isIPv6(null as any)).toBe(false);
+        expect(isIPv6(123 as any)).toBe(false);
+        expect(isIPv6(true as any)).toBe(false);
+        expect(isIPv6({} as any)).toBe(false);
       });
     });
 
@@ -305,9 +299,6 @@ export default async () => {
     });
 
     // ==================== TCP connection tests ====================
-    // These require actual network I/O (server.listen + client connect)
-    // GJS TCP tests timeout due to GLib MainLoop integration issues
-    await on('Node.js', async () => {
     await describe('TCP connection', async () => {
       await it('should listen and connect', async () => {
         const server = createServer((socket) => {
@@ -1005,7 +996,6 @@ export default async () => {
         });
       });
     });
-    }); // end on('Node.js')
 
     // ==================== Socket additional properties (cross-platform) ====================
 

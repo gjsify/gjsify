@@ -7,6 +7,7 @@ import { WriteStream } from "./write-stream.js";
 import { Stats } from "./stats.js";
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import GLib from '@girs/glib-2.0';
+import Gio from '@girs/gio-2.0';
 import { ReadableStream } from "node:stream/web";
 import { Buffer } from "node:buffer";
 
@@ -31,6 +32,46 @@ import type {
 } from 'node:fs';
 import type { Interface as ReadlineInterface } from 'node:readline';
 
+/**
+ * GLib.FileError enum numeric values → Node.js error code strings.
+ * GLib.IOChannel.new_file() throws GLib.FileError (different from Gio.IOErrorEnum).
+ */
+const GLIB_FILE_ERROR_TO_NODE: Record<number, string> = {
+    0:  'EEXIST',
+    1:  'EISDIR',
+    2:  'EACCES',
+    3:  'ENAMETOOLONG',
+    4:  'ENOENT',
+    5:  'ENOTDIR',
+    6:  'ENXIO',
+    7:  'ENODEV',
+    8:  'EROFS',
+    11: 'ELOOP',
+    12: 'ENOSPC',
+    13: 'ENOMEM',
+    14: 'EMFILE',
+    15: 'ENFILE',
+    16: 'EBADF',
+    17: 'EINVAL',
+    18: 'EPIPE',
+    21: 'EIO',
+    22: 'EPERM',
+    24: 'EIO',
+};
+
+function mapOpenError(err: unknown, path: string): NodeJS.ErrnoException {
+    const gErr = err as { code?: number; message?: string } | null | undefined;
+    const msg = gErr?.message ?? '';
+    // GLib.IOChannel.new_file() always throws GLib.FileError (not Gio.IOErrorEnum).
+    // GLIB_FILE_ERROR_TO_NODE maps GLib.FileError numeric values to Node.js codes.
+    const code = GLIB_FILE_ERROR_TO_NODE[gErr?.code ?? -1] ?? 'EIO';
+    const error = new Error(`${code}: ${msg || 'unknown error'}, open '${path}'`) as NodeJS.ErrnoException;
+    error.code = code;
+    error.syscall = 'open';
+    error.path = path;
+    return error;
+}
+
 export class FileHandle implements IFileHandle {
 
     /** Not part of the default implementation, used internal by gjsify */
@@ -46,7 +87,13 @@ export class FileHandle implements IFileHandle {
     }) {
         this.options.flags ||= "r";
         this.options.mode ||= 0o666;
-        this._file = GLib.IOChannel.new_file(options.path.toString(), this.options.flags);
+        try {
+            this._file = GLib.IOChannel.new_file(options.path.toString(), this.options.flags);
+        } catch (err: unknown) {
+            throw mapOpenError(err, options.path.toString());
+        }
+        // Binary mode: prevent GLib from doing any character set conversion.
+        this._file.set_encoding(null as unknown as string);
         this.fd = this._file.unix_get_fd();
 
         FileHandle.instances[this.fd] = this;
@@ -223,13 +270,13 @@ export class FileHandle implements IFileHandle {
     async read<T extends NodeJS.ArrayBufferView>(buffer: T, offset?: number | null, length?: number | null, position?: ReadPosition | null): Promise<FileReadResult<T>>
     async read<T extends NodeJS.ArrayBufferView = Buffer>(options?: FileReadOptions<T>): Promise<FileReadResult<T>>
 
-    async read<T extends NodeJS.ArrayBufferView = Buffer>(args: any[]): Promise<FileReadResult<T>> {
+    async read<T extends NodeJS.ArrayBufferView = Buffer>(...args: any[]): Promise<FileReadResult<T>> {
         let buffer: T | undefined;
         let offset: number | null | undefined;
         let length: number | null | undefined;
-        let position:  number | null | undefined;
+        let position: number | null | undefined;
 
-        if (typeof args[0] === 'object') {
+        if (typeof args[0] === 'object' && !(args[0] instanceof Uint8Array) && !(args[0] instanceof Buffer)) {
             const options: FileReadOptions<T> = args[0];
             buffer = options.buffer;
             offset = options.offset;
@@ -242,31 +289,27 @@ export class FileHandle implements IFileHandle {
             position = args[3];
         }
 
-        if(offset) {
-            const status = this._file.seek_position(offset, GLib.SeekType.CUR);
-            if(status === GLib.IOStatus.ERROR) {
-                throw new Error("Error on set offset!")
-            }
-        }
-        if(length) this._file.set_buffer_size(length);
-        if(position) {
-            const status = this._file.seek_position(position, GLib.SeekType.SET);
-            if(status === GLib.IOStatus.ERROR) {
-                throw new Error("Error on set position!")
-            }
-        }
+        const bufView = buffer as unknown as Uint8Array;
+        const bufOffset = offset ?? 0;
+        const readLength = length ?? bufView?.byteLength ?? 65536;
 
-        const [status, buf, bytesRead] = this._file.read_chars();
-        if(status === GLib.IOStatus.ERROR) {
-            throw new Error("Error on read!")
+        // Use Gio.File.load_contents for reliable position-based reads.
+        // GLib.IOChannel.read_chars() is not introspectable in GJS (caller-allocated buffer),
+        // and read_to_end() has stdio-buffer visibility issues after mixed write/read.
+        const gFile = Gio.File.new_for_path(this.options.path.toString());
+        const [, fileContents] = gFile.load_contents(null);
+        const fileData = fileContents as Uint8Array;
+        const startPos = (position as number | null) ?? 0;
+        const readData = fileData.slice(startPos, startPos + readLength);
+        const bytesRead = readData.length;
+        if (bufView && bytesRead > 0) {
+            bufView.set(readData, bufOffset);
         }
-
-        buffer = buf as T;
 
         return {
             bytesRead,
-            buffer,
-        }
+            buffer: buffer as T,
+        };
     }
     /**
      * Returns a `ReadableStream` that may be used to read the files data.
@@ -419,8 +462,14 @@ export class FileHandle implements IFileHandle {
      * @param [len=0]
      * @return Fulfills with `undefined` upon success.
      */
-    async truncate(len?: number): Promise<void> {
-        warnNotImplemented('fs.FileHandle.truncate');
+    async truncate(len: number = 0): Promise<void> {
+        const effectiveLen = Math.max(0, len);
+        this._file.flush();
+        const gFile = Gio.File.new_for_path(this.options.path.toString());
+        const [, currentContent] = gFile.load_contents(null);
+        const newContent = new Uint8Array(effectiveLen);
+        newContent.set(currentContent.slice(0, Math.min(effectiveLen, currentContent.length)));
+        gFile.replace_contents(newContent, null, false, Gio.FileCreateFlags.NONE, null);
     }
     /**
      * Change the file system timestamps of the object referenced by the `FileHandle` then resolves the promise with no arguments upon success.
@@ -448,7 +497,19 @@ export class FileHandle implements IFileHandle {
      * @since v10.0.0
      */
     async writeFile(data: string | Uint8Array, options?: (ObjectEncodingOptions & FlagAndOpenMode & Abortable) | BufferEncoding | null): Promise<void> {
-        warnNotImplemented('fs.FileHandle.writeFile');
+        const encoding = getEncodingFromOptions(options);
+        let buf: Uint8Array;
+        if (typeof data === 'string') {
+            buf = Buffer.from(data, (encoding as BufferEncoding) || 'utf8');
+        } else {
+            buf = data;
+        }
+        this._file.seek_position(0, GLib.SeekType.SET);
+        const [status] = this._file.write_chars(buf, buf.length);
+        if (status === GLib.IOStatus.ERROR) {
+            throw new Error("Error writing to file!");
+        }
+        this._file.flush();
     }
     /**
      * Write `buffer` to the file.
@@ -514,48 +575,38 @@ export class FileHandle implements IFileHandle {
         }
 
         encoding = getEncodingFromOptions(encoding, typeof data === 'string' ? 'utf8' : null);
-        if (encoding) {
-            this._file.set_encoding(encoding === 'buffer' ? null : encoding);
-        }
 
-        if(offset) {
-            const status = this._file.seek_position(offset, GLib.SeekType.CUR);
-            if(status === GLib.IOStatus.ERROR) {
-                throw new Error("Error on set offset!")
-            }
-        }
-        if(length) this._file.set_buffer_size(length);
-
-        if(position) {
-            const status = this._file.seek_position(position, GLib.SeekType.SET);
-            if(status === GLib.IOStatus.ERROR) {
-                throw new Error("Error on set position!")
-            }
-        }
-
-        let bytesWritten = 0;
-        let status: GLib.IOStatus;
-
-        if(typeof data === 'string') {
-            const encoded = new TextEncoder().encode(data);
-            const [_status, _bytesWritten] = this._file.write_chars(encoded, encoded.length);
-            bytesWritten = _bytesWritten;
-            status = _status;
+        // Convert data to Uint8Array bytes
+        let writeBuf: Uint8Array;
+        if (typeof data === 'string') {
+            writeBuf = new TextEncoder().encode(data);
         } else {
-            const [_status, _bytesWritten] = this._file.write_chars(data as Uint8Array, length);
-            bytesWritten = _bytesWritten;
-            status = _status;
-        }        
-
-        if(status === GLib.IOStatus.ERROR) {
-            throw new Error("Error on write to file!")
+            writeBuf = data as unknown as Uint8Array;
         }
+        const bufOffset = offset ?? 0;
+        const writeLength = length ?? (writeBuf.byteLength - bufOffset);
+        const writeSlice = writeBuf.slice(bufOffset, bufOffset + writeLength);
+        const writePos = position ?? 0;
 
-        // Flush the IOChannel to ensure data is written to disk
-        this._file.flush();
+        // Use Gio.File for reliable position-based writes.
+        // GLib.IOChannel write_chars + flush does not guarantee data is visible to
+        // subsequent Gio.File or g_file_get_contents readers (stdio-buffer flushing issue).
+        const gFile = Gio.File.new_for_path(this.options.path.toString());
+        let existingData: Uint8Array;
+        try {
+            const [, existing] = gFile.load_contents(null);
+            existingData = existing as Uint8Array;
+        } catch {
+            existingData = new Uint8Array(0);
+        }
+        const newSize = Math.max(existingData.length, writePos + writeSlice.length);
+        const newContent = new Uint8Array(newSize);
+        newContent.set(existingData);
+        newContent.set(writeSlice, writePos);
+        gFile.replace_contents(newContent, null, false, Gio.FileCreateFlags.NONE, null);
 
         return {
-            bytesWritten,
+            bytesWritten: writeSlice.length,
             buffer: data
         }
     }

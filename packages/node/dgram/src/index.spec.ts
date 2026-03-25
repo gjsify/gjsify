@@ -1,3 +1,6 @@
+// Ported from refs/node-test/parallel/test-dgram-connect.js,
+//   test-dgram-bind.js, test-dgram-address.js
+// Original: MIT license, Node.js contributors
 import { describe, it, expect, on } from '@gjsify/unit';
 import dgram, { createSocket, Socket } from 'node:dgram';
 
@@ -337,6 +340,123 @@ export default async () => {
         expect(socket).toBeDefined();
         expect(socket.type).toBe('udp6');
         socket.close();
+      });
+    });
+
+    // --- connect / disconnect / remoteAddress ---
+    // Ported from refs/node-test/parallel/test-dgram-connect.js
+    await describe('connect and disconnect', async () => {
+      await it('connect should set remoteAddress', async () => {
+        const socket = createSocket('udp4');
+        await new Promise<void>((resolve) => {
+          socket.connect(12345, '127.0.0.1', () => {
+            const remote = (socket as any).remoteAddress();
+            expect(remote.port).toBe(12345);
+            expect(remote.address).toBe('127.0.0.1');
+            expect(remote.family).toBe('IPv4');
+            socket.close();
+            resolve();
+          });
+        });
+      });
+
+      await it('connect twice should throw ERR_SOCKET_DGRAM_IS_CONNECTED', async () => {
+        const socket = createSocket('udp4');
+        await new Promise<void>((resolve) => {
+          socket.connect(12345, '127.0.0.1', () => {
+            let threw = false;
+            try {
+              socket.connect(12345, () => {});
+            } catch (e: unknown) {
+              threw = true;
+              expect((e as NodeJS.ErrnoException).code).toBe('ERR_SOCKET_DGRAM_IS_CONNECTED');
+            }
+            expect(threw).toBe(true);
+            socket.close();
+            resolve();
+          });
+        });
+      });
+
+      await it('disconnect after connect should succeed', async () => {
+        const socket = createSocket('udp4');
+        await new Promise<void>((resolve) => {
+          socket.connect(12345, '127.0.0.1', () => {
+            socket.disconnect();
+            // remoteAddress() should now throw
+            let threw = false;
+            try {
+              (socket as any).remoteAddress();
+            } catch (e: unknown) {
+              threw = true;
+              expect((e as NodeJS.ErrnoException).code).toBe('ERR_SOCKET_DGRAM_NOT_CONNECTED');
+            }
+            expect(threw).toBe(true);
+            socket.close();
+            resolve();
+          });
+        });
+      });
+
+      await it('disconnect without connect should throw ERR_SOCKET_DGRAM_NOT_CONNECTED', async () => {
+        const socket = createSocket('udp4');
+        let threw = false;
+        try {
+          socket.disconnect();
+        } catch (e: unknown) {
+          threw = true;
+          expect((e as NodeJS.ErrnoException).code).toBe('ERR_SOCKET_DGRAM_NOT_CONNECTED');
+        }
+        expect(threw).toBe(true);
+        socket.close();
+      });
+
+      await it('remoteAddress on unconnected socket should throw', async () => {
+        const socket = createSocket('udp4');
+        let threw = false;
+        try {
+          (socket as any).remoteAddress();
+        } catch (e: unknown) {
+          threw = true;
+          expect((e as NodeJS.ErrnoException).code).toBe('ERR_SOCKET_DGRAM_NOT_CONNECTED');
+        }
+        expect(threw).toBe(true);
+        socket.close();
+      });
+
+      await it('connect with invalid port should throw ERR_SOCKET_BAD_PORT', async () => {
+        const socket = createSocket('udp4');
+        const invalidPorts = [0, 65536, -1];
+        for (const port of invalidPorts) {
+          let threw = false;
+          try {
+            socket.connect(port);
+          } catch (e: unknown) {
+            threw = true;
+            expect((e as NodeJS.ErrnoException).code).toBe('ERR_SOCKET_BAD_PORT');
+          }
+          expect(threw).toBe(true);
+        }
+        socket.close();
+      });
+
+      await it('double disconnect should throw ERR_SOCKET_DGRAM_NOT_CONNECTED', async () => {
+        const socket = createSocket('udp4');
+        await new Promise<void>((resolve) => {
+          socket.connect(12345, '127.0.0.1', () => {
+            socket.disconnect();
+            let threw = false;
+            try {
+              socket.disconnect();
+            } catch (e: unknown) {
+              threw = true;
+              expect((e as NodeJS.ErrnoException).code).toBe('ERR_SOCKET_DGRAM_NOT_CONNECTED');
+            }
+            expect(threw).toBe(true);
+            socket.close();
+            resolve();
+          });
+        });
       });
     });
 

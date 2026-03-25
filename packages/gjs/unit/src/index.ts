@@ -229,8 +229,17 @@ class MatcherFactory {
 	}
 
 	toContain(needle: any) {
-		this.triggerResult(this.actualValue instanceof Array && this.actualValue.indexOf(needle) !== -1,
-			`      Expected ` + this.actualValue + ` to contain ` + needle
+		const value = this.actualValue;
+		let contains: boolean;
+		if (typeof value === 'string') {
+			contains = value.includes(String(needle));
+		} else if (value instanceof Array) {
+			contains = value.indexOf(needle) !== -1;
+		} else {
+			contains = false;
+		}
+		this.triggerResult(contains,
+			`      Expected ` + value + ` to contain ` + needle
 		);
 	}
 	toBeLessThan(greaterValue: number) {

@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-25 (after stabilization & verification)
+> Last updated: 2026-03-25 (after coverage & stability sprint, Day 10)
 
 ## Summary
 
@@ -10,11 +10,11 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 37 | 30 (81%) | 3 (8%) | 4 (11%) |
-| Web APIs | 14 | 14 (100%) | — | — |
+| Web APIs | 15 | 15 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** 2,130 test cases in 75 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** 2,540 test cases in 83 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -27,29 +27,29 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **assert** | — | 73 | AssertionError, deepEqual, throws, strict mode |
 | **async_hooks** | — | 28 | AsyncLocalStorage, AsyncResource, createHook |
 | **buffer** | — | 52 | Buffer via Blob/atob/btoa, alloc, from, concat |
-| **child_process** | Gio, GLib | 43 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
+| **child_process** | Gio, GLib | 79 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
 | **console** | — | 37 | Console class with stream support |
 | **crypto** | GLib | 160 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
-| **dgram** | Gio, GLib | 30 | UDP Socket via Gio.Socket with bind, send, receive, multicast |
+| **dgram** | Gio, GLib | 37 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress |
 | **diagnostics_channel** | — | 14 | Channel, TracingChannel, subscribe/unsubscribe |
 | **dns** | Gio, GLib | 58 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
 | **events** | — | 60 | EventEmitter, once, on, listenerCount |
-| **fs** | Gio, GLib | 83 (7 specs) | sync, callback, promises, streams, FSWatcher |
+| **fs** | Gio, GLib | 153 (8 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, ENOENT error mapping |
 | **globals** | — | 96 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **http** | Soup 3.0, Gio, GLib | 71 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
 | **https** | Soup 3.0 | 24 | Agent, request/get (Soup.Session handles HTTPS natively), createServer, Server |
 | **module** | Gio, GLib | 27 | builtinModules, isBuiltin, createRequire (with JSON loading and module resolution) |
-| **net** | Gio, GLib | 64 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
+| **net** | Gio, GLib | 84 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
 | **os** | GLib | 32 | homedir, hostname, cpus (real times from /proc/stat), platform-specific |
 | **path** | — | 41 | POSIX + Win32 (1,052 lines total) |
 | **perf_hooks** | — | 31 | performance (Web API / GLib fallback), monitorEventLoopDelay, mark/measure/getEntries |
 | **process** | GLib | 37 | EventEmitter-based, env, cwd, platform, exit |
 | **querystring** | — | 63 | parse/stringify with full encoding |
 | **readline** | — | 24 | Interface, createInterface, question, prompt, async iterator, clearLine, cursorTo |
-| **stream** | — | 141 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
+| **stream** | — | 196 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
 | **string_decoder** | — | 65 | UTF-8, Base64, hex, streaming |
 | **timers** | — | 51 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
-| **tls** | Gio, GLib | 30 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer (Gio.TlsServerConnection), createSecureContext |
+| **tls** | Gio, GLib | 48 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer, createSecureContext, **checkServerIdentity** (wildcard, SAN, FQDN), **getCiphers**, DEFAULT_CIPHERS |
 | **tty** | — | 23 | ReadStream/WriteStream, isatty, ANSI, clearLine, cursorTo, getColorDepth |
 | **url** | GLib | 32 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 70 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
@@ -59,7 +59,7 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
-| **worker_threads** | Gio, GLib | 41 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
+| **worker_threads** | Gio, GLib | 50 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC), **addEventListener/removeEventListener on MessagePort/BroadcastChannel**, structured clone edge cases (-0, NaN, BigInt, Int32Array) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
 | **http2** | — | 30 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
 | **vm** | — | 37 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
 
@@ -87,7 +87,8 @@ All 14 packages have real implementations:
 | **eventsource** | — | 24 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
 | **fetch** | Soup 3.0, Gio, GLib | 35 | fetch(), Request, Response, Headers, Referrer-Policy |
 | **formdata** | — | 24 | FormData, File, multipart encoding |
-| **html-image-element** | GdkPixbuf | 2 | HTMLImageElement, Image() |
+| **dom-elements** | — | 61 | Node, Element, HTMLElement, Attr, NamedNodeMap, NodeList, NodeType, NamespaceURI (DOM hierarchy; GJS-only) |
+| **html-image-element** | GdkPixbuf | 22 | HTMLImageElement (alt, src, width, height, crossOrigin, loading, decode()), Image() |
 | **streams** | — | 72 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **webcrypto** | — | 42 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
 | **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
@@ -153,9 +154,9 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Fully implemented | 30 (81%) |
 | Partially implemented | 3 (8%) |
 | Stubs | 4 (11%) |
-| Web API packages | 14 (all implemented) |
-| Total test cases | 2,130 |
-| Spec files | 75 |
+| Web API packages | 15 (all implemented) |
+| Total test cases | 2,540 |
+| Spec files | 83 |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -203,6 +204,42 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — Coverage & Stability Sprint (Day 7–10)
+
+**New API implementations:**
+- `tls`: Added `checkServerIdentity()` (wildcard certs, SAN, FQDN/trailing-dot), `getCiphers()`, `DEFAULT_CIPHERS` (18 new tests)
+- `dgram`: Added `Socket.connect()`, `Socket.disconnect()`, `Socket.remoteAddress()` with ERR_SOCKET_DGRAM_IS_CONNECTED / NOT_CONNECTED / BAD_PORT error handling (7 new tests)
+- `worker_threads`: Added `MessagePort.addEventListener()` / `removeEventListener()` and `BroadcastChannel.addEventListener()` / `removeEventListener()` (9 new tests)
+- `fs/FileHandle`: Implemented `read()` (Gio.FileInputStream-based), `truncate()` (Gio.File overlay), `writeFile()` (Gio.File), `stat()` (Stats constructor). Fixed `open()` error mapping for GLib.FileError (ENOENT vs ENOTDIR). Fixed `readlinkSync` error re-throw guard (numeric vs string code). Fixed `read()` `...args` rest param bug (previously parsed buffer bytes as args).
+
+**Test additions:**
+- `fs`: 126 → 153 (+27): FileHandle read/write/truncate/writeFile/stat/readFile/appendFile, error cases for non-existent paths, symlink edge cases
+- `tls`: 30 → 48 (+18): checkServerIdentity (wildcards, SANs, FQDN, IP), getCiphers, DEFAULT_CIPHERS constant
+- `dgram`: 30 → 37 (+7): connect/disconnect/remoteAddress, error codes
+- `worker_threads`: 41 → 50 (+9): addEventListener/removeEventListener, structured clone edge cases (-0, NaN, BigInt, Int32Array)
+
+**Bug fixes:**
+- `tls.checkServerIdentity`: Wildcard pattern `unfqdn()` normalization for trailing-dot FQDNs (GJS test was failing)
+- `tls` test: `toContain()` does not check string substrings in `@gjsify/unit` (only array containment); replaced with `toMatch(/.../)`
+- `readlinkSync`: Catch block `if ((err as {code?}).code) throw err` re-threw Gio errors with numeric code (1) before `createNodeError` conversion; fixed to check `typeof === 'string'`
+- `FileHandle.open()`: GLib.IOChannel.new_file() throws GLib.FileError (code 4 = NOENT) which overlaps with Gio.IOErrorEnum (code 4 = NOT_DIRECTORY); added `GLIB_FILE_ERROR_TO_NODE` mapping in constructor
+- `FileHandle.write()`: Switched to Gio.File overlay (read-modify-write) so data is immediately on-disk and visible to subsequent `read()` calls (GLib.IOChannel flush does not call fflush on stdio FILE* buffer)
+
+**Total: 2,503 → 2,540 test cases. All pass on both Node.js and GJS.**
+
+---
+
+### 2026-03-25 — Metric Consolidation (Coverage Audit)
+
+**Corrected test counts to match actual spec files (no implementation changes):**
+- `net`: 64 → 84 (TCP lifecycle, error handling, large data, simultaneous connections)
+- `fs`: 83 (7 specs) → 126 (8 specs) — added symlink.spec.ts, expanded extended/new-apis/file-handle
+- `stream`: 141 (3 specs) → 196 — expanded Readable/Writable/Transform/backpressure/objectMode tests
+- `child_process`: 43 → 79 — expanded execFile, spawn, env, cwd, edge cases
+- `html-image-element`: 2 → 22 — full attribute coverage (alt, src, width, height, crossOrigin, loading, decode)
+- Added `@gjsify/dom-elements` to Web API table (was missing): 61 tests, Node/Element/HTMLElement hierarchy
+- Total test cases: 2,130 → 2,503 | Spec files: 75 → 83 | Web APIs: 14 → 15
 
 ### 2026-03-25 — Stabilization & Deduplication
 

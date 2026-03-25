@@ -362,7 +362,7 @@ export function readlinkSync(path: PathLike, options?: { encoding?: string } | s
     }
     return target;
   } catch (err: unknown) {
-    if ((err as { code?: unknown }).code) throw err;
+    if (typeof (err as { code?: unknown }).code === 'string') throw err;
     throw createNodeError(err, 'readlink', path);
   }
 }

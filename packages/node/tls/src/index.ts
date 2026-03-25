@@ -8,6 +8,111 @@ import { createNodeError, deferEmit } from '@gjsify/utils';
 
 export const DEFAULT_MIN_VERSION = 'TLSv1.2';
 export const DEFAULT_MAX_VERSION = 'TLSv1.3';
+export const DEFAULT_CIPHERS = 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384';
+
+/** Returns a list of supported TLS cipher names (subset; implementation-defined). */
+export function getCiphers(): string[] {
+  return [
+    'aes-128-gcm', 'aes-256-gcm', 'chacha20-poly1305',
+    'aes-128-cbc', 'aes-256-cbc',
+  ];
+}
+
+export interface PeerCertificate {
+  subject?: { CN?: string | string[]; [key: string]: unknown };
+  subjectaltname?: string;
+  [key: string]: unknown;
+}
+
+/** Removes a trailing dot from a fully-qualified domain name. */
+function unfqdn(host: string): string {
+  return host.endsWith('.') ? host.slice(0, -1) : host;
+}
+
+/** Splits a hostname into parts, lower-cased, after removing trailing dots. */
+function splitHost(host: string): string[] {
+  return unfqdn(host).toLowerCase().split('.');
+}
+
+/** Wildcard-match a hostname part list against a pattern (supports leading *). */
+function checkWildcard(hostParts: string[], pattern: string): boolean {
+  const patParts = splitHost(pattern);
+  if (patParts.length !== hostParts.length) return false;
+  // Wildcard only valid in the leftmost label
+  if (patParts[0] === '*') {
+    // e.g. *.example.com — match any single label against *
+    return patParts.slice(1).join('.') === hostParts.slice(1).join('.');
+  }
+  return patParts.every((p, i) => p === hostParts[i]);
+}
+
+/**
+ * Verifies that the certificate `cert` is valid for `hostname`.
+ * Returns an Error if the check fails, or undefined on success.
+ *
+ * Reference: Node.js lib/tls.js exports.checkServerIdentity
+ */
+export function checkServerIdentity(hostname: string, cert: PeerCertificate): Error | undefined {
+  const subject = cert.subject;
+  const altNames = cert.subjectaltname as string | undefined;
+  const dnsNames: string[] = [];
+  const ips: string[] = [];
+
+  hostname = String(hostname);
+
+  if (altNames) {
+    const parts = altNames.split(', ');
+    for (const name of parts) {
+      if (name.startsWith('DNS:')) {
+        dnsNames.push(name.slice(4));
+      } else if (name.startsWith('IP Address:')) {
+        ips.push(name.slice(11).trim());
+      }
+    }
+  }
+
+  let valid = false;
+  let reason = 'Unknown reason';
+
+  hostname = unfqdn(hostname);
+
+  // Check numeric IP addresses
+  const isIPv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
+  const isIPv6 = hostname.includes(':');
+  if (isIPv4 || isIPv6) {
+    valid = ips.some(ip => ip.toLowerCase() === hostname.toLowerCase());
+    if (!valid)
+      reason = `IP: ${hostname} is not in the cert's list: ${ips.join(', ')}`;
+  } else if (dnsNames.length > 0 || subject?.CN) {
+    const hostParts = splitHost(hostname);
+
+    if (dnsNames.length > 0) {
+      valid = dnsNames.some(pattern => checkWildcard(hostParts, pattern));
+      if (!valid)
+        reason = `Host: ${hostname}. is not in the cert's altnames: ${altNames}`;
+    } else {
+      const cn = subject!.CN as string | string[];
+      if (Array.isArray(cn)) {
+        valid = cn.some(c => checkWildcard(hostParts, c));
+      } else if (cn) {
+        valid = checkWildcard(hostParts, cn);
+      }
+      if (!valid)
+        reason = `Host: ${hostname}. is not cert's CN: ${cn}`;
+    }
+  } else {
+    reason = 'Cert does not contain a DNS name';
+  }
+
+  if (!valid) {
+    const err = new Error(reason) as NodeJS.ErrnoException & { reason: string; host: string; cert: PeerCertificate };
+    err.reason = reason;
+    err.host = hostname;
+    err.cert = cert;
+    return err;
+  }
+  return undefined;
+}
 
 export interface SecureContextOptions {
   ca?: string | Buffer | Array<string | Buffer>;
@@ -396,7 +501,10 @@ export default {
   connect,
   createServer,
   createSecureContext,
+  checkServerIdentity,
+  getCiphers,
   rootCertificates,
   DEFAULT_MIN_VERSION,
   DEFAULT_MAX_VERSION,
+  DEFAULT_CIPHERS,
 };

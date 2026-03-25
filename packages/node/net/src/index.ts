@@ -10,6 +10,7 @@ import { Server, ListenOptions } from './server.js';
 
 /** Check if input is a valid IP address. Returns 0, 4, or 6. */
 export function isIP(input: string): 0 | 4 | 6 {
+  if (typeof input !== 'string') return 0;
   // Strip IPv6 zone ID (e.g. '%eth0') — Gio.InetAddress doesn't handle it
   const stripped = input.includes('%') ? input.split('%')[0] : input;
   const addr = Gio.InetAddress.new_from_string(stripped);

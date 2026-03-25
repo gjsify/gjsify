@@ -26,6 +26,12 @@ export interface AddressInfo {
 /**
  * dgram.Socket — UDP socket wrapping Gio.Socket.
  */
+interface RemoteAddressInfo {
+  address: string;
+  family: string;
+  port: number;
+}
+
 export class Socket extends EventEmitter {
   readonly type: 'udp4' | 'udp6';
 
@@ -36,6 +42,8 @@ export class Socket extends EventEmitter {
   private _address: AddressInfo = { address: '0.0.0.0', family: 'IPv4', port: 0 };
   private _cancellable: Gio.Cancellable = new Gio.Cancellable();
   private _reuseAddr: boolean;
+  private _connected = false;
+  private _remoteAddress: RemoteAddressInfo | null = null;
 
   constructor(options: SocketOptions | string) {
     super();
@@ -222,6 +230,75 @@ export class Socket extends EventEmitter {
 
     deferEmit(this, 'close');
     return this;
+  }
+
+  /**
+   * Associate the socket with a remote address/port (connected UDP).
+   * After connect(), send() can omit address and port.
+   */
+  connect(port: number, address?: string | (() => void), callback?: () => void): void {
+    if (this._connected) {
+      const err = new Error('Already connected') as NodeJS.ErrnoException;
+      err.code = 'ERR_SOCKET_DGRAM_IS_CONNECTED';
+      throw err;
+    }
+    if (!port || port <= 0 || port >= 65536) {
+      const err = new RangeError(`Port should be > 0 and < 65536. Received ${port}.`) as NodeJS.ErrnoException;
+      err.code = 'ERR_SOCKET_BAD_PORT';
+      throw err;
+    }
+    let resolvedAddr: string;
+    let cb: (() => void) | undefined;
+    if (typeof address === 'function') {
+      cb = address;
+      resolvedAddr = this.type === 'udp6' ? '::1' : '127.0.0.1';
+    } else {
+      resolvedAddr = address || (this.type === 'udp6' ? '::1' : '127.0.0.1');
+      cb = callback;
+    }
+
+    this._connected = true;
+    this._remoteAddress = {
+      address: resolvedAddr,
+      family: this.type === 'udp6' ? 'IPv6' : 'IPv4',
+      port,
+    };
+
+    if (cb) {
+      // Emit connect asynchronously (matches Node.js behaviour)
+      Promise.resolve().then(() => {
+        this.emit('connect');
+        cb!();
+      });
+    } else {
+      Promise.resolve().then(() => this.emit('connect'));
+    }
+  }
+
+  /**
+   * Dissociate a connected socket from its remote address.
+   */
+  disconnect(): void {
+    if (!this._connected) {
+      const err = new Error('Not connected') as NodeJS.ErrnoException;
+      err.code = 'ERR_SOCKET_DGRAM_NOT_CONNECTED';
+      throw err;
+    }
+    this._connected = false;
+    this._remoteAddress = null;
+  }
+
+  /**
+   * Returns the remote address of a connected socket.
+   * Throws ERR_SOCKET_DGRAM_NOT_CONNECTED if not connected.
+   */
+  remoteAddress(): RemoteAddressInfo {
+    if (!this._connected || !this._remoteAddress) {
+      const err = new Error('Not connected') as NodeJS.ErrnoException;
+      err.code = 'ERR_SOCKET_DGRAM_NOT_CONNECTED';
+      throw err;
+    }
+    return { ...this._remoteAddress };
   }
 
   /**

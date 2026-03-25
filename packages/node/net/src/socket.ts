@@ -177,7 +177,6 @@ export class Socket extends Duplex {
             },
           );
         });
-
         if (!bytes || bytes.get_size() === 0) {
           // EOF
           this._reading = false;

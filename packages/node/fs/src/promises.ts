@@ -299,11 +299,8 @@ async function unlink(path: string) {
 }
 
 async function open(path: PathLike, flags?: OpenFlags, mode?: Mode): Promise<FileHandle> {
-  return new FileHandle({
-    path,
-    flags,
-    mode,
-  });
+  // FileHandle constructor maps GLib.FileError to NodeJS.ErrnoException on failure.
+  return new FileHandle({ path, flags, mode });
 }
 
 async function write<TBuffer extends Uint8Array>(
