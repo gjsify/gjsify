@@ -51,6 +51,7 @@ import {
   readFile,
   writeFile,
   unlink,
+  link,
 } from './callback.js';
 import FSWatcher from './fs-watcher.js';
 import {
@@ -173,6 +174,7 @@ export {
   readFile,
   writeFile,
   unlink,
+  link,
 };
 
 export default {
@@ -233,4 +235,5 @@ export default {
   readFile,
   writeFile,
   unlink,
+  link,
 };

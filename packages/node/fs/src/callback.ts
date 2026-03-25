@@ -642,6 +642,25 @@ export function writeFile(path: PathLike, data: string | Uint8Array, optsOrCb: {
   });
 }
 
+// --- link (callback) ---
+
+export function link(existingPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
+  Promise.resolve().then(() => {
+    try {
+      const result = GLib.spawn_command_line_sync(`ln ${existingPath.toString()} ${newPath.toString()}`);
+      if (!result[0]) {
+        throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingPath}' -> '${newPath}'`), {
+          code: 'EPERM', errno: -1, syscall: 'link',
+          path: existingPath.toString(), dest: newPath.toString()
+        });
+      }
+      callback(null);
+    } catch (err: unknown) {
+      callback(err as NodeJS.ErrnoException);
+    }
+  });
+}
+
 // --- unlink (callback) ---
 
 export function unlink(path: PathLike, callback: NoParamCallback): void {

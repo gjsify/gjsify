@@ -7,7 +7,7 @@ import {
 	realpathSync, symlinkSync, unlinkSync, linkSync, chmodSync,
 	statSync, lstatSync, mkdirSync, rmdirSync,
 	createReadStream, createWriteStream,
-	realpath, chmod, stat, lstat, readFile, writeFile,
+	realpath, link, chmod, stat, lstat, readFile, writeFile,
 } from 'node:fs';
 import * as promises from 'node:fs/promises';
 import { join } from 'node:path';
@@ -151,7 +151,6 @@ export default async () => {
 
 	await describe('fs.link (callback)', async () => {
 		await it('should create a hard link asynchronously', async () => {
-			const { link } = await import('node:fs');
 			const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'link-cb-');
 			const src = join(dir, 'src.txt');
 			const dest = join(dir, 'link.txt');
