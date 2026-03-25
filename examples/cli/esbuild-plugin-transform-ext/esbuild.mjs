@@ -5,7 +5,8 @@ import { transformExtPlugin } from "@gjsify/esbuild-plugin-transform-ext";
 
 await esbuild.build({
   plugins: [transformExtPlugin({ outExtension: {'.ts': '.js'}})],
-  entryPoints: ["./src/index.ts"],
+  // Keep modules unbundled and emit all source files to dist.
+  entryPoints: ["./src/index.ts", "./src/a.ts", "./src/b.ts"],
   outdir: "./dist/",
   bundle: false,
   format: "esm",
