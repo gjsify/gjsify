@@ -1,4 +1,5 @@
 name: GJS
+
 on:
   pull_request:
   push:
@@ -6,35 +7,60 @@ on:
 jobs:
   linux:
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [ 24.x ]
-        deno-version: [ vx.x.x ]
-        os:
-          - ubuntu-24.04
-    runs-on: ${{ matrix.os }}
+        node-version: [24.x]
+        fedora-version: [42, 43]
+        include:
+          - fedora-version: 42
+            gjs-info: "GJS 1.84 / SM 128"
+          - fedora-version: 43
+            gjs-info: "GJS 1.86 / SM 140"
+
+    name: Fedora ${{ matrix.fedora-version }} (${{ matrix.gjs-info }})
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:${{ matrix.fedora-version }}
+
     steps:
+      - name: Install container prerequisites
+        run: dnf install -y git tar xz findutils
+
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          submodules: true
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: ${{ matrix.deno-version }}
-      - run: sudo apt-get update
-      - name: Install Gjs, Gtk and more...
-        run: sudo apt-get --yes install gjs gir1.2-glib-2.0 gir1.2-giounix-2.0 libgda-5.0-dev libgirepository-1.0-dev libgtk-4-dev libsoup-3.0-dev libwebkitgtk-6.0-dev libadwaita-1-dev
-      - name: Install meson and valac
-        run: sudo apt-get --yes install meson valac
+
+      - name: Install GJS and GNOME development libraries
+        run: >
+          dnf install -y
+          gjs
+          glib2-devel
+          gobject-introspection-devel
+          gtk4-devel
+          libsoup3-devel
+          webkitgtk6.0-devel
+          libadwaita-devel
+          gdk-pixbuf2-devel
+          libepoxy-devel
+
+      - name: Install Meson and Vala
+        run: dnf install -y meson vala gcc pkgconf
+
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Install NPM dependencies
         run: yarn install --immutable
+
       - name: Build
         run: yarn run build
+
       - name: Check
         run: yarn run check
+
       - name: Test
         run: yarn run test

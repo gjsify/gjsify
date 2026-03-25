@@ -89,3 +89,6 @@
 	path = refs/wpt
 	url = https://github.com/web-platform-tests/wpt.git
 	shallow = true
+[submodule "refs/ungap-structured-clone"]
+	path = refs/ungap-structured-clone
+	url = https://github.com/ungap/structured-clone
