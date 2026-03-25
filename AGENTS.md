@@ -90,25 +90,16 @@ yarn build:gjsify | yarn build:types
 yarn build:test:{gjs,node} | yarn test:{gjs,node}
 ```
 
-## GNOME Libs — `node_modules/@girs/*`
+## GNOME Libs & Mappings — `node_modules/@girs/*`
 
-| Lib | Pkg | Maps To |
-|-----|-----|---------|
-| GLib 2.0 | `@girs/glib-2.0` | ByteArray, Checksum, DateTime, Regex, URI, env, MainLoop |
-| GObject 2.0 | `@girs/gobject-2.0` | Object system, signals, properties |
-| Gio 2.0 | `@girs/gio-2.0` | File/streams(fs), Socket/InetAddress(net), TLS, DBus |
-| GioUnix 2.0 | `@girs/giounix-2.0` | Unix FDs, mount monitoring |
-| Soup 3.0 | `@girs/soup-3.0` | HTTP client/server(fetch,http), WebSocket, cookies |
-| GJS | `@girs/gjs` | Runtime info, GJS-specific APIs |
-
-### Mappings
+`@girs/glib-2.0`(ByteArray,Checksum,DateTime,Regex,URI,env,MainLoop) | `@girs/gobject-2.0`(signals,properties) | `@girs/gio-2.0`(File,streams,Socket,TLS,DBus) | `@girs/giounix-2.0`(Unix FDs) | `@girs/soup-3.0`(HTTP,WebSocket,cookies) | `@girs/gjs`(runtime)
 
 ```
 Node→GNOME: fs→Gio.File{,I/O}Stream | Buffer→GLib.Bytes/ByteArray/Uint8Array | net.Socket→Gio.Socket{Connection,Client} | http→Soup.{Session,Server} | crypto→GLib.{Checksum,Hmac} | process.env→GLib.{g,s}etenv() | url.URL→GLib.Uri
 Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Streams→Gio.{In,Out}putStream | Compression→Gio.ZlibCompressor | SubtleCrypto→GLib.Checksum+Hmac | localStorage→Gio.File/GLib.KeyFile | ImageBitmap→GdkPixbuf.Pixbuf | EventSource→Soup.Session(SSE)
 ```
 
-## References — `refs/` (read-only, DO NOT modify)
+## References — `refs/`
 
 ### Node.js
 
@@ -173,7 +164,7 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 
 ### Rules
 
-1. **Cross-platform pkgs:** Use `node:` prefix for all Node.js imports (`from 'node:stream'`). Bundler resolves per platform. Aliased Web pkgs: use bare specifier from `ALIASES_WEB_FOR_{GJS,NODE}` (`packages/infra/resolve-npm/lib/index.mjs`); add alias if missing. **Never import `@gjsify/*` directly** in cross-platform tests (except `@gjsify/unit`).
+1. **Cross-platform pkgs:** Use `node:` prefix for all Node.js imports — value + type (`from 'node:stream'`, `import type { Readable } from 'node:stream'`). Bundler resolves per platform. Aliased Web pkgs: use bare specifier from `ALIASES_WEB_FOR_{GJS,NODE}` (`packages/infra/resolve-npm/lib/index.mjs`); add alias if missing. **Never import `@gjsify/*` directly** in cross-platform tests (except `@gjsify/unit`).
 2. **GJS-only pkgs** (dom-elements, html-image-element, webgl): Import `@gjsify/*` directly. No aliases, no `test:node`.
 3. Node.js tests validate **test correctness**; GJS tests validate **our implementation**. Both must pass.
 4. Common (`*.spec.ts`): both platforms, no `@girs/*`. Platform-specific (`*.gjs.spec.ts` / `on('Gjs')`): minimal, only for platform-specific behavior.
@@ -186,8 +177,6 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 
 ## Implementation Workflow (TDD)
 
-Tests are the spec. Test fails on GJS → fix implementation, never the test.
-
 1. Study API: `refs/node/lib/<name>.js`
 2. Port tests to `*.spec.ts` using `@gjsify/unit`
 3. `yarn test:node` — verify tests correct
@@ -198,11 +187,7 @@ Tests are the spec. Test fails on GJS → fix implementation, never the test.
 
 ### Test Sources
 
-Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim.
-
-**Node.js:** node-test(`refs/node-test/`) **=primary** | Node.js(`refs/node/test/parallel/`) | Bun(`refs/bun/test/js/node/`) | workerd(`refs/workerd/src/workerd/api/node/tests/`) | QuickJS(`refs/quickjs/tests/`) | LLRT(`refs/llrt/tests/unit/`)
-
-**Web:** WPT(`refs/wpt/`) **=canonical** | Deno(`refs/deno/tests/unit/`) | happy-dom(`refs/happy-dom/packages/happy-dom/test/`) | jsdom(`refs/jsdom/test/`) | undici(`refs/undici/test/`)
+Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. See References tables for paths and priorities.
 
 Select: core behavior, GNOME-relevant edge cases, error conditions, cross-platform compat. Skip: V8 internals, native addons, intentionally-stubbed features.
 
@@ -225,7 +210,6 @@ Select: core behavior, GNOME-relevant edge cases, error conditions, cross-platfo
 
 ## Type Safety
 
-- Always `node:` prefix for Node.js imports (value + type)
 - `unknown` over `any`; `as unknown as T` for unrelated casts
 - Error callbacks: `NodeJS.ErrnoException | null`
 - Validate: `yarn check` (`tsc --noEmit`)
@@ -301,7 +285,7 @@ Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128` | ESM-only
 
 ### SM140 (GJS 1.85.2+/1.87+, upcoming)
 
-All above become available + Float16Array | Iterator helpers | Uint8Array base64/hex | RegExp.escape() | Promise.try() | JSON.rawJSON | Intl.DurationFormat | Math.sumPrecise | Atomics.pause | Error.captureStackTrace (native!) | Error.isError | import...with | Temporal API
+All SM128-missing features become available. Notable: Error.captureStackTrace native (drop polyfill) | Temporal API | Iterator helpers | import...with{type:"json"}
 
 ## Writing Agent Context Files
 
