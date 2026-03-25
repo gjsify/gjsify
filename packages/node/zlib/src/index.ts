@@ -36,7 +36,7 @@ function compressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
   return new Uint8Array(bytes.get_data() ?? []);
 }
 
-function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
+function decompressStreamWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
   const decompressor = new Gio.ZlibDecompressor({ format: getGioFormat(format) });
   const memInput = Gio.MemoryInputStream.new_from_bytes(new GLib.Bytes(data));
   const converter = new Gio.ConverterInputStream({
@@ -58,6 +58,68 @@ function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
   const result = new Uint8Array(totalLength);
   let offset = 0;
   for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+function findGzipMemberEnd(data: Uint8Array): number {
+  // Use the low-level convert() API to determine how many bytes a single
+  // gzip member consumes. The outBuf data is not usable in GJS (not written
+  // back to JS), but bytes_read is correct.
+  const decompressor = new Gio.ZlibDecompressor({ format: Gio.ZlibCompressorFormat.GZIP });
+  const outBuf = new Uint8Array(65536);
+  let totalRead = 0;
+  let finished = false;
+  while (!finished) {
+    const input = data.subarray(totalRead);
+    try {
+      const [result, bytesRead] = decompressor.convert(input, outBuf, Gio.ConverterFlags.NONE);
+      totalRead += bytesRead;
+      if (result === Gio.ConverterResult.FINISHED) finished = true;
+    } catch {
+      finished = true;
+    }
+  }
+  return totalRead;
+}
+
+function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
+  if (format !== 'gzip') {
+    return decompressStreamWithGio(data, format);
+  }
+
+  // Gzip: handle concatenated members (Node.js gunzip behavior)
+  const allChunks: Uint8Array[] = [];
+  let inputOffset = 0;
+
+  while (inputOffset < data.length) {
+    // Check for gzip magic bytes
+    if (data.length - inputOffset < 2 || data[inputOffset] !== 0x1f || data[inputOffset + 1] !== 0x8b) {
+      break;
+    }
+
+    const memberData = data.subarray(inputOffset);
+    // Find where this member ends using the low-level API
+    const consumed = findGzipMemberEnd(memberData);
+    if (consumed <= 0) break; // No progress, avoid infinite loop
+
+    // Decompress just this member using ConverterInputStream
+    const decompressed = decompressStreamWithGio(memberData.subarray(0, consumed), 'gzip');
+    allChunks.push(decompressed);
+    inputOffset += consumed;
+  }
+
+  if (allChunks.length === 0) {
+    // No valid gzip members found; try decompressing anyway to get proper error
+    return decompressStreamWithGio(data, 'gzip');
+  }
+
+  const totalLength = allChunks.reduce((acc, c) => acc + c.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of allChunks) {
     result.set(chunk, offset);
     offset += chunk.length;
   }

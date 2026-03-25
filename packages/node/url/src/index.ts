@@ -30,7 +30,7 @@ export class URLSearchParams {
         this._entries.push([String(k), String(v)]);
       }
     } else if (init instanceof URLSearchParams) {
-      this._entries = init._entries.slice();
+      this._entries = init._entries.map(([k, v]) => [k, v] as [string, string]);
     } else {
       for (const key of Object.keys(init)) {
         this._entries.push([key, String(init[key])]);
@@ -77,6 +77,14 @@ export class URLSearchParams {
 
   append(name: string, value: string): void {
     this._entries.push([name, value]);
+  }
+
+  sort(): void {
+    this._entries.sort((a, b) => {
+      if (a[0] < b[0]) return -1;
+      if (a[0] > b[0]) return 1;
+      return 0;
+    });
   }
 
   toString(): string {
