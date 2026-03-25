@@ -4,8 +4,8 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { EventEmitter } from 'events';
-import { Buffer } from 'buffer';
+import { EventEmitter } from 'node:events';
+import { Buffer } from 'node:buffer';
 import type { Readable, Writable } from 'node:stream';
 import { gbytesToUint8Array, deferEmit } from '@gjsify/utils';
 

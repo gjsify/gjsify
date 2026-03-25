@@ -1,7 +1,7 @@
 // Reference: Node.js lib/internal/worker/io.js
 // Reimplemented for GJS using EventEmitter
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 export class MessagePort extends EventEmitter {
   private _started = false;

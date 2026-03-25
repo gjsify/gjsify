@@ -7,9 +7,9 @@ import {
   stat, lstat, readdir, readFile, writeFile,
   rename, copyFile, access, appendFile, truncate,
   mkdir, rmdir, chmod,
-} from 'fs';
-import { constants } from 'fs';
-import { Buffer } from 'buffer';
+} from 'node:fs';
+import { constants } from 'node:fs';
+import { Buffer } from 'node:buffer';
 
 const TEST_DIR = './test-callback-' + Date.now();
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import console, { Console, log, warn, error, info } from "console"
+import console, { Console, log, warn, error, info } from "node:console"
 
 export default async () => {
 	await describe('console: default import', async () => {

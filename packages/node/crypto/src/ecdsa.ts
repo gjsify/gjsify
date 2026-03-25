@@ -4,7 +4,7 @@
 // Copyright (c) Node.js contributors. MIT license.
 // Reimplemented for GJS using BigInt elliptic curve arithmetic from ecdh.ts
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { Hash } from './hash.js';
 import { Hmac } from './hmac.js';
 import {

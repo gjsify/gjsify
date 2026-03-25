@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 
 // Ported from Deno (https://github.com/denoland/deno_std/blob/main/node/buffer_test.ts)
 // and refs/node/test/parallel/test-buffer-*.js

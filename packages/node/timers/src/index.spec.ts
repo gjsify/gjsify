@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import timers from 'timers';
+import timers from 'node:timers';
 
 export default async () => {
   await describe('timers', async () => {

@@ -263,8 +263,8 @@ Matchers: `toBe`, `toEqual`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeDefined
 ### Test Rules
 
 1. **Import rules depend on whether the package has a Node.js native equivalent.**
-   - **Cross-platform packages (Node.js polyfills, aliased Web APIs):** Use bare specifiers. The bundler resolves them per platform: on GJS, `'stream'` → `@gjsify/stream`; on Node.js, `'stream'` stays native. This ensures Node.js tests validate against the reference implementation, not our polyfill.
-     - **Node.js packages:** `from 'assert'`, `from 'stream/web'`, `from 'crypto'`
+   - **Cross-platform packages (Node.js polyfills, aliased Web APIs):** Use the `node:` prefix for all Node.js built-in module imports. The bundler resolves them per platform: on GJS, `'node:stream'` → `@gjsify/stream`; on Node.js, `'node:stream'` stays native. This ensures Node.js tests validate against the reference implementation, not our polyfill. The `node:` prefix makes it immediately clear which imports are Node.js built-ins and thus which ones get replaced by our GJS implementations via bundler aliases.
+     - **Node.js packages:** `from 'node:assert'`, `from 'node:stream/web'`, `from 'node:crypto'`
      - **Aliased Web packages:** Use the bare specifier registered in `ALIASES_WEB_FOR_GJS` (see `packages/infra/resolve-npm/lib/index.mjs`). If no alias exists, **add one** to both `ALIASES_WEB_FOR_GJS` and `ALIASES_WEB_FOR_NODE`. Do NOT use relative imports.
      - **Never import `@gjsify/*` directly** in cross-platform test files (except `@gjsify/unit`). The `@gjsify/*` namespace is an implementation detail — tests must be written against the standard API surface.
    - **GJS-only packages (no Node.js equivalent):** Import `@gjsify/*` directly. Packages like `dom-elements`, `html-image-element`, `webgl` implement browser-only APIs (Node, Element, HTMLElement, HTMLImageElement, WebGL) that don't exist in Node.js. There is no native module to alias to, so bare specifiers would be meaningless. These packages do NOT need aliases in `resolve-npm`, do NOT need `build:test:node`/`test:node` scripts, and their tests only run on GJS. Example: `from '@gjsify/dom-elements'`, `from '@gjsify/html-image-element'`.
@@ -373,7 +373,7 @@ Use these as implementation references when building `packages/web/` packages:
 
 ## Type Safety
 
-- **Import Node.js types** from `node:*` modules, don't redefine: `import type { ReadableOptions } from 'node:stream'`
+- **Always use the `node:` prefix** for Node.js built-in module imports — both value and type imports: `import { Readable } from 'node:stream'`, `import type { ReadableOptions } from 'node:stream'`. This applies to all files (implementation, tests, infra). The bundler's `setNodeAliasPrefix()` automatically handles `node:`-prefixed aliases for GJS builds. The prefix makes it immediately visible which imports are Node.js built-ins that get replaced by `@gjsify/*` implementations on GJS.
 - Global types (`BufferEncoding`, `NodeJS.Platform`) from `@types/node` are auto-available
 - Use `unknown` over `any`; keep `any` only where Node.js API requires it
 - Use `as unknown as T` instead of `as any` for unrelated type casts

@@ -2,7 +2,7 @@
 // Reference: Node.js lib/internal/crypto/keys.js
 // Reimplemented for GJS using existing ASN.1 parser
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import {
   parsePemKey, rsaKeySize,
   encodeSubjectPublicKeyInfo, encodeRsaPublicKeyPkcs1,

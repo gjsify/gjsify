@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { AsyncLocalStorage, AsyncResource, executionAsyncId, triggerAsyncId, createHook } from 'async_hooks';
+import { AsyncLocalStorage, AsyncResource, executionAsyncId, triggerAsyncId, createHook } from 'node:async_hooks';
 
 export default async () => {
   await describe('async_hooks', async () => {

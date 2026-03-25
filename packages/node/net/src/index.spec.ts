@@ -3,7 +3,7 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import net, { isIP, isIPv4, isIPv6, createServer, createConnection, connect, Socket, Server } from 'net';
+import net, { isIP, isIPv4, isIPv6, createServer, createConnection, connect, Socket, Server } from 'node:net';
 
 export default async () => {
   await describe('net', async () => {

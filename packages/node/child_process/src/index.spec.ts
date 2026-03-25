@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 // Testing the child_process module API — all commands are hardcoded safe literals
-import { execSync, execFileSync, spawnSync, exec, execFile } from 'child_process';
+import { execSync, execFileSync, spawnSync, exec, execFile } from 'node:child_process';
 
 // Ported from refs/node/test/parallel/test-child-process-exec*.js
 // Original: MIT license, Node.js contributors

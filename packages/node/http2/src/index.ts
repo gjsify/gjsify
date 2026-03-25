@@ -3,7 +3,7 @@
 // createServer/connect are stubs (Soup 3.0 handles HTTP/2 transparently but
 // does not expose multiplexed streams needed for the full Node.js API)
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 export const constants = {
   // NGHTTP2 Error Codes (RFC 7540 §7)

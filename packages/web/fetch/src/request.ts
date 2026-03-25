@@ -11,7 +11,7 @@ import { soupSendAsync, inputStreamToReadable } from './utils/soup-helpers.js';
 import { URL } from '@gjsify/url';
 import { Blob } from './utils/blob-from.js';
 
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 
 import Headers from './headers.js';
 import Body, {clone, extractContentType, getTotalBytes} from './body.js';

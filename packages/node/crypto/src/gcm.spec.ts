@@ -2,8 +2,8 @@
 // Reference: NIST SP 800-38D test vectors
 
 import { describe, it, expect } from '@gjsify/unit';
-import { createCipheriv, createDecipheriv } from 'crypto';
-import { Buffer } from 'buffer';
+import { createCipheriv, createDecipheriv } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
 

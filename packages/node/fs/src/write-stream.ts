@@ -3,13 +3,13 @@
 // Copyright (c) 2018-2026 the Deno authors. MIT license.
 // Modifications: Rewritten to use Gio.File for GJS
 
-import { Writable } from "stream";
-import { fileURLToPath, URL } from "url";
+import { Writable } from "node:stream";
+import { fileURLToPath, URL } from "node:url";
 import { open, write, close } from "./callback.js";
 
 import type { OpenFlags } from './types/index.js';
-import type { PathLike, WriteStream as IWriteStream } from 'fs';
-import type { CreateWriteStreamOptions } from 'fs/promises'; // Types from @types/node
+import type { PathLike, WriteStream as IWriteStream } from 'node:fs';
+import type { CreateWriteStreamOptions } from 'node:fs/promises'; // Types from @types/node
 
 const kIsPerformingIO = Symbol("kIsPerformingIO");
 const kIoDone = Symbol("kIoDone");

@@ -2,7 +2,7 @@
 // Reference: refs/public-encrypt/publicEncrypt.js, refs/public-encrypt/privateDecrypt.js
 // Reimplemented for GJS using native BigInt (ES2024)
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { randomBytes } from './random.js';
 import { parsePemKey, rsaKeySize } from './asn1.js';
 import { modPow, bigIntToBytes, bytesToBigInt } from './bigint-math.js';

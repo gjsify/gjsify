@@ -2,9 +2,9 @@
 // Reimplemented for GJS using Gio.FileInfo
 
 import Gio from '@girs/gio-2.0';
-import { basename, dirname } from 'path';
+import { basename, dirname } from 'node:path';
 
-import type { Dirent as OriginalDirent } from 'fs'; // Types from @types/node
+import type { Dirent as OriginalDirent } from 'node:fs'; // Types from @types/node
 
 /**
  * A representation of a directory entry, which can be a file or a subdirectory

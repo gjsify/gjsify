@@ -2,10 +2,10 @@
 // Reimplemented for GJS using Gio.FileMonitor
 
 import Gio from '@girs/gio-2.0';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 const privates = new WeakMap;
 
-import type { FSWatcher as IFSWatcher } from 'fs';
+import type { FSWatcher as IFSWatcher } from 'node:fs';
 
 export class FSWatcher extends EventEmitter implements IFSWatcher {
 

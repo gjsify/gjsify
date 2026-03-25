@@ -3,7 +3,7 @@
 
 import { Interface as BaseInterface, createInterface as baseCreateInterface } from './index.js';
 import type { InterfaceOptions } from './index.js';
-import type { Readable, Writable } from 'stream';
+import type { Readable, Writable } from 'node:stream';
 
 /**
  * Promise-based readline Interface.

@@ -1,7 +1,7 @@
 // Reference: Node.js lib/internal/crypto/random.js
 // Reimplemented for GJS using WebCrypto API / GLib.Random
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 
 const hasWebCrypto = typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function';
 

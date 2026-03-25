@@ -2,7 +2,7 @@
 // Reference: refs/browserify-sign/browser/sign.js, refs/browserify-sign/browser/verify.js
 // Reimplemented for GJS using native BigInt (ES2024)
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { Hash } from './hash.js';
 import { parsePemKey, rsaKeySize } from './asn1.js';
 import type { RsaPrivateComponents, RsaPublicComponents } from './asn1.js';

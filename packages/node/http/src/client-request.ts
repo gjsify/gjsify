@@ -4,8 +4,8 @@
 import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
-import { Buffer } from 'buffer';
-import { URL } from 'url';
+import { Buffer } from 'node:buffer';
+import { URL } from 'node:url';
 import { readBytesAsync } from '@gjsify/utils';
 import { OutgoingMessage } from './server.js';
 import { IncomingMessage } from './incoming-message.js';

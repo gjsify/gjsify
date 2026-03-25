@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import * as os from 'os';
+import * as os from 'node:os';
 
 // Ported from refs/node/test/parallel/test-os.js
 // Original: MIT license, Node.js contributors

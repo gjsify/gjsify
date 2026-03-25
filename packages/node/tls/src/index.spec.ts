@@ -7,7 +7,7 @@ import tls, {
   rootCertificates,
   DEFAULT_MIN_VERSION,
   DEFAULT_MAX_VERSION,
-} from 'tls';
+} from 'node:tls';
 
 // Our implementation exports TLSServer, Node.js exports Server
 const TLSServer = (tls as any).TLSServer || (tls as any).Server;

@@ -2,10 +2,10 @@
 // Thin wrapper — Soup.Session handles HTTPS natively via GnuTLS.
 // Reference: Node.js lib/https.js
 
-import { request as httpRequest, get as httpGet, ClientRequest, IncomingMessage, Server as HttpServer } from 'http';
-import { TLSSocket, createSecureContext } from 'tls';
-import type { TlsOptions } from 'tls';
-import { URL } from 'url';
+import { request as httpRequest, get as httpGet, ClientRequest, IncomingMessage, Server as HttpServer } from 'node:http';
+import { TLSSocket, createSecureContext } from 'node:tls';
+import type { TlsOptions } from 'node:tls';
+import { URL } from 'node:url';
 
 export { TLSSocket, createSecureContext };
 

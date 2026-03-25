@@ -3,7 +3,7 @@
 // Reimplemented for GJS using native BigInt (ES2024) elliptic curve arithmetic
 // Curve parameters from NIST FIPS 186-4 and SEC 2
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { randomBytes } from './random.js';
 import { modPow } from './bigint-math.js';
 

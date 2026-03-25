@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { randomBytes, randomUUID, randomInt, randomFillSync, timingSafeEqual } from 'crypto';
-import { Buffer } from 'buffer';
+import { randomBytes, randomUUID, randomInt, randomFillSync, timingSafeEqual } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
   await describe('crypto.randomBytes', async () => {

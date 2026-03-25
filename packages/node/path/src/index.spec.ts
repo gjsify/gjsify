@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 
-import path from 'path';
+import path from 'node:path';
 
 export default async () => {
 

@@ -2,7 +2,7 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
-import http2 from 'http2';
+import http2 from 'node:http2';
 
 const {
   constants,

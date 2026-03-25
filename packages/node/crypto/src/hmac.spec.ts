@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { createHmac } from 'crypto';
-import { Buffer } from 'buffer';
+import { createHmac } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 // Ported from refs/node/test/parallel/test-crypto-hmac.js
 // Original: MIT license, Node.js contributors

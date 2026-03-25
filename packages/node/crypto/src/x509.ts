@@ -2,7 +2,7 @@
 // Reference: Node.js lib/internal/crypto/x509.js
 // Reimplemented for GJS using ASN.1 parser
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { parseX509, parseX509Der, encodeSubjectPublicKeyInfo, derToPem } from './asn1.js';
 import type { X509Components } from './asn1.js';
 import { KeyObject } from './key-object.js';

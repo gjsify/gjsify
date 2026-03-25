@@ -1,7 +1,7 @@
 // Reference: Node.js lib/internal/crypto/hkdf.js, RFC 5869
 // Reimplemented for GJS using pure-JS Hmac
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { Hmac } from './hmac.js';
 import { normalizeAlgorithm, DIGEST_SIZES, SUPPORTED_ALGORITHMS, toBuffer } from './crypto-utils.js';
 

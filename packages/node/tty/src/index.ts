@@ -2,7 +2,7 @@
 // Reference: Node.js lib/tty.js
 // Uses ANSI escape sequences for terminal control.
 
-import { Writable, Readable } from 'stream';
+import { Writable, Readable } from 'node:stream';
 
 export class ReadStream extends Readable {
   isRaw = false;

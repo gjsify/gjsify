@@ -8,10 +8,10 @@ import {
 	symlinkSync, unlinkSync, truncateSync, createReadStream, createWriteStream,
 	constants, mkdirSync,
 	rename, copyFile, access, appendFile, readFile, writeFile,
-} from 'fs';
-import * as promises from 'fs/promises';
-import { Buffer } from 'buffer';
-import { join } from 'path';
+} from 'node:fs';
+import * as promises from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import { join } from 'node:path';
 
 export default async () => {
 

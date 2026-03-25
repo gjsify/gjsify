@@ -1,4 +1,4 @@
-import { readFile } from 'fs/promises';
+import { readFile } from 'node:fs/promises';
 
 import type { Plugin, OnLoadArgs, OnLoadResult } from "esbuild";
 import type { PluginOptions, Extension } from './types/index.js';

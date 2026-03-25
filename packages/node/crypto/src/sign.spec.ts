@@ -2,8 +2,8 @@
 // Original: MIT license, Copyright (c) Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
-import { createSign, createVerify, publicEncrypt, privateDecrypt } from 'crypto';
-import { Buffer } from 'buffer';
+import { createSign, createVerify, publicEncrypt, privateDecrypt } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 // 2048-bit RSA key pair in PKCS#8/SPKI format for cross-platform compatibility
 const RSA_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----

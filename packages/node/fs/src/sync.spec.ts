@@ -1,12 +1,12 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { join, dirname } from 'path';
-import { fileURLToPath } from "url";
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync, realpathSync, symlinkSync } from 'fs';
-import { Buffer } from 'buffer';
+import { existsSync, readdirSync, readFileSync, mkdirSync, rmdirSync, writeFileSync, unlinkSync, watch, mkdtempSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
 	await describe('fs.existsSync', async () => {

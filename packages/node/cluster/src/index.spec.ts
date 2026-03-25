@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { isPrimary, isMaster, isWorker, SCHED_NONE, SCHED_RR } from 'cluster';
+import { isPrimary, isMaster, isWorker, SCHED_NONE, SCHED_RR } from 'node:cluster';
 
 export default async () => {
   await describe('cluster', async () => {

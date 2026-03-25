@@ -29,7 +29,7 @@ import dns, {
   BADHINTS,
   NOTINITIALIZED,
   CANCELLED,
-} from 'dns';
+} from 'node:dns';
 
 export default async () => {
   await describe('dns', async () => {

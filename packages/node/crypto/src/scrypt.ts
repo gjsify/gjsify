@@ -3,7 +3,7 @@
 // Copyright (c) Node.js contributors. MIT license.
 // Modifications: Pure-JS implementation for GJS using internal PBKDF2/Hmac
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { pbkdf2Sync } from './pbkdf2.js';
 
 export interface ScryptOptions {

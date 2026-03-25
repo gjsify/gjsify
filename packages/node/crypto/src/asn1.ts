@@ -1,7 +1,7 @@
 // ASN.1/DER/PEM parser for crypto keys — original implementation for GJS
 // Reference: refs/browserify-sign/browser/sign.js (parse-asn1 patterns)
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 
 // ============================================================================
 // PEM parsing

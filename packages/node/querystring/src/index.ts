@@ -3,7 +3,7 @@
 
 import type { ParsedUrlQuery } from 'node:querystring';
 
-import { Buffer } from "buffer";
+import { Buffer } from "node:buffer";
 import { NodeURIError } from "./error.js";
 
 const hexTable = new Array(256);

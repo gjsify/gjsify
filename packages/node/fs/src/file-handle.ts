@@ -7,17 +7,17 @@ import { WriteStream } from "./write-stream.js";
 import { Stats } from "./stats.js";
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import GLib from '@girs/glib-2.0';
-import { ReadableStream } from "stream/web";
-import { Buffer } from "buffer";
+import { ReadableStream } from "node:stream/web";
+import { Buffer } from "node:buffer";
 
-import type { Abortable } from 'events';
+import type { Abortable } from 'node:events';
 import type {
     FlagAndOpenMode,
     FileReadResult,
     FileReadOptions,
     OpenFlags,
 } from './types/index.js';
-import type { FileHandle as IFileHandle, CreateReadStreamOptions, CreateWriteStreamOptions } from 'fs/promises';
+import type { FileHandle as IFileHandle, CreateReadStreamOptions, CreateWriteStreamOptions } from 'node:fs/promises';
 import type {
     ObjectEncodingOptions,
     Mode,
@@ -28,7 +28,7 @@ import type {
     WriteVResult,
     ReadVResult,
     ReadPosition,
-} from 'fs';
+} from 'node:fs';
 import type { Interface as ReadlineInterface } from 'node:readline';
 
 export class FileHandle implements IFileHandle {
@@ -131,7 +131,7 @@ export class FileHandle implements IFileHandle {
      * destroyed.  Set the `emitClose` option to `false` to change this behavior.
      *
      * ```js
-     * import { open } from 'fs/promises';
+     * import { open } from 'node:fs/promises';
      *
      * const fd = await open('/dev/input/event0');
      * // Create a stream from some character device.
@@ -157,7 +157,7 @@ export class FileHandle implements IFileHandle {
      * An example to read the last 10 bytes of a file which is 100 bytes long:
      *
      * ```js
-     * import { open } from 'fs/promises';
+     * import { open } from 'node:fs/promises';
      *
      * const fd = await open('sample.txt');
      * fd.createReadStream({ start: 90, end: 99 });
@@ -275,7 +275,7 @@ export class FileHandle implements IFileHandle {
      * or closing.
      *
      * ```js
-     * import { open } from 'fs/promises';
+     * import { open } from 'node:fs/promises';
      *
      * const file = await open('./some/file/to/read');
      *
@@ -400,7 +400,7 @@ export class FileHandle implements IFileHandle {
      * The following example retains only the first four bytes of the file:
      *
      * ```js
-     * import { open } from 'fs/promises';
+     * import { open } from 'node:fs/promises';
      *
      * let filehandle = null;
      * try {
@@ -601,7 +601,7 @@ export class FileHandle implements IFileHandle {
      * complete.
      *
      * ```js
-     * import { open } from 'fs/promises';
+     * import { open } from 'node:fs/promises';
      *
      * let filehandle;
      * try {

@@ -1,12 +1,12 @@
 import { describe, it, expect } from '@gjsify/unit';
-// import { join, dirname } from 'path';
-// import { fileURLToPath } from "url";
+// import { join, dirname } from 'node:path';
+// import { fileURLToPath } from "node:url";
 
 // const __filename = fileURLToPath(import.meta.url)
 // const __dirname = dirname(__filename)
 
-import { statSync } from 'fs';
-import { stat } from 'fs/promises';
+import { statSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 
 export default async () => {
 	await describe('fs.statSync', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import * as qs from 'querystring';
+import * as qs from 'node:querystring';
 
 // Ported from refs/node/test/parallel/test-querystring.js,
 // test-querystring-escape.js, test-querystring-maxKeys-non-finite.js,

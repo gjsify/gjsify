@@ -3,7 +3,7 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { Socket, Server } from 'net';
+import { Socket, Server } from 'node:net';
 import { createNodeError, deferEmit } from '@gjsify/utils';
 
 export const DEFAULT_MIN_VERSION = 'TLSv1.2';

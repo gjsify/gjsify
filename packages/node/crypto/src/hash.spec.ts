@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { createHash, getHashes } from 'crypto';
+import { createHash, getHashes } from 'node:crypto';
 
 export default async () => {
   await describe('crypto.createHash', async () => {

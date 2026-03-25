@@ -3,8 +3,8 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { EventEmitter } from 'events';
-import { Buffer } from 'buffer';
+import { EventEmitter } from 'node:events';
+import { Buffer } from 'node:buffer';
 import { deferEmit } from '@gjsify/utils';
 
 export interface SocketOptions {

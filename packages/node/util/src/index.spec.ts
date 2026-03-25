@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import * as util from 'util';
+import * as util from 'node:util';
 
 // Ported from refs/node/test/parallel/test-util-format.js,
 // test-util-promisify.js, test-util-inherits.js, test-util-types.js

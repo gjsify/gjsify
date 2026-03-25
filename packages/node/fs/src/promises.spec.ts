@@ -1,8 +1,8 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { promises, existsSync } from 'fs';
-import { mkdir, readdir, mkdtemp, writeFile, rm, rmdir } from 'fs/promises';
-import { join } from 'path';
-import { Buffer } from 'buffer';
+import { promises, existsSync } from 'node:fs';
+import { mkdir, readdir, mkdtemp, writeFile, rm, rmdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
 

@@ -2,8 +2,8 @@
 // Original: MIT license, Copyright (c) Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
-import { createECDH, getCurves } from 'crypto';
-import { Buffer } from 'buffer';
+import { createECDH, getCurves } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
 

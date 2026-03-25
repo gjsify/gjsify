@@ -10,7 +10,7 @@ import { IncomingMessage } from './incoming-message.js';
 import { OutgoingMessage, Server, ServerResponse } from './server.js';
 import { ClientRequest } from './client-request.js';
 import type { ClientRequestOptions } from './client-request.js';
-import { URL } from 'url';
+import { URL } from 'node:url';
 
 /**
  * Performs the low-level validations on the provided `name` that are done when `res.setHeader(name, value)` is called.

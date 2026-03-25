@@ -3,10 +3,10 @@
 // Copyright (c) 2018-2026 the Deno authors. MIT license.
 // Modifications: Extracted encoding helpers, adapted for GJS
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 
 import type { ReadOptions } from './types/index.js';
-import type { ObjectEncodingOptions, BufferEncodingOption } from 'fs'; // Types from @types/node
+import type { ObjectEncodingOptions, BufferEncodingOption } from 'node:fs'; // Types from @types/node
 
 export function getEncodingFromOptions(options: ReadOptions | ObjectEncodingOptions | BufferEncodingOption= { encoding: null, flag: 'r' }, defaultEncoding: null | BufferEncoding | "buffer" = 'utf8'): BufferEncoding | 'buffer' {
   if (options === null) {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { StringDecoder } from 'string_decoder';
-import { Buffer } from 'buffer';
+import { StringDecoder } from 'node:string_decoder';
+import { Buffer } from 'node:buffer';
 
 // Ported from refs/node/test/parallel/test-string-decoder.js
 // and test-string-decoder-end.js

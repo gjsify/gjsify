@@ -1,6 +1,6 @@
 // Reference: Node.js lib/domain.js — stub for GJS (deprecated)
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 export class Domain extends EventEmitter {
   members: any[] = [];

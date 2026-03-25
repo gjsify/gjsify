@@ -2,7 +2,7 @@ import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
 import { build, BuildOptions, BuildResult } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
-import { dirname, extname } from 'path';
+import { dirname, extname } from 'node:path';
 
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {

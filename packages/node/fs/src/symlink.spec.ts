@@ -1,12 +1,12 @@
 import { describe, it, expect } from '@gjsify/unit';
-// import { join, dirname } from 'path';
-// import { fileURLToPath } from "url";
+// import { join, dirname } from 'node:path';
+// import { fileURLToPath } from "node:url";
 
 // const __filename = fileURLToPath(import.meta.url)
 // const __dirname = dirname(__filename)
 
-import { symlink as symlinkCb, mkdtempSync, lstatSync } from 'fs';
-import { symlink, rmdir, unlink } from 'fs/promises';
+import { symlink as symlinkCb, mkdtempSync, lstatSync } from 'node:fs';
+import { symlink, rmdir, unlink } from 'node:fs/promises';
 
 export default async () => {
 	await describe('fs.symlink', async () => {

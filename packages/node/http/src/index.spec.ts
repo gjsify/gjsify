@@ -1,8 +1,8 @@
 import { describe, it, expect, on } from '@gjsify/unit';
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 
-import * as http from 'http';
-import type { validateHeaderName as gjsifyValidateHeaderName, validateHeaderValue as gjsifyValidateHeaderValue } from 'http';
+import * as http from 'node:http';
+import type { validateHeaderName as gjsifyValidateHeaderName, validateHeaderValue as gjsifyValidateHeaderValue } from 'node:http';
 
 const validateHeaderName: typeof gjsifyValidateHeaderName = (http as any).validateHeaderName;
 const validateHeaderValue: typeof gjsifyValidateHeaderValue = (http as any).validateHeaderValue;

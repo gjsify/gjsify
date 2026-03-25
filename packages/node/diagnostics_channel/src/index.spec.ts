@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { channel, hasSubscribers, subscribe, unsubscribe, tracingChannel } from 'diagnostics_channel';
+import { channel, hasSubscribers, subscribe, unsubscribe, tracingChannel } from 'node:diagnostics_channel';
 
 export default async () => {
   await describe('diagnostics_channel', async () => {

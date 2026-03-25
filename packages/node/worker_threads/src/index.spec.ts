@@ -19,7 +19,7 @@ import {
   setEnvironmentData,
   markAsUntransferable,
   moveMessagePortToContext,
-} from 'worker_threads';
+} from 'node:worker_threads';
 
 export default async () => {
   // --- Module exports ---

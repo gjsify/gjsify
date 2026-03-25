@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import * as http from 'http';
+import * as http from 'node:http';
 
 export default async () => {
   await describe('http.ClientRequest', async () => {

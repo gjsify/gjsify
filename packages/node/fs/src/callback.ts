@@ -4,9 +4,9 @@
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { open as openP, rm as rmP } from './promises.js'
-import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions, RmDirOptions, MakeDirectoryOptions } from 'fs';
+import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions, RmDirOptions, MakeDirectoryOptions } from 'node:fs';
 import { FileHandle } from './file-handle.js';
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError } from './errors.js';
 import { realpathSync, readdirSync, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, mkdirSync, rmdirSync, readFileSync, writeFileSync } from './sync.js';

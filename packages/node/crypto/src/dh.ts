@@ -3,7 +3,7 @@
 // Reimplemented for GJS using native BigInt (ES2024)
 // Predefined groups from RFC 2409 (modp1, modp2) and RFC 3526 (modp5, modp14-modp18)
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { randomBytes } from './random.js';
 import { modPow } from './bigint-math.js';
 

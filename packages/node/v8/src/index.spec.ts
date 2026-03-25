@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { getHeapStatistics, getHeapCodeStatistics, serialize, deserialize } from 'v8';
+import { getHeapStatistics, getHeapCodeStatistics, serialize, deserialize } from 'node:v8';
 
 export default async () => {
   await describe('v8', async () => {

@@ -13,7 +13,7 @@ import { isRedirect } from './utils/is-redirect.js';
 import { URL } from '@gjsify/url';
 import { Blob } from './utils/blob-from.js';
 
-import type { Readable } from 'stream';
+import type { Readable } from 'node:stream';
 
 const INTERNALS = Symbol('Response internals');
 

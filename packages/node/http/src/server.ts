@@ -3,9 +3,9 @@
 
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
-import { EventEmitter } from 'events';
-import { Writable } from 'stream';
-import { Buffer } from 'buffer';
+import { EventEmitter } from 'node:events';
+import { Writable } from 'node:stream';
+import { Buffer } from 'node:buffer';
 import { deferEmit } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';

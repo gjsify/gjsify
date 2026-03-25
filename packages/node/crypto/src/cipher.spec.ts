@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { createCipheriv, createDecipheriv, getCiphers } from 'crypto';
-import { Buffer } from 'buffer';
+import { createCipheriv, createDecipheriv, getCiphers } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
 

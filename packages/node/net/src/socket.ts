@@ -3,8 +3,8 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { Duplex } from 'stream';
-import { Buffer } from 'buffer';
+import { Duplex } from 'node:stream';
+import { Buffer } from 'node:buffer';
 import { createNodeError, gbytesToUint8Array } from '@gjsify/utils';
 import type { DuplexOptions } from 'node:stream';
 

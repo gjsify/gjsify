@@ -5,7 +5,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { createNodeError } from '@gjsify/utils';
 import type { ErrnoException } from '@gjsify/utils';
-import { isIP } from 'net';
+import { isIP } from 'node:net';
 
 // Error codes
 export const NODATA = 'ENODATA';

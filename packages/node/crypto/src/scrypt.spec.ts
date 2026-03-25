@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { scrypt, scryptSync } from 'crypto';
-import { Buffer } from 'buffer';
+import { scrypt, scryptSync } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
   await describe('crypto.scryptSync', async () => {

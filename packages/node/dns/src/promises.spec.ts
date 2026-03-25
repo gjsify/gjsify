@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import dnsPromises, { lookup, resolve4, resolve6, reverse, resolve } from 'dns/promises';
+import dnsPromises, { lookup, resolve4, resolve6, reverse, resolve } from 'node:dns/promises';
 
 export default async () => {
   await describe('dns/promises', async () => {

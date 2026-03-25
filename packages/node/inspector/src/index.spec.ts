@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { Session, open, close, url, waitForDebugger } from 'inspector';
+import { Session, open, close, url, waitForDebugger } from 'node:inspector';
 
 export default async () => {
   await describe('inspector', async () => {

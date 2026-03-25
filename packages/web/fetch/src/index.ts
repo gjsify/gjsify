@@ -4,7 +4,7 @@
 // Modifications: Rewritten for GJS using libsoup 3.0 (Soup.Session)
 
 import type Gio from '@girs/gio-2.0';
-import Stream from 'stream';
+import Stream from 'node:stream';
 
 import { parseDataUri } from './utils/data-uri.js';
 

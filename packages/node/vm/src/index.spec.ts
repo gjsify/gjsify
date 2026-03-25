@@ -10,7 +10,7 @@ import vm, {
   isContext,
   compileFunction,
   Script,
-} from 'vm';
+} from 'node:vm';
 
 export default async () => {
   await describe('vm', async () => {

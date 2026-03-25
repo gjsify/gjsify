@@ -3,7 +3,7 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { join, dirname } from 'path';
+import { join, dirname } from 'node:path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
 import { rmdirSync, unlinkSync, realpathSync, readdirSync as readdirSyncFn, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, linkSync } from './sync.js';
 import { FileHandle } from './file-handle.js';
@@ -24,7 +24,7 @@ import type {
   BufferEncodingOption,
   MakeDirectoryOptions,
   RmDirOptions
-} from 'fs';
+} from 'node:fs';
 
 /**
  * Asynchronously creates a directory.
@@ -183,7 +183,7 @@ async function readFile(path: PathLike | FileHandle, options: ReadOptions = { en
  * object with an `encoding` property specifying the character encoding to use.
  *
  * ```js
- * import { mkdtemp } from 'fs/promises';
+ * import { mkdtemp } from 'node:fs/promises';
  *
  * try {
  *   await mkdtemp(path.join(os.tmpdir(), 'foo-'));

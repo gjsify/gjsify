@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { performance, monitorEventLoopDelay } from 'perf_hooks';
+import { performance, monitorEventLoopDelay } from 'node:perf_hooks';
 
 export default async () => {
   await describe('perf_hooks', async () => {

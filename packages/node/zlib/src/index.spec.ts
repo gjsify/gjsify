@@ -3,8 +3,8 @@ import zlib, {
   deflateRaw, inflateRaw, deflate, inflate, gzip, gunzip,
   gzipSync, gunzipSync, deflateSync, inflateSync, deflateRawSync, inflateRawSync,
   constants,
-} from 'zlib';
-import { Buffer } from 'buffer';
+} from 'node:zlib';
+import { Buffer } from 'node:buffer';
 
 export default async () => {
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { setTimeout, setImmediate, setInterval } from 'timers/promises';
+import { setTimeout, setImmediate, setInterval } from 'node:timers/promises';
 
 export default async () => {
   await describe('timers/promises', async () => {

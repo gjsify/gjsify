@@ -2,9 +2,9 @@
 // Reimplemented for GJS using GLib.Checksum
 
 import GLib from '@girs/glib-2.0';
-import { Transform } from 'stream';
+import { Transform } from 'node:stream';
 import type { TransformCallback } from 'node:stream';
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { normalizeEncoding } from '@gjsify/utils';
 import { normalizeAlgorithm } from './crypto-utils.js';
 

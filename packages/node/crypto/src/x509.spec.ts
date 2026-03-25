@@ -3,8 +3,8 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
-import { X509Certificate, createPrivateKey, createPublicKey } from 'crypto';
-import { Buffer } from 'buffer';
+import { X509Certificate, createPrivateKey, createPublicKey } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 // Self-signed test certificate generated with:
 // openssl req -x509 -newkey rsa:512 -keyout /dev/null -out /dev/stdout -days 36500 -nodes -subj "/CN=test.example.com/O=Test Org/C=US"

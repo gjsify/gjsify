@@ -1,8 +1,8 @@
 // IncomingMessage — Readable stream representing an HTTP request (server) or response (client).
 // Reference: Node.js lib/_http_incoming.js
 
-import { Readable } from 'stream';
-import { Buffer } from 'buffer';
+import { Readable } from 'node:stream';
+import { Buffer } from 'node:buffer';
 
 /**
  * IncomingMessage — Readable stream for HTTP request (server-side) or response (client-side).

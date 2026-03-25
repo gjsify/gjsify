@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { builtinModules, isBuiltin, createRequire } from 'module';
+import { builtinModules, isBuiltin, createRequire } from 'node:module';
 
 export default async () => {
   await describe('module', async () => {

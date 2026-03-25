@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { createInterface, clearLine, clearScreenDown, cursorTo, moveCursor, Interface } from 'readline';
-import { Readable, Writable, PassThrough } from 'stream';
+import { createInterface, clearLine, clearScreenDown, cursorTo, moveCursor, Interface } from 'node:readline';
+import { Readable, Writable, PassThrough } from 'node:stream';
 
 export default async () => {
   await describe('readline', async () => {

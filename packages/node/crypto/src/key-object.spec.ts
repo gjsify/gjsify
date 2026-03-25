@@ -2,8 +2,8 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
-import { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from 'crypto';
-import { Buffer } from 'buffer';
+import { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 // RSA test key pair (1024-bit for speed in tests)
 const RSA_PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----

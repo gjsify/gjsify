@@ -1,6 +1,6 @@
 // Reference: Node.js lib/cluster.js — stub for GJS
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 export const isPrimary = true;
 export const isMaster = true;

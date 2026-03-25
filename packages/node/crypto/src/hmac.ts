@@ -2,9 +2,9 @@
 // Reimplemented for GJS using pure-JS HMAC over GLib.Checksum
 // (GLib.Hmac bindings crash in GJS with segfault)
 
-import { Transform } from 'stream';
+import { Transform } from 'node:stream';
 import type { TransformCallback } from 'node:stream';
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { normalizeEncoding } from '@gjsify/utils';
 import { Hash } from './hash.js';
 import { normalizeAlgorithm, BLOCK_SIZES, SUPPORTED_ALGORITHMS } from './crypto-utils.js';

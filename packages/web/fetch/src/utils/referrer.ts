@@ -1,6 +1,6 @@
 import { URL } from '@gjsify/url';
 
-import { isIP } from 'net';
+import { isIP } from 'node:net';
 import Request from '../request.js';
 
 /**

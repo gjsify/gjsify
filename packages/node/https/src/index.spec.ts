@@ -1,5 +1,5 @@
 import { describe, it, expect, on } from '@gjsify/unit';
-import https, { Agent, globalAgent, request, get, createServer, Server } from 'https';
+import https, { Agent, globalAgent, request, get, createServer, Server } from 'node:https';
 
 export default async () => {
   await describe('https', async () => {

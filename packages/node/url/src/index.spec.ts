@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { URL, URLSearchParams, fileURLToPath, pathToFileURL, parse, format, resolve } from 'url';
+import { URL, URLSearchParams, fileURLToPath, pathToFileURL, parse, format, resolve } from 'node:url';
 
 // Ported from refs/node/test/parallel/test-url-*.js
 // Original: MIT license, Node.js contributors

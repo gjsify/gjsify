@@ -1,5 +1,5 @@
 import { describe, it, expect, on } from '@gjsify/unit';
-import dgram, { createSocket, Socket } from 'dgram';
+import dgram, { createSocket, Socket } from 'node:dgram';
 
 export default async () => {
   await describe('dgram', async () => {

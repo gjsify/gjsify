@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 export default async () => {
 

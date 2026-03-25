@@ -3,9 +3,9 @@
 
 import Gio from '@girs/gio-2.0';
 import { Dirent } from './dirent.js';
-import { basename } from 'path';
+import { basename } from 'node:path';
 
-import type { Stats as NodeStats, BigIntStats as NodeBigIntStats, PathLike } from 'fs';
+import type { Stats as NodeStats, BigIntStats as NodeBigIntStats, PathLike } from 'node:fs';
 
 // Query all attributes needed for a full Node.js Stats object
 export const STAT_ATTRIBUTES = 'standard::*,time::*,unix::*';

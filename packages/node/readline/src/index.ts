@@ -1,8 +1,8 @@
 // Node.js readline module for GJS
 // Reference: Node.js lib/readline.js
 
-import { EventEmitter } from 'events';
-import type { Readable, Writable } from 'stream';
+import { EventEmitter } from 'node:events';
+import type { Readable, Writable } from 'node:stream';
 
 export interface InterfaceOptions {
   input?: Readable;

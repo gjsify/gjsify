@@ -5,7 +5,7 @@
 // Copyright (c) crypto-browserify contributors. MIT license.
 // Modifications: Pure-JS implementation for GJS, no OpenSSL dependency
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 
 // ---- AES S-Box and inverse S-Box (pre-computed) ----
 

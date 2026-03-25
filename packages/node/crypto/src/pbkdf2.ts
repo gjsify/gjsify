@@ -1,7 +1,7 @@
 // Reference: Node.js lib/internal/crypto/pbkdf2.js, RFC 2898
 // Reimplemented for GJS using pure-JS Hmac (over GLib.Checksum)
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { Hmac } from './hmac.js';
 import { normalizeAlgorithm, DIGEST_SIZES, SUPPORTED_ALGORITHMS, toBuffer } from './crypto-utils.js';
 

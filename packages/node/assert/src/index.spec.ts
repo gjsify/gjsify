@@ -19,8 +19,8 @@ import {
 	doesNotReject,
 	AssertionError,
 	strict,
-} from 'assert';
-import assert from 'assert';
+} from 'node:assert';
+import assert from 'node:assert';
 
 export default async () => {
 

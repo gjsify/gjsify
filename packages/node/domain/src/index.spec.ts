@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { create, Domain } from 'domain';
+import { create, Domain } from 'node:domain';
 
 export default async () => {
   await describe('domain', async () => {

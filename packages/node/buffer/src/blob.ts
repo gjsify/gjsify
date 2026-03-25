@@ -1,6 +1,6 @@
 // WHATWG Blob/File polyfill for GJS
 // Reference: Node.js lib/buffer.js (Blob), refs/deno/ext/web/09_file.js
-// Node.js exports Blob from 'buffer' since v18.
+// Node.js exports Blob from 'node:buffer' since v18.
 // On GJS, globalThis.Blob is not available — this provides a minimal polyfill.
 
 const _encoder = new TextEncoder();

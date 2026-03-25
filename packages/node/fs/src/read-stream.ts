@@ -4,12 +4,12 @@
 // Modifications: Rewritten to use Gio.File / Gio.FileInputStream for GJS
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import { Buffer } from "buffer";
-import { Readable } from "stream";
-import { URL, fileURLToPath } from "url";
+import { Buffer } from "node:buffer";
+import { Readable } from "node:stream";
+import { URL, fileURLToPath } from "node:url";
 
-import type { CreateReadStreamOptions } from 'fs/promises';
-import type { PathLike, ReadStream as IReadStream } from 'fs';
+import type { CreateReadStreamOptions } from 'node:fs/promises';
+import type { PathLike, ReadStream as IReadStream } from 'node:fs';
 
 export class ReadStream extends Readable implements IReadStream {
   bytesRead = 0;

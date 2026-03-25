@@ -2,7 +2,7 @@
 // Centralizes algorithm normalization, digest/block sizes, and common helpers
 // used across hash, hmac, pbkdf2, hkdf, mgf1, rsa-pss, rsa-oaep, ecdsa, and sign modules.
 
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 
 /**
  * Normalize a hash algorithm name to lowercase without hyphens.
