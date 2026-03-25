@@ -389,4 +389,110 @@ export default async () => {
       expect(typeof moveMessagePortToContext).toBe('function');
     });
   });
+
+  // --- Structured clone (deep clone) ---
+
+  await describe('MessageChannel structured clone', async () => {
+    await it('should clone Date objects', async () => {
+      const channel = new MessageChannel();
+      const date = new Date('2026-01-15T12:00:00Z');
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(date);
+      });
+      expect(received instanceof Date).toBe(true);
+      expect((received as Date).getTime()).toBe(date.getTime());
+      channel.port1.close();
+    });
+
+    await it('should clone RegExp objects', async () => {
+      const channel = new MessageChannel();
+      const regex = /hello\d+/gi;
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(regex);
+      });
+      expect(received instanceof RegExp).toBe(true);
+      expect((received as RegExp).source).toBe('hello\\d+');
+      expect((received as RegExp).flags).toBe('gi');
+      channel.port1.close();
+    });
+
+    await it('should clone Map objects', async () => {
+      const channel = new MessageChannel();
+      const map = new Map([['key1', 'value1'], ['key2', 'value2']]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(map);
+      });
+      expect(received instanceof Map).toBe(true);
+      expect((received as Map<string, string>).get('key1')).toBe('value1');
+      expect((received as Map<string, string>).get('key2')).toBe('value2');
+      expect((received as Map<string, string>).size).toBe(2);
+      channel.port1.close();
+    });
+
+    await it('should clone Set objects', async () => {
+      const channel = new MessageChannel();
+      const set = new Set([1, 2, 3]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(set);
+      });
+      expect(received instanceof Set).toBe(true);
+      expect((received as Set<number>).has(1)).toBe(true);
+      expect((received as Set<number>).has(2)).toBe(true);
+      expect((received as Set<number>).has(3)).toBe(true);
+      expect((received as Set<number>).size).toBe(3);
+      channel.port1.close();
+    });
+
+    await it('should clone Error objects', async () => {
+      const channel = new MessageChannel();
+      const error = new Error('test error');
+      error.name = 'CustomError';
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(error);
+      });
+      expect(received instanceof Error).toBe(true);
+      expect((received as Error).message).toBe('test error');
+      channel.port1.close();
+    });
+
+    await it('should clone Uint8Array', async () => {
+      const channel = new MessageChannel();
+      const arr = new Uint8Array([1, 2, 3, 4, 5]);
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(arr);
+      });
+      expect(received instanceof Uint8Array).toBe(true);
+      expect((received as Uint8Array).length).toBe(5);
+      expect((received as Uint8Array)[0]).toBe(1);
+      expect((received as Uint8Array)[4]).toBe(5);
+      channel.port1.close();
+    });
+
+    await it('should clone nested objects with complex types', async () => {
+      const channel = new MessageChannel();
+      const obj = {
+        date: new Date('2026-03-25'),
+        items: [1, 'two', { three: 3 }],
+        nested: { deep: true },
+      };
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(obj);
+      });
+      const r = received as any;
+      expect(r.date instanceof Date).toBe(true);
+      expect(r.items.length).toBe(3);
+      expect(r.items[0]).toBe(1);
+      expect(r.items[1]).toBe('two');
+      expect(r.items[2].three).toBe(3);
+      expect(r.nested.deep).toBe(true);
+      channel.port1.close();
+    });
+  });
 };

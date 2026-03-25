@@ -5,8 +5,8 @@
 // Reimplemented for GJS using BigInt elliptic curve arithmetic from ecdh.ts
 
 import { Buffer } from 'buffer';
-import { createHash } from './hash.js';
-import { createHmac } from './hmac.js';
+import { Hash } from './hash.js';
+import { Hmac } from './hmac.js';
 import {
   mod, modInverse, scalarMul, pointAdd,
   CURVES, CURVE_ALIASES,
@@ -56,9 +56,9 @@ function truncateHash(hash: Uint8Array, curve: CurveParams): bigint {
 // ---------------------------------------------------------------------------
 
 function hmacDigest(algo: string, key: Uint8Array, data: Uint8Array): Uint8Array {
-  const hmac = createHmac(algo, key);
+  const hmac = new Hmac(algo, key);
   hmac.update(data);
-  return new Uint8Array(hmac.digest());
+  return new Uint8Array(hmac.digest() as any);
 }
 
 /**
@@ -76,9 +76,9 @@ function rfc6979(
 
   // Step a: h1 = H(m) — already provided as msgHash
   // Step b: V = 0x01 * hLen
-  let V = new Uint8Array(hLen).fill(0x01);
+  let V: any = new Uint8Array(hLen).fill(0x01);
   // Step c: K = 0x00 * hLen
-  let K = new Uint8Array(hLen).fill(0x00);
+  let K: any = new Uint8Array(hLen).fill(0x00);
 
   // int2octets(x) — private key as fixed-length big-endian bytes
   const x = bigintToBytes(privKey, qLen);
@@ -110,7 +110,7 @@ function rfc6979(
   // Step h: Generate k candidates
   for (let attempt = 0; attempt < 100; attempt++) {
     // Step h.1–h.2: Generate T by concatenating HMAC_K(V) blocks
-    let T = new Uint8Array(0);
+    let T: any = new Uint8Array(0);
     while (T.length < qLen) {
       V = hmacDigest(hashAlgo, K, V);
       const newT = new Uint8Array(T.length + V.length);
@@ -162,9 +162,9 @@ export function ecdsaSign(
   const d = bytesToBigint(privKeyBytes);
 
   // Hash the message
-  const hash = createHash(hashAlgo);
+  const hash = new Hash(hashAlgo);
   hash.update(data);
-  const msgHash = new Uint8Array(hash.digest());
+  const msgHash = new Uint8Array(hash.digest() as any);
 
   // Truncate hash to curve order bit length
   const e = truncateHash(msgHash, curve);
@@ -235,9 +235,9 @@ export function ecdsaVerify(
   if (r < 1n || r >= curve.n || s < 1n || s >= curve.n) return false;
 
   // Hash the message
-  const hash = createHash(hashAlgo);
+  const hash = new Hash(hashAlgo);
   hash.update(data);
-  const msgHash = new Uint8Array(hash.digest());
+  const msgHash = new Uint8Array(hash.digest() as any);
   const e = truncateHash(msgHash, curve);
 
   // w = s^-1 mod n

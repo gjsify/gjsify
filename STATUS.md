@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-24 (after Phase 16)
+> Last updated: 2026-03-25 (after Phase 20)
 
 ## Summary
 
@@ -9,12 +9,12 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **3 GJS 
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 39 | 31 (79%) | 3 (8%) | 5 (13%) |
+| Node.js APIs | 39 | 31 (79%) | 4 (10%) | 4 (10%) |
 | Web APIs | 15 | 15 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** ~2,930 test cases in 89+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
+**Test coverage:** ~2,960 test cases in 89+ spec files. CI via GitHub Actions (Node.js 24.x + GJS on Ubuntu 24.04).
 
 ---
 
@@ -55,14 +55,15 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **3 GJS 
 | **tls** | Gio, GLib | 36 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer (Gio.TlsServerConnection), createSecureContext |
 | **https** | Soup 3.0 | 32 | Agent, request/get (Soup.Session handles HTTPS natively), createServer, Server |
 
-### Partially Implemented (3)
+### Partially Implemented (4)
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
-| **worker_threads** | Gio, GLib | 56 | MessageChannel, MessagePort (EventEmitter-based, auto-start, clone via structuredClone), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC, bootstrap script, eval mode) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
-| **http2** | — | 102 | Complete constants (NGHTTP2 error codes, settings IDs, stream states, frame flags, HTTP headers/methods/status codes), getDefaultSettings, getPackedSettings/getUnpackedSettings (RFC 7540 binary encoding), Http2Session/Stream/ServerRequest/ServerResponse class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
+| **worker_threads** | Gio, GLib | 63 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC) | SharedArrayBuffer, transferList, Worker file-based (requires pre-bundled .mjs) |
+| **http2** | — | 102 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
+| **vm** | — | 22 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
 
-### Stubs (5)
+### Stubs (4)
 
 | Package | Tests | Description | Effort |
 |---------|-------|-------------|--------|
@@ -70,7 +71,6 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **3 GJS 
 | **domain** | ✓ | Deprecated Node.js API; pass-through | Low — intentionally minimal |
 | **inspector** | ✓ | Session.post(), open/close; empty | Medium — V8-specific, hard to port |
 | **v8** | ✓ | getHeapStatistics (JSON-based), serialize/deserialize | Medium — V8-specific |
-| **vm** | ✓ | runInThisContext (eval), Script class | Medium — sandbox isolation limited |
 
 ---
 
@@ -151,10 +151,10 @@ Not yet implemented (but potentially relevant for GJS projects):
 |--------|-------|
 | Total Node.js packages | 39 |
 | Fully implemented | 31 (79%) |
-| Partially implemented | 3 (8%) |
-| Stubs | 5 (13%) |
+| Partially implemented | 4 (10%) |
+| Stubs | 4 (10%) |
 | Web API packages | 15 (all implemented) |
-| Total test cases | ~2,930 |
+| Total test cases | ~2,960 |
 | Spec files | 89+ |
 | GNOME-integrated packages | 13 (28%) |
 | Alias mappings (GJS) | 60+ |
@@ -203,6 +203,24 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — Phase 20: worker_threads + vm Enhancement
+
+**worker_threads structured clone improvements:**
+- Replaced JSON round-trip fallback with proper deep clone supporting: Date, RegExp, Map, Set, Error, ArrayBuffer, TypedArrays, nested objects, circular reference detection
+- 7 new structured clone tests (Date, RegExp, Map, Set, Error, Uint8Array, nested complex types)
+- worker_threads tests: 56 → 63
+
+**vm promoted from Stub to Partial:**
+- `runInNewContext(code, sandbox)`: Evaluates code with sandbox variables injected via Function constructor
+- `runInContext(code, context)`: Delegates to runInNewContext for created contexts
+- `createContext(context)`: Marks objects with Symbol for isContext() detection
+- `isContext(context)`: Checks for createContext marker
+- `compileFunction(code, params)`: Compiles source code into a reusable Function
+- `Script.runInNewContext(context)`: Run compiled script with sandbox
+- `Script.runInContext(context)`: Run compiled script in created context
+- `Script.createCachedData()`: Returns empty Uint8Array (stub)
+- 22 tests (was 6): exports, runInThisContext (arithmetic, strings, complex), runInNewContext (sandbox variables, strings, empty context, arrays), createContext/isContext, compileFunction (no params, with params, string return), Script (constructable, runInThisContext, runInNewContext, runInContext, reusable, createCachedData)
 
 ### 2026-03-25 — Phase 19: WebCrypto Algorithm Completion
 

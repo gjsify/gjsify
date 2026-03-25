@@ -3,7 +3,7 @@
 // Copyright (c) Node.js contributors. MIT license.
 // Reimplemented for GJS using BigInt RSA math
 
-import { createHash } from './hash.js';
+import { Hash } from './hash.js';
 import { randomBytes } from './random.js';
 import { mgf1 } from './mgf1.js';
 import { parsePemKey, rsaKeySize } from './asn1.js';
@@ -52,9 +52,9 @@ function hashSize(algo: string): number {
 }
 
 function hashDigest(algo: string, data: Uint8Array): Uint8Array {
-  const h = createHash(algo);
+  const h = new Hash(algo);
   h.update(data);
-  return new Uint8Array(h.digest());
+  return new Uint8Array(h.digest() as any);
 }
 
 // ---------------------------------------------------------------------------

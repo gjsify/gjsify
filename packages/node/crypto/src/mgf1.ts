@@ -1,7 +1,7 @@
 // MGF1 (Mask Generation Function 1) per RFC 8017 Section B.2.1
 // Used by RSA-PSS and RSA-OAEP
 
-import { createHash } from './hash.js';
+import { Hash } from './hash.js';
 
 /**
  * MGF1 mask generation function.
@@ -21,10 +21,10 @@ export function mgf1(hashAlgo: string, seed: Uint8Array, length: number): Uint8A
     C[2] = (counter >>> 8) & 0xff;
     C[3] = counter & 0xff;
 
-    const hash = createHash(hashAlgo);
+    const hash = new Hash(hashAlgo);
     hash.update(seed);
     hash.update(C);
-    const digest = new Uint8Array(hash.digest());
+    const digest = new Uint8Array(hash.digest() as any);
 
     const toCopy = Math.min(digest.length, length - offset);
     mask.set(digest.slice(0, toCopy), offset);

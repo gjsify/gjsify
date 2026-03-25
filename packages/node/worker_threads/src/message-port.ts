@@ -3,14 +3,90 @@
 
 import { EventEmitter } from 'events';
 
-/** Clone a value, preferring structuredClone when available, falling back to JSON round-trip. */
+/**
+ * Clone a value, preferring structuredClone when available,
+ * falling back to a deep clone that handles common types.
+ * Handles: primitives, plain objects, arrays, Date, RegExp, Map, Set, Error,
+ * ArrayBuffer, TypedArrays. Does NOT handle circular references or Symbols.
+ */
 function cloneValue(value: unknown): unknown {
   if (typeof globalThis.structuredClone === 'function') {
     return globalThis.structuredClone(value);
   }
-  // JSON round-trip: handles primitives, plain objects, arrays. Loses Date/RegExp/etc.
-  if (value === undefined) return undefined;
-  return JSON.parse(JSON.stringify(value));
+  return deepClone(value);
+}
+
+function deepClone(value: unknown, seen = new Map<object, unknown>()): unknown {
+  // Primitives and null/undefined
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'object' && typeof value !== 'function') return value;
+
+  const obj = value as object;
+
+  // Check for circular references
+  if (seen.has(obj)) return seen.get(obj);
+
+  // Date
+  if (obj instanceof Date) return new Date(obj.getTime());
+
+  // RegExp
+  if (obj instanceof RegExp) return new RegExp(obj.source, obj.flags);
+
+  // Error
+  if (obj instanceof Error) {
+    const cloned = new Error(obj.message);
+    cloned.name = obj.name;
+    if (obj.stack) cloned.stack = obj.stack;
+    return cloned;
+  }
+
+  // ArrayBuffer
+  if (obj instanceof ArrayBuffer) return obj.slice(0);
+
+  // TypedArrays
+  if (ArrayBuffer.isView(obj)) {
+    const TypedArrayCtor = (obj as any).constructor as new (buffer: ArrayBuffer) => ArrayBufferView;
+    const buf = (obj as any).buffer.slice((obj as any).byteOffset, (obj as any).byteOffset + (obj as any).byteLength);
+    return new TypedArrayCtor(buf);
+  }
+
+  // Map
+  if (obj instanceof Map) {
+    const cloned = new Map();
+    seen.set(obj, cloned);
+    for (const [k, v] of obj) {
+      cloned.set(deepClone(k, seen), deepClone(v, seen));
+    }
+    return cloned;
+  }
+
+  // Set
+  if (obj instanceof Set) {
+    const cloned = new Set();
+    seen.set(obj, cloned);
+    for (const v of obj) {
+      cloned.add(deepClone(v, seen));
+    }
+    return cloned;
+  }
+
+  // Array
+  if (Array.isArray(obj)) {
+    const cloned: unknown[] = [];
+    seen.set(obj, cloned);
+    for (let i = 0; i < obj.length; i++) {
+      cloned[i] = deepClone(obj[i], seen);
+    }
+    return cloned;
+  }
+
+  // Plain object
+  const cloned: Record<string, unknown> = {};
+  seen.set(obj, cloned);
+  for (const key of Object.keys(obj)) {
+    cloned[key] = deepClone((obj as Record<string, unknown>)[key], seen);
+  }
+  return cloned;
 }
 
 export class MessagePort extends EventEmitter {
