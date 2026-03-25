@@ -612,6 +612,13 @@ class ECDH {
  *
  * Supported curves: secp256k1, prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521).
  */
+// ---------------------------------------------------------------------------
+// Exported EC math primitives (used by ECDSA)
+// ---------------------------------------------------------------------------
+
+export { mod, modInverse, scalarMul, pointAdd, CURVES, CURVE_ALIASES };
+export type { ECPoint, CurveParams };
+
 export function createECDH(curveName: string): ECDH {
   return new ECDH(curveName);
 }

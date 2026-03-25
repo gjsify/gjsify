@@ -585,6 +585,152 @@ export default async () => {
     });
   });
 
+  // ==================== sign / verify (ECDSA) ====================
+
+  await describe('SubtleCrypto ECDSA', async () => {
+    await it('should generate ECDSA P-256 key pair', async () => {
+      const keyPair = await subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign', 'verify'],
+      ) as CryptoKeyPair;
+
+      expect(keyPair.publicKey.type).toBe('public');
+      expect(keyPair.privateKey.type).toBe('private');
+      expect(keyPair.publicKey.algorithm.name).toBe('ECDSA');
+      expect((keyPair.publicKey.algorithm as any).namedCurve).toBe('P-256');
+    });
+
+    await it('should sign and verify with ECDSA P-256 SHA-256', async () => {
+      const keyPair = await subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign', 'verify'],
+      ) as CryptoKeyPair;
+
+      const data = new TextEncoder().encode('ECDSA test message');
+      const signature = await subtle.sign(
+        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        keyPair.privateKey,
+        data,
+      );
+
+      // P-256 signature = 64 bytes (32 bytes r + 32 bytes s)
+      expect(signature.byteLength).toBe(64);
+
+      const valid = await subtle.verify(
+        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        keyPair.publicKey,
+        signature,
+        data,
+      );
+      expect(valid).toBe(true);
+    });
+
+    await it('should reject corrupted ECDSA signature', async () => {
+      const keyPair = await subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign', 'verify'],
+      ) as CryptoKeyPair;
+
+      const data = new TextEncoder().encode('test');
+      const signature = await subtle.sign(
+        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        keyPair.privateKey,
+        data,
+      );
+
+      const badSig = new Uint8Array(signature);
+      badSig[0] ^= 0xFF;
+      const valid = await subtle.verify(
+        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        keyPair.publicKey,
+        badSig,
+        data,
+      );
+      expect(valid).toBe(false);
+    });
+
+    await it('should reject wrong data in ECDSA verify', async () => {
+      const keyPair = await subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign', 'verify'],
+      ) as CryptoKeyPair;
+
+      const data = new TextEncoder().encode('original');
+      const signature = await subtle.sign(
+        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        keyPair.privateKey,
+        data,
+      );
+
+      const wrongData = new TextEncoder().encode('modified');
+      const valid = await subtle.verify(
+        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        keyPair.publicKey,
+        signature,
+        wrongData,
+      );
+      expect(valid).toBe(false);
+    });
+
+    await it('should sign different messages with different signatures', async () => {
+      const keyPair = await subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign', 'verify'],
+      ) as CryptoKeyPair;
+
+      const sig1 = await subtle.sign(
+        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        keyPair.privateKey,
+        new TextEncoder().encode('message A'),
+      );
+      const sig2 = await subtle.sign(
+        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        keyPair.privateKey,
+        new TextEncoder().encode('message B'),
+      );
+
+      // Different messages should produce different signatures
+      const a = new Uint8Array(sig1);
+      const b = new Uint8Array(sig2);
+      let same = true;
+      for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) { same = false; break; }
+      }
+      expect(same).toBe(false);
+    });
+
+    await it('should sign and verify with ECDSA P-384', async () => {
+      const keyPair = await subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-384' },
+        true,
+        ['sign', 'verify'],
+      ) as CryptoKeyPair;
+
+      const data = new TextEncoder().encode('P-384 test');
+      const signature = await subtle.sign(
+        { name: 'ECDSA', hash: { name: 'SHA-384' } },
+        keyPair.privateKey,
+        data,
+      );
+
+      // P-384 signature = 96 bytes (48 bytes r + 48 bytes s)
+      expect(signature.byteLength).toBe(96);
+
+      const valid = await subtle.verify(
+        { name: 'ECDSA', hash: { name: 'SHA-384' } },
+        keyPair.publicKey,
+        signature,
+        data,
+      );
+      expect(valid).toBe(true);
+    });
+  });
+
   // ==================== getRandomValues / randomUUID ====================
 
   await describe('crypto global', async () => {

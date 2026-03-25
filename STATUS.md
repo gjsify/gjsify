@@ -92,7 +92,7 @@ All 15 packages have real implementations:
 | **streams** | 3,800 | — | 117 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **compression-streams** | 120 | — | 29 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
 | **webstorage** | 100 | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
-| **webcrypto** | 650 | — | 37 | SubtleCrypto (digest, encrypt/decrypt, sign/verify, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey. Wraps @gjsify/crypto primitives |
+| **webcrypto** | 850 | — | 43 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
 | **eventsource** | 260 | — | 24 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
 
 ### Missing Web APIs
@@ -101,8 +101,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | API | Priority | Notes |
 |-----|----------|-------|
-| **ECDSA sign/verify** | Medium | WebCrypto ECDSA — EC curve math exists in @gjsify/crypto, needs RFC 6979 |
-| **RSA-PSS / RSA-OAEP** | Medium | WebCrypto padding modes — RSA math exists, needs MGF1 |
+| ~~**ECDSA sign/verify**~~ | ✓ Done | Implemented in Phase 19 (RFC 6979 + FIPS 186-4) |
+| ~~**RSA-PSS / RSA-OAEP**~~ | ✓ Done | Implemented in Phase 19 (RFC 8017, MGF1) |
 | **URL/URLSearchParams (global)** | Low | Exists in @gjsify/url, missing as global export |
 | **Blob/File (global)** | Low | Partially native in GJS; globals package could re-export |
 | **structuredClone** | Low | Natively available in SpiderMonkey 128 |
@@ -174,7 +174,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 1. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, dgram) and fs. Many tests hidden behind `on('Node.js')` guards need cross-platform verification.
 2. **Unified web-globals package** — `@gjsify/web-globals` as single entry point for all Web API globals. Extract DOMException into own package (`@gjsify/dom-exception`).
-3. **WebCrypto ECDSA/RSA-PSS/RSA-OAEP** — Remaining SubtleCrypto algorithms. EC math exists, needs RFC 6979 and MGF1.
+3. ~~**WebCrypto ECDSA/RSA-PSS/RSA-OAEP**~~✓ — Implemented: ECDSA (RFC 6979), RSA-PSS (RFC 8017), RSA-OAEP (RFC 8017), MGF1.
 
 ### Medium Priority
 
@@ -203,6 +203,22 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-25 — Phase 19: WebCrypto Algorithm Completion
+
+**New crypto primitives:**
+- **ECDSA sign/verify** (`crypto/src/ecdsa.ts`): Full FIPS 186-4 implementation with RFC 6979 deterministic k generation via HMAC-DRBG. Supports P-256, P-384, P-521 curves with SHA-1/256/384/512. Signature format: raw r||s concatenation.
+- **MGF1** (`crypto/src/mgf1.ts`): Mask Generation Function 1 per RFC 8017 Section B.2.1. Foundation for RSA-PSS and RSA-OAEP.
+- **RSA-PSS sign/verify** (`crypto/src/rsa-pss.ts`): EMSA-PSS-ENCODE/VERIFY per RFC 8017 Section 9.1. Configurable salt length.
+- **RSA-OAEP encrypt/decrypt** (`crypto/src/rsa-oaep.ts`): RSAES-OAEP-ENCRYPT/DECRYPT per RFC 8017 Section 7.1. Optional label support.
+
+**SubtleCrypto extensions:**
+- `sign()`: Added ECDSA and RSA-PSS algorithm routing
+- `verify()`: Added ECDSA and RSA-PSS algorithm routing
+- `encrypt()`: Added RSA-OAEP algorithm routing
+- `decrypt()`: Added RSA-OAEP algorithm routing
+
+**6 new ECDSA tests**: key generation (P-256), sign/verify round-trip (P-256 SHA-256), corrupted signature rejection, wrong data rejection, different messages produce different signatures, P-384 sign/verify
 
 ### 2026-03-25 — Phase 18: Web-Layer-Refactoring + Unified Web-Globals
 

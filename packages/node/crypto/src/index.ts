@@ -42,6 +42,10 @@ export { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiph
 export { Sign, Verify, createSign, createVerify } from './sign.js';
 export { createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGroup, createDiffieHellmanGroup } from './dh.js';
 export { createECDH, getCurves } from './ecdh.js';
+export { ecdsaSign, ecdsaVerify } from './ecdsa.js';
 export { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';
+export { rsaPssSign, rsaPssVerify } from './rsa-pss.js';
+export { rsaOaepEncrypt, rsaOaepDecrypt } from './rsa-oaep.js';
+export { mgf1 } from './mgf1.js';
 export { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from './key-object.js';
 export { X509Certificate } from './x509.js';

@@ -32,6 +32,12 @@ let _publicEncrypt: (key: any, buffer: any) => any;
 let _privateDecrypt: (key: any, buffer: any) => any;
 let _createPublicKey: (key: any) => any;
 let _createPrivateKey: (key: any) => any;
+let _ecdsaSign: (hashAlgo: string, privKeyBytes: Uint8Array, data: Uint8Array, curveName: string) => Uint8Array;
+let _ecdsaVerify: (hashAlgo: string, pubKeyBytes: Uint8Array, signature: Uint8Array, data: Uint8Array, curveName: string) => boolean;
+let _rsaPssSign: (hashAlgo: string, privKeyPem: string, data: Uint8Array, saltLength: number) => Uint8Array;
+let _rsaPssVerify: (hashAlgo: string, pubKeyPem: string, signature: Uint8Array, data: Uint8Array, saltLength: number) => boolean;
+let _rsaOaepEncrypt: (hashAlgo: string, pubKeyPem: string, plaintext: Uint8Array, label?: Uint8Array) => Uint8Array;
+let _rsaOaepDecrypt: (hashAlgo: string, privKeyPem: string, ciphertext: Uint8Array, label?: Uint8Array) => Uint8Array;
 
 async function loadCrypto(): Promise<void> {
   if (_cryptoLoaded) return;
@@ -50,6 +56,12 @@ async function loadCrypto(): Promise<void> {
   _privateDecrypt = crypto.privateDecrypt;
   _createPublicKey = crypto.createPublicKey;
   _createPrivateKey = crypto.createPrivateKey;
+  _ecdsaSign = crypto.ecdsaSign;
+  _ecdsaVerify = crypto.ecdsaVerify;
+  _rsaPssSign = crypto.rsaPssSign;
+  _rsaPssVerify = crypto.rsaPssVerify;
+  _rsaOaepEncrypt = crypto.rsaOaepEncrypt;
+  _rsaOaepDecrypt = crypto.rsaOaepDecrypt;
   _cryptoLoaded = true;
 }
 
@@ -383,6 +395,14 @@ export class SubtleCrypto {
         result.set(new Uint8Array(tag), part1.length + part2.length);
         return result.buffer;
       }
+      case 'RSA-OAEP': {
+        const hashName = ((key.algorithm as any).hash as { name: string }).name;
+        const nodeHash = toNodeHashName(hashName);
+        const handle = key._handle as { pem: string };
+        const label = (algorithm as any).label ? toUint8Array((algorithm as any).label) : undefined;
+        const ct = _rsaOaepEncrypt(nodeHash, handle.pem, plaintext, label);
+        return ct.buffer.slice(ct.byteOffset, ct.byteOffset + ct.byteLength);
+      }
       default:
         throw new DOMException(`Unsupported algorithm: ${alg.name}`, 'NotSupportedError');
     }
@@ -444,6 +464,14 @@ export class SubtleCrypto {
         result.set(new Uint8Array(part2), part1.length);
         return result.buffer;
       }
+      case 'RSA-OAEP': {
+        const hashName = ((key.algorithm as any).hash as { name: string }).name;
+        const nodeHash = toNodeHashName(hashName);
+        const handle = key._handle as { pem: string };
+        const label = (algorithm as any).label ? toUint8Array((algorithm as any).label) : undefined;
+        const pt = _rsaOaepDecrypt(nodeHash, handle.pem, ciphertext, label);
+        return pt.buffer.slice(pt.byteOffset, pt.byteOffset + pt.byteLength);
+      }
       default:
         throw new DOMException(`Unsupported algorithm: ${alg.name}`, 'NotSupportedError');
     }
@@ -479,6 +507,22 @@ export class SubtleCrypto {
         const signer = _createSign(nodeHash);
         signer.update(bytes);
         const sig = signer.sign(handle.pem);
+        return sig.buffer.slice(sig.byteOffset, sig.byteOffset + sig.byteLength);
+      }
+      case 'ECDSA': {
+        const hashName = (alg as any).hash?.name || (alg as any).hash;
+        const nodeHash = toNodeHashName(hashName);
+        const namedCurve = (key.algorithm as any).namedCurve;
+        const handle = key._handle as { pub: Uint8Array; priv: Uint8Array };
+        const sig = _ecdsaSign(nodeHash, handle.priv, bytes, namedCurve);
+        return sig.buffer.slice(sig.byteOffset, sig.byteOffset + sig.byteLength);
+      }
+      case 'RSA-PSS': {
+        const hashName = ((key.algorithm as any).hash as { name: string }).name;
+        const nodeHash = toNodeHashName(hashName);
+        const handle = key._handle as { pem: string };
+        const saltLen = (alg as any).saltLength ?? hashSize(hashName);
+        const sig = _rsaPssSign(nodeHash, handle.pem, bytes, saltLen);
         return sig.buffer.slice(sig.byteOffset, sig.byteOffset + sig.byteLength);
       }
       default:
@@ -524,6 +568,20 @@ export class SubtleCrypto {
         const verifier = _createVerify(nodeHash);
         verifier.update(bytes);
         return verifier.verify(handle.pem, sig);
+      }
+      case 'ECDSA': {
+        const hashName = (alg as any).hash?.name || (alg as any).hash;
+        const nodeHash = toNodeHashName(hashName);
+        const namedCurve = (key.algorithm as any).namedCurve;
+        const pubBytes = key._handle as Uint8Array;
+        return _ecdsaVerify(nodeHash, pubBytes, sig, bytes, namedCurve);
+      }
+      case 'RSA-PSS': {
+        const hashName = ((key.algorithm as any).hash as { name: string }).name;
+        const nodeHash = toNodeHashName(hashName);
+        const handle = key._handle as { pem: string };
+        const saltLen = (alg as any).saltLength ?? hashSize(hashName);
+        return _rsaPssVerify(nodeHash, handle.pem, sig, bytes, saltLen);
       }
       default:
         throw new DOMException(`Unsupported algorithm: ${alg.name}`, 'NotSupportedError');
