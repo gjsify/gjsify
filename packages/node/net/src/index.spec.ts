@@ -847,7 +847,240 @@ export default async () => {
           server.on('error', reject);
         });
       });
+
+      // ==================== TCP error handling ====================
+      // Ported from refs/node-test/parallel/test-net-connect-error.js
+      // Original: MIT license, Node.js contributors
+
+      await it('should emit error when connecting to refused port', async () => {
+        const client = createConnection({ port: 1, host: '127.0.0.1' });
+        const err = await new Promise<Error>((resolve) => {
+          client.on('error', (e) => resolve(e));
+        });
+        expect(err).toBeDefined();
+        expect((err as NodeJS.ErrnoException).code).toBeDefined();
+        client.destroy();
+      });
+
+      await it('should support socket.setNoDelay', async () => {
+        const server = createServer((socket) => {
+          socket.end('ok');
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          server.listen(0, () => {
+            const addr = server.address() as { port: number };
+            const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
+              // setNoDelay should not throw
+              client.setNoDelay(true);
+              client.setNoDelay(false);
+              client.on('end', () => {
+                server.close(() => resolve());
+              });
+              client.resume();
+            });
+            client.on('error', reject);
+          });
+          server.on('error', reject);
+        });
+      });
+
+      await it('should support socket.setKeepAlive', async () => {
+        const server = createServer((socket) => {
+          socket.end('ok');
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          server.listen(0, () => {
+            const addr = server.address() as { port: number };
+            const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
+              // setKeepAlive should not throw
+              client.setKeepAlive(true);
+              client.setKeepAlive(false, 1000);
+              client.on('end', () => {
+                server.close(() => resolve());
+              });
+              client.resume();
+            });
+            client.on('error', reject);
+          });
+          server.on('error', reject);
+        });
+      });
+
+      await it('should support socket.ref and unref', async () => {
+        const server = createServer((socket) => {
+          socket.end('ok');
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          server.listen(0, () => {
+            const addr = server.address() as { port: number };
+            const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
+              const result = client.ref();
+              expect(result).toBe(client); // should return this
+              const result2 = client.unref();
+              expect(result2).toBe(client);
+              client.on('end', () => {
+                server.close(() => resolve());
+              });
+              client.resume();
+            });
+            client.on('error', reject);
+          });
+          server.on('error', reject);
+        });
+      });
+
+      await it('server.ref/unref should return this', async () => {
+        const server = createServer();
+        await new Promise<void>((resolve, reject) => {
+          server.listen(0, () => {
+            const r1 = server.ref();
+            expect(r1).toBe(server);
+            const r2 = server.unref();
+            expect(r2).toBe(server);
+            server.close(() => resolve());
+          });
+          server.on('error', reject);
+        });
+      });
+
+      await it('should handle write after end gracefully', async () => {
+        const server = createServer((socket) => {
+          socket.on('error', () => {}); // Ignore ECONNRESET from client closing
+          socket.end('done');
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          server.listen(0, () => {
+            const addr = server.address() as { port: number };
+            const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
+              client.end();
+              // Write after end should not crash
+              const result = client.write('after end');
+              expect(result).toBe(false);
+              client.on('error', () => {}); // Ignore write-after-end error
+              client.on('close', () => {
+                server.close(() => resolve());
+              });
+            });
+            client.on('error', () => {});
+          });
+          server.on('error', reject);
+        });
+      });
+
+      await it('should handle simultaneous connections', async () => {
+        let connCount = 0;
+        const server = createServer((socket) => {
+          connCount++;
+          socket.write(`client${connCount}`);
+          socket.end();
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          server.listen(0, () => {
+            const addr = server.address() as { port: number };
+            let done = 0;
+            const results: string[] = [];
+
+            for (let i = 0; i < 3; i++) {
+              const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
+                const chunks: Buffer[] = [];
+                client.on('data', (chunk) => chunks.push(chunk as Buffer));
+                client.on('end', () => {
+                  results.push(Buffer.concat(chunks).toString());
+                  done++;
+                  if (done === 3) {
+                    expect(results.length).toBe(3);
+                    server.close(() => resolve());
+                  }
+                });
+              });
+              client.on('error', reject);
+            }
+          });
+          server.on('error', reject);
+        });
+      });
     });
     }); // end on('Node.js')
+
+    // ==================== Socket additional properties (cross-platform) ====================
+
+    await describe('Socket additional properties', async () => {
+      await it('should have ref/unref methods', async () => {
+        const socket = new Socket();
+        expect(typeof socket.ref).toBe('function');
+        expect(typeof socket.unref).toBe('function');
+      });
+
+      await it('ref/unref should return this', async () => {
+        const socket = new Socket();
+        expect(socket.ref()).toBe(socket);
+        expect(socket.unref()).toBe(socket);
+      });
+
+      await it('should have setNoDelay method', async () => {
+        const socket = new Socket();
+        expect(typeof socket.setNoDelay).toBe('function');
+      });
+
+      await it('should have setKeepAlive method', async () => {
+        const socket = new Socket();
+        expect(typeof socket.setKeepAlive).toBe('function');
+      });
+
+      await it('should have address method', async () => {
+        const socket = new Socket();
+        expect(typeof socket.address).toBe('function');
+      });
+
+      await it('should have destroyed=false initially', async () => {
+        const socket = new Socket();
+        expect(socket.destroyed).toBe(false);
+      });
+
+      await it('should have readyState property', async () => {
+        const socket = new Socket();
+        expect(socket.readyState).toBeDefined();
+      });
+    });
+
+    // ==================== Server additional properties (cross-platform) ====================
+
+    await describe('Server additional properties', async () => {
+      await it('should have ref/unref methods', async () => {
+        const server = new Server();
+        expect(typeof server.ref).toBe('function');
+        expect(typeof server.unref).toBe('function');
+      });
+
+      await it('should have listening=false before listen', async () => {
+        const server = createServer();
+        expect(server.listening).toBe(false);
+      });
+
+      await it('should have address method', async () => {
+        const server = createServer();
+        expect(typeof server.address).toBe('function');
+      });
+
+      await it('address() should return null before listening', async () => {
+        const server = createServer();
+        expect(server.address()).toBeNull();
+      });
+
+      await it('should have getConnections method', async () => {
+        const server = createServer();
+        expect(typeof server.getConnections).toBe('function');
+      });
+
+      await it('should have close method', async () => {
+        const server = createServer();
+        expect(typeof server.close).toBe('function');
+      });
+    });
   });
 };
