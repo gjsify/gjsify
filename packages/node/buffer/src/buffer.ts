@@ -3,11 +3,7 @@
 
 // BufferEncoding is a global type provided by @types/node
 
-import { normalizeEncoding as _normalizeEncoding, checkEncoding } from '@gjsify/utils';
-
-function normalizeEncoding(enc?: string): BufferEncoding {
-  return _normalizeEncoding(enc) as BufferEncoding;
-}
+import { normalizeEncoding, checkEncoding } from '@gjsify/utils';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -54,6 +50,24 @@ function _btoa(str: string): string {
   return result;
 }
 
+// Direct base64 → Uint8Array decoding (avoids lossy atob string round-trip)
+function base64Decode(str: string): Uint8Array {
+  const cleaned = str.replace(/[=\s]/g, '');
+  const bytes = new Uint8Array((cleaned.length * 3) >> 2);
+  let bits = 0;
+  let collected = 0;
+  let pos = 0;
+  for (let i = 0; i < cleaned.length; i++) {
+    bits = (bits << 6) | b64lookup[cleaned.charCodeAt(i)];
+    collected += 6;
+    if (collected >= 8) {
+      collected -= 8;
+      bytes[pos++] = (bits >> collected) & 0xff;
+    }
+  }
+  return bytes.subarray(0, pos);
+}
+
 // SharedArrayBuffer may not be available in GJS
 const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
 
@@ -82,14 +96,8 @@ function encodeString(str: string, encoding: BufferEncoding): Uint8Array {
     }
 
     case 'base64': {
-      // Remove padding and whitespace
-      const cleaned = str.replace(/[\s=]/g, '');
-      const binary = _atob(cleaned.replace(/-/g, '+').replace(/_/g, '/'));
-      const buf = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        buf[i] = binary.charCodeAt(i);
-      }
-      return buf;
+      const standard = str.replace(/-/g, '+').replace(/_/g, '/');
+      return base64Decode(standard);
     }
 
     case 'base64url': {

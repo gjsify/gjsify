@@ -347,10 +347,10 @@ export class Readable extends Stream {
     this.readableAborted = !this.readableEnded;
 
     const cb = (err?: Error | null) => {
-      nextTick(() => {
-        if (err) this.emit('error', err);
-        this.emit('close');
-      });
+      // Emit error and close in separate nextTick calls (matches Node.js behavior)
+      // so an unhandled error doesn't prevent 'close' from firing
+      if (err) nextTick(() => this.emit('error', err));
+      nextTick(() => this.emit('close'));
     };
 
     if (this._destroyImpl) {
@@ -689,10 +689,10 @@ export class Writable extends Stream {
     this.writable = false;
 
     const cb = (err?: Error | null) => {
-      nextTick(() => {
-        if (err) this.emit('error', err);
-        this.emit('close');
-      });
+      // Emit error and close in separate nextTick calls (matches Node.js behavior)
+      // so an unhandled error doesn't prevent 'close' from firing
+      if (err) nextTick(() => this.emit('error', err));
+      nextTick(() => this.emit('close'));
     };
 
     if (this._destroyImpl) {

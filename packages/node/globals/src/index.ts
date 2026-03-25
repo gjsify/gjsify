@@ -1,4 +1,4 @@
-import { initErrorV8Methods } from "@gjsify/utils";
+import { initErrorV8Methods, structuredClone as structuredClonePolyfill } from "@gjsify/utils";
 
 import process from '@gjsify/process';
 import { Buffer } from '@gjsify/buffer';
@@ -94,7 +94,12 @@ if (!('clearImmediate' in globalThis)) {
 if (typeof globalThis.btoa !== 'function') {
   Object.defineProperty(globalThis, "btoa", {
     value: function btoa(data: string): string {
-      return GLib.base64_encode(new TextEncoder().encode(data));
+      // Convert binary string (each char = one byte) to Uint8Array, not UTF-8
+      const bytes = new Uint8Array(data.length);
+      for (let i = 0; i < data.length; i++) {
+        bytes[i] = data.charCodeAt(i) & 0xff;
+      }
+      return GLib.base64_encode(bytes);
     },
     enumerable: true,
     writable: true,
@@ -105,7 +110,13 @@ if (typeof globalThis.btoa !== 'function') {
 if (typeof globalThis.atob !== 'function') {
   Object.defineProperty(globalThis, "atob", {
     value: function atob(data: string): string {
-      return new TextDecoder().decode(GLib.base64_decode(data));
+      // Return binary string (each char = one byte), not UTF-8 decoded string
+      const bytes = GLib.base64_decode(data);
+      let result = '';
+      for (let i = 0; i < bytes.length; i++) {
+        result += String.fromCharCode(bytes[i]);
+      }
+      return result;
     },
     enumerable: true,
     writable: true,
@@ -113,12 +124,10 @@ if (typeof globalThis.atob !== 'function') {
   });
 }
 
-// structuredClone polyfill via JSON round-trip
+// structuredClone polyfill (SpiderMonkey 128 has it, but GJS ESM doesn't expose it as global)
 if (typeof globalThis.structuredClone !== 'function') {
   Object.defineProperty(globalThis, "structuredClone", {
-    value: function structuredClone<T>(value: T): T {
-      return JSON.parse(JSON.stringify(value));
-    },
+    value: structuredClonePolyfill,
     enumerable: true,
     writable: true,
     configurable: true,
