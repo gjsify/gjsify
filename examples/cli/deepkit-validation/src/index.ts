@@ -182,10 +182,12 @@ try {
 
 log('\n=== 7. Nested Object Validation ===');
 
+const ZIP_REGEX = /^\d{5}$/;
+
 interface Address {
     street: string & MinLength<3>;
     city: string & MinLength<2>;
-    zip: string & Pattern<'/^\\d{5}$/'>;
+    zip: string & Pattern<typeof ZIP_REGEX>;
 }
 
 interface Customer {
