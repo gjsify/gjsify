@@ -14,14 +14,26 @@ import { ByteLengthQueuingStrategy, CountQueuingStrategy } from './queuing-strat
 import { TextEncoderStream } from './text-encoder-stream.js';
 import { TextDecoderStream } from './text-decoder-stream.js';
 
-// Use native if available (Node.js 18+), polyfill otherwise
-const _WritableStream = typeof globalThis.WritableStream === 'function'
-  ? globalThis.WritableStream
-  : WritableStream;
-const _ReadableStream = typeof globalThis.ReadableStream === 'function'
+// Validate that a native stream class produces functional instances.
+// GJS may expose stream constructors that return objects missing core methods
+// (e.g. ReadableStream exists but instances lack getReader()).
+function isNativeStreamUsable(Ctor: unknown, method: string): boolean {
+  try {
+    if (typeof Ctor !== 'function') return false;
+    return typeof (Ctor as any).prototype[method] === 'function';
+  } catch {
+    return false;
+  }
+}
+
+// Use native if available and functional (Node.js 18+), polyfill otherwise
+const _ReadableStream = isNativeStreamUsable(globalThis.ReadableStream, 'getReader')
   ? globalThis.ReadableStream
   : ReadableStream;
-const _TransformStream = typeof globalThis.TransformStream === 'function'
+const _WritableStream = isNativeStreamUsable(globalThis.WritableStream, 'getWriter')
+  ? globalThis.WritableStream
+  : WritableStream;
+const _TransformStream = isNativeStreamUsable(globalThis.TransformStream, 'readable')
   ? globalThis.TransformStream
   : TransformStream;
 const _ByteLengthQueuingStrategy = typeof globalThis.ByteLengthQueuingStrategy === 'function'
@@ -37,14 +49,14 @@ const _TextDecoderStream = typeof globalThis.TextDecoderStream === 'function'
   ? globalThis.TextDecoderStream
   : TextDecoderStream;
 
-// Register globals on GJS
-if (typeof globalThis.WritableStream === 'undefined') {
-  (globalThis as any).WritableStream = WritableStream;
-}
-if (typeof globalThis.ReadableStream === 'undefined') {
+// Register globals — replace broken native implementations with polyfill
+if (!isNativeStreamUsable(globalThis.ReadableStream, 'getReader')) {
   (globalThis as any).ReadableStream = ReadableStream;
 }
-if (typeof globalThis.TransformStream === 'undefined') {
+if (!isNativeStreamUsable(globalThis.WritableStream, 'getWriter')) {
+  (globalThis as any).WritableStream = WritableStream;
+}
+if (!isNativeStreamUsable(globalThis.TransformStream, 'readable')) {
   (globalThis as any).TransformStream = TransformStream;
 }
 if (typeof globalThis.ByteLengthQueuingStrategy === 'undefined') {

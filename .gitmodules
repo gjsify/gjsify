@@ -92,3 +92,6 @@
 [submodule "refs/ungap-structured-clone"]
 	path = refs/ungap-structured-clone
 	url = https://github.com/ungap/structured-clone
+[submodule "refs/deepkit"]
+	path = refs/deepkit
+	url = git@github.com:marcj/deepkit.git
