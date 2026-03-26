@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./socket": {
+            "types": "./lib/types/socket.d.ts",
+            "default": "./lib/esm/socket.js"
         }
     },
     "scripts": {

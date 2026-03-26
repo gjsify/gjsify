@@ -1448,6 +1448,7 @@ __metadata:
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
+    "@gjsify/net": "workspace:^"
     "@gjsify/stream": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/url": "workspace:^"

@@ -40,6 +40,7 @@ export class Socket extends Duplex {
   declare allowHalfOpen: boolean;
 
   private _connection: Gio.SocketConnection | null = null;
+  private _ioStream: Gio.IOStream | null = null;
   private _inputStream: Gio.InputStream | null = null;
   private _outputStream: Gio.OutputStream | null = null;
   private _cancellable: Gio.Cancellable = new Gio.Cancellable();
@@ -55,6 +56,42 @@ export class Socket extends Duplex {
   /** @internal Set the connection from an accepted server socket. */
   _setConnection(connection: Gio.SocketConnection): void {
     this._connection = connection;
+  }
+
+  /**
+   * @internal Set up this socket from a raw Gio.IOStream (e.g., stolen from Soup.Server
+   * during an HTTP upgrade). Extracts I/O streams, attempts to read address info
+   * if the underlying stream is a SocketConnection, and starts reading.
+   */
+  _setupFromIOStream(ioStream: Gio.IOStream): void {
+    this._ioStream = ioStream;
+
+    // If the IOStream is actually a SocketConnection, use it for full features
+    try {
+      const sockConn = ioStream as unknown as Gio.SocketConnection;
+      if (typeof sockConn.get_socket === 'function') {
+        this._connection = sockConn;
+        const remoteAddr = sockConn.get_remote_address() as Gio.InetSocketAddress;
+        this.remoteAddress = remoteAddr.get_address().to_string();
+        this.remotePort = remoteAddr.get_port();
+        this.remoteFamily = remoteAddr.get_address().get_family() === Gio.SocketFamily.IPV6 ? 'IPv6' : 'IPv4';
+        const localAddr = sockConn.get_local_address() as Gio.InetSocketAddress;
+        this.localAddress = localAddr.get_address().to_string();
+        this.localPort = localAddr.get_port();
+      }
+    } catch { /* not a SocketConnection — use IOStream only */ }
+
+    this._inputStream = ioStream.get_input_stream();
+    this._outputStream = ioStream.get_output_stream();
+
+    this.connecting = false;
+    this.pending = false;
+    this.readyState = 'open';
+
+    this.emit('connect');
+    this.emit('ready');
+
+    this._startReading();
   }
 
   /**
@@ -256,6 +293,17 @@ export class Socket extends Duplex {
         this._connection.get_socket().shutdown(false, true);
         this.readyState = this.readable ? 'readOnly' : 'closed';
       } catch { /* ignore */ }
+    } else if (this._ioStream) {
+      // Fallback for IOStream-based sockets (e.g., stolen from Soup.Server).
+      // SoupIOStream doesn't support half-close via output stream close,
+      // so close the entire IOStream to send TCP FIN to the peer.
+      try {
+        this._ioStream.close(null);
+        this.readyState = 'closed';
+      } catch { /* ignore */ }
+      this._ioStream = null;
+      this._inputStream = null;
+      this._outputStream = null;
     }
     callback();
   }
@@ -270,8 +318,13 @@ export class Socket extends Duplex {
         this._connection.close(null);
       } catch { /* ignore */ }
       this._connection = null;
+    } else if (this._ioStream) {
+      try {
+        this._ioStream.close(null);
+      } catch { /* ignore */ }
     }
 
+    this._ioStream = null;
     this._inputStream = null;
     this._outputStream = null;
     this.readyState = 'closed';

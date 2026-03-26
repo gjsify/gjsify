@@ -6,6 +6,7 @@ import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
+import { Socket as NetSocket } from '@gjsify/net/socket';
 import { deferEmit, ensureMainLoop } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
@@ -399,6 +400,29 @@ export class Server extends EventEmitter {
         req.headers[lower] = value;
       }
     });
+
+    // Check for HTTP upgrade request (WebSocket, etc.)
+    // Reference: Node.js lib/_http_server.js — emits 'upgrade' with (req, socket, head)
+    const connectionHeader = (req.headers['connection'] as string || '').toLowerCase();
+    const upgradeHeader = (req.headers['upgrade'] as string || '').toLowerCase();
+    if (connectionHeader.includes('upgrade') && upgradeHeader && this.listenerCount('upgrade') > 0) {
+      // Steal the raw TCP connection from Soup before it sends a response.
+      // This gives us a Gio.IOStream positioned after the parsed HTTP request.
+      let ioStream: Gio.IOStream | null = null;
+      try {
+        ioStream = soupMsg.steal_connection();
+      } catch (err) {
+        // steal_connection() may fail if Soup has already started processing
+        // the response or if the connection is in an unexpected state.
+      }
+      if (ioStream) {
+        const socket = new NetSocket();
+        socket._setupFromIOStream(ioStream);
+        // head: any data after HTTP headers — empty for upgrade requests
+        this.emit('upgrade', req, socket, Buffer.alloc(0));
+        return;
+      }
+    }
 
     // Get request body
     const body = soupMsg.get_request_body();

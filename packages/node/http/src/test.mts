@@ -6,5 +6,6 @@ import clientTestSuite from './client.spec.js';
 import extendedTestSuite from './extended.spec.js';
 import streamingTestSuite from './streaming.spec.js';
 import timeoutTestSuite from './timeout.spec.js';
+import upgradeTestSuite from './upgrade.spec.js';
 
-run({testSuite, clientTestSuite, extendedTestSuite, streamingTestSuite, timeoutTestSuite});
+run({testSuite, clientTestSuite, extendedTestSuite, streamingTestSuite, timeoutTestSuite, upgradeTestSuite});
