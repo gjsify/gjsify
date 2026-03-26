@@ -66,7 +66,9 @@ function detectVersionInfo(): { version: string; versions: Record<string, string
 
   // Running on GJS
   const gjsVersion = detectGjsVersion();
-  const versions: Record<string, string> = {};
+  const versions: Record<string, string> = {
+    node: '20.0.0', // Compatibility version — many npm packages check process.versions.node
+  };
   if (gjsVersion) versions.gjs = gjsVersion;
 
   return {

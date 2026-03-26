@@ -49,3 +49,45 @@ export { rsaOaepEncrypt, rsaOaepDecrypt } from './rsa-oaep.js';
 export { mgf1 } from './mgf1.js';
 export { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from './key-object.js';
 export { X509Certificate } from './x509.js';
+
+import { getHashes, hash } from './hash.js';
+import { randomBytes, randomFill, randomFillSync, randomUUID, randomInt } from './random.js';
+import { timingSafeEqual } from './timing-safe-equal.js';
+import { constants } from './constants.js';
+import { pbkdf2, pbkdf2Sync } from './pbkdf2.js';
+import { hkdf, hkdfSync } from './hkdf.js';
+import { scrypt, scryptSync } from './scrypt.js';
+import { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers } from './cipher.js';
+import { Sign, Verify, createSign, createVerify } from './sign.js';
+import { createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGroup, createDiffieHellmanGroup } from './dh.js';
+import { createECDH, getCurves } from './ecdh.js';
+import { ecdsaSign, ecdsaVerify } from './ecdsa.js';
+import { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';
+import { rsaPssSign, rsaPssVerify } from './rsa-pss.js';
+import { rsaOaepEncrypt, rsaOaepDecrypt } from './rsa-oaep.js';
+import { mgf1 } from './mgf1.js';
+import { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from './key-object.js';
+import { X509Certificate } from './x509.js';
+
+export default {
+  Hash, getHashes, hash,
+  Hmac,
+  randomBytes, randomFill, randomFillSync, randomUUID, randomInt,
+  timingSafeEqual,
+  constants,
+  pbkdf2, pbkdf2Sync,
+  hkdf, hkdfSync,
+  scrypt, scryptSync,
+  createHash, createHmac,
+  createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers,
+  Sign, Verify, createSign, createVerify,
+  createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGroup, createDiffieHellmanGroup,
+  createECDH, getCurves,
+  ecdsaSign, ecdsaVerify,
+  publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt,
+  rsaPssSign, rsaPssVerify,
+  rsaOaepEncrypt, rsaOaepDecrypt,
+  mgf1,
+  KeyObject, createSecretKey, createPublicKey, createPrivateKey,
+  X509Certificate,
+};

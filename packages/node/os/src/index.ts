@@ -230,3 +230,29 @@ export const setPriority = (pidOrPriority: number, priority?: number): void => {
     throw error;
   }
 };
+
+export default {
+  EOL,
+  arch,
+  availableParallelism,
+  constants,
+  cpus,
+  devNull,
+  endianness,
+  freemem,
+  getPriority,
+  homedir,
+  hostname,
+  loadavg,
+  machine,
+  networkInterfaces,
+  platform,
+  release,
+  setPriority,
+  tmpdir,
+  totalmem,
+  type,
+  uptime,
+  userInfo,
+  version,
+};

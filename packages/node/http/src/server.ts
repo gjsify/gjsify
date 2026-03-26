@@ -304,10 +304,17 @@ export class Server extends EventEmitter {
   private _soupServer: Soup.Server | null = null;
   private _address: { port: number; family: string; address: string } | null = null;
 
-  constructor(requestListener?: (req: IncomingMessage, res: ServerResponse) => void) {
+  constructor(requestListener?: ((req: IncomingMessage, res: ServerResponse) => void) | Record<string, unknown>);
+  constructor(options: Record<string, unknown>, requestListener?: (req: IncomingMessage, res: ServerResponse) => void);
+  constructor(
+    optionsOrListener?: ((req: IncomingMessage, res: ServerResponse) => void) | Record<string, unknown>,
+    requestListener?: (req: IncomingMessage, res: ServerResponse) => void,
+  ) {
     super();
-    if (requestListener) {
-      this.on('request', requestListener);
+    // Support Node.js signature: new Server(options, listener)
+    const listener = typeof optionsOrListener === 'function' ? optionsOrListener : requestListener;
+    if (listener) {
+      this.on('request', listener);
     }
   }
 
