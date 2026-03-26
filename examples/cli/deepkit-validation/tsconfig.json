@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+      "module": "NodeNext",
+      "types": [],
+      "target": "ESNext",
+      "moduleResolution": "NodeNext",
+      "experimentalDecorators": true,
+      "outDir": "dist",
+      "skipLibCheck": true
+    },
+    "reflection": true,
+    "files": ["src/index.ts"]
+}
