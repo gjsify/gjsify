@@ -1,0 +1,13 @@
+<h1>Posts</h1>
+<p>You have <strong><%= posts.length %></strong> posts!</p>
+<ul>
+<% for (const post of posts) { %>
+  <li>
+    <h2><a href="/post/<%= post.id %>"><%= post.title %></a></h2>
+    <p class="meta">Created <%= post.created_at.toLocaleDateString() %></p>
+  </li>
+<% } %>
+</ul>
+<% if (posts.length === 0) { %>
+  <p>No posts yet. <a href="/post/new">Create one!</a></p>
+<% } %>

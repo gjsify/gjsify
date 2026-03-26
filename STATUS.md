@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-26 (Phase 1–2: subpath exports, sys/constants packages, tls/https test expansion)
+> Last updated: 2026-03-26 (Real-world examples: Express, Koa blog with EJS; GJS compat fixes; @gjsify/runtime)
 
 ## Summary
 
@@ -130,7 +130,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Package | Function | Status |
 |---------|----------|--------|
 | **@gjsify/unit** | Test framework (describe/it/expect) | Full |
-| **@gjsify/utils** | Gio wrappers, process info, encoding | Full |
+| **@gjsify/utils** | Gio wrappers, process info, encoding, ensureMainLoop | Full |
+| **@gjsify/runtime** | Platform-independent runtime detection (isGJS, isNode, runtimeName) | Full |
 | **@gjsify/types** | GIR TypeScript bindings | Manual |
 
 ---
@@ -141,7 +142,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 |-----------|---------|
 | **Gio 2.0** | fs, net, dns, child_process, dgram, tls, module, fetch |
 | **GLib 2.0** | crypto, url, os, process, dns, child_process, dgram, tls, module |
-| **Soup 3.0** | http, fetch |
+| **Soup 3.0** | http, https, fetch, websocket |
 | **Gtk 4.0** | webgl |
 | **GdkPixbuf 2.0** | html-image-element |
 | **gwebgl 0.1** | webgl (Vala extension) |
@@ -152,13 +153,15 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Metric | Value |
 |--------|-------|
-| Total Node.js packages | 37 |
-| Fully implemented | 30 (81%) |
+| Total Node.js packages | 39 |
+| Fully implemented | 32 (82%) |
 | Partially implemented | 3 (8%) |
-| Stubs | 4 (11%) |
+| Stubs | 4 (10%) |
 | Web API packages | 15 (all implemented) |
-| Total test cases | 8,100 |
-| Spec files | 83 |
+| GJS infrastructure packages | 4 (unit, utils, runtime, types) |
+| Total test cases | 9,100+ |
+| Spec files | 91 |
+| Real-world examples | 2 (Express, Koa) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -178,19 +181,34 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### High Priority
 
-1. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, dgram) and fs.
+1. **Real-world application examples** — Validate the platform against real frameworks and use cases. Each example must run on both Node.js and GJS. Current: Express.js hello (`examples/net/express-hello`), Koa.js blog with EJS templates (`examples/net/koa-blog`). Planned:
+
+   | Example | Category | Frameworks/APIs | Tests |
+   |---------|----------|-----------------|-------|
+   | **Fastify REST API** | net | fastify, JSON schema validation | http, stream, events |
+   | **WebSocket chat** | net | ws or @gjsify/websocket, events | websocket, http, events |
+   | **CLI tool** (e.g. file search) | cli | fs, path, stream, readline | fs, path, stream, readline, child_process |
+   | **Static file server** | net | http, fs, path, stream, zlib | http, fs, stream, zlib, net |
+   | **SQLite/JSON data store** | cli | fs, crypto, buffer, stream | fs, crypto, buffer |
+   | **GTK + HTTP** (dashboard) | gtk | Gtk 4, Soup, fetch, WebSocket | http, fetch, websocket, timers |
+   | **DNS lookup tool** | cli | dns, net, readline | dns, net |
+   | **Worker pool** | cli | worker_threads, events, stream | worker_threads, events |
+
+   These examples serve as integration tests and surface real CJS-ESM interop issues, missing globals, GC problems, and MainLoop edge cases that unit tests alone don't catch.
+
+2. **Increase test coverage** — Port more tests from `refs/node-test/` and `refs/bun/test/`, especially for networking (net, tls, dgram) and fs.
 
 ### Medium Priority
 
-2. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
-3. **BYOB Byte Streams** — ReadableByteStreamController for optimized binary streaming.
-4. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API. Requires nghttp2 bindings or pure-JS HTTP/2 frame parser.
+3. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
+4. **BYOB Byte Streams** — ReadableByteStreamController for optimized binary streaming.
+5. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API. Requires nghttp2 bindings or pure-JS HTTP/2 frame parser.
 
 ### Low Priority
 
-5. **v8** — Approximate heap statistics via GJS runtime info.
-6. **cluster** — Multi-process via Gio.Subprocess pool.
-7. **inspector** — GJS debugger integration (gjs --debugger).
+6. **v8** — Approximate heap statistics via GJS runtime info.
+7. **cluster** — Multi-process via Gio.Subprocess pool.
+8. **inspector** — GJS debugger integration (gjs --debugger).
 
 ---
 
@@ -206,6 +224,23 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-26 — Real-World Application Examples & GJS Compat Fixes
+
+**New examples:**
+- `examples/net/koa-blog`: Koa.js blog with EJS templates, HTML forms, JSON API, CRUD. Runs on both Node.js and GJS.
+- `examples/net/express-hello`: Updated to use `@gjsify/runtime` for platform detection.
+
+**New packages:**
+- `@gjsify/runtime`: Platform-independent runtime detection (isGJS, isNode, runtimeName, runtimeVersion). No dependencies, works on both platforms.
+
+**GJS compatibility fixes surfaced by real-world frameworks:**
+- **http.Server GC guard**: Koa/Express create http.Server inside `.listen()` and discard the return value. GJS GC collected the server after ~10s of inactivity. Fix: module-level `Set<Server>` keeps strong references to all listening servers.
+- **http.Server connection exhaustion**: Soup.Server keeps HTTP/1.1 connections alive by default. After ~10 requests, connection pool was full. Fix: set `Connection: close` header, always call `set_response()` even for empty bodies (redirects, 204s).
+- **assert cjs-compat.cjs**: Koa's `require('assert')` got a namespace object instead of the assert function. Added CJS compatibility wrapper.
+- **Web API stubs**: Registered `Response`, `Request`, `Headers`, `ReadableStream`, `Blob` as empty global classes on GJS. Prevents `ReferenceError` in frameworks using `val instanceof Response`.
+- **StringDecoder function constructor**: Converted from ES6 class to function constructor. `iconv-lite` (used by `koa-bodyparser`) calls `StringDecoder.call(this, enc)` which fails on ES6 classes.
+- **skipLibCheck for TS6**: Added to all example and `@gjsify/unit` tsconfigs. `@types/node@25.5.0` has `export = console` pattern incompatible with TypeScript 6's `module: NodeNext`.
 
 ### 2026-03-25 — Comprehensive Improvement Sprint (3,260→8,100 tests)
 

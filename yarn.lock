@@ -1130,10 +1130,12 @@ __metadata:
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
     "@koa/router": "npm:^15.4.0"
+    "@types/ejs": "npm:^3.1.5"
     "@types/koa": "npm:^3.0.2"
     "@types/koa-bodyparser": "npm:^4.3.13"
     "@types/koa__router": "npm:^12.0.5"
     "@types/node": "npm:^25.5.0"
+    ejs: "npm:^5.0.1"
     koa: "npm:^3.1.2"
     koa-bodyparser: "npm:^4.4.1"
     typescript: "npm:^6.0.2"
@@ -2134,6 +2136,13 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10/cd7739a79a81eb2715fe201d5e9fc0a9cced20ab6ff0c254f88a9a6c0360a65d71e345fec14a097886675e08ef4bc82a8567e6068670245e54eba790121181b8
+  languageName: node
+  linkType: hard
+
+"@types/ejs@npm:^3.1.5":
+  version: 3.1.5
+  resolution: "@types/ejs@npm:3.1.5"
+  checksum: 10/918898fd279108087722c1713e2ddb0c152ab839397946d164db8a18b5bbd732af9746373882a9bcf4843d35c6b191a8f569a7a4e51e90726d24501b39f40367
   languageName: node
   linkType: hard
 

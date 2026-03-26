@@ -175,8 +175,15 @@ export class ServerResponse extends OutgoingMessage {
     // Set status
     this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
 
-    // Set headers
+    // Set headers on the Soup response
     const responseHeaders = this._soupMsg.get_response_headers();
+
+    // Force connection close — Soup.Server keeps HTTP/1.1 connections alive by default,
+    // which exhausts the connection pool when clients open new TCP connections per request.
+    if (!this._headers.has('connection')) {
+      responseHeaders.replace('Connection', 'close');
+    }
+
     for (const [key, value] of this._headers) {
       if (Array.isArray(value)) {
         for (const v of value) {
@@ -187,12 +194,11 @@ export class ServerResponse extends OutgoingMessage {
       }
     }
 
-    // Set body
+    // Set body — always call set_response so Soup knows the response is complete.
+    // Without this, empty responses (redirects, 204s) leave the connection hanging.
     const body = Buffer.concat(this._chunks);
-    if (body.length > 0) {
-      const contentType = (this._headers.get('content-type') as string) || 'application/octet-stream';
-      this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, body);
-    }
+    const contentType = (this._headers.get('content-type') as string) || (body.length > 0 ? 'application/octet-stream' : 'text/plain');
+    this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, body);
 
     this.finished = true;
     // Note: 'finish' is emitted by Writable.end() — do NOT emit here to avoid double emission
@@ -216,6 +222,12 @@ export class ServerResponse extends OutgoingMessage {
     return this;
   }
 }
+
+// GC guard — GJS garbage-collects objects with no JS references. When frameworks
+// like Koa/Express create an http.Server inside .listen() and the caller discards
+// the return value, the Server (and its Soup.Server) gets collected after ~10s.
+// This Set keeps a strong reference to every listening server.
+const _activeServers = new Set<Server>();
 
 /**
  * HTTP Server wrapping Soup.Server.
@@ -277,6 +289,7 @@ export class Server extends EventEmitter {
 
       this.listening = true;
       this._address = { port: actualPort, family: 'IPv4', address: hostname };
+      _activeServers.add(this);
 
       deferEmit(this, 'listening');
     } catch (err: unknown) {
@@ -345,6 +358,7 @@ export class Server extends EventEmitter {
     }
 
     this.listening = false;
+    _activeServers.delete(this);
     deferEmit(this, 'close');
     return this;
   }

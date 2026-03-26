@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title><%= title %> — Koa Blog</title>
+  <style>
+    body { font-family: sans-serif; max-width: 640px; margin: 2em auto; padding: 0 1em; color: #333; }
+    a { color: #07c; }
+    nav { margin-bottom: 2em; }
+    nav a { margin-right: 1em; }
+    form p { margin: 0.5em 0; }
+    input[type="text"], textarea { width: 100%; padding: 0.4em; font-size: 1em; }
+    textarea { height: 8em; }
+    input[type="submit"] { padding: 0.5em 1.5em; font-size: 1em; }
+    .meta { color: #999; font-size: 0.85em; }
+    hr { border: none; border-top: 1px solid #eee; }
+    footer { margin-top: 2em; color: #999; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/post/new">New Post</a>
+  </nav>
+  <hr>
+  <%- body %>
+  <hr>
+  <footer>Running on <%= platform %></footer>
+</body>
+</html>
