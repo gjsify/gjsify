@@ -2,6 +2,7 @@ import { aliasPlugin } from '@gjsify/esbuild-plugin-alias';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForNode, globToEntryPoints } from "../utils/index.js";
+import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
 import { EXTERNALS_NODE } from "@gjsify/resolve-npm";
 
 // Types
@@ -64,4 +65,6 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
 
     await aliasPlugin(aliases).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
+
+    registerToCommonJSPatch(build);
 }

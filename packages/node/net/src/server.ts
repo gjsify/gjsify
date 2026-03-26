@@ -4,7 +4,7 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
-import { createNodeError, deferEmit } from '@gjsify/utils';
+import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
 import type { ErrnoException } from '@gjsify/utils';
 import { Socket } from './socket.js';
 
@@ -92,6 +92,7 @@ export class Server extends EventEmitter {
       });
 
       this._service.start();
+      ensureMainLoop();
       this.listening = true;
 
       // Determine address info

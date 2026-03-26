@@ -5,7 +5,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
 import { Buffer } from 'node:buffer';
-import { deferEmit } from '@gjsify/utils';
+import { deferEmit, ensureMainLoop } from '@gjsify/utils';
 
 export interface SocketOptions {
   type: 'udp4' | 'udp6';
@@ -100,6 +100,7 @@ export class Socket extends EventEmitter {
 
       this._socket.bind(sockAddr, this._reuseAddr);
       this._bound = true;
+      ensureMainLoop();
 
       // Get actual bound address
       const localAddr = this._socket.get_local_address() as Gio.InetSocketAddress;

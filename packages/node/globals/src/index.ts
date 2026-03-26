@@ -155,4 +155,4 @@ if (typeof globalThis.URLSearchParams !== 'function') {
   });
 }
 
-export {};
+export { ensureMainLoop } from '@gjsify/utils';

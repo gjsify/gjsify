@@ -1,7 +1,30 @@
 // Reference: Node.js lib/os.js
 // Reimplemented for GJS using GLib (get_home_dir, get_host_name, etc.)
 
-import { cli, getPathSeparator, getOs, getPid } from '@gjsify/utils';
+import { cli, getPathSeparator } from '@gjsify/utils';
+import Gio from '@girs/gio-2.0';
+
+/** Cached OS detection result */
+let _os = '';
+
+/** Get the OS name (darwin, linux, win32) via uname */
+const getOs = () => {
+  if (_os) return _os;
+  const os = cli('uname -o').trim();
+  if (/\bDarwin\b/i.test(os)) { _os = 'darwin'; return _os; }
+  if (/\bLinux\b/i.test(os)) { _os = 'linux'; return _os; }
+  _os = 'win32';
+  return _os;
+};
+
+/** Cached PID */
+let _pid = 0;
+
+/** Get the current process ID via Gio.Credentials */
+const getPid = () => {
+  if (!_pid) _pid = new Gio.Credentials().get_unix_pid();
+  return _pid;
+};
 
 export { constants }
 

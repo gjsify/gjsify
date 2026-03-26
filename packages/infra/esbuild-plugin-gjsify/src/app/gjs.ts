@@ -1,8 +1,8 @@
-import { readFileSync, writeFileSync } from 'fs';
 import { aliasPlugin } from '@gjsify/esbuild-plugin-alias';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
+import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -18,7 +18,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
 
     // Set default options
     const esbuildOptions: BuildOptions = {
-        format, 
+        format,
         bundle: true,
         metafile: false,
         minify: false,
@@ -71,42 +71,5 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     await aliasPlugin(aliases).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 
-    // Fix CJS-ESM interop: esbuild's __toCommonJS wraps ESM modules in a
-    // namespace object { __esModule, default, ...namedExports }. CJS code that
-    // does `var fn = require('esm-pkg')` gets the namespace instead of the
-    // default export. This breaks npm packages like is-promise, depd, etc.
-    // that export a single default function consumed by CJS require().
-    //
-    // The patch makes __toCommonJS return the default export directly when
-    // the module has no named exports (only __esModule + default).
-    build.onEnd((result) => {
-        if (result.errors.length > 0) return;
-
-        const outfile = build.initialOptions.outfile;
-        if (!outfile) return;
-
-        try {
-            let content = readFileSync(outfile, 'utf-8');
-
-            const toCommonJSPattern =
-                /var __toCommonJS = \(mod\d?\) => __copyProps\(__defProp\(\{\}, "__esModule", \{ value: true \}\), mod\d?\);/;
-
-            if (toCommonJSPattern.test(content)) {
-                content = content.replace(toCommonJSPattern,
-                    `var __toCommonJS = (mod) => {
-  var ns = __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-  if (typeof ns.default !== "undefined") {
-    var keys = Object.keys(ns);
-    if (keys.length === 1 || (keys.length === 2 && keys.includes("__esModule"))) return ns.default;
-  }
-  return ns;
-};`
-                );
-                writeFileSync(outfile, content);
-            }
-        } catch {
-            // Non-critical: if patching fails, CJS-ESM interop issues may
-            // surface at runtime but the build itself is not broken.
-        }
-    });
+    registerToCommonJSPatch(build);
 }

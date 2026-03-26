@@ -1,5 +1,3 @@
-export * from './types/index.js';
-
 export * from './base64.js';
 export * from './byte-array.js';
 export * from './cli.js';
@@ -13,10 +11,6 @@ export * from './gio.js';
 export * from './gio-errors.js';
 export * from './message.js';
 export * from './next-tick.js';
-export * from './os.js';
 export * from './path.js';
-export * from './process.js';
-export * from './system.js';
-export * from './tty.js';
-export * from './version.js';
 export * from './structured-clone.js';
+export * from './main-loop.js';

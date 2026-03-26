@@ -82,6 +82,10 @@ esbuild with platform-specific plugins. Same test source, different resolution p
 
 Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node}.ts` | `packages/infra/resolve-npm/lib/index.mjs`
 
+### GLib MainLoop — `ensureMainLoop()`
+
+GJS needs a running GLib MainLoop for async I/O (Soup.Server, Gio.SocketService, etc.). Node.js has an implicit event loop. `ensureMainLoop()` (`@gjsify/utils`) bridges this: idempotent, non-blocking, no-op on Node.js. Call it in any `@gjsify/*` server/listener implementation that relies on GLib async dispatch — currently: `http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bind()`. Public API via `import { ensureMainLoop } from '@gjsify/node-globals'`. GTK apps must NOT use it (they use `Gtk.Application.runAsync()`).
+
 ```bash
 # Root
 yarn build | yarn build:node | yarn build:web | yarn test | yarn check

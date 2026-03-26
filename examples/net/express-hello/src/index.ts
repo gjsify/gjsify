@@ -32,16 +32,8 @@ app.get('/api/time', (_req, res) => {
 });
 
 // Start the server
+// On GJS, the MainLoop is started automatically by http.Server.listen().
 app.listen(PORT, () => {
   console.log(`Express server running at http://localhost:${PORT}`);
   console.log('Press Ctrl+C to stop');
 });
-
-// On GJS, Soup.Server needs the GLib main loop to dispatch requests.
-// Node.js keeps the process alive automatically via its own event loop.
-const gjsImports = (globalThis as any).imports;
-if (gjsImports) {
-  const GLib = gjsImports.gi.GLib;
-  const loop = new GLib.MainLoop(null, false);
-  await loop.runAsync();
-}

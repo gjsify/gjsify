@@ -6,7 +6,7 @@ import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
-import { deferEmit } from '@gjsify/utils';
+import { deferEmit, ensureMainLoop } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
 
@@ -263,6 +263,7 @@ export class Server extends EventEmitter {
       });
 
       this._soupServer.listen_local(port, Soup.ServerListenOptions.IPV4_ONLY);
+      ensureMainLoop();
 
       // Get the actual port from listeners
       const listeners = this._soupServer.get_listeners();
