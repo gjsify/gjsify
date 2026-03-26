@@ -44,17 +44,17 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **os** | GLib | 276 | homedir, hostname, cpus, platform, arch, type, release, endianness, EOL, devNull, availableParallelism, userInfo, networkInterfaces, constants (signals/errno), loadavg, uptime, memory |
 | **path** | — | 432 | POSIX + Win32 (1,052 lines total) |
 | **perf_hooks** | — | 115 | performance (now, timeOrigin, mark/measure, getEntries/ByName/ByType, clearMarks/clearMeasures, toJSON), monitorEventLoopDelay, PerformanceObserver, eventLoopUtilization, timerify |
-| **process** | GLib | 98 | EventEmitter-based, env (CRUD, enumerate), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint, memoryUsage, nextTick (ordering, args), exit/kill, config, execArgv, cpuUsage |
+| **process** | GLib | 143 (2 specs) | EventEmitter-based, env (CRUD, enumerate, coerce), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint (**monotonicity, diff**), memoryUsage (**field validation**), nextTick (**FIFO ordering, args**), exit/kill, config, execArgv, cpuUsage (**delta**), **signal handler registration**, **stdout/stderr write methods**, **emitWarning** |
 | **querystring** | — | 471 | parse/stringify with full encoding |
 | **readline** | — | 145 (2 specs) | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor, **readline/promises** (createInterface, question→Promise) |
 | **stream** | — | 330 (4 specs) | Readable, Writable, Duplex, Transform (**_flush** edge cases), PassThrough, objectMode, backpressure (**drain events**), destroy, **pipeline** (error propagation, multi-stream), **finished** (premature close, cleanup), **addAbortSignal**, **Readable.from** (array/generator/async generator/string/Buffer), consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished), **async iteration** |
 | **string_decoder** | — | 103 | UTF-8, Base64, hex, streaming |
 | **sys** | — | 7 | Alias for util (deprecated) |
-| **timers** | — | 71 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
+| **timers** | — | 88 (3 specs) | setTimeout/setInterval/setImmediate (**delay verification, args, clear, ordering**) + timers/promises |
 | **tls** | Gio, GLib | 132 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer/TLSServer, createSecureContext, **checkServerIdentity** (CN, wildcard, SAN DNS/IP, FQDN, edge cases, error properties), **getCiphers**, DEFAULT_CIPHERS, rootCertificates |
 | **tty** | — | 29 | ReadStream/WriteStream, isatty (various fds), ANSI, clearLine, cursorTo, getColorDepth (env-based), hasColors, getWindowSize |
 | **url** | GLib | 278 | URL, URLSearchParams via GLib.Uri |
-| **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
+| **util** | — | 245 (2 specs) | inspect (**colors, styles, custom symbol, defaultOptions**, edge cases), format (%%, %s/%d/%j/%i/%f, args), promisify (**custom symbol**), callbackify, deprecate, inherits (**super_**), isDeepStrictEqual, **types** (isDate/RegExp/Map/Set/Promise/ArrayBuffer/TypedArray/Async/Generator/WeakMap/WeakSet/DataView), TextEncoder/TextDecoder |
 | **zlib** | — | 102 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors, sync methods, double compression, consistency |
 
 ### Partially Implemented (3)
@@ -159,9 +159,9 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Stubs | 4 (10%) |
 | Web API packages | 15 (all implemented) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
-| Total test cases | 9,500+ |
-| Spec files | 97 |
-| Real-world examples | 10 (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard) |
+| Total test cases | 9,700+ |
+| Spec files | 100 |
+| Real-world examples | 11 (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, JSON store) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
