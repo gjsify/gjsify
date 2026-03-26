@@ -1,0 +1,14 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1e1e2e; color: #cdd6f4; }
+main { max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+h1 { color: #89b4fa; margin-bottom: 0.5rem; }
+#status { color: #6c7086; font-size: 0.85em; margin-bottom: 1rem; }
+#messages { height: 400px; overflow-y: auto; border: 1px solid #45475a; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; background: #181825; }
+.message { margin: 0.3rem 0; line-height: 1.5; }
+.time { color: #6c7086; font-size: 0.85em; }
+strong { color: #a6e3a1; }
+#chat-form { display: flex; gap: 0.5rem; }
+input { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #45475a; border-radius: 6px; background: #313244; color: #cdd6f4; font-size: 1rem; }
+input:first-child { flex: 0 0 120px; }
+button { padding: 0.5rem 1.25rem; border: none; border-radius: 6px; background: #89b4fa; color: #1e1e2e; font-weight: 600; cursor: pointer; font-size: 1rem; }
+button:hover { background: #74c7ec; }

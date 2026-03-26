@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gjsify SSE Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>gjsify Chat</h1>
+    <p id="status">Connecting...</p>
+    <div id="messages"></div>
+    <form id="chat-form">
+      <input type="text" id="user" placeholder="Your name" value="User" />
+      <input type="text" id="text" placeholder="Type a message..." autofocus />
+      <button type="submit">Send</button>
+    </form>
+  </main>
+  <script>
+    const messagesDiv = document.getElementById('messages');
+    const statusEl = document.getElementById('status');
+    const form = document.getElementById('chat-form');
+    const userInput = document.getElementById('user');
+    const textInput = document.getElementById('text');
+
+    // Connect to SSE endpoint
+    const evtSource = new EventSource('/events');
+    evtSource.onopen = () => { statusEl.textContent = 'Connected'; };
+    evtSource.onerror = () => { statusEl.textContent = 'Disconnected — retrying...'; };
+    evtSource.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      const el = document.createElement('div');
+      el.className = 'message';
+      const time = new Date(msg.time).toLocaleTimeString();
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'time';
+      timeSpan.textContent = time + ' ';
+
+      const nameSpan = document.createElement('strong');
+      nameSpan.textContent = msg.user + ': ';
+
+      const textNode = document.createTextNode(msg.text);
+
+      el.appendChild(timeSpan);
+      el.appendChild(nameSpan);
+      el.appendChild(textNode);
+      messagesDiv.appendChild(el);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = textInput.value.trim();
+      if (!text) return;
+      textInput.value = '';
+      await fetch('/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: userInput.value || 'Anonymous', text }),
+      });
+    });
+  </script>
+</body>
+</html>
