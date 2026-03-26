@@ -644,16 +644,27 @@ export const run = async (namespaces: Namespaces, options?: { timeout?: number; 
 		quitMainLoop(); // Pre-quit ensureMainLoop's loop so it exits immediately when the hook fires
 		mainloop?.quit();
 
-		try {
-			const process = globalThis.process || await import('process');
-			process.exit(countTestsFailed > 0 ? 1 : 0);
-		} catch (_e) {
-			// If process is unavailable, we can't set the exit code
+		// Node.js: exit here (code after mainloop?.run() executes before tests on Node.js)
+		if (!mainloop) {
+			const exitCode = countTestsFailed > 0 ? 1 : 0;
+			try {
+				const process = globalThis.process || await import('process');
+				process.exit(exitCode);
+			} catch (_e) { /* process unavailable */ }
 		}
 	});
 
-	// Run the GJS mainloop for async operations
+	// Run the GJS mainloop for async operations (blocks until mainloop.quit() is called)
 	mainloop?.run();
+
+	// GJS: exit after mainloop returns (system.exit() inside a mainloop
+	// callback does not terminate immediately)
+	if (mainloop) {
+		const exitCode = countTestsFailed > 0 ? 1 : 0;
+		try {
+			(globalThis as any).imports.system.exit(exitCode);
+		} catch (_e) { /* system.exit unavailable */ }
+	}
 }
 
 export default {

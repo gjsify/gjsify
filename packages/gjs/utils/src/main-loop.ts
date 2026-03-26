@@ -28,11 +28,19 @@ export function ensureMainLoop(): GLib.MainLoop | undefined {
   _loop = new GLibModule.MainLoop(null, false);
   _started = true;
 
-  try {
-    (_loop as any).runAsync();
-  } catch {
-    // setMainLoopHook throws if Gtk.Application.runAsync() was called first.
-    // In that case, the main loop is already running — no action needed.
+  // Only call runAsync() if no mainloop is currently running on the default
+  // context. If one is already running (e.g., test runner's mainloop.run()
+  // or Gtk.Application.runAsync()), async I/O already works through the
+  // shared default context — calling runAsync() would register a
+  // setMainLoopHook whose loop.run() blocks forever after tests quit it
+  // (g_main_loop_run resets the quit flag on entry).
+  if (GLibModule.main_depth() === 0) {
+    try {
+      (_loop as any).runAsync();
+    } catch {
+      // setMainLoopHook throws if already called (e.g., Gtk.Application.runAsync()).
+      // In that case, a main loop hook is already registered — no action needed.
+    }
   }
 
   return _loop;

@@ -1001,6 +1001,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-cli-worker-pool@workspace:examples/cli/worker-pool":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-cli-worker-pool@workspace:examples/cli/worker-pool"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-gtk-webgl-demo-fade@workspace:examples/gtk/webgl-demo-fade":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-gtk-webgl-demo-fade@workspace:examples/gtk/webgl-demo-fade"
