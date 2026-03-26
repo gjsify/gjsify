@@ -11,5 +11,6 @@ import testSuiteNewApis from './new-apis.spec.js';
 import testSuiteExtended from './extended.spec.js';
 
 import testSuiteErrors from './errors.spec.js';
+import testSuiteStreams from './streams.spec.js';
 
-run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended, testSuiteErrors});
+run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended, testSuiteErrors, testSuiteStreams});
