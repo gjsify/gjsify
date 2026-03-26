@@ -1,11 +1,10 @@
 // Hono REST API example for Node.js and GJS
-// Demonstrates: Hono framework, JSON CRUD API, validation, http.createServer
+// Demonstrates: Hono framework, JSON CRUD API, validation, @hono/node-server
 
 import '@gjsify/node-globals';
 import { runtimeName } from '@gjsify/runtime';
-import { createServer } from 'node:http';
 import { Hono } from 'hono';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { serve } from '@hono/node-server';
 
 // Data model
 interface Todo {
@@ -94,44 +93,10 @@ app.delete('/todos/:id', (c) => {
   return c.json({ deleted });
 });
 
-// Adapter: Convert Node.js http request to Fetch API Request for Hono
+// Start server using @hono/node-server (handles Node.js→Fetch API conversion)
 const PORT = 3000;
-
-const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  const url = `http://localhost:${PORT}${req.url || '/'}`;
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (value) headers.set(key, Array.isArray(value) ? value.join(', ') : value);
-  }
-
-  // Read request body for POST/PUT
-  let body: string | undefined;
-  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-    body = await new Promise<string>((resolve) => {
-      let data = '';
-      req.setEncoding('utf8');
-      req.on('data', (chunk: string) => { data += chunk; });
-      req.on('end', () => resolve(data));
-    });
-  }
-
-  const fetchReq = new Request(url, {
-    method: req.method,
-    headers,
-    body: body || undefined,
-  });
-
-  const fetchRes = await app.fetch(fetchReq);
-  const resBody = await fetchRes.text();
-
-  res.writeHead(fetchRes.status, {
-    'content-type': fetchRes.headers.get('content-type') || 'application/json',
-  });
-  res.end(resBody);
-});
-
-server.listen(PORT, () => {
-  console.log(`Hono REST API running at http://localhost:${PORT}`);
+serve({ fetch: app.fetch, port: PORT }, (info) => {
+  console.log(`Hono REST API running at http://localhost:${info.port}`);
   console.log(`Runtime: ${runtimeName}`);
   console.log('Press Ctrl+C to stop');
 });

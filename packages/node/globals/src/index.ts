@@ -6,6 +6,7 @@ import process from '@gjsify/process';
 import { Buffer } from '@gjsify/buffer';
 import { URL, URLSearchParams } from '@gjsify/url';
 import '@gjsify/abort-controller'; // triggers global registration of AbortController/AbortSignal
+import '@gjsify/fetch';             // triggers global registration of fetch/Request/Response/Headers
 import GLib from '@girs/glib-2.0';
 
 // Promise.withResolvers polyfill for SpiderMonkey < 121 (ES2024, not in GJS < 1.81.2)
@@ -156,9 +157,9 @@ if (typeof globalThis.URLSearchParams !== 'function') {
 }
 
 // Web API stubs — Node.js 18+ has these as globals; GJS does not.
-// Frameworks (Koa, Express) use `val instanceof Response` etc. without guards.
-// These stubs prevent ReferenceErrors; full implementations come from @gjsify/fetch.
-for (const name of ['Response', 'Request', 'Headers', 'ReadableStream', 'Blob'] as const) {
+// Request/Response/Headers/fetch are now registered by @gjsify/fetch (imported above).
+// ReadableStream and Blob still need stubs to prevent ReferenceErrors in frameworks.
+for (const name of ['ReadableStream', 'Blob'] as const) {
   if (typeof (globalThis as any)[name] === 'undefined') {
     Object.defineProperty(globalThis, name, {
       value: class {},

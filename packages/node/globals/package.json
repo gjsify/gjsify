@@ -32,6 +32,7 @@
     },
     "dependencies": {
         "@gjsify/buffer": "workspace:^",
+        "@gjsify/fetch": "workspace:^",
         "@gjsify/process": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },
