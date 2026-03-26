@@ -1,0 +1,7 @@
+{
+  "project": "gjsify",
+  "version": "0.0.4",
+  "description": "Node.js API for GJS (GNOME JavaScript)",
+  "apis": ["http", "fs", "path", "stream", "zlib"],
+  "platforms": ["Node.js", "GJS"]
+}

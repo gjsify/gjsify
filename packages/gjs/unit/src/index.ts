@@ -644,13 +644,11 @@ export const run = async (namespaces: Namespaces, options?: { timeout?: number; 
 		quitMainLoop(); // Pre-quit ensureMainLoop's loop so it exits immediately when the hook fires
 		mainloop?.quit();
 
-		if (countTestsFailed > 0) {
-			try {
-				const process = globalThis.process || await import('process');
-				process.exit(1);
-			} catch (_e) {
-				// If process is unavailable, we can't set the exit code
-			}
+		try {
+			const process = globalThis.process || await import('process');
+			process.exit(countTestsFailed > 0 ? 1 : 0);
+		} catch (_e) {
+			// If process is unavailable, we can't set the exit code
 		}
 	});
 

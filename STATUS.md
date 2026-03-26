@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-26 (Real-world examples: Express, Koa blog with EJS; GJS compat fixes; @gjsify/runtime)
+> Last updated: 2026-03-26 (Real-world examples: Express, Koa blog with EJS, Static file server; GJS compat fixes; @gjsify/runtime)
 
 ## Summary
 
@@ -161,7 +161,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Total test cases | 9,100+ |
 | Spec files | 91 |
-| Real-world examples | 2 (Express, Koa) |
+| Real-world examples | 3 (Express, Koa, Static file server) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -181,14 +181,14 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### High Priority
 
-1. **Real-world application examples** — Validate the platform against real frameworks and use cases. Each example must run on both Node.js and GJS. Current: Express.js hello (`examples/net/express-hello`), Koa.js blog with EJS templates (`examples/net/koa-blog`). Planned:
+1. **Real-world application examples** — Validate the platform against real frameworks and use cases. Each example must run on both Node.js and GJS. Current: Express.js hello (`examples/net/express-hello`), Koa.js blog with EJS templates (`examples/net/koa-blog`), Static file server (`examples/net/static-file-server`). Planned:
 
    | Example | Category | Frameworks/APIs | Tests |
    |---------|----------|-----------------|-------|
    | **Fastify REST API** | net | fastify, JSON schema validation | http, stream, events |
    | **WebSocket chat** | net | ws or @gjsify/websocket, events | websocket, http, events |
    | **CLI tool** (e.g. file search) | cli | fs, path, stream, readline | fs, path, stream, readline, child_process |
-   | **Static file server** | net | http, fs, path, stream, zlib | http, fs, stream, zlib, net |
+   | ~~**Static file server**~~✓ | net | http, fs, path, stream, zlib | http, fs, stream, zlib, net |
    | **SQLite/JSON data store** | cli | fs, crypto, buffer, stream | fs, crypto, buffer |
    | **GTK + HTTP** (dashboard) | gtk | Gtk 4, Soup, fetch, WebSocket | http, fetch, websocket, timers |
    | **DNS lookup tool** | cli | dns, net, readline | dns, net |
@@ -224,6 +224,13 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-26 — Static File Server Example
+
+**New example:**
+- `examples/net/static-file-server`: Static file server with `fs.createReadStream().pipe(res)`, MIME type detection, gzip compression (`zlib.gzipSync`), directory listing, `If-Modified-Since`/304, directory traversal prevention. Runs on both Node.js and GJS.
+
+**Validated:** `createReadStream().pipe(res)` works correctly on GJS — the stream pipe mechanism (Readable→Writable with backpressure) and Soup.Server response buffering are fully compatible.
 
 ### 2026-03-26 — Real-World Application Examples & GJS Compat Fixes
 

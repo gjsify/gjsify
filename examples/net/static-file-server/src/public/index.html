@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gjsify Static File Server</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>gjsify Static File Server</h1>
+    <p>This page is served by a static file server built with Node.js APIs, running on <strong>both Node.js and GJS</strong>.</p>
+
+    <h2>Features</h2>
+    <ul>
+      <li>File serving via <code>fs.createReadStream().pipe(res)</code></li>
+      <li>MIME type detection via <code>path.extname()</code></li>
+      <li>Gzip compression via <code>zlib.gzipSync()</code></li>
+      <li>Directory listing</li>
+      <li>Security: directory traversal prevention</li>
+      <li>Conditional requests (<code>If-Modified-Since</code> / 304)</li>
+    </ul>
+
+    <h2>Test Files</h2>
+    <ul>
+      <li><a href="style.css">style.css</a> — Stylesheet (text/css, gzip-eligible)</li>
+      <li><a href="data.json">data.json</a> — JSON data (application/json, gzip-eligible)</li>
+      <li><a href="hello.txt">hello.txt</a> — Plain text file</li>
+    </ul>
+
+    <h2>APIs Used</h2>
+    <table>
+      <thead>
+        <tr><th>API</th><th>Usage</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>http.createServer</code></td><td>HTTP server</td></tr>
+        <tr><td><code>fs.createReadStream</code></td><td>Stream files to response</td></tr>
+        <tr><td><code>fs.stat</code></td><td>File metadata</td></tr>
+        <tr><td><code>fs.readdir</code></td><td>Directory listing</td></tr>
+        <tr><td><code>path.extname</code></td><td>MIME type detection</td></tr>
+        <tr><td><code>zlib.gzipSync</code></td><td>Response compression</td></tr>
+        <tr><td><code>stream.pipe</code></td><td>Pipe file data to HTTP response</td></tr>
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>

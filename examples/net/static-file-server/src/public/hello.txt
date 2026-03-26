@@ -1,0 +1,4 @@
+Hello from gjsify!
+
+This is a plain text file served by the static file server.
+It demonstrates fs.createReadStream().pipe(res) working on both Node.js and GJS.
