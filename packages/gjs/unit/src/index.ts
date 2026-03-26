@@ -13,6 +13,7 @@ let countTestsOverall = 0;
 let countTestsFailed = 0;
 let countTestsIgnored = 0;
 let runtime = '';
+let runStartTime = 0;
 
 export interface TimeoutConfig {
 	/** Per-it() timeout in ms. Default: 5000. 0 = disabled. */
@@ -82,6 +83,15 @@ const GREEN = '\x1B[32m';
 const BLUE = '\x1b[34m';
 const GRAY = '\x1B[90m';
 const RESET = '\x1B[39m';
+
+const now = (): number =>
+	(globalThis as any).performance?.now?.() ?? Date.now();
+
+const formatDuration = (ms: number): string => {
+	if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
+	if (ms >= 100) return `${Math.round(ms)}ms`;
+	return `${ms.toFixed(1)}ms`;
+};
 
 export interface Namespaces {
 	[key: string]: () => (Promise<void>) | Namespaces;
@@ -363,6 +373,7 @@ export const describe = async function(moduleName: string, callback: Callback, o
 
 	print('\n' + moduleName);
 
+	const t0 = now();
 	try {
 		await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);
 	} catch (e) {
@@ -373,6 +384,8 @@ export const describe = async function(moduleName: string, callback: Callback, o
 			throw e;
 		}
 	}
+	const duration = now() - t0;
+	print(`  ${GRAY}↳ ${formatDuration(duration)}${RESET}`);
 
 	// Reset after and before callbacks
 	beforeEachCb = null;
@@ -454,6 +467,7 @@ export const it = async function(expectation: string, callback: () => void | Pro
 		? options
 		: (options?.timeout ?? timeoutConfig.testTimeout);
 
+	const t0 = now();
 	try {
 		if(typeof beforeEachCb === 'function') {
 			await beforeEachCb();
@@ -465,14 +479,16 @@ export const it = async function(expectation: string, callback: () => void | Pro
 			await afterEachCb();
 		}
 
-		print(`  ${GREEN}✔${RESET} ${GRAY}${expectation}${RESET}`);
+		const duration = now() - t0;
+		print(`  ${GREEN}✔${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
 	}
 	catch(e) {
+		const duration = now() - t0;
 		if (!e.__testFailureCounted) {
 			++countTestsFailed;
 		}
 		const icon = e instanceof TimeoutError ? '⏱' : '❌';
-		print(`  ${RED}${icon}${RESET} ${GRAY}${expectation}${RESET}`);
+		print(`  ${RED}${icon}${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
 		print(`${RED}${e.message}${RESET}`);
 		if (e.stack) print(e.stack);
 	}
@@ -560,6 +576,8 @@ const runTests = async function(namespaces: Namespaces) {
 }
 
 const printResult = () => {
+	const totalMs = runStartTime > 0 ? now() - runStartTime : 0;
+	const durationStr = totalMs > 0 ? `  ${GRAY}(${formatDuration(totalMs)})` : '';
 
 	if( countTestsIgnored ) {
 		// some tests ignored
@@ -568,11 +586,11 @@ const printResult = () => {
 
 	if( countTestsFailed ) {
 		// some tests failed
-		print(`\n${RED}❌ ${countTestsFailed} of ${countTestsOverall} tests failed${RESET}`);
+		print(`\n${RED}❌ ${countTestsFailed} of ${countTestsOverall} tests failed${durationStr}${RESET}`);
 	}
 	else {
 		// all tests okay
-		print(`\n${GREEN}✔ ${countTestsOverall} completed${RESET}`);
+		print(`\n${GREEN}✔ ${countTestsOverall} completed${durationStr}${RESET}`);
 	}
 }
 
@@ -613,6 +631,7 @@ const printRuntime = async () => {
 export const run = async (namespaces: Namespaces, options?: { timeout?: number; testTimeout?: number; suiteTimeout?: number } | number) => {
 
 	applyEnvOverrides();
+	runStartTime = now();
 
 	if (options) {
 		if (typeof options === 'number') {
