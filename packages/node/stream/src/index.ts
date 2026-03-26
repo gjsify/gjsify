@@ -552,9 +552,12 @@ export class Writable extends Stream {
   writableNeedDrain = false;
   destroyed = false;
 
-  private _writableState = { ended: false, finished: false, constructed: true };
+  private _writableState = { ended: false, finished: false, constructed: true, writing: false };
   private _corkedBuffer: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
+  private _writeBuffer: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
   private _pendingConstruct: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
+  private _ending = false;
+  private _endCallback?: () => void;
   private _pendingEnd: { chunk?: any; encoding?: string; callback?: () => void } | null = null;
   private _writeImpl: ((chunk: any, encoding: string, cb: (error?: Error | null) => void) => void) | undefined;
   private _writev: ((chunks: Array<{ chunk: any; encoding: string }>, cb: (error?: Error | null) => void) => void) | undefined;
@@ -619,8 +622,11 @@ export class Writable extends Stream {
   private _maybeFlush(): void {
     // Flush writes that were buffered while waiting for _construct
     const pending = this._pendingConstruct.splice(0);
-    for (const { chunk, encoding, callback } of pending) {
-      this._doWrite(chunk, encoding, callback);
+    if (pending.length > 0) {
+      // First write goes directly, rest get serialized via _writeBuffer
+      const [first, ...rest] = pending;
+      this._writeBuffer.push(...rest);
+      this._doWrite(first.chunk, first.encoding, first.callback);
     }
     if (this._pendingEnd) {
       const { chunk, encoding, callback } = this._pendingEnd;
@@ -630,12 +636,15 @@ export class Writable extends Stream {
   }
 
   private _doWrite(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
+    this._writableState.writing = true;
     this._write(chunk, encoding, (err) => {
+      this._writableState.writing = false;
       this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
       if (err) {
         nextTick(() => {
           callback(err);
           this.emit('error', err);
+          this._drainWriteBuffer();
         });
       } else {
         nextTick(() => {
@@ -644,8 +653,36 @@ export class Writable extends Stream {
             this.writableNeedDrain = false;
             this.emit('drain');
           }
+          this._drainWriteBuffer();
         });
       }
+    });
+  }
+
+  private _drainWriteBuffer(): void {
+    if (this._writeBuffer.length > 0) {
+      const next = this._writeBuffer.shift()!;
+      this._doWrite(next.chunk, next.encoding, next.callback);
+    } else {
+      this._maybeFinish();
+    }
+  }
+
+  private _maybeFinish(): void {
+    if (!this._ending || this._writableState.finished || this._writableState.writing || this._writeBuffer.length > 0) return;
+    this._ending = false;
+
+    this._final((err) => {
+      this.writableFinished = true;
+      this._writableState.finished = true;
+      nextTick(() => {
+        if (err) {
+          this.emit('error', err);
+        }
+        this.emit('finish');
+        nextTick(() => this.emit('close'));
+        if (this._endCallback) this._endCallback();
+      });
     });
   }
 
@@ -702,7 +739,12 @@ export class Writable extends Stream {
       this.writableNeedDrain = true;
     }
 
-    this._doWrite(chunk, encoding as string, callback);
+    // Serialize writes: only one _write at a time, buffer the rest
+    if (this._writableState.writing) {
+      this._writeBuffer.push({ chunk, encoding: encoding as string, callback });
+    } else {
+      this._doWrite(chunk, encoding as string, callback);
+    }
 
     return belowHWM;
   }
@@ -714,20 +756,11 @@ export class Writable extends Stream {
 
     this.writableEnded = true;
     this._writableState.ended = true;
+    this._ending = true;
+    this._endCallback = callback;
 
-    this._final((err) => {
-      this.writableFinished = true;
-      this._writableState.finished = true;
-      nextTick(() => {
-        if (err) {
-          this.emit('error', err);
-        }
-        this.emit('finish');
-        // Emit 'close' after 'finish' (matches Node.js autoDestroy behavior)
-        nextTick(() => this.emit('close'));
-        if (callback) callback();
-      });
-    });
+    // _maybeFinish will call _final once all pending writes have drained
+    this._maybeFinish();
   }
 
   end(chunk?: any, encoding?: string | (() => void), callback?: () => void): this {
@@ -738,6 +771,12 @@ export class Writable extends Stream {
     if (typeof encoding === 'function') {
       callback = encoding;
       encoding = undefined;
+    }
+
+    // Ignore duplicate end() calls (e.g. from auto-end after half-close)
+    if (this.writableEnded) {
+      if (callback) nextTick(callback);
+      return this;
     }
 
     // If not yet constructed, defer end until construction finishes
@@ -785,22 +824,12 @@ export class Writable extends Stream {
         }
       });
     } else {
-      // Flush one by one
+      // Flush one by one via serialized write path
       const buffered = this._corkedBuffer.splice(0);
-      for (const { chunk, encoding, callback } of buffered) {
-        this._write(chunk, encoding, (err) => {
-          this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
-          if (err) {
-            callback(err);
-            this.emit('error', err);
-          } else {
-            callback();
-          }
-        });
-      }
-      if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
-        this.writableNeedDrain = false;
-        nextTick(() => this.emit('drain'));
+      if (buffered.length > 0) {
+        const [first, ...rest] = buffered;
+        this._writeBuffer.push(...rest);
+        this._doWrite(first.chunk, first.encoding, first.callback);
       }
     }
   }

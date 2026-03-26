@@ -186,14 +186,17 @@ export class Socket extends Duplex {
         if (!bytes || bytes.get_size() === 0) {
           // EOF — remote peer closed their write side
           this._reading = false;
-          this.push(null);
           if (!this.allowHalfOpen) {
-            // Default: close our write side too
-            this.end();
-            this.readyState = 'closed';
+            // Default: close our write side after 'end' listeners have run,
+            // so they can still write before the socket shuts down.
+            this.once('end', () => {
+              this.end();
+              this.readyState = 'closed';
+            });
           } else {
             this.readyState = this.writable ? 'writeOnly' : 'closed';
           }
+          this.push(null);
           break;
         }
 
