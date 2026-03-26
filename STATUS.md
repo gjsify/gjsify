@@ -1,26 +1,26 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-26 (after 5-phase comprehensive improvement sprint)
+> Last updated: 2026-03-26 (Phase 1–2: subpath exports, sys/constants packages, tls/https test expansion)
 
 ## Summary
 
 gjsify implements Node.js and Web Standard APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
+The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 37 | 30 (81%) | 3 (8%) | 4 (11%) |
+| Node.js APIs | 39 | 32 (82%) | 3 (8%) | 4 (10%) |
 | Web APIs | 15 | 15 (100%) | — | — |
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** 8,100 test cases in 83 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
+**Test coverage:** 8,400+ test cases in 87 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
 
 ---
 
 ## Node.js Packages (`packages/node/`)
 
-### Fully Implemented (30)
+### Fully Implemented (32)
 
 | Package | GNOME Libs | Tests | Description |
 |---------|-----------|-------|-------------|
@@ -29,6 +29,7 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **buffer** | — | 317 | Buffer via Blob/atob/btoa, alloc, from, concat, encodings, fill, indexOf/lastIndexOf, slice/subarray, copy, int/float read/write, swap16/32/64, equals, compare |
 | **child_process** | Gio, GLib | 110 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
 | **console** | — | 124 | Console class with stream support, format specifiers, table, dir, time/timeLog, count, group, assert, trace, stdout/stderr routing |
+| **constants** | — | 27 | Flattened re-export of os.constants (errno, signals, priority, dlopen) + fs.constants + crypto.constants (deprecated) |
 | **crypto** | GLib | 437 (12 specs) | Hash, Hmac, randomBytes/UUID, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate** |
 | **dgram** | Gio, GLib | 143 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress, broadcast, TTL, ref/unref, IPv6, EventEmitter |
 | **diagnostics_channel** | — | 137 | Channel, TracingChannel, subscribe/unsubscribe |
@@ -37,7 +38,7 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **fs** | Gio, GLib | 377 (8 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping |
 | **globals** | — | 221 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **http** | Soup 3.0, Gio, GLib | 457 (2 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, Agent, round-trip on GJS |
-| **https** | Soup 3.0 | 62 | Agent (defaultPort, protocol, maxSockets, destroy, options), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server |
+| **https** | Soup 3.0 | 99 | Agent (defaultPort, protocol, maxSockets, destroy, options, keepAlive, scheduling), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server |
 | **module** | Gio, GLib | 158 | builtinModules (all 37+ modules verified), isBuiltin (bare/prefixed/subpath/scoped), createRequire (resolve, cache, extensions) |
 | **net** | Gio, GLib | 183 | Socket (Duplex via Gio.SocketClient), Server (Gio.SocketService), isIP/isIPv4/isIPv6 |
 | **os** | GLib | 276 | homedir, hostname, cpus, platform, arch, type, release, endianness, EOL, devNull, availableParallelism, userInfo, networkInterfaces, constants (signals/errno), loadavg, uptime, memory |
@@ -45,11 +46,12 @@ The project comprises **37 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **perf_hooks** | — | 115 | performance (now, timeOrigin, mark/measure, getEntries/ByName/ByType, clearMarks/clearMeasures, toJSON), monitorEventLoopDelay, PerformanceObserver, eventLoopUtilization, timerify |
 | **process** | GLib | 98 | EventEmitter-based, env (CRUD, enumerate), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint, memoryUsage, nextTick (ordering, args), exit/kill, config, execArgv, cpuUsage |
 | **querystring** | — | 471 | parse/stringify with full encoding |
-| **readline** | — | 130 | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor (all directions, callbacks, null streams) |
+| **readline** | — | 145 (2 specs) | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor, **readline/promises** (createInterface, question→Promise) |
 | **stream** | — | 288 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
 | **string_decoder** | — | 103 | UTF-8, Base64, hex, streaming |
+| **sys** | — | 7 | Alias for util (deprecated) |
 | **timers** | — | 71 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
-| **tls** | Gio, GLib | 62 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer, createSecureContext, **checkServerIdentity** (wildcard, SAN, FQDN), **getCiphers**, DEFAULT_CIPHERS |
+| **tls** | Gio, GLib | 132 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer/TLSServer, createSecureContext, **checkServerIdentity** (CN, wildcard, SAN DNS/IP, FQDN, edge cases, error properties), **getCiphers**, DEFAULT_CIPHERS, rootCertificates |
 | **tty** | — | 29 | ReadStream/WriteStream, isatty (various fds), ANSI, clearLine, cursorTo, getColorDepth (env-based), hasColors, getWindowSize |
 | **url** | GLib | 278 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 110 | inspect, format (%%, -0, BigInt, Symbol), promisify, types |
