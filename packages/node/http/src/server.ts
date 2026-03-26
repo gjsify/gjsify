@@ -97,12 +97,29 @@ export class ServerResponse extends OutgoingMessage {
   statusCode = 200;
   statusMessage = '';
 
-  private _chunks: Buffer[] = [];
+  private _streaming = false;
   private _soupMsg: Soup.ServerMessage;
+  private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(soupMsg: Soup.ServerMessage) {
     super();
     this._soupMsg = soupMsg;
+  }
+
+  /** Set a timeout for the response. Emits 'timeout' if response not sent within msecs. */
+  setTimeout(msecs: number, callback?: () => void): this {
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
+    if (callback) this.once('timeout', callback);
+    if (msecs > 0) {
+      this._timeoutTimer = setTimeout(() => {
+        this._timeoutTimer = null;
+        this.emit('timeout');
+      }, msecs);
+    }
+    return this;
   }
 
   /** Write the status line and headers. */
@@ -155,31 +172,80 @@ export class ServerResponse extends OutgoingMessage {
     }
   }
 
-  /** Writable stream _write implementation. */
+  /**
+   * Send status + headers to the client via Soup and switch to streaming (chunked) mode.
+   * Called on the first write() — subsequent writes append chunks and unpause.
+   */
+  private _startStreaming(): void {
+    if (this._streaming) return;
+    this._streaming = true;
+    this.headersSent = true;
+
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
+
+    this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
+
+    const responseHeaders = this._soupMsg.get_response_headers();
+    responseHeaders.set_encoding(Soup.Encoding.CHUNKED);
+
+    if (!this._headers.has('connection')) {
+      responseHeaders.replace('Connection', 'close');
+    }
+
+    for (const [key, value] of this._headers) {
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          responseHeaders.append(key, v);
+        }
+      } else {
+        responseHeaders.replace(key, value as string);
+      }
+    }
+  }
+
+  /** Writable stream _write — sends headers on first call, then appends + flushes each chunk. */
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
-    this._chunks.push(buf);
+    this._startStreaming();
+    const responseBody = this._soupMsg.get_response_body();
+    // GJS overload: append(data: Uint8Array) — single argument, no MemoryUse parameter
+    responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+    this._soupMsg.unpause();
     callback();
   }
 
-  /** Send the response after end(). */
+  /** Called by Writable.end() — completes the body (streaming) or sends batch response (no-body). */
   _final(callback: (error?: Error | null) => void): void {
-    this._sendResponse();
+    if (this._streaming) {
+      // Streaming mode — signal no more chunks
+      const responseBody = this._soupMsg.get_response_body();
+      responseBody.complete();
+      this._soupMsg.unpause();
+    } else {
+      // Batch mode — no write() was called (e.g. redirects, 204, empty end())
+      this._sendBatchResponse();
+    }
+    this.finished = true;
     callback();
   }
 
-  private _sendResponse(): void {
+  /** Batch response — sends status + headers + empty/no body in one shot (for responses without write()). */
+  private _sendBatchResponse(): void {
     if (this.headersSent) return;
     this.headersSent = true;
 
-    // Set status
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
+
     this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
 
-    // Set headers on the Soup response
     const responseHeaders = this._soupMsg.get_response_headers();
 
-    // Force connection close — Soup.Server keeps HTTP/1.1 connections alive by default,
-    // which exhausts the connection pool when clients open new TCP connections per request.
     if (!this._headers.has('connection')) {
       responseHeaders.replace('Connection', 'close');
     }
@@ -194,14 +260,9 @@ export class ServerResponse extends OutgoingMessage {
       }
     }
 
-    // Set body — always call set_response so Soup knows the response is complete.
-    // Without this, empty responses (redirects, 204s) leave the connection hanging.
-    const body = Buffer.concat(this._chunks);
-    const contentType = (this._headers.get('content-type') as string) || (body.length > 0 ? 'application/octet-stream' : 'text/plain');
-    this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, body);
-
-    this.finished = true;
-    // Note: 'finish' is emitted by Writable.end() — do NOT emit here to avoid double emission
+    // Empty body — use set_response so Soup knows the response is complete.
+    const contentType = (this._headers.get('content-type') as string) || 'text/plain';
+    this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, new Uint8Array(0));
   }
 
   /** Write status + headers + body in one call (convenience). */

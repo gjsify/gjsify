@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-26 (10 examples; Fetch API globals; WebSocket server; EADDRINUSE fix; GTK dashboard)
+> Last updated: 2026-03-26 (Networking hardening; timeout enforcement; chunked streaming; allowHalfOpen; stream edge cases)
 
 ## Summary
 
@@ -14,7 +14,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | GJS Infrastructure | 3 | 2 | 1 (types) | — |
 | Build Tools | 7 | 7 | — | — |
 
-**Test coverage:** 9,100+ test cases in 91 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
+**Test coverage:** 9,500+ test cases in 94 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
 
 ---
 
@@ -37,17 +37,17 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **events** | — | 241 | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator |
 | **fs** | Gio, GLib | 465 (9 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping, fs.constants (O_RDONLY/WRONLY/RDWR/CREAT/EXCL/S_IFMT/S_IFREG), readdir options (withFileTypes, encoding), appendFileSync, mkdirSync recursive edge cases |
 | **globals** | — | 221 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
-| **http** | Soup 3.0, Gio, GLib | 890 (3 specs) | Server (Soup.Server), ClientRequest (Soup.Session), IncomingMessage, ServerResponse, OutgoingMessage, STATUS_CODES, METHODS, Agent (getName), validateHeaderName/Value, maxHeaderSize, round-trip on GJS |
+| **http** | Soup 3.0, Gio, GLib | 995 (5 specs) | Server (Soup.Server, **chunked streaming**), ClientRequest (Soup.Session, **timeout events**), IncomingMessage (**timeout events**), ServerResponse (**setTimeout**, chunked transfer), OutgoingMessage, STATUS_CODES, METHODS, Agent (getName), validateHeaderName/Value, maxHeaderSize, round-trip on GJS |
 | **https** | Soup 3.0 | 99 | Agent (defaultPort, protocol, maxSockets, destroy, options, keepAlive, scheduling), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server |
 | **module** | Gio, GLib | 158 | builtinModules (all 37+ modules verified), isBuiltin (bare/prefixed/subpath/scoped), createRequire (resolve, cache, extensions) |
-| **net** | Gio, GLib | 295 | Socket (Duplex via Gio.SocketClient, properties, remote/local address), Server (Gio.SocketService, options, createServer), isIP/isIPv4/isIPv6 (comprehensive IPv4/IPv6/edge cases), connect/createConnection |
+| **net** | Gio, GLib | 361 (4 specs) | Socket (Duplex via Gio.SocketClient, **allowHalfOpen enforcement**, timeout with reset, properties, remote/local address), Server (Gio.SocketService, **allowHalfOpen option**, options, createServer), isIP/isIPv4/isIPv6 (comprehensive IPv4/IPv6/edge cases), connect/createConnection |
 | **os** | GLib | 276 | homedir, hostname, cpus, platform, arch, type, release, endianness, EOL, devNull, availableParallelism, userInfo, networkInterfaces, constants (signals/errno), loadavg, uptime, memory |
 | **path** | — | 432 | POSIX + Win32 (1,052 lines total) |
 | **perf_hooks** | — | 115 | performance (now, timeOrigin, mark/measure, getEntries/ByName/ByType, clearMarks/clearMeasures, toJSON), monitorEventLoopDelay, PerformanceObserver, eventLoopUtilization, timerify |
 | **process** | GLib | 98 | EventEmitter-based, env (CRUD, enumerate), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint, memoryUsage, nextTick (ordering, args), exit/kill, config, execArgv, cpuUsage |
 | **querystring** | — | 471 | parse/stringify with full encoding |
 | **readline** | — | 145 (2 specs) | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor, **readline/promises** (createInterface, question→Promise) |
-| **stream** | — | 288 (3 specs) | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure, destroy, consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished) |
+| **stream** | — | 330 (4 specs) | Readable, Writable, Duplex, Transform (**_flush** edge cases), PassThrough, objectMode, backpressure (**drain events**), destroy, **pipeline** (error propagation, multi-stream), **finished** (premature close, cleanup), **addAbortSignal**, **Readable.from** (array/generator/async generator/string/Buffer), consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished), **async iteration** |
 | **string_decoder** | — | 103 | UTF-8, Base64, hex, streaming |
 | **sys** | — | 7 | Alias for util (deprecated) |
 | **timers** | — | 71 (2 specs) | setTimeout/setInterval/setImmediate + timers/promises |
@@ -159,8 +159,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Stubs | 4 (10%) |
 | Web API packages | 15 (all implemented) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
-| Total test cases | 9,300+ |
-| Spec files | 94 |
+| Total test cases | 9,500+ |
+| Spec files | 97 |
 | Real-world examples | 10 (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
@@ -224,6 +224,22 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-26 — Networking Hardening, Timeout Enforcement, Stream Edge Cases
+
+**HTTP Server improvements:**
+- **Chunked streaming**: ServerResponse now uses `Soup.Encoding.CHUNKED` for true streaming via `responseBody.append()` instead of buffering the entire response. Each `res.write()` flushes a chunk.
+- **Timeout enforcement**: `ServerResponse.setTimeout()`, `IncomingMessage.setTimeout()`, and `ClientRequest.setTimeout()` now emit `'timeout'` events via actual timers (previously properties existed but were inert).
+- **ClientRequest timeout option**: `http.request({timeout: 50})` starts a timer that emits `'timeout'` if no response arrives in time. Timer cleared on response or abort.
+
+**Net Socket improvements:**
+- **allowHalfOpen enforcement**: `net.Server({allowHalfOpen})` now stores and passes the option to accepted sockets. When `allowHalfOpen=false` (default), the socket calls `end()` on read EOF, matching Node.js behavior.
+- **Socket allowHalfOpen property**: `net.Socket` exposes `allowHalfOpen` as a public property and respects it during EOF handling in the read loop.
+
+**New tests (+200):**
+- HTTP: 890→995 (+105): ServerResponse.setTimeout, IncomingMessage.setTimeout, ClientRequest.setTimeout/timeout option, abort events, HEAD no-body, automatic headers, custom status messages, res.end() callback, multiple headers (Set-Cookie), flushHeaders, POST body streaming (empty/64KB), error handling (EADDRINUSE, connection refused), server lifecycle
+- Net: 295→361 (+66): Socket.setTimeout (idle timeout, data resets, cancellation), allowHalfOpen enforcement, server lifecycle (listening, close, address, getConnections), connection lifecycle (connect/ready events, connecting state, bytesRead/bytesWritten), destroy/close events, error handling (connection refused, EADDRINUSE), setKeepAlive/setNoDelay chainability, maxConnections, echo/binary data
+- Stream: 288→330 (+42): pipeline (error propagation from source/transform/sink, callback behavior), finished (writable/readable/error/premature close, cleanup), Transform _flush (data push, error propagation), Readable.from (array/generator/async generator/string/Buffer), addAbortSignal (abort/already-aborted), backpressure (write returns false, drain events), PassThrough, Duplex read+write, objectMode, async iteration with errors
 
 ### 2026-03-26 — Fetch Globals, WebSocket Server, EADDRINUSE Fix, GTK Dashboard
 

@@ -18,6 +18,7 @@ export interface ListenOptions {
 export class Server extends EventEmitter {
   listening = false;
   maxConnections?: number;
+  allowHalfOpen: boolean;
 
   private _service: Gio.SocketService | null = null;
   private _connections = new Set<Socket>();
@@ -33,6 +34,9 @@ export class Server extends EventEmitter {
 
     if (typeof optionsOrListener === 'function') {
       connectionListener = optionsOrListener;
+      this.allowHalfOpen = false;
+    } else {
+      this.allowHalfOpen = optionsOrListener?.allowHalfOpen ?? false;
     }
 
     if (connectionListener) {
@@ -116,7 +120,7 @@ export class Server extends EventEmitter {
     }
 
     // Create a Socket wrapping this connection
-    const socket = new Socket();
+    const socket = new Socket({ allowHalfOpen: this.allowHalfOpen });
 
     // Inject the connection directly (bypass connect())
     socket._setConnection(connection);

@@ -20,6 +20,10 @@ export interface SocketConnectOptions {
   timeout?: number;
 }
 
+export interface SocketOptions extends DuplexOptions {
+  allowHalfOpen?: boolean;
+}
+
 export class Socket extends Duplex {
   // Public properties matching Node.js net.Socket
   remoteAddress?: string;
@@ -33,6 +37,7 @@ export class Socket extends Duplex {
   destroyed = false;
   pending = true;
   readyState: 'opening' | 'open' | 'readOnly' | 'writeOnly' | 'closed' = 'closed';
+  declare allowHalfOpen: boolean;
 
   private _connection: Gio.SocketConnection | null = null;
   private _inputStream: Gio.InputStream | null = null;
@@ -42,8 +47,9 @@ export class Socket extends Duplex {
   private _timeout = 0;
   private _timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(options?: DuplexOptions) {
+  constructor(options?: SocketOptions) {
     super(options);
+    this.allowHalfOpen = options?.allowHalfOpen ?? false;
   }
 
   /** @internal Set the connection from an accepted server socket. */
@@ -178,10 +184,16 @@ export class Socket extends Duplex {
           );
         });
         if (!bytes || bytes.get_size() === 0) {
-          // EOF
+          // EOF — remote peer closed their write side
           this._reading = false;
           this.push(null);
-          this.readyState = this.writable ? 'writeOnly' : 'closed';
+          if (!this.allowHalfOpen) {
+            // Default: close our write side too
+            this.end();
+            this.readyState = 'closed';
+          } else {
+            this.readyState = this.writable ? 'writeOnly' : 'closed';
+          }
           break;
         }
 

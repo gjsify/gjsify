@@ -47,6 +47,7 @@ export class ClientRequest extends OutgoingMessage {
   private _message: Soup.Message;
   private _cancellable: Gio.Cancellable;
   private _timeout = 0;
+  private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private _responseCallback?: (res: IncomingMessage) => void;
 
   constructor(url: string | URL | ClientRequestOptions, options?: ClientRequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void) {
@@ -108,6 +109,11 @@ export class ClientRequest extends OutgoingMessage {
 
     if (this._timeout > 0) {
       this._session.timeout = Math.ceil(this._timeout / 1000);
+      // Start timeout timer immediately for timeout option
+      this._timeoutTimer = setTimeout(() => {
+        this._timeoutTimer = null;
+        this.emit('timeout');
+      }, this._timeout);
     }
   }
 
@@ -130,12 +136,20 @@ export class ClientRequest extends OutgoingMessage {
     }
   }
 
-  /** Set timeout for the request. */
+  /** Set timeout for the request. Emits 'timeout' if no response within msecs. */
   setTimeout(msecs: number, callback?: () => void): this {
     this._timeout = msecs;
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
     if (callback) this.once('timeout', callback);
     if (msecs > 0) {
       this._session.timeout = Math.ceil(msecs / 1000);
+      this._timeoutTimer = setTimeout(() => {
+        this._timeoutTimer = null;
+        this.emit('timeout');
+      }, msecs);
     }
     return this;
   }
@@ -144,6 +158,10 @@ export class ClientRequest extends OutgoingMessage {
   abort(): void {
     if (this.aborted) return;
     this.aborted = true;
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
     this._cancellable.cancel();
     this.emit('abort');
     this.destroy();
@@ -237,6 +255,12 @@ export class ClientRequest extends OutgoingMessage {
       });
 
       this.finished = true;
+
+      // Clear timeout — response received
+      if (this._timeoutTimer) {
+        clearTimeout(this._timeoutTimer);
+        this._timeoutTimer = null;
+      }
 
       // Emit 'response' so the user can attach 'data'/'end' listeners
       this.emit('response', res);

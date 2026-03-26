@@ -21,6 +21,8 @@ export class IncomingMessage extends Readable {
   socket: any = null;
   aborted = false;
 
+  private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor() {
     super();
   }
@@ -36,14 +38,33 @@ export class IncomingMessage extends Readable {
     }
     this.push(null);
     this.complete = true;
+    // Clear timeout when request body is complete
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
   }
 
   setTimeout(msecs: number, callback?: () => void): this {
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
     if (callback) this.once('timeout', callback);
+    if (msecs > 0) {
+      this._timeoutTimer = setTimeout(() => {
+        this._timeoutTimer = null;
+        this.emit('timeout');
+      }, msecs);
+    }
     return this;
   }
 
   destroy(error?: Error): this {
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
     this.aborted = true;
     return super.destroy(error) as this;
   }
