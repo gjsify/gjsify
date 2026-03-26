@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-26 (Real-world examples: Express, Koa blog with EJS, Static file server; GJS compat fixes; @gjsify/runtime)
+> Last updated: 2026-03-26 (8 real-world examples; +116 tests for HTTP streaming, fs streams, TCP; Hono REST API)
 
 ## Summary
 
@@ -159,9 +159,9 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Stubs | 4 (10%) |
 | Web API packages | 15 (all implemented) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
-| Total test cases | 9,100+ |
-| Spec files | 91 |
-| Real-world examples | 3 (Express, Koa, Static file server) |
+| Total test cases | 9,300+ |
+| Spec files | 94 |
+| Real-world examples | 7 (Express, Koa, Static file server, SSE chat, Hono REST, file search, DNS lookup, worker pool) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -181,18 +181,18 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### High Priority
 
-1. **Real-world application examples** — Validate the platform against real frameworks and use cases. Each example must run on both Node.js and GJS. Current: Express.js hello (`examples/net/express-hello`), Koa.js blog with EJS templates (`examples/net/koa-blog`), Static file server (`examples/net/static-file-server`). Planned:
+1. **Real-world application examples** — Validate the platform against real frameworks and use cases. Each example must run on both Node.js and GJS. Current: Express.js hello, Koa.js blog, Static file server, SSE chat, Hono REST API, file search CLI, DNS lookup, worker pool. Planned:
 
-   | Example | Category | Frameworks/APIs | Tests |
-   |---------|----------|-----------------|-------|
-   | **Fastify REST API** | net | fastify, JSON schema validation | http, stream, events |
-   | **WebSocket chat** | net | ws or @gjsify/websocket, events | websocket, http, events |
-   | **CLI tool** (e.g. file search) | cli | fs, path, stream, readline | fs, path, stream, readline, child_process |
-   | ~~**Static file server**~~✓ | net | http, fs, path, stream, zlib | http, fs, stream, zlib, net |
-   | **SQLite/JSON data store** | cli | fs, crypto, buffer, stream | fs, crypto, buffer |
-   | **GTK + HTTP** (dashboard) | gtk | Gtk 4, Soup, fetch, WebSocket | http, fetch, websocket, timers |
-   | **DNS lookup tool** | cli | dns, net, readline | dns, net |
-   | **Worker pool** | cli | worker_threads, events, stream | worker_threads, events |
+   | Example | Category | Frameworks/APIs | Status |
+   |---------|----------|-----------------|--------|
+   | ~~**Static file server**~~✓ | net | http, fs, path, stream, zlib | `examples/net/static-file-server` |
+   | ~~**SSE chat**~~✓ | net | http, events, fs, SSE protocol | `examples/net/sse-chat` |
+   | ~~**Hono REST API**~~✓ | net | hono, http, JSON CRUD | `examples/net/hono-rest` (GJS WIP) |
+   | ~~**CLI file search**~~✓ | cli | fs, path, readline, process | `examples/cli/file-search` |
+   | ~~**DNS lookup tool**~~✓ | cli | dns, net, readline | `examples/cli/dns-lookup` |
+   | ~~**Worker pool**~~✓ | cli | worker_threads, events, crypto | `examples/cli/worker-pool` |
+   | **SQLite/JSON data store** | cli | fs, crypto, buffer, stream | — |
+   | **GTK + HTTP** (dashboard) | gtk | Gtk 4, Soup, fetch, WebSocket | — |
 
    These examples serve as integration tests and surface real CJS-ESM interop issues, missing globals, GC problems, and MainLoop edge cases that unit tests alone don't catch.
 
@@ -224,6 +224,23 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-26 — Real-World Examples Sprint (+6 examples, +116 tests)
+
+**New examples (all work on both Node.js and GJS unless noted):**
+- `examples/net/static-file-server`: `createReadStream().pipe(res)`, MIME types, gzip, directory listing, 304 caching
+- `examples/net/sse-chat`: Real-time chat via Server-Sent Events + HTTP POST, EventEmitter message bus
+- `examples/net/hono-rest`: Hono.js CRUD REST API with JSON validation (Node.js works, GJS needs Fetch API globals)
+- `examples/cli/file-search`: Recursive file search using `createReadStream` + `readline.createInterface`
+- `examples/cli/dns-lookup`: Interactive DNS tool using `dns.lookup/resolve4/resolve6/reverse`
+- `examples/cli/worker-pool`: Task pool with MessageChannel for inter-worker communication
+
+**New tests:**
+- HTTP streaming (65 tests): `Readable.pipe(res)`, multi-chunk writes, large bodies (256KB), POST body, concurrent requests, routing, server lifecycle
+- fs streams (27 tests): `createReadStream`/`createWriteStream`, pipe (ReadStream→WriteStream, Transform, PassThrough), Unicode, binary
+- net TCP (24 tests): echo server, 64KB data transfer, connection events, socket properties, UTF-8/binary, error handling
+
+**Validated:** `createReadStream().pipe(res)` works on GJS. TCP echo and data transfer work cross-platform. MessageChannel postMessage works for task distribution.
 
 ### 2026-03-26 — Static File Server Example
 
