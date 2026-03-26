@@ -133,7 +133,7 @@ export class Worker extends EventEmitter {
     this.resourceLimits = options?.resourceLimits || {};
 
     const isEval = options?.eval === true;
-    const resolvedFilename = filename instanceof URL ? filename.href : String(filename);
+    const resolvedFilename = Worker._resolveFilename(filename, isEval);
 
     // Write bootstrap script to temp file
     const tmpDir = GLib.get_tmp_dir();
@@ -172,6 +172,27 @@ export class Worker extends EventEmitter {
     this._stdinPipe = this._subprocess.get_stdin_pipe();
     const stdoutPipe = this._subprocess.get_stdout_pipe();
 
+    // Verify file exists for non-eval workers
+    if (!isEval) {
+      const filePath = resolvedFilename.startsWith('file://')
+        ? resolvedFilename.slice(7)
+        : resolvedFilename;
+      const file = Gio.File.new_for_path(filePath);
+      if (!file.query_exists(null)) {
+        this._cleanup();
+        const err = new Error(`Cannot find module '${filePath}'`);
+        (err as any).code = 'ERR_MODULE_NOT_FOUND';
+        // Emit error asynchronously to match Node.js behavior
+        Promise.resolve().then(() => {
+          this.emit('error', err);
+          this._exited = true;
+          this.emit('exit', 1);
+        });
+        // Return early — subprocess was already cleaned up
+        return;
+      }
+    }
+
     // Send init data as first line on stdin
     const initData = JSON.stringify({
       threadId: this.threadId,
@@ -192,6 +213,12 @@ export class Worker extends EventEmitter {
     if (stdoutPipe) {
       const dataStream = Gio.DataInputStream.new(stdoutPipe);
       this._readMessages(dataStream);
+    }
+
+    // Read stderr for error reporting
+    const stderrPipe = this._subprocess.get_stderr_pipe();
+    if (stderrPipe) {
+      this._readStderr(Gio.DataInputStream.new(stderrPipe));
     }
 
     // Wait for process exit
@@ -239,6 +266,46 @@ export class Worker extends EventEmitter {
   ref(): this { return this; }
   unref(): this { return this; }
 
+  /**
+   * Resolve a worker filename to an absolute path or file:// URL.
+   *
+   * - URL instances → href string
+   * - file:// URLs → kept as-is
+   * - Absolute paths → converted to file:// URL
+   * - Relative paths (./foo, ../bar) → resolved relative to cwd, converted to file:// URL
+   * - eval mode → returned as-is (it's code, not a path)
+   */
+  private static _resolveFilename(filename: string | URL, isEval: boolean): string {
+    if (isEval) return String(filename);
+
+    if (filename instanceof URL) return filename.href;
+
+    const str = String(filename);
+
+    // Already a URL
+    if (str.startsWith('file://') || str.startsWith('http://') || str.startsWith('https://')) {
+      return str;
+    }
+
+    // Absolute path → file:// URL
+    if (str.startsWith('/')) {
+      return 'file://' + str;
+    }
+
+    // Relative path → resolve from cwd
+    if (str.startsWith('./') || str.startsWith('../') || !str.includes('/')) {
+      const cwd = GLib.get_current_dir();
+      const resolved = GLib.build_filenamev([cwd, str]);
+      // Canonicalize (resolve ./ and ../)
+      const file = Gio.File.new_for_path(resolved);
+      const canonical = file.get_path();
+      return 'file://' + (canonical || resolved);
+    }
+
+    // Fallback — treat as absolute
+    return 'file://' + str;
+  }
+
   private _readMessages(dataStream: Gio.DataInputStream): void {
     dataStream.read_line_async(
       GLib.PRIORITY_DEFAULT,
@@ -267,6 +334,35 @@ export class Worker extends EventEmitter {
           this._readMessages(dataStream);
         } catch {
           // Stream closed or parse error
+        }
+      },
+    );
+  }
+
+  private _stderrChunks: string[] = [];
+
+  private _readStderr(dataStream: Gio.DataInputStream): void {
+    dataStream.read_line_async(
+      GLib.PRIORITY_DEFAULT,
+      null,
+      (_source: unknown, result: Gio.AsyncResult) => {
+        try {
+          const [line] = dataStream.read_line_finish_utf8(result);
+          if (line === null) {
+            // EOF — if we collected stderr output and worker errored, emit it
+            if (this._stderrChunks.length > 0) {
+              const stderrText = this._stderrChunks.join('\n');
+              // Only emit if no IPC error was already emitted
+              if (this.listenerCount('error') === 0) {
+                this.emit('error', new Error(stderrText));
+              }
+            }
+            return;
+          }
+          this._stderrChunks.push(line);
+          this._readStderr(dataStream);
+        } catch {
+          // Stream closed
         }
       },
     );
