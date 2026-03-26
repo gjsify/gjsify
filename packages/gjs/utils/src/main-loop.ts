@@ -37,3 +37,18 @@ export function ensureMainLoop(): GLib.MainLoop | undefined {
 
   return _loop;
 }
+
+/**
+ * Quit the MainLoop created by `ensureMainLoop()`. Idempotent, no-op on Node.js.
+ *
+ * Calling `quit()` on a loop that hasn't started yet pre-quits it — when the
+ * `setMainLoopHook` later fires and calls `run()`, it returns immediately.
+ * This is used by `@gjsify/unit` to prevent the loop from blocking after tests.
+ */
+export function quitMainLoop(): void {
+  if (_loop) {
+    _loop.quit();
+    _started = false;
+    _loop = null;
+  }
+}

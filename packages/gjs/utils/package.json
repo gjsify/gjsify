@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./main-loop": {
+            "types": "./lib/types/main-loop.d.ts",
+            "default": "./lib/esm/main-loop.js"
         }
     },
     "scripts": {

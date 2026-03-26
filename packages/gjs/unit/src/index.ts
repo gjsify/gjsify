@@ -5,6 +5,7 @@ import "@girs/gjs";
 import type GLib from '@girs/glib-2.0';
 export * from './spy.js';
 import nodeAssert from 'node:assert';
+import { quitMainLoop } from '@gjsify/utils/main-loop';
 
 const mainloop: GLib.MainLoop | undefined = (globalThis as any)?.imports?.mainloop;
 
@@ -640,6 +641,7 @@ export const run = async (namespaces: Namespaces, options?: { timeout?: number; 
 		printResult();
 		print();
 
+		quitMainLoop(); // Pre-quit ensureMainLoop's loop so it exits immediately when the hook fires
 		mainloop?.quit();
 
 		if (countTestsFailed > 0) {

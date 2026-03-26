@@ -155,4 +155,18 @@ if (typeof globalThis.URLSearchParams !== 'function') {
   });
 }
 
+// Web API stubs — Node.js 18+ has these as globals; GJS does not.
+// Frameworks (Koa, Express) use `val instanceof Response` etc. without guards.
+// These stubs prevent ReferenceErrors; full implementations come from @gjsify/fetch.
+for (const name of ['Response', 'Request', 'Headers', 'ReadableStream', 'Blob'] as const) {
+  if (typeof (globalThis as any)[name] === 'undefined') {
+    Object.defineProperty(globalThis, name, {
+      value: class {},
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+  }
+}
+
 export { ensureMainLoop } from '@gjsify/utils';

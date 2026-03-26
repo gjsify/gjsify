@@ -1,5 +1,7 @@
 // Reference: Node.js lib/string_decoder.js
 // Reimplemented for GJS — handles incremental decoding of multi-byte character sequences
+// Uses function constructor (not ES6 class) for compatibility with legacy CJS patterns
+// that call StringDecoder.call(this, enc) (e.g., iconv-lite).
 
 import { normalizeEncoding, checkEncoding, base64Encode as bytesToBase64 } from '@gjsify/utils';
 
@@ -189,240 +191,191 @@ function isValidContinuation(leadByte: number, charLen: number, position: number
   return byte >= 0x80 && byte <= 0xBF;
 }
 
+interface StringDecoderInstance {
+  readonly encoding: string;
+  write(buf: Uint8Array): string;
+  end(buf?: Uint8Array): string;
+}
+
+interface StringDecoderConstructor {
+  new (encoding?: string): StringDecoderInstance;
+  (this: StringDecoderInstance, encoding?: string): void;
+  prototype: StringDecoderInstance;
+}
+
 /**
  * StringDecoder provides an interface for efficiently decoding Buffer data
  * into strings while preserving multi-byte characters that are split across
  * Buffer boundaries.
+ *
+ * Implemented as a function constructor (not ES6 class) for compatibility
+ * with legacy CJS patterns that use StringDecoder.call(this, enc).
  */
-export class StringDecoder {
-  readonly encoding: string;
-  private _lastNeed = 0;
-  private _lastTotal = 0;
-  private _lastChar: Uint8Array;
-  // Store the lead byte when buffering incomplete UTF-8 sequences,
-  // needed for validating continuation bytes per W3C maximal subpart rules
-  private _lastLeadByte = 0;
+const StringDecoder = function StringDecoder(this: any, encoding?: string) {
+  this.encoding = normalizeAndValidateEncoding(encoding);
+  this._lastNeed = 0;
+  this._lastTotal = 0;
+  this._lastLeadByte = 0;
 
-  constructor(encoding?: string) {
-    this.encoding = normalizeAndValidateEncoding(encoding);
+  if (this.encoding === 'utf8') {
+    this._lastChar = new Uint8Array(4);
+  } else if (this.encoding === 'utf16le') {
+    this._lastChar = new Uint8Array(4);
+  } else if (this.encoding === 'base64') {
+    this._lastChar = new Uint8Array(3);
+  } else {
+    this._lastChar = new Uint8Array(0);
+  }
+} as unknown as StringDecoderConstructor;
 
-    if (this.encoding === 'utf8') {
-      this._lastChar = new Uint8Array(4); // max UTF-8 char size
-    } else if (this.encoding === 'utf16le') {
-      this._lastChar = new Uint8Array(4); // 2 bytes per char, but surrogate pairs need 4
-    } else if (this.encoding === 'base64') {
-      this._lastChar = new Uint8Array(3); // base64 encodes 3 bytes at a time
-    } else {
-      this._lastChar = new Uint8Array(0);
-    }
+StringDecoder.prototype.write = function write(buf: Uint8Array): string {
+  if (buf.length === 0) return '';
+
+  switch (this.encoding) {
+    case 'utf8':
+      return writeUtf8(this, buf);
+    case 'utf16le':
+      return writeUtf16le(this, buf);
+    case 'base64':
+      return writeBase64(this, buf);
+    case 'ascii':
+      return decodeAscii(buf);
+    case 'latin1':
+      return decodeLatin1(buf);
+    case 'hex':
+      return decodeHex(buf);
+    default:
+      return decodeAscii(buf);
+  }
+};
+
+StringDecoder.prototype.end = function end(buf?: Uint8Array): string {
+  let result = '';
+  if (buf && buf.length > 0) {
+    result = this.write(buf);
   }
 
-  /**
-   * Write a Buffer or Uint8Array and return any complete characters as a string.
-   */
-  write(buf: Uint8Array): string {
-    if (buf.length === 0) return '';
-
-    switch (this.encoding) {
-      case 'utf8':
-        return this._writeUtf8(buf);
-      case 'utf16le':
-        return this._writeUtf16le(buf);
-      case 'base64':
-        return this._writeBase64(buf);
-      case 'ascii':
-        return this._decodeAscii(buf);
-      case 'latin1':
-        return this._decodeLatin1(buf);
-      case 'hex':
-        return this._decodeHex(buf);
-      default:
-        return this._decodeAscii(buf);
+  if (this.encoding === 'utf8' && this._lastNeed > 0) {
+    result += '\ufffd';
+    this._lastNeed = 0;
+    this._lastTotal = 0;
+  } else if (this.encoding === 'utf16le' && this._lastNeed > 0) {
+    const stored = this._lastTotal - this._lastNeed;
+    for (let i = 0; i + 1 < stored; i += 2) {
+      result += String.fromCharCode(this._lastChar[i] | (this._lastChar[i + 1] << 8));
     }
+    this._lastNeed = 0;
+    this._lastTotal = 0;
+  } else if (this.encoding === 'base64' && this._lastNeed > 0) {
+    const remaining = this._lastChar.subarray(0, this._lastTotal - this._lastNeed);
+    result += bytesToBase64(remaining);
+    this._lastNeed = 0;
+    this._lastTotal = 0;
   }
 
-  /**
-   * End decoding, returning any remaining incomplete characters.
-   */
-  end(buf?: Uint8Array): string {
-    let result = '';
-    if (buf && buf.length > 0) {
-      result = this.write(buf);
-    }
+  return result;
+};
 
-    if (this.encoding === 'utf8' && this._lastNeed > 0) {
-      // Flush remaining incomplete bytes as replacement character
-      result += '\ufffd';
-      this._lastNeed = 0;
-      this._lastTotal = 0;
-    } else if (this.encoding === 'utf16le' && this._lastNeed > 0) {
-      // Output any complete 16-bit chars from stored bytes
-      const stored = this._lastTotal - this._lastNeed;
-      for (let i = 0; i + 1 < stored; i += 2) {
-        result += String.fromCharCode(this._lastChar[i] | (this._lastChar[i + 1] << 8));
-      }
-      this._lastNeed = 0;
-      this._lastTotal = 0;
-    } else if (this.encoding === 'base64' && this._lastNeed > 0) {
-      // Encode remaining base64 bytes
-      const remaining = this._lastChar.subarray(0, this._lastTotal - this._lastNeed);
-      result += bytesToBase64(remaining);
-      this._lastNeed = 0;
-      this._lastTotal = 0;
-    }
+function writeUtf8(self: any, buf: Uint8Array): string {
+  let i = 0;
+  let result = '';
 
-    return result;
-  }
-
-  private _writeUtf8(buf: Uint8Array): string {
-    // Pure manual streaming UTF-8 decoder using W3C maximal subpart replacement.
-    // Does NOT use TextDecoder to avoid inconsistencies across SpiderMonkey versions
-    // (GJS 1.80 / SpiderMonkey 115 produces incorrect replacement counts for some sequences).
-    let i = 0;
-    let result = '';
-
-    // Step 1: If we have leftover bytes from a previous write, try to complete them
-    if (this._lastNeed > 0) {
-      while (i < buf.length && this._lastNeed > 0) {
-        const byte = buf[i];
-        const position = this._lastTotal - this._lastNeed; // which byte position we're filling
-        if (isValidContinuation(this._lastLeadByte, this._lastTotal, position, byte)) {
-          this._lastChar[position] = byte;
-          this._lastNeed--;
-          i++;
-        } else {
-          // Invalid continuation — emit replacement for the buffered bytes
-          // as one maximal subpart, then reprocess this byte
-          result += '\ufffd';
-          this._lastNeed = 0;
-          this._lastTotal = 0;
-          this._lastLeadByte = 0;
-          // Don't advance i — reprocess this byte as a new character start
-          break;
-        }
-      }
-
-      if (this._lastNeed === 0 && this._lastTotal > 0) {
-        // Completed the character — decode the buffered bytes
-        result += utf8DecodeMaximalSubpart(this._lastChar, 0, this._lastTotal);
-        this._lastTotal = 0;
-        this._lastLeadByte = 0;
-      }
-
-      if (this._lastNeed > 0) {
-        return result; // Still waiting for more bytes
-      }
-    }
-
-    // Step 2: Find trailing incomplete character at end of remaining buffer.
-    // We need to check if the last few bytes form a valid but incomplete
-    // multi-byte sequence that should be buffered for the next write.
-    let completeEnd = buf.length;
-    // Scan backward from end to find any leading byte
-    for (let j = 0; j < Math.min(4, buf.length - i); j++) {
-      const idx = buf.length - 1 - j;
-      if (idx < i) break;
-      const byte = buf[idx];
-      if ((byte & 0xC0) !== 0x80) {
-        // Found a non-continuation byte (ASCII or leading byte)
-        const charLen = utf8CharLength(byte);
-        if (charLen > 0 && byte >= 0x80) {
-          // It's a multi-byte lead byte — check if the sequence is incomplete
-          const available = buf.length - idx;
-          if (available < charLen) {
-            // Check that all available continuation bytes are valid for this lead
-            let allValid = true;
-            for (let k = 1; k < available; k++) {
-              if (!isValidContinuation(byte, charLen, k, buf[idx + k])) {
-                allValid = false;
-                break;
-              }
-            }
-            if (allValid) {
-              // Incomplete but valid-so-far sequence — save for next write
-              completeEnd = idx;
-              for (let k = 0; k < available; k++) {
-                this._lastChar[k] = buf[idx + k];
-              }
-              this._lastNeed = charLen - available;
-              this._lastTotal = charLen;
-              this._lastLeadByte = byte;
-            }
-          }
-        }
+  if (self._lastNeed > 0) {
+    while (i < buf.length && self._lastNeed > 0) {
+      const byte = buf[i];
+      const position = self._lastTotal - self._lastNeed;
+      if (isValidContinuation(self._lastLeadByte, self._lastTotal, position, byte)) {
+        self._lastChar[position] = byte;
+        self._lastNeed--;
+        i++;
+      } else {
+        result += '\ufffd';
+        self._lastNeed = 0;
+        self._lastTotal = 0;
+        self._lastLeadByte = 0;
         break;
       }
     }
 
-    // Step 3: Decode the complete portion using our manual W3C decoder
-    if (completeEnd > i) {
-      result += utf8DecodeMaximalSubpart(buf, i, completeEnd);
+    if (self._lastNeed === 0 && self._lastTotal > 0) {
+      result += utf8DecodeMaximalSubpart(self._lastChar, 0, self._lastTotal);
+      self._lastTotal = 0;
+      self._lastLeadByte = 0;
     }
 
-    return result;
+    if (self._lastNeed > 0) {
+      return result;
+    }
   }
 
-  private _writeUtf16le(buf: Uint8Array): string {
-    let result = '';
-    let i = 0;
-
-    // Handle leftover bytes from previous write
-    if (this._lastNeed > 0) {
-      const offset = this._lastTotal - this._lastNeed;
-      const needed = Math.min(this._lastNeed, buf.length);
-      for (let j = 0; j < needed; j++) {
-        this._lastChar[offset + j] = buf[j];
-      }
-      this._lastNeed -= needed;
-      i = needed;
-
-      if (this._lastNeed > 0) return ''; // still incomplete
-
-      // Completed stored bytes — decode them, handling surrogate pairs within stored data
-      const stored = this._lastTotal;
-      let j = 0;
-      while (j + 1 < stored) {
-        const code = this._lastChar[j] | (this._lastChar[j + 1] << 8);
-        j += 2;
-        if (code >= 0xD800 && code <= 0xDBFF) {
-          // High surrogate — first check within stored bytes
-          if (j + 1 < stored) {
-            const nextCode = this._lastChar[j] | (this._lastChar[j + 1] << 8);
-            if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
-              result += String.fromCharCode(code, nextCode);
-              j += 2;
-              continue;
+  let completeEnd = buf.length;
+  for (let j = 0; j < Math.min(4, buf.length - i); j++) {
+    const idx = buf.length - 1 - j;
+    if (idx < i) break;
+    const byte = buf[idx];
+    if ((byte & 0xC0) !== 0x80) {
+      const charLen = utf8CharLength(byte);
+      if (charLen > 0 && byte >= 0x80) {
+        const available = buf.length - idx;
+        if (available < charLen) {
+          let allValid = true;
+          for (let k = 1; k < available; k++) {
+            if (!isValidContinuation(byte, charLen, k, buf[idx + k])) {
+              allValid = false;
+              break;
             }
           }
-          // Then check in buf
-          if (i + 1 < buf.length) {
-            const nextCode = buf[i] | (buf[i + 1] << 8);
-            if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
-              result += String.fromCharCode(code, nextCode);
-              i += 2;
-              continue;
+          if (allValid) {
+            completeEnd = idx;
+            for (let k = 0; k < available; k++) {
+              self._lastChar[k] = buf[idx + k];
             }
-          } else if (i >= buf.length) {
-            // No more bytes — buffer the high surrogate for next write
-            this._lastChar[0] = this._lastChar[j - 2];
-            this._lastChar[1] = this._lastChar[j - 1];
-            this._lastNeed = 2;
-            this._lastTotal = 4;
-            return result;
+            self._lastNeed = charLen - available;
+            self._lastTotal = charLen;
+            self._lastLeadByte = byte;
           }
         }
-        result += String.fromCharCode(code);
       }
-      this._lastTotal = 0;
+      break;
     }
+  }
 
-    // Decode complete pairs from buf, handling surrogates
-    while (i + 1 < buf.length) {
-      const code = buf[i] | (buf[i + 1] << 8);
-      i += 2;
+  if (completeEnd > i) {
+    result += utf8DecodeMaximalSubpart(buf, i, completeEnd);
+  }
 
+  return result;
+}
+
+function writeUtf16le(self: any, buf: Uint8Array): string {
+  let result = '';
+  let i = 0;
+
+  if (self._lastNeed > 0) {
+    const offset = self._lastTotal - self._lastNeed;
+    const needed = Math.min(self._lastNeed, buf.length);
+    for (let j = 0; j < needed; j++) {
+      self._lastChar[offset + j] = buf[j];
+    }
+    self._lastNeed -= needed;
+    i = needed;
+
+    if (self._lastNeed > 0) return '';
+
+    const stored = self._lastTotal;
+    let j = 0;
+    while (j + 1 < stored) {
+      const code = self._lastChar[j] | (self._lastChar[j + 1] << 8);
+      j += 2;
       if (code >= 0xD800 && code <= 0xDBFF) {
-        // High surrogate — need low surrogate
+        if (j + 1 < stored) {
+          const nextCode = self._lastChar[j] | (self._lastChar[j + 1] << 8);
+          if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
+            result += String.fromCharCode(code, nextCode);
+            j += 2;
+            continue;
+          }
+        }
         if (i + 1 < buf.length) {
           const nextCode = buf[i] | (buf[i + 1] << 8);
           if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
@@ -430,99 +383,119 @@ export class StringDecoder {
             i += 2;
             continue;
           }
-        } else if (i < buf.length) {
-          // 1 odd byte left — can't form low surrogate, output high surrogate and save odd byte
-          result += String.fromCharCode(code);
-          this._lastChar[0] = buf[i];
-          this._lastNeed = 1;
-          this._lastTotal = 2;
-          return result;
-        } else {
-          // No more bytes — buffer the high surrogate
-          this._lastChar[0] = buf[i - 2];
-          this._lastChar[1] = buf[i - 1];
-          this._lastNeed = 2;
-          this._lastTotal = 4;
+        } else if (i >= buf.length) {
+          self._lastChar[0] = self._lastChar[j - 2];
+          self._lastChar[1] = self._lastChar[j - 1];
+          self._lastNeed = 2;
+          self._lastTotal = 4;
           return result;
         }
       }
       result += String.fromCharCode(code);
     }
-
-    // Save leftover odd byte
-    if (i < buf.length) {
-      this._lastChar[0] = buf[i];
-      this._lastNeed = 1;
-      this._lastTotal = 2;
-    }
-
-    return result;
+    self._lastTotal = 0;
   }
 
-  private _writeBase64(buf: Uint8Array): string {
-    let start = 0;
+  while (i + 1 < buf.length) {
+    const code = buf[i] | (buf[i + 1] << 8);
+    i += 2;
 
-    // Handle leftover bytes from previous write
-    if (this._lastNeed > 0) {
-      const needed = Math.min(this._lastNeed, buf.length);
-      for (let i = 0; i < needed; i++) {
-        this._lastChar[this._lastTotal - this._lastNeed + i] = buf[i];
-        this._lastNeed--;
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      if (i + 1 < buf.length) {
+        const nextCode = buf[i] | (buf[i + 1] << 8);
+        if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
+          result += String.fromCharCode(code, nextCode);
+          i += 2;
+          continue;
+        }
+      } else if (i < buf.length) {
+        result += String.fromCharCode(code);
+        self._lastChar[0] = buf[i];
+        self._lastNeed = 1;
+        self._lastTotal = 2;
+        return result;
+      } else {
+        self._lastChar[0] = buf[i - 2];
+        self._lastChar[1] = buf[i - 1];
+        self._lastNeed = 2;
+        self._lastTotal = 4;
+        return result;
       }
-      start = needed;
-      if (this._lastNeed > 0) return '';
     }
-
-    // Process complete 3-byte groups
-    const remaining = buf.length - start;
-    const complete = remaining - (remaining % 3);
-    let result = '';
-
-    if (this._lastTotal > 0 && this._lastNeed === 0) {
-      result += bytesToBase64(this._lastChar.subarray(0, this._lastTotal));
-      this._lastTotal = 0;
-    }
-
-    if (complete > 0) {
-      result += bytesToBase64(buf.subarray(start, start + complete));
-    }
-
-    // Save remaining bytes (0, 1, or 2)
-    const leftover = remaining - complete;
-    if (leftover > 0) {
-      for (let i = 0; i < leftover; i++) {
-        this._lastChar[i] = buf[start + complete + i];
-      }
-      this._lastNeed = 3 - leftover;
-      this._lastTotal = 3;
-    }
-
-    return result;
+    result += String.fromCharCode(code);
   }
 
-  private _decodeAscii(buf: Uint8Array): string {
-    let result = '';
-    for (let i = 0; i < buf.length; i++) {
-      result += String.fromCharCode(buf[i] & 0x7f);
-    }
-    return result;
+  if (i < buf.length) {
+    self._lastChar[0] = buf[i];
+    self._lastNeed = 1;
+    self._lastTotal = 2;
   }
 
-  private _decodeLatin1(buf: Uint8Array): string {
-    let result = '';
-    for (let i = 0; i < buf.length; i++) {
-      result += String.fromCharCode(buf[i]);
-    }
-    return result;
-  }
-
-  private _decodeHex(buf: Uint8Array): string {
-    let result = '';
-    for (let i = 0; i < buf.length; i++) {
-      result += buf[i].toString(16).padStart(2, '0');
-    }
-    return result;
-  }
+  return result;
 }
+
+function writeBase64(self: any, buf: Uint8Array): string {
+  let start = 0;
+
+  if (self._lastNeed > 0) {
+    const needed = Math.min(self._lastNeed, buf.length);
+    for (let i = 0; i < needed; i++) {
+      self._lastChar[self._lastTotal - self._lastNeed + i] = buf[i];
+      self._lastNeed--;
+    }
+    start = needed;
+    if (self._lastNeed > 0) return '';
+  }
+
+  const remaining = buf.length - start;
+  const complete = remaining - (remaining % 3);
+  let result = '';
+
+  if (self._lastTotal > 0 && self._lastNeed === 0) {
+    result += bytesToBase64(self._lastChar.subarray(0, self._lastTotal));
+    self._lastTotal = 0;
+  }
+
+  if (complete > 0) {
+    result += bytesToBase64(buf.subarray(start, start + complete));
+  }
+
+  const leftover = remaining - complete;
+  if (leftover > 0) {
+    for (let i = 0; i < leftover; i++) {
+      self._lastChar[i] = buf[start + complete + i];
+    }
+    self._lastNeed = 3 - leftover;
+    self._lastTotal = 3;
+  }
+
+  return result;
+}
+
+function decodeAscii(buf: Uint8Array): string {
+  let result = '';
+  for (let i = 0; i < buf.length; i++) {
+    result += String.fromCharCode(buf[i] & 0x7f);
+  }
+  return result;
+}
+
+function decodeLatin1(buf: Uint8Array): string {
+  let result = '';
+  for (let i = 0; i < buf.length; i++) {
+    result += String.fromCharCode(buf[i]);
+  }
+  return result;
+}
+
+function decodeHex(buf: Uint8Array): string {
+  let result = '';
+  for (let i = 0; i < buf.length; i++) {
+    result += buf[i].toString(16).padStart(2, '0');
+  }
+  return result;
+}
+
+export { StringDecoder };
 
 export default { StringDecoder };

@@ -8,6 +8,7 @@
     "exports": {
         ".": {
             "types": "./lib/types/index.d.ts",
+            "require": "./cjs-compat.cjs",
             "default": "./lib/esm/index.js"
         },
         "./strict": {

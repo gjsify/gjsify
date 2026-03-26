@@ -49,6 +49,7 @@
     },
     "dependencies": {
         "@gjsify/assert": "workspace:^",
-        "@gjsify/process": "workspace:^"
+        "@gjsify/process": "workspace:^",
+        "@gjsify/utils": "workspace:^"
     }
 }

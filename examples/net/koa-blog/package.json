@@ -1,10 +1,10 @@
 {
-  "name": "@gjsify/example-net-express-hello",
-  "private": true,
+  "name": "@gjsify/example-net-koa-blog",
   "version": "0.0.4",
-  "description": "Simple Express.js HTTP server example for Node.js and GJS",
-  "main": "dist/index.gjs.js",
+  "private": true,
   "type": "module",
+  "main": "dist/index.gjs.js",
+  "description": "Koa.js blog API example for Node.js and GJS",
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
@@ -16,21 +16,23 @@
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
     "test": "yarn start"
   },
-  "engines": {
-    "node": "16",
-    "gjs": "1.72.x"
-  },
-  "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT",
   "dependencies": {
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
-    "express": "^5.2.1"
+    "@koa/router": "^15.4.0",
+    "koa": "^3.1.2",
+    "koa-bodyparser": "^4.4.1"
   },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
-    "@types/express": "^5.0.6",
+    "@types/koa": "^3.0.2",
+    "@types/koa-bodyparser": "^4.3.13",
+    "@types/koa__router": "^12.0.5",
     "@types/node": "^25.5.0",
     "typescript": "^6.0.2"
+  },
+  "engines": {
+    "node": ">=16",
+    "gjs": ">=1.72.x"
   }
 }

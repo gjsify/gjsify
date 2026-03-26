@@ -13,10 +13,10 @@
     "emitDeclarationOnly": true,
     "esModuleInterop": true,
     "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "node10",
-    "ignoreDeprecations": "6.0",
-    "strict": false
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": false,
+    "skipLibCheck": true
   },
   "files": [
     "src/index.ts"

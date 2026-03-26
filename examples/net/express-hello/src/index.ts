@@ -1,17 +1,14 @@
 import '@gjsify/node-globals';
+import { runtimeName } from '@gjsify/runtime';
 import express from 'express';
 
 const app = express();
 const PORT = 3000;
 
-// Detect runtime platform
-const isGJS = !!(globalThis as any).imports;
-const platform = isGJS ? 'GJS' : 'Node.js';
-
 // GET / — Welcome page
 app.get('/', (_req, res) => {
   res.json({
-    message: `Hello from Express on ${platform}`,
+    message: `Hello from Express on ${runtimeName}`,
     routes: {
       'GET /': 'This welcome message',
       'GET /api/hello/:name': 'Greet someone by name',
