@@ -61,6 +61,11 @@ export interface SpawnSyncResult {
   error?: Error;
 }
 
+// GC guard — GJS garbage-collects objects with no JS references.
+// Keep strong references to active child processes to prevent their
+// Gio.Subprocess from being collected while async operations are pending.
+const _activeProcesses = new Set<ChildProcess>();
+
 /**
  * ChildProcess — EventEmitter wrapping Gio.Subprocess.
  */
@@ -347,6 +352,7 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
   try {
     const proc = _spawnSubprocess(argv, flags, options);
     child._setSubprocess(proc);
+    _activeProcesses.add(child);
 
     proc.wait_async(null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {
@@ -360,6 +366,7 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
       } catch (err: unknown) {
         child.emit('error', err instanceof Error ? err : new Error(String(err)));
       }
+      _activeProcesses.delete(child);
     });
 
     deferEmit(child, 'spawn');

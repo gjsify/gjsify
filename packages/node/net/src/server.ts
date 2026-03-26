@@ -15,6 +15,11 @@ export interface ListenOptions {
   exclusive?: boolean;
 }
 
+// GC guard — GJS garbage-collects objects with no JS references.
+// Keep strong references to all listening servers to prevent their
+// Gio.SocketService from being collected while still active.
+const _activeServers = new Set<Server>();
+
 export class Server extends EventEmitter {
   listening = false;
   maxConnections?: number;
@@ -98,6 +103,7 @@ export class Server extends EventEmitter {
       this._service.start();
       ensureMainLoop();
       this.listening = true;
+      _activeServers.add(this);
 
       // Determine address info
       const family = host.includes(':') ? 'IPv6' : 'IPv4';
@@ -158,6 +164,7 @@ export class Server extends EventEmitter {
     this._service.close();
     this._service = null;
     this.listening = false;
+    _activeServers.delete(this);
 
     // Close all existing connections
     for (const socket of this._connections) {

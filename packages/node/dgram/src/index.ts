@@ -32,6 +32,11 @@ interface RemoteAddressInfo {
   port: number;
 }
 
+// GC guard — GJS garbage-collects objects with no JS references.
+// Keep strong references to bound UDP sockets to prevent their
+// Gio.Socket from being collected while receiving data.
+const _activeSockets = new Set<Socket>();
+
 export class Socket extends EventEmitter {
   readonly type: 'udp4' | 'udp6';
 
@@ -100,6 +105,7 @@ export class Socket extends EventEmitter {
 
       this._socket.bind(sockAddr, this._reuseAddr);
       this._bound = true;
+      _activeSockets.add(this);
       ensureMainLoop();
 
       // Get actual bound address
@@ -217,6 +223,7 @@ export class Socket extends EventEmitter {
       throw new Error('Not running');
     }
     this._closed = true;
+    _activeSockets.delete(this);
 
     if (callback) this.once('close', callback);
 
