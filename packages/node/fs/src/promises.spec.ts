@@ -448,6 +448,8 @@ export default async () => {
 
 	await describe('fs.promises.access additional', async () => {
 		await it('should reject with EACCES or ENOENT for W_OK on read-only path', async () => {
+			// Skip when running as root (CI containers) — root bypasses permission checks
+			if (typeof process !== 'undefined' && typeof process.getuid === 'function' && process.getuid() === 0) return;
 			// /etc/hosts typically is not writable by normal users
 			let threw = false;
 			try {
