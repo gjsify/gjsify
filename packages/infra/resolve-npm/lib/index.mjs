@@ -51,6 +51,7 @@ export const EXTERNALS_NODE = [
     'v8',
     'vm',
     'wasi',
+    'sqlite',
     'worker_threads',
     'zlib',
 ]
@@ -118,6 +119,7 @@ export const ALIASES_NODE_FOR_GJS = {
     'v8': '@gjsify/v8',
     'vm': '@gjsify/vm',
     'wasi': '@gjsify/wasi', // stub — low priority (WebAssembly System Interface)
+    'sqlite': '@gjsify/sqlite',
     'worker_threads': '@gjsify/worker_threads',
     'zlib': '@gjsify/zlib',
 

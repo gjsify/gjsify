@@ -49,6 +49,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@deepkit/event@npm:^1.0.19":
+  version: 1.0.19
+  resolution: "@deepkit/event@npm:1.0.19"
+  peerDependencies:
+    "@deepkit/core": ^1.0.1
+    "@deepkit/injector": ^1.0.1
+    "@deepkit/type": ^1.0.1
+  checksum: 10/1730191ca53689127c8a0d2a98c62d3aa94550aca17ad1fa9da794bd323a9ab9aeb5926893c8033cdb451adc09a68204cb1c048c3ef4fb04c2bbd82c38b706c1
+  languageName: node
+  linkType: hard
+
 "@deepkit/injector@npm:^1.0.19":
   version: 1.0.19
   resolution: "@deepkit/injector@npm:1.0.19"
@@ -56,6 +67,16 @@ __metadata:
     "@deepkit/core": ^1.0.1
     "@deepkit/type": ^1.0.1
   checksum: 10/437eecbe4484084290287b7194cfdb7af32f9724bcbe501f3f9cab55e366f9404f89144035e542ff974f483ba320bd1129c71c7612d87338c260a01a738bd11c
+  languageName: node
+  linkType: hard
+
+"@deepkit/stopwatch@npm:^1.0.19":
+  version: 1.0.19
+  resolution: "@deepkit/stopwatch@npm:1.0.19"
+  peerDependencies:
+    "@deepkit/core": ^1.0.1
+    "@deepkit/type": ^1.0.1
+  checksum: 10/66e680617a14be8515c2085acc8af5cdc8e00c4ff20128f151e838d288ed407e1e74c6246b43f14c71ae2a8e781848b6d587b031f8ccf3d6c73b6ebab4efe5aa
   languageName: node
   linkType: hard
 
@@ -98,6 +119,19 @@ __metadata:
   peerDependencies:
     "@deepkit/core": ^1.0.1
   checksum: 10/6e1ec380c15ee3bd9729b40e923de3bdc42cde6f75be648266e5fee81b646c5f6c2cbb450114768a874a85e337debeb8fb36a344fac9c2aca7c6b6ac78e3a1ad
+  languageName: node
+  linkType: hard
+
+"@deepkit/workflow@npm:^1.0.19":
+  version: 1.0.19
+  resolution: "@deepkit/workflow@npm:1.0.19"
+  peerDependencies:
+    "@deepkit/core": ^1.0.1
+    "@deepkit/event": ^1.0.1
+    "@deepkit/injector": ^1.0.1
+    "@deepkit/stopwatch": ^1.0.1
+    "@deepkit/type": ^1.0.1
+  checksum: 10/9e5482c4ae60e0ceed1e9fb7147d30668dc91b2f9d499eff7ff4ddcb540f89f64637c69d73df9b4ba20d59753d98abb3c8821363acdc7ddf515a2795bea8af45
   languageName: node
   linkType: hard
 
@@ -317,6 +351,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@girs/gda-6.0@npm:^6.0.0-4.0.0-beta.42":
+  version: 6.0.0-4.0.0-beta.42
+  resolution: "@girs/gda-6.0@npm:6.0.0-4.0.0-beta.42"
+  dependencies:
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:4.0.0-beta.42"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.42"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-beta.42"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-beta.42"
+    "@girs/libxml2-2.0": "npm:2.0.0-4.0.0-beta.42"
+  checksum: 10/e5ca17ec567a62629caeee5d21b420748a3ecd58247dd48021dc1d5b4dae0bf13f562484f71726bf317618de324dfa795e0e83761f0791537b46784300718f44
+  languageName: node
+  linkType: hard
+
 "@girs/gdk-4.0@npm:4.0.0-4.0.0-beta.42":
   version: 4.0.0-4.0.0-beta.42
   resolution: "@girs/gdk-4.0@npm:4.0.0-4.0.0-beta.42"
@@ -491,6 +539,16 @@ __metadata:
     "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.42"
     "@girs/gobject-2.0": "npm:2.88.0-4.0.0-beta.42"
   checksum: 10/d14d77e881dd3b7a3e2cf8828e81b3dcf3668969730d26ac0827a361df2ca3c8795c47168a82d6eb8d04fa8a336d5a301c09b49a65e380d53497dc051ed974ba
+  languageName: node
+  linkType: hard
+
+"@girs/libxml2-2.0@npm:2.0.0-4.0.0-beta.42":
+  version: 2.0.0-4.0.0-beta.42
+  resolution: "@girs/libxml2-2.0@npm:2.0.0-4.0.0-beta.42"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-beta.42"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-beta.42"
+  checksum: 10/b84ba0df6206f2dac27aab27ff97a552935352d97bdb77a6dcecb1ee2f35c4e28c5296f6dc835bf6478ea9d830a88e8fcfdb8795090836ed24d8c3a04465511d
   languageName: node
   linkType: hard
 
@@ -861,6 +919,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-cli-deepkit-events@workspace:examples/cli/deepkit-events":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-cli-deepkit-events@workspace:examples/cli/deepkit-events"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/event": "npm:^1.0.19"
+    "@deepkit/injector": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-cli-deepkit-types@workspace:examples/cli/deepkit-types":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-cli-deepkit-types@workspace:examples/cli/deepkit-types"
@@ -868,6 +941,36 @@ __metadata:
     "@deepkit/core": "npm:^1.0.19"
     "@deepkit/type": "npm:^1.0.19"
     "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-cli-deepkit-validation@workspace:examples/cli/deepkit-validation":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-cli-deepkit-validation@workspace:examples/cli/deepkit-validation"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-cli-deepkit-workflow@workspace:examples/cli/deepkit-workflow":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-cli-deepkit-workflow@workspace:examples/cli/deepkit-workflow"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/event": "npm:^1.0.19"
+    "@deepkit/injector": "npm:^1.0.19"
+    "@deepkit/stopwatch": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@deepkit/workflow": "npm:^1.0.19"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1508,6 +1611,21 @@ __metadata:
   resolution: "@gjsify/runtime@workspace:packages/gjs/runtime"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/sqlite@workspace:packages/node/sqlite":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/sqlite@workspace:packages/node/sqlite"
+  dependencies:
+    "@girs/gda-6.0": "npm:^6.0.0-4.0.0-beta.42"
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown

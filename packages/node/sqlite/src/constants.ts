@@ -1,0 +1,101 @@
+// SQLite constants matching Node.js node:sqlite constants
+// Reference: Node.js lib/sqlite.js
+
+// Changeset conflict constants
+export const SQLITE_CHANGESET_OMIT = 0;
+export const SQLITE_CHANGESET_REPLACE = 1;
+export const SQLITE_CHANGESET_ABORT = 2;
+export const SQLITE_CHANGESET_DATA = 1;
+export const SQLITE_CHANGESET_NOTFOUND = 2;
+export const SQLITE_CHANGESET_CONFLICT = 3;
+export const SQLITE_CHANGESET_CONSTRAINT = 4;
+export const SQLITE_CHANGESET_FOREIGN_KEY = 5;
+
+// Authorization result constants
+export const SQLITE_OK = 0;
+export const SQLITE_DENY = 1;
+export const SQLITE_IGNORE = 2;
+
+// Authorization action code constants
+export const SQLITE_CREATE_INDEX = 1;
+export const SQLITE_CREATE_TABLE = 2;
+export const SQLITE_CREATE_TEMP_INDEX = 3;
+export const SQLITE_CREATE_TEMP_TABLE = 4;
+export const SQLITE_CREATE_TEMP_TRIGGER = 5;
+export const SQLITE_CREATE_TEMP_VIEW = 6;
+export const SQLITE_CREATE_TRIGGER = 7;
+export const SQLITE_CREATE_VIEW = 8;
+export const SQLITE_DELETE = 9;
+export const SQLITE_DROP_INDEX = 10;
+export const SQLITE_DROP_TABLE = 11;
+export const SQLITE_DROP_TEMP_INDEX = 12;
+export const SQLITE_DROP_TEMP_TABLE = 13;
+export const SQLITE_DROP_TEMP_TRIGGER = 14;
+export const SQLITE_DROP_TEMP_VIEW = 15;
+export const SQLITE_DROP_TRIGGER = 16;
+export const SQLITE_DROP_VIEW = 17;
+export const SQLITE_INSERT = 18;
+export const SQLITE_PRAGMA = 19;
+export const SQLITE_READ = 20;
+export const SQLITE_SELECT = 21;
+export const SQLITE_TRANSACTION = 22;
+export const SQLITE_UPDATE = 23;
+export const SQLITE_ATTACH = 24;
+export const SQLITE_DETACH = 25;
+export const SQLITE_ALTER_TABLE = 26;
+export const SQLITE_REINDEX = 27;
+export const SQLITE_ANALYZE = 28;
+export const SQLITE_CREATE_VTABLE = 29;
+export const SQLITE_DROP_VTABLE = 30;
+export const SQLITE_FUNCTION = 31;
+export const SQLITE_SAVEPOINT = 32;
+export const SQLITE_COPY = 0;
+export const SQLITE_RECURSIVE = 33;
+
+export const constants = {
+    SQLITE_CHANGESET_OMIT,
+    SQLITE_CHANGESET_REPLACE,
+    SQLITE_CHANGESET_ABORT,
+    SQLITE_CHANGESET_DATA,
+    SQLITE_CHANGESET_NOTFOUND,
+    SQLITE_CHANGESET_CONFLICT,
+    SQLITE_CHANGESET_CONSTRAINT,
+    SQLITE_CHANGESET_FOREIGN_KEY,
+    SQLITE_OK,
+    SQLITE_DENY,
+    SQLITE_IGNORE,
+    SQLITE_CREATE_INDEX,
+    SQLITE_CREATE_TABLE,
+    SQLITE_CREATE_TEMP_INDEX,
+    SQLITE_CREATE_TEMP_TABLE,
+    SQLITE_CREATE_TEMP_TRIGGER,
+    SQLITE_CREATE_TEMP_VIEW,
+    SQLITE_CREATE_TRIGGER,
+    SQLITE_CREATE_VIEW,
+    SQLITE_DELETE,
+    SQLITE_DROP_INDEX,
+    SQLITE_DROP_TABLE,
+    SQLITE_DROP_TEMP_INDEX,
+    SQLITE_DROP_TEMP_TABLE,
+    SQLITE_DROP_TEMP_TRIGGER,
+    SQLITE_DROP_TEMP_VIEW,
+    SQLITE_DROP_TRIGGER,
+    SQLITE_DROP_VIEW,
+    SQLITE_INSERT,
+    SQLITE_PRAGMA,
+    SQLITE_READ,
+    SQLITE_SELECT,
+    SQLITE_TRANSACTION,
+    SQLITE_UPDATE,
+    SQLITE_ATTACH,
+    SQLITE_DETACH,
+    SQLITE_ALTER_TABLE,
+    SQLITE_REINDEX,
+    SQLITE_ANALYZE,
+    SQLITE_CREATE_VTABLE,
+    SQLITE_DROP_VTABLE,
+    SQLITE_FUNCTION,
+    SQLITE_SAVEPOINT,
+    SQLITE_COPY,
+    SQLITE_RECURSIVE,
+};
