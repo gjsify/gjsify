@@ -28,6 +28,14 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         platform: "node",
         mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
         conditions: format === 'esm' ? ['module', 'import'] : ['require'],
+        // In ESM output, CJS require() calls to external modules (Node.js
+        // builtins) need a real require function. Node.js ESM doesn't provide
+        // one natively, so we create it via createRequire().
+        ...(format === 'esm' ? {
+            banner: {
+                js: "import { createRequire } from 'module';\nconst require = createRequire(import.meta.url);",
+            },
+        } : {}),
         external,
         loader: {
             '.ts': 'ts',

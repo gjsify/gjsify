@@ -60,7 +60,7 @@ export class BuildAction {
             const outfilePath = esbuild?.outfile || library?.module || library?.main;
             const outExt = outfilePath ? extname(outfilePath) : '.js';
             const outdir = esbuild?.outdir || (outfilePath ? dirname(outfilePath) : undefined);
-            const format = esbuild?.format || outdir?.includes('/cjs') || outExt === '.cjs' ? 'cjs' : 'esm';
+            const format: 'esm' | 'cjs' = (esbuild?.format as 'esm' | 'cjs') ?? (outdir?.includes('/cjs') || outExt === '.cjs' ? 'cjs' : 'esm');
             results.push(await build({
                 ...this.getEsBuildDefaults(),
                 ...esbuild,
@@ -79,7 +79,7 @@ export class BuildAction {
 
         const { verbose, esbuild, typescript, exclude, library: pgk } = this.configData;
 
-        const format: 'cjs' | 'esm' = esbuild?.format || esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm';
+        const format: 'esm' | 'cjs' = (esbuild?.format as 'esm' | 'cjs') ?? (esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm');
 
         // Set default outfile if no outdir is set 
         if(esbuild && !esbuild?.outfile && !esbuild?.outdir && (pgk?.main || pgk?.module)) {

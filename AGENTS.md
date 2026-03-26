@@ -141,6 +141,66 @@ Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Strea
 
 npm pkgs cause GJS problems: legacy patterns (`Transform.call(this)`), missing globals at load time, circular deps via bundler aliases, `"browser"` field issues. Use as **references only** — read source, rewrite in TS using `@gjsify/*` imports directly.
 
+## CJS-ESM Interop for GJS Builds
+
+### Problem
+
+esbuild's GJS build (`format: 'esm'`, `platform: 'neutral'`) bundles CJS npm packages alongside ESM `@gjsify/*` packages. When CJS code does `require('stream')`, esbuild wraps the ESM module with `__toCommonJS`, returning a namespace object `{ __esModule, default, Stream, Readable, ... }` instead of the expected constructor/function. This breaks CJS patterns like `util.inherits(Child, require('stream'))` and `var fn = require('is-promise'); fn(value)`.
+
+### Two complementary mechanisms
+
+**1. `__toCommonJS` patch (automatic)** — `packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts` `onEnd` callback. Automatically unwraps ESM modules that have **only** a default export (no named exports). Handles npm ESM packages like `is-promise`, `depd`, etc. No action needed.
+
+**2. `cjs-compat.cjs` wrappers (manual)** — Required for `@gjsify/*` packages that have **both** named exports AND a default export. The patch can't unwrap these because CJS consumers also need the named exports (e.g., `require('stream').Readable`).
+
+### When to add a `cjs-compat.cjs`
+
+Add one when a `@gjsify/*` package meets ALL of:
+1. Has a default export that is a constructor/class (used by CJS as `var X = require('...')` directly)
+2. Has named exports alongside the default export
+3. The default export has all named exports as properties (via `Object.assign` or class statics)
+4. CJS npm packages `require()` it and use the result as a constructor, with `inherits()`, or call it as a function
+
+**Symptoms:** `TypeError: The super constructor to "inherits" must have a prototype` | `TypeError: X is not a function` | `TypeError: X.call is not a function`
+
+**Candidates:** Packages where Node.js CJS `require()` returns a constructor directly:
+
+| Package | `require()` returns | Has cjs-compat |
+|---------|-------------------|----------------|
+| `stream` | `Stream` class (with `.Readable`, `.Writable`, etc.) | ✅ |
+| `events` | `EventEmitter` class | ✅ |
+| `buffer` | `{ Buffer, ... }` object — not a constructor | ❌ not needed |
+| `util` | `{ format, inherits, ... }` object | ❌ not needed |
+| `http` | `{ createServer, ... }` object | ❌ not needed |
+| `path` | `{ join, resolve, ... }` object | ❌ not needed |
+
+Only packages where `require()` returns a function/class directly need wrappers. Packages returning plain objects work fine because CJS consumers destructure properties, which match named exports.
+
+### How to add a wrapper
+
+1. Create `packages/node/<name>/cjs-compat.cjs`:
+```js
+// CJS compatibility wrapper for npm packages that require('<name>')
+// In Node.js CJS, require('<name>') returns the <Class> directly.
+// When esbuild bundles ESM @gjsify/<name> for CJS consumers, it returns a
+// namespace object instead. This wrapper extracts the default export.
+const mod = require('./lib/esm/index.js');
+module.exports = mod.default || mod;
+```
+
+2. Add `require` condition to `package.json` exports (BEFORE `default`):
+```json
+"exports": {
+    ".": {
+        "types": "./lib/types/index.d.ts",
+        "require": "./cjs-compat.cjs",
+        "default": "./lib/esm/index.js"
+    }
+}
+```
+
+esbuild auto-selects `require` vs `import` condition based on the consumer's syntax (`require()` → CJS entry, `import` → ESM entry). The alias plugin passes through `args.kind` to `build.resolve()`.
+
 ## Native Extensions (Vala)
 
 Vala→Meson→shared lib+GIR typelib→`gi://` import. Example: `packages/web/webgl/`. Prefer TS; Vala only for C-level access.

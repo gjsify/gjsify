@@ -212,8 +212,12 @@ export class EventEmitter {
 
     let events = this._events;
 
-    // Emit newListener before adding
-    if (events.newListener !== undefined) {
+    // Lazy initialization for objects that mixin EventEmitter without calling constructor
+    if (events === undefined) {
+      events = this._events = Object.create(null);
+      this._eventsCount = 0;
+    } else if (events.newListener !== undefined) {
+      // Emit newListener before adding
       this.emit('newListener', type, (listener as WrappedEventListener).listener ?? listener);
       // Re-read in case newListener handler modified _events
       events = this._events;
@@ -270,6 +274,9 @@ export class EventEmitter {
     checkListener(listener);
 
     const events = this._events;
+    if (events === undefined) {
+      return this;
+    }
     const list = events[type];
     if (list === undefined) {
       return this;
@@ -321,6 +328,9 @@ export class EventEmitter {
 
   removeAllListeners(type?: string | symbol): this {
     const events = this._events;
+    if (events === undefined) {
+      return this;
+    }
 
     // Not listening for removeListener, no need to emit
     if (events.removeListener === undefined) {
@@ -366,6 +376,9 @@ export class EventEmitter {
 
   listeners(type: string | symbol): EventListener[] {
     const events = this._events;
+    if (events === undefined) {
+      return [];
+    }
     const evlistener = events[type];
 
     if (evlistener === undefined) {
@@ -381,6 +394,9 @@ export class EventEmitter {
 
   rawListeners(type: string | symbol): EventListener[] {
     const events = this._events;
+    if (events === undefined) {
+      return [];
+    }
     const evlistener = events[type];
 
     if (evlistener === undefined) {
@@ -396,6 +412,9 @@ export class EventEmitter {
 
   listenerCount(type: string | symbol): number {
     const events = this._events;
+    if (events === undefined) {
+      return 0;
+    }
     const evlistener = events[type];
 
     if (evlistener === undefined) {
@@ -410,7 +429,7 @@ export class EventEmitter {
   }
 
   eventNames(): (string | symbol)[] {
-    return this._eventsCount > 0
+    return (this._eventsCount ?? 0) > 0
       ? Reflect.ownKeys(this._events)
       : [];
   }

@@ -1,0 +1,47 @@
+import '@gjsify/node-globals';
+import express from 'express';
+
+const app = express();
+const PORT = 3000;
+
+// Detect runtime platform
+const isGJS = !!(globalThis as any).imports;
+const platform = isGJS ? 'GJS' : 'Node.js';
+
+// GET / — Welcome page
+app.get('/', (_req, res) => {
+  res.json({
+    message: `Hello from Express on ${platform}`,
+    routes: {
+      'GET /': 'This welcome message',
+      'GET /api/hello/:name': 'Greet someone by name',
+      'GET /api/time': 'Current server time',
+    },
+  });
+});
+
+// GET /api/hello/:name — Greet by name
+app.get('/api/hello/:name', (req, res) => {
+  const { name } = req.params;
+  res.json({ greeting: `Hello, ${name}!` });
+});
+
+// GET /api/time — Current time
+app.get('/api/time', (_req, res) => {
+  res.json({ time: new Date().toISOString() });
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Express server running at http://localhost:${PORT}`);
+  console.log('Press Ctrl+C to stop');
+});
+
+// On GJS, Soup.Server needs the GLib main loop to dispatch requests.
+// Node.js keeps the process alive automatically via its own event loop.
+const gjsImports = (globalThis as any).imports;
+if (gjsImports) {
+  const GLib = gjsImports.gi.GLib;
+  const loop = new GLib.MainLoop(null, false);
+  await loop.runAsync();
+}

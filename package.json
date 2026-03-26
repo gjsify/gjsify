@@ -36,6 +36,7 @@
     "packages/node/*",
     "packages/web/*",
     "examples/cli/*",
-    "examples/gtk/*"
+    "examples/gtk/*",
+    "examples/net/*"
   ]
 }
