@@ -50,30 +50,35 @@ jobs:
       - name: Install Meson and Vala
         run: dnf install -y meson vala gcc pkgconf
 
+      - name: Create non-root user for tests
+        run: |
+          useradd -m testuser
+          chown -R testuser:testuser .
+
       - name: Enable Corepack
-        run: corepack enable
+        run: su testuser -c 'corepack enable'
 
       - name: Install NPM dependencies
-        run: yarn install --immutable
+        run: su testuser -c 'yarn install --immutable'
 
       - name: Clear
-        run: yarn run clear
+        run: su testuser -c 'yarn run clear'
 
       - name: Build
-        run: yarn run build
+        run: su testuser -c 'yarn run build'
 
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
-        run: yarn run build:examples
+        run: su testuser -c 'yarn run build:examples'
 
       - name: Check
-        run: yarn run check
+        run: su testuser -c 'yarn run check'
 
       - name: Check examples
-        run: yarn run check:examples
+        run: su testuser -c 'yarn run check:examples'
 
       - name: Test
-        run: yarn run test
+        run: su testuser -c 'yarn run test'
 
       - name: Test CLI examples
-        run: yarn run test:examples
+        run: su testuser -c 'yarn run test:examples'

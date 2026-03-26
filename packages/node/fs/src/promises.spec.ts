@@ -448,21 +448,17 @@ export default async () => {
 
 	await describe('fs.promises.access additional', async () => {
 		await it('should reject with EACCES or ENOENT for W_OK on read-only path', async () => {
-			// Skip when running as root (CI containers) — root bypasses permission checks
-			// Check via Node.js process.getuid or by testing if W_OK on /etc/hosts succeeds
-			const isRoot = (typeof process !== 'undefined' && typeof process.getuid === 'function' && process.getuid() === 0);
-			if (isRoot) return;
-			// Also detect root on GJS where process.getuid may not exist:
-			// try writing to /etc/hosts — if access succeeds, we're root
+			// /etc/hosts typically is not writable by normal users
+			let threw = false;
 			try {
 				await access('/etc/hosts', fsConstants.W_OK);
-				// If we got here without error, we have write access (root) — skip
-				return;
 			} catch (e: unknown) {
+				threw = true;
 				const code = (e as NodeJS.ErrnoException).code;
 				// Either EACCES (permission denied) or ENOENT depending on system
 				expect(code === 'EACCES' || code === 'ENOENT').toBe(true);
 			}
+			expect(threw).toBe(true);
 		});
 	});
 
