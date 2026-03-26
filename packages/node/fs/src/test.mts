@@ -10,4 +10,6 @@ import testSuiteStat from './stat.spec.js';
 import testSuiteNewApis from './new-apis.spec.js';
 import testSuiteExtended from './extended.spec.js';
 
-run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended});
+import testSuiteErrors from './errors.spec.js';
+
+run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended, testSuiteErrors});

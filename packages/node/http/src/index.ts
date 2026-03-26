@@ -28,7 +28,12 @@ export function validateHeaderName(name: string) {
  * Performs the low-level validations on the provided `value` that are done when `res.setHeader(name, value)` is called.
  */
 export function validateHeaderValue(name: string, value: any) {
-  if (/[^\t\u0020-\u007E\u0080-\u00FF]/.test(value)) {
+  if (value === undefined) {
+    const error = new TypeError(`Header "${name}" value must not be undefined`);
+    Object.defineProperty(error, 'code', { value: 'ERR_HTTP_INVALID_HEADER_VALUE' });
+    throw error;
+  }
+  if (typeof value === 'string' && /[^\t\u0020-\u007E\u0080-\u00FF]/.test(value)) {
     const error = new TypeError(`Invalid character in header content ["${name}"]`);
     Object.defineProperty(error, 'code', { value: 'ERR_INVALID_CHAR' });
     throw error;
@@ -49,6 +54,15 @@ export class Agent {
   constructor(_options?: any) {}
 
   destroy(): void {}
+
+  /** Return a connection pool key for the given options. */
+  getName(options: { host?: string; port?: number; localAddress?: string; family?: number }): string {
+    let name = options.host || 'localhost';
+    if (options.port) name += ':' + options.port;
+    if (options.localAddress) name += ':' + options.localAddress;
+    if (options.family === 4 || options.family === 6) name += ':' + options.family;
+    return name;
+  }
 }
 
 export const globalAgent = new Agent();
@@ -56,7 +70,10 @@ export const globalAgent = new Agent();
 /**
  * Create an HTTP server.
  */
-export function createServer(requestListener?: (req: IncomingMessage, res: ServerResponse) => void): Server {
+export function createServer(options?: Record<string, unknown> | ((req: IncomingMessage, res: ServerResponse) => void), requestListener?: (req: IncomingMessage, res: ServerResponse) => void): Server {
+  if (typeof options === 'function') {
+    return new Server(options);
+  }
   return new Server(requestListener);
 }
 

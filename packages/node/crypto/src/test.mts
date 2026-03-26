@@ -14,4 +14,6 @@ import testSuiteSign from './sign.spec.js';
 import testSuiteKeyObject from './key-object.spec.js';
 import testSuiteX509 from './x509.spec.js';
 
-run({ testSuiteHash, testSuiteHmac, testSuiteRandom, testSuitePbkdf2, testSuiteCipher, testSuiteScrypt, testSuiteDh, testSuiteEcdh, testSuiteGcm, testSuiteSign, testSuiteKeyObject, testSuiteX509 });
+import testSuiteExtended from './extended.spec.js';
+
+run({ testSuiteHash, testSuiteHmac, testSuiteRandom, testSuitePbkdf2, testSuiteCipher, testSuiteScrypt, testSuiteDh, testSuiteEcdh, testSuiteGcm, testSuiteSign, testSuiteKeyObject, testSuiteX509, testSuiteExtended });
