@@ -264,14 +264,14 @@ export class StatementSync {
         try {
             const chModel = this.#connection.execute_select_command('SELECT changes()');
             if (chModel && chModel.get_n_rows() > 0) {
-                changes = chModel.get_value_at(0, 0) as number;
+                changes = chModel.get_value_at(0, 0) as unknown as number;
             }
         } catch { /* ignore */ }
 
         try {
             const ridModel = this.#connection.execute_select_command('SELECT last_insert_rowid()');
             if (ridModel && ridModel.get_n_rows() > 0) {
-                lastInsertRowid = ridModel.get_value_at(0, 0) as number;
+                lastInsertRowid = ridModel.get_value_at(0, 0) as unknown as number;
             }
         } catch { /* ignore */ }
 

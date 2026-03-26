@@ -27,7 +27,7 @@ function setHolderValue(holder: Gda.Holder, value: unknown): void {
         return;
     }
     if (typeof value === 'number') {
-        holder.set_value(value);
+        holder.set_value(value as any);
         return;
     }
     if (typeof value === 'bigint') {
@@ -36,23 +36,23 @@ function setHolderValue(holder: Gda.Holder, value: unknown): void {
                 `BigInt value is too large to bind.`
             );
         }
-        holder.set_value(Number(value));
+        holder.set_value(Number(value) as any);
         return;
     }
     if (typeof value === 'string') {
-        holder.set_value(value);
+        holder.set_value(value as any);
         return;
     }
     if (typeof value === 'boolean') {
-        holder.set_value(value ? 1 : 0);
+        holder.set_value((value ? 1 : 0) as any);
         return;
     }
     if (value instanceof Uint8Array || ArrayBuffer.isView(value)) {
         const bytes = value instanceof Uint8Array ? value : new Uint8Array((value as ArrayBufferView).buffer);
-        holder.set_value(bytes);
+        holder.set_value(bytes as any);
         return;
     }
-    holder.set_value(value);
+    holder.set_value(value as any);
 }
 
 export interface BindingContext {
