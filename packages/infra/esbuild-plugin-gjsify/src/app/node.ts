@@ -34,7 +34,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         // one natively, so we create it via createRequire().
         ...(format === 'esm' ? {
             banner: {
-                js: "import { createRequire } from 'module';\nconst require = createRequire(import.meta.url);",
+                js: "import { createRequire as __gjsify_createRequire } from 'module';\nconst require = __gjsify_createRequire(import.meta.url);",
             },
         } : {}),
         external,
