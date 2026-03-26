@@ -307,7 +307,7 @@ export class Buffer extends Uint8Array {
     for (let i = 0; i < list.length; i++) {
       const buf = list[i];
       const toCopy = Math.min(buf.length, totalLength - offset);
-      if (toCopy <= 0) break;
+      if (toCopy <= 0) continue;
       result.set(buf.subarray(0, toCopy), offset);
       offset += toCopy;
     }
