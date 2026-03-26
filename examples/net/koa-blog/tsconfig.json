@@ -7,5 +7,5 @@
     "outDir": "dist",
     "skipLibCheck": true
   },
-  "files": ["src/index.ts"]
+  "files": ["src/index.ts", "src/index.spec.ts", "src/test.mts"]
 }

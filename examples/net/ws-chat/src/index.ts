@@ -13,7 +13,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Chat message bus
 const chatBus = new EventEmitter();

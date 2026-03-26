@@ -3,7 +3,7 @@ import { runtimeName } from '@gjsify/runtime';
 import express from 'express';
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // GET / — Welcome page
 app.get('/', (_req, res) => {

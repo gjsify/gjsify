@@ -9,12 +9,11 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
-import { Buffer } from 'node:buffer';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Chat message bus — broadcasts messages to all connected SSE clients
 const chatBus = new EventEmitter();

@@ -13,7 +13,7 @@ import bodyParser from 'koa-bodyparser';
 
 const app = new Koa();
 const router = new Router();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Resolve views directory relative to this script (works in both Node.js ESM and GJS)
 const __filename = fileURLToPath(import.meta.url);

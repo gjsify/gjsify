@@ -15,7 +15,12 @@
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
     "build:views": "cp -r src/views dist/views",
-    "test": "yarn start"
+    "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+    "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+    "build:test": "yarn build:test:gjs && yarn build:test:node",
+    "test": "yarn build && yarn build:test:node && yarn test:node",
+    "test:node": "node test.node.mjs",
+    "test:gjs": "gjs -m test.gjs.mjs"
   },
   "dependencies": {
     "@gjsify/node-globals": "workspace:^",
@@ -27,6 +32,7 @@
   },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
+    "@gjsify/unit": "workspace:^",
     "@types/ejs": "^3.1.5",
     "@types/koa": "^3.0.2",
     "@types/koa-bodyparser": "^4.3.13",

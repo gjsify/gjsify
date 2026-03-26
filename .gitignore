@@ -23,6 +23,13 @@ packages/**/*/test.*.cjs.map
 packages/**/*/test.*.mjs
 packages/**/*/test.*.mjs.map
 
+examples/**/*/test.*.js
+examples/**/*/test.*.js.map
+examples/**/*/test.*.cjs
+examples/**/*/test.*.cjs.map
+examples/**/*/test.*.mjs
+examples/**/*/test.*.mjs.map
+
 # Test artifacts (fs tests create temp dirs/files)
 fs-*/
 foobar/

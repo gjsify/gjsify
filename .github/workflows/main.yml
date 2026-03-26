@@ -82,3 +82,6 @@ jobs:
 
       - name: Test CLI examples
         run: su testuser -c 'yarn run test:examples'
+
+      - name: Test net examples
+        run: su testuser -c 'yarn run test:examples:net'

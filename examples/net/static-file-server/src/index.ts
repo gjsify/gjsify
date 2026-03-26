@@ -16,7 +16,7 @@ import type { Stats } from 'node:fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PUBLIC_DIR = resolve(join(__dirname, 'public'));
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // MIME type mapping
 const MIME_TYPES: Record<string, string> = {

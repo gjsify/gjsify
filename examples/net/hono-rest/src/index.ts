@@ -94,7 +94,7 @@ app.delete('/todos/:id', (c) => {
 });
 
 // Start server using @hono/node-server (handles Node.js→Fetch API conversion)
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`Hono REST API running at http://localhost:${info.port}`);
   console.log(`Runtime: ${runtimeName}`);

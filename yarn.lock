@@ -928,6 +928,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-cli-json-store@workspace:examples/cli/json-store":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-cli-json-store@workspace:examples/cli/json-store"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-cli-node-buffer@workspace:examples/cli/node-buffer":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-cli-node-buffer@workspace:examples/cli/node-buffer"
@@ -1166,6 +1178,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/express": "npm:^5.0.6"
     "@types/node": "npm:^25.5.0"
     express: "npm:^5.2.1"
@@ -1180,6 +1193,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@hono/node-server": "npm:^1.19.11"
     "@types/node": "npm:^25.5.0"
     hono: "npm:^4.12.9"
@@ -1194,6 +1208,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@koa/router": "npm:^15.4.0"
     "@types/ejs": "npm:^3.1.5"
     "@types/koa": "npm:^3.0.2"
@@ -1214,6 +1229,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1226,6 +1242,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1238,6 +1255,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
