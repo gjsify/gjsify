@@ -873,6 +873,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-cli-dns-lookup@workspace:examples/cli/dns-lookup":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-cli-dns-lookup@workspace:examples/cli/dns-lookup"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-cli-esbuild-plugin-deepkit@workspace:examples/cli/esbuild-plugin-deepkit":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-cli-esbuild-plugin-deepkit@workspace:examples/cli/esbuild-plugin-deepkit"
@@ -889,6 +901,18 @@ __metadata:
   resolution: "@gjsify/example-cli-esbuild-plugin-transform-ext@workspace:examples/cli/esbuild-plugin-transform-ext"
   dependencies:
     "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-cli-file-search@workspace:examples/cli/file-search":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-cli-file-search@workspace:examples/cli/file-search"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
@@ -1122,6 +1146,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-net-hono-rest@workspace:examples/net/hono-rest":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-net-hono-rest@workspace:examples/net/hono-rest"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@hono/node-server": "npm:^1.15.0"
+    "@types/node": "npm:^25.5.0"
+    hono: "npm:^4.7.11"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-net-koa-blog@workspace:examples/net/koa-blog":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-net-koa-blog@workspace:examples/net/koa-blog"
@@ -1138,6 +1176,18 @@ __metadata:
     ejs: "npm:^5.0.1"
     koa: "npm:^3.1.2"
     koa-bodyparser: "npm:^4.4.1"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-net-sse-chat@workspace:examples/net/sse-chat":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-net-sse-chat@workspace:examples/net/sse-chat"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
@@ -1682,6 +1732,15 @@ __metadata:
   version: 3.0.0
   resolution: "@hapi/bourne@npm:3.0.0"
   checksum: 10/b3b5d7bdf511fe27b7b8b01b9457f125646665bef72a78848c69170efdea19c2b72522246a87ede6cd811e51e7a556ceff194e46fb1393c6c8c796431c1810b6
+  languageName: node
+  linkType: hard
+
+"@hono/node-server@npm:^1.15.0":
+  version: 1.19.11
+  resolution: "@hono/node-server@npm:1.19.11"
+  peerDependencies:
+    hono: ^4
+  checksum: 10/1718910924944bfa2f2649ae102fbdaee42e388ed373f1e36bb2674447b9f1a64a9344908c046c6100e6c387fe2d1dab5c95684cb3a415ba0a0b719fbef0a6cb
   languageName: node
   linkType: hard
 
@@ -3497,6 +3556,13 @@ __metadata:
   version: 0.0.18
   resolution: "helpertypes@npm:0.0.18"
   checksum: 10/42098fca78016b8bee4ec29473b4a5bc10c325cea8be8fa24617318412336dec6cfcd1dea8290c31c89e73892c149a2ee6e8172f08f12b8a63cb5375f137fe7e
+  languageName: node
+  linkType: hard
+
+"hono@npm:^4.7.11":
+  version: 4.12.9
+  resolution: "hono@npm:4.12.9"
+  checksum: 10/2466bab60ef6ca568f1636f27e0b735ce1a7c6f3a03bb2aa5bcab5b67e3a6ed6cb59edaddb5f836fbeb627804fb4c0ac21e59e73345e9e640b3fbd765163b9ed
   languageName: node
   linkType: hard
 

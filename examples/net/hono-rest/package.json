@@ -1,0 +1,34 @@
+{
+  "name": "@gjsify/example-net-hono-rest",
+  "private": true,
+  "version": "0.0.4",
+  "description": "Hono REST API example for Node.js and GJS",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "yarn start:node",
+    "start:gjs": "gjs -m dist/index.gjs.js",
+    "start:node": "node dist/index.node.mjs",
+    "build": "yarn build:gjs && yarn build:node",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
+    "test": "yarn start"
+  },
+  "dependencies": {
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
+    "@hono/node-server": "^1.15.0",
+    "hono": "^4.7.11"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2"
+  },
+  "engines": {
+    "node": ">=16",
+    "gjs": ">=1.72.x"
+  }
+}
