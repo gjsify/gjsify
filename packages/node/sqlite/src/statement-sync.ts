@@ -15,7 +15,7 @@ const MIN_INT64 = -9223372036854775808n;
 const INTERNAL = Symbol('StatementSync.internal');
 
 function validateBindValue(value: unknown, paramIndex: number): void {
-    if (value === null || value === undefined) return;
+    if (value === null) return;
     const t = typeof value;
     if (t === 'number' || t === 'bigint' || t === 'string' || t === 'boolean') return;
     if (value instanceof Uint8Array || value instanceof ArrayBuffer) return;
@@ -28,7 +28,8 @@ function validateBindValue(value: unknown, paramIndex: number): void {
 // Escape a JS value for inline SQL. This is safe because only values are
 // interpolated — the SQL structure comes from the user's original prepare() call.
 function sqlEscapeValue(value: unknown): string {
-    if (value === null || value === undefined) return 'NULL';
+    if (value === null) return 'NULL';
+    if (value === undefined) return 'NULL';
     if (typeof value === 'number') return String(value);
     if (typeof value === 'boolean') return value ? '1' : '0';
     if (typeof value === 'bigint') {
@@ -118,8 +119,9 @@ export class StatementSync {
             positionalArgs = args.slice(1);
         }
 
-        // Build a map of parameter position/name -> SQL-escaped value
+        // Build maps: named params use Map<originalName, escaped>, positional use index-keyed object
         const values = new Map<string, string>();
+        const positionalValues: Record<number, string> = {};
 
         if (namedArgs) {
             for (const param of this.#paramMap) {
@@ -165,7 +167,7 @@ export class StatementSync {
                     throw new SqliteError('column index out of range', 25, 'column index out of range');
                 }
                 validateBindValue(positionalArgs[i], i + 1);
-                values.set(positionalParams[i].originalName, sqlEscapeValue(positionalArgs[i]));
+                positionalValues[positionalParams[i].position] = sqlEscapeValue(positionalArgs[i]);
             }
         } else {
             // Pure positional binding
@@ -175,24 +177,28 @@ export class StatementSync {
             }
 
             for (let i = 0; i < positionalParams.length; i++) {
-                const value = i < positionalArgs.length ? positionalArgs[i] : undefined;
-                validateBindValue(value, i + 1);
-                values.set(positionalParams[i].originalName, sqlEscapeValue(value));
+                if (i < positionalArgs.length) {
+                    validateBindValue(positionalArgs[i], i + 1);
+                    positionalValues[positionalParams[i].position] = sqlEscapeValue(positionalArgs[i]);
+                } else {
+                    // Not provided — bind as NULL (not an error)
+                    positionalValues[positionalParams[i].position] = 'NULL';
+                }
             }
         }
 
         // Substitute parameters in SQL
         let result = this.#sql;
+
         // Replace named params ($name, :name, @name) — longest first to avoid partial matches
         const namedParams = this.#paramMap.filter(p => p.position < 0).sort((a, b) => b.originalName.length - a.originalName.length);
         for (const param of namedParams) {
             const escaped = values.get(param.originalName) ?? 'NULL';
             result = result.split(param.originalName).join(escaped);
         }
-        // Replace positional params (? or ?NNN) — process right-to-left for correct indexing
-        const positionalParams = this.#paramMap.filter(p => p.position >= 0);
-        // Find positions of ? in original SQL and replace
-        if (positionalParams.length > 0) {
+
+        // Replace positional params (? or ?NNN) — scan left-to-right
+        if (Object.keys(positionalValues).length > 0) {
             let out = '';
             let pIdx = 0;
             let i = 0;
@@ -217,8 +223,7 @@ export class StatementSync {
                     }
                     const pos = numStr ? parseInt(numStr, 10) - 1 : pIdx;
                     pIdx = numStr ? pIdx : pIdx + 1;
-                    const param = positionalParams.find(p => p.position === pos);
-                    out += param ? (values.get(param.originalName) ?? 'NULL') : 'NULL';
+                    out += (pos in positionalValues) ? positionalValues[pos] : 'NULL';
                     continue;
                 }
                 out += result[i];
