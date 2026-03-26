@@ -354,6 +354,27 @@ export class Server extends EventEmitter {
     return this._address;
   }
 
+  /**
+   * Register a WebSocket handler on this server (GJS only).
+   * Delegates to Soup.Server.add_websocket_handler().
+   * @param path URL path to handle WebSocket upgrades (e.g., '/ws')
+   * @param callback Called for each new WebSocket connection with the Soup.WebsocketConnection
+   */
+  addWebSocketHandler(
+    path: string,
+    callback: (connection: unknown) => void,
+  ): void {
+    if (!this._soupServer) {
+      throw new Error('Server must be listening before adding WebSocket handlers. Call listen() first.');
+    }
+    this._soupServer.add_websocket_handler(
+      path, null, null,
+      (_srv: Soup.Server, _msg: Soup.ServerMessage, _path: string, connection: unknown) => {
+        callback(connection);
+      },
+    );
+  }
+
   close(callback?: (err?: Error) => void): this {
     if (callback) this.once('close', callback);
 
