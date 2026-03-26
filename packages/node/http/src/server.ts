@@ -293,7 +293,12 @@ export class Server extends EventEmitter {
 
       deferEmit(this, 'listening');
     } catch (err: unknown) {
-      deferEmit(this, 'error', err instanceof Error ? err : new Error(String(err)));
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (this.listenerCount('error') === 0) {
+        // No error listener — throw like Node.js does for unhandled EventEmitter errors
+        throw error;
+      }
+      deferEmit(this, 'error', error);
     }
 
     return this;
