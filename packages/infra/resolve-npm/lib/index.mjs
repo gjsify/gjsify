@@ -25,10 +25,7 @@ export const EXTERNALS_NODE = [
     'net',
     'os',
     'path',
-    'path/common',
-    'path/glob',
     'path/posix',
-    'path/separator',
     'path/win32',
     'perf_hooks',
     'process',
@@ -77,7 +74,7 @@ export const ALIASES_NODE_FOR_GJS = {
     'child_process': '@gjsify/child_process',
     'cluster': '@gjsify/cluster',
     'console': '@gjsify/console',
-    'constants': '@gjsify/constants', // TODO
+    'constants': '@gjsify/constants',
     'crypto': '@gjsify/crypto',
     'dgram': '@gjsify/dgram',
     'diagnostics_channel': '@gjsify/diagnostics_channel',
@@ -95,25 +92,22 @@ export const ALIASES_NODE_FOR_GJS = {
     'net': '@gjsify/net',
     'os': '@gjsify/os',
     'path': '@gjsify/path',
-    'path/common': '@gjsify/path/common', // TODO
-    'path/glob': '@gjsify/path/glob', // TODO
     'path/posix': '@gjsify/path/posix',
-    'path/separator': '@gjsify/path/separator', // TODO
     'path/win32': '@gjsify/path/win32',
     'perf_hooks': '@gjsify/perf_hooks',
     'process': '@gjsify/process',
-    'punycode': '@gjsify/punycode', // TODO
+    'punycode': '@gjsify/punycode', // stub — deprecated, low priority
     'querystring': '@gjsify/querystring',
     'readline': '@gjsify/readline',
-    'readline/promises': '@gjsify/readline/promises', // TODO
-    'repl': '@gjsify/repl', // TODO
+    'readline/promises': '@gjsify/readline/promises',
+    'repl': '@gjsify/repl', // stub — low priority
     'stream': '@gjsify/stream',
     'stream/web': '@gjsify/stream/web',
-    'stream/consumers': '@gjsify/stream/consumers', // TODO
-    'stream/promises': '@gjsify/stream/promises', // TODO
+    'stream/consumers': '@gjsify/stream/consumers',
+    'stream/promises': '@gjsify/stream/promises',
     'string_decoder': '@gjsify/string_decoder',
-    'sys': '@gjsify/sys', // TODO
-    // 'test': '@gjsify/test', // TODO
+    'sys': '@gjsify/sys',
+    // 'test': '@gjsify/test', // not planned — use @gjsify/unit instead
     'timers': '@gjsify/timers',
     'timers/promises': '@gjsify/timers/promises',
     'tls': '@gjsify/tls',
@@ -123,7 +117,7 @@ export const ALIASES_NODE_FOR_GJS = {
     'util/types': '@gjsify/util/types',
     'v8': '@gjsify/v8',
     'vm': '@gjsify/vm',
-    'wasi': '@gjsify/wasi', // TODO
+    'wasi': '@gjsify/wasi', // stub — low priority (WebAssembly System Interface)
     'worker_threads': '@gjsify/worker_threads',
     'zlib': '@gjsify/zlib',
 

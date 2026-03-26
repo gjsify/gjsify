@@ -28,6 +28,10 @@ fs-*/
 foobar/
 symlink_tsconfig.json
 
+# Ad-hoc test/debug scripts in project root
+test-*.mjs
+test-*.js
+
 # Metafile
 *.meta.json
 meta.json

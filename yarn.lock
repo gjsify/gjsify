@@ -649,7 +649,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/crypto@workspace:packages/node/crypto":
+"@gjsify/constants@workspace:packages/node/constants":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/constants@workspace:packages/node/constants"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/crypto": "workspace:^"
+    "@gjsify/fs": "workspace:^"
+    "@gjsify/os": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/crypto@workspace:^, @gjsify/crypto@workspace:packages/node/crypto":
   version: 0.0.0-use.local
   resolution: "@gjsify/crypto@workspace:packages/node/crypto"
   dependencies:
@@ -1353,6 +1367,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/sys@workspace:packages/node/sys":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/sys@workspace:packages/node/sys"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/util": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/timers@workspace:packages/node/timers":
   version: 0.0.0-use.local
   resolution: "@gjsify/timers@workspace:packages/node/timers"
@@ -1423,7 +1449,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/util@workspace:packages/node/util":
+"@gjsify/util@workspace:^, @gjsify/util@workspace:packages/node/util":
   version: 0.0.0-use.local
   resolution: "@gjsify/util@workspace:packages/node/util"
   dependencies:

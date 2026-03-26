@@ -117,5 +117,20 @@ export default {
     "SIGPOLL": 29,
     "SIGPWR": 30,
     "SIGSYS": 31
+  },
+  "priority": {
+    "PRIORITY_LOW": 19,
+    "PRIORITY_BELOW_NORMAL": 10,
+    "PRIORITY_NORMAL": 0,
+    "PRIORITY_ABOVE_NORMAL": -7,
+    "PRIORITY_HIGH": -14,
+    "PRIORITY_HIGHEST": -20
+  },
+  "dlopen": {
+    "RTLD_LAZY": 1,
+    "RTLD_NOW": 2,
+    "RTLD_GLOBAL": 256,
+    "RTLD_LOCAL": 0,
+    "RTLD_DEEPBIND": 8
   }
 };

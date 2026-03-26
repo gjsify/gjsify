@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/readline",
+    "name": "@gjsify/constants",
     "version": "0.0.4",
-    "description": "Node.js readline module for Gjs",
+    "description": "Node.js constants module for Gjs (deprecated, re-exports from os/fs/crypto)",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -9,10 +9,6 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
-        },
-        "./promises": {
-            "types": "./lib/types/promises.d.ts",
-            "default": "./lib/esm/promises.js"
         }
     },
     "scripts": {
@@ -31,10 +27,12 @@
     "keywords": [
         "gjs",
         "node",
-        "readline"
+        "constants"
     ],
     "dependencies": {
-        "@gjsify/events": "workspace:^"
+        "@gjsify/crypto": "workspace:^",
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/os": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/readline",
+    "name": "@gjsify/sys",
     "version": "0.0.4",
-    "description": "Node.js readline module for Gjs",
+    "description": "Node.js sys module for Gjs (alias for util)",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -9,10 +9,6 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
-        },
-        "./promises": {
-            "types": "./lib/types/promises.d.ts",
-            "default": "./lib/esm/promises.js"
         }
     },
     "scripts": {
@@ -31,10 +27,11 @@
     "keywords": [
         "gjs",
         "node",
-        "readline"
+        "sys",
+        "util"
     ],
     "dependencies": {
-        "@gjsify/events": "workspace:^"
+        "@gjsify/util": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
