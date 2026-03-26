@@ -73,6 +73,8 @@ export default class Headers implements Iterable<[string, string]> {
     }
 
     append(name: string, value: string): void {
+        validateHeaderName(name);
+        validateHeaderValue(name, value);
         const lowerName = String(name).toLowerCase();
         const strValue = String(value);
         const existing = this[_headers].get(lowerName);
@@ -84,6 +86,8 @@ export default class Headers implements Iterable<[string, string]> {
     }
 
     set(name: string, value: string): void {
+        validateHeaderName(name);
+        validateHeaderValue(name, value);
         const lowerName = String(name).toLowerCase();
         this[_headers].set(lowerName, [String(value)]);
     }

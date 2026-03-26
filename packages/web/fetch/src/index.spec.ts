@@ -94,6 +94,41 @@ export default async () => {
 			const values = [...h.values()];
 			expect(values.length).toBe(2);
 		});
+
+		await it('should be iterable with for...of', async () => {
+			const h = new Headers({ 'content-type': 'text/plain', 'x-custom': 'val' });
+			const entries: [string, string][] = [];
+			for (const [k, v] of h) entries.push([k, v]);
+			expect(entries.length).toBe(2);
+			expect(entries[0][0]).toBe('content-type');
+			expect(entries[1][0]).toBe('x-custom');
+		});
+
+		await it('should support spread operator', async () => {
+			const h = new Headers({ 'a': '1' });
+			const arr = [...h];
+			expect(arr.length).toBe(1);
+			expect(arr[0][0]).toBe('a');
+			expect(arr[0][1]).toBe('1');
+		});
+
+		await it('should throw on invalid header name in set()', async () => {
+			const h = new Headers();
+			expect(() => h.set('invalid header', 'value')).toThrow();
+		});
+
+		await it('should throw on invalid header name in append()', async () => {
+			const h = new Headers();
+			expect(() => h.append('invalid header', 'value')).toThrow();
+		});
+
+		await it('should support entries() for destructuring', async () => {
+			const h = new Headers({ 'host': 'example.com', 'accept': '*/*' });
+			const obj: Record<string, string> = {};
+			for (const [k, v] of h.entries()) obj[k] = v;
+			expect(obj['accept']).toBe('*/*');
+			expect(obj['host']).toBe('example.com');
+		});
 	});
 
 	await describe('Request', async () => {
