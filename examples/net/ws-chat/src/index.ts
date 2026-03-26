@@ -10,6 +10,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Server } from '@gjsify/http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -91,7 +92,7 @@ server.listen(PORT, () => {
 
   if (isGJS) {
     // GJS: Add WebSocket handler via Soup.Server
-    const httpServer = server as any;
+    const httpServer = server as unknown as Server;
     httpServer.addWebSocketHandler('/ws', (connection: any) => {
       console.log('WebSocket client connected');
       _activeConnections.add(connection);
