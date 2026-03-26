@@ -251,6 +251,10 @@ Shared cross-package utilities live in `@gjsify/utils` (`packages/gjs/utils/`). 
 6. Iterate until both pass
 7. Full validation: `yarn install && yarn clear && yarn build && yarn check && yarn test`
 
+### Regression Tests from Examples
+
+When real-world examples (Express, Koa, Hono, etc.) uncover bugs — GC issues, missing globals, CJS-ESM interop problems, MainLoop edge cases — always add a targeted test to the relevant `packages/node/*/src/*.spec.ts` or `packages/web/*/src/*.spec.ts` file. This ensures the bug is automatically caught in future test runs. Examples are integration validation; regression tests are the permanent safety net.
+
 ### Test Sources
 
 Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. See References tables for paths and priorities.

@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-26 (8 real-world examples; +116 tests for HTTP streaming, fs streams, TCP; Hono REST API)
+> Last updated: 2026-03-26 (10 examples; Fetch API globals; WebSocket server; EADDRINUSE fix; GTK dashboard)
 
 ## Summary
 
@@ -161,7 +161,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Total test cases | 9,300+ |
 | Spec files | 94 |
-| Real-world examples | 7 (Express, Koa, Static file server, SSE chat, Hono REST, file search, DNS lookup, worker pool) |
+| Real-world examples | 10 (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
 | Reference submodules | 27 |
@@ -224,6 +224,17 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-26 — Fetch Globals, WebSocket Server, EADDRINUSE Fix, GTK Dashboard
+
+**Infrastructure fixes:**
+- **Fetch API globals on GJS**: `@gjsify/fetch` now registers `fetch`, `Request`, `Response`, `Headers` on `globalThis`. `@gjsify/node-globals` imports `@gjsify/fetch` for side-effect registration (replaces empty stubs).
+- **EADDRINUSE error on GJS**: `http.Server.listen()` now throws when port is busy and no `'error'` listener is registered, matching Node.js behavior (previously exited silently).
+- **WebSocket server**: `http.Server.addWebSocketHandler(path, callback)` delegates to `Soup.Server.add_websocket_handler()` for server-side WebSocket on GJS.
+
+**New examples:**
+- `examples/net/ws-chat`: WebSocket chat using `Soup.WebsocketConnection` signals, with REST POST fallback
+- `examples/gtk/http-dashboard`: GTK4 window + embedded HTTP server. Labels show request count/uptime, TextView shows request log. Uses `GLib.idle_add()` for thread-safe UI updates.
 
 ### 2026-03-26 — Real-World Examples Sprint (+6 examples, +116 tests)
 
