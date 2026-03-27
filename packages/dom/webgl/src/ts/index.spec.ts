@@ -2,7 +2,7 @@
 // Ported from headless-gl. Copyright (c) stackgl contributors. MIT license.
 // Modifications: Uses @gjsify/unit, WebGLArea widget, GTK-backed context instead of EGL headless.
 
-import { describe, it, expect, beforeEach } from '@gjsify/unit';
+import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
 import { WebGLRenderingContext, WebGLArea } from 'webgl';
 import GLib from '@girs/glib-2.0';
@@ -12,11 +12,7 @@ const GL_CONSTANT_NAMES = ['ACTIVE_ATTRIBUTES', 'ACTIVE_TEXTURE', 'ACTIVE_UNIFOR
 
 export default async () => {
 
-	// Skip tests on CI — requires a display
-	if (GLib.getenv('CI') || GLib.getenv('GITHUB_ACTIONS') || GLib.getenv('TRAVIS') || GLib.getenv('CIRCLECI') || GLib.getenv('GITLAB_CI')) {
-		console.info('Skipping webgl tests on CI (no display available)');
-		return;
-	}
+	await on('Display', async () => {
 
 	Gtk.init();
 
@@ -330,4 +326,6 @@ export default async () => {
 
 	// All tests complete. Destroy the window to release the GL context and remove it from screen.
 	win.destroy();
+
+	}); // on('Display')
 };
