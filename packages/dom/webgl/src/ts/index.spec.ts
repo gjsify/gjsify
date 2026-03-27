@@ -4,7 +4,9 @@
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
-import { WebGLRenderingContext, WebGLArea } from 'webgl';
+import { WebGLRenderingContext, WebGLArea } from '@gjsify/webgl';
+import { makeProgram, drawTriangle, readPixel, pixelClose,
+         makeTestFBO, destroyTestFBO, makeTestFBOWithDepth, destroyTestFBOWithDepth } from './test-utils.js';
 import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 
@@ -321,6 +323,292 @@ export default async () => {
 			if (Array.isArray(results)) {
 				for (const r of results) expect(typeof r).toBe('number');
 			}
+		});
+	});
+
+	// -- Simple-shader rendering (ported from refs/headless-gl/test/simple-shader.js) --
+	// Uses a custom RGBA FBO so readPixels works outside the GTK render signal.
+
+	await describe('simple-shader rendering', async () => {
+		beforeEach(async () => { glArea.make_current(); });
+
+		const VS = 'attribute vec2 position; void main() { gl_Position = vec4(position, 0.0, 1.0); }';
+		const FS = 'void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }';
+
+		await it('renders a green triangle — all pixels (0,255,0,255)', async () => {
+			const fbo = makeTestFBO(gl, 8, 8);
+			gl.clearColor(0, 0, 0, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			const prog = makeProgram(gl, VS, FS);
+			expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBeTruthy();
+			gl.useProgram(prog);
+			drawTriangle(gl);
+			expect(gl.getError()).toBe(gl.NO_ERROR);
+			const pixels = new Uint8Array(fbo.width * fbo.height * 4);
+			gl.readPixels(0, 0, fbo.width, fbo.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+			let allGreen = true;
+			for (let i = 0; i < pixels.length; i += 4) {
+				if (pixels[i] !== 0 || pixels[i+1] !== 255 || pixels[i+2] !== 0 || pixels[i+3] !== 255) {
+					allGreen = false; break;
+				}
+			}
+			expect(allGreen).toBeTruthy();
+			gl.deleteProgram(prog);
+			destroyTestFBO(gl, fbo);
+		});
+	});
+
+	// -- clearColor + readPixels (ported from refs/headless-gl/test/clear-color.js) --
+
+	await describe('clearColor', async () => {
+		beforeEach(async () => { glArea.make_current(); });
+
+		await it('clears to black (0,0,0,0)', async () => {
+			const fbo = makeTestFBO(gl);
+			gl.clearColor(0, 0, 0, 0);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			const p = readPixel(gl, 0, 0);
+			destroyTestFBO(gl, fbo);
+			expect(p[0]).toBe(0); expect(p[1]).toBe(0); expect(p[2]).toBe(0); expect(p[3]).toBe(0);
+		});
+		await it('clears to white (255,255,255,255)', async () => {
+			const fbo = makeTestFBO(gl);
+			gl.clearColor(1, 1, 1, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			const p = readPixel(gl, 0, 0);
+			destroyTestFBO(gl, fbo);
+			expect(p[0]).toBe(255); expect(p[1]).toBe(255); expect(p[2]).toBe(255); expect(p[3]).toBe(255);
+		});
+		await it('clears to green (0,255,0,255)', async () => {
+			const fbo = makeTestFBO(gl);
+			gl.clearColor(0, 1, 0, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			const p = readPixel(gl, 0, 0);
+			destroyTestFBO(gl, fbo);
+			expect(p[0]).toBe(0); expect(p[1]).toBe(255); expect(p[2]).toBe(0); expect(p[3]).toBe(255);
+		});
+		await it('clears to magenta (255,0,255,255)', async () => {
+			const fbo = makeTestFBO(gl);
+			gl.clearColor(1, 0, 1, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			const p = readPixel(gl, 0, 0);
+			destroyTestFBO(gl, fbo);
+			expect(p[0]).toBe(255); expect(p[1]).toBe(0); expect(p[2]).toBe(255); expect(p[3]).toBe(255);
+		});
+	});
+
+	// -- Blending (ported from refs/headless-gl/test/blending.js) --
+
+	await describe('blending', async () => {
+		beforeEach(async () => { glArea.make_current(); });
+
+		const VS_BLEND = [
+			'precision mediump float;',
+			'attribute vec2 position;',
+			'void main() { gl_Position = vec4(position, 0.0, 1.0); }',
+		].join('\n');
+
+		interface BlendCase {
+			name: string;
+			equn: number;
+			func1: number;
+			func2: number;
+			dstColor: [number, number, number, number];
+			srcColor: [number, number, number, number];
+			expected: [number, number, number, number]; // 0-255
+		}
+
+		// Expected pixel values computed from blend equations (tolerance ±3).
+		// ADD ONE ONE:            src(0.5,0.5,0.5,1) + dst(0.5,0.5,0.5,1)   → (255,255,255,255) clamped
+		// ADD ONE ZERO:           src(0.2,0.2,0.2,1) + 0·dst                 → ( 51, 51, 51,255)
+		// ADD ZERO SRC_COLOR:     0·src + dst·src.rgba                        → (102,102,102,128)
+		// ADD DST_COLOR ZERO:     src·dst + 0·dst                             → (102,102,102,128)
+		// ADD SRC_ALPHA ONE_MINUS_SRC_ALPHA: src·a + dst·(1-a)                → (127,127, 64,191)
+		const blendTests: BlendCase[] = [
+			{ name: 'ADD ONE ONE',
+			  equn: gl.FUNC_ADD, func1: gl.ONE, func2: gl.ONE,
+			  dstColor: [0.5, 0.5, 0.5, 1], srcColor: [0.5, 0.5, 0.5, 1],
+			  expected: [255, 255, 255, 255] },
+			{ name: 'ADD ONE ZERO',
+			  equn: gl.FUNC_ADD, func1: gl.ONE, func2: gl.ZERO,
+			  dstColor: [0.5, 0.5, 0.5, 0.5], srcColor: [0.2, 0.2, 0.2, 1],
+			  expected: [51, 51, 51, 255] },
+			{ name: 'ADD ZERO SRC_COLOR',
+			  equn: gl.FUNC_ADD, func1: gl.ZERO, func2: gl.SRC_COLOR,
+			  dstColor: [0.8, 0.8, 0.8, 1], srcColor: [0.5, 0.5, 0.5, 0.5],
+			  expected: [102, 102, 102, 128] },
+			{ name: 'ADD DST_COLOR ZERO',
+			  equn: gl.FUNC_ADD, func1: gl.DST_COLOR, func2: gl.ZERO,
+			  dstColor: [0.8, 0.8, 0.8, 1], srcColor: [0.5, 0.5, 0.5, 0.5],
+			  expected: [102, 102, 102, 128] },
+			{ name: 'ADD SRC_ALPHA ONE_MINUS_SRC_ALPHA',
+			  equn: gl.FUNC_ADD, func1: gl.SRC_ALPHA, func2: gl.ONE_MINUS_SRC_ALPHA,
+			  dstColor: [0.5, 0, 0.5, 1], srcColor: [0.5, 1, 0, 0.5],
+			  expected: [127, 127, 64, 191] },
+		];
+
+		for (const tc of blendTests) {
+			const { name, equn, func1, func2, dstColor, srcColor, expected } = tc;
+			const FS_BLEND = [
+				'precision mediump float;',
+				`void main() { gl_FragColor = vec4(${srcColor[0]},${srcColor[1]},${srcColor[2]},${srcColor[3]}); }`,
+			].join('\n');
+			await it(name, async () => {
+				const fbo = makeTestFBO(gl);
+				gl.clearColor(dstColor[0], dstColor[1], dstColor[2], dstColor[3]);
+				gl.clear(gl.COLOR_BUFFER_BIT);
+				const prog = makeProgram(gl, VS_BLEND, FS_BLEND);
+				gl.useProgram(prog);
+				gl.enable(gl.BLEND);
+				gl.blendEquation(equn);
+				gl.blendFunc(func1, func2);
+				drawTriangle(gl);
+				expect(gl.getError()).toBe(gl.NO_ERROR);
+				gl.disable(gl.BLEND);
+				const p = readPixel(gl, 0, 0);
+				gl.deleteProgram(prog);
+				destroyTestFBO(gl, fbo);
+				expect(pixelClose(p, expected)).toBeTruthy();
+			});
+		}
+	});
+
+	// -- drawElements (ported from refs/headless-gl/test/draw-indexed.js) --
+
+	await describe('drawElements (indexed drawing)', async () => {
+		beforeEach(async () => { glArea.make_current(); });
+
+		await it('draws a quad via index buffer — all pixels green', async () => {
+			const fbo = makeTestFBO(gl, 8, 8);
+			const VS = 'attribute vec2 position; void main() { gl_Position = vec4(position, 0.0, 1.0); }';
+			const FS = 'void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }';
+
+			gl.clearColor(1, 0, 0, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			const prog = makeProgram(gl, VS, FS);
+			gl.useProgram(prog);
+
+			const vbuf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(0);
+			gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+			const ebuf = gl.createBuffer();
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebuf);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 2,1,3]), gl.STATIC_DRAW);
+
+			gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+			expect(gl.getError()).toBe(gl.NO_ERROR);
+
+			const pixels = new Uint8Array(fbo.width * fbo.height * 4);
+			gl.readPixels(0, 0, fbo.width, fbo.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+			let allGreen = true;
+			for (let i = 0; i < pixels.length; i += 4) {
+				if (pixels[i] !== 0 || pixels[i+1] !== 255 || pixels[i+2] !== 0 || pixels[i+3] !== 255) {
+					allGreen = false; break;
+				}
+			}
+			expect(allGreen).toBeTruthy();
+
+			gl.disableVertexAttribArray(0);
+			gl.deleteBuffer(vbuf);
+			gl.deleteBuffer(ebuf);
+			gl.deleteProgram(prog);
+			destroyTestFBO(gl, fbo);
+		});
+	});
+
+	// -- readPixels format --
+
+	await describe('readPixels', async () => {
+		beforeEach(async () => { glArea.make_current(); });
+
+		await it('RGBA + UNSIGNED_BYTE returns correct data size', async () => {
+			const fbo = makeTestFBO(gl, 4, 4);
+			gl.clearColor(1, 0, 0, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			const pixels = new Uint8Array(fbo.width * fbo.height * 4);
+			gl.readPixels(0, 0, fbo.width, fbo.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+			expect(gl.getError()).toBe(gl.NO_ERROR);
+			expect(pixels.length).toBe(fbo.width * fbo.height * 4);
+			destroyTestFBO(gl, fbo);
+		});
+
+		await it('pixel values match the clear color', async () => {
+			const fbo = makeTestFBO(gl);
+			gl.clearColor(0, 0, 1, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			const p = readPixel(gl, 0, 0);
+			destroyTestFBO(gl, fbo);
+			expect(p[0]).toBe(0);
+			expect(p[1]).toBe(0);
+			expect(p[2]).toBe(255);
+			expect(p[3]).toBe(255);
+		});
+
+		await it('readPixels reads a single red pixel', async () => {
+			const fbo = makeTestFBO(gl);
+			gl.clearColor(1, 0, 0, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			const buf = new Uint8Array(4);
+			gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+			destroyTestFBO(gl, fbo);
+			expect(buf[0]).toBe(255); // red
+			expect(buf[1]).toBe(0);
+			expect(buf[2]).toBe(0);
+			expect(buf[3]).toBe(255);
+		});
+	});
+
+	// -- Depth buffer (ported from refs/headless-gl/test/depth-buffer.js) --
+
+	await describe('depth buffer', async () => {
+		beforeEach(async () => { glArea.make_current(); });
+
+		await it('depth test (LESS) — nearer triangle occludes farther one', async () => {
+			const VS = [
+				'attribute vec2 position;',
+				'uniform float depth;',
+				'void main() { gl_Position = vec4(position, depth, 1.0); }',
+			].join('\n');
+			const FS = [
+				'precision mediump float;',
+				'uniform vec4 color;',
+				'void main() { gl_FragColor = color; }',
+			].join('\n');
+
+			const fbo = makeTestFBOWithDepth(gl, 4, 4);
+			gl.clearColor(0, 0, 0, 1);
+			gl.clearDepth(1.0);
+			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+			gl.enable(gl.DEPTH_TEST);
+			gl.depthFunc(gl.LESS);
+
+			const prog = makeProgram(gl, VS, FS);
+			gl.useProgram(prog);
+
+			// Draw red at z=0.0 (NDC), window depth=0.5 — passes LESS against 1.0
+			gl.uniform1f(gl.getUniformLocation(prog, 'depth'), 0.0);
+			gl.uniform4f(gl.getUniformLocation(prog, 'color'), 1, 0, 0, 1);
+			drawTriangle(gl);
+
+			// Draw blue at z=0.5 (NDC), window depth=0.75 — fails LESS against 0.5
+			gl.uniform1f(gl.getUniformLocation(prog, 'depth'), 0.5);
+			gl.uniform4f(gl.getUniformLocation(prog, 'color'), 0, 0, 1, 1);
+			drawTriangle(gl);
+
+			expect(gl.getError()).toBe(gl.NO_ERROR);
+			gl.disable(gl.DEPTH_TEST);
+
+			// Red should win (nearer, drawn first)
+			const p = readPixel(gl, 0, 0);
+			gl.deleteProgram(prog);
+			destroyTestFBOWithDepth(gl, fbo);
+			expect(p[0]).toBe(255); // red
+			expect(p[1]).toBe(0);
+			expect(p[2]).toBe(0);
 		});
 	});
 

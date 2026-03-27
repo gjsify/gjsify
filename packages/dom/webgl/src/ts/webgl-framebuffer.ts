@@ -126,6 +126,6 @@ export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
     _performDelete() {
         const ctx = this._ctx
         delete ctx._framebuffers[this._ | 0]
-        ctx.deleteFramebuffer.call(ctx, this)
+        ctx._native.deleteFramebuffer(this._ | 0)
     }
 }

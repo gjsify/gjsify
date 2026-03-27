@@ -145,7 +145,10 @@ Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Strea
 | `refs/happy-dom/` | DOM(60+ types), 296 test files. Ref for dom-events, dom-elements |
 | `refs/jsdom/` | 30+ modules, WPT integration: `test/web-platform-tests/` |
 | `refs/undici/` | 366 test files. fetch, WebSocket, Cache, EventSource. Ref for @gjsify/{fetch,http} |
-| `refs/headless-gl/` | 42 WebGL test files. Ref for webgl |
+| `refs/headless-gl/` | **Primary WebGL test ref.** 42 test files. Reference implementation for webgl |
+| `refs/webgl/` | Khronos WebGL spec + conformance test suite. Authoritative for spec questions |
+| `refs/three/` | three.js source. Ref for WebGL demo/examples (`examples/gtk/three-geometry-cube/`) |
+| `refs/libepoxy/` | OpenGL function pointer library. Used by Vala native extension (`packages/dom/webgl/`) |
 | `refs/node-gst-webrtc/` | WebRTC via GStreamer |
 
 ### Other
@@ -371,6 +374,10 @@ Every impl file req Template A or B. Every ported test req Template C. Wholly or
 | `refs/readable-stream/` | Node.js contributors. MIT |
 | `refs/undici/` | Matteo Collina and Undici contributors. MIT |
 | `refs/gjs/` | GNOME contributors. MIT/LGPLv2+ |
+| `refs/headless-gl/` | Mikola Lysenko. BSD-2-Clause |
+| `refs/webgl/` | Khronos Group Inc. MIT |
+| `refs/three/` | three.js authors. MIT |
+| `refs/libepoxy/` | Intel Corporation. MIT |
 | `refs/node-gst-webrtc/` | Ratchanan Srirattanamet. ISC |
 | `refs/llrt/` | Amazon.com, Inc. Apache 2.0 |
 | `refs/happy-dom/` | David Ortner (capricorn86). MIT |

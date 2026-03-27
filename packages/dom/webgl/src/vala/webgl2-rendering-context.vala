@@ -251,8 +251,13 @@ namespace Gwebgl {
         }
 
         public uint8[] getBufferSubData(int target, long srcByteOffset, int length) {
+            // glGetBufferSubData is desktop GL only (not GLES); use glMapBufferRange instead.
+            var ptr = (uint8*) glMapBufferRange((GL.GLenum) target, (GL.GLintptr) srcByteOffset, (GL.GLsizeiptr) length, GL_MAP_READ_BIT);
             var data = new uint8[length];
-            glGetBufferSubData((GL.GLenum) target, (GL.GLintptr) srcByteOffset, (GL.GLsizeiptr) length, (GL.GLvoid[]) data);
+            if (ptr != null) {
+                Memory.copy(data, ptr, length);
+                glUnmapBuffer((GL.GLenum) target);
+            }
             return data;
         }
 

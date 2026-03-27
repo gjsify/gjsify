@@ -13,7 +13,9 @@ import { WebGLVertexArrayObject } from './webgl-vertex-array-object.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLActiveInfo } from './webgl-active-info.js';
 import { WebGLProgram as OurWebGLProgram } from './webgl-program.js';
-import { Uint8ArrayToVariant } from './utils.js';
+import { WebGLTexture } from './webgl-texture.js';
+import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
+import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount } from './utils.js';
 import { warnNotImplemented } from '@gjsify/utils';
 
 export class WebGL2RenderingContext extends WebGLRenderingContext implements WebGL2RenderingContext {
@@ -33,6 +35,124 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
 
     override _getGlslVersion(es: boolean): string {
         return es ? '300 es' : '130';
+    }
+
+    // ─── WebGL2 overrides for WebGL1 validation that's too strict ─────────
+
+    /** WebGL2 allows COLOR_ATTACHMENT1–15 as framebuffer attachment points. */
+    override _validFramebufferAttachment(attachment: GLenum): boolean {
+        if (super._validFramebufferAttachment(attachment)) return true;
+        // COLOR_ATTACHMENT1 (0x8CE1) through COLOR_ATTACHMENT15 (0x8CEF)
+        return attachment >= 0x8CE1 && attachment <= 0x8CEF;
+    }
+
+    /**
+     * Apply COLOR_ATTACHMENT1–15 to the native GL FBO when they have attachments.
+     * The base class only knows about CA0, DEPTH, STENCIL, DEPTH_STENCIL.
+     */
+    override _updateFramebufferAttachments(framebuffer: any): void {
+        super._updateFramebufferAttachments(framebuffer);
+        if (!framebuffer) return;
+        for (let i = 1; i <= 15; i++) {
+            const attachmentEnum = 0x8CE0 + i; // COLOR_ATTACHMENT1–15
+            // Only process slots that were explicitly set via framebufferTexture2D
+            if (!(attachmentEnum in framebuffer._attachments)) continue;
+            const attachment = framebuffer._attachments[attachmentEnum];
+            if (attachment instanceof WebGLTexture) {
+                const face = framebuffer._attachmentFace[attachmentEnum] || this.TEXTURE_2D;
+                const level = framebuffer._attachmentLevel[attachmentEnum] ?? 0;
+                this._native.framebufferTexture2D(this.FRAMEBUFFER, attachmentEnum, face, attachment._ | 0, level | 0);
+            } else if (attachment instanceof WebGLRenderbuffer) {
+                this._native.framebufferRenderbuffer(this.FRAMEBUFFER, attachmentEnum, this.RENDERBUFFER, attachment._ | 0);
+            } else {
+                // Detach: use TEXTURE_2D as textarget (required by some GLES3 drivers)
+                this._native.framebufferTexture2D(this.FRAMEBUFFER, attachmentEnum, this.TEXTURE_2D, 0, 0);
+            }
+        }
+    }
+
+    /** WebGL2 adds UNIFORM_BUFFER, TRANSFORM_FEEDBACK_BUFFER, etc. targets. */
+    override bindBuffer(target: GLenum, buffer: WebGLBuffer | null): void {
+        const isWebGL2Target = target === 0x8A11 /* UNIFORM_BUFFER */ ||
+            target === 0x8C8E /* TRANSFORM_FEEDBACK_BUFFER */ ||
+            target === 0x8F36 /* COPY_READ_BUFFER */ ||
+            target === 0x8F37 /* COPY_WRITE_BUFFER */;
+        if (isWebGL2Target) {
+            // Bypass WebGL1 validation that only accepts ARRAY_BUFFER/ELEMENT_ARRAY_BUFFER.
+            const id = buffer ? (buffer as any)._ | 0 : 0;
+            this._native.bindBuffer(target, id);
+            return;
+        }
+        super.bindBuffer(target, buffer as any);
+    }
+
+    /** WebGL2 adds READ/COPY buffer usages and additional buffer targets. */
+    override bufferData(target: GLenum, dataOrSize: GLsizeiptr | BufferSource | null, usage: GLenum): void {
+        const isWebGL2Target = target === 0x8A11 /* UNIFORM_BUFFER */ ||
+            target === 0x8C8E /* TRANSFORM_FEEDBACK_BUFFER */ ||
+            target === 0x8F36 /* COPY_READ_BUFFER */ ||
+            target === 0x8F37 /* COPY_WRITE_BUFFER */;
+
+        // Remap READ/COPY usages to STATIC_DRAW — WebGL1 tracking only accepts DRAW hints.
+        const isReadOrCopy = usage === 0x88E1 /* STATIC_READ */ || usage === 0x88E3 /* DYNAMIC_READ */ ||
+            usage === 0x88E5 /* STREAM_READ */ || usage === 0x88E2 /* STATIC_COPY */ ||
+            usage === 0x88E4 /* DYNAMIC_COPY */ || usage === 0x88E6 /* STREAM_COPY */;
+        const remappedUsage = isReadOrCopy ? this.STATIC_DRAW : usage;
+
+        if (isWebGL2Target) {
+            // Bypass WebGL1 target+usage validation and call native directly.
+            if (typeof dataOrSize === 'number') {
+                if (dataOrSize >= 0) this._native.bufferDataSizeOnly(target, dataOrSize, remappedUsage);
+            } else if (dataOrSize !== null && typeof dataOrSize === 'object') {
+                const u8Data = arrayToUint8Array(dataOrSize as any);
+                this._native.bufferData(target, Uint8ArrayToVariant(u8Data), remappedUsage);
+            }
+            return;
+        }
+
+        super.bufferData(target, dataOrSize as any, remappedUsage);
+    }
+
+    /** WebGL2 adds TEXTURE_3D and TEXTURE_2D_ARRAY target support. */
+    override bindTexture(target: GLenum, texture: WebGLTexture | null): void {
+        if (target === 0x806F /* TEXTURE_3D */ || target === 0x8C1A /* TEXTURE_2D_ARRAY */) {
+            // Bypass WebGL1 _validTextureTarget check and call native directly.
+            const id = texture ? (texture as any)._ | 0 : 0;
+            this._native.bindTexture(target, id);
+            if (texture) (texture as any)._binding = target;
+            return;
+        }
+        super.bindTexture(target, texture);
+    }
+
+    /** WebGL2 adds TEXTURE_3D/TEXTURE_2D_ARRAY targets and TEXTURE_WRAP_R pname. */
+    override texParameteri(target: GLenum, pname: GLenum, param: GLint): void {
+        if (target === 0x806F /* TEXTURE_3D */ || target === 0x8C1A /* TEXTURE_2D_ARRAY */) {
+            // Bypass WebGL1 _checkTextureTarget which only allows TEXTURE_2D/CUBE_MAP.
+            this._native.texParameteri(target, pname, param);
+            return;
+        }
+        if (pname === 0x8072 /* TEXTURE_WRAP_R — WebGL2 only */) {
+            this._native.texParameteri(target, pname, param);
+            return;
+        }
+        super.texParameteri(target, pname, param);
+    }
+
+    /**
+     * In WebGL2/GLES3 the attribute-0 requirement from WebGL1 does not apply.
+     * Override drawArrays to skip the attrib0 hack and call glDrawArrays directly.
+     */
+    override drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
+        if (first < 0 || count < 0) { this.setError(this.INVALID_VALUE); return; }
+        if (!this._checkStencilState()) return;
+        const rc = vertexCount(this, mode, count);
+        if (rc < 0) { this.setError(this.INVALID_ENUM); return; }
+        if (!this._framebufferOk()) return;
+        if (count === 0) return;
+        if (this._checkVertexAttribState((count + first - 1) >>> 0)) {
+            this._native.drawArrays(mode, first, rc);
+        }
     }
 
     // ─── Vertex Array Objects ─────────────────────────────────────────────
@@ -421,6 +541,24 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
         this._native2.uniformMatrix4x3fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
     }
 
+    // ─── getUniform — WebGL2 uint type support ────────────────────────────
+
+    /** WebGL1 getUniform falls to default:null for UNSIGNED_INT types. Handle them here. */
+    override getUniform(program: WebGLProgram, location: WebGLUniformLocation): any {
+        const type = (location as any)?._activeInfo?.type;
+        const UINT = 0x1405, UVEC2 = 0x8DC6, UVEC3 = 0x8DC7, UVEC4 = 0x8DC8;
+        const isUintType = type === UINT || type === UVEC2 || type === UVEC3 || type === UVEC4;
+        if (!isUintType) return super.getUniform(program as any, location);
+        // Use getUniformiv (glGetUniformiv converts uint→int, exact for values < 2^31)
+        if (!program || !location) return null;
+        const data = (this._native as any).getUniformi((program as any)._ | 0, (location as any)._ | 0);
+        if (!data) return null;
+        if (type === UINT) return data[0] >>> 0;
+        if (type === UVEC2) return new Uint32Array([data[0] >>> 0, data[1] >>> 0]);
+        if (type === UVEC3) return new Uint32Array([data[0] >>> 0, data[1] >>> 0, data[2] >>> 0]);
+        return new Uint32Array([data[0] >>> 0, data[1] >>> 0, data[2] >>> 0, data[3] >>> 0]);
+    }
+
     // ─── Uniform Blocks ───────────────────────────────────────────────────
 
     getUniformBlockIndex(program: WebGLProgram, uniformBlockName: string): GLuint {
@@ -462,6 +600,8 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
     }
 
     override getParameter(pname: GLenum): any {
+        if (pname === 0x1F02 /* GL_VERSION */) return 'WebGL 2.0';
+        if (pname === 0x8B8C /* GL_SHADING_LANGUAGE_VERSION */) return 'WebGL GLSL ES 3.00';
         // WebGL2-specific pname values that need string array responses
         if (pname === 0x1F03 /* GL_EXTENSIONS */) {
             warnNotImplemented('WebGL2RenderingContext.getParameter(GL_EXTENSIONS)');

@@ -1383,7 +1383,7 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
 
             if (nWidth > 0 && nHeight > 0) {
                 const subPixels = new Uint8Array(nRowStride * nHeight)
-                this._native.readPixels(
+                const result = this._native.readPixels(
                     nx,
                     ny,
                     nWidth,
@@ -1392,18 +1392,19 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
                     type,
                     Uint8ArrayToVariant(subPixels))
 
+                const src = result && result.length > 0 ? result : subPixels
                 const offset = 4 * (nx - x) + (ny - y) * rowStride
                 for (let j = 0; j < nHeight; ++j) {
                     for (let i = 0; i < nWidth; ++i) {
                         for (let k = 0; k < 4; ++k) {
                             pixelData[offset + j * rowStride + 4 * i + k] =
-                                subPixels[j * nRowStride + 4 * i + k]
+                                src[j * nRowStride + 4 * i + k]
                         }
                     }
                 }
             }
         } else {
-            this._native.readPixels(
+            const result = this._native.readPixels(
                 x,
                 y,
                 width,
@@ -1411,6 +1412,9 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
                 format,
                 type,
                 Uint8ArrayToVariant(pixelData))
+            if (result && result.length > 0) {
+                pixelData.set(result)
+            }
         }
     }
 

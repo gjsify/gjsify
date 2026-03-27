@@ -370,7 +370,220 @@ namespace Gwebgl {
             this.webgl_constants.insert("VERTEX_ATTRIB_ARRAY_TYPE", GL_VERTEX_ATTRIB_ARRAY_TYPE);
             this.webgl_constants.insert("VERTEX_SHADER", GL_VERTEX_SHADER);
             this.webgl_constants.insert("VIEWPORT", GL_VIEWPORT);
-            this.webgl_constants.insert("ZERO", GL_ZERO);           
+            this.webgl_constants.insert("ZERO", GL_ZERO);
+
+            // ── WebGL2 constants ──────────────────────────────────────────────
+            // Buffer usage hints (READ / COPY variants)
+            this.webgl_constants.insert("STATIC_READ",                    GL_STATIC_READ);
+            this.webgl_constants.insert("DYNAMIC_READ",                   GL_DYNAMIC_READ);
+            this.webgl_constants.insert("STREAM_READ",                    GL_STREAM_READ);
+            this.webgl_constants.insert("STATIC_COPY",                    GL_STATIC_COPY);
+            this.webgl_constants.insert("DYNAMIC_COPY",                   GL_DYNAMIC_COPY);
+            this.webgl_constants.insert("STREAM_COPY",                    GL_STREAM_COPY);
+            // Buffer targets
+            this.webgl_constants.insert("COPY_READ_BUFFER",               0x8F36); // GL_COPY_READ_BUFFER
+            this.webgl_constants.insert("COPY_WRITE_BUFFER",              0x8F37); // GL_COPY_WRITE_BUFFER
+            this.webgl_constants.insert("COPY_READ_BUFFER_BINDING",       GL_COPY_READ_BUFFER_BINDING);
+            this.webgl_constants.insert("COPY_WRITE_BUFFER_BINDING",      GL_COPY_WRITE_BUFFER_BINDING);
+            // Framebuffer targets
+            this.webgl_constants.insert("READ_FRAMEBUFFER",               GL_READ_FRAMEBUFFER);
+            this.webgl_constants.insert("DRAW_FRAMEBUFFER",               GL_DRAW_FRAMEBUFFER);
+            this.webgl_constants.insert("READ_FRAMEBUFFER_BINDING",       GL_READ_FRAMEBUFFER_BINDING);
+            this.webgl_constants.insert("DRAW_FRAMEBUFFER_BINDING",       GL_DRAW_FRAMEBUFFER_BINDING);
+            // Color attachments 1–15
+            this.webgl_constants.insert("COLOR_ATTACHMENT1",              GL_COLOR_ATTACHMENT1);
+            this.webgl_constants.insert("COLOR_ATTACHMENT2",              GL_COLOR_ATTACHMENT2);
+            this.webgl_constants.insert("COLOR_ATTACHMENT3",              GL_COLOR_ATTACHMENT3);
+            this.webgl_constants.insert("COLOR_ATTACHMENT4",              GL_COLOR_ATTACHMENT4);
+            this.webgl_constants.insert("COLOR_ATTACHMENT5",              GL_COLOR_ATTACHMENT5);
+            this.webgl_constants.insert("COLOR_ATTACHMENT6",              GL_COLOR_ATTACHMENT6);
+            this.webgl_constants.insert("COLOR_ATTACHMENT7",              GL_COLOR_ATTACHMENT7);
+            this.webgl_constants.insert("COLOR_ATTACHMENT8",              GL_COLOR_ATTACHMENT8);
+            this.webgl_constants.insert("COLOR_ATTACHMENT9",              GL_COLOR_ATTACHMENT9);
+            this.webgl_constants.insert("COLOR_ATTACHMENT10",             GL_COLOR_ATTACHMENT10);
+            this.webgl_constants.insert("COLOR_ATTACHMENT11",             GL_COLOR_ATTACHMENT11);
+            this.webgl_constants.insert("COLOR_ATTACHMENT12",             GL_COLOR_ATTACHMENT12);
+            this.webgl_constants.insert("COLOR_ATTACHMENT13",             GL_COLOR_ATTACHMENT13);
+            this.webgl_constants.insert("COLOR_ATTACHMENT14",             GL_COLOR_ATTACHMENT14);
+            this.webgl_constants.insert("COLOR_ATTACHMENT15",             GL_COLOR_ATTACHMENT15);
+            // 3D / Array textures
+            this.webgl_constants.insert("TEXTURE_3D",                    GL_TEXTURE_3D);
+            this.webgl_constants.insert("TEXTURE_2D_ARRAY",              GL_TEXTURE_2D_ARRAY);
+            this.webgl_constants.insert("TEXTURE_BINDING_3D",            GL_TEXTURE_BINDING_3D);
+            this.webgl_constants.insert("TEXTURE_BINDING_2D_ARRAY",      GL_TEXTURE_BINDING_2D_ARRAY);
+            this.webgl_constants.insert("TEXTURE_WRAP_R",                GL_TEXTURE_WRAP_R);
+            this.webgl_constants.insert("TEXTURE_MIN_LOD",               GL_TEXTURE_MIN_LOD);
+            this.webgl_constants.insert("TEXTURE_MAX_LOD",               GL_TEXTURE_MAX_LOD);
+            this.webgl_constants.insert("TEXTURE_BASE_LEVEL",            GL_TEXTURE_BASE_LEVEL);
+            this.webgl_constants.insert("TEXTURE_MAX_LEVEL",             GL_TEXTURE_MAX_LEVEL);
+            this.webgl_constants.insert("TEXTURE_COMPARE_MODE",          GL_TEXTURE_COMPARE_MODE);
+            this.webgl_constants.insert("TEXTURE_COMPARE_FUNC",          GL_TEXTURE_COMPARE_FUNC);
+            this.webgl_constants.insert("TEXTURE_IMMUTABLE_FORMAT",      GL_TEXTURE_IMMUTABLE_FORMAT);
+            this.webgl_constants.insert("TEXTURE_IMMUTABLE_LEVELS",      GL_TEXTURE_IMMUTABLE_LEVELS);
+            // Uniform Buffer Objects
+            this.webgl_constants.insert("UNIFORM_BUFFER",                GL_UNIFORM_BUFFER);
+            this.webgl_constants.insert("UNIFORM_BUFFER_BINDING",        GL_UNIFORM_BUFFER_BINDING);
+            this.webgl_constants.insert("UNIFORM_BUFFER_START",          GL_UNIFORM_BUFFER_START);
+            this.webgl_constants.insert("UNIFORM_BUFFER_SIZE",           GL_UNIFORM_BUFFER_SIZE);
+            this.webgl_constants.insert("MAX_VERTEX_UNIFORM_BLOCKS",     GL_MAX_VERTEX_UNIFORM_BLOCKS);
+            this.webgl_constants.insert("MAX_FRAGMENT_UNIFORM_BLOCKS",   GL_MAX_FRAGMENT_UNIFORM_BLOCKS);
+            this.webgl_constants.insert("MAX_COMBINED_UNIFORM_BLOCKS",   GL_MAX_COMBINED_UNIFORM_BLOCKS);
+            this.webgl_constants.insert("MAX_UNIFORM_BUFFER_BINDINGS",   GL_MAX_UNIFORM_BUFFER_BINDINGS);
+            this.webgl_constants.insert("MAX_UNIFORM_BLOCK_SIZE",        GL_MAX_UNIFORM_BLOCK_SIZE);
+            this.webgl_constants.insert("INVALID_INDEX",                 (int) GL_INVALID_INDEX);
+            // Transform Feedback
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK",            GL_TRANSFORM_FEEDBACK);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_BUFFER",     GL_TRANSFORM_FEEDBACK_BUFFER);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_BINDING",    GL_TRANSFORM_FEEDBACK_BINDING);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_ACTIVE",     GL_TRANSFORM_FEEDBACK_ACTIVE);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_PAUSED",     GL_TRANSFORM_FEEDBACK_PAUSED);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_BUFFER_BINDING", GL_TRANSFORM_FEEDBACK_BUFFER_BINDING);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_BUFFER_START", GL_TRANSFORM_FEEDBACK_BUFFER_START);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_BUFFER_SIZE",  GL_TRANSFORM_FEEDBACK_BUFFER_SIZE);
+            this.webgl_constants.insert("SEPARATE_ATTRIBS",              GL_SEPARATE_ATTRIBS);
+            this.webgl_constants.insert("INTERLEAVED_ATTRIBS",           GL_INTERLEAVED_ATTRIBS);
+            this.webgl_constants.insert("MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS", GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS);
+            this.webgl_constants.insert("MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS", GL_MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS);
+            this.webgl_constants.insert("MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS",    GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_VARYINGS",   GL_TRANSFORM_FEEDBACK_VARYINGS);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_BUFFER_MODE", GL_TRANSFORM_FEEDBACK_BUFFER_MODE);
+            this.webgl_constants.insert("TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN", GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+            // Sync objects
+            this.webgl_constants.insert("SYNC_GPU_COMMANDS_COMPLETE",    GL_SYNC_GPU_COMMANDS_COMPLETE);
+            this.webgl_constants.insert("SYNC_FLUSH_COMMANDS_BIT",       GL_SYNC_FLUSH_COMMANDS_BIT);
+            this.webgl_constants.insert("SYNC_STATUS",                   GL_SYNC_STATUS);
+            this.webgl_constants.insert("SYNC_CONDITION",                GL_SYNC_CONDITION);
+            this.webgl_constants.insert("SYNC_FLAGS",                    GL_SYNC_FLAGS);
+            this.webgl_constants.insert("SIGNALED",                      GL_SIGNALED);
+            this.webgl_constants.insert("UNSIGNALED",                    GL_UNSIGNALED);
+            this.webgl_constants.insert("ALREADY_SIGNALED",              GL_ALREADY_SIGNALED);
+            this.webgl_constants.insert("TIMEOUT_EXPIRED",               GL_TIMEOUT_EXPIRED);
+            this.webgl_constants.insert("CONDITION_SATISFIED",           GL_CONDITION_SATISFIED);
+            this.webgl_constants.insert("WAIT_FAILED",                   GL_WAIT_FAILED);
+            this.webgl_constants.insert("TIMEOUT_IGNORED",               (int) GL_TIMEOUT_IGNORED);
+            // Vertex Array Objects
+            this.webgl_constants.insert("VERTEX_ARRAY_BINDING",         GL_VERTEX_ARRAY_BINDING);
+            // New data types
+            this.webgl_constants.insert("HALF_FLOAT",                    GL_HALF_FLOAT);
+            this.webgl_constants.insert("UNSIGNED_INT_2_10_10_10_REV",   GL_UNSIGNED_INT_2_10_10_10_REV);
+            this.webgl_constants.insert("UNSIGNED_INT_10F_11F_11F_REV",  GL_UNSIGNED_INT_10F_11F_11F_REV);
+            this.webgl_constants.insert("UNSIGNED_INT_5_9_9_9_REV",      GL_UNSIGNED_INT_5_9_9_9_REV);
+            this.webgl_constants.insert("FLOAT_32_UNSIGNED_INT_24_8_REV", GL_FLOAT_32_UNSIGNED_INT_24_8_REV);
+            this.webgl_constants.insert("UNSIGNED_INT_24_8",             GL_UNSIGNED_INT_24_8);
+            // Integer types for vertex attribs
+            this.webgl_constants.insert("VERTEX_ATTRIB_ARRAY_INTEGER",   GL_VERTEX_ATTRIB_ARRAY_INTEGER);
+            this.webgl_constants.insert("VERTEX_ATTRIB_ARRAY_DIVISOR",   GL_VERTEX_ATTRIB_ARRAY_DIVISOR);
+            // New shader types / uniforms
+            this.webgl_constants.insert("INT_SAMPLER_2D",                GL_INT_SAMPLER_2D);
+            this.webgl_constants.insert("INT_SAMPLER_3D",                GL_INT_SAMPLER_3D);
+            this.webgl_constants.insert("INT_SAMPLER_CUBE",              GL_INT_SAMPLER_CUBE);
+            this.webgl_constants.insert("INT_SAMPLER_2D_ARRAY",          GL_INT_SAMPLER_2D_ARRAY);
+            this.webgl_constants.insert("UNSIGNED_INT_SAMPLER_2D",       GL_UNSIGNED_INT_SAMPLER_2D);
+            this.webgl_constants.insert("UNSIGNED_INT_SAMPLER_3D",       GL_UNSIGNED_INT_SAMPLER_3D);
+            this.webgl_constants.insert("UNSIGNED_INT_SAMPLER_CUBE",     GL_UNSIGNED_INT_SAMPLER_CUBE);
+            this.webgl_constants.insert("UNSIGNED_INT_SAMPLER_2D_ARRAY", GL_UNSIGNED_INT_SAMPLER_2D_ARRAY);
+            this.webgl_constants.insert("SAMPLER_3D",                    GL_SAMPLER_3D);
+            this.webgl_constants.insert("SAMPLER_2D_SHADOW",             GL_SAMPLER_2D_SHADOW);
+            this.webgl_constants.insert("SAMPLER_2D_ARRAY",              GL_SAMPLER_2D_ARRAY);
+            this.webgl_constants.insert("SAMPLER_2D_ARRAY_SHADOW",       GL_SAMPLER_2D_ARRAY_SHADOW);
+            this.webgl_constants.insert("SAMPLER_CUBE_SHADOW",           GL_SAMPLER_CUBE_SHADOW);
+            this.webgl_constants.insert("FLOAT_MAT2x3",                  0x8B65); // GL_FLOAT_MAT2x3
+            this.webgl_constants.insert("FLOAT_MAT2x4",                  0x8B66); // GL_FLOAT_MAT2x4
+            this.webgl_constants.insert("FLOAT_MAT3x2",                  0x8B67); // GL_FLOAT_MAT3x2
+            this.webgl_constants.insert("FLOAT_MAT3x4",                  0x8B68); // GL_FLOAT_MAT3x4
+            this.webgl_constants.insert("FLOAT_MAT4x2",                  0x8B69); // GL_FLOAT_MAT4x2
+            this.webgl_constants.insert("FLOAT_MAT4x3",                  0x8B6A); // GL_FLOAT_MAT4x3
+            this.webgl_constants.insert("UNSIGNED_INT",                  GL_UNSIGNED_INT);
+            this.webgl_constants.insert("UNSIGNED_INT_VEC2",             GL_UNSIGNED_INT_VEC2);
+            this.webgl_constants.insert("UNSIGNED_INT_VEC3",             GL_UNSIGNED_INT_VEC3);
+            this.webgl_constants.insert("UNSIGNED_INT_VEC4",             GL_UNSIGNED_INT_VEC4);
+            // Sized internal formats
+            this.webgl_constants.insert("R8",                            GL_R8);
+            this.webgl_constants.insert("RG8",                           GL_RG8);
+            this.webgl_constants.insert("RGB8",                          GL_RGB8);
+            this.webgl_constants.insert("RGB565",                        GL_RGB565);
+            this.webgl_constants.insert("RGBA8",                         GL_RGBA8);
+            this.webgl_constants.insert("RGB10_A2",                      GL_RGB10_A2);
+            this.webgl_constants.insert("RGBA4",                         GL_RGBA4);
+            this.webgl_constants.insert("RGB5_A1",                       GL_RGB5_A1);
+            this.webgl_constants.insert("RGB16F",                        GL_RGB16F);
+            this.webgl_constants.insert("RGBA16F",                       GL_RGBA16F);
+            this.webgl_constants.insert("R32F",                          GL_R32F);
+            this.webgl_constants.insert("RG32F",                         GL_RG32F);
+            this.webgl_constants.insert("RGB32F",                        GL_RGB32F);
+            this.webgl_constants.insert("RGBA32F",                       GL_RGBA32F);
+            this.webgl_constants.insert("R8I",                           GL_R8I);
+            this.webgl_constants.insert("R8UI",                          GL_R8UI);
+            this.webgl_constants.insert("R16I",                          GL_R16I);
+            this.webgl_constants.insert("R16UI",                         GL_R16UI);
+            this.webgl_constants.insert("R32I",                          GL_R32I);
+            this.webgl_constants.insert("R32UI",                         GL_R32UI);
+            this.webgl_constants.insert("RG8I",                          GL_RG8I);
+            this.webgl_constants.insert("RG8UI",                         GL_RG8UI);
+            this.webgl_constants.insert("RG16I",                         GL_RG16I);
+            this.webgl_constants.insert("RG16UI",                        GL_RG16UI);
+            this.webgl_constants.insert("RG32I",                         GL_RG32I);
+            this.webgl_constants.insert("RG32UI",                        GL_RG32UI);
+            this.webgl_constants.insert("RGBA8I",                        GL_RGBA8I);
+            this.webgl_constants.insert("RGBA8UI",                       GL_RGBA8UI);
+            this.webgl_constants.insert("RGB8I",                         GL_RGB8I);
+            this.webgl_constants.insert("RGB8UI",                        GL_RGB8UI);
+            this.webgl_constants.insert("RGBA16I",                       GL_RGBA16I);
+            this.webgl_constants.insert("RGBA16UI",                      GL_RGBA16UI);
+            this.webgl_constants.insert("RGB16I",                        GL_RGB16I);
+            this.webgl_constants.insert("RGB16UI",                       GL_RGB16UI);
+            this.webgl_constants.insert("RGBA32I",                       GL_RGBA32I);
+            this.webgl_constants.insert("RGBA32UI",                      GL_RGBA32UI);
+            this.webgl_constants.insert("RGB32I",                        GL_RGB32I);
+            this.webgl_constants.insert("RGB32UI",                       GL_RGB32UI);
+            this.webgl_constants.insert("R11F_G11F_B10F",                GL_R11F_G11F_B10F);
+            this.webgl_constants.insert("RGB9_E5",                       GL_RGB9_E5);
+            this.webgl_constants.insert("SRGB8",                         GL_SRGB8);
+            this.webgl_constants.insert("SRGB8_ALPHA8",                  GL_SRGB8_ALPHA8);
+            this.webgl_constants.insert("DEPTH_COMPONENT24",             GL_DEPTH_COMPONENT24);
+            this.webgl_constants.insert("DEPTH_COMPONENT32F",            GL_DEPTH_COMPONENT32F);
+            this.webgl_constants.insert("DEPTH24_STENCIL8",              GL_DEPTH24_STENCIL8);
+            this.webgl_constants.insert("DEPTH32F_STENCIL8",             GL_DEPTH32F_STENCIL8);
+            // New pixel formats
+            this.webgl_constants.insert("RED",                           GL_RED);
+            this.webgl_constants.insert("RG",                            GL_RG);
+            this.webgl_constants.insert("RGBA_INTEGER",                  GL_RGBA_INTEGER);
+            this.webgl_constants.insert("RGB_INTEGER",                   GL_RGB_INTEGER);
+            this.webgl_constants.insert("RG_INTEGER",                    GL_RG_INTEGER);
+            this.webgl_constants.insert("RED_INTEGER",                   GL_RED_INTEGER);
+            // MAX limits
+            this.webgl_constants.insert("MAX_ARRAY_TEXTURE_LAYERS",      GL_MAX_ARRAY_TEXTURE_LAYERS);
+            this.webgl_constants.insert("MAX_3D_TEXTURE_SIZE",           GL_MAX_3D_TEXTURE_SIZE);
+            this.webgl_constants.insert("MAX_DRAW_BUFFERS",              GL_MAX_DRAW_BUFFERS);
+            this.webgl_constants.insert("MAX_COLOR_ATTACHMENTS",         GL_MAX_COLOR_ATTACHMENTS);
+            this.webgl_constants.insert("MAX_SAMPLES",                   GL_MAX_SAMPLES);
+            this.webgl_constants.insert("MAX_CLIENT_WAIT_TIMEOUT_WEBGL", 0x9247);
+            this.webgl_constants.insert("MAX_ELEMENTS_VERTICES",        GL_MAX_ELEMENTS_VERTICES);
+            this.webgl_constants.insert("MAX_ELEMENTS_INDICES",         GL_MAX_ELEMENTS_INDICES);
+            this.webgl_constants.insert("MAX_VERTEX_UNIFORM_COMPONENTS",     GL_MAX_VERTEX_UNIFORM_COMPONENTS);
+            this.webgl_constants.insert("MAX_FRAGMENT_UNIFORM_COMPONENTS",   GL_MAX_FRAGMENT_UNIFORM_COMPONENTS);
+            this.webgl_constants.insert("MAX_VARYING_COMPONENTS",            GL_MAX_VARYING_COMPONENTS);
+            this.webgl_constants.insert("MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS", GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS);
+            this.webgl_constants.insert("MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS",   GL_MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS);
+            // Misc WebGL2
+            this.webgl_constants.insert("QUERY_RESULT",                  GL_QUERY_RESULT);
+            this.webgl_constants.insert("QUERY_RESULT_AVAILABLE",        GL_QUERY_RESULT_AVAILABLE);
+            this.webgl_constants.insert("ANY_SAMPLES_PASSED",            GL_ANY_SAMPLES_PASSED);
+            this.webgl_constants.insert("ANY_SAMPLES_PASSED_CONSERVATIVE", GL_ANY_SAMPLES_PASSED_CONSERVATIVE);
+            this.webgl_constants.insert("PRIMITIVE_RESTART_FIXED_INDEX", GL_PRIMITIVE_RESTART_FIXED_INDEX);
+            this.webgl_constants.insert("RASTERIZER_DISCARD",            GL_RASTERIZER_DISCARD);
+            this.webgl_constants.insert("OBJECT_TYPE",                   GL_OBJECT_TYPE);
+            this.webgl_constants.insert("PACK_ROW_LENGTH",               GL_PACK_ROW_LENGTH);
+            this.webgl_constants.insert("PACK_SKIP_PIXELS",              GL_PACK_SKIP_PIXELS);
+            this.webgl_constants.insert("PACK_SKIP_ROWS",                GL_PACK_SKIP_ROWS);
+            this.webgl_constants.insert("UNPACK_ROW_LENGTH",             GL_UNPACK_ROW_LENGTH);
+            this.webgl_constants.insert("UNPACK_IMAGE_HEIGHT",           GL_UNPACK_IMAGE_HEIGHT);
+            this.webgl_constants.insert("UNPACK_SKIP_PIXELS",            GL_UNPACK_SKIP_PIXELS);
+            this.webgl_constants.insert("UNPACK_SKIP_ROWS",              GL_UNPACK_SKIP_ROWS);
+            this.webgl_constants.insert("UNPACK_SKIP_IMAGES",            GL_UNPACK_SKIP_IMAGES);
+            this.webgl_constants.insert("FRAGMENT_SHADER_DERIVATIVE_HINT", GL_FRAGMENT_SHADER_DERIVATIVE_HINT);
+            this.webgl_constants.insert("SAMPLE_ALPHA_TO_ONE",           GL_SAMPLE_ALPHA_TO_ONE);
+            this.webgl_constants.insert("SYNC_OBJECT_APPLE",             0x8A53);
         }
 
         public HashTable<string, int> get_webgl_constants()  {
