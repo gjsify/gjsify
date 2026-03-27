@@ -104,3 +104,6 @@
 [submodule "refs/webgl"]
 	path = refs/webgl
 	url = git@github.com:KhronosGroup/WebGL.git
+[submodule "refs/node-canvas"]
+	path = refs/node-canvas
+	url = https://github.com/Automattic/node-canvas

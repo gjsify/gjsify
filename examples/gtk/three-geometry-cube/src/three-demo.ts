@@ -20,7 +20,19 @@ export function start(canvas: HTMLCanvasElement) {
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
+    let currentWidth = canvas.width;
+    let currentHeight = canvas.height;
+
     renderer.setAnimationLoop(() => {
+        const w = canvas.width;
+        const h = canvas.height;
+        if (w !== currentWidth || h !== currentHeight) {
+            currentWidth = w;
+            currentHeight = h;
+            renderer.setSize(w, h, false);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
         mesh.rotation.x += 0.005;
         mesh.rotation.y += 0.01;
         renderer.render(scene, camera);

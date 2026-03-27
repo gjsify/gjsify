@@ -177,7 +177,15 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
     }
 
     bindVertexArray(array: WebGLVertexArrayObject | null): void {
-        this._native2.bindVertexArray(array ? array._ : 0);
+        if (array === null) {
+            this._native2.bindVertexArray(0);
+            this._vertexObjectState = this._defaultVertexObjectState;
+        } else if (array instanceof WebGLVertexArrayObject) {
+            this._native2.bindVertexArray(array._);
+            this._vertexObjectState = array._objectState;
+        } else {
+            this.setError(this.INVALID_OPERATION);
+        }
     }
 
     // ─── Query Objects ────────────────────────────────────────────────────
@@ -602,10 +610,63 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
     override getParameter(pname: GLenum): any {
         if (pname === 0x1F02 /* GL_VERSION */) return 'WebGL 2.0';
         if (pname === 0x8B8C /* GL_SHADING_LANGUAGE_VERSION */) return 'WebGL GLSL ES 3.00';
-        // WebGL2-specific pname values that need string array responses
         if (pname === 0x1F03 /* GL_EXTENSIONS */) {
             warnNotImplemented('WebGL2RenderingContext.getParameter(GL_EXTENSIONS)');
             return '';
+        }
+        // WebGL2-specific integer parameters not in the WebGL1 switch.
+        // Vala getParameterx default calls glGetIntegerv for any pname, so this works
+        // for all valid OpenGL ES 3.x integer queries.
+        switch (pname) {
+            case 0x8D57: // MAX_SAMPLES
+            case 0x88FF: // MAX_ARRAY_TEXTURE_LAYERS
+            case 0x8073: // MAX_3D_TEXTURE_SIZE
+            case 0x8CDF: // MAX_COLOR_ATTACHMENTS
+            case 0x8824: // MAX_DRAW_BUFFERS
+            case 0x8D6B: // MAX_ELEMENT_INDEX
+            case 0x80E9: // MAX_ELEMENTS_INDICES
+            case 0x80E8: // MAX_ELEMENTS_VERTICES
+            case 0x9125: // MAX_FRAGMENT_INPUT_COMPONENTS
+            case 0x8A2D: // MAX_FRAGMENT_UNIFORM_BLOCKS
+            case 0x8B49: // MAX_FRAGMENT_UNIFORM_COMPONENTS
+            case 0x8905: // MAX_PROGRAM_TEXEL_OFFSET
+            case 0x8C8A: // MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS
+            case 0x8C8B: // MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS
+            case 0x8C80: // MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS
+            case 0x8A30: // MAX_UNIFORM_BLOCK_SIZE
+            case 0x8A2F: // MAX_UNIFORM_BUFFER_BINDINGS
+            case 0x8B4B: // MAX_VARYING_COMPONENTS
+            case 0x9122: // MAX_VERTEX_OUTPUT_COMPONENTS
+            case 0x8A2B: // MAX_VERTEX_UNIFORM_BLOCKS
+            case 0x8B4A: // MAX_VERTEX_UNIFORM_COMPONENTS
+            case 0x8A33: // MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS
+            case 0x8A2E: // MAX_COMBINED_UNIFORM_BLOCKS
+            case 0x8A31: // MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS
+            case 0x8904: // MIN_PROGRAM_TEXEL_OFFSET
+            case 0x0D02: // PACK_ROW_LENGTH
+            case 0x0D04: // PACK_SKIP_PIXELS
+            case 0x0D03: // PACK_SKIP_ROWS
+            case 0x88ED: // PIXEL_PACK_BUFFER_BINDING
+            case 0x88EF: // PIXEL_UNPACK_BUFFER_BINDING
+            case 0x0C02: // READ_BUFFER
+            case 0x8CAA: // READ_FRAMEBUFFER_BINDING
+            case 0x806A: // TEXTURE_BINDING_3D
+            case 0x8C1D: // TEXTURE_BINDING_2D_ARRAY
+            case 0x8E25: // TRANSFORM_FEEDBACK_BINDING
+            case 0x8C8F: // TRANSFORM_FEEDBACK_BUFFER_BINDING
+            case 0x8A28: // UNIFORM_BUFFER_BINDING
+            case 0x8A34: // UNIFORM_BUFFER_OFFSET_ALIGNMENT
+            case 0x806E: // UNPACK_IMAGE_HEIGHT
+            case 0x0CF2: // UNPACK_ROW_LENGTH
+            case 0x806D: // UNPACK_SKIP_IMAGES
+            case 0x0CF4: // UNPACK_SKIP_PIXELS
+            case 0x0CF3: // UNPACK_SKIP_ROWS
+            case 0x84FD: // MAX_TEXTURE_LOD_BIAS
+                return this._native2.getParameterx(pname)?.deepUnpack() | 0;
+            case 0x8C89: // RASTERIZER_DISCARD
+            case 0x8E24: // TRANSFORM_FEEDBACK_ACTIVE
+            case 0x8E23: // TRANSFORM_FEEDBACK_PAUSED
+                return !!this._native2.getParameterx(pname)?.deepUnpack();
         }
         return super.getParameter(pname);
     }

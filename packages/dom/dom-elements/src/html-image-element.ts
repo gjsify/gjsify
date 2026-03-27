@@ -210,17 +210,22 @@ export class HTMLImageElement extends HTMLElement {
 
 	/**
 	 * Get the pixels of the loaded GdkPixbuf as ImageData.
+	 * Always returns RGBA (4 channels) — matches standard browser ImageData behaviour
+	 * and what WebGL expects for texSubImage2D with format=RGBA.
+	 * JPEG and other non-alpha formats are promoted to RGBA via add_alpha().
 	 */
 	getImageData(): ImageData | null {
-		const data = this._pixbuf?.get_pixels() || null;
-		if (!data) {
-			return null;
-		}
+		if (!this._pixbuf) return null;
+		// add_alpha() is a no-op when the pixbuf already has alpha; for RGB-only
+		// pixbufs (e.g. JPEG) it appends a fully opaque alpha channel.
+		const rgba = this._pixbuf.get_has_alpha()
+			? this._pixbuf
+			: (this._pixbuf.add_alpha(false, 0, 0, 0) ?? this._pixbuf);
 		return {
 			colorSpace: 'srgb',
-			data: new Uint8ClampedArray(data),
-			height: this.height,
-			width: this.width,
+			data: new Uint8ClampedArray(rgba.get_pixels()),
+			height: rgba.get_height(),
+			width: rgba.get_width(),
 		};
 	}
 
