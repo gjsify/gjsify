@@ -9,4 +9,9 @@ export interface ConfigData {
     typescript?: ConfigDataTypescript;
     /** An array of glob patterns to exclude matches and aliases */
     exclude?: string[];
+    /**
+     * Inject a console shim into GJS builds for clean output (no GLib prefix, ANSI colors work).
+     * Only applies to GJS app builds. Default: true.
+     */
+    consoleShim?: boolean;
 }

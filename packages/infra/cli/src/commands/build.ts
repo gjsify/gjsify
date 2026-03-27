@@ -82,6 +82,12 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
                 default: 'warning'
             })
+            .option('console-shim', {
+                description: "Inject a console shim into GJS builds for clean output without the GLib prefix and with working ANSI colors. Use --no-console-shim to disable. Only applies to GJS app builds.",
+                type: 'boolean',
+                normalize: true,
+                default: true
+            })
     },
     handler: async (args) => {
         const config = new Config();

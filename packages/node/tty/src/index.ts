@@ -3,12 +3,19 @@
 // Uses ANSI escape sequences for terminal control.
 
 import { Writable, Readable } from 'node:stream';
+import GLib from '@girs/glib-2.0';
 
 export class ReadStream extends Readable {
   isRaw = false;
+  readonly fd: number;
+
+  constructor(fd: number = 0) {
+    super();
+    this.fd = fd;
+  }
 
   get isTTY() {
-    return true;
+    return isatty(this.fd);
   }
 
   setRawMode(mode: boolean) {
@@ -24,16 +31,18 @@ export class WriteStream extends Writable {
   isRaw = false;
   columns = 80;
   rows = 24;
+  readonly fd: number;
 
   protected _print = console.log;
 
   constructor(fd: number) {
     super();
+    this.fd = fd;
     this._detectSize();
   }
 
   get isTTY() {
-    return true;
+    return isatty(this.fd);
   }
 
   /** Detect terminal size from environment or defaults. */
@@ -198,18 +207,17 @@ export class WriteStream extends Writable {
   }
 }
 
-// GLib import for env detection (declared but not imported to avoid bundling issues)
-declare const GLib: any;
-
 /**
  * Check if a file descriptor refers to a TTY.
- * In GJS, we check if the fd matches known TTY file descriptors.
+ * Uses GLib.log_writer_supports_color() as a reliable TTY proxy: if a fd supports
+ * ANSI colors it is connected to an interactive terminal.
  */
 export function isatty(fd: number | ReadStream | WriteStream): boolean {
-  if (fd instanceof ReadStream || fd instanceof WriteStream) return true;
-  // In a real GJS environment, stdin=0, stdout=1, stderr=2 are typically TTYs
+  if (fd instanceof ReadStream || fd instanceof WriteStream) {
+    return isatty(fd.fd);
+  }
   if (typeof fd === 'number') {
-    return fd === 0 || fd === 1 || fd === 2;
+    return GLib.log_writer_supports_color(fd);
   }
   return false;
 }

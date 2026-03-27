@@ -3,10 +3,14 @@ import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
+
+const _shimDir = dirname(fileURLToPath(import.meta.url));
 
 export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -59,6 +63,14 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             'process.env.READABLE_STREAM': '"disable"',
         },
     };
+
+    // Inject the console shim for GJS builds (default: enabled).
+    // The shim replaces all `console` references in the bundle with print()/printerr()-based
+    // implementations that bypass GLib.log_structured() — no prefix, ANSI codes work.
+    if (pluginOptions.consoleShim !== false) {
+        // Resolve relative to the compiled shims/ directory next to this file
+        esbuildOptions.inject = [resolve(_shimDir, '../shims/console-gjs.js')];
+    }
 
     merge(build.initialOptions, esbuildOptions);
 

@@ -43,4 +43,9 @@ export interface CliBuildOptions {
   logLevel: 'silent' | 'error' | 'warning' | 'info' | 'debug' | 'verbose';
   /** An array of glob patterns to exclude matches and aliases */
   exclude?: string[];
+  /**
+   * Inject a console shim into GJS builds for clean output (no GLib prefix, ANSI colors work).
+   * Use --no-console-shim to disable. Only applies to GJS app builds. Default: true.
+   */
+  consoleShim?: boolean;
 }
