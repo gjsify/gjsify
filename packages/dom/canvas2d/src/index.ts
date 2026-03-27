@@ -8,6 +8,7 @@ export { CanvasPattern } from './canvas-pattern.js';
 export { Path2D } from './canvas-path.js';
 export { OurImageData as ImageData } from './image-data.js';
 export { parseColor } from './color.js';
+export { Canvas2DWidget } from './canvas-drawing-area.js';
 
 // Side-effect: register the '2d' context factory on HTMLCanvasElement.
 // Same pattern as @gjsify/dom-elements registering globals on import.

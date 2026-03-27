@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "outDir": "dist",
+        "target": "ESNext",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "declaration": false,
+        "strict": false,
+        "types": ["node"],
+        "lib": ["es2020", "DOM"]
+    },
+    "files": ["src/gjs.ts", "src/browser.ts"]
+}

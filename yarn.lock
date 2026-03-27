@@ -549,6 +549,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@girs/javascriptcore-6.0@npm:2.51.93-4.0.0-beta.42":
+  version: 2.51.93-4.0.0-beta.42
+  resolution: "@girs/javascriptcore-6.0@npm:2.51.93-4.0.0-beta.42"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-beta.42"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.42"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-beta.42"
+  checksum: 10/b485242bbdec1250db2dc7914766f61109a443da5538a66edb547b85f51719d3703646dba94c376c77799a96cb743e7a4ce3b0b6bf78d30f29eebd4147080651
+  languageName: node
+  linkType: hard
+
 "@girs/libxml2-2.0@npm:2.0.0-4.0.0-beta.42":
   version: 2.0.0-4.0.0-beta.42
   resolution: "@girs/libxml2-2.0@npm:2.0.0-4.0.0-beta.42"
@@ -592,7 +603,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/soup-3.0@npm:^3.6.6-4.0.0-beta.42":
+"@girs/soup-3.0@npm:3.6.6-4.0.0-beta.42, @girs/soup-3.0@npm:^3.6.6-4.0.0-beta.42":
   version: 3.6.6-4.0.0-beta.42
   resolution: "@girs/soup-3.0@npm:3.6.6-4.0.0-beta.42"
   dependencies:
@@ -602,6 +613,31 @@ __metadata:
     "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-beta.42"
     "@girs/gobject-2.0": "npm:2.88.0-4.0.0-beta.42"
   checksum: 10/c3e40302bb24c136cae5e166e542f6fce6781b34de5f16def2dc949c206c7f03834e9e57310fa29b8e9ad23fa9489ffdc4c74fcfb6e7820d3eccd67ba529bda2
+  languageName: node
+  linkType: hard
+
+"@girs/webkit-6.0@npm:2.51.93-4.0.0-beta.42":
+  version: 2.51.93-4.0.0-beta.42
+  resolution: "@girs/webkit-6.0@npm:2.51.93-4.0.0-beta.42"
+  dependencies:
+    "@girs/cairo-1.0": "npm:1.0.0-4.0.0-beta.42"
+    "@girs/freetype2-2.0": "npm:2.0.0-4.0.0-beta.42"
+    "@girs/gdk-4.0": "npm:4.0.0-4.0.0-beta.42"
+    "@girs/gdkpixbuf-2.0": "npm:2.0.0-4.0.0-beta.42"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:4.0.0-beta.42"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.42"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-beta.42"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-beta.42"
+    "@girs/graphene-1.0": "npm:1.0.0-4.0.0-beta.42"
+    "@girs/gsk-4.0": "npm:4.0.0-4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:4.22.1-4.0.0-beta.42"
+    "@girs/harfbuzz-0.0": "npm:12.3.2-4.0.0-beta.42"
+    "@girs/javascriptcore-6.0": "npm:2.51.93-4.0.0-beta.42"
+    "@girs/pango-1.0": "npm:1.57.0-4.0.0-beta.42"
+    "@girs/pangocairo-1.0": "npm:1.0.0-4.0.0-beta.42"
+    "@girs/soup-3.0": "npm:3.6.6-4.0.0-beta.42"
+  checksum: 10/6b4a62c0358cf366d900caaff93ba4a5e53abf55782ce6053add45b5e1de7e2a675484862ef0e2bd58dad0a4f3fdb58b8e74d8c9940d0f3a455e92641b144627
   languageName: node
   linkType: hard
 
@@ -652,13 +688,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/canvas2d@workspace:packages/dom/canvas2d":
+"@gjsify/canvas2d@workspace:^, @gjsify/canvas2d@workspace:packages/dom/canvas2d":
   version: 0.0.0-use.local
   resolution: "@gjsify/canvas2d@workspace:packages/dom/canvas2d"
   dependencies:
     "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-beta.42"
     "@girs/gdkpixbuf-2.0": "npm:^2.0.0-4.0.0-beta.42"
     "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
     "@girs/pango-1.0": "npm:^1.57.0-4.0.0-beta.42"
     "@girs/pangocairo-1.0": "npm:^1.0.0-4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
@@ -1170,6 +1209,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-gtk-canvas2d-confetti@workspace:examples/gtk/canvas2d-confetti":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-gtk-canvas2d-confetti@workspace:examples/gtk/canvas2d-confetti"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
+    "@gjsify/canvas2d": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    http-server: "npm:^14.1.1"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-gtk-http-dashboard@workspace:examples/gtk/http-dashboard":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-gtk-http-dashboard@workspace:examples/gtk/http-dashboard"
@@ -1180,6 +1234,20 @@ __metadata:
     "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-gtk-iframe-basic@workspace:examples/gtk/iframe-basic":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-gtk-iframe-basic@workspace:examples/gtk/iframe-basic"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/iframe": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1561,6 +1629,23 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/http": "workspace:^"
     "@gjsify/tls": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/iframe@workspace:^, @gjsify/iframe@workspace:packages/dom/iframe":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/iframe@workspace:packages/dom/iframe"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
+    "@girs/javascriptcore-6.0": "npm:2.51.93-4.0.0-beta.42"
+    "@girs/webkit-6.0": "npm:2.51.93-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-elements": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
