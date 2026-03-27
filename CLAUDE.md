@@ -65,21 +65,54 @@ Node.js API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). Al
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| dom-elements | GdkPixbuf | Node, Element, HTMLElement, HTMLCanvasElement, HTMLImageElement, Image, Attr, NamedNodeMap, NodeList |
-| webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0 via Vala (@gwebgl-0.1), CanvasWebGLWidget (Gtk.GLArea subclass) |
+| dom-elements | GdkPixbuf | Node, Element, HTMLElement, HTMLCanvasElement, HTMLImageElement, Image, Document, Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList |
+| canvas2d | Cairo, GdkPixbuf, PangoCairo | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DWidget (Gtk.DrawingArea subclass) |
+| webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), CanvasWebGLWidget (Gtk.GLArea subclass) |
+| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameWidget (WebKit.WebView subclass), postMessage bridge |
 
-### Why DOM implementations exist
+### Core concept: DOM Elements as GTK Widgets
+
+gjsify bridges the gap between Web APIs and native GTK by implementing standard DOM elements backed by GNOME libraries. Each DOM element that requires a visual representation on screen is paired with a **GTK Widget** that handles the native rendering:
+
+| DOM Element | GTK Widget | Native Backend | Package |
+|-------------|-----------|----------------|---------|
+| `HTMLCanvasElement` (2d context) | `Canvas2DWidget` → `Gtk.DrawingArea` | Cairo | `@gjsify/canvas2d` |
+| `HTMLCanvasElement` (webgl context) | `CanvasWebGLWidget` → `Gtk.GLArea` | OpenGL ES / libepoxy | `@gjsify/webgl` |
+| `HTMLIFrameElement` | `IFrameWidget` → `WebKit.WebView` | WebKit | `@gjsify/iframe` |
+
+**The pattern is always the same:**
+1. The widget creates the corresponding DOM element internally
+2. Application code works against the standard DOM API (Canvas 2D, WebGL, postMessage)
+3. The widget translates between GTK lifecycle (signals, draw_func, render) and Web lifecycle (requestAnimationFrame, events, ready)
+
+**All widgets share a common API surface** (modeled after `IFrameWidget`):
+- `onReady(cb)` — fires when the DOM element and context are available
+- `installGlobals()` — registers browser globals (e.g. `requestAnimationFrame`)
+- Element getter (`canvas`, `iframeElement`) — access to the backing DOM element
+
+This enables **dual-target development**: the same application code (e.g. a Three.js scene, a Canvas 2D game, an iframe with postMessage) runs both in the browser and in a native GTK application without changes to the business logic. Examples under `examples/gtk/` demonstrate this with shared demo code and separate entry points for GJS and browser.
+
+### Context Factory Registry
+
+`HTMLCanvasElement` has a static context factory registry (`registerContextFactory`) that allows packages to register rendering context types independently:
+- `@gjsify/canvas2d` registers `'2d'` → `CanvasRenderingContext2D` (Cairo-backed)
+- `@gjsify/webgl` registers `'webgl'`/`'webgl2'` via subclass override + fallthrough to registry
+
+This enables modular composition — packages don't need to know about each other. A canvas element can support any combination of contexts depending on which packages are imported.
+
+### Why this approach
 
 gjsify targets two use cases simultaneously:
 1. **GJS native apps** — GNOME apps written in TypeScript that need Node.js/Web API parity
-2. **Browser-engine portability** — Running browser-targeted libraries (e.g. game engines like Excalibur) on GJS/GTK without modification
+2. **Browser-engine portability** — Running browser-targeted libraries (e.g. game engines, UI frameworks) on GJS/GTK without modification
 
-Browser engines depend on DOM APIs (HTMLCanvasElement, HTMLImageElement, WebGL, etc.) that don't exist in GJS. Our DOM implementations back these with native GNOME equivalents:
-- `HTMLImageElement` → GdkPixbuf (loads images from disk; `getImageData()` returns pixel data for WebGL)
+Browser libraries depend on DOM APIs that don't exist in GJS. Our implementations back these with native GNOME equivalents:
+- `HTMLImageElement` → GdkPixbuf (loads images from disk; `getImageData()` returns pixel data)
+- `HTMLCanvasElement` (2d) → Cairo.ImageSurface (full Canvas 2D API including text via PangoCairo)
 - `HTMLCanvasElement` (webgl) → Gtk.GLArea (renders OpenGL ES via libepoxy)
-- `CanvasWebGLWidget` → Gtk.GLArea subclass bundling all WebGL bootstrapping (ES context, depth buffer, requestAnimationFrame)
+- `HTMLIFrameElement` → WebKit.WebView (bidirectional postMessage via script message handlers)
 
-This lets WebGL demos that assume a browser canvas work on GTK with minimal changes. `dom-elements` auto-registers `globalThis.Image`, `globalThis.HTMLImageElement`, and `globalThis.HTMLCanvasElement` on import (same pattern as `@gjsify/node-globals`).
+`dom-elements` auto-registers `globalThis.Image`, `globalThis.HTMLCanvasElement`, `globalThis.document`, etc. on import (same pattern as `@gjsify/node-globals`).
 
 ### Planned
 
@@ -230,15 +263,31 @@ esbuild auto-selects `require` vs `import` condition based on the consumer's syn
 
 Vala→Meson→shared lib+GIR typelib→`gi://` import. Example: `packages/dom/webgl/`. Prefer TS; Vala only for C-level access.
 
-### CanvasWebGLWidget widget
+### DOM Widget examples
 
-The `CanvasWebGLWidget` class (`packages/dom/webgl/src/ts/canvas-webgl-widget.ts`) is a `Gtk.GLArea` subclass that bundles all WebGL bootstrapping. Use it instead of raw `Gtk.GLArea`:
+All DOM widgets follow the same pattern — `onReady()`, `installGlobals()`, element getter:
+
 ```ts
+// Canvas 2D (Cairo-backed)
+import { Canvas2DWidget } from '@gjsify/canvas2d';
+const widget = new Canvas2DWidget();
+widget.installGlobals();
+widget.onReady((canvas, ctx) => { ctx.fillRect(0, 0, 100, 100); });
+window.set_child(widget);
+
+// WebGL (OpenGL ES-backed)
 import { CanvasWebGLWidget } from '@gjsify/webgl';
-const glArea = new CanvasWebGLWidget();
-glArea.installGlobals(); // sets globalThis.requestAnimationFrame
-glArea.onWebGLReady((canvas, gl) => { /* WebGL code here */ });
-window.set_child(glArea);
+const widget = new CanvasWebGLWidget();
+widget.installGlobals();
+widget.onReady((canvas, gl) => { gl.clearColor(0, 0, 0, 1); });
+window.set_child(widget);
+
+// IFrame (WebKit-backed)
+import { IFrameWidget } from '@gjsify/iframe';
+const widget = new IFrameWidget();
+widget.onReady((iframe) => { iframe.contentWindow?.addEventListener('message', handler); });
+widget.iframeElement.srcdoc = '<h1>Hello</h1>';
+window.set_child(widget);
 ```
 
 ### Prebuild distribution convention
