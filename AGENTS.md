@@ -93,6 +93,30 @@ gjsify bridges the gap between Web APIs and native GTK by implementing standard 
 
 This enables **dual-target development**: the same application code (e.g. a Three.js scene, a Canvas 2D game, an iframe with postMessage) runs both in the browser and in a native GTK application without changes to the business logic. Examples under `examples/gtk/` demonstrate this with shared demo code and separate entry points for GJS and browser.
 
+### User Input — GTK → DOM Event Bridge (`@gjsify/event-bridge`)
+
+Browser Canvas examples interact with the user via `canvas.addEventListener('mousemove', e => e.clientX)`. gjsify bridges GTK event controllers to standard DOM events so that browser code works unchanged on GJS.
+
+**How it works:** `attachEventControllers(widget, getElement)` attaches GTK4 event controllers to any `Gtk.Widget` and dispatches standard DOM events on the associated HTMLElement:
+
+| GTK Controller | DOM Events |
+|---------------|-----------|
+| `Gtk.EventControllerMotion` | `pointermove`, `mousemove`, `pointerenter`, `mouseenter`, `mouseover`, `pointerleave`, `mouseleave`, `mouseout` |
+| `Gtk.GestureClick` | `pointerdown`, `mousedown`, `pointerup`, `mouseup`, `click`, `dblclick`, `contextmenu` |
+| `Gtk.EventControllerScroll` | `wheel` |
+| `Gtk.EventControllerKey` | `keydown`, `keyup` |
+| `Gtk.EventControllerFocus` | `focus`, `focusin`, `blur`, `focusout` |
+
+**Event dispatch order** follows the W3C UIEvents spec: `pointerdown` → `mousedown` → … → `pointerup` → `mouseup` → `click`.
+
+**Coordinate mapping:** GTK controller coordinates (widget-relative) map directly to DOM `offsetX`/`offsetY`/`clientX`/`clientY`.
+
+**Key mapping:** `key-map.ts` converts ~80 Gdk keyvals to DOM `key`/`code` strings (e.g. `Gdk.KEY_Return` → `key: "Enter"`, `code: "Enter"`). Supports Left/Right modifier variants and Numpad location detection.
+
+**Integration:** Both `Canvas2DWidget` and `CanvasWebGLWidget` call `attachEventControllers(this, () => this._canvas)` in their constructor. Any new widget backed by a DOM element should do the same.
+
+**UI Event classes** in `@gjsify/dom-events`: `UIEvent`, `MouseEvent`, `PointerEvent`, `KeyboardEvent`, `WheelEvent`, `FocusEvent` — all Web-standard with init interfaces, `getModifierState()`, and `Symbol.toStringTag`.
+
 ### Context Factory Registry
 
 `HTMLCanvasElement` has a static context factory registry (`registerContextFactory`) that allows packages to register rendering context types independently:
