@@ -24,7 +24,7 @@ Fedora:
 ```bash
 sudo dnf install gjs glib2-devel gobject-introspection-devel gtk4-devel \
   libsoup3-devel webkitgtk6.0-devel libadwaita-devel gdk-pixbuf2-devel \
-  libepoxy-devel meson vala gcc pkgconf nodejs
+  libepoxy-devel libgda libgda-sqlite meson vala gcc pkgconf nodejs
 corepack enable
 ```
 
@@ -33,7 +33,7 @@ Ubuntu:
 ```bash
 sudo apt install gjs libglib2.0-dev libgirepository1.0-dev libgtk-4-dev \
   libsoup-3.0-dev libwebkitgtk-6.0-dev libadwaita-1-dev libgdk-pixbuf-2.0-dev \
-  libepoxy-dev meson valac gcc pkg-config nodejs
+  libepoxy-dev libgda-6.0-dev meson valac gcc pkg-config nodejs
 corepack enable
 ```
 

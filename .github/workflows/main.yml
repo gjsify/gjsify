@@ -46,6 +46,8 @@ jobs:
           libadwaita-devel
           gdk-pixbuf2-devel
           libepoxy-devel
+          libgda
+          libgda-sqlite
 
       - name: Install Meson and Vala
         run: dnf install -y meson vala gcc pkgconf
