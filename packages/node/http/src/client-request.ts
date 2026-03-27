@@ -21,6 +21,14 @@ export interface ClientRequestOptions {
   timeout?: number;
   agent?: any;
   setHost?: boolean;
+  /** Basic authentication string in the format 'user:password'. */
+  auth?: string;
+  /** Local address to bind the request from. */
+  localAddress?: string;
+  /** IP address family (4 or 6). */
+  family?: 4 | 6 | 0;
+  /** Signal to abort the request. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -99,6 +107,20 @@ export class ClientRequest extends OutgoingMessage {
       const defaultPort = this.protocol === 'https:' ? 443 : 80;
       const hostHeader = this.port === defaultPort ? this.hostname : `${this.hostname}:${this.port}`;
       this.setHeader('Host', hostHeader);
+    }
+
+    // Basic authentication: encode user:password as Base64 Authorization header
+    if (opts.auth && !this._headers.has('authorization')) {
+      this.setHeader('Authorization', 'Basic ' + Buffer.from(opts.auth).toString('base64'));
+    }
+
+    // AbortSignal support
+    if (opts.signal) {
+      if (opts.signal.aborted) {
+        this.abort();
+      } else {
+        opts.signal.addEventListener('abort', () => this.abort(), { once: true });
+      }
     }
 
     // Create Soup objects

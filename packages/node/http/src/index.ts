@@ -40,20 +40,51 @@ export function validateHeaderValue(name: string, value: any) {
   }
 }
 
+export interface AgentOptions {
+  keepAlive?: boolean;
+  keepAliveMsecs?: number;
+  maxSockets?: number;
+  maxTotalSockets?: number;
+  maxFreeSockets?: number;
+  timeout?: number;
+  scheduling?: 'fifo' | 'lifo';
+}
+
 /**
- * Agent class for connection pooling (stub — Soup.Session handles pooling internally).
+ * Agent class for connection pooling.
+ * Soup.Session handles actual TCP connection pooling internally.
+ * This class provides the Node.js-compatible API surface for frameworks.
  */
 export class Agent {
   defaultPort = 80;
   protocol = 'http:';
-  maxSockets = Infinity;
-  maxFreeSockets = 256;
-  keepAliveMsecs = 1000;
-  keepAlive = false;
+  maxSockets: number;
+  maxTotalSockets: number;
+  maxFreeSockets: number;
+  keepAliveMsecs: number;
+  keepAlive: boolean;
+  scheduling: 'fifo' | 'lifo';
 
-  constructor(_options?: any) {}
+  /** Pending requests per host (compatibility — Soup manages internally). */
+  readonly requests: Record<string, unknown[]> = {};
+  /** Active sockets per host (compatibility — Soup manages internally). */
+  readonly sockets: Record<string, unknown[]> = {};
+  /** Idle sockets per host (compatibility — Soup manages internally). */
+  readonly freeSockets: Record<string, unknown[]> = {};
 
-  destroy(): void {}
+  constructor(options?: AgentOptions) {
+    this.keepAlive = options?.keepAlive ?? false;
+    this.keepAliveMsecs = options?.keepAliveMsecs ?? 1000;
+    this.maxSockets = options?.maxSockets ?? Infinity;
+    this.maxTotalSockets = options?.maxTotalSockets ?? Infinity;
+    this.maxFreeSockets = options?.maxFreeSockets ?? 256;
+    this.scheduling = options?.scheduling ?? 'lifo';
+  }
+
+  /** Destroy the agent and close idle connections. */
+  destroy(): void {
+    // Soup.Session handles cleanup on GC.
+  }
 
   /** Return a connection pool key for the given options. */
   getName(options: { host?: string; port?: number; localAddress?: string; family?: number }): string {

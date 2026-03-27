@@ -437,4 +437,102 @@ export default async () => {
       req.abort();
     });
   });
+
+  // ==================== auth option ====================
+  await describe('http.request auth option', async () => {
+    await it('should set Authorization header from auth option', async () => {
+      const req = http.request({ hostname: 'localhost', port: 1, path: '/', auth: 'user:pass' });
+      const authHeader = req.getHeader('authorization');
+      expect(authHeader).toBeDefined();
+      // Basic base64('user:pass') = 'dXNlcjpwYXNz'
+      expect(authHeader).toBe('Basic dXNlcjpwYXNz');
+      req.on('error', () => {});
+      req.abort();
+    });
+
+    await it('should not override explicit Authorization header', async () => {
+      const req = http.request({
+        hostname: 'localhost', port: 1, path: '/',
+        auth: 'user:pass',
+        headers: { 'Authorization': 'Bearer token123' },
+      });
+      expect(req.getHeader('authorization')).toBe('Bearer token123');
+      req.on('error', () => {});
+      req.abort();
+    });
+
+    await it('should handle auth with special characters', async () => {
+      const req = http.request({ hostname: 'localhost', port: 1, path: '/', auth: 'user:p@ss:word' });
+      const authHeader = req.getHeader('authorization');
+      expect(authHeader).toBeDefined();
+      expect((authHeader as string).startsWith('Basic ')).toBe(true);
+      req.on('error', () => {});
+      req.abort();
+    });
+  });
+
+  // ==================== Agent improvements ====================
+  await describe('http.Agent constructor options', async () => {
+    await it('should accept keepAlive option', async () => {
+      const agent = new http.Agent({ keepAlive: true });
+      expect(agent.keepAlive).toBe(true);
+    });
+
+    await it('should accept maxSockets option', async () => {
+      const agent = new http.Agent({ maxSockets: 10 });
+      expect(agent.maxSockets).toBe(10);
+    });
+
+    await it('should accept maxTotalSockets option', async () => {
+      const agent = new http.Agent({ maxTotalSockets: 50 });
+      expect(agent.maxTotalSockets).toBe(50);
+    });
+
+    await it('should accept maxFreeSockets option', async () => {
+      const agent = new http.Agent({ maxFreeSockets: 100 });
+      expect(agent.maxFreeSockets).toBe(100);
+    });
+
+    await it('should accept scheduling option', async () => {
+      const agent = new http.Agent({ scheduling: 'fifo' });
+      expect(agent.scheduling).toBe('fifo');
+    });
+
+    await it('should have default values', async () => {
+      const agent = new http.Agent();
+      expect(agent.keepAlive).toBe(false);
+      expect(agent.maxSockets).toBe(Infinity);
+      expect(agent.maxFreeSockets).toBe(256);
+      expect(agent.keepAliveMsecs).toBe(1000);
+      expect(agent.scheduling).toBe('lifo');
+    });
+
+    await it('should have requests/sockets/freeSockets objects', async () => {
+      const agent = new http.Agent();
+      expect(typeof agent.requests).toBe('object');
+      expect(typeof agent.sockets).toBe('object');
+      expect(typeof agent.freeSockets).toBe('object');
+    });
+
+    await it('destroy() should not throw', async () => {
+      const agent = new http.Agent({ keepAlive: true });
+      agent.destroy();
+    });
+  });
+
+  // ==================== signal option ====================
+  await describe('http.request signal option', async () => {
+    await it('should support signal option in request', async () => {
+      if (typeof AbortController === 'undefined') return; // skip if not available
+      const controller = new AbortController();
+      const req = http.request({
+        hostname: 'localhost', port: 1, path: '/',
+        signal: controller.signal,
+      });
+      expect(req).toBeDefined();
+      req.on('error', () => {});
+      controller.abort();
+      req.destroy();
+    });
+  });
 };
