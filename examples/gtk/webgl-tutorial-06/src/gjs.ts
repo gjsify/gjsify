@@ -4,7 +4,7 @@ import '@girs/gtk-4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
-import { Image as GjsifyImage } from '@gjsify/html-image-element';
+import { Image as GjsifyImage } from '@gjsify/dom-elements';
 import { GjsifyHTMLCanvasElement } from '@gjsify/webgl';
 import { start } from './webgl-demo.js';
 

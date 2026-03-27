@@ -78,7 +78,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 
 ## Web API Packages (`packages/web/`)
 
-All 14 packages have real implementations:
+All 12 packages have real implementations:
 
 | Package | GNOME Libs | Tests | Web APIs |
 |---------|-----------|-------|----------|
@@ -89,14 +89,18 @@ All 14 packages have real implementations:
 | **eventsource** | — | 15 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
 | **fetch** | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy |
 | **formdata** | — | 49 | FormData, File, multipart encoding |
-| **dom-elements** | — | 166 | Node, Element, HTMLElement, Attr, NamedNodeMap, NodeList, NodeType, NamespaceURI (DOM hierarchy; GJS-only) |
-| **html-image-element** | GdkPixbuf | 44 | HTMLImageElement (alt, src, width, height, crossOrigin, loading, decode()), Image() |
 | **streams** | — | 283 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **webcrypto** | — | 486 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
-| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
 | **web-globals** | — | 66 | Unified entry point: imports all Web API packages, registers globals (URL, URLSearchParams, Blob, File, FormData, performance, PerformanceObserver) |
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
+
+## DOM Packages (`packages/dom/`)
+
+| Package | GNOME Libs | Tests | APIs |
+|---------|-----------|-------|------|
+| **dom-elements** | GdkPixbuf | 210 | Node, Element, HTMLElement, HTMLImageElement, Image, Attr, NamedNodeMap, NodeList, NodeType, NamespaceURI (GJS-only) |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
 
 ### Missing Web APIs
 
@@ -144,7 +148,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **GLib 2.0** | crypto, url, os, process, dns, child_process, dgram, tls, module |
 | **Soup 3.0** | http, https, fetch, websocket |
 | **Gtk 4.0** | webgl |
-| **GdkPixbuf 2.0** | html-image-element |
+| **GdkPixbuf 2.0** | dom-elements (HTMLImageElement) |
 | **gwebgl 0.1** | webgl (Vala extension) |
 
 ---
@@ -224,6 +228,15 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-27 — Restructure: new `packages/dom/` category
+
+**New package category `packages/dom/` for DOM/platform-specific packages:**
+- Moved `dom-elements` from `packages/web/` → `packages/dom/`
+- Moved `webgl` from `packages/web/` → `packages/dom/`
+- Merged `html-image-element` into `dom-elements` (HTMLImageElement, Image now part of @gjsify/dom-elements)
+- Updated `@gjsify/webgl` dependency: `html-image-element` → `dom-elements`
+- Updated root `package.json` workspaces, `meson.build`, WebGL example scripts, CLAUDE.md, STATUS.md
 
 ### 2026-03-27 — HTTP Upgrade Event, Web Globals, Client Auth, Test Coverage
 

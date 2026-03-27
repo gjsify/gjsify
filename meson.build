@@ -1,6 +1,6 @@
 project('Gwebgl', ['c', 'vala'], version: '0.1')
 
-root_dir = meson.current_source_dir() / 'packages/web/webgl'
+root_dir = meson.current_source_dir() / 'packages/dom/webgl'
 
 vapi_dir = root_dir / 'src/vapi'
 
@@ -13,7 +13,7 @@ add_project_arguments(
 
 dependencies = [ dependency('glib-2.0'), dependency('gobject-2.0'), dependency('gdk-pixbuf-2.0'), dependency('gtk4'), dependency('epoxy')]
 
-sources = files('packages/web/webgl/src/vala/handle-types.vala', 'packages/web/webgl/src/vala/webgl-rendering-context-base.vala', 'packages/web/webgl/src/vala/webgl-rendering-context.vala')
+sources = files('packages/dom/webgl/src/vala/handle-types.vala', 'packages/dom/webgl/src/vala/webgl-rendering-context-base.vala', 'packages/dom/webgl/src/vala/webgl-rendering-context.vala')
 
 libGwebgl = library('gwebgl', sources,
     dependencies: dependencies,
@@ -34,5 +34,5 @@ custom_target(meson.project_name() + '-0.1.typelib', command: [g_ir_compiler, '-
               install_dir: get_option('libdir') / 'girepository-1.0')
 
 # Test app
-test_sources = files('packages/web/webgl/src/vala/handle-types.vala', 'packages/web/webgl/src/vala/webgl-rendering-context-base.vala', 'packages/web/webgl/src/vala/webgl-rendering-context.vala', 'packages/web/webgl/src/test/app.vala')
+test_sources = files('packages/dom/webgl/src/vala/handle-types.vala', 'packages/dom/webgl/src/vala/webgl-rendering-context-base.vala', 'packages/dom/webgl/src/vala/webgl-rendering-context.vala', 'packages/dom/webgl/src/test/app.vala')
 executable('gwebgl_vala_app', test_sources, dependencies: dependencies)

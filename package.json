@@ -36,6 +36,7 @@
     "packages/gjs/types/@types/gwebgl-0.1",
     "packages/node/*",
     "packages/web/*",
+    "packages/dom/*",
     "examples/cli/*",
     "examples/gtk/*",
     "examples/net/*"

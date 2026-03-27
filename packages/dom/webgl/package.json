@@ -39,7 +39,7 @@
         "@girs/gjs": "^4.0.0-beta.42",
         "@girs/gtk-4.0": "4.22.1-4.0.0-beta.42",
         "@girs/gwebgl-0.1": "workspace:^",
-        "@gjsify/html-image-element": "workspace:^",
+        "@gjsify/dom-elements": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@types/bit-twiddle": "^1.0.3",
         "bit-twiddle": "^1.0.2",

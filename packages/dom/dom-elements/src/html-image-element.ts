@@ -4,7 +4,9 @@
 import GLib from '@girs/glib-2.0';
 import GdkPixbuf from '@girs/gdkpixbuf-2.0';
 import { Event } from '@gjsify/dom-events';
-import { HTMLElement, PropertySymbol, NamespaceURI } from '@gjsify/dom-elements';
+import { HTMLElement } from './html-element.js';
+import * as PropertySymbol from './property-symbol.js';
+import { NamespaceURI } from './namespace-uri.js';
 import System from 'system';
 
 import type { ImageData } from './types/index.js';

@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/html-image-element",
+    "name": "@gjsify/dom-elements",
     "version": "0.0.4",
-    "description": "Web html-image-element module for Gjs",
+    "description": "DOM element hierarchy (Node, Element, HTMLElement, HTMLImageElement) for GJS",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -20,23 +20,24 @@
         "build:test": "yarn build:test:gjs",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
-        "test:gjs": "gjs -m test.gjs.mjs",
-        "test:node": "node test.node.mjs"
+        "test:gjs": "gjs -m test.gjs.mjs"
     },
     "keywords": [
         "gjs",
-        "node",
-        "fs"
+        "dom",
+        "element",
+        "node"
     ],
+    "dependencies": {
+        "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-beta.42",
+        "@girs/gjs": "^4.0.0-beta.42",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-beta.42",
+        "@gjsify/dom-events": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
         "typescript": "^6.0.2"
-    },
-    "dependencies": {
-        "@girs/gjs": "^4.0.0-beta.42",
-        "@gjsify/dom-elements": "workspace:^",
-        "@gjsify/dom-events": "workspace:^"
     }
 }

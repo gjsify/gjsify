@@ -3,7 +3,7 @@
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLProgram } from './webgl-program.js';
 import GLib from '@girs/glib-2.0';
-import { HTMLImageElement as GjsifyHTMLImageElement } from "@gjsify/html-image-element";
+import { HTMLImageElement as GjsifyHTMLImageElement } from "@gjsify/dom-elements";
 
 import type Gwebgl from '@girs/gwebgl-0.1';
 import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';

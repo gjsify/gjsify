@@ -6,7 +6,7 @@ Node.js API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). Al
 
 ## Structure
 
-`packages/{node/,gjs/,infra/,web/}` | `refs/` — read-only git submodules (DO NOT modify)
+`packages/{node/,gjs/,infra/,web/,dom/}` | `refs/` — read-only git submodules (DO NOT modify)
 
 ## Node.js Packages — `packages/node/*` → `@gjsify/<name>`
 
@@ -59,9 +59,14 @@ Node.js API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). Al
 | abort-controller | — | AbortController, AbortSignal |
 | formdata | — | FormData, File |
 | globals | — | Re-exports dom-events + abort-controller |
-| html-image-element | GdkPixbuf | HTMLImageElement, Image |
 | websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
-| webgl | Gtk 4.0, Gio | WebGL 1.0 via Vala (@gwebgl-0.1) |
+
+## DOM Packages — `packages/dom/*`
+
+| Pkg | Libs | Implements |
+|-----|------|------------|
+| dom-elements | GdkPixbuf | Node, Element, HTMLElement, HTMLImageElement, Image, Attr, NamedNodeMap, NodeList |
+| webgl | gwebgl, Gtk 4.0, Gio | WebGL 1.0 via Vala (@gwebgl-0.1) |
 
 ### Planned
 
@@ -124,7 +129,7 @@ Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Strea
 |------|-----|
 | `refs/deno/` | **Primary.** `ext/{web,fetch,crypto,websocket,webstorage,cache,image}/` |
 | `refs/wpt/` | W3C canonical test suite for web standards |
-| `refs/happy-dom/` | DOM(60+ types), 296 test files. Ref for dom-events, html-image-element |
+| `refs/happy-dom/` | DOM(60+ types), 296 test files. Ref for dom-events, dom-elements |
 | `refs/jsdom/` | 30+ modules, WPT integration: `test/web-platform-tests/` |
 | `refs/undici/` | 366 test files. fetch, WebSocket, Cache, EventSource. Ref for @gjsify/{fetch,http} |
 | `refs/headless-gl/` | 42 WebGL test files. Ref for webgl |
@@ -207,7 +212,7 @@ esbuild auto-selects `require` vs `import` condition based on the consumer's syn
 
 ## Native Extensions (Vala)
 
-Vala→Meson→shared lib+GIR typelib→`gi://` import. Example: `packages/web/webgl/`. Prefer TS; Vala only for C-level access.
+Vala→Meson→shared lib+GIR typelib→`gi://` import. Example: `packages/dom/webgl/`. Prefer TS; Vala only for C-level access.
 
 ## Testing
 
@@ -229,7 +234,7 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 ### Rules
 
 1. **Cross-platform pkgs:** Use `node:` prefix for all Node.js imports — value + type (`from 'node:stream'`, `import type { Readable } from 'node:stream'`). Bundler resolves per platform. Aliased Web pkgs: use bare specifier from `ALIASES_WEB_FOR_{GJS,NODE}` (`packages/infra/resolve-npm/lib/index.mjs`); add alias if missing. **Never import `@gjsify/*` directly** in cross-platform tests (except `@gjsify/unit`).
-2. **GJS-only pkgs** (dom-elements, html-image-element, webgl): Import `@gjsify/*` directly. No aliases, no `test:node`.
+2. **GJS-only pkgs** (dom-elements, webgl): Import `@gjsify/*` directly. No aliases, no `test:node`.
 3. Node.js tests validate **test correctness**; GJS tests validate **our implementation**. Both must pass.
 4. Common (`*.spec.ts`): both platforms, no `@girs/*`. Platform-specific (`*.gjs.spec.ts` / `on('Gjs')`): minimal, only for platform-specific behavior.
 5. Layout: `src/index.ts`(impl) | `src/*.spec.ts`(specs) | `src/test.mts`(entry).
@@ -253,7 +258,7 @@ Shared cross-package utilities live in `@gjsify/utils` (`packages/gjs/utils/`). 
 
 ### Regression Tests from Examples
 
-When real-world examples (Express, Koa, Hono, etc.) uncover bugs — GC issues, missing globals, CJS-ESM interop problems, MainLoop edge cases — always add a targeted test to the relevant `packages/node/*/src/*.spec.ts` or `packages/web/*/src/*.spec.ts` file. This ensures the bug is automatically caught in future test runs. Examples are integration validation; regression tests are the permanent safety net.
+When real-world examples (Express, Koa, Hono, etc.) uncover bugs — GC issues, missing globals, CJS-ESM interop problems, MainLoop edge cases — always add a targeted test to the relevant `packages/node/*/src/*.spec.ts`, `packages/web/*/src/*.spec.ts`, or `packages/dom/*/src/*.spec.ts` file. This ensures the bug is automatically caught in future test runs. Examples are integration validation; regression tests are the permanent safety net.
 
 ### Test Sources
 
