@@ -10,12 +10,14 @@ jobs:
       fail-fast: false
       matrix:
         node-version: [24.x]
-        fedora-version: [42, 43]
+        fedora-version: [42, 43, 44]
         include:
           - fedora-version: 42
             gjs-info: "GJS 1.84 / SM 128"
           - fedora-version: 43
             gjs-info: "GJS 1.86 / SM 140"
+          - fedora-version: 44
+            gjs-info: "GJS 1.88 / SM 140"
 
     name: Fedora ${{ matrix.fedora-version }} (${{ matrix.gjs-info }})
     runs-on: ubuntu-latest
