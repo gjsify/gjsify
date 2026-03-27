@@ -48,14 +48,18 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
 
     /**
      * Returns a WebGL rendering context backed by the underlying Gtk.GLArea.
-     * Only 'webgl' is supported; other context types return null.
+     * 'webgl' and 'experimental-webgl' are supported.
+     * 'webgl2' intentionally returns null so callers (e.g. three.js) fall back to WebGL1.
+     * Other context types emit a warning and return null.
      */
     override getContext(contextId: string, options?: any): any {
-        if (contextId === 'webgl') {
+        if (contextId === 'webgl' || contextId === 'experimental-webgl') {
             this._webgl ??= new OurWebGLRenderingContext(this as any, options);
             return this._webgl;
         }
-        warnNotImplemented(`HTMLCanvasElement.getContext("${contextId}")`);
+        if (contextId !== 'webgl2') {
+            warnNotImplemented(`HTMLCanvasElement.getContext("${contextId}")`);
+        }
         return null;
     }
 }

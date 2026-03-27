@@ -6,7 +6,7 @@ export { NamedNodeMap } from './named-node-map.js';
 export { NodeList } from './node-list.js';
 export { Node } from './node.js';
 export { Element } from './element.js';
-export { HTMLElement } from './html-element.js';
+export { HTMLElement, CSSStyleDeclaration } from './html-element.js';
 export { HTMLCanvasElement } from './html-canvas-element.js';
 export { HTMLImageElement } from './html-image-element.js';
 export { Image } from './image.js';

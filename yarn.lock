@@ -1160,6 +1160,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-gtk-three-geometry-cube@workspace:examples/gtk/three-geometry-cube":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-gtk-three-geometry-cube@workspace:examples/gtk/three-geometry-cube"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    http-server: "npm:^14.1.1"
+    three: "npm:0.162.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-gtk-webgl-demo-fade@workspace:examples/gtk/webgl-demo-fade":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-gtk-webgl-demo-fade@workspace:examples/gtk/webgl-demo-fade"
@@ -4884,6 +4900,13 @@ __metadata:
     type-fest: "npm:^2.12.2"
     unique-string: "npm:^3.0.0"
   checksum: 10/02ed53acb75719924c83bdd04e99ceb5bbae009b68ab24934750f5bcf26d8da251d4ee19f24cea749206af4051a0fd1cab060f63264f384dc0aaae150bf72bf4
+  languageName: node
+  linkType: hard
+
+"three@npm:0.162.0":
+  version: 0.162.0
+  resolution: "three@npm:0.162.0"
+  checksum: 10/08b1925583ab84f45c2358a0935e0c63b94e7ff4c3a9d759c993c12ef63124ab813c37e1df884f70ef8f44b1d2a2c0b8e515d56e0944d8d7df4fcdf01aec116f
   languageName: node
   linkType: hard
 

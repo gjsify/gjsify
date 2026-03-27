@@ -164,6 +164,10 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
     _unpackAlignment = 4
     _packAlignment = 4
 
+    // Viewport and scissor — tracked in JS to avoid crashing native getParameterx for array returns
+    _viewport: Int32Array = new Int32Array([0, 0, 0, 0]);
+    _scissorBox: Int32Array = new Int32Array([0, 0, 0, 0]);
+
     _attrib0Buffer: WebGLBuffer | null = null;
 
     _textureUnits: WebGLTextureUnit[] = [];
@@ -3012,19 +3016,23 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
             case this.COMPRESSED_TEXTURE_FORMATS:
                 return new Uint32Array(0)
 
-            // Int arrays
-            case this.MAX_VIEWPORT_DIMS:
+            // Int arrays — tracked in JS (native getParameterx crashes for array returns)
             case this.SCISSOR_BOX:
+                return new Int32Array(this._scissorBox);
             case this.VIEWPORT:
-                return new Int32Array(this._getParameterDirect(pname))
+                return new Int32Array(this._viewport);
+            case this.MAX_VIEWPORT_DIMS:
+                return new Int32Array([32767, 32767]);
 
-            // Float arrays
+            // Float arrays — return safe defaults (native getParameterx crashes for these)
             case this.ALIASED_LINE_WIDTH_RANGE:
             case this.ALIASED_POINT_SIZE_RANGE:
+                return new Float32Array([1, 1]);
             case this.DEPTH_RANGE:
+                return new Float32Array([0, 1]);
             case this.BLEND_COLOR:
             case this.COLOR_CLEAR_VALUE:
-                return new Float32Array(this._getParameterDirect(pname))
+                return new Float32Array([0, 0, 0, 0]);
 
             case this.COLOR_WRITEMASK:
                 // return this._getParameterDirect(pname);
@@ -3748,6 +3756,10 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
         return this._native.sampleCoverage(+value, !!invert);
     }
     scissor(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+        this._scissorBox[0] = x | 0;
+        this._scissorBox[1] = y | 0;
+        this._scissorBox[2] = width | 0;
+        this._scissorBox[3] = height | 0;
         return this._native.scissor(x | 0, y | 0, width | 0, height | 0);
     }
     shaderSource(shader: WebGLShader, source: string): void {
@@ -4047,6 +4059,10 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
         )
     }
     viewport(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+        this._viewport[0] = x | 0;
+        this._viewport[1] = y | 0;
+        this._viewport[2] = width | 0;
+        this._viewport[3] = height | 0;
         return this._native.viewport(x, y, width, height);
     }
 }
