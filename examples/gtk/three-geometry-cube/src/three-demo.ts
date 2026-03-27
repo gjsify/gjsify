@@ -12,8 +12,8 @@ export function start(canvas: HTMLCanvasElement) {
 
     const scene = new THREE.Scene();
 
+    // colorSpace conversion skipped: requires canvas 2D context (not available in GTK)
     const texture = new THREE.TextureLoader().load('./crate.gif');
-    texture.colorSpace = THREE.SRGBColorSpace;
 
     const geometry = new THREE.BoxGeometry();
     const material = new THREE.MeshBasicMaterial({ map: texture });

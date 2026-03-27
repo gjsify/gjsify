@@ -608,14 +608,9 @@ namespace Gwebgl {
 
         public WebGLActiveInfo getActiveAttrib(/*WebGLProgram*/ uint program, uint index) {
             int[] bufSize = new int[1];
-            // TODO
             GLsizei[] bufLength = new GLsizei[1];
-            // TODO
             int[] size = new int[1];
-            // TODO
             GLenum[] type = new GLenum[1];
-
-
 
             glGetProgramiv(program, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, bufSize);
             uint8[] name = new uint8[bufSize[0] + 1];
@@ -623,8 +618,8 @@ namespace Gwebgl {
 
             var res = WebGLActiveInfo() {
                 name = (string) name,
-                size = (int) size,
-                type = (int) type,
+                size = size[0],
+                type = (int) type[0],
             };
 
             return res;
@@ -633,11 +628,8 @@ namespace Gwebgl {
         public WebGLActiveInfo getActiveUniform(/*WebGLProgram*/ uint program, uint index)
         {
             int[] bufSize = new int[1];
-            // TODO
             GLsizei[] bufLength = new GLsizei[1];
-            // TODO
             int[] size = new int[1];
-            // TODO
             GLenum[] type = new GLenum[1];
 
             glGetProgramiv(program, GL_ACTIVE_UNIFORM_MAX_LENGTH, bufSize);
@@ -646,8 +638,8 @@ namespace Gwebgl {
 
             var res = WebGLActiveInfo() {
                 name = (string) name,
-                size = (int) size,
-                type = (int) type,
+                size = size[0],
+                type = (int) type[0],
             };
 
             return res;

@@ -10,6 +10,7 @@ export { HTMLElement, CSSStyleDeclaration } from './html-element.js';
 export { HTMLCanvasElement } from './html-canvas-element.js';
 export { HTMLImageElement } from './html-image-element.js';
 export { Image } from './image.js';
+export { Document, document } from './document.js';
 export { NodeType } from './node-type.js';
 export { NamespaceURI } from './namespace-uri.js';
 export * as PropertySymbol from './property-symbol.js';
@@ -20,6 +21,7 @@ export * as PropertySymbol from './property-symbol.js';
 import { HTMLCanvasElement } from './html-canvas-element.js';
 import { HTMLImageElement } from './html-image-element.js';
 import { Image } from './image.js';
+import { document } from './document.js';
 
 Object.defineProperty(globalThis, 'HTMLCanvasElement', {
     value: HTMLCanvasElement,
@@ -33,6 +35,11 @@ Object.defineProperty(globalThis, 'HTMLImageElement', {
 });
 Object.defineProperty(globalThis, 'Image', {
     value: Image,
+    writable: true,
+    configurable: true,
+});
+Object.defineProperty(globalThis, 'document', {
+    value: document,
     writable: true,
     configurable: true,
 });
