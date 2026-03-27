@@ -1,12 +1,12 @@
-import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
 
 export class STACKGLDestroyContext {
   destroy: () => void;
-  constructor (ctx: GjsifyWebGLRenderingContext) {
+  constructor (ctx: WebGLRenderingContext) {
     this.destroy = ctx.destroy.bind(ctx)
   }
 }
 
-export function getSTACKGLDestroyContext (ctx: GjsifyWebGLRenderingContext) {
+export function getSTACKGLDestroyContext (ctx: WebGLRenderingContext) {
   return new STACKGLDestroyContext(ctx)
 }

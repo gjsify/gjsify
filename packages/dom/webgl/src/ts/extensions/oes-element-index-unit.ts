@@ -1,8 +1,8 @@
-import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
 
 export class OESElementIndexUint {}
 
-export function getOESElementIndexUint (context: GjsifyWebGLRenderingContext) {
+export function getOESElementIndexUint (context: WebGLRenderingContext) {
   let result = null
   const exts = context.getSupportedExtensions()
 

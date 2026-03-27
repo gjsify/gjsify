@@ -1,4 +1,4 @@
-export class GjsifyWebGLShaderPrecisionFormat implements WebGLShaderPrecisionFormat {
+export class WebGLShaderPrecisionFormat implements WebGLShaderPrecisionFormat {
     rangeMin: number;
     rangeMax: number;
     precision: number;
@@ -8,5 +8,3 @@ export class GjsifyWebGLShaderPrecisionFormat implements WebGLShaderPrecisionFor
         this.precision = _.precision
     }
 }
-
-export { GjsifyWebGLShaderPrecisionFormat as WebGLShaderPrecisionFormat }

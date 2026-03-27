@@ -1,13 +1,13 @@
 import { Linkable } from './linkable.js'
 // import { gl } from './native-gl.js'
 
-import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
+import type { WebGLRenderingContext } from './webgl-rendering-context.js';
 // import type { WebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
 type WebGLDrawBuffers = any;
 
-export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer {
+export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
 
-    _ctx: GjsifyWebGLRenderingContext;
+    _ctx: WebGLRenderingContext;
     _binding = 0
 
     _width = 0
@@ -18,7 +18,7 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
     _attachmentLevel: Record<GLenum, number | null>;
     _attachmentFace: Record<GLenum, number | null>;
 
-    constructor(_: WebGLFramebuffer & number, ctx: GjsifyWebGLRenderingContext) {
+    constructor(_: number, ctx: WebGLRenderingContext) {
         super(_)
         this._ctx = ctx
 
@@ -129,5 +129,3 @@ export class GjsifyWebGLFramebuffer extends Linkable implements WebGLFramebuffer
         ctx.deleteFramebuffer.call(ctx, this)
     }
 }
-
-export { GjsifyWebGLFramebuffer as WebGLFramebuffer }

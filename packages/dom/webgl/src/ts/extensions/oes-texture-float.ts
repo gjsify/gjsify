@@ -1,8 +1,8 @@
-import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
 
 export class OESTextureFloat {}
 
-export function getOESTextureFloat (context: GjsifyWebGLRenderingContext) {
+export function getOESTextureFloat (context: WebGLRenderingContext) {
   let result = null
   const exts = context.getSupportedExtensions()
 

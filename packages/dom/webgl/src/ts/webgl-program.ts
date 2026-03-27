@@ -1,16 +1,16 @@
 import { Linkable } from './linkable.js'
 import { WebGLActiveInfo } from './webgl-active-info.js';
 
-import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
+import type { WebGLRenderingContext } from './webgl-rendering-context.js';
 
-export class GjsifyWebGLProgram extends Linkable implements WebGLProgram {
-    _ctx: GjsifyWebGLRenderingContext;
+export class WebGLProgram extends Linkable implements WebGLProgram {
+    _ctx: WebGLRenderingContext;
     _linkCount = 0
     _linkStatus = false
     _linkInfoLog: string | null = 'not linked'
     _attributes: number[] = []
     _uniforms: WebGLActiveInfo[] = []
-    constructor(_: WebGLProgram & number, ctx: GjsifyWebGLRenderingContext) {
+    constructor(_: number, ctx: WebGLRenderingContext) {
         super(_)
         this._ctx = ctx
         this._linkCount = 0
@@ -26,5 +26,3 @@ export class GjsifyWebGLProgram extends Linkable implements WebGLProgram {
         ctx._native.deleteProgram(this._ | 0)
     }
 }
-
-export { GjsifyWebGLProgram as WebGLProgram }

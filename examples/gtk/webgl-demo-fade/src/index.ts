@@ -4,7 +4,7 @@ import '@girs/gtk-4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
-import { GjsifyHTMLCanvasElement, WebGLRenderingContext, WebGLProgram, WebGLUniformLocation, WebGLBuffer } from '@gjsify/webgl';
+import { WebGLRenderingContext, WebGLProgram, WebGLUniformLocation, WebGLBuffer, WebGLArea } from '@gjsify/webgl';
 
 interface ProgramInfo {
     program: WebGLProgram;
@@ -85,21 +85,17 @@ class ColourChanger {
 
 let colourChanger = new ColourChanger();
 
-function render(glarea: Gtk.GLArea, gl: WebGLRenderingContext) {
-    // print("render");
+function render(glArea: WebGLArea, gl: WebGLRenderingContext) {
     if (!rendered) {
         rendered = true;
-        const ctx = glarea.get_context();
-        console.log('Context: ' +
-            `${ctx.get_required_version()} ES ${ctx.get_use_es()}`);
         const setup = mozSetup(gl);
         programInfo = setup.programInfo;
         buffers = setup.buffers;
     }
 
-    var error = glarea.get_error ();
-    if(error !== null) {
-        console.error (error.message);
+    const error = glArea.get_error();
+    if (error !== null) {
+        console.error(error.message);
         return false;
     }
 
@@ -107,33 +103,34 @@ function render(glarea: Gtk.GLArea, gl: WebGLRenderingContext) {
     drawScene(gl, programInfo, buffers);
 }
 
-function tick(glarea: Gtk.GLArea) {
-    glarea.queue_render();
+function tick(glArea: WebGLArea) {
+    glArea.queue_render();
     return true;
 }
 
 function activate(app: Gtk.Application) {
     const win = new Gtk.ApplicationWindow({ application: app });
     win.set_default_size(800, 600);
-    
-    const glarea = new Gtk.GLArea();
-    glarea.set_use_es(true);
 
+    const glArea = new WebGLArea();
     let gl: WebGLRenderingContext;
 
-    glarea.connect('render', () => {
-        if(!gl) {
-            const canvas = new GjsifyHTMLCanvasElement(glarea);
-            gl = canvas.getContext("webgl");
-        }
-        render(glarea, gl);
-        return true;
+    glArea.onWebGLReady((_canvas, glContext) => {
+        gl = glContext as unknown as WebGLRenderingContext;
+        const ctx = glArea.get_context()!;
+        console.log('Context: ' +
+            `${ctx.get_required_version()} ES ${ctx.get_use_es()}`);
+        // Connect per-frame render handler (after WebGLArea init handler has disconnected)
+        glArea.connect('render', () => {
+            if (gl) render(glArea, gl);
+            return true;
+        });
+        // Start animation loop
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => tick(glArea));
     });
 
-    win.set_child(glarea);
+    win.set_child(glArea);
     win.present();
-    // GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 1000, () => tick(glarea));
-    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => tick(glarea));
 }
 
 function main() {

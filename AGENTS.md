@@ -65,8 +65,21 @@ Node.js API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). Al
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| dom-elements | GdkPixbuf | Node, Element, HTMLElement, HTMLImageElement, Image, Attr, NamedNodeMap, NodeList |
-| webgl | gwebgl, Gtk 4.0, Gio | WebGL 1.0 via Vala (@gwebgl-0.1) |
+| dom-elements | GdkPixbuf | Node, Element, HTMLElement, HTMLCanvasElement, HTMLImageElement, Image, Attr, NamedNodeMap, NodeList |
+| webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0 via Vala (@gwebgl-0.1), WebGLArea (Gtk.GLArea subclass) |
+
+### Why DOM implementations exist
+
+gjsify targets two use cases simultaneously:
+1. **GJS native apps** — GNOME apps written in TypeScript that need Node.js/Web API parity
+2. **Browser-engine portability** — Running browser-targeted libraries (e.g. game engines like Excalibur) on GJS/GTK without modification
+
+Browser engines depend on DOM APIs (HTMLCanvasElement, HTMLImageElement, WebGL, etc.) that don't exist in GJS. Our DOM implementations back these with native GNOME equivalents:
+- `HTMLImageElement` → GdkPixbuf (loads images from disk; `getImageData()` returns pixel data for WebGL)
+- `HTMLCanvasElement` (webgl) → Gtk.GLArea (renders OpenGL ES via libepoxy)
+- `WebGLArea` → Gtk.GLArea subclass bundling all WebGL bootstrapping (ES context, depth buffer, requestAnimationFrame)
+
+This lets WebGL demos that assume a browser canvas work on GTK with minimal changes. `dom-elements` auto-registers `globalThis.Image`, `globalThis.HTMLImageElement`, and `globalThis.HTMLCanvasElement` on import (same pattern as `@gjsify/node-globals`).
 
 ### Planned
 
@@ -213,6 +226,17 @@ esbuild auto-selects `require` vs `import` condition based on the consumer's syn
 ## Native Extensions (Vala)
 
 Vala→Meson→shared lib+GIR typelib→`gi://` import. Example: `packages/dom/webgl/`. Prefer TS; Vala only for C-level access.
+
+### WebGLArea widget
+
+The `WebGLArea` class (`packages/dom/webgl/src/ts/webgl-area.ts`) is a `Gtk.GLArea` subclass that bundles all WebGL bootstrapping. Use it instead of raw `Gtk.GLArea`:
+```ts
+import { WebGLArea } from '@gjsify/webgl';
+const glArea = new WebGLArea();
+glArea.installGlobals(); // sets globalThis.requestAnimationFrame
+glArea.onWebGLReady((canvas, gl) => { /* WebGL code here */ });
+window.set_child(glArea);
+```
 
 ### Prebuild distribution convention
 

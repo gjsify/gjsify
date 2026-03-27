@@ -1,4 +1,4 @@
-export class GjsifyWebGLContextAttributes implements WebGLContextAttributes {
+export class WebGLContextAttributes implements WebGLContextAttributes {
     desynchronized?: boolean;
     powerPreference?: WebGLPowerPreference;
     constructor(
@@ -20,5 +20,3 @@ export class GjsifyWebGLContextAttributes implements WebGLContextAttributes {
         this.failIfMajorPerformanceCaveat = failIfMajorPerformanceCaveat
     }
 }
-
-export { GjsifyWebGLContextAttributes as WebGLContextAttributes }

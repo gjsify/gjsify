@@ -5,7 +5,7 @@ import tokenize from 'glsl-tokenizer/string';
 import Gwebgl from '@girs/gwebgl-0.1';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
-import { GjsifyHTMLCanvasElement } from './html-canvas-element.js';
+import { HTMLCanvasElement } from './html-canvas-element.js';
 import {
     extractImageData,
     checkObject,
@@ -80,12 +80,12 @@ const availableExtensions: Record<string, ExtensionFactory> = {
 //     'destroy'
 // ]
 
-// function wrapContext(ctx: GjsifyWebGLRenderingContext) {
-//     const wrapper = new GjsifyWebGLRenderingContext()
-//     bindPublics(Object.keys(ctx) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-//     bindPublics(Object.keys(ctx.constructor.prototype) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-//     bindPublics(Object.getOwnPropertyNames(ctx) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-//     bindPublics(Object.getOwnPropertyNames(ctx.constructor.prototype) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
+// function wrapContext(ctx: WebGLRenderingContext) {
+//     const wrapper = new WebGLRenderingContext()
+//     bindPublics(Object.keys(ctx) as Array<keyof WebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.keys(ctx.constructor.prototype) as Array<keyof WebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.getOwnPropertyNames(ctx) as Array<keyof WebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.getOwnPropertyNames(ctx.constructor.prototype) as Array<keyof WebGLRenderingContext>, wrapper, ctx, privateMethods)
 
 //     Object.defineProperties(wrapper, {
 //         drawingBufferWidth: {
@@ -101,10 +101,10 @@ const availableExtensions: Record<string, ExtensionFactory> = {
 //     return wrapper
 // }
 
-export interface GjsifyWebGLRenderingContext extends WebGLConstants { }
+export interface WebGLRenderingContext extends WebGLConstants { }
 
-export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
-    canvas: GjsifyHTMLCanvasElement & HTMLCanvasElement;
+export class WebGLRenderingContext implements WebGLRenderingContext {
+    canvas: HTMLCanvasElement;
 
     /** TODO implement this: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawingBufferColorSpace */
     drawingBufferColorSpace: PredefinedColorSpace;
@@ -169,7 +169,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     _textureUnits: WebGLTextureUnit[] = [];
     _drawingBuffer: WebGLDrawingBufferWrapper | null = null;
 
-    constructor(canvas: GjsifyHTMLCanvasElement | HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {},) {
+    constructor(canvas: HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {},) {
         this._native = new Gwebgl.WebGLRenderingContext(options);
         this._initGLConstants();
 
@@ -182,7 +182,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         this.DEFAULT_COLOR_ATTACHMENTS = [this.COLOR_ATTACHMENT0]
 
-        this.canvas = canvas as GjsifyHTMLCanvasElement & HTMLCanvasElement;
+        this.canvas = canvas;
 
         this._contextAttributes = new WebGLContextAttributes(
             flag(options, 'alpha', true),
@@ -1047,7 +1047,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         source = this._extensions.webgl_draw_buffers ? source : '#define gl_MaxDrawBuffers 1\n' + source
 
         if (this.canvas && !(source.startsWith('#version') || source.includes('\n#version'))) {
-            const glArea = this.canvas._getGlArea();
+            const glArea = this.canvas.getGlArea();
             const es = glArea.get_use_es();
             let version = this._getGlslVersion(es);
             if (version) {
@@ -2917,7 +2917,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         switch (pname) {
             case this.BUFFER_SIZE:
             case this.BUFFER_USAGE:
-                return this._native.getBufferParameteriv(target | 0, pname | 0)
+                return this._native.getBufferParameteriv(target | 0, pname | 0)[0]
             default:
                 this.setError(this.INVALID_ENUM)
                 return null
@@ -3001,13 +3001,13 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             case this.TEXTURE_BINDING_CUBE_MAP:
                 return this._getActiveTextureUnit()._bindCube
             case this.VERSION:
-                return 'WebGL 1.0 Gjsify ' + VERSION
+                return 'WebGL 1.0  ' + VERSION
             case this.VENDOR:
-                return 'Gjsify'
+                return ''
             case this.RENDERER:
                 return 'ANGLE'
             case this.SHADING_LANGUAGE_VERSION:
-                return 'WebGL GLSL ES 1.0 Gjsify'
+                return 'WebGL GLSL ES 1.0 '
 
             case this.COMPRESSED_TEXTURE_FORMATS:
                 return new Uint32Array(0)
@@ -4050,5 +4050,3 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return this._native.viewport(x, y, width, height);
     }
 }
-
-export { GjsifyWebGLRenderingContext as WebGLRenderingContext }

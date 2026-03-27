@@ -1,98 +1,61 @@
-import { warnNotImplemented, notImplemented } from '@gjsify/utils'
+// GTK-backed HTMLCanvasElement for GJS — original implementation using Gtk.GLArea
+// Extends the DOM-spec base from @gjsify/dom-elements with GTK.GLArea integration.
+
+import { warnNotImplemented } from '@gjsify/utils';
+import { HTMLCanvasElement as BaseHTMLCanvasElement } from '@gjsify/dom-elements';
 import Gtk from 'gi://Gtk?version=4.0';
-import { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
+// Circular import is intentional and safe in ESM (classes are only used at runtime, not at link time)
+import { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
 
-// TODO this fakes the implementation of HTMLCanvasElement, create a new package for a real implementation based on https://github.com/capricorn86/happy-dom/tree/master/packages/happy-dom/src/nodes/html-element
-export interface GjsifyHTMLCanvasElement extends HTMLCanvasElement {}
+export class HTMLCanvasElement extends BaseHTMLCanvasElement {
 
-export class GjsifyHTMLCanvasElement implements HTMLCanvasElement {
+    _webgl?: OurWebGLRenderingContext;
 
-    _webgl?: WebGLRenderingContext & GjsifyWebGLRenderingContext
-
-    _getGlArea() {
-        return this.gtkGlArea;
+    constructor(readonly gtkGlArea: Gtk.GLArea) {
+        super();
     }
 
-    constructor(protected readonly gtkGlArea: Gtk.GLArea) {
-
+    /** Width from the GTK GLArea allocated size (overrides DOM attr-backed getter). */
+    override get width(): number {
+        return this.gtkGlArea.get_allocated_width();
     }
 
-    /** Gets the height of a canvas element on a document. */
-    get height() {
-        return this.gtkGlArea.get_allocated_height()
-        // return this.gtkGlArea.get_height()
+    override set width(_width: number) {
+        warnNotImplemented('HTMLCanvasElement.set width');
     }
 
-    get clientHeight() {
-        return this.height;
-    }
-    
-    /** Sets the height of a canvas element on a document. */
-    set height(_height: number) {
-        warnNotImplemented('GjsifyHTMLCanvasElement.set_height');
+    /** Height from the GTK GLArea allocated size (overrides DOM attr-backed getter). */
+    override get height(): number {
+        return this.gtkGlArea.get_allocated_height();
     }
 
-    /** Gets the width of a canvas element on a document. */
-    get width() {
-        return this.gtkGlArea.get_allocated_width()
-        // return this.gtkGlArea.get_width()
+    override set height(_height: number) {
+        warnNotImplemented('HTMLCanvasElement.set height');
     }
 
-    /** Sets the width of a canvas element on a document. */
-    set width(_width: number) {
-        warnNotImplemented('GjsifyHTMLCanvasElement.set_width');
-    }
-
-    get clientWidth() {
+    get clientWidth(): number {
         return this.width;
     }
 
-    captureStream(_frameRequestRate?: number): MediaStream {
-        notImplemented('HTMLCanvasElement.captureStream');
-        return new MediaStream();
+    get clientHeight(): number {
+        return this.height;
+    }
+
+    /** Returns the underlying Gtk.GLArea. Used by WebGLRenderingContext for GLSL version detection. */
+    getGlArea(): Gtk.GLArea {
+        return this.gtkGlArea;
     }
 
     /**
-     * Returns an object that provides methods and properties for drawing and manipulating images and graphics on a canvas element in a document. A context object includes information about colors, line widths, fonts, and other graphic parameters that can be drawn on a canvas.
-     * @param contextId The identifier (ID) of the type of canvas to create. Internet Explorer 9 and Internet Explorer 10 support only a 2-D context using canvas.getContext("2d"); IE11 Preview also supports 3-D or WebGL context using canvas.getContext("experimental-webgl");
+     * Returns a WebGL rendering context backed by the underlying Gtk.GLArea.
+     * Only 'webgl' is supported; other context types return null.
      */
-    getContext(contextId: "2d", options?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D | null;
-    getContext(contextId: "bitmaprenderer", options?: ImageBitmapRenderingContextSettings): ImageBitmapRenderingContext | null;
-    getContext(contextId: "webgl", options?: WebGLContextAttributes): WebGLRenderingContext & GjsifyWebGLRenderingContext | null;
-    getContext(contextId: "webgl2", options?: WebGLContextAttributes): WebGL2RenderingContext | null;
-    getContext(contextId: string, options?: any): RenderingContext | null {
-        switch (contextId) {
-            case "webgl":
-                if(this._webgl) {
-                    return this._webgl;
-                }
-                this._webgl = new GjsifyWebGLRenderingContext(this, options) as WebGLRenderingContext & GjsifyWebGLRenderingContext;
-                return this._webgl;
-            default:
-                warnNotImplemented(`GjsifyHTMLCanvasElement.getContext("${contextId}")`);
+    override getContext(contextId: string, options?: any): any {
+        if (contextId === 'webgl') {
+            this._webgl ??= new OurWebGLRenderingContext(this as any, options);
+            return this._webgl;
         }
+        warnNotImplemented(`HTMLCanvasElement.getContext("${contextId}")`);
         return null;
     }
-
-    toBlob(_callback: BlobCallback, _type?: string, _quality?: any): void {
-        notImplemented('HTMLCanvasElement.toBlob');
-    }
-    /**
-     * Returns the content of the current canvas as an image that you can use as a source for another canvas or an HTML element.
-     * @param _type The standard MIME type for the image format to return. If you do not specify this parameter, the default value is a PNG format image.
-     */
-    toDataURL(_type?: string, _quality?: any): string {
-        notImplemented('HTMLCanvasElement.toDataURL');
-        return '';
-    }
-    addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-    addEventListener(_type: string, _listener: EventListenerOrEventListenerObject, _options?: boolean | AddEventListenerOptions): void {
-        notImplemented('HTMLCanvasElement.addEventListener');
-    }
-    removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
-    removeEventListener(_type: string, _listener: EventListenerOrEventListenerObject, _options?: boolean | EventListenerOptions): void {
-        notImplemented('HTMLCanvasElement.removeEventListener');
-    }
 }
-
-export { GjsifyHTMLCanvasElement as HTMLCanvasElement }

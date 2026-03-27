@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-26 (Networking hardening; timeout enforcement; chunked streaming; allowHalfOpen; stream edge cases)
+> Last updated: 2026-03-27 (WebGL refactor: HTMLCanvasElement inheritance, WebGLArea widget, class renames, test coverage)
 
 ## Summary
 
@@ -99,8 +99,8 @@ All 12 packages have real implementations:
 
 | Package | GNOME Libs | Tests | APIs |
 |---------|-----------|-------|------|
-| **dom-elements** | GdkPixbuf | 210 | Node, Element, HTMLElement, HTMLImageElement, Image, Attr, NamedNodeMap, NodeList, NodeType, NamespaceURI (GJS-only) |
-| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
+| **dom-elements** | GdkPixbuf | 210 | Node, Element, HTMLElement, **HTMLCanvasElement** (base DOM stub), HTMLImageElement, Image, Attr, NamedNodeMap, NodeList, NodeType, NamespaceURI (GJS-only); side-effect registers `globalThis.HTMLCanvasElement`, `HTMLImageElement`, `Image` |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), HTMLCanvasElement (GTK-backed, extends dom-elements base), **WebGLArea** (Gtk.GLArea subclass with requestAnimationFrame + WebGL bootstrap), Extensions |
 
 ### Missing Web APIs
 
@@ -228,6 +228,39 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-27 — WebGL Refactor: HTMLCanvasElement Inheritance, WebGLArea Widget
+
+**Goal: enable browser-targeted game engines (e.g. Excalibur) to run on GJS/GTK with minimal changes.**
+
+**Base `HTMLCanvasElement` in `@gjsify/dom-elements`:**
+- New `packages/dom/dom-elements/src/html-canvas-element.ts` — DOM-spec base class extending `HTMLElement`
+- Stubs for `getContext()`, `toDataURL()`, `toBlob()`, `captureStream()` (overridden in `@gjsify/webgl`)
+- Side-effect globals on import: `Object.defineProperty(globalThis, 'HTMLCanvasElement', ...)`, `HTMLImageElement`, `Image` — same pattern as `@gjsify/node-globals` and `@gjsify/web-globals`
+- Removes the `// TODO move this to dom globals` boilerplate from all WebGL examples
+
+**`@gjsify/webgl` real inheritance + class renames:**
+- Removed the fake interface trick (`export interface GjsifyHTMLCanvasElement extends HTMLCanvasElement {}`)
+- `GjsifyHTMLCanvasElement` → `HTMLCanvasElement` — now extends `BaseHTMLCanvasElement` from `@gjsify/dom-elements`, overrides `width`/`height` getters with `Gtk.GLArea` allocated size
+- `GjsifyWebGLRenderingContext` → `WebGLRenderingContext` (and all other `Gjsify*` class prefixes removed — 136 occurrences across 29 files)
+- `getContext('webgl')` creates `WebGLRenderingContext` lazily via `??=`
+
+**New `WebGLArea` widget (`packages/dom/webgl/src/ts/webgl-area.ts`):**
+- `Gtk.GLArea` subclass registered with `GObject.registerClass({ GTypeName: 'GjsifyWebGLArea' }, ...)`
+- Sets up ES 3.2 context + depth buffer + stencil buffer automatically
+- `onWebGLReady(cb: (canvas, gl) => void)` — fires once GL context is initialized
+- `requestAnimationFrame(cb)` — backed by `GLib.idle_add` + render signal (replaces per-example boilerplate)
+- `installGlobals()` — sets `globalThis.requestAnimationFrame` scoped to this widget
+- Handles `unrealize` cleanup (disconnects render handler, removes idle source)
+
+**VAPI cleanup:**
+- Deleted unused `packages/dom/webgl/src/vapi/glesv2.vapi` (Vala source uses `using GL;` from `epoxy.vapi` only)
+- Updated `epoxy.vapi` header: removed vapigen-generated comment, added attribution to valagl
+
+**Examples refactored (6 files):**
+- `examples/gtk/webgl-tutorial-02` through `07` and `webgl-demo-fade` simplified from 60–120 lines → 22–33 lines
+- All manual `Gtk.GLArea` setup, `requestAnimationFrame` implementations, and `globalThis.Image =` assignments removed
+- All now use `new WebGLArea()` + `glArea.installGlobals()` + `glArea.onWebGLReady((canvas) => start(canvas))`
 
 ### 2026-03-27 — Restructure: new `packages/dom/` category
 

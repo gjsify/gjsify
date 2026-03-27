@@ -1,4 +1,4 @@
-import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
 
 export class EXTTextureFilterAnisotropic {
   TEXTURE_MAX_ANISOTROPY_EXT = 0x84FE
@@ -6,7 +6,7 @@ export class EXTTextureFilterAnisotropic {
   constructor () {}
 }
 
-export function getEXTTextureFilterAnisotropic (context: GjsifyWebGLRenderingContext) {
+export function getEXTTextureFilterAnisotropic (context: WebGLRenderingContext) {
   let result = null
   const exts = context.getSupportedExtensions()
 

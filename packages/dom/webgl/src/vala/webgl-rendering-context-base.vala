@@ -674,8 +674,7 @@ namespace Gwebgl {
         }
 
         public int[] getBufferParameteriv(int target, int pname) {
-            // TODO this is not an array?
-            int[] result = new int[0];
+            int[] result = new int[1];
             glGetBufferParameteriv(target, pname, result);
             return result;
         }
@@ -957,7 +956,7 @@ namespace Gwebgl {
         }
 
         public int getTexParameteriv(int target, int pname) {
-            int[] result = new int[0];
+            int[] result = new int[1];
             glGetTexParameteriv(target, pname, result);
             return result[0];
         }
@@ -975,7 +974,7 @@ namespace Gwebgl {
         }
         
         public float[] getUniformf(/*WebGLProgram*/ uint program, /*WebGLUniformLocation*/ int location) {
-            float[] result = new float[0];
+            float[] result = new float[1];
             glGetUniformfv(program, location, result);
             return result;
         }
@@ -987,7 +986,7 @@ namespace Gwebgl {
         }
 
         public int[] getUniformi(/*WebGLProgram*/ uint program, /*WebGLUniformLocation*/ int location) {
-            int[] result = new int[0];
+            int[] result = new int[1];
             glGetUniformiv(program, location, result);
             return result;
         }
@@ -1035,7 +1034,7 @@ namespace Gwebgl {
         }
 
         public float[] getVertexAttribf(uint index, int pname) {
-            float[] result = new float[0];
+            float[] result = new float[1];
             glGetVertexAttribfv(index, pname, result);
             return result;
         }
@@ -1047,7 +1046,7 @@ namespace Gwebgl {
         }
 
         public int[] getVertexAttribi(uint index, int pname) {
-            int[] result = new int[0];
+            int[] result = new int[1];
             glGetVertexAttribiv(index, pname, result);
             return result;
         }

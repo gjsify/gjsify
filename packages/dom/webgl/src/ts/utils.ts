@@ -3,13 +3,13 @@
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLProgram } from './webgl-program.js';
 import GLib from '@girs/glib-2.0';
-import { HTMLImageElement as GjsifyHTMLImageElement } from "@gjsify/dom-elements";
+import { HTMLImageElement } from "@gjsify/dom-elements";
 
 import type Gwebgl from '@girs/gwebgl-0.1';
-import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
+import type { WebGLRenderingContext } from './webgl-rendering-context.js';
 import type { TypedArray} from './types/index.js';
 
-export function bindPublics(props: Array<keyof GjsifyWebGLRenderingContext>, wrapper: GjsifyWebGLRenderingContext, privateInstance: GjsifyWebGLRenderingContext, privateMethods: string[]) {
+export function bindPublics(props: Array<keyof WebGLRenderingContext>, wrapper: WebGLRenderingContext, privateInstance: WebGLRenderingContext, privateMethods: string[]) {
     for (let i = 0; i < props.length; i++) {
         const prop = props[i]
         const value = privateInstance[prop]
@@ -60,7 +60,7 @@ export function isValidString(str: string) {
     return !(/["$`@\\'\0]/.test(c))
 }
 
-export function vertexCount(gl: GjsifyWebGLRenderingContext, primitive: GLenum, count: number) {
+export function vertexCount(gl: WebGLRenderingContext, primitive: GLenum, count: number) {
     switch (primitive) {
         case gl.TRIANGLES:
             return count - (count % 3)
@@ -85,7 +85,7 @@ export function vertexCount(gl: GjsifyWebGLRenderingContext, primitive: GLenum, 
     }
 }
 
-export function typeSize(gl: GjsifyWebGLRenderingContext, type: GLenum) {
+export function typeSize(gl: WebGLRenderingContext, type: GLenum) {
     switch (type) {
         case gl.UNSIGNED_BYTE:
         case gl.BYTE:
@@ -101,7 +101,7 @@ export function typeSize(gl: GjsifyWebGLRenderingContext, type: GLenum) {
     return 0
 }
 
-export function uniformTypeSize(gl: GjsifyWebGLRenderingContext, type: GLenum) {
+export function uniformTypeSize(gl: WebGLRenderingContext, type: GLenum) {
     switch (type) {
         case gl.BOOL_VEC4:
         case gl.INT_VEC4:
@@ -173,7 +173,7 @@ export function boolArray(array: ArrayBufferView) {
         a => a ? true : false);
 }
 
-export const extractImageData = (pixels: TexImageSource | GjsifyHTMLImageElement): ImageData | null => {
+export const extractImageData = (pixels: TexImageSource | HTMLImageElement): ImageData | null => {
     const width = (pixels as any).width as number | undefined;
     const height = (pixels as any).height as number | undefined;
     if (typeof pixels === 'object' && typeof width !== 'undefined' && typeof height !== 'undefined') {
@@ -185,8 +185,8 @@ export const extractImageData = (pixels: TexImageSource | GjsifyHTMLImageElement
 
         if (typeof (pixels as HTMLCanvasElement).getContext === 'function') {
             context = (pixels as HTMLCanvasElement).getContext('2d')
-        } else if (typeof (pixels as GjsifyHTMLImageElement).isPixbuf()) {
-            return (pixels as GjsifyHTMLImageElement).getImageData();
+        } else if (typeof (pixels as HTMLImageElement).isPixbuf()) {
+            return (pixels as HTMLImageElement).getImageData();
         } else if (typeof (pixels as HTMLImageElement).src !== 'undefined' && typeof document === 'object' && typeof document.createElement === 'function') {
             const canvas = document.createElement('canvas')
 
@@ -209,7 +209,7 @@ export const extractImageData = (pixels: TexImageSource | GjsifyHTMLImageElement
     return null
 }
 
-export function formatSize(gl: GjsifyWebGLRenderingContext, internalFormat: number) {
+export function formatSize(gl: WebGLRenderingContext, internalFormat: number) {
     switch (internalFormat) {
         case gl.ALPHA:
         case gl.LUMINANCE:
@@ -240,7 +240,7 @@ export function convertPixels(pixels: ArrayBuffer | Uint8Array | Uint16Array | U
     return null
 }
 
-export function checkFormat(gl: GjsifyWebGLRenderingContext, format: GLenum) {
+export function checkFormat(gl: WebGLRenderingContext, format: GLenum) {
     return (
         format === gl.ALPHA ||
         format === gl.LUMINANCE_ALPHA ||
@@ -249,7 +249,7 @@ export function checkFormat(gl: GjsifyWebGLRenderingContext, format: GLenum) {
         format === gl.RGBA)
 }
 
-export function validCubeTarget(gl: GjsifyWebGLRenderingContext, target: GLenum) {
+export function validCubeTarget(gl: WebGLRenderingContext, target: GLenum) {
     return target === gl.TEXTURE_CUBE_MAP_POSITIVE_X ||
         target === gl.TEXTURE_CUBE_MAP_NEGATIVE_X ||
         target === gl.TEXTURE_CUBE_MAP_POSITIVE_Y ||

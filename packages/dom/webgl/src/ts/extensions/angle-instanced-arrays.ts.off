@@ -1,18 +1,18 @@
 import { gl } from '../native-gl';
 import { vertexCount } from '../utils';
 
-import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
 
 export class ANGLEInstancedArrays {
 
   VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE = 0x88fe
-  ctx: GjsifyWebGLRenderingContext;
+  ctx: WebGLRenderingContext;
 
   _drawArraysInstanced = gl._drawArraysInstanced.bind(ctx)
   _drawElementsInstanced = gl._drawElementsInstanced.bind(ctx)
   _vertexAttribDivisor = gl._vertexAttribDivisor.bind(ctx)
 
-  constructor (ctx: GjsifyWebGLRenderingContext) {
+  constructor (ctx: WebGLRenderingContext) {
     this.VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE = 0x88fe
     this.ctx = ctx
 
@@ -227,6 +227,6 @@ export class ANGLEInstancedArrays {
   }
 }
 
-export function getANGLEInstancedArrays (ctx: GjsifyWebGLRenderingContext) {
+export function getANGLEInstancedArrays (ctx: WebGLRenderingContext) {
   return new ANGLEInstancedArrays(ctx)
 }

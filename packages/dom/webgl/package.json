@@ -11,7 +11,10 @@
             "default": "./lib/esm/index.js"
         }
     },
-    "files": ["lib", "prebuilds"],
+    "files": [
+        "lib",
+        "prebuilds"
+    ],
     "gjsify": {
         "prebuilds": "prebuilds"
     },
