@@ -37,10 +37,10 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 | **events** | — | 241 | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator |
 | **fs** | Gio, GLib | 465 (9 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping, fs.constants (O_RDONLY/WRONLY/RDWR/CREAT/EXCL/S_IFMT/S_IFREG), readdir options (withFileTypes, encoding), appendFileSync, mkdirSync recursive edge cases |
 | **globals** | — | 221 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
-| **http** | Soup 3.0, Gio, GLib | 995 (5 specs) | Server (Soup.Server, **chunked streaming**), ClientRequest (Soup.Session, **timeout events**), IncomingMessage (**timeout events**), ServerResponse (**setTimeout**, chunked transfer), OutgoingMessage, STATUS_CODES, METHODS, Agent (getName), validateHeaderName/Value, maxHeaderSize, round-trip on GJS |
+| **http** | Soup 3.0, Gio, GLib | 1034 (6 specs) | Server (Soup.Server, **chunked streaming**, **upgrade event**), ClientRequest (Soup.Session, **timeout events**, **auth option**, **signal option**), IncomingMessage (**timeout events**), ServerResponse (**setTimeout**, chunked transfer), OutgoingMessage, STATUS_CODES, METHODS, Agent (**constructor options**, keepAlive, maxSockets, scheduling), validateHeaderName/Value, maxHeaderSize, round-trip on GJS |
 | **https** | Soup 3.0 | 99 | Agent (defaultPort, protocol, maxSockets, destroy, options, keepAlive, scheduling), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server |
 | **module** | Gio, GLib | 158 | builtinModules (all 37+ modules verified), isBuiltin (bare/prefixed/subpath/scoped), createRequire (resolve, cache, extensions) |
-| **net** | Gio, GLib | 361 (4 specs) | Socket (Duplex via Gio.SocketClient, **allowHalfOpen enforcement**, timeout with reset, properties, remote/local address), Server (Gio.SocketService, **allowHalfOpen option**, options, createServer), isIP/isIPv4/isIPv6 (comprehensive IPv4/IPv6/edge cases), connect/createConnection |
+| **net** | Gio, GLib | 378 (5 specs) | Socket (Duplex via Gio.SocketClient, **allowHalfOpen enforcement**, timeout with reset, properties, remote/local address, **IOStream support**), Server (Gio.SocketService, **allowHalfOpen option**, options, createServer, **getConnections**), isIP/isIPv4/isIPv6 (comprehensive IPv4/IPv6/edge cases), connect/createConnection |
 | **os** | GLib | 276 | homedir, hostname, cpus, platform, arch, type, release, endianness, EOL, devNull, availableParallelism, userInfo, networkInterfaces, constants (signals/errno), loadavg, uptime, memory |
 | **path** | — | 432 | POSIX + Win32 (1,052 lines total) |
 | **perf_hooks** | — | 115 | performance (now, timeOrigin, mark/measure, getEntries/ByName/ByType, clearMarks/clearMeasures, toJSON), monitorEventLoopDelay, PerformanceObserver, eventLoopUtilization, timerify |
@@ -94,7 +94,7 @@ All 14 packages have real implementations:
 | **streams** | — | 283 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **webcrypto** | — | 486 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
 | **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), Canvas, Extensions |
-| **web-globals** | — | 45 | Unified entry point: imports all Web API packages, registers globals |
+| **web-globals** | — | 66 | Unified entry point: imports all Web API packages, registers globals (URL, URLSearchParams, Blob, File, FormData, performance, PerformanceObserver) |
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
@@ -159,8 +159,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Stubs | 4 (10%) |
 | Web API packages | 15 (all implemented) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
-| Total test cases | 9,700+ |
-| Spec files | 100 |
+| Total test cases | 9,900+ |
+| Spec files | 102 |
 | Real-world examples | 11 (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, JSON store) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
@@ -224,6 +224,35 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-03-27 — HTTP Upgrade Event, Web Globals, Client Auth, Test Coverage
+
+**HTTP Server upgrade event:**
+- `server.on('upgrade', (req, socket, head) => {...})` for custom protocol upgrades
+- Uses `Soup.ServerMessage.steal_connection()` to take over raw TCP connection
+- Socket is a net.Socket Duplex wrapping the stolen Gio.IOStream
+- Note: WebSocket upgrades (`Upgrade: websocket`) are handled by Soup internally via `addWebSocketHandler()`
+
+**HTTP Client improvements:**
+- `auth` option for Basic authentication (`http.request({auth: 'user:pass'})`)
+- `signal` option for AbortController support
+- `localAddress` and `family` options in ClientRequestOptions
+- Agent constructor options: `keepAlive`, `maxSockets`, `maxTotalSockets`, `maxFreeSockets`, `scheduling`
+- Agent exposes `requests`/`sockets`/`freeSockets` objects for framework compatibility
+
+**Web Globals consolidation:**
+- `@gjsify/web-globals` now registers: URL, URLSearchParams, Blob, File, FormData, performance, PerformanceObserver
+- Previously only: DOMException, Event/EventTarget, AbortController, Streams, Compression, WebCrypto, EventSource
+
+**Net Socket IOStream support:**
+- `net.Socket._setupFromIOStream()` creates sockets from raw `Gio.IOStream` (for stolen connections)
+- Proper IOStream lifecycle: `_final()` closes entire SoupIOStream for proper EOF signaling
+- `@gjsify/net` exports `./socket` subpath for direct internal imports
+
+**New tests (+200):**
+- HTTP: 995→1034 (+39): upgrade event (5 tests), auth option (3), Agent constructor (8), signal option, round-trip
+- Net: 361→378 (+17): destroy idempotency, getConnections, maxConnections, address info, bytesWritten/bytesRead
+- Web-Globals: 45→66 (+21): URL/URLSearchParams, Blob/File, FormData, Performance globals
 
 ### 2026-03-26 — Networking Hardening, Timeout Enforcement, Stream Edge Cases
 
