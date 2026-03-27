@@ -662,7 +662,7 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
             case 0x0CF4: // UNPACK_SKIP_PIXELS
             case 0x0CF3: // UNPACK_SKIP_ROWS
             case 0x84FD: // MAX_TEXTURE_LOD_BIAS
-                return this._native2.getParameterx(pname)?.deepUnpack() | 0;
+                return (this._native2.getParameterx(pname)?.deepUnpack() as number) | 0;
             case 0x8C89: // RASTERIZER_DISCARD
             case 0x8E24: // TRANSFORM_FEEDBACK_ACTIVE
             case 0x8E23: // TRANSFORM_FEEDBACK_PAUSED
