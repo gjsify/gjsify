@@ -1,5 +1,5 @@
 {
-    "name": "@gjsify/gtk-dom-event-bridge",
+    "name": "@gjsify/event-bridge",
     "version": "0.0.4",
     "description": "Bridge GTK event controllers to standard DOM events (MouseEvent, KeyboardEvent, etc.)",
     "type": "module",
