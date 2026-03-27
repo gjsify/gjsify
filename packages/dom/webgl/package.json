@@ -11,6 +11,10 @@
             "default": "./lib/esm/index.js"
         }
     },
+    "files": ["lib", "prebuilds"],
+    "gjsify": {
+        "prebuilds": "prebuilds"
+    },
     "scripts": {
         "clear": "rm -rf lib tmp build test.gjs.mjs tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
@@ -20,9 +24,10 @@
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
         "build:meson": "yarn init:meson && meson compile -C build",
         "build:types": "tsc",
+        "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgwebgl.so build/Gwebgl-0.1.typelib prebuilds/linux-x86_64/",
         "build:test": "gjsify build src/ts/test.ts --app gjs --outfile test.gjs.js",
         "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
-        "test:gjs": "LD_LIBRARY_PATH=build GI_TYPELIB_PATH=build gjs -m test.gjs.js"
+        "test:gjs": "gjsify run test.gjs.js"
     },
     "keywords": [
         "gjs",

@@ -1,0 +1,99 @@
+name: Build Native Prebuilds
+
+# Run on push to main and on tags, or manually.
+# Artifacts are uploaded and can be downloaded to commit into the repo before npm publish.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/dom/webgl/src/vala/**'
+      - 'packages/dom/webgl/src/vapi/**'
+      - 'packages/dom/webgl/meson.build'
+      - '.github/workflows/prebuilds.yml'
+
+jobs:
+  build-prebuilds:
+    name: Build prebuilds (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: fedora:43
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Install prerequisites
+        run: >
+          dnf install -y
+          git tar xz findutils
+          meson vala gcc pkgconf
+          glib2-devel gobject-introspection-devel
+          gtk4-devel gdk-pixbuf2-devel
+          libepoxy-devel
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build Vala library
+        working-directory: packages/dom/webgl
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect prebuilds
+        working-directory: packages/dom/webgl
+        run: |
+          ARCH=${{ matrix.arch }}
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgwebgl.so build/Gwebgl-0.1.typelib "prebuilds/linux-${ARCH}/"
+          echo "Prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webgl-prebuilds-linux-${{ matrix.arch }}
+          path: packages/dom/webgl/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+  # Commit prebuilds back to the repo (only on push to main, not PRs)
+  commit-prebuilds:
+    name: Commit prebuilds to repo
+    needs: build-prebuilds
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download x86_64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: webgl-prebuilds-linux-x86_64
+          path: packages/dom/webgl/prebuilds/linux-x86_64/
+
+      - name: Download aarch64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: webgl-prebuilds-linux-aarch64
+          path: packages/dom/webgl/prebuilds/linux-aarch64/
+
+      - name: Commit prebuilds
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/dom/webgl/prebuilds/
+          if git diff --cached --quiet; then
+            echo "No prebuild changes to commit."
+          else
+            git commit -m "chore: update @gjsify/webgl prebuilds [skip ci]"
+            git push
+          fi

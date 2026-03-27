@@ -2,7 +2,7 @@
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
-import { buildCommand as build } from './commands/index.js'
+import { buildCommand as build, runCommand as run, infoCommand as info } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
 void yargs(hideBin(process.argv))
@@ -10,5 +10,7 @@ void yargs(hideBin(process.argv))
     .strict()
     // .usage(Config.usage)
     .command(build.command, build.description, build.builder, build.handler)
+    .command(run.command, run.description, run.builder, run.handler)
+    .command(info.command, info.description, info.builder, info.handler)
     .demandCommand(1)
     .help().argv
