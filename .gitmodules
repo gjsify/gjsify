@@ -95,3 +95,6 @@
 [submodule "refs/deepkit"]
 	path = refs/deepkit
 	url = git@github.com:marcj/deepkit.git
+[submodule "refs/three"]
+	path = refs/three
+	url = git@github.com:mrdoob/three.js.git
