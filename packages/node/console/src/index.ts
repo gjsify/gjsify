@@ -184,65 +184,32 @@ export class Console {
   timeStamp(_label?: string): void { /* No-op in non-browser environments */ }
 }
 
-// Module-level exports: use print()/printerr() on GJS, global console on Node.js
-function _log(...args: unknown[]): void {
-  if (_isGJS) { print(_formatArgs(...args)); } else { globalThis.console.log(...args); }
-}
-function _info(...args: unknown[]): void {
-  if (_isGJS) { print(_formatArgs(...args)); } else { globalThis.console.info(...args); }
-}
-function _debug(...args: unknown[]): void {
-  if (_isGJS) { print(_formatArgs(...args)); } else { globalThis.console.debug(...args); }
-}
-function _warn(...args: unknown[]): void {
-  if (_isGJS) { printerr(_formatArgs(...args)); } else { globalThis.console.warn(...args); }
-}
-function _error(...args: unknown[]): void {
-  if (_isGJS) { printerr(_formatArgs(...args)); } else { globalThis.console.error(...args); }
-}
-function _dir(obj: unknown, _options?: object): void {
-  if (_isGJS) { print(JSON.stringify(obj, null, 2)); } else { globalThis.console.dir(obj, _options as any); }
-}
-function _table(tabularData: unknown, properties?: string[]): void {
-  if (_isGJS) { print(JSON.stringify(tabularData, null, 2)); } else { globalThis.console.table(tabularData, properties); }
-}
-function _clear(): void {
-  if (_isGJS) { print('\x1Bc'); } else { globalThis.console.clear(); }
-}
-function _assert(value: unknown, ...args: unknown[]): void {
-  if (!value) { _error('Assertion failed:', ...args); }
-}
-function _trace(...args: unknown[]): void {
-  const err = new Error();
-  const stack = err.stack?.split('\n').slice(1).join('\n') || '';
-  _error('Trace:', ...args, '\n' + stack);
-}
+// Module-level singleton — all named exports delegate to this instance.
+// On GJS it uses print()/printerr(); on Node.js it delegates to globalThis.console.
+const _default = new Console();
 
-const gc = globalThis.console;
-
-export const log = _log;
-export const info = _info;
-export const debug = _debug;
-export const warn = _warn;
-export const error = _error;
-export const dir = _dir;
-export const dirxml = _log;
-export const table = _table;
-export const clear = _clear;
-export const assert = _assert;
-export const trace = _trace;
-
-export const time = gc.time.bind(gc);
-export const timeEnd = gc.timeEnd.bind(gc);
-export const timeLog = (gc as unknown as Record<string, Function | undefined>).timeLog?.bind(gc) || gc.log.bind(gc);
-export const count = gc.count.bind(gc);
-export const countReset = gc.countReset.bind(gc);
-export const group = gc.group.bind(gc);
-export const groupCollapsed = (gc as unknown as Record<string, Function | undefined>).groupCollapsed?.bind(gc) || gc.group.bind(gc);
-export const groupEnd = gc.groupEnd.bind(gc);
-export const profile = (_label?: string) => {};
+export const log    = (...args: unknown[]) => _default.log(...args);
+export const info   = (...args: unknown[]) => _default.info(...args);
+export const debug  = (...args: unknown[]) => _default.debug(...args);
+export const warn   = (...args: unknown[]) => _default.warn(...args);
+export const error  = (...args: unknown[]) => _default.error(...args);
+export const dir    = (obj: unknown, options?: object) => _default.dir(obj, options);
+export const dirxml = (...args: unknown[]) => _default.dirxml(...args);
+export const table  = (data: unknown, properties?: string[]) => _default.table(data, properties);
+export const clear  = () => _default.clear();
+export const assert = (value: unknown, ...args: unknown[]) => _default.assert(value, ...args);
+export const trace  = (...args: unknown[]) => _default.trace(...args);
+export const time   = (label?: string) => _default.time(label);
+export const timeEnd = (label?: string) => _default.timeEnd(label);
+export const timeLog = (label?: string, ...args: unknown[]) => _default.timeLog(label, ...args);
+export const count      = (label?: string) => _default.count(label);
+export const countReset = (label?: string) => _default.countReset(label);
+export const group          = (...args: unknown[]) => _default.group(...args);
+export const groupCollapsed = (...args: unknown[]) => _default.groupCollapsed(...args);
+export const groupEnd       = () => _default.groupEnd();
+export const profile    = (_label?: string) => {};
 export const profileEnd = (_label?: string) => {};
-export const timeStamp = (_label?: string) => {};
+export const timeStamp  = (_label?: string) => {};
 
 // Default export: console-like object with Console class attached
 const consoleModule = {
