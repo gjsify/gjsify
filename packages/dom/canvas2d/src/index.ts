@@ -5,6 +5,7 @@
 export { CanvasRenderingContext2D } from './canvas-rendering-context-2d.js';
 export { CanvasGradient } from './canvas-gradient.js';
 export { CanvasPattern } from './canvas-pattern.js';
+export { Path2D } from './canvas-path.js';
 export { OurImageData as ImageData } from './image-data.js';
 export { parseColor } from './color.js';
 
@@ -24,8 +25,9 @@ GjsifyHTMLCanvasElement.registerContextFactory('2d', (canvas: any, options?: any
     return ctx;
 });
 
-// Register CanvasRenderingContext2D and ImageData as globals
+// Register globals
 import { OurImageData } from './image-data.js';
+import { Path2D } from './canvas-path.js';
 
 Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {
     value: CanvasRenderingContext2D,
@@ -35,6 +37,12 @@ Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {
 
 Object.defineProperty(globalThis, 'ImageData', {
     value: OurImageData,
+    writable: true,
+    configurable: true,
+});
+
+Object.defineProperty(globalThis, 'Path2D', {
+    value: Path2D,
     writable: true,
     configurable: true,
 });

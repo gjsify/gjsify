@@ -5,6 +5,8 @@
 import Cairo from 'cairo';
 import Gdk from 'gi://Gdk?version=4.0';
 import GdkPixbuf from 'gi://GdkPixbuf';
+import Pango from 'gi://Pango';
+import PangoCairo from 'gi://PangoCairo';
 // HTMLCanvasElement type is provided by the DOM lib.
 // Our @gjsify/dom-elements HTMLCanvasElement satisfies this interface.
 
@@ -22,6 +24,7 @@ import { type CanvasState, createDefaultState, cloneState } from './canvas-state
 import { OurImageData } from './image-data.js';
 import { CanvasGradient as OurCanvasGradient } from './canvas-gradient.js';
 import { CanvasPattern as OurCanvasPattern } from './canvas-pattern.js';
+import { Path2D } from './canvas-path.js';
 
 /**
  * CanvasRenderingContext2D backed by Cairo.ImageSurface.
@@ -131,7 +134,7 @@ export class CanvasRenderingContext2D {
         }
     }
 
-    // ---- Transforms (Phase 2 — basic implementations included) ----
+    // ---- Transforms ----
 
     translate(x: number, y: number): void {
         this._ensureSurface();
@@ -146,6 +149,71 @@ export class CanvasRenderingContext2D {
     scale(x: number, y: number): void {
         this._ensureSurface();
         this._ctx.scale(x, y);
+    }
+
+    /**
+     * Multiply the current transformation matrix by the given values.
+     * Matrix: [a c e]
+     *         [b d f]
+     *         [0 0 1]
+     */
+    transform(a: number, b: number, c: number, d: number, e: number, f: number): void {
+        this._ensureSurface();
+        // Cairo's matrix constructor: Matrix(xx, yx, xy, yy, x0, y0)
+        // Canvas matrix [a,b,c,d,e,f] maps to Cairo Matrix(a, b, c, d, e, f)
+        const matrix = new Cairo.Matrix();
+        (matrix as any).init(a, b, c, d, e, f);
+        (this._ctx as any).transform(matrix);
+    }
+
+    /**
+     * Reset the transform to identity, then apply the given matrix.
+     */
+    setTransform(matrix?: DOMMatrix2DInit): void;
+    setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+    setTransform(a?: number | DOMMatrix2DInit, b?: number, c?: number, d?: number, e?: number, f?: number): void {
+        this._ensureSurface();
+        if (typeof a === 'object' && a !== null) {
+            const m = a;
+            this._ctx.identityMatrix();
+            this.transform(
+                m.a ?? m.m11 ?? 1, m.b ?? m.m12 ?? 0,
+                m.c ?? m.m21 ?? 0, m.d ?? m.m22 ?? 1,
+                m.e ?? m.m41 ?? 0, m.f ?? m.m42 ?? 0,
+            );
+        } else if (typeof a === 'number') {
+            this._ctx.identityMatrix();
+            this.transform(a, b!, c!, d!, e!, f!);
+        } else {
+            this._ctx.identityMatrix();
+        }
+    }
+
+    /**
+     * Return the current transformation matrix as a DOMMatrix-like object.
+     */
+    getTransform(): DOMMatrix {
+        // Cairo doesn't expose getMatrix in GJS types, but it exists at runtime
+        const m = (this._ctx as any).getMatrix?.();
+        if (m) {
+            // Cairo Matrix fields: xx, yx, xy, yy, x0, y0
+            return {
+                a: m.xx ?? 1, b: m.yx ?? 0,
+                c: m.xy ?? 0, d: m.yy ?? 1,
+                e: m.x0 ?? 0, f: m.y0 ?? 0,
+                m11: m.xx ?? 1, m12: m.yx ?? 0,
+                m13: 0, m14: 0,
+                m21: m.xy ?? 0, m22: m.yy ?? 1,
+                m23: 0, m24: 0,
+                m31: 0, m32: 0, m33: 1, m34: 0,
+                m41: m.x0 ?? 0, m42: m.y0 ?? 0,
+                m43: 0, m44: 1,
+                is2D: true,
+                isIdentity: (m.xx === 1 && m.yx === 0 && m.xy === 0 && m.yy === 1 && m.x0 === 0 && m.y0 === 0),
+            } as any;
+        }
+        // Fallback: return identity
+        return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, is2D: true, isIdentity: true } as any;
     }
 
     resetTransform(): void {
@@ -228,6 +296,13 @@ export class CanvasRenderingContext2D {
 
     get imageSmoothingEnabled(): boolean { return this._state.imageSmoothingEnabled; }
     set imageSmoothingEnabled(value: boolean) { this._state.imageSmoothingEnabled = !!value; }
+
+    get imageSmoothingQuality(): ImageSmoothingQuality { return this._state.imageSmoothingQuality; }
+    set imageSmoothingQuality(value: ImageSmoothingQuality) {
+        if (value === 'low' || value === 'medium' || value === 'high') {
+            this._state.imageSmoothingQuality = value;
+        }
+    }
 
     // Line dash
     setLineDash(segments: number[]): void {
@@ -353,23 +428,39 @@ export class CanvasRenderingContext2D {
 
     // ---- Drawing methods ----
 
-    fill(fillRule?: CanvasFillRule): void {
+    fill(fillRule?: CanvasFillRule): void;
+    fill(path: Path2D, fillRule?: CanvasFillRule): void;
+    fill(pathOrRule?: Path2D | CanvasFillRule, fillRule?: CanvasFillRule): void {
         this._ensureSurface();
         this._applyCompositing();
         this._applyFillStyle();
-        if (fillRule === 'evenodd') {
-            this._ctx.setFillRule(Cairo.FillRule.EVEN_ODD);
+
+        let rule: CanvasFillRule | undefined;
+        if (pathOrRule instanceof Path2D) {
+            this._ctx.newPath();
+            pathOrRule._replayOnCairo(this._ctx);
+            rule = fillRule;
         } else {
-            this._ctx.setFillRule(Cairo.FillRule.WINDING);
+            rule = pathOrRule;
         }
+
+        this._ctx.setFillRule(rule === 'evenodd' ? Cairo.FillRule.EVEN_ODD : Cairo.FillRule.WINDING);
         this._ctx.fillPreserve();
     }
 
-    stroke(): void {
+    stroke(): void;
+    stroke(path: Path2D): void;
+    stroke(path?: Path2D): void {
         this._ensureSurface();
         this._applyCompositing();
         this._applyStrokeStyle();
         this._applyLineStyle();
+
+        if (path instanceof Path2D) {
+            this._ctx.newPath();
+            path._replayOnCairo(this._ctx);
+        }
+
         this._ctx.strokePreserve();
     }
 
@@ -401,32 +492,51 @@ export class CanvasRenderingContext2D {
 
     // ---- Clipping ----
 
-    clip(fillRule?: CanvasFillRule): void {
+    clip(fillRule?: CanvasFillRule): void;
+    clip(path: Path2D, fillRule?: CanvasFillRule): void;
+    clip(pathOrRule?: Path2D | CanvasFillRule, fillRule?: CanvasFillRule): void {
         this._ensureSurface();
-        if (fillRule === 'evenodd') {
-            this._ctx.setFillRule(Cairo.FillRule.EVEN_ODD);
+        let rule: CanvasFillRule | undefined;
+        if (pathOrRule instanceof Path2D) {
+            this._ctx.newPath();
+            pathOrRule._replayOnCairo(this._ctx);
+            rule = fillRule;
         } else {
-            this._ctx.setFillRule(Cairo.FillRule.WINDING);
+            rule = pathOrRule;
         }
+        this._ctx.setFillRule(rule === 'evenodd' ? Cairo.FillRule.EVEN_ODD : Cairo.FillRule.WINDING);
         this._ctx.clip();
     }
 
     // ---- Hit testing ----
 
-    isPointInPath(x: number, y: number, fillRule?: CanvasFillRule): boolean {
+    isPointInPath(x: number, y: number, fillRule?: CanvasFillRule): boolean;
+    isPointInPath(path: Path2D, x: number, y: number, fillRule?: CanvasFillRule): boolean;
+    isPointInPath(pathOrX: Path2D | number, xOrY: number, fillRuleOrY?: CanvasFillRule | number, fillRule?: CanvasFillRule): boolean {
         this._ensureSurface();
-        if (fillRule === 'evenodd') {
-            this._ctx.setFillRule(Cairo.FillRule.EVEN_ODD);
+        let x: number, y: number, rule: CanvasFillRule | undefined;
+        if (pathOrX instanceof Path2D) {
+            this._ctx.newPath();
+            pathOrX._replayOnCairo(this._ctx);
+            x = xOrY; y = fillRuleOrY as number; rule = fillRule;
         } else {
-            this._ctx.setFillRule(Cairo.FillRule.WINDING);
+            x = pathOrX; y = xOrY; rule = fillRuleOrY as CanvasFillRule | undefined;
         }
+        this._ctx.setFillRule(rule === 'evenodd' ? Cairo.FillRule.EVEN_ODD : Cairo.FillRule.WINDING);
         return this._ctx.inFill(x, y);
     }
 
-    isPointInStroke(x: number, y: number): boolean {
+    isPointInStroke(x: number, y: number): boolean;
+    isPointInStroke(path: Path2D, x: number, y: number): boolean;
+    isPointInStroke(pathOrX: Path2D | number, xOrY: number, y?: number): boolean {
         this._ensureSurface();
         this._applyLineStyle();
-        return this._ctx.inStroke(x, y);
+        if (pathOrX instanceof Path2D) {
+            this._ctx.newPath();
+            pathOrX._replayOnCairo(this._ctx);
+            return this._ctx.inStroke(xOrY, y!);
+        }
+        return this._ctx.inStroke(pathOrX, xOrY);
     }
 
     // ---- Gradient / Pattern factories ----
@@ -601,32 +711,177 @@ export class CanvasRenderingContext2D {
         return null;
     }
 
-    // ---- Text methods (stub for Phase 4) ----
+    // ---- Text methods (PangoCairo) ----
 
-    fillText(_text: string, _x: number, _y: number, _maxWidth?: number): void {
-        // Phase 4: PangoCairo text rendering
+    /** Create a PangoCairo layout configured with current font/text settings. */
+    private _createTextLayout(text: string): Pango.Layout {
+        const layout = PangoCairo.create_layout(this._ctx as any);
+        layout.set_text(text, -1);
+
+        // Parse CSS font string into Pango font description
+        const fontDesc = this._parseFontToDescription(this._state.font);
+        layout.set_font_description(fontDesc);
+
+        return layout;
     }
 
-    strokeText(_text: string, _x: number, _y: number, _maxWidth?: number): void {
-        // Phase 4: PangoCairo text rendering
+    /** Parse a CSS font string (e.g. "bold 16px Arial") into a Pango.FontDescription. */
+    private _parseFontToDescription(cssFont: string): Pango.FontDescription {
+        // CSS font: [style] [variant] [weight] size[/line-height] family[, family...]
+        // Pango expects: "Family Weight Style Size" format
+        const match = cssFont.match(
+            /^\s*(italic|oblique|normal)?\s*(small-caps|normal)?\s*(bold|bolder|lighter|[1-9]00|normal)?\s*(\d+(?:\.\d+)?)(px|pt|em|rem|%)?\s*(?:\/\S+)?\s*(.+)?$/i
+        );
+
+        if (!match) {
+            // Fallback: pass directly to Pango
+            return Pango.font_description_from_string(cssFont);
+        }
+
+        const style = match[1] || '';
+        const weight = match[3] || '';
+        let size = parseFloat(match[4]) || 10;
+        const unit = match[5] || 'px';
+        const family = (match[6] || 'sans-serif').replace(/['"]/g, '').trim();
+
+        // Convert units to points (Pango uses points)
+        if (unit === 'px') size = size * 0.75; // 1px = 0.75pt approximately
+        else if (unit === 'em' || unit === 'rem') size = size * 12; // assume 16px base = 12pt
+        else if (unit === '%') size = (size / 100) * 12;
+
+        let pangoStr = family;
+        if (style === 'italic') pangoStr += ' Italic';
+        else if (style === 'oblique') pangoStr += ' Oblique';
+        if (weight === 'bold' || weight === 'bolder' || (parseInt(weight) >= 600)) pangoStr += ' Bold';
+        else if (weight === 'lighter' || (parseInt(weight) > 0 && parseInt(weight) <= 300)) pangoStr += ' Light';
+        pangoStr += ` ${Math.round(size)}`;
+
+        return Pango.font_description_from_string(pangoStr);
     }
 
-    measureText(_text: string): TextMetrics {
-        // Phase 4: Return proper measurements via Pango
+    /**
+     * Compute the x-offset for text alignment relative to the given x coordinate.
+     */
+    private _getTextAlignOffset(layout: Pango.Layout): number {
+        const [, logicalRect] = layout.get_pixel_extents();
+        const width = logicalRect.width;
+
+        switch (this._state.textAlign) {
+            case 'center': return -width / 2;
+            case 'right':
+            case 'end': return -width;
+            case 'left':
+            case 'start':
+            default: return 0;
+        }
+    }
+
+    /**
+     * Compute the y-offset for text baseline positioning.
+     */
+    private _getTextBaselineOffset(layout: Pango.Layout): number {
+        const fontDesc = layout.get_font_description() || this._parseFontToDescription(this._state.font);
+        const context = layout.get_context();
+        const metrics = context.get_metrics(fontDesc, null);
+        const ascent = metrics.get_ascent() / Pango.SCALE;
+        const descent = metrics.get_descent() / Pango.SCALE;
+        const height = ascent + descent;
+
+        switch (this._state.textBaseline) {
+            case 'top': return ascent;
+            case 'hanging': return ascent * 0.8;
+            case 'middle': return ascent - height / 2;
+            case 'alphabetic': return 0;
+            case 'ideographic': return -descent * 0.5;
+            case 'bottom': return -descent;
+            default: return 0;
+        }
+    }
+
+    fillText(text: string, x: number, y: number, _maxWidth?: number): void {
+        this._ensureSurface();
+        this._applyCompositing();
+        this._applyFillStyle();
+
+        const layout = this._createTextLayout(text);
+        const xOff = this._getTextAlignOffset(layout);
+        const yOff = this._getTextBaselineOffset(layout);
+
+        this._ctx.save();
+        this._ctx.moveTo(x + xOff, y + yOff);
+        PangoCairo.show_layout(this._ctx as any, layout);
+        this._ctx.restore();
+    }
+
+    strokeText(text: string, x: number, y: number, _maxWidth?: number): void {
+        this._ensureSurface();
+        this._applyCompositing();
+        this._applyStrokeStyle();
+        this._applyLineStyle();
+
+        const layout = this._createTextLayout(text);
+        const xOff = this._getTextAlignOffset(layout);
+        const yOff = this._getTextBaselineOffset(layout);
+
+        this._ctx.save();
+        this._ctx.moveTo(x + xOff, y + yOff);
+        PangoCairo.layout_path(this._ctx as any, layout);
+        this._ctx.stroke();
+        this._ctx.restore();
+    }
+
+    measureText(text: string): TextMetrics {
+        this._ensureSurface();
+        const layout = this._createTextLayout(text);
+        const [inkRect, logicalRect] = layout.get_pixel_extents();
+        const fontDesc = layout.get_font_description() || this._parseFontToDescription(this._state.font);
+        const context = layout.get_context();
+        const metrics = context.get_metrics(fontDesc, null);
+        const ascent = metrics.get_ascent() / Pango.SCALE;
+        const descent = metrics.get_descent() / Pango.SCALE;
+
         return {
-            width: 0,
-            actualBoundingBoxAscent: 0,
-            actualBoundingBoxDescent: 0,
-            actualBoundingBoxLeft: 0,
-            actualBoundingBoxRight: 0,
-            fontBoundingBoxAscent: 0,
-            fontBoundingBoxDescent: 0,
+            width: logicalRect.width,
+            actualBoundingBoxAscent: ascent,
+            actualBoundingBoxDescent: descent,
+            actualBoundingBoxLeft: -inkRect.x,
+            actualBoundingBoxRight: inkRect.x + inkRect.width,
+            fontBoundingBoxAscent: ascent,
+            fontBoundingBoxDescent: descent,
             alphabeticBaseline: 0,
-            emHeightAscent: 0,
-            emHeightDescent: 0,
-            hangingBaseline: 0,
-            ideographicBaseline: 0,
+            emHeightAscent: ascent,
+            emHeightDescent: descent,
+            hangingBaseline: ascent * 0.8,
+            ideographicBaseline: -descent,
         };
+    }
+
+    // ---- toDataURL/toBlob support ----
+
+    /**
+     * Write the canvas surface to a PNG file and return as data URL.
+     * Used by HTMLCanvasElement.toDataURL() when a '2d' context is active.
+     */
+    _toDataURL(type?: string, _quality?: number): string {
+        if (type && type !== 'image/png') {
+            // Cairo only supports PNG natively
+            // For other formats, return PNG anyway (per spec, PNG is the required format)
+        }
+        this._surface.flush();
+
+        // Write to a temp file, read back as base64
+        const Gio = imports.gi.Gio;
+        const GLib = imports.gi.GLib;
+        const [, tempPath] = GLib.file_open_tmp('canvas-XXXXXX.png');
+        try {
+            this._surface.writeToPNG(tempPath);
+            const file = Gio.File.new_for_path(tempPath);
+            const [, contents] = file.load_contents(null);
+            const base64 = GLib.base64_encode(contents);
+            return `data:image/png;base64,${base64}`;
+        } finally {
+            try { GLib.unlink(tempPath); } catch (_e) { /* ignore */ }
+        }
     }
 
     // ---- Cleanup ----

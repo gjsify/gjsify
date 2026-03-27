@@ -107,3 +107,6 @@
 [submodule "refs/node-canvas"]
 	path = refs/node-canvas
 	url = https://github.com/Automattic/node-canvas
+[submodule "refs/map-editor"]
+	path = refs/map-editor
+	url = git@github.com:PixelRPG/map-editor.git

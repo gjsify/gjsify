@@ -34,7 +34,9 @@
     "include": [
         "src",
         "../../../node_modules/@girs/gdk-4.0/gdk-4.0-ambient.d.ts",
-        "../../../node_modules/@girs/gdkpixbuf-2.0/gdkpixbuf-2.0-ambient.d.ts"
+        "../../../node_modules/@girs/gdkpixbuf-2.0/gdkpixbuf-2.0-ambient.d.ts",
+        "../../../node_modules/@girs/pango-1.0/pango-1.0-ambient.d.ts",
+        "../../../node_modules/@girs/pangocairo-1.0/pangocairo-1.0-ambient.d.ts"
     ],
     "exclude": [
         "src/test.mts",
