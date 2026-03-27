@@ -101,3 +101,6 @@
 [submodule "refs/libepoxy"]
 	path = refs/libepoxy
 	url = https://github.com/anholt/libepoxy
+[submodule "refs/webgl"]
+	path = refs/webgl
+	url = git@github.com:KhronosGroup/WebGL.git

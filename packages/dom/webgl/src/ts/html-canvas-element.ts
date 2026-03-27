@@ -47,7 +47,7 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
     /**
      * Returns a WebGL rendering context backed by the underlying Gtk.GLArea.
      * 'webgl' and 'experimental-webgl' return a WebGLRenderingContext (WebGL 1.0).
-     * 'webgl2' returns null — backend is OpenGL ES / WebGL 1.0 only; callers fall back to 'webgl'.
+     * 'webgl2' returns a WebGL2RenderingContext (WebGL 2.0).
      * Other context types emit a warning and return null.
      */
     override getContext(contextId: string, options?: any): any {
@@ -55,9 +55,11 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
             this._webgl ??= new OurWebGLRenderingContext(this as any, options);
             return this._webgl;
         }
-        if (contextId !== 'webgl2') {
-            warnNotImplemented(`HTMLCanvasElement.getContext("${contextId}")`);
+        if (contextId === 'webgl2') {
+            this._webgl2 ??= new OurWebGL2RenderingContext(this as any, options);
+            return this._webgl2;
         }
+        warnNotImplemented(`HTMLCanvasElement.getContext("${contextId}")`);
         return null;
     }
 }

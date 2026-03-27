@@ -174,7 +174,9 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
     _drawingBuffer: WebGLDrawingBufferWrapper | null = null;
 
     constructor(canvas: HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {},) {
-        this._native = new Gwebgl.WebGLRenderingContext(options);
+        // Do not forward WebGL contextAttributes to the GObject constructor — GTK's GLArea already
+        // manages the OpenGL context. Gwebgl.WebGLRenderingContext only needs to be instantiated.
+        this._native = new Gwebgl.WebGLRenderingContext({});
         this._initGLConstants();
 
         this.DEFAULT_ATTACHMENTS = [
@@ -395,7 +397,9 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
                         case 'dFdx':
                         case 'dFdy':
                         case 'fwidth':
-                            if (!this._extensions.oes_standard_derivatives) {
+                            // dFdx/dFdy/fwidth are standard in GLSL ES 3.00 (WebGL2); only require
+                            // OES_standard_derivatives extension in GLSL ES 1.00 (WebGL1)
+                            if (!this._extensions.oes_standard_derivatives && this._getGlslVersion(true) === '100') {
                                 errorStatus = true
                                 errorLog.push(tok.line + ':' + tok.column + ' ' + tok.data + ' not supported')
                             }
@@ -1044,22 +1048,44 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
         // the gl implementation seems to define `GL_OES_standard_derivatives` even when the extension is disabled
         // this behaviour causes one conformance test ('GL_OES_standard_derivatives defined in shaders when extension is disabled') to fail
         // by `undef`ing `GL_OES_standard_derivatives`, this appears to solve the issue
+
+        // Determine if the source already has a #version directive
+        const hasVersion = source.startsWith('#version') || source.includes('\n#version');
+
+        // Build preamble lines that must come AFTER #version (if any)
+        let preamble = '';
+
         if (!this._extensions.oes_standard_derivatives && /#ifdef\s+GL_OES_standard_derivatives/.test(source)) {
-            source = '#undef GL_OES_standard_derivatives\n' + source
+            preamble += '#undef GL_OES_standard_derivatives\n';
         }
 
-        source = this._extensions.webgl_draw_buffers ? source : '#define gl_MaxDrawBuffers 1\n' + source
+        if (!this._extensions.webgl_draw_buffers) {
+            preamble += '#define gl_MaxDrawBuffers 1\n';
+        }
 
-        if (this.canvas && !(source.startsWith('#version') || source.includes('\n#version'))) {
-            const glArea = this.canvas.getGlArea();
-            const es = glArea.get_use_es();
-            let version = this._getGlslVersion(es);
-            if (version) {
-                version = '#version ' + version;
-                if (!source.startsWith('\n')) {
-                    version += '\n';
+        if (hasVersion) {
+            // Insert preamble after the first line (#version ...\n), keeping #version at line 1
+            if (preamble) {
+                const newline = source.indexOf('\n');
+                if (newline !== -1) {
+                    source = source.slice(0, newline + 1) + preamble + source.slice(newline + 1);
+                } else {
+                    source = source + '\n' + preamble;
                 }
-                source = version + source;
+            }
+        } else {
+            // No #version in source — inject version + preamble at the top
+            if (this.canvas) {
+                const glArea = this.canvas.getGlArea();
+                const es = glArea.get_use_es();
+                const version = this._getGlslVersion(es);
+                if (version) {
+                    source = '#version ' + version + '\n' + preamble + source;
+                } else if (preamble) {
+                    source = preamble + source;
+                }
+            } else if (preamble) {
+                source = preamble + source;
             }
         }
 

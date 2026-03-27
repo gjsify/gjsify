@@ -28,7 +28,7 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
 
     constructor(canvas: HTMLCanvasElement | null, options: Gwebgl.WebGL2RenderingContext.ConstructorProperties = {}) {
         super(canvas, options as Gwebgl.WebGLRenderingContext.ConstructorProperties);
-        this._native2 = new Gwebgl.WebGL2RenderingContext(options);
+        this._native2 = new Gwebgl.WebGL2RenderingContext({});
     }
 
     override _getGlslVersion(es: boolean): string {

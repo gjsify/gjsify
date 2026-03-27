@@ -1139,7 +1139,7 @@ __metadata:
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
     "@types/node": "npm:^25.5.0"
-    "@types/yargs": "npm:^17.0.0"
+    "@types/yargs": "npm:^17.0.35"
     typescript: "npm:^6.0.2"
     yargs: "npm:^18.0.0"
   languageName: unknown
@@ -1171,7 +1171,7 @@ __metadata:
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.5.0"
     http-server: "npm:^14.1.1"
-    three: "npm:0.162.0"
+    three: "npm:0.183.2"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
@@ -2609,7 +2609,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/yargs@npm:^17.0.0, @types/yargs@npm:^17.0.35":
+"@types/yargs@npm:^17.0.35":
   version: 17.0.35
   resolution: "@types/yargs@npm:17.0.35"
   dependencies:
@@ -4903,10 +4903,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"three@npm:0.162.0":
-  version: 0.162.0
-  resolution: "three@npm:0.162.0"
-  checksum: 10/08b1925583ab84f45c2358a0935e0c63b94e7ff4c3a9d759c993c12ef63124ab813c37e1df884f70ef8f44b1d2a2c0b8e515d56e0944d8d7df4fcdf01aec116f
+"three@npm:0.183.2":
+  version: 0.183.2
+  resolution: "three@npm:0.183.2"
+  checksum: 10/e002bbb299f2d72b84633b363bc7237d91d26e01eeb8ad0e9faefc9584ce22b8901962d397ffa38536ea244f7599e678ac0c323324ceab0ff587419cbe21b3e9
   languageName: node
   linkType: hard
 
