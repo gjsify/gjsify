@@ -1,8 +1,8 @@
 {
-  "name": "@gjsify/example-gtk-three-geometry-cube",
+  "name": "@gjsify/example-gtk-three-geometry-shapes",
   "private": true,
   "version": "0.0.4",
-  "description": "Three.js geometry cube example ported from refs/three/examples/webgl_geometry_cube.html",
+  "description": "Three.js geometry shapes example ported from refs/three/examples/webgl_geometry_shapes.html",
   "main": "dist/gjs.js",
   "type": "module",
   "scripts": {
@@ -13,7 +13,7 @@
     "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
     "build:gjs": "gjsify build src/gjs.ts --app gjs --outfile dist/gjs.js",
     "build:browser": "gjsify build src/browser.ts --app browser --outfile dist/browser.js",
-    "build:assets": "cp -f src/index.html dist/index.html && cp -f src/webgl.css dist/webgl.css && cp -f src/crate.gif dist/crate.gif"
+    "build:assets": "cp -f src/index.html dist/index.html && cp -f src/webgl.css dist/webgl.css && cp -f src/uv_grid_opengl.jpg dist/uv_grid_opengl.jpg"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
