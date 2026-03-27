@@ -154,6 +154,117 @@ export class CustomEvent<T = any> extends Event {
   }
 }
 
+// -- MessageEvent --
+// Reference: refs/happy-dom/packages/happy-dom/src/event/events/MessageEvent.ts
+// Copyright (c) David Ortner (capricorn86). MIT license.
+
+interface MessageEventInit<T = any> extends EventInit {
+  data?: T;
+  origin?: string;
+  lastEventId?: string;
+  source?: EventTarget | null;
+  ports?: MessagePort[];
+}
+
+export class MessageEvent<T = any> extends Event {
+  readonly data: T;
+  readonly origin: string;
+  readonly lastEventId: string;
+  readonly source: EventTarget | null;
+  readonly ports: readonly MessagePort[];
+
+  constructor(type: string, eventInitDict?: MessageEventInit<T>) {
+    super(type, eventInitDict);
+    this.data = (eventInitDict?.data ?? null) as T;
+    this.origin = eventInitDict?.origin ?? '';
+    this.lastEventId = eventInitDict?.lastEventId ?? '';
+    this.source = eventInitDict?.source ?? null;
+    this.ports = eventInitDict?.ports ?? [];
+  }
+
+  get [Symbol.toStringTag]() { return 'MessageEvent'; }
+}
+
+// -- ErrorEvent --
+// Reference: refs/happy-dom/packages/happy-dom/src/event/events/ErrorEvent.ts
+// Copyright (c) David Ortner (capricorn86). MIT license.
+
+interface ErrorEventInit extends EventInit {
+  message?: string;
+  filename?: string;
+  lineno?: number;
+  colno?: number;
+  error?: unknown;
+}
+
+export class ErrorEvent extends Event {
+  readonly message: string;
+  readonly filename: string;
+  readonly lineno: number;
+  readonly colno: number;
+  readonly error: unknown;
+
+  constructor(type: string, eventInitDict?: ErrorEventInit) {
+    super(type, eventInitDict);
+    this.message = eventInitDict?.message ?? '';
+    this.filename = eventInitDict?.filename ?? '';
+    this.lineno = eventInitDict?.lineno ?? 0;
+    this.colno = eventInitDict?.colno ?? 0;
+    this.error = eventInitDict?.error ?? null;
+  }
+
+  get [Symbol.toStringTag]() { return 'ErrorEvent'; }
+}
+
+// -- CloseEvent --
+// Reference: refs/happy-dom/packages/happy-dom/src/event/events/CloseEvent.ts
+// Copyright (c) David Ortner (capricorn86). MIT license.
+
+interface CloseEventInit extends EventInit {
+  code?: number;
+  reason?: string;
+  wasClean?: boolean;
+}
+
+export class CloseEvent extends Event {
+  readonly code: number;
+  readonly reason: string;
+  readonly wasClean: boolean;
+
+  constructor(type: string, eventInitDict?: CloseEventInit) {
+    super(type, eventInitDict);
+    this.code = eventInitDict?.code ?? 0;
+    this.reason = eventInitDict?.reason ?? '';
+    this.wasClean = eventInitDict?.wasClean ?? false;
+  }
+
+  get [Symbol.toStringTag]() { return 'CloseEvent'; }
+}
+
+// -- ProgressEvent --
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/ProgressEvent
+
+interface ProgressEventInit extends EventInit {
+  lengthComputable?: boolean;
+  loaded?: number;
+  total?: number;
+}
+
+export class ProgressEvent extends Event {
+  readonly lengthComputable: boolean;
+  readonly loaded: number;
+  readonly total: number;
+
+  constructor(type: string, eventInitDict?: ProgressEventInit) {
+    super(type, eventInitDict);
+    this.lengthComputable = eventInitDict?.lengthComputable ?? false;
+    this.loaded = eventInitDict?.loaded ?? 0;
+    this.total = eventInitDict?.total ?? 0;
+  }
+
+  get [Symbol.toStringTag]() { return 'ProgressEvent'; }
+}
+
 export class EventTarget {
   private _listeners = new Map<string, ListenerEntry[]>();
 
@@ -261,4 +372,4 @@ for (const [name, value] of [['NONE', 0], ['CAPTURING_PHASE', 1], ['AT_TARGET', 
   Object.defineProperty(Event, name, { value, writable: false, enumerable: true, configurable: false });
 }
 
-export default { Event, CustomEvent, EventTarget };
+export default { Event, CustomEvent, EventTarget, MessageEvent, ErrorEvent, CloseEvent, ProgressEvent };

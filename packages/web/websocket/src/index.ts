@@ -5,45 +5,15 @@
 import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
-import { Event, EventTarget, CustomEvent } from '@gjsify/dom-events';
+import { Event, EventTarget, CustomEvent, MessageEvent, CloseEvent } from '@gjsify/dom-events';
+
+export { MessageEvent, CloseEvent };
 
 // WebSocket readyState constants
 const CONNECTING = 0;
 const OPEN = 1;
 const CLOSING = 2;
 const CLOSED = 3;
-
-/**
- * MessageEvent — event containing data received from the WebSocket.
- */
-export class MessageEvent extends Event {
-  readonly data: string | ArrayBuffer;
-  readonly origin: string;
-  readonly lastEventId: string;
-
-  constructor(type: string, init: { data: string | ArrayBuffer; origin?: string; lastEventId?: string }) {
-    super(type);
-    this.data = init.data;
-    this.origin = init.origin ?? '';
-    this.lastEventId = init.lastEventId ?? '';
-  }
-}
-
-/**
- * CloseEvent — event fired when the WebSocket connection is closed.
- */
-export class CloseEvent extends Event {
-  readonly code: number;
-  readonly reason: string;
-  readonly wasClean: boolean;
-
-  constructor(type: string, init: { code?: number; reason?: string; wasClean?: boolean } = {}) {
-    super(type);
-    this.code = init.code ?? 1000;
-    this.reason = init.reason ?? '';
-    this.wasClean = init.wasClean ?? false;
-  }
-}
 
 /**
  * W3C WebSocket API implementation using Soup 3.0.
