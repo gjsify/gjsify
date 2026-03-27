@@ -2,6 +2,7 @@
 // Provides a Gtk.GLArea subclass that handles all WebGL bootstrapping boilerplate.
 
 import GObject from 'gi://GObject';
+import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as OurHTMLCanvasElement } from './html-canvas-element.js';
@@ -18,7 +19,7 @@ type WebGLReadyCallback = (canvas: globalThis.HTMLCanvasElement, gl: globalThis.
  * - Sets up OpenGL ES 3.2 context, depth buffer, stencil buffer
  * - Creates an `HTMLCanvasElement` wrapping the GLArea on first render
  * - Fires `onReady()` callbacks with (canvas, gl) once the context is available
- * - Provides `requestAnimationFrame()` backed by GLib.idle_add + render signal
+ * - Provides `requestAnimationFrame()` backed by GTK frame clock (vsync) + render signal
  * - `installGlobals()` sets `globalThis.requestAnimationFrame` to use this widget
  *
  * Usage:
@@ -38,7 +39,7 @@ export const CanvasWebGLWidget = GObject.registerClass(
         _canvas: OurHTMLCanvasElement | null = null;
         _readyCallbacks: WebGLReadyCallback[] = [];
         _renderTag: number | null = null;
-        _idleTag: number | null = null;
+        _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
 
         constructor(params?: Partial<Gtk.GLArea.ConstructorProps>) {
@@ -71,9 +72,9 @@ export const CanvasWebGLWidget = GObject.registerClass(
                     this.disconnect(this._renderTag);
                     this._renderTag = null;
                 }
-                if (this._idleTag !== null) {
-                    GLib.source_remove(this._idleTag);
-                    this._idleTag = null;
+                if (this._tickCallbackId !== null) {
+                    this.remove_tick_callback(this._tickCallbackId);
+                    this._tickCallbackId = null;
                 }
                 this._canvas = null;
             });
@@ -108,14 +109,14 @@ export const CanvasWebGLWidget = GObject.registerClass(
 
         /**
          * Schedules a single animation frame callback, matching the browser `requestAnimationFrame` API.
-         * Backed by GLib.idle_add + the GLArea render signal.
+         * Backed by GTK frame clock (vsync-synced) + the GLArea render signal.
          * Returns 0 (handle — cancel not yet implemented).
          */
         requestAnimationFrame(cb: FrameRequestCallback): number {
             this._frameCallback = cb;
-            if (this._idleTag === null) {
-                this._idleTag = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                    this._idleTag = null;
+            if (this._tickCallbackId === null) {
+                this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, _frameClock: Gdk.FrameClock) => {
+                    this._tickCallbackId = null;
                     if (this._renderTag === null) {
                         this._renderTag = this.connect('render', () => {
                             this.disconnect(this._renderTag!);

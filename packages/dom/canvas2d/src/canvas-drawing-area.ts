@@ -3,6 +3,7 @@
 // Pattern follows packages/dom/iframe/src/iframe-widget.ts (IFrameWidget)
 
 import GObject from 'gi://GObject';
+import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement } from '@gjsify/dom-elements';
@@ -16,7 +17,7 @@ type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasR
  * - Creates an `HTMLCanvasElement` + `CanvasRenderingContext2D` on first draw
  * - Blits the Canvas 2D Cairo.ImageSurface onto the DrawingArea each frame
  * - Fires `onReady()` callbacks with (canvas, ctx) once the context is available
- * - Provides `requestAnimationFrame()` backed by GLib.idle_add + queue_draw
+ * - Provides `requestAnimationFrame()` backed by GTK frame clock (vsync)
  * - `installGlobals()` sets `globalThis.requestAnimationFrame` to use this widget
  *
  * Usage:
@@ -36,7 +37,7 @@ export const Canvas2DWidget = GObject.registerClass(
         _canvas: GjsifyHTMLCanvasElement | null = null;
         _ctx: CanvasRenderingContext2D | null = null;
         _readyCallbacks: Canvas2DReadyCallback[] = [];
-        _idleTag: number | null = null;
+        _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
 
         constructor(params?: Partial<Gtk.DrawingArea.ConstructorProps>) {
@@ -47,9 +48,9 @@ export const Canvas2DWidget = GObject.registerClass(
             attachEventControllers(this, () => this._canvas);
 
             this.connect('unrealize', () => {
-                if (this._idleTag !== null) {
-                    GLib.source_remove(this._idleTag);
-                    this._idleTag = null;
+                if (this._tickCallbackId !== null) {
+                    this.remove_tick_callback(this._tickCallbackId);
+                    this._tickCallbackId = null;
                 }
                 if (this._ctx) {
                     this._ctx._dispose();
@@ -114,15 +115,16 @@ export const Canvas2DWidget = GObject.registerClass(
 
         /**
          * Schedules a single animation frame callback, matching the browser `requestAnimationFrame` API.
-         * Backed by GLib.idle_add. The callback draws on the 2D context, then queue_draw blits to screen.
+         * Backed by GTK frame clock (vsync-synced, typically ~60 FPS).
          * Returns 0 (handle — cancel not yet implemented).
          */
         requestAnimationFrame(cb: FrameRequestCallback): number {
             this._frameCallback = cb;
-            if (this._idleTag === null) {
-                this._idleTag = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                    this._idleTag = null;
-                    const time = GLib.get_monotonic_time() / 1000;
+            if (this._tickCallbackId === null) {
+                this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, frameClock: Gdk.FrameClock) => {
+                    this._tickCallbackId = null;
+                    // frame_time is in microseconds, browser rAF expects milliseconds
+                    const time = frameClock.get_frame_time() / 1000;
                     this._frameCallback?.(time);
                     this.queue_draw();
                     return GLib.SOURCE_REMOVE;
