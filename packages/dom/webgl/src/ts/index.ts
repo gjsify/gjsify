@@ -3,7 +3,7 @@ import '@girs/gio-2.0';
 import '@girs/gtk-4.0';
 
 export * from './html-canvas-element.js';
-export * from './webgl-area.js';
+export * from './canvas-webgl-widget.js';
 // export * from './linkable.js';
 // export * from './utils.js';
 export * from './webgl-active-info.js';

@@ -4,7 +4,7 @@ import '@girs/gtk-4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
-import { WebGLRenderingContext, WebGLProgram, WebGLUniformLocation, WebGLBuffer, WebGLArea } from '@gjsify/webgl';
+import { WebGLRenderingContext, WebGLProgram, WebGLUniformLocation, WebGLBuffer, CanvasWebGLWidget } from '@gjsify/webgl';
 
 interface ProgramInfo {
     program: WebGLProgram;
@@ -85,7 +85,7 @@ class ColourChanger {
 
 let colourChanger = new ColourChanger();
 
-function render(glArea: WebGLArea, gl: WebGLRenderingContext) {
+function render(glArea: CanvasWebGLWidget, gl: WebGLRenderingContext) {
     if (!rendered) {
         rendered = true;
         const setup = mozSetup(gl);
@@ -103,7 +103,7 @@ function render(glArea: WebGLArea, gl: WebGLRenderingContext) {
     drawScene(gl, programInfo, buffers);
 }
 
-function tick(glArea: WebGLArea) {
+function tick(glArea: CanvasWebGLWidget) {
     glArea.queue_render();
     return true;
 }
@@ -112,15 +112,15 @@ function activate(app: Gtk.Application) {
     const win = new Gtk.ApplicationWindow({ application: app });
     win.set_default_size(800, 600);
 
-    const glArea = new WebGLArea();
+    const glArea = new CanvasWebGLWidget();
     let gl: WebGLRenderingContext;
 
-    glArea.onWebGLReady((_canvas, glContext) => {
+    glArea.onReady((_canvas, glContext) => {
         gl = glContext as unknown as WebGLRenderingContext;
         const ctx = glArea.get_context()!;
         console.log('Context: ' +
             `${ctx.get_required_version()} ES ${ctx.get_use_es()}`);
-        // Connect per-frame render handler (after WebGLArea init handler has disconnected)
+        // Connect per-frame render handler (after CanvasWebGLWidget init handler has disconnected)
         glArea.connect('render', () => {
             if (gl) render(glArea, gl);
             return true;

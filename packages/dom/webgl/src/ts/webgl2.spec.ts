@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
-import { WebGL2RenderingContext as OurWebGL2RenderingContext, WebGLArea } from '@gjsify/webgl';
+import { WebGL2RenderingContext as OurWebGL2RenderingContext, CanvasWebGLWidget } from '@gjsify/webgl';
 import { makeProgram, drawTriangle, readPixel,
          makeTestFBO, destroyTestFBO, makeTestFBOWithDepth } from './test-utils.js';
 import GLib from '@girs/glib-2.0';
@@ -16,15 +16,15 @@ export default async () => {
 
 		Gtk.init();
 
-		let glArea!: WebGLArea;
+		let glArea!: CanvasWebGLWidget;
 		let gl2!: WebGL2RenderingContext;
 
 		const readyLoop = new GLib.MainLoop(null, false);
 		const win = new Gtk.Window({});
 		win.set_default_size(200, 200);
 
-		glArea = new WebGLArea();
-		glArea.onWebGLReady((c, _g) => {
+		glArea = new CanvasWebGLWidget();
+		glArea.onReady((c, _g) => {
 			// Ask the canvas for a WebGL2 context instead of the default WebGL1
 			gl2 = (c as any).getContext('webgl2') as WebGL2RenderingContext;
 			readyLoop.quit();

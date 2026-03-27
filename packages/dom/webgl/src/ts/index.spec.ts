@@ -1,10 +1,10 @@
 // Reference: refs/headless-gl/test/ (buffers, programs, simple-shader, extensions, textures)
 // Ported from headless-gl. Copyright (c) stackgl contributors. MIT license.
-// Modifications: Uses @gjsify/unit, WebGLArea widget, GTK-backed context instead of EGL headless.
+// Modifications: Uses @gjsify/unit, CanvasWebGLWidget widget, GTK-backed context instead of EGL headless.
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
-import { WebGLRenderingContext, WebGLArea } from '@gjsify/webgl';
+import { WebGLRenderingContext, CanvasWebGLWidget } from '@gjsify/webgl';
 import { makeProgram, drawTriangle, readPixel, pixelClose,
          makeTestFBO, destroyTestFBO, makeTestFBOWithDepth, destroyTestFBOWithDepth } from './test-utils.js';
 import GLib from '@girs/glib-2.0';
@@ -18,7 +18,7 @@ export default async () => {
 
 	Gtk.init();
 
-	let glArea!: WebGLArea;
+	let glArea!: CanvasWebGLWidget;
 	let gl!: WebGLRenderingContext;
 
 	// Use a bare Gtk.Window + GLib.MainLoop to obtain the GL context.
@@ -29,8 +29,8 @@ export default async () => {
 	const win = new Gtk.Window({});
 	win.set_default_size(200, 200);
 
-	glArea = new WebGLArea();
-	glArea.onWebGLReady((_c: globalThis.HTMLCanvasElement, g: globalThis.WebGLRenderingContext) => {
+	glArea = new CanvasWebGLWidget();
+	glArea.onReady((_c: globalThis.HTMLCanvasElement, g: globalThis.WebGLRenderingContext) => {
 		gl = g as unknown as WebGLRenderingContext;
 		readyLoop.quit();  // Release the setup loop; tests will run after it returns.
 	});
@@ -44,7 +44,7 @@ export default async () => {
 		return GLib.SOURCE_REMOVE;
 	});
 
-	// Blocks until onWebGLReady fires (or 10s timeout).
+	// Blocks until onReady fires (or 10s timeout).
 	// After this returns, gl is set and the window is still alive with a valid GL context.
 	readyLoop.run();
 	GLib.source_remove(giveUpId);

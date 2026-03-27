@@ -6,7 +6,7 @@ import '@girs/gtk-4.0';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
-import { WebGLArea } from '@gjsify/webgl';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
 // globalThis.Image is set automatically by @gjsify/dom-elements (imported transitively via @gjsify/webgl)
 import { start } from './three-demo.js';
 
@@ -36,10 +36,10 @@ app.connect('activate', () => {
         configurable: true,
     });
 
-    const glArea = new WebGLArea();
+    const glArea = new CanvasWebGLWidget();
     glArea.installGlobals(); // sets globalThis.requestAnimationFrame
 
-    glArea.onWebGLReady((canvas) => {
+    glArea.onReady((canvas) => {
         const ctx = glArea.get_context()!;
         print(`Context version: OpenGL${ctx.get_use_es() ? ' ES' : ''} ${ctx.get_version().join('.')}`);
         start(canvas as any);

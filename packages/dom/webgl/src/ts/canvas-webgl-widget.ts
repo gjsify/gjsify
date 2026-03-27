@@ -1,4 +1,4 @@
-// WebGLArea GTK widget for GJS — original implementation using Gtk.GLArea
+// CanvasWebGLWidget GTK widget for GJS — original implementation using Gtk.GLArea
 // Provides a Gtk.GLArea subclass that handles all WebGL bootstrapping boilerplate.
 
 import GObject from 'gi://GObject';
@@ -16,24 +16,24 @@ type WebGLReadyCallback = (canvas: globalThis.HTMLCanvasElement, gl: globalThis.
  * A `Gtk.GLArea` subclass that handles WebGL bootstrapping:
  * - Sets up OpenGL ES 3.2 context, depth buffer, stencil buffer
  * - Creates an `HTMLCanvasElement` wrapping the GLArea on first render
- * - Fires `onWebGLReady()` callbacks with (canvas, gl) once the context is available
+ * - Fires `onReady()` callbacks with (canvas, gl) once the context is available
  * - Provides `requestAnimationFrame()` backed by GLib.idle_add + render signal
  * - `installGlobals()` sets `globalThis.requestAnimationFrame` to use this widget
  *
  * Usage:
  * ```ts
- * const glArea = new WebGLArea();
- * glArea.installGlobals();  // sets globalThis.requestAnimationFrame
- * glArea.onWebGLReady((canvas, gl) => {
+ * const widget = new CanvasWebGLWidget();
+ * widget.installGlobals();  // sets globalThis.requestAnimationFrame
+ * widget.onReady((canvas, gl) => {
  *     gl.clearColor(0, 0, 0, 1);
  *     // requestAnimationFrame is now available globally
  * });
- * window.set_child(glArea);
+ * window.set_child(widget);
  * ```
  */
-export const WebGLArea = GObject.registerClass(
-    { GTypeName: 'GjsifyWebGLArea' },
-    class WebGLArea extends Gtk.GLArea {
+export const CanvasWebGLWidget = GObject.registerClass(
+    { GTypeName: 'GjsifyCanvasWebGLWidget' },
+    class CanvasWebGLWidget extends Gtk.GLArea {
         _canvas: OurHTMLCanvasElement | null = null;
         _readyCallbacks: WebGLReadyCallback[] = [];
         _renderTag: number | null = null;
@@ -84,7 +84,7 @@ export const WebGLArea = GObject.registerClass(
          * Registers a callback to be called once the WebGL context is ready.
          * If the context is already available, the callback fires synchronously.
          */
-        onWebGLReady(cb: WebGLReadyCallback): void {
+        onReady(cb: WebGLReadyCallback): void {
             if (this._canvas) {
                 const gl = this._canvas.getContext('webgl') as OurWebGLRenderingContext | null;
                 if (gl) {
@@ -93,6 +93,13 @@ export const WebGLArea = GObject.registerClass(
                 }
             }
             this._readyCallbacks.push(cb);
+        }
+
+        /**
+         * @deprecated Use `onReady()` instead.
+         */
+        onWebGLReady(cb: WebGLReadyCallback): void {
+            this.onReady(cb);
         }
 
         /**
@@ -133,5 +140,5 @@ export const WebGLArea = GObject.registerClass(
     }
 );
 
-// Export the instance type so callers can type-annotate their WebGLArea variables
-export type WebGLArea = InstanceType<typeof WebGLArea>;
+// Export the instance type so callers can type-annotate their CanvasWebGLWidget variables
+export type CanvasWebGLWidget = InstanceType<typeof CanvasWebGLWidget>;
