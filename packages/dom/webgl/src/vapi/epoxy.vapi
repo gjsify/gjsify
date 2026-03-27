@@ -3,7 +3,7 @@
 
 [CCode (cprefix = "GL", gir_version = "1.0", lower_case_cprefix = "gl_", cheader_filename = "epoxy/gl.h")]
 namespace GL {
-	[CCode (cheader_filename = "epoxy/gl.h", cname = "GLsync")]
+	[CCode (cheader_filename = "epoxy/gl.h", cname = "GLsync", free_function = "")]
 	[Compact]
 	public class GLsync {
 	}

@@ -1,0 +1,479 @@
+// WebGL2RenderingContext for GJS — original implementation using Gwebgl.WebGL2RenderingContext
+// Reference: refs/headless-gl/src/native/bindings.cc (BindWebGL2),
+//            refs/deno/cli/tsc/dts/lib.webworker.d.ts (WebGL2RenderingContextBase)
+
+import Gwebgl from '@girs/gwebgl-0.1';
+import { WebGLRenderingContext } from './webgl-rendering-context.js';
+import { HTMLCanvasElement } from './html-canvas-element.js';
+import { WebGLQuery } from './webgl-query.js';
+import { WebGLSampler } from './webgl-sampler.js';
+import { WebGLSync } from './webgl-sync.js';
+import { WebGLTransformFeedback } from './webgl-transform-feedback.js';
+import { WebGLVertexArrayObject } from './webgl-vertex-array-object.js';
+import { WebGLUniformLocation } from './webgl-uniform-location.js';
+import { WebGLActiveInfo } from './webgl-active-info.js';
+import { WebGLProgram as OurWebGLProgram } from './webgl-program.js';
+import { Uint8ArrayToVariant } from './utils.js';
+import { warnNotImplemented } from '@gjsify/utils';
+
+export class WebGL2RenderingContext extends WebGLRenderingContext implements WebGL2RenderingContext {
+
+    _native2: Gwebgl.WebGL2RenderingContext;
+
+    _queries: Record<number, WebGLQuery> = {}
+    _samplers: Record<number, WebGLSampler> = {}
+    _transformFeedbacks: Record<number, WebGLTransformFeedback> = {}
+    _vertexArrayObjects: Record<number, WebGLVertexArrayObject> = {}
+    _syncs: Record<number, WebGLSync> = {}
+
+    constructor(canvas: HTMLCanvasElement | null, options: Gwebgl.WebGL2RenderingContext.ConstructorProperties = {}) {
+        super(canvas, options as Gwebgl.WebGLRenderingContext.ConstructorProperties);
+        this._native2 = new Gwebgl.WebGL2RenderingContext(options);
+    }
+
+    override _getGlslVersion(es: boolean): string {
+        return es ? '300 es' : '130';
+    }
+
+    // ─── Vertex Array Objects ─────────────────────────────────────────────
+
+    createVertexArray(): WebGLVertexArrayObject | null {
+        const id = this._native2.createVertexArray();
+        if (!id) return null;
+        const vao = new WebGLVertexArrayObject(id, this);
+        this._vertexArrayObjects[id] = vao;
+        return vao;
+    }
+
+    deleteVertexArray(vertexArray: WebGLVertexArrayObject | null): void {
+        if (!vertexArray || !(vertexArray instanceof WebGLVertexArrayObject)) return;
+        vertexArray._pendingDelete = true;
+        vertexArray._checkDelete();
+    }
+
+    isVertexArray(vertexArray: WebGLVertexArrayObject | null): GLboolean {
+        if (!vertexArray || !(vertexArray instanceof WebGLVertexArrayObject)) return false;
+        return this._native2.isVertexArray(vertexArray._);
+    }
+
+    bindVertexArray(array: WebGLVertexArrayObject | null): void {
+        this._native2.bindVertexArray(array ? array._ : 0);
+    }
+
+    // ─── Query Objects ────────────────────────────────────────────────────
+
+    createQuery(): WebGLQuery | null {
+        const id = this._native2.createQuery();
+        if (!id) return null;
+        const query = new WebGLQuery(id, this);
+        this._queries[id] = query;
+        return query;
+    }
+
+    deleteQuery(query: WebGLQuery | null): void {
+        if (!query || !(query instanceof WebGLQuery)) return;
+        query._pendingDelete = true;
+        query._checkDelete();
+    }
+
+    isQuery(query: WebGLQuery | null): GLboolean {
+        if (!query || !(query instanceof WebGLQuery)) return false;
+        return this._native2.isQuery(query._);
+    }
+
+    beginQuery(target: GLenum, query: WebGLQuery): void {
+        if (!(query instanceof WebGLQuery)) return;
+        this._native2.beginQuery(target, query._);
+    }
+
+    endQuery(target: GLenum): void {
+        this._native2.endQuery(target);
+    }
+
+    getQuery(_target: GLenum, _pname: GLenum): WebGLQuery | null {
+        warnNotImplemented('WebGL2RenderingContext.getQuery');
+        return null;
+    }
+
+    getQueryParameter(query: WebGLQuery, pname: GLenum): any {
+        if (!(query instanceof WebGLQuery)) return null;
+        return this._native2.getQueryParameter(query._, pname);
+    }
+
+    // ─── Sampler Objects ──────────────────────────────────────────────────
+
+    createSampler(): WebGLSampler | null {
+        const id = this._native2.createSampler();
+        if (!id) return null;
+        const sampler = new WebGLSampler(id, this);
+        this._samplers[id] = sampler;
+        return sampler;
+    }
+
+    deleteSampler(sampler: WebGLSampler | null): void {
+        if (!sampler || !(sampler instanceof WebGLSampler)) return;
+        sampler._pendingDelete = true;
+        sampler._checkDelete();
+    }
+
+    isSampler(sampler: WebGLSampler | null): GLboolean {
+        if (!sampler || !(sampler instanceof WebGLSampler)) return false;
+        return this._native2.isSampler(sampler._);
+    }
+
+    bindSampler(unit: GLuint, sampler: WebGLSampler | null): void {
+        this._native2.bindSampler(unit, sampler ? sampler._ : 0);
+    }
+
+    samplerParameteri(sampler: WebGLSampler, pname: GLenum, param: GLint): void {
+        if (!(sampler instanceof WebGLSampler)) return;
+        this._native2.samplerParameteri(sampler._, pname, param);
+    }
+
+    samplerParameterf(sampler: WebGLSampler, pname: GLenum, param: GLfloat): void {
+        if (!(sampler instanceof WebGLSampler)) return;
+        this._native2.samplerParameterf(sampler._, pname, param);
+    }
+
+    getSamplerParameter(sampler: WebGLSampler, pname: GLenum): any {
+        if (!(sampler instanceof WebGLSampler)) return null;
+        // Float params: TEXTURE_MIN_LOD, TEXTURE_MAX_LOD
+        if (pname === 0x813A || pname === 0x813B) {
+            return this._native2.getSamplerParameterf(sampler._, pname);
+        }
+        return this._native2.getSamplerParameteri(sampler._, pname);
+    }
+
+    // ─── Sync Objects ─────────────────────────────────────────────────────
+
+    fenceSync(condition: GLenum, flags: GLbitfield): WebGLSync | null {
+        const id = this._native2.fenceSync(condition, flags);
+        if (!id) return null;
+        const sync = new WebGLSync(id, this);
+        this._syncs[id] = sync;
+        return sync;
+    }
+
+    isSync(sync: WebGLSync | null): GLboolean {
+        if (!sync || !(sync instanceof WebGLSync)) return false;
+        return this._native2.isSync(sync._);
+    }
+
+    deleteSync(sync: WebGLSync | null): void {
+        if (!sync || !(sync instanceof WebGLSync)) return;
+        sync._pendingDelete = true;
+        sync._checkDelete();
+    }
+
+    clientWaitSync(sync: WebGLSync, flags: GLbitfield, timeout: GLuint64): GLenum {
+        if (!(sync instanceof WebGLSync)) return 0x911C; // WAIT_FAILED
+        return this._native2.clientWaitSync(sync._, flags, timeout as unknown as number);
+    }
+
+    waitSync(sync: WebGLSync, flags: GLbitfield, timeout: GLint64): void {
+        if (!(sync instanceof WebGLSync)) return;
+        this._native2.waitSync(sync._, flags, timeout as unknown as number);
+    }
+
+    getSyncParameter(sync: WebGLSync, pname: GLenum): any {
+        if (!(sync instanceof WebGLSync)) return null;
+        return this._native2.getSyncParameter(sync._, pname);
+    }
+
+    // ─── Transform Feedback ───────────────────────────────────────────────
+
+    createTransformFeedback(): WebGLTransformFeedback | null {
+        const id = this._native2.createTransformFeedback();
+        if (!id) return null;
+        const tf = new WebGLTransformFeedback(id, this);
+        this._transformFeedbacks[id] = tf;
+        return tf;
+    }
+
+    deleteTransformFeedback(tf: WebGLTransformFeedback | null): void {
+        if (!tf || !(tf instanceof WebGLTransformFeedback)) return;
+        tf._pendingDelete = true;
+        tf._checkDelete();
+    }
+
+    isTransformFeedback(tf: WebGLTransformFeedback | null): GLboolean {
+        if (!tf || !(tf instanceof WebGLTransformFeedback)) return false;
+        return this._native2.isTransformFeedback(tf._);
+    }
+
+    bindTransformFeedback(target: GLenum, tf: WebGLTransformFeedback | null): void {
+        this._native2.bindTransformFeedback(target, tf ? tf._ : 0);
+    }
+
+    beginTransformFeedback(primitiveMode: GLenum): void {
+        this._native2.beginTransformFeedback(primitiveMode);
+    }
+
+    endTransformFeedback(): void {
+        this._native2.endTransformFeedback();
+    }
+
+    pauseTransformFeedback(): void {
+        this._native2.pauseTransformFeedback();
+    }
+
+    resumeTransformFeedback(): void {
+        this._native2.resumeTransformFeedback();
+    }
+
+    transformFeedbackVaryings(program: WebGLProgram, varyings: string[], bufferMode: GLenum): void {
+        this._native2.transformFeedbackVaryings((program as unknown as OurWebGLProgram)._, varyings, bufferMode);
+    }
+
+    getTransformFeedbackVarying(program: WebGLProgram, index: GLuint): WebGLActiveInfo | null {
+        const result = this._native2.getTransformFeedbackVarying((program as unknown as OurWebGLProgram)._, index)
+            .deepUnpack<{ name: string; size: number; type: number }>();
+        return new WebGLActiveInfo({ size: result.size, type: result.type, name: result.name });
+    }
+
+    // ─── Indexed Buffer Binding ───────────────────────────────────────────
+
+    bindBufferBase(target: GLenum, index: GLuint, buffer: WebGLBuffer | null): void {
+        this._native2.bindBufferBase(target, index, buffer ? (buffer as any)._ : 0);
+    }
+
+    bindBufferRange(target: GLenum, index: GLuint, buffer: WebGLBuffer | null, offset: GLintptr, size: GLsizeiptr): void {
+        this._native2.bindBufferRange(target, index, buffer ? (buffer as any)._ : 0, offset, size);
+    }
+
+    copyBufferSubData(readTarget: GLenum, writeTarget: GLenum, readOffset: GLintptr, writeOffset: GLintptr, size: GLsizeiptr): void {
+        this._native2.copyBufferSubData(readTarget, writeTarget, readOffset, writeOffset, size);
+    }
+
+    getBufferSubData(target: GLenum, srcByteOffset: GLintptr, dstBuffer: ArrayBufferView, dstOffset?: GLuint, length?: GLuint): void {
+        const byteLength = length !== undefined ? length : dstBuffer.byteLength - (dstOffset ?? 0);
+        const data = this._native2.getBufferSubData(target, srcByteOffset, byteLength);
+        const dst = new Uint8Array(dstBuffer.buffer, dstBuffer.byteOffset + (dstOffset ?? 0) * (dstBuffer instanceof Uint8Array ? 1 : (dstBuffer as any).BYTES_PER_ELEMENT ?? 1));
+        dst.set(data.subarray(0, dst.byteLength));
+    }
+
+    // ─── 3D Textures ──────────────────────────────────────────────────────
+
+    texImage3D(target: GLenum, level: GLint, internalformat: GLint, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void {
+        if (pixels === null) {
+            this._native2.texImage3DNull(target, level, internalformat, width, height, depth, border, format, type);
+        } else {
+            this._native2.texImage3D(target, level, internalformat, width, height, depth, border, format, type, Uint8ArrayToVariant(new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength)));
+        }
+    }
+
+    texSubImage3D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, zoffset: GLint, width: GLsizei, height: GLsizei, depth: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void {
+        if (pixels === null) return;
+        this._native2.texSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, Uint8ArrayToVariant(new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength)));
+    }
+
+    compressedTexImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, _imageSize: GLsizei, data: ArrayBufferView): void {
+        this._native2.compressedTexImage3D(target, level, internalformat, width, height, depth, border, Uint8ArrayToVariant(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)));
+    }
+
+    compressedTexSubImage3D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, zoffset: GLint, width: GLsizei, height: GLsizei, depth: GLsizei, format: GLenum, _imageSize: GLsizei, data: ArrayBufferView): void {
+        this._native2.compressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, Uint8ArrayToVariant(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)));
+    }
+
+    copyTexSubImage3D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, zoffset: GLint, x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+        this._native2.copyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, height);
+    }
+
+    texStorage2D(target: GLenum, levels: GLsizei, internalformat: GLenum, width: GLsizei, height: GLsizei): void {
+        this._native2.texStorage2D(target, levels, internalformat, width, height);
+    }
+
+    texStorage3D(target: GLenum, levels: GLsizei, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei): void {
+        this._native2.texStorage3D(target, levels, internalformat, width, height, depth);
+    }
+
+    framebufferTextureLayer(target: GLenum, attachment: GLenum, texture: WebGLTexture | null, level: GLint, layer: GLint): void {
+        this._native2.framebufferTextureLayer(target, attachment, texture ? (texture as any)._ : 0, level, layer);
+    }
+
+    // ─── Instancing & Advanced Draw ───────────────────────────────────────
+
+    drawArraysInstanced(mode: GLenum, first: GLint, count: GLsizei, instanceCount: GLsizei): void {
+        this._native2.drawArraysInstanced(mode, first, count, instanceCount);
+    }
+
+    drawElementsInstanced(mode: GLenum, count: GLsizei, type: GLenum, offset: GLintptr, instanceCount: GLsizei): void {
+        this._native2.drawElementsInstanced(mode, count, type, offset, instanceCount);
+    }
+
+    vertexAttribDivisor(index: GLuint, divisor: GLuint): void {
+        this._native2.vertexAttribDivisor(index, divisor);
+    }
+
+    vertexAttribIPointer(index: GLuint, size: GLint, type: GLenum, stride: GLsizei, offset: GLintptr): void {
+        this._native2.vertexAttribIPointer(index, size, type, stride, offset);
+    }
+
+    drawBuffers(buffers: GLenum[]): void {
+        this._native2.drawBuffers(Array.from(buffers) as number[]);
+    }
+
+    drawRangeElements(mode: GLenum, start: GLuint, end: GLuint, count: GLsizei, type: GLenum, offset: GLintptr): void {
+        this._native2.drawRangeElements(mode, start, end, count, type, offset);
+    }
+
+    blitFramebuffer(srcX0: GLint, srcY0: GLint, srcX1: GLint, srcY1: GLint, dstX0: GLint, dstY0: GLint, dstX1: GLint, dstY1: GLint, mask: GLbitfield, filter: GLenum): void {
+        this._native2.blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+    }
+
+    invalidateFramebuffer(target: GLenum, attachments: GLenum[]): void {
+        this._native2.invalidateFramebuffer(target, Array.from(attachments) as number[]);
+    }
+
+    invalidateSubFramebuffer(target: GLenum, attachments: GLenum[], x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+        this._native2.invalidateSubFramebuffer(target, Array.from(attachments) as number[], x, y, width, height);
+    }
+
+    readBuffer(src: GLenum): void {
+        this._native2.readBuffer(src);
+    }
+
+    renderbufferStorageMultisample(target: GLenum, samples: GLsizei, internalformat: GLenum, width: GLsizei, height: GLsizei): void {
+        this._native2.renderbufferStorageMultisample(target, samples, internalformat, width, height);
+    }
+
+    // ─── Unsigned Integer Uniforms ────────────────────────────────────────
+
+    uniform1ui(location: WebGLUniformLocation | null, v0: GLuint): void {
+        if (!location) return;
+        this._native2.uniform1ui((location as WebGLUniformLocation)._, v0);
+    }
+
+    uniform2ui(location: WebGLUniformLocation | null, v0: GLuint, v1: GLuint): void {
+        if (!location) return;
+        this._native2.uniform2ui((location as WebGLUniformLocation)._, v0, v1);
+    }
+
+    uniform3ui(location: WebGLUniformLocation | null, v0: GLuint, v1: GLuint, v2: GLuint): void {
+        if (!location) return;
+        this._native2.uniform3ui((location as WebGLUniformLocation)._, v0, v1, v2);
+    }
+
+    uniform4ui(location: WebGLUniformLocation | null, v0: GLuint, v1: GLuint, v2: GLuint, v3: GLuint): void {
+        if (!location) return;
+        this._native2.uniform4ui((location as WebGLUniformLocation)._, v0, v1, v2, v3);
+    }
+
+    uniform1uiv(location: WebGLUniformLocation | null, data: Uint32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
+        this._native2.uniform1uiv((location as WebGLUniformLocation)._, arr.length, Array.from(arr) as number[]);
+    }
+
+    uniform2uiv(location: WebGLUniformLocation | null, data: Uint32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
+        this._native2.uniform2uiv((location as WebGLUniformLocation)._, arr.length / 2, Array.from(arr) as number[]);
+    }
+
+    uniform3uiv(location: WebGLUniformLocation | null, data: Uint32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
+        this._native2.uniform3uiv((location as WebGLUniformLocation)._, arr.length / 3, Array.from(arr) as number[]);
+    }
+
+    uniform4uiv(location: WebGLUniformLocation | null, data: Uint32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
+        this._native2.uniform4uiv((location as WebGLUniformLocation)._, arr.length / 4, Array.from(arr) as number[]);
+    }
+
+    // ─── Non-square Matrix Uniforms ───────────────────────────────────────
+
+    uniformMatrix2x3fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
+        this._native2.uniformMatrix2x3fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+    }
+
+    uniformMatrix3x2fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
+        this._native2.uniformMatrix3x2fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+    }
+
+    uniformMatrix2x4fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
+        this._native2.uniformMatrix2x4fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+    }
+
+    uniformMatrix4x2fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
+        this._native2.uniformMatrix4x2fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+    }
+
+    uniformMatrix3x4fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
+        this._native2.uniformMatrix3x4fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+    }
+
+    uniformMatrix4x3fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
+        if (!location) return;
+        const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
+        this._native2.uniformMatrix4x3fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+    }
+
+    // ─── Uniform Blocks ───────────────────────────────────────────────────
+
+    getUniformBlockIndex(program: WebGLProgram, uniformBlockName: string): GLuint {
+        return this._native2.getUniformBlockIndex((program as unknown as OurWebGLProgram)._, uniformBlockName);
+    }
+
+    uniformBlockBinding(program: WebGLProgram, uniformBlockIndex: GLuint, uniformBlockBinding: GLuint): void {
+        this._native2.uniformBlockBinding((program as unknown as OurWebGLProgram)._, uniformBlockIndex, uniformBlockBinding);
+    }
+
+    getActiveUniformBlockName(program: WebGLProgram, uniformBlockIndex: GLuint): string | null {
+        const name = this._native2.getActiveUniformBlockName((program as unknown as OurWebGLProgram)._, uniformBlockIndex);
+        return name.length > 0 ? name : null;
+    }
+
+    getActiveUniformBlockParameter(program: WebGLProgram, uniformBlockIndex: GLuint, pname: GLenum): any {
+        return this._native2.getActiveUniformBlockParameter((program as unknown as OurWebGLProgram)._, uniformBlockIndex, pname);
+    }
+
+    getActiveUniforms(program: WebGLProgram, uniformIndices: GLuint[], pname: GLenum): any {
+        const result = this._native2.getActiveUniforms((program as unknown as OurWebGLProgram)._, uniformIndices, pname);
+        return result;
+    }
+
+    // ─── Program Queries ──────────────────────────────────────────────────
+
+    getFragDataLocation(program: WebGLProgram, name: string): GLint {
+        return this._native2.getFragDataLocation((program as unknown as OurWebGLProgram)._, name);
+    }
+
+    // ─── Indexed Parameter Queries ────────────────────────────────────────
+
+    getIndexedParameter(target: GLenum, index: GLuint): any {
+        return this._native2.getIndexedParameteri(target, index);
+    }
+
+    getInternalformatParameter(target: GLenum, internalformat: GLenum, pname: GLenum): any {
+        return this._native2.getInternalformatParameter(target, internalformat, pname);
+    }
+
+    override getParameter(pname: GLenum): any {
+        // WebGL2-specific pname values that need string array responses
+        if (pname === 0x1F03 /* GL_EXTENSIONS */) {
+            warnNotImplemented('WebGL2RenderingContext.getParameter(GL_EXTENSIONS)');
+            return '';
+        }
+        return super.getParameter(pname);
+    }
+
+    // ─── Misc ─────────────────────────────────────────────────────────────
+
+    getStringi(name: GLenum, index: GLuint): string | null {
+        const s = this._native2.getStringi(name, index);
+        return s.length > 0 ? s : null;
+    }
+}

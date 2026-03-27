@@ -6,10 +6,12 @@ import { HTMLCanvasElement as BaseHTMLCanvasElement } from '@gjsify/dom-elements
 import Gtk from 'gi://Gtk?version=4.0';
 // Circular import is intentional and safe in ESM (classes are only used at runtime, not at link time)
 import { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
+import { WebGL2RenderingContext as OurWebGL2RenderingContext } from './webgl2-rendering-context.js';
 
 export class HTMLCanvasElement extends BaseHTMLCanvasElement {
 
     _webgl?: OurWebGLRenderingContext;
+    _webgl2?: OurWebGL2RenderingContext;
 
     constructor(readonly gtkGlArea: Gtk.GLArea) {
         super();
@@ -20,18 +22,14 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
         return this.gtkGlArea.get_allocated_width();
     }
 
-    override set width(_width: number) {
-        warnNotImplemented('HTMLCanvasElement.set width');
-    }
+    override set width(_width: number) { /* GTK manages size */ }
 
     /** Height from the GTK GLArea allocated size (overrides DOM attr-backed getter). */
     override get height(): number {
         return this.gtkGlArea.get_allocated_height();
     }
 
-    override set height(_height: number) {
-        warnNotImplemented('HTMLCanvasElement.set height');
-    }
+    override set height(_height: number) { /* GTK manages size */ }
 
     get clientWidth(): number {
         return this.width;
@@ -48,8 +46,8 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
 
     /**
      * Returns a WebGL rendering context backed by the underlying Gtk.GLArea.
-     * 'webgl' and 'experimental-webgl' are supported.
-     * 'webgl2' intentionally returns null so callers (e.g. three.js) fall back to WebGL1.
+     * 'webgl' and 'experimental-webgl' return a WebGLRenderingContext (WebGL 1.0).
+     * 'webgl2' returns null — backend is OpenGL ES / WebGL 1.0 only; callers fall back to 'webgl'.
      * Other context types emit a warning and return null.
      */
     override getContext(contextId: string, options?: any): any {

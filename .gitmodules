@@ -98,3 +98,6 @@
 [submodule "refs/three"]
 	path = refs/three
 	url = git@github.com:mrdoob/three.js.git
+[submodule "refs/libepoxy"]
+	path = refs/libepoxy
+	url = https://github.com/anholt/libepoxy

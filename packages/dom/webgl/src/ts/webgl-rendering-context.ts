@@ -281,7 +281,7 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
         }
     }
 
-    _getGlslVersion(es: boolean) {
+    _getGlslVersion(es: boolean): string {
         return es ? '100' : '120';
     }
 
@@ -3791,11 +3791,11 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
     }
     stencilMask(mask: GLuint): void {
         this._checkStencil = true
-        return this._native.stencilMask(mask | 0);
+        return this._native.stencilMask(mask >>> 0);
     }
     stencilMaskSeparate(face: GLenum, mask: GLuint): void {
         this._checkStencil = true
-        return this._native.stencilMaskSeparate(face | 0, mask | 0);
+        return this._native.stencilMaskSeparate(face | 0, mask >>> 0);
     }
     stencilOp(fail: GLenum, zfail: GLenum, zpass: GLenum): void {
         this._checkStencil = true
