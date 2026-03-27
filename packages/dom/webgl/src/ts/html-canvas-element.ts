@@ -1,7 +1,6 @@
 // GTK-backed HTMLCanvasElement for GJS — original implementation using Gtk.GLArea
 // Extends the DOM-spec base from @gjsify/dom-elements with GTK.GLArea integration.
 
-import { warnNotImplemented } from '@gjsify/utils';
 import { HTMLCanvasElement as BaseHTMLCanvasElement } from '@gjsify/dom-elements';
 import Gtk from 'gi://Gtk?version=4.0';
 // Circular import is intentional and safe in ESM (classes are only used at runtime, not at link time)
@@ -59,7 +58,8 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
             this._webgl2 ??= new OurWebGL2RenderingContext(this as any, options);
             return this._webgl2;
         }
-        warnNotImplemented(`HTMLCanvasElement.getContext("${contextId}")`);
-        return null;
+        // Fall through to the base class context factory registry
+        // (e.g. @gjsify/canvas2d registers '2d' there)
+        return super.getContext(contextId, options);
     }
 }

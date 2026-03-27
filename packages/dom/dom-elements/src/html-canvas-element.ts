@@ -14,6 +14,18 @@ import { HTMLElement } from './html-element.js';
  * Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement
  */
 export class HTMLCanvasElement extends HTMLElement {
+    // Context factory registry — packages register their context types here.
+    // e.g. @gjsify/canvas2d registers '2d', @gjsify/webgl registers 'webgl'.
+    private static _contextFactories = new Map<string, (canvas: HTMLCanvasElement, options?: any) => any>();
+
+    /**
+     * Register a rendering context factory for a given context type.
+     * Called by packages like @gjsify/canvas2d and @gjsify/webgl to plug in their implementations.
+     */
+    static registerContextFactory(contextId: string, factory: (canvas: HTMLCanvasElement, options?: any) => any): void {
+        HTMLCanvasElement._contextFactories.set(contextId, factory);
+    }
+
     // WebGL context event handlers
     oncontextlost: ((ev: Event) => any) | null = null;
     oncontextrestored: ((ev: Event) => any) | null = null;
@@ -42,10 +54,13 @@ export class HTMLCanvasElement extends HTMLElement {
     }
 
     /**
-     * Returns a rendering context. Returns null in this base class.
-     * Overridden in @gjsify/webgl to return a WebGLRenderingContext backed by Gtk.GLArea.
+     * Returns a rendering context.
+     * Checks the static context factory registry for a matching factory.
+     * Subclasses (e.g. @gjsify/webgl) may override and fall through via super.getContext().
      */
-    getContext(_contextId: string, _options?: any): any {
+    getContext(contextId: string, options?: any): any {
+        const factory = HTMLCanvasElement._contextFactories.get(contextId);
+        if (factory) return factory(this, options);
         return null;
     }
 

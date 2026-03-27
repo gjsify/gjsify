@@ -1,0 +1,46 @@
+{
+    "name": "@gjsify/canvas2d",
+    "version": "0.0.4",
+    "description": "Canvas 2D rendering context for GJS, backed by Cairo",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tmp tsconfig.tsbuildinfo test.gjs.mjs || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc",
+        "build:test": "yarn build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
+        "test:gjs": "gjs -m test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "canvas",
+        "canvas2d",
+        "cairo"
+    ],
+    "dependencies": {
+        "@girs/gdk-4.0": "^4.0.0-4.0.0-beta.42",
+        "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-beta.42",
+        "@girs/gjs": "^4.0.0-beta.42",
+        "@girs/pango-1.0": "^1.57.0-4.0.0-beta.42",
+        "@girs/pangocairo-1.0": "^1.0.0-4.0.0-beta.42",
+        "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/utils": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.5.0",
+        "typescript": "^6.0.2"
+    }
+}

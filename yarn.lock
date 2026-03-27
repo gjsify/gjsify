@@ -135,6 +135,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@dimforge/rapier3d-compat@npm:~0.12.0":
+  version: 0.12.0
+  resolution: "@dimforge/rapier3d-compat@npm:0.12.0"
+  checksum: 10/56cd538b59d534d2ed91de3eb7efd804af5defe146f65294e8ce81982a4bd6c27d61c1014c15a77bb5f5eff0de7a12fbc9b16bf895a2ec56ea5496fd80c78e26
+  languageName: node
+  linkType: hard
+
 "@esbuild/aix-ppc64@npm:0.27.4":
   version: 0.27.4
   resolution: "@esbuild/aix-ppc64@npm:0.27.4"
@@ -365,7 +372,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gdk-4.0@npm:4.0.0-4.0.0-beta.42":
+"@girs/gdk-4.0@npm:4.0.0-4.0.0-beta.42, @girs/gdk-4.0@npm:^4.0.0-4.0.0-beta.42":
   version: 4.0.0-4.0.0-beta.42
   resolution: "@girs/gdk-4.0@npm:4.0.0-4.0.0-beta.42"
   dependencies:
@@ -552,7 +559,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/pango-1.0@npm:1.57.0-4.0.0-beta.42":
+"@girs/pango-1.0@npm:1.57.0-4.0.0-beta.42, @girs/pango-1.0@npm:^1.57.0-4.0.0-beta.42":
   version: 1.57.0-4.0.0-beta.42
   resolution: "@girs/pango-1.0@npm:1.57.0-4.0.0-beta.42"
   dependencies:
@@ -568,7 +575,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/pangocairo-1.0@npm:1.0.0-4.0.0-beta.42":
+"@girs/pangocairo-1.0@npm:1.0.0-4.0.0-beta.42, @girs/pangocairo-1.0@npm:^1.0.0-4.0.0-beta.42":
   version: 1.0.0-4.0.0-beta.42
   resolution: "@girs/pangocairo-1.0@npm:1.0.0-4.0.0-beta.42"
   dependencies:
@@ -638,6 +645,24 @@ __metadata:
   resolution: "@gjsify/buffer@workspace:packages/node/buffer"
   dependencies:
     "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/canvas2d@workspace:packages/dom/canvas2d":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/canvas2d@workspace:packages/dom/canvas2d"
+  dependencies:
+    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-beta.42"
+    "@girs/gdkpixbuf-2.0": "npm:^2.0.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/pango-1.0": "npm:^1.57.0-4.0.0-beta.42"
+    "@girs/pangocairo-1.0": "npm:^1.0.0-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-elements": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
@@ -1160,6 +1185,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-gtk-three-extrude-shapes@workspace:examples/gtk/three-extrude-shapes":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-gtk-three-extrude-shapes@workspace:examples/gtk/three-extrude-shapes"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    "@types/three": "npm:^0.183.1"
+    http-server: "npm:^14.1.1"
+    three: "npm:0.183.2"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-gtk-three-geometry-cube@workspace:examples/gtk/three-geometry-cube":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-gtk-three-geometry-cube@workspace:examples/gtk/three-geometry-cube"
@@ -1170,6 +1212,41 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.5.0"
+    "@types/three": "npm:^0.183.1"
+    http-server: "npm:^14.1.1"
+    three: "npm:0.183.2"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-gtk-three-geometry-shapes@workspace:examples/gtk/three-geometry-shapes":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-gtk-three-geometry-shapes@workspace:examples/gtk/three-geometry-shapes"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    "@types/three": "npm:^0.183.1"
+    http-server: "npm:^14.1.1"
+    three: "npm:0.183.2"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-gtk-three-morphtargets@workspace:examples/gtk/three-morphtargets":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-gtk-three-morphtargets@workspace:examples/gtk/three-morphtargets"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    "@types/three": "npm:^0.183.1"
     http-server: "npm:^14.1.1"
     three: "npm:0.183.2"
     typescript: "npm:^6.0.2"
@@ -2348,6 +2425,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tweenjs/tween.js@npm:~23.1.3":
+  version: 23.1.3
+  resolution: "@tweenjs/tween.js@npm:23.1.3"
+  checksum: 10/10ecaf311c975162459bd016ef7eb1f3118a257050c4886de9737dee823fc829100a0887f3fc298f7a5577140eac054f9609b823eb0748ca7b653ec85ffba75e
+  languageName: node
+  linkType: hard
+
 "@types/accepts@npm:*":
   version: 1.3.7
   resolution: "@types/accepts@npm:1.3.7"
@@ -2588,6 +2672,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/stats.js@npm:*":
+  version: 0.17.4
+  resolution: "@types/stats.js@npm:0.17.4"
+  checksum: 10/6f1a20e09da0c0b371b3c095b2787a91a9397944679aa506a0886160faf0ad185b911a34b4ec325f146810c5be969f085e81264e2dbe39fd57eb8ff98347b5f4
+  languageName: node
+  linkType: hard
+
+"@types/three@npm:^0.183.1":
+  version: 0.183.1
+  resolution: "@types/three@npm:0.183.1"
+  dependencies:
+    "@dimforge/rapier3d-compat": "npm:~0.12.0"
+    "@tweenjs/tween.js": "npm:~23.1.3"
+    "@types/stats.js": "npm:*"
+    "@types/webxr": "npm:>=0.5.17"
+    "@webgpu/types": "npm:*"
+    fflate: "npm:~0.8.2"
+    meshoptimizer: "npm:~1.0.1"
+  checksum: 10/057ff3e22251448f6e68cf37752b3f669dd69ec1a67fedcfbbe40d6408df04a9a6b6c77bfb0e4ca433eb092ee95dad9b0a379c98617bae546b71d2cbe4b3a137
+  languageName: node
+  linkType: hard
+
 "@types/unist@npm:*":
   version: 3.0.3
   resolution: "@types/unist@npm:3.0.3"
@@ -2599,6 +2705,13 @@ __metadata:
   version: 8.3.4
   resolution: "@types/uuid@npm:8.3.4"
   checksum: 10/6f11f3ff70f30210edaa8071422d405e9c1d4e53abbe50fdce365150d3c698fe7bbff65c1e71ae080cbfb8fded860dbb5e174da96fdbbdfcaa3fb3daa474d20f
+  languageName: node
+  linkType: hard
+
+"@types/webxr@npm:>=0.5.17":
+  version: 0.5.24
+  resolution: "@types/webxr@npm:0.5.24"
+  checksum: 10/780afba558f73588922c2e71a6dcffd29d132179c5ddf290e9e5fe43a8a5eedd34dc7395209c19c06aa7a916cd2230a9d6f3f3afb2c7a9f6c820dc1f775f266a
   languageName: node
   linkType: hard
 
@@ -2624,6 +2737,13 @@ __metadata:
   dependencies:
     debug: "npm:^4.1.1"
   checksum: 10/9a60cfd4e4ef37f69558e7e8a0c4633f86aae969a4c1193435bfdf80eb9573d23850b65621631d07e2f9699a2d7351ae6d9caa46080595314bde03c2c63443dd
+  languageName: node
+  linkType: hard
+
+"@webgpu/types@npm:*":
+  version: 0.1.69
+  resolution: "@webgpu/types@npm:0.1.69"
+  checksum: 10/f6037e9586c20c0192cc9e82f0d4bcbeda4c22c7611dd1903a82ff4fd5b1564663511e9f4c9803641a028bc3eb43703da43b010d3ae2a859bff9ba858e44281d
   languageName: node
   linkType: hard
 
@@ -3472,6 +3592,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fflate@npm:~0.8.2":
+  version: 0.8.2
+  resolution: "fflate@npm:0.8.2"
+  checksum: 10/2bd26ba6d235d428de793c6a0cd1aaa96a06269ebd4e21b46c8fd1bd136abc631acf27e188d47c3936db090bf3e1ede11d15ce9eae9bffdc4bfe1b9dc66ca9cb
+  languageName: node
+  linkType: hard
+
 "file-type@npm:^21.3.4":
   version: 21.3.4
   resolution: "file-type@npm:21.3.4"
@@ -4211,6 +4338,13 @@ __metadata:
   version: 1.4.1
   resolution: "merge2@npm:1.4.1"
   checksum: 10/7268db63ed5169466540b6fb947aec313200bcf6d40c5ab722c22e242f651994619bcd85601602972d3c85bd2cc45a358a4c61937e9f11a061919a1da569b0c2
+  languageName: node
+  linkType: hard
+
+"meshoptimizer@npm:~1.0.1":
+  version: 1.0.1
+  resolution: "meshoptimizer@npm:1.0.1"
+  checksum: 10/e5ab737b0619f3180dff29ea1eec7273f4a97595d01ad65d43c27f4f9d1070df7e69854608c0b1ab7b3221e777b89d1244e370b00bebb6d5d984323176d66ac6
   languageName: node
   linkType: hard
 
