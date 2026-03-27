@@ -6,6 +6,7 @@ import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as OurHTMLCanvasElement } from './html-canvas-element.js';
 import type { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
+import { attachEventControllers } from '@gjsify/gtk-dom-event-bridge';
 
 // Public callback type uses globalThis.HTMLCanvasElement (lib.dom) so callers can pass the
 // canvas directly to WebGL demos that type their canvas parameter as HTMLCanvasElement.
@@ -46,6 +47,9 @@ export const CanvasWebGLWidget = GObject.registerClass(
             this.set_required_version(3, 2);
             this.set_has_depth_buffer(true);
             this.set_has_stencil_buffer(true);
+
+            // Bridge GTK events → DOM events on the canvas element
+            attachEventControllers(this, () => this._canvas);
 
             // Initialize canvas on first render
             const initId = this.connect('render', () => {

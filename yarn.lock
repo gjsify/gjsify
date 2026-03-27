@@ -702,6 +702,7 @@ __metadata:
     "@girs/pangocairo-1.0": "npm:^1.0.0-4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
+    "@gjsify/gtk-dom-event-bridge": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
@@ -1590,6 +1591,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/gtk-dom-event-bridge@workspace:^, @gjsify/gtk-dom-event-bridge@workspace:packages/dom/gtk-dom-event-bridge":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/gtk-dom-event-bridge@workspace:packages/dom/gtk-dom-event-bridge"
+  dependencies:
+    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-beta.42"
+    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/http2@workspace:packages/node/http2":
   version: 0.0.0-use.local
   resolution: "@gjsify/http2@workspace:packages/node/http2"
@@ -2026,6 +2042,7 @@ __metadata:
     "@girs/gwebgl-0.1": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
+    "@gjsify/gtk-dom-event-bridge": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/bit-twiddle": "npm:^1.0.3"

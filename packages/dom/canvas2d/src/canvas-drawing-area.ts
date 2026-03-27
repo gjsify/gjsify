@@ -6,6 +6,7 @@ import GObject from 'gi://GObject';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement } from '@gjsify/dom-elements';
+import { attachEventControllers } from '@gjsify/gtk-dom-event-bridge';
 import { CanvasRenderingContext2D } from './canvas-rendering-context-2d.js';
 
 type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
@@ -41,6 +42,9 @@ export const Canvas2DWidget = GObject.registerClass(
         constructor(params?: Partial<Gtk.DrawingArea.ConstructorProps>) {
             super(params);
             this.set_draw_func(this._onDraw.bind(this));
+
+            // Bridge GTK events → DOM events on the canvas element
+            attachEventControllers(this, () => this._canvas);
 
             this.connect('unrealize', () => {
                 if (this._idleTag !== null) {

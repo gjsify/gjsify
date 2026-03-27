@@ -91,9 +91,18 @@ export function start(canvas: HTMLCanvasElement): void {
     let w = canvas.width;
     let h = canvas.height;
 
-    // Simulated wind: gentle sine wave oscillation (0..1 range, centered at 0.5)
+    // Wind direction driven by mouse position (0..1 range, centered at 0.5)
+    // Falls back to gentle sine wave when no mouse input
+    let xpos = 0.5;
+    let hasMouse = false;
     let time = 0;
-    const getWind = () => 0.5 + 0.3 * Math.sin(time * 0.001);
+
+    canvas.addEventListener('mousemove', (e: any) => {
+        hasMouse = true;
+        xpos = w > 0 ? e.clientX / w : 0.5;
+    });
+
+    const getWind = () => hasMouse ? xpos : 0.5 + 0.3 * Math.sin(time * 0.001);
 
     // Create confetti particles
     const confetti: Confetti[] = [];
