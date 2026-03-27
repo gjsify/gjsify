@@ -3,10 +3,12 @@
     "module": "ESNext",
     "target": "ESNext",
     "outDir": "dist",
+    "rootDir": "src",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "skipLibCheck": true,
+    "strict": false
   },
   "files": ["src/index.ts"]
 }

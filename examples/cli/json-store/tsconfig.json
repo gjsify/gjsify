@@ -5,7 +5,9 @@
     "target": "ESNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
-    "skipLibCheck": true
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "strict": false
   },
   "files": ["src/index.ts"]
 }

@@ -9,7 +9,6 @@
     ],
     "declarationDir": "dist/types",
     "declaration": true,
-    "allowSyntheticDefaultImports": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "emitDeclarationOnly": true,

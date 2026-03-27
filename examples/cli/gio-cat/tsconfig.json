@@ -4,7 +4,9 @@
     "target": "ESNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
-    "skipLibCheck": true
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "strict": false
   },
   "include": ["src/**/*.ts"]
 }

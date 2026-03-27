@@ -4,7 +4,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "experimentalDecorators": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "noEmit": true,
     "noEmitOnError": false,
     "rootDir": ".",
