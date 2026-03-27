@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.4",
   "description": "",
-  "main": "dist/index.gjs.js",
+  "main": "dist/gjs.js",
   "type": "module",
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
@@ -15,10 +15,6 @@
     "build:assets": "cp -f src/index.html dist/index.html && cp -f src/webgl.css dist/webgl.css && cp -f src/cubetexture.png dist/cubetexture.png",
     "build:browser": "gjsify build src/browser.ts --app browser --outfile dist/browser.js"
   },
-  "engines": {
-    "node": "16",
-    "gjs": "1.72.x"
-  },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
@@ -26,7 +22,6 @@
     "@types/gl-matrix": "^3.2.0",
     "@types/node": "^25.5.0",
     "http-server": "^14.1.1",
-    "open-cli": "^9.0.0",
     "typescript": "^6.0.2"
   },
   "dependencies": {

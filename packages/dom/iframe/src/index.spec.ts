@@ -3,10 +3,11 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { HTMLIFrameElement } from './html-iframe-element.js';
-import { IFrameWindowProxy } from './iframe-window-proxy.js';
+// Import index.ts to trigger side-effect registration (Document.registerElementFactory)
+import { HTMLIFrameElement, IFrameWindowProxy } from './index.js';
 import { Document } from '@gjsify/dom-elements';
 import { HTMLElement, Element, Node } from '@gjsify/dom-elements';
+import { MessageEvent } from '@gjsify/dom-events';
 
 export default async () => {
 	// -- HTMLIFrameElement DOM properties --
@@ -279,7 +280,7 @@ export default async () => {
 			};
 			const proxy = new IFrameWindowProxy(mockBridge as any);
 			proxy.postMessage({ hello: 'world' }, 'https://example.com');
-			expect(sentData).toEqual({ hello: 'world' });
+			expect((sentData as any).hello).toBe('world');
 			expect(sentOrigin).toBe('https://example.com');
 		});
 

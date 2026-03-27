@@ -3,7 +3,10 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { Node, Element, HTMLElement, NodeType, NamespaceURI, Attr, NamedNodeMap } from '@gjsify/dom-elements';
+import {
+	Node, Element, HTMLElement, NodeType, NamespaceURI, Attr, NamedNodeMap,
+	CharacterData, Text, Comment, DocumentFragment, DOMTokenList,
+} from '@gjsify/dom-elements';
 import { Event } from '@gjsify/dom-events';
 
 export default async () => {
@@ -589,6 +592,306 @@ export default async () => {
 			expect(names.length).toBe(2);
 			expect(names[0]).toBe('a');
 			expect(names[1]).toBe('b');
+		});
+	});
+
+	// -- CharacterData --
+
+	await describe('CharacterData', async () => {
+		await it('should create with default empty data', async () => {
+			const cd = new CharacterData();
+			expect(cd.data).toBe('');
+			expect(cd.length).toBe(0);
+		});
+
+		await it('should create with initial data', async () => {
+			const cd = new CharacterData('hello');
+			expect(cd.data).toBe('hello');
+			expect(cd.length).toBe(5);
+		});
+
+		await it('should sync data, textContent, and nodeValue', async () => {
+			const cd = new CharacterData('abc');
+			expect(cd.textContent).toBe('abc');
+			expect(cd.nodeValue).toBe('abc');
+			cd.data = 'xyz';
+			expect(cd.textContent).toBe('xyz');
+			expect(cd.nodeValue).toBe('xyz');
+			cd.textContent = '123';
+			expect(cd.data).toBe('123');
+			cd.nodeValue = '456';
+			expect(cd.data).toBe('456');
+		});
+
+		await it('should appendData', async () => {
+			const cd = new CharacterData('hello');
+			cd.appendData(' world');
+			expect(cd.data).toBe('hello world');
+		});
+
+		await it('should insertData', async () => {
+			const cd = new CharacterData('helo');
+			cd.insertData(2, 'l');
+			expect(cd.data).toBe('hello');
+		});
+
+		await it('should deleteData', async () => {
+			const cd = new CharacterData('hello');
+			cd.deleteData(1, 3);
+			expect(cd.data).toBe('ho');
+		});
+
+		await it('should replaceData', async () => {
+			const cd = new CharacterData('hello');
+			cd.replaceData(1, 3, 'a');
+			expect(cd.data).toBe('hao');
+		});
+
+		await it('should substringData', async () => {
+			const cd = new CharacterData('hello');
+			expect(cd.substringData(1, 3)).toBe('ell');
+		});
+
+		await it('should cloneNode', async () => {
+			const cd = new CharacterData('hello');
+			const clone = cd.cloneNode();
+			expect(clone.data).toBe('hello');
+			expect(clone).not.toBe(cd);
+		});
+
+		await it('should have correct Symbol.toStringTag', async () => {
+			const cd = new CharacterData();
+			expect(Object.prototype.toString.call(cd)).toBe('[object CharacterData]');
+		});
+	});
+
+	// -- Text --
+
+	await describe('Text', async () => {
+		await it('should create with data', async () => {
+			const t = new Text('hello');
+			expect(t.data).toBe('hello');
+			expect(t.nodeType).toBe(Node.TEXT_NODE);
+			expect(t.nodeName).toBe('#text');
+		});
+
+		await it('should create with empty default', async () => {
+			const t = new Text();
+			expect(t.data).toBe('');
+		});
+
+		await it('should be instanceof CharacterData and Node', async () => {
+			const t = new Text('hi');
+			expect(t instanceof CharacterData).toBe(true);
+			expect(t instanceof Node).toBe(true);
+		});
+
+		await it('should splitText', async () => {
+			const parent = new Element();
+			const t = new Text('hello world');
+			parent.appendChild(t);
+			const newNode = t.splitText(5);
+			expect(t.data).toBe('hello');
+			expect(newNode.data).toBe(' world');
+			expect(parent.childNodes.length).toBe(2);
+			expect(parent.childNodes.item(1)).toBe(newNode);
+		});
+
+		await it('should splitText without parent', async () => {
+			const t = new Text('hello world');
+			const newNode = t.splitText(5);
+			expect(t.data).toBe('hello');
+			expect(newNode.data).toBe(' world');
+			expect(newNode.parentNode).toBeNull();
+		});
+
+		await it('should wholeText with adjacent siblings', async () => {
+			const parent = new Element();
+			const t1 = new Text('hello');
+			const t2 = new Text(' ');
+			const t3 = new Text('world');
+			parent.appendChild(t1);
+			parent.appendChild(t2);
+			parent.appendChild(t3);
+			expect(t2.wholeText).toBe('hello world');
+		});
+
+		await it('should wholeText with no siblings', async () => {
+			const t = new Text('alone');
+			expect(t.wholeText).toBe('alone');
+		});
+
+		await it('should cloneNode', async () => {
+			const t = new Text('hello');
+			const clone = t.cloneNode();
+			expect(clone.data).toBe('hello');
+			expect(clone instanceof Text).toBe(true);
+			expect(clone).not.toBe(t);
+		});
+
+		await it('should have correct Symbol.toStringTag', async () => {
+			const t = new Text();
+			expect(Object.prototype.toString.call(t)).toBe('[object Text]');
+		});
+	});
+
+	// -- Comment --
+
+	await describe('Comment', async () => {
+		await it('should create with data', async () => {
+			const c = new Comment('a comment');
+			expect(c.data).toBe('a comment');
+			expect(c.nodeType).toBe(Node.COMMENT_NODE);
+			expect(c.nodeName).toBe('#comment');
+		});
+
+		await it('should be instanceof CharacterData and Node', async () => {
+			const c = new Comment();
+			expect(c instanceof CharacterData).toBe(true);
+			expect(c instanceof Node).toBe(true);
+		});
+
+		await it('should cloneNode', async () => {
+			const c = new Comment('test');
+			const clone = c.cloneNode();
+			expect(clone.data).toBe('test');
+			expect(clone instanceof Comment).toBe(true);
+			expect(clone).not.toBe(c);
+		});
+
+		await it('should have correct Symbol.toStringTag', async () => {
+			const c = new Comment();
+			expect(Object.prototype.toString.call(c)).toBe('[object Comment]');
+		});
+	});
+
+	// -- DocumentFragment --
+
+	await describe('DocumentFragment', async () => {
+		await it('should have correct nodeType and nodeName', async () => {
+			const frag = new DocumentFragment();
+			expect(frag.nodeType).toBe(Node.DOCUMENT_FRAGMENT_NODE);
+			expect(frag.nodeName).toBe('#document-fragment');
+		});
+
+		await it('should appendChild and track children', async () => {
+			const frag = new DocumentFragment();
+			const el = new Element();
+			frag.appendChild(el);
+			expect(frag.childNodes.length).toBe(1);
+			expect(frag.children.length).toBe(1);
+			expect(frag.childElementCount).toBe(1);
+			expect(frag.firstElementChild).toBe(el);
+			expect(frag.lastElementChild).toBe(el);
+		});
+
+		await it('should track textContent', async () => {
+			const frag = new DocumentFragment();
+			const t1 = new Text('hello');
+			const t2 = new Text(' world');
+			frag.appendChild(t1);
+			frag.appendChild(t2);
+			expect(frag.textContent).toBe('hello world');
+		});
+
+		await it('should set textContent replacing children', async () => {
+			const frag = new DocumentFragment();
+			frag.appendChild(new Element());
+			frag.appendChild(new Text('old'));
+			frag.textContent = 'new text';
+			expect(frag.childNodes.length).toBe(1);
+			expect(frag.textContent).toBe('new text');
+		});
+
+		await it('should be instanceof Node', async () => {
+			const frag = new DocumentFragment();
+			expect(frag instanceof Node).toBe(true);
+		});
+	});
+
+	// -- DOMTokenList --
+
+	await describe('DOMTokenList', async () => {
+		await it('should add tokens', async () => {
+			const el = new Element();
+			const classList = new DOMTokenList(el, 'class');
+			classList.add('foo', 'bar');
+			expect(classList.length).toBe(2);
+			expect(classList.contains('foo')).toBe(true);
+			expect(classList.contains('bar')).toBe(true);
+			expect(el.getAttribute('class')).toBe('foo bar');
+		});
+
+		await it('should remove tokens', async () => {
+			const el = new Element();
+			el.setAttribute('class', 'foo bar baz');
+			const classList = new DOMTokenList(el, 'class');
+			classList.remove('bar');
+			expect(classList.length).toBe(2);
+			expect(classList.contains('bar')).toBe(false);
+			expect(classList.contains('foo')).toBe(true);
+			expect(classList.contains('baz')).toBe(true);
+		});
+
+		await it('should toggle tokens', async () => {
+			const el = new Element();
+			const classList = new DOMTokenList(el, 'class');
+			const added = classList.toggle('active');
+			expect(added).toBe(true);
+			expect(classList.contains('active')).toBe(true);
+			const removed = classList.toggle('active');
+			expect(removed).toBe(false);
+			expect(classList.contains('active')).toBe(false);
+		});
+
+		await it('should toggle with force', async () => {
+			const el = new Element();
+			const classList = new DOMTokenList(el, 'class');
+			classList.toggle('active', true);
+			expect(classList.contains('active')).toBe(true);
+			classList.toggle('active', true);
+			expect(classList.contains('active')).toBe(true);
+			classList.toggle('active', false);
+			expect(classList.contains('active')).toBe(false);
+		});
+
+		await it('should item() by index', async () => {
+			const el = new Element();
+			el.setAttribute('class', 'a b c');
+			const classList = new DOMTokenList(el, 'class');
+			expect(classList.item(0)).toBe('a');
+			expect(classList.item(1)).toBe('b');
+			expect(classList.item(2)).toBe('c');
+			expect(classList.item(3)).toBeNull();
+		});
+
+		await it('should return correct value', async () => {
+			const el = new Element();
+			el.setAttribute('class', 'foo bar');
+			const classList = new DOMTokenList(el, 'class');
+			expect(classList.value).toBe('foo bar');
+		});
+
+		await it('should set value', async () => {
+			const el = new Element();
+			const classList = new DOMTokenList(el, 'class');
+			classList.value = 'x y z';
+			expect(classList.length).toBe(3);
+			expect(el.getAttribute('class')).toBe('x y z');
+		});
+
+		await it('should report empty when no attribute', async () => {
+			const el = new Element();
+			const classList = new DOMTokenList(el, 'class');
+			expect(classList.length).toBe(0);
+			expect(classList.value).toBe('');
+		});
+
+		await it('should toString', async () => {
+			const el = new Element();
+			el.setAttribute('class', 'a b');
+			const classList = new DOMTokenList(el, 'class');
+			expect(classList.toString()).toBe('a b');
 		});
 	});
 };
