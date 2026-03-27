@@ -214,6 +214,21 @@ esbuild auto-selects `require` vs `import` condition based on the consumer's syn
 
 Vala→Meson→shared lib+GIR typelib→`gi://` import. Example: `packages/dom/webgl/`. Prefer TS; Vala only for C-level access.
 
+### Prebuild distribution convention
+
+Packages with native libs ship prebuilt binaries in `prebuilds/linux-<arch>/` (`.so` + `.typelib`). Declare in `package.json`:
+```json
+"files": ["lib", "prebuilds"],
+"gjsify": { "prebuilds": "prebuilds" }
+```
+The `gjsify` CLI detects this field and auto-sets `LD_LIBRARY_PATH` / `GI_TYPELIB_PATH`:
+- `gjsify run dist/gjs.js` — spawn gjs with correct env vars
+- `gjsify info [file]` — print required env vars for direct `gjs` use; `--export` for eval
+
+Prebuilds are built by `.github/workflows/prebuilds.yml` (matrix: x86_64 + aarch64, Fedora containers) and committed to the repo. Local rebuild: `yarn build:prebuilds` in the package.
+
+**gi:// import ordering constraint:** `GIRepository.prepend_search_path()` must be called before `gi://Foo` is resolved. Static `gi://` imports are resolved in the ESM Linking phase (before any code runs) — an inject shim cannot set paths in time. Use `gjsify run` (sets env vars before spawning gjs) or a two-file loader pattern (tiny loader that calls prepend_search_path, then `await import('./bundle.js')`).
+
 ## Testing
 
 ### Framework: `@gjsify/unit`
