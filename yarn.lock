@@ -1553,7 +1553,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/perf_hooks@workspace:packages/node/perf_hooks":
+"@gjsify/perf_hooks@workspace:^, @gjsify/perf_hooks@workspace:packages/node/perf_hooks":
   version: 0.0.0-use.local
   resolution: "@gjsify/perf_hooks@workspace:packages/node/perf_hooks"
   dependencies:
@@ -1793,12 +1793,16 @@ __metadata:
   resolution: "@gjsify/web-globals@workspace:packages/web/web-globals"
   dependencies:
     "@gjsify/abort-controller": "workspace:^"
+    "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/compression-streams": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/dom-exception": "workspace:^"
     "@gjsify/eventsource": "workspace:^"
+    "@gjsify/formdata": "workspace:^"
+    "@gjsify/perf_hooks": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/url": "workspace:^"
     "@gjsify/web-streams": "workspace:^"
     "@gjsify/webcrypto": "workspace:^"
     "@types/node": "npm:^25.5.0"

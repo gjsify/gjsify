@@ -29,10 +29,14 @@
     ],
     "dependencies": {
         "@gjsify/abort-controller": "workspace:^",
+        "@gjsify/buffer": "workspace:^",
         "@gjsify/compression-streams": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/dom-exception": "workspace:^",
         "@gjsify/eventsource": "workspace:^",
+        "@gjsify/formdata": "workspace:^",
+        "@gjsify/perf_hooks": "workspace:^",
+        "@gjsify/url": "workspace:^",
         "@gjsify/web-streams": "workspace:^",
         "@gjsify/webcrypto": "workspace:^"
     },

@@ -193,5 +193,84 @@ export default async () => {
         expect(EventSource.CLOSED).toBe(2);
       });
     });
+
+    // ==================== URL / URLSearchParams ====================
+    await describe('URL', async () => {
+      await it('URL should be available as global', async () => {
+        expect(typeof globalThis.URL).toBe('function');
+      });
+
+      await it('should parse URLs correctly', async () => {
+        const u = new URL('https://example.com:8080/path?q=1#hash');
+        expect(u.hostname).toBe('example.com');
+        expect(u.port).toBe('8080');
+        expect(u.pathname).toBe('/path');
+        expect(u.search).toBe('?q=1');
+        expect(u.hash).toBe('#hash');
+      });
+
+      await it('URLSearchParams should be available as global', async () => {
+        expect(typeof globalThis.URLSearchParams).toBe('function');
+      });
+
+      await it('URLSearchParams should work', async () => {
+        const params = new URLSearchParams('a=1&b=2');
+        expect(params.get('a')).toBe('1');
+        expect(params.get('b')).toBe('2');
+      });
+    });
+
+    // ==================== Blob / File ====================
+    await describe('Blob', async () => {
+      await it('Blob should be available as global', async () => {
+        expect(typeof globalThis.Blob).toBe('function');
+      });
+
+      await it('should create Blob with correct size', async () => {
+        const blob = new Blob(['hello']);
+        expect(blob.size).toBe(5);
+        expect(blob.type).toBe('');
+      });
+
+      await it('should support type option', async () => {
+        const blob = new Blob(['{}'], { type: 'application/json' });
+        expect(blob.type).toBe('application/json');
+      });
+
+      await it('File should be available as global', async () => {
+        expect(typeof (globalThis as any).File).toBe('function');
+      });
+    });
+
+    // ==================== FormData ====================
+    await describe('FormData', async () => {
+      await it('FormData should be available as global', async () => {
+        expect(typeof globalThis.FormData).toBe('function');
+      });
+
+      await it('should support append and get', async () => {
+        const fd = new FormData();
+        fd.append('key', 'value');
+        expect(fd.get('key')).toBe('value');
+      });
+    });
+
+    // ==================== Performance ====================
+    await describe('Performance', async () => {
+      await it('performance should be available as global', async () => {
+        expect(globalThis.performance).toBeDefined();
+      });
+
+      await it('performance.now() should return a number', async () => {
+        const t = performance.now();
+        expect(typeof t).toBe('number');
+        expect(t).toBeGreaterThan(0);
+      });
+
+      await it('performance.timeOrigin should be a number', async () => {
+        expect(typeof performance.timeOrigin).toBe('number');
+        expect(performance.timeOrigin).toBeGreaterThan(0);
+      });
+    });
   });
 };
