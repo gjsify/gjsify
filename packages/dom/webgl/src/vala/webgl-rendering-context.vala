@@ -127,7 +127,7 @@ namespace Gwebgl {
             glBufferSubData(target, offset, size, (GL.GLvoid[]) bytes.get_data());
         }
 
-        public void compressedTexImage2D(int target, int level, GLenum internalFormat, int width, int height, int border, Variant variant) {
+        public void compressedTexImage2D(int target, int level, int internalFormat, int width, int height, int border, Variant variant) {
             if (!this.isVariantOfByteArray(variant)) {
                 printerr("[compressedTexImage2D] variant type must be 'ay'!");
                 return;
