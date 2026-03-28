@@ -177,6 +177,31 @@ export default async () => {
             expect(a).toBeGreaterThan(120);
             expect(a).toBeLessThan(140);
         });
+
+        await it('should not affect the current path', async () => {
+            // Regression: fillRect added a rectangle to the existing path.
+            // Since fill() uses fillPreserve(), the preserved path was
+            // repainted with fillRect's color.
+            const { ctx } = createCanvas(40, 40);
+            // Draw a red circle
+            ctx.beginPath();
+            ctx.arc(10, 10, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff0000';
+            ctx.fill();
+            // fillRect with green in a different area — must not repaint the circle
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(25, 25, 10, 10);
+            // Circle should still be red, not green
+            const [r, g, _b, a] = getPixel(ctx, 10, 10);
+            expect(r).toBe(255);
+            expect(g).toBe(0);
+            expect(a).toBe(255);
+            // Rectangle should be green
+            const [r2, g2, _b2, a2] = getPixel(ctx, 30, 30);
+            expect(r2).toBe(0);
+            expect(g2).toBe(255);
+            expect(a2).toBe(255);
+        });
     });
 
     // ---- clearRect ----
@@ -194,6 +219,26 @@ export default async () => {
             const [r2, _g2, _b2, a2] = getPixel(ctx, 0, 0);
             expect(r2).toBe(255);
             expect(a2).toBe(255);
+        });
+
+        await it('should not affect the current path', async () => {
+            // Regression: clearRect added a rectangle to the current path.
+            // Per spec, clearRect must not affect the current path.
+            const { ctx } = createCanvas(40, 40);
+            ctx.fillStyle = '#ff0000';
+            ctx.beginPath();
+            ctx.arc(20, 20, 10, 0, Math.PI * 2);
+            ctx.fill();
+            // clearRect a different region — path should survive
+            ctx.clearRect(0, 0, 5, 5);
+            // Fill again with the preserved path — should still be a circle
+            ctx.fillStyle = '#0000ff';
+            ctx.fill();
+            // Center of circle should now be blue
+            const [r, _g, b, a] = getPixel(ctx, 20, 20);
+            expect(r).toBe(0);
+            expect(b).toBe(255);
+            expect(a).toBe(255);
         });
     });
 
@@ -246,6 +291,19 @@ export default async () => {
             // Corner should be empty
             const [_r2, _g2, _b2, a2] = getPixel(ctx, 0, 0);
             expect(a2).toBe(0);
+        });
+
+        await it('should fill a full circle with counterclockwise=true', async () => {
+            // Regression: Cairo arcNegative(x,y,r,0,2π) normalizes endAngle to
+            // startAngle, producing a zero-length arc. Browsers draw a full circle.
+            const { ctx } = createCanvas(20, 20);
+            ctx.fillStyle = '#ff0000';
+            ctx.beginPath();
+            ctx.arc(10, 10, 8, 0, Math.PI * 2, true);
+            ctx.fill();
+            const [r, _g, _b, a] = getPixel(ctx, 10, 10);
+            expect(r).toBe(255);
+            expect(a).toBe(255);
         });
 
         await it('should fill a rectangle path', async () => {

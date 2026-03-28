@@ -431,6 +431,14 @@ export class CanvasRenderingContext2D {
 
     arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise = false): void {
         this._ensureSurface();
+        // Browsers draw a full circle when |endAngle - startAngle| >= 2π,
+        // regardless of direction. Cairo's arcNegative would produce a
+        // zero-length arc for arcNegative(x,y,r,0,2π) because it normalizes
+        // endAngle to be < startAngle, collapsing the arc to nothing.
+        if (Math.abs(endAngle - startAngle) >= 2 * Math.PI) {
+            this._ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            return;
+        }
         if (counterclockwise) {
             this._ctx.arcNegative(x, y, radius, startAngle, endAngle);
         } else {
@@ -516,39 +524,57 @@ export class CanvasRenderingContext2D {
     fillRect(x: number, y: number, w: number, h: number): void {
         this._ensureSurface();
         this._applyCompositing();
+        // Per spec: fillRect must not affect the current path.
+        // Save current path, draw the rect in an isolated path, then restore.
+        const savedPath = this._ctx.copyPath();
         if (this._hasShadow()) {
             this._renderShadow(() => {
+                this._ctx.newPath();
                 this._ctx.rectangle(x, y, w, h);
                 this._ctx.fill();
             });
         }
         this._applyFillStyle();
+        this._ctx.newPath();
         this._ctx.rectangle(x, y, w, h);
         this._ctx.fill();
+        this._ctx.newPath();
+        this._ctx.appendPath(savedPath);
     }
 
     strokeRect(x: number, y: number, w: number, h: number): void {
         this._ensureSurface();
         this._applyCompositing();
+        // Per spec: strokeRect must not affect the current path.
+        const savedPath = this._ctx.copyPath();
         if (this._hasShadow()) {
             this._renderShadow(() => {
+                this._ctx.newPath();
                 this._ctx.rectangle(x, y, w, h);
                 this._ctx.stroke();
             });
         }
         this._applyStrokeStyle();
         this._applyLineStyle();
+        this._ctx.newPath();
         this._ctx.rectangle(x, y, w, h);
         this._ctx.stroke();
+        this._ctx.newPath();
+        this._ctx.appendPath(savedPath);
     }
 
     clearRect(x: number, y: number, w: number, h: number): void {
         this._ensureSurface();
+        // Per spec: clearRect must not affect the current path.
+        const savedPath = this._ctx.copyPath();
         this._ctx.save();
         this._ctx.setOperator(Cairo.Operator.CLEAR);
+        this._ctx.newPath();
         this._ctx.rectangle(x, y, w, h);
         this._ctx.fill();
         this._ctx.restore();
+        this._ctx.newPath();
+        this._ctx.appendPath(savedPath);
     }
 
     // ---- Clipping ----

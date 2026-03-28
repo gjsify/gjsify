@@ -39,6 +39,10 @@ export const Canvas2DWidget = GObject.registerClass(
         _readyCallbacks: Canvas2DReadyCallback[] = [];
         _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
+        // Time origin in microseconds (GLib monotonic clock).
+        // Both requestAnimationFrame timestamps and performance.now() are
+        // relative to this origin, matching the browser DOMHighResTimeStamp spec.
+        _timeOrigin: number = GLib.get_monotonic_time();
 
         constructor(params?: Partial<Gtk.DrawingArea.ConstructorProps>) {
             super(params);
@@ -123,8 +127,8 @@ export const Canvas2DWidget = GObject.registerClass(
             if (this._tickCallbackId === null) {
                 this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, frameClock: Gdk.FrameClock) => {
                     this._tickCallbackId = null;
-                    // frame_time is in microseconds, browser rAF expects milliseconds
-                    const time = frameClock.get_frame_time() / 1000;
+                    // DOMHighResTimeStamp: ms since time origin, matching performance.now()
+                    const time = (frameClock.get_frame_time() - this._timeOrigin) / 1000;
                     this._frameCallback?.(time);
                     this.queue_draw();
                     return GLib.SOURCE_REMOVE;
@@ -144,13 +148,14 @@ export const Canvas2DWidget = GObject.registerClass(
         installGlobals(): void {
             (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
                 this.requestAnimationFrame(cb);
-            if (!globalThis.performance) {
-                const startTime = GLib.get_monotonic_time();
-                (globalThis as any).performance = {
-                    now: () => (GLib.get_monotonic_time() - startTime) / 1000,
-                    timeOrigin: Date.now(),
-                };
-            }
+            // Install performance.now() on the same time origin as rAF timestamps.
+            // Always override to ensure consistency — native GJS performance.now()
+            // may use a different time origin than the frame clock.
+            const timeOrigin = this._timeOrigin;
+            (globalThis as any).performance = {
+                now: () => (GLib.get_monotonic_time() - timeOrigin) / 1000,
+                timeOrigin: Date.now(),
+            };
         }
     }
 );
