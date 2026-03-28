@@ -30,10 +30,10 @@
         "dom"
     ],
     "dependencies": {
-        "@girs/gjs": "^4.0.0-beta.42",
-        "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.42",
-        "@girs/javascriptcore-6.0": "2.51.93-4.0.0-beta.42",
-        "@girs/webkit-6.0": "2.51.93-4.0.0-beta.42",
+        "@girs/gjs": "^4.0.0-beta.43",
+        "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
+        "@girs/javascriptcore-6.0": "2.51.93-4.0.0-beta.43",
+        "@girs/webkit-6.0": "2.51.93-4.0.0-beta.43",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^"
     },

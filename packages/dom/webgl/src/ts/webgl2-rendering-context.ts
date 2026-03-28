@@ -28,8 +28,8 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
     _vertexArrayObjects: Record<number, WebGLVertexArrayObject> = {}
     _syncs: Record<number, WebGLSync> = {}
 
-    constructor(canvas: HTMLCanvasElement | null, options: Gwebgl.WebGL2RenderingContext.ConstructorProperties = {}) {
-        super(canvas, options as Gwebgl.WebGLRenderingContext.ConstructorProperties);
+    constructor(canvas: HTMLCanvasElement | null, options: Partial<Gwebgl.WebGL2RenderingContext.ConstructorProps> = {}) {
+        super(canvas, options as Partial<Gwebgl.WebGLRenderingContext.ConstructorProps>);
         this._native2 = new Gwebgl.WebGL2RenderingContext({});
     }
 

@@ -40,8 +40,8 @@
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/gio-2.0": "^2.88.0-4.0.0-beta.42",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-beta.42",
+        "@girs/gio-2.0": "^2.88.0-4.0.0-beta.43",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-beta.43",
         "@gjsify/net": "workspace:^",
         "@gjsify/utils": "workspace:^"
     }

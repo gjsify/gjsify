@@ -258,7 +258,7 @@ export function validCubeTarget(gl: WebGLRenderingContext, target: GLenum) {
         target === gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
 }
 
-export function flag<T = Gwebgl.WebGLRenderingContext.ConstructorProperties> (options: T, name: keyof T, dflt: boolean) {
+export function flag<T = Partial<Gwebgl.WebGLRenderingContext.ConstructorProps>> (options: T, name: keyof T, dflt: boolean) {
     if (!options || !(typeof options === 'object') || !(name in options)) {
       return dflt
     }
