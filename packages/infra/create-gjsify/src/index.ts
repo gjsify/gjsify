@@ -4,7 +4,7 @@ import { hideBin } from 'yargs/helpers'
 import { createProject } from './create.js'
 
 void yargs(hideBin(process.argv))
-    .scriptName('create-gjsify')
+    .scriptName('@gjsify/create-app')
     .usage('$0 [project-name]', 'Create a new Gjsify project', (yargs) => {
         return yargs.positional('project-name', {
             describe: 'Name of the project directory to create',

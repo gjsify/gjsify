@@ -1,4 +1,4 @@
-# create-gjsify
+# @gjsify/create-app
 
 Scaffolding tool for creating new Gjsify projects.
 
@@ -7,7 +7,7 @@ Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and W
 ## Usage
 
 ```bash
-npm create gjsify my-app
+npm create @gjsify/app my-app
 ```
 
 ## License

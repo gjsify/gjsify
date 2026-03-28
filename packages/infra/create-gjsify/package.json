@@ -1,5 +1,5 @@
 {
-    "name": "create-gjsify",
+    "name": "@gjsify/create-app",
     "version": "0.1.0",
     "description": "Create a new Gjsify project",
     "type": "module",
