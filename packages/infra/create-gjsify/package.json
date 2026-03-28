@@ -1,0 +1,33 @@
+{
+    "name": "create-gjsify",
+    "version": "0.1.0",
+    "description": "Create a new Gjsify project",
+    "type": "module",
+    "main": "lib/index.js",
+    "bin": "./lib/index.js",
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "tsc && chmod +x ./lib/index.js",
+        "test": "echo 'nothing to do'"
+    },
+    "keywords": [
+        "gjs",
+        "gjsify",
+        "create",
+        "scaffold",
+        "gnome"
+    ],
+    "files": [
+        "lib",
+        "templates"
+    ],
+    "dependencies": {
+        "yargs": "^18.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^25.5.0",
+        "@types/yargs": "^17.0.35",
+        "typescript": "^6.0.2"
+    }
+}

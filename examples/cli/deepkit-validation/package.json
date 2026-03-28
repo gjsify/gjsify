@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-cli-deepkit-validation",
   "private": true,
-  "version": "0.0.4",
   "description": "Demonstrates Deepkit runtime type validation with constraints on GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

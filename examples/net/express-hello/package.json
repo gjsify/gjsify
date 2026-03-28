@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-net-express-hello",
   "private": true,
-  "version": "0.0.4",
   "description": "Simple Express.js HTTP server example for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

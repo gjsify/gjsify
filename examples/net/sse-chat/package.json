@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-net-sse-chat",
   "private": true,
-  "version": "0.0.4",
   "description": "Real-time chat using Server-Sent Events for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

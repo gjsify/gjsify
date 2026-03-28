@@ -723,7 +723,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/cli@workspace:packages/infra/cli"
   dependencies:
-    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
     cosmiconfig: "npm:^9.0.1"
@@ -927,6 +926,7 @@ __metadata:
     "@gjsify/esbuild-plugin-alias": "workspace:^"
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
+    "@gjsify/resolve-npm": "workspace:^"
     esbuild: "npm:^0.27.4"
     fast-glob: "npm:^3.3.3"
     typescript: "npm:^6.0.2"
@@ -1575,7 +1575,6 @@ __metadata:
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@girs/soup-3.0": "npm:^3.6.6-4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
-    "@gjsify/dom-events": "workspace:^"
     "@gjsify/formdata": "workspace:^"
     "@gjsify/http": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -1601,6 +1600,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/fs@workspace:packages/node/fs"
   dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
@@ -1723,11 +1723,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/node-globals@workspace:packages/node/globals"
   dependencies:
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@gjsify/abort-controller": "workspace:^"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/fetch": "workspace:^"
     "@gjsify/process": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/url": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
@@ -1738,7 +1741,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/os@workspace:packages/node/os"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-beta.42"
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
@@ -1786,9 +1790,7 @@ __metadata:
   resolution: "@gjsify/querystring@workspace:packages/node/querystring"
   dependencies:
     "@gjsify/cli": "workspace:^"
-    "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@types/inherits": "npm:^2.0.0"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1806,7 +1808,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/resolve-npm@workspace:packages/infra/resolve-npm":
+"@gjsify/resolve-npm@workspace:^, @gjsify/resolve-npm@workspace:packages/infra/resolve-npm":
   version: 0.0.0-use.local
   resolution: "@gjsify/resolve-npm@workspace:packages/infra/resolve-npm"
   languageName: unknown
@@ -1827,11 +1829,10 @@ __metadata:
   resolution: "@gjsify/sqlite@workspace:packages/node/sqlite"
   dependencies:
     "@girs/gda-6.0": "npm:^6.0.0-4.0.0-beta.42"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1908,6 +1909,7 @@ __metadata:
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
     "@gjsify/stream": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1940,6 +1942,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/url@workspace:packages/node/url"
   dependencies:
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
@@ -2044,9 +2047,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/webgl@workspace:packages/dom/webgl"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.42"
     "@girs/gjs": "npm:^4.0.0-beta.42"
-    "@girs/gtk-4.0": "npm:4.22.1-4.0.0-beta.42"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.42"
     "@girs/gwebgl-0.1": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
@@ -3257,6 +3259,19 @@ __metadata:
   checksum: 10/89fcac84d062f0710091bb2d6a6175bcde22f5448877db9c43429694408191d3d4e215193b3ac4d54f7f89ef188d55cd481c7a2295b0dc572e65b528bf6fec01
   languageName: node
   linkType: hard
+
+"create-gjsify@workspace:packages/infra/create-gjsify":
+  version: 0.0.0-use.local
+  resolution: "create-gjsify@workspace:packages/infra/create-gjsify"
+  dependencies:
+    "@types/node": "npm:^25.5.0"
+    "@types/yargs": "npm:^17.0.35"
+    typescript: "npm:^6.0.2"
+    yargs: "npm:^18.0.0"
+  bin:
+    create-gjsify: ./lib/index.js
+  languageName: unknown
+  linkType: soft
 
 "debug@npm:^3.2.7":
   version: 3.2.7

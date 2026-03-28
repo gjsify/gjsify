@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-gtk-http-dashboard",
   "private": true,
-  "version": "0.0.4",
   "description": "GTK4 dashboard with embedded HTTP server (GJS only)",
   "main": "dist/index.gjs.js",
   "type": "module",

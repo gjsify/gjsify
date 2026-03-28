@@ -1,6 +1,26 @@
-# @gjsify/web-events
+# @gjsify/web-globals
 
-## Inspirations and credits
-- https://deno.land/manual@v1.25.0/runtime/program_lifecycle
-- https://github.com/jsdom/jsdom/tree/master/lib/jsdom/living/events
-- https://github.com/capricorn86/happy-dom/tree/master/packages/happy-dom/src/event
+Re-exports Web API globals from dom-events and abort-controller for GJS.
+
+Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
+
+## Installation
+
+```bash
+npm install @gjsify/web-globals
+# or
+yarn add @gjsify/web-globals
+```
+
+## Usage
+
+```typescript
+import '@gjsify/web-globals';
+
+// Web API globals like Event, CustomEvent, EventTarget,
+// AbortController, and AbortSignal are now available.
+```
+
+## License
+
+MIT

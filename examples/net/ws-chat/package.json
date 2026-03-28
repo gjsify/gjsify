@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-net-ws-chat",
   "private": true,
-  "version": "0.0.4",
   "description": "WebSocket chat using Soup.Server for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

@@ -1,19 +1,31 @@
 # @gjsify/webgl
 
-WebGL module for GJS (GNOME JavaScript). Implements the WebGL 1.0 API via a Vala-compiled native library (`libgwebgl`) that wraps OpenGL ES 2.0.
+GJS implementation of WebGL 1.0/2.0 using a custom Vala extension (gwebgl). Provides CanvasWebGLWidget extending Gtk.GLArea.
+
+Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
+
+## Installation
+
+```bash
+npm install @gjsify/webgl
+# or
+yarn add @gjsify/webgl
+```
 
 ## Usage
 
-```ts
-import { GjsifyHTMLCanvasElement } from '@gjsify/webgl';
-import Gtk from 'gi://Gtk?version=4.0';
-import GLib from 'gi://GLib';
+```typescript
+import { CanvasWebGLWidget } from '@gjsify/webgl';
 
-Gtk.init();
+const widget = new CanvasWebGLWidget();
+widget.installGlobals();
 
-const canvas = new GjsifyHTMLCanvasElement(800, 600);
-const gl = canvas.getContext('webgl');
-// ... use WebGL API as in the browser
+widget.onReady((canvas, gl) => {
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+});
+
+window.set_child(widget);
 ```
 
 ## Running GJS apps that use this package
@@ -68,3 +80,7 @@ to the repository. They are included in the npm package via the `files` field.
 - [realh/gwebgl](https://github.com/realh/gwebgl)
 - [stackgl/headless-gl](https://github.com/stackgl/headless-gl)
 - [Maia-Everett/valagl](https://github.com/Maia-Everett/valagl)
+
+## License
+
+MIT

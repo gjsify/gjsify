@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-cli-deepkit-workflow",
   "private": true,
-  "version": "0.0.4",
   "description": "Demonstrates Deepkit workflow/state machine on GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
