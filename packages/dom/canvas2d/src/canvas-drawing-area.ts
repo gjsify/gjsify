@@ -18,7 +18,7 @@ type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasR
  * - Blits the Canvas 2D Cairo.ImageSurface onto the DrawingArea each frame
  * - Fires `onReady()` callbacks with (canvas, ctx) once the context is available
  * - Provides `requestAnimationFrame()` backed by GTK frame clock (vsync)
- * - `installGlobals()` sets `globalThis.requestAnimationFrame` to use this widget
+ * - `installGlobals()` sets `globalThis.requestAnimationFrame` and `globalThis.performance`
  *
  * Usage:
  * ```ts
@@ -130,17 +130,27 @@ export const Canvas2DWidget = GObject.registerClass(
                     return GLib.SOURCE_REMOVE;
                 });
             }
+            // Ensure GTK schedules a new frame so the tick callback fires.
+            // Without this, requestAnimationFrame called during the paint phase
+            // (e.g. from onReady) may not trigger the frame clock to tick again.
+            this.queue_draw();
             return 0;
         }
 
         /**
-         * Sets `globalThis.requestAnimationFrame` to use this widget.
-         * Call this once after creating the widget and before running Canvas 2D code
-         * that relies on the browser `requestAnimationFrame` global.
+         * Sets browser globals (`requestAnimationFrame`, `performance`) so that
+         * browser-targeted code works unchanged on GJS.
          */
         installGlobals(): void {
             (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
                 this.requestAnimationFrame(cb);
+            if (!globalThis.performance) {
+                const startTime = GLib.get_monotonic_time();
+                (globalThis as any).performance = {
+                    now: () => (GLib.get_monotonic_time() - startTime) / 1000,
+                    timeOrigin: Date.now(),
+                };
+            }
         }
     }
 );

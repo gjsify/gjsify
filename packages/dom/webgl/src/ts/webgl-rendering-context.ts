@@ -569,6 +569,7 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
         }
 
         for (let i = 0; i < numAttribs; ++i) {
+            if (program._attributes[i] < 0) continue
             this._native.bindAttribLocation(
                 program._ | 0,
                 program._attributes[i],
@@ -1694,7 +1695,7 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
     }
 
     uniform1fv(location: WebGLUniformLocation | null, value: Float32List | Int32List): void {
-        if (!location || this._checkUniformValueValid(location, value, 'uniform1fv', 1, 'f')) return
+        if (!location || !this._checkUniformValueValid(location, value, 'uniform1fv', 1, 'f')) return
         if (location?._array) {
             const locs = location._array
             for (let i = 0; i < locs.length && i < value.length; ++i) {
