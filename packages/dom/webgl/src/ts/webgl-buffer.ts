@@ -1,12 +1,12 @@
 import { Linkable } from './linkable.js'
 
-import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
+import type { WebGLRenderingContext } from './webgl-rendering-context.js';
 
-export class GjsifyWebGLBuffer extends Linkable implements WebGLBuffer {
-    _ctx: GjsifyWebGLRenderingContext;
+export class WebGLBuffer extends Linkable implements WebGLBuffer {
+    _ctx: WebGLRenderingContext;
     _size = 0
     _elements = new Uint8Array(0)
-    constructor(_: WebGLBuffer & number, ctx: GjsifyWebGLRenderingContext) {
+    constructor(_: number, ctx: WebGLRenderingContext) {
         super(_)
         this._ctx = ctx
     }
@@ -17,5 +17,3 @@ export class GjsifyWebGLBuffer extends Linkable implements WebGLBuffer {
         ctx._native.deleteBuffer(this._)
     }
 }
-
-export { GjsifyWebGLBuffer as WebGLBuffer }

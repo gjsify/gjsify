@@ -385,6 +385,193 @@ class WebGLRenderingContextPrivate {
     static name: string
 }
 
+module WebGL2RenderingContext {
+
+    // Constructor properties interface
+
+    interface ConstructorProperties extends WebGLRenderingContextBase.ConstructorProperties {
+
+        // Own constructor properties of Gwebgl-0.1.Gwebgl.WebGL2RenderingContext
+
+        width?: number | null
+        height?: number | null
+        alpha?: boolean | null
+        depth?: boolean | null
+        stencil?: boolean | null
+        antialias?: boolean | null
+        premultipliedAlpha?: boolean | null
+        preserveDrawingBuffer?: boolean | null
+        preferLowPowerToHighPerformance?: boolean | null
+        failIfMajorPerformanceCaveat?: boolean | null
+    }
+
+}
+
+interface WebGL2RenderingContext {
+
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGL2RenderingContext
+
+    readonly width: number
+    readonly height: number
+    readonly alpha: boolean
+    readonly depth: boolean
+    readonly stencil: boolean
+    readonly antialias: boolean
+    readonly premultipliedAlpha: boolean
+    readonly preserveDrawingBuffer: boolean
+    readonly preferLowPowerToHighPerformance: boolean
+    readonly failIfMajorPerformanceCaveat: boolean
+
+    // Vertex Array Objects
+    createVertexArray(): number
+    deleteVertexArray(vao: number): void
+    isVertexArray(vao: number): boolean
+    bindVertexArray(vao: number): void
+
+    // Query Objects
+    createQuery(): number
+    deleteQuery(query: number): void
+    isQuery(query: number): boolean
+    beginQuery(target: number, query: number): void
+    endQuery(target: number): void
+    getQueryParameter(query: number, pname: number): number
+
+    // Sampler Objects
+    createSampler(): number
+    deleteSampler(sampler: number): void
+    isSampler(sampler: number): boolean
+    bindSampler(unit: number, sampler: number): void
+    samplerParameteri(sampler: number, pname: number, param: number): void
+    samplerParameterf(sampler: number, pname: number, param: number): void
+    getSamplerParameterf(sampler: number, pname: number): number
+    getSamplerParameteri(sampler: number, pname: number): number
+
+    // Sync Objects
+    fenceSync(condition: number, flags: number): number
+    isSync(syncId: number): boolean
+    deleteSync(syncId: number): void
+    clientWaitSync(syncId: number, flags: number, timeout: number): number
+    waitSync(syncId: number, flags: number, timeout: number): void
+    getSyncParameter(syncId: number, pname: number): number
+
+    // Transform Feedback
+    createTransformFeedback(): number
+    deleteTransformFeedback(tf: number): void
+    isTransformFeedback(tf: number): boolean
+    bindTransformFeedback(target: number, tf: number): void
+    beginTransformFeedback(primitiveMode: number): void
+    endTransformFeedback(): void
+    pauseTransformFeedback(): void
+    resumeTransformFeedback(): void
+    transformFeedbackVaryings(program: number, varyings: string[], bufferMode: number): void
+    getTransformFeedbackVarying(program: number, index: number): GLib.Variant
+
+    // Indexed Buffer Binding
+    bindBufferBase(target: number, index: number, buffer: number): void
+    bindBufferRange(target: number, index: number, buffer: number, offset: number, size: number): void
+    copyBufferSubData(readTarget: number, writeTarget: number, readOffset: number, writeOffset: number, size: number): void
+    getBufferSubData(target: number, srcByteOffset: number, length: number): Uint8Array
+
+    // 3D Textures
+    texImage3D(target: number, level: number, internalFormat: number, width: number, height: number, depth: number, border: number, format: number, type: number, variant: GLib.Variant): void
+    texImage3DNull(target: number, level: number, internalFormat: number, width: number, height: number, depth: number, border: number, format: number, type: number): void
+    texSubImage3D(target: number, level: number, xoffset: number, yoffset: number, zoffset: number, width: number, height: number, depth: number, format: number, type: number, variant: GLib.Variant): void
+    compressedTexImage3D(target: number, level: number, internalFormat: number, width: number, height: number, depth: number, border: number, variant: GLib.Variant): void
+    compressedTexSubImage3D(target: number, level: number, xoffset: number, yoffset: number, zoffset: number, width: number, height: number, depth: number, format: number, variant: GLib.Variant): void
+    copyTexSubImage3D(target: number, level: number, xoffset: number, yoffset: number, zoffset: number, x: number, y: number, width: number, height: number): void
+    texStorage2D(target: number, levels: number, internalFormat: number, width: number, height: number): void
+    texStorage3D(target: number, levels: number, internalFormat: number, width: number, height: number, depth: number): void
+    framebufferTextureLayer(target: number, attachment: number, texture: number, level: number, layer: number): void
+
+    // Instancing & Advanced Draw
+    drawArraysInstanced(mode: number, first: number, count: number, instanceCount: number): void
+    drawElementsInstanced(mode: number, count: number, type: number, offset: number, instanceCount: number): void
+    vertexAttribDivisor(index: number, divisor: number): void
+    vertexAttribIPointer(index: number, size: number, type: number, stride: number, offset: number): void
+    drawBuffers(buffers: number[]): void
+    drawRangeElements(mode: number, start: number, end: number, count: number, type: number, offset: number): void
+    blitFramebuffer(srcX0: number, srcY0: number, srcX1: number, srcY1: number, dstX0: number, dstY0: number, dstX1: number, dstY1: number, mask: number, filter: number): void
+    invalidateFramebuffer(target: number, attachments: number[]): void
+    invalidateSubFramebuffer(target: number, attachments: number[], x: number, y: number, width: number, height: number): void
+    readBuffer(src: number): void
+    renderbufferStorageMultisample(target: number, samples: number, internalFormat: number, width: number, height: number): void
+
+    // Unsigned Integer Uniforms
+    uniform1ui(location: number, v0: number): void
+    uniform2ui(location: number, v0: number, v1: number): void
+    uniform3ui(location: number, v0: number, v1: number, v2: number): void
+    uniform4ui(location: number, v0: number, v1: number, v2: number, v3: number): void
+    uniform1uiv(location: number, vLength: number, value: number[]): void
+    uniform2uiv(location: number, vLength: number, value: number[]): void
+    uniform3uiv(location: number, vLength: number, value: number[]): void
+    uniform4uiv(location: number, vLength: number, value: number[]): void
+
+    // Non-square Matrix Uniforms
+    uniformMatrix2x3fv(location: number, transpose: boolean, value: number[]): void
+    uniformMatrix3x2fv(location: number, transpose: boolean, value: number[]): void
+    uniformMatrix2x4fv(location: number, transpose: boolean, value: number[]): void
+    uniformMatrix4x2fv(location: number, transpose: boolean, value: number[]): void
+    uniformMatrix3x4fv(location: number, transpose: boolean, value: number[]): void
+    uniformMatrix4x3fv(location: number, transpose: boolean, value: number[]): void
+
+    // Uniform Blocks
+    getUniformBlockIndex(program: number, uniformBlockName: string | null): number
+    uniformBlockBinding(program: number, uniformBlockIndex: number, uniformBlockBinding_: number): void
+    getActiveUniformBlockName(program: number, uniformBlockIndex: number): string
+    getActiveUniformBlockParameter(program: number, uniformBlockIndex: number, pname: number): number
+    getActiveUniforms(program: number, uniformIndices: number[], pname: number): number[]
+
+    // Program Queries
+    getFragDataLocation(program: number, name: string | null): number
+
+    // Indexed Parameter Queries
+    getIndexedParameteri(target: number, index: number): number
+    getInternalformatParameter(target: number, internalFormat: number, pname: number): number
+    getStringi(name: number, index: number): string
+
+    // Buffer data (WebGL2 variants)
+    bufferData2(target: number, variant: GLib.Variant, usage: number): void
+    bufferDataSizeOnly2(target: number, size: number, usage: number): void
+    bufferSubData2(target: number, offset: number, variant: GLib.Variant): void
+
+    // Class property signals
+    connect(sigName: string, callback: (...args: any[]) => void): number
+    connect_after(sigName: string, callback: (...args: any[]) => void): number
+    emit(sigName: string, ...args: any[]): void
+    disconnect(id: number): void
+}
+
+class WebGL2RenderingContext extends WebGLRenderingContextBase {
+
+    // Own properties of Gwebgl-0.1.Gwebgl.WebGL2RenderingContext
+
+    static name: string
+    static $gtype: GObject.GType<WebGL2RenderingContext>
+
+    // Constructors of Gwebgl-0.1.Gwebgl.WebGL2RenderingContext
+
+    constructor(config?: WebGL2RenderingContext.ConstructorProperties)
+    constructor()
+    static new(): WebGL2RenderingContext
+    _init(config?: WebGL2RenderingContext.ConstructorProperties): void
+}
+
+interface WebGL2RenderingContextClass {
+}
+
+abstract class WebGL2RenderingContextClass {
+
+    static name: string
+}
+
+interface WebGL2RenderingContextPrivate {
+}
+
+class WebGL2RenderingContextPrivate {
+
+    static name: string
+}
+
 interface WebGLActiveInfo {
 
     // Own fields of Gwebgl-0.1.Gwebgl.WebGLActiveInfo

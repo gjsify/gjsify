@@ -1,0 +1,40 @@
+{
+    "name": "@gjsify/event-bridge",
+    "version": "0.0.4",
+    "description": "Bridge GTK event controllers to standard DOM events (MouseEvent, KeyboardEvent, etc.)",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tmp tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc"
+    },
+    "keywords": [
+        "gjs",
+        "gtk",
+        "dom",
+        "events",
+        "bridge"
+    ],
+    "dependencies": {
+        "@girs/gdk-4.0": "^4.0.0-4.0.0-beta.42",
+        "@girs/gjs": "^4.0.0-beta.42",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-beta.42",
+        "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.42",
+        "@gjsify/dom-events": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^25.5.0",
+        "typescript": "^6.0.2"
+    }
+}

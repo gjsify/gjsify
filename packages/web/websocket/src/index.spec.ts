@@ -72,9 +72,9 @@ export default async () => {
       expect(event.wasClean).toBe(true);
     });
 
-    await it('should default to 1000, empty reason, wasClean=false', async () => {
+    await it('should default to 0, empty reason, wasClean=false', async () => {
       const event = new CloseEvent('close');
-      expect(event.code).toBe(1000);
+      expect(event.code).toBe(0);
       expect(event.reason).toBe('');
       expect(event.wasClean).toBe(false);
     });

@@ -12,10 +12,6 @@
     "build": "yarn build:gjs",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
   },
-  "engines": {
-    "node": "16",
-    "gjs": "1.72.x"
-  },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {

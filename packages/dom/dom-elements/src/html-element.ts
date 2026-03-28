@@ -1,6 +1,6 @@
 // Adapted from happy-dom (refs/happy-dom/packages/happy-dom/src/nodes/html-element/HTMLElement.ts)
 // Copyright (c) David Ortner (capricorn86). MIT license.
-// Modifications: Simplified for gjsify — no CSSStyleDeclaration, no dataset/DOMStringMap,
+// Modifications: Simplified for gjsify — minimal CSSStyleDeclaration stub, no dataset/DOMStringMap,
 //   no innerText/outerText, no custom element lifecycle, minimal on* handlers
 
 import { Event } from '@gjsify/dom-events';
@@ -9,11 +9,24 @@ import { Element } from './element.js';
 import * as PS from './property-symbol.js';
 
 /**
+ * Minimal CSSStyleDeclaration stub — stores property strings but has no effect.
+ * GTK manages layout; CSS values written here (e.g. by three.js WebGLRenderer.setSize)
+ * are silently accepted and ignored.
+ */
+export class CSSStyleDeclaration {
+    [key: string]: unknown;
+    cssText = '';
+}
+
+/**
  * HTML Element base class.
  *
  * Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement
  */
 export class HTMLElement extends Element {
+	// -- Style stub (no layout engine — assignments are no-ops) --
+	readonly style: CSSStyleDeclaration = new CSSStyleDeclaration();
+
 	// -- Attribute-backed string properties --
 
 	get title(): string {

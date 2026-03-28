@@ -5,7 +5,7 @@ import tokenize from 'glsl-tokenizer/string';
 import Gwebgl from '@girs/gwebgl-0.1';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
-import { GjsifyHTMLCanvasElement } from './html-canvas-element.js';
+import { HTMLCanvasElement } from './html-canvas-element.js';
 import {
     extractImageData,
     checkObject,
@@ -80,12 +80,12 @@ const availableExtensions: Record<string, ExtensionFactory> = {
 //     'destroy'
 // ]
 
-// function wrapContext(ctx: GjsifyWebGLRenderingContext) {
-//     const wrapper = new GjsifyWebGLRenderingContext()
-//     bindPublics(Object.keys(ctx) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-//     bindPublics(Object.keys(ctx.constructor.prototype) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-//     bindPublics(Object.getOwnPropertyNames(ctx) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
-//     bindPublics(Object.getOwnPropertyNames(ctx.constructor.prototype) as Array<keyof GjsifyWebGLRenderingContext>, wrapper, ctx, privateMethods)
+// function wrapContext(ctx: WebGLRenderingContext) {
+//     const wrapper = new WebGLRenderingContext()
+//     bindPublics(Object.keys(ctx) as Array<keyof WebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.keys(ctx.constructor.prototype) as Array<keyof WebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.getOwnPropertyNames(ctx) as Array<keyof WebGLRenderingContext>, wrapper, ctx, privateMethods)
+//     bindPublics(Object.getOwnPropertyNames(ctx.constructor.prototype) as Array<keyof WebGLRenderingContext>, wrapper, ctx, privateMethods)
 
 //     Object.defineProperties(wrapper, {
 //         drawingBufferWidth: {
@@ -101,10 +101,10 @@ const availableExtensions: Record<string, ExtensionFactory> = {
 //     return wrapper
 // }
 
-export interface GjsifyWebGLRenderingContext extends WebGLConstants { }
+export interface WebGLRenderingContext extends WebGLConstants { }
 
-export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
-    canvas: GjsifyHTMLCanvasElement & HTMLCanvasElement;
+export class WebGLRenderingContext implements WebGLRenderingContext {
+    canvas: HTMLCanvasElement;
 
     /** TODO implement this: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawingBufferColorSpace */
     drawingBufferColorSpace: PredefinedColorSpace;
@@ -164,13 +164,19 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     _unpackAlignment = 4
     _packAlignment = 4
 
+    // Viewport and scissor — tracked in JS to avoid crashing native getParameterx for array returns
+    _viewport: Int32Array = new Int32Array([0, 0, 0, 0]);
+    _scissorBox: Int32Array = new Int32Array([0, 0, 0, 0]);
+
     _attrib0Buffer: WebGLBuffer | null = null;
 
     _textureUnits: WebGLTextureUnit[] = [];
     _drawingBuffer: WebGLDrawingBufferWrapper | null = null;
 
-    constructor(canvas: GjsifyHTMLCanvasElement | HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {},) {
-        this._native = new Gwebgl.WebGLRenderingContext(options);
+    constructor(canvas: HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {},) {
+        // Do not forward WebGL contextAttributes to the GObject constructor — GTK's GLArea already
+        // manages the OpenGL context. Gwebgl.WebGLRenderingContext only needs to be instantiated.
+        this._native = new Gwebgl.WebGLRenderingContext({});
         this._initGLConstants();
 
         this.DEFAULT_ATTACHMENTS = [
@@ -182,7 +188,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
         this.DEFAULT_COLOR_ATTACHMENTS = [this.COLOR_ATTACHMENT0]
 
-        this.canvas = canvas as GjsifyHTMLCanvasElement & HTMLCanvasElement;
+        this.canvas = canvas;
 
         this._contextAttributes = new WebGLContextAttributes(
             flag(options, 'alpha', true),
@@ -277,7 +283,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
     }
 
-    _getGlslVersion(es: boolean) {
+    _getGlslVersion(es: boolean): string {
         return es ? '100' : '120';
     }
 
@@ -391,7 +397,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                         case 'dFdx':
                         case 'dFdy':
                         case 'fwidth':
-                            if (!this._extensions.oes_standard_derivatives) {
+                            // dFdx/dFdy/fwidth are standard in GLSL ES 3.00 (WebGL2); only require
+                            // OES_standard_derivatives extension in GLSL ES 1.00 (WebGL1)
+                            if (!this._extensions.oes_standard_derivatives && this._getGlslVersion(true) === '100') {
                                 errorStatus = true
                                 errorLog.push(tok.line + ':' + tok.column + ' ' + tok.data + ' not supported')
                             }
@@ -561,6 +569,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         }
 
         for (let i = 0; i < numAttribs; ++i) {
+            if (program._attributes[i] < 0) continue
             this._native.bindAttribLocation(
                 program._ | 0,
                 program._attributes[i],
@@ -1040,22 +1049,44 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         // the gl implementation seems to define `GL_OES_standard_derivatives` even when the extension is disabled
         // this behaviour causes one conformance test ('GL_OES_standard_derivatives defined in shaders when extension is disabled') to fail
         // by `undef`ing `GL_OES_standard_derivatives`, this appears to solve the issue
+
+        // Determine if the source already has a #version directive
+        const hasVersion = source.startsWith('#version') || source.includes('\n#version');
+
+        // Build preamble lines that must come AFTER #version (if any)
+        let preamble = '';
+
         if (!this._extensions.oes_standard_derivatives && /#ifdef\s+GL_OES_standard_derivatives/.test(source)) {
-            source = '#undef GL_OES_standard_derivatives\n' + source
+            preamble += '#undef GL_OES_standard_derivatives\n';
         }
 
-        source = this._extensions.webgl_draw_buffers ? source : '#define gl_MaxDrawBuffers 1\n' + source
+        if (!this._extensions.webgl_draw_buffers) {
+            preamble += '#define gl_MaxDrawBuffers 1\n';
+        }
 
-        if (this.canvas && !(source.startsWith('#version') || source.includes('\n#version'))) {
-            const glArea = this.canvas._getGlArea();
-            const es = glArea.get_use_es();
-            let version = this._getGlslVersion(es);
-            if (version) {
-                version = '#version ' + version;
-                if (!source.startsWith('\n')) {
-                    version += '\n';
+        if (hasVersion) {
+            // Insert preamble after the first line (#version ...\n), keeping #version at line 1
+            if (preamble) {
+                const newline = source.indexOf('\n');
+                if (newline !== -1) {
+                    source = source.slice(0, newline + 1) + preamble + source.slice(newline + 1);
+                } else {
+                    source = source + '\n' + preamble;
                 }
-                source = version + source;
+            }
+        } else {
+            // No #version in source — inject version + preamble at the top
+            if (this.canvas) {
+                const glArea = this.canvas.getGlArea();
+                const es = glArea.get_use_es();
+                const version = this._getGlslVersion(es);
+                if (version) {
+                    source = '#version ' + version + '\n' + preamble + source;
+                } else if (preamble) {
+                    source = preamble + source;
+                }
+            } else if (preamble) {
+                source = preamble + source;
             }
         }
 
@@ -1353,7 +1384,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
 
             if (nWidth > 0 && nHeight > 0) {
                 const subPixels = new Uint8Array(nRowStride * nHeight)
-                this._native.readPixels(
+                const result = this._native.readPixels(
                     nx,
                     ny,
                     nWidth,
@@ -1362,18 +1393,19 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                     type,
                     Uint8ArrayToVariant(subPixels))
 
+                const src = result && result.length > 0 ? result : subPixels
                 const offset = 4 * (nx - x) + (ny - y) * rowStride
                 for (let j = 0; j < nHeight; ++j) {
                     for (let i = 0; i < nWidth; ++i) {
                         for (let k = 0; k < 4; ++k) {
                             pixelData[offset + j * rowStride + 4 * i + k] =
-                                subPixels[j * nRowStride + 4 * i + k]
+                                src[j * nRowStride + 4 * i + k]
                         }
                     }
                 }
             }
         } else {
-            this._native.readPixels(
+            const result = this._native.readPixels(
                 x,
                 y,
                 width,
@@ -1381,6 +1413,9 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
                 format,
                 type,
                 Uint8ArrayToVariant(pixelData))
+            if (result && result.length > 0) {
+                pixelData.set(result)
+            }
         }
     }
 
@@ -1660,7 +1695,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     }
 
     uniform1fv(location: WebGLUniformLocation | null, value: Float32List | Int32List): void {
-        if (!location || this._checkUniformValueValid(location, value, 'uniform1fv', 1, 'f')) return
+        if (!location || !this._checkUniformValueValid(location, value, 'uniform1fv', 1, 'f')) return
         if (location?._array) {
             const locs = location._array
             for (let i = 0; i < locs.length && i < value.length; ++i) {
@@ -2917,7 +2952,7 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         switch (pname) {
             case this.BUFFER_SIZE:
             case this.BUFFER_USAGE:
-                return this._native.getBufferParameteriv(target | 0, pname | 0)
+                return this._native.getBufferParameteriv(target | 0, pname | 0)[0]
             default:
                 this.setError(this.INVALID_ENUM)
                 return null
@@ -3001,30 +3036,34 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
             case this.TEXTURE_BINDING_CUBE_MAP:
                 return this._getActiveTextureUnit()._bindCube
             case this.VERSION:
-                return 'WebGL 1.0 Gjsify ' + VERSION
+                return 'WebGL 1.0  ' + VERSION
             case this.VENDOR:
-                return 'Gjsify'
+                return ''
             case this.RENDERER:
                 return 'ANGLE'
             case this.SHADING_LANGUAGE_VERSION:
-                return 'WebGL GLSL ES 1.0 Gjsify'
+                return 'WebGL GLSL ES 1.0 '
 
             case this.COMPRESSED_TEXTURE_FORMATS:
                 return new Uint32Array(0)
 
-            // Int arrays
-            case this.MAX_VIEWPORT_DIMS:
+            // Int arrays — tracked in JS (native getParameterx crashes for array returns)
             case this.SCISSOR_BOX:
+                return new Int32Array(this._scissorBox);
             case this.VIEWPORT:
-                return new Int32Array(this._getParameterDirect(pname))
+                return new Int32Array(this._viewport);
+            case this.MAX_VIEWPORT_DIMS:
+                return new Int32Array([32767, 32767]);
 
-            // Float arrays
+            // Float arrays — return safe defaults (native getParameterx crashes for these)
             case this.ALIASED_LINE_WIDTH_RANGE:
             case this.ALIASED_POINT_SIZE_RANGE:
+                return new Float32Array([1, 1]);
             case this.DEPTH_RANGE:
+                return new Float32Array([0, 1]);
             case this.BLEND_COLOR:
             case this.COLOR_CLEAR_VALUE:
-                return new Float32Array(this._getParameterDirect(pname))
+                return new Float32Array([0, 0, 0, 0]);
 
             case this.COLOR_WRITEMASK:
                 // return this._getParameterDirect(pname);
@@ -3748,6 +3787,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         return this._native.sampleCoverage(+value, !!invert);
     }
     scissor(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+        this._scissorBox[0] = x | 0;
+        this._scissorBox[1] = y | 0;
+        this._scissorBox[2] = width | 0;
+        this._scissorBox[3] = height | 0;
         return this._native.scissor(x | 0, y | 0, width | 0, height | 0);
     }
     shaderSource(shader: WebGLShader, source: string): void {
@@ -3779,11 +3822,11 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
     }
     stencilMask(mask: GLuint): void {
         this._checkStencil = true
-        return this._native.stencilMask(mask | 0);
+        return this._native.stencilMask(mask >>> 0);
     }
     stencilMaskSeparate(face: GLenum, mask: GLuint): void {
         this._checkStencil = true
-        return this._native.stencilMaskSeparate(face | 0, mask | 0);
+        return this._native.stencilMaskSeparate(face | 0, mask >>> 0);
     }
     stencilOp(fail: GLenum, zfail: GLenum, zpass: GLenum): void {
         this._checkStencil = true
@@ -4047,8 +4090,10 @@ export class GjsifyWebGLRenderingContext implements WebGLRenderingContext {
         )
     }
     viewport(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+        this._viewport[0] = x | 0;
+        this._viewport[1] = y | 0;
+        this._viewport[2] = width | 0;
+        this._viewport[3] = height | 0;
         return this._native.viewport(x, y, width, height);
     }
 }
-
-export { GjsifyWebGLRenderingContext as WebGLRenderingContext }

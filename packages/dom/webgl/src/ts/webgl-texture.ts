@@ -2,17 +2,17 @@
 import { Linkable } from './linkable.js'
 // import { gl } from './native-gl.js'
 
-import type { GjsifyWebGLRenderingContext } from './webgl-rendering-context.js';
+import type { WebGLRenderingContext } from './webgl-rendering-context.js';
 
-export class GjsifyWebGLTexture extends Linkable implements WebGLTexture {
-    _ctx: GjsifyWebGLRenderingContext;
+export class WebGLTexture extends Linkable implements WebGLTexture {
+    _ctx: WebGLRenderingContext;
     _binding = 0
     _levelWidth = new Int32Array(32)
     _levelHeight = new Int32Array(32)
     _format = 0
     _type = 0
     _complete = true
-  constructor (_: WebGLTexture & number, ctx: GjsifyWebGLRenderingContext) {
+  constructor (_: number, ctx: WebGLRenderingContext) {
     super(_)
     this._ctx = ctx
   }
@@ -23,5 +23,3 @@ export class GjsifyWebGLTexture extends Linkable implements WebGLTexture {
     ctx._native.deleteTexture(this._ | 0)
   }
 }
-
-export { GjsifyWebGLTexture as WebGLTexture }

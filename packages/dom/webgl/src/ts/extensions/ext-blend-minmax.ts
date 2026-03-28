@@ -1,4 +1,4 @@
-import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
 
 export class EXTBlendMinMax {
   MIN_EXT = 0x8007
@@ -6,7 +6,7 @@ export class EXTBlendMinMax {
   constructor () {}
 }
 
-export function getEXTBlendMinMax (context: GjsifyWebGLRenderingContext) {
+export function getEXTBlendMinMax (context: WebGLRenderingContext) {
   let result = null
   const exts = context.getSupportedExtensions()
 

@@ -10,7 +10,6 @@
     "emitDeclarationOnly": true,
     "declaration": true,
     "allowImportingTsExtensions": true,
-    "allowSyntheticDefaultImports": true,
     "outDir": "lib",
     "rootDir": "src",
     "declarationDir": "lib/types",

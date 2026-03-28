@@ -1,4 +1,4 @@
-class GjsifyWebGLActiveInfo implements WebGLActiveInfo {
+export class WebGLActiveInfo implements WebGLActiveInfo {
   size: GLsizei;
   type: GLenum;
   name: string;
@@ -9,5 +9,3 @@ class GjsifyWebGLActiveInfo implements WebGLActiveInfo {
     this.name = _.name
   }
 }
-
-export { GjsifyWebGLActiveInfo as WebGLActiveInfo }

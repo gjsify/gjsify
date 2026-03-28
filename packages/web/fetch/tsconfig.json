@@ -8,7 +8,6 @@
     "outDir": "lib",
     "rootDir": "src",
     "composite": true,
-    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,

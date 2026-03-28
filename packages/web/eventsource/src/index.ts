@@ -5,10 +5,11 @@
 
 // Ensure Web Streams are available (polyfill on GJS)
 import '@gjsify/web-streams';
-// Import DOM Events polyfill — provides Event, EventTarget, etc. on GJS
+// Import DOM Events polyfill — provides Event, EventTarget, MessageEvent, etc. on GJS
 import {
   Event as DomEvent,
   EventTarget as DomEventTarget,
+  MessageEvent as DomMessageEvent,
 } from '@gjsify/dom-events';
 
 const CONNECTING = 0;
@@ -22,6 +23,9 @@ const _Event: typeof Event = typeof globalThis.Event === 'function'
 const _EventTarget: { new(): EventTarget } = typeof globalThis.EventTarget === 'function'
   ? globalThis.EventTarget
   : DomEventTarget as any;
+const _MessageEvent: typeof MessageEvent = typeof globalThis.MessageEvent === 'function'
+  ? globalThis.MessageEvent
+  : DomMessageEvent as any;
 
 // Register globals on GJS if missing
 if (typeof globalThis.Event === 'undefined') {
@@ -30,26 +34,6 @@ if (typeof globalThis.Event === 'undefined') {
 if (typeof globalThis.EventTarget === 'undefined') {
   (globalThis as any).EventTarget = _EventTarget;
 }
-
-// MessageEvent polyfill for GJS (not globally available)
-const _MessageEvent: typeof MessageEvent = typeof globalThis.MessageEvent === 'function'
-  ? globalThis.MessageEvent
-  : class MessageEvent extends (_Event as any) {
-      readonly data: any;
-      readonly origin: string;
-      readonly lastEventId: string;
-      readonly source: null;
-      readonly ports: readonly MessagePort[];
-      constructor(type: string, init?: MessageEventInit) {
-        super(type);
-        this.data = init?.data ?? null;
-        this.origin = init?.origin ?? '';
-        this.lastEventId = init?.lastEventId ?? '';
-        this.source = null;
-        this.ports = [];
-      }
-    } as any;
-
 if (typeof globalThis.MessageEvent === 'undefined') {
   (globalThis as any).MessageEvent = _MessageEvent;
 }

@@ -1,11 +1,11 @@
-import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
 
 export class OESStandardDerivatives {
   FRAGMENT_SHADER_DERIVATIVE_HINT_OES = 0x8B8B
   constructor () {}
 }
 
-export function getOESStandardDerivatives (context: GjsifyWebGLRenderingContext) {
+export function getOESStandardDerivatives (context: WebGLRenderingContext) {
   let result = null
   const exts = context.getSupportedExtensions()
 

@@ -2,12 +2,13 @@
     "compilerOptions": {
       "module": "NodeNext",
       "types": [],
-      "noLib": false,
       "target": "ESNext",
       "moduleResolution": "NodeNext",
       "experimentalDecorators": true,
       "outDir": "dist",
-      "skipLibCheck": true
+      "rootDir": "src",
+      "skipLibCheck": true,
+      "strict": false
     },
     "reflection": true,
     "files": ["src/gjs.ts", "src/browser.ts"]

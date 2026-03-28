@@ -99,7 +99,7 @@ export interface Namespaces {
 
 export type Callback = () => Promise<void>;
 
-export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser';
+export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser' | 'Display';
 
 // Makes this work on Gjs and Node.js
 export const print = globalThis.print || console.log;
@@ -397,7 +397,28 @@ describe.skip = async function(moduleName: string, _callback?: Callback) {
 	print(`\n${BLUE}- ${moduleName} (skipped)${RESET}`);
 };
 
+const hasDisplay = (): boolean => {
+	// Check process.env (Node.js and GJS with @gjsify/globals)
+	const env = (globalThis as any).process?.env;
+	if (env) {
+		return !!(env.DISPLAY || env.WAYLAND_DISPLAY);
+	}
+	// GJS fallback via imports.gi.GLib (before process polyfill is available)
+	try {
+		const GLib = (globalThis as any)?.imports?.gi?.GLib;
+		if (GLib) {
+			return !!(GLib.getenv('DISPLAY') || GLib.getenv('WAYLAND_DISPLAY'));
+		}
+	} catch (_) {}
+	return false;
+};
+
 const runtimeMatch = async function(onRuntime: Runtime[], version?: string) {
+
+	// Special case: 'Display' checks for a graphical display, not runtime identity
+	if (onRuntime.includes('Display')) {
+		return { matched: hasDisplay() };
+	}
 
 	const currRuntime = (await getRuntime());
 

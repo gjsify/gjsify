@@ -1,0 +1,46 @@
+{
+    "name": "@gjsify/iframe",
+    "version": "0.0.4",
+    "description": "HTMLIFrameElement for GJS, backed by WebKit.WebView",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tmp tsconfig.tsbuildinfo test.gjs.mjs || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc",
+        "build:test": "yarn build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
+        "test:gjs": "gjs -m test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "iframe",
+        "webview",
+        "webkit",
+        "dom"
+    ],
+    "dependencies": {
+        "@girs/gjs": "^4.0.0-beta.42",
+        "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.42",
+        "@girs/javascriptcore-6.0": "2.51.93-4.0.0-beta.42",
+        "@girs/webkit-6.0": "2.51.93-4.0.0-beta.42",
+        "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/dom-events": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.5.0",
+        "typescript": "^6.0.2"
+    }
+}

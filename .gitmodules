@@ -95,3 +95,18 @@
 [submodule "refs/deepkit"]
 	path = refs/deepkit
 	url = git@github.com:marcj/deepkit.git
+[submodule "refs/three"]
+	path = refs/three
+	url = git@github.com:mrdoob/three.js.git
+[submodule "refs/libepoxy"]
+	path = refs/libepoxy
+	url = https://github.com/anholt/libepoxy
+[submodule "refs/webgl"]
+	path = refs/webgl
+	url = git@github.com:KhronosGroup/WebGL.git
+[submodule "refs/node-canvas"]
+	path = refs/node-canvas
+	url = https://github.com/Automattic/node-canvas
+[submodule "refs/map-editor"]
+	path = refs/map-editor
+	url = git@github.com:PixelRPG/map-editor.git

@@ -1,3 +1,3 @@
-import type { GjsifyWebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
 
-export type ExtensionFactory = (context: GjsifyWebGLRenderingContext) => any | null // TODO
+export type ExtensionFactory = (context: WebGLRenderingContext) => any | null // TODO

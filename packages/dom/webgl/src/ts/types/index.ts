@@ -4,23 +4,23 @@ export * from './typed-array.js';
 export * from './webgl-constants.js';
 export * from './webgl-context-attribute-options.js';
 
-// type GjsifyWebGLProgram = Gwebgl.WebGLProgram & WebGLProgram & number;
-// type GjsifyWebGLShader = Gwebgl.WebGLShader & WebGLShader & number;
-// type GjsifyWebGLBuffer = Gwebgl.WebGLBuffer & WebGLBuffer & number;
-// type GjsifyWebGLRenderbuffer = Gwebgl.WebGLRenderbuffer & WebGLRenderbuffer & number;
-// type GjsifyWebGLTexture = Gwebgl.WebGLTexture & WebGLTexture & number;
-// type GjsifyWebGLUniformLocation = Gwebgl.WebGLUniformLocation & WebGLUniformLocation & number;
+// type WebGLProgram = Gwebgl.WebGLProgram & WebGLProgram & number;
+// type WebGLShader = Gwebgl.WebGLShader & WebGLShader & number;
+// type WebGLBuffer = Gwebgl.WebGLBuffer & WebGLBuffer & number;
+// type WebGLRenderbuffer = Gwebgl.WebGLRenderbuffer & WebGLRenderbuffer & number;
+// type WebGLTexture = Gwebgl.WebGLTexture & WebGLTexture & number;
+// type WebGLUniformLocation = Gwebgl.WebGLUniformLocation & WebGLUniformLocation & number;
 
-// type GjsifyWebGLActiveInfo = Gwebgl.WebGLActiveInfo & WebGLActiveInfo;
-// type GjsifyWebGLShaderPrecisionFormat = Gwebgl.WebGLShaderPrecisionFormat & WebGLShaderPrecisionFormat;
+// type WebGLActiveInfo = Gwebgl.WebGLActiveInfo & WebGLActiveInfo;
+// type WebGLShaderPrecisionFormat = Gwebgl.WebGLShaderPrecisionFormat & WebGLShaderPrecisionFormat;
 
 // export {
-//     GjsifyWebGLProgram as WebGLProgram,
-//     GjsifyWebGLShader as WebGLShader,
-//     GjsifyWebGLBuffer as WebGLBuffer,
-//     GjsifyWebGLRenderbuffer as WebGLRenderbuffer,
-//     GjsifyWebGLTexture as WebGLTexture,
-//     GjsifyWebGLUniformLocation as WebGLUniformLocation,
-//     GjsifyWebGLActiveInfo as WebGLActiveInfo,
-//     GjsifyWebGLShaderPrecisionFormat as WebGLShaderPrecisionFormat
+//     WebGLProgram as WebGLProgram,
+//     WebGLShader as WebGLShader,
+//     WebGLBuffer as WebGLBuffer,
+//     WebGLRenderbuffer as WebGLRenderbuffer,
+//     WebGLTexture as WebGLTexture,
+//     WebGLUniformLocation as WebGLUniformLocation,
+//     WebGLActiveInfo as WebGLActiveInfo,
+//     WebGLShaderPrecisionFormat as WebGLShaderPrecisionFormat
 // }

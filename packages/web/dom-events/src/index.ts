@@ -154,6 +154,117 @@ export class CustomEvent<T = any> extends Event {
   }
 }
 
+// -- MessageEvent --
+// Reference: refs/happy-dom/packages/happy-dom/src/event/events/MessageEvent.ts
+// Copyright (c) David Ortner (capricorn86). MIT license.
+
+interface MessageEventInit<T = any> extends EventInit {
+  data?: T;
+  origin?: string;
+  lastEventId?: string;
+  source?: EventTarget | null;
+  ports?: MessagePort[];
+}
+
+export class MessageEvent<T = any> extends Event {
+  readonly data: T;
+  readonly origin: string;
+  readonly lastEventId: string;
+  readonly source: EventTarget | null;
+  readonly ports: readonly MessagePort[];
+
+  constructor(type: string, eventInitDict?: MessageEventInit<T>) {
+    super(type, eventInitDict);
+    this.data = (eventInitDict?.data ?? null) as T;
+    this.origin = eventInitDict?.origin ?? '';
+    this.lastEventId = eventInitDict?.lastEventId ?? '';
+    this.source = eventInitDict?.source ?? null;
+    this.ports = eventInitDict?.ports ?? [];
+  }
+
+  get [Symbol.toStringTag]() { return 'MessageEvent'; }
+}
+
+// -- ErrorEvent --
+// Reference: refs/happy-dom/packages/happy-dom/src/event/events/ErrorEvent.ts
+// Copyright (c) David Ortner (capricorn86). MIT license.
+
+interface ErrorEventInit extends EventInit {
+  message?: string;
+  filename?: string;
+  lineno?: number;
+  colno?: number;
+  error?: unknown;
+}
+
+export class ErrorEvent extends Event {
+  readonly message: string;
+  readonly filename: string;
+  readonly lineno: number;
+  readonly colno: number;
+  readonly error: unknown;
+
+  constructor(type: string, eventInitDict?: ErrorEventInit) {
+    super(type, eventInitDict);
+    this.message = eventInitDict?.message ?? '';
+    this.filename = eventInitDict?.filename ?? '';
+    this.lineno = eventInitDict?.lineno ?? 0;
+    this.colno = eventInitDict?.colno ?? 0;
+    this.error = eventInitDict?.error ?? null;
+  }
+
+  get [Symbol.toStringTag]() { return 'ErrorEvent'; }
+}
+
+// -- CloseEvent --
+// Reference: refs/happy-dom/packages/happy-dom/src/event/events/CloseEvent.ts
+// Copyright (c) David Ortner (capricorn86). MIT license.
+
+interface CloseEventInit extends EventInit {
+  code?: number;
+  reason?: string;
+  wasClean?: boolean;
+}
+
+export class CloseEvent extends Event {
+  readonly code: number;
+  readonly reason: string;
+  readonly wasClean: boolean;
+
+  constructor(type: string, eventInitDict?: CloseEventInit) {
+    super(type, eventInitDict);
+    this.code = eventInitDict?.code ?? 0;
+    this.reason = eventInitDict?.reason ?? '';
+    this.wasClean = eventInitDict?.wasClean ?? false;
+  }
+
+  get [Symbol.toStringTag]() { return 'CloseEvent'; }
+}
+
+// -- ProgressEvent --
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/ProgressEvent
+
+interface ProgressEventInit extends EventInit {
+  lengthComputable?: boolean;
+  loaded?: number;
+  total?: number;
+}
+
+export class ProgressEvent extends Event {
+  readonly lengthComputable: boolean;
+  readonly loaded: number;
+  readonly total: number;
+
+  constructor(type: string, eventInitDict?: ProgressEventInit) {
+    super(type, eventInitDict);
+    this.lengthComputable = eventInitDict?.lengthComputable ?? false;
+    this.loaded = eventInitDict?.loaded ?? 0;
+    this.total = eventInitDict?.total ?? 0;
+  }
+
+  get [Symbol.toStringTag]() { return 'ProgressEvent'; }
+}
+
 export class EventTarget {
   private _listeners = new Map<string, ListenerEntry[]>();
 
@@ -261,4 +372,271 @@ for (const [name, value] of [['NONE', 0], ['CAPTURING_PHASE', 1], ['AT_TARGET', 
   Object.defineProperty(Event, name, { value, writable: false, enumerable: true, configurable: false });
 }
 
-export default { Event, CustomEvent, EventTarget };
+// -- UIEvent --
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/UIEvent
+
+interface UIEventInit extends EventInit {
+  detail?: number;
+  view?: null;
+}
+
+export class UIEvent extends Event {
+  readonly detail: number;
+  readonly view: null;
+
+  constructor(type: string, eventInitDict?: UIEventInit) {
+    super(type, eventInitDict);
+    this.detail = eventInitDict?.detail ?? 0;
+    this.view = null;
+  }
+
+  get [Symbol.toStringTag]() { return 'UIEvent'; }
+}
+
+// -- MouseEvent --
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent
+
+interface MouseEventInit extends UIEventInit {
+  altKey?: boolean;
+  button?: number;
+  buttons?: number;
+  clientX?: number;
+  clientY?: number;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  movementX?: number;
+  movementY?: number;
+  offsetX?: number;
+  offsetY?: number;
+  screenX?: number;
+  screenY?: number;
+  shiftKey?: boolean;
+  relatedTarget?: EventTarget | null;
+}
+
+export class MouseEvent extends UIEvent {
+  readonly altKey: boolean;
+  readonly button: number;
+  readonly buttons: number;
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly movementX: number;
+  readonly movementY: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
+  readonly screenX: number;
+  readonly screenY: number;
+  readonly shiftKey: boolean;
+  readonly relatedTarget: EventTarget | null;
+
+  // Legacy aliases
+  get pageX(): number { return this.clientX; }
+  get pageY(): number { return this.clientY; }
+  get x(): number { return this.clientX; }
+  get y(): number { return this.clientY; }
+
+  constructor(type: string, eventInitDict?: MouseEventInit) {
+    super(type, eventInitDict);
+    this.altKey = eventInitDict?.altKey ?? false;
+    this.button = eventInitDict?.button ?? 0;
+    this.buttons = eventInitDict?.buttons ?? 0;
+    this.clientX = eventInitDict?.clientX ?? 0;
+    this.clientY = eventInitDict?.clientY ?? 0;
+    this.ctrlKey = eventInitDict?.ctrlKey ?? false;
+    this.metaKey = eventInitDict?.metaKey ?? false;
+    this.movementX = eventInitDict?.movementX ?? 0;
+    this.movementY = eventInitDict?.movementY ?? 0;
+    this.offsetX = eventInitDict?.offsetX ?? 0;
+    this.offsetY = eventInitDict?.offsetY ?? 0;
+    this.screenX = eventInitDict?.screenX ?? 0;
+    this.screenY = eventInitDict?.screenY ?? 0;
+    this.shiftKey = eventInitDict?.shiftKey ?? false;
+    this.relatedTarget = eventInitDict?.relatedTarget ?? null;
+  }
+
+  getModifierState(key: string): boolean {
+    switch (key) {
+      case 'Alt': return this.altKey;
+      case 'Control': return this.ctrlKey;
+      case 'Meta': return this.metaKey;
+      case 'Shift': return this.shiftKey;
+      default: return false;
+    }
+  }
+
+  get [Symbol.toStringTag]() { return 'MouseEvent'; }
+}
+
+// -- PointerEvent --
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/PointerEvent
+
+interface PointerEventInit extends MouseEventInit {
+  pointerId?: number;
+  width?: number;
+  height?: number;
+  pressure?: number;
+  tangentialPressure?: number;
+  tiltX?: number;
+  tiltY?: number;
+  twist?: number;
+  altitudeAngle?: number;
+  azimuthAngle?: number;
+  pointerType?: string;
+  isPrimary?: boolean;
+}
+
+export class PointerEvent extends MouseEvent {
+  readonly pointerId: number;
+  readonly width: number;
+  readonly height: number;
+  readonly pressure: number;
+  readonly tangentialPressure: number;
+  readonly tiltX: number;
+  readonly tiltY: number;
+  readonly twist: number;
+  readonly altitudeAngle: number;
+  readonly azimuthAngle: number;
+  readonly pointerType: string;
+  readonly isPrimary: boolean;
+
+  constructor(type: string, eventInitDict?: PointerEventInit) {
+    super(type, eventInitDict);
+    this.pointerId = eventInitDict?.pointerId ?? 0;
+    this.width = eventInitDict?.width ?? 1;
+    this.height = eventInitDict?.height ?? 1;
+    this.pressure = eventInitDict?.pressure ?? 0;
+    this.tangentialPressure = eventInitDict?.tangentialPressure ?? 0;
+    this.tiltX = eventInitDict?.tiltX ?? 0;
+    this.tiltY = eventInitDict?.tiltY ?? 0;
+    this.twist = eventInitDict?.twist ?? 0;
+    this.altitudeAngle = eventInitDict?.altitudeAngle ?? Math.PI / 2;
+    this.azimuthAngle = eventInitDict?.azimuthAngle ?? 0;
+    this.pointerType = eventInitDict?.pointerType ?? '';
+    this.isPrimary = eventInitDict?.isPrimary ?? false;
+  }
+
+  getCoalescedEvents(): PointerEvent[] { return []; }
+  getPredictedEvents(): PointerEvent[] { return []; }
+
+  get [Symbol.toStringTag]() { return 'PointerEvent'; }
+}
+
+// -- KeyboardEvent --
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent
+
+interface KeyboardEventInit extends UIEventInit {
+  altKey?: boolean;
+  code?: string;
+  ctrlKey?: boolean;
+  isComposing?: boolean;
+  key?: string;
+  location?: number;
+  metaKey?: boolean;
+  repeat?: boolean;
+  shiftKey?: boolean;
+  keyCode?: number;
+  which?: number;
+}
+
+export class KeyboardEvent extends UIEvent {
+  readonly altKey: boolean;
+  readonly code: string;
+  readonly ctrlKey: boolean;
+  readonly isComposing: boolean;
+  readonly key: string;
+  readonly location: number;
+  readonly metaKey: boolean;
+  readonly repeat: boolean;
+  readonly shiftKey: boolean;
+  readonly keyCode: number;
+  readonly which: number;
+
+  static readonly DOM_KEY_LOCATION_STANDARD = 0;
+  static readonly DOM_KEY_LOCATION_LEFT = 1;
+  static readonly DOM_KEY_LOCATION_RIGHT = 2;
+  static readonly DOM_KEY_LOCATION_NUMPAD = 3;
+
+  constructor(type: string, eventInitDict?: KeyboardEventInit) {
+    super(type, eventInitDict);
+    this.altKey = eventInitDict?.altKey ?? false;
+    this.code = eventInitDict?.code ?? '';
+    this.ctrlKey = eventInitDict?.ctrlKey ?? false;
+    this.isComposing = eventInitDict?.isComposing ?? false;
+    this.key = eventInitDict?.key ?? '';
+    this.location = eventInitDict?.location ?? 0;
+    this.metaKey = eventInitDict?.metaKey ?? false;
+    this.repeat = eventInitDict?.repeat ?? false;
+    this.shiftKey = eventInitDict?.shiftKey ?? false;
+    this.keyCode = eventInitDict?.keyCode ?? 0;
+    this.which = eventInitDict?.which ?? 0;
+  }
+
+  getModifierState(key: string): boolean {
+    switch (key) {
+      case 'Alt': return this.altKey;
+      case 'Control': return this.ctrlKey;
+      case 'Meta': return this.metaKey;
+      case 'Shift': return this.shiftKey;
+      default: return false;
+    }
+  }
+
+  get [Symbol.toStringTag]() { return 'KeyboardEvent'; }
+}
+
+// -- WheelEvent --
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+
+interface WheelEventInit extends MouseEventInit {
+  deltaX?: number;
+  deltaY?: number;
+  deltaZ?: number;
+  deltaMode?: number;
+}
+
+export class WheelEvent extends MouseEvent {
+  readonly deltaX: number;
+  readonly deltaY: number;
+  readonly deltaZ: number;
+  readonly deltaMode: number;
+
+  static readonly DOM_DELTA_PIXEL = 0;
+  static readonly DOM_DELTA_LINE = 1;
+  static readonly DOM_DELTA_PAGE = 2;
+
+  constructor(type: string, eventInitDict?: WheelEventInit) {
+    super(type, eventInitDict);
+    this.deltaX = eventInitDict?.deltaX ?? 0;
+    this.deltaY = eventInitDict?.deltaY ?? 0;
+    this.deltaZ = eventInitDict?.deltaZ ?? 0;
+    this.deltaMode = eventInitDict?.deltaMode ?? 0;
+  }
+
+  get [Symbol.toStringTag]() { return 'WheelEvent'; }
+}
+
+// -- FocusEvent --
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/FocusEvent
+
+interface FocusEventInit extends UIEventInit {
+  relatedTarget?: EventTarget | null;
+}
+
+export class FocusEvent extends UIEvent {
+  readonly relatedTarget: EventTarget | null;
+
+  constructor(type: string, eventInitDict?: FocusEventInit) {
+    super(type, eventInitDict);
+    this.relatedTarget = eventInitDict?.relatedTarget ?? null;
+  }
+
+  get [Symbol.toStringTag]() { return 'FocusEvent'; }
+}
+
+export default {
+  Event, CustomEvent, EventTarget,
+  MessageEvent, ErrorEvent, CloseEvent, ProgressEvent,
+  UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent,
+};

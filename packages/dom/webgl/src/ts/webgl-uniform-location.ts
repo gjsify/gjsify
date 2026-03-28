@@ -1,12 +1,12 @@
 import type { WebGLProgram } from './webgl-program.js';
 
-export class GjsifyWebGLUniformLocation implements WebGLUniformLocation {
-    _: WebGLUniformLocation & number;
+export class WebGLUniformLocation implements WebGLUniformLocation {
+    _: number;
     _program: WebGLProgram;
     _linkCount = 0;
     _activeInfo: {size: GLsizei, type: GLenum, name: string };
     _array: Array<number | null> | null = null
-    constructor (_: WebGLUniformLocation & number, program: WebGLProgram, info: {size: GLsizei, type: GLenum, name: string }) {
+    constructor (_: number, program: WebGLProgram, info: {size: GLsizei, type: GLenum, name: string }) {
       this._ = _
       this._program = program
       this._linkCount = program._linkCount
@@ -14,5 +14,3 @@ export class GjsifyWebGLUniformLocation implements WebGLUniformLocation {
       this._array = null
     }
 }
-
-export { GjsifyWebGLUniformLocation as WebGLUniformLocation }

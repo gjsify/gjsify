@@ -24,7 +24,7 @@
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.5.0",
-    "@types/yargs": "^17.0.0",
+    "@types/yargs": "^17.0.35",
     "typescript": "^6.0.2"
   },
   "engines": {

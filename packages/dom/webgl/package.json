@@ -11,7 +11,10 @@
             "default": "./lib/esm/index.js"
         }
     },
-    "files": ["lib", "prebuilds"],
+    "files": [
+        "lib",
+        "prebuilds"
+    ],
     "gjsify": {
         "prebuilds": "prebuilds"
     },
@@ -45,6 +48,7 @@
         "@girs/gtk-4.0": "4.22.1-4.0.0-beta.42",
         "@girs/gwebgl-0.1": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/event-bridge": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@types/bit-twiddle": "^1.0.3",
         "bit-twiddle": "^1.0.2",
