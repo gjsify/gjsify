@@ -173,7 +173,7 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
     _textureUnits: WebGLTextureUnit[] = [];
     _drawingBuffer: WebGLDrawingBufferWrapper | null = null;
 
-    constructor(canvas: HTMLCanvasElement | null, options: Gwebgl.WebGLRenderingContext.ConstructorProperties = {},) {
+    constructor(canvas: HTMLCanvasElement | null, options: Partial<Gwebgl.WebGLRenderingContext.ConstructorProps> = {},) {
         // Do not forward WebGL contextAttributes to the GObject constructor — GTK's GLArea already
         // manages the OpenGL context. Gwebgl.WebGLRenderingContext only needs to be instantiated.
         this._native = new Gwebgl.WebGLRenderingContext({});
