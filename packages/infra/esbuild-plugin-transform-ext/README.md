@@ -1,38 +1,46 @@
 # @gjsify/esbuild-plugin-transform-ext
 
-Transform import file extensions plugin for `esbuild`.
-This can be useful if you want to bundle a module for Deno and Node.js. 
+esbuild plugin for transforming file extensions in import paths.
 
-## Example
+Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
-This example transforms the typescript entrypoint with `.ts` imports into a javascript file with `.js` imports.
+## Installation
 
-index:ts:
-```ts
-import { a } from './a.ts';
-import { b } from './b.ts';
-a();
-b();
+```bash
+npm install @gjsify/esbuild-plugin-transform-ext
+# or
+yarn add @gjsify/esbuild-plugin-transform-ext
 ```
 
-esbuild.mjs:
-```js
-import esbuild from 'esbuild';
-import { transformExtPlugin } from "@gjsify/esbuild-plugin-transform-ext";
+## Usage
 
-await esbuild.build({
-  plugins: [transformExtPlugin({ outExtension: {'.ts': '.js'}})],
-  entryPoints: ["./src/index.ts"],
-  outdir: "./dist/",
+```typescript
+import { build } from 'esbuild';
+import { transformExtPlugin } from '@gjsify/esbuild-plugin-transform-ext';
+
+await build({
+  entryPoints: ['src/index.ts'],
+  outdir: 'dist/',
   bundle: false,
-  format: "esm",
+  format: 'esm',
+  plugins: [transformExtPlugin({ outExtension: { '.ts': '.js' } })],
 });
 ```
 
-output index:js:
-```ts
+### Example
+
+Input (`index.ts`):
+```typescript
+import { a } from './a.ts';
+import { b } from './b.ts';
+```
+
+Output (`index.js`):
+```javascript
 import { a } from './a.js';
 import { b } from './b.js';
-a();
-b();
 ```
+
+## License
+
+MIT

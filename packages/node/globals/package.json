@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/node-globals",
-    "version": "0.0.4",
+    "version": "0.1.0",
     "description": "Node.js globals module for Gjs",
     "keywords": [
         "gjs",
@@ -31,9 +31,12 @@
         "test:node": "node test.node.mjs"
     },
     "dependencies": {
+        "@girs/glib-2.0": "^2.88.0-4.0.0-beta.42",
+        "@gjsify/abort-controller": "workspace:^",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/fetch": "workspace:^",
         "@gjsify/process": "workspace:^",
+        "@gjsify/url": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {

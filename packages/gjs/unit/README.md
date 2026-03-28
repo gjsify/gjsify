@@ -1,96 +1,73 @@
 # @gjsify/unit
 
-A BDD-style testing framework for Gjs, Deno and Node.js, forked from [gjsunit](https://github.com/philipphoffmann/gjsunit).
+Lightweight testing framework for GJS and Node.js. Provides describe, it, expect with cross-platform support.
 
-## What it is
-unit is a BDD-style testing framework for the gjs Javascript binding for Gnome 4x which can be used to write Gnome 4x applications and extensions. It's syntax is totally stolen from [Jasmine](http://jasmine.github.io/) ;-).
+Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
-## How to use it
-
-First you need to install the package together with `@gjsify/cli`:
+## Installation
 
 ```bash
-yarn install @gjsify/cli @gjsify/unit -D
+npm install @gjsify/unit
+# or
+yarn add @gjsify/unit
 ```
 
-After that you can build and run your tests:
+## Usage
+
+```typescript
+import { describe, it, expect } from '@gjsify/unit';
+
+export default async () => {
+  await describe('MyModule', async () => {
+    await it('should do something', async () => {
+      expect(42).toBe(42);
+      expect('hello').not.toEqual('world');
+    });
+  });
+};
+```
+
+### Running tests
 
 ```bash
+# Build and run on GJS
 gjsify build test-runner.ts --platform gjs --outfile test.gjs.js
 gjs -m test.gjs.js
+
+# Run on Node.js
+node test-runner.mjs
 ```
 
-## Writing test suites
+### Available matchers
 
-In your test directory you can have as many subdirectories and test files as you wish. unit will just run all of them.
-A test suite could look like this:
+- `toBe(value)` — strict equality (`===`)
+- `toEqual(value)` — loose equality (`==`)
+- `toMatch(regex)` — regex match
+- `toBeDefined()` / `toBeUndefined()`
+- `toBeNull()`
+- `toBeTruthy()` / `toBeFalsy()`
+- `toContain(needle)` — array contains
+- `toBeLessThan(value)` / `toBeGreaterThan(value)`
+- `toBeCloseTo(value, precision)` — float comparison
+- `toThrow()` — expects function to throw
+- `to(callback)` — custom matcher
 
-```js
-// my-module.spec.ts
+All matchers support `.not` for negation.
 
-import { describe, it, expect } from '@gjsify/unit';
-import MyModule from './my-module.js';
+### Spy
 
-export default async () => {
+```typescript
+import { spy } from '@gjsify/unit';
 
-	await describe('MyModule', async () => {
-		await it('should say hello', async () => {
-			var module = new MyModule();
-
-			expect(module.hello()).toEqual('hello');
-			expect(module.hello()).not.toEqual('hi');
-		});
-	});
-
-}
+const f = spy();
+f();
+expect(f.calls.length).toBe(1);
 ```
 
-```js
-// test-runner.ts
+## Credits
 
-import { run } from '@gjsify/unit';
-import myTestSuite from './my-module.spec.ts';
+Forked from [gjsunit](https://github.com/philipphoffmann/gjsunit). Spy functionality forked from [mysticatea/spy](https://github.com/mysticatea/spy).
 
-run({myTestSuite});
-```
+## License
 
-
-Your test files must expose a function. This is the function you will call in your test runner. In your test suite you can use `describe` and `it` to cluster your test suite. You can then use `expect` to capture the value you want to express expectations on. The available methods for expressing expectations are:
-- `toBe(value)` (checks using ===)
-- `toEqual(value)` (checks using ==)
-- `toMatch(regex)` (checks using String.prototype.match and a regular expression)
-- `toBeDefined()` (checks whether the actual value is defined)
-- `toBeUndefined()` (opposite of the above)
-- `toBeNull()` (checks whether the actual value is null)
-- `toBeTruthy()` (checks whether the actual value is castable to true)
-- `toBeFalsy()` (checks whether the actual value is castable to false)
-- `toContain(needle)` (checks whether an array contains the needle value)
-- `toBeLessThan(value)`
-- `toBeGreaterThan(value)`
-- `toBeCloseTo(value, precision)` (can check float values until a given precision)
-- `to(callback)` (checks the value using the provided callback (which gets passed the actual value as first parameter))
-
-There is also a `spy` method with which the call of methods can be checked, this is forked from [mysticatea/spy](https://github.com/mysticatea/spy).
-
-```js
-// spy.spec.ts
-
-import { describe, it, expect, spy } from '@gjsify/unit';
-
-export default async () => {
-    await describe("'spy' function", async () => {
-        await it("should have a calls length of 1 after called one time.", async () => {
-            const f = spy()
-            f()
-
-            expect(f.calls.length).toBe(1)
-        })
-	})
-}
-```
-
-I recommend looking at the test suite for examples.
-
-Happy testing!
-
-
+MIT

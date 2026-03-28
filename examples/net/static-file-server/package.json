@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-net-static-file-server",
   "private": true,
-  "version": "0.0.4",
   "description": "Static file server example for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

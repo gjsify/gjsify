@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-gtk-three-extrude-shapes",
   "private": true,
-  "version": "0.0.4",
   "description": "Three.js extrude shapes example ported from refs/three/examples/webgl_geometry_extrude_shapes.html",
   "main": "dist/gjs.js",
   "type": "module",

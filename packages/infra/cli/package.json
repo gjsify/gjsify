@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/cli",
-    "version": "0.0.4",
+    "version": "0.1.0",
     "description": "CLI for Gjsify",
     "type": "module",
     "main": "lib/index.js",
@@ -23,7 +23,6 @@
         "cli"
     ],
     "dependencies": {
-        "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "cosmiconfig": "^9.0.1",
         "esbuild": "^0.27.4",

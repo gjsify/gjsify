@@ -1,6 +1,5 @@
 {
   "name": "@gjsify/example-cli-gio-cat",
-  "version": "0.0.4",
   "type": "module",
   "module": "dist/index.js",
   "private": true,

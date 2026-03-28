@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webgl",
-    "version": "0.0.4",
+    "version": "0.1.0",
     "description": "WebGL module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -39,18 +39,17 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
+        "@types/bit-twiddle": "^1.0.3",
         "@types/node": "^25.5.0",
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/gio-2.0": "^2.88.0-4.0.0-beta.42",
         "@girs/gjs": "^4.0.0-beta.42",
-        "@girs/gtk-4.0": "4.22.1-4.0.0-beta.42",
+        "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.42",
         "@girs/gwebgl-0.1": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/event-bridge": "workspace:^",
         "@gjsify/utils": "workspace:^",
-        "@types/bit-twiddle": "^1.0.3",
         "bit-twiddle": "^1.0.2",
         "glsl-tokenizer": "^2.1.5"
     }

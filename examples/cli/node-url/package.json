@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-cli-node-url",
   "private": true,
-  "version": "0.0.4",
   "description": "",
   "main": "dist/index.gjs.js",
   "type": "module",

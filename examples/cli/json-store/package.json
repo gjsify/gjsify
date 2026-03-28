@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-cli-json-store",
   "private": true,
-  "version": "0.0.4",
   "description": "JSON file-based data store for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

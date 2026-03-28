@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/string_decoder",
-    "version": "0.0.4",
+    "version": "0.1.0",
     "description": "Node.js string_decoder module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

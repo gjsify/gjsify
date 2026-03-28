@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-gtk-webgl-tutorial-04",
   "private": true,
-  "version": "0.0.4",
   "description": "",
   "main": "dist/gjs.js",
   "type": "module",

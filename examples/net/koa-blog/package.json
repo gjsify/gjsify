@@ -1,6 +1,5 @@
 {
   "name": "@gjsify/example-net-koa-blog",
-  "version": "0.0.4",
   "private": true,
   "type": "module",
   "main": "dist/index.gjs.js",

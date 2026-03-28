@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-gtk-three-geometry-cube",
   "private": true,
-  "version": "0.0.4",
   "description": "Three.js geometry cube example ported from refs/three/examples/webgl_geometry_cube.html",
   "main": "dist/gjs.js",
   "type": "module",

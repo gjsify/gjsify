@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/querystring",
-    "version": "0.0.4",
+    "version": "0.1.0",
     "description": "Node.js querystring module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -31,9 +31,7 @@
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/inherits": "^2.0.0",
         "@types/node": "^25.5.0",
         "typescript": "^6.0.2"
     }

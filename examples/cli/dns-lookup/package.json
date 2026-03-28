@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-cli-dns-lookup",
   "private": true,
-  "version": "0.0.4",
   "description": "Interactive DNS lookup tool for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

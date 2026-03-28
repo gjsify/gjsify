@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/fetch",
-    "version": "0.0.4",
+    "version": "0.1.0",
     "description": "Web and Node.js fetch module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -32,7 +32,6 @@
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@gjsify/http": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
         "typescript": "^6.0.2"
@@ -42,7 +41,6 @@
         "@girs/gjs": "^4.0.0-beta.42",
         "@girs/glib-2.0": "^2.88.0-4.0.0-beta.42",
         "@girs/soup-3.0": "^3.6.6-4.0.0-beta.42",
-        "@gjsify/dom-events": "workspace:^",
         "@gjsify/formdata": "workspace:^",
         "@gjsify/http": "workspace:^",
         "@gjsify/url": "workspace:^",

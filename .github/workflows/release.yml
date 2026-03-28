@@ -1,0 +1,64 @@
+# Workflow to automatically publish packages to npm on new releases
+name: Release to NPM
+
+on:
+  release:
+    types: [published]
+  # Allow manual triggering for testing
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to use for commit message'
+        required: false
+        default: 'manual'
+
+jobs:
+  publish:
+    name: Publish to NPM
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Install container prerequisites
+        run: dnf install -y git tar xz findutils meson vala gcc pkgconf gjs glib2-devel gobject-introspection-devel gtk4-devel libsoup3-devel libepoxy-devel gdk-pixbuf2-devel
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          registry-url: 'https://registry.npmjs.org'
+          always-auth: true
+
+      - name: Configure Yarn for npm publishing
+        run: |
+          corepack enable
+          yarn config set npmRegistryServer "https://registry.npmjs.org"
+          yarn config set npmAlwaysAuth true
+          yarn config set npmAuthToken "${NODE_AUTH_TOKEN}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build
+        run: yarn run build
+
+      - name: Publish packages to npm
+        run: yarn workspaces foreach -v --no-private --exclude '@girs/*' npm publish --tolerate-republish --tag latest --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || github.event.inputs.release_tag || 'unknown' }}
+        run: |
+          echo "Packages successfully published to npm for release ${RELEASE_TAG}"
+          echo "Published packages: @gjsify/*"

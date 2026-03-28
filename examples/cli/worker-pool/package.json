@@ -1,7 +1,6 @@
 {
   "name": "@gjsify/example-cli-worker-pool",
   "private": true,
-  "version": "0.0.4",
   "description": "Worker pool example using worker_threads for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

@@ -1,23 +1,35 @@
 # gjsify
 
-Node.js and Web Standard APIs for [GJS](https://gjs.guide/) (GNOME JavaScript).
+**The full JavaScript ecosystem, native on GNOME.**
 
-Use npm packages and familiar Node.js APIs in GNOME desktop applications. gjsify bridges the gap between the Node.js ecosystem and GJS by providing native implementations of Node.js core modules backed by GNOME libraries (GLib, Gio, Soup).
+Use Node.js APIs, Web APIs, and DOM interfaces in GNOME desktop applications. gjsify provides native implementations backed by GNOME libraries (GLib, Gio, Soup, Cairo, GTK) — so you can use the npm packages and patterns you already know to build native Linux apps.
 
 ## Features
 
-- **39 Node.js modules** (32 fully implemented, 3 partial, 4 stubs)
-- **15 Web API packages** (fetch, WebSocket, WebCrypto, Streams, EventSource, and more)
-- **9,200+ tests** passing on both Node.js and GJS
-- **ESM-only**, TypeScript-first
-- Native GNOME library bindings: `Gio` for I/O, `Soup 3.0` for HTTP, `GLib` for crypto/process
-- esbuild-based build system with platform-specific resolution
+- **40 Node.js modules** — fs, net, http, crypto, streams, child_process, and more
+- **12 Web API packages** — fetch, WebSocket, WebCrypto, Streams, EventSource, AbortController
+- **5 DOM packages** — Canvas2D (Cairo), WebGL (OpenGL ES), DOM elements, event bridge, iframes (WebKit)
+- **ESM-only**, TypeScript-first, esbuild-based build system
+- Native GNOME library bindings: `Gio` for I/O, `Soup 3.0` for HTTP, `GLib` for crypto/process, `Cairo` for 2D, `GTK 4` for UI
+- Every test runs on both Node.js and GJS
 
 ## Quick Start
 
+### Create a new project
+
+```bash
+npm create @gjsify/app my-app
+cd my-app
+npm install
+npm run build
+npm start
+```
+
+This scaffolds a GTK 4 application with TypeScript, ready to build and run.
+
 ### Prerequisites
 
-**Node.js 24+** and **Yarn 4** (via Corepack) are required.
+**Node.js 24+** is required. Your system also needs GJS and GNOME development libraries.
 
 Fedora:
 
@@ -25,7 +37,6 @@ Fedora:
 sudo dnf install gjs glib2-devel gobject-introspection-devel gtk4-devel \
   libsoup3-devel webkitgtk6.0-devel libadwaita-devel gdk-pixbuf2-devel \
   libepoxy-devel libgda libgda-sqlite meson vala gcc pkgconf nodejs
-corepack enable
 ```
 
 Ubuntu:
@@ -34,33 +45,19 @@ Ubuntu:
 sudo apt install gjs libglib2.0-dev libgirepository1.0-dev libgtk-4-dev \
   libsoup-3.0-dev libwebkitgtk-6.0-dev libadwaita-1-dev libgdk-pixbuf-2.0-dev \
   libepoxy-dev libgda-6.0-dev meson valac gcc pkg-config nodejs
-corepack enable
 ```
 
-### Setup
+### Using the CLI directly
 
 ```bash
-git clone https://github.com/nickvision-studios/gjsify.git
-cd gjsify
-yarn install
-yarn build
-```
+# Install the CLI
+npm install -g @gjsify/cli
 
-### Build for GJS
-
-```bash
-# Build a single-file GJS app from TypeScript
-gjsify build src/index.ts --app gjs --outfile app.gjs.mjs
+# Build a TypeScript file for GJS (default target)
+gjsify build src/index.ts --outfile dist/app.js
 
 # Run it
-gjs -m app.gjs.mjs
-```
-
-### Build for Node.js (for testing)
-
-```bash
-gjsify build src/index.ts --app node --outfile app.node.mjs
-node app.node.mjs
+gjsify run dist/app.js
 ```
 
 ## Usage
@@ -99,7 +96,17 @@ console.log(text);
 
 ### Web APIs
 
-All 15 packages fully implemented: abort-controller, compression-streams, dom-elements, dom-events, dom-exception, eventsource, fetch, formdata, html-image-element, streams, webcrypto, webgl, web-globals, websocket, webstorage.
+abort-controller, compression-streams, dom-events, dom-exception, eventsource, fetch, formdata, streams, webcrypto, web-globals, websocket, webstorage.
+
+### DOM
+
+| Package | Backed by | Provides |
+|---------|-----------|----------|
+| canvas2d | Cairo, PangoCairo | CanvasRenderingContext2D, Canvas2DWidget → Gtk.DrawingArea |
+| dom-elements | GdkPixbuf | Node, Element, HTMLCanvasElement, HTMLImageElement, Document |
+| event-bridge | GTK 4, Gdk 4 | GTK → DOM event mapping (Mouse, Pointer, Keyboard, Wheel, Focus) |
+| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameWidget → WebKit.WebView |
+| webgl | gwebgl (Vala) | WebGL 1.0/2.0, CanvasWebGLWidget → Gtk.GLArea |
 
 ### GNOME Library Mappings
 
@@ -119,13 +126,15 @@ All 15 packages fully implemented: abort-controller, compression-streams, dom-el
 
 ```
 packages/
-  node/       # 39 Node.js API packages (@gjsify/<name>)
-  web/        # 15 Web API packages
+  node/       # 40 Node.js API packages (@gjsify/<name>)
+  web/        # 12 Web API packages (fetch, WebSocket, etc.)
+  dom/        # 5 DOM packages (Canvas2D, WebGL, DOM elements, etc.)
   gjs/        # GJS utilities, types, test framework
-  infra/      # Build tools, esbuild plugins, CLI
+  infra/      # Build tools, esbuild plugins, CLI, create-app
 examples/
   cli/        # CLI examples (fs, path, events, etc.)
-  gtk/        # GTK/WebGL examples
+  gtk/        # GTK, Canvas2D, WebGL, and three.js examples
+  net/        # Network examples (Express, Hono, Koa, WebSocket)
 refs/         # Read-only reference submodules (Node.js, Deno, Bun, etc.)
 ```
 
