@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/unit",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "A BDD-style testing framework for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
