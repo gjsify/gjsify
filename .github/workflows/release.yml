@@ -52,7 +52,7 @@ jobs:
         run: yarn run build
 
       - name: Publish packages to npm
-        run: yarn workspaces foreach -v --no-private --exclude '@girs/*' npm publish --tolerate-republish --tag latest --access public
+        run: yarn workspaces foreach -v --all --no-private --exclude '@girs/*' npm publish --tolerate-republish --tag latest --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
