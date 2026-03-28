@@ -612,6 +612,138 @@ export default async () => {
 		});
 	});
 
+	// -- uniform1fv regression (inverted validation check) --
+	// Regression: uniform1fv had an inverted validation guard that caused it to
+	// return immediately when the value was valid, so uniform float arrays were
+	// never actually sent to the shader.  This broke Three.js morph targets
+	// (morphTargetInfluences is set via uniform1fv).
+
+	await describe('uniform1fv regression', async () => {
+		beforeEach(async () => { glArea.make_current(); });
+
+		const VS_U1FV = [
+			'attribute vec2 position;',
+			'void main() { gl_Position = vec4(position, 0.0, 1.0); }',
+		].join('\n');
+
+		await it('uniform1fv sets a float uniform and affects rendering', async () => {
+			// Fragment shader that uses a uniform float to choose the red channel.
+			// If uniform1fv works, we can set it to 1.0 and read back red pixels.
+			const FS = [
+				'precision mediump float;',
+				'uniform float uRed;',
+				'void main() { gl_FragColor = vec4(uRed, 0.0, 0.0, 1.0); }',
+			].join('\n');
+
+			const prog = makeProgram(gl, VS_U1FV, FS);
+			expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBeTruthy();
+			gl.useProgram(prog);
+
+			const loc = gl.getUniformLocation(prog, 'uRed');
+			expect(loc).not.toBeNull();
+
+			// Set via uniform1fv (the previously broken path)
+			gl.uniform1fv(loc, new Float32Array([1.0]));
+			expect(gl.getError()).toBe(gl.NO_ERROR);
+
+			const fbo = makeTestFBO(gl, 4, 4);
+			gl.clearColor(0, 0, 0, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			drawTriangle(gl);
+
+			const p = readPixel(gl, 0, 0);
+			destroyTestFBO(gl, fbo);
+			// Red channel must be 255 — proves uniform1fv actually set the value
+			expect(p[0]).toBe(255);
+			expect(p[1]).toBe(0);
+			expect(p[2]).toBe(0);
+
+			gl.deleteProgram(prog);
+		});
+
+		await it('uniform1fv sets each array element individually', async () => {
+			// Shader with a float array — Three.js sets morphTargetInfluences
+			// by calling uniform1fv for each element individually.
+			const FS_ARR = [
+				'precision mediump float;',
+				'uniform float uWeights[3];',
+				'void main() { gl_FragColor = vec4(uWeights[0], uWeights[1], uWeights[2], 1.0); }',
+			].join('\n');
+
+			const prog = makeProgram(gl, VS_U1FV, FS_ARR);
+			expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBeTruthy();
+			gl.useProgram(prog);
+
+			// Set each element individually via uniform1fv (the pattern Three.js uses)
+			const loc0 = gl.getUniformLocation(prog, 'uWeights[0]');
+			const loc1 = gl.getUniformLocation(prog, 'uWeights[1]');
+			const loc2 = gl.getUniformLocation(prog, 'uWeights[2]');
+			expect(loc0).not.toBeNull();
+			expect(loc1).not.toBeNull();
+			expect(loc2).not.toBeNull();
+
+			gl.uniform1fv(loc0, new Float32Array([0.0]));
+			gl.uniform1fv(loc1, new Float32Array([1.0]));
+			gl.uniform1fv(loc2, new Float32Array([0.0]));
+			expect(gl.getError()).toBe(gl.NO_ERROR);
+
+			const fbo = makeTestFBO(gl, 4, 4);
+			gl.clearColor(0, 0, 0, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			drawTriangle(gl);
+
+			const p = readPixel(gl, 0, 0);
+			destroyTestFBO(gl, fbo);
+			// Green channel must be 255, proving uniform1fv set each value
+			expect(p[0]).toBe(0);
+			expect(p[1]).toBe(255);
+			expect(p[2]).toBe(0);
+
+			gl.deleteProgram(prog);
+		});
+	});
+
+	// -- linkProgram with inactive attributes regression --
+	// Regression: _fixupLink passed getAttribLocation() return value (-1 for
+	// inactive attributes) directly to the native bindAttribLocation() which
+	// expects a uint32, causing "value is out of range for uint32".
+
+	await describe('linkProgram with inactive attributes', async () => {
+		beforeEach(async () => { glArea.make_current(); });
+
+		await it('links a program whose vertex shader declares but does not use an attribute', async () => {
+			// 'unused' is declared but never referenced in the shader body,
+			// so the driver may optimize it away → getAttribLocation returns -1.
+			const VS = [
+				'attribute vec2 position;',
+				'attribute vec3 unused;',
+				'void main() { gl_Position = vec4(position, 0.0, 1.0); }',
+			].join('\n');
+			const FS = [
+				'precision mediump float;',
+				'void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }',
+			].join('\n');
+
+			const prog = makeProgram(gl, VS, FS);
+			expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBeTruthy();
+			expect(gl.getError()).toBe(gl.NO_ERROR);
+
+			// The program must still be usable for rendering
+			gl.useProgram(prog);
+			const fbo = makeTestFBO(gl, 4, 4);
+			gl.clearColor(0, 0, 0, 1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			drawTriangle(gl);
+			expect(gl.getError()).toBe(gl.NO_ERROR);
+
+			const p = readPixel(gl, 0, 0);
+			destroyTestFBO(gl, fbo);
+			expect(p[1]).toBe(255); // green
+
+			gl.deleteProgram(prog);
+		});
+	});
+
 	// All tests complete. Destroy the window to release the GL context and remove it from screen.
 	win.destroy();
 
