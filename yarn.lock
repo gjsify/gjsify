@@ -785,6 +785,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/create-app@workspace:packages/infra/create-gjsify":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/create-app@workspace:packages/infra/create-gjsify"
+  dependencies:
+    "@types/node": "npm:^25.5.0"
+    "@types/yargs": "npm:^17.0.35"
+    typescript: "npm:^6.0.2"
+    yargs: "npm:^18.0.0"
+  bin:
+    create-app: ./lib/index.js
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/crypto@workspace:^, @gjsify/crypto@workspace:packages/node/crypto":
   version: 0.0.0-use.local
   resolution: "@gjsify/crypto@workspace:packages/node/crypto"
@@ -3259,19 +3272,6 @@ __metadata:
   checksum: 10/89fcac84d062f0710091bb2d6a6175bcde22f5448877db9c43429694408191d3d4e215193b3ac4d54f7f89ef188d55cd481c7a2295b0dc572e65b528bf6fec01
   languageName: node
   linkType: hard
-
-"create-gjsify@workspace:packages/infra/create-gjsify":
-  version: 0.0.0-use.local
-  resolution: "create-gjsify@workspace:packages/infra/create-gjsify"
-  dependencies:
-    "@types/node": "npm:^25.5.0"
-    "@types/yargs": "npm:^17.0.35"
-    typescript: "npm:^6.0.2"
-    yargs: "npm:^18.0.0"
-  bin:
-    create-gjsify: ./lib/index.js
-  languageName: unknown
-  linkType: soft
 
 "debug@npm:^3.2.7":
   version: 3.2.7
