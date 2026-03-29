@@ -760,7 +760,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/console@workspace:packages/node/console":
+"@gjsify/console@workspace:^, @gjsify/console@workspace:packages/node/console":
   version: 0.0.0-use.local
   resolution: "@gjsify/console@workspace:packages/node/console"
   dependencies:
@@ -936,6 +936,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/esbuild-plugin-gjsify@workspace:packages/infra/esbuild-plugin-gjsify"
   dependencies:
+    "@gjsify/console": "workspace:^"
     "@gjsify/esbuild-plugin-alias": "workspace:^"
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
