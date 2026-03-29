@@ -1,0 +1,8 @@
+{
+  "label": "Packages",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Browse all gjsify packages: Node.js modules, Web APIs, and DOM & graphics."
+  }
+}

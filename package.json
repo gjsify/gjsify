@@ -19,7 +19,10 @@
     "npm:publish": "yarn run build && yarn workspaces foreach -v --all --no-private --exclude '@girs/*' npm publish --tolerate-republish --tag latest --access public",
     "build": "yarn run build:infra && yarn workspaces foreach --topological -p --no-private --all --exclude '@girs/*' run build",
     "build:infra": "yarn workspaces foreach -pR --topological-dev --from '@gjsify/cli' run build",
-    "build:examples": "yarn workspaces foreach -ptv -A --include '@gjsify/example-*' run build"
+    "build:examples": "yarn workspaces foreach -ptv -A --include '@gjsify/example-*' run build",
+    "docs:dev": "yarn workspace @gjsify/website start",
+    "docs:build": "yarn workspace @gjsify/website build",
+    "docs:serve": "yarn workspace @gjsify/website serve"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
@@ -38,6 +41,7 @@
     "packages/dom/*",
     "examples/cli/*",
     "examples/gtk/*",
-    "examples/net/*"
+    "examples/net/*",
+    "website"
   ]
 }

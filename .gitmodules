@@ -110,3 +110,6 @@
 [submodule "refs/map-editor"]
 	path = refs/map-editor
 	url = git@github.com:PixelRPG/map-editor.git
+[submodule "refs/docusaurus"]
+	path = refs/docusaurus
+	url = org-69631@github.com:facebook/docusaurus.git

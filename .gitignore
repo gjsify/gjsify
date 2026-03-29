@@ -42,3 +42,6 @@ test-*.js
 # Metafile
 *.meta.json
 meta.json
+
+# Docusaurus
+.docusaurus/
