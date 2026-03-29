@@ -91,3 +91,6 @@ jobs:
 
       - name: Test net examples
         run: su testuser -c 'yarn run test:examples:net'
+
+      - name: E2E test create-app
+        run: su testuser -c 'node --test tests/e2e/create-app/run.mjs'
