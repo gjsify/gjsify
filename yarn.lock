@@ -657,7 +657,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/async_hooks@workspace:packages/node/async_hooks":
+"@gjsify/async_hooks@workspace:^, @gjsify/async_hooks@workspace:packages/node/async_hooks":
   version: 0.0.0-use.local
   resolution: "@gjsify/async_hooks@workspace:packages/node/async_hooks"
   dependencies:
@@ -703,7 +703,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/child_process@workspace:packages/node/child_process":
+"@gjsify/child_process@workspace:^, @gjsify/child_process@workspace:packages/node/child_process":
   version: 0.0.0-use.local
   resolution: "@gjsify/child_process@workspace:packages/node/child_process"
   dependencies:
@@ -736,7 +736,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/cluster@workspace:packages/node/cluster":
+"@gjsify/cluster@workspace:^, @gjsify/cluster@workspace:packages/node/cluster":
   version: 0.0.0-use.local
   resolution: "@gjsify/cluster@workspace:packages/node/cluster"
   dependencies:
@@ -771,7 +771,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/constants@workspace:packages/node/constants":
+"@gjsify/constants@workspace:^, @gjsify/constants@workspace:packages/node/constants":
   version: 0.0.0-use.local
   resolution: "@gjsify/constants@workspace:packages/node/constants"
   dependencies:
@@ -814,7 +814,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/dgram@workspace:packages/node/dgram":
+"@gjsify/dgram@workspace:^, @gjsify/dgram@workspace:packages/node/dgram":
   version: 0.0.0-use.local
   resolution: "@gjsify/dgram@workspace:packages/node/dgram"
   dependencies:
@@ -830,7 +830,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/diagnostics_channel@workspace:packages/node/diagnostics_channel":
+"@gjsify/diagnostics_channel@workspace:^, @gjsify/diagnostics_channel@workspace:packages/node/diagnostics_channel":
   version: 0.0.0-use.local
   resolution: "@gjsify/diagnostics_channel@workspace:packages/node/diagnostics_channel"
   dependencies:
@@ -841,7 +841,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/dns@workspace:packages/node/dns":
+"@gjsify/dns@workspace:^, @gjsify/dns@workspace:packages/node/dns":
   version: 0.0.0-use.local
   resolution: "@gjsify/dns@workspace:packages/node/dns"
   dependencies:
@@ -894,7 +894,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/domain@workspace:packages/node/domain":
+"@gjsify/dom-polyfills@workspace:packages/dom/polyfills":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/dom-polyfills@workspace:packages/dom/polyfills"
+  dependencies:
+    "@gjsify/canvas2d": "workspace:^"
+    "@gjsify/dom-elements": "workspace:^"
+    "@gjsify/event-bridge": "workspace:^"
+    "@gjsify/iframe": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/domain@workspace:^, @gjsify/domain@workspace:packages/node/domain":
   version: 0.0.0-use.local
   resolution: "@gjsify/domain@workspace:packages/node/domain"
   dependencies:
@@ -936,11 +948,12 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/esbuild-plugin-gjsify@workspace:packages/infra/esbuild-plugin-gjsify"
   dependencies:
-    "@gjsify/console": "workspace:^"
     "@gjsify/esbuild-plugin-alias": "workspace:^"
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
+    "@gjsify/node-polyfills": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
+    "@gjsify/web-polyfills": "workspace:^"
     esbuild: "npm:^0.27.4"
     fast-glob: "npm:^3.3.3"
     typescript: "npm:^6.0.2"
@@ -1628,7 +1641,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/http2@workspace:packages/node/http2":
+"@gjsify/http2@workspace:^, @gjsify/http2@workspace:packages/node/http2":
   version: 0.0.0-use.local
   resolution: "@gjsify/http2@workspace:packages/node/http2"
   dependencies:
@@ -1660,7 +1673,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/https@workspace:packages/node/https":
+"@gjsify/https@workspace:^, @gjsify/https@workspace:packages/node/https":
   version: 0.0.0-use.local
   resolution: "@gjsify/https@workspace:packages/node/https"
   dependencies:
@@ -1690,7 +1703,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/inspector@workspace:packages/node/inspector":
+"@gjsify/inspector@workspace:^, @gjsify/inspector@workspace:packages/node/inspector":
   version: 0.0.0-use.local
   resolution: "@gjsify/inspector@workspace:packages/node/inspector"
   dependencies:
@@ -1701,7 +1714,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/module@workspace:packages/node/module":
+"@gjsify/module@workspace:^, @gjsify/module@workspace:packages/node/module":
   version: 0.0.0-use.local
   resolution: "@gjsify/module@workspace:packages/node/module"
   dependencies:
@@ -1748,6 +1761,52 @@ __metadata:
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/node-polyfills@workspace:^, @gjsify/node-polyfills@workspace:packages/node/polyfills":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/node-polyfills@workspace:packages/node/polyfills"
+  dependencies:
+    "@gjsify/assert": "workspace:^"
+    "@gjsify/async_hooks": "workspace:^"
+    "@gjsify/buffer": "workspace:^"
+    "@gjsify/child_process": "workspace:^"
+    "@gjsify/cluster": "workspace:^"
+    "@gjsify/console": "workspace:^"
+    "@gjsify/constants": "workspace:^"
+    "@gjsify/crypto": "workspace:^"
+    "@gjsify/dgram": "workspace:^"
+    "@gjsify/diagnostics_channel": "workspace:^"
+    "@gjsify/dns": "workspace:^"
+    "@gjsify/domain": "workspace:^"
+    "@gjsify/events": "workspace:^"
+    "@gjsify/fs": "workspace:^"
+    "@gjsify/http": "workspace:^"
+    "@gjsify/http2": "workspace:^"
+    "@gjsify/https": "workspace:^"
+    "@gjsify/inspector": "workspace:^"
+    "@gjsify/module": "workspace:^"
+    "@gjsify/net": "workspace:^"
+    "@gjsify/os": "workspace:^"
+    "@gjsify/path": "workspace:^"
+    "@gjsify/perf_hooks": "workspace:^"
+    "@gjsify/process": "workspace:^"
+    "@gjsify/querystring": "workspace:^"
+    "@gjsify/readline": "workspace:^"
+    "@gjsify/sqlite": "workspace:^"
+    "@gjsify/stream": "workspace:^"
+    "@gjsify/string_decoder": "workspace:^"
+    "@gjsify/sys": "workspace:^"
+    "@gjsify/timers": "workspace:^"
+    "@gjsify/tls": "workspace:^"
+    "@gjsify/tty": "workspace:^"
+    "@gjsify/url": "workspace:^"
+    "@gjsify/util": "workspace:^"
+    "@gjsify/v8": "workspace:^"
+    "@gjsify/vm": "workspace:^"
+    "@gjsify/worker_threads": "workspace:^"
+    "@gjsify/zlib": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1799,7 +1858,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/querystring@workspace:packages/node/querystring":
+"@gjsify/querystring@workspace:^, @gjsify/querystring@workspace:packages/node/querystring":
   version: 0.0.0-use.local
   resolution: "@gjsify/querystring@workspace:packages/node/querystring"
   dependencies:
@@ -1810,7 +1869,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/readline@workspace:packages/node/readline":
+"@gjsify/readline@workspace:^, @gjsify/readline@workspace:packages/node/readline":
   version: 0.0.0-use.local
   resolution: "@gjsify/readline@workspace:packages/node/readline"
   dependencies:
@@ -1838,7 +1897,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/sqlite@workspace:packages/node/sqlite":
+"@gjsify/sqlite@workspace:^, @gjsify/sqlite@workspace:packages/node/sqlite":
   version: 0.0.0-use.local
   resolution: "@gjsify/sqlite@workspace:packages/node/sqlite"
   dependencies:
@@ -1866,7 +1925,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/string_decoder@workspace:packages/node/string_decoder":
+"@gjsify/string_decoder@workspace:^, @gjsify/string_decoder@workspace:packages/node/string_decoder":
   version: 0.0.0-use.local
   resolution: "@gjsify/string_decoder@workspace:packages/node/string_decoder"
   dependencies:
@@ -1878,7 +1937,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/sys@workspace:packages/node/sys":
+"@gjsify/sys@workspace:^, @gjsify/sys@workspace:packages/node/sys":
   version: 0.0.0-use.local
   resolution: "@gjsify/sys@workspace:packages/node/sys"
   dependencies:
@@ -1890,7 +1949,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/timers@workspace:packages/node/timers":
+"@gjsify/timers@workspace:^, @gjsify/timers@workspace:packages/node/timers":
   version: 0.0.0-use.local
   resolution: "@gjsify/timers@workspace:packages/node/timers"
   dependencies:
@@ -1916,7 +1975,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/tty@workspace:packages/node/tty":
+"@gjsify/tty@workspace:^, @gjsify/tty@workspace:packages/node/tty":
   version: 0.0.0-use.local
   resolution: "@gjsify/tty@workspace:packages/node/tty"
   dependencies:
@@ -1989,7 +2048,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/v8@workspace:packages/node/v8":
+"@gjsify/v8@workspace:^, @gjsify/v8@workspace:packages/node/v8":
   version: 0.0.0-use.local
   resolution: "@gjsify/v8@workspace:packages/node/v8"
   dependencies:
@@ -2000,7 +2059,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/vm@workspace:packages/node/vm":
+"@gjsify/vm@workspace:^, @gjsify/vm@workspace:packages/node/vm":
   version: 0.0.0-use.local
   resolution: "@gjsify/vm@workspace:packages/node/vm"
   dependencies:
@@ -2030,6 +2089,24 @@ __metadata:
     "@gjsify/webcrypto": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/web-polyfills@workspace:^, @gjsify/web-polyfills@workspace:packages/web/polyfills":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/web-polyfills@workspace:packages/web/polyfills"
+  dependencies:
+    "@gjsify/abort-controller": "workspace:^"
+    "@gjsify/compression-streams": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@gjsify/dom-exception": "workspace:^"
+    "@gjsify/eventsource": "workspace:^"
+    "@gjsify/fetch": "workspace:^"
+    "@gjsify/formdata": "workspace:^"
+    "@gjsify/web-streams": "workspace:^"
+    "@gjsify/webcrypto": "workspace:^"
+    "@gjsify/websocket": "workspace:^"
+    "@gjsify/webstorage": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -2077,7 +2154,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/websocket@workspace:packages/web/websocket":
+"@gjsify/websocket@workspace:^, @gjsify/websocket@workspace:packages/web/websocket":
   version: 0.0.0-use.local
   resolution: "@gjsify/websocket@workspace:packages/web/websocket"
   dependencies:
@@ -2093,7 +2170,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/webstorage@workspace:packages/web/webstorage":
+"@gjsify/webstorage@workspace:^, @gjsify/webstorage@workspace:packages/web/webstorage":
   version: 0.0.0-use.local
   resolution: "@gjsify/webstorage@workspace:packages/web/webstorage"
   dependencies:
@@ -2104,7 +2181,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/worker_threads@workspace:packages/node/worker_threads":
+"@gjsify/worker_threads@workspace:^, @gjsify/worker_threads@workspace:packages/node/worker_threads":
   version: 0.0.0-use.local
   resolution: "@gjsify/worker_threads@workspace:packages/node/worker_threads"
   dependencies:
@@ -2119,7 +2196,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/zlib@workspace:packages/node/zlib":
+"@gjsify/zlib@workspace:^, @gjsify/zlib@workspace:packages/node/zlib":
   version: 0.0.0-use.local
   resolution: "@gjsify/zlib@workspace:packages/node/zlib"
   dependencies:

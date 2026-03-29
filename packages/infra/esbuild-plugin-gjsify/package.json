@@ -25,11 +25,12 @@
         "esbuild"
     ],
     "dependencies": {
-        "@gjsify/console": "workspace:^",
         "@gjsify/esbuild-plugin-alias": "workspace:^",
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-transform-ext": "workspace:^",
+        "@gjsify/node-polyfills": "workspace:^",
         "@gjsify/resolve-npm": "workspace:^",
+        "@gjsify/web-polyfills": "workspace:^",
         "fast-glob": "^3.3.3"
     },
     "devDependencies": {
