@@ -948,12 +948,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/esbuild-plugin-gjsify@workspace:packages/infra/esbuild-plugin-gjsify"
   dependencies:
+    "@gjsify/console": "workspace:^"
     "@gjsify/esbuild-plugin-alias": "workspace:^"
     "@gjsify/esbuild-plugin-deepkit": "workspace:^"
     "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
-    "@gjsify/node-polyfills": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
-    "@gjsify/web-polyfills": "workspace:^"
     esbuild: "npm:^0.27.4"
     fast-glob: "npm:^3.3.3"
     typescript: "npm:^6.0.2"
@@ -1764,7 +1763,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/node-polyfills@workspace:^, @gjsify/node-polyfills@workspace:packages/node/polyfills":
+"@gjsify/node-polyfills@workspace:packages/node/polyfills":
   version: 0.0.0-use.local
   resolution: "@gjsify/node-polyfills@workspace:packages/node/polyfills"
   dependencies:
@@ -2092,7 +2091,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/web-polyfills@workspace:^, @gjsify/web-polyfills@workspace:packages/web/polyfills":
+"@gjsify/web-polyfills@workspace:packages/web/polyfills":
   version: 0.0.0-use.local
   resolution: "@gjsify/web-polyfills@workspace:packages/web/polyfills"
   dependencies:
