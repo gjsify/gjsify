@@ -25,7 +25,6 @@
         "esbuild"
     ],
     "dependencies": {
-        "@gjsify/console": "workspace:^",
         "@gjsify/esbuild-plugin-alias": "workspace:^",
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-transform-ext": "workspace:^",

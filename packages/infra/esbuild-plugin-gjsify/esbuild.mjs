@@ -22,13 +22,18 @@ await build({
     },
 });
 
-// Build GJS console shim — standalone file injected into GJS bundles at build time.
+// Build GJS console shim — self-contained file injected into GJS bundles at build time.
+// Bundled with @gjsify/console inlined so the plugin has zero @gjsify/* polyfill deps.
 // Must be ESM with a named export `console` for esbuild's inject feature.
+// Uses alias to resolve from source (console may not be built yet during build:infra).
 await build({
     entryPoints: ['src/shims/console-gjs.ts'],
-    bundle: false,
+    bundle: true,
     minify: false,
     platform: 'neutral',
     format: 'esm',
     outfile: 'dist/shims/console-gjs.js',
+    alias: {
+        '@gjsify/console': '../../node/console/src/index.ts',
+    },
 });

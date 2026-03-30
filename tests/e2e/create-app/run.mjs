@@ -5,28 +5,20 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { tmpdir } from 'node:os';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
+import {
+  MONOREPO_ROOT,
+  createTestEnvironment,
+  cleanupTestEnvironment,
+  toFileRef,
+  buildOverrides,
+} from '../helpers.mjs';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Pack all workspace tarballs via pack.sh, return { name: filename } map. */
-function packWorkspaces(tarballsDir) {
-  const stdout = execFileSync('bash', [join(__dirname, 'pack.sh'), tarballsDir], {
-    cwd: MONOREPO_ROOT,
-    encoding: 'utf8',
-    maxBuffer: 50 * 1024 * 1024,
-    timeout: 5 * 60 * 1000,
-  });
-  return JSON.parse(stdout);
-}
 
 /** Scaffold a project using create-app CLI. */
 function scaffold(cwd, projectName) {
@@ -45,12 +37,6 @@ function patchPackageJson(projectDir, tarballsDir, tarballMap) {
   const pkgPath = join(projectDir, 'package.json');
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 
-  const toFileRef = (name) => {
-    const filename = tarballMap[name];
-    if (!filename) return undefined;
-    return `file:${join(tarballsDir, filename)}`;
-  };
-
   // Patch deps and devDeps
   for (const field of ['dependencies', 'devDependencies']) {
     if (!pkg[field]) continue;
@@ -59,16 +45,13 @@ function patchPackageJson(projectDir, tarballsDir, tarballMap) {
         delete pkg[field][name];
         continue;
       }
-      const ref = toFileRef(name);
+      const ref = toFileRef(name, tarballsDir, tarballMap);
       if (ref) pkg[field][name] = ref;
     }
   }
 
   // Add overrides for ALL @gjsify/* packages so transitive deps resolve too
-  pkg.overrides = {};
-  for (const [name, filename] of Object.entries(tarballMap)) {
-    pkg.overrides[name] = `file:${join(tarballsDir, filename)}`;
-  }
+  pkg.overrides = buildOverrides(tarballsDir, tarballMap);
 
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 }
@@ -81,30 +64,25 @@ describe('create-app E2E', { timeout: 10 * 60 * 1000 }, () => {
   let tmpDir;
   let projectDir;
   let tarballsDir;
+  let tarballMap;
 
   before(async () => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-'));
-    tarballsDir = join(tmpDir, 'tarballs');
+    const env = createTestEnvironment('gjsify-e2e-create-app-');
+    tmpDir = env.tmpDir;
+    tarballsDir = env.tarballsDir;
+    tarballMap = env.tarballMap;
 
-    console.log(`  tmp dir: ${tmpDir}`);
-
-    // 1. Pack all workspace packages
-    console.log('  packing workspace packages...');
-    const tarballMap = packWorkspaces(tarballsDir);
-    const count = Object.keys(tarballMap).length;
-    console.log(`  packed ${count} packages`);
-
-    // 2. Scaffold project
+    // 1. Scaffold project
     console.log('  scaffolding project...');
     projectDir = scaffold(tmpDir, 'test-app');
 
-    // 3. Replace src/index.ts with minimal content (no GTK)
+    // 2. Replace src/index.ts with minimal content (no GTK)
     writeFileSync(join(projectDir, 'src', 'index.ts'), "console.log('Hello from gjsify!');\n");
 
-    // 4. Patch package.json
+    // 3. Patch package.json
     patchPackageJson(projectDir, tarballsDir, tarballMap);
 
-    // 5. npm install
+    // 4. npm install
     console.log('  running npm install...');
     execSync('npm install --no-audit --no-fund', {
       cwd: projectDir,
@@ -115,17 +93,22 @@ describe('create-app E2E', { timeout: 10 * 60 * 1000 }, () => {
   });
 
   after(() => {
-    if (process.env.GJSIFY_E2E_KEEP_TEMP) {
-      console.log(`  keeping tmp dir: ${tmpDir}`);
-    } else if (tmpDir) {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+    cleanupTestEnvironment(tmpDir);
   });
 
   it('scaffolded project has expected files', () => {
     assert.ok(existsSync(join(projectDir, 'package.json')), 'package.json missing');
     assert.ok(existsSync(join(projectDir, 'tsconfig.json')), 'tsconfig.json missing');
     assert.ok(existsSync(join(projectDir, 'src', 'index.ts')), 'src/index.ts missing');
+  });
+
+  it('scaffolded project includes @gjsify/node-polyfills', () => {
+    const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'));
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const hasPolyfills = Object.keys(deps).some(name =>
+      name === '@gjsify/node-polyfills' || (pkg.overrides && pkg.overrides['@gjsify/node-polyfills'])
+    );
+    assert.ok(hasPolyfills, '@gjsify/node-polyfills not in dependencies');
   });
 
   it('npm install created node_modules', () => {
@@ -153,9 +136,25 @@ describe('create-app E2E', { timeout: 10 * 60 * 1000 }, () => {
     assert.ok(existsSync(join(projectDir, 'dist', 'no-shim.js')), 'dist/no-shim.js missing');
   });
 
+  it('gjsify build succeeds with aliased Node.js imports', () => {
+    // Write a file that uses Node.js module aliases
+    writeFileSync(join(projectDir, 'src', 'with-node-imports.ts'),
+      "import * as path from 'node:path';\n" +
+      "import { EventEmitter } from 'node:events';\n" +
+      "console.log(path.join('a', 'b'));\n" +
+      "console.log(new EventEmitter());\n"
+    );
+    execSync('npx gjsify build src/with-node-imports.ts --outfile dist/with-node-imports.js', {
+      cwd: projectDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    });
+    assert.ok(existsSync(join(projectDir, 'dist', 'with-node-imports.js')), 'dist/with-node-imports.js missing');
+  });
+
   it('build output is valid JavaScript', () => {
     // node --check validates syntax without executing
-    for (const file of ['dist/index.js', 'dist/no-shim.js']) {
+    for (const file of ['dist/index.js', 'dist/no-shim.js', 'dist/with-node-imports.js']) {
       const fullPath = join(projectDir, file);
       if (!existsSync(fullPath)) continue;
       execSync(`node --check "${fullPath}"`, { stdio: 'pipe' });
