@@ -1,9 +1,7 @@
 ---
-sidebar_position: 4
 title: DOM & Graphics
+description: DOM elements and graphics APIs for GJS, bridging the gap between web and GTK
 ---
-
-# DOM & Graphics
 
 DOM elements and graphics APIs for GJS, bridging the gap between web and GTK.
 

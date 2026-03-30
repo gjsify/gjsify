@@ -1,9 +1,7 @@
 ---
-sidebar_position: 2
 title: Node.js Modules
+description: 40 Node.js API modules implemented for GJS using native GNOME libraries
 ---
-
-# Node.js Modules
 
 40 Node.js API modules implemented for GJS using native GNOME libraries.
 

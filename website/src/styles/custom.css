@@ -1,0 +1,58 @@
+/*
+ * Adwaita-inspired theme for Starlight
+ * GNOME design language: developer.gnome.org
+ */
+
+/* Light mode */
+:root {
+  --sl-color-accent-low:     rgba(53, 132, 228, 0.12);
+  --sl-color-accent:         #3584e4;   /* GNOME Blue */
+  --sl-color-accent-high:    #1a6bc4;
+
+  --sl-color-bg:             #fafafa;
+  --sl-color-bg-nav:         #ffffff;
+  --sl-color-bg-sidebar:     #f5f5f5;
+  --sl-color-bg-inline-code: rgba(53, 132, 228, 0.08);
+
+  --sl-font:                 'Cantarell', -apple-system, BlinkMacSystemFont,
+                             'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+
+  /* Custom Adwaita structural vars */
+  --adw-border-radius:       12px;
+  --adw-card-border:         rgba(0, 0, 0, 0.08);
+}
+
+/* Dark mode */
+:root[data-theme='dark'] {
+  --sl-color-accent-low:     rgba(120, 174, 237, 0.12);
+  --sl-color-accent:         #78aeed;   /* Lighter GNOME Blue for dark bg */
+  --sl-color-accent-high:    #b3d4f5;
+
+  --sl-color-bg:             #242424;   /* Adwaita dark */
+  --sl-color-bg-nav:         #303030;
+  --sl-color-bg-sidebar:     #1e1e1e;
+  --sl-color-bg-inline-code: rgba(120, 174, 237, 0.10);
+
+  --adw-card-border:         rgba(255, 255, 255, 0.06);
+}
+
+/* Rounded code blocks */
+.sl-markdown-content pre {
+  border-radius: 8px;
+}
+
+.sl-markdown-content :not(pre) > code {
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+/* Navbar backdrop blur */
+header.header {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Sidebar active item — pill shape */
+a[aria-current='page'] {
+  border-radius: 6px;
+}

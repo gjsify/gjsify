@@ -1,9 +1,7 @@
 ---
-sidebar_position: 2
 title: Architecture
+description: Monorepo structure and GNOME library mappings
 ---
-
-# Architecture
 
 gjsify is a Yarn workspaces monorepo that provides Node.js and Web API implementations for GJS using native GNOME libraries.
 

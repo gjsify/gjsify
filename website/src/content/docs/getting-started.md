@@ -1,9 +1,7 @@
 ---
-sidebar_position: 1
 title: Getting Started
+description: Prerequisites and quick start for gjsify development
 ---
-
-# Getting Started
 
 gjsify brings the Node.js and Web API ecosystem to [GJS](https://gjs.guide/) — the GNOME JavaScript runtime. Write familiar JavaScript, run it natively on GNOME — backed by GLib, Gio, Soup, Cairo, and GTK.
 
@@ -44,6 +42,6 @@ yarn start
 
 ## Next Steps
 
-- [Architecture](/docs/architecture) — Understand the monorepo structure
-- [Packages](/docs/packages/overview) — Browse available modules
-- [Contributing](/docs/contributing) — Help improve gjsify
+- [Architecture](/gjsify/architecture/) — Understand the monorepo structure
+- [Packages](/gjsify/packages/overview/) — Browse available modules
+- [Contributing](/gjsify/contributing/) — Help improve gjsify

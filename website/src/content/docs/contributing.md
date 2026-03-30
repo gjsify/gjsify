@@ -1,9 +1,7 @@
 ---
-sidebar_position: 5
 title: Contributing
+description: Development setup and TDD workflow for gjsify contributors
 ---
-
-# Contributing
 
 gjsify welcomes contributions! Here's how to get started.
 

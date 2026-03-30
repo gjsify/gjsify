@@ -43,5 +43,5 @@ test-*.js
 *.meta.json
 meta.json
 
-# Docusaurus
-.docusaurus/
+# Astro
+.astro/

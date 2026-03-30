@@ -1,9 +1,7 @@
 ---
-sidebar_position: 1
 title: Overview
+description: Summary of all 57+ gjsify packages
 ---
-
-# Package Overview
 
 gjsify provides **57+ packages** organized into three categories, all implementing standard APIs using native GNOME libraries.
 

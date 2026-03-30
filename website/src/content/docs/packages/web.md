@@ -1,9 +1,7 @@
 ---
-sidebar_position: 3
 title: Web APIs
+description: Web platform APIs implemented for GJS using native GNOME libraries
 ---
-
-# Web APIs
 
 Web platform APIs implemented for GJS using native GNOME libraries.
 
