@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/dom-exception",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "DOMException polyfill for GJS (WebIDL standard)",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
