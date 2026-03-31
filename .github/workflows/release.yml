@@ -34,7 +34,6 @@ jobs:
         with:
           node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
-          always-auth: true
 
       - name: Configure Yarn for npm publishing
         run: |
