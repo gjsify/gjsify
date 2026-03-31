@@ -8,6 +8,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as OurHTMLCanvasElement } from './html-canvas-element.js';
 import type { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
 import { attachEventControllers } from '@gjsify/event-bridge';
+import { Event } from '@gjsify/dom-events';
 
 // Public callback type uses globalThis.HTMLCanvasElement (lib.dom) so callers can pass the
 // canvas directly to WebGL demos that type their canvas parameter as HTMLCanvasElement.
@@ -69,6 +70,21 @@ export const CanvasWebGLWidget = GObject.registerClass(
                     this._readyCallbacks = [];
                 }
                 return true;
+            });
+
+            // Re-render when the widget is resized so demand-driven apps
+            // (no animation loop) don't show a black frame after resize.
+            // queue_render() alone only triggers the GTK render signal — it does
+            // NOT re-execute the application's render logic.  We schedule a rAF
+            // that re-invokes the last frame callback, which runs inside the
+            // GTK frame pipeline with the GL context current.
+            this.connect('resize', () => {
+                if (this._canvas) {
+                    this._canvas.dispatchEvent(new Event('resize'));
+                }
+                if (this._frameCallback) {
+                    this.requestAnimationFrame(this._frameCallback);
+                }
             });
 
             this.connect('unrealize', () => {

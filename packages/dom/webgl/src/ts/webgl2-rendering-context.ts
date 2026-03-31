@@ -3,6 +3,7 @@
 //            refs/deno/cli/tsc/dts/lib.webworker.d.ts (WebGL2RenderingContextBase)
 
 import Gwebgl from '@girs/gwebgl-0.1';
+import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import { WebGLRenderingContext } from './webgl-rendering-context.js';
 import { HTMLCanvasElement } from './html-canvas-element.js';
 import { WebGLQuery } from './webgl-query.js';
@@ -15,7 +16,7 @@ import { WebGLActiveInfo } from './webgl-active-info.js';
 import { WebGLProgram as OurWebGLProgram } from './webgl-program.js';
 import { WebGLTexture } from './webgl-texture.js';
 import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
-import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount } from './utils.js';
+import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount, convertPixels, extractImageData } from './utils.js';
 import { warnNotImplemented } from '@gjsify/utils';
 
 export class WebGL2RenderingContext extends WebGLRenderingContext implements WebGL2RenderingContext {
@@ -152,6 +153,58 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
         if (count === 0) return;
         if (this._checkVertexAttribState((count + first - 1) >>> 0)) {
             this._native.drawArrays(mode, first, rc);
+        }
+    }
+
+    /**
+     * In WebGL2, UNSIGNED_INT element indices are a core feature — no extension needed.
+     * Override drawElements to skip the oes_element_index_uint extension check.
+     */
+    override drawElements(mode: GLenum = 0, count: GLsizei = 0, type: GLenum = 0, offset: GLintptr = 0): void {
+        if (count < 0 || offset < 0) { this.setError(this.INVALID_VALUE); return; }
+        if (!this._checkStencilState()) return;
+
+        const elementBuffer = this._vertexObjectState._elementArrayBufferBinding;
+        if (!elementBuffer) { this.setError(this.INVALID_OPERATION); return; }
+
+        // WebGL2: UNSIGNED_INT is always allowed (core feature, no extension check)
+        let elementData = null;
+        let adjustedOffset = offset;
+        if (type === this.UNSIGNED_SHORT) {
+            if (adjustedOffset % 2) { this.setError(this.INVALID_OPERATION); return; }
+            adjustedOffset >>= 1;
+            elementData = new Uint16Array(elementBuffer._elements.buffer);
+        } else if (type === this.UNSIGNED_INT) {
+            if (adjustedOffset % 4) { this.setError(this.INVALID_OPERATION); return; }
+            adjustedOffset >>= 2;
+            elementData = new Uint32Array(elementBuffer._elements.buffer);
+        } else if (type === this.UNSIGNED_BYTE) {
+            elementData = elementBuffer._elements;
+        } else {
+            this.setError(this.INVALID_ENUM);
+            return;
+        }
+
+        let reducedCount = count;
+        switch (mode) {
+            case this.TRIANGLES: if (count % 3) reducedCount -= (count % 3); break;
+            case this.LINES: if (count % 2) reducedCount -= (count % 2); break;
+            case this.POINTS: break;
+            case this.LINE_LOOP: case this.LINE_STRIP: if (count < 2) { this.setError(this.INVALID_OPERATION); return; } break;
+            case this.TRIANGLE_FAN: case this.TRIANGLE_STRIP: if (count < 3) { this.setError(this.INVALID_OPERATION); return; } break;
+            default: this.setError(this.INVALID_ENUM); return;
+        }
+
+        if (!this._framebufferOk()) return;
+        if (count === 0) return;
+
+        let maxIndex = 0;
+        for (let i = adjustedOffset; i < adjustedOffset + reducedCount; ++i) {
+            if (i < elementData.length && elementData[i] > maxIndex) maxIndex = elementData[i];
+        }
+
+        if (this._checkVertexAttribState(maxIndex)) {
+            this._native.drawElements(mode, reducedCount, type, offset);
         }
     }
 
@@ -413,6 +466,127 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
 
     texStorage3D(target: GLenum, levels: GLsizei, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei): void {
         this._native2.texStorage3D(target, levels, internalformat, width, height, depth);
+    }
+
+    // ─── WebGL2 texImage2D / texSubImage2D overrides ─────────────────────
+    // The base WebGL1 implementation rejects WebGL2 sized internal formats
+    // (e.g. RGBA8, RGB8, SRGB8_ALPHA8) and requires format === internalFormat.
+    // WebGL2 allows format !== internalFormat (e.g. internalFormat=RGBA8, format=RGBA).
+    // We bypass the WebGL1 validation and delegate directly to the native GL layer
+    // which supports all OpenGL ES 3.2 format combinations.
+
+    override texImage2D(target: GLenum, level: GLint, internalFormat: GLint, width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
+    override texImage2D(target: GLenum, level: GLint, internalFormat: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf): void;
+    override texImage2D(target: GLenum = 0, level: GLint = 0, internalFormat: GLint = 0, formatOrWidth: any = 0, typeOrHeight: any = 0, sourceOrBorder: any = 0, _format: GLenum = 0, type: GLenum = 0, pixels?: ArrayBufferView | null): void {
+        let width: number = 0;
+        let height: number = 0;
+        let format: number = 0;
+        let border: number = 0;
+
+        if (arguments.length === 6) {
+            type = typeOrHeight;
+            format = formatOrWidth;
+
+            if (sourceOrBorder instanceof GdkPixbuf.Pixbuf) {
+                const pixbuf = sourceOrBorder;
+                width = pixbuf.get_width();
+                height = pixbuf.get_height();
+                pixels = pixbuf.get_pixels();
+            } else {
+                const imageData = extractImageData(sourceOrBorder as TexImageSource);
+                if (imageData == null) {
+                    throw new TypeError('texImage2D(GLenum, GLint, GLenum, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)');
+                }
+                width = imageData.width;
+                height = imageData.height;
+                pixels = imageData.data;
+            }
+        } else if (arguments.length >= 9) {
+            width = formatOrWidth;
+            height = typeOrHeight;
+            border = sourceOrBorder as GLint;
+            format = _format as GLenum;
+        }
+
+        const texture = this._getTexImage(target);
+        if (!texture) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+
+        const data = convertPixels(pixels as ArrayBufferView);
+
+        this._saveError();
+        this._native.texImage2D(target, level, internalFormat, width, height, border, format, type, Uint8ArrayToVariant(data));
+        const error = this.getError();
+        this._restoreError(error);
+        if (error !== this.NO_ERROR) return;
+
+        texture._levelWidth[level] = width;
+        texture._levelHeight[level] = height;
+        texture._format = format;
+        texture._type = type;
+
+        const activeFramebuffer = this._activeFramebuffer;
+        if (activeFramebuffer) {
+            let needsUpdate = false;
+            const attachments = this._getAttachments();
+            for (let i = 0; i < attachments.length; ++i) {
+                if (activeFramebuffer._attachments[attachments[i]] === texture) {
+                    needsUpdate = true;
+                    break;
+                }
+            }
+            if (needsUpdate && this._activeFramebuffer) {
+                this._updateFramebufferAttachments(this._activeFramebuffer);
+            }
+        }
+    }
+
+    override texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
+    override texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf): void;
+    override texSubImage2D(target: GLenum = 0, level: GLint = 0, xoffset: GLint = 0, yoffset: GLint = 0, formatOrWidth: any = 0, typeOrHeight: any = 0, sourceOrFormat: any = 0, type: GLenum = 0, pixels?: ArrayBufferView | null): void {
+        let width: number = 0;
+        let height: number = 0;
+        let format: number = 0;
+
+        if (arguments.length === 7) {
+            type = typeOrHeight;
+            format = formatOrWidth;
+
+            if (sourceOrFormat instanceof GdkPixbuf.Pixbuf) {
+                const pixbuf = sourceOrFormat;
+                width = pixbuf.get_width();
+                height = pixbuf.get_height();
+                pixels = pixbuf.get_pixels();
+            } else {
+                const imageData = extractImageData(sourceOrFormat as TexImageSource);
+                if (imageData == null) {
+                    throw new TypeError('texSubImage2D(GLenum, GLint, GLint, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)');
+                }
+                width = imageData.width;
+                height = imageData.height;
+                pixels = imageData.data;
+            }
+        } else {
+            width = formatOrWidth;
+            height = typeOrHeight;
+            format = sourceOrFormat as GLenum;
+        }
+
+        const texture = this._getTexImage(target);
+        if (!texture) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+
+        const data = convertPixels(pixels as ArrayBufferView);
+        if (!data) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+
+        this._native.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, Uint8ArrayToVariant(data));
     }
 
     framebufferTextureLayer(target: GLenum, attachment: GLenum, texture: WebGLTexture | null, level: GLint, layer: GLint): void {

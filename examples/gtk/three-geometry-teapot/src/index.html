@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>three.js — Geometry Teapot</title>
+    <link rel="stylesheet" href="./webgl.css" type="text/css" />
+    <script src="./browser.js" type="module" defer></script>
+  </head>
+  <body>
+    <canvas id="webgl-canvas"></canvas>
+    <div id="controls">
+      <h3>Geometry</h3>
+      <label>
+        Tessellation Level
+        <select id="tess">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="8">8</option>
+          <option value="10">10</option>
+          <option value="15" selected>15</option>
+          <option value="20">20</option>
+          <option value="30">30</option>
+          <option value="40">40</option>
+          <option value="50">50</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="lid" checked /> Display Lid</label>
+      <label><input type="checkbox" id="body" checked /> Display Body</label>
+      <label><input type="checkbox" id="bottom" checked /> Display Bottom</label>
+      <label><input type="checkbox" id="fitLid" /> Snug Lid</label>
+      <label><input type="checkbox" id="nonblinn" /> Original Scale</label>
+      <h3>Material</h3>
+      <label>
+        Shading
+        <select id="shading">
+          <option value="wireframe">wireframe</option>
+          <option value="flat">flat</option>
+          <option value="smooth">smooth</option>
+          <option value="glossy" selected>glossy</option>
+          <option value="textured">textured</option>
+          <option value="reflective">reflective</option>
+        </select>
+      </label>
+    </div>
+  </body>
+</html>

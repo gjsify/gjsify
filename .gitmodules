@@ -113,3 +113,9 @@
 [submodule "refs/docusaurus"]
 	path = refs/docusaurus
 	url = org-69631@github.com:facebook/docusaurus.git
+[submodule "refs/astro"]
+	path = refs/astro
+	url = git@github.com:withastro/astro.git
+[submodule "examples/gtk/three-geometry-shapes/refs/gjsify-vite"]
+	path = examples/gtk/three-geometry-shapes/refs/gjsify-vite
+	url = git@github.com:gjsify/vite.git

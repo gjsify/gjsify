@@ -1,0 +1,123 @@
+// Adwaita window for the three.js teapot example.
+// Uses a Blueprint template for the UI layout and CanvasWebGLWidget for WebGL.
+
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
+import Adw from 'gi://Adw?version=1';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { start, type TeapotDemo, type ShadingMode } from './three-demo.js';
+import Template from './teapot-window.blp';
+
+const TESS_VALUES = [2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 40, 50];
+const SHADING_VALUES: ShadingMode[] = ['wireframe', 'flat', 'smooth', 'glossy', 'textured', 'reflective'];
+
+export class TeapotWindow extends Adw.ApplicationWindow {
+    declare private _glAreaContainer: Gtk.Box;
+    declare private _tessRow: Adw.ComboRow;
+    declare private _lidRow: Adw.SwitchRow;
+    declare private _bodyRow: Adw.SwitchRow;
+    declare private _bottomRow: Adw.SwitchRow;
+    declare private _fitLidRow: Adw.SwitchRow;
+    declare private _nonblinnRow: Adw.SwitchRow;
+    declare private _shadingRow: Adw.ComboRow;
+
+    static {
+        GObject.registerClass({
+            GTypeName: 'TeapotWindow',
+            Template,
+            InternalChildren: [
+                'glAreaContainer', 'tessRow', 'lidRow', 'bodyRow',
+                'bottomRow', 'fitLidRow', 'nonblinnRow', 'shadingRow',
+            ],
+        }, this);
+    }
+
+    constructor(application: Adw.Application) {
+        super({ application });
+
+        // Set up ComboRow models
+        this._tessRow.set_model(Gtk.StringList.new(TESS_VALUES.map(String)));
+        this._tessRow.set_selected(7); // index 7 = "15"
+
+        this._shadingRow.set_model(Gtk.StringList.new(SHADING_VALUES));
+        this._shadingRow.set_selected(3); // index 3 = "glossy"
+
+        // Create and insert WebGL widget
+        const glArea = new CanvasWebGLWidget();
+        glArea.set_hexpand(true);
+        glArea.set_vexpand(true);
+        glArea.installGlobals();
+        this._glAreaContainer.append(glArea);
+
+        // Expose GL area dimensions as innerWidth/innerHeight for three.js
+        Object.defineProperty(globalThis, 'innerWidth', {
+            get: () => glArea.get_allocated_width(),
+            configurable: true,
+        });
+        Object.defineProperty(globalThis, 'innerHeight', {
+            get: () => glArea.get_allocated_height(),
+            configurable: true,
+        });
+
+        // Initialize three.js when GL context is ready
+        glArea.onReady((canvas) => {
+            const ctx = glArea.get_context()!;
+            print(`Context version: OpenGL${ctx.get_use_es() ? ' ES' : ''} ${ctx.get_version().join('.')}`);
+
+            // DOM compatibility patches for OrbitControls.
+            // OrbitControls calls domElement.ownerDocument.addEventListener('pointermove', ...)
+            // during drag. In GTK all events arrive on the canvas, so redirect ownerDocument.
+            Object.defineProperty(canvas, 'ownerDocument', {
+                get() { return canvas; },
+                configurable: true,
+            });
+
+            // OrbitControls calls setPointerCapture/releasePointerCapture which don't exist
+            // on our HTMLCanvasElement. GTK event controllers track the pointer implicitly.
+            if (!(canvas as any).setPointerCapture) {
+                (canvas as any).setPointerCapture = () => {};
+                (canvas as any).releasePointerCapture = () => {};
+            }
+
+            const demo = start(canvas as any);
+            this.connectControls(demo);
+        });
+    }
+
+    private connectControls(demo: TeapotDemo) {
+        this._tessRow.connect('notify::selected', () => {
+            demo.effectController.newTess = TESS_VALUES[this._tessRow.selected];
+            demo.render();
+        });
+
+        this._shadingRow.connect('notify::selected', () => {
+            demo.effectController.newShading = SHADING_VALUES[this._shadingRow.selected];
+            demo.render();
+        });
+
+        this._lidRow.connect('notify::active', () => {
+            demo.effectController.lid = this._lidRow.active;
+            demo.render();
+        });
+
+        this._bodyRow.connect('notify::active', () => {
+            demo.effectController.body = this._bodyRow.active;
+            demo.render();
+        });
+
+        this._bottomRow.connect('notify::active', () => {
+            demo.effectController.bottom = this._bottomRow.active;
+            demo.render();
+        });
+
+        this._fitLidRow.connect('notify::active', () => {
+            demo.effectController.fitLid = this._fitLidRow.active;
+            demo.render();
+        });
+
+        this._nonblinnRow.connect('notify::active', () => {
+            demo.effectController.nonblinn = this._nonblinnRow.active;
+            demo.render();
+        });
+    }
+}
