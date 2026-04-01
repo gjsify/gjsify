@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
       "module": "NodeNext",
-      "types": [],
+      "types": ["@gjsify/esbuild-plugin-blueprint/types"],
       "target": "ESNext",
       "moduleResolution": "NodeNext",
       "experimentalDecorators": true,

@@ -9,7 +9,8 @@
         ".": {
             "types": "./dist/types/index.d.ts",
             "default": "./dist/esm/index.mjs"
-        }
+        },
+        "./types": "./types.d.ts"
     },
     "scripts": {
         "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",

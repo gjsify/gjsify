@@ -3,6 +3,7 @@
 
 import '@girs/gjs';
 import '@girs/gtk-4.0';
+import '@girs/adw-1';
 
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
