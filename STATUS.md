@@ -1,18 +1,21 @@
 # gjsify — Project Status
 
-> Last updated: 2026-03-27 (WebGL refactor: HTMLCanvasElement inheritance, WebGLArea widget, class renames, test coverage)
+> Last updated: 2026-04-01 (DOM API: event bubbling, pointer capture, ownerDocument; WebGL2 fixes; Blueprint support; Adwaita web components; three.js teapot example)
 
 ## Summary
 
-gjsify implements Node.js and Web Standard APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS infrastructure packages**, and **7 build tools**.
+gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
+The project comprises **39 Node.js packages**, **13 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 32 (82%) | 3 (8%) | 4 (10%) |
-| Web APIs | 15 | 15 (100%) | — | — |
-| GJS Infrastructure | 3 | 2 | 1 (types) | — |
-| Build Tools | 7 | 7 | — | — |
+| Web APIs | 13 | 13 (100%) | — | — |
+| DOM APIs | 5 | 5 (100%) | — | — |
+| Browser UI | 1 | 1 | — | — |
+| Browser UI | 1 | 1 | — | — |
+| GJS Infrastructure | 4 | 3 | 1 (types) | — |
+| Build/Infra Tools | 9 | 9 | — | — |
 
 **Test coverage:** 9,500+ test cases in 94 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
 
@@ -78,7 +81,7 @@ The project comprises **39 Node.js packages**, **14 Web API packages**, **3 GJS 
 
 ## Web API Packages (`packages/web/`)
 
-All 12 packages have real implementations:
+All 13 packages have real implementations:
 
 | Package | GNOME Libs | Tests | Web APIs |
 |---------|-----------|-------|----------|
@@ -99,8 +102,17 @@ All 12 packages have real implementations:
 
 | Package | GNOME Libs | Tests | APIs |
 |---------|-----------|-------|------|
-| **dom-elements** | GdkPixbuf | 210 | Node, Element, HTMLElement, **HTMLCanvasElement** (base DOM stub), HTMLImageElement, Image, Attr, NamedNodeMap, NodeList, NodeType, NamespaceURI (GJS-only); side-effect registers `globalThis.HTMLCanvasElement`, `HTMLImageElement`, `Image` |
-| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), HTMLCanvasElement (GTK-backed, extends dom-elements base), **WebGLArea** (Gtk.GLArea subclass with requestAnimationFrame + WebGL bootstrap), Extensions |
+| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement (base DOM stub), HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert}` |
+| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DWidget→Gtk.DrawingArea |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render), Extensions |
+| **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |
+| **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameWidget→WebKit.WebView, postMessage bridge |
+
+## Browser UI Packages (`packages/web/adwaita-web/`)
+
+| Package | Tests | APIs |
+|---------|-------|------|
+| **adwaita-web** | — | AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow. Custom Elements (light DOM), embedded Adwaita CSS with light/dark theme, Adwaita Sans font. No GJS deps |
 
 ### Missing Web APIs
 
@@ -126,6 +138,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **esbuild-plugin-alias** | Module alias resolution | Full |
 | **esbuild-plugin-transform-ext** | Normalize import extensions | Full |
 | **esbuild-plugin-deepkit** | Deepkit type reflection | Full |
+| **esbuild-plugin-blueprint** | Compile `.blp` files via blueprint-compiler→XML | Full |
 | **resolve-npm** | Central alias registry (60+ mappings) | Full |
 | **empty** | Stub module for platform exclusion | Full |
 
@@ -161,14 +174,17 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Fully implemented | 32 (82%) |
 | Partially implemented | 3 (8%) |
 | Stubs | 4 (10%) |
-| Web API packages | 15 (all implemented) |
+| Web API packages | 13 (all implemented) |
+| DOM packages | 5 (all implemented) |
+| Browser UI packages | 1 (adwaita-web) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
+| Build tools | 9 (infra/) |
 | Total test cases | 9,900+ |
 | Spec files | 102 |
-| Real-world examples | 11 (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, JSON store) |
+| Real-world examples | 11+ (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, Three.js teapot) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
-| Reference submodules | 27 |
+| Reference submodules | 42 |
 
 ---
 
@@ -228,6 +244,41 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
 
 ## Changelog
+
+### 2026-04-01 — DOM API, WebGL2, Blueprint, Adwaita Web, Three.js Teapot
+
+**DOM API enhancements (`@gjsify/dom-elements`):**
+- `Node.ownerDocument` returns `document` singleton (lazy, avoids circular deps)
+- Event bubbling via `Node.dispatchEvent` override — walks parentNode chain
+- `Document` establishes DOM tree: document → documentElement → body
+- `Element`: `setPointerCapture()`, `releasePointerCapture()`, `hasPointerCapture()`
+- `HTMLElement`: `getBoundingClientRect()` stub (uses clientWidth/clientHeight)
+- Browser globals on import: `globalThis.self`, `devicePixelRatio`, `alert`
+
+**WebGL2 fixes (`@gjsify/webgl`):**
+- `WebGL2RenderingContext` overrides `texImage2D`, `texSubImage2D` — bypasses WebGL1 format validation (RGBA8, RGB8, SRGB8_ALPHA8 etc.)
+- `WebGL2RenderingContext` overrides `drawElements` — UNSIGNED_INT as core feature (no extension gate)
+- `CanvasWebGLWidget`: resize dispatches DOM event + re-invokes last rAF callback
+
+**Blueprint support:**
+- New `@gjsify/esbuild-plugin-blueprint` — compiles `.blp` → XML via `blueprint-compiler`
+- Wired into `esbuild-plugin-gjsify` for GJS and browser targets
+- Type declaration: `@gjsify/esbuild-plugin-blueprint/types`
+
+**Adwaita web components (`@gjsify/adwaita-web`):**
+- 5 Custom Elements (light DOM): AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow
+- Embedded Adwaita CSS with light/dark theme (canonical colors from libadwaita)
+- Adwaita Sans font via @font-face
+- `notify::active` / `notify::selected` events mirror GJS GObject signals
+
+**Three.js teapot example (`examples/gtk/three-geometry-teapot/`):**
+- First Adwaita example: Adw.Application + Blueprint template
+- First OrbitControls usage (event bridge validation)
+- Dual-target: GJS native + browser with @gjsify/adwaita-web
+- New convention: `src/gjs/` + `src/browser/` + shared `three-demo.ts`
+- 6 shading modes (wireframe, flat, smooth, glossy, textured, reflective)
+
+**New reference submodules:** `refs/adwaita-web`, `refs/libadwaita`, `refs/adwaita-fonts`, `refs/app-mockups`
 
 ### 2026-03-27 — WebGL Refactor: HTMLCanvasElement Inheritance, WebGLArea Widget
 
