@@ -1,0 +1,9 @@
+/* Adwaita Sans — Regular 400 */
+/* Source: refs/adwaita-fonts (SIL OFL 1.1, GNOME contributors) */
+@font-face {
+  font-family: 'Adwaita Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('./files/adwaita-sans-400.ttf') format('truetype');
+}

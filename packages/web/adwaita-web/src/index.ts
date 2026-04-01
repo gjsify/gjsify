@@ -2,6 +2,7 @@
 // Importing this module registers all custom elements and injects the Adwaita CSS.
 // Reference: refs/libadwaita (colors/sizing), refs/adwaita-web (component patterns).
 
+import '@gjsify/adwaita-fonts';  // Registers @font-face (fontsource pattern)
 import { adwaitaCSS } from './adwaita-css.js';
 
 // Register custom elements (side-effect imports)

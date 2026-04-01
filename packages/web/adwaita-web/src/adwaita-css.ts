@@ -5,17 +5,6 @@
 
 export const adwaitaCSS = `
 /* ═══════════════════════════════════════════════════════════════
-   Adwaita Sans Font
-   ═══════════════════════════════════════════════════════════════ */
-@font-face {
-  font-family: 'Adwaita Sans';
-  src: url('fonts/AdwaitaSans-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* ═══════════════════════════════════════════════════════════════
    Adwaita CSS Custom Properties — Light Theme (default)
    ═══════════════════════════════════════════════════════════════ */
 :root {

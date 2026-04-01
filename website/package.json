@@ -3,7 +3,7 @@
   "version": "0.1.1",
   "private": true,
   "scripts": {
-    "copy:assets": "mkdir -p public/demos/teapot/assets/pisa public/fonts && cp ../examples/dom/three-geometry-teapot/src/assets/uv_grid_opengl.jpg public/demos/teapot/assets/ && cp ../examples/dom/three-geometry-teapot/src/assets/pisa/*.png public/demos/teapot/assets/pisa/ && (cp ../refs/adwaita-fonts/sans/AdwaitaSans-Regular.ttf public/fonts/ 2>/dev/null || true)",
+    "copy:assets": "mkdir -p public/demos/teapot/assets/pisa && cp ../examples/dom/three-geometry-teapot/src/assets/uv_grid_opengl.jpg public/demos/teapot/assets/ && cp ../examples/dom/three-geometry-teapot/src/assets/pisa/*.png public/demos/teapot/assets/pisa/",
     "start": "yarn copy:assets && astro dev",
     "build": "yarn copy:assets && astro build",
     "serve": "astro preview",

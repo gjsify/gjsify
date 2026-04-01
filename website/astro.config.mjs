@@ -4,6 +4,7 @@ import starlight from '@astrojs/starlight';
 export default defineConfig({
   site: 'https://gjsify.github.io',
   base: '/gjsify',
+  trailingSlash: 'always',
   vite: {
     optimizeDeps: {
       include: [

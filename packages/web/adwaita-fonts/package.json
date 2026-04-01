@@ -1,0 +1,18 @@
+{
+  "name": "@gjsify/adwaita-fonts",
+  "version": "0.1.1",
+  "description": "Adwaita Sans font package for browser targets (fontsource-style)",
+  "type": "module",
+  "main": "index.css",
+  "exports": {
+    ".": "./index.css",
+    "./400.css": "./400.css",
+    "./400-italic.css": "./400-italic.css",
+    "./files/*": "./files/*"
+  },
+  "license": "OFL-1.1",
+  "files": [
+    "*.css",
+    "files"
+  ]
+}

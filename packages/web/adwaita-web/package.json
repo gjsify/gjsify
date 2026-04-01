@@ -18,6 +18,9 @@
         "build:gjsify": "gjsify build --library 'src/**/*.ts' --exclude 'src/**/*.spec.ts'",
         "build:types": "tsc"
     },
+    "dependencies": {
+        "@gjsify/adwaita-fonts": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "typescript": "^6.0.2"

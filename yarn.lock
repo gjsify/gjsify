@@ -1093,10 +1093,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/adwaita-fonts@workspace:^, @gjsify/adwaita-fonts@workspace:packages/web/adwaita-fonts":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/adwaita-fonts@workspace:packages/web/adwaita-fonts"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/adwaita-web@workspace:^, @gjsify/adwaita-web@workspace:packages/web/adwaita-web":
   version: 0.0.0-use.local
   resolution: "@gjsify/adwaita-web@workspace:packages/web/adwaita-web"
   dependencies:
+    "@gjsify/adwaita-fonts": "workspace:^"
     "@gjsify/cli": "workspace:^"
     typescript: "npm:^6.0.2"
   languageName: unknown
