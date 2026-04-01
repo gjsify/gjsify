@@ -156,7 +156,7 @@ export class HTMLElement extends Element {
 	get scrollLeft(): number { return 0; }
 	set scrollLeft(_value: number) { /* no layout engine */ }
 
-	getBoundingClientRect(): DOMRect {
+	getBoundingClientRect(): { x: number; y: number; top: number; left: number; right: number; bottom: number; width: number; height: number; toJSON(): object } {
 		const w = this.clientWidth;
 		const h = this.clientHeight;
 		return { x: 0, y: 0, top: 0, left: 0, right: w, bottom: h, width: w, height: h, toJSON() { return this; } };
