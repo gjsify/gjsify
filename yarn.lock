@@ -1570,7 +1570,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-dom-three-geometry-teapot@workspace:examples/dom/three-geometry-teapot":
+"@gjsify/example-dom-three-geometry-teapot@workspace:^, @gjsify/example-dom-three-geometry-teapot@workspace:examples/dom/three-geometry-teapot":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-geometry-teapot@workspace:examples/dom/three-geometry-teapot"
   dependencies:
@@ -2638,7 +2638,11 @@ __metadata:
   resolution: "@gjsify/website@workspace:website"
   dependencies:
     "@astrojs/starlight": "npm:^0.32.0"
+    "@gjsify/adwaita-web": "workspace:^"
+    "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
+    "@types/three": "npm:^0.183.1"
     astro: "npm:^5.0.0"
+    three: "npm:0.183.2"
   languageName: unknown
   linkType: soft
 

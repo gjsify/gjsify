@@ -1,7 +1,12 @@
 // <adw-preferences-group> — Groups child rows in a boxed list with a title label.
 
 export class AdwPreferencesGroup extends HTMLElement {
+    private _initialized = false;
+
     connectedCallback() {
+        if (this._initialized) return;
+        this._initialized = true;
+
         const title = this.getAttribute('title') || '';
         const children = Array.from(this.childNodes);
 

@@ -4,6 +4,7 @@
 
 export class AdwSwitchRow extends HTMLElement {
     private _checkbox!: HTMLInputElement;
+    private _initialized = false;
 
     static get observedAttributes() { return ['active']; }
 
@@ -17,6 +18,9 @@ export class AdwSwitchRow extends HTMLElement {
     }
 
     connectedCallback() {
+        if (this._initialized) return;
+        this._initialized = true;
+
         const title = this.getAttribute('title') || '';
         const checked = this.hasAttribute('active');
 

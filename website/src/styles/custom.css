@@ -56,3 +56,72 @@ header.header {
 a[aria-current='page'] {
   border-radius: 6px;
 }
+
+/* ── Landing page: Demo-Container layout ── */
+.hero-demo .adw-window-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.hero-demo .adw-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.hero-demo .adw-sidebar-content {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hero-demo #gl-area-container {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+.hero-demo #gl-area-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+.hero-demo .adw-separator-vertical {
+  width: 1px;
+  align-self: stretch;
+  background-color: var(--card-shade-color, rgba(0, 0, 0, 0.07));
+  flex-shrink: 0;
+}
+
+/* ── Landing page: Code showcase ── */
+.code-showcase {
+  text-align: center;
+  max-width: 60ch;
+  margin-inline: auto;
+  padding-block: 2rem 0.5rem;
+}
+
+.code-showcase h2 {
+  font-size: clamp(var(--sl-text-xl), calc(0.5rem + 2.5vw), var(--sl-text-3xl));
+  color: var(--sl-color-white);
+  line-height: var(--sl-line-height-headings);
+}
+
+.code-showcase .code-intro {
+  color: var(--sl-color-gray-2);
+  margin-top: 0.75rem;
+}
+
+/* ── Landing page: CTA section ── */
+.cta-section {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding-block: 1.5rem 2.5rem;
+}

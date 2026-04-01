@@ -4,20 +4,42 @@ description: The full JavaScript ecosystem, native on GNOME
 template: splash
 hero:
   tagline: The full JavaScript ecosystem, native on GNOME
-  image:
-    file: ../../assets/logo.svg
-  actions:
-    - text: Get Started
-      link: /gjsify/getting-started/
-      icon: right-arrow
-      variant: primary
-    - text: GitHub
-      link: https://github.com/gjsify/gjsify
-      icon: external
-      variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, Code, LinkButton } from '@astrojs/starlight/components';
+
+<div class="code-showcase">
+  <h2>Adwaita + Three.js — one codebase, native on GNOME</h2>
+  <p class="code-intro">
+    Import GTK 4, Adwaita, and Three.js in a single GJS application.
+    gjsify bridges the JavaScript ecosystem to GNOME's native platform.
+  </p>
+</div>
+
+<Code code={`import Adw from 'gi://Adw?version=1';
+import Gtk from 'gi://Gtk?version=4.0';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
+import * as THREE from 'three';
+import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
+
+const app = new Adw.Application({ application_id: 'gjsify.examples.teapot' });
+app.connect('activate', () => {
+    const glArea = new CanvasWebGLWidget();
+    glArea.onReady((canvas) => {
+        const scene = new THREE.Scene();
+        const teapot = new THREE.Mesh(new TeapotGeometry(300, 15));
+        scene.add(teapot);
+    });
+});`} lang="ts" title="teapot.ts" />
+
+<div class="cta-section">
+  <LinkButton href="/gjsify/getting-started/" variant="primary" icon="right-arrow">
+    Get Started
+  </LinkButton>
+  <LinkButton href="https://github.com/gjsify/gjsify" variant="minimal" icon="external">
+    GitHub
+  </LinkButton>
+</div>
 
 <CardGrid stagger>
   <Card title="Node.js APIs" icon="laptop">
@@ -32,8 +54,8 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
     Canvas2D via Cairo, WebGL via OpenGL ES, DOM elements as GTK
     widgets, and a full GTK→DOM event bridge.
   </Card>
-  <Card title="ESM-Only Monorepo" icon="open-book">
-    Yarn 4 workspaces, esbuild, TypeScript — the full modern JS
-    toolchain, targeting GJS 1.86+ / SpiderMonkey 128.
+  <Card title="TypeScript First" icon="open-book">
+    esbuild, TypeScript, ESM — a modern toolchain
+    targeting GJS 1.86+ / SpiderMonkey 128.
   </Card>
 </CardGrid>

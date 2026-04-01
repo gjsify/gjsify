@@ -1,7 +1,12 @@
 // <adw-header-bar> — Adwaita header bar with centered title.
 
 export class AdwHeaderBar extends HTMLElement {
+    private _initialized = false;
+
     connectedCallback() {
+        if (this._initialized) return;
+        this._initialized = true;
+
         const title = this.getAttribute('title') || '';
 
         // Center section with title

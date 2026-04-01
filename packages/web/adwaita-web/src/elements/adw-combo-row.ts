@@ -7,6 +7,7 @@ export class AdwComboRow extends HTMLElement {
     private _select!: HTMLSelectElement;
     private _valueEl!: HTMLSpanElement;
     private _items: string[] = [];
+    private _initialized = false;
 
     static get observedAttributes() { return ['selected']; }
 
@@ -19,6 +20,9 @@ export class AdwComboRow extends HTMLElement {
     }
 
     connectedCallback() {
+        if (this._initialized) return;
+        this._initialized = true;
+
         const title = this.getAttribute('title') || '';
         this._items = JSON.parse(this.getAttribute('items') || '[]');
         const selectedIdx = parseInt(this.getAttribute('selected') || '0', 10);

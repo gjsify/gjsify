@@ -29,9 +29,16 @@ export interface TeapotDemo {
     render(): void;
 }
 
+export interface StartOptions {
+    /** Base path for loading texture assets (default: './'). */
+    assetBase?: string;
+}
+
 const TEAPOT_SIZE = 300;
 
-export function start(canvas: HTMLCanvasElement): TeapotDemo {
+export function start(canvas: HTMLCanvasElement, options?: StartOptions): TeapotDemo {
+    const assetBase = options?.assetBase ?? './';
+
     // Renderer
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: true });
     renderer.setSize(canvas.width, canvas.height);
@@ -53,13 +60,13 @@ export function start(canvas: HTMLCanvasElement): TeapotDemo {
     scene.add(light);
 
     // Texture map
-    const textureMap = new THREE.TextureLoader().load('./assets/uv_grid_opengl.jpg');
+    const textureMap = new THREE.TextureLoader().load(`${assetBase}assets/uv_grid_opengl.jpg`);
     textureMap.wrapS = textureMap.wrapT = THREE.RepeatWrapping;
     textureMap.anisotropy = 16;
     textureMap.colorSpace = THREE.SRGBColorSpace;
 
     // Reflection map (cubemap)
-    const path = './assets/pisa/';
+    const path = `${assetBase}assets/pisa/`;
     const urls = ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'];
     const textureCube = new THREE.CubeTextureLoader().setPath(path).load(urls);
 

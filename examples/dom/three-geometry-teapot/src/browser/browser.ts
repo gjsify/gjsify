@@ -1,10 +1,19 @@
-// Browser entry point for three-geometry-teapot example.
+// Browser UI for three-geometry-teapot example.
 // Mirrors the GJS/Adwaita UI from gjs/teapot-window.ts using @gjsify/adwaita-web.
 
 import '@gjsify/adwaita-web';
-import { start, TESS_VALUES, SHADING_VALUES, DEFAULT_TESS_INDEX, DEFAULT_SHADING_INDEX, type TeapotDemo } from '../three-demo.js';
+import { start, TESS_VALUES, SHADING_VALUES, DEFAULT_TESS_INDEX, DEFAULT_SHADING_INDEX, type TeapotDemo, type StartOptions } from '../three-demo.js';
 
-function main() {
+export interface MountOptions {
+    /** Base path for loading texture assets (forwarded to three-demo). */
+    assetBase?: string;
+}
+
+/**
+ * Create the Adwaita teapot UI and mount it into the given container.
+ * The container receives an adw-window with sidebar controls and a WebGL canvas.
+ */
+export function mount(container: HTMLElement, options?: MountOptions) {
     // Build UI — mirrors teapot-window.blp structure
     const win = document.createElement('adw-window');
     win.setAttribute('width', '1100');
@@ -78,7 +87,7 @@ function main() {
 
     body.append(sidebar, separator, glContainer);
     win.append(headerBar, body);
-    document.body.append(win);
+    container.append(win);
 
     // Sync canvas size with container
     new ResizeObserver(() => {
@@ -89,7 +98,7 @@ function main() {
     canvas.height = glContainer.clientHeight;
 
     // Start three.js and connect controls — mirrors connectControls()
-    const demo = start(canvas);
+    const demo = start(canvas, { assetBase: options?.assetBase });
     connectControls(demo, tessRow, shadingRow, lidRow, bodyRow, bottomRow, fitLidRow, nonblinnRow);
 }
 
@@ -119,5 +128,3 @@ function connectControls(
         });
     }
 }
-
-main();

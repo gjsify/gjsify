@@ -1,0 +1,80 @@
+---
+// Custom Hero component — replaces Starlight's default Hero.
+// Renders the interactive Adwaita + Three.js teapot demo as the hero element.
+---
+
+<div class="hero-custom">
+  <div class="hero-text">
+    <h1 id="_top" data-page-title>gjsify</h1>
+    <div class="tagline">The full JavaScript ecosystem, native on GNOME</div>
+  </div>
+
+  <div class="hero-demo" id="teapot-demo"></div>
+
+  <script>
+    import { mount } from '@gjsify/example-dom-three-geometry-teapot/browser';
+
+    const container = document.getElementById('teapot-demo');
+    if (container) {
+      const base = import.meta.env.BASE_URL;
+      mount(container, { assetBase: `${base}demos/teapot/` });
+    }
+  </script>
+</div>
+
+<style>
+  .hero-custom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    padding-block: 1rem 2rem;
+  }
+
+  .hero-text {
+    text-align: center;
+    max-width: 60ch;
+  }
+
+  .hero-text h1 {
+    font-size: clamp(var(--sl-text-3xl), calc(0.25rem + 5vw), var(--sl-text-6xl));
+    line-height: var(--sl-line-height-headings);
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+
+  .tagline {
+    font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl));
+    color: var(--sl-color-gray-2);
+    margin-top: 0.75rem;
+  }
+
+  .hero-demo {
+    width: 100%;
+    max-width: 1100px;
+    aspect-ratio: 11 / 7;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.25),
+      0 0 0 1px rgba(0, 0, 0, 0.08);
+    position: relative;
+  }
+
+  /* Adwaita-Window fills the demo container */
+  .hero-demo :global(adw-window) {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+  }
+
+  @media (max-width: 600px) {
+    .hero-demo {
+      aspect-ratio: 4 / 3;
+    }
+  }
+</style>
