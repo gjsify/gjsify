@@ -55,6 +55,9 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             '.mjs': 'ts',
             '.cjs': 'ts',
             '.js': 'ts',
+            '.ttf': 'file',
+            '.woff': 'file',
+            '.woff2': 'file',
         },
         define: {
             global: 'globalThis',
