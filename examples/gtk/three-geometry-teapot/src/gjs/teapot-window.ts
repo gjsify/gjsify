@@ -5,11 +5,8 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
-import { start, type TeapotDemo, type ShadingMode } from './three-demo.js';
+import { start, TESS_VALUES, SHADING_VALUES, DEFAULT_TESS_INDEX, DEFAULT_SHADING_INDEX, type TeapotDemo } from '../three-demo.js';
 import Template from './teapot-window.blp';
-
-const TESS_VALUES = [2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 40, 50];
-const SHADING_VALUES: ShadingMode[] = ['wireframe', 'flat', 'smooth', 'glossy', 'textured', 'reflective'];
 
 export class TeapotWindow extends Adw.ApplicationWindow {
     declare private _glAreaContainer: Gtk.Box;
@@ -37,10 +34,10 @@ export class TeapotWindow extends Adw.ApplicationWindow {
 
         // Set up ComboRow models
         this._tessRow.set_model(Gtk.StringList.new(TESS_VALUES.map(String)));
-        this._tessRow.set_selected(7); // index 7 = "15"
+        this._tessRow.set_selected(DEFAULT_TESS_INDEX);
 
-        this._shadingRow.set_model(Gtk.StringList.new(SHADING_VALUES));
-        this._shadingRow.set_selected(3); // index 3 = "glossy"
+        this._shadingRow.set_model(Gtk.StringList.new([...SHADING_VALUES]));
+        this._shadingRow.set_selected(DEFAULT_SHADING_INDEX);
 
         // Create and insert WebGL widget
         const glArea = new CanvasWebGLWidget();

@@ -8,6 +8,11 @@ import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
 
 export type ShadingMode = 'wireframe' | 'flat' | 'smooth' | 'glossy' | 'textured' | 'reflective';
 
+export const TESS_VALUES = [2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 40, 50] as const;
+export const SHADING_VALUES: readonly ShadingMode[] = ['wireframe', 'flat', 'smooth', 'glossy', 'textured', 'reflective'];
+export const DEFAULT_TESS_INDEX = 7;    // "15"
+export const DEFAULT_SHADING_INDEX = 3; // "glossy"
+
 export interface TeapotEffectController {
     newTess: number;
     lid: boolean;
