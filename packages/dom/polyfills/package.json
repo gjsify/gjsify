@@ -1,0 +1,20 @@
+{
+    "name": "@gjsify/dom-polyfills",
+    "version": "0.1.2",
+    "description": "Meta package: all @gjsify DOM polyfill packages as dependencies",
+    "type": "module",
+    "keywords": [
+        "gjs",
+        "gjsify",
+        "dom",
+        "polyfills",
+        "meta"
+    ],
+    "dependencies": {
+        "@gjsify/canvas2d": "workspace:^",
+        "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/event-bridge": "workspace:^",
+        "@gjsify/iframe": "workspace:^",
+        "@gjsify/webgl": "workspace:^"
+    }
+}

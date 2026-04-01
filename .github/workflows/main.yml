@@ -91,3 +91,6 @@ jobs:
 
       - name: Test net examples
         run: su testuser -c 'yarn run test:examples:net'
+
+      - name: E2E tests
+        run: su testuser -c 'yarn test:e2e'
