@@ -62,6 +62,11 @@ export const CanvasWebGLWidget = GObject.registerClass(
                 this.disconnect(initId);
                 this.make_current();
                 this._canvas = new OurHTMLCanvasElement(this);
+                // Attach to document.body so event bubbling reaches ownerDocument
+                // (e.g. OrbitControls registers pointermove on ownerDocument).
+                if ((globalThis as any).document?.body) {
+                    (globalThis as any).document.body.appendChild(this._canvas);
+                }
                 const gl = this._canvas.getContext('webgl') as OurWebGLRenderingContext | null;
                 if (gl) {
                     for (const cb of this._readyCallbacks) {

@@ -9,11 +9,6 @@ import Gio from 'gi://Gio?version=2.0';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
 import { start } from './three-demo.js';
 
-// Minimal browser globals required by three.js
-globalThis.alert = (...args: any[]) => console.error('alert:', ...args);
-(globalThis as any).devicePixelRatio = 1;
-(globalThis as any).self = globalThis;
-
 const app = new Gtk.Application({
     application_id: 'gjsify.examples.three-morphtargets',
     flags: Gio.ApplicationFlags.FLAGS_NONE,

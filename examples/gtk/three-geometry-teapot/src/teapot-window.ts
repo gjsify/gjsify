@@ -64,22 +64,7 @@ export class TeapotWindow extends Adw.ApplicationWindow {
             const ctx = glArea.get_context()!;
             print(`Context version: OpenGL${ctx.get_use_es() ? ' ES' : ''} ${ctx.get_version().join('.')}`);
 
-            // DOM compatibility patches for OrbitControls.
-            // OrbitControls calls domElement.ownerDocument.addEventListener('pointermove', ...)
-            // during drag. In GTK all events arrive on the canvas, so redirect ownerDocument.
-            Object.defineProperty(canvas, 'ownerDocument', {
-                get() { return canvas; },
-                configurable: true,
-            });
-
-            // OrbitControls calls setPointerCapture/releasePointerCapture which don't exist
-            // on our HTMLCanvasElement. GTK event controllers track the pointer implicitly.
-            if (!(canvas as any).setPointerCapture) {
-                (canvas as any).setPointerCapture = () => {};
-                (canvas as any).releasePointerCapture = () => {};
-            }
-
-            const demo = start(canvas as any);
+            const demo = start(canvas);
             this.connectControls(demo);
         });
     }

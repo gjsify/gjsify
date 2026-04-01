@@ -7,15 +7,7 @@ import '@girs/gtk-4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
-// globalThis.Image is set automatically by @gjsify/dom-elements (imported transitively via @gjsify/webgl)
 import { start } from './three-demo.js';
-
-// Minimal browser globals required by three.js
-globalThis.alert = (...args: any[]) => console.error('alert:', ...args);
-(globalThis as any).devicePixelRatio = 1;
-// three.js checks `typeof self !== 'undefined'` to set its animation context;
-// without this, WebGLAnimation.context stays null and requestAnimationFrame fails.
-(globalThis as any).self = globalThis;
 
 const app = new Gtk.Application({
     application_id: 'gjsify.examples.three-geometry-cube',

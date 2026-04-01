@@ -93,3 +93,22 @@ Object.defineProperty(globalThis, 'IntersectionObserver', {
     writable: true,
     configurable: true,
 });
+
+// self — three.js checks `typeof self !== 'undefined'` for animation context
+if (typeof (globalThis as any).self === 'undefined') {
+    Object.defineProperty(globalThis, 'self', { value: globalThis, writable: true, configurable: true });
+}
+
+// devicePixelRatio — defaults to 1 (no HiDPI scaling in GTK GL context)
+if (typeof (globalThis as any).devicePixelRatio === 'undefined') {
+    Object.defineProperty(globalThis, 'devicePixelRatio', { value: 1, writable: true, configurable: true });
+}
+
+// alert — stub redirecting to console.error (GTK dialog version can override via writable)
+if (typeof (globalThis as any).alert === 'undefined') {
+    Object.defineProperty(globalThis, 'alert', {
+        value: (...args: any[]) => console.error('alert:', ...args),
+        writable: true,
+        configurable: true,
+    });
+}
