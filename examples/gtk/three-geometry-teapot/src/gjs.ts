@@ -1,10 +1,6 @@
 // GJS/Adwaita entry point for three-geometry-teapot example.
 // Ported from refs/three/examples/webgl_geometry_teapot.html
 
-import '@girs/gjs';
-import '@girs/gtk-4.0';
-import '@girs/adw-1';
-
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
 import { TeapotWindow } from './teapot-window.js';
