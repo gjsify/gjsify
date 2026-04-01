@@ -53,8 +53,8 @@ jobs:
           libgda
           libgda-sqlite
 
-      - name: Install Meson and Vala
-        run: dnf install -y meson vala gcc pkgconf
+      - name: Install Meson, Vala and Blueprint Compiler
+        run: dnf install -y meson vala gcc pkgconf blueprint-compiler
 
       - name: Create non-root user for tests
         run: |
