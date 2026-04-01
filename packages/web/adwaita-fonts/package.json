@@ -4,8 +4,12 @@
   "description": "Adwaita Sans font package for browser targets (fontsource-style)",
   "type": "module",
   "main": "index.css",
+  "types": "index.d.ts",
   "exports": {
-    ".": "./index.css",
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.css"
+    },
     "./400.css": "./400.css",
     "./400-italic.css": "./400-italic.css",
     "./files/*": "./files/*"
