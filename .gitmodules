@@ -113,8 +113,8 @@
 [submodule "refs/astro"]
 	path = refs/astro
 	url = git@github.com:withastro/astro.git
-[submodule "examples/gtk/three-geometry-shapes/refs/gjsify-vite"]
-	path = examples/gtk/three-geometry-shapes/refs/gjsify-vite
+[submodule "examples/dom/three-geometry-shapes/refs/gjsify-vite"]
+	path = examples/dom/three-geometry-shapes/refs/gjsify-vite
 	url = git@github.com:gjsify/vite.git
 [submodule "refs/app-mockups"]
 	path = refs/app-mockups

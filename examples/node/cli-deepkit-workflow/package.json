@@ -1,0 +1,38 @@
+{
+  "name": "@gjsify/example-node-cli-deepkit-workflow",
+  "private": true,
+  "description": "Demonstrates Deepkit workflow/state machine on GJS",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "yarn start:node && yarn start:gjs",
+    "start:gjs": "gjs -m dist/index.gjs.js",
+    "start:node": "node dist/index.node.mjs",
+    "build": "yarn build:gjs && yarn build:node",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
+    "test": "yarn start"
+  },
+  "engines": {
+    "node": "16",
+    "gjs": "1.72.x"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "dependencies": {
+    "@deepkit/core": "^1.0.19",
+    "@deepkit/event": "^1.0.19",
+    "@deepkit/injector": "^1.0.19",
+    "@deepkit/stopwatch": "^1.0.19",
+    "@deepkit/type": "^1.0.19",
+    "@deepkit/workflow": "^1.0.19",
+    "@gjsify/node-globals": "workspace:^"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2"
+  }
+}

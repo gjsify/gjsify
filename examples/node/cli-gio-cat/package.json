@@ -1,0 +1,22 @@
+{
+  "name": "@gjsify/example-node-cli-gio-cat",
+  "type": "module",
+  "module": "dist/index.js",
+  "private": true,
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "gjs -m dist/index.js",
+    "build": "yarn build:gjs",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.js",
+    "test": "yarn build && rm -f /tmp/gio-cat-example.txt && echo ok > /tmp/gio-cat-example.txt && gjs -m dist/index.js /tmp/gio-cat-example.txt"
+  },
+  "dependencies": {
+    "@girs/gio-2.0": "^2.88.0-4.0.0-beta.43",
+    "@girs/gjs": "^4.0.0-beta.43",
+    "@gjsify/cli": "workspace:^"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}

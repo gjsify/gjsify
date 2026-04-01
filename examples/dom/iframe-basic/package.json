@@ -1,0 +1,27 @@
+{
+    "name": "@gjsify/example-dom-iframe-basic",
+    "private": true,
+    "description": "Basic iframe example demonstrating HTMLIFrameElement with WebKit.WebView and bidirectional postMessage",
+    "main": "dist/index.gjs.js",
+    "type": "module",
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo",
+        "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
+        "start": "gjsify run dist/index.gjs.js",
+        "build": "yarn build:gjs",
+        "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^25.5.0",
+        "typescript": "^6.0.2"
+    },
+    "dependencies": {
+        "@girs/gio-2.0": "^2.88.0-4.0.0-beta.43",
+        "@girs/gjs": "^4.0.0-beta.43",
+        "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
+        "@gjsify/iframe": "workspace:^"
+    }
+}

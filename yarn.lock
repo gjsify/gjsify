@@ -1474,246 +1474,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-cli-deepkit-di@workspace:examples/cli/deepkit-di":
+"@gjsify/example-dom-canvas2d-confetti@workspace:examples/dom/canvas2d-confetti":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-deepkit-di@workspace:examples/cli/deepkit-di"
-  dependencies:
-    "@deepkit/core": "npm:^1.0.19"
-    "@deepkit/injector": "npm:^1.0.19"
-    "@deepkit/type": "npm:^1.0.19"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-deepkit-events@workspace:examples/cli/deepkit-events":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-deepkit-events@workspace:examples/cli/deepkit-events"
-  dependencies:
-    "@deepkit/core": "npm:^1.0.19"
-    "@deepkit/event": "npm:^1.0.19"
-    "@deepkit/injector": "npm:^1.0.19"
-    "@deepkit/type": "npm:^1.0.19"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-deepkit-types@workspace:examples/cli/deepkit-types":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-deepkit-types@workspace:examples/cli/deepkit-types"
-  dependencies:
-    "@deepkit/core": "npm:^1.0.19"
-    "@deepkit/type": "npm:^1.0.19"
-    "@gjsify/cli": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-deepkit-validation@workspace:examples/cli/deepkit-validation":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-deepkit-validation@workspace:examples/cli/deepkit-validation"
-  dependencies:
-    "@deepkit/core": "npm:^1.0.19"
-    "@deepkit/type": "npm:^1.0.19"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-deepkit-workflow@workspace:examples/cli/deepkit-workflow":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-deepkit-workflow@workspace:examples/cli/deepkit-workflow"
-  dependencies:
-    "@deepkit/core": "npm:^1.0.19"
-    "@deepkit/event": "npm:^1.0.19"
-    "@deepkit/injector": "npm:^1.0.19"
-    "@deepkit/stopwatch": "npm:^1.0.19"
-    "@deepkit/type": "npm:^1.0.19"
-    "@deepkit/workflow": "npm:^1.0.19"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-dns-lookup@workspace:examples/cli/dns-lookup":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-dns-lookup@workspace:examples/cli/dns-lookup"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/runtime": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-esbuild-plugin-deepkit@workspace:examples/cli/esbuild-plugin-deepkit":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-esbuild-plugin-deepkit@workspace:examples/cli/esbuild-plugin-deepkit"
-  dependencies:
-    "@deepkit/core": "npm:^1.0.19"
-    "@deepkit/type": "npm:^1.0.19"
-    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-esbuild-plugin-transform-ext@workspace:examples/cli/esbuild-plugin-transform-ext":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-esbuild-plugin-transform-ext@workspace:examples/cli/esbuild-plugin-transform-ext"
-  dependencies:
-    "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-file-search@workspace:examples/cli/file-search":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-file-search@workspace:examples/cli/file-search"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/runtime": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-gio-cat@workspace:examples/cli/gio-cat":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-gio-cat@workspace:examples/cli/gio-cat"
-  dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
-    "@girs/gjs": "npm:^4.0.0-beta.43"
-    "@gjsify/cli": "workspace:^"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-json-store@workspace:examples/cli/json-store":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-json-store@workspace:examples/cli/json-store"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/runtime": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-node-buffer@workspace:examples/cli/node-buffer":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-node-buffer@workspace:examples/cli/node-buffer"
-  dependencies:
-    "@gjsify/buffer": "workspace:^"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-node-events@workspace:examples/cli/node-events":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-node-events@workspace:examples/cli/node-events"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/events": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-node-fs@workspace:examples/cli/node-fs":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-node-fs@workspace:examples/cli/node-fs"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/fs": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/path": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-node-os@workspace:examples/cli/node-os":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-node-os@workspace:examples/cli/node-os"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/os": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-node-path@workspace:examples/cli/node-path":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-node-path@workspace:examples/cli/node-path"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/path": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-node-url@workspace:examples/cli/node-url":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-node-url@workspace:examples/cli/node-url"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/url": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-worker-pool@workspace:examples/cli/worker-pool":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-worker-pool@workspace:examples/cli/worker-pool"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/runtime": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-cli-yargs-demo@workspace:examples/cli/yargs-demo":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-cli-yargs-demo@workspace:examples/cli/yargs-demo"
-  dependencies:
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@gjsify/runtime": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    "@types/yargs": "npm:^17.0.35"
-    typescript: "npm:^6.0.2"
-    yargs: "npm:^18.0.0"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-gtk-canvas2d-confetti@workspace:examples/gtk/canvas2d-confetti":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-canvas2d-confetti@workspace:examples/gtk/canvas2d-confetti"
+  resolution: "@gjsify/example-dom-canvas2d-confetti@workspace:examples/dom/canvas2d-confetti"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1726,9 +1489,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-canvas2d-fireworks@workspace:examples/gtk/canvas2d-fireworks":
+"@gjsify/example-dom-canvas2d-fireworks@workspace:examples/dom/canvas2d-fireworks":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-canvas2d-fireworks@workspace:examples/gtk/canvas2d-fireworks"
+  resolution: "@gjsify/example-dom-canvas2d-fireworks@workspace:examples/dom/canvas2d-fireworks"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1741,24 +1504,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-http-dashboard@workspace:examples/gtk/http-dashboard":
+"@gjsify/example-dom-iframe-basic@workspace:examples/dom/iframe-basic":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-http-dashboard@workspace:examples/gtk/http-dashboard"
-  dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
-    "@girs/gjs": "npm:^4.0.0-beta.43"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.43"
-    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.43"
-    "@gjsify/cli": "workspace:^"
-    "@gjsify/node-globals": "workspace:^"
-    "@types/node": "npm:^25.5.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
-
-"@gjsify/example-gtk-iframe-basic@workspace:examples/gtk/iframe-basic":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-iframe-basic@workspace:examples/gtk/iframe-basic"
+  resolution: "@gjsify/example-dom-iframe-basic@workspace:examples/dom/iframe-basic"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1770,9 +1518,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-three-extrude-shapes@workspace:examples/gtk/three-extrude-shapes":
+"@gjsify/example-dom-three-extrude-shapes@workspace:examples/dom/three-extrude-shapes":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-three-extrude-shapes@workspace:examples/gtk/three-extrude-shapes"
+  resolution: "@gjsify/example-dom-three-extrude-shapes@workspace:examples/dom/three-extrude-shapes"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1787,9 +1535,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-three-geometry-cube@workspace:examples/gtk/three-geometry-cube":
+"@gjsify/example-dom-three-geometry-cube@workspace:examples/dom/three-geometry-cube":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-three-geometry-cube@workspace:examples/gtk/three-geometry-cube"
+  resolution: "@gjsify/example-dom-three-geometry-cube@workspace:examples/dom/three-geometry-cube"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1804,9 +1552,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-three-geometry-shapes@workspace:examples/gtk/three-geometry-shapes":
+"@gjsify/example-dom-three-geometry-shapes@workspace:examples/dom/three-geometry-shapes":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-three-geometry-shapes@workspace:examples/gtk/three-geometry-shapes"
+  resolution: "@gjsify/example-dom-three-geometry-shapes@workspace:examples/dom/three-geometry-shapes"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1821,9 +1569,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-three-geometry-teapot@workspace:examples/gtk/three-geometry-teapot":
+"@gjsify/example-dom-three-geometry-teapot@workspace:examples/dom/three-geometry-teapot":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-three-geometry-teapot@workspace:examples/gtk/three-geometry-teapot"
+  resolution: "@gjsify/example-dom-three-geometry-teapot@workspace:examples/dom/three-geometry-teapot"
   dependencies:
     "@girs/adw-1": "npm:^1.10.0-4.0.0-beta.43"
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
@@ -1841,9 +1589,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-three-morphtargets@workspace:examples/gtk/three-morphtargets":
+"@gjsify/example-dom-three-morphtargets@workspace:examples/dom/three-morphtargets":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-three-morphtargets@workspace:examples/gtk/three-morphtargets"
+  resolution: "@gjsify/example-dom-three-morphtargets@workspace:examples/dom/three-morphtargets"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1858,9 +1606,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-webgl-demo-fade@workspace:examples/gtk/webgl-demo-fade":
+"@gjsify/example-dom-webgl-demo-fade@workspace:examples/dom/webgl-demo-fade":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-webgl-demo-fade@workspace:examples/gtk/webgl-demo-fade"
+  resolution: "@gjsify/example-dom-webgl-demo-fade@workspace:examples/dom/webgl-demo-fade"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1873,9 +1621,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-webgl-tutorial-01@workspace:examples/gtk/webgl-tutorial-01":
+"@gjsify/example-dom-webgl-tutorial-01@workspace:examples/dom/webgl-tutorial-01":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-webgl-tutorial-01@workspace:examples/gtk/webgl-tutorial-01"
+  resolution: "@gjsify/example-dom-webgl-tutorial-01@workspace:examples/dom/webgl-tutorial-01"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1887,9 +1635,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-webgl-tutorial-02@workspace:examples/gtk/webgl-tutorial-02":
+"@gjsify/example-dom-webgl-tutorial-02@workspace:examples/dom/webgl-tutorial-02":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-webgl-tutorial-02@workspace:examples/gtk/webgl-tutorial-02"
+  resolution: "@gjsify/example-dom-webgl-tutorial-02@workspace:examples/dom/webgl-tutorial-02"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1904,9 +1652,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-webgl-tutorial-03@workspace:examples/gtk/webgl-tutorial-03":
+"@gjsify/example-dom-webgl-tutorial-03@workspace:examples/dom/webgl-tutorial-03":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-webgl-tutorial-03@workspace:examples/gtk/webgl-tutorial-03"
+  resolution: "@gjsify/example-dom-webgl-tutorial-03@workspace:examples/dom/webgl-tutorial-03"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1921,9 +1669,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-webgl-tutorial-04@workspace:examples/gtk/webgl-tutorial-04":
+"@gjsify/example-dom-webgl-tutorial-04@workspace:examples/dom/webgl-tutorial-04":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-webgl-tutorial-04@workspace:examples/gtk/webgl-tutorial-04"
+  resolution: "@gjsify/example-dom-webgl-tutorial-04@workspace:examples/dom/webgl-tutorial-04"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1938,9 +1686,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-webgl-tutorial-05@workspace:examples/gtk/webgl-tutorial-05":
+"@gjsify/example-dom-webgl-tutorial-05@workspace:examples/dom/webgl-tutorial-05":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-webgl-tutorial-05@workspace:examples/gtk/webgl-tutorial-05"
+  resolution: "@gjsify/example-dom-webgl-tutorial-05@workspace:examples/dom/webgl-tutorial-05"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1955,9 +1703,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-webgl-tutorial-06@workspace:examples/gtk/webgl-tutorial-06":
+"@gjsify/example-dom-webgl-tutorial-06@workspace:examples/dom/webgl-tutorial-06":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-webgl-tutorial-06@workspace:examples/gtk/webgl-tutorial-06"
+  resolution: "@gjsify/example-dom-webgl-tutorial-06@workspace:examples/dom/webgl-tutorial-06"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1972,9 +1720,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-gtk-webgl-tutorial-07@workspace:examples/gtk/webgl-tutorial-07":
+"@gjsify/example-dom-webgl-tutorial-07@workspace:examples/dom/webgl-tutorial-07":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-gtk-webgl-tutorial-07@workspace:examples/gtk/webgl-tutorial-07"
+  resolution: "@gjsify/example-dom-webgl-tutorial-07@workspace:examples/dom/webgl-tutorial-07"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
@@ -1989,9 +1737,261 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-net-express-hello@workspace:examples/net/express-hello":
+"@gjsify/example-node-cli-deepkit-di@workspace:examples/node/cli-deepkit-di":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-net-express-hello@workspace:examples/net/express-hello"
+  resolution: "@gjsify/example-node-cli-deepkit-di@workspace:examples/node/cli-deepkit-di"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/injector": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-deepkit-events@workspace:examples/node/cli-deepkit-events":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-deepkit-events@workspace:examples/node/cli-deepkit-events"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/event": "npm:^1.0.19"
+    "@deepkit/injector": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-deepkit-types@workspace:examples/node/cli-deepkit-types":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-deepkit-types@workspace:examples/node/cli-deepkit-types"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-deepkit-validation@workspace:examples/node/cli-deepkit-validation":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-deepkit-validation@workspace:examples/node/cli-deepkit-validation"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-deepkit-workflow@workspace:examples/node/cli-deepkit-workflow":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-deepkit-workflow@workspace:examples/node/cli-deepkit-workflow"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/event": "npm:^1.0.19"
+    "@deepkit/injector": "npm:^1.0.19"
+    "@deepkit/stopwatch": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@deepkit/workflow": "npm:^1.0.19"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-dns-lookup@workspace:examples/node/cli-dns-lookup":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-dns-lookup@workspace:examples/node/cli-dns-lookup"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-esbuild-plugin-deepkit@workspace:examples/node/cli-esbuild-plugin-deepkit":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-esbuild-plugin-deepkit@workspace:examples/node/cli-esbuild-plugin-deepkit"
+  dependencies:
+    "@deepkit/core": "npm:^1.0.19"
+    "@deepkit/type": "npm:^1.0.19"
+    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-esbuild-plugin-transform-ext@workspace:examples/node/cli-esbuild-plugin-transform-ext":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-esbuild-plugin-transform-ext@workspace:examples/node/cli-esbuild-plugin-transform-ext"
+  dependencies:
+    "@gjsify/esbuild-plugin-transform-ext": "workspace:^"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-file-search@workspace:examples/node/cli-file-search":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-file-search@workspace:examples/node/cli-file-search"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-gio-cat@workspace:examples/node/cli-gio-cat":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-gio-cat@workspace:examples/node/cli-gio-cat"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
+    "@girs/gjs": "npm:^4.0.0-beta.43"
+    "@gjsify/cli": "workspace:^"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-json-store@workspace:examples/node/cli-json-store":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-json-store@workspace:examples/node/cli-json-store"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-node-buffer@workspace:examples/node/cli-node-buffer":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-buffer@workspace:examples/node/cli-node-buffer"
+  dependencies:
+    "@gjsify/buffer": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-node-events@workspace:examples/node/cli-node-events":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-events@workspace:examples/node/cli-node-events"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/events": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-node-fs@workspace:examples/node/cli-node-fs":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-fs@workspace:examples/node/cli-node-fs"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/fs": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/path": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-node-os@workspace:examples/node/cli-node-os":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-os@workspace:examples/node/cli-node-os"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/os": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-node-path@workspace:examples/node/cli-node-path":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-path@workspace:examples/node/cli-node-path"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/path": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-node-url@workspace:examples/node/cli-node-url":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-url@workspace:examples/node/cli-node-url"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/url": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-worker-pool@workspace:examples/node/cli-worker-pool":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-worker-pool@workspace:examples/node/cli-worker-pool"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-yargs-demo@workspace:examples/node/cli-yargs-demo":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-yargs-demo@workspace:examples/node/cli-yargs-demo"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    "@types/yargs": "npm:^17.0.35"
+    typescript: "npm:^6.0.2"
+    yargs: "npm:^18.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-gtk-http-dashboard@workspace:examples/node/gtk-http-dashboard":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-gtk-http-dashboard@workspace:examples/node/gtk-http-dashboard"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
+    "@girs/gjs": "npm:^4.0.0-beta.43"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.43"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.43"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-net-express-hello@workspace:examples/node/net-express-hello":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-net-express-hello@workspace:examples/node/net-express-hello"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
@@ -2004,9 +2004,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-net-hono-rest@workspace:examples/net/hono-rest":
+"@gjsify/example-node-net-hono-rest@workspace:examples/node/net-hono-rest":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-net-hono-rest@workspace:examples/net/hono-rest"
+  resolution: "@gjsify/example-node-net-hono-rest@workspace:examples/node/net-hono-rest"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
@@ -2019,9 +2019,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-net-koa-blog@workspace:examples/net/koa-blog":
+"@gjsify/example-node-net-koa-blog@workspace:examples/node/net-koa-blog":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-net-koa-blog@workspace:examples/net/koa-blog"
+  resolution: "@gjsify/example-node-net-koa-blog@workspace:examples/node/net-koa-blog"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
@@ -2040,9 +2040,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-net-sse-chat@workspace:examples/net/sse-chat":
+"@gjsify/example-node-net-sse-chat@workspace:examples/node/net-sse-chat":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-net-sse-chat@workspace:examples/net/sse-chat"
+  resolution: "@gjsify/example-node-net-sse-chat@workspace:examples/node/net-sse-chat"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
@@ -2053,9 +2053,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-net-static-file-server@workspace:examples/net/static-file-server":
+"@gjsify/example-node-net-static-file-server@workspace:examples/node/net-static-file-server":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-net-static-file-server@workspace:examples/net/static-file-server"
+  resolution: "@gjsify/example-node-net-static-file-server@workspace:examples/node/net-static-file-server"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
@@ -2066,9 +2066,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-net-ws-chat@workspace:examples/net/ws-chat":
+"@gjsify/example-node-net-ws-chat@workspace:examples/node/net-ws-chat":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-net-ws-chat@workspace:examples/net/ws-chat"
+  resolution: "@gjsify/example-node-net-ws-chat@workspace:examples/node/net-ws-chat"
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
