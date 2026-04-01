@@ -115,9 +115,14 @@ export class Node extends EventTarget {
 	}
 
 	get ownerDocument(): any {
-		// Lazy reference to avoid circular dependency (Document extends Node).
-		// globalThis.document is set by @gjsify/dom-elements on import.
-		return (globalThis as any).document ?? null;
+		// Walk up the tree to find the root. If it's the global document, return it.
+		// Standalone nodes (not in a document tree) return null per W3C spec.
+		let root: Node = this;
+		while (root[PS.parentNode]) {
+			root = root[PS.parentNode]!;
+		}
+		const doc = (globalThis as any).document;
+		return root === doc ? doc : null;
 	}
 
 	get isConnected(): boolean {
