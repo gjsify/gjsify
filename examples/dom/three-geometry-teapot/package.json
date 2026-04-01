@@ -12,7 +12,7 @@
     "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
     "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
-    "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/webgl.css dist/webgl.css && cp -rf src/assets dist/assets && mkdir -p dist/fonts && cp -f ../../../refs/adwaita-fonts/sans/AdwaitaSans-Regular.ttf dist/fonts/"
+    "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/webgl.css dist/webgl.css && cp -rf src/assets dist/assets && mkdir -p dist/fonts && (cp -f ../../../refs/adwaita-fonts/sans/AdwaitaSans-Regular.ttf dist/fonts/ 2>/dev/null || true)"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
