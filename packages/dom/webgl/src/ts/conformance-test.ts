@@ -1,12 +1,14 @@
 // Khronos WebGL Conformance Test runner for @gjsify/webgl.
 // Runs ported WebGL1 conformance tests using @gjsify/unit.
 // Phase 1: buffers, programs, attribs, context (no image loading required).
+// Phase 2: rendering-basic (clear-color, simple-shader, draw-indexed).
 
 import { run } from '@gjsify/unit';
 import buffersTests from './conformance/buffers.spec.js';
 import programsTests from './conformance/programs.spec.js';
 import attribsTests from './conformance/attribs.spec.js';
 import contextTests from './conformance/context.spec.js';
+import renderingBasicTests from './conformance/rendering-basic.spec.js';
 
 run({
     testSuite: async () => {
@@ -14,5 +16,6 @@ run({
         await programsTests();
         await attribsTests();
         await contextTests();
+        await renderingBasicTests();
     },
 });
