@@ -654,6 +654,133 @@ export default async () => {
 			});
 		});
 
+		// ── Extensions ──────────────────────────────────────────────────────────
+
+		await describe('WebGL2 extensions', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('supports EXT_color_buffer_float', async () => {
+				const ext = gl2.getExtension('EXT_color_buffer_float');
+				expect(ext).toBeTruthy();
+			});
+
+			await it('supports EXT_color_buffer_half_float', async () => {
+				const ext = gl2.getExtension('EXT_color_buffer_half_float');
+				expect(ext).toBeTruthy();
+			});
+
+			await it('supports OES_texture_half_float', async () => {
+				const ext = gl2.getExtension('OES_texture_half_float');
+				expect(ext).toBeTruthy();
+			});
+
+			await it('OES_texture_half_float exposes HALF_FLOAT_OES constant', async () => {
+				const ext = gl2.getExtension('OES_texture_half_float') as any;
+				expect(ext).toBeTruthy();
+				expect(ext.HALF_FLOAT_OES).toBe(0x8D61);
+			});
+		});
+
+		// ── renderbufferStorage formats ──────────────────────────────────────────
+
+		await describe('WebGL2 renderbufferStorage formats', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			async function testRbFormat(internalFormat: GLenum) {
+				const rb = gl2.createRenderbuffer();
+				gl2.bindRenderbuffer(gl2.RENDERBUFFER, rb);
+				gl2.renderbufferStorage(gl2.RENDERBUFFER, internalFormat, 64, 64);
+				const err = gl2.getError();
+				gl2.deleteRenderbuffer(rb);
+				return err;
+			}
+
+			await it('accepts RGBA8 (0x8058)', async () => {
+				expect(await testRbFormat(0x8058)).toBe(gl2.NO_ERROR);
+			});
+
+			await it('accepts DEPTH_COMPONENT24 (0x81A6)', async () => {
+				expect(await testRbFormat(0x81A6)).toBe(gl2.NO_ERROR);
+			});
+
+			await it('accepts DEPTH24_STENCIL8 (0x88F0)', async () => {
+				expect(await testRbFormat(0x88F0)).toBe(gl2.NO_ERROR);
+			});
+		});
+
+		// ── Float render target pipeline (Three.js pattern) ─────────────────────
+
+		await describe('WebGL2 float render target', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('can create RGBA16F texture and attach to FBO', async () => {
+				const RGBA16F = 0x881A;
+				const HALF_FLOAT = 0x140B;
+
+				const tex = gl2.createTexture();
+				gl2.bindTexture(gl2.TEXTURE_2D, tex);
+				gl2.texImage2D(gl2.TEXTURE_2D, 0, RGBA16F, 64, 64, 0, gl2.RGBA, HALF_FLOAT, null);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				const fbo = gl2.createFramebuffer();
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, fbo);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, tex, 0);
+
+				const status = gl2.checkFramebufferStatus(gl2.FRAMEBUFFER);
+				expect(status).toBe(gl2.FRAMEBUFFER_COMPLETE);
+
+				// Clear to red — should not produce errors
+				gl2.clearColor(1, 0, 0, 1);
+				gl2.clear(gl2.COLOR_BUFFER_BIT);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+				gl2.deleteFramebuffer(fbo);
+				gl2.deleteTexture(tex);
+			});
+
+			await it('can create RGBA8 renderbuffer FBO', async () => {
+				const RGBA8 = 0x8058;
+
+				const rb = gl2.createRenderbuffer();
+				gl2.bindRenderbuffer(gl2.RENDERBUFFER, rb);
+				gl2.renderbufferStorage(gl2.RENDERBUFFER, RGBA8, 64, 64);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				const fbo = gl2.createFramebuffer();
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, fbo);
+				gl2.framebufferRenderbuffer(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.RENDERBUFFER, rb);
+
+				const status = gl2.checkFramebufferStatus(gl2.FRAMEBUFFER);
+				expect(status).toBe(gl2.FRAMEBUFFER_COMPLETE);
+
+				gl2.clearColor(0, 1, 0, 1);
+				gl2.clear(gl2.COLOR_BUFFER_BIT);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+				gl2.deleteFramebuffer(fbo);
+				gl2.deleteRenderbuffer(rb);
+			});
+		});
+
+		// ── GLSL 1.0 compatibility in WebGL2 ───────────────────────────────────
+
+		await describe('WebGL2 GLSL 1.0 compatibility', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('compiles versionless shaders with attribute/varying', async () => {
+				const vs = 'attribute vec2 position;\nvarying vec2 vUv;\nvoid main() { vUv = position; gl_Position = vec4(position, 0.0, 1.0); }';
+				const fs = 'precision mediump float;\nvarying vec2 vUv;\nvoid main() { gl_FragColor = vec4(vUv, 0.0, 1.0); }';
+				const prog = makeProgram(gl2 as unknown as WebGLRenderingContext, vs, fs);
+				expect(prog).toBeTruthy();
+				if (prog) {
+					expect(gl2.getProgramParameter(prog, gl2.LINK_STATUS)).toBeTruthy();
+					gl2.deleteProgram(prog);
+				}
+			});
+		});
+
 		// All WebGL2 tests complete.
 		win.destroy();
 

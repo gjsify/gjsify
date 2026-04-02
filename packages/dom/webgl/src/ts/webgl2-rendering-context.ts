@@ -655,8 +655,26 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
         this._native2.readBuffer(src);
     }
 
-    renderbufferStorageMultisample(target: GLenum, samples: GLsizei, internalformat: GLenum, width: GLsizei, height: GLsizei): void {
-        this._native2.renderbufferStorageMultisample(target, samples, internalformat, width, height);
+    renderbufferStorageMultisample(target: GLenum, samples: GLsizei, internalFormat: GLenum, width: GLsizei, height: GLsizei): void {
+        if (target !== this.RENDERBUFFER) {
+            this.setError(this.INVALID_ENUM);
+            return;
+        }
+        const renderbuffer = (this as any)._activeRenderbuffer as WebGLRenderbuffer | null;
+        if (!renderbuffer) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+
+        this._saveError();
+        this._native2.renderbufferStorageMultisample(target, samples, internalFormat, width, height);
+        const error = this.getError();
+        this._restoreError(error);
+        if (error !== this.NO_ERROR) return;
+
+        renderbuffer._width = width;
+        renderbuffer._height = height;
+        renderbuffer._format = internalFormat;
     }
 
     // ─── Unsigned Integer Uniforms ────────────────────────────────────────
@@ -870,5 +888,129 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
     getStringi(name: GLenum, index: GLuint): string | null {
         const s = this._native2.getStringi(name, index);
         return s.length > 0 ? s : null;
+    }
+
+    // ─── WebGL2 overrides for format validation ────────────────────────────
+
+    /**
+     * WebGL2 supports ~30+ renderbuffer formats (R8, RG8, RGBA8, RGBA16F,
+     * DEPTH_COMPONENT24, DEPTH32F_STENCIL8, etc.). The WebGL1 base class
+     * only allows 7 formats. Delegate format validation to native GL.
+     */
+    override renderbufferStorage(target: GLenum, internalFormat: GLenum, width: GLsizei, height: GLsizei): void {
+        if (target !== this.RENDERBUFFER) {
+            this.setError(this.INVALID_ENUM);
+            return;
+        }
+        const renderbuffer = (this as any)._activeRenderbuffer as WebGLRenderbuffer | null;
+        if (!renderbuffer) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+        if (width < 0 || height < 0) {
+            this.setError(this.INVALID_VALUE);
+            return;
+        }
+
+        this._saveError();
+        this._native.renderbufferStorage(target, internalFormat, width, height);
+        const error = this.getError();
+        this._restoreError(error);
+        if (error !== this.NO_ERROR) return;
+
+        renderbuffer._width = width;
+        renderbuffer._height = height;
+        renderbuffer._format = internalFormat;
+
+        const activeFramebuffer = (this as any)._activeFramebuffer;
+        if (activeFramebuffer) {
+            const attachments = this._getAttachments();
+            let needsUpdate = false;
+            for (let i = 0; i < attachments.length; ++i) {
+                if (activeFramebuffer._attachments[attachments[i]] === renderbuffer) {
+                    needsUpdate = true;
+                    break;
+                }
+            }
+            if (needsUpdate) this._updateFramebufferAttachments(activeFramebuffer);
+        }
+    }
+
+    /**
+     * WebGL2 makes several WebGL1 extensions part of the core spec.
+     * EXT_color_buffer_float and EXT_color_buffer_half_float are always
+     * available in WebGL2 contexts. Append them if the base class didn't.
+     */
+    override getSupportedExtensions(): string[] {
+        const exts = super.getSupportedExtensions();
+        const ensure = ['EXT_color_buffer_float', 'EXT_color_buffer_half_float', 'OES_texture_half_float'];
+        for (const ext of ensure) {
+            if (exts.indexOf(ext) === -1) exts.push(ext);
+        }
+        return exts;
+    }
+
+    /**
+     * WebGL2 allows reading pixels in many more format/type combinations
+     * than WebGL1's strict RGBA/UNSIGNED_BYTE. Delegate validation to native.
+     */
+    override readPixels(x: GLint, y: GLint, width: GLsizei, height: GLsizei,
+        format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void {
+        if (!pixels) return;
+        if (width < 0 || height < 0) {
+            this.setError(this.INVALID_VALUE);
+            return;
+        }
+        if (!this._framebufferOk()) return;
+
+        const pixelData = arrayToUint8Array(pixels as any);
+        this._saveError();
+        this._native.readPixels(x, y, width, height, format, type, Uint8ArrayToVariant(pixelData));
+        const error = this.getError();
+        this._restoreError(error);
+        if (error !== this.NO_ERROR) return;
+
+        // Copy native result back into the caller's buffer
+        if (pixels instanceof Uint8Array) {
+            pixels.set(pixelData);
+        } else if (pixels instanceof Float32Array) {
+            const floatView = new Float32Array(pixelData.buffer, pixelData.byteOffset, pixels.length);
+            pixels.set(floatView);
+        }
+    }
+
+    /**
+     * WebGL2 allows non-zero mipmap levels for framebuffer texture attachments.
+     * WebGL1 rejects level !== 0.
+     */
+    override framebufferTexture2D(target: GLenum, attachment: GLenum, textarget: GLenum,
+        texture: WebGLTexture | null, level: GLint): void {
+        if (target !== this.FRAMEBUFFER && target !== 0x8CA8 /* READ_FRAMEBUFFER */ && target !== 0x8CA9 /* DRAW_FRAMEBUFFER */) {
+            this.setError(this.INVALID_ENUM);
+            return;
+        }
+        if (!this._validFramebufferAttachment(attachment)) {
+            this.setError(this.INVALID_ENUM);
+            return;
+        }
+
+        const framebuffer = (this as any)._activeFramebuffer;
+        if (!framebuffer) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+
+        // Store attachment metadata
+        if (texture) {
+            framebuffer._attachments[attachment] = texture;
+            framebuffer._attachmentLevel[attachment] = level;
+            framebuffer._attachmentFace[attachment] = textarget;
+        } else {
+            delete framebuffer._attachments[attachment];
+            delete framebuffer._attachmentLevel[attachment];
+            delete framebuffer._attachmentFace[attachment];
+        }
+
+        this._updateFramebufferAttachments(framebuffer);
     }
 }

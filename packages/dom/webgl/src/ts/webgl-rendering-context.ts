@@ -34,7 +34,10 @@ import { getSTACKGLDestroyContext } from './extensions/stackgl-destroy-context.j
 import { getSTACKGLResizeDrawingBuffer } from './extensions/stackgl-resize-drawing-buffer.js';
 // import { getWebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
 import { getEXTBlendMinMax } from './extensions/ext-blend-minmax.js';
+import { getEXTColorBufferFloat } from './extensions/ext-color-buffer-float.js';
+import { getEXTColorBufferHalfFloat } from './extensions/ext-color-buffer-half-float.js';
 import { getEXTTextureFilterAnisotropic } from './extensions/ext-texture-filter-anisotropic.js';
+import { getOESTextureHalfFloat } from './extensions/oes-texture-half-float.js';
 // import { getOESVertexArrayObject } from './extensions/oes-vertex-array-object.js';
 
 import { WebGLActiveInfo } from './webgl-active-info.js';
@@ -72,7 +75,10 @@ const availableExtensions: Record<string, ExtensionFactory> = {
     stackgl_resize_drawingbuffer: getSTACKGLResizeDrawingBuffer,
     // webgl_draw_buffers: getWebGLDrawBuffers,
     ext_blend_minmax: getEXTBlendMinMax,
-    ext_texture_filter_anisotropic: getEXTTextureFilterAnisotropic
+    ext_color_buffer_float: getEXTColorBufferFloat,
+    ext_color_buffer_half_float: getEXTColorBufferHalfFloat,
+    ext_texture_filter_anisotropic: getEXTTextureFilterAnisotropic,
+    oes_texture_half_float: getOESTextureHalfFloat,
 }
 
 // const privateMethods = [
@@ -3346,6 +3352,20 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
 
         if (supportedExts.indexOf('GL_OES_texture_float_linear') >= 0) {
             exts.push('OES_texture_float_linear')
+        }
+
+        if (supportedExts.indexOf('GL_OES_texture_half_float') >= 0 ||
+            supportedExts.indexOf('GL_ARB_half_float_pixel') >= 0) {
+            exts.push('OES_texture_half_float')
+        }
+
+        if (supportedExts.indexOf('GL_EXT_color_buffer_float') >= 0 ||
+            supportedExts.indexOf('GL_ARB_color_buffer_float') >= 0) {
+            exts.push('EXT_color_buffer_float')
+        }
+
+        if (supportedExts.indexOf('GL_EXT_color_buffer_half_float') >= 0) {
+            exts.push('EXT_color_buffer_half_float')
         }
 
         if (supportedExts.indexOf('EXT_draw_buffers') >= 0) {
