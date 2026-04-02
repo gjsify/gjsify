@@ -747,6 +747,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fontsource/coming-soon@npm:^5.2.8":
+  version: 5.2.8
+  resolution: "@fontsource/coming-soon@npm:5.2.8"
+  checksum: 10/ab15f8254c5c99098802b611fb85421161e4916a7247a19b81fe74f8d5c0e1bbd3512e13b196c3d9d0f3fca500f7e25cb2222eb0faa63d457d4a4564f995d048
+  languageName: node
+  linkType: hard
+
 "@gar/promise-retry@npm:^1.0.0":
   version: 1.0.3
   resolution: "@gar/promise-retry@npm:1.0.3"
@@ -966,7 +973,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gwebgl-0.1@npm:^0.1.0-4.0.0-beta.43":
+"@girs/gwebgl-0.1@npm:0.1.0-4.0.0-beta.43":
   version: 0.1.0-4.0.0-beta.43
   resolution: "@girs/gwebgl-0.1@npm:0.1.0-4.0.0-beta.43"
   dependencies:
@@ -974,6 +981,17 @@ __metadata:
     "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.43"
     "@girs/gobject-2.0": "npm:2.88.0-4.0.0-beta.43"
   checksum: 10/aa4f8cfeffc371c4cf43bc56fd315c6561223f714f48f4d6c3dbbee7b12a63e1ccbbcb443d9e0c95fc8866e0e54f2940ac4d8a1798a3edd1d19e75d68c604f5d
+  languageName: node
+  linkType: hard
+
+"@girs/gwebgl-0.1@patch:@girs/gwebgl-0.1@npm%3A0.1.0-4.0.0-beta.43#~/.yarn/patches/@girs-gwebgl-0.1-npm-0.1.0-4.0.0-beta.43-83a76aab27.patch":
+  version: 0.1.0-4.0.0-beta.43
+  resolution: "@girs/gwebgl-0.1@patch:@girs/gwebgl-0.1@npm%3A0.1.0-4.0.0-beta.43#~/.yarn/patches/@girs-gwebgl-0.1-npm-0.1.0-4.0.0-beta.43-83a76aab27.patch::version=0.1.0-4.0.0-beta.43&hash=5038da"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-beta.43"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-beta.43"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-beta.43"
+  checksum: 10/1d883e748bce58f305ea805b0e4748523ec5d1afd9e453d594ef8c73db398b07f59e58922c7d319ba27a99602604e9a7298ce3301aceefe95d9638896cac8278
   languageName: node
   linkType: hard
 
@@ -1144,6 +1162,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/canvas2d-core@workspace:^, @gjsify/canvas2d-core@workspace:packages/dom/canvas2d-core":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/canvas2d-core@workspace:packages/dom/canvas2d-core"
+  dependencies:
+    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-beta.43"
+    "@girs/gdkpixbuf-2.0": "npm:^2.0.0-4.0.0-beta.43"
+    "@girs/gjs": "npm:^4.0.0-beta.43"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.43"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-beta.43"
+    "@girs/pango-1.0": "npm:^1.57.0-4.0.0-beta.43"
+    "@girs/pangocairo-1.0": "npm:^1.0.0-4.0.0-beta.43"
+    "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/canvas2d@workspace:^, @gjsify/canvas2d@workspace:packages/dom/canvas2d":
   version: 0.0.0-use.local
   resolution: "@gjsify/canvas2d@workspace:packages/dom/canvas2d"
@@ -1156,6 +1191,7 @@ __metadata:
     "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.43"
     "@girs/pango-1.0": "npm:^1.57.0-4.0.0-beta.43"
     "@girs/pangocairo-1.0": "npm:^1.0.0-4.0.0-beta.43"
+    "@gjsify/canvas2d-core": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
     "@gjsify/event-bridge": "workspace:^"
@@ -1329,6 +1365,7 @@ __metadata:
     "@girs/gjs": "npm:^4.0.0-beta.43"
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@gjsify/abort-controller": "workspace:^"
+    "@gjsify/canvas2d-core": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/fetch": "workspace:^"
@@ -1579,7 +1616,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-dom-three-geometry-teapot@workspace:^, @gjsify/example-dom-three-geometry-teapot@workspace:examples/dom/three-geometry-teapot":
+"@gjsify/example-dom-three-geometry-teapot@workspace:examples/dom/three-geometry-teapot":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-geometry-teapot@workspace:examples/dom/three-geometry-teapot"
   dependencies:
@@ -1653,7 +1690,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-dom-three-postprocessing-pixel@workspace:examples/dom/three-postprocessing-pixel":
+"@gjsify/example-dom-three-postprocessing-pixel@workspace:^, @gjsify/example-dom-three-postprocessing-pixel@workspace:examples/dom/three-postprocessing-pixel":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-postprocessing-pixel@workspace:examples/dom/three-postprocessing-pixel"
   dependencies:
@@ -2685,7 +2722,7 @@ __metadata:
   dependencies:
     "@girs/gjs": "npm:^4.0.0-beta.43"
     "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.43"
-    "@girs/gwebgl-0.1": "npm:^0.1.0-4.0.0-beta.43"
+    "@girs/gwebgl-0.1": "patch:@girs/gwebgl-0.1@npm%3A0.1.0-4.0.0-beta.43#~/.yarn/patches/@girs-gwebgl-0.1-npm-0.1.0-4.0.0-beta.43-83a76aab27.patch"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
     "@gjsify/event-bridge": "workspace:^"
@@ -2704,8 +2741,9 @@ __metadata:
   resolution: "@gjsify/website@workspace:website"
   dependencies:
     "@astrojs/starlight": "npm:^0.32.0"
+    "@fontsource/coming-soon": "npm:^5.2.8"
     "@gjsify/adwaita-web": "workspace:^"
-    "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
+    "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^"
     "@types/three": "npm:^0.183.1"
     astro: "npm:^5.0.0"
     three: "npm:0.183.2"

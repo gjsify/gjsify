@@ -169,6 +169,7 @@ export abstract class WebGLContextBase {
     // Unpack alignment
     _unpackAlignment = 4
     _packAlignment = 4
+    _unpackFlipY = false
 
     // Viewport and scissor — tracked in JS to avoid crashing native getParameterx for array returns
     _viewport: Int32Array = new Int32Array([0, 0, 0, 0]);
@@ -254,6 +255,7 @@ export abstract class WebGLContextBase {
         // Unpack alignment
         this._unpackAlignment = 4
         this._packAlignment = 4
+        this._unpackFlipY = false
 
         // Allocate framebuffer
         // TODO?
@@ -1481,7 +1483,7 @@ export abstract class WebGLContextBase {
             return
         }
 
-        const data = convertPixels(pixels as ArrayBufferView)
+        let data = convertPixels(pixels as ArrayBufferView)
         const rowStride = this._computeRowStride(width, pixelSize)
         const imageSize = rowStride * height
 
@@ -1494,6 +1496,17 @@ export abstract class WebGLContextBase {
             (validCubeTarget(this, target) && width !== height)) {
             this.setError(this.INVALID_VALUE)
             return
+        }
+
+        // UNPACK_FLIP_Y_WEBGL: reverse row order before upload
+        if (this._unpackFlipY && data && width > 0 && height > 0) {
+            const flipped = new Uint8Array(data.length)
+            for (let row = 0; row < height; row++) {
+                const srcOffset = row * rowStride
+                const dstOffset = (height - 1 - row) * rowStride
+                flipped.set(data.subarray(srcOffset, srcOffset + rowStride), dstOffset)
+            }
+            data = flipped
         }
 
         // Need to check for out of memory error
@@ -3050,6 +3063,7 @@ export abstract class WebGLContextBase {
             case this.SCISSOR_TEST:
             case this.STENCIL_TEST:
             case this.UNPACK_FLIP_Y_WEBGL:
+                return this._unpackFlipY;
             case this.UNPACK_PREMULTIPLY_ALPHA_WEBGL:
                 // Use getParameteri (0/1) rather than getParameterb: the Vala GLboolean/bool
                 // cast has a size mismatch that causes getParameterb to return wrong values.
@@ -3697,6 +3711,11 @@ export abstract class WebGLContextBase {
                 this.setError(this.INVALID_VALUE)
                 return
             }
+        } else if (pname === this.UNPACK_FLIP_Y_WEBGL) {
+            this._unpackFlipY = !!param
+            return  // WebGL-only flag, not forwarded to native GL
+        } else if (pname === this.UNPACK_PREMULTIPLY_ALPHA_WEBGL) {
+            return  // not forwarded to native GL
         }
         return this._gl.pixelStorei(pname, param)
     }
