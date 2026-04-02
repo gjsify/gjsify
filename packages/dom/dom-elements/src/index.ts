@@ -96,6 +96,26 @@ Object.defineProperty(globalThis, 'IntersectionObserver', {
     configurable: true,
 });
 
+// Auto-register the '2d' context factory on HTMLCanvasElement.
+// Mirrors browser behavior: canvas.getContext('2d') works without any explicit import.
+// The factory is idempotent — re-registering from @gjsify/canvas2d has no effect.
+import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
+
+const CANVAS2D_KEY = Symbol.for('gjsify_canvas2d_context');
+HTMLCanvasElement.registerContextFactory('2d', (canvas, options) => {
+    const existing = (canvas as any)[CANVAS2D_KEY];
+    if (existing) return existing;
+    const ctx = new CanvasRenderingContext2D(canvas as any, options);
+    (canvas as any)[CANVAS2D_KEY] = ctx;
+    return ctx;
+});
+
+Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {
+    value: CanvasRenderingContext2D,
+    writable: true,
+    configurable: true,
+});
+
 // self — three.js checks `typeof self !== 'undefined'` for animation context
 if (typeof (globalThis as any).self === 'undefined') {
     Object.defineProperty(globalThis, 'self', { value: globalThis, writable: true, configurable: true });

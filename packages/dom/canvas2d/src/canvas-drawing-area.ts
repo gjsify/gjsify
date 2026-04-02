@@ -8,7 +8,7 @@ import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement } from '@gjsify/dom-elements';
 import { attachEventControllers } from '@gjsify/event-bridge';
-import { CanvasRenderingContext2D } from './canvas-rendering-context-2d.js';
+import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
 
 type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
 

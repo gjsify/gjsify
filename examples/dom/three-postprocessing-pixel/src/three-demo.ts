@@ -37,7 +37,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     // Camera (orthographic)
     const aspectRatio = canvas.width / canvas.height;
     const camera = new THREE.OrthographicCamera(-aspectRatio, aspectRatio, 1, -1, 0.1, 10);
-    camera.position.y = 2 * Math.tan(Math.PI / 6);
+    camera.position.y = Math.tan(Math.PI / 6);
     camera.position.z = 2;
 
     // Scene
@@ -105,6 +105,28 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     crystalMesh.castShadow = true;
     scene.add(crystalMesh);
 
+    // GJSify label — canvas texture plane, pixelated by post-processing pass.
+    // @gjsify/dom-elements auto-registers the '2d' factory via @gjsify/canvas2d-core,
+    // so getContext('2d') works in GJS without any explicit import.
+    const textCanvas = document.createElement('canvas');
+    textCanvas.width = 512;
+    textCanvas.height = 128;
+    const textCtx = textCanvas.getContext('2d')!;
+    textCtx.clearRect(0, 0, 512, 128);
+    textCtx.fillStyle = '#c0d8f0';
+    textCtx.font = 'bold 80px sans-serif';
+    textCtx.textAlign = 'center';
+    textCtx.textBaseline = 'middle';
+    textCtx.fillText('GJSify', 256, 64);
+
+    const textTexture = new THREE.CanvasTexture(textCanvas);
+    const textMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.0, 0.25),
+        new THREE.MeshBasicMaterial({ map: textTexture, transparent: true, side: THREE.DoubleSide }),
+    );
+    textMesh.position.set(0, 0.85, -0.65);
+    scene.add(textMesh);
+
     // Lights
     scene.add(new THREE.AmbientLight(0x757f8e, 3));
 
@@ -123,7 +145,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
 
     // Effect controller
     const effectController: PixelEffectController = {
-        pixelSize: 6,
+        pixelSize: 4,
         normalEdgeStrength: 0.3,
         depthEdgeStrength: 0.4,
         pixelAlignedPanning: true,

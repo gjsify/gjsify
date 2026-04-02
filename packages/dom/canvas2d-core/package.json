@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/dom-elements",
-    "version": "0.1.2",
-    "description": "DOM element hierarchy (Node, Element, HTMLElement, HTMLImageElement) for GJS",
+    "name": "@gjsify/canvas2d-core",
+    "version": "0.1.0",
+    "description": "Cairo-backed Canvas 2D core (CanvasRenderingContext2D, Path2D, ImageData) — no GTK dependency",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -12,34 +12,30 @@
         }
     },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
+        "clear": "rm -rf lib tmp tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "build": "yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-        "build:types": "tsc",
-        "build:test": "yarn build:test:gjs",
-        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-        "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
-        "test:gjs": "gjs -m test.gjs.mjs"
+        "build:types": "tsc"
     },
     "keywords": [
         "gjs",
-        "dom",
-        "element",
-        "node"
+        "canvas",
+        "canvas2d",
+        "cairo",
+        "offscreen"
     ],
     "dependencies": {
+        "@girs/gdk-4.0": "^4.0.0-4.0.0-beta.43",
         "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-beta.43",
         "@girs/gjs": "^4.0.0-beta.43",
         "@girs/glib-2.0": "^2.88.0-4.0.0-beta.43",
-        "@gjsify/abort-controller": "workspace:^",
-        "@gjsify/canvas2d-core": "workspace:^",
-        "@gjsify/dom-events": "workspace:^",
-        "@gjsify/fetch": "workspace:^"
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-beta.43",
+        "@girs/pango-1.0": "^1.57.0-4.0.0-beta.43",
+        "@girs/pangocairo-1.0": "^1.0.0-4.0.0-beta.43"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@gjsify/unit": "workspace:^",
         "@types/node": "^25.5.0",
         "typescript": "^6.0.2"
     }

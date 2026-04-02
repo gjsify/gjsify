@@ -1909,24 +1909,6 @@ export namespace Gwebgl {
          * @param index
          */
         getStringi(name: number, index: number): string;
-        /**
-         * @param target
-         * @param variant
-         * @param usage
-         */
-        bufferData2(target: number, variant: GLib.Variant, usage: number): void;
-        /**
-         * @param target
-         * @param size
-         * @param usage
-         */
-        bufferDataSizeOnly2(target: number, size: number, usage: number): void;
-        /**
-         * @param target
-         * @param offset
-         * @param variant
-         */
-        bufferSubData2(target: number, offset: number, variant: GLib.Variant): void;
         get_width(): number;
         get_height(): number;
         get_alpha(): boolean;

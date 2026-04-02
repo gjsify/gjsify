@@ -64,14 +64,23 @@ export class HTMLCanvasElement extends HTMLElement {
         return null;
     }
 
-    /** Returns a data URL representing the canvas image. Stub — returns empty string. */
-    toDataURL(_type?: string, _quality?: any): string {
+    /** Returns a data URL representing the canvas image. Delegates to the active 2D context if available. */
+    toDataURL(type?: string, quality?: any): string {
+        const ctx = this.getContext('2d') as any;
+        if (ctx && typeof ctx._toDataURL === 'function') return ctx._toDataURL(type, quality);
         return '';
     }
 
-    /** Converts the canvas to a Blob and passes it to the callback. Stub — returns empty Blob. */
-    toBlob(callback: ((blob: Blob | null) => void), _type?: string, _quality?: any): void {
-        callback(new Blob([]));
+    /** Converts the canvas to a Blob and passes it to the callback. Delegates to the active 2D context if available. */
+    toBlob(callback: ((blob: Blob | null) => void), type?: string, quality?: any): void {
+        const dataUrl = this.toDataURL(type, quality);
+        if (!dataUrl) { callback(null); return; }
+        const [header, b64] = dataUrl.split(',');
+        const mime = header.split(':')[1].split(';')[0];
+        const bytes = atob(b64);
+        const arr = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+        callback(new Blob([arr], { type: mime }));
     }
 
     /** Returns a MediaStream capturing the canvas. Stub — returns empty object. */

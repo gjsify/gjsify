@@ -34,16 +34,18 @@ export class PixelWindow extends Adw.ApplicationWindow {
 
         // Set up SpinRow adjustments
         this._pixelSizeRow.set_adjustment(new Gtk.Adjustment({
-            lower: 1, upper: 16, step_increment: 1, value: 6,
+            lower: 1, upper: 16, step_increment: 1, value: 4,
         }));
 
         this._normalEdgeRow.set_adjustment(new Gtk.Adjustment({
             lower: 0, upper: 2, step_increment: 0.05, value: 0.3,
         }));
+        this._normalEdgeRow.set_digits(2);
 
         this._depthEdgeRow.set_adjustment(new Gtk.Adjustment({
             lower: 0, upper: 1, step_increment: 0.05, value: 0.4,
         }));
+        this._depthEdgeRow.set_digits(2);
 
         // Create and insert WebGL widget
         const glArea = new CanvasWebGLWidget();

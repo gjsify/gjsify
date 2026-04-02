@@ -39,7 +39,7 @@ export function mount(container: HTMLElement, options?: MountOptions) {
     pixelSizeRow.setAttribute('min', '1');
     pixelSizeRow.setAttribute('max', '16');
     pixelSizeRow.setAttribute('step', '1');
-    pixelSizeRow.setAttribute('value', '6');
+    pixelSizeRow.setAttribute('value', '4');
 
     const normalEdgeRow = document.createElement('adw-spin-row');
     normalEdgeRow.setAttribute('title', 'Normal Edge');
