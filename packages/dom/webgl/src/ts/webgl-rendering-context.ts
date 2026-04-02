@@ -584,6 +584,12 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
 
         this._native.linkProgram(program._ | 0)
 
+        // The second link (after rebinding attributes) may fail independently.
+        if (!this._native.getProgramParameter(program._ | 0, this.LINK_STATUS)) {
+            program._linkInfoLog = this._native.getProgramInfoLog(program._)
+            return false
+        }
+
         const numUniforms = this.getProgramParameter(program, this.ACTIVE_UNIFORMS)
         program._uniforms.length = numUniforms
         for (let i = 0; i < numUniforms; ++i) {
@@ -1066,7 +1072,10 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
             preamble += '#undef GL_OES_standard_derivatives\n';
         }
 
-        if (!this._extensions.webgl_draw_buffers) {
+        // Only inject gl_MaxDrawBuffers for GLSL ES 1.0 shaders.
+        // GLSL ES 3.0+ (#version 300 es) has gl_MaxDrawBuffers as a built-in
+        // constant and forbids redefining names beginning with gl_.
+        if (!this._extensions.webgl_draw_buffers && !hasVersion) {
             preamble += '#define gl_MaxDrawBuffers 1\n';
         }
 

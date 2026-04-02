@@ -1011,6 +1011,8 @@ export default async () => {
 				const fbo = makeTestFBO(gl2 as unknown as WebGLRenderingContext, 4, 4);
 				const prog = makeProgram(gl2 as unknown as WebGLRenderingContext, TEXTURE_VS_300, TEXTURE_FS_300);
 				gl2.useProgram(prog);
+				// makeTestFBO unbinds TEXTURE_2D; re-bind the mip-mapped texture before drawing
+				gl2.bindTexture(gl2.TEXTURE_2D, tex);
 				gl2.uniform1i(gl2.getUniformLocation(prog, 'uTexture'), 0);
 				drawTriangle(gl2 as unknown as WebGLRenderingContext);
 				expect(gl2.getError()).toBe(gl2.NO_ERROR);

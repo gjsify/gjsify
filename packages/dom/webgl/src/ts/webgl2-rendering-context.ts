@@ -16,6 +16,7 @@ import { WebGLActiveInfo } from './webgl-active-info.js';
 import { WebGLProgram as OurWebGLProgram } from './webgl-program.js';
 import { WebGLTexture } from './webgl-texture.js';
 import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
+import { WebGLFramebuffer } from './webgl-framebuffer.js';
 import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount, convertPixels, extractImageData } from './utils.js';
 import { warnNotImplemented } from '@gjsify/utils';
 
@@ -50,6 +51,48 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
         if (super._validFramebufferAttachment(attachment)) return true;
         // COLOR_ATTACHMENT1 (0x8CE1) through COLOR_ATTACHMENT15 (0x8CEF)
         return attachment >= 0x8CE1 && attachment <= 0x8CEF;
+    }
+
+    /**
+     * WebGL2 extends the base-class framebuffer completeness pre-check to
+     * accept WebGL2-specific formats that the WebGL1 whitelist rejects.
+     *
+     * NOTE: This is called by _updateFramebufferAttachments BEFORE the native
+     * GL attachments are set, so we must NOT query glCheckFramebufferStatus
+     * here (it would see an empty FBO and always return INCOMPLETE).
+     * Instead we extend the JS-side format whitelist to cover WebGL2 formats.
+     */
+    override _preCheckFramebufferStatus(framebuffer: WebGLFramebuffer): GLenum {
+        const attachments = framebuffer._attachments;
+        const colorAttach = attachments[this.COLOR_ATTACHMENT0];
+
+        // For texture color attachments: accept all WebGL2 texture formats.
+        // The base class only allows RGBA/UNSIGNED_BYTE and RGBA/FLOAT.
+        // WebGL2 allows sized internal formats like RGBA8, RGBA16F, RGB32F, etc.
+        if (colorAttach instanceof WebGLTexture) {
+            const level = framebuffer._attachmentLevel[this.COLOR_ATTACHMENT0] ?? 0;
+            const w = colorAttach._levelWidth[level] ?? 0;
+            const h = colorAttach._levelHeight[level] ?? 0;
+            if (w === 0 || h === 0) return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+            // For WebGL2, any texture with valid dimensions is accepted.
+            // Delegate format validation to the native GL driver at draw time.
+            framebuffer._width = w;
+            framebuffer._height = h;
+            return this.FRAMEBUFFER_COMPLETE;
+        }
+
+        // For renderbuffer color attachments: accept RGBA8 and all other formats.
+        if (colorAttach instanceof WebGLRenderbuffer) {
+            if (colorAttach._width === 0 || colorAttach._height === 0) {
+                return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+            }
+            framebuffer._width = colorAttach._width;
+            framebuffer._height = colorAttach._height;
+            return this.FRAMEBUFFER_COMPLETE;
+        }
+
+        // No color attachment or non-color-only FBO: fall through to base class.
+        return super._preCheckFramebufferStatus(framebuffer);
     }
 
     /**
@@ -163,6 +206,10 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
      * In WebGL2/GLES3 the attribute-0 requirement from WebGL1 does not apply.
      * Override drawArrays to skip the attrib0 hack and call glDrawArrays directly.
      */
+    /**
+     * In WebGL2/GLES3 the attribute-0 requirement from WebGL1 does not apply.
+     * Override drawArrays to skip the attrib0 hack and call glDrawArrays directly.
+     */
     override drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
         if (first < 0 || count < 0) { this.setError(this.INVALID_VALUE); return; }
         if (!this._checkStencilState()) return;
@@ -170,9 +217,8 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
         if (rc < 0) { this.setError(this.INVALID_ENUM); return; }
         if (!this._framebufferOk()) return;
         if (count === 0) return;
-        if (this._checkVertexAttribState((count + first - 1) >>> 0)) {
-            this._native.drawArrays(mode, first, rc);
-        }
+        if (!this._checkVertexAttribState((count + first - 1) >>> 0)) return;
+        this._native2.drawArrays(mode, first, rc);
     }
 
     /**
@@ -223,7 +269,7 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
         }
 
         if (this._checkVertexAttribState(maxIndex)) {
-            this._native.drawElements(mode, reducedCount, type, offset);
+            this._native2.drawElements(mode, reducedCount, type, offset);
         }
     }
 
@@ -961,18 +1007,22 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
         }
         if (!this._framebufferOk()) return;
 
-        const pixelData = arrayToUint8Array(pixels as any);
+        const byteCount = width * height * 4;
+        const pixelData = new Uint8Array(byteCount);
         this._saveError();
-        this._native.readPixels(x, y, width, height, format, type, Uint8ArrayToVariant(pixelData));
+        const result = this._native.readPixels(x, y, width, height, format, type, Uint8ArrayToVariant(pixelData));
         const error = this.getError();
         this._restoreError(error);
         if (error !== this.NO_ERROR) return;
 
-        // Copy native result back into the caller's buffer
+        // _native.readPixels returns the data written by glReadPixels
+        // (GLib.Variant is a copy so glReadPixels writes into the Vala-side buffer;
+        //  the return value is the only way to get the data back)
+        const src = (result && (result as any).length > 0) ? result as Uint8Array : pixelData;
         if (pixels instanceof Uint8Array) {
-            pixels.set(pixelData);
+            pixels.set(src);
         } else if (pixels instanceof Float32Array) {
-            const floatView = new Float32Array(pixelData.buffer, pixelData.byteOffset, pixels.length);
+            const floatView = new Float32Array((src as Uint8Array).buffer, 0, pixels.length);
             pixels.set(floatView);
         }
     }
