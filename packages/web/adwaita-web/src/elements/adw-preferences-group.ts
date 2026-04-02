@@ -1,4 +1,7 @@
 // <adw-preferences-group> — Groups child rows in a boxed list with a title label.
+// Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
+// Copyright (c) 2025 csm. MIT License.
+// Modifications: Reimplemented as Web Component for @gjsify/adwaita-web.
 
 export class AdwPreferencesGroup extends HTMLElement {
     private _initialized = false;

@@ -1,7 +1,9 @@
 // Adwaita CSS subset for browser targets.
 // Colors from refs/libadwaita/src/stylesheet/_colors.scss (canonical).
-// Component styles adapted from refs/adwaita-web/adwaita-web/scss/.
-// Copyright (c) GNOME contributors (libadwaita), adwaita-web contributors. LGPL/MIT.
+// Component styles adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
+// Copyright (c) GNOME contributors (libadwaita), LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Extracted as CSS-in-JS for @gjsify/adwaita-web.
 
 export const adwaitaCSS = `
 /* ═══════════════════════════════════════════════════════════════
@@ -326,5 +328,68 @@ adw-combo-row select option {
   align-self: stretch;
   background-color: var(--card-shade-color);
   flex-shrink: 0;
+}
+
+/* --- adw-spin-row --- */
+adw-spin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 50px;
+  padding: var(--spacing-s) var(--spacing-m);
+  gap: var(--spacing-m);
+  border-bottom: 1px solid var(--card-shade-color);
+}
+
+adw-spin-row:last-child {
+  border-bottom: none;
+}
+
+adw-spin-row .adw-row-title {
+  flex: 1;
+  font-size: var(--font-size-base);
+  color: var(--card-fg-color);
+}
+
+.adw-spin-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.adw-spin-control button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--button-radius);
+  background: transparent;
+  color: var(--card-fg-color);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.adw-spin-control button:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.adw-spin-control input {
+  width: 56px;
+  text-align: center;
+  border: none;
+  border-radius: var(--button-radius);
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--card-fg-color);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  padding: 4px 2px;
+}
+
+.adw-spin-control input:focus {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -1px;
 }
 `;

@@ -2,6 +2,9 @@
 // Attributes: title, items (JSON string[]), selected (index number)
 // Events: notify::selected (CustomEvent, mirrors GJS GObject signal naming)
 // The native <select> is stretched invisibly over the row so clicking anywhere opens it.
+// Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
+// Copyright (c) 2025 csm. MIT License.
+// Modifications: Reimplemented as Web Component for @gjsify/adwaita-web.
 
 export class AdwComboRow extends HTMLElement {
     private _select!: HTMLSelectElement;

@@ -1,0 +1,65 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $PixelWindow: Adw.ApplicationWindow {
+  default-width: 1100;
+  default-height: 700;
+  title: "Pixel Post-Processing";
+
+  content: Gtk.Box {
+    orientation: vertical;
+
+    Adw.HeaderBar {}
+
+    Gtk.Box {
+      orientation: horizontal;
+      hexpand: true;
+      vexpand: true;
+
+      Gtk.ScrolledWindow {
+        width-request: 320;
+        hexpand: false;
+        hscrollbar-policy: never;
+
+        Gtk.Box {
+          orientation: vertical;
+          spacing: 12;
+          margin-top: 12;
+          margin-bottom: 12;
+          margin-start: 12;
+          margin-end: 12;
+
+          Adw.PreferencesGroup {
+            title: "Post-Processing";
+
+            Adw.SpinRow pixelSizeRow {
+              title: "Pixel Size";
+            }
+
+            Adw.SpinRow normalEdgeRow {
+              title: "Normal Edge";
+            }
+
+            Adw.SpinRow depthEdgeRow {
+              title: "Depth Edge";
+            }
+
+            Adw.SwitchRow pixelAlignRow {
+              title: "Pixel-Aligned Panning";
+              active: true;
+            }
+          }
+        }
+      }
+
+      Gtk.Separator {
+        orientation: vertical;
+      }
+
+      Gtk.Box glAreaContainer {
+        hexpand: true;
+        vexpand: true;
+      }
+    }
+  };
+}

@@ -1,4 +1,7 @@
 // <adw-header-bar> — Adwaita header bar with centered title.
+// Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
+// Copyright (c) 2025 csm. MIT License.
+// Modifications: Reimplemented as Web Component for @gjsify/adwaita-web.
 
 export class AdwHeaderBar extends HTMLElement {
     private _initialized = false;

@@ -1,6 +1,9 @@
 // <adw-switch-row> — Row with a label and toggle switch.
 // Attributes: title, active (boolean)
 // Events: notify::active (CustomEvent, mirrors GJS GObject signal naming)
+// Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
+// Copyright (c) 2025 csm. MIT License.
+// Modifications: Reimplemented as Web Component for @gjsify/adwaita-web.
 
 export class AdwSwitchRow extends HTMLElement {
     private _checkbox!: HTMLInputElement;
