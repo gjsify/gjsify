@@ -22,7 +22,7 @@ const VS_STANDARD = `
     attribute vec4 a_vertex;
     attribute vec3 a_normal;
     uniform mat4 u_modelViewProjMatrix;
-    void main() { gl_Position = u_modelViewProjMatrix * a_vertex; }`;
+    void main() { gl_Position = u_modelViewProjMatrix * (a_vertex + vec4(a_normal, 0.0)); }`;
 const FS_STANDARD = `
     precision mediump float;
     void main() { gl_FragColor = vec4(1.0); }`;

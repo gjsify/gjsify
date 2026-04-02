@@ -9,6 +9,7 @@ export class WebGLShader extends Linkable implements WebGLShader {
     _source = ''
     _compileStatus = false
     _compileInfo = ''
+    _needsRecompile = false
 
   constructor (_: number, ctx: WebGLContextBase, type: GLenum) {
     super(_)

@@ -2181,6 +2181,7 @@ export abstract class WebGLContextBase {
             this._checkShaderSource(shader)) {
             const prevError = this.getError()
             this._gl.compileShader(shader._ | 0)
+            shader._needsRecompile = false
             const error = this.getError()
             shader._compileStatus = !!this._gl.getShaderParameter(
                 shader._ | 0,
@@ -2826,8 +2827,13 @@ export abstract class WebGLContextBase {
         } else if (!program) {
             throw new TypeError('getActiveAttrib(WebGLProgram, GLuint)')
         } else if (this._checkWrapper(program, WebGLProgram)) {
-            const maxCount = this._gl.getProgramParameter(program._ | 0, this.ACTIVE_ATTRIBUTES) as number
+            const maxCount = program._linkStatus ? program._attributes.length
+                : (this._gl.getProgramParameter(program._ | 0, this.ACTIVE_ATTRIBUTES) as number)
             if (index >= maxCount) {
+                // Flush any pending native GL error so that our setError() call is not
+                // blocked by the native setError implementation (which is a no-op if a
+                // native error is already pending in the queue).
+                this._gl.getError()
                 this.setError(this.INVALID_VALUE)
                 return null
             }
@@ -2846,7 +2852,8 @@ export abstract class WebGLContextBase {
         } else if (!program) {
             throw new TypeError('getActiveUniform(WebGLProgram, GLuint)')
         } else if (this._checkWrapper(program, WebGLProgram)) {
-            const maxCount = this._gl.getProgramParameter(program._ | 0, this.ACTIVE_UNIFORMS) as number
+            const maxCount = program._linkStatus ? program._uniforms.length
+                : (this._gl.getProgramParameter(program._ | 0, this.ACTIVE_UNIFORMS) as number)
             if (index >= maxCount) {
                 this.setError(this.INVALID_VALUE)
                 return null
@@ -2860,7 +2867,6 @@ export abstract class WebGLContextBase {
     }
 
     getAttachedShaders(program: WebGLProgram): WebGLShader[] | null {
-        // return this._gl.getAttachedShaders(program._) as WebGLShader[] | null;
         if (!checkObject(program) ||
             (typeof program === 'object' &&
                 program !== null &&
@@ -2870,15 +2876,7 @@ export abstract class WebGLContextBase {
         if (!program) {
             this.setError(this.INVALID_VALUE)
         } else if (this._checkWrapper(program, WebGLProgram)) {
-            const shaderArray = this._gl.getAttachedShaders(program._ | 0)
-            if (!shaderArray) {
-                return null
-            }
-            const unboxedShaders = new Array(shaderArray.length)
-            for (let i = 0; i < shaderArray.length; ++i) {
-                unboxedShaders[i] = this._shaders[shaderArray[i]]
-            }
-            return unboxedShaders
+            return program._references.filter(r => r instanceof WebGLShader) as WebGLShader[]
         }
         return null
     }
@@ -3170,9 +3168,13 @@ export abstract class WebGLContextBase {
                     return !!this._gl.getProgramParameter(program._, pname)
 
                 case this.ATTACHED_SHADERS:
-                case this.ACTIVE_ATTRIBUTES:
-                case this.ACTIVE_UNIFORMS:
                     return this._gl.getProgramParameter(program._, pname)
+                case this.ACTIVE_ATTRIBUTES:
+                    return program._linkStatus ? program._attributes.length
+                        : this._gl.getProgramParameter(program._, pname)
+                case this.ACTIVE_UNIFORMS:
+                    return program._linkStatus ? program._uniforms.length
+                        : this._gl.getProgramParameter(program._, pname)
             }
             this.setError(this.INVALID_ENUM)
         }
@@ -3631,6 +3633,13 @@ export abstract class WebGLContextBase {
             program._linkCount += 1
             program._attributes = []
             const prevError = this.getError()
+            // Deferred compilation: recompile any shader whose source changed since last compile
+            for (const s of program._references) {
+                if (s instanceof WebGLShader && s._needsRecompile) {
+                    this._gl.compileShader(s._ | 0)
+                    s._needsRecompile = false
+                }
+            }
             this._gl.linkProgram(program._ | 0)
             const error = this.getError()
             if (error === this.NO_ERROR) {
@@ -3777,6 +3786,7 @@ export abstract class WebGLContextBase {
             source = this._wrapShader(shader._type, source);
             this._gl.shaderSource(shader._ | 0, source)
             shader._source = source
+            shader._needsRecompile = true
         }
     }
     stencilFunc(func: GLenum, ref: GLint, mask: GLuint): void {
