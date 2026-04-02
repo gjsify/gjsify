@@ -1676,7 +1676,7 @@ export abstract class WebGLContextBase {
             const locs = location._array
             for (let i = 0; i < locs.length && i < value.length; ++i) {
                 const loc = locs[i]
-                if (loc) {
+                if (loc != null) {
                     this._gl.uniform1f(loc, value[i])
                 }
             }
@@ -1691,7 +1691,7 @@ export abstract class WebGLContextBase {
             const locs = location._array
             for (let i = 0; i < locs.length && i < v.length; ++i) {
                 const loc = locs[i]
-                if (loc) {
+                if (loc != null) {
                     this._gl.uniform1i(loc, v[i])
                 }
             }
@@ -1706,7 +1706,7 @@ export abstract class WebGLContextBase {
             const locs = location._array
             for (let i = 0; i < locs.length && 2 * i < v.length; ++i) {
                 const loc = locs[i]
-                if (loc) {
+                if (loc != null) {
                     this._gl.uniform2f(loc, v[2 * i], v[(2 * i) + 1])
                 }
             }
@@ -1721,7 +1721,7 @@ export abstract class WebGLContextBase {
             const locs = location._array
             for (let i = 0; i < locs.length && 2 * i < v.length; ++i) {
                 const loc = locs[i]
-                if (loc) {
+                if (loc != null) {
                     this._gl.uniform2i(loc, v[2 * i], v[2 * i + 1])
                 }
             }
@@ -1736,7 +1736,7 @@ export abstract class WebGLContextBase {
             const locs = location._array
             for (let i = 0; i < locs.length && 3 * i < v.length; ++i) {
                 const loc = locs[i]
-                if (loc) {
+                if (loc != null) {
                     this._gl.uniform3f(loc, v[3 * i], v[3 * i + 1], v[3 * i + 2])
                 }
             }
@@ -1751,7 +1751,7 @@ export abstract class WebGLContextBase {
             const locs = location._array
             for (let i = 0; i < locs.length && 3 * i < v.length; ++i) {
                 const loc = locs[i]
-                if (loc) {
+                if (loc != null) {
                     this._gl.uniform3i(loc, v[3 * i], v[3 * i + 1], v[3 * i + 2])
                 }
             }
@@ -1766,7 +1766,7 @@ export abstract class WebGLContextBase {
             const locs = location._array
             for (let i = 0; i < locs.length && 4 * i < v.length; ++i) {
                 const loc = locs[i]
-                if (loc) {
+                if (loc != null) {
                     this._gl.uniform4f(loc, v[4 * i], v[4 * i + 1], v[4 * i + 2], v[4 * i + 3])
                 }
             }
@@ -1781,7 +1781,7 @@ export abstract class WebGLContextBase {
             const locs = location._array
             for (let i = 0; i < locs.length && 4 * i < v.length; ++i) {
                 const loc = locs[i]
-                if (loc) {
+                if (loc != null) {
                     this._gl.uniform4i(loc, v[4 * i], v[4 * i + 1], v[4 * i + 2], v[4 * i + 3])
                 }
             }
@@ -3480,7 +3480,7 @@ export abstract class WebGLContextBase {
                         const xloc = this._gl.getUniformLocation(
                             program._ | 0,
                             baseName + '[' + i + ']')
-                        if (this.getError() !== this.NO_ERROR || !xloc || xloc < 0) {
+                        if (this.getError() !== this.NO_ERROR || xloc == null || xloc < 0) {
                             break
                         }
                         arrayLocs.push(xloc)
