@@ -6,10 +6,10 @@ import GLib from '@girs/glib-2.0';
 import { HTMLImageElement } from "@gjsify/dom-elements";
 
 import type Gwebgl from '@girs/gwebgl-0.1';
-import type { WebGLRenderingContext } from './webgl-rendering-context.js';
+import type { WebGLContextBase } from './webgl-context-base.js';
 import type { TypedArray} from './types/index.js';
 
-export function bindPublics(props: Array<keyof WebGLRenderingContext>, wrapper: WebGLRenderingContext, privateInstance: WebGLRenderingContext, privateMethods: string[]) {
+export function bindPublics(props: Array<keyof WebGLContextBase>, wrapper: WebGLContextBase, privateInstance: WebGLContextBase, privateMethods: string[]) {
     for (let i = 0; i < props.length; i++) {
         const prop = props[i]
         const value = privateInstance[prop]
@@ -60,7 +60,7 @@ export function isValidString(str: string) {
     return !(/["$`@\\'\0]/.test(c))
 }
 
-export function vertexCount(gl: WebGLRenderingContext, primitive: GLenum, count: number) {
+export function vertexCount(gl: WebGLContextBase, primitive: GLenum, count: number) {
     switch (primitive) {
         case gl.TRIANGLES:
             return count - (count % 3)
@@ -85,7 +85,7 @@ export function vertexCount(gl: WebGLRenderingContext, primitive: GLenum, count:
     }
 }
 
-export function typeSize(gl: WebGLRenderingContext, type: GLenum) {
+export function typeSize(gl: WebGLContextBase, type: GLenum) {
     switch (type) {
         case gl.UNSIGNED_BYTE:
         case gl.BYTE:
@@ -101,7 +101,7 @@ export function typeSize(gl: WebGLRenderingContext, type: GLenum) {
     return 0
 }
 
-export function uniformTypeSize(gl: WebGLRenderingContext, type: GLenum) {
+export function uniformTypeSize(gl: WebGLContextBase, type: GLenum) {
     switch (type) {
         case gl.BOOL_VEC4:
         case gl.INT_VEC4:
@@ -209,7 +209,7 @@ export const extractImageData = (pixels: TexImageSource | HTMLImageElement): Ima
     return null
 }
 
-export function formatSize(gl: WebGLRenderingContext, internalFormat: number) {
+export function formatSize(gl: WebGLContextBase, internalFormat: number) {
     switch (internalFormat) {
         case gl.ALPHA:
         case gl.LUMINANCE:
@@ -240,7 +240,7 @@ export function convertPixels(pixels: ArrayBuffer | Uint8Array | Uint16Array | U
     return null
 }
 
-export function checkFormat(gl: WebGLRenderingContext, format: GLenum) {
+export function checkFormat(gl: WebGLContextBase, format: GLenum) {
     return (
         format === gl.ALPHA ||
         format === gl.LUMINANCE_ALPHA ||
@@ -249,7 +249,7 @@ export function checkFormat(gl: WebGLRenderingContext, format: GLenum) {
         format === gl.RGBA)
 }
 
-export function validCubeTarget(gl: WebGLRenderingContext, target: GLenum) {
+export function validCubeTarget(gl: WebGLContextBase, target: GLenum) {
     return target === gl.TEXTURE_CUBE_MAP_POSITIVE_X ||
         target === gl.TEXTURE_CUBE_MAP_NEGATIVE_X ||
         target === gl.TEXTURE_CUBE_MAP_POSITIVE_Y ||
@@ -258,7 +258,7 @@ export function validCubeTarget(gl: WebGLRenderingContext, target: GLenum) {
         target === gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
 }
 
-export function flag<T = Partial<Gwebgl.WebGLRenderingContext.ConstructorProps>> (options: T, name: keyof T, dflt: boolean) {
+export function flag<T = Record<string, any>> (options: T, name: keyof T, dflt: boolean) {
     if (!options || !(typeof options === 'object') || !(name in options)) {
       return dflt
     }

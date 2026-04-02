@@ -1,13 +1,13 @@
 // OES_texture_half_float — enables half-float (16-bit) texture formats.
 // Exposes HALF_FLOAT_OES constant (0x8D61) used by Three.js.
 
-import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLContextBase } from '../webgl-context-base.js';
 
 export class OESTextureHalfFloat {
     readonly HALF_FLOAT_OES = 0x8D61;
 }
 
-export function getOESTextureHalfFloat(context: WebGLRenderingContext) {
+export function getOESTextureHalfFloat(context: WebGLContextBase) {
     const exts = context.getSupportedExtensions();
     if (exts && exts.indexOf('OES_texture_half_float') >= 0) {
         return new OESTextureHalfFloat();

@@ -1088,6 +1088,33 @@ export default async () => {
 			});
 		});
 
+		// ── READ_FRAMEBUFFER / DRAW_FRAMEBUFFER targets ─────────────────────────
+
+		await describe('WebGL2 READ_FRAMEBUFFER / DRAW_FRAMEBUFFER', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('bindFramebuffer accepts READ_FRAMEBUFFER and DRAW_FRAMEBUFFER', async () => {
+				const fb1 = gl2.createFramebuffer()!;
+				const fb2 = gl2.createFramebuffer()!;
+
+				// Bind to read and draw separately
+				gl2.bindFramebuffer(0x8CA8 /* READ_FRAMEBUFFER */, fb1);
+				gl2.bindFramebuffer(0x8CA9 /* DRAW_FRAMEBUFFER */, fb2);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Check bindings
+				expect(gl2.getParameter(0x8CAA /* READ_FRAMEBUFFER_BINDING */)).toBe(fb1);
+				expect(gl2.getParameter(0x8CA6 /* DRAW_FRAMEBUFFER_BINDING */)).toBe(fb2);
+
+				// Bind null to both via FRAMEBUFFER target
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				gl2.deleteFramebuffer(fb1);
+				gl2.deleteFramebuffer(fb2);
+			});
+		});
+
 		// All WebGL2 tests complete.
 		win.destroy();
 

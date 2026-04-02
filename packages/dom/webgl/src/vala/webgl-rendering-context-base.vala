@@ -1465,5 +1465,166 @@ namespace Gwebgl {
             glViewport(x, y, width, height);
         }
 
+        // ─── Variant-based data transfer methods ─────────────────────────────
+        // These accept GLib.Variant "ay" (byte arrays) from JavaScript and
+        // forward to the corresponding raw GL calls. Shared by both WebGL1
+        // and WebGL2 contexts.
+
+        public bool isVariantOfByteArray(Variant variant) {
+            var type = variant.get_type();
+            return type.equal(new GLib.VariantType("ay"));
+        }
+
+        public void bufferData(int target, Variant variant, int usage) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[bufferData] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var size = bytes.get_size();
+            var data = bytes.get_data();
+
+            glBufferData(target, size, (GL.GLvoid[]) data, usage);
+        }
+
+        public void bufferDataSizeOnly(int target, size_t size, int usage) {
+            glBufferData(target, size, null, usage);
+        }
+
+        public void bufferSubData(int target, long offset, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[bufferSubData] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var size = bytes.get_size();
+            glBufferSubData(target, offset, size, (GL.GLvoid[]) bytes.get_data());
+        }
+
+        public void compressedTexImage2D(int target, int level, int internalFormat, int width, int height, int border, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            int imageSize = (int) bytes.get_size();
+
+            glCompressedTexImage2D(target, level, internalFormat, width, height, border, imageSize, (GL.GLvoid[]) bytes.get_data());
+        }
+
+        public void compressedTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexSubImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            int imageSize = (int) bytes.get_size();
+
+            glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, (GLsizei) imageSize, (GL.GLvoid[]) bytes.get_data());
+        }
+
+        public uint8[] readPixels(int x, int y, int width, int height, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[readPixels] variant type must be 'ay'!");
+                return new uint8[0];
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
+
+            glReadPixels(x, y, width, height, format, type, (GL.GLvoid[]) pixels);
+            return pixels;
+        }
+
+        public void texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[texImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
+
+            glTexImage2D(target, level, internalFormat, width, height, border, format, type, (GL.GLvoid[]) pixels);
+        }
+
+        public void texImage2DFromPixbuf(int target, int level, int internalFormat, int format, int type, Gdk.Pixbuf *source) {
+            int width  = source->get_width();
+            int height = source->get_height();
+            var pixels = source->get_pixels();
+            glTexImage2D(target, level, internalFormat, width, height, 0, format, type, (GL.GLvoid[]) pixels);
+        }
+
+        public void texSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[texSubImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
+
+            glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, (GL.GLvoid[]) pixels);
+        }
+
+        public void texSubImage2DFromPixbuf(int target, int level, int xoffset, int yoffset, int format, int type, Gdk.Pixbuf *source) {
+            int width  = source->get_width();
+            int height = source->get_height();
+            var pixels = source->get_pixels();
+
+            glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, (GL.GLvoid[]) pixels);
+        }
+
+        public void uniform1fv(int location, int vLength, float[] value) {
+            glUniform1fv(location, vLength, value);
+        }
+
+        public void uniform1iv(int location, int vLength, int[] value) {
+            glUniform1iv(location, vLength, value);
+        }
+
+        public void uniform2fv(int location, int vLength, float[] value) {
+            glUniform2fv(location, vLength, value);
+        }
+
+        public void uniform2iv(int location, int vLength, int[] value) {
+            glUniform2iv(location, vLength, value);
+        }
+
+        public void uniform3fv(int location, int vLength, float[] value) {
+            glUniform3fv(location, vLength, value);
+        }
+
+        public void uniform3iv(int location, int vLength, int[] value) {
+            glUniform3iv(location, vLength, value);
+        }
+
+        public void uniform4fv(int location, int vLength, float[] value) {
+            glUniform4fv(location, vLength, value);
+        }
+
+        public void uniform4iv(int location, int vLength, int[] value) {
+            glUniform4iv(location, vLength, value);
+        }
+
+        public void uniformMatrix2fv(int location, bool transpose, float[] value) {
+            int valueLength = value.length;
+            glUniformMatrix2fv(location, valueLength / 4, (uint8) transpose, value);
+        }
+
+        public void uniformMatrix3fv(int location, bool transpose, float[] value) {
+            int valueLength = value.length;
+            glUniformMatrix3fv(location, valueLength / 9, (uint8) transpose, value);
+        }
+
+        public void uniformMatrix4fv(int location, bool transpose, float[] value) {
+            int valueLength = value.length;
+            glUniformMatrix4fv(location, valueLength / 16, (uint8) transpose, value);
+        }
+
     }
 }

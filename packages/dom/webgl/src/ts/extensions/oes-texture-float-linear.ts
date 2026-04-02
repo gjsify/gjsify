@@ -1,8 +1,8 @@
-import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLContextBase } from '../webgl-context-base.js';
 
 export class OESTextureFloatLinear {}
 
-export function getOESTextureFloatLinear (context: WebGLRenderingContext) {
+export function getOESTextureFloatLinear (context: WebGLContextBase) {
   let result = null
   const exts = context.getSupportedExtensions()
 

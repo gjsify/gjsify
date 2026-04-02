@@ -1,13 +1,13 @@
 import { Linkable } from './linkable.js'
 // import { gl } from './native-gl.js'
 
-import type { WebGLRenderingContext } from './webgl-rendering-context.js';
+import type { WebGLContextBase } from './webgl-context-base.js';
 // import type { WebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
 type WebGLDrawBuffers = any;
 
 export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
 
-    _ctx: WebGLRenderingContext;
+    _ctx: WebGLContextBase;
     _binding = 0
 
     _width = 0
@@ -18,7 +18,7 @@ export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
     _attachmentLevel: Record<GLenum, number | null>;
     _attachmentFace: Record<GLenum, number | null>;
 
-    constructor(_: number, ctx: WebGLRenderingContext) {
+    constructor(_: number, ctx: WebGLContextBase) {
         super(_)
         this._ctx = ctx
 
@@ -126,6 +126,6 @@ export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
     _performDelete() {
         const ctx = this._ctx
         delete ctx._framebuffers[this._ | 0]
-        ctx._native.deleteFramebuffer(this._ | 0)
+        ctx._gl.deleteFramebuffer(this._ | 0)
     }
 }

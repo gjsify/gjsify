@@ -14,6 +14,7 @@ export * from './webgl-framebuffer.js';
 export * from './webgl-program.js';
 export * from './webgl-renderbuffer.js';
 export * from './webgl-query.js';
+export * from './webgl-context-base.js';
 export * from './webgl-rendering-context.js';
 export * from './webgl-sampler.js';
 export * from './webgl-shader-precision-format.js';

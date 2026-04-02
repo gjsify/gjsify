@@ -1,12 +1,12 @@
-import type { WebGLRenderingContext } from '../webgl-rendering-context.js';
+import type { WebGLContextBase } from '../webgl-context-base.js';
 
 export class STACKGLDestroyContext {
   destroy: () => void;
-  constructor (ctx: WebGLRenderingContext) {
+  constructor (ctx: WebGLContextBase) {
     this.destroy = ctx.destroy.bind(ctx)
   }
 }
 
-export function getSTACKGLDestroyContext (ctx: WebGLRenderingContext) {
+export function getSTACKGLDestroyContext (ctx: WebGLContextBase) {
   return new STACKGLDestroyContext(ctx)
 }

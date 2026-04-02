@@ -39,12 +39,6 @@ namespace Gwebgl {
         construct {
         }
 
-        // ─── Helpers (shared with WebGL1 context) ────────────────────────────
-
-        private bool isVariantOfByteArray(Variant variant) {
-            return variant.get_type().equal(new GLib.VariantType("ay"));
-        }
-
         // ─── Vertex Array Objects ─────────────────────────────────────────────
 
         public uint createVertexArray() {
@@ -498,30 +492,5 @@ namespace Gwebgl {
             return glGetStringi((GL.GLenum) name, (GL.GLuint) index) ?? "";
         }
 
-        // ─── Buffer data overrides (WebGL2 adds offset parameter) ────────────
-
-        public void bufferData2(int target, Variant variant, int usage) {
-            if (!isVariantOfByteArray(variant)) {
-                printerr("[bufferData2] variant type must be 'ay'!");
-                return;
-            }
-            var bytes = variant.get_data_as_bytes();
-            var size = bytes.get_size();
-            glBufferData((GL.GLenum) target, (GL.GLsizeiptr) size, (GL.GLvoid[]) bytes.get_data(), (GL.GLenum) usage);
-        }
-
-        public void bufferDataSizeOnly2(int target, size_t size, int usage) {
-            glBufferData((GL.GLenum) target, (GL.GLsizeiptr) size, null, (GL.GLenum) usage);
-        }
-
-        public void bufferSubData2(int target, long offset, Variant variant) {
-            if (!isVariantOfByteArray(variant)) {
-                printerr("[bufferSubData2] variant type must be 'ay'!");
-                return;
-            }
-            var bytes = variant.get_data_as_bytes();
-            var size = bytes.get_size();
-            glBufferSubData((GL.GLenum) target, (GL.GLintptr) offset, (GL.GLsizeiptr) size, (GL.GLvoid[]) bytes.get_data());
-        }
     }
 }
