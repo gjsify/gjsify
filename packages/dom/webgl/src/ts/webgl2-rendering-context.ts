@@ -182,7 +182,9 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             if (framebuffer && framebuffer._pendingDelete) return;
             if (framebuffer && !this._checkWrapper(framebuffer, WebGLFramebuffer)) return;
 
-            const id = framebuffer ? framebuffer._ | 0 : 0;
+            // null → restore GTK's FBO (captured at init time).
+            // FBO 0 is NOT the display FBO in GtkGLArea — GTK uses its own custom FBO.
+            const id = framebuffer ? framebuffer._ | 0 : this._gtkFboId;
             this._gl.bindFramebuffer(target, id);
 
             if (target === 0x8CA8 /* READ_FRAMEBUFFER */) {
@@ -248,6 +250,22 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         }
 
         super.bufferData(target, dataOrSize as any, remappedUsage);
+    }
+
+    /** WebGL2 adds UNIFORM_BUFFER, TRANSFORM_FEEDBACK_BUFFER, COPY_READ/WRITE targets. */
+    override bufferSubData(target: GLenum, offset: GLintptr, data: BufferSource): void {
+        const isWebGL2Target = target === 0x8A11 /* UNIFORM_BUFFER */ ||
+            target === 0x8C8E /* TRANSFORM_FEEDBACK_BUFFER */ ||
+            target === 0x8F36 /* COPY_READ_BUFFER */ ||
+            target === 0x8F37 /* COPY_WRITE_BUFFER */;
+        if (isWebGL2Target) {
+            if (offset < 0) { this.setError(this.INVALID_VALUE); return; }
+            if (!data) { this.setError(this.INVALID_VALUE); return; }
+            const u8Data = arrayToUint8Array(data as any);
+            this._gl.bufferSubData(target, offset, Uint8ArrayToVariant(u8Data));
+            return;
+        }
+        super.bufferSubData(target, offset, data);
     }
 
     /** WebGL2 adds TEXTURE_3D and TEXTURE_2D_ARRAY target support. */
@@ -1146,7 +1164,18 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         }
         if (!this._framebufferOk()) return;
 
-        const byteCount = width * height * 4;
+        // Compute component count from format
+        const componentCount =
+            (format === 0x1908 /* RGBA */ || format === 0x8058 /* RGBA8 */) ? 4 :
+            format === 0x1907 /* RGB */ ? 3 :
+            format === 0x8227 /* RG */ ? 2 : 1;
+        // Compute bytes per component from type
+        const bytesPerComponent =
+            type === 0x1406 /* FLOAT */ ? 4 :
+            type === 0x140B /* HALF_FLOAT */ || type === 0x8D61 /* HALF_FLOAT_OES */ ? 2 :
+            type === 0x1405 /* UNSIGNED_INT */ || type === 0x1404 /* INT */ ? 4 :
+            type === 0x1403 /* UNSIGNED_SHORT */ || type === 0x1402 /* SHORT */ ? 2 : 1;
+        const byteCount = width * height * componentCount * bytesPerComponent;
         const pixelData = new Uint8Array(byteCount);
         this._saveError();
         const result = this._gl.readPixels(x, y, width, height, format, type, Uint8ArrayToVariant(pixelData));
@@ -1169,4 +1198,18 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     // framebufferTexture2D: inherits from base class. WebGL2 allows level>0 for
     // mipmap attachments, but Three.js only uses level=0. The base class level===0
     // check is acceptable for now. If needed, override to skip level validation.
+
+    /**
+     * WebGL2 never blocks draw calls on JS-side framebuffer format checks.
+     * The native GL (Mesa/libepoxy) handles completeness and generates
+     * INVALID_FRAMEBUFFER_OPERATION for truly incomplete FBOs at draw time.
+     * This matches headless-gl's approach: _framebufferOk() always returns true.
+     *
+     * The base class rejects valid WebGL2 formats (RGBA16F/HALF_FLOAT, depth
+     * textures, WebGL2 renderbuffer formats) causing silent rendering failures
+     * for postprocessing effects and environment maps.
+     */
+    override _framebufferOk(): boolean {
+        return true;
+    }
 }

@@ -32,6 +32,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: false });
     renderer.shadowMap.enabled = true;
     renderer.setSize(canvas.width, canvas.height);
+    renderer.debug.checkShaderErrors = true;
 
     // Camera (orthographic)
     const aspectRatio = canvas.width / canvas.height;
@@ -231,13 +232,22 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     // Animation loop — use requestAnimationFrame directly (GTK frame clock compatible)
     // Three.js setAnimationLoop uses self.requestAnimationFrame internally which works,
     // but we use the same on-demand pattern as the teapot demo for consistency.
+    let frameCount = 0;
     let animPending = false;
     function scheduleFrame() {
         if (animPending) return;
         animPending = true;
-        requestAnimationFrame((time) => {
+        requestAnimationFrame((_time) => {
             animPending = false;
             animate();
+            frameCount++;
+            if (frameCount === 1) {
+                // Debug: log render info after first frame to diagnose blank screen
+                const info = renderer.info;
+                console.log('[MRT-debug] canvas size:', canvas.width, 'x', canvas.height);
+                console.log('[MRT-debug] render.calls:', info.render.calls, '  render.triangles:', info.render.triangles);
+                console.log('[MRT-debug] WebGL error after first frame:', (canvas as any).getContext?.('webgl2')?.getError?.() ?? 'n/a');
+            }
             scheduleFrame(); // continuous animation
         });
     }

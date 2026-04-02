@@ -174,6 +174,11 @@ export abstract class WebGLContextBase {
     _viewport: Int32Array = new Int32Array([0, 0, 0, 0]);
     _scissorBox: Int32Array = new Int32Array([0, 0, 0, 0]);
 
+    // GTK's own FBO ID (not FBO 0). GtkGLArea renders into a custom FBO, not the
+    // default surface FBO. Captured once at _init() time before any rebinding so
+    // that bindFramebuffer(target, null) can restore the correct FBO.
+    _gtkFboId: number = 0;
+
     _textureUnits: WebGLTextureUnit[] = [];
     _drawingBuffer: WebGLDrawingBufferWrapper | null = null;
 
@@ -200,6 +205,13 @@ export abstract class WebGLContextBase {
      * so that `this._gl` is available for GL-dependent initialization.
      */
     protected _init() {
+        // Capture GTK's FBO ID before any rebinding. At this point GtkGLArea's render
+        // signal has already bound its own FBO (never FBO 0). We need this ID so that
+        // bindFramebuffer(target, null) restores the right FBO instead of binding 0.
+        // 0x8CA6 = GL_DRAW_FRAMEBUFFER_BINDING / GL_FRAMEBUFFER_BINDING (same enum value).
+        const gtkFboVariant = this._gl.getParameterx(0x8CA6);
+        this._gtkFboId = (gtkFboVariant?.deepUnpack() as number) | 0;
+
         this._initGLConstants();
 
         this.DEFAULT_ATTACHMENTS = [
@@ -1946,11 +1958,7 @@ export abstract class WebGLContextBase {
             return
         }
         if (!framebuffer) {
-            if (this._drawingBuffer?._framebuffer) {
-                this._gl.bindFramebuffer(
-                    this.FRAMEBUFFER,
-                    this._drawingBuffer._framebuffer)
-            }
+            this._gl.bindFramebuffer(this.FRAMEBUFFER, this._gtkFboId)
         } else if (framebuffer._pendingDelete) {
             return
         } else if (this._checkWrapper(framebuffer, WebGLFramebuffer)) {
