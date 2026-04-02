@@ -339,6 +339,117 @@ export default async () => {
             });
         });
 
+        // ── mapbox-ansis: depthRange interaction ────────────────────────────────
+        // Ported from refs/headless-gl/test/mapbox-ansis.js
+        // Original: BSD-2-Clause license, headless-gl contributors (Mikola Lysenko)
+        // Tests depthRange(near, far) mapping of NDC z to window-space depth.
+
+        await describe('rendering/mapbox-ansis', async () => {
+            beforeEach(async () => { glArea.make_current(); });
+
+            await it('depthRange: green at range(0,0.1) survives blue at range(0.9,1) with LEQUAL', async () => {
+                const W = 4, H = 4;
+
+                const vsSrc = `
+                    precision mediump float;
+                    uniform float u_z;
+                    attribute vec2 a_position;
+                    void main() { gl_Position = vec4(a_position, u_z, 1.0); }`;
+
+                const fsSrc = `
+                    precision mediump float;
+                    uniform vec4 u_color;
+                    void main() { gl_FragColor = u_color; }`;
+
+                // Use an RGBA8 FBO with a depth renderbuffer
+                const fb = gl.createFramebuffer()!;
+                const colorTex = gl.createTexture()!;
+                gl.bindTexture(gl.TEXTURE_2D, colorTex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+
+                const depthRb = gl.createRenderbuffer()!;
+                gl.bindRenderbuffer(gl.RENDERBUFFER, depthRb);
+                gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, W, H);
+                gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, colorTex, 0);
+                gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRb);
+                gl.viewport(0, 0, W, H);
+
+                gl.clearColor(1, 0, 0, 1);
+                gl.clearDepth(1);
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+                gl.enable(gl.DEPTH_TEST);
+                gl.depthFunc(gl.LEQUAL);
+
+                const prog = makeProgram(gl, vsSrc, fsSrc);
+                gl.useProgram(prog);
+
+                const buf = gl.createBuffer()!;
+                gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+                // Full-screen quad: 2 triangles covering [-1,1]² clip space
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                    -1, -1,  1, -1, -1, 1,
+                    -1,  1,  1, -1,  1, 1,
+                ]), gl.STATIC_DRAW);
+                const aPos = gl.getAttribLocation(prog, 'a_position');
+                gl.enableVertexAttribArray(aPos);
+                gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+                const uColor = gl.getUniformLocation(prog, 'u_color');
+                const uZ = gl.getUniformLocation(prog, 'u_z');
+
+                // Green pass: NDC z=0.5 mapped by depthRange(0, 0.1)
+                // depth = 0 + (0.1-0)*(0.5+1)/2 = 0.075 < cleared=1 → LEQUAL passes
+                gl.uniform1f(uZ, 0.5);
+                gl.uniform4fv(uColor, [0, 1, 0, 1]);
+                gl.depthRange(0, 0.1);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+                // Blue pass: NDC z=0.5 mapped by depthRange(0.9, 1)
+                // depth = 0.9 + (0.1)*(0.5+1)/2 = 0.975 > green's 0.075 → fails LEQUAL
+                gl.uniform1f(uZ, 0.5);
+                gl.uniform4fv(uColor, [0, 0, 1, 1]);
+                gl.depthRange(0.9, 1);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+                // Restore depthRange default
+                gl.depthRange(0, 1);
+                gl.disable(gl.DEPTH_TEST);
+
+                const pixels = new Uint8Array(W * H * 4);
+                gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+                gl.bindBuffer(gl.ARRAY_BUFFER, null);
+                gl.deleteBuffer(buf);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0);
+                gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, null);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.deleteTexture(colorTex);
+                gl.deleteRenderbuffer(depthRb);
+                gl.deleteFramebuffer(fb);
+
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+
+                // All pixels should be green (blue failed depth test)
+                let allGreen = true;
+                for (let i = 0; i < W * H * 4; i += 4) {
+                    if (pixels[i] !== 0 || pixels[i + 1] !== 255 ||
+                        pixels[i + 2] !== 0 || pixels[i + 3] !== 255) {
+                        allGreen = false;
+                        break;
+                    }
+                }
+                expect(allGreen).toBe(true);
+            });
+        });
+
         // ── viewport ───────────────────────────────────────────────────────────
 
         await describe('rendering/viewport', async () => {

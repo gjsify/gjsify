@@ -6,7 +6,7 @@
 // Modifications: Uses @gjsify/unit; inline vertex/fragment sources; no DRNG random testing.
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
-import { makeProgram } from '../test-utils.js';
+import { makeProgram, makeTestFBO, destroyTestFBO } from '../test-utils.js';
 import { createGLSetup } from './setup.js';
 
 export default async () => {
@@ -216,6 +216,114 @@ export default async () => {
                 gl.deleteProgram(p3);
                 gl.deleteProgram(p1);
                 gl.deleteProgram(p3b);
+            });
+        });
+
+        // ── attribute-weirdness ────────────────────────────────────────────────
+        // Ported from refs/headless-gl/test/attribute-weirdness.js
+        // Original: BSD-2-Clause license, headless-gl contributors (Mikola Lysenko)
+        // Tests that attribute declaration order in GLSL does not affect rendering.
+
+        await describe('conformance/attribs/attribute-weirdness', async () => {
+            beforeEach(async () => { glArea.make_current(); });
+
+            const W = 2, H = 2;
+
+            // Vertex buffer: interleaved (a_pos: SHORT x2, a_texture_pos: SHORT x2) × 4 vertices
+            // a_pos values (0,0),(4,0),(0,4),(4,4) → clip positions (-1,-1),(3,-1),(-1,3),(3,3)
+            // The triangle strip covers the entire clip space after GPU clipping.
+            const VDATA = new Int16Array([
+                0, 0, 0, 0,
+                4, 0, 1, 0,
+                0, 4, 0, 1,
+                4, 4, 1, 1,
+            ]);
+
+            function renderAttribWeirdness(flipAttributes: boolean, flipLocations: boolean): Uint8Array {
+                const fbo = makeTestFBO(gl, W, H);
+
+                const attrs = [
+                    'attribute vec2 a_pos;',
+                    'attribute vec2 a_texture_pos;',
+                ];
+                if (flipAttributes) attrs.reverse();
+
+                const vsSrc = [
+                    'precision mediump float;',
+                    attrs[0], attrs[1],
+                    'varying vec2 v_pos0;',
+                    'void main() {',
+                    '  v_pos0 = a_texture_pos;',
+                    '  gl_Position = vec4(a_pos - 1.0, 0.0, 1.0);',
+                    '}',
+                ].join('\n');
+
+                const fsSrc = [
+                    'precision mediump float;',
+                    'varying vec2 v_pos0;',
+                    'void main() {',
+                    '  gl_FragColor = vec4(v_pos0.x, 0.0, 0.0, 1.0);',
+                    '}',
+                ].join('\n');
+
+                gl.clearColor(0, 0, 0, 0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                const prog = makeProgram(gl, vsSrc, fsSrc);
+                gl.useProgram(prog);
+
+                const buf = gl.createBuffer()!;
+                gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+                gl.bufferData(gl.ARRAY_BUFFER, VDATA, gl.STATIC_DRAW);
+
+                let aPos = gl.getAttribLocation(prog, 'a_pos');
+                let aTexPos = gl.getAttribLocation(prog, 'a_texture_pos');
+
+                gl.enableVertexAttribArray(aPos);
+                gl.enableVertexAttribArray(aTexPos);
+
+                if (flipLocations) {
+                    const tmp = aPos; aPos = aTexPos; aTexPos = tmp;
+                }
+
+                gl.vertexAttribPointer(aPos, 2, gl.SHORT, false, 8, 0);
+                gl.vertexAttribPointer(aTexPos, 2, gl.SHORT, false, 8, 4);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+                gl.bindBuffer(gl.ARRAY_BUFFER, null);
+                gl.deleteBuffer(buf);
+
+                const pixels = new Uint8Array(W * H * 4);
+                gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                destroyTestFBO(gl, fbo);
+                return pixels;
+            }
+
+            await it('normal order: all alpha values are 255 (quad covers canvas)', async () => {
+                const pixels = renderAttribWeirdness(false, false);
+                let ok = true;
+                for (let i = 3; i < W * H * 4; i += 4) {
+                    if (pixels[i] !== 255) { ok = false; break; }
+                }
+                expect(ok).toBe(true);
+            });
+
+            await it('flipped attribute declarations: all alpha values are still 255', async () => {
+                const pixels = renderAttribWeirdness(true, false);
+                let ok = true;
+                for (let i = 3; i < W * H * 4; i += 4) {
+                    if (pixels[i] !== 255) { ok = false; break; }
+                }
+                expect(ok).toBe(true);
+            });
+
+            await it('swapped location assignments: quad does not cover canvas (some alpha ≠ 255)', async () => {
+                const pixels = renderAttribWeirdness(false, true);
+                let hasNonAlpha = false;
+                for (let i = 3; i < W * H * 4; i += 4) {
+                    if (pixels[i] !== 255) { hasNonAlpha = true; break; }
+                }
+                expect(hasNonAlpha).toBe(true);
             });
         });
 
