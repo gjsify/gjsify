@@ -1,3 +1,4 @@
+// WebGL1 tests — exercises WebGLRenderingContext (WebGL 1.0) backed by GTK GLArea.
 // Reference: refs/headless-gl/test/ (buffers, programs, simple-shader, extensions, textures)
 // Ported from headless-gl. Copyright (c) stackgl contributors. MIT license.
 // Modifications: Uses @gjsify/unit, CanvasWebGLWidget widget, GTK-backed context instead of EGL headless.
