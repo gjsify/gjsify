@@ -1331,6 +1331,7 @@ __metadata:
     "@gjsify/abort-controller": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
+    "@gjsify/fetch": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"

@@ -27,6 +27,7 @@ export * as PropertySymbol from './property-symbol.js';
 // Same pattern as @gjsify/node-globals (packages/node/globals/src/index.ts)
 // and @gjsify/web-globals (packages/web/web-globals/src/index.ts).
 import '@gjsify/abort-controller'; // registers globalThis.AbortController + AbortSignal
+import '@gjsify/fetch'; // registers globalThis.fetch, Request, Response, Headers
 import { Text } from './text.js';
 import { Comment } from './comment.js';
 import { DocumentFragment } from './document-fragment.js';

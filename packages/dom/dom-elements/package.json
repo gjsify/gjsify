@@ -33,7 +33,8 @@
         "@girs/gjs": "^4.0.0-beta.43",
         "@girs/glib-2.0": "^2.88.0-4.0.0-beta.43",
         "@gjsify/abort-controller": "workspace:^",
-        "@gjsify/dom-events": "workspace:^"
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/fetch": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
