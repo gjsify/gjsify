@@ -1075,11 +1075,17 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
                 }
             }
         } else {
-            // No #version in source — inject version + preamble at the top
+            // No #version in source — inject version + preamble at the top.
+            // If the shader uses GLSL 1.0 keywords (attribute/varying), keep it
+            // as GLSL 1.0 even in a WebGL2 context. Real browsers default
+            // versionless shaders to GLSL 1.0 compatibility mode.
             if (this.canvas) {
                 const glArea = this.canvas.getGlArea();
                 const es = glArea.get_use_es();
-                const version = this._getGlslVersion(es);
+                const usesGlsl1Syntax = /\b(attribute|varying)\b/.test(source);
+                const version = usesGlsl1Syntax
+                    ? (es ? '100' : '120')
+                    : this._getGlslVersion(es);
                 if (version) {
                     source = '#version ' + version + '\n' + preamble + source;
                 } else if (preamble) {

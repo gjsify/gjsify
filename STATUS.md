@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-01 (DOM API: event bubbling, pointer capture, ownerDocument; WebGL2 fixes; Blueprint support; Adwaita web components; three.js teapot example)
+> Last updated: 2026-04-02 (WebGL2: GLSL 1.0 compat, native FBO delegation; AdwSpinRow; @gjsify/adwaita-fonts; Pixel + LDraw three.js demos; AbortController/fetch globals in dom-elements)
 
 ## Summary
 
@@ -102,9 +102,9 @@ All 13 packages have real implementations:
 
 | Package | GNOME Libs | Tests | APIs |
 |---------|-----------|-------|------|
-| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement (base DOM stub), HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert}` |
+| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement (base DOM stub), HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
 | **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DWidget→Gtk.DrawingArea |
-| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render), Extensions |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render), Extensions |
 | **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |
 | **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameWidget→WebKit.WebView, postMessage bridge |
 
@@ -112,7 +112,18 @@ All 13 packages have real implementations:
 
 | Package | Tests | APIs |
 |---------|-------|------|
-| **adwaita-web** | — | AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow. Custom Elements (light DOM), embedded Adwaita CSS with light/dark theme, Adwaita Sans font. No GJS deps |
+| **adwaita-web** | — | AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow, AdwSpinRow. Custom Elements (light DOM), embedded Adwaita CSS with light/dark theme, Adwaita Sans font via @gjsify/adwaita-fonts. No GJS deps |
+| **adwaita-fonts** | — | Adwaita Sans font files (fontsource-style). CSS @font-face + TTF files. SIL OFL 1.1 |
+
+### WebGL Known Issues
+
+Issues discovered while porting Three.js demos. Non-fatal but should be addressed for full compatibility.
+
+| Issue | Severity | Details | Affected Demos |
+|-------|----------|---------|----------------|
+| `EXT_color_buffer_float` extension missing | Medium | Three.js requests this extension for `HalfFloatType` render targets. Not implemented in extension registry. Rendering works but with fallback quality. | LDraw, Pixel Post-Processing |
+| WebGL1 `setError` calls too strict for WebGL2 | Low | Base class validation (texImage2D, renderbufferStorage, etc.) uses WebGL1 format/type rules. WebGL2 allows more combinations (R8, RG8, RGBA16F, DEPTH_COMPONENT24, etc.). Non-fatal — native GL still executes the calls. | All WebGL2 demos |
+| WebGL1 framebuffer color attachment validation too strict | Low | Base `_preCheckFramebufferStatus` only accepts RGBA/UNSIGNED_BYTE or RGBA/FLOAT. WebGL2 override delegates to native driver. WebGL1 with extensions (OES_texture_half_float) still rejects valid formats. | Post-processing with WebGL1 |
 
 ### Missing Web APIs
 
@@ -247,4 +258,4 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 
 See [CHANGELOG.md](CHANGELOG.md) for the full changelog.
 
-**Latest:** 2026-04-01 — DOM API, WebGL2, Blueprint, Adwaita Web, Three.js Teapot
+**Latest:** 2026-04-02 — WebGL2 GLSL 1.0 compat, FBO native delegation, AdwSpinRow, adwaita-fonts, Pixel + LDraw demos, AbortController/fetch globals in dom-elements
