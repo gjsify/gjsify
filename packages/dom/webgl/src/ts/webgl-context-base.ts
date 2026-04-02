@@ -1174,8 +1174,8 @@ export abstract class WebGLContextBase {
 
         if (data) {
             let u8Data = null
-            if (isTypedArray(data as TypedArray) || data instanceof DataView) {
-                u8Data = arrayToUint8Array(data as TypedArray | DataView)
+            if (isTypedArray(data as TypedArray) || data instanceof DataView || data instanceof ArrayBuffer) {
+                u8Data = arrayToUint8Array(data as TypedArray | DataView | ArrayBuffer)
             } else {
                 this.setError(this.INVALID_VALUE)
                 return
@@ -1230,13 +1230,8 @@ export abstract class WebGLContextBase {
             return
         }
 
-        if (data === null) {
-            return
-        }
-
-        if (!data || typeof data !== 'object') {
-            this.setError(this.INVALID_VALUE)
-            return
+        if (data === null || typeof data !== 'object') {
+            throw new TypeError('bufferSubData: data must be a BufferSource')
         }
 
         const active = this._getActiveBuffer(target)
@@ -1251,8 +1246,8 @@ export abstract class WebGLContextBase {
         }
 
         let u8Data = null
-        if (isTypedArray(data as TypedArray) || data instanceof DataView) {
-            u8Data = arrayToUint8Array(data as TypedArray | DataView)
+        if (isTypedArray(data as TypedArray) || data instanceof DataView || data instanceof ArrayBuffer) {
+            u8Data = arrayToUint8Array(data as TypedArray | DataView | ArrayBuffer)
         } else {
             this.setError(this.INVALID_VALUE)
             return
@@ -2829,8 +2824,13 @@ export abstract class WebGLContextBase {
         if (!checkObject(program)) {
             throw new TypeError('getActiveAttrib(WebGLProgram)')
         } else if (!program) {
-            this.setError(this.INVALID_VALUE)
+            throw new TypeError('getActiveAttrib(WebGLProgram, GLuint)')
         } else if (this._checkWrapper(program, WebGLProgram)) {
+            const maxCount = this._gl.getProgramParameter(program._ | 0, this.ACTIVE_ATTRIBUTES) as number
+            if (index >= maxCount) {
+                this.setError(this.INVALID_VALUE)
+                return null
+            }
             const info = this._gl.getActiveAttrib(program._ | 0, index | 0)
             if (info) {
                 return new WebGLActiveInfo(info)
@@ -2844,8 +2844,13 @@ export abstract class WebGLContextBase {
         if (!checkObject(program)) {
             throw new TypeError('getActiveUniform(WebGLProgram, GLint)')
         } else if (!program) {
-            this.setError(this.INVALID_VALUE)
+            throw new TypeError('getActiveUniform(WebGLProgram, GLuint)')
         } else if (this._checkWrapper(program, WebGLProgram)) {
+            const maxCount = this._gl.getProgramParameter(program._ | 0, this.ACTIVE_UNIFORMS) as number
+            if (index >= maxCount) {
+                this.setError(this.INVALID_VALUE)
+                return null
+            }
             const info = this._gl.getActiveUniform(program._ | 0, index | 0)
             if (info) {
                 return new WebGLActiveInfo(info)
@@ -3912,6 +3917,8 @@ export abstract class WebGLContextBase {
     }
     vertexAttrib1fv(index: GLuint, values: Float32List): void {
         // return this._gl.vertexAttrib1fv(index, listToArray(values));
+        index |= 0
+        if (!this._checkVertexIndex(index)) return
         if (typeof values !== 'object' || values === null || values.length < 1) {
             this.setError(this.INVALID_OPERATION)
             return
@@ -3936,6 +3943,8 @@ export abstract class WebGLContextBase {
     }
     vertexAttrib2fv(index: GLuint, values: Float32List): void {
         // return this._gl.vertexAttrib2fv(index, listToArray(values));
+        index |= 0
+        if (!this._checkVertexIndex(index)) return
         if (typeof values !== 'object' || values === null || values.length < 2) {
             this.setError(this.INVALID_OPERATION)
             return
@@ -3960,6 +3969,8 @@ export abstract class WebGLContextBase {
     }
     vertexAttrib3fv(index: GLuint, values: Float32List): void {
         // return this._gl.vertexAttrib3fv(index, listToArray(values));
+        index |= 0
+        if (!this._checkVertexIndex(index)) return
         if (typeof values !== 'object' || values === null || values.length < 3) {
             this.setError(this.INVALID_OPERATION)
             return
@@ -3983,6 +3994,8 @@ export abstract class WebGLContextBase {
     }
     vertexAttrib4fv(index: GLuint, values: Float32List): void {
         // return this._gl.vertexAttrib4fv(index, listToArray(values));
+        index |= 0
+        if (!this._checkVertexIndex(index)) return
         if (typeof values !== 'object' || values === null || values.length < 4) {
             this.setError(this.INVALID_OPERATION)
             return

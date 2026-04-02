@@ -1,6 +1,10 @@
 import '@girs/gjs';
 import '@girs/gio-2.0';
 import '@girs/gtk-4.0';
+import { WebGLRenderingContext } from './webgl-rendering-context.js';
+import { WebGL2RenderingContext } from './webgl2-rendering-context.js';
+(globalThis as any).WebGLRenderingContext = WebGLRenderingContext;
+(globalThis as any).WebGL2RenderingContext = WebGL2RenderingContext;
 
 export * from './html-canvas-element.js';
 export * from './canvas-webgl-widget.js';

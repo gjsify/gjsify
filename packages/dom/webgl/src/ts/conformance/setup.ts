@@ -24,14 +24,22 @@ export function createGLSetup(): GLSetup | null {
     const readyLoop = new GLib.MainLoop(null, false);
 
     const win = new Gtk.Window({});
-    win.set_default_size(1, 1);
+    win.set_default_size(200, 200);
 
     const glArea = new CanvasWebGLWidget();
     glArea.onReady((canvas: globalThis.HTMLCanvasElement, g: globalThis.WebGLRenderingContext) => {
-        const gl = g as unknown as WebGLRenderingContext;
-        const gl2 = (canvas as any).getContext('webgl2') as WebGL2RenderingContext | null;
-        result = { gl, gl2, glArea, win };
-        readyLoop.quit();
+        try {
+            const gl = g as unknown as WebGLRenderingContext;
+            let gl2: WebGL2RenderingContext | null = null;
+            try {
+                gl2 = (canvas as any).getContext('webgl2') as WebGL2RenderingContext | null;
+            } catch (_) {
+                // webgl2 not available — that's fine for WebGL1-only tests
+            }
+            result = { gl, gl2, glArea, win };
+        } finally {
+            readyLoop.quit();
+        }
     });
 
     win.set_child(glArea);
