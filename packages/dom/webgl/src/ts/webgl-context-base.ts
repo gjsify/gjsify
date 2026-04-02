@@ -274,6 +274,16 @@ export abstract class WebGLContextBase {
         this.clearColor(0, 0, 0, 0)
         this.clearStencil(0)
         this.clear(this.COLOR_BUFFER_BIT | this.DEPTH_BUFFER_BIT | this.STENCIL_BUFFER_BIT)
+
+        // Enforce WebGL spec initial state that GtkGLArea (with has_depth_buffer=true)
+        // may override during context setup.
+        this.disable(this.DEPTH_TEST)
+        this.disable(this.STENCIL_TEST)
+        this.disable(this.BLEND)
+        this.disable(this.CULL_FACE)
+        this.disable(this.POLYGON_OFFSET_FILL)
+        this.disable(this.SCISSOR_TEST)
+        this._gl.colorMask(true, true, true, true)
     }
 
     _initGLConstants() {
@@ -3006,7 +3016,7 @@ export abstract class WebGLContextBase {
             case this.MAX_VIEWPORT_DIMS:
                 return new Int32Array([32767, 32767]);
 
-            // Float arrays — return safe defaults (native getParameterx crashes for these)
+            // Float arrays
             case this.ALIASED_LINE_WIDTH_RANGE:
             case this.ALIASED_POINT_SIZE_RANGE:
                 return new Float32Array([1, 1]);
@@ -3014,19 +3024,21 @@ export abstract class WebGLContextBase {
                 return new Float32Array([0, 1]);
             case this.BLEND_COLOR:
             case this.COLOR_CLEAR_VALUE:
-                return new Float32Array([0, 0, 0, 0]);
+                return new Float32Array(this._gl.getParameterfv(pname, 4));
 
-            case this.COLOR_WRITEMASK:
-                // return this._getParameterDirect(pname);
-                return this._gl.getParameterbv(pname, 16)
-            // return boolArray(this._gl.getParameterbv(pname, 16));
+            case this.COLOR_WRITEMASK: {
+                // Use getParameteriv: GLboolean/uint8 → bool/gint cast in Vala has a size
+                // mismatch (1 byte vs 4 bytes per element), making getParameterbv unreliable.
+                const iv = this._gl.getParameteriv(pname, 4);
+                return [!!iv[0], !!iv[1], !!iv[2], !!iv[3]];
+            }
 
             case this.DEPTH_CLEAR_VALUE:
             case this.LINE_WIDTH:
             case this.POLYGON_OFFSET_FACTOR:
             case this.POLYGON_OFFSET_UNITS:
             case this.SAMPLE_COVERAGE_VALUE:
-                return +this._getParameterDirect(pname);
+                return this._gl.getParameterf(pname);
 
             case this.BLEND:
             case this.CULL_FACE:
@@ -3039,7 +3051,9 @@ export abstract class WebGLContextBase {
             case this.STENCIL_TEST:
             case this.UNPACK_FLIP_Y_WEBGL:
             case this.UNPACK_PREMULTIPLY_ALPHA_WEBGL:
-                return !!this._getParameterDirect(pname);
+                // Use getParameteri (0/1) rather than getParameterb: the Vala GLboolean/bool
+                // cast has a size mismatch that causes getParameterb to return wrong values.
+                return !!this._gl.getParameteri(pname);
 
             case this.ACTIVE_TEXTURE:
             case this.ALPHA_BITS:
@@ -3089,7 +3103,9 @@ export abstract class WebGLContextBase {
             case this.SUBPIXEL_BITS:
             case this.UNPACK_ALIGNMENT:
             case this.UNPACK_COLORSPACE_CONVERSION_WEBGL:
-                return this._getParameterDirect(pname) | 0;
+                // Use getParameteri to avoid stale GL errors from getParameterx GVariant
+                // conversion for pnames that the Vala switch doesn't explicitly handle.
+                return this._gl.getParameteri(pname);
 
             case this.IMPLEMENTATION_COLOR_READ_FORMAT:
             case this.IMPLEMENTATION_COLOR_READ_TYPE:
