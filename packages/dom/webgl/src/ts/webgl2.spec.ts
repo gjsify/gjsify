@@ -5,8 +5,11 @@
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
 import { WebGL2RenderingContext as OurWebGL2RenderingContext, CanvasWebGLWidget } from '@gjsify/webgl';
-import { makeProgram, drawTriangle, readPixel,
-         makeTestFBO, destroyTestFBO, makeTestFBOWithDepth } from './test-utils.js';
+import { makeProgram, drawTriangle, readPixel, pixelClose,
+         makeTestFBO, destroyTestFBO, makeTestFBOWithDepth,
+         makeTestFBOFloat, makeTestFBOWithDepthTexture,
+         TEXTURE_VS_300, TEXTURE_FS_300, CUBEMAP_FS_300,
+         type TestFBOFloat, type TestFBOWithDepthTexture } from './test-utils.js';
 import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 
@@ -778,6 +781,308 @@ export default async () => {
 					expect(gl2.getProgramParameter(prog, gl2.LINK_STATUS)).toBeTruthy();
 					gl2.deleteProgram(prog);
 				}
+			});
+		});
+
+		// ── Diagnostic: Textured rendering (texture sampling pipeline) ─────────
+
+		await describe('WebGL2 textured rendering', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('samples a 2x2 RGBA texture to produce red output', async () => {
+				const fbo = makeTestFBO(gl2 as unknown as WebGLRenderingContext, 4, 4);
+
+				// Create 2x2 texture: all red
+				const tex = gl2.createTexture()!;
+				gl2.bindTexture(gl2.TEXTURE_2D, tex);
+				const pixels = new Uint8Array([
+					255, 0, 0, 255,  255, 0, 0, 255,
+					255, 0, 0, 255,  255, 0, 0, 255,
+				]);
+				gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, 2, 2, 0, gl2.RGBA, gl2.UNSIGNED_BYTE, pixels);
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MIN_FILTER, gl2.NEAREST);
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MAG_FILTER, gl2.NEAREST);
+
+				// Passthrough texture shader
+				const prog = makeProgram(gl2 as unknown as WebGLRenderingContext, TEXTURE_VS_300, TEXTURE_FS_300);
+				expect(gl2.getProgramParameter(prog, gl2.LINK_STATUS)).toBeTruthy();
+
+				gl2.useProgram(prog);
+				const loc = gl2.getUniformLocation(prog, 'uTexture');
+				gl2.uniform1i(loc, 0); // texture unit 0
+				gl2.activeTexture(gl2.TEXTURE0);
+				gl2.bindTexture(gl2.TEXTURE_2D, tex);
+
+				drawTriangle(gl2 as unknown as WebGLRenderingContext);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				const p = readPixel(gl2 as unknown as WebGLRenderingContext, 0, 0);
+				expect(p[0]).toBe(255); // red
+				expect(p[1]).toBe(0);
+				expect(p[2]).toBe(0);
+				expect(p[3]).toBe(255);
+
+				gl2.deleteTexture(tex);
+				gl2.deleteProgram(prog);
+				destroyTestFBO(gl2 as unknown as WebGLRenderingContext, fbo);
+			});
+		});
+
+		// ── Diagnostic: FBO chain (post-processing pattern) ─────────────────────
+
+		await describe('WebGL2 FBO chain (post-processing)', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('renders green to FBO1, samples FBO1 texture into FBO2', async () => {
+				const VS = ['#version 300 es', 'in vec2 position;',
+					'void main() { gl_Position = vec4(position,0.0,1.0); }'].join('\n');
+				const FS_GREEN = ['#version 300 es', 'precision mediump float;', 'out vec4 c;',
+					'void main() { c = vec4(0.0,1.0,0.0,1.0); }'].join('\n');
+
+				// Pass 1: Render green into FBO1
+				const fbo1 = makeTestFBO(gl2 as unknown as WebGLRenderingContext, 4, 4);
+				const status1 = gl2.checkFramebufferStatus(gl2.FRAMEBUFFER);
+				expect(status1).toBe(gl2.FRAMEBUFFER_COMPLETE);
+
+				const progGreen = makeProgram(gl2 as unknown as WebGLRenderingContext, VS, FS_GREEN);
+				gl2.useProgram(progGreen);
+				gl2.clearColor(0, 0, 0, 1);
+				gl2.clear(gl2.COLOR_BUFFER_BIT);
+				drawTriangle(gl2 as unknown as WebGLRenderingContext);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Verify FBO1 has green
+				const p1 = readPixel(gl2 as unknown as WebGLRenderingContext, 0, 0);
+				expect(p1[1]).toBe(255); // green channel
+
+				// Pass 2: Sample FBO1 texture → render into FBO2
+				const fbo2 = makeTestFBO(gl2 as unknown as WebGLRenderingContext, 4, 4);
+				const status2 = gl2.checkFramebufferStatus(gl2.FRAMEBUFFER);
+				expect(status2).toBe(gl2.FRAMEBUFFER_COMPLETE);
+
+				const progTex = makeProgram(gl2 as unknown as WebGLRenderingContext, TEXTURE_VS_300, TEXTURE_FS_300);
+				gl2.useProgram(progTex);
+				const texLoc = gl2.getUniformLocation(progTex, 'uTexture');
+				gl2.uniform1i(texLoc, 0);
+				gl2.activeTexture(gl2.TEXTURE0);
+				gl2.bindTexture(gl2.TEXTURE_2D, fbo1.colorTex);
+
+				gl2.clearColor(0, 0, 0, 1);
+				gl2.clear(gl2.COLOR_BUFFER_BIT);
+				drawTriangle(gl2 as unknown as WebGLRenderingContext);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Verify FBO2 has green (sampled from FBO1)
+				const p2 = readPixel(gl2 as unknown as WebGLRenderingContext, 0, 0);
+				expect(p2[1]).toBe(255); // green channel from FBO1 texture
+
+				gl2.deleteProgram(progGreen);
+				gl2.deleteProgram(progTex);
+				destroyTestFBO(gl2 as unknown as WebGLRenderingContext, fbo2);
+				destroyTestFBO(gl2 as unknown as WebGLRenderingContext, fbo1);
+			});
+		});
+
+		// ── Diagnostic: Float FBO chain (RGBA16F post-processing) ───────────────
+
+		await describe('WebGL2 half-float FBO chain', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('renders green to RGBA16F FBO, samples into RGBA8 FBO', async () => {
+				const VS = ['#version 300 es', 'in vec2 position;',
+					'void main() { gl_Position = vec4(position,0.0,1.0); }'].join('\n');
+				const FS_GREEN = ['#version 300 es', 'precision mediump float;', 'out vec4 c;',
+					'void main() { c = vec4(0.0,1.0,0.0,1.0); }'].join('\n');
+
+				// Pass 1: Render green → RGBA16F FBO
+				const fboFloat = makeTestFBOFloat(gl2 as unknown as WebGL2RenderingContext, 4, 4);
+				const status1 = gl2.checkFramebufferStatus(gl2.FRAMEBUFFER);
+				expect(status1).toBe(gl2.FRAMEBUFFER_COMPLETE);
+
+				const progGreen = makeProgram(gl2 as unknown as WebGLRenderingContext, VS, FS_GREEN);
+				gl2.useProgram(progGreen);
+				gl2.clearColor(0, 0, 0, 1);
+				gl2.clear(gl2.COLOR_BUFFER_BIT);
+				drawTriangle(gl2 as unknown as WebGLRenderingContext);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Pass 2: Sample RGBA16F texture → render to RGBA8 FBO
+				const fbo2 = makeTestFBO(gl2 as unknown as WebGLRenderingContext, 4, 4);
+				const progTex = makeProgram(gl2 as unknown as WebGLRenderingContext, TEXTURE_VS_300, TEXTURE_FS_300);
+				gl2.useProgram(progTex);
+				const texLoc = gl2.getUniformLocation(progTex, 'uTexture');
+				gl2.uniform1i(texLoc, 0);
+				gl2.activeTexture(gl2.TEXTURE0);
+				gl2.bindTexture(gl2.TEXTURE_2D, fboFloat.colorTex);
+
+				gl2.clearColor(0, 0, 0, 1);
+				gl2.clear(gl2.COLOR_BUFFER_BIT);
+				drawTriangle(gl2 as unknown as WebGLRenderingContext);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Verify: green survived float → uint8 conversion
+				const p = readPixel(gl2 as unknown as WebGLRenderingContext, 0, 0);
+				expect(p[1]).toBe(255);
+
+				gl2.deleteProgram(progGreen);
+				gl2.deleteProgram(progTex);
+				destroyTestFBO(gl2 as unknown as WebGLRenderingContext, fbo2);
+				// Clean up float FBO
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, fboFloat.fb);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, null, 0);
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+				gl2.deleteTexture(fboFloat.colorTex);
+				gl2.deleteFramebuffer(fboFloat.fb);
+			});
+		});
+
+		// ── Diagnostic: Depth texture as FBO attachment ─────────────────────────
+
+		await describe('WebGL2 depth texture FBO', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('creates FBO with depth texture and renders with depth test', async () => {
+				const fbo = makeTestFBOWithDepthTexture(gl2 as unknown as WebGL2RenderingContext, 4, 4);
+				const status = gl2.checkFramebufferStatus(gl2.FRAMEBUFFER);
+				expect(status).toBe(gl2.FRAMEBUFFER_COMPLETE);
+
+				const VS = ['#version 300 es', 'in vec2 position;', 'uniform float uDepth;',
+					'void main() { gl_Position = vec4(position, uDepth, 1.0); }'].join('\n');
+				const FS = ['#version 300 es', 'precision mediump float;', 'uniform vec4 uColor;', 'out vec4 c;',
+					'void main() { c = uColor; }'].join('\n');
+
+				const prog = makeProgram(gl2 as unknown as WebGLRenderingContext, VS, FS);
+				gl2.useProgram(prog);
+
+				gl2.enable(gl2.DEPTH_TEST);
+				gl2.depthFunc(gl2.LESS);
+				gl2.clearColor(0, 0, 0, 1);
+				gl2.clearDepth(1.0);
+				gl2.clear(gl2.COLOR_BUFFER_BIT | gl2.DEPTH_BUFFER_BIT);
+
+				// Draw red at z=0.5
+				const colorLoc = gl2.getUniformLocation(prog, 'uColor');
+				const depthLoc = gl2.getUniformLocation(prog, 'uDepth');
+				gl2.uniform4f(colorLoc, 1, 0, 0, 1);
+				gl2.uniform1f(depthLoc, 0.5);
+				drawTriangle(gl2 as unknown as WebGLRenderingContext);
+
+				// Draw green at z=0.0 (nearer, should win)
+				gl2.uniform4f(colorLoc, 0, 1, 0, 1);
+				gl2.uniform1f(depthLoc, 0.0);
+				drawTriangle(gl2 as unknown as WebGLRenderingContext);
+
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				const p = readPixel(gl2 as unknown as WebGLRenderingContext, 0, 0);
+				expect(p[1]).toBe(255); // green (nearer)
+
+				gl2.disable(gl2.DEPTH_TEST);
+				// Cleanup
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, fbo.fb);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, null, 0);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.DEPTH_ATTACHMENT, gl2.TEXTURE_2D, null, 0);
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+				gl2.deleteTexture(fbo.colorTex);
+				gl2.deleteTexture(fbo.depthTex);
+				gl2.deleteFramebuffer(fbo.fb);
+				gl2.deleteProgram(prog);
+			});
+		});
+
+		// ── Diagnostic: generateMipmap ──────────────────────────────────────────
+
+		await describe('WebGL2 generateMipmap', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('generates mipmaps for a 4x4 texture without error', async () => {
+				const tex = gl2.createTexture()!;
+				gl2.bindTexture(gl2.TEXTURE_2D, tex);
+				const data = new Uint8Array(4 * 4 * 4); // 4x4 RGBA
+				for (let i = 0; i < data.length; i += 4) { data[i] = 255; data[i+3] = 255; } // red
+				gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, 4, 4, 0, gl2.RGBA, gl2.UNSIGNED_BYTE, data);
+				gl2.generateMipmap(gl2.TEXTURE_2D);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MIN_FILTER, gl2.LINEAR_MIPMAP_LINEAR);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Sample the mipmapped texture
+				const fbo = makeTestFBO(gl2 as unknown as WebGLRenderingContext, 4, 4);
+				const prog = makeProgram(gl2 as unknown as WebGLRenderingContext, TEXTURE_VS_300, TEXTURE_FS_300);
+				gl2.useProgram(prog);
+				gl2.uniform1i(gl2.getUniformLocation(prog, 'uTexture'), 0);
+				drawTriangle(gl2 as unknown as WebGLRenderingContext);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				const p = readPixel(gl2 as unknown as WebGLRenderingContext, 0, 0);
+				expect(p[0]).toBeGreaterThan(200); // should be close to red
+
+				gl2.deleteTexture(tex);
+				gl2.deleteProgram(prog);
+				destroyTestFBO(gl2 as unknown as WebGLRenderingContext, fbo);
+			});
+		});
+
+		// ── Diagnostic: Cubemap texture ─────────────────────────────────────────
+
+		await describe('WebGL2 cubemap texture', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('creates cubemap and verifies FBO attachment', async () => {
+				const tex = gl2.createTexture()!;
+				gl2.bindTexture(gl2.TEXTURE_CUBE_MAP, tex);
+
+				// Upload 6 faces (1x1 each) with different colors
+				const faces = [
+					gl2.TEXTURE_CUBE_MAP_POSITIVE_X,
+					gl2.TEXTURE_CUBE_MAP_NEGATIVE_X,
+					gl2.TEXTURE_CUBE_MAP_POSITIVE_Y,
+					gl2.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+					gl2.TEXTURE_CUBE_MAP_POSITIVE_Z,
+					gl2.TEXTURE_CUBE_MAP_NEGATIVE_Z,
+				];
+				const colors = [
+					[255, 0, 0, 255],  // +X = red
+					[0, 255, 0, 255],  // -X = green
+					[0, 0, 255, 255],  // +Y = blue
+					[255, 255, 0, 255], // -Y = yellow
+					[255, 0, 255, 255], // +Z = magenta
+					[0, 255, 255, 255], // -Z = cyan
+				];
+
+				for (let i = 0; i < 6; i++) {
+					gl2.texImage2D(faces[i], 0, gl2.RGBA, 1, 1, 0, gl2.RGBA, gl2.UNSIGNED_BYTE,
+						new Uint8Array(colors[i]));
+				}
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				gl2.texParameteri(gl2.TEXTURE_CUBE_MAP, gl2.TEXTURE_MIN_FILTER, gl2.NEAREST);
+				gl2.texParameteri(gl2.TEXTURE_CUBE_MAP, gl2.TEXTURE_MAG_FILTER, gl2.NEAREST);
+
+				// Attach +X face to FBO and render into it
+				const fb = gl2.createFramebuffer()!;
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, fb);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0,
+					gl2.TEXTURE_CUBE_MAP_POSITIVE_X, tex, 0);
+
+				const status = gl2.checkFramebufferStatus(gl2.FRAMEBUFFER);
+				expect(status).toBe(gl2.FRAMEBUFFER_COMPLETE);
+
+				gl2.viewport(0, 0, 1, 1);
+				gl2.clearColor(0, 1, 1, 1); // clear +X face to cyan (overwrite red)
+				gl2.clear(gl2.COLOR_BUFFER_BIT);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Read back: should be cyan
+				const p = readPixel(gl2 as unknown as WebGLRenderingContext, 0, 0);
+				expect(p[0]).toBe(0);
+				expect(p[1]).toBe(255);
+				expect(p[2]).toBe(255);
+
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+				gl2.deleteFramebuffer(fb);
+				gl2.deleteTexture(tex);
 			});
 		});
 

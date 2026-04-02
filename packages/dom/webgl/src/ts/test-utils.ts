@@ -136,3 +136,96 @@ export function destroyTestFBOWithDepth(gl: WebGLRenderingContext, fbo: TestFBOW
     gl.deleteRenderbuffer(fbo.depthRb);
     gl.deleteFramebuffer(fbo.fb);
 }
+
+// ─── WebGL2 test helpers ──────────────────────────────────────────────────────
+
+export interface TestFBOFloat {
+    fb: WebGLFramebuffer;
+    colorTex: WebGLTexture;
+    width: number;
+    height: number;
+}
+
+/**
+ * Create a w×h RGBA16F FBO (half-float color texture) and bind it.
+ * Used for testing Three.js post-processing render target patterns.
+ */
+export function makeTestFBOFloat(gl: WebGL2RenderingContext, width = 4, height = 4): TestFBOFloat {
+    const RGBA16F = 0x881A;
+    const HALF_FLOAT = 0x140B;
+    const fb = gl.createFramebuffer()!;
+    const colorTex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, colorTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, RGBA16F, width, height, 0, gl.RGBA, HALF_FLOAT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, colorTex, 0);
+    gl.viewport(0, 0, width, height);
+    return { fb, colorTex, width, height };
+}
+
+export interface TestFBOWithDepthTexture extends TestFBO {
+    depthTex: WebGLTexture;
+}
+
+/**
+ * Create a w×h RGBA8 FBO with a DEPTH_COMPONENT24 texture attachment.
+ * Three.js uses depth textures (not renderbuffers) for RenderPixelatedPass.
+ */
+export function makeTestFBOWithDepthTexture(gl: WebGL2RenderingContext, width = 4, height = 4): TestFBOWithDepthTexture {
+    const DEPTH_COMPONENT24 = 0x81A6;
+    const DEPTH_COMPONENT = 0x1902;
+    const UNSIGNED_INT = 0x1405;
+
+    const fb = gl.createFramebuffer()!;
+    // Color attachment
+    const colorTex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, colorTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    // Depth texture attachment
+    const depthTex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, depthTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, DEPTH_COMPONENT24, width, height, 0, DEPTH_COMPONENT, UNSIGNED_INT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, colorTex, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTex, 0);
+    gl.viewport(0, 0, width, height);
+    return { fb, colorTex, depthTex, width, height };
+}
+
+/** WebGL2 passthrough texture shader (samples texture at UV and outputs it). */
+export const TEXTURE_VS_300 = `#version 300 es
+in vec2 position;
+out vec2 vUv;
+void main() {
+    vUv = position * 0.5 + 0.5;
+    gl_Position = vec4(position, 0.0, 1.0);
+}`;
+
+export const TEXTURE_FS_300 = `#version 300 es
+precision mediump float;
+uniform sampler2D uTexture;
+in vec2 vUv;
+out vec4 fragColor;
+void main() {
+    fragColor = texture(uTexture, vUv);
+}`;
+
+/** WebGL2 cubemap sampling shader. */
+export const CUBEMAP_FS_300 = `#version 300 es
+precision mediump float;
+uniform samplerCube uCubemap;
+uniform vec3 uDirection;
+out vec4 fragColor;
+void main() {
+    fragColor = texture(uCubemap, uDirection);
+}`;
