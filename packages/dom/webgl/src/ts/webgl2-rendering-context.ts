@@ -50,11 +50,13 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
      * completeness checking to the native GL driver via glCheckFramebufferStatus.
      * This matches how browsers implement it and avoids false rejections of
      * HALF_FLOAT render targets, depth textures, R/RG formats, etc.
+     *
+     * NOTE: Do NOT call _updateFramebufferAttachments here — it calls us back,
+     * causing infinite recursion. The caller (_updateFramebufferAttachments
+     * itself) already handles forwarding attachments to native GL before and
+     * after this check.
      */
-    override _preCheckFramebufferStatus(framebuffer: any): GLenum {
-        // Ensure all attachments are forwarded to the native FBO first.
-        this._updateFramebufferAttachments(framebuffer);
-        // Let the native driver decide.
+    override _preCheckFramebufferStatus(_framebuffer: any): GLenum {
         return this._native.checkFramebufferStatus(this.FRAMEBUFFER);
     }
 

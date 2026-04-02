@@ -2964,9 +2964,6 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
     }
 
     setError(error: GLenum) {
-        if(error > 0) {
-            console.error("setError", error);
-        }
         this._native.setError(error);
     }
 

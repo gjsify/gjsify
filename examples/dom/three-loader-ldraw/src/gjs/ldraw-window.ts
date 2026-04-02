@@ -5,6 +5,7 @@
 // This software uses the LDraw Parts Library (http://www.ldraw.org), CC BY 2.0.
 
 import GObject from 'gi://GObject?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
@@ -61,7 +62,11 @@ export class LDrawWindow extends Adw.ApplicationWindow {
         });
 
         glArea.onReady((canvas) => {
-            const demo = start(canvas, undefined, (numSteps) => {
+            // Resolve asset base to file:// URI relative to the GJS bundle location
+            const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
+            const assetBase = `file://${bundleDir}/`;
+
+            const demo = start(canvas, { assetBase }, (numSteps) => {
                 // Update building step range on model load
                 const adj = this._buildingStepRow.get_adjustment();
                 adj.set_upper(numSteps - 1);
