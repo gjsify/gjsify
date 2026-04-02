@@ -34,8 +34,7 @@
     "typescript": "^6.0.2"
   },
   "resolutions": {
-    "@gjsify/esbuild-plugin-deepkit": "workspace:^",
-    "@girs/gwebgl-0.1": "patch:@girs/gwebgl-0.1@npm%3A0.1.0-4.0.0-beta.43#~/.yarn/patches/@girs-gwebgl-0.1-npm-0.1.0-4.0.0-beta.43-83a76aab27.patch"
+    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
   },
   "packageManager": "yarn@4.13.0",
   "workspaces": [
