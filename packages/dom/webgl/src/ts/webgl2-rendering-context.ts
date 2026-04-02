@@ -84,35 +84,51 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
      */
     override _preCheckFramebufferStatus(framebuffer: WebGLFramebuffer): GLenum {
         const attachments = framebuffer._attachments;
-        const colorAttach = attachments[this.COLOR_ATTACHMENT0];
 
-        // For texture color attachments: accept all WebGL2 texture formats.
-        // The base class only allows RGBA/UNSIGNED_BYTE and RGBA/FLOAT.
-        // WebGL2 allows sized internal formats like RGBA8, RGBA16F, RGB32F, etc.
-        if (colorAttach instanceof WebGLTexture) {
-            const level = framebuffer._attachmentLevel[this.COLOR_ATTACHMENT0] ?? 0;
-            const w = colorAttach._levelWidth[level] ?? 0;
-            const h = colorAttach._levelHeight[level] ?? 0;
-            if (w === 0 || h === 0) return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
-            // For WebGL2, any texture with valid dimensions is accepted.
-            // Delegate format validation to the native GL driver at draw time.
-            framebuffer._width = w;
-            framebuffer._height = h;
-            return this.FRAMEBUFFER_COMPLETE;
-        }
+        // WebGL2 supports many attachment combinations that WebGL1 rejected:
+        //  - Sized internal formats (RGBA8, RGBA16F, RGB32F, DEPTH_COMPONENT24, ...)
+        //  - Depth textures as DEPTH_ATTACHMENT (used by shadow maps, RenderPixelatedPass)
+        //  - Depth-only FBOs without any color attachment (valid in WebGL2)
+        //  - WebGL2 renderbuffer formats (DEPTH_COMPONENT24, DEPTH24_STENCIL8, ...)
+        //
+        // Strategy: scan all attachments and derive the FBO dimensions.  If we find
+        // at least one attachment with valid (non-zero) dimensions, return COMPLETE and
+        // let the native GL driver do the real completeness check at draw time.
+        // (draw calls are gated by _framebufferOk() which always returns true in WebGL2,
+        //  so this JS check is only needed to keep _updateFramebufferAttachments happy
+        //  so it actually pushes the attachments to the native FBO.)
 
-        // For renderbuffer color attachments: accept RGBA8 and all other formats.
-        if (colorAttach instanceof WebGLRenderbuffer) {
-            if (colorAttach._width === 0 || colorAttach._height === 0) {
-                return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+        let bestWidth = 0;
+        let bestHeight = 0;
+
+        const allEnums = [
+            this.COLOR_ATTACHMENT0, this.DEPTH_ATTACHMENT, this.STENCIL_ATTACHMENT, this.DEPTH_STENCIL_ATTACHMENT,
+            ...WebGL2RenderingContext._WGL2_ALL_COLOR_ATTACHMENTS,
+        ];
+        for (const enumVal of allEnums) {
+            const attach = attachments[enumVal];
+            if (!attach) continue;
+            if (attach instanceof WebGLTexture) {
+                const level = framebuffer._attachmentLevel[enumVal] ?? 0;
+                const w = attach._levelWidth[level] ?? 0;
+                const h = attach._levelHeight[level] ?? 0;
+                if (w > 0 && h > 0) { bestWidth = w; bestHeight = h; break; }
+            } else if (attach instanceof WebGLRenderbuffer) {
+                if (attach._width > 0 && attach._height > 0) {
+                    bestWidth = attach._width; bestHeight = attach._height; break;
+                }
             }
-            framebuffer._width = colorAttach._width;
-            framebuffer._height = colorAttach._height;
+        }
+
+        if (bestWidth > 0 && bestHeight > 0) {
+            framebuffer._width = bestWidth;
+            framebuffer._height = bestHeight;
             return this.FRAMEBUFFER_COMPLETE;
         }
 
-        // No color attachment or non-color-only FBO: fall through to base class.
-        return super._preCheckFramebufferStatus(framebuffer);
+        // No attachment with valid dimensions yet — report incomplete so the
+        // attachment is deferred until texStorage2D/texImage2D populates dimensions.
+        return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
     }
 
     /**
@@ -619,6 +635,17 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
 
     texStorage2D(target: GLenum, levels: GLsizei, internalformat: GLenum, width: GLsizei, height: GLsizei): void {
         this._native2.texStorage2D(target, levels, internalformat, width, height);
+        // Update JS-side metadata so _updateFramebufferAttachments / _preCheckFramebufferStatus
+        // can see valid dimensions. Without this, w/h stay 0 and the attachment is cleared.
+        const texture = this._getTexImage(target);
+        if (texture) {
+            for (let lvl = 0; lvl < levels; lvl++) {
+                texture._levelWidth[lvl] = Math.max(1, width >> lvl);
+                texture._levelHeight[lvl] = Math.max(1, height >> lvl);
+            }
+            texture._format = this.RGBA; // base format; type varies but unused by our completeness check
+            texture._type = this.UNSIGNED_BYTE;
+        }
     }
 
     texStorage3D(target: GLenum, levels: GLsizei, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei): void {
