@@ -653,7 +653,7 @@ export class WebGLRenderingContext implements WebGLRenderingContext {
         return null
     }
 
-    _preCheckFramebufferStatus(framebuffer: WebGLFramebuffer) {
+    _preCheckFramebufferStatus(framebuffer: WebGLFramebuffer): GLenum {
         const attachments = framebuffer._attachments
         const width = []
         const height = []

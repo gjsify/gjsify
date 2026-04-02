@@ -40,6 +40,24 @@ export class WebGL2RenderingContext extends WebGLRenderingContext implements Web
 
     // ─── WebGL2 overrides for WebGL1 validation that's too strict ─────────
 
+    /**
+     * WebGL2 dramatically expands the set of color-renderable, depth-renderable,
+     * and stencil-renderable formats compared to WebGL1. The base class
+     * (_preCheckFramebufferStatus) only accepts RGBA/UNSIGNED_BYTE or RGBA/FLOAT
+     * for color attachments and rejects depth textures entirely.
+     *
+     * Instead of enumerating every valid WebGL2 format combination, we delegate
+     * completeness checking to the native GL driver via glCheckFramebufferStatus.
+     * This matches how browsers implement it and avoids false rejections of
+     * HALF_FLOAT render targets, depth textures, R/RG formats, etc.
+     */
+    override _preCheckFramebufferStatus(framebuffer: any): GLenum {
+        // Ensure all attachments are forwarded to the native FBO first.
+        this._updateFramebufferAttachments(framebuffer);
+        // Let the native driver decide.
+        return this._native.checkFramebufferStatus(this.FRAMEBUFFER);
+    }
+
     /** WebGL2 allows COLOR_ATTACHMENT1–15 as framebuffer attachment points. */
     override _validFramebufferAttachment(attachment: GLenum): boolean {
         if (super._validFramebufferAttachment(attachment)) return true;

@@ -26,6 +26,7 @@ export * as PropertySymbol from './property-symbol.js';
 // Side-effect: register DOM globals on import.
 // Same pattern as @gjsify/node-globals (packages/node/globals/src/index.ts)
 // and @gjsify/web-globals (packages/web/web-globals/src/index.ts).
+import '@gjsify/abort-controller'; // registers globalThis.AbortController + AbortSignal
 import { Text } from './text.js';
 import { Comment } from './comment.js';
 import { DocumentFragment } from './document-fragment.js';
