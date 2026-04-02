@@ -181,7 +181,18 @@ export function start(
         renderer.render(scene, camera);
     }
 
-    renderer.setAnimationLoop(animate);
+    // Animation loop — use requestAnimationFrame directly (GTK frame clock compatible)
+    let animPending = false;
+    function scheduleFrame() {
+        if (animPending) return;
+        animPending = true;
+        requestAnimationFrame(() => {
+            animPending = false;
+            animate();
+            scheduleFrame();
+        });
+    }
+    scheduleFrame();
 
     // Load initial model
     reloadObject(true);

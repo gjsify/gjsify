@@ -228,8 +228,20 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
         composer.render();
     }
 
-    // Start animation loop
-    renderer.setAnimationLoop(animate);
+    // Animation loop — use requestAnimationFrame directly (GTK frame clock compatible)
+    // Three.js setAnimationLoop uses self.requestAnimationFrame internally which works,
+    // but we use the same on-demand pattern as the teapot demo for consistency.
+    let animPending = false;
+    function scheduleFrame() {
+        if (animPending) return;
+        animPending = true;
+        requestAnimationFrame((time) => {
+            animPending = false;
+            animate();
+            scheduleFrame(); // continuous animation
+        });
+    }
+    scheduleFrame();
 
     // Render scheduling for manual re-renders (from control changes)
     function render() {

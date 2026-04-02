@@ -4,6 +4,7 @@
 // Original: MIT license, three.js authors (https://threejs.org)
 
 import GObject from 'gi://GObject?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
@@ -63,7 +64,10 @@ export class PixelWindow extends Adw.ApplicationWindow {
 
         // Initialize three.js when GL context is ready
         glArea.onReady((canvas) => {
-            const demo = start(canvas);
+            const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
+            const assetBase = `file://${bundleDir}/`;
+
+            const demo = start(canvas, { assetBase });
             this.connectControls(demo);
         });
     }
