@@ -11,6 +11,7 @@ import contextTests from './conformance/context.spec.js';
 import renderingBasicTests from './conformance/rendering-basic.spec.js';
 import uniformsTests from './conformance/uniforms.spec.js';
 import stateTests from './conformance/state.spec.js';
+import renderingTests from './conformance/rendering.spec.js';
 
 run({
     testSuite: async () => {
@@ -21,5 +22,6 @@ run({
         await renderingBasicTests();
         await uniformsTests();
         await stateTests();
+        await renderingTests();
     },
 });
