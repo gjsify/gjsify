@@ -296,14 +296,30 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         super.bindTexture(target, texture);
     }
 
-    /** WebGL2 adds TEXTURE_3D/TEXTURE_2D_ARRAY targets and TEXTURE_WRAP_R pname. */
+    /** WebGL2 adds TEXTURE_3D/TEXTURE_2D_ARRAY targets and many new pnames. */
     override texParameteri(target: GLenum, pname: GLenum, param: GLint): void {
         if (target === 0x806F /* TEXTURE_3D */ || target === 0x8C1A /* TEXTURE_2D_ARRAY */) {
             // Bypass WebGL1 _checkTextureTarget which only allows TEXTURE_2D/CUBE_MAP.
             this._gl.texParameteri(target, pname, param);
             return;
         }
-        if (pname === 0x8072 /* TEXTURE_WRAP_R — WebGL2 only */) {
+        // WebGL2-specific pnames that the base class rejects with INVALID_ENUM:
+        //   TEXTURE_WRAP_R (0x8072) — 3D wrap mode
+        //   TEXTURE_COMPARE_MODE (0x884C) — shadow sampler setup (GL_COMPARE_REF_TO_TEXTURE)
+        //   TEXTURE_COMPARE_FUNC (0x884D) — GL_LEQUAL etc. for shadow comparison
+        //   TEXTURE_BASE_LEVEL (0x813C) — mipmap base level
+        //   TEXTURE_MAX_LEVEL (0x813D) — mipmap max level
+        //   TEXTURE_MIN_LOD (0x813B) — minimum LOD clamp
+        //   TEXTURE_MAX_LOD (0x813A) — maximum LOD clamp
+        const isWebGL2Pname =
+            pname === 0x8072 /* TEXTURE_WRAP_R */ ||
+            pname === 0x884C /* TEXTURE_COMPARE_MODE */ ||
+            pname === 0x884D /* TEXTURE_COMPARE_FUNC */ ||
+            pname === 0x813C /* TEXTURE_BASE_LEVEL */ ||
+            pname === 0x813D /* TEXTURE_MAX_LEVEL */ ||
+            pname === 0x813B /* TEXTURE_MIN_LOD */ ||
+            pname === 0x813A /* TEXTURE_MAX_LOD */;
+        if (isWebGL2Pname) {
             this._gl.texParameteri(target, pname, param);
             return;
         }
@@ -854,7 +870,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     drawBuffers(buffers: GLenum[]): void {
-        this._native2.drawBuffers(Array.from(buffers) as number[]);
+        // GL_BACK (0x0405) is only valid for the window-system default framebuffer (FBO 0).
+        // GtkGLArea uses its own FBO (not FBO 0), so GL_BACK → GL_INVALID_OPERATION.
+        // Map GL_BACK → GL_COLOR_ATTACHMENT0 which is the attachment GTK's FBO uses.
+        const mapped = buffers.map(b => b === 0x0405 /* GL_BACK */ ? this.COLOR_ATTACHMENT0 : b);
+        this._native2.drawBuffers(Array.from(mapped) as number[]);
     }
 
     drawRangeElements(mode: GLenum, start: GLuint, end: GLuint, count: GLsizei, type: GLenum, offset: GLintptr): void {
