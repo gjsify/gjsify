@@ -5,7 +5,6 @@ import { WebGLProgram } from './webgl-program.js';
 import GLib from '@girs/glib-2.0';
 import { HTMLImageElement } from "@gjsify/dom-elements";
 
-import type Gwebgl from '@girs/gwebgl-0.1';
 import type { WebGLContextBase } from './webgl-context-base.js';
 import type { TypedArray} from './types/index.js';
 

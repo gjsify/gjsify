@@ -418,6 +418,7 @@ namespace Gwebgl {
             this.webgl_constants.insert("TEXTURE_MAX_LEVEL",             GL_TEXTURE_MAX_LEVEL);
             this.webgl_constants.insert("TEXTURE_COMPARE_MODE",          GL_TEXTURE_COMPARE_MODE);
             this.webgl_constants.insert("TEXTURE_COMPARE_FUNC",          GL_TEXTURE_COMPARE_FUNC);
+            this.webgl_constants.insert("COMPARE_REF_TO_TEXTURE",        GL_COMPARE_REF_TO_TEXTURE);
             this.webgl_constants.insert("TEXTURE_IMMUTABLE_FORMAT",      GL_TEXTURE_IMMUTABLE_FORMAT);
             this.webgl_constants.insert("TEXTURE_IMMUTABLE_LEVELS",      GL_TEXTURE_IMMUTABLE_LEVELS);
             // Uniform Buffer Objects
