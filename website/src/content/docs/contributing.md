@@ -1,9 +1,9 @@
 ---
 title: Contributing
-description: Development setup and TDD workflow for gjsify contributors
+description: Development setup and TDD workflow for GJSify contributors
 ---
 
-gjsify welcomes contributions! Here's how to get started.
+GJSify welcomes contributions! Here's how to get started.
 
 ## Development Setup
 
@@ -18,7 +18,7 @@ yarn test
 
 ## TDD Workflow
 
-gjsify follows a test-driven development approach:
+GJSify follows a test-driven development approach:
 
 1. **Study the API**: Read `refs/node/lib/<name>.js` for the canonical Node.js implementation
 2. **Port tests**: Write tests in `*.spec.ts` using `@gjsify/unit`

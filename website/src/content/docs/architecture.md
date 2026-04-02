@@ -3,7 +3,7 @@ title: Architecture
 description: Monorepo structure and GNOME library mappings
 ---
 
-gjsify is a Yarn workspaces monorepo that provides Node.js and Web API implementations for GJS using native GNOME libraries.
+GJSify is a Yarn workspaces monorepo that provides Node.js and Web API implementations for GJS using native GNOME libraries.
 
 ## Monorepo Structure
 
@@ -22,7 +22,7 @@ gjsify/
 
 ## Build System
 
-gjsify uses **esbuild** with platform-specific plugins to produce different bundles:
+GJSify uses **esbuild** with platform-specific plugins to produce different bundles:
 
 - **GJS build** (`gjsify build --app gjs`): Aliases `assert` → `@gjsify/assert`, externalizes `gi://*` imports. Target: `firefox128`.
 - **Node build** (`gjsify build --app node`): Aliases `@gjsify/process` → `process`. Target: `node24`.

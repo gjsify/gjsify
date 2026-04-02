@@ -1,23 +1,29 @@
 ---
 // Custom Hero component — replaces Starlight's default Hero.
 // Renders the interactive Adwaita + Three.js teapot demo as the hero element.
+import '@fontsource/coming-soon';
+import DemoArrow from '../assets/demo-arrow.svg?raw';
 ---
 
 <div class="hero-custom">
   <div class="hero-text">
-    <h1 id="_top" data-page-title>gjsify</h1>
-    <div class="tagline">The full JavaScript ecosystem, native on GNOME</div>
+    <h1 id="_top" data-page-title>GJSify</h1>
   </div>
 
-  <div class="hero-demo" id="teapot-demo"></div>
+  <div class="demo-annotation" aria-hidden="true">
+    <span class="demo-annotation-text">This WebGL demo runs<br>natively on Linux with GJS</span>
+    <Fragment set:html={DemoArrow} />
+  </div>
+
+  <div class="hero-demo" id="pixel-demo"></div>
 
   <script>
-    import { mount } from '@gjsify/example-dom-three-geometry-teapot/browser';
+    import { mount } from '@gjsify/example-dom-three-postprocessing-pixel/browser';
 
-    const container = document.getElementById('teapot-demo');
+    const container = document.getElementById('pixel-demo');
     if (container) {
       const base = import.meta.env.BASE_URL;
-      mount(container, { assetBase: `${base}demos/teapot/` });
+      mount(container, { assetBase: `${base}demos/pixel/` });
     }
   </script>
 </div>
@@ -43,12 +49,6 @@
     color: var(--sl-color-white);
   }
 
-  .tagline {
-    font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl));
-    color: var(--sl-color-gray-2);
-    margin-top: 0.75rem;
-  }
-
   .hero-demo {
     width: 100%;
     max-width: 1100px;
@@ -72,9 +72,40 @@
     outline: none;
   }
 
+  .demo-annotation {
+    align-self: flex-end;
+    margin-right: 2rem;
+    margin-bottom: -1rem;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    color: var(--sl-color-gray-2);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .demo-annotation-text {
+    font-family: 'Coming Soon', cursive;
+    font-size: clamp(0.9rem, 1.8vw, 1.15rem);
+    line-height: 1.35;
+    text-align: right;
+    transform: rotate(-3deg);
+  }
+
+  .demo-annotation-arrow {
+    width: 80px;
+    height: 60px;
+    margin-right: 2.5rem;
+  }
+
   @media (max-width: 600px) {
     .hero-demo {
       aspect-ratio: 4 / 3;
+    }
+
+    .demo-annotation {
+      display: none;
     }
   }
 </style>

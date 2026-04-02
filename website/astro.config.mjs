@@ -10,17 +10,19 @@ export default defineConfig({
       include: [
         'three',
         'three/addons/controls/OrbitControls.js',
-        'three/addons/geometries/TeapotGeometry.js',
+        'three/addons/postprocessing/EffectComposer.js',
+        'three/addons/postprocessing/RenderPixelatedPass.js',
+        'three/addons/postprocessing/OutputPass.js',
       ],
       exclude: [
         '@gjsify/adwaita-web',
-        '@gjsify/example-dom-three-geometry-teapot',
+        '@gjsify/example-dom-three-postprocessing-pixel',
       ],
     },
   },
   integrations: [
     starlight({
-      title: 'gjsify',
+      title: 'GJSify',
       description: 'The full JavaScript ecosystem, native on GNOME',
       components: {
         Hero: './src/components/Hero.astro',

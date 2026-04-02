@@ -1,9 +1,9 @@
 ---
 title: Overview
-description: Summary of all 57+ gjsify packages
+description: Summary of all 57+ GJSify packages
 ---
 
-gjsify provides **57+ packages** organized into three categories, all implementing standard APIs using native GNOME libraries.
+GJSify provides **57+ packages** organized into three categories, all implementing standard APIs using native GNOME libraries.
 
 | Category | Packages | Description |
 |---|---|---|
@@ -25,4 +25,4 @@ All packages are published to npm under the `@gjsify` scope:
 yarn add @gjsify/fs @gjsify/http @gjsify/fetch
 ```
 
-In most cases, you don't install packages directly — the gjsify esbuild plugin automatically aliases Node.js and Web API imports to their `@gjsify/*` counterparts during the GJS build.
+In most cases, you don't install packages directly — the GJSify esbuild plugin automatically aliases Node.js and Web API imports to their `@gjsify/*` counterparts during the GJS build.
