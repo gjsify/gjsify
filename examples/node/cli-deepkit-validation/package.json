@@ -1,9 +1,16 @@
 {
   "name": "@gjsify/example-node-cli-deepkit-validation",
-  "private": true,
+  "version": "0.1.2",
   "description": "Demonstrates Deepkit runtime type validation with constraints on GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "16",
+    "gjs": "1.72.x"
+  },
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
@@ -15,20 +22,14 @@
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
     "test": "yarn start"
   },
-  "engines": {
-    "node": "16",
-    "gjs": "1.72.x"
-  },
-  "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT",
-  "dependencies": {
+  "devDependencies": {
     "@deepkit/core": "^1.0.19",
     "@deepkit/type": "^1.0.19",
-    "@gjsify/node-globals": "workspace:^"
-  },
-  "devDependencies": {
     "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
     "@types/node": "^25.5.0",
     "typescript": "^6.0.2"
-  }
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT"
 }

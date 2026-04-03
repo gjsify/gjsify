@@ -1,9 +1,16 @@
 {
   "name": "@gjsify/example-node-cli-worker-pool",
-  "private": true,
+  "version": "0.1.2",
   "description": "Worker pool example using worker_threads for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=16",
+    "gjs": ">=1.72.x"
+  },
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
@@ -15,17 +22,11 @@
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
     "test": "yarn start"
   },
-  "dependencies": {
-    "@gjsify/node-globals": "workspace:^",
-    "@gjsify/runtime": "workspace:^"
-  },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
     "@types/node": "^25.5.0",
     "typescript": "^6.0.2"
-  },
-  "engines": {
-    "node": ">=16",
-    "gjs": ">=1.72.x"
   }
 }

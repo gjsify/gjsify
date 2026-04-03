@@ -1,9 +1,12 @@
 {
   "name": "@gjsify/example-dom-webgl-tutorial-01",
-  "private": true,
+  "version": "0.1.2",
   "description": "",
   "main": "dist/index.gjs.js",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
@@ -11,17 +14,17 @@
     "build": "yarn build:gjs",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
   },
-  "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT",
+  "dependencies": {
+    "@gjsify/webgl": "workspace:^"
+  },
   "devDependencies": {
+    "@girs/gio-2.0": "^2.88.0-4.0.0-beta.43",
+    "@girs/gjs": "^4.0.0-beta.43",
+    "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.5.0",
     "typescript": "^6.0.2"
   },
-  "dependencies": {
-    "@girs/gio-2.0": "^2.88.0-4.0.0-beta.43",
-    "@girs/gjs": "^4.0.0-beta.43",
-    "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
-    "@gjsify/webgl": "workspace:^"
-  }
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT"
 }

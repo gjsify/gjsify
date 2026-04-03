@@ -1,9 +1,16 @@
 {
   "name": "@gjsify/example-node-cli-yargs-demo",
-  "private": true,
+  "version": "0.1.2",
   "description": "CLI calculator using yargs for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=16",
+    "gjs": ">=1.72.x"
+  },
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
@@ -15,19 +22,13 @@
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
     "test": "yarn build && yarn start:node && yarn start:gjs"
   },
-  "dependencies": {
-    "@gjsify/node-globals": "workspace:^",
-    "@gjsify/runtime": "workspace:^",
-    "yargs": "^18.0.0"
-  },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
     "@types/node": "^25.5.0",
     "@types/yargs": "^17.0.35",
-    "typescript": "^6.0.2"
-  },
-  "engines": {
-    "node": ">=16",
-    "gjs": ">=1.72.x"
+    "typescript": "^6.0.2",
+    "yargs": "^18.0.0"
   }
 }

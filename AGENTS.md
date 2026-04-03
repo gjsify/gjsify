@@ -6,6 +6,8 @@ Node.js API, Web API, and DOM API for GJS (GNOME JS). Monorepo (Yarn workspaces,
 
 Browser compatibility patches (globals, DOM stubs) belong in packages, not examples. If an example needs a `globalThis.*` polyfill or DOM method stub, add it to `@gjsify/dom-elements` or the appropriate package.
 
+**Architectural decisions must be documented here.** Whenever a new architectural decision is made (new package boundaries, API design patterns, widget conventions, build pipeline changes, dependency strategies, or cross-cutting concerns), update this file immediately so future conversations have the full picture.
+
 ## Structure
 
 `packages/{node/,gjs/,infra/,web/,dom/}` | `refs/` — read-only git submodules (DO NOT modify)
@@ -310,6 +312,16 @@ examples/gtk/<name>/src/
 Scripts: `build:gjs`→`gjsify build src/gjs/gjs.ts --app gjs` | `build:browser`→`gjsify build src/browser/browser.ts --app browser` | `start`→`gjsify run dist/gjs.js` | `start:browser`→`http-server dist`
 
 Constants (dropdown items, defaults) live in shared `.ts` — both `gjs/` and `browser/` import from there. No duplication in HTML templates.
+
+## Showcase — `gjsify showcase`
+
+Examples (`@gjsify/example-{dom,node}-<name>`, v0.1.2) are published npm packages shipped as CLI dependencies. Each contains only a pre-built GJS bundle (`dist/`) with no external runtime deps — esbuild bundles everything. Exception: `@gjsify/webgl` stays as a `dependency` (not devDep) for examples that need native prebuilds (`.so`+`.typelib`). The showcase always runs the GJS version of examples — Node.js and browser execution are not provided by the CLI.
+
+`gjsify showcase` lists available examples | `gjsify showcase <name>` runs `check` first, then executes via shared `runGjsBundle()` logic. Discovery is dynamic: scans CLI's own `package.json` for `@gjsify/example-*` deps, resolves each via `require.resolve`, reads `main` field.
+
+**Adding a new example to showcase:** (1) create under `examples/{dom,node}/<name>/` with name `@gjsify/example-{dom,node}-<name>` (2) set `"files":["dist"]`, `"version":"0.1.2"`, no `"private"` (3) move all deps to `devDependencies` except `@gjsify/webgl` (4) add as dependency in `packages/infra/cli/package.json` (5) rebuild CLI
+
+**Dependency rule for published examples:** Everything bundled by esbuild → `devDependencies`. Only packages with native prebuilds needed by `gjsify run` at runtime (currently only `@gjsify/webgl`) stay in `dependencies`.
 
 ## Implementation Workflow (TDD)
 

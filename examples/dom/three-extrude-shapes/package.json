@@ -1,9 +1,12 @@
 {
   "name": "@gjsify/example-dom-three-extrude-shapes",
-  "private": true,
+  "version": "0.1.2",
   "description": "Three.js extrude shapes example ported from refs/three/examples/webgl_geometry_extrude_shapes.html",
   "main": "dist/gjs.js",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
@@ -14,20 +17,20 @@
     "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/webgl.css dist/webgl.css"
   },
-  "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT",
+  "dependencies": {
+    "@gjsify/webgl": "workspace:^"
+  },
   "devDependencies": {
+    "@girs/gio-2.0": "^2.88.0-4.0.0-beta.43",
+    "@girs/gjs": "^4.0.0-beta.43",
+    "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.5.0",
     "@types/three": "^0.183.1",
     "http-server": "^14.1.1",
+    "three": "0.183.2",
     "typescript": "^6.0.2"
   },
-  "dependencies": {
-    "@girs/gio-2.0": "^2.88.0-4.0.0-beta.43",
-    "@girs/gjs": "^4.0.0-beta.43",
-    "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
-    "@gjsify/webgl": "workspace:^",
-    "three": "0.183.2"
-  }
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT"
 }

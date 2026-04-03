@@ -1,9 +1,12 @@
 {
   "name": "@gjsify/example-dom-webgl-tutorial-02",
-  "private": true,
+  "version": "0.1.2",
   "description": "",
   "main": "dist/gjs.js",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
@@ -14,20 +17,20 @@
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/webgl.css dist/webgl.css",
     "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js"
   },
-  "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT",
-  "devDependencies": {
-    "@gjsify/cli": "workspace:^",
-    "@types/gl-matrix": "^3.2.0",
-    "@types/node": "^25.5.0",
-    "http-server": "^14.1.1",
-    "typescript": "^6.0.2"
-  },
   "dependencies": {
+    "@gjsify/webgl": "workspace:^"
+  },
+  "devDependencies": {
     "@girs/gio-2.0": "^2.88.0-4.0.0-beta.43",
     "@girs/gjs": "^4.0.0-beta.43",
     "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
-    "@gjsify/webgl": "workspace:^",
-    "gl-matrix": "^3.4.4"
-  }
+    "@gjsify/cli": "workspace:^",
+    "@types/gl-matrix": "^3.2.0",
+    "@types/node": "^25.5.0",
+    "gl-matrix": "^3.4.4",
+    "http-server": "^14.1.1",
+    "typescript": "^6.0.2"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT"
 }

@@ -1,9 +1,16 @@
 {
   "name": "@gjsify/example-node-net-ws-chat",
-  "private": true,
+  "version": "0.1.2",
   "description": "WebSocket chat using Soup.Server for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=16",
+    "gjs": ">=1.72.x"
+  },
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
@@ -21,18 +28,12 @@
     "test:node": "node test.node.mjs",
     "test:gjs": "gjs -m test.gjs.mjs"
   },
-  "dependencies": {
-    "@gjsify/node-globals": "workspace:^",
-    "@gjsify/runtime": "workspace:^"
-  },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
     "@gjsify/unit": "workspace:^",
     "@types/node": "^25.5.0",
     "typescript": "^6.0.2"
-  },
-  "engines": {
-    "node": ">=16",
-    "gjs": ">=1.72.x"
   }
 }

@@ -1,7 +1,6 @@
-import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import type { Command } from '../types/index.js';
-import { detectNativePackages, buildNativeEnv } from '../utils/detect-native-packages.js';
+import { runGjsBundle } from '../utils/run-gjs.js';
 
 interface RunOptions {
     file: string;
@@ -29,31 +28,6 @@ export const runCommand: Command<any, RunOptions> = {
     handler: async (args) => {
         const file = resolve(args.file as string);
         const extraArgs = (args.args as string[]) ?? [];
-        const cwd = process.cwd();
-
-        const nativePackages = detectNativePackages(cwd);
-        const nativeEnv = buildNativeEnv(nativePackages);
-
-        const env = {
-            ...process.env,
-            ...nativeEnv,
-        };
-
-        const gjsArgs = ['-m', file, ...extraArgs];
-        const child = spawn('gjs', gjsArgs, { env, stdio: 'inherit' });
-
-        await new Promise<void>((resolvePromise, reject) => {
-            child.on('close', (code) => {
-                if (code !== 0) {
-                    reject(new Error(`gjs exited with code ${code}`));
-                } else {
-                    resolvePromise();
-                }
-            });
-            child.on('error', reject);
-        }).catch((err) => {
-            console.error(err.message);
-            process.exit(1);
-        });
+        await runGjsBundle(file, extraArgs);
     },
 };
