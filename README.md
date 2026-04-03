@@ -2,6 +2,8 @@
 
 **The full JavaScript ecosystem, native on GNOME.**
 
+**[Documentation](https://gjsify.github.io/gjsify/)**
+
 Use Node.js APIs, Web APIs, and DOM interfaces in GNOME desktop applications. gjsify provides native implementations backed by GNOME libraries (GLib, Gio, Soup, Cairo, GTK) — so you can use the npm packages and patterns you already know to build native Linux apps.
 
 ## Features
