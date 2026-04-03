@@ -392,4 +392,61 @@ adw-spin-row .adw-row-title {
   outline: 2px solid var(--accent-color);
   outline-offset: -1px;
 }
+
+/* --- adw-toast-overlay ---
+   Reference: refs/adwaita-web/adwaita-web/scss/_toast_overlay.scss */
+adw-toast-overlay {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 9px;
+  align-items: center;
+  pointer-events: none;
+}
+
+/* --- adw-toast ---
+   Reference: refs/adwaita-web/adwaita-web/scss/_toast.scss */
+.adw-toast {
+  background-color: #3d3846;
+  color: #ffffff;
+  padding: 9px 12px;
+  border-radius: var(--card-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  max-width: 400px;
+  min-height: 36px;
+  pointer-events: auto;
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+
+  opacity: 0;
+  transform: translateY(100%) scale(0.9);
+  transition: opacity 0.2s cubic-bezier(0, 0, 0.2, 1),
+              transform 0.2s cubic-bezier(0, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.adw-toast.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.adw-toast.hiding {
+  opacity: 0;
+  transform: translateY(100%) scale(0.9);
+  transition-duration: 0.15s;
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+.adw-toast .adw-toast-title {
+  font-weight: normal;
+  line-height: 1.3;
+}
 `;

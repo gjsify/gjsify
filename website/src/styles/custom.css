@@ -36,7 +36,7 @@
   --adw-card-border:         rgba(255, 255, 255, 0.06);
 }
 
-/* Rounded code blocks */
+/* Rounded code blocks (no title) */
 .sl-markdown-content pre {
   border-radius: 8px;
 }
@@ -44,6 +44,223 @@
 .sl-markdown-content :not(pre) > code {
   border-radius: 4px;
   padding: 2px 5px;
+}
+
+/* ── Adwaita Code Window ──
+   Styled via adwaita-frames EC plugin (ec-plugins/adwaita-frames.mjs).
+   HTML structure is restructured at build time — no specificity fights.
+   Values from adwaita-css.ts (adw-window:108-123, adw-header-bar:126-135).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* --- Neutralize EC frame defaults ---
+   Set headerbar backgrounds to Adwaita colors so EC's own selectors
+   (which use these variables) render correctly even before our CSS loads.
+   EC has @media (prefers-color-scheme) and :root[data-theme] selectors
+   that would otherwise override transparent with --sl-color-black. */
+:root,
+:root:not([data-theme='dark']) .expressive-code[data-theme='dark'] {
+  --ec-brdRad: 0px;
+  --ec-brdWd: 0px;
+  --ec-brdCol: transparent;
+  --ec-frm-frameBoxShdCssVal: none;
+  --ec-frm-edTabBarBg: #2e2e32;
+  --ec-frm-edTabBarBrdCol: transparent;
+  --ec-frm-edTabBarBrdBtmCol: transparent;
+  --ec-frm-edActTabBg: transparent;
+  --ec-frm-edActTabFg: #ffffff;
+  --ec-frm-edActTabBrdCol: transparent;
+  --ec-frm-edActTabIndHt: 0px;
+  --ec-frm-edActTabIndTopCol: transparent;
+  --ec-frm-edActTabIndBtmCol: transparent;
+  --ec-frm-edTabBrdRad: 0px;
+  --ec-frm-edTabsMargBlkStart: 0px;
+  --ec-frm-edTabsMargInlStart: 0px;
+  --ec-frm-trmTtbBg: #2e2e32;
+  --ec-frm-trmTtbFg: #ffffff;
+  --ec-frm-trmTtbBrdBtmCol: transparent;
+  --ec-frm-trmTtbDotsFg: transparent;
+  --ec-frm-trmTtbDotsOpa: 0;
+  --ec-frm-inlBtnBrdOpa: 0;
+}
+
+/* Light mode: override EC headerbar vars */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --ec-frm-edTabBarBg: #ffffff;
+    --ec-frm-edActTabFg: rgba(0, 0, 6, 0.8);
+    --ec-frm-trmTtbBg: #ffffff;
+    --ec-frm-trmTtbFg: rgba(0, 0, 6, 0.8);
+  }
+}
+:root[data-theme='light'] .expressive-code:not([data-theme='dark']),
+.expressive-code[data-theme='light'] {
+  --ec-frm-edTabBarBg: #ffffff;
+  --ec-frm-edActTabFg: rgba(0, 0, 6, 0.8);
+  --ec-frm-trmTtbBg: #ffffff;
+  --ec-frm-trmTtbFg: rgba(0, 0, 6, 0.8);
+}
+
+/* --- adw-code-window → adw-window ---
+   Exact shadow from adwaita-css.ts:116-119 (adw-window) */
+.expressive-code .frame.adw-code-window {
+  border-radius: 12px;
+  box-shadow:
+    0 0 14px 5px rgb(0 0 0 / 15%),
+    0 0 5px 2px rgb(0 0 0 / 10%),
+    0 0 0 1px rgb(0 0 0 / 5%);
+  outline: 1px solid rgb(255 255 255 / 7%);
+  outline-offset: -1px;
+  overflow: hidden;
+}
+
+/* --- adw-code-headerbar → adw-header-bar ---
+   !important on background needed to override EC's
+   linear-gradient(to top, ...) on .has-title:not(.is-terminal) .header */
+.expressive-code .frame .adw-code-headerbar {
+  display: flex !important;
+  align-items: center;
+  min-height: 47px;
+  padding: 0 6px;
+  background: #ffffff !important;
+  color: rgba(0, 0, 6, 0.8);
+  box-shadow: inset 0 -1px rgba(0, 0, 6, 0.12);
+  border: none;
+  border-radius: 0;
+  flex-shrink: 0;
+}
+
+/* --- Start spacer (balances copy button for centered title) --- */
+.expressive-code .frame .adw-code-headerbar-start {
+  width: 38px;
+  flex-shrink: 0;
+}
+
+/* --- Title → adw-header-bar-title --- */
+.expressive-code .frame .adw-code-headerbar-title {
+  flex: 1;
+  text-align: center;
+  font-weight: bold;
+  font-size: 0.875rem;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- End section (copy button) → adw-header-bar-end ---
+   Has .copy class for EC's JS to find the button.
+   Override EC's .copy positioning (absolute → static). */
+.expressive-code .frame .adw-code-headerbar-end {
+  display: flex !important;
+  align-items: center;
+  padding: 0 3px;
+  flex-shrink: 0;
+  position: static !important;
+  inset: auto !important;
+  flex-direction: row !important;
+  gap: 0 !important;
+}
+
+/* Copy button: always visible, Adwaita CSD-style flat button.
+   No border, no background — only hover/active highlight.
+   Matches GNOME window decorator buttons (see terminal screenshot). */
+.expressive-code .frame .adw-code-headerbar-end button {
+  opacity: 1 !important;
+  position: relative !important;
+  width: 34px;
+  height: 34px;
+  border: none !important;
+  border-radius: 9px;
+  background: transparent !important;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+}
+
+/* Remove EC's ::before border overlay */
+.expressive-code .frame .adw-code-headerbar-end button::before {
+  display: none !important;
+}
+
+/* Remove EC's inner div overlay */
+.expressive-code .frame .adw-code-headerbar-end button div {
+  opacity: 0 !important;
+}
+
+/* Adwaita clipboard-symbolic.svg icon via mask-image.
+   Since the button is no longer inside .copy, EC's ::after doesn't apply.
+   We must define the full pseudo-element ourselves. */
+.expressive-code .frame .adw-code-headerbar-end button::after {
+  content: '' !important;
+  position: absolute !important;
+  pointer-events: none !important;
+  inset: 0 !important;
+  background-color: currentColor !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20height%3D%2716px%27%20viewBox%3D%270%200%2016%2016%27%20width%3D%2716px%27%3E%3Cpath%20d%3D%27m%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200%27%20fill%3D%27currentColor%27%2F%3E%3C%2Fsvg%3E") !important;
+  mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20height%3D%2716px%27%20viewBox%3D%270%200%2016%2016%27%20width%3D%2716px%27%3E%3Cpath%20d%3D%27m%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200%27%20fill%3D%27currentColor%27%2F%3E%3C%2Fsvg%3E") !important;
+  -webkit-mask-repeat: no-repeat !important;
+  mask-repeat: no-repeat !important;
+  -webkit-mask-size: 16px 16px !important;
+  mask-size: 16px 16px !important;
+  margin: 9px !important;
+  line-height: 0 !important;
+}
+
+.expressive-code .frame .adw-code-headerbar-end button:hover {
+  background: rgba(128, 128, 128, 0.12) !important;
+}
+
+.expressive-code .frame .adw-code-headerbar-end button:active {
+  background: rgba(128, 128, 128, 0.22) !important;
+}
+
+/* Hide original EC copy positioning (moved into headerbar) */
+.expressive-code .frame.adw-code-window > .copy {
+  display: none;
+}
+
+/* Hide EC's feedback tooltip (replaced by Adwaita toast) */
+.expressive-code .frame .adw-code-headerbar-end .feedback {
+  display: none !important;
+}
+
+/* Remove EC pseudo-elements on header */
+.expressive-code .frame.adw-code-window .header::before,
+.expressive-code .frame.adw-code-window .header::after {
+  display: none !important;
+}
+
+/* Remove EC tab indicator on title */
+.expressive-code .frame.adw-code-window .title::after {
+  display: none !important;
+}
+
+/* Code area: flush with frame (no top radius) */
+.expressive-code .frame.adw-code-window pre,
+.expressive-code .frame.adw-code-window code {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* --- Dark mode --- */
+:root[data-theme='dark'] .expressive-code .frame .adw-code-headerbar {
+  background: #2e2e32 !important;
+  color: #ffffff;
+  box-shadow: inset 0 -1px rgba(0, 0, 6, 0.36);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .expressive-code .frame .adw-code-headerbar {
+    background: #2e2e32 !important;
+    color: #ffffff;
+    box-shadow: inset 0 -1px rgba(0, 0, 6, 0.36);
+  }
 }
 
 /* Navbar backdrop blur */
