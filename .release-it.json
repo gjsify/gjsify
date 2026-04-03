@@ -14,12 +14,7 @@
   "npm": {
     "publish": false
   },
-  "hooks": {
-    "before:init": [
-      "yarn check",
-      "yarn test"
-    ]
-  },
+  "hooks": {},
   "plugins": {
     "@release-it/bumper": {
       "out": [
