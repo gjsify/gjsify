@@ -26,11 +26,18 @@
     "build:examples": "yarn workspaces foreach -ptv -A --include '@gjsify/example-*' run build",
     "docs:dev": "yarn workspace @gjsify/website start",
     "docs:build": "yarn workspace @gjsify/website build",
-    "docs:serve": "yarn workspace @gjsify/website serve"
+    "docs:serve": "yarn workspace @gjsify/website serve",
+    "release": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it --pre-release",
+    "release:stable": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it",
+    "release:dry": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it --dry-run"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
+    "@release-it/bumper": "^7.0.5",
+    "@release-it/conventional-changelog": "^10.0.6",
+    "conventional-changelog-conventionalcommits": "^9.3.1",
+    "release-it": "^19.2.4",
     "typescript": "^6.0.2"
   },
   "resolutions": {
