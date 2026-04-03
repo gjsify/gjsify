@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-three-postprocessing-pixel",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Three.js pixel post-processing example ported from refs/three/examples/webgl_postprocessing_pixel.html with Adwaita controls",
   "main": "dist/gjs.js",
   "type": "module",

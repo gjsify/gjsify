@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.4](https://github.com/gjsify/gjsify/compare/v0.1.3...v0.1.4) (2026-04-03)
+
+### Bug Fixes
+
+* **examples:** update outdated engines fields and add lint check ([c27ad7c](https://github.com/gjsify/gjsify/commit/c27ad7cbd777299d99c87bbed5916cc3a4d357f2))
+
 ## [0.1.3](https://github.com/gjsify/gjsify/compare/v0.1.2...v0.1.3) (2026-04-03)
 
 ### Features

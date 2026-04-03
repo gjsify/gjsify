@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/runtime",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "description": "Platform-independent runtime detection for GJS and Node.js",
     "keywords": [
         "gjs",

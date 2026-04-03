@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/dom-polyfills",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "description": "Meta package: all @gjsify DOM polyfill packages as dependencies",
     "type": "module",
     "keywords": [

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/process",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "description": "Node.js process module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
