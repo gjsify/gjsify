@@ -1,9 +1,9 @@
 import { WebGLBuffer } from './webgl-buffer.js'
 
-import type { WebGLRenderingContext } from './webgl-rendering-context.js';
+import type { WebGLContextBase } from './webgl-context-base.js';
 
 export class WebGLVertexArrayObjectAttribute {
-    _ctx: WebGLRenderingContext;
+    _ctx: WebGLContextBase;
     _idx: number;
     _isPointer = false
     _pointerBuffer: WebGLBuffer | null = null; 
@@ -16,7 +16,7 @@ export class WebGLVertexArrayObjectAttribute {
     _inputSize = 4
     _inputStride = 0
 
-    constructor(ctx: WebGLRenderingContext, idx: number) {
+    constructor(ctx: WebGLContextBase, idx: number) {
         this._ctx = ctx
         this._idx = idx
         this._pointerType = ctx.FLOAT
@@ -49,7 +49,7 @@ export class WebGLVertexArrayGlobalAttribute {
 export class WebGLVertexArrayObjectState {
     _attribs: WebGLVertexArrayObjectAttribute[];
     _elementArrayBufferBinding: WebGLBuffer | null = null;
-    constructor(ctx: WebGLRenderingContext) {
+    constructor(ctx: WebGLContextBase) {
         const numAttribs = ctx.getParameter(ctx.MAX_VERTEX_ATTRIBS) as number;
         this._attribs = new Array(numAttribs)
         for (let i = 0; i < numAttribs; ++i) {
@@ -141,7 +141,7 @@ export class WebGLVertexArrayObjectState {
 export class WebGLVertexArrayGlobalState {
     _arrayBufferBinding: WebGLBuffer | null = null;
     _attribs: WebGLVertexArrayGlobalAttribute[];
-    constructor(ctx: WebGLRenderingContext) {
+    constructor(ctx: WebGLContextBase) {
         const numAttribs = ctx.getParameter(ctx.MAX_VERTEX_ATTRIBS)
         this._attribs = new Array(numAttribs)
         for (let i = 0; i < numAttribs; ++i) {

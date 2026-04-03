@@ -1,0 +1,44 @@
+{
+    "name": "@gjsify/esbuild-plugin-blueprint",
+    "version": "0.1.1",
+    "description": "esbuild plugin for compiling GNOME Blueprint (.blp) files to XML",
+    "type": "module",
+    "main": "dist/esm/index.mjs",
+    "types": "dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/esm/index.mjs"
+        },
+        "./types": "./types.d.ts"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:js && yarn build:types",
+        "build:js": "node esbuild.mjs",
+        "build:types": "tsc --emitDeclarationOnly"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/esbuild-plugin-blueprint#readme",
+    "keywords": [
+        "esbuild",
+        "plugin",
+        "blueprint",
+        "gnome",
+        "gtk"
+    ],
+    "dependencies": {
+        "execa": "^9.6.1"
+    },
+    "devDependencies": {
+        "esbuild": "^0.28.0",
+        "typescript": "^6.0.2"
+    }
+}

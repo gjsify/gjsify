@@ -29,8 +29,10 @@
         "build:types": "tsc",
         "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgwebgl.so build/Gwebgl-0.1.typelib prebuilds/linux-x86_64/",
         "build:test": "gjsify build src/ts/test.ts --app gjs --outfile test.gjs.js",
+        "build:conformance": "gjsify build src/ts/conformance-test.ts --app gjs --outfile conformance.gjs.js",
         "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
-        "test:gjs": "gjsify run test.gjs.js"
+        "test:gjs": "gjsify run test.gjs.js",
+        "test:conformance": "yarn build:gjsify && yarn build:conformance && gjsify run conformance.gjs.js"
     },
     "keywords": [
         "gjs",
@@ -40,13 +42,13 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/bit-twiddle": "^1.0.3",
-        "@types/node": "^25.5.0",
+        "@types/node": "^25.5.2",
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/gjs": "^4.0.0-beta.43",
-        "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
-        "@girs/gwebgl-0.1": "^0.1.0-4.0.0-beta.43",
+        "@girs/gjs": "^4.0.0-rc.1",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1",
+        "@girs/gwebgl-0.1": "^0.1.0-4.0.0-rc.1",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/event-bridge": "workspace:^",
         "@gjsify/utils": "workspace:^",

@@ -1,0 +1,87 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $LDrawWindow: Adw.ApplicationWindow {
+  default-width: 1100;
+  default-height: 700;
+  title: "LDraw Loader";
+
+  content: Gtk.Box {
+    orientation: vertical;
+
+    Adw.HeaderBar {}
+
+    Gtk.Box {
+      orientation: horizontal;
+      hexpand: true;
+      vexpand: true;
+
+      Gtk.ScrolledWindow {
+        width-request: 320;
+        hexpand: false;
+        hscrollbar-policy: never;
+
+        Gtk.Box {
+          orientation: vertical;
+          spacing: 12;
+          margin-top: 12;
+          margin-bottom: 12;
+          margin-start: 12;
+          margin-end: 12;
+
+          Adw.PreferencesGroup {
+            title: "Model";
+
+            Adw.ComboRow modelRow {
+              title: "Model";
+            }
+          }
+
+          Adw.PreferencesGroup {
+            title: "Rendering";
+
+            Adw.SwitchRow flatColorsRow {
+              title: "Flat Colors";
+            }
+
+            Adw.SwitchRow mergeModelRow {
+              title: "Merge Model";
+            }
+
+            Adw.SwitchRow smoothNormalsRow {
+              title: "Smooth Normals";
+              active: true;
+            }
+          }
+
+          Adw.PreferencesGroup {
+            title: "Display";
+
+            Adw.SpinRow buildingStepRow {
+              title: "Building Step";
+            }
+
+            Adw.SwitchRow displayLinesRow {
+              title: "Display Lines";
+              active: true;
+            }
+
+            Adw.SwitchRow conditionalLinesRow {
+              title: "Conditional Lines";
+              active: true;
+            }
+          }
+        }
+      }
+
+      Gtk.Separator {
+        orientation: vertical;
+      }
+
+      Gtk.Box glAreaContainer {
+        hexpand: true;
+        vexpand: true;
+      }
+    }
+  };
+}

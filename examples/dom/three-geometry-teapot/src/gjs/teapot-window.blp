@@ -1,0 +1,85 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $TeapotWindow: Adw.ApplicationWindow {
+  default-width: 1100;
+  default-height: 700;
+  title: "Three.js Teapot";
+
+  content: Gtk.Box {
+    orientation: vertical;
+
+    Adw.HeaderBar {}
+
+    Gtk.Box {
+      orientation: horizontal;
+      hexpand: true;
+      vexpand: true;
+
+      Gtk.ScrolledWindow {
+        width-request: 320;
+        hexpand: false;
+        hscrollbar-policy: never;
+
+        Gtk.Box {
+          orientation: vertical;
+          spacing: 12;
+          margin-top: 12;
+          margin-bottom: 12;
+          margin-start: 12;
+          margin-end: 12;
+
+          Adw.PreferencesGroup {
+            title: "Geometry";
+
+            Adw.ComboRow tessRow {
+              title: "Tessellation Level";
+            }
+
+            Adw.SwitchRow lidRow {
+              title: "Display Lid";
+              active: true;
+            }
+
+            Adw.SwitchRow bodyRow {
+              title: "Display Body";
+              active: true;
+            }
+
+            Adw.SwitchRow bottomRow {
+              title: "Display Bottom";
+              active: true;
+            }
+
+            Adw.SwitchRow fitLidRow {
+              title: "Snug Lid";
+              active: false;
+            }
+
+            Adw.SwitchRow nonblinnRow {
+              title: "Original Scale";
+              active: false;
+            }
+          }
+
+          Adw.PreferencesGroup {
+            title: "Material";
+
+            Adw.ComboRow shadingRow {
+              title: "Shading";
+            }
+          }
+        }
+      }
+
+      Gtk.Separator {
+        orientation: vertical;
+      }
+
+      Gtk.Box glAreaContainer {
+        hexpand: true;
+        vexpand: true;
+      }
+    }
+  };
+}

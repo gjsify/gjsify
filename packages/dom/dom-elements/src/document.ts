@@ -26,6 +26,14 @@ export class Document extends Node {
     /** Stub documentElement */
     readonly documentElement: HTMLElement = new HTMLElement();
 
+    constructor() {
+        super();
+        // Establish DOM tree: document → documentElement → body
+        // so event bubbling from any child of body reaches document.
+        this.appendChild(this.documentElement);
+        this.documentElement.appendChild(this.body);
+    }
+
     /**
      * Register a factory for a custom element tag name.
      * Called as a side-effect by DOM packages to avoid circular dependencies.

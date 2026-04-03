@@ -1,0 +1,37 @@
+---
+title: GJSify
+description: The full JavaScript ecosystem, native on GNOME
+template: splash
+hero:
+  tagline: The full JavaScript ecosystem, native on GNOME
+---
+
+import { Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
+
+<div class="cta-section">
+  <LinkButton href="/gjsify/getting-started/" variant="primary" icon="right-arrow">
+    Get Started
+  </LinkButton>
+  <LinkButton href="https://github.com/gjsify/gjsify" variant="minimal" icon="external">
+    GitHub
+  </LinkButton>
+</div>
+
+<CardGrid stagger>
+  <Card title="Node.js APIs" icon="laptop">
+    40 modules: fs, net, http, crypto, stream, events, and more.
+    Backed by GLib, Gio, and Soup — running natively on GNOME.
+  </Card>
+  <Card title="Web APIs" icon="globe">
+    fetch, WebSocket, AbortController, FormData, Streams, and more.
+    Standard browser APIs in GJS, powered by Soup 3.0.
+  </Card>
+  <Card title="DOM & Graphics" icon="puzzle">
+    Canvas2D via Cairo, WebGL via OpenGL ES, DOM elements as GTK
+    widgets, and a full GTK→DOM event bridge.
+  </Card>
+  <Card title="TypeScript First" icon="open-book">
+    esbuild, TypeScript, ESM — a modern toolchain
+    targeting GJS 1.86+ / SpiderMonkey 128.
+  </Card>
+</CardGrid>

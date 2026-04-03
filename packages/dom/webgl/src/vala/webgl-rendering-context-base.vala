@@ -390,6 +390,20 @@ namespace Gwebgl {
             this.webgl_constants.insert("DRAW_FRAMEBUFFER",               GL_DRAW_FRAMEBUFFER);
             this.webgl_constants.insert("READ_FRAMEBUFFER_BINDING",       GL_READ_FRAMEBUFFER_BINDING);
             this.webgl_constants.insert("DRAW_FRAMEBUFFER_BINDING",       GL_DRAW_FRAMEBUFFER_BINDING);
+            this.webgl_constants.insert("READ_BUFFER",                    GL_READ_BUFFER);
+            this.webgl_constants.insert("FRAMEBUFFER_DEFAULT",            GL_FRAMEBUFFER_DEFAULT);
+            this.webgl_constants.insert("FRAMEBUFFER_INCOMPLETE_MULTISAMPLE", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE);
+            this.webgl_constants.insert("RENDERBUFFER_SAMPLES",           GL_RENDERBUFFER_SAMPLES);
+            // Framebuffer attachment queries
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_RED_SIZE",          GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE);
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_GREEN_SIZE",        GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE);
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_BLUE_SIZE",         GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE);
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE",        GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE);
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE",        GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE);
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE",      GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE);
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING",    GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING);
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE",    GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE);
+            this.webgl_constants.insert("FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER",     GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER);
             // Color attachments 1–15
             this.webgl_constants.insert("COLOR_ATTACHMENT1",              GL_COLOR_ATTACHMENT1);
             this.webgl_constants.insert("COLOR_ATTACHMENT2",              GL_COLOR_ATTACHMENT2);
@@ -418,6 +432,7 @@ namespace Gwebgl {
             this.webgl_constants.insert("TEXTURE_MAX_LEVEL",             GL_TEXTURE_MAX_LEVEL);
             this.webgl_constants.insert("TEXTURE_COMPARE_MODE",          GL_TEXTURE_COMPARE_MODE);
             this.webgl_constants.insert("TEXTURE_COMPARE_FUNC",          GL_TEXTURE_COMPARE_FUNC);
+            this.webgl_constants.insert("COMPARE_REF_TO_TEXTURE",        GL_COMPARE_REF_TO_TEXTURE);
             this.webgl_constants.insert("TEXTURE_IMMUTABLE_FORMAT",      GL_TEXTURE_IMMUTABLE_FORMAT);
             this.webgl_constants.insert("TEXTURE_IMMUTABLE_LEVELS",      GL_TEXTURE_IMMUTABLE_LEVELS);
             // Uniform Buffer Objects
@@ -425,12 +440,28 @@ namespace Gwebgl {
             this.webgl_constants.insert("UNIFORM_BUFFER_BINDING",        GL_UNIFORM_BUFFER_BINDING);
             this.webgl_constants.insert("UNIFORM_BUFFER_START",          GL_UNIFORM_BUFFER_START);
             this.webgl_constants.insert("UNIFORM_BUFFER_SIZE",           GL_UNIFORM_BUFFER_SIZE);
+            this.webgl_constants.insert("UNIFORM_BUFFER_OFFSET_ALIGNMENT", GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
             this.webgl_constants.insert("MAX_VERTEX_UNIFORM_BLOCKS",     GL_MAX_VERTEX_UNIFORM_BLOCKS);
             this.webgl_constants.insert("MAX_FRAGMENT_UNIFORM_BLOCKS",   GL_MAX_FRAGMENT_UNIFORM_BLOCKS);
             this.webgl_constants.insert("MAX_COMBINED_UNIFORM_BLOCKS",   GL_MAX_COMBINED_UNIFORM_BLOCKS);
             this.webgl_constants.insert("MAX_UNIFORM_BUFFER_BINDINGS",   GL_MAX_UNIFORM_BUFFER_BINDINGS);
             this.webgl_constants.insert("MAX_UNIFORM_BLOCK_SIZE",        GL_MAX_UNIFORM_BLOCK_SIZE);
             this.webgl_constants.insert("INVALID_INDEX",                 (int) GL_INVALID_INDEX);
+            // Uniform block introspection
+            this.webgl_constants.insert("ACTIVE_UNIFORM_BLOCKS",                        GL_ACTIVE_UNIFORM_BLOCKS);
+            this.webgl_constants.insert("UNIFORM_TYPE",                                 GL_UNIFORM_TYPE);
+            this.webgl_constants.insert("UNIFORM_SIZE",                                 GL_UNIFORM_SIZE);
+            this.webgl_constants.insert("UNIFORM_BLOCK_INDEX",                          GL_UNIFORM_BLOCK_INDEX);
+            this.webgl_constants.insert("UNIFORM_OFFSET",                               GL_UNIFORM_OFFSET);
+            this.webgl_constants.insert("UNIFORM_ARRAY_STRIDE",                         GL_UNIFORM_ARRAY_STRIDE);
+            this.webgl_constants.insert("UNIFORM_MATRIX_STRIDE",                        GL_UNIFORM_MATRIX_STRIDE);
+            this.webgl_constants.insert("UNIFORM_IS_ROW_MAJOR",                         GL_UNIFORM_IS_ROW_MAJOR);
+            this.webgl_constants.insert("UNIFORM_BLOCK_BINDING",                        GL_UNIFORM_BLOCK_BINDING);
+            this.webgl_constants.insert("UNIFORM_BLOCK_DATA_SIZE",                      GL_UNIFORM_BLOCK_DATA_SIZE);
+            this.webgl_constants.insert("UNIFORM_BLOCK_ACTIVE_UNIFORMS",                GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS);
+            this.webgl_constants.insert("UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES",         GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES);
+            this.webgl_constants.insert("UNIFORM_BLOCK_REFERENCED_BY_VERTEX_SHADER",    GL_UNIFORM_BLOCK_REFERENCED_BY_VERTEX_SHADER);
+            this.webgl_constants.insert("UNIFORM_BLOCK_REFERENCED_BY_FRAGMENT_SHADER",  GL_UNIFORM_BLOCK_REFERENCED_BY_FRAGMENT_SHADER);
             // Transform Feedback
             this.webgl_constants.insert("TRANSFORM_FEEDBACK",            GL_TRANSFORM_FEEDBACK);
             this.webgl_constants.insert("TRANSFORM_FEEDBACK_BUFFER",     GL_TRANSFORM_FEEDBACK_BUFFER);
@@ -551,6 +582,11 @@ namespace Gwebgl {
             this.webgl_constants.insert("RGB_INTEGER",                   GL_RGB_INTEGER);
             this.webgl_constants.insert("RG_INTEGER",                    GL_RG_INTEGER);
             this.webgl_constants.insert("RED_INTEGER",                   GL_RED_INTEGER);
+            // Pixel Buffer Objects
+            this.webgl_constants.insert("PIXEL_PACK_BUFFER",              GL_PIXEL_PACK_BUFFER);
+            this.webgl_constants.insert("PIXEL_PACK_BUFFER_BINDING",      GL_PIXEL_PACK_BUFFER_BINDING);
+            this.webgl_constants.insert("PIXEL_UNPACK_BUFFER",            GL_PIXEL_UNPACK_BUFFER);
+            this.webgl_constants.insert("PIXEL_UNPACK_BUFFER_BINDING",    GL_PIXEL_UNPACK_BUFFER_BINDING);
             // MAX limits
             this.webgl_constants.insert("MAX_ARRAY_TEXTURE_LAYERS",      GL_MAX_ARRAY_TEXTURE_LAYERS);
             this.webgl_constants.insert("MAX_3D_TEXTURE_SIZE",           GL_MAX_3D_TEXTURE_SIZE);
@@ -558,6 +594,13 @@ namespace Gwebgl {
             this.webgl_constants.insert("MAX_COLOR_ATTACHMENTS",         GL_MAX_COLOR_ATTACHMENTS);
             this.webgl_constants.insert("MAX_SAMPLES",                   GL_MAX_SAMPLES);
             this.webgl_constants.insert("MAX_CLIENT_WAIT_TIMEOUT_WEBGL", 0x9247);
+            this.webgl_constants.insert("MAX_ELEMENT_INDEX",             GL_MAX_ELEMENT_INDEX);
+            this.webgl_constants.insert("MAX_FRAGMENT_INPUT_COMPONENTS", GL_MAX_FRAGMENT_INPUT_COMPONENTS);
+            this.webgl_constants.insert("MAX_VERTEX_OUTPUT_COMPONENTS",  GL_MAX_VERTEX_OUTPUT_COMPONENTS);
+            this.webgl_constants.insert("MAX_PROGRAM_TEXEL_OFFSET",      GL_MAX_PROGRAM_TEXEL_OFFSET);
+            this.webgl_constants.insert("MIN_PROGRAM_TEXEL_OFFSET",      GL_MIN_PROGRAM_TEXEL_OFFSET);
+            this.webgl_constants.insert("MAX_SERVER_WAIT_TIMEOUT",       GL_MAX_SERVER_WAIT_TIMEOUT);
+            this.webgl_constants.insert("MAX_TEXTURE_LOD_BIAS",          GL_MAX_TEXTURE_LOD_BIAS);
             this.webgl_constants.insert("MAX_ELEMENTS_VERTICES",        GL_MAX_ELEMENTS_VERTICES);
             this.webgl_constants.insert("MAX_ELEMENTS_INDICES",         GL_MAX_ELEMENTS_INDICES);
             this.webgl_constants.insert("MAX_VERTEX_UNIFORM_COMPONENTS",     GL_MAX_VERTEX_UNIFORM_COMPONENTS);
@@ -565,7 +608,22 @@ namespace Gwebgl {
             this.webgl_constants.insert("MAX_VARYING_COMPONENTS",            GL_MAX_VARYING_COMPONENTS);
             this.webgl_constants.insert("MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS", GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS);
             this.webgl_constants.insert("MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS",   GL_MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS);
+            // Blend equations (WebGL2 adds MIN/MAX)
+            this.webgl_constants.insert("MIN",                           GL_MIN);
+            this.webgl_constants.insert("MAX",                           GL_MAX);
+            // Internal format classification
+            this.webgl_constants.insert("SIGNED_NORMALIZED",             GL_SIGNED_NORMALIZED);
+            this.webgl_constants.insert("UNSIGNED_NORMALIZED",           GL_UNSIGNED_NORMALIZED);
+            this.webgl_constants.insert("SRGB",                          GL_SRGB);
+            // Clear buffer targets
+            this.webgl_constants.insert("COLOR",                         GL_COLOR);
+            this.webgl_constants.insert("DEPTH",                         GL_DEPTH);
+            this.webgl_constants.insert("STENCIL",                       GL_STENCIL);
+            // Sampler objects
+            this.webgl_constants.insert("SAMPLER_BINDING",               GL_SAMPLER_BINDING);
             // Misc WebGL2
+            this.webgl_constants.insert("CURRENT_QUERY",                 GL_CURRENT_QUERY);
+            this.webgl_constants.insert("SYNC_FENCE",                    GL_SYNC_FENCE);
             this.webgl_constants.insert("QUERY_RESULT",                  GL_QUERY_RESULT);
             this.webgl_constants.insert("QUERY_RESULT_AVAILABLE",        GL_QUERY_RESULT_AVAILABLE);
             this.webgl_constants.insert("ANY_SAMPLES_PASSED",            GL_ANY_SAMPLES_PASSED);
@@ -1463,6 +1521,167 @@ namespace Gwebgl {
 
         public void viewport(int x, int y, int width, int height) {
             glViewport(x, y, width, height);
+        }
+
+        // ─── Variant-based data transfer methods ─────────────────────────────
+        // These accept GLib.Variant "ay" (byte arrays) from JavaScript and
+        // forward to the corresponding raw GL calls. Shared by both WebGL1
+        // and WebGL2 contexts.
+
+        public bool isVariantOfByteArray(Variant variant) {
+            var type = variant.get_type();
+            return type.equal(new GLib.VariantType("ay"));
+        }
+
+        public void bufferData(int target, Variant variant, int usage) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[bufferData] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var size = bytes.get_size();
+            var data = bytes.get_data();
+
+            glBufferData(target, size, (GL.GLvoid[]) data, usage);
+        }
+
+        public void bufferDataSizeOnly(int target, size_t size, int usage) {
+            glBufferData(target, size, null, usage);
+        }
+
+        public void bufferSubData(int target, long offset, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[bufferSubData] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var size = bytes.get_size();
+            glBufferSubData(target, offset, size, (GL.GLvoid[]) bytes.get_data());
+        }
+
+        public void compressedTexImage2D(int target, int level, int internalFormat, int width, int height, int border, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            int imageSize = (int) bytes.get_size();
+
+            glCompressedTexImage2D(target, level, internalFormat, width, height, border, imageSize, (GL.GLvoid[]) bytes.get_data());
+        }
+
+        public void compressedTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[compressedTexSubImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            int imageSize = (int) bytes.get_size();
+
+            glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, (GLsizei) imageSize, (GL.GLvoid[]) bytes.get_data());
+        }
+
+        public uint8[] readPixels(int x, int y, int width, int height, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[readPixels] variant type must be 'ay'!");
+                return new uint8[0];
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
+
+            glReadPixels(x, y, width, height, format, type, (GL.GLvoid[]) pixels);
+            return pixels;
+        }
+
+        public void texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[texImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
+
+            glTexImage2D(target, level, internalFormat, width, height, border, format, type, (GL.GLvoid[]) pixels);
+        }
+
+        public void texImage2DFromPixbuf(int target, int level, int internalFormat, int format, int type, Gdk.Pixbuf *source) {
+            int width  = source->get_width();
+            int height = source->get_height();
+            var pixels = source->get_pixels();
+            glTexImage2D(target, level, internalFormat, width, height, 0, format, type, (GL.GLvoid[]) pixels);
+        }
+
+        public void texSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, Variant variant) {
+            if (!this.isVariantOfByteArray(variant)) {
+                printerr("[texSubImage2D] variant type must be 'ay'!");
+                return;
+            }
+
+            var bytes = variant.get_data_as_bytes ();
+            var pixels = bytes.get_data();
+
+            glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, (GL.GLvoid[]) pixels);
+        }
+
+        public void texSubImage2DFromPixbuf(int target, int level, int xoffset, int yoffset, int format, int type, Gdk.Pixbuf *source) {
+            int width  = source->get_width();
+            int height = source->get_height();
+            var pixels = source->get_pixels();
+
+            glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, (GL.GLvoid[]) pixels);
+        }
+
+        public void uniform1fv(int location, int vLength, float[] value) {
+            glUniform1fv(location, vLength, value);
+        }
+
+        public void uniform1iv(int location, int vLength, int[] value) {
+            glUniform1iv(location, vLength, value);
+        }
+
+        public void uniform2fv(int location, int vLength, float[] value) {
+            glUniform2fv(location, vLength, value);
+        }
+
+        public void uniform2iv(int location, int vLength, int[] value) {
+            glUniform2iv(location, vLength, value);
+        }
+
+        public void uniform3fv(int location, int vLength, float[] value) {
+            glUniform3fv(location, vLength, value);
+        }
+
+        public void uniform3iv(int location, int vLength, int[] value) {
+            glUniform3iv(location, vLength, value);
+        }
+
+        public void uniform4fv(int location, int vLength, float[] value) {
+            glUniform4fv(location, vLength, value);
+        }
+
+        public void uniform4iv(int location, int vLength, int[] value) {
+            glUniform4iv(location, vLength, value);
+        }
+
+        public void uniformMatrix2fv(int location, bool transpose, float[] value) {
+            int valueLength = value.length;
+            glUniformMatrix2fv(location, valueLength / 4, (uint8) transpose, value);
+        }
+
+        public void uniformMatrix3fv(int location, bool transpose, float[] value) {
+            int valueLength = value.length;
+            glUniformMatrix3fv(location, valueLength / 9, (uint8) transpose, value);
+        }
+
+        public void uniformMatrix4fv(int location, bool transpose, float[] value) {
+            int valueLength = value.length;
+            glUniformMatrix4fv(location, valueLength / 16, (uint8) transpose, value);
         }
 
     }

@@ -52,9 +52,13 @@ jobs:
           libepoxy-devel
           libgda
           libgda-sqlite
+          xorg-x11-server-Xvfb
+          mesa-dri-drivers
+          mesa-libGL
 
-      - name: Install Meson and Vala
-        run: dnf install -y meson vala gcc pkgconf
+
+      - name: Install Meson, Vala and Blueprint Compiler
+        run: dnf install -y meson vala gcc pkgconf blueprint-compiler
 
       - name: Create non-root user for tests
         run: |
@@ -84,7 +88,10 @@ jobs:
         run: su testuser -c 'yarn run check:examples'
 
       - name: Test
-        run: su testuser -c 'yarn run test'
+        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" yarn run test'
+
+      - name: Test WebGL conformance
+        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" yarn workspace @gjsify/webgl test:conformance'
 
       - name: Test CLI examples
         run: su testuser -c 'yarn run test:examples'

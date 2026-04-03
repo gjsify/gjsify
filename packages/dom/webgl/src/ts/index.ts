@@ -1,6 +1,10 @@
 import '@girs/gjs';
 import '@girs/gio-2.0';
 import '@girs/gtk-4.0';
+import { WebGLRenderingContext } from './webgl-rendering-context.js';
+import { WebGL2RenderingContext } from './webgl2-rendering-context.js';
+(globalThis as any).WebGLRenderingContext = WebGLRenderingContext;
+(globalThis as any).WebGL2RenderingContext = WebGL2RenderingContext;
 
 export * from './html-canvas-element.js';
 export * from './canvas-webgl-widget.js';
@@ -14,6 +18,7 @@ export * from './webgl-framebuffer.js';
 export * from './webgl-program.js';
 export * from './webgl-renderbuffer.js';
 export * from './webgl-query.js';
+export * from './webgl-context-base.js';
 export * from './webgl-rendering-context.js';
 export * from './webgl-sampler.js';
 export * from './webgl-shader-precision-format.js';

@@ -1,0 +1,32 @@
+{
+  "name": "@gjsify/example-node-cli-dns-lookup",
+  "version": "0.1.2",
+  "description": "Interactive DNS lookup tool for Node.js and GJS",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=16",
+    "gjs": ">=1.72.x"
+  },
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "yarn start:node",
+    "start:gjs": "gjs -m dist/index.gjs.js",
+    "start:node": "node dist/index.node.mjs",
+    "build": "yarn build:gjs && yarn build:node",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
+    "test": "yarn start"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
+    "@types/node": "^25.5.2",
+    "typescript": "^6.0.2"
+  }
+}

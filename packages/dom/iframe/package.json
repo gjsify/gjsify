@@ -30,17 +30,17 @@
         "dom"
     ],
     "dependencies": {
-        "@girs/gjs": "^4.0.0-beta.43",
-        "@girs/gtk-4.0": "^4.22.1-4.0.0-beta.43",
-        "@girs/javascriptcore-6.0": "2.51.93-4.0.0-beta.43",
-        "@girs/webkit-6.0": "2.51.93-4.0.0-beta.43",
+        "@girs/gjs": "^4.0.0-rc.1",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1",
+        "@girs/javascriptcore-6.0": "2.52.1-4.0.0-rc.1",
+        "@girs/webkit-6.0": "2.52.1-4.0.0-rc.1",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.5.0",
+        "@types/node": "^25.5.2",
         "typescript": "^6.0.2"
     }
 }

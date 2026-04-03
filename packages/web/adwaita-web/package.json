@@ -1,0 +1,29 @@
+{
+    "name": "@gjsify/adwaita-web",
+    "version": "0.1.1",
+    "description": "Adwaita/Libadwaita web components for browser targets",
+    "type": "module",
+    "main": "src/index.ts",
+    "types": "src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "default": "./src/index.ts"
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.ts' --exclude 'src/**/*.spec.ts'",
+        "build:types": "tsc"
+    },
+    "dependencies": {
+        "@gjsify/adwaita-fonts": "workspace:^",
+        "@gjsify/adwaita-icons": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "typescript": "^6.0.2"
+    }
+}

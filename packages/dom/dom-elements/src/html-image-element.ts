@@ -118,8 +118,20 @@ export class HTMLImageElement extends HTMLElement {
 	set src(src: string) {
 		this.setAttribute('src', src);
 
-		const dir = GLib.path_get_dirname(System.programInvocationName);
-		const filename = GLib.build_filenamev([dir, src]);
+		let filename: string;
+		if (src.startsWith('file://')) {
+			// GLib.filename_from_uri returns [localPath, hostname]
+			filename = GLib.filename_from_uri(src)[0];
+		} else if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+			// Remote URLs and data URIs are not supported in GJS — fire error
+			this._complete = true;
+			this.dispatchEvent(new Event('error'));
+			return;
+		} else {
+			// Relative path — resolve against the directory of the running script
+			const dir = GLib.path_get_dirname(System.programInvocationName);
+			filename = GLib.build_filenamev([dir, src]);
+		}
 
 		try {
 			this._pixbuf = GdkPixbuf.Pixbuf.new_from_file(filename);

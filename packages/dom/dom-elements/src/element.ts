@@ -293,6 +293,23 @@ export class Element extends Node {
 		return clone;
 	}
 
+	// -- Pointer capture (no-op stubs, GTK tracks pointer implicitly) --
+	// Reference: refs/happy-dom/packages/happy-dom/src/nodes/element/Element.ts
+
+	private _pointerCaptures = new Set<number>();
+
+	setPointerCapture(pointerId: number): void {
+		this._pointerCaptures.add(pointerId);
+	}
+
+	releasePointerCapture(pointerId: number): void {
+		this._pointerCaptures.delete(pointerId);
+	}
+
+	hasPointerCapture(pointerId: number): boolean {
+		return this._pointerCaptures.has(pointerId);
+	}
+
 	get [Symbol.toStringTag](): string {
 		return 'Element';
 	}

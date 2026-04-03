@@ -26,6 +26,8 @@ export * as PropertySymbol from './property-symbol.js';
 // Side-effect: register DOM globals on import.
 // Same pattern as @gjsify/node-globals (packages/node/globals/src/index.ts)
 // and @gjsify/web-globals (packages/web/web-globals/src/index.ts).
+import '@gjsify/abort-controller'; // registers globalThis.AbortController + AbortSignal
+import '@gjsify/fetch'; // registers globalThis.fetch, Request, Response, Headers
 import { Text } from './text.js';
 import { Comment } from './comment.js';
 import { DocumentFragment } from './document-fragment.js';
@@ -93,3 +95,42 @@ Object.defineProperty(globalThis, 'IntersectionObserver', {
     writable: true,
     configurable: true,
 });
+
+// Auto-register the '2d' context factory on HTMLCanvasElement.
+// Mirrors browser behavior: canvas.getContext('2d') works without any explicit import.
+// The factory is idempotent — re-registering from @gjsify/canvas2d has no effect.
+import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
+
+const CANVAS2D_KEY = Symbol.for('gjsify_canvas2d_context');
+HTMLCanvasElement.registerContextFactory('2d', (canvas, options) => {
+    const existing = (canvas as any)[CANVAS2D_KEY];
+    if (existing) return existing;
+    const ctx = new CanvasRenderingContext2D(canvas as any, options);
+    (canvas as any)[CANVAS2D_KEY] = ctx;
+    return ctx;
+});
+
+Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {
+    value: CanvasRenderingContext2D,
+    writable: true,
+    configurable: true,
+});
+
+// self — three.js checks `typeof self !== 'undefined'` for animation context
+if (typeof (globalThis as any).self === 'undefined') {
+    Object.defineProperty(globalThis, 'self', { value: globalThis, writable: true, configurable: true });
+}
+
+// devicePixelRatio — defaults to 1 (no HiDPI scaling in GTK GL context)
+if (typeof (globalThis as any).devicePixelRatio === 'undefined') {
+    Object.defineProperty(globalThis, 'devicePixelRatio', { value: 1, writable: true, configurable: true });
+}
+
+// alert — stub redirecting to console.error (GTK dialog version can override via writable)
+if (typeof (globalThis as any).alert === 'undefined') {
+    Object.defineProperty(globalThis, 'alert', {
+        value: (...args: any[]) => console.error('alert:', ...args),
+        writable: true,
+        configurable: true,
+    });
+}

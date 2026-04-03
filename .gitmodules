@@ -110,3 +110,27 @@
 [submodule "refs/map-editor"]
 	path = refs/map-editor
 	url = git@github.com:PixelRPG/map-editor.git
+[submodule "refs/astro"]
+	path = refs/astro
+	url = git@github.com:withastro/astro.git
+[submodule "examples/dom/three-geometry-shapes/refs/gjsify-vite"]
+	path = examples/dom/three-geometry-shapes/refs/gjsify-vite
+	url = git@github.com:gjsify/vite.git
+[submodule "refs/app-mockups"]
+	path = refs/app-mockups
+	url = https://gitlab.gnome.org/Teams/Design/app-mockups.git
+[submodule "refs/adwaita-web"]
+	path = refs/adwaita-web
+	url = git@github.com:mclellac/adwaita-web.git
+[submodule "refs/libadwaita"]
+	path = refs/libadwaita
+	url = https://gitlab.gnome.org/GNOME/libadwaita.git
+[submodule "refs/adwaita-fonts"]
+	path = refs/adwaita-fonts
+	url = https://gitlab.gnome.org/GNOME/adwaita-fonts.git
+[submodule "refs/adwaita-icon-theme"]
+	path = refs/adwaita-icon-theme
+	url = git@ssh.gitlab.gnome.org:GNOME/adwaita-icon-theme.git
+[submodule "refs/app-icon-requests"]
+	path = refs/app-icon-requests
+	url = https://gitlab.gnome.org/Teams/Design/app-icon-requests.git

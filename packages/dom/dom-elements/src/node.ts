@@ -3,7 +3,7 @@
 // Modifications: Simplified for gjsify — no Document, no MutationObserver, no cache system,
 //   extends @gjsify/dom-events EventTarget
 
-import { EventTarget } from '@gjsify/dom-events';
+import { EventTarget, Event as DOMEvent } from '@gjsify/dom-events';
 
 import { NodeType } from './node-type.js';
 import { NodeList } from './node-list.js';
@@ -114,8 +114,15 @@ export class Node extends EventTarget {
 		// Override in subclasses
 	}
 
-	get ownerDocument(): null {
-		return null;
+	get ownerDocument(): any {
+		// Walk up the tree to find the root. If it's the global document, return it.
+		// Standalone nodes (not in a document tree) return null per W3C spec.
+		let root: Node = this;
+		while (root[PS.parentNode]) {
+			root = root[PS.parentNode]!;
+		}
+		const doc = (globalThis as any).document;
+		return root === doc ? doc : null;
 	}
 
 	get isConnected(): boolean {
@@ -242,6 +249,29 @@ export class Node extends EventTarget {
 		}
 
 		return clone;
+	}
+
+	/**
+	 * Override dispatchEvent to support event bubbling through the DOM tree.
+	 * After AT_TARGET phase, if event.bubbles is true, walk up the parentNode
+	 * chain and dispatch on each ancestor (BUBBLING_PHASE).
+	 */
+	override dispatchEvent(event: DOMEvent): boolean {
+		const result = super.dispatchEvent(event);
+
+		// Bubble up the DOM tree
+		if (event.bubbles && !event.cancelBubble) {
+			let parent = this[PS.parentNode];
+			while (parent) {
+				// Dispatch on parent using EventTarget.dispatchEvent (no recursion)
+				// We call the base class method to avoid infinite bubbling loops
+				Object.getPrototypeOf(Node.prototype).dispatchEvent.call(parent, event);
+				if (event.cancelBubble) break;
+				parent = parent[PS.parentNode];
+			}
+		}
+
+		return result;
 	}
 
 	get [Symbol.toStringTag](): string {

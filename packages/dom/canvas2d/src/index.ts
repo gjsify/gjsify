@@ -1,19 +1,15 @@
 // Canvas 2D rendering context for GJS, backed by Cairo
+// Core classes live in @gjsify/canvas2d-core; this package adds Canvas2DWidget (GTK).
 // Reimplemented for GJS using Cairo (built-in) and GdkPixbuf for pixel I/O.
-// Reference: refs/node-canvas (Cairo + Pango Canvas 2D for Node.js)
 
-export { CanvasRenderingContext2D } from './canvas-rendering-context-2d.js';
-export { CanvasGradient } from './canvas-gradient.js';
-export { CanvasPattern } from './canvas-pattern.js';
-export { Path2D } from './canvas-path.js';
-export { OurImageData as ImageData } from './image-data.js';
-export { parseColor } from './color.js';
+export { CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, parseColor } from '@gjsify/canvas2d-core';
 export { Canvas2DWidget } from './canvas-drawing-area.js';
 
 // Side-effect: register the '2d' context factory on HTMLCanvasElement.
-// Same pattern as @gjsify/dom-elements registering globals on import.
+// This is idempotent — @gjsify/dom-elements also registers it via canvas2d-core.
+// Kept here so that importing @gjsify/canvas2d directly also works (backward compat).
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement } from '@gjsify/dom-elements';
-import { CanvasRenderingContext2D } from './canvas-rendering-context-2d.js';
+import { CanvasRenderingContext2D, ImageData, Path2D } from '@gjsify/canvas2d-core';
 
 const CONTEXT_KEY = Symbol.for('gjsify_canvas2d_context');
 
@@ -27,9 +23,6 @@ GjsifyHTMLCanvasElement.registerContextFactory('2d', (canvas: any, options?: any
 });
 
 // Register globals
-import { OurImageData } from './image-data.js';
-import { Path2D } from './canvas-path.js';
-
 Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {
     value: CanvasRenderingContext2D,
     writable: true,
@@ -37,7 +30,7 @@ Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {
 });
 
 Object.defineProperty(globalThis, 'ImageData', {
-    value: OurImageData,
+    value: ImageData,
     writable: true,
     configurable: true,
 });

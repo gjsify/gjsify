@@ -2,7 +2,11 @@
 
 Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). All packages use native GNOME libs.
+Node.js API, Web API, and DOM API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). All packages use native GNOME libs. Three equal-priority pillars: **Node.js API** (`packages/node/`) | **Web API** (`packages/web/`) | **DOM API** (`packages/dom/`).
+
+Browser compatibility patches (globals, DOM stubs) belong in packages, not examples. If an example needs a `globalThis.*` polyfill or DOM method stub, add it to `@gjsify/dom-elements` or the appropriate package.
+
+**Architectural decisions must be documented here.** Whenever a new architectural decision is made (new package boundaries, API design patterns, widget conventions, build pipeline changes, dependency strategies, or cross-cutting concerns), update this file immediately so future conversations have the full picture.
 
 ## Structure
 
@@ -55,17 +59,24 @@ Node.js API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). Al
 | Pkg | Libs | Implements |
 |-----|------|------------|
 | fetch | Soup 3.0, Gio | fetch(), Request, Response, Headers |
-| dom-events | — | Event, CustomEvent, EventTarget, DOMException |
+| dom-events | — | Event, CustomEvent, EventTarget, UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent, DOMException |
+| dom-exception | — | DOMException (WebIDL standard) |
 | abort-controller | — | AbortController, AbortSignal |
 | formdata | — | FormData, File |
-| globals | — | Re-exports dom-events + abort-controller |
+| streams | — | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream |
+| compression-streams | Gio | CompressionStream, DecompressionStream |
+| webcrypto | GLib | crypto.subtle, getRandomValues, randomUUID |
+| eventsource | Soup 3.0 | EventSource (Server-Sent Events) |
 | websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
+| webstorage | Gio | localStorage, sessionStorage |
+| web-globals | — | Re-exports all web API globals (dom-events, abort-controller, streams, webcrypto, etc.) |
+| adwaita-web | — | Browser Adwaita components: AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow. Light/dark theme. No GJS deps |
 
 ## DOM Packages — `packages/dom/*`
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| dom-elements | GdkPixbuf | Node, Element, HTMLElement, HTMLCanvasElement, HTMLImageElement, Image, Document, Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList |
+| dom-elements | GdkPixbuf | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement, HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert}` on import |
 | canvas2d | Cairo, GdkPixbuf, PangoCairo | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DWidget→Gtk.DrawingArea |
 | webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), CanvasWebGLWidget→Gtk.GLArea |
 | event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |
@@ -79,7 +90,9 @@ Widget pattern: (1) widget creates DOM element internally (2) app code uses stan
 
 Common widget API: `onReady(cb)` — DOM element+context ready | `installGlobals()` — register browser globals (rAF) | element getter (`canvas`, `iframeElement`)
 
-DOM backing: `HTMLImageElement`→GdkPixbuf | `HTMLCanvasElement`(2d)→Cairo.ImageSurface+PangoCairo | `HTMLCanvasElement`(webgl)→Gtk.GLArea+libepoxy | `HTMLIFrameElement`→WebKit.WebView(postMessage). `dom-elements` auto-registers `globalThis.{Image,HTMLCanvasElement,document}` on import.
+DOM backing: `HTMLImageElement`→GdkPixbuf | `HTMLCanvasElement`(2d)→Cairo.ImageSurface+PangoCairo | `HTMLCanvasElement`(webgl)→Gtk.GLArea+libepoxy | `HTMLIFrameElement`→WebKit.WebView(postMessage).
+
+`CanvasWebGLWidget` on resize: dispatches DOM `resize` event on canvas + re-invokes last rAF callback. Demand-driven apps re-render automatically without animation loop. `WebGL2RenderingContext` overrides `texImage2D`, `texSubImage2D`, `drawElements` from WebGL1 base — bypasses WebGL1-only format/type validation. Native Vala layer handles all OpenGL ES 3.2 formats.
 
 ### GTK→DOM Event Bridge (`@gjsify/event-bridge`)
 
@@ -101,16 +114,6 @@ UI Event classes in `@gjsify/dom-events`: UIEvent, MouseEvent, PointerEvent, Key
 
 `HTMLCanvasElement.registerContextFactory` — modular context registration: `@gjsify/canvas2d` registers `'2d'`→CanvasRenderingContext2D(Cairo) | `@gjsify/webgl` registers `'webgl'`/`'webgl2'` via subclass override+fallthrough
 
-### Planned
-
-| Pkg | Libs | Ref | Priority |
-|-----|------|-----|----------|
-| web-streams | Gio | `refs/deno/ext/web/06_streams.js` | High |
-| compression-streams | Gio | `refs/deno/ext/web/14_compression.js` | Med |
-| webcrypto | GLib | `refs/deno/ext/crypto/00_crypto.js` | Med |
-| eventsource | Soup 3.0 | `refs/deno/ext/fetch/27_eventsource.js` | Low |
-| webstorage | Gio | `refs/deno/ext/webstorage/01_webstorage.js` | Low |
-
 ## Build
 
 esbuild with platform-specific plugins. Same test source, different resolution per platform.
@@ -118,7 +121,11 @@ esbuild with platform-specific plugins. Same test source, different resolution p
 - **GJS** (`gjsify build --app gjs`): `assert`→`@gjsify/assert`. Externals: `gi://*`, `cairo`, `system`, `gettext`. Target: `firefox128`
 - **Node** (`gjsify build --app node`): `@gjsify/process`→`process`. Target: `node24`
 
-Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node}.ts` | `packages/infra/resolve-npm/lib/index.mjs`
+- **Browser** (`gjsify build --app browser`): Standard browser target. Target: `esnext`
+
+Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `packages/infra/resolve-npm/lib/index.mjs`
+
+**Blueprint support:** `@gjsify/esbuild-plugin-blueprint` compiles `.blp` files via `blueprint-compiler` → XML string. Wired into `gjsify build` for GJS and browser targets. `import Template from './window.blp'` → string. Type declaration: `@gjsify/esbuild-plugin-blueprint/types` (add to tsconfig `"types"`).
 
 ### GLib MainLoop — `ensureMainLoop()`
 
@@ -174,6 +181,19 @@ Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Strea
 ### Other
 
 `refs/gjs/`(GJS internals) | `refs/stream-http/`(HTTP via streams) | `refs/troll/`(GJS utils) | `refs/crypto-browserify/`(crypto orchestrator→sub-pkgs: `refs/{browserify-cipher,browserify-sign,create-ecdh,create-hash,create-hmac,diffie-hellman,hash-base,pbkdf2,public-encrypt,randombytes,randomfill}`) | `refs/readable-stream/`(stream edge cases) | `refs/ungap-structured-clone/`(→`packages/gjs/utils/src/structured-clone.ts`)
+
+### Adwaita / GTK Design
+
+| Path | Use |
+|------|-----|
+| `refs/adwaita-web/` | Web Framework based on GTK4/Libadwaita. CSS/component reference for `@gjsify/adwaita-web` |
+| `refs/libadwaita/` | Original libadwaita source. Canonical CSS colors, radii, widget styles |
+| `refs/adwaita-fonts/` | Adwaita Sans/Mono font files (SIL OFL). Used in browser examples |
+| `refs/app-mockups/` | GNOME app mockup PNGs/SVGs. Visual reference for Adwaita UI |
+
+### Build / Tooling
+
+`refs/astro/`(Astro framework, website reference) | `refs/deepkit/`(Deepkit, type compiler) | `refs/gjsify-vite/`(`examples/gtk/three-geometry-shapes/refs/gjsify-vite/`, Vite plugins for GJS)
 
 ## npm Packages — Prefer reimplementing in TS
 
@@ -271,6 +291,38 @@ Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. Select: core
 
 Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating. Only extract when second package needs it.
 
+## Example Convention (GTK + Browser)
+
+Dual-target examples with Adwaita UI:
+
+```
+examples/gtk/<name>/src/
+  <shared>.ts        # Platform-agnostic logic, shared constants
+  gjs/               # GJS/GTK4 native
+    gjs.ts           # Adw.Application entry
+    <window>.ts      # GObject.registerClass window
+    <window>.blp     # Blueprint template
+  browser/           # Browser target
+    browser.ts       # @gjsify/adwaita-web programmatic UI
+    index.html       # Minimal shell (<body> only)
+    webgl.css        # Layout styles
+  assets/            # Shared resources (textures, fonts)
+```
+
+Scripts: `build:gjs`→`gjsify build src/gjs/gjs.ts --app gjs` | `build:browser`→`gjsify build src/browser/browser.ts --app browser` | `start`→`gjsify run dist/gjs.js` | `start:browser`→`http-server dist`
+
+Constants (dropdown items, defaults) live in shared `.ts` — both `gjs/` and `browser/` import from there. No duplication in HTML templates.
+
+## Showcase — `gjsify showcase`
+
+Examples (`@gjsify/example-{dom,node}-<name>`, v0.1.2) are published npm packages shipped as CLI dependencies. Each contains only a pre-built GJS bundle (`dist/`) with no external runtime deps — esbuild bundles everything. Exception: `@gjsify/webgl` stays as a `dependency` (not devDep) for examples that need native prebuilds (`.so`+`.typelib`). The showcase always runs the GJS version of examples — Node.js and browser execution are not provided by the CLI.
+
+`gjsify showcase` lists available examples | `gjsify showcase <name>` runs `check` first, then executes via shared `runGjsBundle()` logic. Discovery is dynamic: scans CLI's own `package.json` for `@gjsify/example-*` deps, resolves each via `require.resolve`, reads `main` field.
+
+**Adding a new example to showcase:** (1) create under `examples/{dom,node}/<name>/` with name `@gjsify/example-{dom,node}-<name>` (2) set `"files":["dist"]`, `"version":"0.1.2"`, no `"private"` (3) move all deps to `devDependencies` except `@gjsify/webgl` (4) add as dependency in `packages/infra/cli/package.json` (5) rebuild CLI
+
+**Dependency rule for published examples:** Everything bundled by esbuild → `devDependencies`. Only packages with native prebuilds needed by `gjsify run` at runtime (currently only `@gjsify/webgl`) stay in `dependencies`.
+
 ## Implementation Workflow (TDD)
 
 1. Study API: `refs/node/lib/<name>.js`
@@ -293,11 +345,11 @@ Every impl→A or B. Every ported test→C. Original: `// <Module> for GJS — o
 
 ### Copyright
 
-`refs/{node,node-test}/`→Node.js contributors, MIT | `refs/deno/`→2018-2026 Deno authors, MIT | `refs/bun/`→Oven, MIT | `refs/quickjs/`→Bellard+Gordon, MIT | `refs/workerd/`→Cloudflare, Apache 2.0 | `refs/edgejs/`→Wasmer, MIT | `refs/{crypto-browserify,browserify-cipher,create-hash,create-hmac,randombytes,randomfill}/`→crypto-browserify contributors, MIT | `refs/{browserify-sign,diffie-hellman,public-encrypt}/`→Calvin Metcalf, ISC/MIT | `refs/create-ecdh/`→createECDH contributors, MIT | `refs/hash-base/`→Kirill Fomichev, MIT | `refs/pbkdf2/`→Daniel Cousens, MIT | `refs/readable-stream/`→Node.js contributors, MIT | `refs/undici/`→Matteo Collina+contributors, MIT | `refs/gjs/`→GNOME contributors, MIT/LGPLv2+ | `refs/headless-gl/`→Mikola Lysenko, BSD-2-Clause | `refs/webgl/`→Khronos Group, MIT | `refs/three/`→three.js authors, MIT | `refs/libepoxy/`→Intel, MIT | `refs/node-gst-webrtc/`→Ratchanan Srirattanamet, ISC | `refs/llrt/`→Amazon, Apache 2.0 | `refs/happy-dom/`→David Ortner, MIT | `refs/jsdom/`→Elijah Insua, MIT | `refs/wpt/`→web-platform-tests contributors, 3-Clause BSD | `refs/ungap-structured-clone/`→Andrea Giammarchi, ISC | node-fetch→MIT | event-target-shim→Toru Nagashima, MIT | gjs-require→Andrea Giammarchi, ISC
+`refs/{node,node-test}/`→Node.js contributors, MIT | `refs/deno/`→2018-2026 Deno authors, MIT | `refs/bun/`→Oven, MIT | `refs/quickjs/`→Bellard+Gordon, MIT | `refs/workerd/`→Cloudflare, Apache 2.0 | `refs/edgejs/`→Wasmer, MIT | `refs/{crypto-browserify,browserify-cipher,create-hash,create-hmac,randombytes,randomfill}/`→crypto-browserify contributors, MIT | `refs/{browserify-sign,diffie-hellman,public-encrypt}/`→Calvin Metcalf, ISC/MIT | `refs/create-ecdh/`→createECDH contributors, MIT | `refs/hash-base/`→Kirill Fomichev, MIT | `refs/pbkdf2/`→Daniel Cousens, MIT | `refs/readable-stream/`→Node.js contributors, MIT | `refs/undici/`→Matteo Collina+contributors, MIT | `refs/gjs/`→GNOME contributors, MIT/LGPLv2+ | `refs/headless-gl/`→Mikola Lysenko, BSD-2-Clause | `refs/webgl/`→Khronos Group, MIT | `refs/three/`→three.js authors, MIT | `refs/libepoxy/`→Intel, MIT | `refs/node-gst-webrtc/`→Ratchanan Srirattanamet, ISC | `refs/llrt/`→Amazon, Apache 2.0 | `refs/happy-dom/`→David Ortner, MIT | `refs/jsdom/`→Elijah Insua, MIT | `refs/wpt/`→web-platform-tests contributors, 3-Clause BSD | `refs/ungap-structured-clone/`→Andrea Giammarchi, ISC | `refs/adwaita-web/`→mclellac, MIT | `refs/libadwaita/`→GNOME contributors, LGPLv2.1+ | `refs/adwaita-fonts/`→Inter/Iosevka/GNOME contributors, SIL OFL 1.1 | `refs/app-mockups/`→GNOME contributors, CC-BY-SA | node-fetch→MIT | event-target-shim→Toru Nagashima, MIT | gjs-require→Andrea Giammarchi, ISC
 
-## STATUS.md Maintenance
+## STATUS.md & CHANGELOG.md Maintenance
 
-Update when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category) | after work sessions (Changelog). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates".
+Update STATUS.md when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates". Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
 
 ## Constraints
 
