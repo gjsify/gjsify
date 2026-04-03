@@ -1229,6 +1229,7 @@ __metadata:
     "@girs/pango-1.0": "npm:^1.57.0-4.0.0-beta.43"
     "@girs/pangocairo-1.0": "npm:^1.0.0-4.0.0-beta.43"
     "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1594,6 +1595,21 @@ __metadata:
 "@gjsify/example-dom-canvas2d-fireworks@workspace:examples/dom/canvas2d-fireworks":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-canvas2d-fireworks@workspace:examples/dom/canvas2d-fireworks"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
+    "@girs/gjs": "npm:^4.0.0-beta.43"
+    "@girs/gtk-4.0": "npm:^4.22.1-4.0.0-beta.43"
+    "@gjsify/canvas2d": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.5.0"
+    http-server: "npm:^14.1.1"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-dom-canvas2d-text@workspace:examples/dom/canvas2d-text":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-canvas2d-text@workspace:examples/dom/canvas2d-text"
   dependencies:
     "@girs/gio-2.0": "npm:^2.88.0-4.0.0-beta.43"
     "@girs/gjs": "npm:^4.0.0-beta.43"
