@@ -153,8 +153,9 @@ export default async () => {
         // Before fix, yOff = +ascent pushed text ~20px too low (wrong).
         await it("textBaseline='top' regression: first pixel is near y=0, not shifted down by ascent", async () => {
             const { first } = drawAndMeasure('top', 0, 300, 80);
-            // Before fix: first ≈ 18+ (shifted by ascent). After fix: first ≈ 0-3.
-            expect(first).toBeLessThan(8);
+            // Before fix: first ≈ 18+ (shifted by ascent). After fix: first ≈ 0-9
+            // (exact value varies with PangoCairo version and font hinting).
+            expect(first).toBeLessThan(12);
         });
 
         // Regression: 'alphabetic' at y=40 should put text above AND below y=40.
