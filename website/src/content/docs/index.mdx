@@ -6,31 +6,7 @@ hero:
   tagline: The full JavaScript ecosystem, native on GNOME
 ---
 
-import { Card, CardGrid, Code, LinkButton } from '@astrojs/starlight/components';
-
-<div class="code-showcase">
-  <h2>Adwaita + Three.js — one codebase, native on GNOME</h2>
-  <p class="code-intro">
-    Import GTK 4, Adwaita, and Three.js in a single GJS application.
-    GJSify bridges the JavaScript ecosystem to GNOME's native platform.
-  </p>
-</div>
-
-<Code code={`import Adw from 'gi://Adw?version=1';
-import Gtk from 'gi://Gtk?version=4.0';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
-import * as THREE from 'three';
-import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
-
-const app = new Adw.Application({ application_id: 'gjsify.examples.teapot' });
-app.connect('activate', () => {
-    const glArea = new CanvasWebGLWidget();
-    glArea.onReady((canvas) => {
-        const scene = new THREE.Scene();
-        const teapot = new THREE.Mesh(new TeapotGeometry(300, 15));
-        scene.add(teapot);
-    });
-});`} lang="ts" title="teapot.ts" />
+import { Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
 
 <div class="cta-section">
   <LinkButton href="/gjsify/getting-started/" variant="primary" icon="right-arrow">

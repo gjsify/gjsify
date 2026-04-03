@@ -315,25 +315,6 @@ a[aria-current='page'] {
   flex-shrink: 0;
 }
 
-/* ── Landing page: Code showcase ── */
-.code-showcase {
-  text-align: center;
-  max-width: 60ch;
-  margin-inline: auto;
-  padding-block: 2rem 0.5rem;
-}
-
-.code-showcase h2 {
-  font-size: clamp(var(--sl-text-xl), calc(0.5rem + 2.5vw), var(--sl-text-3xl));
-  color: var(--sl-color-white);
-  line-height: var(--sl-line-height-headings);
-}
-
-.code-showcase .code-intro {
-  color: var(--sl-color-gray-2);
-  margin-top: 0.75rem;
-}
-
 /* ── Landing page: CTA section ── */
 .cta-section {
   display: flex;

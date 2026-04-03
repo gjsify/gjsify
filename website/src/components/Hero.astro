@@ -1,21 +1,50 @@
 ---
 // Custom Hero component — replaces Starlight's default Hero.
-// Renders the interactive Adwaita + Three.js teapot demo as the hero element.
+// Renders the interactive pixel post-processing demo with a floating code window overlay.
 import '@fontsource/coming-soon';
 import DemoArrow from '../assets/demo-arrow.svg?raw';
+import { Code } from '@astrojs/starlight/components';
+
+const heroCode = `import Adw from 'gi://Adw?version=1';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
+import * as THREE from 'three';
+import { RenderPixelatedPass } from 'three/addons/postprocessing/RenderPixelatedPass.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+
+const app = new Adw.Application({ application_id: 'gjsify.examples.pixel' });
+app.connect('activate', () => {
+  const glArea = new CanvasWebGLWidget();
+  glArea.onReady((canvas) => {
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera();
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPixelatedPass(6, scene, camera));
+  });
+});`;
 ---
 
 <div class="hero-custom">
-  <div class="hero-text">
-    <h1 id="_top" data-page-title>GJSify</h1>
-  </div>
-
   <div class="demo-annotation" aria-hidden="true">
-    <span class="demo-annotation-text">This WebGL demo runs<br>natively on Linux</span>
+    <span class="demo-annotation-text">This WebGL demo runs<br>natively on Linux!</span>
     <Fragment set:html={DemoArrow} />
   </div>
 
-  <div class="hero-demo" id="pixel-demo"></div>
+  <div class="hero-demo-wrapper">
+    <div class="hero-demo" id="pixel-demo"></div>
+
+    <div class="hero-code-overlay">
+      <Code code={heroCode} lang="ts" title="pixel-demo.ts" />
+      <a class="hero-code-link" href="https://github.com/gjsify/gjsify/tree/main/examples/dom/three-postprocessing-pixel" target="_blank" rel="noopener">
+        Full example &rarr;
+      </a>
+    </div>
+  </div>
+
+  <div class="hero-try-it">
+    <p>Don't believe it? See for yourself!</p>
+    <Code code="npx @gjsify/cli showcase three-postprocessing-pixel" lang="sh" title="Terminal" frame="terminal" />
+  </div>
 
   <script>
     import { mount } from '@gjsify/example-dom-three-postprocessing-pixel/browser';
@@ -37,21 +66,17 @@ import DemoArrow from '../assets/demo-arrow.svg?raw';
     padding-block: 1rem 2rem;
   }
 
-  .hero-text {
-    text-align: center;
-    max-width: 60ch;
-  }
-
-  .hero-text h1 {
-    font-size: clamp(var(--sl-text-3xl), calc(0.25rem + 5vw), var(--sl-text-6xl));
-    line-height: var(--sl-line-height-headings);
-    font-weight: 600;
-    color: var(--sl-color-white);
+  /* --- Demo + code overlay wrapper --- */
+  .hero-demo-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 1100px;
+    padding-bottom: 250px;
+    padding-right: 250px;
   }
 
   .hero-demo {
     width: 100%;
-    max-width: 1100px;
     aspect-ratio: 11 / 7;
     border-radius: 12px;
     overflow: hidden;
@@ -72,6 +97,46 @@ import DemoArrow from '../assets/demo-arrow.svg?raw';
     outline: none;
   }
 
+  /* --- Floating code window overlay --- */
+  .hero-code-overlay {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    z-index: 2;
+    max-width: 640px;
+    width: 58%;
+  }
+
+  /* "Full example →" link below the code window */
+  .hero-code-link {
+    display: block;
+    padding: 0.5rem 1rem;
+    color: #78aeed;
+    font-size: 0.85rem;
+    text-decoration: none;
+    text-align: right;
+  }
+
+  .hero-code-link:hover {
+    color: #b3d4f5;
+    text-decoration: underline;
+  }
+
+  /* --- Try it section --- */
+  .hero-try-it {
+    text-align: center;
+    max-width: 600px;
+    margin-inline: auto;
+    padding-block: 1.5rem 0;
+  }
+
+  .hero-try-it p {
+    color: var(--sl-color-gray-2);
+    font-size: clamp(var(--sl-text-base), 2vw, var(--sl-text-lg));
+    margin-bottom: 1rem;
+  }
+
+  /* --- Annotation --- */
   .demo-annotation {
     align-self: flex-end;
     margin-right: 2rem;
@@ -93,10 +158,19 @@ import DemoArrow from '../assets/demo-arrow.svg?raw';
     transform: rotate(-3deg);
   }
 
-  .demo-annotation-arrow {
-    width: 80px;
-    height: 60px;
-    margin-right: 2.5rem;
+  /* --- Responsive --- */
+  @media (max-width: 1100px) {
+    .hero-demo-wrapper {
+      padding-bottom: 0;
+      padding-right: 0;
+    }
+
+    .hero-code-overlay {
+      position: static;
+      width: 100%;
+      max-width: none;
+      margin-top: 1rem;
+    }
   }
 
   @media (max-width: 600px) {
