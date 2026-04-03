@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-canvas2d-confetti",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Falling confetti Canvas 2D example, adapted from https://codepen.io/linrock/pen/nMadjQ",
   "main": "dist/gjs.js",
   "type": "module",
