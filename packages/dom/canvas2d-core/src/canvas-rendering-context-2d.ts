@@ -62,9 +62,20 @@ export class CanvasRenderingContext2D {
             this._surfaceHeight = h;
             this._surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, w, h);
             this._ctx = new Cairo.Context(this._surface);
-            this._state = createDefaultState();
+            // Preserve the current drawing state (fillStyle, strokeStyle, font, etc.) across
+            // surface recreations triggered by widget resize. Only reset the save/restore stack
+            // because the old Cairo context is gone and saved state is invalid.
+            // NOTE: If app code wants a true canvas reset (spec: canvas.width = X resets context),
+            // it should call _resetState() explicitly. We do not reset here because _ensureSurface()
+            // is called internally from drawing operations, not from app-level canvas.width assignments.
             this._stateStack = [];
         }
+    }
+
+    /** Reset drawing state to defaults (called when canvas dimensions are explicitly reset). */
+    _resetState(): void {
+        this._state = createDefaultState();
+        this._stateStack = [];
     }
 
     /** Apply the current fill style (color, gradient, or pattern) to the Cairo context. */
@@ -805,6 +816,12 @@ export class CanvasRenderingContext2D {
         const layout = PangoCairo.create_layout(this._ctx as any);
         layout.set_text(text, -1);
 
+        // Force LTR base direction so text is never rendered mirrored
+        // regardless of system locale or Pango context defaults.
+        const pangoCtx = layout.get_context();
+        pangoCtx.set_base_dir(Pango.Direction.LTR);
+        layout.context_changed();
+
         // Parse CSS font string into Pango font description
         const fontDesc = this._parseFontToDescription(this._state.font);
         layout.set_font_description(fontDesc);
@@ -865,6 +882,13 @@ export class CanvasRenderingContext2D {
 
     /**
      * Compute the y-offset for text baseline positioning.
+     *
+     * PangoCairo.show_layout() places the layout TOP-LEFT at the current Cairo point
+     * (not the baseline). Within the layout, the first line's baseline is at
+     * approximately `ascent` pixels below the layout top.
+     *
+     * For CSS textBaseline semantics, we shift the current point UP (negative offset)
+     * so the layout top lands at the right position relative to the user's y coordinate.
      */
     private _getTextBaselineOffset(layout: Pango.Layout): number {
         const fontDesc = layout.get_font_description() || this._parseFontToDescription(this._state.font);
@@ -874,16 +898,16 @@ export class CanvasRenderingContext2D {
         const descent = metrics.get_descent() / Pango.SCALE;
         const height = ascent + descent;
 
-        // PangoCairo.show_layout() uses the current point as the text BASELINE.
-        // Offsets translate from CSS textBaseline semantics to PangoCairo baseline.
+        // layout top = current point; baseline within layout ≈ ascent below top.
+        // yOff is added to user's y to get the layout top-left y.
         switch (this._state.textBaseline) {
-            case 'top': return ascent;
-            case 'hanging': return ascent * 0.8;
-            case 'middle': return ascent - height / 2;
-            case 'alphabetic': return 0;
-            case 'ideographic': return -descent * 0.5;
-            case 'bottom': return -descent;
-            default: return 0;
+            case 'top':          return 0;                      // top of em square = y
+            case 'hanging':      return -(ascent * 0.2);        // hanging ≈ 0.2*ascent below top
+            case 'middle':       return -(height / 2);          // center of em square = y
+            case 'alphabetic':   return -ascent;                 // baseline = y
+            case 'ideographic':  return -(ascent + descent * 0.5); // below alphabetic baseline
+            case 'bottom':       return -height;                 // bottom of em square = y
+            default:             return -ascent;                 // default = alphabetic
         }
     }
 

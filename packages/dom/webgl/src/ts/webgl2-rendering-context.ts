@@ -795,10 +795,25 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             return;
         }
 
-        const data = convertPixels(pixels as ArrayBufferView);
+        let data = convertPixels(pixels as ArrayBufferView);
         if (!data) {
             this.setError(this.INVALID_OPERATION);
             return;
+        }
+
+        // UNPACK_FLIP_Y_WEBGL: reverse row order before upload (same as texImage2D)
+        if (this._unpackFlipY && data && width > 0 && height > 0) {
+            const pixelSize = this._computePixelSize(type, format);
+            if (pixelSize > 0) {
+                const rowStride = this._computeRowStride(width, pixelSize);
+                const flipped = new Uint8Array(data.length);
+                for (let row = 0; row < height; row++) {
+                    const srcOffset = row * rowStride;
+                    const dstOffset = (height - 1 - row) * rowStride;
+                    flipped.set(data.subarray(srcOffset, srcOffset + rowStride), dstOffset);
+                }
+                data = flipped;
+            }
         }
 
         this._gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, Uint8ArrayToVariant(data));

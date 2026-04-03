@@ -1615,13 +1615,24 @@ export abstract class WebGLContextBase {
             return
         }
 
-        const data = convertPixels(pixels)
+        let data = convertPixels(pixels)
         const rowStride = this._computeRowStride(width, pixelSize)
         const imageSize = rowStride * height
 
         if (!data || data.length < imageSize) {
             this.setError(this.INVALID_OPERATION)
             return
+        }
+
+        // UNPACK_FLIP_Y_WEBGL: reverse row order before upload (same as texImage2D)
+        if (this._unpackFlipY && data && width > 0 && height > 0) {
+            const flipped = new Uint8Array(data.length)
+            for (let row = 0; row < height; row++) {
+                const srcOffset = row * rowStride
+                const dstOffset = (height - 1 - row) * rowStride
+                flipped.set(data.subarray(srcOffset, srcOffset + rowStride), dstOffset)
+            }
+            data = flipped
         }
 
         this._gl.texSubImage2D(

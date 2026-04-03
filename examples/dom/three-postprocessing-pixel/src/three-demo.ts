@@ -37,7 +37,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     // Camera (orthographic)
     const aspectRatio = canvas.width / canvas.height;
     const camera = new THREE.OrthographicCamera(-aspectRatio, aspectRatio, 1, -1, 0.1, 10);
-    camera.position.y = Math.tan(Math.PI / 6);
+    camera.position.y = Math.tan(Math.PI / 6) * 0.5;
     camera.position.z = 2;
 
     // Scene

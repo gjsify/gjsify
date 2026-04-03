@@ -37,6 +37,7 @@ export const Canvas2DWidget = GObject.registerClass(
         _canvas: GjsifyHTMLCanvasElement | null = null;
         _ctx: CanvasRenderingContext2D | null = null;
         _readyCallbacks: Canvas2DReadyCallback[] = [];
+        _resizeCallbacks: ((w: number, h: number) => void)[] = [];
         _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
         // Time origin in microseconds (GLib monotonic clock).
@@ -66,7 +67,10 @@ export const Canvas2DWidget = GObject.registerClass(
 
         /** @internal Draw function called by GTK. Blits the Cairo surface to screen. */
         _onDraw(_area: Gtk.DrawingArea, cr: any, width: number, height: number): void {
-            // Lazy init: create canvas + 2D context on first draw
+            // Lazy init: create canvas + 2D context on first draw.
+            // We do NOT sync dimensions after onReady fires: ready callbacks may set their
+            // own canvas dimensions (e.g. a static render at a fixed size). Syncing here
+            // would clear the surface they just drew into.
             if (!this._canvas) {
                 this._canvas = new GjsifyHTMLCanvasElement();
                 this._canvas.width = width;
@@ -79,12 +83,13 @@ export const Canvas2DWidget = GObject.registerClass(
                     }
                     this._readyCallbacks = [];
                 }
-            }
-
-            // Sync dimensions if widget was resized
-            if (this._canvas.width !== width || this._canvas.height !== height) {
+            } else if (this._canvas.width !== width || this._canvas.height !== height) {
+                // Subsequent draw: GTK widget was resized — sync canvas and notify listeners.
                 this._canvas.width = width;
                 this._canvas.height = height;
+                for (const cb of this._resizeCallbacks) {
+                    cb(width, height);
+                }
             }
 
             // Blit the Canvas 2D's Cairo.ImageSurface onto the DrawingArea
@@ -115,6 +120,15 @@ export const Canvas2DWidget = GObject.registerClass(
                 return;
             }
             this._readyCallbacks.push(cb);
+        }
+
+        /**
+         * Register a callback invoked whenever the GTK widget is resized.
+         * Canvas dimensions are already updated when the callback fires.
+         * Call `queue_draw()` after re-rendering to push the new surface to screen.
+         */
+        onResize(cb: (width: number, height: number) => void): void {
+            this._resizeCallbacks.push(cb);
         }
 
         /**
