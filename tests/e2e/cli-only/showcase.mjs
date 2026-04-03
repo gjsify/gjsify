@@ -124,6 +124,24 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
     assert.ok(names.includes('cli-node-path'), 'Missing cli-node-path');
   });
 
+  it('running a webgl example does not fail with Gwebgl typelib error', () => {
+    // Run a WebGL example — it will fail (no display/GTK in headless),
+    // but the error must NOT be about Gwebgl typelib resolution.
+    // This proves that runGjsBundle resolves native prebuilds from the bundle's location.
+    const { stdout, stderr, exitCode } = runShowcase(projectDir, ['three-postprocessing-pixel']);
+    const combined = stdout + stderr;
+
+    // If the example isn't installed, skip gracefully
+    if (combined.includes('Unknown example')) {
+      return;
+    }
+
+    assert.ok(
+      !combined.includes('Typelib file for namespace \'Gwebgl\''),
+      `Gwebgl typelib should be resolved via native prebuilds, but got:\n${combined}`,
+    );
+  });
+
   it('invalid example name exits non-zero with helpful error', () => {
     const { stderr, exitCode } = runShowcase(projectDir, ['nonexistent-example-xyz']);
     assert.ok(exitCode !== 0, 'Should exit non-zero for invalid name');
