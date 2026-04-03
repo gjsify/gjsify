@@ -3073,12 +3073,13 @@ export abstract class WebGLContextBase {
             case this.SAMPLE_COVERAGE_INVERT:
             case this.SCISSOR_TEST:
             case this.STENCIL_TEST:
-            case this.UNPACK_FLIP_Y_WEBGL:
-                return this._unpackFlipY;
             case this.UNPACK_PREMULTIPLY_ALPHA_WEBGL:
                 // Use getParameteri (0/1) rather than getParameterb: the Vala GLboolean/bool
                 // cast has a size mismatch that causes getParameterb to return wrong values.
                 return !!this._gl.getParameteri(pname);
+
+            case this.UNPACK_FLIP_Y_WEBGL:
+                return this._unpackFlipY;
 
             case this.ACTIVE_TEXTURE:
             case this.ALPHA_BITS:
