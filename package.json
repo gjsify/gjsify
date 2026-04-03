@@ -28,6 +28,7 @@
     "docs:build": "yarn workspace @gjsify/website build",
     "docs:serve": "yarn workspace @gjsify/website serve",
     "release": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it --pre-release",
+    "release:patch": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it patch",
     "release:stable": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it",
     "release:dry": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it --dry-run"
   },
