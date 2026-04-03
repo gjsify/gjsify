@@ -1,0 +1,61 @@
+{
+  "name": "@gjsify/adwaita-icons",
+  "version": "0.1.1",
+  "description": "Adwaita symbolic icons as importable SVG strings for browser targets",
+  "type": "module",
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./actions": {
+      "types": "./actions.ts",
+      "default": "./actions.ts"
+    },
+    "./categories": {
+      "types": "./categories.ts",
+      "default": "./categories.ts"
+    },
+    "./devices": {
+      "types": "./devices.ts",
+      "default": "./devices.ts"
+    },
+    "./emotes": {
+      "types": "./emotes.ts",
+      "default": "./emotes.ts"
+    },
+    "./legacy": {
+      "types": "./legacy.ts",
+      "default": "./legacy.ts"
+    },
+    "./mimetypes": {
+      "types": "./mimetypes.ts",
+      "default": "./mimetypes.ts"
+    },
+    "./places": {
+      "types": "./places.ts",
+      "default": "./places.ts"
+    },
+    "./status": {
+      "types": "./status.ts",
+      "default": "./status.ts"
+    },
+    "./ui": {
+      "types": "./ui.ts",
+      "default": "./ui.ts"
+    },
+    "./utils": {
+      "types": "./utils.ts",
+      "default": "./utils.ts"
+    }
+  },
+  "scripts": {
+    "generate": "tsx scripts/generate.ts"
+  },
+  "license": "LGPL-3.0-or-later AND CC-BY-SA-3.0",
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}

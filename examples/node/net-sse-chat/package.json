@@ -33,7 +33,7 @@
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
     "@gjsify/unit": "workspace:^",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.5.2",
     "typescript": "^6.0.2"
   }
 }

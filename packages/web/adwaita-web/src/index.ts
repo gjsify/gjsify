@@ -13,6 +13,7 @@ export { AdwSwitchRow } from './elements/adw-switch-row.js';
 export { AdwComboRow } from './elements/adw-combo-row.js';
 export { AdwSpinRow } from './elements/adw-spin-row.js';
 export { AdwToastOverlay } from './elements/adw-toast-overlay.js';
+export { AdwOverlaySplitView } from './elements/adw-overlay-split-view.js';
 
 // Inject Adwaita CSS into the document
 if (typeof document !== 'undefined') {

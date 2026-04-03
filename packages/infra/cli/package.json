@@ -73,7 +73,7 @@
         "@gjsify/node-polyfills": "workspace:^",
         "@gjsify/web-polyfills": "workspace:^",
         "cosmiconfig": "^9.0.1",
-        "esbuild": "^0.27.4",
+        "esbuild": "^0.28.0",
         "get-tsconfig": "^4.13.7",
         "pkg-types": "^2.3.0",
         "yargs": "^18.0.0"

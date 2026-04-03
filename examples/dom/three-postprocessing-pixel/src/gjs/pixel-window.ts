@@ -17,6 +17,8 @@ export class PixelWindow extends Adw.ApplicationWindow {
     declare private _normalEdgeRow: Adw.SpinRow;
     declare private _depthEdgeRow: Adw.SpinRow;
     declare private _pixelAlignRow: Adw.SwitchRow;
+    declare private _splitView: Adw.OverlaySplitView;
+    declare private _sidebarToggleButton: Gtk.ToggleButton;
 
     static {
         GObject.registerClass({
@@ -24,7 +26,8 @@ export class PixelWindow extends Adw.ApplicationWindow {
             Template,
             InternalChildren: [
                 'glAreaContainer', 'pixelSizeRow', 'normalEdgeRow',
-                'depthEdgeRow', 'pixelAlignRow',
+                'depthEdgeRow', 'pixelAlignRow', 'splitView',
+                'sidebarToggleButton',
             ],
         }, this);
     }
@@ -66,6 +69,17 @@ export class PixelWindow extends Adw.ApplicationWindow {
 
         // Initialize three.js when GL context is ready
         glArea.onReady((canvas) => {
+            // Sync canvas dimensions with GTK widget allocation so the
+            // three.js resize check in the animation loop picks up changes
+            // (e.g. when the sidebar is toggled).
+            const syncSize = (_widget: any, w: number, h: number) => {
+                canvas.width = w;
+                canvas.height = h;
+            };
+            canvas.width = glArea.get_allocated_width();
+            canvas.height = glArea.get_allocated_height();
+            glArea.connect('resize', syncSize);
+
             const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
             const assetBase = `file://${bundleDir}/`;
 

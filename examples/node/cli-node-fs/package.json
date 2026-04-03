@@ -27,7 +27,7 @@
     "@gjsify/fs": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/path": "workspace:^",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.5.2",
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",

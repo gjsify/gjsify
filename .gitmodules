@@ -128,3 +128,9 @@
 [submodule "refs/adwaita-fonts"]
 	path = refs/adwaita-fonts
 	url = https://gitlab.gnome.org/GNOME/adwaita-fonts.git
+[submodule "refs/adwaita-icon-theme"]
+	path = refs/adwaita-icon-theme
+	url = git@ssh.gitlab.gnome.org:GNOME/adwaita-icon-theme.git
+[submodule "refs/app-icon-requests"]
+	path = refs/app-icon-requests
+	url = https://gitlab.gnome.org/Teams/Design/app-icon-requests.git

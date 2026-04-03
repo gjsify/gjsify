@@ -19,7 +19,8 @@
         "build:types": "tsc"
     },
     "dependencies": {
-        "@gjsify/adwaita-fonts": "workspace:^"
+        "@gjsify/adwaita-fonts": "workspace:^",
+        "@gjsify/adwaita-icons": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

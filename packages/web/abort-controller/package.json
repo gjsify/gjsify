@@ -33,7 +33,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.5.0",
+        "@types/node": "^25.5.2",
         "typescript": "^6.0.2"
     },
     "dependencies": {

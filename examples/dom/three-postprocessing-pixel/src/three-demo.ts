@@ -34,10 +34,15 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     renderer.setSize(canvas.width, canvas.height);
     renderer.debug.checkShaderErrors = true;
 
+    // Track previous canvas size for resize detection
+    // (renderer.domElement === canvas, so comparing them is always equal)
+    let prevW = canvas.width;
+    let prevH = canvas.height;
+
     // Camera (orthographic)
     const aspectRatio = canvas.width / canvas.height;
     const camera = new THREE.OrthographicCamera(-aspectRatio, aspectRatio, 1, -1, 0.1, 10);
-    camera.position.y = Math.tan(Math.PI / 6) * 0.5;
+    camera.position.y = 2 * Math.tan(Math.PI / 6);
     camera.position.z = 2;
 
     // Scene
@@ -220,10 +225,13 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
         renderPixelatedPass.normalEdgeStrength = effectController.normalEdgeStrength;
         renderPixelatedPass.depthEdgeStrength = effectController.depthEdgeStrength;
 
-        // Handle resize
+        // Handle resize — canvas.width/height are set externally
+        // (browser: ResizeObserver on parent, GJS: GTK resize signal).
         const w = canvas.width;
         const h = canvas.height;
-        if (renderer.domElement.width !== w || renderer.domElement.height !== h) {
+        if (w > 0 && h > 0 && (w !== prevW || h !== prevH)) {
+            prevW = w;
+            prevH = h;
             renderer.setSize(w, h, false);
             composer.setSize(w, h);
             const ar = w / h;

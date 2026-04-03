@@ -5,11 +5,23 @@
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Extracted as CSS-in-JS for @gjsify/adwaita-web.
 
+import { editPasteSymbolic, goDownSymbolic, sidebarShowSymbolic } from '@gjsify/adwaita-icons/actions';
+import { toDataUri } from '@gjsify/adwaita-icons/utils';
+
+const goDownDataUri = toDataUri(goDownSymbolic);
+const editPasteDataUri = toDataUri(editPasteSymbolic);
+const sidebarShowDataUri = toDataUri(sidebarShowSymbolic);
+
 export const adwaitaCSS = `
 /* ═══════════════════════════════════════════════════════════════
    Adwaita CSS Custom Properties — Light Theme (default)
    ═══════════════════════════════════════════════════════════════ */
 :root {
+  /* Icons (Adwaita symbolic, encoded as data-URIs) */
+  --icon-edit-paste: ${editPasteDataUri};
+  --icon-go-down: ${goDownDataUri};
+  --icon-sidebar-show: ${sidebarShowDataUri};
+
   /* Window */
   --window-bg-color: #fafafb;
   --window-fg-color: rgba(0, 0, 6, 0.8);
@@ -148,10 +160,40 @@ adw-header-bar .adw-header-bar-title {
   text-overflow: ellipsis;
 }
 
+adw-header-bar .adw-header-bar-start {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  gap: 4px;
+}
+
 adw-header-bar .adw-header-bar-end {
   display: flex;
   align-items: center;
   padding: 0 6px;
+  gap: 4px;
+}
+
+adw-header-bar .adw-header-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--button-radius);
+  background: transparent;
+  color: var(--headerbar-fg-color);
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+adw-header-bar .adw-header-btn:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+
+adw-header-bar .adw-header-btn:active {
+  background: rgba(128, 128, 128, 0.22);
 }
 
 /* --- adw-preferences-group --- */
@@ -281,9 +323,10 @@ adw-combo-row select {
   color: var(--card-fg-color);
   cursor: pointer;
   text-align: right;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: ${goDownDataUri};
   background-repeat: no-repeat;
   background-position: right 4px center;
+  background-size: 12px 12px;
   /* Stretch select over the entire row to make it clickable anywhere */
   position: absolute;
   inset: 0;
@@ -307,7 +350,7 @@ adw-combo-row .adw-row-value::after {
   display: inline-block;
   width: 12px;
   height: 12px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: ${goDownDataUri};
   background-repeat: no-repeat;
   background-size: contain;
 }
@@ -448,5 +491,102 @@ adw-toast-overlay {
 .adw-toast .adw-toast-title {
   font-weight: normal;
   line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   adw-overlay-split-view
+   Reference: Adw.OverlaySplitView from libadwaita
+   ═══════════════════════════════════════════════════════════════ */
+adw-overlay-split-view {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+adw-overlay-split-view .adw-osv-sidebar {
+  background-color: var(--sidebar-bg-color);
+  overflow-y: auto;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
+  z-index: 10;
+  align-self: stretch;
+}
+
+adw-overlay-split-view .adw-osv-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+/* Docked mode (not collapsed) — sidebar beside content */
+adw-overlay-split-view:not(.collapsed) .adw-osv-sidebar {
+  position: relative;
+}
+
+/* Docked hide: slide left and collapse space via negative margin.
+   Sidebar keeps its intrinsic width so internal elements don't reflow. */
+adw-overlay-split-view:not(.collapsed):not(.show-sidebar) .adw-osv-sidebar {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Overlay mode (collapsed) — sidebar on top of content */
+adw-overlay-split-view.collapsed .adw-osv-sidebar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+adw-overlay-split-view.collapsed.sidebar-end .adw-osv-sidebar {
+  left: auto;
+  right: 0;
+  transform: translateX(100%);
+}
+
+adw-overlay-split-view.collapsed.show-sidebar .adw-osv-sidebar {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Backdrop — visible only in overlay mode when sidebar is open */
+adw-overlay-split-view .adw-osv-backdrop {
+  display: none;
+}
+
+adw-overlay-split-view.collapsed.show-sidebar .adw-osv-backdrop {
+  display: block;
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 9;
+}
+
+/* Sidebar toggle button — sidebar-show-symbolic icon via CSS mask */
+.adw-sidebar-toggle-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-sidebar-show);
+  mask-image: var(--icon-sidebar-show);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 16px 16px;
+  mask-size: 16px 16px;
+  -webkit-mask-position: center;
+  mask-position: center;
+  pointer-events: none;
 }
 `;

@@ -30,18 +30,18 @@
         "offscreen"
     ],
     "dependencies": {
-        "@girs/gdk-4.0": "^4.0.0-4.0.0-beta.43",
-        "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-beta.43",
-        "@girs/gjs": "^4.0.0-beta.43",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-beta.43",
-        "@girs/gobject-2.0": "^2.88.0-4.0.0-beta.43",
-        "@girs/pango-1.0": "^1.57.0-4.0.0-beta.43",
-        "@girs/pangocairo-1.0": "^1.0.0-4.0.0-beta.43"
+        "@girs/gdk-4.0": "^4.0.0-4.0.0-rc.1",
+        "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-rc.1",
+        "@girs/gjs": "^4.0.0-rc.1",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/pango-1.0": "^1.57.1-4.0.0-rc.1",
+        "@girs/pangocairo-1.0": "^1.0.0-4.0.0-rc.1"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.5.0",
+        "@types/node": "^25.5.2",
         "typescript": "^6.0.2"
     }
 }

@@ -14,7 +14,7 @@
   --sl-color-bg-sidebar:     #f5f5f5;
   --sl-color-bg-inline-code: rgba(53, 132, 228, 0.08);
 
-  --sl-font:                 'Cantarell', -apple-system, BlinkMacSystemFont,
+  --sl-font:                 'Adwaita Sans', 'Cantarell', -apple-system, BlinkMacSystemFont,
                              'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
 
   /* Custom Adwaita structural vars */
@@ -193,7 +193,8 @@
   opacity: 0 !important;
 }
 
-/* Adwaita clipboard-symbolic.svg icon via mask-image.
+/* Adwaita edit-paste-symbolic (clipboard) icon via mask-image.
+   Icon from @gjsify/adwaita-icons (refs/adwaita-icon-theme).
    Since the button is no longer inside .copy, EC's ::after doesn't apply.
    We must define the full pseudo-element ourselves. */
 .expressive-code .frame .adw-code-headerbar-end button::after {
@@ -202,8 +203,8 @@
   pointer-events: none !important;
   inset: 0 !important;
   background-color: currentColor !important;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20height%3D%2716px%27%20viewBox%3D%270%200%2016%2016%27%20width%3D%2716px%27%3E%3Cpath%20d%3D%27m%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200%27%20fill%3D%27currentColor%27%2F%3E%3C%2Fsvg%3E") !important;
-  mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20height%3D%2716px%27%20viewBox%3D%270%200%2016%2016%27%20width%3D%2716px%27%3E%3Cpath%20d%3D%27m%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200%27%20fill%3D%27currentColor%27%2F%3E%3C%2Fsvg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20height%3D'16px'%20viewBox%3D'0%200%2016%2016'%20width%3D'16px'%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%3E%20%3Cpath%20d%3D'm%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200'%20fill%3D'currentColor'%2F%3E%20%3C%2Fsvg%3E") !important;
+  mask-image: url("data:image/svg+xml,%3Csvg%20height%3D'16px'%20viewBox%3D'0%200%2016%2016'%20width%3D'16px'%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%3E%20%3Cpath%20d%3D'm%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200'%20fill%3D'currentColor'%2F%3E%20%3C%2Fsvg%3E") !important;
   -webkit-mask-repeat: no-repeat !important;
   mask-repeat: no-repeat !important;
   -webkit-mask-size: 16px 16px !important;
@@ -267,6 +268,31 @@
 header.header {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+/* ── Hero background glow ── */
+.hero-custom {
+  position: relative;
+}
+
+.hero-custom::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200%;
+  max-width: 1400px;
+  height: 1200px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(145, 65, 172, 0.35) 0%,
+    rgba(53, 132, 228, 0.25) 35%,
+    transparent 70%
+  );
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* Sidebar active item — pill shape */

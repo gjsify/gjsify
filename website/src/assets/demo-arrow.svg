@@ -22,7 +22,7 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="7.7333333"
-     inkscape:cx="35.818965"
+     inkscape:cx="35.818966"
      inkscape:cy="45.775862"
      inkscape:window-width="2560"
      inkscape:window-height="1371"
@@ -32,23 +32,23 @@
      inkscape:current-layer="svg3" />
   <!-- shaft: curves from upper-right down to lower-left -->
   <path
-     d="M 56.275862,8.362069 C 56.920648,25.080229 42.138467,20.875693 28.165811,28.25164 17.432875,33.917389 16.858785,49.608271 18,68"
+     d="M 56.275862,8.362069 C 56.462887,25.757212 46.565366,49.343674 6.4913793,69.034482"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"
      id="path1"
-     sodipodi:nodetypes="csc"
+     sodipodi:nodetypes="cc"
      style="stroke-width:1;stroke-dasharray:none" />
   <!-- arrowhead: two straight strokes branching back from tip -->
   <path
-     d="M 18 68 L 8 56"
+     d="m 6.2219199,69.442457 2.879171,-15.35286"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"
      id="path2"
      style="stroke-width:1;stroke-dasharray:none" />
   <path
-     d="m 18,68 7.603449,-9.293103"
+     d="M 6.2219199,69.442457 18.229029,69.38304"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"

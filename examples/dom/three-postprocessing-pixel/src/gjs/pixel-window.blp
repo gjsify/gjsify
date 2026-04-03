@@ -6,19 +6,43 @@ template $PixelWindow: Adw.ApplicationWindow {
   default-height: 700;
   title: "Pixel Post-Processing";
 
+  [breakpoint]
+  Adw.Breakpoint {
+    condition ("max-width: 799sp")
+    setters {
+      splitView.collapsed: true;
+      splitView.show-sidebar: false;
+    }
+  }
+
+  [breakpoint]
+  Adw.Breakpoint {
+    condition ("min-width: 800sp")
+    setters {
+      splitView.collapsed: false;
+      splitView.show-sidebar: true;
+    }
+  }
+
   content: Gtk.Box {
     orientation: vertical;
 
-    Adw.HeaderBar {}
+    Adw.HeaderBar {
+      [start]
+      ToggleButton sidebarToggleButton {
+        icon-name: "sidebar-show-symbolic";
+        tooltip-text: "Toggle Sidebar";
+        active: bind splitView.show-sidebar;
+      }
+    }
 
-    Gtk.Box {
-      orientation: horizontal;
-      hexpand: true;
-      vexpand: true;
+    Adw.OverlaySplitView splitView {
+      sidebar-width-fraction: 0.30;
+      min-sidebar-width: 280;
+      max-sidebar-width: 400;
+      show-sidebar: bind sidebarToggleButton.active;
 
-      Gtk.ScrolledWindow {
-        width-request: 320;
-        hexpand: false;
+      sidebar: Gtk.ScrolledWindow {
         hscrollbar-policy: never;
 
         Gtk.Box {
@@ -50,16 +74,12 @@ template $PixelWindow: Adw.ApplicationWindow {
             }
           }
         }
-      }
+      };
 
-      Gtk.Separator {
-        orientation: vertical;
-      }
-
-      Gtk.Box glAreaContainer {
+      content: Gtk.Box glAreaContainer {
         hexpand: true;
         vexpand: true;
-      }
+      };
     }
   };
 }

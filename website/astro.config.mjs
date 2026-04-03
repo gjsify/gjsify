@@ -28,13 +28,14 @@ export default defineConfig({
         Hero: './src/components/Hero.astro',
       },
       logo: {
-        src: './src/assets/logo.svg',
+        light: './src/assets/logo-light.svg',
+        dark: './src/assets/logo-dark.svg',
         replacesTitle: false,
       },
       favicon: '/favicon.ico',
-      social: {
-        github: 'https://github.com/gjsify/gjsify',
-      },
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/gjsify/gjsify' },
+      ],
       sidebar: [
         {
           label: 'Documentation',
@@ -54,7 +55,11 @@ export default defineConfig({
           ],
         },
       ],
-      customCss: ['./src/styles/custom.css'],
+      customCss: [
+        '@gjsify/adwaita-fonts',
+        '@gjsify/adwaita-fonts/400-italic.css',
+        './src/styles/custom.css',
+      ],
       defaultLocale: 'root',
       locales: {
         root: { label: 'English', lang: 'en' },
