@@ -1,6 +1,6 @@
 import type { Command } from '../types/index.js';
 import { discoverExamples, findExample } from '../utils/discover-examples.js';
-import { runAllChecks, detectPackageManager, buildInstallCommand } from '../utils/check-system-deps.js';
+import { runMinimalChecks, checkGwebgl, detectPackageManager, buildInstallCommand } from '../utils/check-system-deps.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 
 interface ShowcaseOptions {
@@ -76,8 +76,13 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             process.exit(1);
         }
 
-        // System dependency check before running
-        const results = runAllChecks(process.cwd());
+        // System dependency check before running — only check what this example needs.
+        // All examples need GJS; WebGL examples additionally need gwebgl prebuilds.
+        const results = runMinimalChecks();
+        const needsWebgl = example.packageName.includes('webgl') || example.packageName.includes('three');
+        if (needsWebgl) {
+            results.push(checkGwebgl());
+        }
         const missing = results.filter(r => !r.found);
         if (missing.length > 0) {
             console.error('Missing system dependencies:\n');

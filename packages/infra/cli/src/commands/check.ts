@@ -17,8 +17,7 @@ export const checkCommand: Command<any, CheckOptions> = {
             });
     },
     handler: async (args) => {
-        const cwd = process.cwd();
-        const results = runAllChecks(cwd);
+        const results = runAllChecks();
         const pm = detectPackageManager();
         const missing = results.filter(r => !r.found);
 

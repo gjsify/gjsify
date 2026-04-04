@@ -5,7 +5,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -86,7 +86,35 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     for (const file of ['dist/console-only.js', 'dist/with-path.js', 'dist/with-events.js']) {
       const fullPath = join(projectDir, file);
       if (!existsSync(fullPath)) continue;
-      execSync(`node --check "${fullPath}"`, { stdio: 'pipe' });
+      execFileSync('node', ['--check', fullPath], { stdio: 'pipe' });
     }
+  });
+
+  it('gjsify check --json resolves gwebgl from CLI location (not cwd)', () => {
+    // This catches the bug where checkNpmPackage resolved from cwd instead of
+    // the CLI's own node_modules, causing false "missing" errors via npx.
+    const out = execFileSync('npx', ['gjsify', 'check', '--json'], {
+      cwd: projectDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 30 * 1000,
+    });
+    const result = JSON.parse(out);
+    const gwebgl = result.deps.find(d => d.id === 'gwebgl');
+    assert.ok(gwebgl, 'gwebgl check should be present in results');
+    assert.strictEqual(gwebgl.found, true,
+      'gwebgl should be found when resolved from CLI node_modules (not cwd)');
+  });
+
+  it('gjsify showcase --list succeeds without errors', () => {
+    const out = execFileSync('npx', ['gjsify', 'showcase', '--json'], {
+      cwd: projectDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 30 * 1000,
+    });
+    const examples = JSON.parse(out);
+    assert.ok(Array.isArray(examples), 'showcase --json should return an array');
+    assert.ok(examples.length > 0, 'should have at least one example');
   });
 });

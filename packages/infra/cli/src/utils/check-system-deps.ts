@@ -3,9 +3,7 @@
 // All binary names are hardcoded constants, never derived from user input.
 
 import { execFileSync } from 'node:child_process';
-import { join } from 'node:path';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
 
 export interface DepCheck {
     /** Stable key used for install command lookup, e.g. "gjs" */
@@ -44,13 +42,14 @@ function checkPkgConfig(id: string, name: string, libName: string): DepCheck {
 }
 
 /**
- * Check for an npm package by resolving it via Node.js module resolution from cwd.
- * Mirrors the resolution logic used by esbuild / the build command.
+ * Check for an npm package by resolving it from the CLI's own installation.
+ * When run via `npx`, the CLI's dependencies live next to the CLI bundle,
+ * NOT in the user's cwd — so we resolve from import.meta.url (this file).
  */
-function checkNpmPackage(id: string, name: string, packageName: string, cwd: string): DepCheck {
+function checkNpmPackage(id: string, name: string, packageName: string): DepCheck {
     try {
-        const requireFromCwd = createRequire(pathToFileURL(join(cwd, '_check_.js')).href);
-        requireFromCwd.resolve(packageName);
+        const requireFromCli = createRequire(import.meta.url);
+        requireFromCli.resolve(packageName);
         return { id, name, found: true };
     } catch {
         return { id, name, found: false };
@@ -66,7 +65,18 @@ export function detectPackageManager(): PackageManager {
     return 'unknown';
 }
 
-export function runAllChecks(cwd: string): DepCheck[] {
+/**
+ * Run all dependency checks. Used by `gjsify check` to show full system status.
+ */
+export function runAllChecks(): DepCheck[] {
+    return [...runMinimalChecks(), ...runExtraChecks()];
+}
+
+/**
+ * Minimal checks needed to run any GJS example (GJS binary only).
+ * Used by `gjsify showcase` for examples that have no native deps.
+ */
+export function runMinimalChecks(): DepCheck[] {
     const results: DepCheck[] = [];
 
     // Node.js — always present
@@ -75,6 +85,20 @@ export function runAllChecks(cwd: string): DepCheck[] {
     // GJS
     results.push(checkBinary('gjs', 'GJS', 'gjs', ['--version'],
         (out) => out.replace(/^GJS\s+/i, '').split('\n')[0] ?? out));
+
+    return results;
+}
+
+/** Check gwebgl npm package (resolved from CLI's own node_modules). */
+export function checkGwebgl(): DepCheck {
+    return checkNpmPackage('gwebgl', 'gwebgl (@gjsify/webgl)', '@gjsify/webgl');
+}
+
+/**
+ * Extra checks for development and full system audit.
+ */
+function runExtraChecks(): DepCheck[] {
+    const results: DepCheck[] = [];
 
     // Blueprint Compiler
     results.push(checkBinary('blueprint-compiler', 'Blueprint Compiler',
@@ -106,8 +130,8 @@ export function runAllChecks(cwd: string): DepCheck[] {
     // GObject Introspection
     results.push(checkPkgConfig('gobject-introspection', 'GObject Introspection', 'gobject-introspection-1.0'));
 
-    // gwebgl — resolve via Node.js module resolution from cwd, same as esbuild would.
-    results.push(checkNpmPackage('gwebgl', 'gwebgl (@gjsify/webgl)', '@gjsify/webgl', cwd));
+    // gwebgl — resolve from CLI's own node_modules (ships as CLI dependency).
+    results.push(checkGwebgl());
 
     return results;
 }
