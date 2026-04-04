@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/gjsify/gjsify/compare/v0.1.4...v0.1.5) (2026-04-04)
+
+### Bug Fixes
+
+* **cli:** resolve gwebgl from CLI location, not user's cwd ([686c53d](https://github.com/gjsify/gjsify/commit/686c53dc6eac5ff2f0d8df54eefd0c365512e02d))
+* **cli:** resolve npm packages from project first, CLI as fallback ([8d81c97](https://github.com/gjsify/gjsify/commit/8d81c97ef20f3eea5e79e0851d33344d5013fa31))
+
 ## [0.1.4](https://github.com/gjsify/gjsify/compare/v0.1.3...v0.1.4) (2026-04-03)
 
 ### Bug Fixes

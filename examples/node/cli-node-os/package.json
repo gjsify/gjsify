@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-node-cli-node-os",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "",
   "main": "dist/index.gjs.js",
   "type": "module",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/console",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "description": "Node.js console module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

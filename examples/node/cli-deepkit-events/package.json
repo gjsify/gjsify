@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-node-cli-deepkit-events",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Demonstrates Deepkit event-driven architecture on GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

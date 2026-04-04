@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-three-morphtargets",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Three.js morph targets example ported from refs/three/examples/webgl_morphtargets.html",
   "main": "dist/gjs.js",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-canvas2d-text",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Canvas 2D textBaseline visual comparison demo — GJS (Cairo/PangoCairo) vs browser",
   "main": "dist/gjs.js",
   "type": "module",

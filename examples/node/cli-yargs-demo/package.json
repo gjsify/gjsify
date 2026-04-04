@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-node-cli-yargs-demo",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "CLI calculator using yargs for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

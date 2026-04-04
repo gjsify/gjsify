@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-node-cli-file-search",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Recursive file search (simplified grep) for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
