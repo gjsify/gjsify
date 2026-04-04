@@ -90,9 +90,9 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     }
   });
 
-  it('gjsify check --json resolves gwebgl from CLI location (not cwd)', () => {
-    // This catches the bug where checkNpmPackage resolved from cwd instead of
-    // the CLI's own node_modules, causing false "missing" errors via npx.
+  it('gjsify check --json resolves gwebgl via CLI fallback (not in project deps)', () => {
+    // The project only has @gjsify/cli — @gjsify/webgl is NOT a direct dep.
+    // checkNpmPackage must fall back to the CLI's own node_modules.
     const out = execFileSync('npx', ['gjsify', 'check', '--json'], {
       cwd: projectDir,
       encoding: 'utf-8',
@@ -103,7 +103,37 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     const gwebgl = result.deps.find(d => d.id === 'gwebgl');
     assert.ok(gwebgl, 'gwebgl check should be present in results');
     assert.strictEqual(gwebgl.found, true,
-      'gwebgl should be found when resolved from CLI node_modules (not cwd)');
+      'gwebgl should be found via CLI fallback when not in project deps');
+  });
+
+  it('gjsify check --json resolves gwebgl from project deps (primary path)', () => {
+    // Create a second project that has @gjsify/webgl as a direct dependency.
+    // checkNpmPackage should find it from the project's own node_modules first.
+    const webglProjectDir = join(tmpDir, 'webgl-project');
+    mkdirSync(webglProjectDir, { recursive: true });
+
+    setupProject(webglProjectDir, {
+      name: 'test-webgl-check',
+      version: '0.1.0',
+      type: 'module',
+      private: true,
+      dependencies: {
+        '@gjsify/cli': '^0.1.0',
+        '@gjsify/webgl': '^0.1.0',
+      },
+    }, tarballsDir, tarballMap);
+
+    const out = execFileSync('npx', ['gjsify', 'check', '--json'], {
+      cwd: webglProjectDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 30 * 1000,
+    });
+    const result = JSON.parse(out);
+    const gwebgl = result.deps.find(d => d.id === 'gwebgl');
+    assert.ok(gwebgl, 'gwebgl check should be present in results');
+    assert.strictEqual(gwebgl.found, true,
+      'gwebgl should be found from project node_modules (primary path)');
   });
 
   it('gjsify showcase --list succeeds without errors', () => {
