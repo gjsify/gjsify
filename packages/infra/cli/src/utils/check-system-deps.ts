@@ -3,7 +3,9 @@
 // All binary names are hardcoded constants, never derived from user input.
 
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 export interface DepCheck {
     /** Stable key used for install command lookup, e.g. "gjs" */
@@ -42,11 +44,19 @@ function checkPkgConfig(id: string, name: string, libName: string): DepCheck {
 }
 
 /**
- * Check for an npm package by resolving it from the CLI's own installation.
- * When run via `npx`, the CLI's dependencies live next to the CLI bundle,
- * NOT in the user's cwd — so we resolve from import.meta.url (this file).
+ * Check for an npm package. Tries the user's project first (cwd), then falls
+ * back to the CLI's own node_modules. This way a locally installed version
+ * takes precedence, but npx usage still works via the CLI's own dependencies.
  */
-function checkNpmPackage(id: string, name: string, packageName: string): DepCheck {
+function checkNpmPackage(id: string, name: string, packageName: string, cwd: string): DepCheck {
+    // 1. Try user's project
+    try {
+        const requireFromCwd = createRequire(pathToFileURL(join(cwd, '_check_.js')).href);
+        requireFromCwd.resolve(packageName);
+        return { id, name, found: true };
+    } catch { /* not in project, try CLI fallback */ }
+
+    // 2. Fallback: CLI's own node_modules
     try {
         const requireFromCli = createRequire(import.meta.url);
         requireFromCli.resolve(packageName);
@@ -68,8 +78,8 @@ export function detectPackageManager(): PackageManager {
 /**
  * Run all dependency checks. Used by `gjsify check` to show full system status.
  */
-export function runAllChecks(): DepCheck[] {
-    return [...runMinimalChecks(), ...runExtraChecks()];
+export function runAllChecks(cwd: string): DepCheck[] {
+    return [...runMinimalChecks(), ...runExtraChecks(cwd)];
 }
 
 /**
@@ -89,15 +99,15 @@ export function runMinimalChecks(): DepCheck[] {
     return results;
 }
 
-/** Check gwebgl npm package (resolved from CLI's own node_modules). */
-export function checkGwebgl(): DepCheck {
-    return checkNpmPackage('gwebgl', 'gwebgl (@gjsify/webgl)', '@gjsify/webgl');
+/** Check gwebgl npm package (project first, CLI fallback). */
+export function checkGwebgl(cwd: string): DepCheck {
+    return checkNpmPackage('gwebgl', 'gwebgl (@gjsify/webgl)', '@gjsify/webgl', cwd);
 }
 
 /**
  * Extra checks for development and full system audit.
  */
-function runExtraChecks(): DepCheck[] {
+function runExtraChecks(cwd: string): DepCheck[] {
     const results: DepCheck[] = [];
 
     // Blueprint Compiler
@@ -130,8 +140,8 @@ function runExtraChecks(): DepCheck[] {
     // GObject Introspection
     results.push(checkPkgConfig('gobject-introspection', 'GObject Introspection', 'gobject-introspection-1.0'));
 
-    // gwebgl — resolve from CLI's own node_modules (ships as CLI dependency).
-    results.push(checkGwebgl());
+    // gwebgl — project first, CLI fallback.
+    results.push(checkGwebgl(cwd));
 
     return results;
 }

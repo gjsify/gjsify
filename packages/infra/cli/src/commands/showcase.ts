@@ -81,7 +81,7 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
         const results = runMinimalChecks();
         const needsWebgl = example.packageName.includes('webgl') || example.packageName.includes('three');
         if (needsWebgl) {
-            results.push(checkGwebgl());
+            results.push(checkGwebgl(process.cwd()));
         }
         const missing = results.filter(r => !r.found);
         if (missing.length > 0) {
