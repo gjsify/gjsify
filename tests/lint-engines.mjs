@@ -1,10 +1,10 @@
-// Lint: ensure all published packages have valid engines fields.
-// Catches outdated engines (e.g. "node": "16") that cause EBADENGINE warnings
-// when users install @gjsify/cli via npx.
+// Lint: ensure all published packages have valid metadata.
+// Catches outdated engines, non-standard keys, and missing build outputs
+// that cause EBADENGINE warnings or broken installs via npx.
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -66,6 +66,22 @@ describe('published package engines', () => {
     }
     assert.equal(bad.length, 0,
       `Found packages with non-standard engines keys (e.g. "gjs" is not recognized by npm):\n  ${bad.join('\n  ')}`
+    );
+  });
+
+  it('example packages with "main" field have the file built', () => {
+    const bad = [];
+    for (const ws of workspaces) {
+      if (!ws.name.startsWith('@gjsify/example-')) continue;
+      const main = ws.pkg.main;
+      if (!main) continue;
+      const mainPath = join(MONOREPO_ROOT, ws.location, main);
+      if (!existsSync(mainPath)) {
+        bad.push(`${ws.name}: main "${main}" not found (in ${ws.location}/)`);
+      }
+    }
+    assert.equal(bad.length, 0,
+      `Found example packages with missing build output (run yarn build:examples):\n  ${bad.join('\n  ')}`
     );
   });
 });
