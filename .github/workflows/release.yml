@@ -47,8 +47,11 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Build
+      - name: Build packages
         run: yarn run build
+
+      - name: Build examples
+        run: yarn run build:examples
 
       - name: Publish packages to npm
         run: yarn workspaces foreach -v --all --no-private --exclude '@girs/*' npm publish --tolerate-republish --tag latest --access public
