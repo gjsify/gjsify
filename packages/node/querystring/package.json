@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/querystring",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "Node.js querystring module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

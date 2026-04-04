@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/formdata",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "Web FormData implementation for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/esbuild-plugin-alias",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "",
     "type": "module",
     "main": "dist/esm/index.mjs",

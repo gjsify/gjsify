@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.7](https://github.com/gjsify/gjsify/compare/v0.1.6...v0.1.7) (2026-04-04)
+
+### Bug Fixes
+
+* **ci:** build examples before npm publish in release workflow ([027a729](https://github.com/gjsify/gjsify/commit/027a72985899d4acd91f47bb6d5799b3b020a82d))
+
 ## [0.1.6](https://github.com/gjsify/gjsify/compare/v0.1.5...v0.1.6) (2026-04-04)
 
 ### Bug Fixes

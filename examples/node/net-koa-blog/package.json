@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-node-net-koa-blog",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Koa.js blog example with EJS templates for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

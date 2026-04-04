@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/empty",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "Empty module for Gjs",
     "type": "module",
     "main": "index.mjs",

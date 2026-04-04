@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-webgl-tutorial-03",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "",
   "main": "dist/gjs.js",
   "type": "module",

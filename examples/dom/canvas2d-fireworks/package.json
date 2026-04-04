@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-canvas2d-fireworks",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Colorful fireworks Canvas 2D example, adapted from https://codepen.io/juliangarnier/pen/gmOwJX",
   "main": "dist/gjs.js",
   "type": "module",

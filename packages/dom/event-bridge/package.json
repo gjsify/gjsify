@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/event-bridge",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "Bridge GTK event controllers to standard DOM events (MouseEvent, KeyboardEvent, etc.)",
     "type": "module",
     "module": "lib/esm/index.js",

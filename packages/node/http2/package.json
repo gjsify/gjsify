@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/http2",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "Node.js http2 module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
