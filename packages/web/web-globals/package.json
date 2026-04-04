@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/web-globals",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "description": "Unified Web API globals for GJS — single import for all Web standard polyfills",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

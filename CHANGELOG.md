@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/gjsify/gjsify/compare/v0.1.5...v0.1.6) (2026-04-04)
+
+### Bug Fixes
+
+* **publish:** build examples before npm publish + lint for missing dist ([eba07a5](https://github.com/gjsify/gjsify/commit/eba07a5b98ad10b77bc99827334cd53490c619b9))
+* **refs:** update subproject commits for bun, deno, and undici ([e1751dd](https://github.com/gjsify/gjsify/commit/e1751dd0cd041c61bb0270326312b54e18a687da))
+* **svg:** update favicon and logos ([4699da6](https://github.com/gjsify/gjsify/commit/4699da6dbc2a0f220e243deec2cc13862cf9bece))
+
 ## [0.1.5](https://github.com/gjsify/gjsify/compare/v0.1.4...v0.1.5) (2026-04-04)
 
 ### Bug Fixes

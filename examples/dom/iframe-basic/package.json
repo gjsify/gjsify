@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-iframe-basic",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Basic iframe example demonstrating HTMLIFrameElement with WebKit.WebView and bidirectional postMessage",
   "main": "dist/index.gjs.js",
   "type": "module",

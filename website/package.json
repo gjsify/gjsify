@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/website",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "scripts": {
     "copy:assets": "mkdir -p public/demos/pixel/assets && cp ../examples/dom/three-postprocessing-pixel/src/assets/checker.png public/demos/pixel/assets/",
