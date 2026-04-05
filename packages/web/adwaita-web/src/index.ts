@@ -6,6 +6,7 @@ import '@gjsify/adwaita-fonts';  // Registers @font-face (fontsource pattern)
 import { adwaitaCSS } from './adwaita-css.js';
 
 // Register custom elements (side-effect imports)
+export { AdwCard } from './elements/adw-card.js';
 export { AdwWindow } from './elements/adw-window.js';
 export { AdwHeaderBar } from './elements/adw-header-bar.js';
 export { AdwPreferencesGroup } from './elements/adw-preferences-group.js';

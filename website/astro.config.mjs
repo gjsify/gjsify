@@ -17,6 +17,8 @@ export default defineConfig({
       exclude: [
         '@gjsify/adwaita-web',
         '@gjsify/example-dom-three-postprocessing-pixel',
+        '@gjsify/example-dom-three-geometry-teapot',
+        '@gjsify/example-dom-canvas2d-fireworks',
       ],
     },
   },

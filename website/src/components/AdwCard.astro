@@ -1,0 +1,48 @@
+---
+// Adwaita-styled card component using <adw-card> from @gjsify/adwaita-web.
+// Accepts a raw SVG string as icon (from @gjsify/adwaita-icons).
+interface Props {
+  title: string;
+  icon: string;
+}
+
+const { title, icon } = Astro.props;
+---
+
+<adw-card>
+  <div class="adw-card-icon" set:html={icon} />
+  <h3 class="adw-card-title">{title}</h3>
+  <div class="adw-card-body">
+    <slot />
+  </div>
+</adw-card>
+
+<style>
+  adw-card {
+    padding: 24px;
+  }
+
+  .adw-card-icon {
+    width: 32px;
+    height: 32px;
+    color: var(--sl-color-accent);
+    margin-bottom: 12px;
+  }
+
+  .adw-card-icon :global(svg) {
+    width: 100%;
+    height: 100%;
+  }
+
+  .adw-card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 8px;
+  }
+
+  .adw-card-body {
+    font-size: 0.9rem;
+    color: var(--sl-color-gray-2);
+    line-height: 1.5;
+  }
+</style>

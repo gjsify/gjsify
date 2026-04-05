@@ -226,6 +226,20 @@ adw-preferences-group .adw-preferences-group-listbox {
   overflow: hidden;
 }
 
+/* --- Card --- */
+adw-card, .adw-card {
+  display: block;
+  background-color: var(--card-bg-color);
+  color: var(--card-fg-color);
+  border-radius: var(--card-radius);
+  padding: var(--spacing-l);
+  box-shadow:
+    0 0 0 1px rgb(0 0 6 / 3%),
+    0 1px 3px 1px rgb(0 0 6 / 7%),
+    0 2px 6px 2px rgb(0 0 6 / 3%);
+  overflow: hidden;
+}
+
 /* --- Row base (shared by switch-row, combo-row) --- */
 adw-switch-row,
 adw-combo-row {

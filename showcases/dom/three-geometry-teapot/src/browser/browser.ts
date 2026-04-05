@@ -89,17 +89,19 @@ export function mount(container: HTMLElement, options?: MountOptions) {
     win.append(headerBar, body);
     container.append(win);
 
-    // Sync canvas size with container
-    new ResizeObserver(() => {
-        canvas.width = glContainer.clientWidth;
-        canvas.height = glContainer.clientHeight;
-    }).observe(glContainer);
+    // Sync canvas size with container and re-render on resize
+    // (needed when slide becomes visible after being display:none)
     canvas.width = glContainer.clientWidth;
     canvas.height = glContainer.clientHeight;
 
-    // Start three.js and connect controls — mirrors connectControls()
     const demo = start(canvas, { assetBase: options?.assetBase });
     connectControls(demo, tessRow, shadingRow, lidRow, bodyRow, bottomRow, fitLidRow, nonblinnRow);
+
+    new ResizeObserver(() => {
+        canvas.width = glContainer.clientWidth;
+        canvas.height = glContainer.clientHeight;
+        demo.render();
+    }).observe(glContainer);
 }
 
 function connectControls(

@@ -1,0 +1,327 @@
+---
+// Showcase slideshow — cycles through 3 interactive demos with code overlays.
+// Each slide lazy-mounts its demo on first view to avoid loading all 3 at once.
+import { Code } from '@astrojs/starlight/components';
+import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/actions';
+
+const slides = [
+  {
+    id: 'pixel',
+    name: 'three-postprocessing-pixel',
+    title: 'pixel-demo.ts',
+    github: 'showcases/dom/three-postprocessing-pixel',
+    code: `import Adw from 'gi://Adw?version=1';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
+import * as THREE from 'three';
+import { RenderPixelatedPass } from 'three/addons/postprocessing/RenderPixelatedPass.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+
+const app = new Adw.Application({ application_id: 'gjsify.examples.pixel' });
+app.connect('activate', () => {
+  const glArea = new CanvasWebGLWidget();
+  glArea.onReady((canvas) => {
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera();
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPixelatedPass(6, scene, camera));
+  });
+});`,
+  },
+  {
+    id: 'teapot',
+    name: 'three-geometry-teapot',
+    title: 'teapot-demo.ts',
+    github: 'showcases/dom/three-geometry-teapot',
+    code: `import Adw from 'gi://Adw?version=1';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
+import * as THREE from 'three';
+import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
+
+const app = new Adw.Application({ application_id: 'gjsify.examples.teapot' });
+app.connect('activate', () => {
+  const glArea = new CanvasWebGLWidget();
+  glArea.onReady((canvas) => {
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45);
+    scene.add(new THREE.Mesh(
+      new TeapotGeometry(50, 20),
+      new THREE.MeshPhongMaterial({ color: 0xc0c0c0 })
+    ));
+  });
+});`,
+  },
+  {
+    id: 'fireworks',
+    name: 'canvas2d-fireworks',
+    title: 'fireworks.ts',
+    github: 'showcases/dom/canvas2d-fireworks',
+    code: `import Gtk from 'gi://Gtk?version=4.0';
+import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { start } from './fireworks.js';
+
+const app = new Gtk.Application({ application_id: 'gjsify.examples.fireworks' });
+app.connect('activate', () => {
+  const win = new Gtk.ApplicationWindow({ application: app });
+  win.set_default_size(800, 600);
+
+  const canvasWidget = new Canvas2DWidget();
+  canvasWidget.installGlobals();
+  canvasWidget.onReady((canvas) => start(canvas));
+
+  win.set_child(canvasWidget);
+  win.present();
+});`,
+  },
+];
+---
+
+<div class="slideshow" data-slide-count={slides.length}>
+  <button class="slideshow-arrow slideshow-arrow-prev" aria-label="Previous showcase">
+    <Fragment set:html={goPreviousSymbolic} />
+  </button>
+  <button class="slideshow-arrow slideshow-arrow-next" aria-label="Next showcase">
+    <Fragment set:html={goNextSymbolic} />
+  </button>
+
+  {slides.map((slide, i) => (
+    <div class={`slideshow-slide ${i === 0 ? 'active' : ''}`} data-slide-index={i} data-slide-id={slide.id}>
+      <div class="slide-demo-wrapper">
+        <div class="slide-demo" id={`demo-${slide.id}`}></div>
+
+        <div class="slide-code-overlay">
+          <Code code={slide.code} lang="ts" title={slide.title} />
+          <a class="slide-code-link" href={`https://github.com/gjsify/gjsify/tree/main/${slide.github}`} target="_blank" rel="noopener">
+            Full example &rarr;
+          </a>
+        </div>
+      </div>
+
+      <div class="slide-try-it">
+        <Code code={`npx @gjsify/cli showcase ${slide.name}`} lang="sh" title="Terminal" frame="terminal" />
+      </div>
+    </div>
+  ))}
+</div>
+
+<script>
+  // Lazy-mount showcases on first view
+  const mounted = new Set<string>();
+  const base = import.meta.env.BASE_URL;
+
+  async function mountSlide(id: string) {
+    if (mounted.has(id)) return;
+    mounted.add(id);
+
+    const container = document.getElementById(`demo-${id}`);
+    if (!container) return;
+
+    switch (id) {
+      case 'pixel': {
+        const { mount } = await import('@gjsify/example-dom-three-postprocessing-pixel/browser');
+        mount(container, { assetBase: `${base}demos/pixel/` });
+        break;
+      }
+      case 'teapot': {
+        const { mount } = await import('@gjsify/example-dom-three-geometry-teapot/browser');
+        mount(container, { assetBase: `${base}demos/teapot/` });
+        break;
+      }
+      case 'fireworks': {
+        const { mount } = await import('@gjsify/example-dom-canvas2d-fireworks/browser');
+        mount(container);
+        break;
+      }
+    }
+  }
+
+  // Slideshow navigation
+  const slideshow = document.querySelector('.slideshow');
+  if (slideshow) {
+    const slides = slideshow.querySelectorAll<HTMLElement>('.slideshow-slide');
+    const prevBtn = slideshow.querySelector('.slideshow-arrow-prev');
+    const nextBtn = slideshow.querySelector('.slideshow-arrow-next');
+    let activeIndex = 0;
+
+    function showSlide(index: number) {
+      slides.forEach((s, i) => s.classList.toggle('active', i === index));
+      activeIndex = index;
+      const id = slides[index]?.dataset.slideId;
+      if (id) mountSlide(id);
+    }
+
+    prevBtn?.addEventListener('click', () => {
+      showSlide((activeIndex - 1 + slides.length) % slides.length);
+    });
+
+    nextBtn?.addEventListener('click', () => {
+      showSlide((activeIndex + 1) % slides.length);
+    });
+
+    // Mount the first slide immediately
+    showSlide(0);
+  }
+</script>
+
+<style>
+  .slideshow {
+    position: relative;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  /* --- Slides --- */
+  .slideshow-slide {
+    display: none;
+  }
+
+  .slideshow-slide.active {
+    display: block;
+  }
+
+  /* --- Navigation arrows --- */
+  .slideshow-arrow {
+    position: absolute;
+    top: 35%;
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.35);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    padding: 0;
+  }
+
+  .slideshow-arrow:hover {
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  .slideshow-arrow :global(svg) {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+
+  .slideshow-arrow-prev {
+    left: -56px;
+  }
+
+  .slideshow-arrow-next {
+    right: -56px;
+  }
+
+  /* --- Demo + code overlay (per slide) --- */
+  .slide-demo-wrapper {
+    position: relative;
+    width: 100%;
+    padding-bottom: 250px;
+    padding-right: 250px;
+  }
+
+  .slide-demo {
+    width: 100%;
+    aspect-ratio: 11 / 7;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.25),
+      0 0 0 1px rgba(0, 0, 0, 0.08);
+    position: relative;
+  }
+
+  /* Adwaita window fills demo container */
+  .slide-demo :global(adw-window) {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+  }
+
+  /* Canvas fills demo container (fireworks) */
+  .slide-demo :global(canvas) {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .slide-code-overlay {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    z-index: 2;
+    max-width: 640px;
+    width: 58%;
+  }
+
+  .slide-code-link {
+    display: block;
+    padding: 0.5rem 1rem;
+    color: #78aeed;
+    font-size: 0.85rem;
+    text-decoration: none;
+    text-align: right;
+  }
+
+  .slide-code-link:hover {
+    color: #b3d4f5;
+    text-decoration: underline;
+  }
+
+  /* --- Try it section --- */
+  .slide-try-it {
+    text-align: center;
+    max-width: 600px;
+    margin-inline: auto;
+    padding-block: 1.5rem 0;
+  }
+
+  /* --- Responsive --- */
+  @media (max-width: 1250px) {
+    .slideshow-arrow-prev { left: 8px; }
+    .slideshow-arrow-next { right: 8px; }
+    .slideshow-arrow {
+      background: rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  @media (max-width: 1100px) {
+    .slide-demo-wrapper {
+      padding-bottom: 0;
+      padding-right: 0;
+    }
+
+    .slide-code-overlay {
+      position: static;
+      width: 100%;
+      max-width: none;
+      margin-top: 1rem;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .slide-demo {
+      aspect-ratio: 4 / 3;
+    }
+
+    .slideshow-arrow {
+      width: 36px;
+      height: 36px;
+    }
+
+    .slideshow-arrow :global(svg) {
+      width: 16px;
+      height: 16px;
+    }
+  }
+</style>
