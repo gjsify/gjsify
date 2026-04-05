@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-dom-canvas2d-text",
-  "version": "0.1.7",
   "description": "Canvas 2D textBaseline visual comparison demo — GJS (Cairo/PangoCairo) vs browser",
   "main": "dist/gjs.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
@@ -28,5 +24,6 @@
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }

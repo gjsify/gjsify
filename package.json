@@ -53,6 +53,7 @@
     "packages/dom/*",
     "examples/node/*",
     "examples/dom/*",
+    "showcases/dom/*",
     "website"
   ]
 }

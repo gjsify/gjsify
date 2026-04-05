@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-node-cli-esbuild-plugin-deepkit",
-  "version": "0.1.7",
   "description": "",
   "main": "dist/index.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "clear": "rm -rf dist",
     "check": "tsc --noEmit",
@@ -21,5 +17,6 @@
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }

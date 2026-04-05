@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-node-net-hono-rest",
-  "version": "0.1.7",
   "description": "Hono REST API example for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "engines": {
     "node": ">=22.12.0"
   },
@@ -35,5 +31,6 @@
     "@types/node": "^25.5.2",
     "hono": "^4.12.10",
     "typescript": "^6.0.2"
-  }
+  },
+  "private": true
 }

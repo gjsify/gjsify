@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-node-cli-deepkit-validation",
-  "version": "0.1.7",
   "description": "Demonstrates Deepkit runtime type validation with constraints on GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "engines": {
     "node": ">=22.12.0"
   },
@@ -30,5 +26,6 @@
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }

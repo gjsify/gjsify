@@ -3,7 +3,7 @@
   "version": "0.1.7",
   "private": true,
   "scripts": {
-    "copy:assets": "mkdir -p public/demos/pixel/assets && cp ../examples/dom/three-postprocessing-pixel/src/assets/checker.png public/demos/pixel/assets/",
+    "copy:assets": "mkdir -p public/demos/pixel/assets && node -e \"require('fs').cpSync(require.resolve('@gjsify/example-dom-three-postprocessing-pixel/assets/checker.png'), 'public/demos/pixel/assets/checker.png');\"",
     "start": "yarn copy:assets && astro dev",
     "build": "yarn copy:assets && astro build",
     "serve": "astro preview",

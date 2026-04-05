@@ -1,5 +1,5 @@
 import type { Command } from '../types/index.js';
-import { discoverExamples, findExample } from '../utils/discover-examples.js';
+import { discoverShowcases, findShowcase } from '../utils/discover-showcases.js';
 import { runMinimalChecks, checkGwebgl, detectPackageManager, buildInstallCommand } from '../utils/check-system-deps.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 
@@ -11,11 +11,11 @@ interface ShowcaseOptions {
 
 export const showcaseCommand: Command<any, ShowcaseOptions> = {
     command: 'showcase [name]',
-    description: 'List or run built-in gjsify example applications.',
+    description: 'List or run built-in gjsify showcase applications.',
     builder: (yargs) => {
         return yargs
             .positional('name', {
-                description: 'Example name to run (omit to list all)',
+                description: 'Showcase name to run (omit to list all)',
                 type: 'string',
             })
             .option('json', {
@@ -24,7 +24,7 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
                 default: false,
             })
             .option('list', {
-                description: 'List available examples',
+                description: 'List available showcases',
                 type: 'boolean',
                 default: false,
             });
@@ -32,54 +32,54 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
     handler: async (args) => {
         // List mode: no name given, or --list flag
         if (!args.name || args.list) {
-            const examples = discoverExamples();
+            const showcases = discoverShowcases();
 
             if (args.json) {
-                console.log(JSON.stringify(examples, null, 2));
+                console.log(JSON.stringify(showcases, null, 2));
                 return;
             }
 
-            if (examples.length === 0) {
-                console.log('No examples found. Example packages may not be installed.');
+            if (showcases.length === 0) {
+                console.log('No showcases found. Showcase packages may not be installed.');
                 return;
             }
 
             // Group by category
-            const grouped = new Map<string, typeof examples>();
-            for (const ex of examples) {
-                const list = grouped.get(ex.category) ?? [];
-                list.push(ex);
-                grouped.set(ex.category, list);
+            const grouped = new Map<string, typeof showcases>();
+            for (const sc of showcases) {
+                const list = grouped.get(sc.category) ?? [];
+                list.push(sc);
+                grouped.set(sc.category, list);
             }
 
-            console.log('Available gjsify examples:\n');
+            console.log('Available gjsify showcases:\n');
             for (const [category, list] of grouped) {
                 console.log(`  ${category.toUpperCase()}:`);
                 const maxNameLen = Math.max(...list.map(e => e.name.length));
-                for (const ex of list) {
-                    const pad = ' '.repeat(maxNameLen - ex.name.length + 2);
-                    const desc = ex.description ? `${pad}${ex.description}` : '';
-                    console.log(`    ${ex.name}${desc}`);
+                for (const sc of list) {
+                    const pad = ' '.repeat(maxNameLen - sc.name.length + 2);
+                    const desc = sc.description ? `${pad}${sc.description}` : '';
+                    console.log(`    ${sc.name}${desc}`);
                 }
                 console.log('');
             }
 
-            console.log('Run an example:  gjsify showcase <name>');
+            console.log('Run a showcase:  gjsify showcase <name>');
             return;
         }
 
-        // Run mode: find the example
-        const example = findExample(args.name);
-        if (!example) {
-            console.error(`Unknown example: "${args.name}"`);
-            console.error('Run "gjsify showcase" to list available examples.');
+        // Run mode: find the showcase
+        const showcase = findShowcase(args.name);
+        if (!showcase) {
+            console.error(`Unknown showcase: "${args.name}"`);
+            console.error('Run "gjsify showcase" to list available showcases.');
             process.exit(1);
         }
 
-        // System dependency check before running — only check what this example needs.
-        // All examples need GJS; WebGL examples additionally need gwebgl prebuilds.
+        // System dependency check before running — only check what this showcase needs.
+        // All showcases need GJS; WebGL showcases additionally need gwebgl prebuilds.
         const results = runMinimalChecks();
-        const needsWebgl = example.packageName.includes('webgl') || example.packageName.includes('three');
+        const needsWebgl = showcase.packageName.includes('webgl') || showcase.packageName.includes('three');
         if (needsWebgl) {
             results.push(checkGwebgl(process.cwd()));
         }
@@ -97,8 +97,8 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             process.exit(1);
         }
 
-        // Run the example via shared GJS runner
-        console.log(`Running example: ${example.name}\n`);
-        await runGjsBundle(example.bundlePath);
+        // Run the showcase via shared GJS runner
+        console.log(`Running showcase: ${showcase.name}\n`);
+        await runGjsBundle(showcase.bundlePath);
     },
 };

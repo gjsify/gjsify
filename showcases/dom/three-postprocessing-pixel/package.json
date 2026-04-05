@@ -10,6 +10,7 @@
   "exports": {
     "./browser": "./src/browser/browser.ts",
     "./three-demo": "./src/three-demo.ts",
+    "./assets/*": "./src/assets/*",
     "./package.json": "./package.json"
   },
   "scripts": {

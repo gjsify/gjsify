@@ -7,6 +7,10 @@
   "files": [
     "dist"
   ],
+  "exports": {
+    "./browser": "./src/browser/browser.ts",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",

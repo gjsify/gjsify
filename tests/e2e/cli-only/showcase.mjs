@@ -1,5 +1,5 @@
 // E2E test for `gjsify showcase` command.
-// Verifies that listing mode works correctly and that invalid example names
+// Verifies that listing mode works correctly and that invalid showcase names
 // produce helpful errors. Does not test actual GJS execution (needs display + GTK).
 // Requires: yarn build && yarn build:examples (monorepo must be built first)
 
@@ -69,18 +69,17 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
     assert.equal(exitCode, 0, 'gjsify showcase should exit 0 in listing mode');
   });
 
-  it('output contains known example names', () => {
+  it('output contains known showcase names', () => {
     const { stdout } = runShowcase(projectDir);
-    const expected = ['three-geometry-shapes', 'canvas2d-confetti', 'cli-node-path'];
+    const expected = ['three-postprocessing-pixel', 'three-geometry-teapot', 'canvas2d-fireworks'];
     for (const name of expected) {
-      assert.ok(stdout.includes(name), `Missing example "${name}" in output:\n${stdout}`);
+      assert.ok(stdout.includes(name), `Missing showcase "${name}" in output:\n${stdout}`);
     }
   });
 
-  it('output groups by category (DOM and NODE)', () => {
+  it('output groups by category (DOM)', () => {
     const { stdout } = runShowcase(projectDir);
     assert.ok(stdout.includes('DOM:'), `Missing "DOM:" category header\n${stdout}`);
-    assert.ok(stdout.includes('NODE:'), `Missing "NODE:" category header\n${stdout}`);
   });
 
   it('output shows usage hint', () => {
@@ -111,28 +110,28 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
       assert.ok('bundlePath' in entry, `Missing "bundlePath": ${JSON.stringify(entry)}`);
       assert.equal(typeof entry.name, 'string');
       assert.equal(typeof entry.packageName, 'string');
-      assert.ok(['dom', 'node'].includes(entry.category), `Invalid category: ${entry.category}`);
+      assert.equal(entry.category, 'dom', `Expected category "dom", got: ${entry.category}`);
     }
   });
 
-  it('--json contains known examples', () => {
+  it('--json contains known showcases', () => {
     const { stdout } = runShowcase(projectDir, ['--json']);
     const parsed = JSON.parse(stdout);
     const names = parsed.map(e => e.name);
-    assert.ok(names.includes('three-geometry-shapes'), 'Missing three-geometry-shapes');
-    assert.ok(names.includes('canvas2d-confetti'), 'Missing canvas2d-confetti');
-    assert.ok(names.includes('cli-node-path'), 'Missing cli-node-path');
+    assert.ok(names.includes('three-postprocessing-pixel'), 'Missing three-postprocessing-pixel');
+    assert.ok(names.includes('three-geometry-teapot'), 'Missing three-geometry-teapot');
+    assert.ok(names.includes('canvas2d-fireworks'), 'Missing canvas2d-fireworks');
   });
 
-  it('running a webgl example does not fail with Gwebgl typelib error', () => {
-    // Run a WebGL example — it will fail (no display/GTK in headless),
+  it('running a webgl showcase does not fail with Gwebgl typelib error', () => {
+    // Run a WebGL showcase — it will fail (no display/GTK in headless),
     // but the error must NOT be about Gwebgl typelib resolution.
     // This proves that runGjsBundle resolves native prebuilds from the bundle's location.
     const { stdout, stderr, exitCode } = runShowcase(projectDir, ['three-postprocessing-pixel']);
     const combined = stdout + stderr;
 
-    // If the example isn't installed, skip gracefully
-    if (combined.includes('Unknown example')) {
+    // If the showcase isn't installed, skip gracefully
+    if (combined.includes('Unknown showcase')) {
       return;
     }
 
@@ -142,12 +141,12 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
     );
   });
 
-  it('invalid example name exits non-zero with helpful error', () => {
+  it('invalid showcase name exits non-zero with helpful error', () => {
     const { stderr, exitCode } = runShowcase(projectDir, ['nonexistent-example-xyz']);
     assert.ok(exitCode !== 0, 'Should exit non-zero for invalid name');
     const combined = stderr;
     assert.ok(
-      combined.includes('nonexistent-example-xyz') || combined.includes('Unknown example'),
+      combined.includes('nonexistent-example-xyz') || combined.includes('Unknown showcase'),
       `Error should mention the invalid name:\n${combined}`,
     );
   });

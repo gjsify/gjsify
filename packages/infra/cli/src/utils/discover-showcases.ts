@@ -1,4 +1,4 @@
-// Dynamic discovery of installed @gjsify/example-* packages.
+// Dynamic discovery of installed showcase packages (@gjsify/example-*).
 // Scans the CLI's own package.json dependencies at runtime.
 
 import { readFileSync } from 'node:fs';
@@ -6,14 +6,14 @@ import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-export interface ExampleInfo {
-    /** Short name, e.g. "three-geometry-shapes" */
+export interface ShowcaseInfo {
+    /** Short name, e.g. "three-postprocessing-pixel" */
     name: string;
-    /** Full npm package name, e.g. "@gjsify/example-dom-three-geometry-shapes" */
+    /** Full npm package name, e.g. "@gjsify/example-dom-three-postprocessing-pixel" */
     packageName: string;
     /** Category: "dom" or "node" */
     category: string;
-    /** Description from example's package.json */
+    /** Description from showcase's package.json */
     description: string;
     /** Absolute path to the GJS bundle (resolved from "main" field) */
     bundlePath: string;
@@ -22,9 +22,8 @@ export interface ExampleInfo {
 const EXAMPLE_PREFIX = '@gjsify/example-';
 
 /** Extract short name and category from package name. */
-function parseExampleName(packageName: string): { name: string; category: string } | null {
-    // @gjsify/example-dom-three-geometry-shapes → category=dom, name=three-geometry-shapes
-    // @gjsify/example-node-cli-node-path → category=node, name=cli-node-path
+function parseShowcaseName(packageName: string): { name: string; category: string } | null {
+    // @gjsify/example-dom-three-postprocessing-pixel → category=dom, name=three-postprocessing-pixel
     const suffix = packageName.slice(EXAMPLE_PREFIX.length);
     const dashIdx = suffix.indexOf('-');
     if (dashIdx === -1) return null;
@@ -35,10 +34,10 @@ function parseExampleName(packageName: string): { name: string; category: string
 }
 
 /**
- * Discover all installed example packages by scanning the CLI's own dependencies.
- * Returns examples sorted by category then name.
+ * Discover all installed showcase packages by scanning the CLI's own dependencies.
+ * Returns showcases sorted by category then name.
  */
-export function discoverExamples(): ExampleInfo[] {
+export function discoverShowcases(): ShowcaseInfo[] {
     const require = createRequire(import.meta.url);
     const cliPkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json');
     let cliPkg: Record<string, unknown>;
@@ -51,12 +50,12 @@ export function discoverExamples(): ExampleInfo[] {
     const deps = cliPkg['dependencies'] as Record<string, string> | undefined;
     if (!deps) return [];
 
-    const examples: ExampleInfo[] = [];
+    const showcases: ShowcaseInfo[] = [];
 
     for (const packageName of Object.keys(deps)) {
         if (!packageName.startsWith(EXAMPLE_PREFIX)) continue;
 
-        const parsed = parseExampleName(packageName);
+        const parsed = parseShowcaseName(packageName);
         if (!parsed) continue;
 
         try {
@@ -65,7 +64,7 @@ export function discoverExamples(): ExampleInfo[] {
             const main = pkg['main'] as string | undefined;
             if (!main) continue;
 
-            examples.push({
+            showcases.push({
                 name: parsed.name,
                 packageName,
                 category: parsed.category,
@@ -77,11 +76,11 @@ export function discoverExamples(): ExampleInfo[] {
         }
     }
 
-    examples.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
-    return examples;
+    showcases.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    return showcases;
 }
 
-/** Find a single example by short name. */
-export function findExample(name: string): ExampleInfo | undefined {
-    return discoverExamples().find(e => e.name === name);
+/** Find a single showcase by short name. */
+export function findShowcase(name: string): ShowcaseInfo | undefined {
+    return discoverShowcases().find(e => e.name === name);
 }
