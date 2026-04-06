@@ -17,6 +17,8 @@ export class TeapotWindow extends Adw.ApplicationWindow {
     declare private _fitLidRow: Adw.SwitchRow;
     declare private _nonblinnRow: Adw.SwitchRow;
     declare private _shadingRow: Adw.ComboRow;
+    declare private _splitView: Adw.OverlaySplitView;
+    declare private _sidebarToggleButton: Gtk.ToggleButton;
 
     static {
         GObject.registerClass({
@@ -25,6 +27,7 @@ export class TeapotWindow extends Adw.ApplicationWindow {
             InternalChildren: [
                 'glAreaContainer', 'tessRow', 'lidRow', 'bodyRow',
                 'bottomRow', 'fitLidRow', 'nonblinnRow', 'shadingRow',
+                'splitView', 'sidebarToggleButton',
             ],
         }, this);
     }

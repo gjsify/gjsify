@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
       "module": "NodeNext",
-      "types": [],
+      "types": ["@girs/gjs", "@girs/gtk-4.0", "@girs/adw-1", "@gjsify/esbuild-plugin-blueprint/types"],
       "target": "ESNext",
       "moduleResolution": "NodeNext",
       "experimentalDecorators": true,
@@ -11,5 +11,5 @@
       "strict": false
     },
     "reflection": true,
-    "files": ["src/gjs/gjs.ts", "src/browser/browser.ts"]
+    "files": ["src/gjs/gjs.ts", "src/browser/browser.ts", "src/browser/browser-main.ts"]
 }

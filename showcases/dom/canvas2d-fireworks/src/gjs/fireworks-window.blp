@@ -1,10 +1,10 @@
 using Gtk 4.0;
 using Adw 1;
 
-template $TeapotWindow: Adw.ApplicationWindow {
+template $FireworksWindow: Adw.ApplicationWindow {
   default-width: 1100;
   default-height: 700;
-  title: "Three.js Teapot";
+  title: "Fireworks — Canvas 2D";
 
   [breakpoint]
   Adw.Breakpoint {
@@ -54,49 +54,29 @@ template $TeapotWindow: Adw.ApplicationWindow {
           margin-end: 12;
 
           Adw.PreferencesGroup {
-            title: "Geometry";
+            title: "Fireworks";
 
-            Adw.ComboRow tessRow {
-              title: "Tessellation Level";
+            Adw.SpinRow particleCountRow {
+              title: "Particle Count";
             }
 
-            Adw.SwitchRow lidRow {
-              title: "Display Lid";
+            Adw.SpinRow autoIntervalRow {
+              title: "Auto Interval (ms)";
+            }
+
+            Adw.SpinRow maxBurstRadiusRow {
+              title: "Max Burst Radius";
+            }
+
+            Adw.SwitchRow autoFireworksRow {
+              title: "Auto Fireworks";
               active: true;
-            }
-
-            Adw.SwitchRow bodyRow {
-              title: "Display Body";
-              active: true;
-            }
-
-            Adw.SwitchRow bottomRow {
-              title: "Display Bottom";
-              active: true;
-            }
-
-            Adw.SwitchRow fitLidRow {
-              title: "Snug Lid";
-              active: false;
-            }
-
-            Adw.SwitchRow nonblinnRow {
-              title: "Original Scale";
-              active: false;
-            }
-          }
-
-          Adw.PreferencesGroup {
-            title: "Material";
-
-            Adw.ComboRow shadingRow {
-              title: "Shading";
             }
           }
         }
       };
 
-      content: Gtk.Box glAreaContainer {
+      content: Gtk.Box canvasContainer {
         hexpand: true;
         vexpand: true;
       };

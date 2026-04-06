@@ -1,7 +1,7 @@
 {
   "name": "@gjsify/example-dom-canvas2d-fireworks",
   "version": "0.1.7",
-  "description": "Colorful fireworks Canvas 2D example, adapted from https://codepen.io/juliangarnier/pen/gmOwJX",
+  "description": "Colorful fireworks Canvas 2D example with Adwaita controls, adapted from https://codepen.io/juliangarnier/pen/gmOwJX",
   "main": "dist/gjs.js",
   "type": "module",
   "files": [
@@ -18,13 +18,16 @@
     "start:browser": "http-server dist",
     "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
-    "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
+    "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/canvas2d.css dist/canvas2d.css"
   },
   "devDependencies": {
+    "@girs/adw-1": "^1.10.0-4.0.0-rc.1",
     "@girs/gio-2.0": "^2.88.0-4.0.0-rc.1",
     "@girs/gjs": "^4.0.0-rc.1",
+    "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.1",
     "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1",
+    "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/canvas2d": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.5.2",

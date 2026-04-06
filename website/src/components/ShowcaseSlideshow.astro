@@ -57,21 +57,19 @@ app.connect('activate', () => {
     name: 'canvas2d-fireworks',
     title: 'fireworks.ts',
     github: 'showcases/dom/canvas2d-fireworks',
-    code: `import Gtk from 'gi://Gtk?version=4.0';
+    code: `import Adw from 'gi://Adw?version=1';
 import { Canvas2DWidget } from '@gjsify/canvas2d';
 import { start } from './fireworks.js';
 
-const app = new Gtk.Application({ application_id: 'gjsify.examples.fireworks' });
+const app = new Adw.Application({ application_id: 'gjsify.examples.fireworks' });
 app.connect('activate', () => {
-  const win = new Gtk.ApplicationWindow({ application: app });
-  win.set_default_size(800, 600);
-
   const canvasWidget = new Canvas2DWidget();
   canvasWidget.installGlobals();
-  canvasWidget.onReady((canvas) => start(canvas));
-
-  win.set_child(canvasWidget);
-  win.present();
+  canvasWidget.onReady((canvas) => {
+    const demo = start(canvas);
+    // demo.effectController.particleCount = 60;
+    // demo.effectController.autoInterval = 150;
+  });
 });`,
   },
 ];

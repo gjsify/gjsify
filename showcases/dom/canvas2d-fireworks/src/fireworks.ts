@@ -1,8 +1,7 @@
 // Adapted from https://codepen.io/juliangarnier/pen/gmOwJX ("Fireworks" by Julian Garnier)
 // Original: MIT license. Reimplemented in TypeScript without anime.js for gjsify.
 
-const NUM_PARTICULES = 30;
-const COLORS = ['#FF1461', '#18FF92', '#5A87FF', '#FBF38C'];
+const DEFAULT_COLORS = ['#FF1461', '#18FF92', '#5A87FF', '#FBF38C'];
 
 function random(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -11,6 +10,32 @@ function random(min: number, max: number): number {
 /** Exponential ease-out: fast start, slow finish. */
 function easeOutExpo(t: number): number {
     return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+}
+
+// --- Effect controller ------------------------------------------------------
+
+export interface FireworksEffectController {
+    /** Number of particles per burst. */
+    particleCount: number;
+    /** Milliseconds between automatic bursts. */
+    autoInterval: number;
+    /** Maximum radius of the expanding shock-wave circle. */
+    maxBurstRadius: number;
+    /** When true, automatic bursts keep firing near the center. */
+    autoFireworks: boolean;
+}
+
+export const DEFAULT_CONTROLLER: FireworksEffectController = {
+    particleCount: 30,
+    autoInterval: 200,
+    maxBurstRadius: 160,
+    autoFireworks: true,
+};
+
+export interface FireworksDemo {
+    readonly effectController: FireworksEffectController;
+    /** Stop the animation loop. */
+    stop(): void;
 }
 
 // --- Particle types ---------------------------------------------------------
@@ -40,9 +65,10 @@ interface Burst {
 
 // --- Burst creation ---------------------------------------------------------
 
-function createBurst(x: number, y: number, now: number): Burst {
+function createBurst(x: number, y: number, now: number, controller: FireworksEffectController): Burst {
     const particules: Particule[] = [];
-    for (let i = 0; i < NUM_PARTICULES; i++) {
+    const count = Math.max(1, Math.floor(controller.particleCount));
+    for (let i = 0; i < count; i++) {
         const angle = random(0, 360) * Math.PI / 180;
         const value = random(50, 180);
         const sign = [-1, 1][random(0, 1)];
@@ -52,11 +78,12 @@ function createBurst(x: number, y: number, now: number): Burst {
             startY: y,
             endX: x + dist * Math.cos(angle),
             endY: y + dist * Math.sin(angle),
-            color: COLORS[random(0, COLORS.length - 1)],
+            color: DEFAULT_COLORS[random(0, DEFAULT_COLORS.length - 1)],
             startRadius: random(16, 32),
         });
     }
 
+    const maxR = Math.max(10, controller.maxBurstRadius);
     return {
         startTime: now,
         duration: random(1200, 1800),
@@ -64,7 +91,7 @@ function createBurst(x: number, y: number, now: number): Burst {
         circle: {
             x,
             y,
-            targetRadius: random(80, 160),
+            targetRadius: random(Math.floor(maxR / 2), maxR),
             alphaDuration: random(600, 800),
         },
     };
@@ -116,24 +143,31 @@ function drawBurst(ctx: CanvasRenderingContext2D, burst: Burst, now: number): bo
 /**
  * Start the fireworks animation on the given canvas.
  * Works both in browser and GJS (uses globalThis.requestAnimationFrame).
+ * Returns a demo handle with a mutable effect controller.
  */
-export function start(canvas: HTMLCanvasElement): void {
+export function start(canvas: HTMLCanvasElement): FireworksDemo {
     const ctx = canvas.getContext('2d')!;
     let w = canvas.width;
     let h = canvas.height;
 
     const bursts: Burst[] = [];
-    let human = false;
+    const effectController: FireworksEffectController = { ...DEFAULT_CONTROLLER };
     let lastAutoTime = 0;
-    const AUTO_INTERVAL = 200;
+    let running = true;
 
     canvas.addEventListener('mousedown', (e: any) => {
-        human = true;
         const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-        bursts.push(createBurst(e.clientX, e.clientY, now));
+        // Translate event coords into canvas-pixel coords (handles CSS scaling).
+        const rect = canvas.getBoundingClientRect?.();
+        const scaleX = rect && rect.width ? canvas.width / rect.width : 1;
+        const scaleY = rect && rect.height ? canvas.height / rect.height : 1;
+        const x = rect ? (e.clientX - rect.left) * scaleX : e.clientX;
+        const y = rect ? (e.clientY - rect.top) * scaleY : e.clientY;
+        bursts.push(createBurst(x, y, now, effectController));
     });
 
     function step(now: number): void {
+        if (!running) return;
         requestAnimationFrame(step);
 
         // Handle resize
@@ -147,10 +181,10 @@ export function start(canvas: HTMLCanvasElement): void {
         // Clear canvas
         ctx.clearRect(0, 0, w, h);
 
-        // Auto-fireworks near center until human interaction
-        if (!human) {
+        // Auto-fireworks near center when enabled
+        if (effectController.autoFireworks) {
             if (lastAutoTime === 0) lastAutoTime = now;
-            if (now - lastAutoTime >= AUTO_INTERVAL) {
+            if (now - lastAutoTime >= effectController.autoInterval) {
                 lastAutoTime = now;
                 const cx = w / 2;
                 const cy = h / 2;
@@ -158,6 +192,7 @@ export function start(canvas: HTMLCanvasElement): void {
                     random(Math.floor(cx - 50), Math.floor(cx + 50)),
                     random(Math.floor(cy - 50), Math.floor(cy + 50)),
                     now,
+                    effectController,
                 ));
             }
         }
@@ -171,4 +206,9 @@ export function start(canvas: HTMLCanvasElement): void {
     }
 
     requestAnimationFrame(step);
+
+    return {
+        effectController,
+        stop() { running = false; },
+    };
 }
