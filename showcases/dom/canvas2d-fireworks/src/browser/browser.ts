@@ -64,14 +64,16 @@ export function mount(container: HTMLElement) {
     group.append(particleCountRow, autoIntervalRow, maxBurstRadiusRow, autoFireworksRow);
     sidebarContent.append(group);
 
-    // Canvas container (content slot)
+    // Canvas container (content slot) — inline styles so the showcase
+    // is self-contained and works regardless of host CSS.
     const canvasContainer = document.createElement('div');
     canvasContainer.setAttribute('slot', 'content');
     canvasContainer.id = 'canvas-container';
+    canvasContainer.style.cssText = 'flex:1;position:relative;min-width:0;min-height:0;background:#000';
 
     const canvas = document.createElement('canvas');
     canvas.id = 'fireworks-canvas';
-    canvas.style.cssText = 'display:block;width:100%;height:100%;background:#000';
+    canvas.style.cssText = 'display:block;width:100%;height:100%;position:absolute;inset:0';
     canvasContainer.append(canvas);
 
     splitView.append(sidebarContent, canvasContainer);

@@ -72,13 +72,16 @@ export function mount(container: HTMLElement, options?: MountOptions) {
     group.append(pixelSizeRow, normalEdgeRow, depthEdgeRow, pixelAlignRow);
     sidebarContent.append(group);
 
-    // GL container (content slot)
+    // GL container (content slot) — inline styles so the showcase
+    // is self-contained and works regardless of host CSS.
     const glContainer = document.createElement('div');
     glContainer.setAttribute('slot', 'content');
     glContainer.id = 'gl-area-container';
+    glContainer.style.cssText = 'flex:1;position:relative;min-width:0;min-height:0';
 
     const canvas = document.createElement('canvas');
     canvas.id = 'webgl-canvas';
+    canvas.style.cssText = 'display:block;width:100%;height:100%;position:absolute;inset:0';
     glContainer.append(canvas);
 
     splitView.append(sidebarContent, glContainer);
