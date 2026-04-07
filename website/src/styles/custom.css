@@ -25,13 +25,13 @@
 /* Dark mode */
 :root[data-theme='dark'] {
   --sl-color-accent-low:     rgba(145, 65, 172, 0.18);
-  --sl-color-accent:         #c061cb;   /* Adwaita Purple — lighter for dark bg */
-  --sl-color-accent-high:    #dc8add;
+  --sl-color-accent:         #9141ac;   /* Adwaita Purple — same as light mode */
+  --sl-color-accent-high:    #c061cb;
 
   --sl-color-bg:             #242424;   /* Adwaita dark */
   --sl-color-bg-nav:         #303030;
   --sl-color-bg-sidebar:     #1e1e1e;
-  --sl-color-bg-inline-code: rgba(192, 97, 203, 0.12);
+  --sl-color-bg-inline-code: rgba(145, 65, 172, 0.15);
 
   --adw-card-border:         rgba(255, 255, 255, 0.06);
 }
