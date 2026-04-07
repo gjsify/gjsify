@@ -316,9 +316,12 @@ header.header {
   z-index: -1;
 }
 
-/* Sidebar active item — pill shape */
-a[aria-current='page'] {
+/* Sidebar active item — accent background + white text */
+a[aria-current='page'],
+a[aria-current='page']:hover {
   border-radius: 6px;
+  background-color: var(--sl-color-accent);
+  color: #ffffff;
 }
 
 /* Showcase demos are self-contained — they bring their own layout via
