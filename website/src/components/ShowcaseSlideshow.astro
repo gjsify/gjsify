@@ -365,6 +365,10 @@ app.connect('activate', () => {
     aspect-ratio: 11 / 7;
     border-radius: 12px;
     overflow: hidden;
+    /* Placeholder background matches the Adwaita window surface so the
+       slot looks like an un-populated window (not a floating shadow)
+       while the showcase is still mounting. */
+    background-color: var(--window-bg-color, #222226);
     box-shadow:
       0 4px 24px rgba(0, 0, 0, 0.25),
       0 0 0 1px rgba(0, 0, 0, 0.08);
