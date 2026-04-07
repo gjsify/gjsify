@@ -1,6 +1,7 @@
 ---
 // Custom Hero component — replaces Starlight's default Hero.
-// Displays title, slogan, and CTA buttons, followed by the showcase slideshow.
+// VitePress-style layout: text block on the left (title, tagline, CTAs),
+// large logo on the right. Stacks vertically on narrow viewports.
 import ShowcaseSlideshow from './ShowcaseSlideshow.astro';
 import LogoLight from '../assets/logo-light.svg?raw';
 import LogoDark from '../assets/logo-dark.svg?raw';
@@ -8,15 +9,22 @@ import LogoDark from '../assets/logo-dark.svg?raw';
 
 <div class="hero-custom">
   <div class="hero-heading">
-    <div class="hero-logo">
+    <div class="hero-text">
+      <h1 class="hero-title">GJSify</h1>
+      <p class="hero-tagline">Node.js &amp; Web APIs, running on GJS</p>
+      <p class="hero-description">
+        Bring the full TypeScript ecosystem to GJS &mdash; fs, net, http, fetch,
+        WebSocket, Canvas2D, WebGL and more, all running natively on Linux.
+      </p>
+      <div class="hero-cta">
+        <a class="hero-btn hero-btn-primary" href="/gjsify/getting-started/">Get Started</a>
+        <a class="hero-btn hero-btn-minimal" href="https://github.com/gjsify/gjsify" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+
+    <div class="hero-logo" aria-hidden="true">
       <span class="hero-logo-light" set:html={LogoLight} />
       <span class="hero-logo-dark" set:html={LogoDark} />
-    </div>
-    <h1 class="hero-title">GJSify</h1>
-    <p class="hero-slogan">Node.js & Web APIs, running on GJS</p>
-    <div class="hero-cta">
-      <a class="hero-btn hero-btn-primary" href="/gjsify/getting-started/">Get Started</a>
-      <a class="hero-btn hero-btn-minimal" href="https://github.com/gjsify/gjsify" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
 
@@ -27,26 +35,68 @@ import LogoDark from '../assets/logo-dark.svg?raw';
   .hero-custom {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 2.5rem;
-    padding-block: 2rem 2rem;
+    align-items: stretch;
+    gap: 3rem;
+    padding-block: 3rem 2rem;
     position: relative;
   }
 
-  /* --- Heading section --- */
+  /* --- Heading section: two-column (text + logo) --- */
   .hero-heading {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.75rem;
-    text-align: center;
-    max-width: 700px;
+    gap: 3rem;
+    max-width: 1100px;
+    width: 100%;
+    margin-inline: auto;
   }
 
+  .hero-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .hero-title {
+    font-size: clamp(2.5rem, 5vw, 3.75rem);
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--sl-color-accent-high) 0%, var(--sl-color-accent) 60%, #9141ac 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .hero-tagline {
+    font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+    font-weight: 600;
+    color: var(--sl-color-white);
+    margin: 0;
+    line-height: 1.25;
+  }
+
+  .hero-description {
+    font-size: clamp(0.95rem, 1.5vw, 1.125rem);
+    color: var(--sl-color-gray-2);
+    margin: 0.25rem 0 0;
+    line-height: 1.55;
+    max-width: 46ch;
+  }
+
+  /* --- Logo (right column) --- */
   .hero-logo {
-    width: 80px;
-    height: 80px;
-    margin-bottom: 0.25rem;
+    width: clamp(160px, 20vw, 260px);
+    aspect-ratio: 1;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 8px 32px rgba(53, 132, 228, 0.25));
   }
 
   .hero-logo :global(svg) {
@@ -59,39 +109,24 @@ import LogoDark from '../assets/logo-dark.svg?raw';
   :root[data-theme='dark'] .hero-logo-light { display: none; }
   :root[data-theme='dark'] .hero-logo-dark { display: inline; }
 
-  .hero-title {
-    font-size: clamp(2rem, 5vw, 3rem);
-    font-weight: 800;
-    margin: 0;
-    line-height: 1.1;
-  }
-
-  .hero-slogan {
-    font-size: clamp(1rem, 2.5vw, 1.35rem);
-    color: var(--sl-color-gray-2);
-    margin: 0;
-    line-height: 1.4;
-  }
-
   /* --- CTA buttons --- */
   .hero-cta {
     display: flex;
-    gap: 1rem;
+    gap: 0.75rem;
     margin-top: 0.5rem;
     flex-wrap: wrap;
-    justify-content: center;
   }
 
   .hero-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.6rem 1.4rem;
+    padding: 0.7rem 1.5rem;
     border-radius: 8px;
     font-weight: 600;
     font-size: 0.95rem;
     text-decoration: none;
-    transition: background 0.15s, box-shadow 0.15s;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
   }
 
   .hero-btn-primary {
@@ -101,24 +136,45 @@ import LogoDark from '../assets/logo-dark.svg?raw';
 
   .hero-btn-primary:hover {
     background: var(--sl-color-accent-high);
-    box-shadow: 0 2px 8px rgba(53, 132, 228, 0.3);
+    box-shadow: 0 4px 16px rgba(53, 132, 228, 0.35);
+    transform: translateY(-1px);
   }
 
   .hero-btn-minimal {
     background: transparent;
-    color: var(--sl-color-gray-2);
+    color: var(--sl-color-white);
     border: 1px solid var(--sl-color-gray-5);
   }
 
   .hero-btn-minimal:hover {
     background: var(--sl-color-gray-6);
+    border-color: var(--sl-color-gray-4);
   }
 
   /* --- Responsive --- */
-  @media (max-width: 600px) {
+  @media (max-width: 800px) {
+    .hero-heading {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      text-align: center;
+    }
+
+    .hero-text {
+      align-items: center;
+    }
+
+    .hero-description {
+      max-width: 50ch;
+    }
+
+    .hero-cta {
+      justify-content: center;
+    }
+
+    /* Logo above the text on mobile */
     .hero-logo {
-      width: 60px;
-      height: 60px;
+      order: -1;
+      width: clamp(120px, 30vw, 180px);
     }
   }
 </style>
