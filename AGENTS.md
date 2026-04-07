@@ -70,7 +70,7 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 | websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
 | webstorage | Gio | localStorage, sessionStorage |
 | web-globals | — | Re-exports all web API globals (dom-events, abort-controller, streams, webcrypto, etc.) |
-| adwaita-web | — | Browser Adwaita components: AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow. Light/dark theme. No GJS deps |
+| adwaita-web | — | Browser Adwaita components: AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView. Custom Elements + SCSS source partials in `scss/` (mirrors `refs/adwaita-web/scss/`). Built to `dist/adwaita-web.css` via the `sass` package. Light/dark theme. Consumers: `import '@gjsify/adwaita-web'` (custom elements) + `import '@gjsify/adwaita-web/style.css'` (or `@use '@gjsify/adwaita-web/scss/...'`). No GJS deps. **Long-term goal:** complete the framework — port additional components from `refs/adwaita-web/scss/` (button, entry, dialog, popover, banner, tabs, …); see STATUS.md roadmap |
 
 ## DOM Packages — `packages/dom/*`
 

@@ -1,0 +1,65 @@
+// _switch_row.scss — adw-switch-row styling.
+// Reference: refs/adwaita-web/adwaita-web/scss/_switch_row.scss
+// Reference: refs/adwaita-web/adwaita-web/scss/_switch.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_switch.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-switch-row {
+  .adw-row-title {
+    flex: 1;
+    font-size: var(--font-size-base);
+    color: var(--card-fg-color);
+  }
+
+  .adw-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+
+    input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+  }
+
+  .adw-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: var(--switch-off-bg);
+    border-radius: 12px;
+    transition: background-color 0.15s ease-out;
+
+    &::before {
+      content: "";
+      position: absolute;
+      height: 20px;
+      width: 20px;
+      left: 2px;
+      bottom: 2px;
+      background-color: var(--switch-knob-bg);
+      border-radius: 50%;
+      transition: transform 0.15s ease-out;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+    }
+  }
+
+  .adw-switch input:checked + .adw-switch-slider {
+    background-color: var(--accent-bg-color);
+
+    &::before {
+      transform: translateX(20px);
+    }
+  }
+
+  .adw-switch input:focus-visible + .adw-switch-slider {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+  }
+}

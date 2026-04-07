@@ -2,6 +2,7 @@
 // Mirrors the GJS/Adwaita UI using @gjsify/adwaita-web.
 
 import '@gjsify/adwaita-web';
+import '@gjsify/adwaita-web/style.css';
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { start, type FireworksDemo } from '../fireworks.js';
 

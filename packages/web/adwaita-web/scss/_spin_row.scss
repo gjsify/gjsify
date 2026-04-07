@@ -1,0 +1,68 @@
+// _spin_row.scss — adw-spin-row styling.
+// Reference: refs/adwaita-web/adwaita-web/scss/_spin_button.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_spin-button.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-spin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 50px;
+  padding: var(--spacing-s) var(--spacing-m);
+  gap: var(--spacing-m);
+  border-bottom: 1px solid var(--card-shade-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .adw-row-title {
+    flex: 1;
+    font-size: var(--font-size-base);
+    color: var(--card-fg-color);
+  }
+}
+
+.adw-spin-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  button {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--button-radius);
+    background: transparent;
+    color: var(--card-fg-color);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    &:hover {
+      background: rgba(128, 128, 128, 0.15);
+    }
+  }
+
+  input {
+    width: 56px;
+    text-align: center;
+    border: none;
+    border-radius: var(--button-radius);
+    background: rgba(128, 128, 128, 0.1);
+    color: var(--card-fg-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    padding: 4px 2px;
+
+    &:focus {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -1px;
+    }
+  }
+}

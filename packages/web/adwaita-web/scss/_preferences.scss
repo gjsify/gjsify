@@ -1,0 +1,35 @@
+// _preferences.scss — adw-preferences-group styling.
+// Reference: refs/adwaita-web/adwaita-web/scss/_preferences.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_preferences.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-preferences-group {
+  display: block;
+
+  .adw-preferences-group-header {
+    padding: var(--spacing-xs) 2px;
+  }
+
+  .adw-preferences-group-title {
+    font-size: var(--font-size-small);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: var(--dim-opacity);
+    margin: 0;
+    color: var(--window-fg-color);
+  }
+
+  .adw-preferences-group-listbox {
+    background-color: var(--card-bg-color);
+    color: var(--card-fg-color);
+    border-radius: var(--card-radius);
+    box-shadow:
+      0 0 0 1px rgb(0 0 6 / 3%),
+      0 1px 3px 1px rgb(0 0 6 / 7%),
+      0 2px 6px 2px rgb(0 0 6 / 3%);
+    overflow: hidden;
+  }
+}

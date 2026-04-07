@@ -1,0 +1,34 @@
+// _theme.scss — Light/dark theme switching.
+// Auto via prefers-color-scheme + manual .theme-dark / .theme-light overrides.
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+@mixin dark-theme {
+  --window-bg-color: #222226;
+  --window-fg-color: #ffffff;
+  --view-bg-color: #1d1d20;
+  --view-fg-color: #ffffff;
+  --headerbar-bg-color: #2e2e32;
+  --headerbar-fg-color: #ffffff;
+  --headerbar-shade-color: rgba(0, 0, 6, 0.36);
+  --sidebar-bg-color: #2e2e32;
+  --card-bg-color: rgba(255, 255, 255, 0.08);
+  --card-fg-color: #ffffff;
+  --card-shade-color: rgba(0, 0, 6, 0.36);
+  --accent-color: #78aeed;
+  --switch-off-bg: rgba(255, 255, 255, 0.2);
+  --switch-knob-bg: #deddda;
+}
+
+// Auto dark theme via prefers-color-scheme — opt out with .theme-light
+@media (prefers-color-scheme: dark) {
+  :root:not(.theme-light) {
+    @include dark-theme;
+  }
+}
+
+// Manual override
+:root.theme-dark {
+  @include dark-theme;
+}

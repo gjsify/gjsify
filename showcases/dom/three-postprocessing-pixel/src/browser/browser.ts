@@ -4,6 +4,7 @@
 // Original: MIT license, three.js authors (https://threejs.org)
 
 import '@gjsify/adwaita-web';
+import '@gjsify/adwaita-web/style.css';
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { start, type PixelDemo } from '../three-demo.js';
 

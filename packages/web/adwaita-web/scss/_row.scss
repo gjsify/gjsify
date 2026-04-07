@@ -1,0 +1,29 @@
+// _row.scss — Shared base styling for rows in preferences groups.
+// Reference: refs/adwaita-web/adwaita-web/scss/_row_types.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_action-row.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-switch-row,
+adw-combo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 50px;
+  padding: var(--spacing-s) var(--spacing-m);
+  gap: var(--spacing-m);
+  border-bottom: 1px solid var(--card-shade-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+// Utility separator (used by content layouts)
+.adw-separator-vertical {
+  width: 1px;
+  align-self: stretch;
+  background-color: var(--card-shade-color);
+  flex-shrink: 0;
+}

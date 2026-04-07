@@ -41,7 +41,9 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: true });
-    renderer.setSize(canvas.width, canvas.height);
+    // Pass updateStyle=false: the canvas CSS width/height are managed by the
+    // host container (flex layout). We only want to update the drawing buffer.
+    renderer.setSize(canvas.width, canvas.height, false);
 
     // Camera
     const camera = new THREE.PerspectiveCamera(45, canvas.width / canvas.height, 1, 80000);

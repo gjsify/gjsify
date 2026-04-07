@@ -17,6 +17,12 @@ const { title, icon } = Astro.props;
   </div>
 </adw-card>
 
+<script>
+  // Side-effect import to register the <adw-card> custom element.
+  // CSS is loaded via Starlight customCss in astro.config.mjs.
+  import '@gjsify/adwaita-web';
+</script>
+
 <style>
   adw-card {
     padding: 24px;

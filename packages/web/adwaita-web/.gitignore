@@ -1,2 +1,8 @@
 # Build artifacts from gjsify build --library (outputs .js alongside .ts in src/)
 src/**/*.js
+
+# Compiled SCSS output
+dist/
+
+# Generated SCSS partial (icons resolved from @gjsify/adwaita-icons at build time)
+scss/_icons.generated.scss

@@ -9,12 +9,22 @@
         ".": {
             "types": "./src/index.ts",
             "default": "./src/index.ts"
-        }
+        },
+        "./style.css": "./dist/adwaita-web.css",
+        "./scss": "./scss/adwaita-skin.scss",
+        "./scss/*": "./scss/*"
     },
+    "files": [
+        "src",
+        "scss",
+        "dist",
+        "lib"
+    ],
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "clear": "rm -rf lib dist tsconfig.tsbuildinfo scss/_icons.generated.scss || exit 0",
         "check": "tsc --noEmit",
-        "build": "yarn build:gjsify && yarn build:types",
+        "build": "yarn build:scss && yarn build:gjsify && yarn build:types",
+        "build:scss": "node scripts/build-scss.mjs",
         "build:gjsify": "gjsify build --library 'src/**/*.ts' --exclude 'src/**/*.spec.ts'",
         "build:types": "tsc"
     },
@@ -24,6 +34,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "sass": "^1.83.0",
         "typescript": "^6.0.2"
     }
 }

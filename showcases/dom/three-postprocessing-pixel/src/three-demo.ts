@@ -31,7 +31,9 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     // Renderer
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: false });
     renderer.shadowMap.enabled = true;
-    renderer.setSize(canvas.width, canvas.height);
+    // Pass updateStyle=false: the canvas CSS width/height are managed by the
+    // host container (flex layout). We only want to update the drawing buffer.
+    renderer.setSize(canvas.width, canvas.height, false);
     renderer.debug.checkShaderErrors = true;
 
     // Track previous canvas size for resize detection

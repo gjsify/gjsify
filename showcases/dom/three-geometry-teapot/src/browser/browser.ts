@@ -2,6 +2,7 @@
 // Mirrors the GJS/Adwaita UI from gjs/teapot-window.ts using @gjsify/adwaita-web.
 
 import '@gjsify/adwaita-web';
+import '@gjsify/adwaita-web/style.css';
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { start, TESS_VALUES, SHADING_VALUES, DEFAULT_TESS_INDEX, DEFAULT_SHADING_INDEX, type TeapotDemo } from '../three-demo.js';
 
