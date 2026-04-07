@@ -18,7 +18,7 @@
     "build": "yarn build:gjs && yarn build:node && yarn build:public",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
-    "build:public": "cp -r src/public dist/public"
+    "build:public": "mkdir -p dist/public && cp -r src/public/* dist/public/"
   },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",

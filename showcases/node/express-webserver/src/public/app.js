@@ -19,7 +19,7 @@ function createPostElement(post) {
 
     const h2 = document.createElement('h2');
     const link = document.createElement('a');
-    link.href = `/api/posts/${encodeURIComponent(post.slug)}`;
+    link.href = `/posts/${encodeURIComponent(post.slug)}`;
     link.textContent = post.title;
     h2.appendChild(link);
     article.appendChild(h2);
