@@ -15,6 +15,9 @@ adw-combo-row {
     pointer-events: none;
   }
 
+  // Hidden <select> overlay — stretches across the row to capture clicks
+  // anywhere. The visual dropdown arrow is rendered by .adw-row-value::after
+  // below, so the select itself doesn't need a background image.
   select {
     appearance: none;
     -webkit-appearance: none;
@@ -26,11 +29,6 @@ adw-combo-row {
     color: var(--card-fg-color);
     cursor: pointer;
     text-align: right;
-    background-image: var(--icon-go-down);
-    background-repeat: no-repeat;
-    background-position: right 4px center;
-    background-size: 12px 12px;
-    // Stretch select over the entire row to make it clickable anywhere.
     position: absolute;
     inset: 0;
     opacity: 0;
@@ -57,14 +55,24 @@ adw-combo-row {
     align-items: center;
     gap: 4px;
 
+    // Dropdown arrow — rendered via CSS mask so `currentColor` drives the
+    // fill, making the icon theme-aware (matches libadwaita's dark theme).
+    // Using background-image with a data-URI SVG would NOT resolve
+    // `currentColor` in most browsers.
     &::after {
       content: "";
       display: inline-block;
       width: 12px;
       height: 12px;
-      background-image: var(--icon-go-down);
-      background-repeat: no-repeat;
-      background-size: contain;
+      background-color: currentColor;
+      -webkit-mask-image: var(--icon-go-down);
+      mask-image: var(--icon-go-down);
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-size: contain;
+      mask-size: contain;
+      -webkit-mask-position: center;
+      mask-position: center;
     }
   }
 }
