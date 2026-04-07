@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GJSify Blog — Express on GJS</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <h1>GJSify Blog</h1>
+      <p class="tagline">Express.js, running natively on Linux via GJS</p>
+    </div>
+    <div class="runtime" id="runtime">Loading runtime…</div>
+  </header>
+
+  <main class="posts" id="posts">
+    <p class="loading">Loading posts…</p>
+  </main>
+
+  <footer class="site-footer">
+    <p>Served by <code>@gjsify/example-node-express-webserver</code></p>
+    <p class="hint">Try the API directly: <a href="/api/posts">/api/posts</a></p>
+  </footer>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

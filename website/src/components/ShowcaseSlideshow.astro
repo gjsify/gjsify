@@ -27,6 +27,18 @@ interface Slide {
   github: string;
   code: string;
   annotations?: Annotation[];
+  /**
+   * Layout variant:
+   * - 'interactive' (default): live demo window + floating code overlay + try-it terminal
+   * - 'terminal': no live demo — just a large terminal window showing the
+   *   server's startup output. Used for CLI/server showcases that can't run
+   *   in the browser (e.g. Express.js web server).
+   */
+  variant?: 'interactive' | 'terminal';
+  /** For terminal variant: the shell session to display inside the terminal frame. */
+  terminalOutput?: string;
+  /** For terminal variant: title shown in the terminal headerbar. */
+  terminalTitle?: string;
 }
 
 const slides: Slide[] = [
@@ -106,6 +118,53 @@ app.connect('activate', () => {
   });
 });`,
   },
+  {
+    id: 'express',
+    name: 'express-webserver',
+    title: 'server.ts',
+    github: 'showcases/node/express-webserver',
+    variant: 'terminal',
+    annotations: [
+      { text: 'A real Express.js\nblog, running on GJS', top: '-90px', right: '8%' },
+    ],
+    code: `import '@gjsify/node-globals';
+import express from 'express';
+import { posts } from './data/posts.js';
+
+const app = express();
+app.use(express.json());
+
+app.get('/api/posts', (_req, res) => {
+  res.json({ count: posts.length, posts });
+});
+
+app.get('/api/posts/:slug', (req, res) => {
+  const post = posts.find((p) => p.slug === req.params.slug);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  res.json(post);
+});
+
+app.use(express.static('public'));
+
+app.listen(3000, () => {
+  console.log('Express server running at http://localhost:3000');
+});`,
+    terminalTitle: 'Terminal',
+    terminalOutput: `$ npx @gjsify/cli showcase express-webserver
+
+  Express.js blog running on GJS
+
+  ➜  Local:    http://localhost:3000/
+  ➜  API:      http://localhost:3000/api/posts
+
+  Press Ctrl+C to stop
+
+[12:34:56] GET /
+[12:34:56] GET /style.css
+[12:34:56] GET /app.js
+[12:34:56] GET /api/runtime
+[12:34:56] GET /api/posts`,
+  },
 ];
 ---
 
@@ -118,60 +177,81 @@ app.connect('activate', () => {
   </button>
 
   <div class="slideshow-track">
-    {slides.map((slide, i) => (
-      <div class={`slideshow-slide ${i === 0 ? 'active' : ''}`} data-slide-index={i} data-slide-id={slide.id}>
-        <div class="slide-demo-wrapper">
-          <div
-            class="slide-demo focusable"
-            id={`demo-${slide.id}`}
-            tabindex="0"
-            style="background-color:#222226"
-          ></div>
-
-          {slide.annotations?.map((a) => {
-            const pos = [
-              a.top !== undefined && `top:${a.top}`,
-              a.right !== undefined && `right:${a.right}`,
-              a.bottom !== undefined && `bottom:${a.bottom}`,
-              a.left !== undefined && `left:${a.left}`,
-            ].filter(Boolean).join(';');
-            const transforms = [
-              a.flip && 'scaleX(-1)',
-              a.rotate && `rotate(${a.rotate}deg)`,
-            ].filter(Boolean);
-            const arrowStyle = transforms.length ? `transform:${transforms.join(' ')}` : '';
-            return (
-              <div class="slide-annotation" aria-hidden="true" style={pos}>
-                <span class="slide-annotation-text">{a.text}</span>
-                <span class="slide-annotation-arrow" style={arrowStyle} set:html={DemoArrow} />
+    {slides.map((slide, i) => {
+      const variant = slide.variant ?? 'interactive';
+      return (
+        <div
+          class={`slideshow-slide slideshow-slide-${variant} ${i === 0 ? 'active' : ''}`}
+          data-slide-index={i}
+          data-slide-id={slide.id}
+          data-slide-variant={variant}
+        >
+          <div class="slide-demo-wrapper">
+            {variant === 'interactive' ? (
+              <div
+                class="slide-demo focusable"
+                id={`demo-${slide.id}`}
+                tabindex="0"
+                style="background-color:#222226"
+              ></div>
+            ) : (
+              // Terminal variant: a large terminal window standing in for the
+              // live demo slot (e.g. CLI / server showcases without a UI).
+              <div class="slide-demo slide-demo-terminal focusable" tabindex="0">
+                <Code
+                  code={slide.terminalOutput ?? ''}
+                  lang="sh"
+                  title={slide.terminalTitle ?? 'Terminal'}
+                  frame="terminal"
+                />
               </div>
-            );
-          })}
+            )}
 
-          <div class="slide-code-overlay focusable" tabindex="0">
-            <Code code={slide.code} lang="ts" title={slide.title} />
-            <a class="slide-code-link" href={`https://github.com/gjsify/gjsify/tree/main/${slide.github}`} target="_blank" rel="noopener">
-              Full example &rarr;
-            </a>
+            {slide.annotations?.map((a) => {
+              const pos = [
+                a.top !== undefined && `top:${a.top}`,
+                a.right !== undefined && `right:${a.right}`,
+                a.bottom !== undefined && `bottom:${a.bottom}`,
+                a.left !== undefined && `left:${a.left}`,
+              ].filter(Boolean).join(';');
+              const transforms = [
+                a.flip && 'scaleX(-1)',
+                a.rotate && `rotate(${a.rotate}deg)`,
+              ].filter(Boolean);
+              const arrowStyle = transforms.length ? `transform:${transforms.join(' ')}` : '';
+              return (
+                <div class="slide-annotation" aria-hidden="true" style={pos}>
+                  <span class="slide-annotation-text">{a.text}</span>
+                  <span class="slide-annotation-arrow" style={arrowStyle} set:html={DemoArrow} />
+                </div>
+              );
+            })}
+
+            <div class="slide-code-overlay focusable" tabindex="0">
+              <Code code={slide.code} lang="ts" title={slide.title} />
+              <a class="slide-code-link" href={`https://github.com/gjsify/gjsify/tree/main/${slide.github}`} target="_blank" rel="noopener">
+                Full example &rarr;
+              </a>
+            </div>
+          </div>
+
+          <div class="slide-try-it-wrapper">
+            <div class="slide-try-it-annotation" aria-hidden="true">
+              <span class="slide-try-it-label">See for yourself<br />on your machine!</span>
+              <span class="slide-try-it-arrow" set:html={DemoArrowTerminal} />
+            </div>
+            <div class="slide-try-it focusable" tabindex="0">
+              <Code
+                code={`npx @gjsify/cli showcase ${slide.name}`}
+                lang="sh"
+                title="Terminal"
+                frame="terminal"
+              />
+            </div>
           </div>
         </div>
-
-        <div class="slide-try-it-wrapper">
-          <div class="slide-try-it-annotation" aria-hidden="true">
-            <span class="slide-try-it-label">See for yourself<br />on your machine!</span>
-            <span class="slide-try-it-arrow" set:html={DemoArrowTerminal} />
-          </div>
-          <div class="slide-try-it focusable" tabindex="0">
-            <Code
-              code={`npx @gjsify/cli showcase ${slide.name}`}
-              lang="sh"
-              title="Terminal"
-              frame="terminal"
-            />
-          </div>
-        </div>
-      </div>
-    ))}
+      );
+    })}
   </div>
 </div>
 
@@ -184,6 +264,8 @@ app.connect('activate', () => {
     if (mounted.has(id)) return;
     mounted.add(id);
 
+    // Non-interactive slides (variant='terminal') render their content
+    // statically during SSR — nothing to mount.
     const container = document.getElementById(`demo-${id}`);
     if (!container) return;
 
@@ -461,6 +543,27 @@ app.connect('activate', () => {
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.35),
       0 0 0 1px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Terminal variant — renders a Starlight <Code frame="terminal"> inside
+     the demo slot instead of a live showcase. Keeps the same aspect ratio
+     and rounded-corner/shadow frame as the interactive variant. */
+  .slide-demo-terminal {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .slide-demo-terminal :global(.expressive-code) {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    overflow: auto;
+  }
+
+  .slide-demo-terminal :global(.expressive-code .frame) {
+    height: 100%;
   }
 
   /* --- Annotation arrows (per-slide, handwritten label + SVG arrow) --- */

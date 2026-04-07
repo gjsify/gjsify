@@ -1,0 +1,175 @@
+/* GJSify Blog — Adwaita-inspired theme */
+
+:root {
+  --bg: #1d1d20;
+  --surface: #2e2e32;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.55);
+  --accent: #78aeed;
+  --accent-strong: #3584e4;
+  --code-bg: rgba(120, 174, 237, 0.12);
+  --radius: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Adwaita Sans', 'Cantarell', -apple-system, sans-serif;
+  line-height: 1.6;
+}
+
+body {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 4rem;
+}
+
+/* --- Header --- */
+.site-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-bottom: 1.5rem;
+  margin-bottom: 2.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--accent) 0%, #9141ac 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.runtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.runtime::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #33d17a;
+  box-shadow: 0 0 8px #33d17a;
+}
+
+/* --- Posts --- */
+.posts {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.loading {
+  color: var(--muted);
+  text-align: center;
+}
+
+article.post {
+  padding: 1.5rem 1.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+article.post:hover {
+  transform: translateY(-2px);
+  border-color: rgba(120, 174, 237, 0.3);
+}
+
+article.post h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+article.post h2 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+article.post h2 a:hover {
+  color: var(--accent);
+}
+
+article.post .meta {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.825rem;
+  color: var(--muted);
+}
+
+article.post .meta .author {
+  color: var(--accent);
+}
+
+article.post .excerpt {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* --- Footer --- */
+.site-footer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.site-footer p {
+  margin: 0.25rem 0;
+}
+
+.site-footer code {
+  padding: 0.15rem 0.4rem;
+  background: var(--code-bg);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+
+.site-footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+}
+
+.hint {
+  opacity: 0.75;
+}

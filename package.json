@@ -54,6 +54,7 @@
     "examples/node/*",
     "examples/dom/*",
     "showcases/dom/*",
+    "showcases/node/*",
     "website"
   ]
 }

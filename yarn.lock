@@ -1454,6 +1454,7 @@ __metadata:
     "@gjsify/example-dom-canvas2d-fireworks": "workspace:^"
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
     "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^"
+    "@gjsify/example-node-express-webserver": "workspace:^"
     "@gjsify/node-polyfills": "workspace:^"
     "@gjsify/web-polyfills": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
@@ -2324,6 +2325,20 @@ __metadata:
     "@types/yargs": "npm:^17.0.35"
     typescript: "npm:^6.0.2"
     yargs: "npm:^18.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-express-webserver@workspace:^, @gjsify/example-node-express-webserver@workspace:showcases/node/express-webserver":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-express-webserver@workspace:showcases/node/express-webserver"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/express": "npm:^5.0.6"
+    "@types/node": "npm:^25.5.2"
+    express: "npm:^5.2.1"
+    typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
 

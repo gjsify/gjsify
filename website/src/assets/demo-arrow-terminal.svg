@@ -4,7 +4,7 @@
    fill="none"
    version="1.1"
    id="svg3"
-   sodipodi:docname="demo-arrow.svg"
+   sodipodi:docname="demo-arrow-terminal.svg"
    inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -32,23 +32,23 @@
      inkscape:current-layer="svg3" />
   <!-- shaft: curves from upper-right down to lower-left -->
   <path
-     d="M 56.793103,4.6120691 C 68.908378,30.472422 83.176625,69.224049 19.939655,62.568965"
+     d="m 13.930278,17.832836 c 25.630574,0.655376 12.527563,25.957014 24.050023,35.38152 5.722931,4.680927 6.957696,4.726913 34.272811,2.778977"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"
      id="path1"
-     sodipodi:nodetypes="cc"
+     sodipodi:nodetypes="csc"
      style="stroke-width:1;stroke-dasharray:none" />
   <!-- arrowhead: two straight strokes branching back from tip -->
   <path
-     d="M 19.842251,62.065618 28.914411,49.34965"
+     d="M 73.097579,56.414431 59.925837,64.811164"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"
      id="path2"
      style="stroke-width:1;stroke-dasharray:none" />
   <path
-     d="m 19.971562,62.453549 9.753567,8.619233"
+     d="M 73.122845,56.006297 67.303734,44.363222"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"
