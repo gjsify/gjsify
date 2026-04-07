@@ -87,7 +87,12 @@ app.connect('activate', () => {
     {slides.map((slide, i) => (
       <div class={`slideshow-slide ${i === 0 ? 'active' : ''}`} data-slide-index={i} data-slide-id={slide.id}>
         <div class="slide-demo-wrapper">
-          <div class="slide-demo focusable" id={`demo-${slide.id}`} tabindex="0"></div>
+          <div
+            class="slide-demo focusable"
+            id={`demo-${slide.id}`}
+            tabindex="0"
+            style="background-color:#222226"
+          ></div>
 
           <div class="slide-code-overlay focusable" tabindex="0">
             <Code code={slide.code} lang="ts" title={slide.title} />
@@ -367,8 +372,10 @@ app.connect('activate', () => {
     overflow: hidden;
     /* Placeholder background matches the Adwaita window surface so the
        slot looks like an un-populated window (not a floating shadow)
-       while the showcase is still mounting. */
-    background-color: var(--window-bg-color, #222226);
+       while the showcase is still mounting. Hard-coded (not a CSS var)
+       so it's applied the moment the scoped stylesheet is parsed,
+       without waiting for @gjsify/adwaita-web/style.css to load. */
+    background-color: #222226;
     box-shadow:
       0 4px 24px rgba(0, 0, 0, 0.25),
       0 0 0 1px rgba(0, 0, 0, 0.08);
@@ -376,6 +383,16 @@ app.connect('activate', () => {
     z-index: 1;
     transition: z-index 0s, box-shadow 0.2s;
     outline: none;
+  }
+
+  /* Light theme placeholder */
+  :root[data-theme='light'] .slide-demo {
+    background-color: #fafafb;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) .slide-demo {
+      background-color: #fafafb;
+    }
   }
 
   .slide-demo.on-top {
