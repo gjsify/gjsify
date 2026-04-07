@@ -1,15 +1,42 @@
 ---
 // Showcase slideshow — cycles through 3 interactive demos with code overlays.
 // Each slide lazy-mounts its demo on first view to avoid loading all 3 at once.
+import '@fontsource/coming-soon';
 import { Code } from '@astrojs/starlight/components';
 import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/actions';
+import DemoArrow from '../assets/demo-arrow.svg?raw';
 
-const slides = [
+// Per-slide annotation arrows with handwritten-style labels. Positions are
+// CSS values (top/right/bottom/left) applied to the absolute container.
+// `flip` mirrors the arrow horizontally, `rotate` rotates in degrees.
+interface Annotation {
+  text: string;
+  top?: string;
+  right?: string;
+  bottom?: string;
+  left?: string;
+  rotate?: number;
+  flip?: boolean;
+}
+
+interface Slide {
+  id: string;
+  name: string;
+  title: string;
+  github: string;
+  code: string;
+  annotations?: Annotation[];
+}
+
+const slides: Slide[] = [
   {
     id: 'pixel',
     name: 'three-postprocessing-pixel',
     title: 'pixel-demo.ts',
     github: 'showcases/dom/three-postprocessing-pixel',
+    annotations: [
+      { text: 'This WebGL demo runs\nnatively on Linux!', top: '-20px', right: '8%' },
+    ],
     code: `import Adw from 'gi://Adw?version=1';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
 import * as THREE from 'three';
@@ -33,6 +60,9 @@ app.connect('activate', () => {
     name: 'three-geometry-teapot',
     title: 'teapot-demo.ts',
     github: 'showcases/dom/three-geometry-teapot',
+    annotations: [
+      { text: 'Real Three.js,\npowered by GJS', top: '-20px', right: '8%' },
+    ],
     code: `import Adw from 'gi://Adw?version=1';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
 import * as THREE from 'three';
@@ -57,6 +87,9 @@ app.connect('activate', () => {
     name: 'canvas2d-fireworks',
     title: 'fireworks.ts',
     github: 'showcases/dom/canvas2d-fireworks',
+    annotations: [
+      { text: 'Canvas 2D, drawn\nwith Cairo', top: '-20px', right: '8%' },
+    ],
     code: `import Adw from 'gi://Adw?version=1';
 import { Canvas2DWidget } from '@gjsify/canvas2d';
 import { start } from './fireworks.js';
@@ -93,6 +126,26 @@ app.connect('activate', () => {
             tabindex="0"
             style="background-color:#222226"
           ></div>
+
+          {slide.annotations?.map((a) => {
+            const pos = [
+              a.top !== undefined && `top:${a.top}`,
+              a.right !== undefined && `right:${a.right}`,
+              a.bottom !== undefined && `bottom:${a.bottom}`,
+              a.left !== undefined && `left:${a.left}`,
+            ].filter(Boolean).join(';');
+            const transforms = [
+              a.flip && 'scaleX(-1)',
+              a.rotate && `rotate(${a.rotate}deg)`,
+            ].filter(Boolean);
+            const arrowStyle = transforms.length ? `transform:${transforms.join(' ')}` : '';
+            return (
+              <div class="slide-annotation" aria-hidden="true" style={pos}>
+                <span class="slide-annotation-text">{a.text}</span>
+                <span class="slide-annotation-arrow" style={arrowStyle} set:html={DemoArrow} />
+              </div>
+            );
+          })}
 
           <div class="slide-code-overlay focusable" tabindex="0">
             <Code code={slide.code} lang="ts" title={slide.title} />
@@ -402,6 +455,40 @@ app.connect('activate', () => {
       0 0 0 1px rgba(0, 0, 0, 0.12);
   }
 
+  /* --- Annotation arrows (per-slide, handwritten label + SVG arrow) --- */
+  .slide-annotation {
+    position: absolute;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    color: var(--sl-color-gray-2);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .slide-annotation-text {
+    font-family: 'Coming Soon', cursive;
+    font-size: clamp(0.9rem, 1.8vw, 1.15rem);
+    line-height: 1.35;
+    text-align: right;
+    transform: rotate(-3deg);
+    white-space: pre-line;
+    margin-bottom: 4px;
+  }
+
+  .slide-annotation-arrow {
+    display: inline-block;
+    width: clamp(60px, 6vw, 90px);
+    height: auto;
+  }
+
+  .slide-annotation-arrow :global(svg) {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
   /* Adwaita window fills demo container */
   .slide-demo :global(adw-window) {
     width: 100% !important;
@@ -498,6 +585,11 @@ app.connect('activate', () => {
     .slide-demo-wrapper {
       padding-bottom: 0;
       padding-right: 0;
+    }
+
+    /* Hide handwritten annotations — no room for them on narrow layouts. */
+    .slide-annotation {
+      display: none;
     }
 
     .slide-code-overlay {
