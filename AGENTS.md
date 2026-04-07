@@ -376,7 +376,13 @@ Every impl→A or B. Every ported test→C. Original: `// <Module> for GJS — o
 
 ## STATUS.md & CHANGELOG.md Maintenance
 
-Update STATUS.md when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates". Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
+**STATUS.md must always reflect the current state of the codebase.** Whenever a feature lands, a bug is fixed, a test is added, a workaround is discovered, or a deferred item is identified, STATUS.md must be updated in the same commit. Never leave STATUS.md drift between sessions.
+
+Update STATUS.md when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates".
+
+**Track deferred work in the dedicated `Open TODOs` section.** Every "out of scope", "follow-up" or "later" note from a PR description, plan file or commit message must have a corresponding entry there — otherwise it gets forgotten. When a TODO is resolved, move it to the relevant `### Completed` list (or delete it if trivial).
+
+Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
 
 ## Constraints
 

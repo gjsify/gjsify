@@ -55,7 +55,7 @@ interface PipeState {
   doEnd: boolean;
 }
 
-export class Stream extends EventEmitter {
+class Stream_ extends EventEmitter {
   constructor(opts?: StreamOptions) {
     super(opts);
   }
@@ -111,7 +111,7 @@ export class Stream extends EventEmitter {
 
 // ---- Readable ----
 
-export class Readable extends Stream {
+class Readable_ extends Stream_ {
   readable = true;
   readableFlowing: boolean | null = null;
   readableLength = 0;
@@ -541,7 +541,7 @@ export class Readable extends Stream {
 
 // ---- Writable ----
 
-export class Writable extends Stream {
+class Writable_ extends Stream_ {
   writable = true;
   writableHighWaterMark: number;
   writableLength = 0;
@@ -861,7 +861,7 @@ export class Writable extends Stream {
 
 // ---- Duplex ----
 
-export class Duplex extends Readable {
+class Duplex_ extends Readable_ {
   writable = true;
   writableHighWaterMark: number;
   writableLength = 0;
@@ -1071,7 +1071,7 @@ export class Duplex extends Readable {
 
 // ---- Transform ----
 
-export class Transform extends Duplex {
+class Transform_ extends Duplex_ {
   private _transformImpl: ((chunk: any, encoding: string, cb: (error?: Error | null, data?: any) => void) => void) | undefined;
   private _flushImpl: ((cb: (error?: Error | null, data?: any) => void) => void) | undefined;
 
@@ -1131,7 +1131,7 @@ export class Transform extends Duplex {
 
 // ---- PassThrough ----
 
-export class PassThrough extends Transform {
+class PassThrough_ extends Transform_ {
   constructor(opts?: TransformOptions) {
     super({
       ...opts,
@@ -1326,6 +1326,31 @@ export function isErrored(stream: unknown): boolean {
 }
 
 // ---- Exports ----
+//
+// The class declarations above use underscore-suffixed internal names
+// (`Stream_`, `Readable_`, etc.) — we wrap each one with `makeCallable` so
+// legacy CJS consumers can do `Stream.call(this)` (npm `send`,
+// `util.inherits(Sub, Stream)`, our own `@gjsify/crypto` `Hash.copy()`).
+// See `./callable.ts` for the rationale and implementation.
+//
+// Public API preserves the historical names. Both value and type positions
+// work because of the `type X = X_` aliases below.
+
+import { makeCallable } from './callable.js';
+
+export const Stream = makeCallable(Stream_) as typeof Stream_;
+export const Readable = makeCallable(Readable_) as typeof Readable_;
+export const Writable = makeCallable(Writable_) as typeof Writable_;
+export const Duplex = makeCallable(Duplex_) as typeof Duplex_;
+export const Transform = makeCallable(Transform_) as typeof Transform_;
+export const PassThrough = makeCallable(PassThrough_) as typeof PassThrough_;
+
+export type Stream = Stream_;
+export type Readable = Readable_;
+export type Writable = Writable_;
+export type Duplex = Duplex_;
+export type Transform = Transform_;
+export type PassThrough = PassThrough_;
 
 // Default export
 const _default = Object.assign(Stream, {

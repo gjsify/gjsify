@@ -268,6 +268,16 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ---
 
+## Open TODOs
+
+Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
+
+- **`@gjsify/events`: make `EventEmitter` callable via `.call(this)`.** The `makeCallable` Proxy shim added to `@gjsify/stream` ([packages/node/stream/src/callable.ts](packages/node/stream/src/callable.ts)) papers over the issue for stream consumers, but any other CJS package that does `EventEmitter.call(this)` directly (or any code that does `inherits(Sub, EventEmitter)` and calls `EventEmitter.call(this)` in `Sub`'s constructor) will still crash with `TypeError: Class constructor EventEmitter cannot be invoked without 'new'`. Apply the same `makeCallable` wrapper to `EventEmitter` (or extract the helper to `@gjsify/utils` once a second consumer needs it).
+- **Port the full Node stream test corpus.** Bring `refs/node-test/parallel/test-stream-*.js` (~100 files) into `packages/node/stream/src/*.spec.ts` incrementally. Start with: `test-stream-transform-*.js`, `test-stream-readable-legacy.js`, `test-stream-pipe-*.js`, `test-util-inherits.js`. Goal: raise stream test coverage from ~363 cases to >500.
+- **Extract `makeCallable` to `@gjsify/utils`** if/when a second package needs it. Today only `@gjsify/stream` uses it; promote only on the second consumer, per the AGENTS.md shared-utils rule.
+
+---
+
 ## Upstream GJS Patch Candidates
 
 Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey patches. These are ordered by impact — features where an upstream fix would benefit the most gjsify packages.
