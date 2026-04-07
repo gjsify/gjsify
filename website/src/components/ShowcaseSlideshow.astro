@@ -5,6 +5,7 @@ import '@fontsource/coming-soon';
 import { Code } from '@astrojs/starlight/components';
 import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/actions';
 import DemoArrow from '../assets/demo-arrow.svg?raw';
+import DemoArrowTerminal from '../assets/demo-arrow-terminal.svg?raw';
 
 // Per-slide annotation arrows with handwritten-style labels. Positions are
 // CSS values (top/right/bottom/left) applied to the absolute container.
@@ -157,8 +158,8 @@ app.connect('activate', () => {
 
         <div class="slide-try-it-wrapper">
           <div class="slide-try-it-annotation" aria-hidden="true">
-            <span class="slide-try-it-arrow" set:html={DemoArrow} />
             <span class="slide-try-it-label">See for<br />yourself!</span>
+            <span class="slide-try-it-arrow" set:html={DemoArrowTerminal} />
           </div>
           <div class="slide-try-it focusable" tabindex="0">
             <Code
@@ -572,12 +573,17 @@ app.connect('activate', () => {
     z-index: 5;
   }
 
-  /* Handwritten "See for yourself" label + arrow on the left of the
-     terminal. The arrow is flipped horizontally so it points rightward
-     toward the terminal (source SVG points down-left). */
+  /* Handwritten "See for yourself" label + arrow to the left of the
+     terminal. The label sits further left, the arrow points at the
+     terminal. Positioned outside the terminal box (right-anchored to
+     the left edge of the terminal via right: 50% + max-width math). */
   .slide-try-it-annotation {
     position: absolute;
-    left: 0;
+    /* Right edge of the annotation = left edge of the terminal
+       (terminal is max-width 640px, centered in the 820px wrapper).
+       50% (wrapper center) + 320px (half terminal) aligns to the
+       terminal's left edge; another 16px of breathing room. */
+    right: calc(50% + 320px + 16px);
     top: 50%;
     transform: translateY(-50%);
     display: flex;
@@ -592,9 +598,6 @@ app.connect('activate', () => {
   .slide-try-it-arrow {
     display: inline-block;
     width: clamp(50px, 5vw, 80px);
-    /* Flip horizontally so the arrow points from upper-left toward the
-       terminal on the right. */
-    transform: scaleX(-1);
   }
 
   .slide-try-it-arrow :global(svg) {
@@ -607,7 +610,7 @@ app.connect('activate', () => {
     font-family: 'Coming Soon', cursive;
     font-size: clamp(0.9rem, 1.6vw, 1.1rem);
     line-height: 1.3;
-    text-align: left;
+    text-align: right;
     transform: rotate(-3deg);
     white-space: nowrap;
   }
