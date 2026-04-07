@@ -97,8 +97,13 @@ app.connect('activate', () => {
           </div>
         </div>
 
-        <div class="slide-try-it">
-          <Code code={`npx @gjsify/cli showcase ${slide.name}`} lang="sh" title="Terminal" frame="terminal" />
+        <div class="slide-try-it focusable" tabindex="0">
+          <Code
+            code={`# Run this native demo on your machine\nnpx @gjsify/cli showcase ${slide.name}`}
+            lang="sh"
+            title="Terminal"
+            frame="terminal"
+          />
         </div>
       </div>
     ))}
@@ -196,27 +201,28 @@ app.connect('activate', () => {
     if (firstId) mountSlide(firstId);
   }
 
-  // --- Focus / z-index toggling for demo + code overlay ----------------
-  // Each slide has two stacked windows (demo + code overlay). Clicking on one
-  // raises it above the other. Code overlay is on top by default.
+  // --- Focus / z-index toggling for the three stacked windows ----------
+  // Each slide has three Adwaita windows (demo, code overlay, terminal).
+  // Clicking on one raises it above the others. The code overlay is on top
+  // by default, followed by the terminal, followed by the demo.
   document.querySelectorAll<HTMLElement>('.slideshow-slide').forEach((slide) => {
     const demo = slide.querySelector<HTMLElement>('.slide-demo');
     const code = slide.querySelector<HTMLElement>('.slide-code-overlay');
-    if (!demo || !code) return;
+    const terminal = slide.querySelector<HTMLElement>('.slide-try-it');
+    if (!demo || !code || !terminal) return;
 
-    function focusDemo() {
-      demo!.classList.add('on-top');
-      code!.classList.remove('on-top');
-    }
-    function focusCode() {
-      code!.classList.add('on-top');
-      demo!.classList.remove('on-top');
+    const layers = [demo, code, terminal];
+
+    function focusLayer(target: HTMLElement) {
+      for (const el of layers) {
+        el.classList.toggle('on-top', el === target);
+      }
     }
 
-    demo.addEventListener('pointerdown', focusDemo);
-    code.addEventListener('pointerdown', focusCode);
-    demo.addEventListener('focusin', focusDemo);
-    code.addEventListener('focusin', focusCode);
+    for (const layer of layers) {
+      layer.addEventListener('pointerdown', () => focusLayer(layer));
+      layer.addEventListener('focusin', () => focusLayer(layer));
+    }
   });
 </script>
 
@@ -425,12 +431,33 @@ app.connect('activate', () => {
     text-decoration: underline;
   }
 
-  /* --- Try it section --- */
+  /* --- Try it section ---
+     Positioned below the demo but pulled up so it overlaps the code overlay
+     slightly, creating the same stacked-window look as the demo + code pair.
+     Like the other two windows it is focusable and participates in the
+     z-index stacking. */
   .slide-try-it {
-    text-align: center;
-    max-width: 600px;
+    position: relative;
+    max-width: 640px;
     margin-inline: auto;
-    padding-block: 1.5rem 0;
+    margin-top: clamp(-80px, -5vw, -32px);
+    padding: 0;
+    /* Sits between demo (1) and code overlay (2) by default */
+    z-index: 2;
+    transition: box-shadow 0.2s;
+    outline: none;
+  }
+
+  .slide-try-it.on-top {
+    z-index: 5;
+  }
+
+  /* Left-align code inside the terminal frame (Expressive Code may inherit
+     text alignment from ancestors or center-align its inline container). */
+  .slide-try-it :global(.expressive-code),
+  .slide-try-it :global(.expressive-code pre),
+  .slide-try-it :global(.expressive-code code) {
+    text-align: left;
   }
 
   /* --- Responsive --- */
