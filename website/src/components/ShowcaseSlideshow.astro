@@ -35,7 +35,7 @@ const slides: Slide[] = [
     title: 'pixel-demo.ts',
     github: 'showcases/dom/three-postprocessing-pixel',
     annotations: [
-      { text: 'This WebGL demo runs\nnatively on Linux!', top: '-20px', right: '8%' },
+      { text: 'This WebGL demo runs\nnatively on Linux!', top: '-90px', right: '8%' },
     ],
     code: `import Adw from 'gi://Adw?version=1';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
@@ -61,7 +61,7 @@ app.connect('activate', () => {
     title: 'teapot-demo.ts',
     github: 'showcases/dom/three-geometry-teapot',
     annotations: [
-      { text: 'Real Three.js,\npowered by GJS', top: '-20px', right: '8%' },
+      { text: 'Real Three.js,\npowered by GJS', top: '-90px', right: '8%' },
     ],
     code: `import Adw from 'gi://Adw?version=1';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
@@ -88,7 +88,7 @@ app.connect('activate', () => {
     title: 'fireworks.ts',
     github: 'showcases/dom/canvas2d-fireworks',
     annotations: [
-      { text: 'Canvas 2D, drawn\nwith Cairo', top: '-20px', right: '8%' },
+      { text: 'Canvas 2D, drawn\nwith Cairo', top: '-90px', right: '8%' },
     ],
     code: `import Adw from 'gi://Adw?version=1';
 import { Canvas2DWidget } from '@gjsify/canvas2d';
@@ -293,14 +293,15 @@ app.connect('activate', () => {
   }
 
   /* --- Slide track: clipping container so slides can slide in/out ---
-     Padding reserves room for the Adwaita window shadows (which extend
-     beyond the .slide-demo box) so overflow: hidden doesn't clip them.
-     Negative margins offset the padding so the track still fits its
-     parent's content box. */
+     Padding reserves room for the Adwaita window shadows AND the
+     per-slide handwritten annotations (which extend above the .slide-demo
+     box). Negative horizontal margin offsets the padding so the track
+     still fits its parent's content box; vertical padding just grows
+     the track box — that's the breathing room for the annotations. */
   .slideshow-track {
     position: relative;
     width: auto;
-    padding: 30px;
+    padding: 140px 30px 30px;
     margin-inline: -30px;
     overflow: hidden;
   }
@@ -354,7 +355,7 @@ app.connect('activate', () => {
   .slideshow-slide.exit-left,
   .slideshow-slide.exit-right {
     position: absolute;
-    top: 30px;
+    top: 140px;  /* matches .slideshow-track padding-top */
     left: 30px;
     right: 30px;
     width: auto;
@@ -587,9 +588,20 @@ app.connect('activate', () => {
       padding-right: 0;
     }
 
-    /* Hide handwritten annotations — no room for them on narrow layouts. */
+    /* Hide handwritten annotations — no room for them on narrow layouts.
+       Also drop the track's top padding since it was reserving space for
+       the annotations. */
     .slide-annotation {
       display: none;
+    }
+
+    .slideshow-track {
+      padding-top: 30px;
+    }
+
+    .slideshow-slide.exit-left,
+    .slideshow-slide.exit-right {
+      top: 30px;
     }
 
     .slide-code-overlay {
