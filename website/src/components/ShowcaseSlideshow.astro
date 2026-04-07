@@ -277,9 +277,18 @@ app.connect('activate', () => {
     transition: none;
   }
 
-  /* Exit to left (next direction) */
+  /* Exit to left (next direction) ---
+     Use inset positioning instead of width:100% so the exit slide has the
+     same effective width as the active slide. With position:absolute, a
+     width:100% would resolve against the track's padding-box (which includes
+     the 30px shadow-bleed padding), making the exit slide 60px wider than
+     the relatively-positioned active slide → visible layout jump during
+     the transition. Pinning both left and right edges avoids that. */
   .slideshow-slide.exit-left {
     position: absolute;
+    left: 30px;
+    right: 30px;
+    width: auto;
     opacity: 0;
     transform: translateX(-40px);
     pointer-events: none;
@@ -288,6 +297,9 @@ app.connect('activate', () => {
   /* Exit to right (prev direction) */
   .slideshow-slide.exit-right {
     position: absolute;
+    left: 30px;
+    right: 30px;
+    width: auto;
     opacity: 0;
     transform: translateX(40px);
     pointer-events: none;
