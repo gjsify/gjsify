@@ -83,24 +83,26 @@ app.connect('activate', () => {
     <Fragment set:html={goNextSymbolic} />
   </button>
 
-  {slides.map((slide, i) => (
-    <div class={`slideshow-slide ${i === 0 ? 'active' : ''}`} data-slide-index={i} data-slide-id={slide.id}>
-      <div class="slide-demo-wrapper">
-        <div class="slide-demo" id={`demo-${slide.id}`}></div>
+  <div class="slideshow-track">
+    {slides.map((slide, i) => (
+      <div class={`slideshow-slide ${i === 0 ? 'active' : ''}`} data-slide-index={i} data-slide-id={slide.id}>
+        <div class="slide-demo-wrapper">
+          <div class="slide-demo focusable" id={`demo-${slide.id}`} tabindex="0"></div>
 
-        <div class="slide-code-overlay">
-          <Code code={slide.code} lang="ts" title={slide.title} />
-          <a class="slide-code-link" href={`https://github.com/gjsify/gjsify/tree/main/${slide.github}`} target="_blank" rel="noopener">
-            Full example &rarr;
-          </a>
+          <div class="slide-code-overlay focusable" tabindex="0">
+            <Code code={slide.code} lang="ts" title={slide.title} />
+            <a class="slide-code-link" href={`https://github.com/gjsify/gjsify/tree/main/${slide.github}`} target="_blank" rel="noopener">
+              Full example &rarr;
+            </a>
+          </div>
+        </div>
+
+        <div class="slide-try-it">
+          <Code code={`npx @gjsify/cli showcase ${slide.name}`} lang="sh" title="Terminal" frame="terminal" />
         </div>
       </div>
-
-      <div class="slide-try-it">
-        <Code code={`npx @gjsify/cli showcase ${slide.name}`} lang="sh" title="Terminal" frame="terminal" />
-      </div>
-    </div>
-  ))}
+    ))}
+  </div>
 </div>
 
 <script>
@@ -134,32 +136,84 @@ app.connect('activate', () => {
     }
   }
 
-  // Slideshow navigation
+  // Slideshow navigation with sliding animation
   const slideshow = document.querySelector('.slideshow');
   if (slideshow) {
     const slides = slideshow.querySelectorAll<HTMLElement>('.slideshow-slide');
     const prevBtn = slideshow.querySelector('.slideshow-arrow-prev');
     const nextBtn = slideshow.querySelector('.slideshow-arrow-next');
     let activeIndex = 0;
+    let animating = false;
 
-    function showSlide(index: number) {
-      slides.forEach((s, i) => s.classList.toggle('active', i === index));
-      activeIndex = index;
-      const id = slides[index]?.dataset.slideId;
+    function showSlide(targetIndex: number, direction: 'next' | 'prev') {
+      if (animating || targetIndex === activeIndex) return;
+      animating = true;
+
+      const current = slides[activeIndex];
+      const target = slides[targetIndex];
+      const id = target?.dataset.slideId;
       if (id) mountSlide(id);
+
+      // Direction → which side the new slide enters from
+      const enterClass = direction === 'next' ? 'enter-right' : 'enter-left';
+      const exitClass = direction === 'next' ? 'exit-left' : 'exit-right';
+
+      target.classList.add('active', enterClass);
+      // Force a reflow so the enter transform applies before transitioning
+      void target.offsetWidth;
+      target.classList.remove(enterClass);
+
+      current.classList.add(exitClass);
+
+      const onEnd = () => {
+        current.classList.remove('active', exitClass);
+        target.removeEventListener('transitionend', onEnd);
+        activeIndex = targetIndex;
+        animating = false;
+      };
+      target.addEventListener('transitionend', onEnd, { once: true });
+
+      // Fallback in case transitionend doesn't fire
+      setTimeout(() => {
+        if (animating) onEnd();
+      }, 600);
     }
 
     prevBtn?.addEventListener('click', () => {
-      showSlide((activeIndex - 1 + slides.length) % slides.length);
+      showSlide((activeIndex - 1 + slides.length) % slides.length, 'prev');
     });
 
     nextBtn?.addEventListener('click', () => {
-      showSlide((activeIndex + 1) % slides.length);
+      showSlide((activeIndex + 1) % slides.length, 'next');
     });
 
     // Mount the first slide immediately
-    showSlide(0);
+    const firstId = slides[0]?.dataset.slideId;
+    if (firstId) mountSlide(firstId);
   }
+
+  // --- Focus / z-index toggling for demo + code overlay ----------------
+  // Each slide has two stacked windows (demo + code overlay). Clicking on one
+  // raises it above the other. Code overlay is on top by default.
+  document.querySelectorAll<HTMLElement>('.slideshow-slide').forEach((slide) => {
+    const demo = slide.querySelector<HTMLElement>('.slide-demo');
+    const code = slide.querySelector<HTMLElement>('.slide-code-overlay');
+    if (!demo || !code) return;
+
+    function focusDemo() {
+      demo!.classList.add('on-top');
+      code!.classList.remove('on-top');
+    }
+    function focusCode() {
+      code!.classList.add('on-top');
+      demo!.classList.remove('on-top');
+    }
+
+    demo.addEventListener('pointerdown', focusDemo);
+    code.addEventListener('pointerdown', focusCode);
+    demo.addEventListener('focusin', focusDemo);
+    code.addEventListener('focusin', focusCode);
+  });
 </script>
 
 <style>
@@ -169,13 +223,63 @@ app.connect('activate', () => {
     max-width: 1100px;
   }
 
-  /* --- Slides --- */
+  /* --- Slide track: clipping container so slides can slide in/out --- */
+  .slideshow-track {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  /* --- Slides ---
+     All slides share the same flow position. Inactive slides are detached
+     visually via opacity/transform so the active one defines layout height. */
   .slideshow-slide {
-    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    opacity: 0;
+    transform: translateX(0);
+    pointer-events: none;
+    transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .slideshow-slide.active {
-    display: block;
+    position: relative;
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  /* Enter from right (next direction) */
+  .slideshow-slide.enter-right {
+    opacity: 0;
+    transform: translateX(40px);
+    transition: none;
+  }
+
+  /* Enter from left (prev direction) */
+  .slideshow-slide.enter-left {
+    opacity: 0;
+    transform: translateX(-40px);
+    transition: none;
+  }
+
+  /* Exit to left (next direction) */
+  .slideshow-slide.exit-left {
+    position: absolute;
+    opacity: 0;
+    transform: translateX(-40px);
+    pointer-events: none;
+  }
+
+  /* Exit to right (prev direction) */
+  .slideshow-slide.exit-right {
+    position: absolute;
+    opacity: 0;
+    transform: translateX(40px);
+    pointer-events: none;
   }
 
   /* --- Navigation arrows --- */
@@ -233,6 +337,16 @@ app.connect('activate', () => {
       0 4px 24px rgba(0, 0, 0, 0.25),
       0 0 0 1px rgba(0, 0, 0, 0.08);
     position: relative;
+    z-index: 1;
+    transition: z-index 0s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  .slide-demo.on-top {
+    z-index: 3;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(0, 0, 0, 0.12);
   }
 
   /* Adwaita window fills demo container */
@@ -257,9 +371,16 @@ app.connect('activate', () => {
     position: absolute;
     bottom: 0;
     right: 0;
+    /* Code window is on top by default */
     z-index: 2;
     max-width: 640px;
     width: 58%;
+    transition: box-shadow 0.2s;
+    outline: none;
+  }
+
+  .slide-code-overlay.on-top {
+    z-index: 4;
   }
 
   .slide-code-link {
