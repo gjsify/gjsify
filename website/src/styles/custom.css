@@ -299,9 +299,12 @@ header.header {
 .hero-custom::before {
   content: '';
   position: absolute;
-  top: 0;
+  /* Push the glow center down to align with the slideshow mid-point.
+     The hero-heading takes ~40% of the total hero height, so 35% offset
+     places the radial-gradient centre roughly at the slideshow's centre. */
+  top: 35%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   width: 200%;
   max-width: 1400px;
   height: 1200px;

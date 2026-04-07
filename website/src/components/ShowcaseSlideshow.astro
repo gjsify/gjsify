@@ -463,7 +463,9 @@ app.listen(3000, () => {
   /* --- Navigation arrows --- */
   .slideshow-arrow {
     position: absolute;
-    top: 35%;
+    /* Center on the demo window: track has 140px top padding for annotations,
+       so the demo content starts below that. 50% aligns to the demo mid-point. */
+    top: calc(140px + 30%);
     transform: translateY(-50%);
     z-index: 10;
     width: 44px;
