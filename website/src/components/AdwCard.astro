@@ -1,16 +1,23 @@
 ---
 // Adwaita-styled card component using <adw-card> from @gjsify/adwaita-web.
 // Accepts a raw SVG string as icon (from @gjsify/adwaita-icons).
+// The icon is rendered as a CSS mask so it can be tinted via currentColor
+// and sized freely without the 16px source resolution making it blurry.
+import { toDataUri } from '@gjsify/adwaita-icons/utils';
+
 interface Props {
   title: string;
   icon: string;
 }
 
 const { title, icon } = Astro.props;
+const iconUrl = toDataUri(icon);
 ---
 
 <adw-card>
-  <div class="adw-card-icon" set:html={icon} />
+  <div class="adw-card-icon-box" aria-hidden="true">
+    <span class="adw-card-icon" style={`--card-icon: ${iconUrl}`}></span>
+  </div>
   <h3 class="adw-card-title">{title}</h3>
   <div class="adw-card-body">
     <slot />
@@ -28,16 +35,35 @@ const { title, icon } = Astro.props;
     padding: 24px;
   }
 
-  .adw-card-icon {
-    width: 32px;
-    height: 32px;
+  /* Icon container — rounded square tinted with the accent color,
+     visually matching the "badge" style of GNOME/Astal card icons. */
+  .adw-card-icon-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--sl-color-accent-low);
     color: var(--sl-color-accent);
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
 
-  .adw-card-icon :global(svg) {
-    width: 100%;
-    height: 100%;
+  /* Icon rendered as a CSS mask so it inherits currentColor and stays
+     crisp at any size (the source SVG is 16px). */
+  .adw-card-icon {
+    display: block;
+    width: 24px;
+    height: 24px;
+    background-color: currentColor;
+    -webkit-mask-image: var(--card-icon);
+    mask-image: var(--card-icon);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    mask-position: center;
   }
 
   .adw-card-title {
