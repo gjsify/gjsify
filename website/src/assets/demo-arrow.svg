@@ -32,7 +32,7 @@
      inkscape:current-layer="svg3" />
   <!-- shaft: curves from upper-right down to lower-left -->
   <path
-     d="M 56.275862,8.362069 C 56.462887,25.757212 46.565366,49.343674 6.4913793,69.034482"
+     d="M 56.793103,4.6120691 C 68.908378,30.472422 83.176625,69.224049 19.939655,62.568965"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"
@@ -41,14 +41,14 @@
      style="stroke-width:1;stroke-dasharray:none" />
   <!-- arrowhead: two straight strokes branching back from tip -->
   <path
-     d="m 6.2219199,69.442457 2.879171,-15.35286"
+     d="M 19.842251,62.065618 28.914411,49.34965"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"
      id="path2"
      style="stroke-width:1;stroke-dasharray:none" />
   <path
-     d="M 6.2219199,69.442457 18.229029,69.38304"
+     d="m 19.971562,62.453549 9.753567,8.619233"
      stroke="currentColor"
      stroke-width="2.5"
      stroke-linecap="round"
