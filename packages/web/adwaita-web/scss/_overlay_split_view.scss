@@ -79,6 +79,15 @@ adw-overlay-split-view {
   }
 }
 
+// Sidebar content layout helper — wraps the sidebar's children with the
+// standard Adwaita spacing scale (12px padding, 12px gap between groups).
+.adw-sidebar-content {
+  padding: var(--spacing-m);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-m);
+}
+
 // Sidebar toggle button — sidebar-show-symbolic icon via CSS mask
 .adw-sidebar-toggle-icon::after {
   content: '';

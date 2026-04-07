@@ -218,26 +218,10 @@ app.connect('activate', () => {
 
 <style>
   .slideshow {
-    /* Break out of the parent's content-width constraint and use the full
-       viewport (capped for ultra-wide displays). Negative margins pull the
-       slideshow to the viewport edges from inside whatever ancestor contains
-       it; max-width caps it on ultra-wide screens. */
     position: relative;
-    width: 100vw;
-    max-width: 1800px;
-    margin-left: calc(50% - 50vw);
-    margin-right: calc(50% - 50vw);
-    padding-inline: 1rem;
-    box-sizing: border-box;
-  }
-
-  /* When the viewport is wider than the cap (1800px + gutter), recenter
-     within the available room instead of clinging to the left edge. */
-  @media (min-width: 1832px) {
-    .slideshow {
-      margin-left: auto;
-      margin-right: auto;
-    }
+    width: 100%;
+    max-width: 1100px;
+    margin-inline: auto;
   }
 
   /* --- Slide track: clipping container so slides can slide in/out --- */
@@ -330,23 +314,21 @@ app.connect('activate', () => {
   }
 
   .slideshow-arrow-prev {
-    left: 16px;
+    left: -56px;
   }
 
   .slideshow-arrow-next {
-    right: 16px;
+    right: -56px;
   }
 
   /* --- Demo + code overlay (per slide) ---
-     The demo has a hard maximum size; the slideshow itself centers it.
-     Padding reserves space at the bottom-right for the floating code window. */
+     Padding reserves space at the bottom-right for the floating code window.
+     Using clamp() so the reserved space scales with the available width. */
   .slide-demo-wrapper {
     position: relative;
     width: 100%;
-    max-width: 1400px;
-    margin-inline: auto;
-    padding-bottom: clamp(80px, 12%, 200px);
-    padding-right: clamp(40px, 14%, 240px);
+    padding-bottom: clamp(80px, 14%, 240px);
+    padding-right: clamp(40px, 16%, 280px);
   }
 
   .slide-demo {
@@ -394,10 +376,10 @@ app.connect('activate', () => {
     right: 0;
     /* Code window is on top by default */
     z-index: 2;
-    /* Code window scales between a minimum (mobile) and a generous max
-       (desktop). Clamped so it stays readable but doesn't dominate. */
-    width: clamp(340px, 48%, 820px);
-    max-width: 820px;
+    /* Code window scales with the available width. Clamped so it stays
+       readable on mobile and doesn't dominate on larger screens. */
+    width: clamp(320px, 48%, 680px);
+    max-width: 680px;
     transition: box-shadow 0.2s;
     outline: none;
   }
@@ -429,7 +411,17 @@ app.connect('activate', () => {
   }
 
   /* --- Responsive --- */
-  @media (max-width: 800px) {
+  @media (max-width: 1250px) {
+    /* Arrows outside the slideshow would be clipped once the content
+       shrinks — move them inside the frame. */
+    .slideshow-arrow-prev { left: 8px; }
+    .slideshow-arrow-next { right: 8px; }
+    .slideshow-arrow {
+      background: rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  @media (max-width: 1000px) {
     /* On narrow screens, stack the code window below the demo instead of
        overlapping it — there isn't enough room for a meaningful overlap. */
     .slide-demo-wrapper {
