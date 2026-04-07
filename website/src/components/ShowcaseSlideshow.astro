@@ -218,9 +218,13 @@ app.connect('activate', () => {
 
 <style>
   .slideshow {
+    /* Break out of the parent's content-width constraint and use the full
+       viewport (capped for ultra-wide displays). The arrows + code overlay
+       remain anchored to this expanded slideshow box. */
     position: relative;
-    width: 100%;
-    max-width: 1100px;
+    width: min(100vw - 2rem, 1800px);
+    margin-left: 50%;
+    transform: translateX(-50%);
   }
 
   /* --- Slide track: clipping container so slides can slide in/out --- */
@@ -313,19 +317,23 @@ app.connect('activate', () => {
   }
 
   .slideshow-arrow-prev {
-    left: -56px;
+    left: 16px;
   }
 
   .slideshow-arrow-next {
-    right: -56px;
+    right: 16px;
   }
 
-  /* --- Demo + code overlay (per slide) --- */
+  /* --- Demo + code overlay (per slide) ---
+     Padding reserves space at the bottom-right for the floating code window.
+     Using clamp() so the reserved space (and thus the demo size) scales with
+     the viewport — wider screens give the demo more absolute room and the
+     code overlay therefore covers a smaller relative area. */
   .slide-demo-wrapper {
     position: relative;
     width: 100%;
-    padding-bottom: 250px;
-    padding-right: 250px;
+    padding-bottom: clamp(80px, 14%, 240px);
+    padding-right: clamp(40px, 16%, 280px);
   }
 
   .slide-demo {
@@ -373,8 +381,11 @@ app.connect('activate', () => {
     right: 0;
     /* Code window is on top by default */
     z-index: 2;
+    /* Width clamped so it doesn't grow proportionally with the viewport.
+       On narrow screens it covers more of the demo (~50%); on wide screens
+       it stays around 640px and therefore overlaps a smaller relative area. */
+    width: clamp(320px, 42%, 640px);
     max-width: 640px;
-    width: 58%;
     transition: box-shadow 0.2s;
     outline: none;
   }
@@ -406,15 +417,9 @@ app.connect('activate', () => {
   }
 
   /* --- Responsive --- */
-  @media (max-width: 1250px) {
-    .slideshow-arrow-prev { left: 8px; }
-    .slideshow-arrow-next { right: 8px; }
-    .slideshow-arrow {
-      background: rgba(0, 0, 0, 0.5);
-    }
-  }
-
-  @media (max-width: 1100px) {
+  @media (max-width: 800px) {
+    /* On narrow screens, stack the code window below the demo instead of
+       overlapping it — there isn't enough room for a meaningful overlap. */
     .slide-demo-wrapper {
       padding-bottom: 0;
       padding-right: 0;
