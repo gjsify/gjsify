@@ -24,9 +24,9 @@
 
 /* Dark mode */
 :root[data-theme='dark'] {
-  --sl-color-accent-low:     rgba(120, 174, 237, 0.12);
-  --sl-color-accent:         #78aeed;   /* Lighter GNOME Blue for dark bg */
-  --sl-color-accent-high:    #b3d4f5;
+  --sl-color-accent-low:     rgba(53, 132, 228, 0.15);
+  --sl-color-accent:         #3584e4;   /* GNOME Blue — same as light mode */
+  --sl-color-accent-high:    #78aeed;
 
   --sl-color-bg:             #242424;   /* Adwaita dark */
   --sl-color-bg-nav:         #303030;
@@ -247,6 +247,27 @@
 .expressive-code .frame.adw-code-window code {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+}
+
+/* Code content background → Adwaita window surface.
+   EC plugin-frames sets --code-background on .frame (editorBackground) and
+   overrides it on .frame.is-terminal (terminalBackground). We unify both
+   to the Adwaita window surface so terminal frames use no separate colour. */
+.expressive-code .frame,
+.expressive-code .frame.is-terminal {
+  --code-background: #222226;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .expressive-code .frame,
+  :root:not([data-theme='dark']) .expressive-code .frame.is-terminal {
+    --code-background: #ffffff;
+  }
+}
+
+:root[data-theme='light'] .expressive-code .frame,
+:root[data-theme='light'] .expressive-code .frame.is-terminal {
+  --code-background: #ffffff;
 }
 
 /* --- Dark mode --- */
