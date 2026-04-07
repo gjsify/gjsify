@@ -472,8 +472,8 @@ app.connect('activate', () => {
   }
 
   @media (max-width: 1000px) {
-    /* On narrow screens, stack the code window below the demo instead of
-       overlapping it — there isn't enough room for a meaningful overlap. */
+    /* On narrow screens, stack all three windows vertically instead of
+       overlapping them — there isn't enough room for a meaningful overlap. */
     .slide-demo-wrapper {
       padding-bottom: 0;
       padding-right: 0;
@@ -483,6 +483,10 @@ app.connect('activate', () => {
       position: static;
       width: 100%;
       max-width: none;
+      margin-top: 1rem;
+    }
+
+    .slide-try-it {
       margin-top: 1rem;
     }
   }
