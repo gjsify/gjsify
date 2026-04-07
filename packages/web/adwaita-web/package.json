@@ -38,7 +38,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "sass": "^1.83.0",
+        "sass": "^1.99.0",
         "typescript": "^6.0.2"
     }
 }

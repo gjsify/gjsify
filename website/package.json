@@ -10,7 +10,7 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.38.2",
+    "@astrojs/starlight": "^0.38.3",
     "@fontsource/coming-soon": "^5.2.8",
     "@gjsify/adwaita-fonts": "workspace:^",
     "@gjsify/adwaita-icons": "workspace:^",
@@ -18,7 +18,7 @@
     "@gjsify/example-dom-canvas2d-fireworks": "workspace:^",
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^",
     "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^",
-    "astro": "^6.1.3",
+    "astro": "^6.1.4",
     "three": "0.183.2"
   },
   "devDependencies": {

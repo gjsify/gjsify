@@ -93,9 +93,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/starlight@npm:^0.38.2":
-  version: 0.38.2
-  resolution: "@astrojs/starlight@npm:0.38.2"
+"@astrojs/starlight@npm:^0.38.3":
+  version: 0.38.3
+  resolution: "@astrojs/starlight@npm:0.38.3"
   dependencies:
     "@astrojs/markdown-remark": "npm:^7.0.0"
     "@astrojs/mdx": "npm:^5.0.0"
@@ -127,7 +127,7 @@ __metadata:
     vfile: "npm:^6.0.2"
   peerDependencies:
     astro: ^6.0.0
-  checksum: 10/349a4b0c459a66bc37490ea071b1e979c1a1360603108ab48d65a5cf71fec23de40485bcd4372c72e9aa1954f7dcf61573d4d6ddca88dc57b92347dd771461e5
+  checksum: 10/8bcdcf6b7090ff5a3a7d0c77e829b2500f50c15e8b586de62207dad1d10b17b39573bef75773b9ca35edb15f6308c91d5b6e20c5579bd26c43479f47f8edb17e
   languageName: node
   linkType: hard
 
@@ -1349,7 +1349,7 @@ __metadata:
     "@gjsify/adwaita-fonts": "workspace:^"
     "@gjsify/adwaita-icons": "workspace:^"
     "@gjsify/cli": "workspace:^"
-    sass: "npm:^1.83.0"
+    sass: "npm:^1.99.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
@@ -2380,9 +2380,9 @@ __metadata:
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@hono/node-server": "npm:^1.19.12"
+    "@hono/node-server": "npm:^1.19.13"
     "@types/node": "npm:^25.5.2"
-    hono: "npm:^4.12.10"
+    hono: "npm:^4.12.12"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
@@ -3004,7 +3004,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/website@workspace:website"
   dependencies:
-    "@astrojs/starlight": "npm:^0.38.2"
+    "@astrojs/starlight": "npm:^0.38.3"
     "@fontsource/coming-soon": "npm:^5.2.8"
     "@gjsify/adwaita-fonts": "workspace:^"
     "@gjsify/adwaita-icons": "workspace:^"
@@ -3013,7 +3013,7 @@ __metadata:
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
     "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^"
     "@types/three": "npm:^0.183.1"
-    astro: "npm:^6.1.3"
+    astro: "npm:^6.1.4"
     three: "npm:0.183.2"
   languageName: unknown
   linkType: soft
@@ -3080,12 +3080,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hono/node-server@npm:^1.19.12":
-  version: 1.19.12
-  resolution: "@hono/node-server@npm:1.19.12"
+"@hono/node-server@npm:^1.19.13":
+  version: 1.19.13
+  resolution: "@hono/node-server@npm:1.19.13"
   peerDependencies:
     hono: ^4
-  checksum: 10/aeb02f3c255cc9016d88ea4611eb105dbd8dca881b1b4e77256a41d6a18b8b45dd6f46ab35ef08becfa32e64c5ba77de7b5aa0af552e7fe67ce3079b94988c20
+  checksum: 10/67e453b0f6c0854244f3985eecbcf657b7d0247eb9404f2f507fec9242d8f8077ab8b0a212de1ac147290e76167e3598ca0df38940f6b63bde67f58526aba253
   languageName: node
   linkType: hard
 
@@ -5045,9 +5045,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"astro@npm:^6.1.3":
-  version: 6.1.3
-  resolution: "astro@npm:6.1.3"
+"astro@npm:^6.1.4":
+  version: 6.1.4
+  resolution: "astro@npm:6.1.4"
   dependencies:
     "@astrojs/compiler": "npm:^3.0.1"
     "@astrojs/internal-helpers": "npm:0.8.0"
@@ -5110,7 +5110,7 @@ __metadata:
       optional: true
   bin:
     astro: bin/astro.mjs
-  checksum: 10/dfe6b86bfaafef79aac1c9acfdd52f26a2bbda63430f2c76636260076669d645c75e9fbcb08ebdc8f46d93a7369828d129bd2fda3498335523f618f93d80260f
+  checksum: 10/fab0bb02478105ec251121dbbdb01feb38b1bc23c34ca44266cb2f44c6303a3f7666c3c494296e0545eed76887c379e2f4762db0219472a4673b8d63e1270558
   languageName: node
   linkType: hard
 
@@ -7736,10 +7736,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hono@npm:^4.12.10":
-  version: 4.12.10
-  resolution: "hono@npm:4.12.10"
-  checksum: 10/0e27311bec761e5197039d8b307cb3f2d31d5df4c9c17a36ab63ffbaec703ae214d158f495bac651e0264c4110d7bbfcebdeda5c1caaada194fe6f15c89a214f
+"hono@npm:^4.12.12":
+  version: 4.12.12
+  resolution: "hono@npm:4.12.12"
+  checksum: 10/760617935cbc40fb20f2ffb4cbd5d59c3578a6838700be5f89a636a287bce59195d08f8e8e3551ca907796110457fb276327c155289d3776c151ed74ee02270f
   languageName: node
   linkType: hard
 
@@ -10841,7 +10841,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sass@npm:^1.83.0":
+"sass@npm:^1.99.0":
   version: 1.99.0
   resolution: "sass@npm:1.99.0"
   dependencies:
