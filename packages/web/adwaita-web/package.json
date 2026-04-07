@@ -10,7 +10,10 @@
             "types": "./src/index.ts",
             "default": "./src/index.ts"
         },
-        "./style.css": "./dist/adwaita-web.css",
+        "./style.css": {
+            "types": "./style.css.d.ts",
+            "default": "./dist/adwaita-web.css"
+        },
         "./scss": "./scss/adwaita-skin.scss",
         "./scss/*": "./scss/*"
     },
@@ -18,7 +21,8 @@
         "src",
         "scss",
         "dist",
-        "lib"
+        "lib",
+        "style.css.d.ts"
     ],
     "scripts": {
         "clear": "rm -rf lib dist tsconfig.tsbuildinfo scss/_icons.generated.scss || exit 0",
