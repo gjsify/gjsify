@@ -158,12 +158,16 @@ app.connect('activate', () => {
       const enterClass = direction === 'next' ? 'enter-right' : 'enter-left';
       const exitClass = direction === 'next' ? 'exit-left' : 'exit-right';
 
+      // Take the current slide out of the flow FIRST — otherwise both slides
+      // would briefly be position:relative at the same time and the track
+      // height would double for one frame, causing a visible layout jump.
+      current.classList.add(exitClass);
+
+      // Now promote the target slide; its transform starts offset and fades in.
       target.classList.add('active', enterClass);
-      // Force a reflow so the enter transform applies before transitioning
+      // Force a reflow so the enter transform is applied before transitioning.
       void target.offsetWidth;
       target.classList.remove(enterClass);
-
-      current.classList.add(exitClass);
 
       const onEnd = () => {
         current.classList.remove('active', exitClass);
