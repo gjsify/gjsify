@@ -277,32 +277,33 @@ app.connect('activate', () => {
     transition: none;
   }
 
-  /* Exit to left (next direction) ---
-     Use inset positioning instead of width:100% so the exit slide has the
-     same effective width as the active slide. With position:absolute, a
-     width:100% would resolve against the track's padding-box (which includes
-     the 30px shadow-bleed padding), making the exit slide 60px wider than
-     the relatively-positioned active slide → visible layout jump during
-     the transition. Pinning both left and right edges avoids that. */
-  .slideshow-slide.exit-left {
+  /* Exit slides ---
+     The slideshow-track has padding: 30px to give Adwaita window shadows
+     room to bleed. For absolutely-positioned elements inside that track,
+     `top: 0 / left: 0` refers to the padding-box (outer edge), while the
+     active slide (position: relative) sits inside the content-box. Without
+     explicit insets the exit slide would jump 30px up/left/right when it
+     transitions from relative to absolute, and a width:100% would resolve
+     against the padding-box (60px wider than the content area). Pinning
+     all four insets to match the track padding keeps the exit slide
+     perfectly aligned with where it was. */
+  .slideshow-slide.exit-left,
+  .slideshow-slide.exit-right {
     position: absolute;
+    top: 30px;
     left: 30px;
     right: 30px;
     width: auto;
     opacity: 0;
-    transform: translateX(-40px);
     pointer-events: none;
   }
 
-  /* Exit to right (prev direction) */
+  .slideshow-slide.exit-left {
+    transform: translateX(-40px);
+  }
+
   .slideshow-slide.exit-right {
-    position: absolute;
-    left: 30px;
-    right: 30px;
-    width: auto;
-    opacity: 0;
     transform: translateX(40px);
-    pointer-events: none;
   }
 
   /* --- Navigation arrows --- */
