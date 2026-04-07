@@ -219,12 +219,25 @@ app.connect('activate', () => {
 <style>
   .slideshow {
     /* Break out of the parent's content-width constraint and use the full
-       viewport (capped for ultra-wide displays). The arrows + code overlay
-       remain anchored to this expanded slideshow box. */
+       viewport (capped for ultra-wide displays). Negative margins pull the
+       slideshow to the viewport edges from inside whatever ancestor contains
+       it; max-width caps it on ultra-wide screens. */
     position: relative;
-    width: min(100vw - 2rem, 1800px);
-    margin-left: 50%;
-    transform: translateX(-50%);
+    width: 100vw;
+    max-width: 1800px;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    padding-inline: 1rem;
+    box-sizing: border-box;
+  }
+
+  /* When the viewport is wider than the cap (1800px + gutter), recenter
+     within the available room instead of clinging to the left edge. */
+  @media (min-width: 1832px) {
+    .slideshow {
+      margin-left: auto;
+      margin-right: auto;
+    }
   }
 
   /* --- Slide track: clipping container so slides can slide in/out --- */
@@ -325,15 +338,15 @@ app.connect('activate', () => {
   }
 
   /* --- Demo + code overlay (per slide) ---
-     Padding reserves space at the bottom-right for the floating code window.
-     Using clamp() so the reserved space (and thus the demo size) scales with
-     the viewport — wider screens give the demo more absolute room and the
-     code overlay therefore covers a smaller relative area. */
+     The demo has a hard maximum size; the slideshow itself centers it.
+     Padding reserves space at the bottom-right for the floating code window. */
   .slide-demo-wrapper {
     position: relative;
     width: 100%;
-    padding-bottom: clamp(80px, 14%, 240px);
-    padding-right: clamp(40px, 16%, 280px);
+    max-width: 1400px;
+    margin-inline: auto;
+    padding-bottom: clamp(80px, 12%, 200px);
+    padding-right: clamp(40px, 14%, 240px);
   }
 
   .slide-demo {
@@ -381,11 +394,10 @@ app.connect('activate', () => {
     right: 0;
     /* Code window is on top by default */
     z-index: 2;
-    /* Width clamped so it doesn't grow proportionally with the viewport.
-       On narrow screens it covers more of the demo (~50%); on wide screens
-       it stays around 640px and therefore overlaps a smaller relative area. */
-    width: clamp(320px, 42%, 640px);
-    max-width: 640px;
+    /* Code window scales between a minimum (mobile) and a generous max
+       (desktop). Clamped so it stays readable but doesn't dominate. */
+    width: clamp(340px, 48%, 820px);
+    max-width: 820px;
     transition: box-shadow 0.2s;
     outline: none;
   }
