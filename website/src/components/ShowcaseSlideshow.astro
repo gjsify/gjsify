@@ -224,10 +224,16 @@ app.connect('activate', () => {
     margin-inline: auto;
   }
 
-  /* --- Slide track: clipping container so slides can slide in/out --- */
+  /* --- Slide track: clipping container so slides can slide in/out ---
+     Padding reserves room for the Adwaita window shadows (which extend
+     beyond the .slide-demo box) so overflow: hidden doesn't clip them.
+     Negative margins offset the padding so the track still fits its
+     parent's content box. */
   .slideshow-track {
     position: relative;
-    width: 100%;
+    width: auto;
+    padding: 30px;
+    margin-inline: -30px;
     overflow: hidden;
   }
 
