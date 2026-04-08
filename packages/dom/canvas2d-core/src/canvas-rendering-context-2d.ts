@@ -802,8 +802,22 @@ export class CanvasRenderingContext2D {
             dx = a5; dy = a6!; dw = a7!; dh = a8!;
         }
 
-        // Scale the source to fill the destination
+        // Spec: drawImage with any zero-width/height source or destination
+        // rectangle is a no-op (and MUST NOT throw). Without this guard,
+        // `scale(dw / sw, dh / sh)` produces 0 or Infinity which Cairo
+        // rejects with "invalid matrix (not invertible)".
+        if (sw === 0 || sh === 0 || dw === 0 || dh === 0) {
+            return;
+        }
+
+        // Clip to the destination rectangle so the source pattern is only
+        // painted inside it; this lets us use paint() (which fills the
+        // entire clip) + paintWithAlpha() for globalAlpha support.
         this._ctx.save();
+        this._ctx.rectangle(dx, dy, dw, dh);
+        this._ctx.clip();
+
+        // Scale the source to fill the destination
         this._ctx.translate(dx, dy);
         this._ctx.scale(dw / sw, dh / sh);
         this._ctx.translate(-sx, -sy);
@@ -813,7 +827,7 @@ export class CanvasRenderingContext2D {
         // Apply Cairo interpolation filter based on imageSmoothingEnabled +
         // imageSmoothingQuality. setSource installs a fresh SurfacePattern and
         // resets any filter to Cairo's default (BILINEAR), so setFilter MUST
-        // be called between setSource and fill. Without this, Excalibur's
+        // be called between setSource and paint. Without this, Excalibur's
         // pixel-art mode (imageSmoothingEnabled=false) renders blurry because
         // Cairo uses bilinear interpolation by default.
         //
@@ -833,8 +847,16 @@ export class CanvasRenderingContext2D {
             pat.setFilter(filter);
         }
 
-        this._ctx.rectangle(sx, sy, sw, sh);
-        this._ctx.fill();
+        // paint() vs fill(): paint() composites the current source over the
+        // current clip region uniformly, honoring paintWithAlpha for global
+        // alpha multiplication. fill() would require a rectangle path and
+        // doesn't support per-draw alpha, so paint() is the spec-correct
+        // choice for drawImage. The clip above confines the paint to dx,dy,dw,dh.
+        if (this._state.globalAlpha < 1) {
+            (this._ctx as any).paintWithAlpha(this._state.globalAlpha);
+        } else {
+            this._ctx.paint();
+        }
         this._ctx.restore();
     }
 
