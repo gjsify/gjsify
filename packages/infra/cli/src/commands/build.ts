@@ -100,13 +100,6 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
                 default: ''
             })
-            .option('ast-scan', {
-                description: "Experimental: use the acorn AST-based scanner for --auto-globals instead of the default regex scanner. Subject to change.",
-                type: 'boolean',
-                normalize: true,
-                default: false,
-                hidden: true,
-            })
     },
     handler: async (args) => {
         const config = new Config();

@@ -59,9 +59,4 @@ export interface CliBuildOptions {
    * Absolute form `"fetch,crypto"`, or modifier form `"+crypto,-fetch"`.
    */
   globals?: string;
-  /**
-   * Experimental (Stage 4): use the acorn AST-based scanner instead of the
-   * default regex scanner. Subject to change.
-   */
-  astScan?: boolean;
 }

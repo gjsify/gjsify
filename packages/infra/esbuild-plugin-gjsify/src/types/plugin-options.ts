@@ -43,13 +43,4 @@ export interface PluginOptions extends DeepkitPluginOptions {
      * Only applies to GJS app builds.
      */
     globals?: string;
-
-    /**
-     * Experimental (Stage 4): use the acorn AST-based scanner instead of the
-     * default regex scanner for `autoGlobals`. The AST scanner is scope-aware
-     * and avoids false positives from shadowed identifiers, but adds a few
-     * hundred kilobytes of plugin dependencies and slows down the build by a
-     * measurable amount. Subject to change pending the Stage 4 evaluation.
-     */
-    astScan?: boolean;
 }

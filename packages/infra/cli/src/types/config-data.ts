@@ -24,9 +24,4 @@ export interface ConfigData {
      * results. See CliBuildOptions for format.
      */
     globals?: string;
-    /**
-     * Experimental: use the acorn AST-based scanner instead of the default
-     * regex scanner.
-     */
-    astScan?: boolean;
 }

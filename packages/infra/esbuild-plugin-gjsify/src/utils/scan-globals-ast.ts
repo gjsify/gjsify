@@ -1,11 +1,12 @@
-// AST-based global-reference scanner — Stage 4 experimental variant of
-// the Stage 3 regex scanner. Uses acorn + acorn-walk to find identifier
+// AST-based global-reference scanner — the default scanner used by the
+// `--auto-globals` feature. Uses acorn + acorn-walk to find identifier
 // references that are NOT shadowed by local declarations, which
 // eliminates false positives like `const fetch = 42`.
 //
-// Activated via the hidden `--ast-scan` CLI flag. If the AST parse fails
-// (e.g. on unusual TypeScript-only syntax that esbuild.transform cannot
-// strip), the caller should fall back to the regex scanner.
+// On any failure (file I/O, TypeScript strip, or AST parse), the function
+// THROWS so the caller in gjs.ts can fall back to the regex scanner in
+// scan-globals.ts. No items are added to the accumulator before the walk
+// phase runs, so a thrown error cannot leave partial state behind.
 
 import { readFile } from 'node:fs/promises';
 import * as esbuild from 'esbuild';
@@ -28,39 +29,26 @@ export async function scanFileForGlobalsAst(
     filePath: string,
     accumulator: Set<string>,
 ): Promise<void> {
-    let rawCode: string;
-    try {
-        rawCode = await readFile(filePath, 'utf-8');
-    } catch {
-        return;
-    }
+    // Any error here (file I/O, TS strip, parse) propagates to the caller
+    // in gjs.ts, which falls back to the regex scanner. No mutations to
+    // the accumulator happen before the walk phase, so a throw cannot
+    // leave partial state behind.
+    const rawCode = await readFile(filePath, 'utf-8');
 
     // Strip TypeScript types via esbuild's transform so acorn can parse it.
-    let code: string;
-    try {
-        const transformed = await esbuild.transform(rawCode, {
-            loader: /\.tsx?$/.test(filePath) ? 'ts' : 'js',
-            format: 'esm',
-            target: 'esnext',
-        });
-        code = transformed.code;
-    } catch {
-        // On TS strip failure, skip this file. The regex fallback will run
-        // separately if the caller chains scanners.
-        return;
-    }
+    const transformed = await esbuild.transform(rawCode, {
+        loader: /\.tsx?$/.test(filePath) ? 'ts' : 'js',
+        format: 'esm',
+        target: 'esnext',
+    });
+    const code = transformed.code;
 
-    let ast: any;
-    try {
-        ast = Parser.parse(code, {
-            ecmaVersion: 'latest',
-            sourceType: 'module',
-            allowAwaitOutsideFunction: true,
-            allowHashBang: true,
-        });
-    } catch {
-        return;
-    }
+    const ast = Parser.parse(code, {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        allowAwaitOutsideFunction: true,
+        allowHashBang: true,
+    });
 
     // Collect module-level bindings that shadow globals (imports, top-level
     // const/let/var, function declarations, class declarations). Scope-aware
