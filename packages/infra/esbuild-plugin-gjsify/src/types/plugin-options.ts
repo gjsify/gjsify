@@ -22,4 +22,25 @@ export interface PluginOptions extends DeepkitPluginOptions {
      * Only applies to GJS app builds. Default: true.
      */
     consoleShim?: boolean;
+
+    /**
+     * Auto-inject `/register` modules for globals referenced in user code
+     * (fetch, Buffer, process, ReadableStream, …). The plugin scans entry
+     * points with a lightweight regex, collects identifier references, and
+     * prepends the matching register subpath via esbuild's `inject` option.
+     * Only applies to GJS app builds. Default: true.
+     */
+    autoGlobals?: boolean;
+
+    /**
+     * Explicit globals list. Takes precedence over `autoGlobals` scan results.
+     *
+     * - `"fetch,crypto"`          — absolute whitelist, replaces scan results
+     * - `"+crypto"`               — add on top of scan results
+     * - `"-fetch"`                — remove from scan results
+     * - `"+crypto,-fetch"`        — combined modifiers
+     *
+     * Only applies to GJS app builds.
+     */
+    globals?: string;
 }
