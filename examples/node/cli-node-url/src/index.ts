@@ -1,4 +1,4 @@
-import '@gjsify/node-globals';
+import '@gjsify/node-globals/register';
 import { URL, URLSearchParams, parse, format, fileURLToPath, pathToFileURL } from 'url';
 
 console.log('=== @gjsify/url example ===\n');

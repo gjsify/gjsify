@@ -15,8 +15,15 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./register": {
+            "types": "./lib/types/register.d.ts",
+            "default": "./lib/esm/register.js"
         }
     },
+    "sideEffects": [
+        "./lib/esm/register.js"
+    ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
         "check": "tsc --noEmit",
@@ -32,9 +39,7 @@
     },
     "dependencies": {
         "@girs/glib-2.0": "^2.88.0-4.0.0-rc.1",
-        "@gjsify/abort-controller": "workspace:^",
         "@gjsify/buffer": "workspace:^",
-        "@gjsify/fetch": "workspace:^",
         "@gjsify/process": "workspace:^",
         "@gjsify/url": "workspace:^",
         "@gjsify/utils": "workspace:^"

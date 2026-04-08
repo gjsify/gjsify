@@ -129,6 +129,7 @@ export const ALIASES_NODE_FOR_GJS = {
 
 /** Record of Web modules and his replacement for Gjs */
 export const ALIASES_WEB_FOR_GJS = {
+    // Bare specifiers (named imports, pure — no side-effects after Stage 2)
     'abort-controller': '@gjsify/abort-controller',
     'compression-streams': '@gjsify/compression-streams',
     'dom-events': '@gjsify/dom-events',
@@ -142,11 +143,24 @@ export const ALIASES_WEB_FOR_GJS = {
     'webgl': '@gjsify/webgl',
     'websocket': '@gjsify/websocket',
     'webstorage': '@gjsify/webstorage',
+
+    // /register subpaths (side-effect only — opt-in to global registration)
+    'abort-controller/register': '@gjsify/abort-controller/register',
+    'compression-streams/register': '@gjsify/compression-streams/register',
+    'dom-events/register': '@gjsify/dom-events/register',
+    'dom-exception/register': '@gjsify/dom-exception/register',
+    'eventsource/register': '@gjsify/eventsource/register',
+    'fetch/register': '@gjsify/fetch/register',
+    'webcrypto/register': '@gjsify/webcrypto/register',
+    'web-streams/register': '@gjsify/web-streams/register',
 }
 
 /** General record of modules for Node */
 export const ALIASES_GENERAL_FOR_NODE = {
     '@gjsify/node-globals': '@gjsify/empty',
+    '@gjsify/node-globals/register': '@gjsify/empty',
+    '@gjsify/web-globals': '@gjsify/empty',
+    '@gjsify/web-globals/register': '@gjsify/empty',
 }
 
 /** Record of Gjs modules (build in or not) and his replacement for Node */
@@ -156,6 +170,7 @@ export { ALIASES_GJS_FOR_NODE };
 
 /** Record of Web modules and his replacement for Node */
 export const ALIASES_WEB_FOR_NODE = {
+    // Bare specifiers → native re-exports (works for both named and side-effect imports)
     'abort-controller': '@gjsify/abort-controller/globals',
     'compression-streams': '@gjsify/compression-streams/globals',
     'dom-events': '@gjsify/dom-events/globals',
@@ -168,4 +183,24 @@ export const ALIASES_WEB_FOR_NODE = {
     'webgl': '@gjsify/webgl',
     'websocket': '@gjsify/websocket/globals',
     'webstorage': '@gjsify/webstorage',
+
+    // /register subpaths — no-op on Node (native globals are already set)
+    'abort-controller/register': '@gjsify/empty',
+    'compression-streams/register': '@gjsify/empty',
+    'dom-events/register': '@gjsify/empty',
+    'dom-exception/register': '@gjsify/empty',
+    'eventsource/register': '@gjsify/empty',
+    'fetch/register': '@gjsify/empty',
+    'webcrypto/register': '@gjsify/empty',
+    'web-streams/register': '@gjsify/empty',
+    '@gjsify/abort-controller/register': '@gjsify/empty',
+    '@gjsify/compression-streams/register': '@gjsify/empty',
+    '@gjsify/dom-events/register': '@gjsify/empty',
+    '@gjsify/dom-exception/register': '@gjsify/empty',
+    '@gjsify/eventsource/register': '@gjsify/empty',
+    '@gjsify/fetch/register': '@gjsify/empty',
+    '@gjsify/webcrypto/register': '@gjsify/empty',
+    '@gjsify/web-streams/register': '@gjsify/empty',
+    '@gjsify/dom-elements/register': '@gjsify/empty',
+    '@gjsify/buffer/register': '@gjsify/empty',
 }

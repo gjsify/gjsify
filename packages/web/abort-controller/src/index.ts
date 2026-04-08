@@ -103,12 +103,8 @@ export class AbortController {
 
 export { DOMException };
 
-// Register globals on GJS if needed (pattern: @gjsify/web-streams)
-if (typeof globalThis.AbortController === 'undefined') {
-  (globalThis as any).AbortController = AbortController;
-}
-if (typeof globalThis.AbortSignal === 'undefined') {
-  (globalThis as any).AbortSignal = AbortSignal;
-}
+// Note: globals are no longer registered at import time. Use the `/register`
+// subpath (`import '@gjsify/abort-controller/register'`) if you need
+// globalThis.AbortController / AbortSignal to be set.
 
 export default { AbortController, AbortSignal };

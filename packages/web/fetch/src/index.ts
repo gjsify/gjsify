@@ -243,12 +243,6 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
   return new Response(readable, responseOptions);
 }
 
-// Register Fetch API globals on GJS (pattern: @gjsify/abort-controller, @gjsify/eventsource)
-// On Node.js, native globals are already fully functional — only overwrite on GJS.
-const _isGJS = typeof (globalThis as any).imports !== 'undefined';
-if (_isGJS) {
-  (globalThis as any).fetch = fetch;
-  (globalThis as any).Headers = Headers;
-  (globalThis as any).Request = Request;
-  (globalThis as any).Response = Response;
-}
+// Note: globals are no longer registered at import time. Use the `/register`
+// subpath (`import '@gjsify/fetch/register'`) if you need
+// globalThis.fetch / Headers / Request / Response to be set on GJS.

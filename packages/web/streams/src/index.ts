@@ -49,28 +49,10 @@ const _TextDecoderStream = typeof globalThis.TextDecoderStream === 'function'
   ? globalThis.TextDecoderStream
   : TextDecoderStream;
 
-// Register globals — replace broken native implementations with polyfill
-if (!isNativeStreamUsable(globalThis.ReadableStream, 'getReader')) {
-  (globalThis as any).ReadableStream = ReadableStream;
-}
-if (!isNativeStreamUsable(globalThis.WritableStream, 'getWriter')) {
-  (globalThis as any).WritableStream = WritableStream;
-}
-if (!isNativeStreamUsable(globalThis.TransformStream, 'readable')) {
-  (globalThis as any).TransformStream = TransformStream;
-}
-if (typeof globalThis.ByteLengthQueuingStrategy === 'undefined') {
-  (globalThis as any).ByteLengthQueuingStrategy = ByteLengthQueuingStrategy;
-}
-if (typeof globalThis.CountQueuingStrategy === 'undefined') {
-  (globalThis as any).CountQueuingStrategy = CountQueuingStrategy;
-}
-if (typeof globalThis.TextEncoderStream === 'undefined') {
-  (globalThis as any).TextEncoderStream = TextEncoderStream;
-}
-if (typeof globalThis.TextDecoderStream === 'undefined') {
-  (globalThis as any).TextDecoderStream = TextDecoderStream;
-}
+// Note: globals are no longer registered at import time. Use the `/register`
+// subpath (`import '@gjsify/web-streams/register'`) if you need the stream
+// constructors to be set on globalThis (and to replace broken native
+// implementations on GJS).
 
 export {
   _WritableStream as WritableStream,

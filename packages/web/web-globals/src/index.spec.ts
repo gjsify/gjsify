@@ -1,8 +1,8 @@
 // Tests for @gjsify/web-globals — verify all Web API globals are registered
 import { describe, it, expect } from '@gjsify/unit';
 
-// Side-effect import — registers all globals
-import '@gjsify/web-globals';
+// Side-effect import — registers all Web API globals
+import '@gjsify/web-globals/register';
 
 export default async () => {
   await describe('web-globals', async () => {

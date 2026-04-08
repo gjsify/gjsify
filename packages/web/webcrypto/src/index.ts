@@ -67,10 +67,9 @@ const hasNativeSubtle = _nativeCrypto !== null
 const cryptoInstance = hasNativeSubtle ? _nativeCrypto! : new CryptoPolyfill();
 const subtleInstance = hasNativeSubtle ? _nativeCrypto!.subtle : new SubtleCrypto();
 
-// Register globals on GJS if needed
-if (typeof globalThis.crypto === 'undefined' || typeof globalThis.crypto.subtle === 'undefined') {
-  (globalThis as unknown as Record<string, unknown>).crypto = cryptoInstance;
-}
+// Note: globals are no longer registered at import time. Use the `/register`
+// subpath (`import '@gjsify/webcrypto/register'`) if you need globalThis.crypto
+// to be set on GJS.
 
 export { CryptoKey, SubtleCrypto, CryptoPolyfill as Crypto };
 export { subtleInstance as subtle, cryptoInstance as crypto };

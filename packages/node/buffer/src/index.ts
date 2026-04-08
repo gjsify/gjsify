@@ -13,11 +13,10 @@ export {
 
 // Re-export Web APIs that Node's buffer module also exports (Blob since Node 18)
 import { Blob as BlobImpl, File as FileImpl } from './blob.js';
-import { registerGlobal } from '@gjsify/utils';
 
-// Register Blob/File as globals on GJS if needed
-registerGlobal('Blob', BlobImpl);
-registerGlobal('File', FileImpl);
+// Note: Blob/File globals are no longer registered at import time. Use the
+// `/register` subpath (`import '@gjsify/buffer/register'`) if you need
+// globalThis.Blob / File to be set on GJS.
 
 export { BlobImpl as Blob, FileImpl as File };
 export const atob = globalThis.atob;
