@@ -43,10 +43,14 @@ export const GJS_GLOBALS_GROUPS = {
         'EventSource',
         'DOMException',
         'performance', 'PerformanceObserver',
+        'XMLHttpRequest',
+        'DOMParser',
+        'AudioContext', 'webkitAudioContext', 'Audio', 'HTMLAudioElement',
     ],
     dom: [
         'document', 'Image', 'HTMLCanvasElement', 'HTMLImageElement',
         'HTMLElement', 'MutationObserver', 'ResizeObserver', 'IntersectionObserver',
+        'FontFace', 'matchMedia', 'location', 'navigator',
     ],
 };
 
@@ -119,6 +123,18 @@ export const GJS_GLOBALS_MAP = {
     // --- DOMException --------------------------------------------------
     DOMException:         'dom-exception/register',
 
+    // --- XMLHttpRequest + URL.createObjectURL --------------------------
+    XMLHttpRequest:       '@gjsify/xmlhttprequest/register',
+
+    // --- DOMParser -----------------------------------------------------
+    DOMParser:            '@gjsify/domparser/register',
+
+    // --- Audio stubs (Web Audio API — GJS no-op) -----------------------
+    AudioContext:         '@gjsify/web-globals/register',
+    webkitAudioContext:   '@gjsify/web-globals/register',
+    Audio:                '@gjsify/web-globals/register',
+    HTMLAudioElement:     '@gjsify/web-globals/register',
+
     // --- DOM elements (browser-compat) ---------------------------------
     document:             '@gjsify/dom-elements/register',
     Image:                '@gjsify/dom-elements/register',
@@ -128,4 +144,8 @@ export const GJS_GLOBALS_MAP = {
     MutationObserver:     '@gjsify/dom-elements/register',
     ResizeObserver:       '@gjsify/dom-elements/register',
     IntersectionObserver: '@gjsify/dom-elements/register',
+    FontFace:             '@gjsify/dom-elements/register',
+    matchMedia:           '@gjsify/dom-elements/register',
+    location:             '@gjsify/dom-elements/register',
+    navigator:            '@gjsify/dom-elements/register',
 };
