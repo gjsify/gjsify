@@ -9,6 +9,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement } from '@gjsify/dom-elements';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
+import { Event } from '@gjsify/dom-events';
 
 type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
 
@@ -31,6 +32,15 @@ type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasR
  * window.set_child(widget);
  * ```
  */
+// Gtk.DrawingArea inherits a 'resize' signal with signature
+// (widget: Drawable, width: int, height: int) from its ancestors (Gtk.Widget).
+// CanvasWebGLWidget uses Gtk.GLArea which has the same-shaped signal. We do
+// NOT register a custom signal — we piggyback on the inherited one so
+// consumers can use a single pattern on both widgets:
+//   widget.connect('resize', (w, width, height) => { ... })
+// In addition, _onDraw fires onResize(cb) callbacks and dispatches a DOM
+// 'resize' event on the canvas for browser-style listeners.
+
 export const Canvas2DWidget = GObject.registerClass(
     { GTypeName: 'GjsifyCanvas2DWidget' },
     class Canvas2DWidget extends Gtk.DrawingArea {
@@ -85,8 +95,15 @@ export const Canvas2DWidget = GObject.registerClass(
                 }
             } else if (this._canvas.width !== width || this._canvas.height !== height) {
                 // Subsequent draw: GTK widget was resized — sync canvas and notify listeners.
+                // NOTE: Gtk.DrawingArea itself emits the 'resize' GObject signal
+                // (inherited) when the allocation changes, so consumers can use
+                // widget.connect('resize', ...) without us emitting it here.
+                // We additionally dispatch a DOM 'resize' event on the canvas
+                // and fire onResize() callbacks for cross-widget API parity
+                // with CanvasWebGLWidget.
                 this._canvas.width = width;
                 this._canvas.height = height;
+                this._canvas.dispatchEvent(new Event('resize'));
                 for (const cb of this._resizeCallbacks) {
                     cb(width, height);
                 }

@@ -44,56 +44,36 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
         const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
         const baseUrl = 'file://' + bundleDir;
 
-        if (useFallback) {
-            // Canvas 2D fallback (CPU/Cairo) — same API surface, no WebGL
-            const widget = new Canvas2DWidget();
-            widget.set_hexpand(true);
-            widget.set_vexpand(true);
-            widget.installGlobals();
-            this._canvasContainer.append(widget);
+        // Both widgets expose an identical API (onReady, onResize, installGlobals,
+        // connect('resize', ...)), so the Canvas 2D fallback path differs from
+        // the WebGL path only in the widget constructor.
+        const widget = useFallback ? new Canvas2DWidget() : new CanvasWebGLWidget();
+        widget.set_hexpand(true);
+        widget.set_vexpand(true);
+        widget.installGlobals();
+        this._canvasContainer.append(widget);
 
-            widget.onReady((canvas) => {
-                canvas.width = widget.get_allocated_width();
-                canvas.height = widget.get_allocated_height();
+        widget.onReady((canvas: any) => {
+            canvas.width = widget.get_allocated_width();
+            canvas.height = widget.get_allocated_height();
 
-                widget.onResize((w, h) => {
-                    canvas.width = w;
-                    canvas.height = h;
-                    this._game?.engine.screen.applyResolutionAndViewport();
-                });
-
-                startGame(canvas as any, baseUrl)
-                    .then(game => { this._game = game; })
-                    .catch(err => {
-                        console.error('JellyJumper: Canvas 2D fallback also failed:', err?.message ?? err, err?.stack ?? '');
-                    });
+            widget.onResize((w: number, h: number) => {
+                canvas.width = w;
+                canvas.height = h;
+                this._game?.engine.screen.applyResolutionAndViewport();
             });
-        } else {
-            // Primary path: WebGL2 (GPU)
-            const widget = new CanvasWebGLWidget();
-            widget.set_hexpand(true);
-            widget.set_vexpand(true);
-            widget.installGlobals();
-            this._canvasContainer.append(widget);
 
-            widget.onReady((canvas) => {
-                canvas.width = widget.get_allocated_width();
-                canvas.height = widget.get_allocated_height();
-
-                widget.connect('resize', (_w: any, w: number, h: number) => {
-                    canvas.width = w;
-                    canvas.height = h;
-                    this._game?.engine.screen.applyResolutionAndViewport();
-                });
-
-                startGame(canvas as any, baseUrl)
-                    .then(game => { this._game = game; })
-                    .catch(err => {
+            startGame(canvas, baseUrl)
+                .then(game => { this._game = game; })
+                .catch(err => {
+                    if (useFallback) {
+                        console.error('JellyJumper: Canvas 2D fallback also failed:', err?.message ?? err, err?.stack ?? '');
+                    } else {
                         console.error('JellyJumper: WebGL start failed, trying Canvas 2D fallback:', err?.message ?? err, err?.stack ?? '');
                         this._startWithWidget(true);
-                    });
-            });
-        }
+                    }
+                });
+        });
 
         // Pause/Resume button — toggles game state and swaps icon
         this._pauseButton.connect('clicked', () => {

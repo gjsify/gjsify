@@ -39,6 +39,7 @@ export const CanvasWebGLWidget = GObject.registerClass(
     class CanvasWebGLWidget extends Gtk.GLArea {
         _canvas: OurHTMLCanvasElement | null = null;
         _readyCallbacks: WebGLReadyCallback[] = [];
+        _resizeCallbacks: ((width: number, height: number) => void)[] = [];
         _renderTag: number | null = null;
         _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
@@ -83,9 +84,21 @@ export const CanvasWebGLWidget = GObject.registerClass(
             // NOT re-execute the application's render logic.  We schedule a rAF
             // that re-invokes the last frame callback, which runs inside the
             // GTK frame pipeline with the GL context current.
+            //
+            // Also notify onResize() subscribers and dispatch a DOM 'resize'
+            // event on the canvas, matching the unified API exposed by
+            // Canvas2DWidget. Consumers can use any of:
+            //   widget.connect('resize', (w, width, height) => { ... })  // GObject
+            //   widget.onResize((width, height) => { ... })              // convenience
+            //   canvas.addEventListener('resize', () => { ... })         // DOM
             this.connect('resize', () => {
+                const width = this.get_allocated_width();
+                const height = this.get_allocated_height();
                 if (this._canvas) {
                     this._canvas.dispatchEvent(new Event('resize'));
+                }
+                for (const cb of this._resizeCallbacks) {
+                    cb(width, height);
                 }
                 if (this._frameCallback) {
                     this.requestAnimationFrame(this._frameCallback);
@@ -130,6 +143,17 @@ export const CanvasWebGLWidget = GObject.registerClass(
          */
         onWebGLReady(cb: WebGLReadyCallback): void {
             this.onReady(cb);
+        }
+
+        /**
+         * Register a callback invoked whenever the GTK widget is resized.
+         * The callback fires alongside the native 'resize' GObject signal and
+         * after the DOM 'resize' event has been dispatched on the canvas.
+         * Canvas buffer dimensions are NOT automatically updated — consumers
+         * should set `canvas.width`/`canvas.height` themselves if desired.
+         */
+        onResize(cb: (width: number, height: number) => void): void {
+            this._resizeCallbacks.push(cb);
         }
 
         /**
