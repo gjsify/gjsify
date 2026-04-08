@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **cli:** add `gjsify create <name>` subcommand that delegates to `@gjsify/create-app`, so users only need to remember a single npm scope (`@gjsify/cli`) to scaffold, build and run GJSify projects
+* **create-app:** expose `createProject()` as a programmatic export (`import { createProject } from '@gjsify/create-app'`) in addition to the existing CLI entry
+
+### Documentation
+
+* **website:** refactor top-level docs to target framework users instead of monorepo contributors — new Getting Started walks through `npx @gjsify/cli create my-app` instead of `git clone`
+* **website:** new `CLI Reference` and `How It Works` pages under `Documentation`
+* **website:** move contributor docs (Architecture, TDD Workflow, Development Setup) into a dedicated top-level `Contributing` sidebar group
+* **website:** home page cards for Node.js APIs, Web APIs and DOM & Graphics now link directly to their respective Packages pages
+
 ## [0.1.7](https://github.com/gjsify/gjsify/compare/v0.1.6...v0.1.7) (2026-04-04)
 
 ### Bug Fixes

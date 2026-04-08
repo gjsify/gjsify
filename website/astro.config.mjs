@@ -43,8 +43,8 @@ export default defineConfig({
           label: 'Documentation',
           items: [
             { slug: 'getting-started' },
-            { slug: 'architecture' },
-            { slug: 'contributing' },
+            { slug: 'cli-reference' },
+            { slug: 'how-it-works' },
           ],
         },
         {
@@ -54,6 +54,14 @@ export default defineConfig({
             { slug: 'packages/node' },
             { slug: 'packages/web' },
             { slug: 'packages/dom' },
+          ],
+        },
+        {
+          label: 'Contributing',
+          items: [
+            { slug: 'contributing/development-setup' },
+            { slug: 'contributing/architecture' },
+            { slug: 'contributing/tdd-workflow' },
           ],
         },
       ],

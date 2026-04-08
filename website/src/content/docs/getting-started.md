@@ -1,47 +1,111 @@
 ---
 title: Getting Started
-description: Prerequisites and quick start for GJSify development
+description: Scaffold, build and run your first GJSify project
 ---
 
-GJSify brings the Node.js and Web API ecosystem to [GJS](https://gjs.guide/) — the GNOME JavaScript runtime. Write familiar JavaScript, run it natively on Linux — backed by GLib, Gio, Soup, Cairo, and GTK.
+GJSify lets you write GTK/GNOME apps with the familiar Node.js and Web API ecosystem. `import fs from 'node:fs'`, `fetch(...)`, `WebSocket`, `ReadableStream`, Canvas2D, WebGL — all backed by GLib, Gio, Soup, Cairo and GTK, running natively on Linux via [GJS](https://gjs.guide/).
+
+This guide walks you through scaffolding a new project, building it and running it.
 
 ## Prerequisites
 
-- **GJS** 1.84+ (GNOME 46+)
-- **Node.js** 24+
-- **Yarn** 4.x (via Corepack)
-- GNOME development libraries: `glib2-devel`, `gobject-introspection-devel`, `gtk4-devel`, `libsoup3-devel`
+You only need a few system packages installed:
 
-## Quick Start
+- **GJS** 1.84+ (GNOME 46+) — the GNOME JavaScript runtime
+- **GTK 4** — the UI toolkit used by the default template
+- **Node.js** 24+ — only needed at build time (for `npm`/`npx` and the CLI)
+- **libsoup3** — runtime for HTTP, WebSocket and `fetch`
+
+On Fedora:
 
 ```bash
-# Clone the repository
-git clone https://github.com/gjsify/gjsify.git
-cd gjsify
-
-# Install dependencies
-corepack enable
-yarn install
-
-# Build all packages
-yarn build
-
-# Run tests
-yarn test
+sudo dnf install gjs gtk4 libsoup3
 ```
 
-## Create a New App
+On Debian/Ubuntu:
 
 ```bash
-npx create-gjsify my-app
+sudo apt install gjs libgtk-4-1 libsoup-3.0-0
+```
+
+Not sure if everything is in place? Run the built-in check:
+
+```bash
+npx @gjsify/cli check
+```
+
+## Scaffold a new project
+
+Create a fresh GJSify project in a new directory:
+
+```bash
+npx @gjsify/cli create my-app
 cd my-app
-yarn install
-yarn build
-yarn start
+npm install
 ```
+
+This generates a minimal GTK 4 application:
+
+```
+my-app/
+├── src/
+│   └── index.ts        # Gtk.Application entry point
+├── package.json        # with build/start/dev scripts wired to gjsify CLI
+└── tsconfig.json
+```
+
+The generated `package.json` already depends on `@gjsify/cli`, `@gjsify/node-globals` and `@gjsify/node-polyfills`, so everything you need is in place after `npm install`.
+
+> Alternative: you can also call the scaffolder directly via `npx @gjsify/create-app my-app`. Both commands produce the same project.
+
+## Build and run
+
+The scaffolded project ships with three npm scripts:
+
+```bash
+npm run build   # gjsify build src/index.ts --outfile dist/index.js
+npm start       # gjsify run dist/index.js
+npm run dev     # build + run in one step
+```
+
+`gjsify run` automatically sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` for any native prebuilds in your `node_modules` (e.g. `@gjsify/webgl`), so you do not have to wire up the environment yourself.
+
+## Using Node.js and Web APIs
+
+The GJSify esbuild plugin automatically rewrites Node.js and Web API imports to their `@gjsify/*` equivalents when you build for GJS. You do not have to install any of the `@gjsify/*` packages by hand — they are pulled in on demand and resolved via bare specifiers.
+
+```typescript
+// src/index.ts
+import { readFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+
+const html = readFileSync('index.html', 'utf-8')
+
+const server = createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.end(html)
+})
+
+server.listen(8080, () => {
+    console.log('Server running on http://localhost:8080')
+})
+```
+
+`node:fs` is backed by `Gio.File`, `node:http` by `Soup.Server` — but from your code's perspective it is just Node.js. The same applies to Web APIs:
+
+```typescript
+const response = await fetch('https://api.example.com/data')
+const data = await response.json()
+
+const ws = new WebSocket('wss://echo.example.com')
+ws.addEventListener('message', (event) => console.log(event.data))
+```
+
+See [How It Works](/gjsify/how-it-works/) for a short explanation of the auto-aliasing pipeline, or jump straight to the [CLI Reference](/gjsify/cli-reference/) to explore all available commands.
 
 ## Next Steps
 
-- [Architecture](/gjsify/architecture/) — Understand the monorepo structure
-- [Packages](/gjsify/packages/overview/) — Browse available modules
-- [Contributing](/gjsify/contributing/) — Help improve GJSify
+- [CLI Reference](/gjsify/cli-reference/) — all `gjsify` subcommands and flags
+- [How It Works](/gjsify/how-it-works/) — auto-aliasing, prebuilds and the GJS build pipeline
+- [Packages Overview](/gjsify/packages/overview/) — 57+ Node.js, Web and DOM packages
+- [Contributing](/gjsify/contributing/development-setup/) — help improve GJSify itself

@@ -3,26 +3,42 @@
 // Accepts a raw SVG string as icon (from @gjsify/adwaita-icons).
 // The icon is rendered as a CSS mask so it can be tinted via currentColor
 // and sized freely without the 16px source resolution making it blurry.
+// When `href` is set, the whole card becomes a link.
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 interface Props {
   title: string;
   icon: string;
+  href?: string;
 }
 
-const { title, icon } = Astro.props;
+const { title, icon, href } = Astro.props;
 const iconUrl = toDataUri(icon);
 ---
 
-<adw-card>
-  <div class="adw-card-icon-box" aria-hidden="true">
-    <span class="adw-card-icon" style={`--card-icon: ${iconUrl}`}></span>
-  </div>
-  <h3 class="adw-card-title">{title}</h3>
-  <div class="adw-card-body">
-    <slot />
-  </div>
-</adw-card>
+{href ? (
+  <a class="adw-card-link" href={href}>
+    <adw-card>
+      <div class="adw-card-icon-box" aria-hidden="true">
+        <span class="adw-card-icon" style={`--card-icon: ${iconUrl}`}></span>
+      </div>
+      <h3 class="adw-card-title">{title}</h3>
+      <div class="adw-card-body">
+        <slot />
+      </div>
+    </adw-card>
+  </a>
+) : (
+  <adw-card>
+    <div class="adw-card-icon-box" aria-hidden="true">
+      <span class="adw-card-icon" style={`--card-icon: ${iconUrl}`}></span>
+    </div>
+    <h3 class="adw-card-title">{title}</h3>
+    <div class="adw-card-body">
+      <slot />
+    </div>
+  </adw-card>
+)}
 
 <script>
   // Side-effect import to register the <adw-card> custom element.
@@ -33,6 +49,24 @@ const iconUrl = toDataUri(icon);
 <style>
   adw-card {
     padding: 24px;
+  }
+
+  /* Link wrapper — makes the whole card clickable without altering its
+     visual style. Inherits color and removes the default underline. */
+  .adw-card-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .adw-card-link:hover {
+    transform: translateY(-2px);
+  }
+  .adw-card-link > adw-card {
+    cursor: pointer;
+  }
+  .adw-card-link:hover .adw-card-title {
+    color: var(--sl-color-accent);
   }
 
   /* Icon container — rounded square tinted with the accent color,
