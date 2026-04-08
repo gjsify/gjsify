@@ -22,7 +22,7 @@
     "clear:examples": "yarn workspaces foreach -v -A -p --include '@gjsify/example-*' run clear",
     "npm:publish": "yarn run build && yarn run build:examples && yarn workspaces foreach -v --all --no-private --exclude '@girs/*' npm publish --tolerate-republish --tag latest --access public",
     "build": "yarn run build:infra && yarn workspaces foreach --topological -p --no-private --all --exclude '@girs/*' --exclude '@gjsify/example-*' --exclude '@gjsify/website' run build",
-    "build:infra": "yarn workspace @gjsify/esbuild-plugin-alias run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-transform-ext run build && yarn workspace @gjsify/esbuild-plugin-blueprint run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/cli run build",
+    "build:infra": "yarn workspace @gjsify/esbuild-plugin-alias run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-transform-ext run build && yarn workspace @gjsify/esbuild-plugin-blueprint run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/create-app run build && yarn workspace @gjsify/cli run build && yarn workspace @gjsify/utils run build && yarn workspace @gjsify/events run build && yarn workspace @gjsify/process run build && yarn workspace @gjsify/assert run build && yarn workspace @gjsify/unit run build",
     "build:examples": "yarn workspaces foreach -ptv -A --include '@gjsify/example-*' run build",
     "docs:dev": "yarn workspace @gjsify/website start",
     "docs:build": "yarn workspace @gjsify/website build",
