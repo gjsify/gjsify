@@ -38,11 +38,44 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--minify` | bool | `false` | Minify the output |
 | `--reflection`, `-r` | bool | `false` | Enable TypeScript runtime types via Deepkit |
 | `--console-shim` | bool | `true` | Inject the GJS console shim (clean output, ANSI colors). Disable with `--no-console-shim` |
+| `--auto-globals` | bool | `true` | Auto-inject `/register` modules for globals referenced in user code. Disable with `--no-auto-globals` |
+| `--globals` | string | `""` | Explicit globals list. See [Auto-globals](#auto-globals) below |
 | `--exclude` | glob[] | `[]` | Glob patterns to exclude from entry points and aliases |
 | `--log-level` | `silent` \| `error` \| `warning` \| `info` \| `debug` \| `verbose` | `warning` | esbuild log level |
 | `--verbose` | bool | `false` | Enable verbose mode |
 
 For `--app gjs`, the target is `firefox128` (SpiderMonkey 128) and `gi://*`, `cairo`, `system` and `gettext` are externalised. For `--app node`, the target is `node24`.
+
+### Auto-globals
+
+When building for GJS, GJSify scans your entry points for references to Node.js and Web API globals — `fetch`, `Buffer`, `process`, `ReadableStream`, `AbortController`, `crypto`, `URL`, `TextEncoder`, `document`, and many more — and automatically injects the matching `@gjsify/*/register` modules so the globals are available at runtime. You no longer need to `import '@gjsify/node-globals'` or similar boilerplate in your source code.
+
+The scanner is **scope-aware**: it uses a full JavaScript parser (acorn) so it correctly ignores shadowed identifiers (`const fetch = myCustomFetch`) and property accesses (`api.Buffer`). On unusual TypeScript that acorn cannot parse, it silently falls back to a regex-based scanner so auto-globals never disables itself on a single malformed file.
+
+```bash
+# Default — scanner runs, injects only what's needed
+npx @gjsify/cli build src/index.ts
+
+# Opt out entirely — you are responsible for importing any required /register subpaths
+npx @gjsify/cli build src/index.ts --no-auto-globals
+
+# Absolute whitelist (replaces scan results)
+npx @gjsify/cli build src/index.ts --globals fetch,crypto
+
+# Add on top of scan (useful when an npm dependency uses a global internally
+# and your own code never references it directly)
+npx @gjsify/cli build src/index.ts --globals +crypto
+
+# Remove from scan (useful if you want to suppress a specific injection)
+npx @gjsify/cli build src/index.ts --globals -fetch
+
+# Combined modifiers
+npx @gjsify/cli build src/index.ts --globals +crypto,-fetch
+```
+
+**Scope of the scan:** the scanner only looks at your own entry-point files, not at external npm dependencies. This works for the common case where your source code references the same globals your dependencies use (e.g. Express apps typically read `process.env`). For dependencies that use globals your own code never touches, add them explicitly with `--globals +<name>`.
+
+The list of recognised global identifiers is defined in [`packages/infra/resolve-npm/lib/globals-map.mjs`](https://github.com/gjsify/gjsify/blob/main/packages/infra/resolve-npm/lib/globals-map.mjs) — contributions for missing names are welcome.
 
 ## `gjsify run`
 

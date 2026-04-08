@@ -118,18 +118,47 @@ UI Event classes in `@gjsify/dom-events`: UIEvent, MouseEvent, PointerEvent, Key
 
 esbuild with platform-specific plugins. Same test source, different resolution per platform.
 
-- **GJS** (`gjsify build --app gjs`): `assert`→`@gjsify/assert`. Externals: `gi://*`, `cairo`, `system`, `gettext`. Target: `firefox128`
-- **Node** (`gjsify build --app node`): `@gjsify/process`→`process`. Target: `node24`
+- **GJS** (`gjsify build --app gjs`): `assert`→`@gjsify/assert`. Externals: `gi://*`, `cairo`, `system`, `gettext`. Target: `firefox128`. Auto-injects `/register` modules for globals referenced in entry-point code (default on via `--auto-globals`).
+- **Node** (`gjsify build --app node`): `@gjsify/process`→`process`. Target: `node24`. All `/register` subpaths are aliased to `@gjsify/empty` (no-op).
+- **Browser** (`gjsify build --app browser`): Standard browser target. Target: `esnext`.
 
-- **Browser** (`gjsify build --app browser`): Standard browser target. Target: `esnext`
-
-Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `packages/infra/resolve-npm/lib/index.mjs`
+Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `packages/infra/esbuild-plugin-gjsify/src/utils/scan-globals{,-ast}.ts` | `packages/infra/resolve-npm/lib/{index,globals-map}.mjs`
 
 **Blueprint support:** `@gjsify/esbuild-plugin-blueprint` compiles `.blp` files via `blueprint-compiler` → XML string. Wired into `gjsify build` for GJS and browser targets. `import Template from './window.blp'` → string. Type declaration: `@gjsify/esbuild-plugin-blueprint/types` (add to tsconfig `"types"`).
 
+**Auto-globals:** `gjsify build --app gjs` scans entry-point files for known global identifiers (`fetch`, `Buffer`, `process`, `URL`, `ReadableStream`, `AbortController`, `crypto`, `document`, `Image`, …) via an acorn-based scope-aware scanner, then prepends the matching `@gjsify/<pkg>/register` modules via esbuild's `inject` option. Default behaviour; opt out with `--no-auto-globals`. Override with `--globals fetch,crypto` (absolute whitelist) or `--globals +crypto,-fetch` (additive/subtractive modifiers). The scanner only reads entry points; for globals used only inside transitive npm deps, pass `--globals +<name>` explicitly. The identifier→register-path map lives in `packages/infra/resolve-npm/lib/globals-map.mjs`.
+
 ### GLib MainLoop — `ensureMainLoop()`
 
-GJS needs GLib MainLoop for async I/O. `ensureMainLoop()` (`@gjsify/utils`): idempotent, non-blocking, no-op on Node.js. Used in: `http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bind()`. Public: `import { ensureMainLoop } from '@gjsify/node-globals'`. GTK apps must NOT use it (use `Gtk.Application.runAsync()`).
+GJS needs GLib MainLoop for async I/O. `ensureMainLoop()` (`@gjsify/utils`): idempotent, non-blocking, no-op on Node.js. Used in: `http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bind()`. Public: `import { ensureMainLoop } from '@gjsify/node-globals'` (re-exported from the `@gjsify/utils` root). GTK apps must NOT use it (use `Gtk.Application.runAsync()`).
+
+### Tree-shakeable Globals — `/register` subpath convention
+
+Every `@gjsify/*` package that registers anything on `globalThis` MUST follow these rules so that `gjsify build --auto-globals` (default on) can tree-shake correctly.
+
+1. **No side-effects in `src/index.ts`.** The root entry is named exports only. Any `globalThis.X = ...`, `Object.defineProperty(globalThis, ...)`, or `registerGlobal('X', ...)` call at module top level is a bug — move it to `src/register.ts`.
+2. **Side-effects live in `src/register.ts`.** This file exists solely to register globals. Imports what it needs from `./index.js`, runs `if (typeof globalThis.X === 'undefined') (globalThis as any).X = X`. Idempotent.
+3. **`package.json` declares both subpaths + `sideEffects`:**
+   ```jsonc
+   "exports": {
+     ".":          { "default": "./lib/esm/index.js" },
+     "./register": { "default": "./lib/esm/register.js" }
+     // "./globals": "./globals.mjs"  // optional: native-re-exports for Node builds
+   },
+   "sideEffects": ["./lib/esm/register.js", "./globals.mjs"]
+   ```
+   The `sideEffects` array pins side-effects to register-only so bundlers can tree-shake the root module. Never `"sideEffects": false` if there is a `register.js`.
+4. **Globals map is authoritative.** Every identifier that `register.ts` writes to `globalThis` MUST have an entry in `packages/infra/resolve-npm/lib/globals-map.mjs` mapping it to the bare-specifier `/register` subpath. The esbuild plugin uses this map to auto-inject the register module when the identifier appears in user code.
+5. **Alias layer mirrors the map.** Add new `/register` subpaths to `packages/infra/resolve-npm/lib/index.mjs`:
+   - `ALIASES_WEB_FOR_GJS` — bare-specifier `<pkg>/register` → real `@gjsify/<pkg>/register`
+   - `ALIASES_WEB_FOR_NODE` — both the bare and the fully-qualified form → `@gjsify/empty` (no-op, Node has native globals)
+   - `ALIASES_GENERAL_FOR_NODE` — for `@gjsify/<pkg>/register` paths that are not web-only (e.g. `@gjsify/node-globals/register`, `@gjsify/buffer/register`)
+6. **Tests that need globals** import the `/register` subpath explicitly: `import 'fetch/register'`, `import 'abort-controller/register'`, `import '@gjsify/node-globals/register'`. Do NOT rely on implicit global registration via a named import from the root.
+7. **User code never needs a manual register import** — the esbuild plugin's `--auto-globals` scan (default on, AST-based, scope-aware via acorn) injects the correct `/register` modules based on identifier references. Examples and showcases must assume auto-globals is doing its job; don't add defensive `import '@gjsify/*-globals/register'` lines.
+8. **Exception — intra-package class inheritance.** If `src/index.ts` defines a class that extends a global constructor (e.g. `class TextLineStream extends TransformStream`), the class declaration runs at module load time and needs the global set. In this ONE case, `index.ts` may `import '@gjsify/<pkg>/register'` as a side-effect to seed the global before the class body runs. Document the exception explicitly in the file header. Current occurrences: `@gjsify/eventsource`.
+9. **Adding a new global.** Checklist: (a) implement in the package, (b) add to `register.ts` with a `typeof ... === 'undefined'` guard, (c) add to `package.json` `sideEffects` if the file is new, (d) add to `GJS_GLOBALS_MAP` in `globals-map.mjs`, (e) add aliases in `resolve-npm/lib/index.mjs`, (f) add a test in the package's own spec.
+
+**Auto-globals scanner:** `packages/infra/esbuild-plugin-gjsify/src/utils/scan-globals-ast.ts` — acorn-based, scope-aware, handles shadowing and property-access. Fallback regex scanner: `scan-globals.ts` — invoked silently when acorn cannot parse a file (unusual TypeScript syntax). Neither scanner walks transitive npm dependencies — for globals used only inside an external dep, users pass `--globals +<name>` explicitly.
 
 ```bash
 # Root
@@ -270,8 +299,9 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 2. **GJS-only pkgs** (dom-elements, webgl): Import `@gjsify/*` directly. No aliases, no `test:node`.
 3. Node.js tests=test correctness; GJS tests=our implementation. Both must pass.
 4. Common `*.spec.ts`: both platforms, no `@girs/*`. Platform-specific `*.gjs.spec.ts`/`on('Gjs')`: minimal.
-5. Layout: `src/index.ts`(impl) | `src/*.spec.ts`(specs) | `src/test.mts`(entry).
+5. Layout: `src/index.ts`(impl, pure named exports) | `src/register.ts`(side-effect globals, if applicable) | `src/*.spec.ts`(specs) | `src/test.mts`(entry, imports `@gjsify/node-globals/register` + any feature-specific `<pkg>/register`).
 6. **Never weaken tests** — fix implementation, not tests. No platform guards.
+7. **Register-subpath imports in test.mts**: use bare-specifier aliased form (`import 'fetch/register'`) for web packages, fully-qualified form (`import '@gjsify/node-globals/register'`) for Node-side meta packages. See the Tree-shakeable Globals section for the full rules.
 
 ### Regression Tests from Examples
 
