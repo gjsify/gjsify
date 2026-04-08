@@ -41,6 +41,39 @@ export class HTMLElement extends Element {
 	// -- Style stub (no layout engine — assignments are no-ops) --
 	readonly style: CSSStyleDeclaration = new CSSStyleDeclaration();
 
+	// -- dataset: Proxy-backed DOMStringMap over data-* attributes --
+	// Converts `data-original-src` ↔ `originalSrc` (camelCase). Used by
+	// Excalibur's ImageSource which sets data-original-src on images for
+	// debugging and TextureLoader.checkImageSizeSupportedAndLog.
+	get dataset(): Record<string, string> {
+		const el = this;
+		return new Proxy({} as Record<string, string>, {
+			get(_target, prop: string): string | undefined {
+				if (typeof prop !== 'string') return undefined;
+				const attr = 'data-' + prop.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+				const value = el.getAttribute(attr);
+				return value ?? undefined;
+			},
+			set(_target, prop: string, value: string): boolean {
+				if (typeof prop !== 'string') return false;
+				const attr = 'data-' + prop.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+				el.setAttribute(attr, String(value));
+				return true;
+			},
+			deleteProperty(_target, prop: string): boolean {
+				if (typeof prop !== 'string') return false;
+				const attr = 'data-' + prop.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+				el.removeAttribute(attr);
+				return true;
+			},
+			has(_target, prop: string): boolean {
+				if (typeof prop !== 'string') return false;
+				const attr = 'data-' + prop.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+				return el.hasAttribute(attr);
+			},
+		});
+	}
+
 	// -- Attribute-backed string properties --
 
 	get title(): string {
