@@ -14,4 +14,14 @@ export interface ConfigData {
      * Only applies to GJS app builds. Default: true.
      */
     consoleShim?: boolean;
+    /**
+     * Auto-inject `/register` modules for globals referenced in user code.
+     * Only applies to GJS app builds. Default: true.
+     */
+    autoGlobals?: boolean;
+    /**
+     * Explicit globals list override. Takes precedence over `autoGlobals` scan
+     * results. See CliBuildOptions for format.
+     */
+    globals?: string;
 }
