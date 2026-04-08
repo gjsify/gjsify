@@ -16,6 +16,20 @@ import * as PS from './property-symbol.js';
 export class CSSStyleDeclaration {
     [key: string]: unknown;
     cssText = '';
+
+    setProperty(property: string, value: string, _priority?: string): void {
+        (this as Record<string, unknown>)[property] = value;
+    }
+    getPropertyValue(property: string): string {
+        const v = (this as Record<string, unknown>)[property];
+        return typeof v === 'string' ? v : '';
+    }
+    removeProperty(property: string): string {
+        const v = (this as Record<string, unknown>)[property];
+        delete (this as Record<string, unknown>)[property];
+        return typeof v === 'string' ? v : '';
+    }
+    getPropertyPriority(_property: string): string { return ''; }
 }
 
 /**
