@@ -134,3 +134,9 @@
 [submodule "refs/app-icon-requests"]
 	path = refs/app-icon-requests
 	url = https://gitlab.gnome.org/Teams/Design/app-icon-requests.git
+[submodule "refs/excalibur"]
+	path = refs/excalibur
+	url = git@github.com:excaliburjs/Excalibur.git
+[submodule "refs/peachy"]
+	path = refs/peachy
+	url = https://gitlab.gnome.org/vixalien/peachy
