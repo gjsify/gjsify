@@ -56,6 +56,29 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js \
 
 Each identifier in the list is mapped to its `@gjsify/<pkg>/register` module and injected at build time. Identifiers the user's code never mentions cost nothing to leave in the list — the corresponding register module is no-op on Node.js and a small self-contained side-effect on GJS.
 
+#### Groups
+
+Instead of listing every identifier individually, you can use one of three pre-defined group names:
+
+| Group | Expands to |
+|---|---|
+| `node` | `Buffer`, `Blob`, `File`, `process`, `setImmediate`, `clearImmediate`, `queueMicrotask`, `structuredClone`, `btoa`, `atob`, `URL`, `URLSearchParams` |
+| `web` | `fetch`, `Headers`, `Request`, `Response`, `FormData`, `ReadableStream`, `WritableStream`, `TransformStream`, `TextEncoderStream`, `TextDecoderStream`, `ByteLengthQueuingStrategy`, `CountQueuingStrategy`, `CompressionStream`, `DecompressionStream`, `crypto`, `AbortController`, `AbortSignal`, all DOM event types, `EventSource`, `DOMException`, `performance`, `PerformanceObserver` |
+| `dom` | `document`, `Image`, `HTMLCanvasElement`, `HTMLImageElement`, `HTMLElement`, `MutationObserver`, `ResizeObserver`, `IntersectionObserver` |
+
+Groups and individual identifiers can be combined freely:
+
+```bash
+# Node.js server app
+gjsify build src/index.ts --outfile dist/index.js --globals node,web
+
+# GTK/canvas app using three.js
+gjsify build src/index.ts --outfile dist/index.js --globals dom,web
+
+# Full stack — everything
+gjsify build src/index.ts --outfile dist/index.js --globals node,web,dom
+```
+
 **Projects scaffolded via `npx @gjsify/cli create` get a sensible default** already wired into the build script:
 
 ```jsonc
@@ -64,10 +87,6 @@ Each identifier in the list is mapped to its `@gjsify/<pkg>/register` module and
   "start": "gjsify run dist/index.js"
 }
 ```
-
-Most Node-style apps work out of the box. Add or remove identifiers as your code's needs grow.
-
-> **Why no auto-scan?** Earlier design iterations tried to detect needed globals automatically by parsing your source and transitive dependencies. The heuristic consistently leaked — isomorphic npm packages, dynamic imports, runtime feature detection, and bracket-notation global access (`globalThis['X']`) cannot be reliably distinguished. Explicit declaration in `package.json` is predictable, trivially teachable, and keeps the CLI layer minimal.
 
 #### Known identifiers
 

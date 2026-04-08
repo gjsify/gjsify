@@ -11,6 +11,45 @@
  * (where native globals already exist) and resolve to the real
  * `@gjsify/<pkg>/register` modules on GJS.
  */
+/**
+ * Pre-defined groups of identifiers that can be used as shorthand in `--globals`.
+ *
+ * - `node`  — Node.js core globals: Buffer, Blob, File, process, URL, …
+ * - `web`   — Web API globals: fetch, crypto, streams, AbortController, events, …
+ * - `dom`   — DOM/GTK-only globals: document, HTMLCanvasElement, Image, …
+ *
+ * A group token in `--globals` expands to all individual identifiers in that
+ * group before the usual map lookup. Groups can be combined:
+ *   --globals node,web,dom
+ */
+export const GJS_GLOBALS_GROUPS = {
+    node: [
+        'Buffer', 'Blob', 'File',
+        'process', 'setImmediate', 'clearImmediate', 'queueMicrotask',
+        'structuredClone', 'btoa', 'atob', 'URL', 'URLSearchParams',
+    ],
+    web: [
+        'fetch', 'Headers', 'Request', 'Response',
+        'FormData',
+        'ReadableStream', 'WritableStream', 'TransformStream',
+        'TextEncoderStream', 'TextDecoderStream',
+        'ByteLengthQueuingStrategy', 'CountQueuingStrategy',
+        'CompressionStream', 'DecompressionStream',
+        'crypto',
+        'AbortController', 'AbortSignal',
+        'Event', 'EventTarget', 'CustomEvent', 'MessageEvent',
+        'ErrorEvent', 'CloseEvent', 'ProgressEvent', 'UIEvent',
+        'MouseEvent', 'PointerEvent', 'KeyboardEvent', 'WheelEvent', 'FocusEvent',
+        'EventSource',
+        'DOMException',
+        'performance', 'PerformanceObserver',
+    ],
+    dom: [
+        'document', 'Image', 'HTMLCanvasElement', 'HTMLImageElement',
+        'HTMLElement', 'MutationObserver', 'ResizeObserver', 'IntersectionObserver',
+    ],
+};
+
 export const GJS_GLOBALS_MAP = {
     // --- Node.js globals ------------------------------------------------
     Buffer:               '@gjsify/buffer/register',

@@ -8,7 +8,7 @@
     "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
     "start": "gjsify run dist/index.gjs.js",
     "build": "yarn build:gjs",
-    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
+    "build:gjs": "gjsify build src/index.ts --app gjs --globals dom --outfile dist/index.gjs.js"
   },
   "dependencies": {
     "@gjsify/webgl": "workspace:^"

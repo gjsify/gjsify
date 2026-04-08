@@ -9,7 +9,7 @@
     "start": "gjsify run dist/gjs.js",
     "start:browser": "http-server dist",
     "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
-    "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
+    "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --globals dom --outfile dist/gjs.js",
     "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/canvas2d.css dist/canvas2d.css"
   },

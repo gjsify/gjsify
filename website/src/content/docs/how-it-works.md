@@ -47,7 +47,23 @@ gjsify build src/index.ts --outfile dist/index.js \
   --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController
 ```
 
-The CLI resolves each identifier against a known map, writes a small ESM stub with `import '<pkg>/register';` lines into `node_modules/.cache/gjsify/`, and passes that stub to esbuild's `inject` option. At runtime the globals are set up before your code runs.
+You can also use the three pre-defined group names to avoid listing every identifier manually:
+
+```bash
+# Node.js server app — process, Buffer, URL, …
+gjsify build src/index.ts --outfile dist/index.js --globals node,web
+
+# GTK/canvas app using three.js — document, HTMLCanvasElement, fetch, …
+gjsify build src/index.ts --outfile dist/index.js --globals dom,web
+```
+
+| Group | Covers |
+|---|---|
+| `node` | `Buffer`, `Blob`, `File`, `process`, `URL`, `URLSearchParams`, `structuredClone`, `btoa`, `atob`, timers |
+| `web` | `fetch`, streams, `crypto`, `AbortController`, DOM events, `FormData`, `performance`, … |
+| `dom` | `document`, `HTMLCanvasElement`, `HTMLImageElement`, `Image`, `MutationObserver`, … |
+
+The CLI resolves each identifier (or group) against a known map, writes a small ESM stub with `import '<pkg>/register';` lines into `node_modules/.cache/gjsify/`, and passes that stub to esbuild's `inject` option. At runtime the globals are set up before your code runs.
 
 > Tree-shaking works in both directions: globals you declare but your code never touches don't inflate the bundle — each register guard (`if (typeof globalThis.X === 'undefined')`) is a tiny no-op that esbuild can elide. Globals you actually use but forget to declare produce a `ReferenceError` at runtime (fix: add the identifier to `--globals` and rebuild).
 
@@ -61,7 +77,7 @@ The CLI resolves each identifier against a known map, writes a small ESM stub wi
 
 Those seven identifiers cover practically every Node-style project — Express, Koa, Hono, fetch clients, crypto hashers, etc. Just `yarn install && yarn build` and your bundle ships.
 
-If you need something the default doesn't cover — say `ReadableStream` for a streaming parser, or `CompressionStream` for gzip — edit the `--globals` list in the scaffolded `package.json` script. The full table of supported identifiers lives in the [CLI Reference](/gjsify/cli-reference/#known-identifiers).
+If you need something the default doesn't cover — say `ReadableStream` for a streaming parser, or `dom` for GTK canvas apps — edit the `--globals` list in the scaffolded `package.json` script. The full table of supported identifiers and groups lives in the [CLI Reference](/gjsify/cli-reference/#globals).
 
 ### Why not auto-detection?
 

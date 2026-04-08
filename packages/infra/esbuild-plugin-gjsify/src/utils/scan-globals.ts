@@ -15,22 +15,26 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
-import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
+import { GJS_GLOBALS_MAP, GJS_GLOBALS_GROUPS } from '@gjsify/resolve-npm/globals-map';
 
 const GLOBALS_MAP: Record<string, string> = GJS_GLOBALS_MAP;
+const GLOBALS_GROUPS: Record<string, string[]> = GJS_GLOBALS_GROUPS;
 
 /**
  * Resolve a `--globals` CLI argument into the set of `/register` subpaths
  * that must be injected into the build.
  *
- * The argument is a plain comma-separated list of identifiers. Unknown
- * tokens are silently ignored (the full known set lives in
- * `@gjsify/resolve-npm/globals-map`). Empty or whitespace-only input
- * returns an empty set.
+ * The argument is a comma-separated list of identifiers or group names.
+ * Group names (`node`, `web`, `dom`) expand to all identifiers in that group.
+ * Unknown tokens are silently ignored. Empty or whitespace-only input returns
+ * an empty set.
  *
  * Examples:
  *   resolveGlobalsList('fetch,Buffer,process')
  *     → Set { 'fetch/register', '@gjsify/buffer/register', '@gjsify/node-globals/register' }
+ *
+ *   resolveGlobalsList('node,web')
+ *     → Set { '@gjsify/buffer/register', '@gjsify/node-globals/register', 'fetch/register', … }
  *
  *   resolveGlobalsList('')
  *     → Set { }
@@ -43,8 +47,16 @@ export function resolveGlobalsList(globalsArg: string): Set<string> {
     for (const rawToken of trimmed.split(',')) {
         const token = rawToken.trim();
         if (!token) continue;
-        const path = GLOBALS_MAP[token];
-        if (path) result.add(path);
+        const group = GLOBALS_GROUPS[token];
+        if (group) {
+            for (const id of group) {
+                const path = GLOBALS_MAP[id];
+                if (path) result.add(path);
+            }
+        } else {
+            const path = GLOBALS_MAP[token];
+            if (path) result.add(path);
+        }
     }
     return result;
 }
