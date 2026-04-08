@@ -86,13 +86,22 @@ export class BuildAction {
             esbuild.outfile = esbuild?.format === 'cjs' ? pgk.main || pgk.module : pgk.module || pgk.main;
         }
 
-        const { consoleShim } = this.configData;
+        const { consoleShim, autoGlobals, globals } = this.configData;
         const result = await build({
             ...this.getEsBuildDefaults(),
             ...esbuild,
             format,
             plugins: [
-                gjsifyPlugin({debug: verbose, app, format, exclude, reflection: typescript?.reflection, consoleShim}),
+                gjsifyPlugin({
+                    debug: verbose,
+                    app,
+                    format,
+                    exclude,
+                    reflection: typescript?.reflection,
+                    consoleShim,
+                    autoGlobals,
+                    globals,
+                }),
             ]
         });
 
