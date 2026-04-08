@@ -89,6 +89,7 @@ export class CanvasRenderingContext2D {
             this._ctx.setSource(style._getCairoPattern());
         } else if (style instanceof OurCanvasPattern) {
             this._ctx.setSource(style._getCairoPattern());
+            this._applyPatternFilter();
         }
     }
 
@@ -103,6 +104,28 @@ export class CanvasRenderingContext2D {
             this._ctx.setSource(style._getCairoPattern());
         } else if (style instanceof OurCanvasPattern) {
             this._ctx.setSource(style._getCairoPattern());
+            this._applyPatternFilter();
+        }
+    }
+
+    /**
+     * Apply the current imageSmoothingEnabled + imageSmoothingQuality state
+     * to the currently installed Cairo source pattern. Per Canvas 2D spec,
+     * the filter is read from the context at *draw* time, not at pattern
+     * creation — so we re-apply it on every fill/stroke.
+     */
+    private _applyPatternFilter(): void {
+        const pat = (this._ctx as any).getSource?.();
+        if (pat && typeof pat.setFilter === 'function') {
+            let filter: number;
+            if (!this._state.imageSmoothingEnabled) {
+                filter = Cairo.Filter.NEAREST as unknown as number;
+            } else if (this._state.imageSmoothingQuality === 'high') {
+                filter = Cairo.Filter.BEST as unknown as number;
+            } else {
+                filter = Cairo.Filter.BILINEAR as unknown as number;
+            }
+            pat.setFilter(filter);
         }
     }
 
@@ -138,43 +161,22 @@ export class CanvasRenderingContext2D {
     }
 
     /**
-     * Render a shadow for the current path by painting to a temp surface,
-     * applying a simple box blur approximation, and compositing back.
-     * This is called before the actual fill/stroke when shadows are active.
+     * Shadow rendering is intentionally a no-op.
+     *
+     * Proper Canvas 2D shadows require a Gaussian blur pass on an isolated
+     * temporary surface, which cannot be emulated reliably without a full
+     * Path2D replay or pixel-level manipulation. The previous implementation
+     * attempted to use a temp surface but never replayed the path onto it
+     * (because `drawOp` closes over the main context), leaving the shadow
+     * surface empty while still leaking memory.
+     *
+     * Excalibur and most 2D game engines bake glow/outline effects into
+     * sprites rather than relying on canvas shadows, so this no-op does not
+     * affect the showcase. A correct implementation is tracked as a
+     * separate Canvas 2D Phase-5 enhancement.
      */
-    private _renderShadow(drawOp: () => void): void {
-        const blur = this._state.shadowBlur;
-        const offX = this._state.shadowOffsetX;
-        const offY = this._state.shadowOffsetY;
-        const color = parseColor(this._state.shadowColor);
-        if (!color) return;
-
-        const pad = Math.ceil(blur * 2);
-        const w = this._surfaceWidth + pad * 2;
-        const h = this._surfaceHeight + pad * 2;
-
-        // Create temp surface for shadow
-        const shadowSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, w, h);
-        const shadowCtx = new Cairo.Context(shadowSurface);
-
-        // Copy the current path/state to the shadow context and draw in shadow color
-        shadowCtx.translate(pad, pad);
-        shadowCtx.setSourceRGBA(color.r, color.g, color.b, color.a * this._state.globalAlpha);
-        drawOp.call(this);
-        // We can't easily replay the path on a different context without Path2D,
-        // so shadow support is approximate: we just paint the shadow color under the actual draw
-        shadowCtx.$dispose();
-        shadowSurface.finish();
-
-        // For now, apply shadow as a simple offset + color overlay
-        // Full Gaussian blur would require pixel manipulation (Phase 5 enhancement)
-        this._ctx.save();
-        this._applyCompositing();
-        this._ctx.setSourceRGBA(color.r, color.g, color.b, color.a * this._state.globalAlpha);
-        this._ctx.translate(offX, offY);
-        // Re-fill/stroke the current path with shadow color
-        drawOp();
-        this._ctx.restore();
+    private _renderShadow(_drawOp: () => void): void {
+        // Intentionally empty. See the doc-comment above.
     }
 
     // ---- State ----
@@ -807,6 +809,30 @@ export class CanvasRenderingContext2D {
         this._ctx.translate(-sx, -sy);
 
         Gdk.cairo_set_source_pixbuf(this._ctx as any, pixbuf, 0, 0);
+
+        // Apply Cairo interpolation filter based on imageSmoothingEnabled +
+        // imageSmoothingQuality. setSource installs a fresh SurfacePattern and
+        // resets any filter to Cairo's default (BILINEAR), so setFilter MUST
+        // be called between setSource and fill. Without this, Excalibur's
+        // pixel-art mode (imageSmoothingEnabled=false) renders blurry because
+        // Cairo uses bilinear interpolation by default.
+        //
+        // Cairo.Filter values (verified runtime in GJS 1.86):
+        //   FAST=0  GOOD=1  BEST=2  NEAREST=3  BILINEAR=4  GAUSSIAN=5
+        // GIR typings are incomplete for Cairo.SurfacePattern so we go via any.
+        const pat = (this._ctx as any).getSource?.();
+        if (pat && typeof pat.setFilter === 'function') {
+            let filter: number;
+            if (!this._state.imageSmoothingEnabled) {
+                filter = Cairo.Filter.NEAREST as unknown as number;
+            } else if (this._state.imageSmoothingQuality === 'high') {
+                filter = Cairo.Filter.BEST as unknown as number;
+            } else {
+                filter = Cairo.Filter.BILINEAR as unknown as number;
+            }
+            pat.setFilter(filter);
+        }
+
         this._ctx.rectangle(sx, sy, sw, sh);
         this._ctx.fill();
         this._ctx.restore();
