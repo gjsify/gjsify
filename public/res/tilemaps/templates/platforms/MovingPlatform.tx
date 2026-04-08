@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<template>
+ <object name="MovingPlatform" type="MovingPlatform" width="112" height="16">
+  <properties>
+   <property name="path" type="object" value="32"/>
+   <property name="speed" type="int" value="25"/>
+  </properties>
+ </object>
+</template>

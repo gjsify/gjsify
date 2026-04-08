@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<template>
+ <object name="Bird" type="BirdEnemy">
+  <properties>
+   <property name="type" value="purple"/>
+  </properties>
+  <point/>
+ </object>
+</template>

@@ -1,0 +1,25 @@
+{
+  "name": "sample-full-platformer",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "author": "mattjennings",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "@excaliburjs/plugin-tiled": "0.29.2",
+    "excalibur": "0.29.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "typescript": "5.3.2",
+    "vite": "^5.0.10",
+    "vite-plugin-static-copy": "1.0.5"
+  }
+}
