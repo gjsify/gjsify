@@ -3488,15 +3488,24 @@ export abstract class WebGLContextBase {
                     searchName = name.replace(/\[\d+\]$/, '[0]')
                 }
 
+                // OpenGL's getActiveUniform returns array uniforms as
+                // 'name[0]' (per WebGL + ES spec), so we must match both the
+                // exact form and the array-base form when the caller passes
+                // the bare name like `getUniformLocation(prog, 'u_textures')`
+                // for `uniform sampler2D u_textures[8]`. Without this, valid
+                // array uniforms return null — which Excalibur interprets as
+                // "uniform doesn't exist or is not used" and throws.
+                const arraySearchName = searchName + '[0]'
                 let info = null
                 for (let i = 0; i < program._uniforms.length; ++i) {
                     const infoItem = program._uniforms[i]
-                    if (infoItem.name === searchName) {
+                    if (infoItem.name === searchName || infoItem.name === arraySearchName) {
                         info = {
                             size: infoItem.size,
                             type: infoItem.type,
                             name: infoItem.name
                         }
+                        break
                     }
                 }
                 if (!info) {
@@ -3508,15 +3517,21 @@ export abstract class WebGLContextBase {
                     program,
                     info)
 
-                // handle array case
-                if (/\[0\]$/.test(name)) {
-                    const baseName = name.replace(/\[0\]$/, '')
+                // Distinguish three cases for array uniforms, where info.name
+                // is always 'basename[0]' (per OpenGL spec for arrays):
+                //   A. caller passed bare 'basename'  -> whole-array write -> populate _array
+                //   B. caller passed 'basename[0]'    -> whole-array write -> populate _array
+                //   C. caller passed 'basename[N>0]'  -> single-element write -> validate offset, no _array
+                // Scalar uniforms (info.name has no '[0]') fall through without either.
+                const callerBracketMatch = name.match(/\[(\d+)\]$/)
+                const callerIndex = callerBracketMatch ? +callerBracketMatch[1] : -1
+                const infoIsArray = /\[0\]$/.test(info.name)
+
+                if (infoIsArray && (callerIndex === -1 || callerIndex === 0)) {
+                    // Cases A + B: populate full _array so uniform1fv/uniform1iv
+                    // writes to all elements via the per-element locations.
+                    const baseName = info.name.replace(/\[0\]$/, '')
                     const arrayLocs = []
-
-                    // if (offset < 0 || offset >= info.size) {
-                    //   return null
-                    // }
-
                     this._saveError()
                     for (let i = 0; this.getError() === this.NO_ERROR; ++i) {
                         const xloc = this._gl.getUniformLocation(
@@ -3530,13 +3545,11 @@ export abstract class WebGLContextBase {
                     this._restoreError(this.NO_ERROR)
 
                     result._array = arrayLocs
-                } else if (name && /\[(\d+)\]$/.test(name)) {
-                    const _regexExec = /\[(\d+)\]$/.exec(name);
-                    if (!_regexExec || _regexExec.length <= 0) {
-                        return null;
-                    }
-                    const offset = +(_regexExec)[1]
-                    if (offset < 0 || offset >= info.size) {
+                } else if (callerIndex > 0) {
+                    // Case C: caller wants a specific array element. Validate
+                    // that the index is within bounds; the returned location
+                    // writes to only that element (no _array).
+                    if (callerIndex >= info.size) {
                         return null
                     }
                 }
