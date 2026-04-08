@@ -1,8 +1,9 @@
 /**
  * Map from global identifier → bare-specifier register subpath.
  *
- * Used by the gjsify esbuild plugin's `--auto-globals` feature to inject
- * `/register` modules based on references found in user code.
+ * Used by the `@gjsify/cli` `--globals` flag (via `@gjsify/esbuild-plugin-gjsify/globals`)
+ * to resolve the user's explicit list of globals into the set of `/register`
+ * modules that must be injected into the bundle.
  *
  * The register paths use bare specifiers ("fetch/register" rather than
  * "@gjsify/fetch/register") so they go through the normal ALIASES_WEB_FOR_GJS

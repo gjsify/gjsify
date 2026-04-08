@@ -6,7 +6,9 @@
 //
 // Web APIs like fetch, AbortController, Headers, Request, Response are NOT
 // registered here — import `@gjsify/web-globals/register` (or the specific
-// package like `@gjsify/fetch/register`) if you need them.
+// package like `@gjsify/fetch/register`) if you need them. The
+// `@gjsify/cli` `--globals` flag is the preferred way to declare which
+// register modules get injected into a bundle.
 //
 // On Node.js the alias layer maps this subpath to @gjsify/empty because all
 // of these globals are already native.

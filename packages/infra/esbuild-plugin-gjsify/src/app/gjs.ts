@@ -76,11 +76,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         esbuildOptions.inject = [resolve(_shimDir, '../shims/console-gjs.js')];
     }
 
-    // Append the globals stub file if the CLI pre-computed one. The stub is
-    // an ESM file with one `import '<pkg>/register';` per identifier in the
-    // user's `--globals` list; esbuild processes it alongside the regular
-    // entry points. The plugin itself never scans or infers anything — the
-    // CLI is the sole source of truth for which globals get registered.
+    // Append pre-computed globals stub (from --globals CLI flag) if present.
     if (pluginOptions.autoGlobalsInject) {
         esbuildOptions.inject = [
             ...(esbuildOptions.inject ?? []),
