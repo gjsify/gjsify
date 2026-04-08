@@ -22,6 +22,7 @@
     "src/lodash.d.ts"
   ],
   "files": [
-    "src/index.ts"
+    "src/index.ts",
+    "src/globals.ts"
   ]
 }
