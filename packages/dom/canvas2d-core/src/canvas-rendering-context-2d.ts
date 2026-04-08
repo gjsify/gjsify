@@ -219,11 +219,29 @@ export class CanvasRenderingContext2D {
      */
     transform(a: number, b: number, c: number, d: number, e: number, f: number): void {
         this._ensureSurface();
-        // Cairo's matrix constructor: Matrix(xx, yx, xy, yy, x0, y0)
-        // Canvas matrix [a,b,c,d,e,f] maps to Cairo Matrix(a, b, c, d, e, f)
-        const matrix = new Cairo.Matrix();
-        (matrix as any).init(a, b, c, d, e, f);
-        (this._ctx as any).transform(matrix);
+        // Guard against NaN / undefined / Infinity — Cairo will hard-crash
+        // on invalid matrix values.
+        if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c) ||
+            !Number.isFinite(d) || !Number.isFinite(e) || !Number.isFinite(f)) {
+            return;
+        }
+        // Cairo.Context in GJS does NOT expose a generic `transform(matrix)` /
+        // `setMatrix()` call — only `translate()`, `rotate()`, `scale()` and
+        // `identityMatrix()`. So we decompose the affine 2D matrix
+        //   [a c e]
+        //   [b d f]
+        //   [0 0 1]
+        // into translate + rotate + scale (ignoring shear, which Excalibur /
+        // three.js 2D users don't rely on). Shear would require a combined
+        // matrix multiply, which isn't available in this binding.
+        const tx = e;
+        const ty = f;
+        const sx = Math.hypot(a, b);
+        const sy = Math.hypot(c, d);
+        const rotation = Math.atan2(b, a);
+        this._ctx.translate(tx, ty);
+        if (rotation !== 0) this._ctx.rotate(rotation);
+        if (sx !== 1 || sy !== 1) this._ctx.scale(sx, sy);
     }
 
     /**
@@ -253,27 +271,35 @@ export class CanvasRenderingContext2D {
      * Return the current transformation matrix as a DOMMatrix-like object.
      */
     getTransform(): DOMMatrix {
-        // Cairo doesn't expose getMatrix in GJS types, but it exists at runtime
-        const m = (this._ctx as any).getMatrix?.();
-        if (m) {
-            // Cairo Matrix fields: xx, yx, xy, yy, x0, y0
-            return {
-                a: m.xx ?? 1, b: m.yx ?? 0,
-                c: m.xy ?? 0, d: m.yy ?? 1,
-                e: m.x0 ?? 0, f: m.y0 ?? 0,
-                m11: m.xx ?? 1, m12: m.yx ?? 0,
-                m13: 0, m14: 0,
-                m21: m.xy ?? 0, m22: m.yy ?? 1,
-                m23: 0, m24: 0,
-                m31: 0, m32: 0, m33: 1, m34: 0,
-                m41: m.x0 ?? 0, m42: m.y0 ?? 0,
-                m43: 0, m44: 1,
-                is2D: true,
-                isIdentity: (m.xx === 1 && m.yx === 0 && m.xy === 0 && m.yy === 1 && m.x0 === 0 && m.y0 === 0),
-            } as any;
+        // Cairo.Context in GJS doesn't expose `getMatrix()`, but it does
+        // expose `userToDevice(x, y)`. We reconstruct the current affine
+        // matrix [a,b,c,d,e,f] by transforming three reference points:
+        //   userToDevice(0, 0) = (e,     f)      — translation
+        //   userToDevice(1, 0) = (a + e, b + f)  — first basis vector
+        //   userToDevice(0, 1) = (c + e, d + f)  — second basis vector
+        const origin = (this._ctx as any).userToDevice(0, 0);
+        const xAxis  = (this._ctx as any).userToDevice(1, 0);
+        const yAxis  = (this._ctx as any).userToDevice(0, 1);
+        const e = origin[0] ?? 0;
+        const f = origin[1] ?? 0;
+        const a = (xAxis[0] ?? 0) - e;
+        const b = (xAxis[1] ?? 0) - f;
+        const c = (yAxis[0] ?? 0) - e;
+        const d = (yAxis[1] ?? 0) - f;
+
+        const DOMMatrixCtor = (globalThis as any).DOMMatrix;
+        if (typeof DOMMatrixCtor === 'function') {
+            return new DOMMatrixCtor([a, b, c, d, e, f]);
         }
-        // Fallback: return identity
-        return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, is2D: true, isIdentity: true } as any;
+        return {
+            a, b, c, d, e, f,
+            m11: a, m12: b, m13: 0, m14: 0,
+            m21: c, m22: d, m23: 0, m24: 0,
+            m31: 0, m32: 0, m33: 1, m34: 0,
+            m41: e, m42: f, m43: 0, m44: 1,
+            is2D: true,
+            isIdentity: (a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0),
+        } as any;
     }
 
     resetTransform(): void {
