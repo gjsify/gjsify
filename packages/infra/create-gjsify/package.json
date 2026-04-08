@@ -3,7 +3,15 @@
     "version": "0.1.7",
     "description": "Create a new Gjsify project",
     "type": "module",
-    "main": "lib/index.js",
+    "main": "lib/create.js",
+    "types": "lib/create.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/create.d.ts",
+            "import": "./lib/create.js"
+        },
+        "./package.json": "./package.json"
+    },
     "bin": "./lib/index.js",
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",

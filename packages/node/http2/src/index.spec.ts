@@ -4,6 +4,15 @@
 import { describe, it, expect } from '@gjsify/unit';
 import http2 from 'node:http2';
 
+// @types/node is missing some http2 constants that Node.js exports at runtime.
+declare module 'node:http2' {
+  namespace constants {
+    const NGHTTP2_SETTINGS_ENABLE_CONNECT_PROTOCOL: number;
+    const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: number;
+    const HTTP2_HEADER_PROTOCOL: string;
+  }
+}
+
 const {
   constants,
   getDefaultSettings,
@@ -174,7 +183,8 @@ export default async () => {
     });
 
     await it('getPackedSettings with no args should return empty', async () => {
-      const packed = getPackedSettings();
+      // Calling getPackedSettings() without args is valid at runtime; @types/node requires one arg.
+      const packed = (getPackedSettings as any)();
       expect(packed.byteLength).toBe(0);
     });
 

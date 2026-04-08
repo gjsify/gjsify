@@ -166,7 +166,8 @@ export default async () => {
       try {
         const privKey = createPrivateKey(testPrivateKeyPem);
         const pubKey = createPublicKey(privKey);
-        const pem = pubKey.export({ format: 'pem' }) as string;
+        // @types/node requires `type` alongside `format`; defaults work at runtime.
+        const pem = pubKey.export({ format: 'pem' } as any) as string;
         expect(typeof pem).toBe('string');
         expect(pem.includes('-----BEGIN PUBLIC KEY-----')).toBe(true);
         expect(pem.includes('-----END PUBLIC KEY-----')).toBe(true);

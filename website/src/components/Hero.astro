@@ -1,185 +1,203 @@
 ---
 // Custom Hero component — replaces Starlight's default Hero.
-// Renders the interactive pixel post-processing demo with a floating code window overlay.
-import '@fontsource/coming-soon';
-import DemoArrow from '../assets/demo-arrow.svg?raw';
-import { Code } from '@astrojs/starlight/components';
-
-const heroCode = `import Adw from 'gi://Adw?version=1';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
-import * as THREE from 'three';
-import { RenderPixelatedPass } from 'three/addons/postprocessing/RenderPixelatedPass.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-
-const app = new Adw.Application({ application_id: 'gjsify.examples.pixel' });
-app.connect('activate', () => {
-  const glArea = new CanvasWebGLWidget();
-  glArea.onReady((canvas) => {
-    const renderer = new THREE.WebGLRenderer({ canvas });
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera();
-    const composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPixelatedPass(6, scene, camera));
-  });
-});`;
+// VitePress-style layout: text block on the left (title, tagline, CTAs),
+// large logo on the right. Stacks vertically on narrow viewports.
+//
+// CSS is declared `is:global` because Astro's scoped rules use `:where()`
+// which has 0 specificity — Starlight's own `.sl-markdown-content h1` etc.
+// would otherwise win and collapse the layout after hydration.
+import ShowcaseSlideshow from './ShowcaseSlideshow.astro';
+import LogoLight from '../assets/logo-light.svg?raw';
+import LogoDark from '../assets/logo-dark.svg?raw';
 ---
 
 <div class="hero-custom">
-  <div class="demo-annotation" aria-hidden="true">
-    <span class="demo-annotation-text">This WebGL demo runs<br>natively on Linux!</span>
-    <Fragment set:html={DemoArrow} />
-  </div>
+  <div class="hero-heading">
+    <div class="hero-text">
+      <h1 class="hero-title">GJSify</h1>
+      <p class="hero-tagline">Node.js &amp; Web APIs,<br />running on GJS</p>
+      <p class="hero-description">
+        Bring the full TypeScript ecosystem to GJS: fs, net, http, fetch,
+        WebSocket, Canvas2D, WebGL and more, all running natively on Linux.
+      </p>
+      <div class="hero-cta">
+        <a class="hero-btn hero-btn-primary" href="/gjsify/getting-started/">Get Started</a>
+        <a class="hero-btn hero-btn-minimal" href="https://github.com/gjsify/gjsify" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
 
-  <div class="hero-demo-wrapper">
-    <div class="hero-demo" id="pixel-demo"></div>
-
-    <div class="hero-code-overlay">
-      <Code code={heroCode} lang="ts" title="pixel-demo.ts" />
-      <a class="hero-code-link" href="https://github.com/gjsify/gjsify/tree/main/examples/dom/three-postprocessing-pixel" target="_blank" rel="noopener">
-        Full example &rarr;
-      </a>
+    <div class="hero-logo-wrapper" aria-hidden="true">
+      <span class="hero-logo-light" set:html={LogoLight} />
+      <span class="hero-logo-dark" set:html={LogoDark} />
     </div>
   </div>
 
-  <div class="hero-try-it">
-    <p>Don't believe it? See for yourself!</p>
-    <Code code="npx @gjsify/cli showcase three-postprocessing-pixel" lang="sh" title="Terminal" frame="terminal" />
-  </div>
-
-  <script>
-    import { mount } from '@gjsify/example-dom-three-postprocessing-pixel/browser';
-
-    const container = document.getElementById('pixel-demo');
-    if (container) {
-      const base = import.meta.env.BASE_URL;
-      mount(container, { assetBase: `${base}demos/pixel/` });
-    }
-  </script>
+  <ShowcaseSlideshow />
 </div>
 
-<style>
+<style is:global>
   .hero-custom {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
+    gap: clamp(4rem, 8vw, 8rem);
+    padding-block: clamp(2rem, 5vw, 5rem) clamp(6rem, 12vw, 12rem);
+    position: relative;
+  }
+
+  /* --- Heading section: two-column (text + logo) --- */
+  .hero-custom .hero-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 1.5rem;
-    padding-block: 1rem 2rem;
-  }
-
-  /* --- Demo + code overlay wrapper --- */
-  .hero-demo-wrapper {
-    position: relative;
-    width: 100%;
+    gap: 3rem;
     max-width: 1100px;
-    padding-bottom: 250px;
-    padding-right: 250px;
-  }
-
-  .hero-demo {
     width: 100%;
-    aspect-ratio: 11 / 7;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow:
-      0 4px 24px rgba(0, 0, 0, 0.25),
-      0 0 0 1px rgba(0, 0, 0, 0.08);
-    position: relative;
-  }
-
-  /* Adwaita-Window fills the demo container */
-  .hero-demo :global(adw-window) {
-    width: 100% !important;
-    height: 100% !important;
-    max-width: none;
-    max-height: none;
-    border-radius: 0;
-    box-shadow: none;
-    outline: none;
-  }
-
-  /* --- Floating code window overlay --- */
-  .hero-code-overlay {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    z-index: 2;
-    max-width: 640px;
-    width: 58%;
-  }
-
-  /* "Full example →" link below the code window */
-  .hero-code-link {
-    display: block;
-    padding: 0.5rem 1rem;
-    color: #78aeed;
-    font-size: 0.85rem;
-    text-decoration: none;
-    text-align: right;
-  }
-
-  .hero-code-link:hover {
-    color: #b3d4f5;
-    text-decoration: underline;
-  }
-
-  /* --- Try it section --- */
-  .hero-try-it {
-    text-align: center;
-    max-width: 600px;
     margin-inline: auto;
-    padding-block: 1.5rem 0;
   }
 
-  .hero-try-it p {
-    color: var(--sl-color-gray-2);
-    font-size: clamp(var(--sl-text-base), 2vw, var(--sl-text-lg));
-    margin-bottom: 1rem;
-  }
-
-  /* --- Annotation --- */
-  .demo-annotation {
-    align-self: flex-end;
-    margin-right: 2rem;
-    margin-bottom: -1rem;
-    z-index: 1;
+  .hero-custom .hero-text {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    color: var(--sl-color-gray-2);
-    pointer-events: none;
-    user-select: none;
+    gap: 1rem;
+    min-width: 0;
   }
 
-  .demo-annotation-text {
-    font-family: 'Coming Soon', cursive;
-    font-size: clamp(0.9rem, 1.8vw, 1.15rem);
-    line-height: 1.35;
-    text-align: right;
-    transform: rotate(-3deg);
+  .hero-custom .hero-title {
+    font-size: clamp(2.5rem, 5vw, 3.75rem);
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--sl-color-accent-high) 0%, var(--sl-color-accent) 60%, #9141ac 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .hero-custom .hero-tagline {
+    font-size: clamp(2.5rem, 5vw, 3.75rem);
+    font-weight: 800;
+    color: var(--sl-color-white);
+    margin: 0;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .hero-custom .hero-description {
+    font-size: clamp(0.95rem, 1.5vw, 1.125rem);
+    color: var(--sl-color-gray-2);
+    margin: 0.25rem 0 0;
+    line-height: 1.55;
+    max-width: 46ch;
+  }
+
+  /* --- Logo (right column) --- */
+  .hero-custom .hero-logo-wrapper {
+    width: clamp(160px, 20vw, 260px);
+    aspect-ratio: 1;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    filter: drop-shadow(0 8px 32px rgba(53, 132, 228, 0.25));
+  }
+
+  /* Glow behind the logo */
+  .hero-custom .hero-logo-wrapper::before {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(53, 132, 228, 0.45) 0%,
+      rgba(145, 65, 172, 0.25) 45%,
+      transparent 70%
+    );
+    filter: blur(28px);
+    pointer-events: none;
+    z-index: -1;
+    border-radius: 50%;
+  }
+
+  .hero-custom .hero-logo-wrapper svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Theme-aware logo */
+  .hero-custom .hero-logo-dark { display: none; }
+  :root[data-theme='dark'] .hero-custom .hero-logo-light { display: none; }
+  :root[data-theme='dark'] .hero-custom .hero-logo-dark { display: inline; }
+
+  /* --- CTA buttons --- */
+  .hero-custom .hero-cta {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .hero-custom .hero-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
+  }
+
+  .hero-custom .hero-btn-primary {
+    background: var(--sl-color-accent);
+    color: #fff;
+  }
+
+  .hero-custom .hero-btn-primary:hover {
+    background: var(--sl-color-accent-high);
+    box-shadow: 0 4px 16px rgba(53, 132, 228, 0.35);
+    transform: translateY(-1px);
+  }
+
+  .hero-custom .hero-btn-minimal {
+    background: transparent;
+    color: var(--sl-color-white);
+    border: 1px solid var(--sl-color-gray-5);
+  }
+
+  .hero-custom .hero-btn-minimal:hover {
+    background: var(--sl-color-gray-6);
+    border-color: var(--sl-color-gray-4);
   }
 
   /* --- Responsive --- */
-  @media (max-width: 1100px) {
-    .hero-demo-wrapper {
-      padding-bottom: 0;
-      padding-right: 0;
+  @media (max-width: 800px) {
+    .hero-custom .hero-heading {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      text-align: center;
     }
 
-    .hero-code-overlay {
-      position: static;
-      width: 100%;
-      max-width: none;
-      margin-top: 1rem;
-    }
-  }
-
-  @media (max-width: 600px) {
-    .hero-demo {
-      aspect-ratio: 4 / 3;
+    .hero-custom .hero-text {
+      align-items: center;
     }
 
-    .demo-annotation {
-      display: none;
+    .hero-custom .hero-description {
+      max-width: 50ch;
+    }
+
+    .hero-custom .hero-cta {
+      justify-content: center;
+    }
+
+    /* Logo above the text on mobile */
+    .hero-custom .hero-logo-wrapper {
+      order: -1;
+      width: clamp(120px, 30vw, 180px);
     }
   }
 </style>

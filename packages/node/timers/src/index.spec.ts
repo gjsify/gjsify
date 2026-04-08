@@ -215,9 +215,10 @@ export default async () => {
       });
 
       await it('should export active and unenroll (legacy)', async () => {
-        // Node.js exports these legacy functions
-        expect(typeof timers.active === 'function' || typeof timers.active === 'undefined').toBe(true);
-        expect(typeof timers.unenroll === 'function' || typeof timers.unenroll === 'undefined').toBe(true);
+        // Node.js exports these legacy functions; they're not in @types/node.
+        const t = timers as any;
+        expect(typeof t.active === 'function' || typeof t.active === 'undefined').toBe(true);
+        expect(typeof t.unenroll === 'function' || typeof t.unenroll === 'undefined').toBe(true);
       });
     });
 

@@ -1,0 +1,21 @@
+// adwaita-skin.scss — Main entry point for @gjsify/adwaita-web.
+// Mirrors refs/adwaita-web/adwaita-web/scss/adwaita-skin.scss organization.
+// Reference: refs/adwaita-web/adwaita-web/scss/adwaita-skin.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+@use 'icons.generated';
+@use 'variables';
+@use 'theme';
+@use 'window';
+@use 'headerbar';
+@use 'preferences';
+@use 'card';
+@use 'row';
+@use 'switch_row';
+@use 'combo_row';
+@use 'spin_row';
+@use 'toast';
+@use 'overlay_split_view';

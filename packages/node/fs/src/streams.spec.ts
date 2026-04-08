@@ -84,7 +84,7 @@ export default async () => {
       });
       expect(err).toBeDefined();
       // GJS Gio errors have numeric codes; Node.js has string 'ENOENT'
-      const code = (err as NodeJS.ErrnoException).code;
+      const code: unknown = (err as NodeJS.ErrnoException).code;
       expect(code === 'ENOENT' || code === 1 || (err as any).code !== undefined).toBeTruthy();
     });
 

@@ -38,7 +38,6 @@
         "../../../node_modules/@girs/javascriptcore-6.0/javascriptcore-6.0-ambient.d.ts"
     ],
     "exclude": [
-        "src/test.mts",
-        "src/**/*.spec.ts"
+        "src/test.mts"
     ]
 }

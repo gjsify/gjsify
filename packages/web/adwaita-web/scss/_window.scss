@@ -1,0 +1,23 @@
+// _window.scss — adw-window styling.
+// Reference: refs/adwaita-web/adwaita-web/scss/_window.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_window.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-window {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  border-radius: var(--window-radius);
+  box-shadow:
+    0 0 14px 5px rgb(0 0 0 / 15%),
+    0 0 5px 2px rgb(0 0 0 / 10%),
+    0 0 0 1px rgb(0 0 0 / 5%);
+  overflow: hidden;
+  outline: 1px solid rgb(255 255 255 / 7%);
+  outline-offset: -1px;
+}

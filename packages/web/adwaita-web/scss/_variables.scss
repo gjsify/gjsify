@@ -1,0 +1,57 @@
+// _variables.scss — Adwaita CSS custom properties (light theme defaults).
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss (canonical color palette)
+// Reference: refs/adwaita-web/adwaita-web/scss/_variables.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Subset adapted for @gjsify/adwaita-web Web Components.
+
+:root {
+  // Window
+  --window-bg-color: #fafafb;
+  --window-fg-color: rgba(0, 0, 6, 0.8);
+
+  // Views
+  --view-bg-color: #ffffff;
+  --view-fg-color: rgba(0, 0, 6, 0.8);
+
+  // Header bar
+  --headerbar-bg-color: #ffffff;
+  --headerbar-fg-color: rgba(0, 0, 6, 0.8);
+  --headerbar-shade-color: rgba(0, 0, 6, 0.12);
+
+  // Sidebar
+  --sidebar-bg-color: #ebebed;
+
+  // Cards / boxed lists
+  --card-bg-color: #ffffff;
+  --card-fg-color: rgba(0, 0, 6, 0.8);
+  --card-shade-color: rgba(0, 0, 6, 0.07);
+
+  // Accent
+  --accent-bg-color: #3584e4;
+  --accent-fg-color: #ffffff;
+  --accent-color: #1c71d8;
+
+  // Switch
+  --switch-off-bg: rgba(0, 0, 0, 0.2);
+  --switch-knob-bg: #ffffff;
+
+  // Layout radii
+  --window-radius: 15px;
+  --card-radius: 12px;
+  --button-radius: 9px;
+
+  // Spacing scale
+  --spacing-xs: 6px;
+  --spacing-s: 9px;
+  --spacing-m: 12px;
+  --spacing-l: 18px;
+  --spacing-xl: 24px;
+
+  // Typography — GNOME default: Adwaita Sans 11
+  --font-family: 'Adwaita Sans', 'Cantarell', 'Inter', 'Segoe UI', sans-serif;
+  --font-size-base: 11pt;
+  --font-size-small: 9pt;
+  --font-size-heading: 12pt;
+  --dim-opacity: 0.55;
+}

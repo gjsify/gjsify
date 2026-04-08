@@ -84,7 +84,9 @@ export default async () => {
 
     await it('should equal Symbol.for nodejs.util.inspect.custom', async () => {
       const expected = Symbol.for('nodejs.util.inspect.custom');
-      expect(util.inspect.custom === expected).toBe(true);
+      // @types/node declares inspect.custom as a nominal unique symbol, so direct
+      // === comparison with a Symbol.for() lookup is reported as non-overlapping.
+      expect((util.inspect.custom as symbol) === expected).toBe(true);
     });
 
     await it('should use custom inspect method', async () => {

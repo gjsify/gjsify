@@ -1,0 +1,67 @@
+// _headerbar.scss — adw-header-bar styling.
+// Reference: refs/adwaita-web/adwaita-web/scss/_headerbar.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_header-bar.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-header-bar {
+  display: flex;
+  align-items: center;
+  min-height: 47px;
+  padding: 0 6px;
+  background-color: var(--headerbar-bg-color);
+  color: var(--headerbar-fg-color);
+  box-shadow: inset 0 -1px var(--headerbar-shade-color);
+  flex-shrink: 0;
+
+  .adw-header-bar-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+
+  .adw-header-bar-title {
+    font-weight: bold;
+    font-size: var(--font-size-base);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .adw-header-bar-start {
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    gap: 4px;
+  }
+
+  .adw-header-bar-end {
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    gap: 4px;
+  }
+
+  .adw-header-btn {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: var(--button-radius);
+    background: transparent;
+    color: var(--headerbar-fg-color);
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+
+    &:hover {
+      background: rgba(128, 128, 128, 0.12);
+    }
+
+    &:active {
+      background: rgba(128, 128, 128, 0.22);
+    }
+  }
+}

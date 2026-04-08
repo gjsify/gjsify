@@ -1,0 +1,818 @@
+---
+// Showcase slideshow — cycles through 3 interactive demos with code overlays.
+// Each slide lazy-mounts its demo on first view to avoid loading all 3 at once.
+import '@fontsource/coming-soon';
+import { Code } from '@astrojs/starlight/components';
+import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/actions';
+import DemoArrow from '../assets/demo-arrow.svg?raw';
+import DemoArrowTerminal from '../assets/demo-arrow-terminal.svg?raw';
+
+// Per-slide annotation arrows with handwritten-style labels. Positions are
+// CSS values (top/right/bottom/left) applied to the absolute container.
+// `flip` mirrors the arrow horizontally, `rotate` rotates in degrees.
+interface Annotation {
+  text: string;
+  top?: string;
+  right?: string;
+  bottom?: string;
+  left?: string;
+  rotate?: number;
+  flip?: boolean;
+}
+
+interface Slide {
+  id: string;
+  name: string;
+  title: string;
+  github: string;
+  code: string;
+  annotations?: Annotation[];
+  /**
+   * Layout variant:
+   * - 'interactive' (default): live demo window + floating code overlay + try-it terminal
+   * - 'terminal': no live demo — just a large terminal window showing the
+   *   server's startup output. Used for CLI/server showcases that can't run
+   *   in the browser (e.g. Express.js web server).
+   */
+  variant?: 'interactive' | 'terminal';
+  /** For terminal variant: the shell session to display inside the terminal frame. */
+  terminalOutput?: string;
+  /** For terminal variant: title shown in the terminal headerbar. */
+  terminalTitle?: string;
+}
+
+const slides: Slide[] = [
+  {
+    id: 'pixel',
+    name: 'three-postprocessing-pixel',
+    title: 'pixel-demo.ts',
+    github: 'showcases/dom/three-postprocessing-pixel',
+    annotations: [
+      { text: 'This WebGL demo runs\nnatively on Linux!', top: '-90px', right: '8%' },
+    ],
+    code: `import Adw from 'gi://Adw?version=1';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
+import * as THREE from 'three';
+import { RenderPixelatedPass } from 'three/addons/postprocessing/RenderPixelatedPass.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+
+const app = new Adw.Application({ application_id: 'gjsify.examples.pixel' });
+app.connect('activate', () => {
+  const glArea = new CanvasWebGLWidget();
+  glArea.onReady((canvas) => {
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera();
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPixelatedPass(6, scene, camera));
+  });
+});`,
+  },
+  {
+    id: 'teapot',
+    name: 'three-geometry-teapot',
+    title: 'teapot-demo.ts',
+    github: 'showcases/dom/three-geometry-teapot',
+    annotations: [
+      { text: 'Real Three.js,\npowered by GJS', top: '-90px', right: '8%' },
+    ],
+    code: `import Adw from 'gi://Adw?version=1';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
+import * as THREE from 'three';
+import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
+
+const app = new Adw.Application({ application_id: 'gjsify.examples.teapot' });
+app.connect('activate', () => {
+  const glArea = new CanvasWebGLWidget();
+  glArea.onReady((canvas) => {
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45);
+    scene.add(new THREE.Mesh(
+      new TeapotGeometry(50, 20),
+      new THREE.MeshPhongMaterial({ color: 0xc0c0c0 })
+    ));
+  });
+});`,
+  },
+  {
+    id: 'fireworks',
+    name: 'canvas2d-fireworks',
+    title: 'fireworks.ts',
+    github: 'showcases/dom/canvas2d-fireworks',
+    annotations: [
+      { text: 'Canvas 2D, drawn\nwith Cairo', top: '-90px', right: '8%' },
+    ],
+    code: `import Adw from 'gi://Adw?version=1';
+import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { start } from './fireworks.js';
+
+const app = new Adw.Application({ application_id: 'gjsify.examples.fireworks' });
+app.connect('activate', () => {
+  const canvasWidget = new Canvas2DWidget();
+  canvasWidget.installGlobals();
+  canvasWidget.onReady((canvas) => {
+    const demo = start(canvas);
+    // demo.effectController.particleCount = 60;
+    // demo.effectController.autoInterval = 150;
+  });
+});`,
+  },
+  {
+    id: 'express',
+    name: 'express-webserver',
+    title: 'server.ts',
+    github: 'showcases/node/express-webserver',
+    variant: 'terminal',
+    annotations: [
+      { text: 'A real Express.js\nblog, running on GJS', top: '-90px', right: '8%' },
+    ],
+    code: `import '@gjsify/node-globals';
+import express from 'express';
+import { posts } from './data/posts.js';
+
+const app = express();
+app.use(express.json());
+
+app.get('/api/posts', (_req, res) => {
+  res.json({ count: posts.length, posts });
+});
+
+app.get('/api/posts/:slug', (req, res) => {
+  const post = posts.find((p) => p.slug === req.params.slug);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  res.json(post);
+});
+
+app.use(express.static('public'));
+
+app.listen(3000, () => {
+  console.log('Express server running at http://localhost:3000');
+});`,
+    terminalTitle: 'Terminal',
+    terminalOutput: `$ gjs -m express-webserver.js
+
+  Express.js blog running on GJS
+
+  ➜  Local:    http://localhost:3000/
+  ➜  API:      http://localhost:3000/api/posts
+
+  Press Ctrl+C to stop
+
+[12:34:56] GET /
+[12:34:56] GET /style.css
+[12:34:56] GET /app.js
+[12:34:56] GET /api/runtime
+[12:34:56] GET /api/posts`,
+  },
+];
+---
+
+<div class="slideshow" data-slide-count={slides.length}>
+  <button class="slideshow-arrow slideshow-arrow-prev" aria-label="Previous showcase">
+    <Fragment set:html={goPreviousSymbolic} />
+  </button>
+  <button class="slideshow-arrow slideshow-arrow-next" aria-label="Next showcase">
+    <Fragment set:html={goNextSymbolic} />
+  </button>
+
+  <div class="slideshow-track">
+    {slides.map((slide, i) => {
+      const variant = slide.variant ?? 'interactive';
+      return (
+        <div
+          class={`slideshow-slide slideshow-slide-${variant} ${i === 0 ? 'active' : ''}`}
+          data-slide-index={i}
+          data-slide-id={slide.id}
+          data-slide-variant={variant}
+        >
+          <div class="slide-demo-wrapper">
+            {variant === 'interactive' ? (
+              <div
+                class="slide-demo focusable"
+                id={`demo-${slide.id}`}
+                tabindex="0"
+                style="background-color:#222226"
+              ></div>
+            ) : (
+              // Terminal variant: a large terminal window standing in for the
+              // live demo slot (e.g. CLI / server showcases without a UI).
+              <div class="slide-demo slide-demo-terminal focusable" tabindex="0">
+                <Code
+                  code={slide.terminalOutput ?? ''}
+                  lang="sh"
+                  title={slide.terminalTitle ?? 'Terminal'}
+                  frame="terminal"
+                />
+              </div>
+            )}
+
+            {slide.annotations?.map((a) => {
+              const pos = [
+                a.top !== undefined && `top:${a.top}`,
+                a.right !== undefined && `right:${a.right}`,
+                a.bottom !== undefined && `bottom:${a.bottom}`,
+                a.left !== undefined && `left:${a.left}`,
+              ].filter(Boolean).join(';');
+              const transforms = [
+                a.flip && 'scaleX(-1)',
+                a.rotate && `rotate(${a.rotate}deg)`,
+              ].filter(Boolean);
+              const arrowStyle = transforms.length ? `transform:${transforms.join(' ')}` : '';
+              return (
+                <div class="slide-annotation" aria-hidden="true" style={pos}>
+                  <span class="slide-annotation-text">{a.text}</span>
+                  <span class="slide-annotation-arrow" style={arrowStyle} set:html={DemoArrow} />
+                </div>
+              );
+            })}
+
+            <div class="slide-code-overlay focusable" tabindex="0">
+              <Code code={slide.code} lang="ts" title={slide.title} />
+              <a class="slide-code-link" href={`https://github.com/gjsify/gjsify/tree/main/${slide.github}`} target="_blank" rel="noopener">
+                Full example &rarr;
+              </a>
+            </div>
+          </div>
+
+          <div class="slide-try-it-wrapper">
+            <div class="slide-try-it-annotation" aria-hidden="true">
+              <span class="slide-try-it-label">See for yourself<br />on your machine!</span>
+              <span class="slide-try-it-arrow" set:html={DemoArrowTerminal} />
+            </div>
+            <div class="slide-try-it focusable" tabindex="0">
+              <Code
+                code={`npx @gjsify/cli showcase ${slide.name}`}
+                lang="sh"
+                title="Terminal"
+                frame="terminal"
+              />
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</div>
+
+<script>
+  // Lazy-mount showcases on first view.
+  // Structural subset of the `ShowcaseHandle` type returned by each mount();
+  // methods are optional so slides that don't provide them (Terminal variants
+  // like express-webserver, or any future non-rendering showcase) don't error.
+  interface ShowcaseHandle {
+    pause?: () => void;
+    resume?: () => void;
+    readonly isPaused?: boolean;
+  }
+
+  const mounted = new Set<string>();
+  const handles = new Map<string, ShowcaseHandle>();
+  const base = import.meta.env.BASE_URL;
+
+  async function mountSlide(id: string) {
+    if (mounted.has(id)) return;
+    mounted.add(id);
+
+    // Non-interactive slides (variant='terminal') render their content
+    // statically during SSR — nothing to mount.
+    const container = document.getElementById(`demo-${id}`);
+    if (!container) return;
+
+    switch (id) {
+      case 'pixel': {
+        const { mount } = await import('@gjsify/example-dom-three-postprocessing-pixel/browser');
+        const handle = mount(container, { assetBase: `${base}demos/pixel/` });
+        if (handle) handles.set(id, handle);
+        break;
+      }
+      case 'teapot': {
+        const { mount } = await import('@gjsify/example-dom-three-geometry-teapot/browser');
+        const handle = mount(container, { assetBase: `${base}demos/teapot/` });
+        if (handle) handles.set(id, handle);
+        break;
+      }
+      case 'fireworks': {
+        const { mount } = await import('@gjsify/example-dom-canvas2d-fireworks/browser');
+        const handle = mount(container);
+        if (handle) handles.set(id, handle);
+        break;
+      }
+    }
+  }
+
+  // Slideshow navigation with sliding animation
+  const slideshow = document.querySelector('.slideshow');
+  if (slideshow) {
+    const slides = slideshow.querySelectorAll<HTMLElement>('.slideshow-slide');
+    const prevBtn = slideshow.querySelector('.slideshow-arrow-prev');
+    const nextBtn = slideshow.querySelector('.slideshow-arrow-next');
+    let activeIndex = 0;
+    let animating = false;
+
+    function showSlide(targetIndex: number, direction: 'next' | 'prev') {
+      if (animating || targetIndex === activeIndex) return;
+      animating = true;
+
+      const current = slides[activeIndex];
+      const target = slides[targetIndex];
+      const id = target?.dataset.slideId;
+      if (id) mountSlide(id);
+
+      // Pause the outgoing slide's rendering immediately so GPU work stops
+      // before the transition finishes. Double optional-chain tolerates both
+      // missing handle (terminal variants like express-webserver) and handles
+      // that don't expose a pause() method.
+      const oldId = current?.dataset.slideId;
+      if (oldId) handles.get(oldId)?.pause?.();
+
+      // Direction → which side the new slide enters from
+      const enterClass = direction === 'next' ? 'enter-right' : 'enter-left';
+      const exitClass = direction === 'next' ? 'exit-left' : 'exit-right';
+
+      // Take the current slide out of the flow FIRST — otherwise both slides
+      // would briefly be position:relative at the same time and the track
+      // height would double for one frame, causing a visible layout jump.
+      current.classList.add(exitClass);
+
+      // Now promote the target slide; its transform starts offset and fades in.
+      target.classList.add('active', enterClass);
+      // Force a reflow so the enter transform is applied before transitioning.
+      void target.offsetWidth;
+      target.classList.remove(enterClass);
+
+      const onEnd = () => {
+        current.classList.remove('active', exitClass);
+        target.removeEventListener('transitionend', onEnd);
+        activeIndex = targetIndex;
+        animating = false;
+        // Resume the incoming slide's rendering once the transition has
+        // actually ended, so we don't burn frames during the fade.
+        if (id) handles.get(id)?.resume?.();
+      };
+      target.addEventListener('transitionend', onEnd, { once: true });
+
+      // Fallback in case transitionend doesn't fire
+      setTimeout(() => {
+        if (animating) onEnd();
+      }, 600);
+    }
+
+    prevBtn?.addEventListener('click', () => {
+      showSlide((activeIndex - 1 + slides.length) % slides.length, 'prev');
+    });
+
+    nextBtn?.addEventListener('click', () => {
+      showSlide((activeIndex + 1) % slides.length, 'next');
+    });
+
+    // Mount the first slide immediately
+    const firstId = slides[0]?.dataset.slideId;
+    if (firstId) mountSlide(firstId);
+  }
+
+  // --- Focus / z-index toggling for the three stacked windows ----------
+  // Each slide has three Adwaita windows (demo, code overlay, terminal).
+  // Clicking on one raises it above the others. The code overlay is on top
+  // by default, followed by the terminal, followed by the demo.
+  document.querySelectorAll<HTMLElement>('.slideshow-slide').forEach((slide) => {
+    const demo = slide.querySelector<HTMLElement>('.slide-demo');
+    const code = slide.querySelector<HTMLElement>('.slide-code-overlay');
+    const terminal = slide.querySelector<HTMLElement>('.slide-try-it');
+    if (!demo || !code || !terminal) return;
+
+    const layers = [demo, code, terminal];
+
+    function focusLayer(target: HTMLElement) {
+      for (const el of layers) {
+        el.classList.toggle('on-top', el === target);
+      }
+    }
+
+    for (const layer of layers) {
+      layer.addEventListener('pointerdown', () => focusLayer(layer));
+      layer.addEventListener('focusin', () => focusLayer(layer));
+    }
+  });
+</script>
+
+<style>
+  .slideshow {
+    position: relative;
+    width: 100%;
+    max-width: 1100px;
+    margin-inline: auto;
+  }
+
+  /* --- Slide track: clipping container so slides can slide in/out ---
+     Padding reserves room for the Adwaita window shadows AND the
+     per-slide handwritten annotations (which extend above the .slide-demo
+     box). Negative horizontal margin offsets the padding so the track
+     still fits its parent's content box; vertical padding just grows
+     the track box — that's the breathing room for the annotations. */
+  .slideshow-track {
+    position: relative;
+    width: auto;
+    padding: 140px 30px 30px;
+    margin-inline: -30px;
+    overflow: hidden;
+  }
+
+  /* --- Slides ---
+     All slides share the same flow position. Inactive slides are detached
+     visually via opacity/transform so the active one defines layout height. */
+  .slideshow-slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    opacity: 0;
+    transform: translateX(0);
+    pointer-events: none;
+    transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .slideshow-slide.active {
+    position: relative;
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  /* Enter from right (next direction) */
+  .slideshow-slide.enter-right {
+    opacity: 0;
+    transform: translateX(40px);
+    transition: none;
+  }
+
+  /* Enter from left (prev direction) */
+  .slideshow-slide.enter-left {
+    opacity: 0;
+    transform: translateX(-40px);
+    transition: none;
+  }
+
+  /* Exit slides ---
+     The slideshow-track has padding: 30px to give Adwaita window shadows
+     room to bleed. For absolutely-positioned elements inside that track,
+     `top: 0 / left: 0` refers to the padding-box (outer edge), while the
+     active slide (position: relative) sits inside the content-box. Without
+     explicit insets the exit slide would jump 30px up/left/right when it
+     transitions from relative to absolute, and a width:100% would resolve
+     against the padding-box (60px wider than the content area). Pinning
+     all four insets to match the track padding keeps the exit slide
+     perfectly aligned with where it was. */
+  .slideshow-slide.exit-left,
+  .slideshow-slide.exit-right {
+    position: absolute;
+    top: 140px;  /* matches .slideshow-track padding-top */
+    left: 30px;
+    right: 30px;
+    width: auto;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .slideshow-slide.exit-left {
+    transform: translateX(-40px);
+  }
+
+  .slideshow-slide.exit-right {
+    transform: translateX(40px);
+  }
+
+  /* --- Navigation arrows --- */
+  .slideshow-arrow {
+    position: absolute;
+    /* Center on the demo window: track has 140px top padding for annotations,
+       so the demo content starts below that. 50% aligns to the demo mid-point. */
+    top: calc(140px + 30%);
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.35);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    padding: 0;
+  }
+
+  .slideshow-arrow:hover {
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  .slideshow-arrow :global(svg) {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+
+  .slideshow-arrow-prev {
+    left: -56px;
+  }
+
+  .slideshow-arrow-next {
+    right: -56px;
+  }
+
+  /* --- Demo + code overlay (per slide) ---
+     Padding reserves space at the bottom-right for the floating code window.
+     Using clamp() so the reserved space scales with the available width. */
+  .slide-demo-wrapper {
+    position: relative;
+    width: 100%;
+    padding-bottom: clamp(80px, 14%, 240px);
+    padding-right: clamp(40px, 16%, 280px);
+  }
+
+  .slide-demo {
+    width: 100%;
+    aspect-ratio: 11 / 7;
+    border-radius: 12px;
+    overflow: hidden;
+    /* Placeholder background matches the Adwaita window surface so the
+       slot looks like an un-populated window (not a floating shadow)
+       while the showcase is still mounting. Hard-coded (not a CSS var)
+       so it's applied the moment the scoped stylesheet is parsed,
+       without waiting for @gjsify/adwaita-web/style.css to load. */
+    background-color: #222226;
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.25),
+      0 0 0 1px rgba(0, 0, 0, 0.08);
+    position: relative;
+    z-index: 1;
+    transition: z-index 0s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  /* Light theme placeholder */
+  :root[data-theme='light'] .slide-demo {
+    background-color: #fafafb;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) .slide-demo {
+      background-color: #fafafb;
+    }
+  }
+
+  .slide-demo.on-top {
+    z-index: 3;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Terminal variant — renders a Starlight <Code frame="terminal"> inside
+     the demo slot instead of a live showcase. No padding — the Code
+     component already has its own terminal frame chrome. */
+  .slide-demo-terminal {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .slide-demo-terminal :global(.expressive-code) {
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .slide-demo-terminal :global(.expressive-code .frame) {
+    flex: 1;
+    min-height: 0;
+    border-radius: 12px;
+    overflow: auto;
+  }
+
+  /* --- Annotation arrows (per-slide, handwritten label + SVG arrow) --- */
+  .slide-annotation {
+    position: absolute;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    color: var(--sl-color-gray-2);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .slide-annotation-text {
+    font-family: 'Coming Soon', cursive;
+    font-size: clamp(0.9rem, 1.8vw, 1.15rem);
+    line-height: 1.35;
+    text-align: right;
+    transform: rotate(-3deg);
+    white-space: pre-line;
+    margin-bottom: 4px;
+  }
+
+  .slide-annotation-arrow {
+    display: inline-block;
+    width: clamp(60px, 6vw, 90px);
+    height: auto;
+  }
+
+  .slide-annotation-arrow :global(svg) {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Adwaita window fills demo container */
+  .slide-demo :global(adw-window) {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+  }
+
+  /* Canvas fills demo container (fireworks) */
+  .slide-demo :global(canvas) {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .slide-code-overlay {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    /* Code window is on top by default */
+    z-index: 2;
+    /* Code window scales with the available width. Clamped so it stays
+       readable on mobile and doesn't dominate on larger screens. */
+    width: clamp(320px, 48%, 680px);
+    max-width: 680px;
+    transition: box-shadow 0.2s;
+    outline: none;
+  }
+
+  .slide-code-overlay.on-top {
+    z-index: 4;
+  }
+
+  .slide-code-link {
+    display: block;
+    padding: 0.5rem 1rem;
+    color: #78aeed;
+    font-size: 0.85rem;
+    text-decoration: none;
+    text-align: right;
+  }
+
+  .slide-code-link:hover {
+    color: #b3d4f5;
+    text-decoration: underline;
+  }
+
+  /* --- Try it section ---
+     A wrapper positions the terminal and its handwritten annotation
+     side by side. The terminal is pulled up so it overlaps the code
+     overlay slightly, matching the stacked-window look above. */
+  .slide-try-it-wrapper {
+    position: relative;
+    max-width: 820px;
+    margin-inline: auto;
+    margin-top: clamp(-80px, -5vw, -32px);
+  }
+
+  .slide-try-it {
+    position: relative;
+    max-width: 640px;
+    margin-inline: auto;
+    padding: 0;
+    /* Sits between demo (1) and code overlay (2) by default */
+    z-index: 2;
+    transition: box-shadow 0.2s;
+    outline: none;
+  }
+
+  .slide-try-it.on-top {
+    z-index: 5;
+  }
+
+  /* Handwritten "See for yourself" label + arrow to the left of the
+     terminal. The label sits further left, the arrow points at the
+     terminal. Positioned outside the terminal box (right-anchored to
+     the left edge of the terminal via right: 50% + max-width math). */
+  .slide-try-it-annotation {
+    position: absolute;
+    /* Right edge of the annotation = left edge of the terminal
+       (terminal is max-width 640px, centered in the 820px wrapper).
+       50% (wrapper center) + 320px (half terminal) aligns to the
+       terminal's left edge; another 16px of breathing room. */
+    right: calc(50% + 320px + 16px);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--sl-color-gray-2);
+    pointer-events: none;
+    user-select: none;
+    z-index: 6;
+  }
+
+  .slide-try-it-arrow {
+    display: inline-block;
+    width: clamp(50px, 5vw, 80px);
+  }
+
+  .slide-try-it-arrow :global(svg) {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .slide-try-it-label {
+    font-family: 'Coming Soon', cursive;
+    font-size: clamp(0.9rem, 1.6vw, 1.1rem);
+    line-height: 1.3;
+    text-align: right;
+    transform: rotate(-3deg);
+    white-space: nowrap;
+  }
+
+  /* Left-align code inside the terminal frame (Expressive Code may inherit
+     text alignment from ancestors or center-align its inline container). */
+  .slide-try-it :global(.expressive-code),
+  .slide-try-it :global(.expressive-code pre),
+  .slide-try-it :global(.expressive-code code) {
+    text-align: left;
+  }
+
+  /* --- Responsive --- */
+  @media (max-width: 1250px) {
+    /* Arrows outside the slideshow would be clipped once the content
+       shrinks — move them inside the frame. */
+    .slideshow-arrow-prev { left: 8px; }
+    .slideshow-arrow-next { right: 8px; }
+    .slideshow-arrow {
+      background: rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  @media (max-width: 1000px) {
+    /* On narrow screens, stack all three windows vertically instead of
+       overlapping them — there isn't enough room for a meaningful overlap. */
+    .slide-demo-wrapper {
+      padding-bottom: 0;
+      padding-right: 0;
+    }
+
+    /* Hide handwritten annotations — no room for them on narrow layouts.
+       Also drop the track's top padding since it was reserving space for
+       the annotations. */
+    .slide-annotation,
+    .slide-try-it-annotation {
+      display: none;
+    }
+
+    .slide-try-it-wrapper {
+      margin-top: 1rem;
+    }
+
+    .slideshow-track {
+      padding-top: 30px;
+    }
+
+    .slideshow-slide.exit-left,
+    .slideshow-slide.exit-right {
+      top: 30px;
+    }
+
+    .slide-code-overlay {
+      position: static;
+      width: 100%;
+      max-width: none;
+      margin-top: 1rem;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .slide-demo {
+      aspect-ratio: 4 / 3;
+    }
+
+    .slideshow-arrow {
+      width: 36px;
+      height: 36px;
+    }
+
+    .slideshow-arrow :global(svg) {
+      width: 16px;
+      height: 16px;
+    }
+  }
+</style>

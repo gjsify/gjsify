@@ -42,7 +42,6 @@
         "../../../node_modules/@girs/gtk-4.0/gtk-4.0-ambient.d.ts"
     ],
     "exclude": [
-        "src/test.mts",
-        "src/**/*.spec.ts"
+        "src/test.mts"
     ]
 }

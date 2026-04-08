@@ -4,7 +4,7 @@
 //   additional tests ported from refs/webgl/conformance-suites/2.0.0/conformance/textures/misc/
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
-import { makeProgram, drawTriangle, makeTestFBO, destroyTestFBO, pixelClose } from '../test-utils.js';
+import { makeProgram, drawTriangle, makeTestFBO, destroyTestFBO } from '../test-utils.js';
 import { createGLSetup } from './setup.js';
 
 const VS_TEX = `

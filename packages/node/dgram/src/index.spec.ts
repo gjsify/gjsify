@@ -4,6 +4,13 @@
 import { describe, it, expect, on } from '@gjsify/unit';
 import dgram, { createSocket, Socket } from 'node:dgram';
 
+// @types/node doesn't expose `Socket.type` even though it exists at runtime.
+declare module 'node:dgram' {
+  interface Socket {
+    readonly type: 'udp4' | 'udp6';
+  }
+}
+
 export default async () => {
   await describe('dgram', async () => {
 

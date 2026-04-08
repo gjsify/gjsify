@@ -1,0 +1,114 @@
+---
+// Adwaita-styled card component using <adw-card> from @gjsify/adwaita-web.
+// Accepts a raw SVG string as icon (from @gjsify/adwaita-icons).
+// The icon is rendered as a CSS mask so it can be tinted via currentColor
+// and sized freely without the 16px source resolution making it blurry.
+// When `href` is set, the whole card becomes a link.
+import { toDataUri } from '@gjsify/adwaita-icons/utils';
+
+interface Props {
+  title: string;
+  icon: string;
+  href?: string;
+}
+
+const { title, icon, href } = Astro.props;
+const iconUrl = toDataUri(icon);
+---
+
+{href ? (
+  <a class="adw-card-link" href={href}>
+    <adw-card>
+      <div class="adw-card-icon-box" aria-hidden="true">
+        <span class="adw-card-icon" style={`--card-icon: ${iconUrl}`}></span>
+      </div>
+      <h3 class="adw-card-title">{title}</h3>
+      <div class="adw-card-body">
+        <slot />
+      </div>
+    </adw-card>
+  </a>
+) : (
+  <adw-card>
+    <div class="adw-card-icon-box" aria-hidden="true">
+      <span class="adw-card-icon" style={`--card-icon: ${iconUrl}`}></span>
+    </div>
+    <h3 class="adw-card-title">{title}</h3>
+    <div class="adw-card-body">
+      <slot />
+    </div>
+  </adw-card>
+)}
+
+<script>
+  // Side-effect import to register the <adw-card> custom element.
+  // CSS is loaded via Starlight customCss in astro.config.mjs.
+  import '@gjsify/adwaita-web';
+</script>
+
+<style>
+  adw-card {
+    padding: 24px;
+  }
+
+  /* Link wrapper — makes the whole card clickable without altering its
+     visual style. Inherits color and removes the default underline. */
+  .adw-card-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .adw-card-link:hover {
+    transform: translateY(-2px);
+  }
+  .adw-card-link > adw-card {
+    cursor: pointer;
+  }
+  .adw-card-link:hover .adw-card-title {
+    color: var(--sl-color-accent);
+  }
+
+  /* Icon container — rounded square tinted with the accent color,
+     visually matching the "badge" style of GNOME/Astal card icons. */
+  .adw-card-icon-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--sl-color-accent-low);
+    color: var(--sl-color-accent);
+    margin-bottom: 14px;
+  }
+
+  /* Icon rendered as a CSS mask so it inherits currentColor and stays
+     crisp at any size (the source SVG is 16px). */
+  .adw-card-icon {
+    display: block;
+    width: 24px;
+    height: 24px;
+    background-color: currentColor;
+    -webkit-mask-image: var(--card-icon);
+    mask-image: var(--card-icon);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  .adw-card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 8px;
+  }
+
+  .adw-card-body {
+    font-size: 0.9rem;
+    color: var(--sl-color-gray-2);
+    line-height: 1.5;
+  }
+</style>

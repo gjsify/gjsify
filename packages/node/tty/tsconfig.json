@@ -24,8 +24,6 @@
   ],
   "exclude": [
     "src/test.ts",
-    "src/test.mts",
-    "src/**/*.spec.ts",
-    "src/**/*.spec.mts"
+    "src/test.mts"
   ]
 }

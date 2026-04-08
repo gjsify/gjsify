@@ -313,9 +313,9 @@ export default async () => {
 			};
 			const proxy = new IFrameWindowProxy(mockBridge as any);
 			let received: unknown;
-			proxy.addEventListener('message', (event: Event) => {
-				received = (event as MessageEvent).data;
-			});
+			proxy.addEventListener('message', ((event: Event) => {
+				received = (event as unknown as MessageEvent).data;
+			}) as any);
 			proxy.dispatchEvent(new MessageEvent('message', { data: 'hello' }));
 			expect(received).toBe('hello');
 		});

@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-node-cli-gio-cat",
-  "version": "0.1.7",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
@@ -20,5 +16,6 @@
     "@girs/gjs": "^4.0.0-rc.1",
     "@gjsify/cli": "workspace:^",
     "typescript": "^6.0.2"
-  }
+  },
+  "private": true
 }

@@ -5,6 +5,7 @@
 // This software uses the LDraw Parts Library (http://www.ldraw.org), CC BY 2.0.
 
 import '@gjsify/adwaita-web';
+import '@gjsify/adwaita-web/style.css';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
 
 export interface MountOptions {

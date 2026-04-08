@@ -242,7 +242,7 @@ export default async () => {
 		await it('should remove limit with maxKeys=0', async () => {
 			const query: Record<string, number> = {};
 			for (let i = 0; i < 2000; i++) query[i] = i;
-			const url = qs.stringify(query as unknown as Record<string, unknown>);
+			const url = qs.stringify(query as any);
 			const result = qs.parse(url, undefined, undefined, { maxKeys: 0 });
 			expect(Object.keys(result).length).toBe(2000);
 		});
@@ -326,7 +326,7 @@ export default async () => {
 		await describe('qsTestCases round-trip', async () => {
 			for (const [, canonical, obj] of qsTestCases) {
 				await it(`should stringify to "${canonical}"`, async () => {
-					expect(qs.stringify(obj as unknown as Record<string, unknown>)).toBe(canonical);
+					expect(qs.stringify(obj as any)).toBe(canonical);
 				});
 			}
 		});
@@ -334,7 +334,7 @@ export default async () => {
 		await describe('colon separator round-trip', async () => {
 			for (const [, canonical, obj] of qsColonTestCases) {
 				await it(`should stringify to "${canonical}" with sep=; eq=:`, async () => {
-					expect(qs.stringify(obj as unknown as Record<string, unknown>, ';', ':')).toBe(canonical);
+					expect(qs.stringify(obj as any, ';', ':')).toBe(canonical);
 				});
 			}
 		});
@@ -342,7 +342,7 @@ export default async () => {
 		await describe('weird objects', async () => {
 			for (const [obj, expected] of qsWeirdObjects) {
 				await it(`should stringify ${JSON.stringify(obj)} to "${expected}"`, async () => {
-					expect(qs.stringify(obj as unknown as Record<string, unknown>)).toBe(expected);
+					expect(qs.stringify(obj as any)).toBe(expected);
 				});
 			}
 		});
@@ -350,7 +350,7 @@ export default async () => {
 		await describe('noMunge round-trip', async () => {
 			for (const [expected, obj] of qsNoMungeTestCases) {
 				await it(`should stringify to "${expected}"`, async () => {
-					expect(qs.stringify(obj as unknown as Record<string, unknown>, '&', '=')).toBe(expected);
+					expect(qs.stringify(obj as any, '&', '=')).toBe(expected);
 				});
 			}
 		});
@@ -370,7 +370,7 @@ export default async () => {
 
 		await it('should stringify BigInt values', async () => {
 			expect(qs.stringify({ foo: 2n ** 1023n })).toBe('foo=' + (2n ** 1023n));
-			expect(qs.stringify([0n, 1n, 2n] as unknown as Record<string, unknown>)).toBe('0=0&1=1&2=2');
+			expect(qs.stringify([0n, 1n, 2n] as any)).toBe('0=0&1=1&2=2');
 		});
 
 		await it('should stringify BigInt with custom encode', async () => {
@@ -408,10 +408,10 @@ export default async () => {
 
 		await it('should return empty string for non-objects', async () => {
 			expect(qs.stringify()).toBe('');
-			expect(qs.stringify(0 as unknown as Record<string, unknown>)).toBe('');
-			expect(qs.stringify([] as unknown as Record<string, unknown>)).toBe('');
-			expect(qs.stringify(null as unknown as Record<string, unknown>)).toBe('');
-			expect(qs.stringify(true as unknown as Record<string, unknown>)).toBe('');
+			expect(qs.stringify(0 as any)).toBe('');
+			expect(qs.stringify([] as any)).toBe('');
+			expect(qs.stringify(null as any)).toBe('');
+			expect(qs.stringify(true as any)).toBe('');
 		});
 
 		await it('should use custom encodeURIComponent', async () => {
@@ -423,7 +423,7 @@ export default async () => {
 
 		await it('should use custom encode for different types', async () => {
 			const obj = { number: 1, bigint: 2n, true: true, false: false, object: {} };
-			expect(qs.stringify(obj as unknown as Record<string, unknown>, undefined, undefined,
+			expect(qs.stringify(obj as any, undefined, undefined,
 				{ encodeURIComponent: (v: string) => v }))
 				.toBe('number=1&bigint=2&true=true&false=false&object=');
 		});
@@ -496,40 +496,40 @@ export default async () => {
 	await describe('querystring.unescapeBuffer', async () => {
 		for (const [input, expected] of qsUnescapeTestCases) {
 			await it(`should unescapeBuffer "${input.substring(0, 40)}..."`, async () => {
-				expect(qs.unescapeBuffer(input).toString()).toBe(expected);
+				expect((qs as any).unescapeBuffer(input).toString()).toBe(expected);
 			});
 		}
 
 		await it('should decode + as space when decodeSpaces=true', async () => {
-			expect(qs.unescapeBuffer('a+b', true).toString()).toBe('a b');
+			expect((qs as any).unescapeBuffer('a+b', true).toString()).toBe('a b');
 		});
 
 		await it('should not decode + without decodeSpaces', async () => {
-			expect(qs.unescapeBuffer('a+b').toString()).toBe('a+b');
+			expect((qs as any).unescapeBuffer('a+b').toString()).toBe('a+b');
 		});
 
 		await it('should handle trailing %', async () => {
-			expect(qs.unescapeBuffer('a%').toString()).toBe('a%');
+			expect((qs as any).unescapeBuffer('a%').toString()).toBe('a%');
 		});
 
 		await it('should handle incomplete hex %2', async () => {
-			expect(qs.unescapeBuffer('a%2').toString()).toBe('a%2');
+			expect((qs as any).unescapeBuffer('a%2').toString()).toBe('a%2');
 		});
 
 		await it('should decode %20 as space', async () => {
-			expect(qs.unescapeBuffer('a%20').toString()).toBe('a ');
+			expect((qs as any).unescapeBuffer('a%20').toString()).toBe('a ');
 		});
 
 		await it('should not decode invalid hex %2g', async () => {
-			expect(qs.unescapeBuffer('a%2g').toString()).toBe('a%2g');
+			expect((qs as any).unescapeBuffer('a%2g').toString()).toBe('a%2g');
 		});
 
 		await it('should handle double %', async () => {
-			expect(qs.unescapeBuffer('a%%').toString()).toBe('a%%');
+			expect((qs as any).unescapeBuffer('a%%').toString()).toBe('a%%');
 		});
 
 		await it('should decode hex bytes correctly', async () => {
-			const b = qs.unescapeBuffer('%d3%f2Ug%1f6v%24%5e%98%cb%0d%ac%a2%2f%9d%eb%d8%a2%e6');
+			const b = (qs as any).unescapeBuffer('%d3%f2Ug%1f6v%24%5e%98%cb%0d%ac%a2%2f%9d%eb%d8%a2%e6');
 			expect(b[0]).toBe(0xd3);
 			expect(b[1]).toBe(0xf2);
 			expect(b[2]).toBe(0x55); // 'U'

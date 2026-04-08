@@ -1,0 +1,106 @@
+// _overlay_split_view.scss — adw-overlay-split-view styling.
+// Reference: refs/libadwaita/src/adw-overlay-split-view.c
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Implemented as Web Component for @gjsify/adwaita-web.
+
+adw-overlay-split-view {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+
+  .adw-osv-sidebar {
+    background-color: var(--sidebar-bg-color);
+    overflow-y: auto;
+    flex-shrink: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
+    z-index: 10;
+    align-self: stretch;
+  }
+
+  .adw-osv-content {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+  }
+
+  // Docked mode (not collapsed) — sidebar beside content
+  &:not(.collapsed) .adw-osv-sidebar {
+    position: relative;
+  }
+
+  // Docked hide: slide left and collapse via opacity. Sidebar keeps its
+  // intrinsic width so internal elements don't reflow.
+  &:not(.collapsed):not(.show-sidebar) .adw-osv-sidebar {
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  // Overlay mode (collapsed) — sidebar on top of content
+  &.collapsed .adw-osv-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &.collapsed.sidebar-end .adw-osv-sidebar {
+    left: auto;
+    right: 0;
+    transform: translateX(100%);
+  }
+
+  &.collapsed.show-sidebar .adw-osv-sidebar {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  // Backdrop — visible only in overlay mode when sidebar is open
+  .adw-osv-backdrop {
+    display: none;
+  }
+
+  &.collapsed.show-sidebar .adw-osv-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 9;
+  }
+}
+
+// Sidebar content layout helper — wraps the sidebar's children with the
+// standard Adwaita spacing scale (12px padding, 12px gap between groups).
+.adw-sidebar-content {
+  padding: var(--spacing-m);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-m);
+}
+
+// Sidebar toggle button — sidebar-show-symbolic icon via CSS mask
+.adw-sidebar-toggle-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-sidebar-show);
+  mask-image: var(--icon-sidebar-show);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 16px 16px;
+  mask-size: 16px 16px;
+  -webkit-mask-position: center;
+  mask-position: center;
+  pointer-events: none;
+}

@@ -17,3 +17,5 @@ void yargs(hideBin(process.argv))
     })
     .help()
     .argv
+
+export { createProject } from './create.js'

@@ -1,0 +1,20 @@
+// _card.scss — adw-card styling.
+// Reference: refs/adwaita-web/adwaita-web/scss/_card.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-card,
+.adw-card {
+  display: block;
+  background-color: var(--card-bg-color);
+  color: var(--card-fg-color);
+  border-radius: var(--card-radius);
+  padding: var(--spacing-l);
+  box-shadow:
+    0 0 0 1px rgb(0 0 6 / 3%),
+    0 1px 3px 1px rgb(0 0 6 / 7%),
+    0 2px 6px 2px rgb(0 0 6 / 3%);
+  overflow: hidden;
+}

@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "types": ["node"],
+    "target": "ESNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "strict": false
+  },
+  "files": ["src/index.ts", "src/data/posts.ts"]
+}

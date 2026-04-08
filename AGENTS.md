@@ -10,7 +10,7 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 
 ## Structure
 
-`packages/{node/,gjs/,infra/,web/,dom/}` | `refs/` — read-only git submodules (DO NOT modify)
+`packages/{node/,gjs/,infra/,web/,dom/}` | `showcases/` — curated examples shipped with CLI | `examples/` — private dev/test examples | `refs/` — read-only git submodules (DO NOT modify)
 
 ## Node.js Packages — `packages/node/*` → `@gjsify/<name>`
 
@@ -70,7 +70,7 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 | websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
 | webstorage | Gio | localStorage, sessionStorage |
 | web-globals | — | Re-exports all web API globals (dom-events, abort-controller, streams, webcrypto, etc.) |
-| adwaita-web | — | Browser Adwaita components: AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow. Light/dark theme. No GJS deps |
+| adwaita-web | — | Browser Adwaita components: AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView. Custom Elements + SCSS source partials in `scss/` (mirrors `refs/adwaita-web/scss/`). Built to `dist/adwaita-web.css` via the `sass` package. Light/dark theme. Consumers: `import '@gjsify/adwaita-web'` (custom elements) + `import '@gjsify/adwaita-web/style.css'` (or `@use '@gjsify/adwaita-web/scss/...'`). No GJS deps. **Long-term goal:** complete the framework — port additional components from `refs/adwaita-web/scss/` (button, entry, dialog, popover, banner, tabs, …); see STATUS.md roadmap |
 
 ## DOM Packages — `packages/dom/*`
 
@@ -291,6 +291,8 @@ Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. Select: core
 
 Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating. Only extract when second package needs it.
 
+**`@gjsify/stream` direct imports in internal modules:** Internal modules and test files that need non-standard exports (e.g. `Stream_`, `makeCallable`, internal state types) may import `@gjsify/stream` directly. All public-facing code (examples, showcases, cross-package APIs) must use `node:stream`.
+
 ## Example Convention (GTK + Browser)
 
 Dual-target examples with Adwaita UI:
@@ -315,13 +317,40 @@ Constants (dropdown items, defaults) live in shared `.ts` — both `gjs/` and `b
 
 ## Showcase — `gjsify showcase`
 
-Examples (`@gjsify/example-{dom,node}-<name>`, v0.1.2) are published npm packages shipped as CLI dependencies. Each contains only a pre-built GJS bundle (`dist/`) with no external runtime deps — esbuild bundles everything. Exception: `@gjsify/webgl` stays as a `dependency` (not devDep) for examples that need native prebuilds (`.so`+`.typelib`). The showcase always runs the GJS version of examples — Node.js and browser execution are not provided by the CLI.
+Showcases are polished, curated examples under `showcases/`. They are published npm packages (`@gjsify/example-{dom,node}-<name>`) and serve as CLI dependencies. Showcases are always self-contained and independently runnable — both via `gjsify showcase <name>` (GJS) and as standalone projects (`yarn start` / `yarn start:browser`).
 
-`gjsify showcase` lists available examples | `gjsify showcase <name>` runs `check` first, then executes via shared `runGjsBundle()` logic. Discovery is dynamic: scans CLI's own `package.json` for `@gjsify/example-*` deps, resolves each via `require.resolve`, reads `main` field.
+### Showcase Rules
 
-**Adding a new example to showcase:** (1) create under `examples/{dom,node}/<name>/` with name `@gjsify/example-{dom,node}-<name>` (2) set `"files":["dist"]`, `"version":"0.1.2"`, no `"private"` (3) move all deps to `devDependencies` except `@gjsify/webgl` (4) add as dependency in `packages/infra/cli/package.json` (5) rebuild CLI
+- **CLI dependency:** Showcases are dependencies of `@gjsify/cli` and can be executed directly via `gjsify showcase <name>`
+- **Website integration:** The browser version of showcases can be embedded in the website. The website imports showcases as npm packages (e.g. `import { mount } from '@gjsify/example-dom-three-postprocessing-pixel/browser'`)
+- **Full npm packages:** Showcases must export everything needed via `package.json` `exports` — browser entry, shared logic, assets. Never reference showcase internals via relative filesystem paths; always resolve through the package name
+- **Self-contained:** Each showcase is independently buildable and runnable without the rest of the monorepo
+- **Polished examples:** Showcases are production-quality demonstrations, not development experiments
 
-**Dependency rule for published examples:** Everything bundled by esbuild → `devDependencies`. Only packages with native prebuilds needed by `gjsify run` at runtime (currently only `@gjsify/webgl`) stay in `dependencies`.
+### Showcase exports pattern
+
+```json
+"exports": {
+  "./browser": "./src/browser/browser.ts",
+  "./three-demo": "./src/three-demo.ts",
+  "./assets/*": "./src/assets/*",
+  "./package.json": "./package.json"
+}
+```
+
+Assets are resolved via `require.resolve('@gjsify/example-dom-<name>/assets/<file>')` — never via relative filesystem paths.
+
+### Examples vs Showcases
+
+Examples under `examples/` are private (`"private": true`, no version) and are NOT published or included in the CLI. They serve as dev/test projects only.
+
+### Discovery & Execution
+
+`gjsify showcase` lists available showcases | `gjsify showcase <name>` runs `check` first, then executes via shared `runGjsBundle()` logic. Discovery is dynamic: scans CLI's own `package.json` for `@gjsify/example-*` deps, resolves each via `require.resolve`, reads `main` field.
+
+**Adding a new showcase:** (1) create under `showcases/{dom,node}/<name>/` with name `@gjsify/example-{dom,node}-<name>` (2) set `"files":["dist"]`, keep version, no `"private"` (3) export browser entry, assets, and `package.json` (4) move all deps to `devDependencies` except `@gjsify/webgl` (5) add as dependency in `packages/infra/cli/package.json` (6) rebuild CLI
+
+**Dependency rule for published showcases:** Everything bundled by esbuild → `devDependencies`. Only packages with native prebuilds needed by `gjsify run` at runtime (currently only `@gjsify/webgl`) stay in `dependencies`.
 
 ## Implementation Workflow (TDD)
 
@@ -349,7 +378,13 @@ Every impl→A or B. Every ported test→C. Original: `// <Module> for GJS — o
 
 ## STATUS.md & CHANGELOG.md Maintenance
 
-Update STATUS.md when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates". Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
+**STATUS.md must always reflect the current state of the codebase.** Whenever a feature lands, a bug is fixed, a test is added, a workaround is discovered, or a deferred item is identified, STATUS.md must be updated in the same commit. Never leave STATUS.md drift between sessions.
+
+Update STATUS.md when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates".
+
+**Track deferred work in the dedicated `Open TODOs` section.** Every "out of scope", "follow-up" or "later" note from a PR description, plan file or commit message must have a corresponding entry there — otherwise it gets forgotten. When a TODO is resolved, move it to the relevant `### Completed` list (or delete it if trivial).
+
+**Changelog entries live ONLY in CHANGELOG.md.** STATUS.md describes the current state; CHANGELOG.md records what changed and when. Do NOT add dated "Latest:" lines, changelog highlights, or per-session summaries to STATUS.md — they belong in CHANGELOG.md. Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
 
 ## Constraints
 

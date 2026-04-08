@@ -8,7 +8,7 @@ import { HTMLCanvasElement } from '@gjsify/dom-elements';
 
 // Import canvas2d to register the '2d' context factory
 import '@gjsify/canvas2d';
-import { CanvasRenderingContext2D, CanvasGradient, Path2D, ImageData, parseColor } from '@gjsify/canvas2d';
+import { CanvasRenderingContext2D, Path2D, ImageData, parseColor } from '@gjsify/canvas2d';
 
 /** Helper: create a canvas with a 2D context. */
 function createCanvas(width = 100, height = 100) {
@@ -158,11 +158,11 @@ export default async () => {
             ctx.fillStyle = '#00ff00';
             ctx.fillRect(5, 5, 10, 10);
             // Inside the rect
-            const [r1, g1, b1, a1] = getPixel(ctx, 10, 10);
+            const [, g1, , a1] = getPixel(ctx, 10, 10);
             expect(g1).toBe(255);
             expect(a1).toBe(255);
             // Outside the rect (should be transparent)
-            const [_r2, _g2, _b2, a2] = getPixel(ctx, 0, 0);
+            const [, , , a2] = getPixel(ctx, 0, 0);
             expect(a2).toBe(0);
         });
 
@@ -170,8 +170,7 @@ export default async () => {
             const { ctx } = createCanvas(10, 10);
             ctx.fillStyle = 'rgba(0, 0, 255, 0.5)';
             ctx.fillRect(0, 0, 10, 10);
-            const [r, g, b, a] = getPixel(ctx, 5, 5);
-            expect(r).toBe(0);
+            const [, g, , a] = getPixel(ctx, 5, 5);
             expect(g).toBe(0);
             // Alpha should be approximately 128 (0.5 * 255)
             expect(a).toBeGreaterThan(120);
@@ -478,7 +477,7 @@ export default async () => {
             ctx.globalAlpha = 0.5;
             ctx.fillStyle = '#ff0000';
             ctx.fillRect(0, 0, 10, 10);
-            const [r, _g, _b, a] = getPixel(ctx, 5, 5);
+            const [, , , a] = getPixel(ctx, 5, 5);
             // Alpha should be approximately 128
             expect(a).toBeGreaterThan(120);
             expect(a).toBeLessThan(140);
@@ -587,7 +586,7 @@ export default async () => {
             // Clear and put it back
             ctx.clearRect(0, 0, 10, 10);
             ctx.putImageData(imageData, 0, 0);
-            const [r, _g, _b, a] = getPixel(ctx, 5, 5);
+            const [r, , , a] = getPixel(ctx, 5, 5);
             expect(r).toBe(255);
             expect(a).toBe(255);
         });

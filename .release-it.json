@@ -20,6 +20,7 @@
       "out": [
         "packages/**/package.json",
         "examples/**/package.json",
+        "showcases/**/package.json",
         "website/package.json"
       ]
     },

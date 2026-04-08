@@ -30,6 +30,9 @@
         "node",
         "events"
     ],
+    "dependencies": {
+        "@gjsify/utils": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",

@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-02 (WebGL2: GLSL 1.0 compat, native FBO delegation; AdwSpinRow; @gjsify/adwaita-fonts; Pixel + LDraw three.js demos; AbortController/fetch globals in dom-elements)
+> Last updated: 2026-04-07 (EventEmitter makeCallable: `.call(this)` + `util.inherits` CJS compat; makeCallable extracted to @gjsify/utils; stream tests expanded to 509 cases in 7 specs: transform, pipe, inheritance; GJS stream 36→0 failures: _readableState/_writableState fields, Symbol.hasInstance for Writable instanceof, Transform _doPrefinishHooks, drain HWM=0, ERR_MULTIPLE_CALLBACK, ERR_METHOD_NOT_IMPLEMENTED re-throw, util.inherits ERR_INVALID_ARG_TYPE codes)
 
 ## Summary
 
@@ -37,7 +37,7 @@ The project comprises **39 Node.js packages**, **13 Web API packages**, **5 DOM 
 | **dgram** | Gio, GLib | 143 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress, broadcast, TTL, ref/unref, IPv6, EventEmitter |
 | **diagnostics_channel** | — | 137 | Channel, TracingChannel, subscribe/unsubscribe |
 | **dns** | Gio, GLib | 121 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
-| **events** | — | 241 | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator |
+| **events** | — | 255+ (2 specs) | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator, **makeCallable** (`.call(this)` + `util.inherits` CJS compat) |
 | **fs** | Gio, GLib | 465 (9 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping, fs.constants (O_RDONLY/WRONLY/RDWR/CREAT/EXCL/S_IFMT/S_IFREG), readdir options (withFileTypes, encoding), appendFileSync, mkdirSync recursive edge cases |
 | **globals** | — | 221 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **http** | Soup 3.0, Gio, GLib | 1034 (6 specs) | Server (Soup.Server, **chunked streaming**, **upgrade event**), ClientRequest (Soup.Session, **timeout events**, **auth option**, **signal option**), IncomingMessage (**timeout events**), ServerResponse (**setTimeout**, chunked transfer), OutgoingMessage, STATUS_CODES, METHODS, Agent (**constructor options**, keepAlive, maxSockets, scheduling), validateHeaderName/Value, maxHeaderSize, round-trip on GJS |
@@ -50,7 +50,7 @@ The project comprises **39 Node.js packages**, **13 Web API packages**, **5 DOM 
 | **process** | GLib | 143 (2 specs) | EventEmitter-based, env (CRUD, enumerate, coerce), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint (**monotonicity, diff**), memoryUsage (**field validation**), nextTick (**FIFO ordering, args**), exit/kill, config, execArgv, cpuUsage (**delta**), **signal handler registration**, **stdout/stderr write methods**, **emitWarning** |
 | **querystring** | — | 471 | parse/stringify with full encoding |
 | **readline** | — | 145 (2 specs) | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor, **readline/promises** (createInterface, question→Promise) |
-| **stream** | — | 330 (4 specs) | Readable, Writable, Duplex, Transform (**_flush** edge cases), PassThrough, objectMode, backpressure (**drain events**), destroy, **pipeline** (error propagation, multi-stream), **finished** (premature close, cleanup), **addAbortSignal**, **Readable.from** (array/generator/async generator/string/Buffer), consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished), **async iteration** |
+| **stream** | — | 509 (7 specs) | Readable, Writable, Duplex, Transform (**_flush** edge cases, constructor options, objectMode, split HWM, destroy, final/flush ordering, ERR_MULTIPLE_CALLBACK), PassThrough, objectMode, backpressure (**drain events**, **HWM=0**), **pipe** (event, cleanup, error handling, multiple dest, unpipe, same dest twice, needDrain, objectMode→non-objectMode), **inheritance** (instanceof hierarchy, util.inherits single/multi-level, stream subclassing), destroy, **pipeline** (error propagation, multi-stream), **finished** (premature close, cleanup), **addAbortSignal**, **Readable.from** (array/generator/async generator/string/Buffer), consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished), **async iteration**, **_readableState/_writableState** (highWaterMark, objectMode, pipes), **Symbol.hasInstance** (Duplex/Transform/PassThrough instanceof Writable) |
 | **string_decoder** | — | 103 | UTF-8, Base64, hex, streaming |
 | **sys** | — | 7 | Alias for util (deprecated) |
 | **timers** | — | 88 (3 specs) | setTimeout/setInterval/setImmediate (**delay verification, args, clear, ordering**) + timers/promises |
@@ -112,8 +112,33 @@ All 13 packages have real implementations:
 
 | Package | Tests | APIs |
 |---------|-------|------|
-| **adwaita-web** | — | AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow, AdwSpinRow. Custom Elements (light DOM), embedded Adwaita CSS with light/dark theme, Adwaita Sans font via @gjsify/adwaita-fonts. No GJS deps |
+| **adwaita-web** | — | AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView, AdwCard. Custom Elements (light DOM). SCSS source partials in `scss/` (mirroring `refs/adwaita-web/scss/`) compiled to `dist/adwaita-web.css` via the `sass` package. Light/dark theme via CSS variables. Consumers import `@gjsify/adwaita-web` (registers custom elements + Adwaita Sans font) plus `@gjsify/adwaita-web/style.css` (or via SCSS partials at `@gjsify/adwaita-web/scss/*`). No GJS deps |
 | **adwaita-fonts** | — | Adwaita Sans font files (fontsource-style). CSS @font-face + TTF files. SIL OFL 1.1 |
+| **adwaita-icons** | — | Adwaita symbolic icons as importable SVG strings (categories: actions, devices, mimetypes, places, status, ui, …). `toDataUri()` utility. Sourced from `refs/adwaita-icon-theme/`. CC0-1.0 / LGPLv3 |
+
+### Adwaita Web Framework Roadmap
+
+Long-term goal: complete the `@gjsify/adwaita-web` framework so it can replace the styling layer of `refs/adwaita-web/scss/` while keeping our Web Components abstraction. Currently 9 components ported; ~40 SCSS partials remain in the reference. Planned port order (each adds a custom element + SCSS partial + AGENTS attribution):
+
+| Status | Component | Source partial |
+|---|---|---|
+| ✅ Done | `<adw-window>`, `<adw-header-bar>`, `<adw-preferences-group>`, `<adw-card>`, `<adw-switch-row>`, `<adw-combo-row>`, `<adw-spin-row>`, `<adw-toast-overlay>`, `<adw-overlay-split-view>` | `_window.scss`, `_headerbar.scss`, `_preferences.scss`, `_card.scss`, `_switch_row.scss`, `_combo_row.scss`, `_spin_button.scss`, `_toast.scss`, (libadwaita C source) |
+| Planned | `<adw-button>` (flat / suggested / destructive) | `_button.scss`, `_button_row.scss` |
+| Planned | `<adw-entry>` / `<adw-entry-row>` | `_entry.scss`, `_entry_row.scss` |
+| Planned | `<adw-action-row>` | `_action_row.scss` |
+| Planned | `<adw-checkbox>` / `<adw-radio>` | `_checkbox.scss`, `_radio.scss` |
+| Planned | `<adw-dialog>` / `<adw-about-dialog>` | `_dialog.scss`, `_about_dialog.scss` |
+| Planned | `<adw-popover>` | `_popover.scss` |
+| Planned | `<adw-banner>` / `<adw-bottom-sheet>` | `_banner.scss`, `_bottom_sheet.scss` |
+| Planned | `<adw-tabs>` / `<adw-view-switcher>` | `_tabs.scss`, `_viewswitcher.scss` |
+| Planned | `<adw-progress-bar>` / `<adw-spinner>` | `_progressbar.scss`, `_spinner.scss` |
+| Planned | `<adw-status-page>` | `_status_page.scss` |
+| Planned | `<adw-toggle-group>` / `<adw-split-button>` | `_toggle_group.scss`, `_split_button.scss` |
+| Planned | `<adw-expander-row>` / `<adw-carousel>` | `_expander_row.scss`, `_carousel_indicators.scss` |
+| Planned | `<adw-avatar>` / `<adw-label>` / `<adw-icon>` | `_avatar.scss`, `_label.scss`, `_icon.scss` |
+| Planned | Utility classes & layout helpers (`_box.scss`, `_wrap_box.scss`, `_listbox.scss`, `_toolbar_view.scss`, `_utility_classes.scss`) | various |
+
+Each port must add a SPDX header to the SCSS partial citing `refs/adwaita-web/adwaita-web/scss/_<name>.scss` and/or `refs/libadwaita/src/stylesheet/widgets/_<name>.scss` per the AGENTS.md Source Attribution rules.
 
 ### WebGL Known Issues
 
@@ -190,8 +215,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Browser UI packages | 1 (adwaita-web) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
-| Total test cases | 9,900+ |
-| Spec files | 102 |
+| Total test cases | 10,100+ |
+| Spec files | 106 |
 | Real-world examples | 11+ (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, Three.js teapot) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
@@ -243,6 +268,14 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ---
 
+## Open TODOs
+
+Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
+
+*(No open TODOs — all resolved in 2026-04-07 session.)*
+
+---
+
 ## Upstream GJS Patch Candidates
 
 Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey patches. These are ordered by impact — features where an upstream fix would benefit the most gjsify packages.
@@ -256,6 +289,4 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full changelog.
-
-**Latest:** 2026-04-02 — WebGL2 GLSL 1.0 compat, FBO native delegation, AdwSpinRow, adwaita-fonts, Pixel + LDraw demos, AbortController/fetch globals in dom-elements
+All dated entries live in [CHANGELOG.md](CHANGELOG.md). Do not duplicate them here.

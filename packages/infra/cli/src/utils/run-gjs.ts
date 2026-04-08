@@ -36,6 +36,17 @@ export async function runGjsBundle(bundlePath: string, extraArgs: string[] = [])
     };
 
     const gjsArgs = ['-m', bundlePath, ...extraArgs];
+
+    // Print the exact command being executed so users can copy-paste it to
+    // run gjs directly without the wrapper. Env vars are only shown if we
+    // actually set any (i.e. native gjsify packages were detected).
+    const envPrefix = Object.entries(nativeEnv)
+        .filter(([, value]) => value !== undefined && value !== '')
+        .map(([key, value]) => `${key}=${value}`)
+        .join(' ');
+    const gjsCommand = ['gjs', ...gjsArgs.map(a => a.includes(' ') ? `"${a}"` : a)].join(' ');
+    console.log(`$ ${envPrefix ? `${envPrefix} ` : ''}${gjsCommand}`);
+
     const child = spawn('gjs', gjsArgs, { env, stdio: 'inherit' });
 
     await new Promise<void>((resolvePromise, reject) => {

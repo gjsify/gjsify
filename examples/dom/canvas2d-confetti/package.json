@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-dom-canvas2d-confetti",
-  "version": "0.1.7",
   "description": "Falling confetti Canvas 2D example, adapted from https://codepen.io/linrock/pen/nMadjQ",
   "main": "dist/gjs.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
@@ -28,5 +24,6 @@
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }

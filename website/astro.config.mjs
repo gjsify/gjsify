@@ -17,6 +17,8 @@ export default defineConfig({
       exclude: [
         '@gjsify/adwaita-web',
         '@gjsify/example-dom-three-postprocessing-pixel',
+        '@gjsify/example-dom-three-geometry-teapot',
+        '@gjsify/example-dom-canvas2d-fireworks',
       ],
     },
   },
@@ -41,8 +43,8 @@ export default defineConfig({
           label: 'Documentation',
           items: [
             { slug: 'getting-started' },
-            { slug: 'architecture' },
-            { slug: 'contributing' },
+            { slug: 'cli-reference' },
+            { slug: 'how-it-works' },
           ],
         },
         {
@@ -54,10 +56,19 @@ export default defineConfig({
             { slug: 'packages/dom' },
           ],
         },
+        {
+          label: 'Contributing',
+          items: [
+            { slug: 'contributing/development-setup' },
+            { slug: 'contributing/architecture' },
+            { slug: 'contributing/tdd-workflow' },
+          ],
+        },
       ],
       customCss: [
         '@gjsify/adwaita-fonts',
         '@gjsify/adwaita-fonts/400-italic.css',
+        '@gjsify/adwaita-web/style.css',
         './src/styles/custom.css',
       ],
       defaultLocale: 'root',

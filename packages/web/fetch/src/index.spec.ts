@@ -198,7 +198,7 @@ export default async () => {
 
 		await it('should parse json body', async () => {
 			const r = new Response('{"key": "value"}');
-			const json = await r.json();
+			const json = await r.json() as { key: string };
 			expect(json.key).toBe('value');
 		});
 
@@ -232,7 +232,7 @@ export default async () => {
 			expect(r.status).toBe(200);
 			const ct = r.headers.get('content-type') || '';
 			expect(ct.includes('application/json')).toBe(true);
-			const data = await r.json();
+			const data = await r.json() as { message: string };
 			expect(data.message).toBe('ok');
 		});
 

@@ -1,37 +1,33 @@
 ---
 title: GJSify
-description: The full JavaScript ecosystem, native on GNOME
+description: The full JavaScript ecosystem, native on Linux
 template: splash
 hero:
-  tagline: The full JavaScript ecosystem, native on GNOME
+  tagline: Node.js & Web APIs, running on GJS
 ---
 
-import { Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import { CardGrid } from '@astrojs/starlight/components';
+import AdwCard from '../../components/AdwCard.astro';
+import { applicationsEngineeringSymbolic } from '@gjsify/adwaita-icons/categories';
+import { applicationsGraphicsSymbolic } from '@gjsify/adwaita-icons/categories';
+import { applicationsUtilitiesSymbolic } from '@gjsify/adwaita-icons/categories';
+import { networkWorkgroupSymbolic } from '@gjsify/adwaita-icons/places';
 
-<div class="cta-section">
-  <LinkButton href="/gjsify/getting-started/" variant="primary" icon="right-arrow">
-    Get Started
-  </LinkButton>
-  <LinkButton href="https://github.com/gjsify/gjsify" variant="minimal" icon="external">
-    GitHub
-  </LinkButton>
-</div>
-
-<CardGrid stagger>
-  <Card title="Node.js APIs" icon="laptop">
+<CardGrid>
+  <AdwCard title="Node.js APIs" icon={applicationsEngineeringSymbolic} href="/gjsify/packages/node/">
     40 modules: fs, net, http, crypto, stream, events, and more.
-    Backed by GLib, Gio, and Soup — running natively on GNOME.
-  </Card>
-  <Card title="Web APIs" icon="globe">
+    Backed by GLib, Gio, and Soup — running natively on Linux.
+  </AdwCard>
+  <AdwCard title="Web APIs" icon={networkWorkgroupSymbolic} href="/gjsify/packages/web/">
     fetch, WebSocket, AbortController, FormData, Streams, and more.
     Standard browser APIs in GJS, powered by Soup 3.0.
-  </Card>
-  <Card title="DOM & Graphics" icon="puzzle">
+  </AdwCard>
+  <AdwCard title="DOM & Graphics" icon={applicationsGraphicsSymbolic} href="/gjsify/packages/dom/">
     Canvas2D via Cairo, WebGL via OpenGL ES, DOM elements as GTK
     widgets, and a full GTK→DOM event bridge.
-  </Card>
-  <Card title="TypeScript First" icon="open-book">
+  </AdwCard>
+  <AdwCard title="TypeScript First" icon={applicationsUtilitiesSymbolic}>
     esbuild, TypeScript, ESM — a modern toolchain
     targeting GJS 1.86+ / SpiderMonkey 128.
-  </Card>
+  </AdwCard>
 </CardGrid>

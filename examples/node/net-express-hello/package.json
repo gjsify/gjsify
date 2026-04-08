@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-node-net-express-hello",
-  "version": "0.1.7",
   "description": "Simple Express.js HTTP server example for Node.js and GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "engines": {
     "node": ">=22.12.0"
   },
@@ -37,5 +33,6 @@
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }

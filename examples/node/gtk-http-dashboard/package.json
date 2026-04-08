@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-node-gtk-http-dashboard",
-  "version": "0.1.7",
   "description": "GTK4 dashboard with embedded HTTP server (GJS only)",
   "main": "dist/index.gjs.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit --skipLibCheck",
@@ -23,5 +19,6 @@
     "@gjsify/node-globals": "workspace:^",
     "@types/node": "^25.5.2",
     "typescript": "^6.0.2"
-  }
+  },
+  "private": true
 }

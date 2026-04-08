@@ -1,12 +1,8 @@
 {
   "name": "@gjsify/example-dom-webgl-tutorial-01",
-  "version": "0.1.7",
   "description": "",
   "main": "dist/index.gjs.js",
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
@@ -26,5 +22,6 @@
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }

@@ -24,14 +24,14 @@
 
 /* Dark mode */
 :root[data-theme='dark'] {
-  --sl-color-accent-low:     rgba(120, 174, 237, 0.12);
-  --sl-color-accent:         #78aeed;   /* Lighter GNOME Blue for dark bg */
-  --sl-color-accent-high:    #b3d4f5;
+  --sl-color-accent-low:     rgba(53, 132, 228, 0.15);
+  --sl-color-accent:         #3584e4;   /* GNOME Blue — same as light mode */
+  --sl-color-accent-high:    #78aeed;
 
   --sl-color-bg:             #242424;   /* Adwaita dark */
   --sl-color-bg-nav:         #303030;
   --sl-color-bg-sidebar:     #1e1e1e;
-  --sl-color-bg-inline-code: rgba(120, 174, 237, 0.10);
+  --sl-color-bg-inline-code: rgba(53, 132, 228, 0.12);
 
   --adw-card-border:         rgba(255, 255, 255, 0.06);
 }
@@ -249,6 +249,27 @@
   border-top-right-radius: 0;
 }
 
+/* Code content background → Adwaita window surface.
+   EC plugin-frames sets --code-background on .frame (editorBackground) and
+   overrides it on .frame.is-terminal (terminalBackground). We unify both
+   to the Adwaita window surface so terminal frames use no separate colour. */
+.expressive-code .frame,
+.expressive-code .frame.is-terminal {
+  --code-background: #222226;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .expressive-code .frame,
+  :root:not([data-theme='dark']) .expressive-code .frame.is-terminal {
+    --code-background: #ffffff;
+  }
+}
+
+:root[data-theme='light'] .expressive-code .frame,
+:root[data-theme='light'] .expressive-code .frame.is-terminal {
+  --code-background: #ffffff;
+}
+
 /* --- Dark mode --- */
 :root[data-theme='dark'] .expressive-code .frame .adw-code-headerbar {
   background: #2e2e32 !important;
@@ -264,10 +285,21 @@
   }
 }
 
-/* Navbar backdrop blur */
+/* Navbar — semi-transparent with backdrop blur */
 header.header {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+:root[data-theme='dark'] header.header {
+  background-color: rgba(48, 48, 48, 0.2) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) header.header {
+    background-color: rgba(48, 48, 48, 0.2) !important;
+  }
 }
 
 /* ── Hero background glow ── */
@@ -278,9 +310,12 @@ header.header {
 .hero-custom::before {
   content: '';
   position: absolute;
-  top: 0;
+  /* Center on the slideshow: hero-heading + gap take ~35% of the total
+     hero height, slideshow sits in the lower 65%, so 65% places the
+     gradient centre roughly at the mid-point of the slideshow. */
+  top: 65%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   width: 200%;
   max-width: 1400px;
   height: 1200px;
@@ -295,57 +330,13 @@ header.header {
   z-index: -1;
 }
 
-/* Sidebar active item — pill shape */
-a[aria-current='page'] {
+/* Sidebar active item — accent background + white text */
+a[aria-current='page'],
+a[aria-current='page']:hover {
   border-radius: 6px;
+  background-color: var(--sl-color-accent);
+  color: #ffffff;
 }
 
-/* ── Landing page: Demo-Container layout ── */
-.hero-demo .adw-window-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-.hero-demo .adw-sidebar {
-  width: 320px;
-  flex-shrink: 0;
-  overflow-y: auto;
-}
-
-.hero-demo .adw-sidebar-content {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.hero-demo #gl-area-container {
-  flex: 1;
-  position: relative;
-  min-width: 0;
-}
-
-.hero-demo #gl-area-container canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  inset: 0;
-}
-
-.hero-demo .adw-separator-vertical {
-  width: 1px;
-  align-self: stretch;
-  background-color: var(--card-shade-color, rgba(0, 0, 0, 0.07));
-  flex-shrink: 0;
-}
-
-/* ── Landing page: CTA section ── */
-.cta-section {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  padding-block: 1.5rem 2.5rem;
-}
+/* Showcase demos are self-contained — they bring their own layout via
+   inline styles in mount(). No host-side overrides needed. */
