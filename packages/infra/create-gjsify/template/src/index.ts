@@ -16,7 +16,7 @@ app.connect('activate', () => {
         label: 'Hello from Gjsify!',
     })
 
-    window.setChild(label)
+    window.set_child(label)
     window.present()
 })
 
