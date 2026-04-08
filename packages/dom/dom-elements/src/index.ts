@@ -26,8 +26,10 @@ export * as PropertySymbol from './property-symbol.js';
 // Side-effect: register DOM globals on import.
 // Same pattern as @gjsify/node-globals (packages/node/globals/src/index.ts)
 // and @gjsify/web-globals (packages/web/web-globals/src/index.ts).
-import '@gjsify/abort-controller'; // registers globalThis.AbortController + AbortSignal
-import '@gjsify/fetch'; // registers globalThis.fetch, Request, Response, Headers
+//
+// Note: dom-elements itself does not depend on fetch or AbortController.
+// If your app needs those Web APIs, import `@gjsify/web-globals` (or the
+// specific package like `@gjsify/fetch`) separately.
 import { Text } from './text.js';
 import { Comment } from './comment.js';
 import { DocumentFragment } from './document-fragment.js';

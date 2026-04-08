@@ -1,4 +1,5 @@
 
+import 'abort-controller'; // register AbortController/AbortSignal globals on GJS (no-op on Node)
 import { run } from '@gjsify/unit';
 
 import testSuite from './index.spec.js';
