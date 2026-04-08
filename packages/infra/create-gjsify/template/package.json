@@ -5,9 +5,9 @@
     "private": true,
     "scripts": {
         "check": "tsc --noEmit",
-        "build": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController",
+        "build": "gjsify build src/index.ts --outfile dist/index.js --globals node,web",
         "start": "gjsify run dist/index.js",
-        "dev": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController && gjsify run dist/index.js"
+        "dev": "gjsify build src/index.ts --outfile dist/index.js --globals node,web && gjsify run dist/index.js"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
