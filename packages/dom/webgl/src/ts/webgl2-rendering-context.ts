@@ -919,6 +919,85 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         this._native2.blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
     }
 
+    // clearBuffer{fv,iv,uiv,fi} — WebGL2 methods for clearing specific
+    // framebuffer attachments. The native Vala binding does not expose the
+    // glClearBuffer* entry points yet, so we emulate the common cases via
+    // glClearColor/glClearDepth/glClearStencil + glClear. This is equivalent
+    // when the DRAW_FRAMEBUFFER has a single attachment per buffer type,
+    // which matches Excalibur's ExcaliburGraphicsContextWebGL.blitToScreen.
+    //
+    // Buffer target constants per WebGL2 spec (not on our class):
+    //   COLOR         = 0x1800
+    //   DEPTH         = 0x1801
+    //   STENCIL       = 0x1802
+    //   DEPTH_STENCIL = 0x84F9
+
+    clearBufferfv(buffer: GLenum, drawbuffer: GLint, values: Float32List, _srcOffset?: GLuint): void {
+        const n2 = this._native2 as any;
+        if (typeof n2.clearBufferfv === 'function') {
+            n2.clearBufferfv(buffer, drawbuffer, Array.from(values) as number[]);
+            return;
+        }
+        const v = values as ArrayLike<number>;
+        if (buffer === 0x1800 /* COLOR */) {
+            const prev = this.getParameter(this.COLOR_CLEAR_VALUE) as Float32Array | number[] | null;
+            this.clearColor(v[0] ?? 0, v[1] ?? 0, v[2] ?? 0, v[3] ?? 0);
+            this.clear(this.COLOR_BUFFER_BIT);
+            if (prev) this.clearColor(prev[0], prev[1], prev[2], prev[3]);
+        } else if (buffer === 0x1801 /* DEPTH */) {
+            const prev = this.getParameter(this.DEPTH_CLEAR_VALUE) as number | null;
+            this.clearDepth(v[0] ?? 1);
+            this.clear(this.DEPTH_BUFFER_BIT);
+            if (prev !== null) this.clearDepth(prev);
+        }
+    }
+
+    clearBufferiv(buffer: GLenum, drawbuffer: GLint, values: Int32List, _srcOffset?: GLuint): void {
+        const n2 = this._native2 as any;
+        if (typeof n2.clearBufferiv === 'function') {
+            n2.clearBufferiv(buffer, drawbuffer, Array.from(values) as number[]);
+            return;
+        }
+        if (buffer === 0x1802 /* STENCIL */) {
+            const v = values as ArrayLike<number>;
+            const prev = this.getParameter(this.STENCIL_CLEAR_VALUE) as number | null;
+            this.clearStencil(v[0] ?? 0);
+            this.clear(this.STENCIL_BUFFER_BIT);
+            if (prev !== null) this.clearStencil(prev);
+        }
+        // Integer color buffers are not emulatable via clearColor — silently no-op.
+    }
+
+    clearBufferuiv(buffer: GLenum, drawbuffer: GLint, values: Uint32List, _srcOffset?: GLuint): void {
+        const n2 = this._native2 as any;
+        if (typeof n2.clearBufferuiv === 'function') {
+            n2.clearBufferuiv(buffer, drawbuffer, Array.from(values) as number[]);
+            return;
+        }
+        // Unsigned integer color buffers are not emulatable via clearColor —
+        // silently no-op.
+        void buffer; void drawbuffer;
+    }
+
+    clearBufferfi(buffer: GLenum, drawbuffer: GLint, depth: GLfloat, stencil: GLint): void {
+        const n2 = this._native2 as any;
+        if (typeof n2.clearBufferfi === 'function') {
+            n2.clearBufferfi(buffer, drawbuffer, depth, stencil);
+            return;
+        }
+        // Only DEPTH_STENCIL makes sense for this entry point.
+        if (buffer === 0x84F9 /* DEPTH_STENCIL */) {
+            const prevDepth = this.getParameter(this.DEPTH_CLEAR_VALUE) as number | null;
+            const prevStencil = this.getParameter(this.STENCIL_CLEAR_VALUE) as number | null;
+            this.clearDepth(depth);
+            this.clearStencil(stencil);
+            this.clear(this.DEPTH_BUFFER_BIT | this.STENCIL_BUFFER_BIT);
+            if (prevDepth !== null) this.clearDepth(prevDepth);
+            if (prevStencil !== null) this.clearStencil(prevStencil);
+        }
+        void drawbuffer;
+    }
+
     invalidateFramebuffer(target: GLenum, attachments: GLenum[]): void {
         this._native2.invalidateFramebuffer(target, Array.from(attachments) as number[]);
     }
