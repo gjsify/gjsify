@@ -6,79 +6,53 @@
 // On Node.js the alias layer routes this subpath to @gjsify/empty because
 // DOM elements are only meaningful in the GJS/GTK environment.
 
-import { Text } from './text.js';
+import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
+
 import { Comment } from './comment.js';
+import { document } from './document.js';
 import { DocumentFragment } from './document-fragment.js';
 import { DOMTokenList } from './dom-token-list.js';
 import { HTMLCanvasElement } from './html-canvas-element.js';
 import { HTMLImageElement } from './html-image-element.js';
 import { Image } from './image.js';
-import { document } from './document.js';
+import { IntersectionObserver } from './intersection-observer.js';
 import { MutationObserver } from './mutation-observer.js';
 import { ResizeObserver } from './resize-observer.js';
-import { IntersectionObserver } from './intersection-observer.js';
+import { Text } from './text.js';
 
-Object.defineProperty(globalThis, 'Text', {
-    value: Text,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'Comment', {
-    value: Comment,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'DocumentFragment', {
-    value: DocumentFragment,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'DOMTokenList', {
-    value: DOMTokenList,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'HTMLCanvasElement', {
-    value: HTMLCanvasElement,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'HTMLImageElement', {
-    value: HTMLImageElement,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'Image', {
-    value: Image,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'document', {
-    value: document,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'MutationObserver', {
-    value: MutationObserver,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'ResizeObserver', {
-    value: ResizeObserver,
-    writable: true,
-    configurable: true,
-});
-Object.defineProperty(globalThis, 'IntersectionObserver', {
-    value: IntersectionObserver,
-    writable: true,
-    configurable: true,
-});
+/** Unconditionally expose a DOM class on `globalThis` (writable + configurable). */
+function defineGlobal(name: string, value: unknown): void {
+    Object.defineProperty(globalThis, name, {
+        value,
+        writable: true,
+        configurable: true,
+    });
+}
 
-// Auto-register the '2d' context factory on HTMLCanvasElement.
-// Mirrors browser behavior: canvas.getContext('2d') works without any explicit import.
-// The factory is idempotent — re-registering from @gjsify/canvas2d has no effect.
-import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
+/** Only set the global if it hasn't already been defined. */
+function defineGlobalIfMissing(name: string, value: unknown): void {
+    if (typeof (globalThis as any)[name] === 'undefined') {
+        defineGlobal(name, value);
+    }
+}
 
+defineGlobal('Text', Text);
+defineGlobal('Comment', Comment);
+defineGlobal('DocumentFragment', DocumentFragment);
+defineGlobal('DOMTokenList', DOMTokenList);
+defineGlobal('HTMLCanvasElement', HTMLCanvasElement);
+defineGlobal('HTMLImageElement', HTMLImageElement);
+defineGlobal('Image', Image);
+defineGlobal('document', document);
+defineGlobal('MutationObserver', MutationObserver);
+defineGlobal('ResizeObserver', ResizeObserver);
+defineGlobal('IntersectionObserver', IntersectionObserver);
+defineGlobal('CanvasRenderingContext2D', CanvasRenderingContext2D);
+
+// Register the '2d' context factory on HTMLCanvasElement.
+// Mirrors browser behavior: canvas.getContext('2d') works without any explicit
+// import. The factory is idempotent — re-registering from @gjsify/canvas2d has
+// no effect.
 const CANVAS2D_KEY = Symbol.for('gjsify_canvas2d_context');
 HTMLCanvasElement.registerContextFactory('2d', (canvas, options) => {
     const existing = (canvas as any)[CANVAS2D_KEY];
@@ -88,27 +62,11 @@ HTMLCanvasElement.registerContextFactory('2d', (canvas, options) => {
     return ctx;
 });
 
-Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {
-    value: CanvasRenderingContext2D,
-    writable: true,
-    configurable: true,
-});
-
 // self — three.js checks `typeof self !== 'undefined'` for animation context
-if (typeof (globalThis as any).self === 'undefined') {
-    Object.defineProperty(globalThis, 'self', { value: globalThis, writable: true, configurable: true });
-}
+defineGlobalIfMissing('self', globalThis);
 
 // devicePixelRatio — defaults to 1 (no HiDPI scaling in GTK GL context)
-if (typeof (globalThis as any).devicePixelRatio === 'undefined') {
-    Object.defineProperty(globalThis, 'devicePixelRatio', { value: 1, writable: true, configurable: true });
-}
+defineGlobalIfMissing('devicePixelRatio', 1);
 
 // alert — stub redirecting to console.error (GTK dialog version can override via writable)
-if (typeof (globalThis as any).alert === 'undefined') {
-    Object.defineProperty(globalThis, 'alert', {
-        value: (...args: any[]) => console.error('alert:', ...args),
-        writable: true,
-        configurable: true,
-    });
-}
+defineGlobalIfMissing('alert', (...args: unknown[]) => console.error('alert:', ...args));

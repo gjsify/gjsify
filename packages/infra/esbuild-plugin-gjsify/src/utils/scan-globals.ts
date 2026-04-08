@@ -1,14 +1,15 @@
 // Explicit `--globals` CLI flag support.
 //
 // This module resolves a user-provided comma-separated list of global
-// identifiers (`fetch,Buffer,process,URL,crypto`) into the corresponding
-// set of `@gjsify/<pkg>/register` subpaths, then writes an ESM stub file
-// that the esbuild plugin injects via its `autoGlobalsInject` option.
+// identifiers (e.g. `fetch,Buffer,process,URL,crypto`) into the
+// corresponding set of `@gjsify/<pkg>/register` subpaths and writes an
+// ESM stub file that the esbuild plugin injects via its
+// `autoGlobalsInject` option.
 //
-// gjsify does NOT scan user code to guess which globals are needed. The
-// user declares them explicitly via `gjsify build --globals <list>` (or
-// via the default script scaffolded by `@gjsify/create-app`). See the
-// "Tree-shakeable Globals" section in AGENTS.md for the rationale.
+// gjsify does NOT scan user code to guess which globals are needed —
+// the user declares them explicitly via `gjsify build --globals <list>`
+// (or via the default script scaffolded by `@gjsify/create-app`). See
+// the "Tree-shakeable Globals" section in AGENTS.md for the rationale.
 
 import { writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -39,7 +40,9 @@ export function resolveGlobalsList(globalsArg: string): Set<string> {
     const trimmed = globalsArg.trim();
     if (!trimmed) return result;
 
-    for (const token of trimmed.split(',').map((t) => t.trim()).filter(Boolean)) {
+    for (const rawToken of trimmed.split(',')) {
+        const token = rawToken.trim();
+        if (!token) continue;
         const path = GLOBALS_MAP[token];
         if (path) result.add(path);
     }

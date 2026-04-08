@@ -1,5 +1,7 @@
 // Side-effect module: registers the full Web API surface on GJS by chaining
-// every sub-package's `/register` entry.
+// every sub-package's `/register` entry and filling in the few remaining
+// globals that don't have their own dedicated register module yet
+// (URL, FormData, performance, ...).
 //
 // On Node.js the alias layer maps this subpath to @gjsify/empty since all of
 // these APIs are already native.
@@ -26,31 +28,28 @@ import '@gjsify/webcrypto/register';
 // EventSource (Server-Sent Events)
 import '@gjsify/eventsource/register';
 
-// --- Consolidated globals (previously inline in index.ts) ---
-
-// URL, URLSearchParams (WHATWG URL Standard, GLib.Uri-based)
-import { URL, URLSearchParams } from '@gjsify/url';
-if (typeof globalThis.URL !== 'function') {
-  Object.defineProperty(globalThis, 'URL', { value: URL, writable: true, configurable: true });
-}
-if (typeof globalThis.URLSearchParams !== 'function') {
-  Object.defineProperty(globalThis, 'URLSearchParams', { value: URLSearchParams, writable: true, configurable: true });
-}
-
 // Blob, File (WHATWG File API) — via @gjsify/buffer's /register entry
 import '@gjsify/buffer/register';
 
+// URL, URLSearchParams (WHATWG URL Standard, GLib.Uri-based)
+import { URL, URLSearchParams } from '@gjsify/url';
 // FormData (WHATWG XMLHttpRequest Standard)
 import { FormData } from '@gjsify/formdata';
-if (typeof globalThis.FormData !== 'function') {
-  Object.defineProperty(globalThis, 'FormData', { value: FormData, writable: true, configurable: true });
-}
-
 // Performance (Web Performance API)
 import { performance, PerformanceObserver } from '@gjsify/perf_hooks';
-if (!globalThis.performance) {
-  Object.defineProperty(globalThis, 'performance', { value: performance, writable: true, configurable: true });
+
+if (typeof globalThis.URL !== 'function') {
+  (globalThis as any).URL = URL;
+}
+if (typeof globalThis.URLSearchParams !== 'function') {
+  (globalThis as any).URLSearchParams = URLSearchParams;
+}
+if (typeof globalThis.FormData !== 'function') {
+  (globalThis as any).FormData = FormData;
+}
+if (typeof globalThis.performance === 'undefined') {
+  (globalThis as any).performance = performance;
 }
 if (typeof (globalThis as any).PerformanceObserver !== 'function') {
-  Object.defineProperty(globalThis, 'PerformanceObserver', { value: PerformanceObserver, writable: true, configurable: true });
+  (globalThis as any).PerformanceObserver = PerformanceObserver;
 }

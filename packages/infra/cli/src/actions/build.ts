@@ -75,6 +75,30 @@ export class BuildAction {
         return results;
     }
 
+    /**
+     * Resolve the `--globals` CLI list into a pre-computed inject stub path
+     * that the esbuild plugin will append to its `inject` list. Only runs
+     * for `--app gjs` — Node and browser builds rely on native globals.
+     */
+    private async resolveGlobalsInject(
+        app: App,
+        globals: string | undefined,
+        verbose: boolean | undefined,
+    ): Promise<string | undefined> {
+        if (app !== 'gjs' || !globals) return undefined;
+
+        const registerPaths = resolveGlobalsList(globals);
+        if (registerPaths.size === 0) return undefined;
+
+        const injectPath = await writeRegisterInjectFile(registerPaths, process.cwd());
+        if (verbose && injectPath) {
+            console.debug(
+                `[gjsify] globals: injected ${registerPaths.size} register module(s) from --globals ${globals}`,
+            );
+        }
+        return injectPath ?? undefined;
+    }
+
     /** Application mode */
     async buildApp(app: App = 'gjs') {
 
@@ -88,24 +112,7 @@ export class BuildAction {
         }
 
         const { consoleShim, globals } = this.configData;
-
-        // Resolve the user's explicit `--globals` list to a set of
-        // `<pkg>/register` subpaths and write a stub file that the plugin
-        // will inject. gjsify deliberately does not scan user code — the
-        // `--globals` flag is the single source of truth for which register
-        // modules ship in the bundle. See AGENTS.md § Tree-shakeable Globals.
-        let autoGlobalsInject: string | undefined;
-        if (app === 'gjs' && globals) {
-            const registerPaths = resolveGlobalsList(globals);
-            if (registerPaths.size > 0) {
-                autoGlobalsInject = (await writeRegisterInjectFile(registerPaths, process.cwd())) ?? undefined;
-                if (verbose && autoGlobalsInject) {
-                    console.debug(
-                        `[gjsify] globals: injected ${registerPaths.size} register module(s) from --globals ${globals}`,
-                    );
-                }
-            }
-        }
+        const autoGlobalsInject = await this.resolveGlobalsInject(app, globals, verbose);
 
         const result = await build({
             ...this.getEsBuildDefaults(),
