@@ -84,6 +84,7 @@ export class Config {
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
         if (cliArgs.autoGlobals !== undefined) configData.autoGlobals = cliArgs.autoGlobals;
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;
+        if (cliArgs.astScan !== undefined) configData.astScan = cliArgs.astScan;
 
         merge(configData.library ??= {}, pkg, configData.library);
         merge(configData.typescript ??= {}, tsConfig, configData.typescript);

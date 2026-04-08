@@ -5,6 +5,7 @@ import { merge } from "../utils/merge.js";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
 import { scanFileForGlobals, resolveGlobalsList, writeRegisterInjectFile } from "../utils/scan-globals.js";
+import { scanFileForGlobalsAst } from "../utils/scan-globals-ast.js";
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
@@ -93,10 +94,15 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
 
         // Glob expansion happens below via globToEntryPoints — for scanning
         // we resolve each raw entry to an absolute path and skip non-files.
+        // Stage 4 experiment: opt-in to AST-based scanning via `astScan`.
         const scanned = new Set<string>();
         if (pluginOptions.autoGlobals !== false) {
+            const scanFn = pluginOptions.astScan ? scanFileForGlobalsAst : scanFileForGlobals;
             for (const entry of entryPaths) {
-                await scanFileForGlobals(resolve(entry), scanned);
+                await scanFn(resolve(entry), scanned);
+            }
+            if (pluginOptions.debug && pluginOptions.astScan) {
+                console.debug('[gjsify auto-globals] using AST scanner (experimental)');
             }
         }
 

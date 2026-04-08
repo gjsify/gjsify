@@ -86,7 +86,7 @@ export class BuildAction {
             esbuild.outfile = esbuild?.format === 'cjs' ? pgk.main || pgk.module : pgk.module || pgk.main;
         }
 
-        const { consoleShim, autoGlobals, globals } = this.configData;
+        const { consoleShim, autoGlobals, globals, astScan } = this.configData;
         const result = await build({
             ...this.getEsBuildDefaults(),
             ...esbuild,
@@ -101,6 +101,7 @@ export class BuildAction {
                     consoleShim,
                     autoGlobals,
                     globals,
+                    astScan,
                 }),
             ]
         });
