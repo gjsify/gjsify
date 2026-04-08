@@ -2,6 +2,7 @@ import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
 import { build, BuildOptions, BuildResult } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
+import { resolveGlobalsList, writeRegisterInjectFile } from '@gjsify/esbuild-plugin-gjsify/globals';
 import { dirname, extname } from 'path';
 
 export class BuildAction {
@@ -86,7 +87,26 @@ export class BuildAction {
             esbuild.outfile = esbuild?.format === 'cjs' ? pgk.main || pgk.module : pgk.module || pgk.main;
         }
 
-        const { consoleShim, autoGlobals, globals } = this.configData;
+        const { consoleShim, globals } = this.configData;
+
+        // Resolve the user's explicit `--globals` list to a set of
+        // `<pkg>/register` subpaths and write a stub file that the plugin
+        // will inject. gjsify deliberately does not scan user code — the
+        // `--globals` flag is the single source of truth for which register
+        // modules ship in the bundle. See AGENTS.md § Tree-shakeable Globals.
+        let autoGlobalsInject: string | undefined;
+        if (app === 'gjs' && globals) {
+            const registerPaths = resolveGlobalsList(globals);
+            if (registerPaths.size > 0) {
+                autoGlobalsInject = (await writeRegisterInjectFile(registerPaths, process.cwd())) ?? undefined;
+                if (verbose && autoGlobalsInject) {
+                    console.debug(
+                        `[gjsify] globals: injected ${registerPaths.size} register module(s) from --globals ${globals}`,
+                    );
+                }
+            }
+        }
+
         const result = await build({
             ...this.getEsBuildDefaults(),
             ...esbuild,
@@ -99,18 +119,16 @@ export class BuildAction {
                     exclude,
                     reflection: typescript?.reflection,
                     consoleShim,
-                    autoGlobals,
-                    globals,
+                    autoGlobalsInject,
                 }),
             ]
         });
 
         // See https://esbuild.github.io/api/#metafile
-        // TODO add cli options for this 
+        // TODO add cli options for this
         // if(result.metafile) {
         //     const outFile = esbuild?.outfile ? esbuild.outfile + '.meta.json' : 'meta.json';
         //     await writeFile(outFile, JSON.stringify(result.metafile));
-
         //     let text = await analyzeMetafile(result.metafile)
         //     console.log(text)
         // }

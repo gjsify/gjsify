@@ -4,7 +4,6 @@ import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
-import { scanFileForGlobals, resolveGlobalsList, writeRegisterInjectFile } from "../utils/scan-globals.js";
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
@@ -77,44 +76,16 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         esbuildOptions.inject = [resolve(_shimDir, '../shims/console-gjs.js')];
     }
 
-    // Auto-inject `/register` modules for globals referenced in user code.
-    // This is the core of Stage 3 of the globals tree-shaking refactor: users
-    // write `fetch(...)` or `new Buffer(...)` and the plugin figures out which
-    // register subpaths need to be prepended to the bundle.
-    if (pluginOptions.autoGlobals !== false || pluginOptions.globals) {
-        const rawEntries = build.initialOptions.entryPoints;
-        const entryPaths: string[] = [];
-        if (Array.isArray(rawEntries)) {
-            for (const ep of rawEntries) {
-                if (typeof ep === 'string') entryPaths.push(ep);
-                else if (ep && typeof ep === 'object' && 'in' in ep) entryPaths.push(ep.in as string);
-            }
-        }
-
-        // Glob expansion happens below via globToEntryPoints — for scanning
-        // we resolve each raw entry to an absolute path and skip non-files.
-        const scanned = new Set<string>();
-        if (pluginOptions.autoGlobals !== false) {
-            for (const entry of entryPaths) {
-                await scanFileForGlobals(resolve(entry), scanned);
-            }
-        }
-
-        const registerPaths = resolveGlobalsList(
-            scanned,
-            pluginOptions.globals ?? '',
-            pluginOptions.autoGlobals !== false,
-        );
-
-        if (registerPaths.size > 0) {
-            const injectFile = await writeRegisterInjectFile(registerPaths);
-            if (injectFile) {
-                esbuildOptions.inject = [...(esbuildOptions.inject ?? []), injectFile];
-                if (pluginOptions.debug) {
-                    console.debug('[gjsify auto-globals] injected:', [...registerPaths]);
-                }
-            }
-        }
+    // Append the globals stub file if the CLI pre-computed one. The stub is
+    // an ESM file with one `import '<pkg>/register';` per identifier in the
+    // user's `--globals` list; esbuild processes it alongside the regular
+    // entry points. The plugin itself never scans or infers anything — the
+    // CLI is the sole source of truth for which globals get registered.
+    if (pluginOptions.autoGlobalsInject) {
+        esbuildOptions.inject = [
+            ...(esbuildOptions.inject ?? []),
+            pluginOptions.autoGlobalsInject,
+        ];
     }
 
     merge(build.initialOptions, esbuildOptions);
