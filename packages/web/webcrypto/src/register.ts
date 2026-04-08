@@ -5,5 +5,5 @@
 import { crypto as cryptoInstance } from './index.js';
 
 if (typeof globalThis.crypto === 'undefined' || typeof globalThis.crypto.subtle === 'undefined') {
-  (globalThis as unknown as Record<string, unknown>).crypto = cryptoInstance;
+  (globalThis as any).crypto = cryptoInstance;
 }

@@ -1,11 +1,17 @@
-// Global-reference scanner for the esbuild plugin's `--auto-globals` feature.
+// Explicit `--globals` CLI flag support.
 //
-// Given a list of entry-point paths, this module reads each file, greps the
-// source for known global identifiers, and returns the set of
-// `@gjsify/<pkg>/register` (or bare-specifier `<pkg>/register`) modules that
-// must be prepended to the build to make those globals available on GJS.
+// This module resolves a user-provided comma-separated list of global
+// identifiers (e.g. `fetch,Buffer,process,URL,crypto`) into the
+// corresponding set of `@gjsify/<pkg>/register` subpaths and writes an
+// ESM stub file that the esbuild plugin injects via its
+// `autoGlobalsInject` option.
+//
+// gjsify does NOT scan user code to guess which globals are needed —
+// the user declares them explicitly via `gjsify build --globals <list>`
+// (or via the default script scaffolded by `@gjsify/create-app`). See
+// the "Tree-shakeable Globals" section in AGENTS.md for the rationale.
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
@@ -14,91 +20,31 @@ import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
 const GLOBALS_MAP: Record<string, string> = GJS_GLOBALS_MAP;
 
 /**
- * Scan a single file's source for known global identifier references and
- * add the matching `/register` paths to the accumulator.
+ * Resolve a `--globals` CLI argument into the set of `/register` subpaths
+ * that must be injected into the build.
  *
- * The regex uses three patterns to keep false positives low:
- *   - `\bIdent\s*[(.]`     — call (`fetch(...)`) or property access (`Buffer.from`)
- *   - `new\s+Ident`        — constructor (`new Blob(...)`)
- *   - `typeof\s+Ident`     — feature detection (`typeof fetch`)
- */
-export async function scanFileForGlobals(
-    filePath: string,
-    accumulator: Set<string>,
-): Promise<void> {
-    let code: string;
-    try {
-        code = await readFile(filePath, 'utf-8');
-    } catch {
-        return;
-    }
-
-    const globalNames = Object.keys(GLOBALS_MAP);
-    const identGroup = globalNames.join('|');
-    const pattern = new RegExp(
-        `\\b(?:${identGroup})\\b(?=\\s*[(.\\[])|new\\s+(?:${identGroup})\\b|typeof\\s+(?:${identGroup})\\b`,
-        'g',
-    );
-
-    // Use matchAll to iterate over every occurrence without state on the regex object.
-    for (const result of code.matchAll(pattern)) {
-        const raw = result[0];
-        const ident = raw
-            .replace(/^new\s+/, '')
-            .replace(/^typeof\s+/, '')
-            .replace(/\s*[(.\[]$/, '')
-            .trim();
-        const registerPath = GLOBALS_MAP[ident];
-        if (registerPath) accumulator.add(registerPath);
-    }
-}
-
-/**
- * Combine the scan results with an explicit `--globals` argument.
+ * The argument is a plain comma-separated list of identifiers. Unknown
+ * tokens are silently ignored (the full known set lives in
+ * `@gjsify/resolve-npm/globals-map`). Empty or whitespace-only input
+ * returns an empty set.
  *
- * - empty `globalsArg` → return scan results as-is (or empty set if
- *   `autoGlobals` is disabled)
- * - absolute form (`"fetch,crypto"`) → replace scan results entirely
- * - modifier form (`"+crypto,-fetch"`) → add `+` entries and remove `-` entries
- *   from the scan results
+ * Examples:
+ *   resolveGlobalsList('fetch,Buffer,process')
+ *     → Set { 'fetch/register', '@gjsify/buffer/register', '@gjsify/node-globals/register' }
+ *
+ *   resolveGlobalsList('')
+ *     → Set { }
  */
-export function resolveGlobalsList(
-    scanned: Set<string>,
-    globalsArg: string,
-    autoGlobals: boolean,
-): Set<string> {
-    const result = autoGlobals ? new Set(scanned) : new Set<string>();
+export function resolveGlobalsList(globalsArg: string): Set<string> {
+    const result = new Set<string>();
     const trimmed = globalsArg.trim();
     if (!trimmed) return result;
 
-    const tokens = trimmed
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean);
-    const hasModifier = tokens.some((t) => t.startsWith('+') || t.startsWith('-'));
-
-    if (!hasModifier) {
-        // Absolute whitelist
-        result.clear();
-        for (const t of tokens) {
-            const path = GLOBALS_MAP[t];
-            if (path) result.add(path);
-        }
-        return result;
-    }
-
-    for (const t of tokens) {
-        if (t.startsWith('+')) {
-            const path = GLOBALS_MAP[t.slice(1)];
-            if (path) result.add(path);
-        } else if (t.startsWith('-')) {
-            const path = GLOBALS_MAP[t.slice(1)];
-            if (path) result.delete(path);
-        } else {
-            // Bare token in modifier mode behaves as +token
-            const path = GLOBALS_MAP[t];
-            if (path) result.add(path);
-        }
+    for (const rawToken of trimmed.split(',')) {
+        const token = rawToken.trim();
+        if (!token) continue;
+        const path = GLOBALS_MAP[token];
+        if (path) result.add(path);
     }
     return result;
 }
@@ -106,15 +52,13 @@ export function resolveGlobalsList(
 /**
  * Write a stub ESM file with `import` statements for the given register
  * paths and return its absolute path, suitable for passing to esbuild's
- * `inject` option.
+ * `inject` option via the plugin's `autoGlobalsInject` field.
  *
- * The file lives inside `<cwd>/node_modules/.cache/gjsify/` so that
- * esbuild's module resolver can follow the bare specifiers in the
- * generated imports (otherwise resolving from `/tmp/` fails because there
- * is no `node_modules/` on the parent path).
+ * The file lives inside `<cwd>/node_modules/.cache/gjsify/` so esbuild's
+ * module resolver can follow the bare specifiers in the generated imports.
  *
- * The file name is hashed so repeated builds with the same set reuse the
- * same file (no churn).
+ * The file name is hashed by content so repeated builds with the same
+ * set reuse the same file (no churn, idempotent on disk).
  */
 export async function writeRegisterInjectFile(
     registerPaths: Set<string>,

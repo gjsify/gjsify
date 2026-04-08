@@ -15,13 +15,8 @@ export interface ConfigData {
      */
     consoleShim?: boolean;
     /**
-     * Auto-inject `/register` modules for globals referenced in user code.
-     * Only applies to GJS app builds. Default: true.
-     */
-    autoGlobals?: boolean;
-    /**
-     * Explicit globals list override. Takes precedence over `autoGlobals` scan
-     * results. See CliBuildOptions for format.
+     * Comma-separated list of global identifiers to register in the bundle.
+     * See CliBuildOptions for format.
      */
     globals?: string;
 }

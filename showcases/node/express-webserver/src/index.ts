@@ -3,10 +3,8 @@
 // running on Express.js — the exact same code you would write for Node.js,
 // executed natively on Linux via GJS.
 //
-// Note: no explicit `import '@gjsify/node-globals/register'` is needed. The
-// gjsify esbuild plugin's `--auto-globals` feature scans this entry point for
-// references to `process`, `Buffer`, etc. and auto-injects the matching
-// `/register` subpaths at build time.
+// Runtime globals are declared via the `--globals` flag in this package's
+// `build:gjs` script rather than source-level imports — see package.json.
 
 import { runtimeName } from '@gjsify/runtime';
 import { dirname, join } from 'node:path';

@@ -9,6 +9,10 @@
         ".": {
             "types": "./dist/types/index.d.ts",
             "default": "./dist/esm/index.mjs"
+        },
+        "./globals": {
+            "types": "./dist/types/globals.d.ts",
+            "default": "./dist/esm/globals.mjs"
         }
     },
     "scripts": {

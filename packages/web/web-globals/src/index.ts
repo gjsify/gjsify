@@ -2,9 +2,10 @@
 //
 // This module has no side effects. Importing `@gjsify/web-globals` gives
 // you named access to the key Web API classes but does NOT register any
-// globals. Use `@gjsify/web-globals/register` (or let the gjsify esbuild
-// plugin auto-inject it) to actually set `globalThis.fetch`,
-// `globalThis.ReadableStream`, `globalThis.AbortController`, etc.
+// globals. Use `@gjsify/web-globals/register` (or add the relevant
+// identifiers to the `--globals` CLI flag) to actually set
+// `globalThis.fetch`, `globalThis.ReadableStream`,
+// `globalThis.AbortController`, etc.
 
 // Re-export key types for convenience
 export { DOMException } from '@gjsify/dom-exception';

@@ -38,11 +38,59 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--minify` | bool | `false` | Minify the output |
 | `--reflection`, `-r` | bool | `false` | Enable TypeScript runtime types via Deepkit |
 | `--console-shim` | bool | `true` | Inject the GJS console shim (clean output, ANSI colors). Disable with `--no-console-shim` |
+| `--globals` | string | `""` | Comma-separated list of globals to register. See [Globals](#globals) below |
 | `--exclude` | glob[] | `[]` | Glob patterns to exclude from entry points and aliases |
 | `--log-level` | `silent` \| `error` \| `warning` \| `info` \| `debug` \| `verbose` | `warning` | esbuild log level |
 | `--verbose` | bool | `false` | Enable verbose mode |
 
 For `--app gjs`, the target is `firefox128` (SpiderMonkey 128) and `gi://*`, `cairo`, `system` and `gettext` are externalised. For `--app node`, the target is `node24`.
+
+### Globals
+
+Node.js and Web APIs like `fetch`, `Buffer`, `process`, `URL`, `crypto`, and `AbortController` are not built into GJS — they live in the `@gjsify/*` ecosystem of tree-shakeable packages. To make them available as runtime globals, declare them explicitly via `--globals`:
+
+```bash
+npx @gjsify/cli build src/index.ts --outfile dist/index.js \
+  --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController
+```
+
+Each identifier in the list is mapped to its `@gjsify/<pkg>/register` module and injected at build time. Identifiers the user's code never mentions cost nothing to leave in the list — the corresponding register module is no-op on Node.js and a small self-contained side-effect on GJS.
+
+**Projects scaffolded via `npx @gjsify/cli create` get a sensible default** already wired into the build script:
+
+```jsonc
+"scripts": {
+  "build": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController",
+  "start": "gjsify run dist/index.js"
+}
+```
+
+Most Node-style apps work out of the box. Add or remove identifiers as your code's needs grow.
+
+> **Why no auto-scan?** Earlier design iterations tried to detect needed globals automatically by parsing your source and transitive dependencies. The heuristic consistently leaked — isomorphic npm packages, dynamic imports, runtime feature detection, and bracket-notation global access (`globalThis['X']`) cannot be reliably distinguished. Explicit declaration in `package.json` is predictable, trivially teachable, and keeps the CLI layer minimal.
+
+#### Known identifiers
+
+Any of these identifiers can appear in `--globals`. Each maps to the `@gjsify/<pkg>/register` module shown on the right.
+
+| Identifier | Register module |
+|---|---|
+| `Buffer`, `Blob`, `File` | `@gjsify/buffer/register` |
+| `process`, `setImmediate`, `clearImmediate`, `queueMicrotask`, `structuredClone`, `btoa`, `atob`, `URL`, `URLSearchParams` | `@gjsify/node-globals/register` |
+| `fetch`, `Headers`, `Request`, `Response` | `fetch/register` |
+| `FormData`, `performance`, `PerformanceObserver` | `@gjsify/web-globals/register` |
+| `ReadableStream`, `WritableStream`, `TransformStream`, `TextEncoderStream`, `TextDecoderStream`, `ByteLengthQueuingStrategy`, `CountQueuingStrategy` | `web-streams/register` |
+| `CompressionStream`, `DecompressionStream` | `compression-streams/register` |
+| `crypto` | `webcrypto/register` |
+| `AbortController`, `AbortSignal` | `abort-controller/register` |
+| `Event`, `EventTarget`, `CustomEvent`, `MessageEvent`, `ErrorEvent`, `CloseEvent`, `ProgressEvent`, `UIEvent`, `MouseEvent`, `PointerEvent`, `KeyboardEvent`, `WheelEvent`, `FocusEvent` | `dom-events/register` |
+| `EventSource` | `eventsource/register` |
+| `DOMException` | `dom-exception/register` |
+| `document`, `Image`, `HTMLCanvasElement`, `HTMLImageElement`, `HTMLElement`, `MutationObserver`, `ResizeObserver`, `IntersectionObserver` | `@gjsify/dom-elements/register` |
+
+Unknown identifiers are silently ignored (so your script keeps working even if you typo one). If a runtime `ReferenceError: X is not defined` still happens, check this table, add the missing identifier to `--globals`, and rebuild.
+
+> **Alternative — explicit `/register` imports in source.** If you prefer to keep build flags minimal, you can `import '@gjsify/fetch/register'` (or the aliased bare specifier `import 'fetch/register'`) directly in your entry file instead. Both approaches are equivalent; `--globals` is usually more ergonomic because it keeps the config in one place.
 
 ## `gjsify run`
 

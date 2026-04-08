@@ -88,14 +88,8 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
                 default: true
             })
-            .option('auto-globals', {
-                description: "Auto-inject /register modules for globals referenced in user code (fetch, Buffer, process, ReadableStream, …). Use --no-auto-globals to opt out. Only applies to GJS app builds.",
-                type: 'boolean',
-                normalize: true,
-                default: true
-            })
             .option('globals', {
-                description: "Explicit globals list (takes precedence over --auto-globals). Use 'fetch,crypto' for an absolute whitelist, '+crypto' to add on top of the scan, or '-fetch' to remove. Comma-separated. Only applies to GJS app builds.",
+                description: "Comma-separated list of global identifiers your code needs (e.g. 'fetch,Buffer,process,URL,crypto'). Each identifier is mapped to the corresponding `@gjsify/<pkg>/register` module and injected into the bundle. See the CLI Reference docs for the full list of known identifiers. Only applies to GJS app builds.",
                 type: 'string',
                 normalize: true,
                 default: ''
