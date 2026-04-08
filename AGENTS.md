@@ -138,7 +138,12 @@ GJS needs GLib MainLoop for async I/O. `ensureMainLoop()` (`@gjsify/utils`): ide
 Every `@gjsify/*` package that registers anything on `globalThis` MUST follow these rules so that user bundles stay tree-shakeable and the `--globals` CLI flag can resolve identifiers correctly.
 
 1. **No side-effects in `src/index.ts`.** The root entry is named exports only. Any `globalThis.X = ...`, `Object.defineProperty(globalThis, ...)`, or `registerGlobal('X', ...)` call at module top level is a bug — move it to `src/register.ts`.
-2. **Side-effects live in `src/register.ts`.** This file exists solely to register globals. Imports what it needs from `./index.js`, runs `if (typeof globalThis.X === 'undefined') (globalThis as any).X = X`. Idempotent.
+2. **Side-effects live in `src/register.ts`.** This file exists solely to register globals. Imports what it needs from `./index.js` and uses an existence guard. Use the pattern that matches the global type:
+   - **Function/class globals** (most packages): `if (typeof globalThis.X === 'undefined') { (globalThis as any).X = X; }`
+   - **Plain-value globals** (process, Buffer, global in node-globals): `if (!('X' in globalThis)) { Object.defineProperty(globalThis, 'X', { value: X, writable: true, configurable: true }); }`
+   - **DOM constructors** (dom-elements, GTK-only): unconditional `defineGlobal('X', X)` via the package-local helper (writable+configurable; GTK environment always owns these)
+   - **Streams**: `isNativeStreamUsable(globalThis.X, 'method')` helper validates whether the existing native implementation is functional before replacing it
+   All guards must be idempotent — registering twice must not throw.
 3. **`package.json` declares both subpaths + `sideEffects`:**
    ```jsonc
    "exports": {
@@ -157,7 +162,14 @@ Every `@gjsify/*` package that registers anything on `globalThis` MUST follow th
 6. **Tests that need globals** import the `/register` subpath explicitly: `import 'fetch/register'`, `import 'abort-controller/register'`, `import '@gjsify/node-globals/register'`. Do NOT rely on implicit global registration via a named import from the root.
 7. **User projects use the `--globals` CLI flag**, not source-level register imports. The scaffolded template includes a default `--globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController` in its `package.json` script. Users add or remove identifiers from that list as their code's needs grow. Source-level `import '<pkg>/register'` is still supported and equivalent, but less ergonomic because it spreads the globals config across multiple files.
 8. **Exception — intra-package class inheritance.** If `src/index.ts` defines a class that extends a global constructor (e.g. `class TextLineStream extends TransformStream`), the class declaration runs at module load time and needs the global set. In this ONE case, `index.ts` may `import '@gjsify/<pkg>/register'` as a side-effect to seed the global before the class body runs. Document the exception explicitly in the file header. Current occurrences: `@gjsify/eventsource`.
-9. **Adding a new global.** Checklist: (a) implement in the package, (b) add to `register.ts` with a `typeof ... === 'undefined'` guard, (c) add to `package.json` `sideEffects` if the file is new, (d) add to `GJS_GLOBALS_MAP` in `globals-map.mjs`, (e) add aliases in `resolve-npm/lib/index.mjs`, (f) add the identifier to the `--globals` default in `packages/infra/create-gjsify/templates/package.json.tmpl` if it is broadly useful, (g) add a test in the package's own spec, (h) add a row to the identifier table in `website/src/content/docs/cli-reference.md`.
+9. **Adding a new global.** Checklist: (a) implement in the package, (b) add to `register.ts` with the appropriate existence guard (see Rule 2), (c) add to `package.json` `sideEffects` if the file is new, (d) add to `GJS_GLOBALS_MAP` in `globals-map.mjs`, (e) add aliases in `resolve-npm/lib/index.mjs`, (f) add the identifier to the `--globals` default in `packages/infra/create-gjsify/templates/package.json.tmpl` if it is broadly useful, (g) add a test in the package's own spec, (h) add the identifier to the appropriate category group in the Known Identifiers table at `website/src/content/docs/cli-reference.md` (§ Globals → Known identifiers).
+
+**Tree-shakeability invariants — permanent, do not break:**
+
+- `src/index.ts` MUST have zero top-level side effects. Any top-level `globalThis.X = ...`, `Object.defineProperty(globalThis, ...)`, or `registerGlobal(...)` in `index.ts` is a regression — move it to `register.ts`.
+- **Auto-injection is permanently off.** The `--globals` flag is the only injection mechanism. Any agent that modifies `scan-globals.ts` to scan source files, adds an `autoGlobals`/`--auto-globals` option, or proposes detecting globals by parsing entry points is reintroducing a deliberately removed feature. The auto-scan approach was tried (regex, AST, two-pass metafile) and rejected because it consistently leaked false positives (isomorphic npm packages, dynamic imports, bracket-notation access, runtime feature detection). Do not add it back.
+- `sideEffects: ["./lib/esm/register.js"]` must remain in every package that registers globals. Never set `"sideEffects": false` on such a package.
+- `globals-map.mjs` is authoritative. If a new identifier is added to `register.ts` but omitted from `globals-map.mjs`, the `--globals` flag silently fails to inject it.
 
 **No automatic scanning.** The CLI does not parse user source to guess which globals are needed — the `--globals` flag is the single source of truth. If your code references a global and you forgot to list it, you get a `ReferenceError: X is not defined` at runtime; the fix is to add `X` to the `--globals` list. This is deliberate: heuristic scanners could never reliably distinguish isomorphic library guards, dynamic imports, bracket-notation global access, or runtime feature detection.
 

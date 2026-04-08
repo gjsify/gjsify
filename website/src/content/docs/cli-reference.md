@@ -71,24 +71,57 @@ Most Node-style apps work out of the box. Add or remove identifiers as your code
 
 #### Known identifiers
 
-Any of these identifiers can appear in `--globals`. Each maps to the `@gjsify/<pkg>/register` module shown on the right.
+Any identifier below can appear in `--globals`. On Node.js each register module is an empty no-op (native globals already exist).
 
-| Identifier | Register module |
+**Node.js core globals**
+
+| Identifier(s) | Register module |
 |---|---|
-| `Buffer`, `Blob`, `File` | `@gjsify/buffer/register` |
+| `Buffer` | `@gjsify/buffer/register` |
+| `Blob`, `File` | `@gjsify/buffer/register` |
 | `process`, `setImmediate`, `clearImmediate`, `queueMicrotask`, `structuredClone`, `btoa`, `atob`, `URL`, `URLSearchParams` | `@gjsify/node-globals/register` |
+
+**Fetch**
+
+| Identifier(s) | Register module |
+|---|---|
 | `fetch`, `Headers`, `Request`, `Response` | `fetch/register` |
-| `FormData`, `performance`, `PerformanceObserver` | `@gjsify/web-globals/register` |
+
+**Streams**
+
+| Identifier(s) | Register module |
+|---|---|
 | `ReadableStream`, `WritableStream`, `TransformStream`, `TextEncoderStream`, `TextDecoderStream`, `ByteLengthQueuingStrategy`, `CountQueuingStrategy` | `web-streams/register` |
 | `CompressionStream`, `DecompressionStream` | `compression-streams/register` |
+
+**Crypto**
+
+| Identifier(s) | Register module |
+|---|---|
 | `crypto` | `webcrypto/register` |
+
+**Abort + Events**
+
+| Identifier(s) | Register module |
+|---|---|
 | `AbortController`, `AbortSignal` | `abort-controller/register` |
 | `Event`, `EventTarget`, `CustomEvent`, `MessageEvent`, `ErrorEvent`, `CloseEvent`, `ProgressEvent`, `UIEvent`, `MouseEvent`, `PointerEvent`, `KeyboardEvent`, `WheelEvent`, `FocusEvent` | `dom-events/register` |
 | `EventSource` | `eventsource/register` |
 | `DOMException` | `dom-exception/register` |
+
+**Miscellaneous Web APIs**
+
+| Identifier(s) | Register module |
+|---|---|
+| `FormData`, `performance`, `PerformanceObserver` | `@gjsify/web-globals/register` |
+
+**DOM / browser-compat (GJS/GTK only)**
+
+| Identifier(s) | Register module |
+|---|---|
 | `document`, `Image`, `HTMLCanvasElement`, `HTMLImageElement`, `HTMLElement`, `MutationObserver`, `ResizeObserver`, `IntersectionObserver` | `@gjsify/dom-elements/register` |
 
-Unknown identifiers are silently ignored (so your script keeps working even if you typo one). If a runtime `ReferenceError: X is not defined` still happens, check this table, add the missing identifier to `--globals`, and rebuild.
+Unknown identifiers are silently ignored. If a runtime `ReferenceError: X is not defined` still happens, check this table — if `X` is listed, add it to `--globals` and rebuild.
 
 > **Alternative — explicit `/register` imports in source.** If you prefer to keep build flags minimal, you can `import '@gjsify/fetch/register'` (or the aliased bare specifier `import 'fetch/register'`) directly in your entry file instead. Both approaches are equivalent; `--globals` is usually more ergonomic because it keeps the config in one place.
 

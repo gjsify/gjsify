@@ -49,6 +49,8 @@ gjsify build src/index.ts --outfile dist/index.js \
 
 The CLI resolves each identifier against a known map, writes a small ESM stub with `import '<pkg>/register';` lines into `node_modules/.cache/gjsify/`, and passes that stub to esbuild's `inject` option. At runtime the globals are set up before your code runs.
 
+> Tree-shaking works in both directions: globals you declare but your code never touches don't inflate the bundle — each register guard (`if (typeof globalThis.X === 'undefined')`) is a tiny no-op that esbuild can elide. Globals you actually use but forget to declare produce a `ReferenceError` at runtime (fix: add the identifier to `--globals` and rebuild).
+
 ### Projects scaffolded via `npx @gjsify/cli create` ship with a sensible default
 
 ```jsonc
@@ -57,7 +59,7 @@ The CLI resolves each identifier against a known map, writes a small ESM stub wi
 }
 ```
 
-Those eight identifiers cover practically every Node-style project — Express, Koa, Hono, fetch clients, crypto hashers, etc. Just `yarn install && yarn build` and your bundle ships.
+Those seven identifiers cover practically every Node-style project — Express, Koa, Hono, fetch clients, crypto hashers, etc. Just `yarn install && yarn build` and your bundle ships.
 
 If you need something the default doesn't cover — say `ReadableStream` for a streaming parser, or `CompressionStream` for gzip — edit the `--globals` list in the scaffolded `package.json` script. The full table of supported identifiers lives in the [CLI Reference](/gjsify/cli-reference/#known-identifiers).
 
@@ -70,6 +72,16 @@ Earlier design iterations tried to scan your source tree (and transitive npm dep
 - **Tree-shaking interactions**: files that esbuild loaded for analysis but then tree-shook away would still contribute false-positive injections.
 
 Explicit declaration in `package.json` is predictable, trivially teachable, and keeps the CLI layer minimal. The `/register` subpath architecture does the heavy lifting — the `--globals` flag is just the thin API on top.
+
+### Troubleshooting: `ReferenceError: X is not defined`
+
+If your GJS bundle crashes with `ReferenceError: X is not defined`, the global `X` isn't registered yet. Fix:
+
+1. Look up `X` in the [Known Identifiers table](/gjsify/cli-reference/#known-identifiers).
+2. Add `X` to the `--globals` list in your `package.json` build script.
+3. Rebuild and rerun.
+
+If `X` is not in the table, it is not yet implemented in GJSify — check the [Packages Overview](/gjsify/packages/overview/) or open an issue.
 
 ## Native prebuilds and `gjsify run`
 
