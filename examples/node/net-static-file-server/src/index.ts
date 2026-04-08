@@ -2,7 +2,7 @@
 // Demonstrates: http.createServer, fs.createReadStream, fs.stat, fs.readdir,
 // path.extname/join/resolve, stream.pipe, zlib.gzipSync
 
-import '@gjsify/node-globals';
+import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { createServer } from 'node:http';
 import { createReadStream, stat, readdir, readFileSync } from 'node:fs';

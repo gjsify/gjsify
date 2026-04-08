@@ -3,8 +3,10 @@
 // Uses native CompressionStream/DecompressionStream if available (Node.js 18+),
 // otherwise provides a polyfill using zlib sync functions + @gjsify/web-streams.
 
-// Import Web Streams polyfill to ensure TransformStream is available on GJS
-import '@gjsify/web-streams';
+// Pure named import of TransformStream — no longer relies on a side-effect
+// register step to set globalThis.TransformStream. This keeps CompressionStream
+// fully tree-shakeable when the user does not need compression.
+import { TransformStream } from '@gjsify/web-streams';
 
 type CompressionFormat = 'gzip' | 'deflate' | 'deflate-raw';
 
@@ -125,13 +127,9 @@ if (hasNative) {
   } as any;
 }
 
-// Register globals on GJS if needed (pattern: @gjsify/web-streams)
-if (typeof globalThis.CompressionStream === 'undefined') {
-  (globalThis as any).CompressionStream = CompressionStreamImpl;
-}
-if (typeof globalThis.DecompressionStream === 'undefined') {
-  (globalThis as any).DecompressionStream = DecompressionStreamImpl;
-}
+// Note: globals are no longer registered at import time. Use the `/register`
+// subpath (`import '@gjsify/compression-streams/register'`) if you need
+// globalThis.CompressionStream / DecompressionStream to be set on GJS.
 
 export { CompressionStreamImpl as CompressionStream, DecompressionStreamImpl as DecompressionStream };
 

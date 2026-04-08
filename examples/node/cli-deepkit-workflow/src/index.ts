@@ -1,4 +1,4 @@
-import '@gjsify/node-globals';
+import '@gjsify/node-globals/register';
 import { createWorkflow, WorkflowEvent } from '@deepkit/workflow';
 import { EventDispatcher } from '@deepkit/event';
 import { Stopwatch } from '@deepkit/stopwatch';

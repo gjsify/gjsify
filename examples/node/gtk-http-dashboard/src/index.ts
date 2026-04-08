@@ -2,7 +2,7 @@
 // Demonstrates: GTK4 (Application, Window, Labels, TextView), http.createServer,
 // GLib.idle_add for thread-safe UI updates, Gtk.Application.runAsync()
 
-import '@gjsify/node-globals';
+import '@gjsify/node-globals/register';
 import '@girs/gjs';
 import '@girs/gtk-4.0';
 

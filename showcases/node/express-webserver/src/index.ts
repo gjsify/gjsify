@@ -3,7 +3,7 @@
 // running on Express.js — the exact same code you would write for Node.js,
 // executed natively on Linux via GJS.
 
-import '@gjsify/node-globals';
+import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
