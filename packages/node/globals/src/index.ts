@@ -1,12 +1,16 @@
 // Node.js globals for GJS — original implementation using GLib
+//
+// This module only registers true Node.js globals: process, Buffer, URL,
+// URLSearchParams, setImmediate/clearImmediate, btoa/atob, structuredClone,
+// queueMicrotask, global. Web APIs like fetch, AbortController, Headers,
+// Request, Response are NOT registered here — import `@gjsify/web-globals`
+// (or the specific package, e.g. `@gjsify/fetch`) if you need them.
 
 import { initErrorV8Methods, structuredClone as structuredClonePolyfill } from "@gjsify/utils";
 
 import process from '@gjsify/process';
 import { Buffer } from '@gjsify/buffer';
 import { URL, URLSearchParams } from '@gjsify/url';
-import '@gjsify/abort-controller'; // triggers global registration of AbortController/AbortSignal
-import '@gjsify/fetch';             // triggers global registration of fetch/Request/Response/Headers
 import GLib from '@girs/glib-2.0';
 
 // Promise.withResolvers polyfill for SpiderMonkey < 121 (ES2024, not in GJS < 1.81.2)
@@ -154,20 +158,6 @@ if (typeof globalThis.URLSearchParams !== 'function') {
     writable: true,
     configurable: true,
   });
-}
-
-// Web API stubs — Node.js 18+ has these as globals; GJS does not.
-// Request/Response/Headers/fetch are now registered by @gjsify/fetch (imported above).
-// ReadableStream and Blob still need stubs to prevent ReferenceErrors in frameworks.
-for (const name of ['ReadableStream', 'Blob'] as const) {
-  if (typeof (globalThis as any)[name] === 'undefined') {
-    Object.defineProperty(globalThis, name, {
-      value: class {},
-      enumerable: false,
-      writable: true,
-      configurable: true,
-    });
-  }
 }
 
 export { ensureMainLoop } from '@gjsify/utils';

@@ -2,10 +2,22 @@
 
 ## Unreleased
 
+### ⚠ BREAKING CHANGES
+
+* **node-globals:** `@gjsify/node-globals` no longer auto-registers `fetch`, `Headers`, `Request`, `Response`, `AbortController` or `AbortSignal`. These are Web APIs, not Node.js globals — importing them automatically pulled the full WHATWG Streams implementation into every bundle even when unused (~80 KB dead weight on a minimal Express app). Projects that need these APIs on GJS should now either:
+  - Import `@gjsify/web-globals` to get the full Web API set, or
+  - Import the specific package side-effect bundle, e.g. `import 'fetch'` or `import 'abort-controller'` (the aliases resolve to the correct GJS/Node package automatically).
+* **node-globals:** The empty `ReadableStream`/`Blob` placeholder stubs in `@gjsify/node-globals` are removed. `Blob`/`File` remain available because `@gjsify/buffer` (still imported by node-globals) registers them. `ReadableStream` is only registered when something actually imports `@gjsify/streams` or a package that depends on it.
+
 ### Features
 
 * **cli:** add `gjsify create <name>` subcommand that delegates to `@gjsify/create-app`, so users only need to remember a single npm scope (`@gjsify/cli`) to scaffold, build and run GJSify projects
 * **create-app:** expose `createProject()` as a programmatic export (`import { createProject } from '@gjsify/create-app'`) in addition to the existing CLI entry
+
+### Refactor
+
+* **globals:** drop `fetch` and `abort-controller` side-effect imports from `@gjsify/node-globals` and `@gjsify/dom-elements`. Stage 1 of the globals tree-shaking refactor. Express showcase bundle shrinks from 1.83 MB → 1.68 MB (-157 KB, -8.5 %), WHATWG Streams references drop from 186 to 9.
+* **fs:** make `FileHandle.readableWebStream()` resolve the `ReadableStream` constructor lazily from `globalThis` instead of importing `node:stream/web` at module load time. Apps that never call `readableWebStream()` no longer ship the full WHATWG Streams polyfill. Stage 1 of the globals tree-shaking refactor.
 
 ### Bug Fixes
 

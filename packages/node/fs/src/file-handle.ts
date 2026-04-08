@@ -8,7 +8,10 @@ import { Stats } from "./stats.js";
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
-import { ReadableStream } from "node:stream/web";
+// Type-only import for ReadableStream — the runtime constructor is resolved
+// via globalThis inside readableWebStream() to avoid bundling the entire
+// WHATWG streams implementation for apps that never call this method.
+import type { ReadableStream } from "node:stream/web";
 import { Buffer } from "node:buffer";
 
 import type { Abortable } from 'node:events';
@@ -334,7 +337,16 @@ export class FileHandle implements IFileHandle {
      * @experimental
      */
     readableWebStream(): ReadableStream {
-        return new ReadableStream();
+        // Resolve ReadableStream lazily from globalThis to keep the
+        // WHATWG streams implementation out of the bundle when this method
+        // is not actually used.
+        const Ctor = (globalThis as { ReadableStream?: typeof globalThis.ReadableStream }).ReadableStream;
+        if (typeof Ctor !== 'function') {
+            throw new Error(
+                'readableWebStream() requires a global ReadableStream. Import "node:stream/web" or "@gjsify/streams" before calling this method.',
+            );
+        }
+        return new Ctor() as unknown as ReadableStream;
     }
     /**
      * Asynchronously reads the entire contents of a file.
