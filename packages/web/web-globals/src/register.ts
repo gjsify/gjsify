@@ -1,7 +1,7 @@
 // Side-effect module: registers the full Web API surface on GJS by chaining
 // every sub-package's `/register` entry and filling in the few remaining
 // globals that don't have their own dedicated register module yet
-// (URL, FormData, performance, ...).
+// (URL, FormData, performance, AudioContext, ...).
 //
 // On Node.js the alias layer maps this subpath to @gjsify/empty since all of
 // these APIs are already native.
@@ -52,4 +52,23 @@ if (typeof globalThis.performance === 'undefined') {
 }
 if (typeof (globalThis as any).PerformanceObserver !== 'function') {
   (globalThis as any).PerformanceObserver = PerformanceObserver;
+}
+
+// AudioContext stub — Web Audio API is not available in GJS.
+// Libraries like Excalibur.js check for window.AudioContext; the stub prevents
+// crashes and silently discards all audio. Future work: GStreamer backend.
+import { AudioContext, HTMLAudioElement } from './audio-stub.js';
+
+if (typeof (globalThis as any).AudioContext === 'undefined') {
+  (globalThis as any).AudioContext = AudioContext;
+}
+if (typeof (globalThis as any).webkitAudioContext === 'undefined') {
+  (globalThis as any).webkitAudioContext = AudioContext;
+}
+// HTMLAudioElement / Audio — Excalibur uses `new Audio()` for format detection
+if (typeof (globalThis as any).Audio === 'undefined') {
+  (globalThis as any).Audio = HTMLAudioElement;
+}
+if (typeof (globalThis as any).HTMLAudioElement === 'undefined') {
+  (globalThis as any).HTMLAudioElement = HTMLAudioElement;
 }
