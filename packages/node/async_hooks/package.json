@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/async_hooks",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "description": "Node.js async_hooks module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -16,5 +16,6 @@
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
-  "private": true
+  "private": true,
+  "version": "0.1.8"
 }

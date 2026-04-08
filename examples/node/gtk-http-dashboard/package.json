@@ -20,5 +20,6 @@
     "@types/node": "^25.5.2",
     "typescript": "^6.0.2"
   },
-  "private": true
+  "private": true,
+  "version": "0.1.8"
 }

@@ -17,5 +17,6 @@
     "@gjsify/cli": "workspace:^",
     "typescript": "^6.0.2"
   },
-  "private": true
+  "private": true,
+  "version": "0.1.8"
 }

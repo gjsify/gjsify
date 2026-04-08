@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/worker_threads",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "description": "Node.js worker_threads module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.1.8](https://github.com/gjsify/gjsify/compare/v0.1.7...v0.1.8) (2026-04-08)
+
+### ⚠ BREAKING CHANGES
+
+* **globals:** importing the root `@gjsify/<pkg>` module of a
+global-providing package no longer registers globals. Callers must
+explicitly import the `/register` subpath (`@gjsify/fetch/register`,
+`@gjsify/abort-controller/register`, …) or use the aliased bare
+specifier (`import 'fetch/register'`, `import 'abort-controller/register'`,
+…). Stage 3 will add automatic injection via the esbuild plugin, so
+this manual step disappears again for typical projects.
+
+Stage 2 of the refactor plan at .claude/plans/indexed-popping-sloth.md.
+* **globals:** projects that relied on `@gjsify/node-globals` to
+implicitly register `fetch`, `Headers`, `Request`, `Response`,
+`AbortController` or `AbortSignal` must now either import
+`@gjsify/web-globals` or import the specific bare specifier
+(`import 'fetch'`, `import 'abort-controller'`).
+
+Stage 1 of the refactor plan at
+.claude/plans/indexed-popping-sloth.md — next stages will introduce
+`/register` subpaths and auto-injection in the esbuild plugin.
+
+### Features
+
+* **build:** stage 3 — auto-inject /register modules via esbuild plugin ([9f4018b](https://github.com/gjsify/gjsify/commit/9f4018bd52f0349d1fa083d9d5d192adc05b1cc4))
+* **create-app:** livelier template showing Node.js + Web Crypto + Buffer ([94517d9](https://github.com/gjsify/gjsify/commit/94517d9b4bd4d7fdb77be4f02fd30be6864bd17c))
+* **create-app:** template als echtes Workspace-Package ([89fecbf](https://github.com/gjsify/gjsify/commit/89fecbfe36cf853b9679cda876e0234315ef2431))
+* **globals:** add node/web/dom group aliases for --globals flag ([4443779](https://github.com/gjsify/gjsify/commit/44437794ed7945d94c73c8f4041dffab53302d25))
+* separate showcases from examples ([#5](https://github.com/gjsify/gjsify/issues/5)) ([086bbd0](https://github.com/gjsify/gjsify/commit/086bbd0c9f89b841b21acf13b69b0132d949eb2c)), closes [#222226](https://github.com/gjsify/gjsify/issues/222226) [#ffffff](https://github.com/gjsify/gjsify/issues/ffffff) [#3584e4](https://github.com/gjsify/gjsify/issues/3584e4) [#78aeed](https://github.com/gjsify/gjsify/issues/78aeed) [#9141ac](https://github.com/gjsify/gjsify/issues/9141ac) [#613583](https://github.com/gjsify/gjsify/issues/613583) [#c061cb](https://github.com/gjsify/gjsify/issues/c061cb) [#dc8add](https://github.com/gjsify/gjsify/issues/dc8add) [#9141ac](https://github.com/gjsify/gjsify/issues/9141ac) [#3584e4](https://github.com/gjsify/gjsify/issues/3584e4)
+
+### Bug Fixes
+
+* **ci:** add blueprint-compiler to release workflow prerequisites ([0184b65](https://github.com/gjsify/gjsify/commit/0184b65867bfa3428377494e81e12436a752c596))
+* **ci:** add libadwaita-devel to release workflow for blueprint compilation ([dc44b34](https://github.com/gjsify/gjsify/commit/dc44b34a86d334169299333741365d850705cc78))
+* **ci:** build adwaita-web SCSS before website build ([460b932](https://github.com/gjsify/gjsify/commit/460b932afc7c0ca0b46a9b3a42a1784bd8a5ffc9))
+* **create-app:** add check script to template, fix set_child typo ([4290b92](https://github.com/gjsify/gjsify/commit/4290b92b137bb3f709813c1fb627ea6d2698b9ea))
+* **package:** update astro dependency to version 6.1.5 ([77ad702](https://github.com/gjsify/gjsify/commit/77ad70279e414edd9e0e05efa9b2959342d090d6))
+
+### Code Refactoring
+
+* **globals:** stage 1 — drop fetch/abort-controller from node-globals ([#6](https://github.com/gjsify/gjsify/issues/6)) ([94464bd](https://github.com/gjsify/gjsify/commit/94464bdc0a9a215f165ea1cba9445aabd81c4b89))
+* **globals:** stage 2 — introduce /register subpath exports ([66957b9](https://github.com/gjsify/gjsify/commit/66957b9bf2bff7e3088f76be45627a578f96abbf))
+
 ## Unreleased
 
 ### ⚠ BREAKING CHANGES
