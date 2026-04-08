@@ -48,4 +48,15 @@ export interface CliBuildOptions {
    * Use --no-console-shim to disable. Only applies to GJS app builds. Default: true.
    */
   consoleShim?: boolean;
+  /**
+   * Auto-inject `/register` modules for globals referenced in user code
+   * (fetch, Buffer, process, ReadableStream, …). Only applies to GJS app
+   * builds. Default: true.
+   */
+  autoGlobals?: boolean;
+  /**
+   * Explicit globals list, takes precedence over `autoGlobals` scan results.
+   * Absolute form `"fetch,crypto"`, or modifier form `"+crypto,-fetch"`.
+   */
+  globals?: string;
 }

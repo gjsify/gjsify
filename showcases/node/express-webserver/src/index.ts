@@ -2,8 +2,12 @@
 // A small blog application with a JSON REST API and a static HTML/CSS frontend,
 // running on Express.js — the exact same code you would write for Node.js,
 // executed natively on Linux via GJS.
+//
+// Note: no explicit `import '@gjsify/node-globals/register'` is needed. The
+// gjsify esbuild plugin's `--auto-globals` feature scans this entry point for
+// references to `process`, `Buffer`, etc. and auto-injects the matching
+// `/register` subpaths at build time.
 
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
