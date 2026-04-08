@@ -19,6 +19,10 @@ export class TeapotWindow extends Adw.ApplicationWindow {
     declare private _shadingRow: Adw.ComboRow;
     declare private _splitView: Adw.OverlaySplitView;
     declare private _sidebarToggleButton: Gtk.ToggleButton;
+    declare private _pauseButton: Gtk.Button;
+
+    /** Live demo reference; set once the CanvasWebGLWidget is ready. */
+    private _demo: TeapotDemo | null = null;
 
     static {
         GObject.registerClass({
@@ -27,7 +31,7 @@ export class TeapotWindow extends Adw.ApplicationWindow {
             InternalChildren: [
                 'glAreaContainer', 'tessRow', 'lidRow', 'bodyRow',
                 'bottomRow', 'fitLidRow', 'nonblinnRow', 'shadingRow',
-                'splitView', 'sidebarToggleButton',
+                'splitView', 'sidebarToggleButton', 'pauseButton',
             ],
         }, this);
     }
@@ -64,8 +68,22 @@ export class TeapotWindow extends Adw.ApplicationWindow {
             const ctx = glArea.get_context()!;
             print(`Context version: OpenGL${ctx.get_use_es() ? ' ES' : ''} ${ctx.get_version().join('.')}`);
 
-            const demo = start(canvas);
-            this.connectControls(demo);
+            this._demo = start(canvas);
+            this.connectControls(this._demo);
+        });
+
+        // Pause/Resume button — toggles demo state and swaps the icon.
+        this._pauseButton.connect('clicked', () => {
+            if (!this._demo) return;
+            if (this._demo.isPaused) {
+                this._demo.resume();
+                this._pauseButton.set_icon_name('media-playback-pause-symbolic');
+                this._pauseButton.set_tooltip_text('Pause Rendering');
+            } else {
+                this._demo.pause();
+                this._pauseButton.set_icon_name('media-playback-start-symbolic');
+                this._pauseButton.set_tooltip_text('Resume Rendering');
+            }
         });
     }
 

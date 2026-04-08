@@ -27,6 +27,12 @@ export interface TeapotDemo {
     readonly effectController: TeapotEffectController;
     /** Call after changing effectController properties to schedule a re-render. */
     render(): void;
+    /** Suppress future render() calls until `resume()` is called. */
+    pause(): void;
+    /** Flush any pending render queued during pause. */
+    resume(): void;
+    /** Current paused state. */
+    readonly isPaused: boolean;
 }
 
 export interface StartOptions {
@@ -171,7 +177,14 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
     // In GTK, the GL context is only current inside the frame pipeline (rAF),
     // so direct calls from signal handlers would fail.
     let renderPending = false;
+    let paused = false;
+    // Set when render() is called while paused, so resume() can flush it.
+    let deferredRender = false;
     function render() {
+        if (paused) {
+            deferredRender = true;
+            return;
+        }
         if (renderPending) return;
         renderPending = true;
         requestAnimationFrame(() => {
@@ -186,5 +199,18 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
     return {
         effectController,
         render,
+        get isPaused() { return paused; },
+        pause() {
+            if (paused) return;
+            paused = true;
+        },
+        resume() {
+            if (!paused) return;
+            paused = false;
+            if (deferredRender) {
+                deferredRender = false;
+                render();
+            }
+        },
     };
 }

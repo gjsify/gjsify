@@ -19,6 +19,12 @@ export interface PixelEffectController {
 export interface PixelDemo {
     readonly effectController: PixelEffectController;
     render(): void;
+    /** Halt the animation loop. Cheap to call — demo stays alive. */
+    pause(): void;
+    /** Restart the animation loop after a previous `pause()`. */
+    resume(): void;
+    /** Current running state. */
+    readonly isPaused: boolean;
 }
 
 export interface StartOptions {
@@ -265,11 +271,13 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     // Three.js setAnimationLoop uses self.requestAnimationFrame internally which works,
     // but we use the same on-demand pattern as the teapot demo for consistency.
     let animPending = false;
+    let paused = false;
     function scheduleFrame() {
-        if (animPending) return;
+        if (animPending || paused) return;
         animPending = true;
         requestAnimationFrame((_time) => {
             animPending = false;
+            if (paused) return;
             animate();
             scheduleFrame(); // continuous animation
         });
@@ -281,5 +289,18 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
         // Animation loop handles continuous rendering, nothing extra needed
     }
 
-    return { effectController, render };
+    return {
+        effectController,
+        render,
+        get isPaused() { return paused; },
+        pause() {
+            if (paused) return;
+            paused = true;
+        },
+        resume() {
+            if (!paused) return;
+            paused = false;
+            scheduleFrame();
+        },
+    };
 }

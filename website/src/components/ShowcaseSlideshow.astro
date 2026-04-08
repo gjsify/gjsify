@@ -256,8 +256,18 @@ app.listen(3000, () => {
 </div>
 
 <script>
-  // Lazy-mount showcases on first view
+  // Lazy-mount showcases on first view.
+  // Structural subset of the `ShowcaseHandle` type returned by each mount();
+  // methods are optional so slides that don't provide them (Terminal variants
+  // like express-webserver, or any future non-rendering showcase) don't error.
+  interface ShowcaseHandle {
+    pause?: () => void;
+    resume?: () => void;
+    readonly isPaused?: boolean;
+  }
+
   const mounted = new Set<string>();
+  const handles = new Map<string, ShowcaseHandle>();
   const base = import.meta.env.BASE_URL;
 
   async function mountSlide(id: string) {
@@ -272,17 +282,20 @@ app.listen(3000, () => {
     switch (id) {
       case 'pixel': {
         const { mount } = await import('@gjsify/example-dom-three-postprocessing-pixel/browser');
-        mount(container, { assetBase: `${base}demos/pixel/` });
+        const handle = mount(container, { assetBase: `${base}demos/pixel/` });
+        if (handle) handles.set(id, handle);
         break;
       }
       case 'teapot': {
         const { mount } = await import('@gjsify/example-dom-three-geometry-teapot/browser');
-        mount(container, { assetBase: `${base}demos/teapot/` });
+        const handle = mount(container, { assetBase: `${base}demos/teapot/` });
+        if (handle) handles.set(id, handle);
         break;
       }
       case 'fireworks': {
         const { mount } = await import('@gjsify/example-dom-canvas2d-fireworks/browser');
-        mount(container);
+        const handle = mount(container);
+        if (handle) handles.set(id, handle);
         break;
       }
     }
@@ -306,6 +319,13 @@ app.listen(3000, () => {
       const id = target?.dataset.slideId;
       if (id) mountSlide(id);
 
+      // Pause the outgoing slide's rendering immediately so GPU work stops
+      // before the transition finishes. Double optional-chain tolerates both
+      // missing handle (terminal variants like express-webserver) and handles
+      // that don't expose a pause() method.
+      const oldId = current?.dataset.slideId;
+      if (oldId) handles.get(oldId)?.pause?.();
+
       // Direction → which side the new slide enters from
       const enterClass = direction === 'next' ? 'enter-right' : 'enter-left';
       const exitClass = direction === 'next' ? 'exit-left' : 'exit-right';
@@ -326,6 +346,9 @@ app.listen(3000, () => {
         target.removeEventListener('transitionend', onEnd);
         activeIndex = targetIndex;
         animating = false;
+        // Resume the incoming slide's rendering once the transition has
+        // actually ended, so we don't burn frames during the fade.
+        if (id) handles.get(id)?.resume?.();
       };
       target.addEventListener('transitionend', onEnd, { once: true });
 

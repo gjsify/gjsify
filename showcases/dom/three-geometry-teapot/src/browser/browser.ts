@@ -4,6 +4,7 @@
 import '@gjsify/adwaita-web';
 import '@gjsify/adwaita-web/style.css';
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
+import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
 import { start, TESS_VALUES, SHADING_VALUES, DEFAULT_TESS_INDEX, DEFAULT_SHADING_INDEX, type TeapotDemo } from '../three-demo.js';
 
 export interface MountOptions {
@@ -11,11 +12,29 @@ export interface MountOptions {
     assetBase?: string;
 }
 
+/** Handle returned by `mount()` so hosts (e.g. the website slideshow) can pause and resume rendering. */
+export interface ShowcaseHandle {
+    pause(): void;
+    resume(): void;
+    readonly isPaused: boolean;
+}
+
+/** Parse a trusted literal SVG string into an SVGElement. */
+function parseSvg(svgSource: string): SVGElement {
+    const doc = new DOMParser().parseFromString(svgSource, 'image/svg+xml');
+    return doc.documentElement as unknown as SVGElement;
+}
+
+/** Replace a button's icon with a freshly-parsed copy of the given SVG source. */
+function setButtonIcon(btn: HTMLButtonElement, svgSource: string): void {
+    btn.replaceChildren(parseSvg(svgSource));
+}
+
 /**
  * Create the Adwaita teapot UI and mount it into the given container.
  * The container receives an adw-window with sidebar controls and a WebGL canvas.
  */
-export function mount(container: HTMLElement, options?: MountOptions) {
+export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     // Build UI — mirrors GJS Blueprint structure
     const win = document.createElement('adw-window');
     win.setAttribute('width', '1100');
@@ -29,6 +48,12 @@ export function mount(container: HTMLElement, options?: MountOptions) {
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'adw-header-btn adw-sidebar-toggle-icon active';
     toggleBtn.title = 'Toggle Sidebar';
+
+    // Pause/Resume rendering button — placed in header bar end section.
+    const pauseBtn = document.createElement('button');
+    pauseBtn.className = 'adw-header-btn';
+    pauseBtn.title = 'Pause Rendering';
+    setButtonIcon(pauseBtn, mediaPlaybackPauseSymbolic);
 
     // OverlaySplitView — sidebar + content
     const splitView = document.createElement('adw-overlay-split-view') as AdwOverlaySplitView;
@@ -109,6 +134,14 @@ export function mount(container: HTMLElement, options?: MountOptions) {
         headerBar.prepend(toggleBtn);
     }
 
+    const endSection = headerBar.endSection
+        ?? headerBar.querySelector('.adw-header-bar-end');
+    if (endSection) {
+        endSection.appendChild(pauseBtn);
+    } else {
+        headerBar.append(pauseBtn);
+    }
+
     // Sidebar toggle wiring
     toggleBtn.addEventListener('click', () => {
         splitView.toggleSidebar();
@@ -137,6 +170,8 @@ export function mount(container: HTMLElement, options?: MountOptions) {
     canvas.height = glContainer.clientHeight;
 
     let demo: TeapotDemo | null = null;
+    // Buffers pause() calls that arrive before the demo exists.
+    let pendingPause = false;
     new ResizeObserver(() => {
         const w = glContainer.clientWidth;
         const h = glContainer.clientHeight;
@@ -146,11 +181,53 @@ export function mount(container: HTMLElement, options?: MountOptions) {
             if (!demo) {
                 demo = start(canvas, { assetBase: options?.assetBase });
                 connectControls(demo, tessRow, shadingRow, lidRow, bodyRow, bottomRow, fitLidRow, nonblinnRow);
+                if (pendingPause) {
+                    demo.pause();
+                    pendingPause = false;
+                }
             } else {
                 demo.render();
             }
         }
     }).observe(glContainer);
+
+    // Pause button wiring — toggles demo state and swaps the icon.
+    function updatePauseButton(paused: boolean): void {
+        setButtonIcon(pauseBtn, paused ? mediaPlaybackStartSymbolic : mediaPlaybackPauseSymbolic);
+        pauseBtn.title = paused ? 'Resume Rendering' : 'Pause Rendering';
+    }
+    pauseBtn.addEventListener('click', () => {
+        if (demo) {
+            if (demo.isPaused) demo.resume();
+            else demo.pause();
+            updatePauseButton(demo.isPaused);
+        } else {
+            pendingPause = !pendingPause;
+            updatePauseButton(pendingPause);
+        }
+    });
+
+    return {
+        get isPaused() { return demo ? demo.isPaused : pendingPause; },
+        pause() {
+            if (demo) {
+                demo.pause();
+                updatePauseButton(true);
+            } else {
+                pendingPause = true;
+                updatePauseButton(true);
+            }
+        },
+        resume() {
+            if (demo) {
+                demo.resume();
+                updatePauseButton(false);
+            } else {
+                pendingPause = false;
+                updatePauseButton(false);
+            }
+        },
+    };
 }
 
 function connectControls(

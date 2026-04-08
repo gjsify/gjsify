@@ -19,6 +19,10 @@ export class PixelWindow extends Adw.ApplicationWindow {
     declare private _pixelAlignRow: Adw.SwitchRow;
     declare private _splitView: Adw.OverlaySplitView;
     declare private _sidebarToggleButton: Gtk.ToggleButton;
+    declare private _pauseButton: Gtk.Button;
+
+    /** Live demo reference; set once the CanvasWebGLWidget is ready. */
+    private _demo: PixelDemo | null = null;
 
     static {
         GObject.registerClass({
@@ -27,7 +31,7 @@ export class PixelWindow extends Adw.ApplicationWindow {
             InternalChildren: [
                 'glAreaContainer', 'pixelSizeRow', 'normalEdgeRow',
                 'depthEdgeRow', 'pixelAlignRow', 'splitView',
-                'sidebarToggleButton',
+                'sidebarToggleButton', 'pauseButton',
             ],
         }, this);
     }
@@ -83,8 +87,22 @@ export class PixelWindow extends Adw.ApplicationWindow {
             const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
             const assetBase = `file://${bundleDir}/`;
 
-            const demo = start(canvas, { assetBase });
-            this.connectControls(demo);
+            this._demo = start(canvas, { assetBase });
+            this.connectControls(this._demo);
+        });
+
+        // Pause/Resume button — toggles demo state and swaps the icon.
+        this._pauseButton.connect('clicked', () => {
+            if (!this._demo) return;
+            if (this._demo.isPaused) {
+                this._demo.resume();
+                this._pauseButton.set_icon_name('media-playback-pause-symbolic');
+                this._pauseButton.set_tooltip_text('Pause Rendering');
+            } else {
+                this._demo.pause();
+                this._pauseButton.set_icon_name('media-playback-start-symbolic');
+                this._pauseButton.set_tooltip_text('Resume Rendering');
+            }
         });
     }
 

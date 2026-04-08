@@ -34,8 +34,12 @@ export const DEFAULT_CONTROLLER: FireworksEffectController = {
 
 export interface FireworksDemo {
     readonly effectController: FireworksEffectController;
-    /** Stop the animation loop. */
-    stop(): void;
+    /** Halt the animation loop. Cheap to call — the demo stays alive and can be resumed. */
+    pause(): void;
+    /** Restart the animation loop after a previous `pause()`. No-op if already running. */
+    resume(): void;
+    /** Current running state. */
+    readonly isPaused: boolean;
 }
 
 // --- Particle types ---------------------------------------------------------
@@ -154,6 +158,7 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
     const effectController: FireworksEffectController = { ...DEFAULT_CONTROLLER };
     let lastAutoTime = 0;
     let running = true;
+    let paused = false;
 
     canvas.addEventListener('mousedown', (e: any) => {
         const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
@@ -209,6 +214,20 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
 
     return {
         effectController,
-        stop() { running = false; },
+        get isPaused() { return paused; },
+        pause() {
+            if (paused) return;
+            paused = true;
+            running = false;
+        },
+        resume() {
+            if (!paused) return;
+            paused = false;
+            running = true;
+            // Reset auto-burst timer so the next auto burst doesn't fire
+            // immediately based on the stale timestamp from before the pause.
+            lastAutoTime = 0;
+            requestAnimationFrame(step);
+        },
     };
 }

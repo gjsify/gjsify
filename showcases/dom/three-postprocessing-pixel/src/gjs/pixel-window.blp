@@ -34,6 +34,12 @@ template $PixelWindow: Adw.ApplicationWindow {
         tooltip-text: "Toggle Sidebar";
         active: bind splitView.show-sidebar;
       }
+
+      [end]
+      Gtk.Button pauseButton {
+        icon-name: "media-playback-pause-symbolic";
+        tooltip-text: "Pause Rendering";
+      }
     }
 
     Adw.OverlaySplitView splitView {

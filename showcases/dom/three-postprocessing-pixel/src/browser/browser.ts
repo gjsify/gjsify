@@ -6,13 +6,32 @@
 import '@gjsify/adwaita-web';
 import '@gjsify/adwaita-web/style.css';
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
+import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
 import { start, type PixelDemo } from '../three-demo.js';
 
 export interface MountOptions {
     assetBase?: string;
 }
 
-export function mount(container: HTMLElement, options?: MountOptions) {
+/** Handle returned by `mount()` so hosts (e.g. the website slideshow) can pause and resume rendering. */
+export interface ShowcaseHandle {
+    pause(): void;
+    resume(): void;
+    readonly isPaused: boolean;
+}
+
+/** Parse a trusted literal SVG string into an SVGElement. */
+function parseSvg(svgSource: string): SVGElement {
+    const doc = new DOMParser().parseFromString(svgSource, 'image/svg+xml');
+    return doc.documentElement as unknown as SVGElement;
+}
+
+/** Replace a button's icon with a freshly-parsed copy of the given SVG source. */
+function setButtonIcon(btn: HTMLButtonElement, svgSource: string): void {
+    btn.replaceChildren(parseSvg(svgSource));
+}
+
+export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const { assetBase } = options ?? {};
 
     // Build UI — mirrors GJS Blueprint structure
@@ -28,6 +47,12 @@ export function mount(container: HTMLElement, options?: MountOptions) {
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'adw-header-btn adw-sidebar-toggle-icon active';
     toggleBtn.title = 'Toggle Sidebar';
+
+    // Pause/Resume rendering button — placed in header bar end section.
+    const pauseBtn = document.createElement('button');
+    pauseBtn.className = 'adw-header-btn';
+    pauseBtn.title = 'Pause Rendering';
+    setButtonIcon(pauseBtn, mediaPlaybackPauseSymbolic);
 
     // OverlaySplitView — sidebar + content
     const splitView = document.createElement('adw-overlay-split-view') as AdwOverlaySplitView;
@@ -100,6 +125,14 @@ export function mount(container: HTMLElement, options?: MountOptions) {
         headerBar.prepend(toggleBtn);
     }
 
+    const endSection = headerBar.endSection
+        ?? headerBar.querySelector('.adw-header-bar-end');
+    if (endSection) {
+        endSection.appendChild(pauseBtn);
+    } else {
+        headerBar.append(pauseBtn);
+    }
+
     // Sync canvas buffer to parent container dimensions
     function syncCanvasSize() {
         const w = glContainer.clientWidth;
@@ -133,14 +166,22 @@ export function mount(container: HTMLElement, options?: MountOptions) {
         toggleBtn.classList.toggle('active', !shouldCollapse);
     }).observe(win);
 
-    // Observe parent container for size changes (window resize, layout changes)
-    let demoStarted = false;
+    // Observe parent container for size changes (window resize, layout changes).
+    // Demo reference lives in an outer closure so the pause button and returned
+    // ShowcaseHandle can delegate to it once it's alive.
+    let demo: PixelDemo | null = null;
+    // Buffers pause() calls that arrive before the demo exists.
+    let pendingPause = false;
+
     const sizeObserver = new ResizeObserver(() => {
         syncCanvasSize();
-        if (!demoStarted && canvas.width > 0 && canvas.height > 0) {
-            demoStarted = true;
-            const demo = start(canvas, { assetBase });
+        if (!demo && canvas.width > 0 && canvas.height > 0) {
+            demo = start(canvas, { assetBase });
             connectControls(demo, pixelSizeRow, normalEdgeRow, depthEdgeRow, pixelAlignRow);
+            if (pendingPause) {
+                demo.pause();
+                pendingPause = false;
+            }
         }
     });
     sizeObserver.observe(glContainer);
@@ -149,6 +190,44 @@ export function mount(container: HTMLElement, options?: MountOptions) {
     // changes that glContainer's observer might miss during CSS transitions.
     const contentArea = splitView.querySelector('.adw-osv-content');
     if (contentArea) sizeObserver.observe(contentArea);
+
+    // Pause button wiring — toggles demo state and swaps the icon.
+    function updatePauseButton(paused: boolean): void {
+        setButtonIcon(pauseBtn, paused ? mediaPlaybackStartSymbolic : mediaPlaybackPauseSymbolic);
+        pauseBtn.title = paused ? 'Resume Rendering' : 'Pause Rendering';
+    }
+    pauseBtn.addEventListener('click', () => {
+        if (demo) {
+            if (demo.isPaused) demo.resume();
+            else demo.pause();
+            updatePauseButton(demo.isPaused);
+        } else {
+            pendingPause = !pendingPause;
+            updatePauseButton(pendingPause);
+        }
+    });
+
+    return {
+        get isPaused() { return demo ? demo.isPaused : pendingPause; },
+        pause() {
+            if (demo) {
+                demo.pause();
+                updatePauseButton(true);
+            } else {
+                pendingPause = true;
+                updatePauseButton(true);
+            }
+        },
+        resume() {
+            if (demo) {
+                demo.resume();
+                updatePauseButton(false);
+            } else {
+                pendingPause = false;
+                updatePauseButton(false);
+            }
+        },
+    };
 }
 
 function connectControls(
