@@ -3013,7 +3013,7 @@ __metadata:
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
     "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^"
     "@types/three": "npm:^0.183.1"
-    astro: "npm:^6.1.4"
+    astro: "npm:^6.1.5"
     three: "npm:0.183.2"
   languageName: unknown
   linkType: soft
@@ -5045,9 +5045,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"astro@npm:^6.1.4":
-  version: 6.1.4
-  resolution: "astro@npm:6.1.4"
+"astro@npm:^6.1.5":
+  version: 6.1.5
+  resolution: "astro@npm:6.1.5"
   dependencies:
     "@astrojs/compiler": "npm:^3.0.1"
     "@astrojs/internal-helpers": "npm:0.8.0"
@@ -5065,7 +5065,6 @@ __metadata:
     cookie: "npm:^1.1.1"
     devalue: "npm:^5.6.3"
     diff: "npm:^8.0.3"
-    dlv: "npm:^1.1.3"
     dset: "npm:^3.1.4"
     es-module-lexer: "npm:^2.0.0"
     esbuild: "npm:^0.27.3"
@@ -5110,7 +5109,7 @@ __metadata:
       optional: true
   bin:
     astro: bin/astro.mjs
-  checksum: 10/fab0bb02478105ec251121dbbdb01feb38b1bc23c34ca44266cb2f44c6303a3f7666c3c494296e0545eed76887c379e2f4762db0219472a4673b8d63e1270558
+  checksum: 10/24fee1db400077695836ed2b786ea9d3fe3814429913906be4b51cadba60d53a33888fa3edaa1d95a6aea4ceb54208d5e2c68447dbfc1227782475950374e2c5
   languageName: node
   linkType: hard
 
@@ -9544,6 +9543,17 @@ __metadata:
   checksum: 10/3d4ae0f3b775623ceed8e558b6f9850e897aea981a9c937d3ad4e018669c829beccb2c4b5a6af996726ebf86c5b7638368dfc01f3ac2e395d1df29309bc0c5ca
   languageName: node
   linkType: hard
+
+"new-gjsify-app@workspace:packages/infra/create-gjsify/template":
+  version: 0.0.0-use.local
+  resolution: "new-gjsify-app@workspace:packages/infra/create-gjsify/template"
+  dependencies:
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.1"
+    "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.5.2"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
 
 "nlcst-to-string@npm:^4.0.0":
   version: 4.0.0

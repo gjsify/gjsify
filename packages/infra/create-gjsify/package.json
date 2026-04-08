@@ -16,7 +16,7 @@
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
-        "build": "tsc && chmod +x ./lib/index.js",
+        "build": "node scripts/process-template.mjs && tsc && chmod +x ./lib/index.js",
         "test": "echo 'nothing to do'"
     },
     "keywords": [

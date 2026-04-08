@@ -1,0 +1,19 @@
+{
+    "name": "new-gjsify-app",
+    "version": "0.1.0",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "build": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController",
+        "start": "gjsify run dist/index.js",
+        "dev": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController && gjsify run dist/index.js"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "^0.1.7",
+        "@types/node": "^25.5.2",
+        "typescript": "^6.0.2"
+    },
+    "dependencies": {
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1"
+    }
+}

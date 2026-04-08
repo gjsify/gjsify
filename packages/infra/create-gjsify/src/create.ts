@@ -20,16 +20,16 @@ export async function createProject(projectName: string): Promise<void> {
     // Copy template files
     const templatesDir = resolve(__dirname, '..', 'templates')
 
-    // Generate package.json from template
-    const packageJsonTemplate = readFileSync(join(templatesDir, 'package.json.tmpl'), 'utf-8')
-    const packageJson = packageJsonTemplate.replace(/\{\{projectName\}\}/g, projectName)
+    // Generate package.json from template (replaces sentinel name with project name)
+    const packageJsonTemplate = readFileSync(join(templatesDir, 'package.json'), 'utf-8')
+    const packageJson = packageJsonTemplate.replace(/new-gjsify-app/g, projectName)
     writeFileSync(join(targetDir, 'package.json'), packageJson)
 
     // Copy tsconfig.json
-    cpSync(join(templatesDir, 'tsconfig.json.tmpl'), join(targetDir, 'tsconfig.json'))
+    cpSync(join(templatesDir, 'tsconfig.json'), join(targetDir, 'tsconfig.json'))
 
     // Copy src/index.ts
-    cpSync(join(templatesDir, 'src', 'index.ts.tmpl'), join(targetDir, 'src', 'index.ts'))
+    cpSync(join(templatesDir, 'src', 'index.ts'), join(targetDir, 'src', 'index.ts'))
 
     console.log('')
     console.log('Project created successfully!')
