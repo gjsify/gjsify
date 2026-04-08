@@ -54,7 +54,14 @@ my-app/
 └── tsconfig.json
 ```
 
-The generated `package.json` already depends on `@gjsify/cli`, `@gjsify/node-globals` and `@gjsify/node-polyfills`, so everything you need is in place after `npm install`.
+The generated `package.json` depends on `@gjsify/cli` and `@girs/gtk-4.0`, so everything you need is in place after `npm install`. The build script comes pre-wired with a `--globals` default that covers the common Node.js and Web API surface:
+
+```jsonc
+"scripts": {
+  "build": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController",
+  "start": "gjsify run dist/index.js"
+}
+```
 
 > Alternative: you can also call the scaffolder directly via `npx @gjsify/create-app my-app`. Both commands produce the same project.
 
@@ -63,7 +70,7 @@ The generated `package.json` already depends on `@gjsify/cli`, `@gjsify/node-glo
 The scaffolded project ships with three npm scripts:
 
 ```bash
-npm run build   # gjsify build src/index.ts --outfile dist/index.js
+npm run build   # gjsify build src/index.ts --outfile dist/index.js --globals ...
 npm start       # gjsify run dist/index.js
 npm run dev     # build + run in one step
 ```
@@ -72,10 +79,13 @@ npm run dev     # build + run in one step
 
 ## Using Node.js and Web APIs
 
-The GJSify esbuild plugin automatically rewrites Node.js and Web API imports to their `@gjsify/*` equivalents when you build for GJS. You do not have to install any of the `@gjsify/*` packages by hand — they are pulled in on demand and resolved via bare specifiers.
+The GJSify esbuild plugin does two things for you when you build for GJS:
+
+1. **Automatic module aliasing** — `import { readFileSync } from 'node:fs'` or `import { createServer } from 'node:http'` get rewritten to their `@gjsify/*` equivalents. You never install or import the `@gjsify/*` packages directly.
+2. **Explicit globals via `--globals`** — the scaffolded build script declares which runtime globals your app needs (`fetch`, `Buffer`, `process`, `URL`, `crypto`, `structuredClone`, `AbortController`). The CLI wires up the matching `/register` modules at build time, so at runtime your code can just use them.
 
 ```typescript
-// src/index.ts
+// src/index.ts — look ma, no special imports!
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 
@@ -86,12 +96,12 @@ const server = createServer((req, res) => {
     res.end(html)
 })
 
-server.listen(8080, () => {
+server.listen(parseInt(process.env.PORT ?? '8080'), () => {
     console.log('Server running on http://localhost:8080')
 })
 ```
 
-`node:fs` is backed by `Gio.File`, `node:http` by `Soup.Server` — but from your code's perspective it is just Node.js. The same applies to Web APIs:
+`node:fs` is backed by `Gio.File`, `node:http` by `Soup.Server`, `process.env` by `GLib.getenv()` — from your code's perspective it is just Node.js. The same applies to Web APIs:
 
 ```typescript
 const response = await fetch('https://api.example.com/data')
@@ -101,7 +111,9 @@ const ws = new WebSocket('wss://echo.example.com')
 ws.addEventListener('message', (event) => console.log(event.data))
 ```
 
-See [How It Works](/gjsify/how-it-works/) for a short explanation of the auto-aliasing pipeline, or jump straight to the [CLI Reference](/gjsify/cli-reference/) to explore all available commands.
+> **Need a global the default doesn't cover?** Edit the `--globals` list in your `package.json` build script. For example, to add streaming support: `--globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController,ReadableStream,TransformStream`. See the [CLI Reference](/gjsify/cli-reference/#known-identifiers) for the full list of supported identifiers.
+
+See [How It Works](/gjsify/how-it-works/) for a full explanation of auto-aliasing and the globals mechanism, or jump straight to the [CLI Reference](/gjsify/cli-reference/) to explore all available commands.
 
 ## Next Steps
 

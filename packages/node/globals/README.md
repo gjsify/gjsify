@@ -1,6 +1,6 @@
 # @gjsify/node-globals
 
-GJS implementation of Node.js global objects including process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, and setImmediate.
+Node.js globals for GJS: `process`, `Buffer`, `structuredClone`, `btoa`/`atob`, `URL`, `URLSearchParams`, `setImmediate`/`clearImmediate`, `queueMicrotask`, `global`, and the `Error.captureStackTrace` / `Promise.withResolvers` V8 polyfills.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -14,12 +14,31 @@ yarn add @gjsify/node-globals
 
 ## Usage
 
-```typescript
-import '@gjsify/node-globals';
+**Typical projects don't need to import this package directly.** Instead, declare the globals you want via the `--globals` flag of `gjsify build`:
 
-// Global objects are now available:
-// process, Buffer, structuredClone, TextEncoder, TextDecoder,
-// atob, btoa, URL, setImmediate
+```jsonc
+// package.json — scaffolded by `npx @gjsify/cli create`
+"scripts": {
+  "build": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController"
+}
+```
+
+The CLI resolves each identifier to the corresponding `@gjsify/<pkg>/register` module (`process`, `Buffer`, `URL` → `@gjsify/node-globals/register`) and injects them at build time.
+
+### Manual import — alternative
+
+If you prefer source-level imports over CLI flags, import the `/register` subpath directly in your entry file:
+
+```typescript
+// Registers process, Buffer, setImmediate, URL, btoa/atob, etc. on globalThis
+import '@gjsify/node-globals/register';
+```
+
+The root export is side-effect-free and only re-exports utility helpers:
+
+```typescript
+// Pure named imports — no side effects on globalThis
+import { ensureMainLoop } from '@gjsify/node-globals';
 ```
 
 ## License
