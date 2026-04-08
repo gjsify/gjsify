@@ -7,6 +7,10 @@
 * **cli:** add `gjsify create <name>` subcommand that delegates to `@gjsify/create-app`, so users only need to remember a single npm scope (`@gjsify/cli`) to scaffold, build and run GJSify projects
 * **create-app:** expose `createProject()` as a programmatic export (`import { createProject } from '@gjsify/create-app'`) in addition to the existing CLI entry
 
+### Bug Fixes
+
+* **website:** build `@gjsify/adwaita-web` SCSS as a prerequisite of the website build so `deploy-docs` CI (which runs only `yarn workspace @gjsify/website build`) can resolve `@gjsify/adwaita-web/style.css` after the CSS-in-JS → SCSS refactor
+
 ### Documentation
 
 * **website:** refactor top-level docs to target framework users instead of monorepo contributors — new Getting Started walks through `npx @gjsify/cli create my-app` instead of `git clone`

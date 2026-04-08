@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "copy:assets": "node scripts/copy-showcase-assets.mjs",
-    "start": "yarn copy:assets && astro dev",
-    "build": "yarn copy:assets && astro build",
+    "build:deps": "yarn workspace @gjsify/adwaita-web run build:scss",
+    "start": "yarn build:deps && yarn copy:assets && astro dev",
+    "build": "yarn build:deps && yarn copy:assets && astro build",
     "serve": "astro preview",
     "typecheck": "astro check"
   },
