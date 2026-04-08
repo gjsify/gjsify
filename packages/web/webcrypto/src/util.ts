@@ -3,8 +3,9 @@
 // Reimplemented for GJS.
 
 import type { KeyUsage } from './crypto-key.js';
-// Ensure DOMException is available globally (polyfilled on GJS)
-import '@gjsify/dom-exception';
+// Named import of the DOMException polyfill — no global side-effect. Callers
+// who need globalThis.DOMException should `import '@gjsify/dom-exception/register'`.
+import { DOMException } from '@gjsify/dom-exception';
 
 /** Normalize algorithm identifier to {name: string, ...} form */
 export function normalizeAlgorithm(

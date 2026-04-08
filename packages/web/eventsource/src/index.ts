@@ -3,8 +3,13 @@
 // Copyright (c) 2018-2026 the Deno authors. MIT license.
 // Reimplemented for GJS — pure TypeScript using fetch + Web Streams.
 
-// Ensure Web Streams are available (polyfill on GJS)
-import '@gjsify/web-streams';
+// EventSource's internal TextLineStream extends TransformStream<string, string>
+// at module-load time — the class declaration itself needs the TransformStream
+// constructor to exist before it can be evaluated. We therefore register the
+// web-streams globals here; this is the single legitimate exception to the
+// "no side-effects in index.ts" rule because eventsource is non-functional
+// without a WHATWG stream implementation.
+import '@gjsify/web-streams/register';
 // Import DOM Events polyfill — provides Event, EventTarget, MessageEvent, etc. on GJS
 import {
   Event as DomEvent,
@@ -26,17 +31,6 @@ const _EventTarget: { new(): EventTarget } = typeof globalThis.EventTarget === '
 const _MessageEvent: typeof MessageEvent = typeof globalThis.MessageEvent === 'function'
   ? globalThis.MessageEvent
   : DomMessageEvent as any;
-
-// Register globals on GJS if missing
-if (typeof globalThis.Event === 'undefined') {
-  (globalThis as any).Event = _Event;
-}
-if (typeof globalThis.EventTarget === 'undefined') {
-  (globalThis as any).EventTarget = _EventTarget;
-}
-if (typeof globalThis.MessageEvent === 'undefined') {
-  (globalThis as any).MessageEvent = _MessageEvent;
-}
 
 /**
  * TextLineStream splits a string stream into individual lines.
@@ -309,10 +303,9 @@ export class EventSource extends (_EventTarget as any) {
   }
 }
 
-// Register as global on GJS
-if (typeof globalThis.EventSource === 'undefined') {
-  (globalThis as any).EventSource = EventSource;
-}
+// Note: globals are no longer registered at import time. Use the `/register`
+// subpath (`import '@gjsify/eventsource/register'`) if you need
+// globalThis.EventSource / Event / EventTarget / MessageEvent to be set on GJS.
 
 export { TextLineStream };
 

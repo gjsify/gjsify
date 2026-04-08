@@ -10,8 +10,16 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./register": {
+            "types": "./lib/types/register.d.ts",
+            "default": "./lib/esm/register.js"
+        },
         "./globals": "./globals.mjs"
     },
+    "sideEffects": [
+        "./lib/esm/register.js",
+        "./globals.mjs"
+    ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
         "check": "tsc --noEmit",

@@ -1,4 +1,4 @@
-import '@gjsify/node-globals';
+import '@gjsify/node-globals/register';
 import { EventEmitter } from 'events';
 
 console.log('=== @gjsify/events example ===\n');

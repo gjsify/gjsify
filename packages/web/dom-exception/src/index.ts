@@ -48,9 +48,8 @@ export const DOMException: typeof globalThis.DOMException =
     ? globalThis.DOMException
     : _DOMExceptionPolyfill as any;
 
-// Register as global on GJS if missing
-if (typeof globalThis.DOMException === 'undefined') {
-  (globalThis as any).DOMException = DOMException;
-}
+// Note: globals are no longer registered at import time. Use the `/register`
+// subpath (`import '@gjsify/dom-exception/register'`) if you need
+// globalThis.DOMException to be set on GJS.
 
 export default DOMException;

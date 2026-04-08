@@ -2,7 +2,7 @@
 // Demonstrates: http.createServer, http.Server.addWebSocketHandler (GJS),
 // Soup.WebsocketConnection signals, events.EventEmitter, fs.readFileSync
 
-import '@gjsify/node-globals';
+import '@gjsify/node-globals/register';
 import { runtimeName, isGJS } from '@gjsify/runtime';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
