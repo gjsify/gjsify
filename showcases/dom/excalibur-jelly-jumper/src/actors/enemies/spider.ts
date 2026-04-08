@@ -103,7 +103,8 @@ export class SpiderEnemy extends EnemyActor {
     side: ex.Side,
     contact: ex.CollisionContact
   ): void {
-    if (other instanceof Player) {
+    // Excalibur 0.32.0: `other` is a Collider. Check `other.owner` for Actor-subclass identity.
+    if (other.owner instanceof Player) {
       return
     }
 

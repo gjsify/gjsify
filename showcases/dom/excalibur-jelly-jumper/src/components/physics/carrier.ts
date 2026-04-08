@@ -30,9 +30,11 @@ export class CarrierComponent extends ex.Component {
    * When an actor lands on top add it as a child so that
    * it moves with the platform.
    */
-  onCollisionStart({ other, side }: ex.CollisionStartEvent): void {
+  onCollisionStart(event: ex.CollisionStartEvent): void {
+    // Excalibur 0.32.0: event.other is a Collider, not an Actor.
+    const other = event.other.owner as ex.Actor
     if (other.get(CarriableComponent)?.canBeCarried) {
-      if (side === ex.Side.Top && !this.owner.children.includes(other)) {
+      if (event.side === ex.Side.Top && !this.owner.children.includes(other)) {
         this.addChild(other)
       }
     }
@@ -41,7 +43,8 @@ export class CarrierComponent extends ex.Component {
   /**
    * When an actor leaves the platform remove it as a child
    */
-  onCollisionEnd({ other }: ex.CollisionEndEvent): void {
+  onCollisionEnd(event: ex.CollisionEndEvent): void {
+    const other = event.other.owner as ex.Actor
     if (this.owner.children.includes(other)) {
       this.removeChild(other)
     }

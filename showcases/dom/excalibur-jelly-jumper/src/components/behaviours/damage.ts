@@ -37,7 +37,9 @@ export class DamageComponent extends ex.Component {
 
     const dead = killable?.dead ?? false
 
-    const other = event.other
+    // Excalibur 0.32.0: event.other is a Collider, not an Actor. Access the
+    // owning entity via .owner to reach Component / Actor-level API.
+    const other = event.other.owner as ex.Actor
     const damageable = other.get(DamageableComponent)
 
     // prevent race condition with player's onPreCollisionResolve where it determines if it's stomping the enemy
