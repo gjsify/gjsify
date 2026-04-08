@@ -6,9 +6,19 @@ import { Buffer } from 'node:buffer';
 // and test-string-decoder-end.js
 // Original: MIT license, Node.js contributors
 
+// @types/node doesn't expose `StringDecoder.encoding`, even though Node.js sets
+// it at runtime. Augment the type locally so the specs can assert on it.
+declare module 'node:string_decoder' {
+	interface StringDecoder {
+		readonly encoding: string;
+	}
+}
+
+type Encoding = ConstructorParameters<typeof StringDecoder>[0];
+
 // Helper: test that decoding input with given encoding produces expected output.
 // Tests all possible write sequences (byte-at-a-time, all-at-once, and various splits).
-function testDecode(encoding: string, input: Buffer, expected: string): boolean {
+function testDecode(encoding: Encoding, input: Buffer, expected: string): boolean {
 	// Write all at once
 	let decoder = new StringDecoder(encoding);
 	let result = decoder.write(input) + decoder.end();
@@ -27,7 +37,7 @@ function testDecode(encoding: string, input: Buffer, expected: string): boolean 
 }
 
 // Helper: test end() behavior — write incomplete, end(), write next, end()
-function testEnd(encoding: string, incomplete: Buffer, next: Buffer, expected: string): boolean {
+function testEnd(encoding: Encoding, incomplete: Buffer, next: Buffer, expected: string): boolean {
 	const decoder = new StringDecoder(encoding);
 	let res = '';
 	res += decoder.write(incomplete);
@@ -404,7 +414,7 @@ export default async () => {
 					const expected = buf.toString(encoding as BufferEncoding);
 
 					// Write one byte at a time
-					const decoder = new StringDecoder(encoding);
+					const decoder = new StringDecoder(encoding as BufferEncoding);
 					let result = '';
 					for (let i = 0; i < buf.length; i++) {
 						result += decoder.write(buf.subarray(i, i + 1));
@@ -413,7 +423,7 @@ export default async () => {
 					expect(result).toBe(expected);
 
 					// Write all at once
-					const decoder2 = new StringDecoder(encoding);
+					const decoder2 = new StringDecoder(encoding as BufferEncoding);
 					const result2 = decoder2.write(buf) + decoder2.end();
 					expect(result2).toBe(expected);
 				});

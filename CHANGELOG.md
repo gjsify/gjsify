@@ -39,6 +39,63 @@
 
 # gjsify — Changelog
 
+### 2026-04-07 — TypeScript: Spec Files Now Type-Checked Monorepo-Wide
+
+**Problem:** VSCode raised `Cannot find name 'node:stream'` on every `*.spec.ts` that imported `node:*` modules. Root cause: all 60 package tsconfigs excluded `src/**/*.spec.{ts,mts}` from their `include`, so the IDE's language server fell back to an inferred project without `@types/node`. `yarn check` (`tsc --noEmit`) was also silently skipping all spec files.
+
+**Fix:**
+- Removed the `src/**/*.spec.{ts,mts}` exclusions from 58 package tsconfigs. VSCode's auto-discovered project now covers spec files and loads `@types/node` for them; `yarn check` now actually type-checks specs.
+- `packages/dom/webgl/tsconfig.json` re-excludes spec files as a special case — they don't import `node:*` (so the user complaint doesn't manifest) but have pre-existing global DOM `WebGLRenderingContext` vs class-type conflicts that would otherwise flood the check with ~100 errors.
+- Added TypeScript `paths` mappings in 9 web tsconfigs (`abort-controller`, `compression-streams`, `dom-events`, `dom-exception`, `eventsource`, `fetch`, `formdata`, `websocket`, `webstorage`) pointing each bare web alias to `./src/index.ts` so specs that use the `AGENTS.md`-mandated bare-specifier imports type-check without build-time esbuild alias resolution.
+- Ambient module declarations in `packages/web/dom-events/src/spec-aliases.d.ts` and `packages/node/events/src/spec-aliases.d.ts` cover cross-package bare imports (`abort-controller`) without requiring cross-rootDir path mappings.
+- `packages/node/stream/src/spec-internals.d.ts`: ambient module augmentation exposing `_readableState`/`_writableState` for white-box tests that probe stream internals.
+
+**Spec type errors surfaced and fixed:**
+- `as any` casts added for test-only invalid arguments (perf_hooks `EntryType` literal, webcrypto `Float32Array`, sqlite unsupported values, `crypto.KeyObject` private constructor, `KeyObject.export` format-only options, `http2.getPackedSettings()` zero-arg, `readline.cursorTo` 3-arg, `http.IncomingMessage` zero-arg).
+- Type augmentations for Node internals missing from `@types/node`: `StringDecoder.encoding`, `dgram.Socket.type`, `http.Agent.{defaultPort, keepAlive, keepAliveMsecs, scheduling}`, `http2.constants.{NGHTTP2_SETTINGS_ENABLE_CONNECT_PROTOCOL, DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE, HTTP2_HEADER_PROTOCOL}`.
+- Explicit narrowing for `server.address(): string | AddressInfo | null` (net spec).
+- String/Buffer narrowing for `'data'` event handlers in net specs.
+- JSON result typing in fetch and stream-consumers specs.
+- Loosened `tracingChannel`/`channel` types via local `as any` aliases for the many handler shapes in the diagnostics_channel spec.
+- Renamed shadowed `resolve` in dns spec (promise resolve shadowed `dns.resolve`).
+- Unused import/variable cleanup in canvas2d, dom-elements, webgl/textures specs.
+- Added `declare readonly isTrusted: boolean` on `@gjsify/dom-events` `Event` class so white-box `isTrusted` access in specs type-checks (runtime behaviour unchanged — set via `Object.defineProperty` in the constructor).
+
+**Documentation:**
+- `AGENTS.md`: added explicit rule — "Changelog entries live ONLY in CHANGELOG.md. Do NOT add dated 'Latest:' lines, changelog highlights, or per-session summaries to STATUS.md."
+- `STATUS.md`: removed the dated "Latest:" line pattern; `## Changelog` section now just points to CHANGELOG.md.
+- `packages/node/events/src/callable.spec.ts`: header comment updated — the EventEmitter callable work is no longer a TODO, these specs are its regression coverage.
+
+**Verification:** `yarn check` clean across the monorepo, `yarn build` succeeds, `yarn test` → 53,310 tests passing.
+
+### 2026-04-07 — Stream GJS Fixes: 36→0 Failures, 509 Tests Passing on Both Platforms
+
+**`@gjsify/stream` — GJS implementation fixes (all 36 GJS failures resolved):**
+
+- **`_readableState` / `_writableState` fields** — both now expose `highWaterMark`, `objectMode`, and `pipes` (array), populated in constructors; required by tests that access internal state directly
+- **`Writable_.Symbol.hasInstance`** — static `[Symbol.hasInstance]` added: checks prototype chain first (for real subclasses), then sentinel-guarded duck-type check (`writableHighWaterMark` numeric property) so `duplex instanceof Writable` and `transform instanceof Writable` work through the `makeCallable` Proxy
+- **Split `highWaterMark` options** — `Duplex_` constructor now correctly handles `highWaterMark` (overrides both sides), `readableHighWaterMark`, and `writableHighWaterMark` independently; NaN validation added for all HWM options
+- **Drain condition HWM=0** — `writableNeedDrain` drain check changed from `<` to `<=` so drain fires when `writableLength <= writableHighWaterMark` (critical for HWM=0 case where `0 < 0` is always false)
+- **`Transform_` complete redesign:**
+  - Constructor assigns `opts.transform`/`opts.flush`/`opts.final` directly as instance properties (`t._transform === opts.transform` equality holds)
+  - `ERR_METHOD_NOT_IMPLEMENTED` re-throws synchronously from `_write` (test introspects the throw); other user-provided `_transform` errors become 'error' events
+  - `ERR_MULTIPLE_CALLBACK` — `called` flag in `_write` detects second callback invocation and emits error
+  - `_doPrefinishHooks` virtual method on `Duplex_` called between `_final` and `finish`; `Transform_` overrides it to run built-in `_final` (flush+push-null) when user supplied a custom `_final`
+- **`Readable_.push()` type validation** — non-objectMode pushes of plain objects emit `ERR_INVALID_ARG_TYPE` error
+- **`_destroy` virtual method** — `Readable_._destroy(error, callback)` prototype method added; `destroy()` calls `this._destroy()` so instance-overridden `_destroy` works correctly
+- **`Stream_.pipe()` cleanup** — `source.on('end', cleanup)` removes all listeners when 'end' fires; `onclose` skips `destroy(dest)` for modern `Readable_` instances to avoid premature close
+- **`unpipe()` sync** — maintains `_readableState.pipes` alongside `_pipeDests`
+
+**`@gjsify/util` — `inherits` error codes:**
+- All three validation throws now attach `code: 'ERR_INVALID_ARG_TYPE'` matching Node.js behaviour
+
+**Test coverage:**
+- Node.js: 507 tests passing | GJS: 509 tests passing (0 failures, up from 36)
+- Stream spec files: 7 (readable, writable, duplex, transform, pipe, inheritance + base)
+
+**AGENTS.md:**
+- Added note: internal modules may import `@gjsify/stream` directly for non-standard exports; public code must use `node:stream`
+
 ### 2026-04-01 — DOM API, WebGL2, Blueprint, Adwaita Web, Three.js Teapot
 
 **DOM API enhancements (`@gjsify/dom-elements`):**

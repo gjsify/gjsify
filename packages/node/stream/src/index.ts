@@ -25,6 +25,16 @@ export function setDefaultHighWaterMark(objectMode: boolean, value: number): voi
   }
 }
 
+/** Validate a named high-water-mark option and throw ERR_INVALID_ARG_VALUE on NaN/non-number. */
+function validateHighWaterMark(name: string, value: unknown): void {
+  if (value === undefined) return;
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    const err = new TypeError(`The value of "${name}" is invalid. Received ${value}`);
+    (err as any).code = 'ERR_INVALID_ARG_VALUE';
+    throw err;
+  }
+}
+
 // ---- Types ----
 
 /** Base options accepted by the Stream constructor (superset used by subclass options). */
@@ -48,11 +58,7 @@ interface StreamLike extends EventEmitter {
 /** Tracked pipe destination for unpipe support. */
 interface PipeState {
   dest: Writable;
-  ondata: (chunk: unknown) => void;
-  ondrain: () => void;
-  onend: () => void;
   cleanup: () => void;
-  doEnd: boolean;
 }
 
 class Stream_ extends EventEmitter {
@@ -64,44 +70,74 @@ class Stream_ extends EventEmitter {
     const source = this as unknown as Readable;
     const doEnd = options?.end !== false;
 
+    // Drain listener is added lazily only when backpressure occurs.
+    let drainListenerAdded = false;
+    const ondrain = () => {
+      drainListenerAdded = false;
+      destination.removeListener('drain', ondrain);
+      if (typeof (source as StreamLike).resume === 'function') {
+        (source as StreamLike).resume!();
+      }
+    };
+
     const ondata = (chunk: unknown) => {
       if (destination.writable) {
         if (destination.write(chunk) === false && typeof (source as StreamLike).pause === 'function') {
           (source as StreamLike).pause!();
+          if (!drainListenerAdded) {
+            drainListenerAdded = true;
+            destination.on('drain', ondrain);
+          }
         }
       }
     };
 
     source.on('data', ondata);
 
-    const ondrain = () => {
-      if (typeof (source as StreamLike).resume === 'function') {
-        (source as StreamLike).resume!();
-      }
-    };
-    destination.on('drain', ondrain);
+    let didEnd = false;
 
     const onend = () => {
+      if (didEnd) return;
+      didEnd = true;
+      if (doEnd) destination.end();
+    };
+
+    const onclose = () => {
+      if (didEnd) return;
+      didEnd = true;
       if (doEnd) {
-        destination.end();
+        // Modern Readable streams (Readable_) do NOT destroy dest on source close —
+        // only call dest.end/destroy for legacy Stream objects (no Readable_ prototype).
+        if (!(source instanceof Readable) && typeof (destination as any).destroy === 'function') {
+          (destination as any).destroy();
+        }
       }
     };
+
     if (doEnd) {
       source.on('end', onend);
+      source.on('close', onclose);
     }
 
     const cleanup = () => {
       source.removeListener('data', ondata);
-      destination.removeListener('drain', ondrain);
+      if (drainListenerAdded) destination.removeListener('drain', ondrain);
       source.removeListener('end', onend);
+      source.removeListener('close', onclose);
+      // Self-remove from both end and close
+      source.removeListener('end', cleanup);
+      source.removeListener('close', cleanup);
+      destination.removeListener('close', cleanup);
     };
 
+    source.on('end', cleanup);
     source.on('close', cleanup);
     destination.on('close', cleanup);
 
     // Track piped destinations for unpipe
     if (source instanceof Readable) {
-      source._pipeDests.push({ dest: destination, ondata, ondrain, onend, cleanup, doEnd });
+      source._pipeDests.push({ dest: destination, cleanup });
+      (source as any)._readableState.pipes.push(destination);
     }
 
     destination.emit('pipe', source);
@@ -126,7 +162,7 @@ class Readable_ extends Stream_ {
   _pipeDests: PipeState[] = [];
 
   private _buffer: unknown[] = [];
-  private _readableState = { ended: false, endEmitted: false, reading: false, constructed: true };
+  _readableState = { ended: false, endEmitted: false, reading: false, constructed: true, highWaterMark: 0, objectMode: false, pipes: [] as any[] };
   private _readablePending = false;
   private _readImpl: ((size: number) => void) | undefined;
   private _destroyImpl: ((error: Error | null, cb: (error?: Error | null) => void) => void) | undefined;
@@ -137,6 +173,8 @@ class Readable_ extends Stream_ {
     this.readableHighWaterMark = opts?.highWaterMark ?? getDefaultHighWaterMark(opts?.objectMode ?? false);
     this.readableEncoding = opts?.encoding ?? null;
     this.readableObjectMode = opts?.objectMode ?? false;
+    this._readableState.highWaterMark = this.readableHighWaterMark;
+    this._readableState.objectMode = this.readableObjectMode;
     if (opts?.read) this._readImpl = opts.read;
     if (opts?.destroy) this._destroyImpl = opts.destroy;
     if (opts?.construct) this._constructImpl = opts.construct;
@@ -275,6 +313,22 @@ class Readable_ extends Stream_ {
       return false;
     }
 
+    // Validate chunk type for non-objectMode streams (Node.js ERR_INVALID_ARG_TYPE).
+    // Accept string, Buffer, or any ArrayBufferView — the latter covers Uint8Array
+    // and TypedArrays from any realm (GJS vs host bundle), avoiding cross-realm
+    // `instanceof Uint8Array` mismatches that would otherwise reject real Buffers.
+    if (!this.readableObjectMode) {
+      const isValid = typeof chunk === 'string' || ArrayBuffer.isView(chunk);
+      if (!isValid) {
+        const err = Object.assign(
+          new TypeError(`Invalid non-string/buffer chunk type: ${typeof chunk}`),
+          { code: 'ERR_INVALID_ARG_TYPE' }
+        );
+        nextTick(() => this.emit('error', err));
+        return false;
+      }
+    }
+
     this._buffer.push(chunk);
     this.readableLength += this.readableObjectMode ? 1 : (chunk.length ?? 1);
 
@@ -410,6 +464,7 @@ class Readable_ extends Stream_ {
         state.dest.emit('unpipe', this);
       }
       this._pipeDests = [];
+      this._readableState.pipes = [];
       this.readableFlowing = false;
     } else {
       const idx = this._pipeDests.findIndex(s => s.dest === destination);
@@ -417,6 +472,8 @@ class Readable_ extends Stream_ {
         const state = this._pipeDests[idx];
         state.cleanup();
         this._pipeDests.splice(idx, 1);
+        const pipeIdx = this._readableState.pipes.indexOf(destination);
+        if (pipeIdx !== -1) this._readableState.pipes.splice(pipeIdx, 1);
         destination.emit('unpipe', this);
         if (this._pipeDests.length === 0) {
           this.readableFlowing = false;
@@ -424,6 +481,14 @@ class Readable_ extends Stream_ {
       }
     }
     return this;
+  }
+
+  _destroy(error: Error | null, callback: (error?: Error | null) => void): void {
+    if (this._destroyImpl) {
+      this._destroyImpl.call(this, error, callback);
+    } else {
+      callback(error ?? undefined);
+    }
   }
 
   destroy(error?: Error): this {
@@ -439,7 +504,14 @@ class Readable_ extends Stream_ {
       nextTick(() => this.emit('close'));
     };
 
-    if (this._destroyImpl) {
+    // Dispatch virtually ONLY when the user overrode _destroy on the instance
+    // (e.g. tests: `stream._destroy = fn`). Do NOT call a subclass prototype
+    // _destroy: net.Socket's prototype `_destroy` synchronously cancels in-flight
+    // Gio I/O and would break tests that call destroy() during pending writes.
+    // The opts.destroy path still runs via _destroyImpl as before.
+    if (Object.prototype.hasOwnProperty.call(this, '_destroy')) {
+      (this as any)._destroy(error ?? null, cb);
+    } else if (this._destroyImpl) {
       this._destroyImpl.call(this, error ?? null, cb);
     } else {
       cb(error);
@@ -542,6 +614,20 @@ class Readable_ extends Stream_ {
 // ---- Writable ----
 
 class Writable_ extends Stream_ {
+  // Allow `duplex instanceof Writable` to return true even though Duplex inherits
+  // from Readable_ only. Mirrors Node.js: standard prototype-chain check first,
+  // then duck-type fallback — but only when checking against Writable itself, not
+  // against a user subclass. Because `Writable` is exported as a makeCallable Proxy,
+  // `this === Writable_` fails for `obj instanceof Writable`; however the Proxy's
+  // default `get` trap forwards `.prototype` straight to the target, so the
+  // prototype reference check below correctly recognises both.
+  static [Symbol.hasInstance](obj: any): boolean {
+    if (typeof (this as any).prototype !== 'undefined' &&
+        Object.prototype.isPrototypeOf.call((this as any).prototype, obj)) return true;
+    if ((this as any).prototype !== Writable_.prototype) return false;
+    return obj !== null && obj !== undefined && typeof obj.writableHighWaterMark === 'number';
+  }
+
   writable = true;
   writableHighWaterMark: number;
   writableLength = 0;
@@ -649,7 +735,7 @@ class Writable_ extends Stream_ {
       } else {
         nextTick(() => {
           callback();
-          if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+          if (this.writableNeedDrain && this.writableLength <= this.writableHighWaterMark) {
             this.writableNeedDrain = false;
             this.emit('drain');
           }
@@ -817,7 +903,7 @@ class Writable_ extends Stream_ {
           this.emit('error', err);
         } else {
           for (const b of buffered) b.callback();
-          if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+          if (this.writableNeedDrain && this.writableLength <= this.writableHighWaterMark) {
             this.writableNeedDrain = false;
             this.emit('drain');
           }
@@ -873,6 +959,9 @@ class Duplex_ extends Readable_ {
   allowHalfOpen: boolean;
   private _decodeStrings: boolean;
 
+  // Exposed writable-side state (mirrors Node.js _writableState for split HWM tests)
+  _writableState = { highWaterMark: 0, objectMode: false };
+
   private _duplexCorkedBuffer: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
   private _writeImpl: ((chunk: any, encoding: string, cb: (error?: Error | null) => void) => void) | undefined;
   private _finalImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
@@ -882,8 +971,34 @@ class Duplex_ extends Readable_ {
 
   constructor(opts?: DuplexOptions) {
     super(opts);
-    this.writableHighWaterMark = opts?.writableHighWaterMark ?? opts?.highWaterMark ?? getDefaultHighWaterMark(opts?.writableObjectMode ?? opts?.objectMode ?? false);
+
+    validateHighWaterMark('writableHighWaterMark', opts?.writableHighWaterMark);
+    validateHighWaterMark('readableHighWaterMark', opts?.readableHighWaterMark);
+
+    // Writable side: highWaterMark (shared) takes priority over writableHighWaterMark.
     this.writableObjectMode = opts?.writableObjectMode ?? opts?.objectMode ?? false;
+    this.writableHighWaterMark = opts?.highWaterMark
+      ?? opts?.writableHighWaterMark
+      ?? getDefaultHighWaterMark(this.writableObjectMode);
+    this._writableState.highWaterMark = this.writableHighWaterMark;
+    this._writableState.objectMode = this.writableObjectMode;
+
+    // Readable side overrides: Readable_ constructor already applied opts.highWaterMark,
+    // so only override with readableHighWaterMark when highWaterMark was NOT set.
+    if (opts?.highWaterMark === undefined && opts?.readableHighWaterMark !== undefined) {
+      this.readableHighWaterMark = opts.readableHighWaterMark;
+      this._readableState.highWaterMark = opts.readableHighWaterMark;
+    }
+    if (opts?.readableObjectMode !== undefined) {
+      this.readableObjectMode = opts.readableObjectMode;
+      this._readableState.objectMode = opts.readableObjectMode;
+      // Re-derive readable HWM for objectMode when neither readableHighWaterMark nor highWaterMark was set.
+      if (opts?.readableHighWaterMark === undefined && opts?.highWaterMark === undefined) {
+        this.readableHighWaterMark = getDefaultHighWaterMark(opts.readableObjectMode);
+        this._readableState.highWaterMark = this.readableHighWaterMark;
+      }
+    }
+
     this.allowHalfOpen = opts?.allowHalfOpen !== false;
     this._decodeStrings = opts?.decodeStrings !== false;
     if (opts?.write) this._writeImpl = opts.write;
@@ -982,7 +1097,7 @@ class Duplex_ extends Readable_ {
       } else {
         nextTick(() => {
           cb();
-          if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+          if (this.writableNeedDrain && this.writableLength <= this.writableHighWaterMark) {
             this.writableNeedDrain = false;
             this.emit('drain');
           }
@@ -1018,11 +1133,15 @@ class Duplex_ extends Readable_ {
     const doFinal = () => {
       this._final((err) => {
         this.writableFinished = true;
-        nextTick(() => {
-          if (err) this.emit('error', err);
-          this.emit('finish');
-          nextTick(() => this.emit('close'));
-          if (callback) callback();
+        // Allow subclasses (Transform) to run post-final hooks (e.g. flush)
+        // before the 'finish' event fires.
+        this._doPrefinishHooks(() => {
+          nextTick(() => {
+            if (err) this.emit('error', err);
+            this.emit('finish');
+            nextTick(() => this.emit('close'));
+            if (callback) callback();
+          });
         });
       });
     };
@@ -1035,6 +1154,11 @@ class Duplex_ extends Readable_ {
     }
 
     return this;
+  }
+
+  /** Hook for subclasses to run logic between _final and 'finish'. Default: no-op. */
+  protected _doPrefinishHooks(cb: () => void): void {
+    cb();
   }
 
   cork(): void { this.writableCorked++; }
@@ -1055,7 +1179,7 @@ class Duplex_ extends Readable_ {
             }
           });
         }
-        if (this.writableNeedDrain && this.writableLength < this.writableHighWaterMark) {
+        if (this.writableNeedDrain && this.writableLength <= this.writableHighWaterMark) {
           this.writableNeedDrain = false;
           nextTick(() => this.emit('drain'));
         }
@@ -1072,47 +1196,61 @@ class Duplex_ extends Readable_ {
 // ---- Transform ----
 
 class Transform_ extends Duplex_ {
-  private _transformImpl: ((chunk: any, encoding: string, cb: (error?: Error | null, data?: any) => void) => void) | undefined;
-  private _flushImpl: ((cb: (error?: Error | null, data?: any) => void) => void) | undefined;
-
   constructor(opts?: TransformOptions) {
-    super({
-      ...opts,
-      write: undefined, // Override write to use transform
-    });
-    if (opts?.transform) this._transformImpl = opts.transform;
-    if (opts?.flush) this._flushImpl = opts.flush;
+    // Don't forward transform/flush/final/write — Transform's own method assignments
+    // handle those. Passing write/final through would register them in Duplex_'s
+    // _writeImpl/_finalImpl and bypass Transform's override.
+    super({ ...opts, write: undefined, final: undefined });
+    // Direct assignment mirrors Node.js: opts.transform/flush/final overwrite the
+    // prototype methods on the instance so `t._transform === opts.transform` holds.
+    if (opts?.transform) (this as any)._transform = opts.transform;
+    if (opts?.flush) (this as any)._flush = opts.flush;
+    if (opts?.final) (this as any)._final = opts.final;
   }
 
-  _transform(chunk: any, encoding: string, callback: (error?: Error | null, data?: any) => void): void {
-    if (this._transformImpl) {
-      this._transformImpl.call(this, chunk, encoding, callback);
-    } else {
-      callback(null, chunk);
-    }
+  _transform(_chunk: any, _encoding: string, _callback: (error?: Error | null, data?: any) => void): void {
+    // Throw when no implementation was provided (no opts.transform and no subclass override).
+    const err = Object.assign(
+      new Error('The _transform() method is not implemented'),
+      { code: 'ERR_METHOD_NOT_IMPLEMENTED' }
+    );
+    throw err;
   }
 
   _flush(callback: (error?: Error | null, data?: any) => void): void {
-    if (this._flushImpl) {
-      this._flushImpl.call(this, callback);
-    } else {
-      callback();
-    }
+    callback();
   }
 
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
-    this._transform(chunk, encoding, (err, data) => {
-      if (err) {
-        callback(err);
-        return;
-      }
-      if (data !== undefined && data !== null) {
-        this.push(data);
-      }
-      callback();
-    });
+    let called = false;
+    try {
+      this._transform(chunk, encoding, (err, data) => {
+        if (called) {
+          const e = Object.assign(new Error('Callback called multiple times'), { code: 'ERR_MULTIPLE_CALLBACK' });
+          nextTick(() => this.emit('error', e));
+          return;
+        }
+        called = true;
+        if (err) {
+          callback(err);
+          return;
+        }
+        if (data !== undefined && data !== null) {
+          this.push(data);
+        }
+        callback();
+      });
+    } catch (err: any) {
+      // ERR_METHOD_NOT_IMPLEMENTED must propagate synchronously (test-stream-transform-constructor-set-methods).
+      // User-provided _transform errors are converted to 'error' events.
+      if (err?.code === 'ERR_METHOD_NOT_IMPLEMENTED') throw err;
+      callback(err as Error);
+    }
   }
 
+  // Transform's built-in _final: calls _flush then pushes null.
+  // This is the default; when the user provides opts.final it is overridden on
+  // the instance and _doPrefinishHooks ensures _flush is still called after it.
   _final(callback: (error?: Error | null) => void): void {
     this._flush((err, data) => {
       if (err) {
@@ -1126,6 +1264,19 @@ class Transform_ extends Duplex_ {
       this.push(null);
       callback();
     });
+  }
+
+  // When a user-provided _final overrides the prototype method, we still need
+  // to call the built-in flush+push-null logic (mirroring Node.js's prefinish).
+  protected override _doPrefinishHooks(cb: () => void): void {
+    const protoFinal = Transform_.prototype._final;
+    if ((this as any)._final !== protoFinal) {
+      // User replaced _final; call the built-in flush+push-null now.
+      protoFinal.call(this, cb);
+    } else {
+      // _final already ran flush+push-null; nothing extra needed.
+      cb();
+    }
   }
 }
 

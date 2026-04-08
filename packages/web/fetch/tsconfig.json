@@ -11,9 +11,12 @@
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,
-    "strict": false
+    "strict": false,
+    "paths": {
+      "fetch": ["./src/index.ts"]
+    }
   },
   "reflection": false,
   "include": ["src/**/*.ts"],
-  "exclude": ["src/test.mts", "src/**/*.spec.ts"]
+  "exclude": ["src/test.mts"]
 }

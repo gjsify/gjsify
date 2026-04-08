@@ -4,7 +4,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import {
-	Node, Element, HTMLElement, NodeType, NamespaceURI, Attr, NamedNodeMap,
+	Node, Element, HTMLElement, NodeType, Attr,
 	CharacterData, Text, Comment, DocumentFragment, DOMTokenList,
 } from '@gjsify/dom-elements';
 import { Event } from '@gjsify/dom-events';
@@ -325,7 +325,7 @@ export default async () => {
 		await it('should getElementsByTagName', async () => {
 			const root = new Element();
 			const div = new Element();
-			div[Symbol.for ? Symbol.for('tagName') : 'tagName'] = 'DIV';
+			(div as any)[Symbol.for ? Symbol.for('tagName') : 'tagName'] = 'DIV';
 			// Use internal symbol access via setting attribute approach
 			// Instead, test with the proper API
 			root.appendChild(div);
@@ -336,14 +336,13 @@ export default async () => {
 
 		await it('should dispatch events and call on* handlers', async () => {
 			const el = new Element();
-			let handlerCalled = false;
 			let listenerCalled = false;
 
 			el.addEventListener('click', () => {
 				listenerCalled = true;
 			});
 
-			el[Symbol.for ? Symbol.for('propertyEventListeners') : 'propertyEventListeners'] = new Map();
+			(el as any)[Symbol.for ? Symbol.for('propertyEventListeners') : 'propertyEventListeners'] = new Map();
 			// Use the propertyEventListeners through proper API in HTMLElement
 			// For Element, test addEventListener only
 			el.dispatchEvent(new Event('click'));

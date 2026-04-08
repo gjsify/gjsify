@@ -253,11 +253,11 @@ export default async () => {
 
     await describe('resolve', async () => {
       await it('should resolve with default rrtype (A record)', async () => {
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((done, reject) => {
           resolve('localhost', (err, records) => {
             if (err) return reject(err);
             expect(Array.isArray(records)).toBe(true);
-            resolve();
+            done();
           });
         });
       });

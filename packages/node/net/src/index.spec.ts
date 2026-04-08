@@ -309,7 +309,7 @@ export default async () => {
         await new Promise<void>((resolve, reject) => {
           server.listen(0, () => {
             const addr = server.address();
-            if (!addr || !('port' in addr)) {
+            if (!addr || typeof addr === 'string' || !('port' in addr)) {
               reject(new Error('Server has no address'));
               return;
             }
@@ -829,7 +829,11 @@ export default async () => {
         const server = createServer();
         await new Promise<void>((resolve, reject) => {
           server.listen(0, '127.0.0.1', () => {
-            const addr = server.address()!;
+            const addr = server.address();
+            if (!addr || typeof addr === 'string') {
+              reject(new Error('Server has no AddressInfo'));
+              return;
+            }
             expect(addr.family).toBe('IPv4');
             expect(addr.address).toBe('127.0.0.1');
             expect(typeof addr.port).toBe('number');

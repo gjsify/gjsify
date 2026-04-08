@@ -1735,6 +1735,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.5.2"
     typescript: "npm:^6.0.2"
   languageName: unknown

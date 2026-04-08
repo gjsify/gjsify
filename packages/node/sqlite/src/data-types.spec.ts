@@ -82,7 +82,8 @@ export default async () => {
 
             for (const val of unsupported) {
                 expect(() => {
-                    db.prepare('INSERT INTO types (key, val) VALUES (?, ?)').run(1, val);
+                    // Intentionally pass non-SQLInputValue values to verify runtime rejection.
+                    db.prepare('INSERT INTO types (key, val) VALUES (?, ?)').run(1, val as any);
                 }).toThrow();
             }
 

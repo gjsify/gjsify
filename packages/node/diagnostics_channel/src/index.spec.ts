@@ -4,12 +4,19 @@
 import { describe, it, expect } from '@gjsify/unit';
 import {
   Channel,
-  channel,
+  channel as _channel,
   hasSubscribers,
   subscribe,
   unsubscribe,
-  tracingChannel,
+  tracingChannel as _tracingChannel,
 } from 'node:diagnostics_channel';
+
+// @types/node over-constrains tracingChannel's ContextType to `object` and
+// expects every handler in TracingChannelSubscribers. Our spec passes partial
+// handler objects and generic `{}` contexts to exercise runtime behaviour,
+// so we loosen the types locally rather than weaken the tests.
+const channel = _channel as any;
+const tracingChannel = _tracingChannel as any;
 
 // Helper: unique channel names to avoid cross-test interference
 let counter = 0;

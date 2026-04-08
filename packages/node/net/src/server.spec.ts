@@ -38,9 +38,9 @@ export default async () => {
             client.write('hello echo');
           });
           client.setEncoding('utf8');
-          client.on('data', (data) => {
+          client.on('data', (data: string | Buffer) => {
             client.end();
-            resolve(data);
+            resolve(typeof data === 'string' ? data : data.toString('utf8'));
           });
           client.on('error', reject);
         });
@@ -238,7 +238,7 @@ export default async () => {
           const chunks: string[] = [];
           const client = createConnection({ port, host: '127.0.0.1' });
           client.setEncoding('utf8');
-          client.on('data', (data) => chunks.push(data));
+          client.on('data', (data: string | Buffer) => chunks.push(typeof data === 'string' ? data : data.toString('utf8')));
           client.on('end', () => resolve(chunks.join('')));
           client.on('error', reject);
         });
@@ -294,7 +294,7 @@ export default async () => {
         const client = createConnection({ port, host: '127.0.0.1' });
         client.setEncoding('utf8');
         const chunks: string[] = [];
-        client.on('data', (chunk) => chunks.push(chunk));
+        client.on('data', (chunk: string | Buffer) => chunks.push(typeof chunk === 'string' ? chunk : chunk.toString('utf8')));
         client.on('end', () => resolve(chunks.join('')));
       });
       expect(data).toBe('goodbye');

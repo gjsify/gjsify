@@ -17,7 +17,10 @@
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,
-    "strict": false
+    "strict": false,
+    "paths": {
+      "eventsource": ["./src/index.ts"]
+    }
   },
   "reflection": false,
   "include": [
@@ -25,8 +28,6 @@
   ],
   "exclude": [
     "src/test.ts",
-    "src/test.mts",
-    "src/**/*.spec.ts",
-    "src/**/*.spec.mts"
+    "src/test.mts"
   ]
 }

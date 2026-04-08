@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-02 (WebGL2: GLSL 1.0 compat, native FBO delegation; AdwSpinRow; @gjsify/adwaita-fonts; Pixel + LDraw three.js demos; AbortController/fetch globals in dom-elements)
+> Last updated: 2026-04-07 (EventEmitter makeCallable: `.call(this)` + `util.inherits` CJS compat; makeCallable extracted to @gjsify/utils; stream tests expanded to 509 cases in 7 specs: transform, pipe, inheritance; GJS stream 36→0 failures: _readableState/_writableState fields, Symbol.hasInstance for Writable instanceof, Transform _doPrefinishHooks, drain HWM=0, ERR_MULTIPLE_CALLBACK, ERR_METHOD_NOT_IMPLEMENTED re-throw, util.inherits ERR_INVALID_ARG_TYPE codes)
 
 ## Summary
 
@@ -37,7 +37,7 @@ The project comprises **39 Node.js packages**, **13 Web API packages**, **5 DOM 
 | **dgram** | Gio, GLib | 143 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress, broadcast, TTL, ref/unref, IPv6, EventEmitter |
 | **diagnostics_channel** | — | 137 | Channel, TracingChannel, subscribe/unsubscribe |
 | **dns** | Gio, GLib | 121 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
-| **events** | — | 241 | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator |
+| **events** | — | 255+ (2 specs) | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator, **makeCallable** (`.call(this)` + `util.inherits` CJS compat) |
 | **fs** | Gio, GLib | 465 (9 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping, fs.constants (O_RDONLY/WRONLY/RDWR/CREAT/EXCL/S_IFMT/S_IFREG), readdir options (withFileTypes, encoding), appendFileSync, mkdirSync recursive edge cases |
 | **globals** | — | 221 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate |
 | **http** | Soup 3.0, Gio, GLib | 1034 (6 specs) | Server (Soup.Server, **chunked streaming**, **upgrade event**), ClientRequest (Soup.Session, **timeout events**, **auth option**, **signal option**), IncomingMessage (**timeout events**), ServerResponse (**setTimeout**, chunked transfer), OutgoingMessage, STATUS_CODES, METHODS, Agent (**constructor options**, keepAlive, maxSockets, scheduling), validateHeaderName/Value, maxHeaderSize, round-trip on GJS |
@@ -50,7 +50,7 @@ The project comprises **39 Node.js packages**, **13 Web API packages**, **5 DOM 
 | **process** | GLib | 143 (2 specs) | EventEmitter-based, env (CRUD, enumerate, coerce), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint (**monotonicity, diff**), memoryUsage (**field validation**), nextTick (**FIFO ordering, args**), exit/kill, config, execArgv, cpuUsage (**delta**), **signal handler registration**, **stdout/stderr write methods**, **emitWarning** |
 | **querystring** | — | 471 | parse/stringify with full encoding |
 | **readline** | — | 145 (2 specs) | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor, **readline/promises** (createInterface, question→Promise) |
-| **stream** | — | 330 (4 specs) | Readable, Writable, Duplex, Transform (**_flush** edge cases), PassThrough, objectMode, backpressure (**drain events**), destroy, **pipeline** (error propagation, multi-stream), **finished** (premature close, cleanup), **addAbortSignal**, **Readable.from** (array/generator/async generator/string/Buffer), consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished), **async iteration** |
+| **stream** | — | 509 (7 specs) | Readable, Writable, Duplex, Transform (**_flush** edge cases, constructor options, objectMode, split HWM, destroy, final/flush ordering, ERR_MULTIPLE_CALLBACK), PassThrough, objectMode, backpressure (**drain events**, **HWM=0**), **pipe** (event, cleanup, error handling, multiple dest, unpipe, same dest twice, needDrain, objectMode→non-objectMode), **inheritance** (instanceof hierarchy, util.inherits single/multi-level, stream subclassing), destroy, **pipeline** (error propagation, multi-stream), **finished** (premature close, cleanup), **addAbortSignal**, **Readable.from** (array/generator/async generator/string/Buffer), consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished), **async iteration**, **_readableState/_writableState** (highWaterMark, objectMode, pipes), **Symbol.hasInstance** (Duplex/Transform/PassThrough instanceof Writable) |
 | **string_decoder** | — | 103 | UTF-8, Base64, hex, streaming |
 | **sys** | — | 7 | Alias for util (deprecated) |
 | **timers** | — | 88 (3 specs) | setTimeout/setInterval/setImmediate (**delay verification, args, clear, ordering**) + timers/promises |
@@ -215,8 +215,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Browser UI packages | 1 (adwaita-web) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
-| Total test cases | 9,900+ |
-| Spec files | 102 |
+| Total test cases | 10,100+ |
+| Spec files | 106 |
 | Real-world examples | 11+ (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, Three.js teapot) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
@@ -272,9 +272,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-- **`@gjsify/events`: make `EventEmitter` callable via `.call(this)`.** The `makeCallable` Proxy shim added to `@gjsify/stream` ([packages/node/stream/src/callable.ts](packages/node/stream/src/callable.ts)) papers over the issue for stream consumers, but any other CJS package that does `EventEmitter.call(this)` directly (or any code that does `inherits(Sub, EventEmitter)` and calls `EventEmitter.call(this)` in `Sub`'s constructor) will still crash with `TypeError: Class constructor EventEmitter cannot be invoked without 'new'`. Apply the same `makeCallable` wrapper to `EventEmitter` (or extract the helper to `@gjsify/utils` once a second consumer needs it).
-- **Port the full Node stream test corpus.** Bring `refs/node-test/parallel/test-stream-*.js` (~100 files) into `packages/node/stream/src/*.spec.ts` incrementally. Start with: `test-stream-transform-*.js`, `test-stream-readable-legacy.js`, `test-stream-pipe-*.js`, `test-util-inherits.js`. Goal: raise stream test coverage from ~363 cases to >500.
-- **Extract `makeCallable` to `@gjsify/utils`** if/when a second package needs it. Today only `@gjsify/stream` uses it; promote only on the second consumer, per the AGENTS.md shared-utils rule.
+*(No open TODOs — all resolved in 2026-04-07 session.)*
 
 ---
 
@@ -291,6 +289,4 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full changelog.
-
-**Latest:** 2026-04-02 — WebGL2 GLSL 1.0 compat, FBO native delegation, AdwSpinRow, adwaita-fonts, Pixel + LDraw demos, AbortController/fetch globals in dom-elements
+All dated entries live in [CHANGELOG.md](CHANGELOG.md). Do not duplicate them here.

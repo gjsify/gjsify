@@ -74,7 +74,9 @@ export default async () => {
     });
 
     await it('should throw for invalid type', async () => {
-      expect(() => new KeyObject('invalid' as any, null)).toThrow();
+      // KeyObject's constructor is typed as private in @types/node; we call it
+      // directly to verify runtime validation.
+      expect(() => new (KeyObject as any)('invalid', null)).toThrow();
     });
 
     await it('should not equal different type keys', async () => {
@@ -105,7 +107,7 @@ export default async () => {
 
   await describe('createPrivateKey', async () => {
     await it('should create a private key from PEM string', async () => {
-      let key: InstanceType<typeof KeyObject> | null = null;
+      let key: KeyObject | null = null;
       let error: Error | null = null;
       try {
         key = createPrivateKey(testPrivateKeyPem);
@@ -134,7 +136,7 @@ export default async () => {
 
   await describe('createPublicKey', async () => {
     await it('should derive public key from private key', async () => {
-      let pubKey: InstanceType<typeof KeyObject> | null = null;
+      let pubKey: KeyObject | null = null;
       try {
         const privKey = createPrivateKey(testPrivateKeyPem);
         pubKey = createPublicKey(privKey);
@@ -180,7 +182,8 @@ export default async () => {
     await it('should export asymmetric key as PEM', async () => {
       try {
         const privKey = createPrivateKey(testPrivateKeyPem);
-        const pem = privKey.export({ format: 'pem' });
+        // @types/node requires `type` alongside `format`; defaults work at runtime.
+        const pem = privKey.export({ format: 'pem' } as any);
         expect(typeof pem).toBe('string');
         expect((pem as string).includes('-----BEGIN')).toBeTruthy();
       } catch {
@@ -191,7 +194,7 @@ export default async () => {
     await it('should export asymmetric key as DER buffer', async () => {
       try {
         const privKey = createPrivateKey(testPrivateKeyPem);
-        const der = privKey.export({ format: 'der' });
+        const der = privKey.export({ format: 'der' } as any);
         expect(Buffer.isBuffer(der)).toBeTruthy();
         expect((der as Buffer).length > 0).toBeTruthy();
       } catch {

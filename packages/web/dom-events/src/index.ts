@@ -85,7 +85,9 @@ export class Event {
   get currentTarget(): EventTarget | null { return this[kCurrentTarget]; }
   get eventPhase(): number { return this[kEventPhase]; }
   get defaultPrevented(): boolean { return this[kDefaultPrevented]; }
-  // isTrusted is defined as a non-configurable own property in the constructor
+  // isTrusted is defined as a non-configurable own property in the constructor —
+  // declared here (without `= value`) purely so TS knows `event.isTrusted` exists.
+  declare readonly isTrusted: boolean;
   get timeStamp(): number { return this[kTimeStamp]; }
 
   // Legacy compat

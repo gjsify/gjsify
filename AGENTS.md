@@ -291,6 +291,8 @@ Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. Select: core
 
 Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating. Only extract when second package needs it.
 
+**`@gjsify/stream` direct imports in internal modules:** Internal modules and test files that need non-standard exports (e.g. `Stream_`, `makeCallable`, internal state types) may import `@gjsify/stream` directly. All public-facing code (examples, showcases, cross-package APIs) must use `node:stream`.
+
 ## Example Convention (GTK + Browser)
 
 Dual-target examples with Adwaita UI:
@@ -382,7 +384,7 @@ Update STATUS.md when: adding/expanding tests (counts) | fixing impls (Working/M
 
 **Track deferred work in the dedicated `Open TODOs` section.** Every "out of scope", "follow-up" or "later" note from a PR description, plan file or commit message must have a corresponding entry there — otherwise it gets forgotten. When a TODO is resolved, move it to the relevant `### Completed` list (or delete it if trivial).
 
-Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
+**Changelog entries live ONLY in CHANGELOG.md.** STATUS.md describes the current state; CHANGELOG.md records what changed and when. Do NOT add dated "Latest:" lines, changelog highlights, or per-session summaries to STATUS.md — they belong in CHANGELOG.md. Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
 
 ## Constraints
 

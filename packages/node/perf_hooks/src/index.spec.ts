@@ -335,7 +335,9 @@ export default async () => {
       });
 
       await it('should return empty array for unknown type', async () => {
-        const entries = performance.getEntriesByType('nonexistent-type-xyz');
+        // Intentionally pass a non-EntryType literal — cast to bypass @types/node's
+        // strict EntryType union so we can verify the implementation returns [].
+        const entries = performance.getEntriesByType('nonexistent-type-xyz' as any);
         expect(Array.isArray(entries)).toBe(true);
         expect(entries.length).toBe(0);
       });

@@ -33,13 +33,13 @@ export default async () => {
     await describe('json', async () => {
       await it('should consume stream as JSON', async () => {
         const stream = Readable.from(['{"key":', '"value"}']);
-        const result = await json(stream);
+        const result = await json(stream) as { key: string };
         expect(result.key).toBe('value');
       });
 
       await it('should parse JSON array', async () => {
         const stream = Readable.from(['[1,2,3]']);
-        const result = await json(stream);
+        const result = await json(stream) as number[];
         expect(Array.isArray(result)).toBe(true);
         expect(result.length).toBe(3);
         expect(result[0]).toBe(1);

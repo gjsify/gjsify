@@ -785,7 +785,8 @@ export default async () => {
         write(_chunk, _enc, cb) { cb(); }
       });
       let called = false;
-      cursorTo(stream, 1, () => { called = true; });
+      // @types/node's cursorTo overload forces 4 args here; the 3-arg form is valid at runtime.
+      (cursorTo as any)(stream, 1, () => { called = true; });
       await new Promise<void>((r) => setTimeout(r, 10));
       expect(called).toBe(true);
     });

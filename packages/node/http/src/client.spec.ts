@@ -4,6 +4,16 @@
 import { describe, it, expect } from '@gjsify/unit';
 import * as http from 'node:http';
 
+// @types/node doesn't expose Agent's public fields (defaultPort, keepAlive, …).
+declare module 'node:http' {
+  interface Agent {
+    defaultPort: number;
+    keepAlive: boolean;
+    keepAliveMsecs: number;
+    scheduling: 'fifo' | 'lifo';
+  }
+}
+
 export default async () => {
   await describe('http.ClientRequest', async () => {
     await it('should export ClientRequest class', async () => {
@@ -315,12 +325,13 @@ export default async () => {
     });
 
     await it('should be constructable as standalone', async () => {
-      const msg = new http.IncomingMessage();
+      // Our IncomingMessage accepts zero args; @types/node requires a socket.
+      const msg = new (http.IncomingMessage as any)();
       expect(msg).toBeDefined();
     });
 
     await it('should inherit from Readable', async () => {
-      const msg = new http.IncomingMessage();
+      const msg = new (http.IncomingMessage as any)();
       expect(typeof msg.pipe).toBe('function');
       expect(typeof msg.read).toBe('function');
     });

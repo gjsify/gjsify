@@ -1,3 +1,4 @@
+export * from './callable.js';
 export * from './base64.js';
 export * from './byte-array.js';
 export * from './cli.js';

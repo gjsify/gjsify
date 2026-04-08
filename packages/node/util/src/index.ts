@@ -509,13 +509,19 @@ export function debuglog(section: string): (...args: unknown[]) => void {
 
 export function inherits(ctor: Function, superCtor: Function): void {
   if (ctor === undefined || ctor === null) {
-    throw new TypeError('The constructor to "inherits" must not be null or undefined');
+    const err = new TypeError('The "ctor" argument must be of type Function. Received ' + String(ctor));
+    (err as any).code = 'ERR_INVALID_ARG_TYPE';
+    throw err;
   }
   if (superCtor === undefined || superCtor === null) {
-    throw new TypeError('The super constructor to "inherits" must not be null or undefined');
+    const err = new TypeError('The "superCtor" argument must be of type Function. Received ' + String(superCtor));
+    (err as any).code = 'ERR_INVALID_ARG_TYPE';
+    throw err;
   }
   if (superCtor.prototype === undefined) {
-    throw new TypeError('The super constructor to "inherits" must have a prototype');
+    const err = new TypeError('The "superCtor.prototype" property must not be undefined');
+    (err as any).code = 'ERR_INVALID_ARG_TYPE';
+    throw err;
   }
   Object.defineProperty(ctor, 'super_', { value: superCtor, writable: true, configurable: true });
   Object.setPrototypeOf(ctor.prototype, superCtor.prototype);

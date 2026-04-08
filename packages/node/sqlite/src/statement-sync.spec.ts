@@ -170,7 +170,9 @@ export default async () => {
             expect(row.val).toBe('one');
 
             query.setReturnArrays(true);
-            const arrRow = query.get() as unknown[];
+            // setReturnArrays toggles the return shape at runtime — @types/node
+            // types query.get() as a record regardless, so cast via unknown first.
+            const arrRow = query.get() as unknown as unknown[];
             expect(Array.isArray(arrRow)).toBe(true);
             expect(arrRow[0]).toBe(1);
             expect(arrRow[1]).toBe('one');

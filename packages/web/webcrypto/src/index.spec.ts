@@ -101,7 +101,7 @@ export default async () => {
     await it('should throw for Float32Array', async () => {
       let threw = false;
       try {
-        crypto.getRandomValues(new Float32Array(1) as unknown as Uint8Array);
+        crypto.getRandomValues(new Float32Array(1) as any);
       } catch {
         threw = true;
       }
@@ -111,7 +111,7 @@ export default async () => {
     await it('should throw for Float64Array', async () => {
       let threw = false;
       try {
-        crypto.getRandomValues(new Float64Array(1) as unknown as Uint8Array);
+        crypto.getRandomValues(new Float64Array(1) as any);
       } catch {
         threw = true;
       }
@@ -121,7 +121,7 @@ export default async () => {
     await it('should throw for DataView', async () => {
       let threw = false;
       try {
-        crypto.getRandomValues(new DataView(new ArrayBuffer(1)) as unknown as Uint8Array);
+        crypto.getRandomValues(new DataView(new ArrayBuffer(1)) as any);
       } catch {
         threw = true;
       }
