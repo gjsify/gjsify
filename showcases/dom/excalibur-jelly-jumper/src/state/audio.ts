@@ -1,5 +1,5 @@
 import * as ex from 'excalibur'
-import { Resources } from '../resources';
+import { Resources } from '../resources.js';
 
 let currentSong: ex.Sound | null = null
 

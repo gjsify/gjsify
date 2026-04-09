@@ -1,22 +1,22 @@
 import * as ex from 'excalibur'
-import { Resources } from '../resources'
-import { AnimationComponent } from '../components/graphics/animation'
-import { ControlsComponent } from '../components/input/controls'
-import { PhysicsActor } from '../classes/physics-actor'
-import { AudioManager } from '../state/audio'
-import { GRAVITY } from '../physics/gravity'
-import { Bouncepad } from './platforms/bouncepad'
-import { StompableComponent } from '../components/behaviours/stompable'
-import { KillableComponent } from '../components/behaviours/killable'
-import { CollisionGroup } from '../physics/collision'
-import { Smoke } from './fx/smoke'
-import { HealthComponent } from '../components/behaviours/health'
-import { DamageableComponent } from '../components/behaviours/damageable'
-import { ClimbableComponent } from '../components/physics/climbable'
-import { LostCoin } from './fx/lost-coin'
-import { GameManager } from '../state/game'
-import { CoyoteComponent } from '../components/input/coyote'
-import { FakeDie } from './fake-die'
+import { Resources } from '../resources.js'
+import { AnimationComponent } from '../components/graphics/animation.js'
+import { ControlsComponent } from '../components/input/controls.js'
+import { PhysicsActor } from '../classes/physics-actor.js'
+import { AudioManager } from '../state/audio.js'
+import { GRAVITY } from '../physics/gravity.js'
+import { Bouncepad } from './platforms/bouncepad.js'
+import { StompableComponent } from '../components/behaviours/stompable.js'
+import { KillableComponent } from '../components/behaviours/killable.js'
+import { CollisionGroup } from '../physics/collision.js'
+import { Smoke } from './fx/smoke.js'
+import { HealthComponent } from '../components/behaviours/health.js'
+import { DamageableComponent } from '../components/behaviours/damageable.js'
+import { ClimbableComponent } from '../components/physics/climbable.js'
+import { LostCoin } from './fx/lost-coin.js'
+import { GameManager } from '../state/game.js'
+import { CoyoteComponent } from '../components/input/coyote.js'
+import { FakeDie } from './fake-die.js'
 
 const SPRITE_WIDTH = 48
 const SPRITE_HEIGHT = 48
@@ -245,7 +245,7 @@ export default class Player extends PhysicsActor {
       collisionType: ex.CollisionType.Active,
       collisionGroup: CollisionGroup.Player,
       collider: ex.Shape.Box(12, 12, ex.vec(0.5, 1)),
-    })
+    } as ex.ActorArgs)
 
     // we'll handle gravity ourselves
     this.body.useGravity = false

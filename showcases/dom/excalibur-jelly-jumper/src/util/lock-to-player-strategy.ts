@@ -1,6 +1,6 @@
 import * as ex from 'excalibur'
-import Player from '../actors/player'
-import { Tween } from './tween'
+import Player from '../actors/player.js'
+import { Tween } from './tween.js'
 
 /**
  * A camera strategy that locks the camera to the player, but keeps

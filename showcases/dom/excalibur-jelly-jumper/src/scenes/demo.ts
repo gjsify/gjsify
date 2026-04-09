@@ -1,6 +1,6 @@
 import * as ex from 'excalibur'
-import Player from '../actors/player'
-import { MovingPlatform } from '../actors/platforms/moving-platform'
+import Player from '../actors/player.js'
+import { MovingPlatform } from '../actors/platforms/moving-platform.js'
 
 export default class Demo extends ex.Scene {
   onInitialize() {

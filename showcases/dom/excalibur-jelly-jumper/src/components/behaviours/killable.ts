@@ -1,5 +1,5 @@
 import * as ex from 'excalibur'
-import { StompableComponent } from './stompable'
+import { StompableComponent } from './stompable.js'
 
 export type KillMethod = 'instant' | 'stomp'
 

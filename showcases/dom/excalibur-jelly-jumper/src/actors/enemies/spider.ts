@@ -1,7 +1,7 @@
 import * as ex from 'excalibur'
-import { EnemyActor } from '../../classes/enemy-actor'
-import { Resources } from '../../resources'
-import Player from '../player'
+import { EnemyActor } from '../../classes/enemy-actor.js'
+import { Resources } from '../../resources.js'
+import Player from '../player.js'
 
 const grid = {
   rows: 1,
@@ -27,7 +27,7 @@ const variants = {
   },
 }
 
-export interface SpiderEnemyArgs extends ex.ActorArgs {
+export type SpiderEnemyArgs = ex.ActorArgs & {
   type: keyof typeof variants
 }
 
@@ -42,7 +42,7 @@ export class SpiderEnemy extends EnemyActor {
       ...args,
       anchor: ex.vec(0.5, 32 / 48),
       collider: ex.Shape.Box(24, 4, ex.vec(0.5, 1)),
-    })
+    } as SpiderEnemyArgs)
 
     this.spritesheet = variants[args.type].spritesheet
     this.speed = variants[args.type].speed

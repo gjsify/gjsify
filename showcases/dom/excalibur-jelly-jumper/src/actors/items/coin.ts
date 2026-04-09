@@ -1,10 +1,10 @@
 import * as ex from 'excalibur'
-import { CollectableComponent } from '../../components/behaviours/collectable'
-import { Resources } from '../../resources'
-import { AudioManager } from '../../state/audio'
-import { CollisionGroup } from '../../physics/collision'
-import { GameManager } from '../../state/game'
-import Player from '../player'
+import { CollectableComponent } from '../../components/behaviours/collectable.js'
+import { Resources } from '../../resources.js'
+import { AudioManager } from '../../state/audio.js'
+import { CollisionGroup } from '../../physics/collision.js'
+import { GameManager } from '../../state/game.js'
+import Player from '../player.js'
 
 export class CoinItem extends ex.Actor {
   elapsedMs = 0
@@ -18,7 +18,7 @@ export class CoinItem extends ex.Actor {
       width: 8,
       height: 8,
       ...args,
-    })
+    } as ex.ActorArgs)
 
     this.pos.x += this.width * this.anchor.x
     this.pos.y -= this.height * this.anchor.y

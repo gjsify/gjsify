@@ -1,10 +1,10 @@
 import * as ex from 'excalibur'
-import { Resources } from '../../resources'
-import { CollisionGroup } from '../../physics/collision'
-import Player from '../player'
-import { CarriableComponent } from '../../components/physics/carrier'
-import { TouchingComponent } from '../../components/physics/touching'
-import { CoinItem } from '../items/coin'
+import { Resources } from '../../resources.js'
+import { CollisionGroup } from '../../physics/collision.js'
+import Player from '../player.js'
+import { CarriableComponent } from '../../components/physics/carrier.js'
+import { TouchingComponent } from '../../components/physics/touching.js'
+import { CoinItem } from '../items/coin.js'
 
 export class LostCoin extends CoinItem {
   touching = new TouchingComponent()
@@ -24,7 +24,7 @@ export class LostCoin extends CoinItem {
       height: 8,
       z: 500,
       ...args,
-    })
+    } as ex.ActorArgs)
 
     this.pos.x += this.width * this.anchor.x
     this.pos.y -= this.height * this.anchor.y

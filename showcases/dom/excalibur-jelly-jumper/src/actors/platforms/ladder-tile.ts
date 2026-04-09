@@ -1,6 +1,6 @@
 import * as ex from 'excalibur'
-import { ClimbableComponent } from '../../components/physics/climbable'
-import { CollisionGroup } from '../../physics/collision'
+import { ClimbableComponent } from '../../components/physics/climbable.js'
+import { CollisionGroup } from '../../physics/collision.js'
 
 export class LadderTile extends ex.Actor {
   constructor(args: ex.ActorArgs) {

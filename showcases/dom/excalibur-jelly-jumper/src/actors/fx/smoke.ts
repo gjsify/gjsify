@@ -1,5 +1,5 @@
 import * as ex from 'excalibur'
-import { Resources } from '../../resources'
+import { Resources } from '../../resources.js'
 
 const variants = {
   puff: {
@@ -42,7 +42,7 @@ const variants = {
   },
 }
 
-export interface SmokeArgs extends ex.ActorArgs {
+export type SmokeArgs = ex.ActorArgs & {
   type: 'puff' | 'land'
 }
 export class Smoke extends ex.Actor {

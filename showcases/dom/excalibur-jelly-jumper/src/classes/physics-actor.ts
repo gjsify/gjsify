@@ -1,6 +1,6 @@
 import * as ex from 'excalibur'
-import { TouchingComponent } from '../components/physics/touching'
-import { CarriableComponent } from '../components/physics/carrier'
+import { TouchingComponent } from '../components/physics/touching.js'
+import { CarriableComponent } from '../components/physics/carrier.js'
 
 export class PhysicsActor extends ex.Actor {
   touching = new TouchingComponent()

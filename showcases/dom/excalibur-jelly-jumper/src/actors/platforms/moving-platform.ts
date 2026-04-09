@@ -1,8 +1,8 @@
 import * as ex from 'excalibur'
-import { OneWayCollisionComponent } from '../../components/physics/one-way-collision'
-import { CarrierComponent } from '../../components/physics/carrier'
-import { Resources } from '../../resources'
-import { CollisionGroup } from '../../physics/collision'
+import { OneWayCollisionComponent } from '../../components/physics/one-way-collision.js'
+import { CarrierComponent } from '../../components/physics/carrier.js'
+import { Resources } from '../../resources.js'
+import { CollisionGroup } from '../../physics/collision.js'
 
 const sprite = Resources.img.platform.toSprite()
 
@@ -49,7 +49,7 @@ const middle = new ex.Sprite({
   },
 })
 
-export interface MovingPlatformArgs extends ex.ActorArgs {
+export type MovingPlatformArgs = ex.ActorArgs & {
   oneWay?: boolean
 }
 
@@ -64,7 +64,7 @@ export class MovingPlatform extends ex.Actor {
       collisionType: ex.CollisionType.Fixed,
       collisionGroup: CollisionGroup.Ground,
       ...args,
-    })
+    } as ex.ActorArgs)
 
     const middleWidth = this.width - 32
 

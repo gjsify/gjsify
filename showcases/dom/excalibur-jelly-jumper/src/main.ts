@@ -1,9 +1,9 @@
 import * as ex from 'excalibur'
-import { loader } from './resources'
-import Level1 from './scenes/level1'
-import Demo from './scenes/demo'
-import { GRAVITY } from './physics/gravity'
-import { AudioManager } from './state/audio'
+import { loader } from './resources.js'
+import Level1 from './scenes/level1.js'
+import Demo from './scenes/demo.js'
+import { GRAVITY } from './physics/gravity.js'
+import { AudioManager } from './state/audio.js'
 
 const game = new ex.Engine({
   resolution: {

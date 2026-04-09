@@ -1,8 +1,8 @@
 import * as ex from 'excalibur'
-import { DamageableComponent } from './damageable'
-import { KillableComponent } from './killable'
-import { StompableComponent } from './stompable'
-import { PhysicsActor } from '../../classes/physics-actor'
+import { DamageableComponent } from './damageable.js'
+import { KillableComponent } from './killable.js'
+import { StompableComponent } from './stompable.js'
+import { PhysicsActor } from '../../classes/physics-actor.js'
 
 /**
  * Hurts the other actor on collision if it has a Damageable component

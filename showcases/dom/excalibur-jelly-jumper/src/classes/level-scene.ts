@@ -1,25 +1,25 @@
 import { TiledResource } from '@excaliburjs/plugin-tiled'
 import * as ex from 'excalibur'
-import { OneWayPlatform } from '../actors/platforms/one-way-platform'
-import Player from '../actors/player'
-import { ScrollingBackground } from '../actors/scrolling-background'
-import { AudioManager } from '../state/audio'
-import { LockToPlayerStrategy } from '../util/lock-to-player-strategy'
+import { OneWayPlatform } from '../actors/platforms/one-way-platform.js'
+import Player from '../actors/player.js'
+import { ScrollingBackground } from '../actors/scrolling-background.js'
+import { AudioManager } from '../state/audio.js'
+import { LockToPlayerStrategy } from '../util/lock-to-player-strategy.js'
 
 import { FactoryProps, TiledObject } from '@excaliburjs/plugin-tiled'
-import { SpiderEnemy } from '../actors/enemies/spider'
-import { MovingPlatform } from '../actors/platforms/moving-platform'
-import { EnemySpawner } from '../actors/enemy-spawner'
-import { BirdEnemy } from '../actors/enemies/bird'
-import { Bouncepad, BouncepadArgs } from '../actors/platforms/bouncepad'
-import { AxeHazard } from '../actors/hazards/axe'
-import { CircularSawHazard } from '../actors/hazards/circular-saw'
-import { CollisionGroup } from '../physics/collision'
-import { LadderTile } from '../actors/platforms/ladder-tile'
-import { SpikeTile } from '../actors/hazards/spike-tile'
-import { CoinItem } from '../actors/items/coin'
-import { LevelOverlay } from '../ui/level-overlay'
-import { Resources } from '../resources'
+import { SpiderEnemy } from '../actors/enemies/spider.js'
+import { MovingPlatform } from '../actors/platforms/moving-platform.js'
+import { EnemySpawner } from '../actors/enemy-spawner.js'
+import { BirdEnemy } from '../actors/enemies/bird.js'
+import { Bouncepad, BouncepadArgs } from '../actors/platforms/bouncepad.js'
+import { AxeHazard } from '../actors/hazards/axe.js'
+import { CircularSawHazard } from '../actors/hazards/circular-saw.js'
+import { CollisionGroup } from '../physics/collision.js'
+import { LadderTile } from '../actors/platforms/ladder-tile.js'
+import { SpikeTile } from '../actors/hazards/spike-tile.js'
+import { CoinItem } from '../actors/items/coin.js'
+import { LevelOverlay } from '../ui/level-overlay.js'
+import { Resources } from '../resources.js'
 
 export default class LevelScene extends ex.Scene {
   song?: ex.Sound
@@ -97,7 +97,7 @@ export default class LevelScene extends ex.Scene {
 
       return new BirdEnemy({
         ...args,
-        type: typeProp ?? 'red',
+        type: typeProp ?? 'purple',
       })
     }),
 

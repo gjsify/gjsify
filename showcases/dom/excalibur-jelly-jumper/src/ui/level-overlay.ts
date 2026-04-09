@@ -1,14 +1,14 @@
 import * as ex from 'excalibur'
-import Player from '../actors/player'
-import { Resources } from '../resources'
-import { OutlineMaterial } from '../materials/outline'
-import { GameManager } from '../state/game'
+import Player from '../actors/player.js'
+import { Resources } from '../resources.js'
+import { OutlineMaterial } from '../materials/outline.js'
+import { GameManager } from '../state/game.js'
 
 /**
  * The UI overlay that displays during the level
  */
 export class LevelOverlay extends ex.ScreenElement {
-  private playerQuery!: ex.TagQuery<'player'>
+  private playerQuery!: ex.Query<any, any>
   private coinCounter!: CoinCounter
 
   constructor() {

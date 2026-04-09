@@ -1,5 +1,5 @@
-import { Resources } from '../resources'
-import LevelScene from '../classes/level-scene'
+import { Resources } from '../resources.js'
+import LevelScene from '../classes/level-scene.js'
 
 export default class Level1 extends LevelScene {
   constructor() {

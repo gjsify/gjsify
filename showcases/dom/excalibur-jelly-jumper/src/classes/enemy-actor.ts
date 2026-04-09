@@ -1,11 +1,11 @@
 import * as ex from 'excalibur'
-import { PhysicsActor } from './physics-actor'
-import { StompableComponent } from '../components/behaviours/stompable'
-import { KillableComponent } from '../components/behaviours/killable'
-import { CollisionGroup } from '../physics/collision'
-import { DamageComponent } from '../components/behaviours/damage'
+import { PhysicsActor } from './physics-actor.js'
+import { StompableComponent } from '../components/behaviours/stompable.js'
+import { KillableComponent } from '../components/behaviours/killable.js'
+import { CollisionGroup } from '../physics/collision.js'
+import { DamageComponent } from '../components/behaviours/damage.js'
 
-export interface EnemyActorArgs extends ex.ActorArgs {
+export type EnemyActorArgs = ex.ActorArgs & {
   stompDuration?: number
 }
 

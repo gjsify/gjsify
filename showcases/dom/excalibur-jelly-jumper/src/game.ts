@@ -17,7 +17,6 @@ function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
     canvasElement: canvas,
     suppressMinimumBrowserFeatureDetection: true,
     suppressConsoleBootMessage: true,
-    multiSampleAntialiasing: false,
     resolution: {
       height: ex.Resolution.SNES.height,
       width: (ex.Resolution.SNES.height / 9) * 16,

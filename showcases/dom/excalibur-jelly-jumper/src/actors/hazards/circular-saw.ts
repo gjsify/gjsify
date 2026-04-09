@@ -1,9 +1,9 @@
 import * as ex from 'excalibur'
-import { Resources } from '../../resources'
-import { PhysicsActor } from '../../classes/physics-actor'
-import { CollisionGroup } from '../../physics/collision'
-import { CarriableComponent } from '../../components/physics/carrier'
-import { DamageComponent } from '../../components/behaviours/damage'
+import { Resources } from '../../resources.js'
+import { PhysicsActor } from '../../classes/physics-actor.js'
+import { CollisionGroup } from '../../physics/collision.js'
+import { CarriableComponent } from '../../components/physics/carrier.js'
+import { DamageComponent } from '../../components/behaviours/damage.js'
 
 export class CircularSawHazard extends PhysicsActor {
   direction = 1
@@ -25,7 +25,7 @@ export class CircularSawHazard extends PhysicsActor {
       height: 4,
       collisionType: ex.CollisionType.Passive,
       collisionGroup: CollisionGroup.Enemy,
-    })
+    } as ex.ActorArgs)
 
     this.pos.x += this.width * this.anchor.x
     this.pos.y -= this.height * this.anchor.y

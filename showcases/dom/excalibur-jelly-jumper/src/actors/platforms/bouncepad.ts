@@ -1,9 +1,9 @@
 import * as ex from 'excalibur'
-import { Resources } from '../../resources'
-import { AnimationComponent } from '../../components/graphics/animation'
-import { TouchingComponent } from '../../components/physics/touching'
-import { AudioManager } from '../../state/audio'
-import { OneWayCollisionComponent } from '../../components/physics/one-way-collision'
+import { Resources } from '../../resources.js'
+import { AnimationComponent } from '../../components/graphics/animation.js'
+import { TouchingComponent } from '../../components/physics/touching.js'
+import { AudioManager } from '../../state/audio.js'
+import { OneWayCollisionComponent } from '../../components/physics/one-way-collision.js'
 
 const grid = {
   rows: 1,
@@ -29,7 +29,7 @@ const variants = {
   },
 }
 
-export interface BouncepadArgs extends ex.ActorArgs {
+export type BouncepadArgs = ex.ActorArgs & {
   type?: keyof typeof variants
 }
 
@@ -57,7 +57,7 @@ export class Bouncepad extends ex.Actor {
       width: 16,
       height: 16,
       collisionType: ex.CollisionType.Fixed,
-    })
+    } as ex.ActorArgs)
     this.graphics.offset = ex.vec(0, 16)
 
     this.pos.x += this.width * this.anchor.x

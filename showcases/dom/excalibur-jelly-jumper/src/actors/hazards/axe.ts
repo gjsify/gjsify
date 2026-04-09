@@ -1,8 +1,8 @@
 import * as ex from 'excalibur'
-import { Resources } from '../../resources'
-import { GRAVITY } from '../../physics/gravity'
-import { DamageComponent } from '../../components/behaviours/damage'
-import { CollisionGroup } from '../../physics/collision'
+import { Resources } from '../../resources.js'
+import { GRAVITY } from '../../physics/gravity.js'
+import { DamageComponent } from '../../components/behaviours/damage.js'
+import { CollisionGroup } from '../../physics/collision.js'
 
 export class AxeHazard extends ex.Actor {
   private elapsedMs = 0
@@ -18,7 +18,7 @@ export class AxeHazard extends ex.Actor {
       collisionGroup: CollisionGroup.Enemy,
       // just the axe blade is the collider
       collider: ex.Shape.Box(28, 12, ex.vec(0.5, 0.5), ex.vec(0, 42)),
-    })
+    } as ex.ActorArgs)
 
     this.body.useGravity = false
     this.graphics.offset = ex.vec(0, -8)

@@ -1,5 +1,5 @@
 import * as ex from 'excalibur'
-import { PhysicsActor } from '../../classes/physics-actor'
+import { PhysicsActor } from '../../classes/physics-actor.js'
 
 /**
  * Makes an actor damage the player on collision.

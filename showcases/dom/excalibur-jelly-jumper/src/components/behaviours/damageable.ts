@@ -1,7 +1,7 @@
 import * as ex from 'excalibur'
-import { HealthComponent } from './health'
-import { AudioManager } from '../../state/audio'
-import { Resources } from '../../resources'
+import { HealthComponent } from './health.js'
+import { AudioManager } from '../../state/audio.js'
+import { Resources } from '../../resources.js'
 
 export class DamageableComponent extends ex.Component {
   declare owner: ex.Actor
