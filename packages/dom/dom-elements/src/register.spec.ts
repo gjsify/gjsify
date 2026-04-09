@@ -10,7 +10,6 @@
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import '@gjsify/dom-elements/register';
-import '@gjsify/canvas2d';
 import { HTMLCanvasElement } from '@gjsify/dom-elements';
 import { KeyboardEvent as OurKeyboardEvent } from '@gjsify/dom-events';
 
@@ -68,6 +67,9 @@ export default async () => {
                 const face = new FF('DejaVuTestFont2', `url(file://${TTF})`);
                 await face.load();
 
+                // Dynamic import to avoid circular dep: canvas2d depends on dom-elements
+                await import('@gjsify/canvas2d');
+
                 const canvas = new HTMLCanvasElement();
                 canvas.width = 80;
                 canvas.height = 24;
@@ -91,7 +93,7 @@ export default async () => {
             // which must route through __gjsify_globalEventTarget (set in dom-elements/register.ts).
             await it('addEventListener stores listener on __gjsify_globalEventTarget', async () => {
                 const received: string[] = [];
-                (globalThis as any).addEventListener('keydown', (e: KeyboardEvent) => {
+                (globalThis as any).addEventListener('keydown', (e: OurKeyboardEvent) => {
                     received.push(e.key);
                 });
                 const evt = new OurKeyboardEvent('keydown', {
@@ -103,7 +105,7 @@ export default async () => {
 
             await it('removeEventListener deregisters listener', async () => {
                 const received: string[] = [];
-                const handler = (e: KeyboardEvent) => received.push(e.key);
+                const handler = (e: OurKeyboardEvent) => received.push(e.key);
                 (globalThis as any).addEventListener('keydown', handler);
                 (globalThis as any).removeEventListener('keydown', handler);
                 const evt = new OurKeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
