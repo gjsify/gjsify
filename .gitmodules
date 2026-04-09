@@ -140,3 +140,6 @@
 [submodule "refs/peachy"]
 	path = refs/peachy
 	url = https://gitlab.gnome.org/vixalien/peachy
+[submodule "refs/sample-jelly-jumper"]
+	path = refs/sample-jelly-jumper
+	url = git@github.com:excaliburjs/sample-jelly-jumper.git
