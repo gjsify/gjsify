@@ -60,7 +60,8 @@ export const Canvas2DWidget = GObject.registerClass(
             this.set_draw_func(this._onDraw.bind(this));
 
             // Bridge GTK events → DOM events on the canvas element
-            attachEventControllers(this, () => this._canvas);
+            // captureKeys: true prevents GTK focus traversal consuming arrow/Enter keys
+            attachEventControllers(this, () => this._canvas, { captureKeys: true });
 
             this.connect('unrealize', () => {
                 if (this._tickCallbackId !== null) {

@@ -192,6 +192,29 @@ export default async () => {
             style.setProperty('color', 'red');
             expect(style.getPropertyPriority('color')).toBe('');
         });
+
+        await it('cssText setter parses declarations into camelCase properties', async () => {
+            const style = new CSSStyleDeclaration();
+            style.cssText = 'background-color: rgba(0,0,0,0); color: red';
+            expect((style as any).backgroundColor).toBe('rgba(0,0,0,0)');
+            expect((style as any).color).toBe('red');
+        });
+
+        await it('cssText getter returns the last assigned value', async () => {
+            const style = new CSSStyleDeclaration();
+            style.cssText = 'color: blue';
+            expect(style.cssText).toBe('color: blue');
+        });
+
+        await it('cssText setter handles single-property strings (Excalibur rgbaSupport check)', async () => {
+            // Excalibur does: el.style.cssText = 'background-color:rgba(135,100,100,.5)'
+            // then reads el.style.backgroundColor to detect rgba support.
+            const style = new CSSStyleDeclaration();
+            style.cssText = 'background-color:rgba(135,100,100,.5)';
+            const bg = (style as any).backgroundColor as string;
+            expect(typeof bg).toBe('string');
+            expect(bg.length).toBeGreaterThan(0);
+        });
     });
 
     await describe('FontFace / FontFaceSet stubs', async () => {

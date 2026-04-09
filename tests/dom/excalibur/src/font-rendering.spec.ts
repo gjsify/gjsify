@@ -87,6 +87,58 @@ export default async () => {
                 // status is 'unloaded' before load() is called
                 expect(typeof face.status).toBe('string');
             });
+
+            await it('FontFace.load() resolves with the face and status=loaded', async () => {
+                // Regression: load() must return a Promise that resolves.
+                // Excalibur's FontSource.load() awaits face.load() before rendering.
+                const FF = (globalThis as any).FontFace;
+                const face = new FF('Round9x13', 'url(/res/fonts/Round9x13.ttf)');
+                expect(face.status).toBe('unloaded');
+                const resolved = await face.load();
+                expect(resolved).toBe(face);
+                expect(face.status).toBe('loaded');
+            });
+
+            await it('document.fonts.add() and document.fonts.ready do not throw', async () => {
+                // Excalibur calls document.fonts.add(face) after load().
+                // The stub must not throw, and .ready must still resolve.
+                const FF = (globalThis as any).FontFace;
+                const face = new FF('Round9x13', 'url(/res/fonts/Round9x13.ttf)');
+                await face.load();
+                const fonts = (globalThis as any).document.fonts;
+                let threw = false;
+                try {
+                    fonts.add(face);
+                    await fonts.ready;
+                } catch {
+                    threw = true;
+                }
+                expect(threw).toBe(false);
+            });
+
+            await it('fillText with unknown font name falls back and still renders pixels', async () => {
+                // Key regression: when Excalibur uses a custom font (Round9x13) that is
+                // not registered in PangoCairo, the system must fall back to a default
+                // font and still render visible pixels — not silently skip the draw call.
+                // If this test fails, the coin counter is blank due to font-not-found
+                // causing PangoCairo to render nothing.
+                const canvas = createCanvas(200, 50);
+                const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, 200, 50);
+                ctx.fillStyle = 'black';
+                // Use a font name that will not be found in the system
+                ctx.font = '20px Round9x13';
+                ctx.fillText('42', 5, 35);
+                const data = ctx.getImageData(5, 10, 50, 30).data;
+                const hasNonWhite = Array.from({ length: data.length / 4 }, (_, i) =>
+                    data[i * 4] < 200 || data[i * 4 + 1] < 200 || data[i * 4 + 2] < 200
+                ).some(Boolean);
+                // If this assertion fails: PangoCairo does NOT fall back when font is missing
+                // → root cause of the coin-counter bug. Fix: register font with Pango or
+                //   implement real FontFace loading that installs the TTF into the Pango font map.
+                expect(hasNonWhite).toBe(true);
+            });
         });
     });
 };
