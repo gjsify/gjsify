@@ -314,6 +314,7 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 4. Common `*.spec.ts`: both platforms, no `@girs/*`. Platform-specific `*.gjs.spec.ts`/`on('Gjs')`: minimal.
 5. Layout: `src/index.ts`(impl) | `src/*.spec.ts`(specs) | `src/test.mts`(entry).
 6. **Never weaken tests** — fix implementation, not tests. No platform guards.
+7. **`/register` side effects in a dedicated spec file:** If a test needs `import '<pkg>/register'` (to set globalThis globals, e.g. `FontFace`, `__gjsify_globalEventTarget`), put it in a separate `register.spec.ts` — not in the common `*.spec.ts`. Reason: `/register` has GTK/GLib side effects that crash on Node.js. The dedicated file wraps all tests in `on('Gjs', ...)` and imports `/register` at top level. Add it to `test.mts` as a named suite. Example: `packages/dom/dom-elements/src/register.spec.ts`.
 
 ### Regression Tests from Examples
 
