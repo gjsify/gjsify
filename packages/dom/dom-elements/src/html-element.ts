@@ -15,7 +15,23 @@ import * as PS from './property-symbol.js';
  */
 export class CSSStyleDeclaration {
     [key: string]: unknown;
-    cssText = '';
+    private _cssText = '';
+
+    /** Setting cssText parses individual declarations and stores them as camelCase properties,
+     *  matching browser behavior for feature-detection checks like Excalibur's rgbaSupport. */
+    get cssText(): string { return this._cssText; }
+    set cssText(value: string) {
+        this._cssText = value;
+        for (const decl of value.split(';')) {
+            const colon = decl.indexOf(':');
+            if (colon === -1) continue;
+            const prop = decl.slice(0, colon).trim();
+            const val = decl.slice(colon + 1).trim();
+            if (!prop) continue;
+            const camel = prop.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+            (this as Record<string, unknown>)[camel] = val;
+        }
+    }
 
     setProperty(property: string, value: string, _priority?: string): void {
         (this as Record<string, unknown>)[property] = value;

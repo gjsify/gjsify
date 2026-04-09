@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "@girs/gtk-4.0"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "experimentalDecorators": true,
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": ["src/test.mts"]
+}
