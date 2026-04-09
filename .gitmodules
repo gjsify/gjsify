@@ -143,3 +143,6 @@
 [submodule "refs/sample-jelly-jumper"]
 	path = refs/sample-jelly-jumper
 	url = git@github.com:excaliburjs/sample-jelly-jumper.git
+[submodule "refs/excalibur-tiled"]
+	path = refs/excalibur-tiled
+	url = git@github.com:excaliburjs/excalibur-tiled.git

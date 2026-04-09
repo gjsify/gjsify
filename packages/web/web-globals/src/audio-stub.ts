@@ -65,10 +65,14 @@ export class AudioContext {
     createPanner(): AudioNode { return new AudioNode(); }
     createStereoPanner(): AudioNode { return new AudioNode(); }
 
-    decodeAudioData(_buffer: ArrayBuffer, onsuccess?: (buf: AudioBuffer) => void, onerror?: (err: Error) => void): Promise<AudioBuffer> {
-        const err = new Error('AudioContext: Web Audio API not available in GJS');
-        if (typeof onerror === 'function') onerror(err);
-        return Promise.reject(err);
+    decodeAudioData(_buffer: ArrayBuffer, onsuccess?: (buf: AudioBuffer) => void, _onerror?: (err: Error) => void): Promise<AudioBuffer> {
+        // GJS has no Web Audio backend. Rather than rejecting (which aborts
+        // resource loaders like Excalibur's), resolve with a silent empty
+        // buffer. The resulting "sound" plays silently via AudioBufferSourceNode
+        // stubs, which matches the user's expectation that audio is a no-op.
+        const silent = new AudioBuffer({ sampleRate: 44100, length: 0, numberOfChannels: 2 });
+        if (typeof onsuccess === 'function') onsuccess(silent);
+        return Promise.resolve(silent);
     }
 
     resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
