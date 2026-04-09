@@ -5,6 +5,9 @@
 //   - MediaQueryList / matchMedia (responsive checks)
 //   - location (file:// stub)
 //
+// Cross-platform: runs on both Node.js and GJS without /register side effects.
+// GJS-specific globalThis tests (FontFace on globalThis, keyboard EventTarget) live in register.spec.ts.
+//
 // Locks in the fixes made to ship the excalibur-jelly-jumper showcase on GJS.
 
 import { describe, it, expect } from '@gjsify/unit';
@@ -276,4 +279,5 @@ export default async () => {
             expect(location.toString()).toBe(location.href);
         });
     });
+
 };

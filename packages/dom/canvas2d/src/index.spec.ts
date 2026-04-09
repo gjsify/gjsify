@@ -824,4 +824,65 @@ export default async () => {
             expect(ctx.imageSmoothingEnabled).toBe(false);
         });
     });
+
+    // ---- fillText / font rendering ----
+    // Regression tests for the Excalibur Jelly Jumper coin-counter pipeline:
+    // Excalibur renders text to an offscreen canvas via fillText, then uploads
+    // it to WebGL as a texture. These tests verify the Cairo text pipeline.
+
+    await describe('fillText', async () => {
+        await it('renders non-transparent pixels for numeric text', async () => {
+            const { canvas, ctx } = createCanvas(200, 50);
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'black';
+            ctx.font = '20px sans-serif';
+            ctx.fillText('42', 5, 30);
+            const data = ctx.getImageData(5, 10, 30, 25).data;
+            const hasNonWhite = Array.from({ length: data.length / 4 }, (_, i) =>
+                data[i * 4] < 200 || data[i * 4 + 1] < 200 || data[i * 4 + 2] < 200
+            ).some(Boolean);
+            expect(hasNonWhite).toBe(true);
+        });
+
+        await it('different font sizes produce different text widths', async () => {
+            const { ctx } = createCanvas(200, 50);
+            ctx.font = '12px sans-serif';
+            const small = ctx.measureText('Hello').width;
+            ctx.font = '24px sans-serif';
+            const large = ctx.measureText('Hello').width;
+            expect(large).toBeGreaterThan(small);
+        });
+
+        await it('rgba fill color is respected (red channel > blue for red text)', async () => {
+            const { ctx } = createCanvas(100, 100);
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, 100, 100);
+            ctx.fillStyle = 'rgba(255, 0, 0, 1.0)';
+            ctx.font = '30px sans-serif';
+            ctx.fillText('X', 10, 60);
+            const data = ctx.getImageData(10, 30, 50, 40).data;
+            const hasReddish = Array.from({ length: data.length / 4 }, (_, i) =>
+                data[i * 4] > 200 && data[i * 4 + 2] < 100
+            ).some(Boolean);
+            expect(hasReddish).toBe(true);
+        });
+
+        await it('unknown font name falls back to system font and still renders pixels', async () => {
+            // Regression: Excalibur uses 'Round9x13' custom font. PangoCairo must fall back
+            // to a system font and still render visible glyphs — NOT produce an empty bitmap.
+            // If this fails, the coin counter in Jelly Jumper would be blank.
+            const { canvas, ctx } = createCanvas(200, 50);
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'black';
+            ctx.font = '20px Round9x13';
+            ctx.fillText('42', 5, 35);
+            const data = ctx.getImageData(5, 10, 50, 30).data;
+            const hasNonWhite = Array.from({ length: data.length / 4 }, (_, i) =>
+                data[i * 4] < 200 || data[i * 4 + 1] < 200 || data[i * 4 + 2] < 200
+            ).some(Boolean);
+            expect(hasNonWhite).toBe(true);
+        });
+    });
 };
