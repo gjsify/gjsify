@@ -3,6 +3,7 @@
 // Reference: https://xhr.spec.whatwg.org/
 
 import GLib from 'gi://GLib?version=2.0';
+import System from 'system';
 
 let _blobCounter = 0;
 
@@ -154,8 +155,23 @@ export class XMLHttpRequest {
     overrideMimeType(_mime: string): void {}
 
     send(_body?: any): void {
-        const url = this._url;
+        let url = this._url;
         const responseType = this.responseType;
+        const DEBUG = (globalThis as any).__GJSIFY_DEBUG_XHR === true;
+
+        // Root-relative URLs (start with '/', not '//') have no host to
+        // resolve against in GJS. Rewrite to file:// relative to the program
+        // directory — matches how an HTTP static server would resolve them.
+        if (url.startsWith('/') && !url.startsWith('//')) {
+            const prog = (System as any).programPath ?? System.programInvocationName ?? '';
+            if (prog) {
+                const programDir = GLib.path_get_dirname(prog);
+                url = `file://${programDir}${this._url}`;
+                if (DEBUG) console.log(`[xmlhttprequest] rewrite ${this._url} → ${url}`);
+            }
+        }
+
+        if (DEBUG) console.log(`[xmlhttprequest] ${this._method} ${url} responseType=${responseType}`);
 
         const doFetch = (): Promise<ArrayBuffer> => {
             // Use GLib direct read for file:// URLs (avoids Soup for local files)
@@ -164,6 +180,7 @@ export class XMLHttpRequest {
             }
             return (globalThis as any).fetch(url, { method: this._method })
                 .then((r: any) => {
+                    if (DEBUG) console.log(`[xmlhttprequest] fetch ok ${url} status=${r.status}`);
                     this.status = r.status === 0 ? 200 : r.status;
                     this.statusText = r.statusText || 'OK';
                     this.responseURL = r.url || url;
@@ -174,7 +191,10 @@ export class XMLHttpRequest {
         this.readyState = this.LOADING;
         this._emit('loadstart', { loaded: 0, total: 0, lengthComputable: false });
 
-        doFetch()
+        // Wrap doFetch() in Promise.resolve().then(...) so synchronous throws
+        // (e.g. new URL('/path') when fetch parses the input) propagate into
+        // the .catch chain instead of escaping send() as an uncaught exception.
+        Promise.resolve().then(doFetch)
             .then((arrBuf: ArrayBuffer) => {
                 if (this._aborted) return;
 
@@ -210,7 +230,7 @@ export class XMLHttpRequest {
             })
             .catch((err: any) => {
                 if (this._aborted) return;
-                console.warn(`[XMLHttpRequest] ${this._method} ${url} — ${err?.message ?? err}`);
+                console.warn(`[xmlhttprequest] ${this._method} ${url} — ${err?.message ?? err}`);
                 this.readyState = this.DONE;
                 this._emit('error', { error: err });
                 this._emit('loadend', {});
