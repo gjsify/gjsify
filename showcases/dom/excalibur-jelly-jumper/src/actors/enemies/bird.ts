@@ -70,8 +70,8 @@ export class BirdEnemy extends EnemyActor {
     this.canBeCarried = false
   }
 
-  onPreUpdate(engine: ex.Engine, delta: number): void {
-    this.elapsedMs += delta
+  onPreUpdate(engine: ex.Engine, elapsed: number): void {
+    this.elapsedMs += elapsed
     if (this.dead && this.deathPosition) {
       // fall down in feather pattern, swinging left to right, based on distance from death
       this.vel.y = 10

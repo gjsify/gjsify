@@ -50,8 +50,8 @@ export class LostCoin extends CoinItem {
     )
   }
 
-  onPreUpdate(engine: ex.Engine<any>, delta: number): void {
-    this.elapsedMs += delta
+  onPreUpdate(engine: ex.Engine<any>, elapsed: number): void {
+    this.elapsedMs += elapsed
 
     const flashRate = 50
     const shouldFlash = Math.floor(this.elapsedMs / flashRate) % 2 === 0

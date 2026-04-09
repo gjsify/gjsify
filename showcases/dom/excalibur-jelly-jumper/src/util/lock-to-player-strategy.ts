@@ -43,7 +43,7 @@ export class LockToPlayerStrategy implements ex.CameraStrategy<Player> {
     this.turn('right', true)
   }
 
-  action(target: Player, camera: ex.Camera, engine: ex.Engine, delta: number) {
+  action(target: Player, camera: ex.Camera, engine: ex.Engine, elapsed: number) {
     // get global position of target as target.pos is relative to its parent
     const targetPos = target.getGlobalPos()
 

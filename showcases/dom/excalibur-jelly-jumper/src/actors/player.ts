@@ -328,7 +328,7 @@ export default class Player extends PhysicsActor {
     this.animation.set('idle')
   }
 
-  onPreUpdate(engine: ex.Engine, delta: number): void {
+  onPreUpdate(engine: ex.Engine, elapsed: number): void {
     // reset some flags when we're on the ground
     if (this.isOnGround) {
       this.isUsingJumpGravity = false
@@ -344,11 +344,11 @@ export default class Player extends PhysicsActor {
       this.isSlidingOnWall = false
     }
 
-    this.handleInput(engine, delta)
+    this.handleInput(engine, elapsed)
   }
 
   // @ts-ignore
-  update(engine: ex.Engine<any>, delta: number): void {
+  update(engine: ex.Engine<any>, elapsed: number): void {
     let useApexGravity = false
 
     // if we're jumping use our jump gravity
@@ -379,10 +379,10 @@ export default class Player extends PhysicsActor {
       this.acc.y = 0
     }
 
-    super.update(engine, delta)
+    super.update(engine, elapsed)
   }
 
-  onPostUpdate(engine: ex.Engine, delta: number): void {
+  onPostUpdate(engine: ex.Engine, elapsed: number): void {
     const { isBeingKnockedBack } = this.get(DamageableComponent)
     // speed up the animation the faster we're moving
     this.animation.speed = Math.min(
@@ -454,7 +454,7 @@ export default class Player extends PhysicsActor {
   /**
    * Process user input to control the character
    */
-  handleInput(engine: ex.Engine, delta: number) {
+  handleInput(engine: ex.Engine, elapsed: number) {
     const jumpPressed = this.controls.wasPressed('Jump')
     const jumpHeld = this.controls.isHeld('Jump')
 
@@ -929,14 +929,14 @@ class PlayerControlsComponent extends ControlsComponent {
     super.onAdd?.(owner)
 
     // increment the sprint timer to toggle sprinting if we're running for SPRINT_TRIGGER_TIME
-    owner.on('postupdate', ({ delta }) => {
+    owner.on('postupdate', ({ elapsed }) => {
       const isOnGround = this.owner.isOnGround
       const jumpedBeforeSprinting = !isOnGround && !this.isSprinting
       const isTurningOnGround = this.isTurning && isOnGround
 
       if (this.isRunning && isOnGround && !isTurningOnGround) {
         this.sprintTimer = Math.min(
-          this.sprintTimer + delta,
+          this.sprintTimer + elapsed,
           this.owner.SPRINT_TRIGGER_TIME
         )
       }

@@ -35,10 +35,10 @@ export class CoyoteComponent<
   onPreUpdate(ev: ex.PreUpdateEvent) {
     for (const action in this.actions) {
       const coyote = this.actions[action]
-      if (coyote.condition(ev.delta)) {
+      if (coyote.condition(ev.elapsed)) {
         this.counter[action] = coyote.time
       } else {
-        this.counter[action] = Math.max(0, this.counter[action] - ev.delta)
+        this.counter[action] = Math.max(0, this.counter[action] - ev.elapsed)
       }
     }
   }

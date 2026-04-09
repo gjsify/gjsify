@@ -45,7 +45,7 @@ export class EnemySpawner extends ex.Actor {
     this.scene!.engine.add(this.spawnedInstance)
   }
 
-  onPreUpdate(engine: ex.Engine, delta: number): void {
+  onPreUpdate(engine: ex.Engine, elapsed: number): void {
     const camera = engine.currentScene.camera
     const boundsWithBuffer = new ex.BoundingBox(
       camera.viewport.left - this.OFFSCREEN_BUFFER,

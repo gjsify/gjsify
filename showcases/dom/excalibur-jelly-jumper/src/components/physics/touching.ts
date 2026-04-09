@@ -34,10 +34,22 @@ export class TouchingComponent extends ex.Component {
 
   onAdd(owner: ex.Actor): void {
     // collect up all of the collisionstart/end events for each frame
+    //
+    // Excalibur 0.32.0: ev.other is a Collider, not an Actor. The owning
+    // Actor (and its BodyComponent) is accessed via ev.other.owner.
+    //
+    // This bug is the root cause of:
+    //   - "player can't jump" (isOnGround always false because touching.bottom
+    //     is always empty → `if (isOnGround || coyote) jump()` never fires)
+    //   - "player keeps running after key release" (applyDeceleration only
+    //     decelerates when isOnGround=true; in air there's only turn-
+    //     deceleration and max-velocity clamp)
     owner.on('collisionstart', (ev) => {
-      if (ev.other.collider) {
-        if (ev.other.body?.collisionType === ex.CollisionType.Passive) {
-          this.passives.add(ev.other)
+      const otherActor = ev.other.owner as ex.Actor
+      if (otherActor) {
+        const body = otherActor.get(ex.BodyComponent)
+        if (body?.collisionType === ex.CollisionType.Passive) {
+          this.passives.add(otherActor)
         } else {
           const side = ev.side.toLowerCase() as
             | 'left'
@@ -47,7 +59,7 @@ export class TouchingComponent extends ex.Component {
 
           this.contacts.set(ev.contact.id, {
             contact: ev.contact,
-            actor: ev.other,
+            actor: otherActor,
             side,
           })
           this.updateSides()
@@ -56,8 +68,10 @@ export class TouchingComponent extends ex.Component {
     })
 
     owner.on('collisionend', (ev) => {
-      if (ev.other.body?.collisionType === ex.CollisionType.Passive) {
-        this.passives.delete(ev.other)
+      const otherActor = ev.other.owner as ex.Actor
+      const body = otherActor?.get(ex.BodyComponent)
+      if (body?.collisionType === ex.CollisionType.Passive) {
+        this.passives.delete(otherActor)
       } else {
         this.contacts.delete(ev.lastContact.id)
         this.updateSides()

@@ -56,7 +56,7 @@ export class SpiderEnemy extends EnemyActor {
     )
   }
 
-  onPreUpdate(engine: ex.Engine, delta: number): void {
+  onPreUpdate(engine: ex.Engine, elapsed: number): void {
     if (this.dead) return
 
     const bottomLeft = this.raycast(
@@ -103,7 +103,7 @@ export class SpiderEnemy extends EnemyActor {
     side: ex.Side,
     contact: ex.CollisionContact
   ): void {
-    // Excalibur 0.32.0: `other` is a Collider. Check `other.owner` for Actor-subclass identity.
+    // Excalibur 0.32.0: `other` is a Collider. Check `other.owner` for Actor identity.
     if (other.owner instanceof Player) {
       return
     }

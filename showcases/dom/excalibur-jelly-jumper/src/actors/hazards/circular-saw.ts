@@ -55,7 +55,7 @@ export class CircularSawHazard extends PhysicsActor {
     )
   }
 
-  onPreUpdate(_engine: ex.Engine, delta: number) {
+  onPreUpdate(_engine: ex.Engine, elapsed: number) {
     const edge =
       this.direction === 1
         ? this.collider.bounds.right + this.bladeSize.width / 2
@@ -90,7 +90,7 @@ export class CircularSawHazard extends PhysicsActor {
     }
 
     // move and rotate the saw
-    this.graphics.current!.rotation += ex.toRadians((this.speed * 5) / delta)
+    this.graphics.current!.rotation += ex.toRadians((this.speed * 5) / elapsed)
     this.vel.x = this.speed * this.direction
 
     if (groundHit) {

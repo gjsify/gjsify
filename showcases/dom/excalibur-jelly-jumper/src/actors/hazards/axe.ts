@@ -26,8 +26,8 @@ export class AxeHazard extends ex.Actor {
     this.addComponent(new DamageComponent({ amount: 1 }))
   }
 
-  onPreUpdate(_engine: ex.Engine, delta: number) {
-    this.elapsedMs += delta
+  onPreUpdate(_engine: ex.Engine, elapsed: number) {
+    this.elapsedMs += elapsed
 
     const initialAngle = Math.PI / 2
     const time = this.elapsedMs / 1000

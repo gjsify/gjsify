@@ -33,7 +33,7 @@ export class Tween {
 
   onUpdate = (ev: ex.PreUpdateEvent<ex.Engine>) => {
     if (this._elapsed < this._duration) {
-      this._elapsed = Math.min(this._duration, this._elapsed + ev.delta)
+      this._elapsed = Math.min(this._duration, this._elapsed + ev.elapsed)
 
       this.value = this._easing(
         this._elapsed,

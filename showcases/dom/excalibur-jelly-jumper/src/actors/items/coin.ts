@@ -31,8 +31,8 @@ export class CoinItem extends ex.Actor {
     return this.get(CollectableComponent)
   }
 
-  onPreUpdate(engine: ex.Engine<any>, delta: number): void {
-    this.elapsedMs += delta
+  onPreUpdate(engine: ex.Engine<any>, elapsed: number): void {
+    this.elapsedMs += elapsed
 
     // bobble up and down
     this.pos.y -= Math.sin(this.elapsedMs / 200) / 10
