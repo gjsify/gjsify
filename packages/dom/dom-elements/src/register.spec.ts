@@ -10,7 +10,6 @@
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import '@gjsify/dom-elements/register';
-import { HTMLCanvasElement } from '@gjsify/dom-elements';
 import { KeyboardEvent as OurKeyboardEvent } from '@gjsify/dom-events';
 
 export default async () => {
@@ -62,30 +61,9 @@ export default async () => {
                 expect(face.status).toBe('loaded');
             });
 
-            await it('fillText with the registered font renders visible pixels', async () => {
-                const FF = (globalThis as any).FontFace;
-                const face = new FF('DejaVuTestFont2', `url(file://${TTF})`);
-                await face.load();
-
-                // Dynamic import to avoid circular dep: canvas2d depends on dom-elements
-                await import('@gjsify/canvas2d');
-
-                const canvas = new HTMLCanvasElement();
-                canvas.width = 80;
-                canvas.height = 24;
-                const ctx = canvas.getContext('2d') as any;
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, 80, 24);
-                ctx.fillStyle = 'black';
-                ctx.font = '14px DejaVuTestFont2';
-                ctx.fillText('Ag', 4, 18);
-
-                const data = ctx.getImageData(4, 4, 40, 16).data;
-                const hasInk = Array.from({ length: data.length / 4 }, (_, i) =>
-                    data[i * 4] < 255 || data[i * 4 + 1] < 255 || data[i * 4 + 2] < 255
-                ).some(Boolean);
-                expect(hasInk).toBe(true);
-            });
+            // Note: ink rendering test (fillText with registered font) lives in
+            // packages/dom/canvas2d-core or @gjsify/canvas2d tests — canvas2d
+            // depends on dom-elements so importing it here would be circular.
         });
 
         await describe('globalThis keyboard EventTarget wiring', async () => {
