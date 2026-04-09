@@ -38,6 +38,16 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
         return this.height;
     }
 
+    /** CSS layout width — same as the GTK-allocated pixel width for a full-window canvas. */
+    get offsetWidth(): number {
+        return this.width;
+    }
+
+    /** CSS layout height — same as the GTK-allocated pixel height for a full-window canvas. */
+    get offsetHeight(): number {
+        return this.height;
+    }
+
     /** Returns the underlying Gtk.GLArea. Used by WebGLRenderingContext for GLSL version detection. */
     getGlArea(): Gtk.GLArea {
         return this.gtkGlArea;

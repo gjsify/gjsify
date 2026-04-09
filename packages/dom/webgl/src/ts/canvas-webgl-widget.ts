@@ -176,11 +176,14 @@ export const CanvasWebGLWidget = GObject.registerClass(
                 this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, _frameClock: Gdk.FrameClock) => {
                     this._tickCallbackId = null;
                     if (this._renderTag === null) {
-                        this._renderTag = this.connect('render', () => {
+                        this._renderTag = this.connect('render', (_widget: Gtk.GLArea) => {
                             this.disconnect(this._renderTag!);
                             this._renderTag = null;
                             // DOMHighResTimeStamp: ms since time origin, matching performance.now()
                             const time = (GLib.get_monotonic_time() - this._timeOrigin) / 1000;
+                            if ((globalThis as any).__GJSIFY_DEBUG_RAF === true) {
+                                console.log(`[rAF] frame callback fires t=${time.toFixed(1)}`);
+                            }
                             this._frameCallback?.(time);
                             return true;
                         });
@@ -203,6 +206,10 @@ export const CanvasWebGLWidget = GObject.registerClass(
         installGlobals(): void {
             (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
                 this.requestAnimationFrame(cb);
+            (globalThis as any).cancelAnimationFrame = (_id: number) => {
+                // Cancel is not yet fully implemented — clear pending frame callback.
+                this._frameCallback = null;
+            };
             // Install performance.now() on the same time origin as rAF timestamps.
             // Always override to ensure consistency — native GJS performance.now()
             // may use a different time origin than the frame clock.

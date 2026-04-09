@@ -184,7 +184,7 @@ export const extractImageData = (pixels: TexImageSource | HTMLImageElement): Ima
 
         if (typeof (pixels as HTMLCanvasElement).getContext === 'function') {
             context = (pixels as HTMLCanvasElement).getContext('2d')
-        } else if (typeof (pixels as HTMLImageElement).isPixbuf()) {
+        } else if (typeof (pixels as HTMLImageElement).isPixbuf === 'function' && (pixels as HTMLImageElement).isPixbuf()) {
             return (pixels as HTMLImageElement).getImageData();
         } else if (typeof (pixels as HTMLImageElement).src !== 'undefined' && typeof document === 'object' && typeof document.createElement === 'function') {
             const canvas = document.createElement('canvas')

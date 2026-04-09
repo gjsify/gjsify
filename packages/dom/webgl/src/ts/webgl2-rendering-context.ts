@@ -833,6 +833,10 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         if (!this._framebufferOk()) return;
         if (count === 0 || instanceCount === 0) return;
         if (!this._checkVertexAttribState((count + first - 1) >>> 0)) return;
+        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+            const n = (this as any).__drawInstCount = ((this as any).__drawInstCount | 0) + 1;
+            if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawArraysInstanced #${n} count=${rc} instances=${instanceCount} fbo=${(this._activeFramebuffer as any)?._ ?? '_gtkFbo'}`);
+        }
         this._native2.drawArraysInstanced(mode, first, rc, instanceCount);
     }
 
@@ -916,7 +920,17 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     blitFramebuffer(srcX0: GLint, srcY0: GLint, srcX1: GLint, srcY1: GLint, dstX0: GLint, dstY0: GLint, dstX1: GLint, dstY1: GLint, mask: GLbitfield, filter: GLenum): void {
+        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+            // Check GL error before blit to isolate issues
+            const errBefore = this._gl.getError();
+            if (errBefore !== 0) console.log(`[WebGL] blitFramebuffer PRE-ERROR 0x${errBefore.toString(16)}`);
+        }
         this._native2.blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+            const err = this._gl.getError();
+            const n = (this as any).__blitCount = ((this as any).__blitCount | 0) + 1;
+            if (n <= 5) console.log(`[WebGL] blitFramebuffer #${n} src=(${srcX0},${srcY0},${srcX1},${srcY1}) readFbo=${(this._activeReadFramebuffer as any)?._  ?? '_gtkFbo'} err=${err === 0 ? 'OK' : '0x' + err.toString(16)}`);
+        }
     }
 
     // clearBuffer{fv,iv,uiv,fi} — WebGL2 methods for clearing specific

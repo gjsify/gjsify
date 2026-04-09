@@ -620,6 +620,10 @@ export abstract class WebGLContextBase {
         const framebuffer = this._activeFramebuffer
         if (framebuffer &&
             this._preCheckFramebufferStatus(framebuffer) !== this.FRAMEBUFFER_COMPLETE) {
+            if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+                const status = this._preCheckFramebufferStatus(framebuffer);
+                console.log(`[WebGL] _framebufferOk FAIL fbo=${(framebuffer as any)?._  ?? '?'} status=0x${status.toString(16)}`);
+            }
             this.setError(this.INVALID_FRAMEBUFFER_OPERATION)
             return false
         }
@@ -2630,6 +2634,10 @@ export abstract class WebGLContextBase {
             maxIndex = (count + first - 1) >>> 0
         }
         if (this._checkVertexAttribState(maxIndex)) {
+            if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+                const n = (this as any).__drawCount = ((this as any).__drawCount | 0) + 1;
+                if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawArrays #${n} mode=${mode} count=${reducedCount} fbo=${(this._activeFramebuffer as any)?._ ?? '_gtkFbo'}`);
+            }
             this._gl.drawArrays(mode, first, reducedCount)
         }
     }
@@ -2734,6 +2742,10 @@ export abstract class WebGLContextBase {
 
         if (this._checkVertexAttribState(maxIndex)) {
             if (reducedCount > 0) {
+                if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+                    const n = (this as any).__drawElCount = ((this as any).__drawElCount | 0) + 1;
+                    if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawElements #${n} count=${reducedCount} fbo=${(this._activeFramebuffer as any)?._ ?? '_gtkFbo'}`);
+                }
                 this._gl.drawElements(mode, reducedCount, type, ioffset)
             }
         }
