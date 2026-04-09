@@ -1,0 +1,4 @@
+test.gjs.mjs
+lib/
+tsconfig.tsbuildinfo
+node_modules/
