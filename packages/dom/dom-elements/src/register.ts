@@ -7,6 +7,7 @@
 // DOM elements are only meaningful in the GJS/GTK environment.
 
 import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
+import { EventTarget as OurEventTarget } from '@gjsify/dom-events';
 
 import { Comment } from './comment.js';
 import { document } from './document.js';
@@ -85,19 +86,25 @@ defineGlobalIfMissing('window', globalThis);
 defineGlobalIfMissing('focus', () => {});
 defineGlobalIfMissing('blur', () => {});
 
-// globalThis.addEventListener / removeEventListener stubs — Excalibur's
-// Keyboard.init() attaches blur/keyup/keydown listeners to the global object.
-// Our GTK event bridge dispatches keyboard events on the canvas, not window —
-// so these stubs simply swallow the listener registrations. The actual
-// keyboard events reach Excalibur via canvas-level event dispatch.
+// globalThis.addEventListener / removeEventListener / dispatchEvent —
+// Excalibur's Keyboard.init() attaches keydown/keyup/blur listeners to the
+// global object (window). We back globalThis with a real EventTarget so these
+// registrations actually work. The GTK event-bridge then dispatches keyboard
+// events on BOTH the canvas element AND this global target, matching the
+// browser model where keydown/keyup bubble to window.
+//
+// We expose the backing EventTarget as __gjsify_globalEventTarget so the
+// event-bridge can dispatch on it without going through the (potentially
+// already-set) globalThis.dispatchEvent which may be a native no-op.
 if (typeof (globalThis as any).addEventListener !== 'function') {
-    (globalThis as any).addEventListener = () => {};
-}
-if (typeof (globalThis as any).removeEventListener !== 'function') {
-    (globalThis as any).removeEventListener = () => {};
-}
-if (typeof (globalThis as any).dispatchEvent !== 'function') {
-    (globalThis as any).dispatchEvent = () => true;
+    const _globalEventTarget = new OurEventTarget();
+    (globalThis as any).__gjsify_globalEventTarget = _globalEventTarget;
+    (globalThis as any).addEventListener = (type: string, listener: any, options?: any) =>
+        _globalEventTarget.addEventListener(type, listener, options);
+    (globalThis as any).removeEventListener = (type: string, listener: any, options?: any) =>
+        _globalEventTarget.removeEventListener(type, listener, options);
+    (globalThis as any).dispatchEvent = (event: Event) =>
+        _globalEventTarget.dispatchEvent(event as any);
 }
 
 // devicePixelRatio — defaults to 1 (no HiDPI scaling in GTK GL context)

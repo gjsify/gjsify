@@ -55,8 +55,10 @@ export const CanvasWebGLWidget = GObject.registerClass(
             this.set_has_depth_buffer(true);
             this.set_has_stencil_buffer(true);
 
-            // Bridge GTK events → DOM events on the canvas element
-            attachEventControllers(this, () => this._canvas);
+            // Bridge GTK events → DOM events on the canvas element.
+            // captureKeys=true: consume key events so GTK focus traversal (arrow keys)
+            // never steals focus from the game canvas.
+            attachEventControllers(this, () => this._canvas, { captureKeys: true });
 
             // Initialize canvas on first render
             const initId = this.connect('render', () => {
