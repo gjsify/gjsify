@@ -68,6 +68,15 @@ export const CanvasWebGLWidget = GObject.registerClass(
                 if ((globalThis as any).document?.body) {
                     (globalThis as any).document.body.appendChild(this._canvas);
                 }
+                // Eagerly create BOTH WebGL and WebGL2 contexts during the init
+                // render signal so their underlying _init() calls capture GtkGLArea's
+                // private FBO ID via GL_FRAMEBUFFER_BINDING. If we only create webgl1
+                // here and the consumer later calls getContext('webgl2') (as Excalibur
+                // 0.32 does — it uses WebGL2 exclusively), the webgl2 context would be
+                // instantiated OUTSIDE the render signal, GL_FRAMEBUFFER_BINDING would
+                // read 0, _gtkFboId would be 0, and bindFramebuffer(null) would bind
+                // FBO 0 instead of GtkGLArea's FBO → invisible rendering.
+                this._canvas.getContext('webgl2');
                 const gl = this._canvas.getContext('webgl') as OurWebGLRenderingContext | null;
                 if (gl) {
                     for (const cb of this._readyCallbacks) {
