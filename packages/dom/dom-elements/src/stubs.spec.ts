@@ -235,13 +235,14 @@ export default async () => {
             expect(face.status).toBe('loaded');
         });
 
-        await it('FontFaceSet add/has/size are no-ops (stub)', async () => {
+        await it('FontFaceSet add/has/size track added faces', async () => {
             const set = new FontFaceSet();
             const face = new FontFace('A', 'url(a.ttf)');
-            set.add(face);
-            // no-op stub: has() always returns false, size always 0
             expect(set.has(face)).toBe(false);
             expect(set.size).toBe(0);
+            set.add(face);
+            expect(set.has(face)).toBe(true);
+            expect(set.size).toBe(1);
         });
 
         await it('FontFaceSet.ready resolves with the set', async () => {

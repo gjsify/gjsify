@@ -2966,6 +2966,25 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/test-dom-excalibur@workspace:tests/dom/excalibur":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/test-dom-excalibur@workspace:tests/dom/excalibur"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.1"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.1"
+    "@gjsify/canvas2d": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-elements": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": "npm:^25.5.2"
+    excalibur: "npm:0.32.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/timers@workspace:^, @gjsify/timers@workspace:packages/node/timers":
   version: 0.0.0-use.local
   resolution: "@gjsify/timers@workspace:packages/node/timers"

@@ -161,6 +161,31 @@ export class CanvasRenderingContext2D {
     }
 
     /**
+     * Convert a distance from device pixels to Cairo user space by inverting
+     * the linear part of the current CTM (translation doesn't affect distances).
+     *
+     * Canvas 2D spec: shadowOffsetX/Y are in CSS pixels and are NOT scaled by
+     * the current transform. This helper converts them to user-space offsets so
+     * that `ctx.moveTo(x + sdx, y + sdy)` produces the correct pixel offset
+     * regardless of any ctx.scale() or ctx.rotate() in effect.
+     */
+    private _deviceToUserDistance(dx: number, dy: number): [number, number] {
+        const origin = (this._ctx as any).userToDevice(0, 0);
+        const xAxis  = (this._ctx as any).userToDevice(1, 0);
+        const yAxis  = (this._ctx as any).userToDevice(0, 1);
+        const a = (xAxis[0] ?? 0) - (origin[0] ?? 0);
+        const b = (xAxis[1] ?? 0) - (origin[1] ?? 0);
+        const c = (yAxis[0] ?? 0) - (origin[0] ?? 0);
+        const d = (yAxis[1] ?? 0) - (origin[1] ?? 0);
+        const det = a * d - b * c;
+        if (Math.abs(det) < 1e-10) return [dx, dy]; // degenerate transform — no conversion
+        return [
+            ( d * dx - c * dy) / det,
+            (-b * dx + a * dy) / det,
+        ];
+    }
+
+    /**
      * Shadow rendering is intentionally a no-op.
      *
      * Proper Canvas 2D shadows require a Gaussian blur pass on an isolated
@@ -906,35 +931,41 @@ export class CanvasRenderingContext2D {
     /** Parse a CSS font string (e.g. "bold 16px Arial") into a Pango.FontDescription. */
     private _parseFontToDescription(cssFont: string): Pango.FontDescription {
         // CSS font: [style] [variant] [weight] size[/line-height] family[, family...]
-        // Pango expects: "Family Weight Style Size" format
         const match = cssFont.match(
             /^\s*(italic|oblique|normal)?\s*(small-caps|normal)?\s*(bold|bolder|lighter|[1-9]00|normal)?\s*(\d+(?:\.\d+)?)(px|pt|em|rem|%)?\s*(?:\/\S+)?\s*(.+)?$/i
         );
 
         if (!match) {
-            // Fallback: pass directly to Pango
+            // Fallback: pass directly to Pango (may have DPI-scaling quirks)
             return Pango.font_description_from_string(cssFont);
         }
 
-        const style = match[1] || '';
+        const style  = match[1] || '';
         const weight = match[3] || '';
-        let size = parseFloat(match[4]) || 10;
-        const unit = match[5] || 'px';
+        let   size   = parseFloat(match[4]) || 10;
+        const unit   = (match[5] || 'px').toLowerCase();
         const family = (match[6] || 'sans-serif').replace(/['"]/g, '').trim();
 
-        // Convert units to points (Pango uses points)
-        if (unit === 'px') size = size * 0.75; // 1px = 0.75pt approximately
-        else if (unit === 'em' || unit === 'rem') size = size * 12; // assume 16px base = 12pt
-        else if (unit === '%') size = (size / 100) * 12;
+        // Normalise everything to CSS pixels.
+        // We use set_absolute_size() below which bypasses Pango's DPI scaling,
+        // so 1 CSS pixel == 1 device pixel on a 1:1 surface (standard for Canvas2D).
+        if      (unit === 'pt')            size = size * 96 / 72;  // 1pt = 96/72 px
+        else if (unit === 'em' || unit === 'rem') size = size * 16; // assume 16px base
+        else if (unit === '%')             size = (size / 100) * 16;
+        // 'px' stays as-is
 
+        // Build description string WITHOUT size — size is set via set_absolute_size.
         let pangoStr = family;
-        if (style === 'italic') pangoStr += ' Italic';
+        if (style === 'italic')  pangoStr += ' Italic';
         else if (style === 'oblique') pangoStr += ' Oblique';
-        if (weight === 'bold' || weight === 'bolder' || (parseInt(weight) >= 600)) pangoStr += ' Bold';
+        if (weight === 'bold' || weight === 'bolder' || parseInt(weight) >= 600) pangoStr += ' Bold';
         else if (weight === 'lighter' || (parseInt(weight) > 0 && parseInt(weight) <= 300)) pangoStr += ' Light';
-        pangoStr += ` ${Math.round(size)}`;
 
-        return Pango.font_description_from_string(pangoStr);
+        const desc = Pango.font_description_from_string(pangoStr);
+        // Absolute size: Pango.SCALE units per device pixel, no DPI conversion.
+        // This ensures "9px Round9x13" renders at exactly 9 pixels — pixel-perfect.
+        desc.set_absolute_size(size * Pango.SCALE);
+        return desc;
     }
 
     /**
@@ -988,13 +1019,36 @@ export class CanvasRenderingContext2D {
     fillText(text: string, x: number, y: number, _maxWidth?: number): void {
         this._ensureSurface();
         this._applyCompositing();
-        this._applyFillStyle();
 
         const layout = this._createTextLayout(text);
         const xOff = this._getTextAlignOffset(layout);
         const yOff = this._getTextBaselineOffset(layout);
 
+        // Shadow pass: draw text at offset position with shadowColor.
+        // shadowOffsetX/Y are in CSS pixels (not scaled by CTM per Canvas2D spec),
+        // so we convert them to user-space before applying to moveTo.
+        // No Gaussian blur — offset-only shadow is sufficient for game text labels.
+        if (this._hasShadow()) {
+            const sc = parseColor(this._state.shadowColor);
+            if (sc) {
+                const [sdx, sdy] = this._deviceToUserDistance(
+                    this._state.shadowOffsetX,
+                    this._state.shadowOffsetY,
+                );
+                this._ctx.save();
+                (this._ctx as any).setAntialias(this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE);
+                this._ctx.setSourceRGBA(sc.r, sc.g, sc.b, sc.a);
+                this._ctx.moveTo(x + xOff + sdx, y + yOff + sdy);
+                PangoCairo.show_layout(this._ctx as any, layout);
+                this._ctx.restore();
+            }
+        }
+
+        this._applyFillStyle();
         this._ctx.save();
+        // Disable anti-aliasing so pixel/bitmap fonts render crisp (matching browser
+        // behaviour for fonts with no outline hints). cairo_save/restore covers antialias.
+        (this._ctx as any).setAntialias(this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE);
         this._ctx.moveTo(x + xOff, y + yOff);
         PangoCairo.show_layout(this._ctx as any, layout);
         this._ctx.restore();
@@ -1011,6 +1065,7 @@ export class CanvasRenderingContext2D {
         const yOff = this._getTextBaselineOffset(layout);
 
         this._ctx.save();
+        (this._ctx as any).setAntialias(this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE);
         this._ctx.moveTo(x + xOff, y + yOff);
         PangoCairo.layout_path(this._ctx as any, layout);
         this._ctx.stroke();
@@ -1021,25 +1076,34 @@ export class CanvasRenderingContext2D {
         this._ensureSurface();
         const layout = this._createTextLayout(text);
         const [inkRect, logicalRect] = layout.get_pixel_extents();
+
+        // Baseline of first line in pixels from layout top (Pango.SCALE units → px).
+        const baselinePx = layout.get_baseline() / Pango.SCALE;
+
+        // actualBoundingBox: ink-based, relative to baseline (positive = above/right of baseline).
+        // inkRect.y is pixels below layout top — compare against baseline to get baseline-relative values.
+        const actualAscent  = Math.max(0, baselinePx - inkRect.y);
+        const actualDescent = Math.max(0, (inkRect.y + inkRect.height) - baselinePx);
+
+        // fontBoundingBox: font-level metrics (same for all glyphs at this font/size).
         const fontDesc = layout.get_font_description() || this._parseFontToDescription(this._state.font);
-        const context = layout.get_context();
-        const metrics = context.get_metrics(fontDesc, null);
-        const ascent = metrics.get_ascent() / Pango.SCALE;
-        const descent = metrics.get_descent() / Pango.SCALE;
+        const metrics = layout.get_context().get_metrics(fontDesc, null);
+        const fontAscent  = metrics.get_ascent()  / Pango.SCALE;
+        const fontDescent = metrics.get_descent() / Pango.SCALE;
 
         return {
             width: logicalRect.width,
-            actualBoundingBoxAscent: ascent,
-            actualBoundingBoxDescent: descent,
-            actualBoundingBoxLeft: -inkRect.x,
-            actualBoundingBoxRight: inkRect.x + inkRect.width,
-            fontBoundingBoxAscent: ascent,
-            fontBoundingBoxDescent: descent,
-            alphabeticBaseline: 0,
-            emHeightAscent: ascent,
-            emHeightDescent: descent,
-            hangingBaseline: ascent * 0.8,
-            ideographicBaseline: -descent,
+            actualBoundingBoxAscent:  actualAscent,
+            actualBoundingBoxDescent: actualDescent,
+            actualBoundingBoxLeft:    Math.max(0, -inkRect.x),
+            actualBoundingBoxRight:   inkRect.x + inkRect.width,
+            fontBoundingBoxAscent:    fontAscent,
+            fontBoundingBoxDescent:   fontDescent,
+            alphabeticBaseline:       0,
+            emHeightAscent:           fontAscent,
+            emHeightDescent:          fontDescent,
+            hangingBaseline:          fontAscent * 0.8,
+            ideographicBaseline:      -fontDescent,
         };
     }
 
