@@ -170,6 +170,73 @@ export default async () => {
             });
         });
 
+        await describe('src setter — data: URI loading', async () => {
+            // Excalibur's Loader.onBeforeLoad() sets img.src to a data:image/png;base64,...
+            // URI for the loader logo. If this fires error instead of load, the
+            // _imageLoaded promise never resolves and the loader hangs forever.
+            // Regression test for the GJS fix using GLib.base64_decode + Gio.MemoryInputStream.
+
+            function makeDataUri(): string {
+                // Encode the 2×2 fixture PNG as a data URI using GLib.
+                const [ok, bytes] = GLib.file_get_contents(FIXTURE_PATH);
+                if (!ok) throw new Error('fixture PNG not found');
+                const b64 = GLib.base64_encode(bytes as unknown as Uint8Array);
+                return `data:image/png;base64,${b64}`;
+            }
+
+            await it('loads a base64 PNG data URI and sets natural dimensions', async () => {
+                const img = new HTMLImageElement();
+                const dataUri = makeDataUri();
+                img.src = dataUri;
+                expect(img.complete).toBe(true);
+                expect(img.naturalWidth).toBe(2);
+                expect(img.naturalHeight).toBe(2);
+                expect(img.isPixbuf()).toBe(true);
+            });
+
+            await it('fires load event for a base64 PNG data URI', async () => {
+                const img = new HTMLImageElement();
+                let loaded = false;
+                img.addEventListener('load', () => { loaded = true; });
+                img.src = makeDataUri();
+                expect(loaded).toBe(true);
+            });
+
+            await it('Excalibur pattern: onload-then-src resolves for data URIs', async () => {
+                const img = new HTMLImageElement();
+                const future = new Promise<void>((resolve) => {
+                    img.onload = () => resolve();
+                });
+                img.src = makeDataUri();
+                await future;
+                expect(img.complete).toBe(true);
+                expect(img.naturalWidth).toBe(2);
+            });
+
+            await it('fires error for a malformed data URI (no comma)', async () => {
+                const img = new HTMLImageElement();
+                let errored = false;
+                img.addEventListener('error', () => { errored = true; });
+                img.src = 'data:image/png;base64';
+                expect(errored).toBe(true);
+                expect(img.complete).toBe(true);
+            });
+
+            await it('getImageData returns correct RGBA pixels from data URI', async () => {
+                const img = new HTMLImageElement();
+                img.src = makeDataUri();
+                const data = img.getImageData();
+                expect(data).not.toBeNull();
+                expect(data!.width).toBe(2);
+                expect(data!.height).toBe(2);
+                // Pixel (0,0) — red
+                expect(data!.data[0]).toBe(255);
+                expect(data!.data[1]).toBe(0);
+                expect(data!.data[2]).toBe(0);
+                expect(data!.data[3]).toBe(255);
+            });
+        });
+
         await describe('dataset proxy — Excalibur data-original-src pattern', async () => {
             // Excalibur's ImageSource.load does:
             //   image.setAttribute('data-original-src', this.path);

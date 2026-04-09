@@ -89,7 +89,12 @@ async function readFileUrl(url: string): Promise<ArrayBuffer> {
     const path = GLib.filename_from_uri(url)[0];
     const [ok, contents] = GLib.file_get_contents(path);
     if (!ok) throw new Error(`XMLHttpRequest: cannot read file ${path}`);
-    return (contents as Uint8Array).buffer as ArrayBuffer;
+    // GLib-backed Uint8Array's .buffer may not be a standard JS ArrayBuffer.
+    // Copy into a fresh Uint8Array so callers get a proper ArrayBuffer.
+    const src = contents as Uint8Array;
+    const copy = new Uint8Array(src.byteLength);
+    copy.set(src);
+    return copy.buffer;
 }
 
 /** Write bytes to a temp file and return the path. */
