@@ -274,7 +274,20 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-*(No open TODOs — all resolved in 2026-04-07 session.)*
+### Browser Testing Infrastructure for DOM Packages
+
+**Priority: High — architectural gap**
+
+DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target for DOM behaviour is a **real browser**, not Node.js. Node.js lacks a DOM and would require heavy polyfilling that obscures whether our implementation is correct. We do not yet have a browser test runner integrated into the monorepo.
+
+**What is needed:**
+- A browser test runner (e.g. Playwright, WPT harness, or a `gjsify build --app browser` + headless Chromium setup) that executes `*.spec.ts` suites in a real browser context
+- Specs must be written **without** manual `import '<pkg>/register'` in source. Instead: `gjsify build --globals` injects the register for GJS; the browser provides native globals. The same spec file then runs on both GJS and browser without platform guards
+- Once browser infrastructure exists, `register.spec.ts` files (created as a temporary GJS-only workaround for testing `globalThis` wiring) should fold back into the common spec — no manual register import, runs on GJS + browser
+- Priority packages: `dom-elements`, `canvas2d`, `canvas2d-core`, `event-bridge`
+- `refs/wpt/` is the authoritative conformance test source for DOM specs
+
+**Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
 
 ---
 
