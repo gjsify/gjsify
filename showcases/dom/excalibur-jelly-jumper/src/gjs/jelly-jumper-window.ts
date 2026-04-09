@@ -4,7 +4,6 @@
 // mirroring the browser's WebGL→Canvas2D fallback path.
 
 import GObject from 'gi://GObject?version=2.0';
-import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { CanvasWebGLWidget } from '@gjsify/webgl';
@@ -39,11 +38,6 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
             child = this._canvasContainer.get_first_child();
         }
 
-        // Derive the bundle directory for file:// asset resolution.
-        // import.meta.url points to the bundle file; dirname gives the dist/ dir.
-        const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
-        const baseUrl = 'file://' + bundleDir;
-
         // Both widgets expose an identical API (onReady, onResize, installGlobals,
         // connect('resize', ...)), so the Canvas 2D fallback path differs from
         // the WebGL path only in the widget constructor.
@@ -63,7 +57,7 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
                 this._game?.engine.screen.applyResolutionAndViewport();
             });
 
-            startGame(canvas, baseUrl)
+            startGame(canvas)
                 .then(game => { this._game = game; })
                 .catch(err => {
                     if (useFallback) {

@@ -1,5 +1,5 @@
 import * as ex from 'excalibur'
-import { setResourcesBaseUrl, loader } from './resources.js'
+import { loader } from './resources.js'
 import Level1 from './scenes/level1.js'
 import Demo from './scenes/demo.js'
 import { GRAVITY } from './physics/gravity.js'
@@ -16,7 +16,6 @@ function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
   return {
     canvasElement: canvas,
     suppressMinimumBrowserFeatureDetection: true,
-    suppressPlayButton: true,
     suppressConsoleBootMessage: true,
     resolution: {
       height: ex.Resolution.SNES.height,
@@ -49,16 +48,11 @@ function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
   }
 }
 
-export async function startGame(canvas: HTMLCanvasElement, baseUrl: string): Promise<GameHandle> {
-  // Update module-level Resources and loader to use the correct base URL.
-  // Scene constructors run lazily (on first scene start), so they will see
-  // the updated Resources binding via ESM live bindings.
-  setResourcesBaseUrl(baseUrl)
+export async function startGame(canvas: HTMLCanvasElement): Promise<GameHandle> {
   AudioManager.init()
 
   const game = new ex.Engine(buildEngineOptions(canvas))
 
-  // loader is a live binding — reads the updated value after setResourcesBaseUrl
   await game.start(loader)
   game.screen.pixelRatioOverride = 4
   game.screen.applyResolutionAndViewport()
