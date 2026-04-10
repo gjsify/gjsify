@@ -108,36 +108,37 @@ export default async () => {
     });
 
     await describe('Button Mapping', async () => {
-        await it('should map all standard buttons except triggers', async () => {
-            // 15 button mappings (triggers come from axes)
-            expect(MANETTE_TO_W3C_BUTTON.size).toBe(15);
+        await it('should map 17 buttons (including triggers)', async () => {
+            expect(MANETTE_TO_W3C_BUTTON.size).toBe(17);
         });
 
-        await it('should map face buttons correctly', async () => {
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.SOUTH)).toBe(W3CButton.FACE_1);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.EAST)).toBe(W3CButton.FACE_2);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.WEST)).toBe(W3CButton.FACE_3);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.NORTH)).toBe(W3CButton.FACE_4);
+        await it('should map face buttons (Linux BTN_* codes)', async () => {
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_SOUTH)).toBe(W3CButton.FACE_1);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_EAST)).toBe(W3CButton.FACE_2);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_WEST)).toBe(W3CButton.FACE_3);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_NORTH)).toBe(W3CButton.FACE_4);
         });
 
         await it('should map d-pad buttons correctly', async () => {
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.DPAD_UP)).toBe(W3CButton.DPAD_UP);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.DPAD_DOWN)).toBe(W3CButton.DPAD_DOWN);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.DPAD_LEFT)).toBe(W3CButton.DPAD_LEFT);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.DPAD_RIGHT)).toBe(W3CButton.DPAD_RIGHT);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_DPAD_UP)).toBe(W3CButton.DPAD_UP);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_DPAD_DOWN)).toBe(W3CButton.DPAD_DOWN);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_DPAD_LEFT)).toBe(W3CButton.DPAD_LEFT);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_DPAD_RIGHT)).toBe(W3CButton.DPAD_RIGHT);
         });
 
-        await it('should map shoulder and stick buttons correctly', async () => {
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.LEFT_SHOULDER)).toBe(W3CButton.LEFT_BUMPER);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.RIGHT_SHOULDER)).toBe(W3CButton.RIGHT_BUMPER);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.LEFT_STICK)).toBe(W3CButton.LEFT_STICK);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.RIGHT_STICK)).toBe(W3CButton.RIGHT_STICK);
+        await it('should map shoulder, trigger and stick buttons correctly', async () => {
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_TL)).toBe(W3CButton.LEFT_BUMPER);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_TR)).toBe(W3CButton.RIGHT_BUMPER);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_TL2)).toBe(W3CButton.LEFT_TRIGGER);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_TR2)).toBe(W3CButton.RIGHT_TRIGGER);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_THUMBL)).toBe(W3CButton.LEFT_STICK);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_THUMBR)).toBe(W3CButton.RIGHT_STICK);
         });
 
         await it('should map meta buttons correctly', async () => {
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.SELECT)).toBe(W3CButton.SELECT);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.START)).toBe(W3CButton.START);
-            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.MODE)).toBe(W3CButton.HOME);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_SELECT)).toBe(W3CButton.SELECT);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_START)).toBe(W3CButton.START);
+            expect(MANETTE_TO_W3C_BUTTON.get(ManetteButton.BTN_MODE)).toBe(W3CButton.HOME);
         });
 
         await it('should produce unique W3C indices', async () => {

@@ -1,59 +1,40 @@
 // SNES Controller Gamepad Visualizer — browser entry point
-// Adapted from https://codepen.io/alvaromontoro/full/bGbpmvR
-// Uses standard Gamepad Web API (no library dependencies)
+// Uses Canvas2D rendering (shared with GJS version).
 
-import { startGamepadLoop, BUTTON_MAP } from '../snes-controller.js';
+import { startGamepadLoop } from '../snes-controller.js';
+import { renderSnesController } from '../snes-canvas-renderer.js';
 import type { GamepadState } from '../snes-controller.js';
 
-const scrim = document.getElementById('scrim')!;
-const infoPanel = document.getElementById('info-panel')!;
-const elName = document.getElementById('info-name')!;
-const elIndex = document.getElementById('info-index')!;
-const elMapping = document.getElementById('info-mapping')!;
-const elButtons = document.getElementById('info-buttons-total')!;
-const elAxes = document.getElementById('info-axes-total')!;
-const elPressed = document.getElementById('info-pressed')!;
-const elAxesLive = document.getElementById('info-axes-live')!;
-const elTimestamp = document.getElementById('info-timestamp')!;
+const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+const ctx = canvas.getContext('2d')!;
 
-function updateSvg(state: GamepadState) {
-    // Clear all highlights from previous frame
-    document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+let currentState: GamepadState | null = null;
 
-    // Highlight active buttons on the SVG
-    for (const btnId of state.activeButtons) {
-        const el = document.getElementById(btnId);
-        if (el) el.classList.add('active');
-    }
+// Resize canvas to fill window
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 }
+resize();
+window.addEventListener('resize', resize, { passive: true });
 
-function updateInfoPanel(state: GamepadState) {
-    elName.textContent = state.id;
-    elIndex.textContent = String(state.index);
-    elMapping.textContent = state.mapping;
-    elButtons.textContent = String(state.buttons.length);
-    elAxes.textContent = String(state.axes.length);
-    elPressed.textContent = state.pressedButtons.length > 0
-        ? state.pressedButtons.join(', ')
-        : '--';
-    elAxesLive.textContent = state.axes
-        .map((v, i) => `${i}: ${v >= 0 ? '+' : ''}${v.toFixed(2)}`)
-        .join('  ');
-    elTimestamp.textContent = state.timestamp.toFixed(1);
+// Unified render + gamepad poll loop
+function loop() {
+    renderSnesController(ctx, canvas.width, canvas.height, currentState);
+    requestAnimationFrame(loop);
 }
+loop();
 
+// Gamepad polling (separate rAF is fine in browser — browser supports multiple)
 startGamepadLoop({
-    onConnect() {
-        scrim.classList.remove('open');
-        infoPanel.classList.add('visible');
+    onConnect(gamepad) {
+        console.log(`Gamepad connected: ${gamepad.id}`);
     },
     onDisconnect() {
-        scrim.classList.add('open');
-        infoPanel.classList.remove('visible');
-        document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+        console.log('Gamepad disconnected');
+        currentState = null;
     },
     onUpdate(state) {
-        updateSvg(state);
-        updateInfoPanel(state);
+        currentState = state;
     },
 });

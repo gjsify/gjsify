@@ -4,110 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gamepad SNES Controller</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
     <script defer src="browser.js"></script>
 </head>
 <body>
-    <main>
-        <h1>SNES Gamepad Tester</h1>
-
-        <div class="controller-container">
-            <svg viewBox="0 0 250 110">
-                <!-- Shoulder buttons L / R -->
-                <g fill="#aaaaaa">
-                    <rect width="60" height="30" rx="10" ry="10" x="25" y="5"
-                          id="button-l" class="button" />
-                    <rect width="60" height="30" rx="10" ry="10" x="165" y="5"
-                          id="button-r" class="button" />
-                </g>
-
-                <!-- Controller body -->
-                <rect x="50" y="10" width="150" height="90" fill="#cfcfcd" />
-                <circle cx="50" cy="60" r="50" fill="#cfcfcd" />
-                <circle cx="200" cy="60" r="50" fill="#cfcfcd" />
-
-                <!-- Right button area background -->
-                <circle cx="200" cy="60" r="45" fill="#a5a7a4" />
-
-                <!-- D-pad area background -->
-                <circle cx="50" cy="60" r="28" fill="#c8c8c8" />
-
-                <!-- Button stems (decorative) -->
-                <g fill="#cfcfcd" stroke="#cfcfcd" stroke-width="25" stroke-linecap="round">
-                    <path d="M180,60 200,40" />
-                    <path d="M202,82 222,62" />
-                </g>
-
-                <!-- Face buttons: X (top), Y (left), A (right), B (bottom) -->
-                <circle cx="200" cy="40" r="10" fill="#000080"
-                        id="button-x" class="button" />
-                <circle cx="180" cy="60" r="10" fill="#009922"
-                        id="button-y" class="button" />
-                <circle cx="222" cy="62" r="10" fill="#cc0000"
-                        id="button-a" class="button" />
-                <circle cx="202" cy="82" r="10" fill="#ccbb00"
-                        id="button-b" class="button" />
-
-                <!-- Select / Start -->
-                <g fill="#444" stroke="#444" stroke-width="5" stroke-linecap="round">
-                    <path d="M100,70 110,60" id="button-select" class="button" />
-                    <path d="M125,70 135,60" id="button-start" class="button" />
-                </g>
-
-                <!-- D-pad cross -->
-                <path d="M43,53 43,39 57,39 57,53 71,53 71,67 57,67 57,81 43,81 43,67 29,67 29,53 43,53Z"
-                      fill="#444" stroke-linecap="round" stroke-linejoin="round" />
-
-                <!-- D-pad directional triangles -->
-                <g fill="#333">
-                    <path d="M 45,51 50,41 55,51 Z" id="button-up" class="button" />
-                    <path d="M 59,55 69,60 59,65 Z" id="button-right" class="button" />
-                    <path d="M 45,69 50,79 55,69 Z" id="button-down" class="button" />
-                    <path d="M 41,55 31,60 41,65 Z" id="button-left" class="button" />
-                    <circle cx="50" cy="60" r="3" id="button-center" class="button" />
-                </g>
-
-                <!-- Button labels -->
-                <g dominant-baseline="middle" text-anchor="middle"
-                   fill="#cfcfcd" font-size="8" font-family="'Arial Narrow',Arial,sans-serif">
-                    <text x="215" y="30">X</text>
-                    <text x="235" y="49">A</text>
-                    <text x="167" y="75">Y</text>
-                    <text x="190" y="97">B</text>
-                    <text x="130" y="80" fill="#999" font-size="6">START</text>
-                    <text x="105" y="80" fill="#999" font-size="6">SELECT</text>
-                </g>
-            </svg>
-        </div>
-
-        <!-- Gamepad info panel (hidden until connected) -->
-        <div id="info-panel" class="info-panel">
-            <table>
-                <tr><th>Name</th><td id="info-name" colspan="3">--</td></tr>
-                <tr>
-                    <th>Index</th><td id="info-index">--</td>
-                    <th>Mapping</th><td id="info-mapping">--</td>
-                </tr>
-                <tr>
-                    <th>Buttons</th><td id="info-buttons-total">--</td>
-                    <th>Axes</th><td id="info-axes-total">--</td>
-                </tr>
-                <tr><th>Pressed</th><td id="info-pressed" colspan="3">--</td></tr>
-                <tr><th>Axes</th><td id="info-axes-live" colspan="3" class="mono">--</td></tr>
-                <tr><th>Timestamp</th><td id="info-timestamp" colspan="3" class="mono">--</td></tr>
-            </table>
-        </div>
-    </main>
-
-    <!-- Connection overlay -->
-    <section id="scrim" class="scrim open">
-        <h2>Connect your gamepad<br>and press any button...</h2>
-        <div class="pulse">&#x1F3AE;</div>
-    </section>
-
-    <footer>
-        Based on <a href="https://codepen.io/alvaromontoro/full/bGbpmvR">Alvaro Montoro's CodePen</a>.
-        Uses standard <a href="https://w3c.github.io/gamepad/">Gamepad Web API</a>.
-    </footer>
+    <canvas id="canvas"></canvas>
 </body>
 </html>

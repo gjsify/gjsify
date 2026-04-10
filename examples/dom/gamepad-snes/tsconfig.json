@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
       "module": "NodeNext",
-      "types": [],
+      "types": ["@girs/adw-1"],
       "target": "ESNext",
       "moduleResolution": "NodeNext",
       "experimentalDecorators": true,
