@@ -25,6 +25,8 @@ export class OutlineMaterial extends ex.Material {
           const float TAU = 6.28318530;
           const float steps = 4.0; // up/down/left/right pixels
 
+          fragColor = vec4(0.0); // initialize: GLSL ES 3.0 out vars are undefined by default
+
           float radius = ${(thickness * 2).toFixed(1)};
           float time_sec = u_time_ms / 1000.;
           vec3 outlineColorHSL = vec3(0,0,0);

@@ -89,8 +89,10 @@ export class CircularSawHazard extends PhysicsActor {
       this.direction *= -1
     }
 
-    // move and rotate the saw
-    this.graphics.current!.rotation += ex.toRadians((this.speed * 5) / elapsed)
+    // move and rotate the saw — keep angle in [0, 2π] to prevent float precision loss
+    // in the GLSL mediump shader when rotation grows unbounded over time
+    const current = this.graphics.current!
+    current.rotation = (current.rotation + ex.toRadians((this.speed * 5) / elapsed)) % (Math.PI * 2)
     this.vel.x = this.speed * this.direction
 
     if (groundHit) {
@@ -131,11 +133,11 @@ class RenderTopHalfMaterial extends ex.Material {
     })
 
     owner.on('predraw', () => {
+      const rot = owner.graphics.current!.rotation
+      const TWO_PI = 2 * Math.PI
+      const normalizedRot = ((rot % TWO_PI) + TWO_PI) % TWO_PI
       this.update((shader) => {
-        shader.trySetUniformFloat(
-          'u_rotation',
-          owner.graphics.current!.rotation
-        )
+        shader.trySetUniformFloat('u_rotation', normalizedRot)
       })
     })
   }
