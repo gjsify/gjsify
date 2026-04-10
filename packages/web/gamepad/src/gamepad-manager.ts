@@ -192,13 +192,13 @@ export class GamepadManager {
         if (w3cAxisIdx !== undefined) {
             // Stick axis → axes array
             state.axes[w3cAxisIdx] = value;
-        } else if (axis === ManetteAxis.LEFT_TRIGGER) {
-            // Left trigger → buttons[6] with analog value
+        } else if (axis === ManetteAxis.ABS_Z) {
+            // Left trigger (ABS_Z=2) → buttons[6] with analog value
             const normalized = (value + 1) / 2; // libmanette: -1..1 → 0..1
             state.buttons[W3CButton.LEFT_TRIGGER] = normalized;
             state.buttonsPressed[W3CButton.LEFT_TRIGGER] = normalized > TRIGGER_PRESS_THRESHOLD;
-        } else if (axis === ManetteAxis.RIGHT_TRIGGER) {
-            // Right trigger → buttons[7] with analog value
+        } else if (axis === ManetteAxis.ABS_RZ) {
+            // Right trigger (ABS_RZ=5) → buttons[7] with analog value
             const normalized = (value + 1) / 2;
             state.buttons[W3CButton.RIGHT_TRIGGER] = normalized;
             state.buttonsPressed[W3CButton.RIGHT_TRIGGER] = normalized > TRIGGER_PRESS_THRESHOLD;
