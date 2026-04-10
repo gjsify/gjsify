@@ -34,6 +34,8 @@
         "@gjsify/esbuild-plugin-deepkit": "workspace:^",
         "@gjsify/esbuild-plugin-transform-ext": "workspace:^",
         "@gjsify/resolve-npm": "workspace:^",
+        "acorn": "^8.16.0",
+        "acorn-walk": "^8.3.5",
         "fast-glob": "^3.3.3"
     },
     "devDependencies": {

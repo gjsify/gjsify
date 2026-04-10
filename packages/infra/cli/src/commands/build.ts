@@ -89,10 +89,10 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 default: true
             })
             .option('globals', {
-                description: "Comma-separated list of global identifiers your code needs (e.g. 'fetch,Buffer,process,URL,crypto'). Each identifier is mapped to the corresponding `@gjsify/<pkg>/register` module and injected into the bundle. See the CLI Reference docs for the full list of known identifiers. Only applies to GJS app builds.",
+                description: "Comma-separated list of global identifiers, 'auto' (default) to detect automatically from the bundled output, or 'none' to disable. Each identifier is mapped to the corresponding `@gjsify/<pkg>/register` module and injected into the bundle. See the CLI Reference docs for the full list of known identifiers. Only applies to GJS app builds.",
                 type: 'string',
                 normalize: true,
-                default: ''
+                default: 'auto'
             })
     },
     handler: async (args) => {
