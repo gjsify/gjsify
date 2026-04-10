@@ -143,9 +143,8 @@ if (typeof (globalThis as any).top === 'undefined') {
     });
 }
 
-// navigator stub — Excalibur checks navigator.getGamepads for Gamepad support
+// navigator stub — provides base navigator object for GJS
+// Gamepad support (navigator.getGamepads) is provided by @gjsify/gamepad/register
 if (typeof (globalThis as any).navigator === 'undefined') {
-    (globalThis as any).navigator = { getGamepads: null };
-} else if (typeof (globalThis as any).navigator.getGamepads === 'undefined') {
-    (globalThis as any).navigator.getGamepads = null;
+    (globalThis as any).navigator = {};
 }

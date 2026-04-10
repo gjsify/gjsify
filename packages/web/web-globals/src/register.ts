@@ -56,3 +56,6 @@ if (typeof (globalThis as any).PerformanceObserver !== 'function') {
 
 // Web Audio API via GStreamer
 import '@gjsify/webaudio/register';
+
+// Gamepad API via libmanette
+import '@gjsify/gamepad/register';

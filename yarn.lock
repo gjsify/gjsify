@@ -1382,6 +1382,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@girs/gudev-1.0@npm:1.0.0-4.0.0-rc.1":
+  version: 1.0.0-4.0.0-rc.1
+  resolution: "@girs/gudev-1.0@npm:1.0.0-4.0.0-rc.1"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.1"
+  checksum: 10/ffc48de48a09441608ab80bf9c499ed87535285f3978ea1c6076240d5d0fd2b186eac5c5d0139cf5d1c63bc0b6b4af7c0d650b9d9c799381251fb2ac958aa44f
+  languageName: node
+  linkType: hard
+
 "@girs/gwebgl-0.1@npm:^0.1.0-4.0.0-rc.1":
   version: 0.1.0-4.0.0-rc.1
   resolution: "@girs/gwebgl-0.1@npm:0.1.0-4.0.0-rc.1"
@@ -1423,6 +1434,20 @@ __metadata:
     "@girs/gjs": "npm:4.0.0-rc.1"
     "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.1"
   checksum: 10/da7a588e21aeb10ffdfa2e0229ded953a1f15bdd582af274c0b598b5143858072738bfa7ea8254b95efff9fbe44e5bf785362128aef8fc8618c1c8da4f70dcbe
+  languageName: node
+  linkType: hard
+
+"@girs/manette-0.2@npm:^0.2.13-4.0.0-rc.1":
+  version: 0.2.13-4.0.0-rc.1
+  resolution: "@girs/manette-0.2@npm:0.2.13-4.0.0-rc.1"
+  dependencies:
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gjs": "npm:4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-rc.1"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gudev-1.0": "npm:1.0.0-4.0.0-rc.1"
+  checksum: 10/176776b19cb89ef1eed853013e5ab41c0208e49197b369b7ff9feaa736932a162ef46b21de8c8d1cfec7f1ce1fbeceda6a0ad0a2af642358fcdbc2fb5e4ce4af
   languageName: node
   linkType: hard
 
@@ -2713,6 +2738,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/gamepad@workspace:^, @gjsify/gamepad@workspace:packages/web/gamepad":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/gamepad@workspace:packages/web/gamepad"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.1"
+    "@girs/manette-0.2": "npm:^0.2.13-4.0.0-rc.1"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.5.2"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/http2@workspace:^, @gjsify/http2@workspace:packages/node/http2":
   version: 0.0.0-use.local
   resolution: "@gjsify/http2@workspace:packages/node/http2"
@@ -3163,6 +3203,7 @@ __metadata:
     "@gjsify/dom-exception": "workspace:^"
     "@gjsify/eventsource": "workspace:^"
     "@gjsify/formdata": "workspace:^"
+    "@gjsify/gamepad": "workspace:^"
     "@gjsify/perf_hooks": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/url": "workspace:^"

@@ -170,6 +170,10 @@ export const ALIASES_WEB_FOR_GJS = {
     // Web Audio API (GStreamer backend)
     'webaudio': '@gjsify/webaudio',
     'webaudio/register': '@gjsify/webaudio/register',
+
+    // Gamepad API (libmanette backend)
+    'gamepad': '@gjsify/gamepad',
+    'gamepad/register': '@gjsify/gamepad/register',
 }
 
 /** General record of modules for Node */
@@ -233,4 +237,9 @@ export const ALIASES_WEB_FOR_NODE = {
     'webaudio': '@gjsify/empty',
     'webaudio/register': '@gjsify/empty',
     '@gjsify/webaudio/register': '@gjsify/empty',
+
+    // Gamepad API — no-op on Node
+    'gamepad': '@gjsify/empty',
+    'gamepad/register': '@gjsify/empty',
+    '@gjsify/gamepad/register': '@gjsify/empty',
 }

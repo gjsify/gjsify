@@ -46,6 +46,7 @@ export const GJS_GLOBALS_GROUPS = {
         'XMLHttpRequest',
         'DOMParser',
         'AudioContext', 'webkitAudioContext', 'Audio', 'HTMLAudioElement',
+        'GamepadEvent',
     ],
     dom: [
         'document', 'Image', 'HTMLCanvasElement', 'HTMLImageElement',
@@ -134,6 +135,9 @@ export const GJS_GLOBALS_MAP = {
     webkitAudioContext:   '@gjsify/webaudio/register',
     Audio:                '@gjsify/webaudio/register',
     HTMLAudioElement:     '@gjsify/webaudio/register',
+
+    // --- Gamepad API (libmanette backend) --------------------------------
+    GamepadEvent:         '@gjsify/gamepad/register',
 
     // --- DOM elements (browser-compat) ---------------------------------
     document:             '@gjsify/dom-elements/register',
