@@ -11,12 +11,36 @@
             "default": "./lib/esm/index.js"
         },
         "./register": {
-            "types": "./lib/types/register.d.ts",
             "default": "./lib/esm/register.js"
+        },
+        "./register/document": {
+            "default": "./lib/esm/register/document.js"
+        },
+        "./register/canvas": {
+            "default": "./lib/esm/register/canvas.js"
+        },
+        "./register/image": {
+            "default": "./lib/esm/register/image.js"
+        },
+        "./register/observers": {
+            "default": "./lib/esm/register/observers.js"
+        },
+        "./register/font-face": {
+            "default": "./lib/esm/register/font-face.js"
+        },
+        "./register/match-media": {
+            "default": "./lib/esm/register/match-media.js"
+        },
+        "./register/location": {
+            "default": "./lib/esm/register/location.js"
+        },
+        "./register/navigator": {
+            "default": "./lib/esm/register/navigator.js"
         }
     },
     "sideEffects": [
-        "./lib/esm/register.js"
+        "./lib/esm/register.js",
+        "./lib/esm/register/*.js"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",

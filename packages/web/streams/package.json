@@ -11,12 +11,27 @@
             "default": "./lib/esm/index.js"
         },
         "./register": {
-            "types": "./lib/types/register.d.ts",
             "default": "./lib/esm/register.js"
+        },
+        "./register/readable": {
+            "default": "./lib/esm/register/readable.js"
+        },
+        "./register/writable": {
+            "default": "./lib/esm/register/writable.js"
+        },
+        "./register/transform": {
+            "default": "./lib/esm/register/transform.js"
+        },
+        "./register/text-streams": {
+            "default": "./lib/esm/register/text-streams.js"
+        },
+        "./register/queuing": {
+            "default": "./lib/esm/register/queuing.js"
         }
     },
     "sideEffects": [
-        "./lib/esm/register.js"
+        "./lib/esm/register.js",
+        "./lib/esm/register/*.js"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
