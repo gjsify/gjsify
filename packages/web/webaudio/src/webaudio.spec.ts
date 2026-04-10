@@ -272,6 +272,61 @@ export default async () => {
             node.start();
             expect(() => node.start()).toThrow();
         });
+
+        await it('should fire onended after playback completes', async () => {
+            const ctx = new AudioContext();
+            const wav = createTestWav(0.05, 44100); // 50ms
+            const buf = await ctx.decodeAudioData(wav);
+
+            const source = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            gain.gain.value = 0; // silent
+            source.buffer = buf;
+            source.connect(gain).connect(ctx.destination);
+
+            let ended = false;
+            source.onended = () => { ended = true; };
+            source.start();
+
+            // Wait for playback to finish (50ms buffer + margin)
+            await new Promise<void>(resolve => setTimeout(resolve, 500));
+            expect(ended).toBe(true);
+        });
+
+        await it('should not fire onended while looping', async () => {
+            const ctx = new AudioContext();
+            const wav = createTestWav(0.05, 44100); // 50ms
+            const buf = await ctx.decodeAudioData(wav);
+
+            const source = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            gain.gain.value = 0; // silent
+            source.buffer = buf;
+            source.loop = true;
+            source.connect(gain).connect(ctx.destination);
+
+            let ended = false;
+            source.onended = () => { ended = true; };
+            source.start();
+
+            // Wait longer than one full play cycle
+            await new Promise<void>(resolve => setTimeout(resolve, 300));
+            expect(ended).toBe(false);
+
+            // Explicitly stop — should fire onended
+            source.stop();
+            expect(ended).toBe(true);
+        });
+
+        await it('should support connect chain source→gain→destination', async () => {
+            const ctx = new AudioContext();
+            const source = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            const result = source.connect(gain).connect(ctx.destination);
+            expect(result).toBe(ctx.destination);
+            expect(source._outputs.has(gain)).toBe(true);
+            expect(gain._outputs.has(ctx.destination)).toBe(true);
+        });
     });
 
     await describe('HTMLAudioElement', async () => {
