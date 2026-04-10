@@ -61,12 +61,19 @@ function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
 function rebaseResources(base: string): void {
   for (const category of Object.values(Resources)) {
     for (const resource of Object.values(category)) {
-      if (resource && typeof (resource as any).path === 'string') {
-        const path: string = (resource as any).path
-        if (path.startsWith('/res/')) {
-          ;(resource as any).path = base + path.slice(1) // '/res/foo' → '{base}res/foo'
-        }
+      if (!resource || typeof resource !== 'object') continue
+      const r = resource as any
+      const rebase = (p: string) => p.startsWith('/res/') ? base + p.slice(1) : p
+
+      // ImageSource: readonly `path` + internal `_resource.path`
+      if (typeof r.path === 'string') {
+        r.path = rebase(r.path)
       }
+      if (r._resource && typeof r._resource.path === 'string') {
+        r._resource.path = rebase(r._resource.path)
+      }
+      // Sound: path getter/setter delegates to _resource.path — handled above
+      // TiledResource: has `path` property
     }
   }
 }
