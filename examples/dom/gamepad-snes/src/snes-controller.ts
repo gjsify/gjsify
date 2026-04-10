@@ -22,6 +22,8 @@ export const BUTTON_MAP: Record<number, string> = {
     3:  'button-x',       // Face4 → X (SNES top)
     4:  'button-l',       // Left bumper → L
     5:  'button-r',       // Right bumper → R
+    6:  'button-lt',      // Left trigger → LT
+    7:  'button-rt',      // Right trigger → RT
     8:  'button-select',  // Select
     9:  'button-start',   // Start
     12: 'button-up',      // D-pad up

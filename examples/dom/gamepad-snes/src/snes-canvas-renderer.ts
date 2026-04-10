@@ -22,8 +22,12 @@ interface ButtonDef {
     x2?: number; y2?: number;
 }
 
-/** Shoulder buttons — drawn BEHIND the controller body. */
+/** Shoulder + trigger buttons — drawn BEHIND the controller body. */
 const SHOULDER_BUTTONS: ButtonDef[] = [
+    // Triggers (behind shoulders, slightly higher)
+    { id: 'button-lt', type: 'rect', color: '#888', x: 35, y: -5, w: 40, h: 18, rx: 6 },
+    { id: 'button-rt', type: 'rect', color: '#888', x: 175, y: -5, w: 40, h: 18, rx: 6 },
+    // Shoulder buttons
     { id: 'button-l', type: 'rect', color: '#aaa', x: 25, y: 5, w: 60, h: 30, rx: 10 },
     { id: 'button-r', type: 'rect', color: '#aaa', x: 165, y: 5, w: 60, h: 30, rx: 10 },
 ];
@@ -53,6 +57,8 @@ const LABELS: { text: string; x: number; y: number; color: string; size: number 
     { text: 'B', x: 190, y: 99, color: '#cfcfcd', size: 8 },
     { text: 'START',  x: 130, y: 82, color: '#999', size: 6 },
     { text: 'SELECT', x: 105, y: 82, color: '#999', size: 6 },
+    { text: 'LT', x: 55, y: 6, color: '#666', size: 5 },
+    { text: 'RT', x: 195, y: 6, color: '#666', size: 5 },
 ];
 
 /**
