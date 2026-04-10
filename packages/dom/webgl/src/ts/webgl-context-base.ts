@@ -23,6 +23,7 @@ import {
     vertexCount,
     typeSize,
     Uint8ArrayToVariant,
+    premultiplyAlpha,
 } from './utils.js';
 
 // import { getANGLEInstancedArrays } from './extensions/angle-instanced-arrays.js';
@@ -170,6 +171,7 @@ export abstract class WebGLContextBase {
     _unpackAlignment = 4
     _packAlignment = 4
     _unpackFlipY = false
+    _unpackPremultAlpha = false
 
     // Viewport and scissor — tracked in JS to avoid crashing native getParameterx for array returns
     _viewport: Int32Array = new Int32Array([0, 0, 0, 0]);
@@ -256,6 +258,7 @@ export abstract class WebGLContextBase {
         this._unpackAlignment = 4
         this._packAlignment = 4
         this._unpackFlipY = false
+        this._unpackPremultAlpha = false
 
         // Allocate framebuffer
         // TODO?
@@ -1498,6 +1501,14 @@ export abstract class WebGLContextBase {
             return
         }
 
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL: premultiply RGB by A before upload.
+        // Required for Excalibur's blend mode (gl.ONE, gl.ONE_MINUS_SRC_ALPHA).
+        // Without this, transparent PNG background pixels with white RGB bleed
+        // through as white rectangles in the rendered output.
+        if (this._unpackPremultAlpha && data && format === this.RGBA) {
+            data = premultiplyAlpha(data)
+        }
+
         // UNPACK_FLIP_Y_WEBGL: reverse row order before upload
         if (this._unpackFlipY && data && width > 0 && height > 0) {
             const flipped = new Uint8Array(data.length)
@@ -1622,6 +1633,11 @@ export abstract class WebGLContextBase {
         if (!data || data.length < imageSize) {
             this.setError(this.INVALID_OPERATION)
             return
+        }
+
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL: premultiply RGB by alpha before upload
+        if (this._unpackPremultAlpha && data && format === this.RGBA) {
+            data = premultiplyAlpha(data)
         }
 
         // UNPACK_FLIP_Y_WEBGL: reverse row order before upload (same as texImage2D)
@@ -3488,19 +3504,31 @@ export abstract class WebGLContextBase {
                     searchName = name.replace(/\[\d+\]$/, '[0]')
                 }
 
+                // OpenGL's getActiveUniform returns array uniforms as
+                // 'name[0]' (per WebGL + ES spec), so we must match both the
+                // exact form and the array-base form when the caller passes
+                // the bare name like `getUniformLocation(prog, 'u_textures')`
+                // for `uniform sampler2D u_textures[8]`. Without this, valid
+                // array uniforms return null — which Excalibur interprets as
+                // "uniform doesn't exist or is not used" and throws.
+                const arraySearchName = searchName + '[0]'
                 let info = null
                 for (let i = 0; i < program._uniforms.length; ++i) {
                     const infoItem = program._uniforms[i]
-                    if (infoItem.name === searchName) {
+                    if (infoItem.name === searchName || infoItem.name === arraySearchName) {
                         info = {
                             size: infoItem.size,
                             type: infoItem.type,
                             name: infoItem.name
                         }
+                        break
                     }
                 }
                 if (!info) {
-                    return null
+                    // Native GL validated the uniform exists, but _uniforms cache doesn't
+                    // have it (e.g. _fixupLink skipped due to pre-existing GL error, or
+                    // name format mismatch for custom material programs). Trust native GL.
+                    info = { name: searchName, type: 0, size: 1 }
                 }
 
                 const result = new WebGLUniformLocation(
@@ -3508,15 +3536,21 @@ export abstract class WebGLContextBase {
                     program,
                     info)
 
-                // handle array case
-                if (/\[0\]$/.test(name)) {
-                    const baseName = name.replace(/\[0\]$/, '')
+                // Distinguish three cases for array uniforms, where info.name
+                // is always 'basename[0]' (per OpenGL spec for arrays):
+                //   A. caller passed bare 'basename'  -> whole-array write -> populate _array
+                //   B. caller passed 'basename[0]'    -> whole-array write -> populate _array
+                //   C. caller passed 'basename[N>0]'  -> single-element write -> validate offset, no _array
+                // Scalar uniforms (info.name has no '[0]') fall through without either.
+                const callerBracketMatch = name.match(/\[(\d+)\]$/)
+                const callerIndex = callerBracketMatch ? +callerBracketMatch[1] : -1
+                const infoIsArray = /\[0\]$/.test(info.name)
+
+                if (infoIsArray && (callerIndex === -1 || callerIndex === 0)) {
+                    // Cases A + B: populate full _array so uniform1fv/uniform1iv
+                    // writes to all elements via the per-element locations.
+                    const baseName = info.name.replace(/\[0\]$/, '')
                     const arrayLocs = []
-
-                    // if (offset < 0 || offset >= info.size) {
-                    //   return null
-                    // }
-
                     this._saveError()
                     for (let i = 0; this.getError() === this.NO_ERROR; ++i) {
                         const xloc = this._gl.getUniformLocation(
@@ -3530,13 +3564,11 @@ export abstract class WebGLContextBase {
                     this._restoreError(this.NO_ERROR)
 
                     result._array = arrayLocs
-                } else if (name && /\[(\d+)\]$/.test(name)) {
-                    const _regexExec = /\[(\d+)\]$/.exec(name);
-                    if (!_regexExec || _regexExec.length <= 0) {
-                        return null;
-                    }
-                    const offset = +(_regexExec)[1]
-                    if (offset < 0 || offset >= info.size) {
+                } else if (callerIndex > 0) {
+                    // Case C: caller wants a specific array element. Validate
+                    // that the index is within bounds; the returned location
+                    // writes to only that element (no _array).
+                    if (callerIndex >= info.size) {
                         return null
                     }
                 }
@@ -3727,7 +3759,8 @@ export abstract class WebGLContextBase {
             this._unpackFlipY = !!param
             return  // WebGL-only flag, not forwarded to native GL
         } else if (pname === this.UNPACK_PREMULTIPLY_ALPHA_WEBGL) {
-            return  // not forwarded to native GL
+            this._unpackPremultAlpha = !!param
+            return  // not forwarded to native GL — premultiplication is done in JS
         }
         return this._gl.pixelStorei(pname, param)
     }

@@ -38,6 +38,16 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
         return this.height;
     }
 
+    /** CSS layout width — same as the GTK-allocated pixel width for a full-window canvas. */
+    get offsetWidth(): number {
+        return this.width;
+    }
+
+    /** CSS layout height — same as the GTK-allocated pixel height for a full-window canvas. */
+    get offsetHeight(): number {
+        return this.height;
+    }
+
     /** Returns the underlying Gtk.GLArea. Used by WebGLRenderingContext for GLSL version detection. */
     getGlArea(): Gtk.GLArea {
         return this.gtkGlArea;
@@ -51,11 +61,22 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
      */
     override getContext(contextId: string, options?: any): any {
         if (contextId === 'webgl' || contextId === 'experimental-webgl') {
-            this._webgl ??= new OurWebGLRenderingContext(this as any, options);
+            if (!this._webgl) {
+                // Native Gwebgl context construction reads OpenGL state from
+                // the currently bound context. If getContext() is called outside
+                // of a GLArea render signal (e.g. from app code during init),
+                // the widget's GL context may not be current — make it current
+                // explicitly before instantiating.
+                this.gtkGlArea.make_current();
+                this._webgl = new OurWebGLRenderingContext(this as any, options);
+            }
             return this._webgl;
         }
         if (contextId === 'webgl2') {
-            this._webgl2 ??= new OurWebGL2RenderingContext(this as any, options);
+            if (!this._webgl2) {
+                this.gtkGlArea.make_current();
+                this._webgl2 = new OurWebGL2RenderingContext(this as any, options);
+            }
             return this._webgl2;
         }
         // Fall through to the base class context factory registry

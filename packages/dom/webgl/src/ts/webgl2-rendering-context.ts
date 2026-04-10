@@ -17,7 +17,7 @@ import { WebGLProgram as OurWebGLProgram } from './webgl-program.js';
 import { WebGLTexture } from './webgl-texture.js';
 import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
 import { WebGLFramebuffer } from './webgl-framebuffer.js';
-import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount, convertPixels, extractImageData, checkObject } from './utils.js';
+import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount, convertPixels, extractImageData, checkObject, premultiplyAlpha } from './utils.js';
 import { warnNotImplemented } from '@gjsify/utils';
 
 export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2RenderingContext {
@@ -716,6 +716,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
 
         let data = convertPixels(pixels as ArrayBufferView);
 
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL: premultiply RGB by alpha before upload
+        if (this._unpackPremultAlpha && data && format === this.RGBA) {
+            data = premultiplyAlpha(data);
+        }
+
         // UNPACK_FLIP_Y_WEBGL: reverse row order before upload
         if (this._unpackFlipY && data && width > 0 && height > 0) {
             const pixelSize = this._computePixelSize(type, format);
@@ -801,6 +806,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             return;
         }
 
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL: premultiply RGB by alpha before upload
+        if (this._unpackPremultAlpha && data && format === this.RGBA) {
+            data = premultiplyAlpha(data);
+        }
+
         // UNPACK_FLIP_Y_WEBGL: reverse row order before upload (same as texImage2D)
         if (this._unpackFlipY && data && width > 0 && height > 0) {
             const pixelSize = this._computePixelSize(type, format);
@@ -833,6 +843,10 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         if (!this._framebufferOk()) return;
         if (count === 0 || instanceCount === 0) return;
         if (!this._checkVertexAttribState((count + first - 1) >>> 0)) return;
+        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+            const n = (this as any).__drawInstCount = ((this as any).__drawInstCount | 0) + 1;
+            if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawArraysInstanced #${n} count=${rc} instances=${instanceCount} fbo=${(this._activeFramebuffer as any)?._ ?? '_gtkFbo'}`);
+        }
         this._native2.drawArraysInstanced(mode, first, rc, instanceCount);
     }
 
@@ -916,7 +930,96 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     blitFramebuffer(srcX0: GLint, srcY0: GLint, srcX1: GLint, srcY1: GLint, dstX0: GLint, dstY0: GLint, dstX1: GLint, dstY1: GLint, mask: GLbitfield, filter: GLenum): void {
+        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+            // Check GL error before blit to isolate issues
+            const errBefore = this._gl.getError();
+            if (errBefore !== 0) console.log(`[WebGL] blitFramebuffer PRE-ERROR 0x${errBefore.toString(16)}`);
+        }
         this._native2.blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+            const err = this._gl.getError();
+            const n = (this as any).__blitCount = ((this as any).__blitCount | 0) + 1;
+            if (n <= 5) console.log(`[WebGL] blitFramebuffer #${n} src=(${srcX0},${srcY0},${srcX1},${srcY1}) readFbo=${(this._activeReadFramebuffer as any)?._  ?? '_gtkFbo'} err=${err === 0 ? 'OK' : '0x' + err.toString(16)}`);
+        }
+    }
+
+    // clearBuffer{fv,iv,uiv,fi} — WebGL2 methods for clearing specific
+    // framebuffer attachments. The native Vala binding does not expose the
+    // glClearBuffer* entry points yet, so we emulate the common cases via
+    // glClearColor/glClearDepth/glClearStencil + glClear. This is equivalent
+    // when the DRAW_FRAMEBUFFER has a single attachment per buffer type,
+    // which matches Excalibur's ExcaliburGraphicsContextWebGL.blitToScreen.
+    //
+    // Buffer target constants per WebGL2 spec (not on our class):
+    //   COLOR         = 0x1800
+    //   DEPTH         = 0x1801
+    //   STENCIL       = 0x1802
+    //   DEPTH_STENCIL = 0x84F9
+
+    clearBufferfv(buffer: GLenum, drawbuffer: GLint, values: Float32List, _srcOffset?: GLuint): void {
+        const n2 = this._native2 as any;
+        if (typeof n2.clearBufferfv === 'function') {
+            n2.clearBufferfv(buffer, drawbuffer, Array.from(values) as number[]);
+            return;
+        }
+        const v = values as ArrayLike<number>;
+        if (buffer === 0x1800 /* COLOR */) {
+            const prev = this.getParameter(this.COLOR_CLEAR_VALUE) as Float32Array | number[] | null;
+            this.clearColor(v[0] ?? 0, v[1] ?? 0, v[2] ?? 0, v[3] ?? 0);
+            this.clear(this.COLOR_BUFFER_BIT);
+            if (prev) this.clearColor(prev[0], prev[1], prev[2], prev[3]);
+        } else if (buffer === 0x1801 /* DEPTH */) {
+            const prev = this.getParameter(this.DEPTH_CLEAR_VALUE) as number | null;
+            this.clearDepth(v[0] ?? 1);
+            this.clear(this.DEPTH_BUFFER_BIT);
+            if (prev !== null) this.clearDepth(prev);
+        }
+    }
+
+    clearBufferiv(buffer: GLenum, drawbuffer: GLint, values: Int32List, _srcOffset?: GLuint): void {
+        const n2 = this._native2 as any;
+        if (typeof n2.clearBufferiv === 'function') {
+            n2.clearBufferiv(buffer, drawbuffer, Array.from(values) as number[]);
+            return;
+        }
+        if (buffer === 0x1802 /* STENCIL */) {
+            const v = values as ArrayLike<number>;
+            const prev = this.getParameter(this.STENCIL_CLEAR_VALUE) as number | null;
+            this.clearStencil(v[0] ?? 0);
+            this.clear(this.STENCIL_BUFFER_BIT);
+            if (prev !== null) this.clearStencil(prev);
+        }
+        // Integer color buffers are not emulatable via clearColor — silently no-op.
+    }
+
+    clearBufferuiv(buffer: GLenum, drawbuffer: GLint, values: Uint32List, _srcOffset?: GLuint): void {
+        const n2 = this._native2 as any;
+        if (typeof n2.clearBufferuiv === 'function') {
+            n2.clearBufferuiv(buffer, drawbuffer, Array.from(values) as number[]);
+            return;
+        }
+        // Unsigned integer color buffers are not emulatable via clearColor —
+        // silently no-op.
+        void buffer; void drawbuffer;
+    }
+
+    clearBufferfi(buffer: GLenum, drawbuffer: GLint, depth: GLfloat, stencil: GLint): void {
+        const n2 = this._native2 as any;
+        if (typeof n2.clearBufferfi === 'function') {
+            n2.clearBufferfi(buffer, drawbuffer, depth, stencil);
+            return;
+        }
+        // Only DEPTH_STENCIL makes sense for this entry point.
+        if (buffer === 0x84F9 /* DEPTH_STENCIL */) {
+            const prevDepth = this.getParameter(this.DEPTH_CLEAR_VALUE) as number | null;
+            const prevStencil = this.getParameter(this.STENCIL_CLEAR_VALUE) as number | null;
+            this.clearDepth(depth);
+            this.clearStencil(stencil);
+            this.clear(this.DEPTH_BUFFER_BIT | this.STENCIL_BUFFER_BIT);
+            if (prevDepth !== null) this.clearDepth(prevDepth);
+            if (prevStencil !== null) this.clearStencil(prevStencil);
+        }
+        void drawbuffer;
     }
 
     invalidateFramebuffer(target: GLenum, attachments: GLenum[]): void {

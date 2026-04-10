@@ -1264,6 +1264,137 @@ export default async () => {
 			});
 		});
 
+		// ── Excalibur RenderTarget pipeline: VAO draw → READ/DRAW FBO blit ─────
+		// Mimics Excalibur's ExcaliburGraphicsContextWebGL pipeline:
+		//   renderTarget.use() → draw with VAO → blitToScreen()
+		// blitToScreen() uses bindFramebuffer(READ_FRAMEBUFFER, src) +
+		// bindFramebuffer(DRAW_FRAMEBUFFER, null) + clearBufferfv + blitFramebuffer.
+		// The critical invariant: clearBufferfv must clear the DRAW_FRAMEBUFFER (null/screen),
+		// NOT the source FBO that was just drawn into.
+
+		await describe('WebGL2 Excalibur-style VAO draw + READ/DRAW blitToScreen', async () => {
+			beforeEach(async () => { glArea.make_current(); });
+
+			await it('VAO draw to source FBO survives clearBufferfv+blit pipeline', async () => {
+				const W = 4; const H = 4;
+				const gl = gl2 as unknown as WebGLRenderingContext;
+
+				// 1. Build source FBO (Excalibur's _frameBuffer)
+				const srcFbo = gl2.createFramebuffer()!;
+				const srcTex = gl2.createTexture()!;
+				gl2.bindTexture(gl2.TEXTURE_2D, srcTex);
+				gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, W, H, 0, gl2.RGBA, gl2.UNSIGNED_BYTE, null);
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MIN_FILTER, gl2.NEAREST);
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MAG_FILTER, gl2.NEAREST);
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_WRAP_S, gl2.CLAMP_TO_EDGE);
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_WRAP_T, gl2.CLAMP_TO_EDGE);
+				gl2.bindTexture(gl2.TEXTURE_2D, null);
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, srcFbo);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, srcTex, 0);
+				expect(gl2.checkFramebufferStatus(gl2.FRAMEBUFFER)).toBe(gl2.FRAMEBUFFER_COMPLETE);
+
+				// 2. Build destination FBO (stand-in for GTK's FBO in this test)
+				const dstFbo = gl2.createFramebuffer()!;
+				const dstTex = gl2.createTexture()!;
+				gl2.bindTexture(gl2.TEXTURE_2D, dstTex);
+				gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, W, H, 0, gl2.RGBA, gl2.UNSIGNED_BYTE, null);
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MIN_FILTER, gl2.NEAREST);
+				gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MAG_FILTER, gl2.NEAREST);
+				gl2.bindTexture(gl2.TEXTURE_2D, null);
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, dstFbo);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, dstTex, 0);
+				expect(gl2.checkFramebufferStatus(gl2.FRAMEBUFFER)).toBe(gl2.FRAMEBUFFER_COMPLETE);
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+
+				// 3. VAO + VBO + shader (green full-screen triangle)
+				const vs300 = `#version 300 es\nin vec2 a_pos;\nvoid main(){gl_Position=vec4(a_pos,0.,1.);}`;
+				const fs300 = `#version 300 es\nprecision mediump float;\nout vec4 c;\nvoid main(){c=vec4(0.,1.,0.,1.);}`;
+				const prog = makeProgram(gl, vs300, fs300);
+				expect(gl2.getProgramParameter(prog, gl2.LINK_STATUS)).toBeTruthy();
+
+				const vao = gl2.createVertexArray()!;
+				gl2.bindVertexArray(vao);
+				const vbo = gl2.createBuffer()!;
+				gl2.bindBuffer(gl2.ARRAY_BUFFER, vbo);
+				gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array([
+					-1, -1,  3, -1, -1,  3, // large triangle covering clip space
+				]), gl2.STATIC_DRAW);
+				const aPos = gl2.getAttribLocation(prog, 'a_pos');
+				gl2.enableVertexAttribArray(aPos);
+				gl2.vertexAttribPointer(aPos, 2, gl2.FLOAT, false, 0, 0);
+				gl2.bindVertexArray(null);
+
+				// 4. renderTarget.use() — bind source FBO, draw with VAO
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, srcFbo);
+				gl2.viewport(0, 0, W, H);
+				gl2.clearColor(0, 0, 1, 1); // loader blue background
+				gl2.clear(gl2.COLOR_BUFFER_BIT);
+
+				// Draw green over the blue via VAO
+				gl2.useProgram(prog);
+				gl2.bindVertexArray(vao);
+				gl2.drawArrays(gl2.TRIANGLES, 0, 3);
+				gl2.bindVertexArray(null);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// 5. blitToScreen() — Excalibur's exact sequence:
+				//   bindFramebuffer(READ_FRAMEBUFFER, src)
+				//   bindFramebuffer(DRAW_FRAMEBUFFER, dst) — in real app: null → GTK FBO
+				//   clearBufferfv(COLOR, 0, [0,0,1,1])   ← must clear DST, not SRC
+				//   blitFramebuffer(...)
+				const READ_FRAMEBUFFER = 0x8CA8;
+				const DRAW_FRAMEBUFFER = 0x8CA9;
+				gl2.bindFramebuffer(READ_FRAMEBUFFER, srcFbo);
+				gl2.bindFramebuffer(DRAW_FRAMEBUFFER, dstFbo);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				gl2.clearBufferfv(gl2.COLOR, 0, [0, 0, 1, 1]); // clears DST to blue
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				gl2.blitFramebuffer(0, 0, W, H, 0, 0, W, H, gl2.COLOR_BUFFER_BIT, gl2.LINEAR);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// 6. Read from DST — should be green (from src), not blue (from clearBufferfv)
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, dstFbo);
+				const pixels = new Uint8Array(4);
+				gl2.readPixels(0, 0, 1, 1, gl2.RGBA, gl2.UNSIGNED_BYTE, pixels);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Verify SRC was NOT cleared (clearBufferfv must target DST, not SRC)
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, srcFbo);
+				const srcPixels = new Uint8Array(4);
+				gl2.readPixels(0, 0, 1, 1, gl2.RGBA, gl2.UNSIGNED_BYTE, srcPixels);
+				expect(gl2.getError()).toBe(gl2.NO_ERROR);
+
+				// Clean up
+				gl2.bindVertexArray(null);
+				gl2.deleteVertexArray(vao);
+				gl2.deleteBuffer(vbo);
+				gl2.deleteProgram(prog);
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, srcFbo);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, null, 0);
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, dstFbo);
+				gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, null, 0);
+				gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+				gl2.deleteTexture(srcTex);
+				gl2.deleteTexture(dstTex);
+				gl2.deleteFramebuffer(srcFbo);
+				gl2.deleteFramebuffer(dstFbo);
+
+				// DST pixel should be green (blitted from SRC)
+				expect(pixels[0]).toBe(0);   // R = 0 (not red)
+				expect(pixels[1]).toBe(255); // G = 255 (green from draw)
+				expect(pixels[2]).toBe(0);   // B = 0 (not blue from clearBufferfv)
+				expect(pixels[3]).toBe(255); // A = 255
+
+				// SRC pixel should also still be green (not cleared to blue by clearBufferfv)
+				expect(srcPixels[0]).toBe(0);   // R = 0
+				expect(srcPixels[1]).toBe(255); // G = 255 (VAO draw preserved)
+				expect(srcPixels[2]).toBe(0);   // B = 0 (clearBufferfv did NOT clear SRC)
+				expect(srcPixels[3]).toBe(255); // A = 255
+			});
+		});
+
 		// ── bufferSubData with UNIFORM_BUFFER ────────────────────────────────
 
 		await describe('WebGL2 bufferSubData with UNIFORM_BUFFER', async () => {

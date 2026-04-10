@@ -43,10 +43,15 @@ export const GJS_GLOBALS_GROUPS = {
         'EventSource',
         'DOMException',
         'performance', 'PerformanceObserver',
+        'XMLHttpRequest',
+        'DOMParser',
+        'AudioContext', 'webkitAudioContext', 'Audio', 'HTMLAudioElement',
+        'GamepadEvent',
     ],
     dom: [
         'document', 'Image', 'HTMLCanvasElement', 'HTMLImageElement',
         'HTMLElement', 'MutationObserver', 'ResizeObserver', 'IntersectionObserver',
+        'FontFace', 'matchMedia', 'location', 'navigator',
     ],
 };
 
@@ -119,6 +124,21 @@ export const GJS_GLOBALS_MAP = {
     // --- DOMException --------------------------------------------------
     DOMException:         'dom-exception/register',
 
+    // --- XMLHttpRequest + URL.createObjectURL --------------------------
+    XMLHttpRequest:       '@gjsify/xmlhttprequest/register',
+
+    // --- DOMParser -----------------------------------------------------
+    DOMParser:            '@gjsify/domparser/register',
+
+    // --- Web Audio API (GStreamer backend) --------------------------------
+    AudioContext:         '@gjsify/webaudio/register',
+    webkitAudioContext:   '@gjsify/webaudio/register',
+    Audio:                '@gjsify/webaudio/register',
+    HTMLAudioElement:     '@gjsify/webaudio/register',
+
+    // --- Gamepad API (libmanette backend) --------------------------------
+    GamepadEvent:         '@gjsify/gamepad/register',
+
     // --- DOM elements (browser-compat) ---------------------------------
     document:             '@gjsify/dom-elements/register',
     Image:                '@gjsify/dom-elements/register',
@@ -128,4 +148,8 @@ export const GJS_GLOBALS_MAP = {
     MutationObserver:     '@gjsify/dom-elements/register',
     ResizeObserver:       '@gjsify/dom-elements/register',
     IntersectionObserver: '@gjsify/dom-elements/register',
+    FontFace:             '@gjsify/dom-elements/register',
+    matchMedia:           '@gjsify/dom-elements/register',
+    location:             '@gjsify/dom-elements/register',
+    navigator:            '@gjsify/dom-elements/register',
 };

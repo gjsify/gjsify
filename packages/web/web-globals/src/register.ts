@@ -1,7 +1,7 @@
 // Side-effect module: registers the full Web API surface on GJS by chaining
 // every sub-package's `/register` entry and filling in the few remaining
 // globals that don't have their own dedicated register module yet
-// (URL, FormData, performance, ...).
+// (URL, FormData, performance, AudioContext, ...).
 //
 // On Node.js the alias layer maps this subpath to @gjsify/empty since all of
 // these APIs are already native.
@@ -53,3 +53,9 @@ if (typeof globalThis.performance === 'undefined') {
 if (typeof (globalThis as any).PerformanceObserver !== 'function') {
   (globalThis as any).PerformanceObserver = PerformanceObserver;
 }
+
+// Web Audio API via GStreamer
+import '@gjsify/webaudio/register';
+
+// Gamepad API via libmanette
+import '@gjsify/gamepad/register';

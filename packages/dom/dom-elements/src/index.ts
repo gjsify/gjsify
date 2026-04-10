@@ -31,3 +31,7 @@ export { IntersectionObserver } from './intersection-observer.js';
 export { NodeType } from './node-type.js';
 export { NamespaceURI } from './namespace-uri.js';
 export * as PropertySymbol from './property-symbol.js';
+export { FontFace, FontFaceSet } from './font-face.js';
+export { MediaQueryList, matchMedia } from './match-media.js';
+export { location } from './location-stub.js';
+export { DOMMatrix, DOMMatrixReadOnly } from './dom-matrix.js';

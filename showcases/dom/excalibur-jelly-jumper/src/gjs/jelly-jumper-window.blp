@@ -1,0 +1,30 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $JellyJumperWindow: Adw.ApplicationWindow {
+  default-width: 1280;
+  default-height: 720;
+  title: "Jelly Jumper — Excalibur.js";
+
+  content: Gtk.Box {
+    orientation: vertical;
+
+    Adw.HeaderBar {
+      [end]
+      Gtk.Button pauseButton {
+        icon-name: "media-playback-pause-symbolic";
+        tooltip-text: "Pause Game";
+      }
+      [end]
+      Gtk.Button audioButton {
+        icon-name: "audio-volume-high-symbolic";
+        tooltip-text: "Mute Audio";
+      }
+    }
+
+    Gtk.Box canvasContainer {
+      hexpand: true;
+      vexpand: true;
+    }
+  };
+}

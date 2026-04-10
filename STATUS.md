@@ -1,19 +1,19 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-07 (EventEmitter makeCallable: `.call(this)` + `util.inherits` CJS compat; makeCallable extracted to @gjsify/utils; stream tests expanded to 509 cases in 7 specs: transform, pipe, inheritance; GJS stream 36→0 failures: _readableState/_writableState fields, Symbol.hasInstance for Writable instanceof, Transform _doPrefinishHooks, drain HWM=0, ERR_MULTIPLE_CALLBACK, ERR_METHOD_NOT_IMPLEMENTED re-throw, util.inherits ERR_INVALID_ARG_TYPE codes)
+> Last updated: 2026-04-10 (@gjsify/webaudio: Web Audio API via GStreamer 1.26 — AudioContext, decodeAudioData, AudioBufferSourceNode playback, GainNode volume, HTMLAudioElement format detection. 29 tests. Jelly Jumper showcase now has real audio)
 
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **13 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **39 Node.js packages**, **15 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 32 (82%) | 3 (8%) | 4 (10%) |
-| Web APIs | 13 | 13 (100%) | — | — |
+| Web APIs | 15 | 14 (93%) | 1 (7%) | — |
 | DOM APIs | 5 | 5 (100%) | — | — |
 | Browser UI | 1 | 1 | — | — |
-| Browser UI | 1 | 1 | — | — |
+| Showcases | 5 | 5 | — | — |
 | GJS Infrastructure | 4 | 3 | 1 (types) | — |
 | Build/Infra Tools | 9 | 9 | — | — |
 
@@ -90,22 +90,24 @@ All 13 packages have real implementations:
 | **dom-events** | — | 142 (3 specs) | Event, EventTarget, CustomEvent |
 | **dom-exception** | — | 64 | DOMException polyfill (WebIDL standard) |
 | **eventsource** | — | 15 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
-| **fetch** | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy |
+| **fetch** | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy, **file:// URI support** |
 | **formdata** | — | 49 | FormData, File, multipart encoding |
 | **streams** | — | 283 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **webcrypto** | — | 486 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
 | **web-globals** | — | 66 | Unified re-export surface for all Web API packages. Root export is pure named re-exports; side effects (registering URL, URLSearchParams, Blob, File, FormData, performance, PerformanceObserver + chaining every sub-package's `/register`) live in `@gjsify/web-globals/register`. Users opt in via the `--globals` CLI flag or an explicit `import '@gjsify/web-globals/register'`. |
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
+| **webaudio** | Gst 1.0, GstApp 1.0 | 32 | AudioContext (decodeAudioData via GStreamer decodebin, createBufferSource, createGain, currentTime via GLib monotonic clock), AudioBuffer (PCM Float32Array storage), AudioBufferSourceNode (GStreamer appsrc→audioconvert→volume→autoaudiosink), GainNode (AudioParam with setTargetAtTime), AudioParam, HTMLAudioElement (canPlayType, playbin playback). **Phase 1 — covers Excalibur.js** |
+| **gamepad** | Manette 0.2 | 19 | Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected on globalThis), GamepadHapticActuator (dual-rumble with strong/weak magnitude). Button mapping: Manette→W3C standard layout (17 buttons incl. triggers-as-buttons). Axis mapping: 4 stick axes + trigger axes→button values. Lazy Manette.Monitor init, graceful degradation without libmanette. |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
 ## DOM Packages (`packages/dom/`)
 
 | Package | GNOME Libs | Tests | APIs |
 |---------|-----------|-------|------|
-| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement (base DOM stub), HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
-| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DWidget→Gtk.DrawingArea |
-| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render), Extensions |
-| **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |
+| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect, **dataset/DOMStringMap**), HTMLCanvasElement (base DOM stub), HTMLImageElement (**data: URI support**), Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
+| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D (**HSL/HSLA color parsing**, **shadowBlur approximation**, drawImage via paint+clip, composite operations), CanvasGradient, CanvasPattern, Path2D, ImageData, **FontFace** (pixel-perfect font rendering via PangoCairo), Canvas2DWidget→Gtk.DrawingArea |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders, **clearBufferfv/iv/uiv/fi**, **premultipliedAlpha support**), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render, **eager context init**), Extensions |
+| **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent, **window-level keyboard listeners** |
 | **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameWidget→WebKit.WebView, postMessage bridge |
 
 ## Browser UI Packages (`packages/web/adwaita-web/`)
@@ -199,6 +201,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **Gtk 4.0** | webgl |
 | **GdkPixbuf 2.0** | dom-elements (HTMLImageElement) |
 | **gwebgl 0.1** | webgl (Vala extension) |
+| **Gst 1.0** | webaudio (audio decoding + playback) |
+| **GstApp 1.0** | webaudio (appsrc/appsink for PCM I/O) |
 
 ---
 
@@ -210,13 +214,14 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Fully implemented | 32 (82%) |
 | Partially implemented | 3 (8%) |
 | Stubs | 4 (10%) |
-| Web API packages | 13 (all implemented) |
+| Web API packages | 15 (14 full, 1 partial) |
 | DOM packages | 5 (all implemented) |
 | Browser UI packages | 1 (adwaita-web) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
 | Total test cases | 10,100+ |
 | Spec files | 106 |
+| Showcases | 5 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver) |
 | Real-world examples | 11+ (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, Three.js teapot) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
@@ -274,7 +279,20 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-*(No open TODOs — all resolved in 2026-04-07 session.)*
+### Browser Testing Infrastructure for DOM Packages
+
+**Priority: High — architectural gap**
+
+DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target for DOM behaviour is a **real browser**, not Node.js. Node.js lacks a DOM and would require heavy polyfilling that obscures whether our implementation is correct. We do not yet have a browser test runner integrated into the monorepo.
+
+**What is needed:**
+- A browser test runner (e.g. Playwright, WPT harness, or a `gjsify build --app browser` + headless Chromium setup) that executes `*.spec.ts` suites in a real browser context
+- Specs must be written **without** manual `import '<pkg>/register'` in source. Instead: `gjsify build --globals` injects the register for GJS; the browser provides native globals. The same spec file then runs on both GJS and browser without platform guards
+- Once browser infrastructure exists, `register.spec.ts` files (created as a temporary GJS-only workaround for testing `globalThis` wiring) should fold back into the common spec — no manual register import, runs on GJS + browser
+- Priority packages: `dom-elements`, `canvas2d`, `canvas2d-core`, `event-bridge`
+- `refs/wpt/` is the authoritative conformance test source for DOM specs
+
+**Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
 
 ---
 

@@ -39,6 +39,7 @@ export const CanvasWebGLWidget = GObject.registerClass(
     class CanvasWebGLWidget extends Gtk.GLArea {
         _canvas: OurHTMLCanvasElement | null = null;
         _readyCallbacks: WebGLReadyCallback[] = [];
+        _resizeCallbacks: ((width: number, height: number) => void)[] = [];
         _renderTag: number | null = null;
         _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
@@ -54,8 +55,10 @@ export const CanvasWebGLWidget = GObject.registerClass(
             this.set_has_depth_buffer(true);
             this.set_has_stencil_buffer(true);
 
-            // Bridge GTK events → DOM events on the canvas element
-            attachEventControllers(this, () => this._canvas);
+            // Bridge GTK events → DOM events on the canvas element.
+            // captureKeys=true: consume key events so GTK focus traversal (arrow keys)
+            // never steals focus from the game canvas.
+            attachEventControllers(this, () => this._canvas, { captureKeys: true });
 
             // Initialize canvas on first render
             const initId = this.connect('render', () => {
@@ -67,6 +70,15 @@ export const CanvasWebGLWidget = GObject.registerClass(
                 if ((globalThis as any).document?.body) {
                     (globalThis as any).document.body.appendChild(this._canvas);
                 }
+                // Eagerly create BOTH WebGL and WebGL2 contexts during the init
+                // render signal so their underlying _init() calls capture GtkGLArea's
+                // private FBO ID via GL_FRAMEBUFFER_BINDING. If we only create webgl1
+                // here and the consumer later calls getContext('webgl2') (as Excalibur
+                // 0.32 does — it uses WebGL2 exclusively), the webgl2 context would be
+                // instantiated OUTSIDE the render signal, GL_FRAMEBUFFER_BINDING would
+                // read 0, _gtkFboId would be 0, and bindFramebuffer(null) would bind
+                // FBO 0 instead of GtkGLArea's FBO → invisible rendering.
+                this._canvas.getContext('webgl2');
                 const gl = this._canvas.getContext('webgl') as OurWebGLRenderingContext | null;
                 if (gl) {
                     for (const cb of this._readyCallbacks) {
@@ -83,9 +95,21 @@ export const CanvasWebGLWidget = GObject.registerClass(
             // NOT re-execute the application's render logic.  We schedule a rAF
             // that re-invokes the last frame callback, which runs inside the
             // GTK frame pipeline with the GL context current.
+            //
+            // Also notify onResize() subscribers and dispatch a DOM 'resize'
+            // event on the canvas, matching the unified API exposed by
+            // Canvas2DWidget. Consumers can use any of:
+            //   widget.connect('resize', (w, width, height) => { ... })  // GObject
+            //   widget.onResize((width, height) => { ... })              // convenience
+            //   canvas.addEventListener('resize', () => { ... })         // DOM
             this.connect('resize', () => {
+                const width = this.get_allocated_width();
+                const height = this.get_allocated_height();
                 if (this._canvas) {
                     this._canvas.dispatchEvent(new Event('resize'));
+                }
+                for (const cb of this._resizeCallbacks) {
+                    cb(width, height);
                 }
                 if (this._frameCallback) {
                     this.requestAnimationFrame(this._frameCallback);
@@ -133,6 +157,17 @@ export const CanvasWebGLWidget = GObject.registerClass(
         }
 
         /**
+         * Register a callback invoked whenever the GTK widget is resized.
+         * The callback fires alongside the native 'resize' GObject signal and
+         * after the DOM 'resize' event has been dispatched on the canvas.
+         * Canvas buffer dimensions are NOT automatically updated — consumers
+         * should set `canvas.width`/`canvas.height` themselves if desired.
+         */
+        onResize(cb: (width: number, height: number) => void): void {
+            this._resizeCallbacks.push(cb);
+        }
+
+        /**
          * Schedules a single animation frame callback, matching the browser `requestAnimationFrame` API.
          * Backed by GTK frame clock (vsync-synced) + the GLArea render signal.
          * Returns 0 (handle — cancel not yet implemented).
@@ -143,11 +178,14 @@ export const CanvasWebGLWidget = GObject.registerClass(
                 this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, _frameClock: Gdk.FrameClock) => {
                     this._tickCallbackId = null;
                     if (this._renderTag === null) {
-                        this._renderTag = this.connect('render', () => {
+                        this._renderTag = this.connect('render', (_widget: Gtk.GLArea) => {
                             this.disconnect(this._renderTag!);
                             this._renderTag = null;
                             // DOMHighResTimeStamp: ms since time origin, matching performance.now()
                             const time = (GLib.get_monotonic_time() - this._timeOrigin) / 1000;
+                            if ((globalThis as any).__GJSIFY_DEBUG_RAF === true) {
+                                console.log(`[rAF] frame callback fires t=${time.toFixed(1)}`);
+                            }
                             this._frameCallback?.(time);
                             return true;
                         });
@@ -170,6 +208,10 @@ export const CanvasWebGLWidget = GObject.registerClass(
         installGlobals(): void {
             (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
                 this.requestAnimationFrame(cb);
+            (globalThis as any).cancelAnimationFrame = (_id: number) => {
+                // Cancel is not yet fully implemented — clear pending frame callback.
+                this._frameCallback = null;
+            };
             // Install performance.now() on the same time origin as rAF timestamps.
             // Always override to ensure consistency — native GJS performance.now()
             // may use a different time origin than the frame clock.

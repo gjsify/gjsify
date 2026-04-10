@@ -63,7 +63,14 @@ export const EXTERNALS_NPM = [
 ]
 
 /** General record of modules for Gjs */
-export const ALIASES_GENERAL_FOR_GJS = {}
+export const ALIASES_GENERAL_FOR_GJS = {
+    // Third-party Node-only packages that must be stripped from GJS bundles.
+    // jsdom is pulled in by @excaliburjs/plugin-tiled as a fallback when
+    // DOMParser is not available; on GJS we provide DOMParser via
+    // @gjsify/domparser, so jsdom and its whatwg-url/webidl-conversions
+    // deps (which use SharedArrayBuffer — unavailable in GJS) are never needed.
+    'jsdom': '@gjsify/empty',
+}
 
 /** Record of Node.js modules (build in or not) and his replacement for Gjs */
 export const ALIASES_NODE_FOR_GJS = {
@@ -153,6 +160,20 @@ export const ALIASES_WEB_FOR_GJS = {
     'fetch/register': '@gjsify/fetch/register',
     'webcrypto/register': '@gjsify/webcrypto/register',
     'web-streams/register': '@gjsify/web-streams/register',
+
+    // xmlhttprequest + DOMParser
+    'xmlhttprequest': '@gjsify/xmlhttprequest',
+    'xmlhttprequest/register': '@gjsify/xmlhttprequest/register',
+    'domparser': '@gjsify/domparser',
+    'domparser/register': '@gjsify/domparser/register',
+
+    // Web Audio API (GStreamer backend)
+    'webaudio': '@gjsify/webaudio',
+    'webaudio/register': '@gjsify/webaudio/register',
+
+    // Gamepad API (libmanette backend)
+    'gamepad': '@gjsify/gamepad',
+    'gamepad/register': '@gjsify/gamepad/register',
 }
 
 /** General record of modules for Node */
@@ -203,4 +224,22 @@ export const ALIASES_WEB_FOR_NODE = {
     '@gjsify/web-streams/register': '@gjsify/empty',
     '@gjsify/dom-elements/register': '@gjsify/empty',
     '@gjsify/buffer/register': '@gjsify/empty',
+
+    // xmlhttprequest + DOMParser — no-op on Node
+    'xmlhttprequest': '@gjsify/empty',
+    'xmlhttprequest/register': '@gjsify/empty',
+    '@gjsify/xmlhttprequest/register': '@gjsify/empty',
+    'domparser': '@gjsify/empty',
+    'domparser/register': '@gjsify/empty',
+    '@gjsify/domparser/register': '@gjsify/empty',
+
+    // Web Audio API — no-op on Node (experimental --experimental-web-audio not widely available)
+    'webaudio': '@gjsify/empty',
+    'webaudio/register': '@gjsify/empty',
+    '@gjsify/webaudio/register': '@gjsify/empty',
+
+    // Gamepad API — no-op on Node
+    'gamepad': '@gjsify/empty',
+    'gamepad/register': '@gjsify/empty',
+    '@gjsify/gamepad/register': '@gjsify/empty',
 }

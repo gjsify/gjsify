@@ -31,6 +31,12 @@ const showcases = [
             { src: '@gjsify/example-dom-three-geometry-teapot/assets/pisa', dest: 'assets/pisa', recursive: true },
         ],
     },
+    {
+        dest: 'public/demos/jelly-jumper',
+        assets: [
+            { src: '@gjsify/example-dom-excalibur-jelly-jumper/assets', dest: 'res', recursive: true },
+        ],
+    },
 ];
 
 for (const showcase of showcases) {

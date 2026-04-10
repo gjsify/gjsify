@@ -4,6 +4,7 @@
 // Modifications: Rewritten for GJS using libsoup 3.0 (Soup.Session)
 
 import type Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import Stream from 'node:stream';
 
 import { parseDataUri } from './utils/data-uri.js';
@@ -30,7 +31,41 @@ export { Blob, File };
 
 import type { SystemError } from './types/index.js';
 
-const supportedSchemas = new Set(['data:', 'http:', 'https:']);
+const supportedSchemas = new Set(['data:', 'http:', 'https:', 'file:']);
+
+/**
+ * Rewrite root-relative URLs (e.g. `/res/images/foo.png`) to `file://` relative
+ * to the program directory. In a browser these would resolve against the page
+ * origin; in GJS there is no origin, so we map them to the running bundle's
+ * directory. This lets apps use the same asset paths across browser and GJS.
+ */
+/**
+ * Rewrite root-relative URLs (e.g. `/res/images/foo.png`) to `file://` relative
+ * to the program directory. This lets GJS apps load bundled assets using the
+ * same paths as in the browser. The security implications (arbitrary file
+ * reads via fetch) are acceptable for the current use cases — revisit if
+ * @gjsify/fetch is ever used to handle untrusted input.
+ */
+function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
+  if (typeof input !== 'string') return input;
+  if (!input.startsWith('/') || input.startsWith('//')) return input;
+  const DEBUG = (globalThis as any).__GJSIFY_DEBUG_FETCH === true;
+  try {
+    // GJS-only: derive program dir from System.programInvocationName.
+    const imports = (globalThis as any).imports;
+    const programPath = imports?.system?.programPath
+      ?? imports?.system?.programInvocationName
+      ?? '';
+    if (!programPath) return input;
+    const dir = GLib.path_get_dirname(programPath);
+    const rewritten = `file://${dir}${input}`;
+    if (DEBUG) console.log(`[fetch] rewrite ${input} → ${rewritten}`);
+    return rewritten;
+  } catch (err) {
+    if (DEBUG) console.warn(`[fetch] rewrite FAILED: ${(err as any)?.message ?? err}`);
+    return input;
+  }
+}
 
 /**
  * Fetch function
@@ -39,6 +74,9 @@ const supportedSchemas = new Set(['data:', 'http:', 'https:']);
  * @param init Fetch options
  */
 export default async function fetch(url: RequestInfo | URL | Request, init: RequestInit = {}): Promise<Response> {
+  // Rewrite root-relative URLs before Request constructor parses them
+  url = rewriteRootRelativeUrl(url);
+
   // Build request object
   const request = new Request(url, init);
   const { parsedURL, options } = getSoupRequestOptions(request);
@@ -51,6 +89,33 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
     const { buffer, typeFull } = parseDataUri(request.url);
     const response = new Response(Buffer.from(buffer), { headers: { 'Content-Type': typeFull } });
     return response;
+  }
+
+  // Handle file:// URIs via GLib direct read (no Soup needed).
+  if (parsedURL.protocol === 'file:') {
+    const DEBUG = (globalThis as any).__GJSIFY_DEBUG_FETCH === true;
+    if (DEBUG) console.log(`[fetch] file:// ${request.url}`);
+    try {
+      const path = GLib.filename_from_uri(request.url)[0];
+      if (DEBUG) console.log(`[fetch] file:// path=${path}`);
+      const [ok, contents] = GLib.file_get_contents(path);
+      if (DEBUG) console.log(`[fetch] file:// ok=${ok} bytes=${contents?.byteLength ?? '?'}`);
+      if (!ok) {
+        throw new FetchError(`Failed to read file: ${path}`, 'system');
+      }
+      const bytes = contents as Uint8Array;
+      // Copy to a fresh Uint8Array backed by its own ArrayBuffer so the
+      // Response body owns the memory independently of GLib's buffer.
+      const body = new Uint8Array(bytes.byteLength);
+      body.set(bytes);
+      const resp = new Response(body);
+      if (DEBUG) console.log(`[fetch] file:// response created`);
+      return resp;
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      if (DEBUG) console.warn(`[fetch] file:// FAIL: ${err.message}`);
+      throw new FetchError(`request to ${request.url} failed, reason: ${err.message}`, 'system', err as unknown as SystemError);
+    }
   }
 
   const { signal } = request;

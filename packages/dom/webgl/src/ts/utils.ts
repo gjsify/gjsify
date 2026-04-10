@@ -184,7 +184,7 @@ export const extractImageData = (pixels: TexImageSource | HTMLImageElement): Ima
 
         if (typeof (pixels as HTMLCanvasElement).getContext === 'function') {
             context = (pixels as HTMLCanvasElement).getContext('2d')
-        } else if (typeof (pixels as HTMLImageElement).isPixbuf()) {
+        } else if (typeof (pixels as HTMLImageElement).isPixbuf === 'function' && (pixels as HTMLImageElement).isPixbuf()) {
             return (pixels as HTMLImageElement).getImageData();
         } else if (typeof (pixels as HTMLImageElement).src !== 'undefined' && typeof document === 'object' && typeof document.createElement === 'function') {
             const canvas = document.createElement('canvas')
@@ -262,4 +262,24 @@ export function flag<T = Record<string, any>> (options: T, name: keyof T, dflt: 
       return dflt
     }
     return !!options[name]
+}
+
+/**
+ * Premultiply RGB channels by the alpha channel (in-place copy).
+ * Required when UNPACK_PREMULTIPLY_ALPHA_WEBGL is set.
+ * Excalibur uses blendFunc(ONE, ONE_MINUS_SRC_ALPHA) (premultiplied alpha
+ * blending), so textures must have RGB already multiplied by alpha before
+ * upload. Without this, transparent-background PNGs (alpha=0 but RGB=255)
+ * bleed through as white rectangles.
+ */
+export function premultiplyAlpha(data: Uint8Array): Uint8Array {
+    const out = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i += 4) {
+        const a = data[i + 3] / 255;
+        out[i]     = Math.round(data[i]     * a);
+        out[i + 1] = Math.round(data[i + 1] * a);
+        out[i + 2] = Math.round(data[i + 2] * a);
+        out[i + 3] = data[i + 3];
+    }
+    return out;
 }

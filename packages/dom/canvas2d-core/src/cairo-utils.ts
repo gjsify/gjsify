@@ -198,19 +198,30 @@ export function cairoRoundRect(
     ctx.closePath();
 }
 
-/** Map Canvas globalCompositeOperation to Cairo.Operator values */
+/**
+ * Map Canvas globalCompositeOperation to Cairo.Operator values.
+ *
+ * Cairo.Operator enum (verified runtime in GJS 1.86):
+ *   CLEAR=0, SOURCE=1, OVER=2, IN=3, OUT=4, ATOP=5,
+ *   DEST=6, DEST_OVER=7, DEST_IN=8, DEST_OUT=9, DEST_ATOP=10,
+ *   XOR=11, ADD=12, SATURATE=13,
+ *   MULTIPLY=14, SCREEN=15, OVERLAY=16, DARKEN=17, LIGHTEN=18,
+ *   COLOR_DODGE=19, COLOR_BURN=20, HARD_LIGHT=21, SOFT_LIGHT=22,
+ *   DIFFERENCE=23, EXCLUSION=24, HSL_HUE=25, HSL_SATURATION=26,
+ *   HSL_COLOR=27, HSL_LUMINOSITY=28
+ */
 export const COMPOSITE_OP_MAP: Record<string, number> = {
     'source-over': 2,      // OVER
-    'source-in': 5,        // IN
-    'source-out': 6,       // OUT
-    'source-atop': 7,      // ATOP
-    'destination-over': 8, // DEST_OVER
-    'destination-in': 9,   // DEST_IN
-    'destination-out': 10, // DEST_OUT
-    'destination-atop': 11,// DEST_ATOP
+    'source-in': 3,        // IN
+    'source-out': 4,       // OUT
+    'source-atop': 5,      // ATOP
+    'destination-over': 7, // DEST_OVER
+    'destination-in': 8,   // DEST_IN
+    'destination-out': 9,  // DEST_OUT
+    'destination-atop': 10,// DEST_ATOP
     'lighter': 12,         // ADD
     'copy': 1,             // SOURCE
-    'xor': 13,             // XOR
+    'xor': 11,             // XOR
     'multiply': 14,        // MULTIPLY
     'screen': 15,          // SCREEN
     'overlay': 16,         // OVERLAY

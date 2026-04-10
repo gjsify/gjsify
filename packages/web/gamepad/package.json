@@ -1,0 +1,50 @@
+{
+    "name": "@gjsify/gamepad",
+    "version": "0.0.4",
+    "description": "Gamepad Web API for GJS using libmanette as backend",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./register": {
+            "types": "./lib/types/register.d.ts",
+            "default": "./lib/esm/register.js"
+        }
+    },
+    "sideEffects": [
+        "./lib/esm/register.js"
+    ],
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "tsc",
+        "build:test": "yarn build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --globals dom,web --outfile test.gjs.mjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
+        "test:gjs": "gjs -m test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "gamepad",
+        "libmanette",
+        "controller"
+    ],
+    "dependencies": {
+        "@gjsify/dom-events": "workspace:^"
+    },
+    "devDependencies": {
+        "@girs/gjs": "^4.0.0-rc.1",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/manette-0.2": "^0.2.13-4.0.0-rc.1",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.5.2",
+        "typescript": "^6.0.2"
+    }
+}

@@ -26,6 +26,7 @@
         "@gjsify/create-app": "workspace:^",
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/example-dom-canvas2d-fireworks": "workspace:^",
+        "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^",
         "@gjsify/example-dom-three-geometry-teapot": "workspace:^",
         "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^",
         "@gjsify/example-node-express-webserver": "workspace:^",

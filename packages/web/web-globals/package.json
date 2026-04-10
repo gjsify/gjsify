@@ -42,9 +42,11 @@
         "@gjsify/dom-exception": "workspace:^",
         "@gjsify/eventsource": "workspace:^",
         "@gjsify/formdata": "workspace:^",
+        "@gjsify/gamepad": "workspace:^",
         "@gjsify/perf_hooks": "workspace:^",
         "@gjsify/url": "workspace:^",
         "@gjsify/web-streams": "workspace:^",
+        "@gjsify/webaudio": "workspace:^",
         "@gjsify/webcrypto": "workspace:^"
     },
     "devDependencies": {

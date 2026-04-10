@@ -53,7 +53,11 @@ const NAMED_COLORS: Record<string, string> = {
 
 /**
  * Parse a CSS color string into RGBA components (0-1 range).
- * Supports: #rgb, #rrggbb, #rgba, #rrggbbaa, rgb(), rgba(), named colors, 'transparent'.
+ * Supports: #rgb, #rrggbb, #rgba, #rrggbbaa, rgb(), rgba(), hsl(), hsla(), named colors, 'transparent'.
+ *
+ * Also handles Excalibur's non-standard HSL format where h/s/l are all in 0-1 range (not degrees/%).
+ * Excalibur's Color.toString() returns `hsla(h, s, l, a)` with values in 0-1 normalized form
+ * (e.g. Color.White → "hsla(0, 0, 1, 1)", Color.Black → "hsla(0, 0, 0, 1)").
  */
 export function parseColor(color: string): RGBA | null {
     if (!color || typeof color !== 'string') return null;
@@ -78,6 +82,31 @@ export function parseColor(color: string): RGBA | null {
             b: parseComponent(rgbMatch[3], 255) / 255,
             a: rgbMatch[4] !== undefined ? parseComponent(rgbMatch[4], 1) : 1,
         };
+    }
+
+    // hsl()/hsla() — handles both standard CSS (degrees, %) and Excalibur's 0-1 normalized form.
+    // Heuristic: if s/l have no % and are ≤ 1, treat as 0-1 normalized; if h > 1, treat as degrees.
+    const hslMatch = trimmed.match(
+        /^hsla?\(\s*(\d+(?:\.\d+)?)\s*[,\s]\s*(\d+(?:\.\d+)?)(%)?\s*[,\s]\s*(\d+(?:\.\d+)?)(%)?\s*(?:[,/]\s*(\d+(?:\.\d+)?%?))?\s*\)$/
+    );
+    if (hslMatch) {
+        let h = parseFloat(hslMatch[1]);
+        let s = parseFloat(hslMatch[2]);
+        const sPct = hslMatch[3] === '%';
+        let l = parseFloat(hslMatch[4]);
+        const lPct = hslMatch[5] === '%';
+        const a = hslMatch[6] !== undefined ? parseComponent(hslMatch[6], 1) : 1;
+
+        // Normalize h to 0-1 range: if > 1, it's degrees (0-360)
+        if (h > 1) h /= 360;
+        // Normalize s to 0-1 range
+        if (sPct) s /= 100;
+        else if (s > 1) s /= 100;
+        // Normalize l to 0-1 range
+        if (lPct) l /= 100;
+        else if (l > 1) l /= 100;
+
+        return hslToRGBA(h, s, l, Math.max(0, Math.min(1, a)));
     }
 
     return null;
@@ -117,6 +146,29 @@ function parseComponent(value: string, max: number): number {
         return (parseFloat(value) / 100) * max;
     }
     return parseFloat(value);
+}
+
+function hue2rgb(p: number, q: number, t: number): number {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+}
+
+function hslToRGBA(h: number, s: number, l: number, a: number): RGBA {
+    let r: number, g: number, b: number;
+    if (s === 0) {
+        r = g = b = l;
+    } else {
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
+    }
+    return { r, g, b, a };
 }
 
 /** Default color: opaque black */

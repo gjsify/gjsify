@@ -1,0 +1,47 @@
+{
+    "name": "@gjsify/example-dom-excalibur-jelly-jumper",
+    "version": "0.1.8",
+    "description": "2D platformer showcase using Excalibur.js 0.32.0 with Tiled tilemaps, running natively on GJS/GTK4 and in the browser",
+    "main": "dist/gjs.js",
+    "type": "module",
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        "./browser": "./src/browser/browser.ts",
+        "./assets/*": "./src/assets/*",
+        "./package.json": "./package.json"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo",
+        "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
+        "start": "gjsify run dist/gjs.js",
+        "start:browser": "http-server dist",
+        "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
+        "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --globals dom,web --outfile dist/gjs.js",
+        "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
+        "build:assets": "cp -rf src/assets dist/res && cp -f src/browser/index.html dist/index.html"
+    },
+    "devDependencies": {
+        "@excaliburjs/plugin-tiled": "0.32.0",
+        "@girs/adw-1": "^1.10.0-4.0.0-rc.1",
+        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/gjs": "^4.0.0-rc.1",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1",
+        "@gjsify/adwaita-icons": "workspace:^",
+        "@gjsify/adwaita-web": "workspace:^",
+        "@gjsify/canvas2d": "workspace:^",
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^25.5.2",
+        "excalibur": "0.32.0",
+        "http-server": "^14.1.1",
+        "typescript": "^6.0.2"
+    },
+    "dependencies": {
+        "@gjsify/webgl": "workspace:^"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

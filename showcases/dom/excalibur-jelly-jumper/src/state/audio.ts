@@ -1,0 +1,102 @@
+import * as ex from 'excalibur'
+import { Resources } from '../resources.js';
+
+let currentSong: ex.Sound | null = null
+let muted = false
+
+export abstract class AudioManager {
+  static levels = new Map<ex.Sound, number>([
+    [Resources.music.stage1, .1],
+    [Resources.music.stage2, .1],
+    [Resources.sfx.jump, .25],
+    [Resources.sfx.jumpSpring, .25],
+    [Resources.sfx.land, .25],
+    [Resources.sfx.turnAround, .25],
+    [Resources.sfx.stomp, .25],
+    [Resources.sfx.damage, .25],
+    [Resources.sfx.collectCoin, .25],
+])
+
+  static get isMuted() { return muted }
+
+  static init(startMuted = false) {
+      muted = startMuted
+      for (let category of Object.values(Resources)){
+          for (let resource of Object.values(category)) {
+              if (resource instanceof ex.Sound) {
+                  resource.volume = muted ? 0 : (AudioManager.levels.get(resource) ?? 1.0);
+              }
+          }
+      }
+  }
+
+  static muteAll() {
+      muted = true
+      // Stop all currently playing sounds
+      for (let category of Object.values(Resources)) {
+          for (let resource of Object.values(category)) {
+              if (resource instanceof ex.Sound) {
+                  resource.stop()
+                  resource.volume = 0
+              }
+          }
+      }
+  }
+
+  static unmuteAll() {
+      muted = false
+      for (let category of Object.values(Resources)) {
+          for (let resource of Object.values(category)) {
+              if (resource instanceof ex.Sound) {
+                  resource.volume = AudioManager.levels.get(resource) ?? 1.0
+              }
+          }
+      }
+      // Resume background music if there was one playing
+      if (currentSong) {
+          currentSong.play()
+          currentSong.loop = true
+      }
+  }
+
+  static playSong(song: ex.Sound) {
+    if (currentSong) {
+      currentSong.stop()
+    }
+
+    currentSong = song
+    if (!muted) {
+      currentSong.play()
+    }
+    currentSong.loop = true
+  }
+
+  /**
+   * Plays a sound effect if the sound is not already playing
+   */
+  static playSfx(sfx: ex.Sound, opts: PlaySfxOptions = {}) {
+    if (muted) return
+
+    const { volume = AudioManager.levels.get(sfx), force = false } = opts
+
+    if (force || !sfx.isPlaying()) {
+      sfx.play(volume)
+    }
+  }
+}
+
+interface PlaySfxOptions {
+  /**
+   * The volume to play the sound at (0.0 to 1.0)
+   *
+   * @default 0.7
+   */
+  volume?: number
+
+  /**
+   * If true, the sound will play even if it is already playing
+   *
+   * @default false
+   */
+  force?: boolean
+}

@@ -1,0 +1,31 @@
+{
+    "name": "@gjsify/test-dom-excalibur",
+    "description": "Integration tests: Excalibur engine on GJS/GTK. Serves as regression suite and template for framework integration tests.",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "clear": "rm -rf lib test.gjs.mjs tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --globals dom,web --outfile test.gjs.mjs",
+        "test": "yarn build:test:gjs && yarn test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "dependencies": {
+        "@gjsify/webgl": "workspace:^"
+    },
+    "devDependencies": {
+        "@girs/gjs": "^4.0.0-rc.1",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1",
+        "@gjsify/canvas2d": "workspace:^",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.5.2",
+        "excalibur": "0.32.0",
+        "typescript": "^6.0.2"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

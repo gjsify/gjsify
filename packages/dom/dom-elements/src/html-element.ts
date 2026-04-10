@@ -15,7 +15,37 @@ import * as PS from './property-symbol.js';
  */
 export class CSSStyleDeclaration {
     [key: string]: unknown;
-    cssText = '';
+    private _cssText = '';
+
+    /** Setting cssText parses individual declarations and stores them as camelCase properties,
+     *  matching browser behavior for feature-detection checks like Excalibur's rgbaSupport. */
+    get cssText(): string { return this._cssText; }
+    set cssText(value: string) {
+        this._cssText = value;
+        for (const decl of value.split(';')) {
+            const colon = decl.indexOf(':');
+            if (colon === -1) continue;
+            const prop = decl.slice(0, colon).trim();
+            const val = decl.slice(colon + 1).trim();
+            if (!prop) continue;
+            const camel = prop.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+            (this as Record<string, unknown>)[camel] = val;
+        }
+    }
+
+    setProperty(property: string, value: string, _priority?: string): void {
+        (this as Record<string, unknown>)[property] = value;
+    }
+    getPropertyValue(property: string): string {
+        const v = (this as Record<string, unknown>)[property];
+        return typeof v === 'string' ? v : '';
+    }
+    removeProperty(property: string): string {
+        const v = (this as Record<string, unknown>)[property];
+        delete (this as Record<string, unknown>)[property];
+        return typeof v === 'string' ? v : '';
+    }
+    getPropertyPriority(_property: string): string { return ''; }
 }
 
 /**
@@ -26,6 +56,39 @@ export class CSSStyleDeclaration {
 export class HTMLElement extends Element {
 	// -- Style stub (no layout engine — assignments are no-ops) --
 	readonly style: CSSStyleDeclaration = new CSSStyleDeclaration();
+
+	// -- dataset: Proxy-backed DOMStringMap over data-* attributes --
+	// Converts `data-original-src` ↔ `originalSrc` (camelCase). Used by
+	// Excalibur's ImageSource which sets data-original-src on images for
+	// debugging and TextureLoader.checkImageSizeSupportedAndLog.
+	get dataset(): Record<string, string> {
+		const el = this;
+		return new Proxy({} as Record<string, string>, {
+			get(_target, prop: string): string | undefined {
+				if (typeof prop !== 'string') return undefined;
+				const attr = 'data-' + prop.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+				const value = el.getAttribute(attr);
+				return value ?? undefined;
+			},
+			set(_target, prop: string, value: string): boolean {
+				if (typeof prop !== 'string') return false;
+				const attr = 'data-' + prop.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+				el.setAttribute(attr, String(value));
+				return true;
+			},
+			deleteProperty(_target, prop: string): boolean {
+				if (typeof prop !== 'string') return false;
+				const attr = 'data-' + prop.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+				el.removeAttribute(attr);
+				return true;
+			},
+			has(_target, prop: string): boolean {
+				if (typeof prop !== 'string') return false;
+				const attr = 'data-' + prop.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+				return el.hasAttribute(attr);
+			},
+		});
+	}
 
 	// -- Attribute-backed string properties --
 

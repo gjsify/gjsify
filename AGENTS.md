@@ -69,6 +69,8 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 | eventsource | Soup 3.0 | EventSource (Server-Sent Events) |
 | websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
 | webstorage | Gio | localStorage, sessionStorage |
+| webaudio | Gst 1.0, GstApp 1.0 | AudioContext(decodeAudioData via GStreamer decodebin), AudioBufferSourceNode(appsrc→volume→autoaudiosink), GainNode(AudioParam+setTargetAtTime), AudioBuffer(PCM Float32), HTMLAudioElement(canPlayType+playbin). Phase 1 |
+| gamepad | Manette 0.2 | Gamepad(navigator.getGamepads polling via libmanette signals), GamepadButton(pressed/touched/value), GamepadEvent(gamepadconnected/gamepaddisconnected), GamepadHapticActuator(dual-rumble). Lazy Manette.Monitor init, graceful degradation without libmanette |
 | web-globals | — | Re-exports all web API globals (dom-events, abort-controller, streams, webcrypto, etc.) |
 | adwaita-web | — | Browser Adwaita components: AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView. Custom Elements + SCSS source partials in `scss/` (mirrors `refs/adwaita-web/scss/`). Built to `dist/adwaita-web.css` via the `sass` package. Light/dark theme. Consumers: `import '@gjsify/adwaita-web'` (custom elements) + `import '@gjsify/adwaita-web/style.css'` (or `@use '@gjsify/adwaita-web/scss/...'`). No GJS deps. **Long-term goal:** complete the framework — port additional components from `refs/adwaita-web/scss/` (button, entry, dialog, popover, banner, tabs, …); see STATUS.md roadmap |
 
@@ -187,7 +189,7 @@ yarn build:test:{gjs,node} | yarn test:{gjs,node}
 
 ```
 Node→GNOME: fs→Gio.File{,I/O}Stream | Buffer→GLib.Bytes/ByteArray/Uint8Array | net.Socket→Gio.Socket{Connection,Client} | http→Soup.{Session,Server} | crypto→GLib.{Checksum,Hmac} | process.env→GLib.{g,s}etenv() | url.URL→GLib.Uri
-Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Streams→Gio.{In,Out}putStream | Compression→Gio.ZlibCompressor | SubtleCrypto→GLib.Checksum+Hmac | localStorage→Gio.File/GLib.KeyFile | ImageBitmap→GdkPixbuf.Pixbuf | EventSource→Soup.Session(SSE)
+Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Streams→Gio.{In,Out}putStream | Compression→Gio.ZlibCompressor | SubtleCrypto→GLib.Checksum+Hmac | localStorage→Gio.File/GLib.KeyFile | ImageBitmap→GdkPixbuf.Pixbuf | EventSource→Soup.Session(SSE) | Gamepad→Manette.{Monitor,Device}(libmanette)
 ```
 
 ## References — `refs/`
@@ -314,6 +316,7 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 4. Common `*.spec.ts`: both platforms, no `@girs/*`. Platform-specific `*.gjs.spec.ts`/`on('Gjs')`: minimal.
 5. Layout: `src/index.ts`(impl) | `src/*.spec.ts`(specs) | `src/test.mts`(entry).
 6. **Never weaken tests** — fix implementation, not tests. No platform guards.
+7. **`/register` side effects in a dedicated spec file:** Tests that verify globalThis wiring (e.g. `globalThis.FontFace`, `globalThis.__gjsify_globalEventTarget`) require `import '<pkg>/register'`. Put these in a separate `register.spec.ts` — NOT in the common `*.spec.ts`. Reason: even if the global itself (e.g. `FontFace`) is pure JS, the `/register` file pulls in GTK/Cairo implementation files via its import chain, which crashes on Node.js. The global value and the registration machinery are separate concerns. The common spec tests the class/value directly via named import (cross-platform); `register.spec.ts` tests that `/register` correctly wires it onto globalThis (GJS-only, wrap all tests in `on('Gjs', ...)`). Add to `test.mts` as a named suite. Applies only to packages that have no `test:node` (GJS-only packages like dom-elements, webgl). For cross-platform packages, the `/register` test belongs in a `.gjs.spec.ts` file. Example: `packages/dom/dom-elements/src/register.spec.ts`.
 
 ### Regression Tests from Examples
 

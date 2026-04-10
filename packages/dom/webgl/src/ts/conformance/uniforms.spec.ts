@@ -271,6 +271,43 @@ export default async () => {
                 expect(gl.getError()).toBe(gl.NO_ERROR);
             });
 
+            // Regression: Excalibur calls gl.getUniformLocation(prog, 'u_textures')
+            // for `uniform sampler2D u_textures[N]`, i.e. the bare array name
+            // without the `[0]` suffix. Previously this returned null because
+            // our info lookup only matched the exact name, and native OpenGL
+            // stores array uniforms as 'u_textures[0]'. The fix matches both
+            // forms and lets the bare name resolve to element [0].
+            await it('getUniformLocation resolves bare array name (without [0] suffix)', async () => {
+                const prog = makeProgram(gl, VS, FS_ARR);
+                gl.useProgram(prog);
+                // Bare name — no [0] suffix
+                const locBare = gl.getUniformLocation(prog, 'u_arr');
+                expect(locBare).not.toBeNull();
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                // And uniform1iv/fv through the bare-name location must write
+                // to the full array (this is what Excalibur's setUniform does
+                // via the `location` returned by getUniformLocation(prog, name)).
+                gl.uniform1fv(locBare!, [0.7, 0.8, 0.9]);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                // Element [0] should reflect the first value.
+                const val = gl.getUniform(prog, locBare!) as number;
+                expect(Math.abs(val - 0.7) < 0.001).toBe(true);
+            });
+
+            await it('bare array name and indexed [0] name resolve to equivalent locations', async () => {
+                const prog = makeProgram(gl, VS, FS_ARR);
+                gl.useProgram(prog);
+                const locBare = gl.getUniformLocation(prog, 'u_arr');
+                const locIndexed = gl.getUniformLocation(prog, 'u_arr[0]');
+                expect(locBare).not.toBeNull();
+                expect(locIndexed).not.toBeNull();
+                // Write via bare name, read back via indexed name — must see same value.
+                gl.uniform1fv(locBare!, [0.42, 0.43, 0.44]);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                const val = gl.getUniform(prog, locIndexed!) as number;
+                expect(Math.abs(val - 0.42) < 0.001).toBe(true);
+            });
+
             await it('calling uniform* before useProgram generates INVALID_OPERATION', async () => {
                 const prog = makeProgram(gl, VS, FS_ARR);
                 gl.useProgram(null);

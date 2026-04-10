@@ -2,6 +2,7 @@
 // Reference: refs/happy-dom/packages/happy-dom/src/nodes/html-image-element/HTMLImageElement.ts
 
 import GLib from '@girs/glib-2.0';
+import Gio from '@girs/gio-2.0';
 import GdkPixbuf from '@girs/gdkpixbuf-2.0';
 import { Event } from '@gjsify/dom-events';
 import { HTMLElement } from './html-element.js';
@@ -118,12 +119,49 @@ export class HTMLImageElement extends HTMLElement {
 	set src(src: string) {
 		this.setAttribute('src', src);
 
+		const DEBUG = (globalThis as any).__GJSIFY_DEBUG_IMG === true;
+
+		// Handle data: URIs (e.g. base64 PNG logos from Excalibur's loader)
+		if (src.startsWith('data:')) {
+			const commaIdx = src.indexOf(',');
+			if (commaIdx === -1) {
+				this._complete = true;
+				this.dispatchEvent(new Event('error'));
+				return;
+			}
+			const meta = src.slice(5, commaIdx); // between 'data:' and ','
+			const data = src.slice(commaIdx + 1);
+			const isBase64 = meta.includes(';base64');
+			try {
+				let bytes: Uint8Array;
+				if (isBase64) {
+					// Use GLib.base64_decode — available in all GJS versions, no global needed
+					bytes = GLib.base64_decode(data) as unknown as Uint8Array;
+				} else {
+					bytes = new TextEncoder().encode(decodeURIComponent(data));
+				}
+				const gbytes = GLib.Bytes.new(bytes);
+				const stream = Gio.MemoryInputStream.new_from_bytes(gbytes);
+				this._pixbuf = GdkPixbuf.Pixbuf.new_from_stream(stream, null);
+				this._naturalWidth = this._pixbuf!.get_width();
+				this._naturalHeight = this._pixbuf!.get_height();
+				this._complete = true;
+				if (DEBUG) console.log(`[img] ok data: (${this._naturalWidth}x${this._naturalHeight})`);
+				this.dispatchEvent(new Event('load'));
+			} catch (_error) {
+				if (DEBUG) console.warn(`[img] error data:: ${(_error as any)?.message ?? _error}`);
+				this._complete = true;
+				this.dispatchEvent(new Event('error'));
+			}
+			return;
+		}
+
 		let filename: string;
 		if (src.startsWith('file://')) {
 			// GLib.filename_from_uri returns [localPath, hostname]
 			filename = GLib.filename_from_uri(src)[0];
-		} else if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
-			// Remote URLs and data URIs are not supported in GJS — fire error
+		} else if (src.startsWith('http://') || src.startsWith('https://')) {
+			// Remote URLs are not supported in GJS — fire error
 			this._complete = true;
 			this.dispatchEvent(new Event('error'));
 			return;
@@ -134,13 +172,16 @@ export class HTMLImageElement extends HTMLElement {
 		}
 
 		try {
+			if (DEBUG) console.log(`[img] load ${filename}`);
 			this._pixbuf = GdkPixbuf.Pixbuf.new_from_file(filename);
 			this._naturalWidth = this._pixbuf.get_width();
 			this._naturalHeight = this._pixbuf.get_height();
 			this._complete = true;
+			if (DEBUG) console.log(`[img] ok ${filename} (${this._naturalWidth}x${this._naturalHeight})`);
 
 			this.dispatchEvent(new Event('load'));
 		} catch (_error) {
+			if (DEBUG) console.warn(`[img] error ${filename}: ${(_error as any)?.message ?? _error}`);
 			this._complete = true;
 			this.dispatchEvent(new Event('error'));
 		}

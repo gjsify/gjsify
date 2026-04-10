@@ -65,9 +65,20 @@ function buttonsFromModifiers(controller: Gtk.EventController): number {
  * @param widget The GTK widget to attach controllers to
  * @param getElement Returns the HTMLElement to dispatch events on (may be null before init)
  */
+export interface EventControllerOptions {
+    /**
+     * When true, key-pressed returns true to consume the event and prevent GTK
+     * focus traversal (e.g. arrow keys moving focus to other widgets). Set this
+     * for game canvases where all keys must reach the app, never GTK.
+     * Default: false.
+     */
+    captureKeys?: boolean;
+}
+
 export function attachEventControllers(
     widget: Gtk.Widget,
     getElement: () => { dispatchEvent(event: any): boolean } | null,
+    options?: EventControllerOptions,
 ): void {
     // Make widget focusable for keyboard events
     widget.set_focusable(true);
@@ -218,8 +229,16 @@ export function attachEventControllers(
             which: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
             bubbles: true, cancelable: true,
         };
-        el.dispatchEvent(new OurKeyboardEvent('keydown', init));
-        return false; // allow GTK propagation
+        const keydownEvent = new OurKeyboardEvent('keydown', init);
+        el.dispatchEvent(keydownEvent);
+        // Also dispatch on globalThis so window-level listeners (e.g. Excalibur's
+        // Keyboard.init) receive the event — matches browser behaviour where
+        // keydown/keyup bubble to window scope.
+        (globalThis as any).__gjsify_globalEventTarget?.dispatchEvent(new OurKeyboardEvent('keydown', init));
+        // Return true to consume the event and prevent GTK focus traversal
+        // (e.g. arrow keys moving focus away from the canvas). Required for
+        // game canvases where all keys must stay in the app.
+        return options?.captureKeys === true ? true : false;
     });
 
     keyCtrl.connect('key-released', (_ctrl: Gtk.EventControllerKey, keyval: number, _keycode: number, modifiers: number) => {
@@ -242,6 +261,7 @@ export function attachEventControllers(
             bubbles: true, cancelable: true,
         };
         el.dispatchEvent(new OurKeyboardEvent('keyup', init));
+        (globalThis as any).__gjsify_globalEventTarget?.dispatchEvent(new OurKeyboardEvent('keyup', init));
     });
 
     widget.add_controller(keyCtrl);
@@ -262,6 +282,9 @@ export function attachEventControllers(
         state.pressedKeys.clear(); // Reset key state on blur
         el.dispatchEvent(new OurFocusEvent('blur', { bubbles: false, cancelable: false }));
         el.dispatchEvent(new OurFocusEvent('focusout', { bubbles: true, cancelable: false }));
+        // Excalibur's Keyboard.init() listens for 'blur' on globalThis to clear
+        // pressed keys when the window loses focus.
+        (globalThis as any).__gjsify_globalEventTarget?.dispatchEvent(new OurFocusEvent('blur', { bubbles: false, cancelable: false }));
     });
 
     widget.add_controller(focusCtrl);
