@@ -52,9 +52,10 @@ export class GstPlayer {
             return;
         }
 
-        // Build pipeline
+        // Build pipeline — format=3 (TIME) ensures downstream gets TIME-based
+        // segments, preventing gst_segment_to_stream_time assertion failures.
         const capsStr = `audio/x-raw,format=F32LE,rate=${sr},channels=${ch},layout=interleaved`;
-        const desc = `appsrc name=src caps="${capsStr}" ! audioconvert ! volume name=vol ! autoaudiosink`;
+        const desc = `appsrc name=src caps="${capsStr}" format=3 ! audioconvert ! volume name=vol ! autoaudiosink`;
         this._pipeline = Gst.parse_launch(desc);
         this._volumeElement = this._pipeline.get_by_name('vol');
         const appsrc = this._pipeline.get_by_name('src')!;
@@ -78,8 +79,12 @@ export class GstPlayer {
             return true; // keep watching
         });
 
-        // Push PCM data
-        appsrc.push_buffer(Gst.Buffer.new_wrapped(pcmData));
+        // Push PCM data with proper timestamps for TIME-format segments
+        const gstBuf = Gst.Buffer.new_wrapped(pcmData);
+        const totalFrames = pcmData.length / (4 * ch);
+        gstBuf.pts = 0;
+        gstBuf.duration = Math.floor((totalFrames / sr) * Gst.SECOND);
+        appsrc.push_buffer(gstBuf);
         appsrc.end_of_stream();
 
         // Apply playback rate if not 1.0
