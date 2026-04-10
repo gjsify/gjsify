@@ -5,6 +5,8 @@
         "target": "ESNext",
         "moduleResolution": "NodeNext",
         "experimentalDecorators": true,
+        "outDir": "dist",
+        "rootDir": "src",
         "skipLibCheck": true,
         "strict": false
     },

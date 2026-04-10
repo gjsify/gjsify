@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-07 (EventEmitter makeCallable: `.call(this)` + `util.inherits` CJS compat; makeCallable extracted to @gjsify/utils; stream tests expanded to 509 cases in 7 specs: transform, pipe, inheritance; GJS stream 36→0 failures: _readableState/_writableState fields, Symbol.hasInstance for Writable instanceof, Transform _doPrefinishHooks, drain HWM=0, ERR_MULTIPLE_CALLBACK, ERR_METHOD_NOT_IMPLEMENTED re-throw, util.inherits ERR_INVALID_ARG_TYPE codes)
+> Last updated: 2026-04-10 (Excalibur Jelly Jumper showcase: 2D platformer running on GJS/GTK4+browser; canvas2d HSL parsing+shadow blur+FontFace; webgl premultiply-alpha+clearBuffer+eager context; dom-elements data: URI+dataset+keyboard event bridge; fetch file:// URI support)
 
 ## Summary
 
@@ -13,7 +13,7 @@ The project comprises **39 Node.js packages**, **13 Web API packages**, **5 DOM 
 | Web APIs | 13 | 13 (100%) | — | — |
 | DOM APIs | 5 | 5 (100%) | — | — |
 | Browser UI | 1 | 1 | — | — |
-| Browser UI | 1 | 1 | — | — |
+| Showcases | 5 | 5 | — | — |
 | GJS Infrastructure | 4 | 3 | 1 (types) | — |
 | Build/Infra Tools | 9 | 9 | — | — |
 
@@ -90,7 +90,7 @@ All 13 packages have real implementations:
 | **dom-events** | — | 142 (3 specs) | Event, EventTarget, CustomEvent |
 | **dom-exception** | — | 64 | DOMException polyfill (WebIDL standard) |
 | **eventsource** | — | 15 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
-| **fetch** | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy |
+| **fetch** | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy, **file:// URI support** |
 | **formdata** | — | 49 | FormData, File, multipart encoding |
 | **streams** | — | 283 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **webcrypto** | — | 486 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
@@ -102,10 +102,10 @@ All 13 packages have real implementations:
 
 | Package | GNOME Libs | Tests | APIs |
 |---------|-----------|-------|------|
-| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement (base DOM stub), HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
-| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DWidget→Gtk.DrawingArea |
-| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render), Extensions |
-| **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |
+| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect, **dataset/DOMStringMap**), HTMLCanvasElement (base DOM stub), HTMLImageElement (**data: URI support**), Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
+| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D (**HSL/HSLA color parsing**, **shadowBlur approximation**, drawImage via paint+clip, composite operations), CanvasGradient, CanvasPattern, Path2D, ImageData, **FontFace** (pixel-perfect font rendering via PangoCairo), Canvas2DWidget→Gtk.DrawingArea |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders, **clearBufferfv/iv/uiv/fi**, **premultipliedAlpha support**), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render, **eager context init**), Extensions |
+| **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent, **window-level keyboard listeners** |
 | **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameWidget→WebKit.WebView, postMessage bridge |
 
 ## Browser UI Packages (`packages/web/adwaita-web/`)
@@ -217,6 +217,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Build tools | 9 (infra/) |
 | Total test cases | 10,100+ |
 | Spec files | 106 |
+| Showcases | 5 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver) |
 | Real-world examples | 11+ (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, Three.js teapot) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |

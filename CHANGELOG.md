@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased (2026-04-10)
+
+### Features
+
+* **showcase:** add Excalibur Jelly Jumper — 2D platformer running natively on GJS/GTK4 and in the browser ([#13](https://github.com/gjsify/gjsify/pull/13)). Based on [excaliburjs/sample-jelly-jumper](https://github.com/excaliburjs/sample-jelly-jumper)
+* **canvas2d:** HSL/HSLA color parsing, shadow blur approximation, pixel-perfect font rendering via FontFace + PangoCairo
+* **webgl:** premultipliedAlpha support, clearBufferfv/iv/uiv/fi WebGL2 entry points, eager context init, uniform name resolution
+* **dom-elements:** HTMLElement.dataset (DOMStringMap proxy), HTMLImageElement data: URI support
+* **event-bridge:** wire keyboard input to window-level listeners
+* **fetch:** support file:// URIs + root-relative URL rewrite for GJS
+
+### Bug Fixes
+
+* **canvas2d:** drawImage via paint+clip, composite operation mapping
+* **webgl:** offsetWidth/offsetHeight for Excalibur, extractImageData fix
+* **showcase/jelly-jumper:** circular saw rotation precision, outline shader init, TypeScript type errors, MSAA disable, browser sprite rendering
+
+### Chores
+
+* **showcase/jelly-jumper:** clean up leftover files from original repo (.github, vite.config.ts, package-lock.json, social.jpg, .prettierrc, etc.), move assets from public/res/ to src/assets/, align structure with other showcases
+
 ## [0.1.8](https://github.com/gjsify/gjsify/compare/v0.1.7...v0.1.8) (2026-04-08)
 
 ### ⚠ BREAKING CHANGES
