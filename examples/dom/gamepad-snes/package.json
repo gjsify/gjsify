@@ -1,0 +1,25 @@
+{
+  "name": "@gjsify/example-dom-gamepad-snes",
+  "description": "SNES controller gamepad visualizer using the standard Gamepad Web API, adapted from https://codepen.io/alvaromontoro/full/bGbpmvR",
+  "main": "dist/gjs.js",
+  "type": "module",
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
+    "start": "gjsify run dist/gjs.js",
+    "start:browser": "http-server dist",
+    "build": "yarn build:browser && yarn build:assets",
+    "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --globals dom,web --outfile dist/gjs.js",
+    "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
+    "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/style.css dist/style.css"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@types/node": "^25.5.2",
+    "http-server": "^14.1.1",
+    "typescript": "^6.0.2"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "private": true
+}
