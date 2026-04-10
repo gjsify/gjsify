@@ -11,6 +11,7 @@
 * **dom-elements:** HTMLElement.dataset (DOMStringMap proxy), HTMLImageElement data: URI support
 * **event-bridge:** wire keyboard input to window-level listeners
 * **fetch:** support file:// URIs + root-relative URL rewrite for GJS
+* **gamepad:** new `@gjsify/gamepad` package — Gamepad Web API for GJS backed by libmanette 0.2. Implements Gamepad, GamepadButton, GamepadEvent, GamepadHapticActuator (dual-rumble). Bridges libmanette's event-driven signals to W3C polling-based navigator.getGamepads(). Button/axis mapping from Manette enums to W3C standard layout. Lazy Monitor init + graceful degradation. 19 tests. Enables controller support in excalibur-jelly-jumper showcase
 
 ### Bug Fixes
 
