@@ -84,12 +84,51 @@ h1 {
     50% { opacity: 1; }
 }
 
-/* --- Status bar --- */
+/* --- Info panel --- */
 
-#status-text {
-    font-size: 0.75rem;
+.info-panel {
+    width: 80%;
+    max-width: 600px;
+    display: none;
+}
+
+.info-panel.visible {
+    display: block;
+}
+
+.info-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.7rem;
+}
+
+.info-panel th {
+    text-align: right;
     color: #666;
-    min-height: 1.2em;
+    padding: 0.2rem 0.6rem 0.2rem 0;
+    white-space: nowrap;
+    width: 1%;
+    font-weight: 400;
+}
+
+.info-panel td {
+    color: #aaa;
+    padding: 0.2rem 0.4rem;
+}
+
+.info-panel td.mono {
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.65rem;
+    letter-spacing: -0.02em;
+}
+
+.info-panel #info-name {
+    color: #ddd;
+    font-weight: 600;
+}
+
+.info-panel #info-pressed {
+    color: #ffdd00;
 }
 
 /* --- Footer --- */

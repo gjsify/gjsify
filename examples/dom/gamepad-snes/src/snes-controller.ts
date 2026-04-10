@@ -33,68 +33,107 @@ const BUTTON_MAP: Record<number, string> = {
 /** CSS class applied to active SVG elements. */
 const ACTIVE_CLASS = 'active';
 
+/** W3C standard button names for display. */
+const W3C_BUTTON_NAMES: Record<number, string> = {
+    0: 'B (Face1)', 1: 'A (Face2)', 2: 'Y (Face3)', 3: 'X (Face4)',
+    4: 'L', 5: 'R', 6: 'LT', 7: 'RT',
+    8: 'Select', 9: 'Start', 10: 'L3', 11: 'R3',
+    12: 'D-Up', 13: 'D-Down', 14: 'D-Left', 15: 'D-Right', 16: 'Home',
+};
+
+/** Snapshot of live gamepad state passed to the onUpdate callback. */
+export interface GamepadState {
+    id: string;
+    index: number;
+    mapping: string;
+    axes: readonly number[];
+    buttons: readonly { pressed: boolean; value: number }[];
+    timestamp: number;
+    /** Names of currently pressed buttons. */
+    pressedButtons: string[];
+}
+
+export interface GamepadLoopCallbacks {
+    onConnect?: (gamepad: Gamepad) => void;
+    onDisconnect?: () => void;
+    /** Called every frame with live gamepad state (only while connected). */
+    onUpdate?: (state: GamepadState) => void;
+}
+
 /**
  * Starts the gamepad polling loop. On each animation frame:
  * 1. Clears all `.active` highlights
  * 2. Reads the first connected gamepad via navigator.getGamepads()
  * 3. Highlights SVG elements matching pressed buttons
+ * 4. Calls onUpdate with live state snapshot
  *
- * @param doc Document (or document-like object with querySelector/querySelectorAll)
- * @param onConnect Called when a gamepad connects (optional, for UI updates)
- * @param onDisconnect Called when a gamepad disconnects (optional)
+ * @returns Cleanup function to stop the loop.
  */
 export function startGamepadLoop(
     doc: Document,
-    onConnect?: (gamepad: Gamepad) => void,
-    onDisconnect?: () => void,
+    callbacks: GamepadLoopCallbacks,
 ): () => void {
     let animationId: number | null = null;
     let connected = false;
 
-    // Listen for connect/disconnect events
     const handleConnect = (e: Event) => {
         connected = true;
         const gp = (e as GamepadEvent).gamepad;
-        onConnect?.(gp);
+        callbacks.onConnect?.(gp);
     };
     const handleDisconnect = () => {
         connected = false;
         clearHighlights(doc);
-        onDisconnect?.();
+        callbacks.onDisconnect?.();
     };
 
     window.addEventListener('gamepadconnected', handleConnect);
     window.addEventListener('gamepaddisconnected', handleDisconnect);
 
     function pollLoop() {
-        // Clear all highlights from previous frame
         clearHighlights(doc);
 
         const gamepads = navigator.getGamepads();
-        // Find first connected gamepad
         const gp = gamepads.find((g): g is Gamepad => g !== null && g.connected);
 
         if (gp) {
             if (!connected) {
                 connected = true;
-                onConnect?.(gp);
+                callbacks.onConnect?.(gp);
             }
             highlightButtons(doc, gp);
+            callbacks.onUpdate?.(buildState(gp));
         }
 
         animationId = requestAnimationFrame(pollLoop);
     }
 
-    // Start the loop
     animationId = requestAnimationFrame(pollLoop);
 
-    // Return cleanup function
     return () => {
         if (animationId !== null) {
             cancelAnimationFrame(animationId);
         }
         window.removeEventListener('gamepadconnected', handleConnect);
         window.removeEventListener('gamepaddisconnected', handleDisconnect);
+    };
+}
+
+function buildState(gp: Gamepad): GamepadState {
+    const pressedButtons: string[] = [];
+    for (let i = 0; i < gp.buttons.length; i++) {
+        if (gp.buttons[i].pressed) {
+            pressedButtons.push(W3C_BUTTON_NAMES[i] ?? `Button ${i}`);
+        }
+    }
+    return {
+        id: gp.id,
+        index: gp.index,
+        mapping: gp.mapping || '(none)',
+        axes: gp.axes,
+        buttons: gp.buttons,
+        timestamp: gp.timestamp,
+        pressedButtons,
     };
 }
 

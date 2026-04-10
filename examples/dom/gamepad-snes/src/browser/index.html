@@ -80,7 +80,23 @@
             </svg>
         </div>
 
-        <div id="status-text"></div>
+        <!-- Gamepad info panel (hidden until connected) -->
+        <div id="info-panel" class="info-panel">
+            <table>
+                <tr><th>Name</th><td id="info-name" colspan="3">--</td></tr>
+                <tr>
+                    <th>Index</th><td id="info-index">--</td>
+                    <th>Mapping</th><td id="info-mapping">--</td>
+                </tr>
+                <tr>
+                    <th>Buttons</th><td id="info-buttons-total">--</td>
+                    <th>Axes</th><td id="info-axes-total">--</td>
+                </tr>
+                <tr><th>Pressed</th><td id="info-pressed" colspan="3">--</td></tr>
+                <tr><th>Axes</th><td id="info-axes-live" colspan="3" class="mono">--</td></tr>
+                <tr><th>Timestamp</th><td id="info-timestamp" colspan="3" class="mono">--</td></tr>
+            </table>
+        </div>
     </main>
 
     <!-- Connection overlay -->
