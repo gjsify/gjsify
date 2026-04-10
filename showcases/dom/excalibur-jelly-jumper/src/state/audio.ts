@@ -32,9 +32,11 @@ export abstract class AudioManager {
 
   static muteAll() {
       muted = true
+      // Stop all currently playing sounds
       for (let category of Object.values(Resources)) {
           for (let resource of Object.values(category)) {
               if (resource instanceof ex.Sound) {
+                  resource.stop()
                   resource.volume = 0
               }
           }
@@ -50,14 +52,22 @@ export abstract class AudioManager {
               }
           }
       }
+      // Resume background music if there was one playing
+      if (currentSong) {
+          currentSong.play()
+          currentSong.loop = true
+      }
   }
+
   static playSong(song: ex.Sound) {
     if (currentSong) {
       currentSong.stop()
     }
 
     currentSong = song
-    currentSong.play()
+    if (!muted) {
+      currentSong.play()
+    }
     currentSong.loop = true
   }
 
@@ -65,6 +75,8 @@ export abstract class AudioManager {
    * Plays a sound effect if the sound is not already playing
    */
   static playSfx(sfx: ex.Sound, opts: PlaySfxOptions = {}) {
+    if (muted) return
+
     const { volume = AudioManager.levels.get(sfx), force = false } = opts
 
     if (force || !sfx.isPlaying()) {
