@@ -23,6 +23,7 @@ import {
     vertexCount,
     typeSize,
     Uint8ArrayToVariant,
+    premultiplyAlpha,
 } from './utils.js';
 
 // import { getANGLEInstancedArrays } from './extensions/angle-instanced-arrays.js';
@@ -170,6 +171,7 @@ export abstract class WebGLContextBase {
     _unpackAlignment = 4
     _packAlignment = 4
     _unpackFlipY = false
+    _unpackPremultAlpha = false
 
     // Viewport and scissor — tracked in JS to avoid crashing native getParameterx for array returns
     _viewport: Int32Array = new Int32Array([0, 0, 0, 0]);
@@ -256,6 +258,7 @@ export abstract class WebGLContextBase {
         this._unpackAlignment = 4
         this._packAlignment = 4
         this._unpackFlipY = false
+        this._unpackPremultAlpha = false
 
         // Allocate framebuffer
         // TODO?
@@ -620,10 +623,6 @@ export abstract class WebGLContextBase {
         const framebuffer = this._activeFramebuffer
         if (framebuffer &&
             this._preCheckFramebufferStatus(framebuffer) !== this.FRAMEBUFFER_COMPLETE) {
-            if ((globalThis as any).__GJSIFY_DEBUG_GL) {
-                const status = this._preCheckFramebufferStatus(framebuffer);
-                console.log(`[WebGL] _framebufferOk FAIL fbo=${(framebuffer as any)?._  ?? '?'} status=0x${status.toString(16)}`);
-            }
             this.setError(this.INVALID_FRAMEBUFFER_OPERATION)
             return false
         }
@@ -1502,6 +1501,14 @@ export abstract class WebGLContextBase {
             return
         }
 
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL: premultiply RGB by A before upload.
+        // Required for Excalibur's blend mode (gl.ONE, gl.ONE_MINUS_SRC_ALPHA).
+        // Without this, transparent PNG background pixels with white RGB bleed
+        // through as white rectangles in the rendered output.
+        if (this._unpackPremultAlpha && data && format === this.RGBA) {
+            data = premultiplyAlpha(data)
+        }
+
         // UNPACK_FLIP_Y_WEBGL: reverse row order before upload
         if (this._unpackFlipY && data && width > 0 && height > 0) {
             const flipped = new Uint8Array(data.length)
@@ -1626,6 +1633,11 @@ export abstract class WebGLContextBase {
         if (!data || data.length < imageSize) {
             this.setError(this.INVALID_OPERATION)
             return
+        }
+
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL: premultiply RGB by alpha before upload
+        if (this._unpackPremultAlpha && data && format === this.RGBA) {
+            data = premultiplyAlpha(data)
         }
 
         // UNPACK_FLIP_Y_WEBGL: reverse row order before upload (same as texImage2D)
@@ -2634,10 +2646,6 @@ export abstract class WebGLContextBase {
             maxIndex = (count + first - 1) >>> 0
         }
         if (this._checkVertexAttribState(maxIndex)) {
-            if ((globalThis as any).__GJSIFY_DEBUG_GL) {
-                const n = (this as any).__drawCount = ((this as any).__drawCount | 0) + 1;
-                if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawArrays #${n} mode=${mode} count=${reducedCount} fbo=${(this._activeFramebuffer as any)?._ ?? '_gtkFbo'}`);
-            }
             this._gl.drawArrays(mode, first, reducedCount)
         }
     }
@@ -2742,10 +2750,6 @@ export abstract class WebGLContextBase {
 
         if (this._checkVertexAttribState(maxIndex)) {
             if (reducedCount > 0) {
-                if ((globalThis as any).__GJSIFY_DEBUG_GL) {
-                    const n = (this as any).__drawElCount = ((this as any).__drawElCount | 0) + 1;
-                    if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawElements #${n} count=${reducedCount} fbo=${(this._activeFramebuffer as any)?._ ?? '_gtkFbo'}`);
-                }
                 this._gl.drawElements(mode, reducedCount, type, ioffset)
             }
         }
@@ -3521,7 +3525,10 @@ export abstract class WebGLContextBase {
                     }
                 }
                 if (!info) {
-                    return null
+                    // Native GL validated the uniform exists, but _uniforms cache doesn't
+                    // have it (e.g. _fixupLink skipped due to pre-existing GL error, or
+                    // name format mismatch for custom material programs). Trust native GL.
+                    info = { name: searchName, type: 0, size: 1 }
                 }
 
                 const result = new WebGLUniformLocation(
@@ -3752,7 +3759,8 @@ export abstract class WebGLContextBase {
             this._unpackFlipY = !!param
             return  // WebGL-only flag, not forwarded to native GL
         } else if (pname === this.UNPACK_PREMULTIPLY_ALPHA_WEBGL) {
-            return  // not forwarded to native GL
+            this._unpackPremultAlpha = !!param
+            return  // not forwarded to native GL — premultiplication is done in JS
         }
         return this._gl.pixelStorei(pname, param)
     }

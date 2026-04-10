@@ -17,7 +17,7 @@ import { WebGLProgram as OurWebGLProgram } from './webgl-program.js';
 import { WebGLTexture } from './webgl-texture.js';
 import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
 import { WebGLFramebuffer } from './webgl-framebuffer.js';
-import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount, convertPixels, extractImageData, checkObject } from './utils.js';
+import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount, convertPixels, extractImageData, checkObject, premultiplyAlpha } from './utils.js';
 import { warnNotImplemented } from '@gjsify/utils';
 
 export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2RenderingContext {
@@ -716,6 +716,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
 
         let data = convertPixels(pixels as ArrayBufferView);
 
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL: premultiply RGB by alpha before upload
+        if (this._unpackPremultAlpha && data && format === this.RGBA) {
+            data = premultiplyAlpha(data);
+        }
+
         // UNPACK_FLIP_Y_WEBGL: reverse row order before upload
         if (this._unpackFlipY && data && width > 0 && height > 0) {
             const pixelSize = this._computePixelSize(type, format);
@@ -799,6 +804,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         if (!data) {
             this.setError(this.INVALID_OPERATION);
             return;
+        }
+
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL: premultiply RGB by alpha before upload
+        if (this._unpackPremultAlpha && data && format === this.RGBA) {
+            data = premultiplyAlpha(data);
         }
 
         // UNPACK_FLIP_Y_WEBGL: reverse row order before upload (same as texImage2D)
