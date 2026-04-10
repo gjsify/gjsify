@@ -11,5 +11,5 @@
       "strict": false
     },
     "reflection": true,
-    "files": ["src/browser/browser.ts"]
+    "files": ["src/gjs/gjs.ts", "src/browser/browser.ts"]
 }

@@ -143,3 +143,6 @@
 [submodule "refs/excalibur-tiled"]
 	path = refs/excalibur-tiled
 	url = git@github.com:excaliburjs/excalibur-tiled.git
+[submodule "refs/gamepad-mirror"]
+	path = refs/gamepad-mirror
+	url = https://codeberg.org/vendillah/GamepadMirror.git

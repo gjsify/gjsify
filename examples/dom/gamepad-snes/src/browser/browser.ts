@@ -2,7 +2,7 @@
 // Adapted from https://codepen.io/alvaromontoro/full/bGbpmvR
 // Uses standard Gamepad Web API (no library dependencies)
 
-import { startGamepadLoop } from '../snes-controller.js';
+import { startGamepadLoop, BUTTON_MAP } from '../snes-controller.js';
 import type { GamepadState } from '../snes-controller.js';
 
 const scrim = document.getElementById('scrim')!;
@@ -15,6 +15,17 @@ const elAxes = document.getElementById('info-axes-total')!;
 const elPressed = document.getElementById('info-pressed')!;
 const elAxesLive = document.getElementById('info-axes-live')!;
 const elTimestamp = document.getElementById('info-timestamp')!;
+
+function updateSvg(state: GamepadState) {
+    // Clear all highlights from previous frame
+    document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+
+    // Highlight active buttons on the SVG
+    for (const btnId of state.activeButtons) {
+        const el = document.getElementById(btnId);
+        if (el) el.classList.add('active');
+    }
+}
 
 function updateInfoPanel(state: GamepadState) {
     elName.textContent = state.id;
@@ -31,7 +42,7 @@ function updateInfoPanel(state: GamepadState) {
     elTimestamp.textContent = state.timestamp.toFixed(1);
 }
 
-startGamepadLoop(document, {
+startGamepadLoop({
     onConnect() {
         scrim.classList.remove('open');
         infoPanel.classList.add('visible');
@@ -39,6 +50,10 @@ startGamepadLoop(document, {
     onDisconnect() {
         scrim.classList.add('open');
         infoPanel.classList.remove('visible');
+        document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
     },
-    onUpdate: updateInfoPanel,
+    onUpdate(state) {
+        updateSvg(state);
+        updateInfoPanel(state);
+    },
 });

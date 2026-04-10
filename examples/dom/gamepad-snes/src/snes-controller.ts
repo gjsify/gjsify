@@ -1,4 +1,4 @@
-// SNES Controller Gamepad Visualizer — shared logic
+// SNES Controller Gamepad Visualizer — shared gamepad logic
 // Uses the standard Gamepad Web API (navigator.getGamepads).
 // Based on Alvaro Montoro's CodePen: https://codepen.io/alvaromontoro/full/bGbpmvR
 //
@@ -6,7 +6,7 @@
 // (with @gjsify/gamepad providing navigator.getGamepads via libmanette).
 
 /**
- * W3C Standard Gamepad button index → SVG element ID.
+ * W3C Standard Gamepad button index → SNES button name.
  * https://w3c.github.io/gamepad/#remapping
  *
  * SNES layout:
@@ -15,7 +15,7 @@
  *   Select = 8, Start = 9
  *   D-pad: Up=12, Down=13, Left=14, Right=15
  */
-const BUTTON_MAP: Record<number, string> = {
+export const BUTTON_MAP: Record<number, string> = {
     0:  'button-b',       // Face1 → B (SNES bottom)
     1:  'button-a',       // Face2 → A (SNES right)
     2:  'button-y',       // Face3 → Y (SNES left)
@@ -30,18 +30,15 @@ const BUTTON_MAP: Record<number, string> = {
     15: 'button-right',   // D-pad right
 };
 
-/** CSS class applied to active SVG elements. */
-const ACTIVE_CLASS = 'active';
-
 /** W3C standard button names for display. */
-const W3C_BUTTON_NAMES: Record<number, string> = {
+export const W3C_BUTTON_NAMES: Record<number, string> = {
     0: 'B (Face1)', 1: 'A (Face2)', 2: 'Y (Face3)', 3: 'X (Face4)',
     4: 'L', 5: 'R', 6: 'LT', 7: 'RT',
     8: 'Select', 9: 'Start', 10: 'L3', 11: 'R3',
     12: 'D-Up', 13: 'D-Down', 14: 'D-Left', 15: 'D-Right', 16: 'Home',
 };
 
-/** Snapshot of live gamepad state passed to the onUpdate callback. */
+/** Snapshot of live gamepad state passed to callbacks. */
 export interface GamepadState {
     id: string;
     index: number;
@@ -51,6 +48,8 @@ export interface GamepadState {
     timestamp: number;
     /** Names of currently pressed buttons. */
     pressedButtons: string[];
+    /** Set of SNES button IDs that are currently pressed (e.g. 'button-a', 'button-up'). */
+    activeButtons: Set<string>;
 }
 
 export interface GamepadLoopCallbacks {
@@ -61,29 +60,21 @@ export interface GamepadLoopCallbacks {
 }
 
 /**
- * Starts the gamepad polling loop. On each animation frame:
- * 1. Clears all `.active` highlights
- * 2. Reads the first connected gamepad via navigator.getGamepads()
- * 3. Highlights SVG elements matching pressed buttons
- * 4. Calls onUpdate with live state snapshot
+ * Starts the gamepad polling loop. On each animation frame, reads gamepad
+ * state and calls the provided callbacks.
  *
  * @returns Cleanup function to stop the loop.
  */
-export function startGamepadLoop(
-    doc: Document,
-    callbacks: GamepadLoopCallbacks,
-): () => void {
+export function startGamepadLoop(callbacks: GamepadLoopCallbacks): () => void {
     let animationId: number | null = null;
     let connected = false;
 
     const handleConnect = (e: Event) => {
         connected = true;
-        const gp = (e as GamepadEvent).gamepad;
-        callbacks.onConnect?.(gp);
+        callbacks.onConnect?.((e as GamepadEvent).gamepad);
     };
     const handleDisconnect = () => {
         connected = false;
-        clearHighlights(doc);
         callbacks.onDisconnect?.();
     };
 
@@ -91,8 +82,6 @@ export function startGamepadLoop(
     window.addEventListener('gamepaddisconnected', handleDisconnect);
 
     function pollLoop() {
-        clearHighlights(doc);
-
         const gamepads = navigator.getGamepads();
         const gp = gamepads.find((g): g is Gamepad => g !== null && g.connected);
 
@@ -101,7 +90,6 @@ export function startGamepadLoop(
                 connected = true;
                 callbacks.onConnect?.(gp);
             }
-            highlightButtons(doc, gp);
             callbacks.onUpdate?.(buildState(gp));
         }
 
@@ -111,9 +99,7 @@ export function startGamepadLoop(
     animationId = requestAnimationFrame(pollLoop);
 
     return () => {
-        if (animationId !== null) {
-            cancelAnimationFrame(animationId);
-        }
+        if (animationId !== null) cancelAnimationFrame(animationId);
         window.removeEventListener('gamepadconnected', handleConnect);
         window.removeEventListener('gamepaddisconnected', handleDisconnect);
     };
@@ -121,11 +107,16 @@ export function startGamepadLoop(
 
 function buildState(gp: Gamepad): GamepadState {
     const pressedButtons: string[] = [];
+    const activeButtons = new Set<string>();
+
     for (let i = 0; i < gp.buttons.length; i++) {
         if (gp.buttons[i].pressed) {
             pressedButtons.push(W3C_BUTTON_NAMES[i] ?? `Button ${i}`);
+            const snesId = BUTTON_MAP[i];
+            if (snesId) activeButtons.add(snesId);
         }
     }
+
     return {
         id: gp.id,
         index: gp.index,
@@ -134,23 +125,6 @@ function buildState(gp: Gamepad): GamepadState {
         buttons: gp.buttons,
         timestamp: gp.timestamp,
         pressedButtons,
+        activeButtons,
     };
-}
-
-function clearHighlights(doc: Document): void {
-    doc.querySelectorAll(`.${ACTIVE_CLASS}`).forEach(el => {
-        el.classList.remove(ACTIVE_CLASS);
-    });
-}
-
-function highlightButtons(doc: Document, gamepad: Gamepad): void {
-    for (const [buttonIdx, elementId] of Object.entries(BUTTON_MAP)) {
-        const btn = gamepad.buttons[Number(buttonIdx)];
-        if (btn && btn.pressed) {
-            const el = doc.getElementById(elementId);
-            if (el) {
-                el.classList.add(ACTIVE_CLASS);
-            }
-        }
-    }
 }
