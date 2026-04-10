@@ -15,6 +15,11 @@ template $JellyJumperWindow: Adw.ApplicationWindow {
         icon-name: "media-playback-pause-symbolic";
         tooltip-text: "Pause Game";
       }
+      [end]
+      Gtk.Button audioButton {
+        icon-name: "audio-volume-high-symbolic";
+        tooltip-text: "Mute Audio";
+      }
     }
 
     Gtk.Box canvasContainer {

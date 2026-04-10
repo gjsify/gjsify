@@ -14,6 +14,7 @@ import Template from './jelly-jumper-window.blp';
 export class JellyJumperWindow extends Adw.ApplicationWindow {
     declare private _canvasContainer: Gtk.Box;
     declare private _pauseButton: Gtk.Button;
+    declare private _audioButton: Gtk.Button;
 
     private _game: GameHandle | null = null;
 
@@ -21,7 +22,7 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
         GObject.registerClass({
             GTypeName: 'JellyJumperWindow',
             Template,
-            InternalChildren: ['canvasContainer', 'pauseButton'],
+            InternalChildren: ['canvasContainer', 'pauseButton', 'audioButton'],
         }, this);
     }
 
@@ -80,6 +81,20 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
                 this._game.pause();
                 this._pauseButton.set_icon_name('media-playback-start-symbolic');
                 this._pauseButton.set_tooltip_text('Resume Game');
+            }
+        });
+
+        // Audio Mute/Unmute button
+        this._audioButton.connect('clicked', () => {
+            if (!this._game) return;
+            if (this._game.isMuted) {
+                this._game.unmute();
+                this._audioButton.set_icon_name('audio-volume-high-symbolic');
+                this._audioButton.set_tooltip_text('Mute Audio');
+            } else {
+                this._game.mute();
+                this._audioButton.set_icon_name('audio-volume-muted-symbolic');
+                this._audioButton.set_tooltip_text('Unmute Audio');
             }
         });
     }

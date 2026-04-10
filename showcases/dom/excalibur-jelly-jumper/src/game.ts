@@ -1,5 +1,5 @@
 import * as ex from 'excalibur'
-import { loader } from './resources.js'
+import { loader, Resources } from './resources.js'
 import Level1 from './scenes/level1.js'
 import Demo from './scenes/demo.js'
 import { GRAVITY } from './physics/gravity.js'
@@ -10,6 +10,15 @@ export interface GameHandle {
   pause(): void
   resume(): void
   readonly isPaused: boolean
+  mute(): void
+  unmute(): void
+  readonly isMuted: boolean
+}
+
+export interface StartGameOptions {
+  startMuted?: boolean
+  /** Base URL for game assets. When set, all `/res/...` paths are rewritten. */
+  assetBase?: string
 }
 
 function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
@@ -48,8 +57,23 @@ function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
   }
 }
 
-export async function startGame(canvas: HTMLCanvasElement): Promise<GameHandle> {
-  AudioManager.init()
+/** Rewrite all resource paths from `/res/...` to `${base}res/...` */
+function rebaseResources(base: string): void {
+  for (const category of Object.values(Resources)) {
+    for (const resource of Object.values(category)) {
+      if (resource && typeof (resource as any).path === 'string') {
+        const path: string = (resource as any).path
+        if (path.startsWith('/res/')) {
+          ;(resource as any).path = base + path.slice(1) // '/res/foo' → '{base}res/foo'
+        }
+      }
+    }
+  }
+}
+
+export async function startGame(canvas: HTMLCanvasElement, options?: StartGameOptions): Promise<GameHandle> {
+  if (options?.assetBase) rebaseResources(options.assetBase)
+  AudioManager.init(options?.startMuted)
 
   const game = new ex.Engine(buildEngineOptions(canvas))
 
@@ -63,5 +87,8 @@ export async function startGame(canvas: HTMLCanvasElement): Promise<GameHandle> 
     get isPaused() { return paused },
     pause()  { if (!paused) { paused = true;  game.stop();  } },
     resume() { if (paused)  { paused = false; game.start(); } },
+    get isMuted() { return AudioManager.isMuted },
+    mute()   { AudioManager.muteAll() },
+    unmute() { AudioManager.unmuteAll() },
   }
 }

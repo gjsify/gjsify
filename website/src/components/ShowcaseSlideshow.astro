@@ -96,6 +96,31 @@ app.connect('activate', () => {
 });`,
   },
   {
+    id: 'jelly-jumper',
+    name: 'excalibur-jelly-jumper',
+    title: 'jelly-jumper.ts',
+    github: 'showcases/dom/excalibur-jelly-jumper',
+    annotations: [
+      { text: 'The web game engine\nExcalibur.js, natively\nin GJS — no WebView', top: '-90px', right: '8%' },
+    ],
+    code: `import Adw from 'gi://Adw?version=1';
+import { CanvasWebGLWidget } from '@gjsify/webgl';
+import * as ex from 'excalibur';
+import { startGame } from './game.js';
+
+const app = new Adw.Application({
+  application_id: 'gjsify.examples.jelly-jumper',
+});
+app.connect('activate', () => {
+  const glArea = new CanvasWebGLWidget();
+  glArea.onReady(async (canvas) => {
+    const game = await startGame(canvas);
+    // game.mute();   // toggle audio
+    // game.pause();  // toggle pause
+  });
+});`,
+  },
+  {
     id: 'fireworks',
     name: 'canvas2d-fireworks',
     title: 'fireworks.ts',
@@ -289,6 +314,12 @@ app.listen(3000, () => {
       case 'teapot': {
         const { mount } = await import('@gjsify/example-dom-three-geometry-teapot/browser');
         const handle = mount(container, { assetBase: `${base}demos/teapot/` });
+        if (handle) handles.set(id, handle);
+        break;
+      }
+      case 'jelly-jumper': {
+        const { mount } = await import('@gjsify/example-dom-excalibur-jelly-jumper/browser');
+        const handle = mount(container, { assetBase: `${base}demos/jelly-jumper/`, startMuted: true });
         if (handle) handles.set(id, handle);
         break;
       }

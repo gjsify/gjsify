@@ -2,6 +2,7 @@ import * as ex from 'excalibur'
 import { Resources } from '../resources.js';
 
 let currentSong: ex.Sound | null = null
+let muted = false
 
 export abstract class AudioManager {
   static levels = new Map<ex.Sound, number>([
@@ -16,11 +17,36 @@ export abstract class AudioManager {
     [Resources.sfx.collectCoin, .25],
 ])
 
-  static init() {
+  static get isMuted() { return muted }
+
+  static init(startMuted = false) {
+      muted = startMuted
       for (let category of Object.values(Resources)){
           for (let resource of Object.values(category)) {
               if (resource instanceof ex.Sound) {
-                  resource.volume = AudioManager.levels.get(resource) ?? 1.0;
+                  resource.volume = muted ? 0 : (AudioManager.levels.get(resource) ?? 1.0);
+              }
+          }
+      }
+  }
+
+  static muteAll() {
+      muted = true
+      for (let category of Object.values(Resources)) {
+          for (let resource of Object.values(category)) {
+              if (resource instanceof ex.Sound) {
+                  resource.volume = 0
+              }
+          }
+      }
+  }
+
+  static unmuteAll() {
+      muted = false
+      for (let category of Object.values(Resources)) {
+          for (let resource of Object.values(category)) {
+              if (resource instanceof ex.Sound) {
+                  resource.volume = AudioManager.levels.get(resource) ?? 1.0
               }
           }
       }

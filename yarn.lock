@@ -3264,10 +3264,12 @@ __metadata:
     "@gjsify/adwaita-icons": "workspace:^"
     "@gjsify/adwaita-web": "workspace:^"
     "@gjsify/example-dom-canvas2d-fireworks": "workspace:^"
+    "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^"
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
     "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^"
     "@types/three": "npm:^0.183.1"
     astro: "npm:^6.1.5"
+    excalibur: "npm:0.32.0"
     three: "npm:0.183.2"
   languageName: unknown
   linkType: soft
