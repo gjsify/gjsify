@@ -152,16 +152,16 @@ export default async () => {
             expect(MANETTE_TO_W3C_AXIS.size).toBe(4);
         });
 
-        await it('should map stick axes correctly (Linux ABS_* codes)', async () => {
-            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.ABS_X)).toBe(W3CAxis.LEFT_STICK_X);
-            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.ABS_Y)).toBe(W3CAxis.LEFT_STICK_Y);
-            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.ABS_RX)).toBe(W3CAxis.RIGHT_STICK_X);
-            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.ABS_RY)).toBe(W3CAxis.RIGHT_STICK_Y);
+        await it('should map stick axes correctly (SDL logical indices)', async () => {
+            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.LEFT_X)).toBe(W3CAxis.LEFT_STICK_X);
+            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.LEFT_Y)).toBe(W3CAxis.LEFT_STICK_Y);
+            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.RIGHT_X)).toBe(W3CAxis.RIGHT_STICK_X);
+            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.RIGHT_Y)).toBe(W3CAxis.RIGHT_STICK_Y);
         });
 
         await it('should NOT map trigger axes (they go to buttons)', async () => {
-            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.ABS_Z)).toBeUndefined();
-            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.ABS_RZ)).toBeUndefined();
+            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.LEFT_TRIGGER)).toBeUndefined();
+            expect(MANETTE_TO_W3C_AXIS.get(ManetteAxis.RIGHT_TRIGGER)).toBeUndefined();
         });
     });
 
