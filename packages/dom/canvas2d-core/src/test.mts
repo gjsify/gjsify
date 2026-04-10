@@ -8,6 +8,7 @@ import canvasStateSuite from './canvas-state.spec.js';
 import canvasClearingSuite from './canvas-clearing.spec.js';
 import canvasImagedataSuite from './canvas-imagedata.spec.js';
 import canvasCompositeSuite from './canvas-composite.spec.js';
+import canvasColorSuite from './canvas-color.spec.js';
 
 run({
     canvasTextSuite,
@@ -17,4 +18,5 @@ run({
     canvasClearingSuite,
     canvasImagedataSuite,
     canvasCompositeSuite,
+    canvasColorSuite,
 });

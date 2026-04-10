@@ -1027,7 +1027,9 @@ export class CanvasRenderingContext2D {
         // Shadow pass: draw text at offset position with shadowColor.
         // shadowOffsetX/Y are in CSS pixels (not scaled by CTM per Canvas2D spec),
         // so we convert them to user-space before applying to moveTo.
-        // No Gaussian blur — offset-only shadow is sufficient for game text labels.
+        // shadowBlur is approximated with a 5-tap cross kernel: one center tap at full
+        // alpha plus four arm taps at half alpha, spread by blur_u in each direction.
+        // This simulates Gaussian spreading without an actual blur pass.
         if (this._hasShadow()) {
             const sc = parseColor(this._state.shadowColor);
             if (sc) {
@@ -1035,12 +1037,31 @@ export class CanvasRenderingContext2D {
                     this._state.shadowOffsetX,
                     this._state.shadowOffsetY,
                 );
-                this._ctx.save();
-                (this._ctx as any).setAntialias(this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE);
-                this._ctx.setSourceRGBA(sc.r, sc.g, sc.b, sc.a);
-                this._ctx.moveTo(x + xOff + sdx, y + yOff + sdy);
-                PangoCairo.show_layout(this._ctx as any, layout);
-                this._ctx.restore();
+                const blur = this._state.shadowBlur;
+                type Tap = [number, number, number];
+                let taps: Tap[];
+                if (blur > 0) {
+                    const [bu] = this._deviceToUserDistance(blur, 0);
+                    const [, bv] = this._deviceToUserDistance(0, blur);
+                    taps = [
+                        [sdx,      sdy,      sc.a],
+                        [sdx + bu, sdy,      sc.a * 0.5],
+                        [sdx - bu, sdy,      sc.a * 0.5],
+                        [sdx,      sdy + bv, sc.a * 0.5],
+                        [sdx,      sdy - bv, sc.a * 0.5],
+                    ];
+                } else {
+                    taps = [[sdx, sdy, sc.a]];
+                }
+                const aa = this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE;
+                for (const [tx, ty, ta] of taps) {
+                    this._ctx.save();
+                    (this._ctx as any).setAntialias(aa);
+                    this._ctx.setSourceRGBA(sc.r, sc.g, sc.b, ta);
+                    this._ctx.moveTo(x + xOff + tx, y + yOff + ty);
+                    PangoCairo.show_layout(this._ctx as any, layout);
+                    this._ctx.restore();
+                }
             }
         }
 
