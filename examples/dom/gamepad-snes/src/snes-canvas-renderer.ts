@@ -22,10 +22,14 @@ interface ButtonDef {
     x2?: number; y2?: number;
 }
 
-const BUTTONS: ButtonDef[] = [
-    // Shoulder buttons
+/** Shoulder buttons — drawn BEHIND the controller body. */
+const SHOULDER_BUTTONS: ButtonDef[] = [
     { id: 'button-l', type: 'rect', color: '#aaa', x: 25, y: 5, w: 60, h: 30, rx: 10 },
     { id: 'button-r', type: 'rect', color: '#aaa', x: 165, y: 5, w: 60, h: 30, rx: 10 },
+];
+
+/** Face/d-pad/meta buttons — drawn ON TOP of the controller body. */
+const BUTTONS: ButtonDef[] = [
     // Face buttons
     { id: 'button-x', type: 'circle', color: '#000080', x: 200, y: 40, r: 10 },
     { id: 'button-y', type: 'circle', color: '#009922', x: 180, y: 60, r: 10 },
@@ -80,8 +84,11 @@ export function renderSnesController(
     ctx.translate(ox, oy);
     ctx.scale(scale, scale);
 
+    // Shoulder buttons behind the body
+    drawButtons(ctx, SHOULDER_BUTTONS, state?.activeButtons ?? new Set());
     drawControllerBody(ctx);
-    drawButtons(ctx, state?.activeButtons ?? new Set());
+    // Face/d-pad/meta buttons on top
+    drawButtons(ctx, BUTTONS, state?.activeButtons ?? new Set());
     drawLabels(ctx);
 
     ctx.restore();
@@ -159,8 +166,8 @@ function drawControllerBody(ctx: CanvasRenderingContext2D): void {
     ctx.fill();
 }
 
-function drawButtons(ctx: CanvasRenderingContext2D, active: Set<string>): void {
-    for (const btn of BUTTONS) {
+function drawButtons(ctx: CanvasRenderingContext2D, buttons: ButtonDef[], active: Set<string>): void {
+    for (const btn of buttons) {
         const isActive = active.has(btn.id);
         const color = isActive ? HIGHLIGHT_COLOR : btn.color;
 

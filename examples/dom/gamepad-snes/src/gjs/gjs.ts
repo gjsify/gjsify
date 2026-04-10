@@ -8,7 +8,6 @@ import '@girs/gtk-4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
 import { Canvas2DWidget } from '@gjsify/canvas2d';
-import { startGamepadLoop } from '../snes-controller.js';
 import { renderSnesController } from '../snes-canvas-renderer.js';
 import type { GamepadState } from '../snes-controller.js';
 
@@ -26,31 +25,44 @@ app.connect('activate', () => {
     canvasWidget.installGlobals();
 
     let currentState: GamepadState | null = null;
+    let connected = false;
+
+    // Listen for gamepad connect/disconnect on globalThis
+    globalThis.addEventListener?.('gamepadconnected', (e: Event) => {
+        connected = true;
+        const gp = (e as GamepadEvent).gamepad;
+        print(`Gamepad connected: ${gp.id}`);
+    });
+    globalThis.addEventListener?.('gamepaddisconnected', () => {
+        connected = false;
+        currentState = null;
+        print('Gamepad disconnected');
+    });
 
     canvasWidget.onReady((canvas, rawCtx) => {
         print(`Canvas ready: ${canvas.width}x${canvas.height}`);
         const ctx = rawCtx as unknown as CanvasRenderingContext2D;
 
-        // Start render loop — redraws every frame
-        function render() {
-            renderSnesController(ctx, canvas.width, canvas.height, currentState);
-            requestAnimationFrame(render);
-        }
-        render();
+        // Single unified loop: poll gamepad + render in one rAF callback
+        function loop() {
+            // Poll gamepad state
+            const gamepads = navigator.getGamepads();
+            const gp = gamepads.find((g: Gamepad | null): g is Gamepad => g !== null && g.connected);
 
-        // Start gamepad polling — updates state each frame
-        startGamepadLoop({
-            onConnect(gamepad) {
-                print(`Gamepad connected: ${gamepad.id}`);
-            },
-            onDisconnect() {
-                print('Gamepad disconnected');
-                currentState = null;
-            },
-            onUpdate(state) {
-                currentState = state;
-            },
-        });
+            if (gp) {
+                if (!connected) {
+                    connected = true;
+                    print(`Gamepad connected: ${gp.id}`);
+                }
+                currentState = buildState(gp);
+            }
+
+            // Render
+            renderSnesController(ctx, canvas.width, canvas.height, currentState);
+
+            requestAnimationFrame(loop);
+        }
+        loop();
     });
 
     // Re-render on resize
@@ -74,3 +86,30 @@ app.connect('activate', () => {
 });
 
 app.run([]);
+
+// Inline state builder (avoids importing startGamepadLoop which would start a second rAF)
+import { BUTTON_MAP, W3C_BUTTON_NAMES } from '../snes-controller.js';
+
+function buildState(gp: Gamepad): GamepadState {
+    const pressedButtons: string[] = [];
+    const activeButtons = new Set<string>();
+
+    for (let i = 0; i < gp.buttons.length; i++) {
+        if (gp.buttons[i].pressed) {
+            pressedButtons.push(W3C_BUTTON_NAMES[i] ?? `Button ${i}`);
+            const snesId = BUTTON_MAP[i];
+            if (snesId) activeButtons.add(snesId);
+        }
+    }
+
+    return {
+        id: gp.id,
+        index: gp.index,
+        mapping: gp.mapping || '(none)',
+        axes: gp.axes,
+        buttons: gp.buttons,
+        timestamp: gp.timestamp,
+        pressedButtons,
+        activeButtons,
+    };
+}
