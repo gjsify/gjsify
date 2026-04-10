@@ -129,11 +129,11 @@ export const GJS_GLOBALS_MAP = {
     // --- DOMParser -----------------------------------------------------
     DOMParser:            '@gjsify/domparser/register',
 
-    // --- Audio stubs (Web Audio API — GJS no-op) -----------------------
-    AudioContext:         '@gjsify/web-globals/register',
-    webkitAudioContext:   '@gjsify/web-globals/register',
-    Audio:                '@gjsify/web-globals/register',
-    HTMLAudioElement:     '@gjsify/web-globals/register',
+    // --- Web Audio API (GStreamer backend) --------------------------------
+    AudioContext:         '@gjsify/webaudio/register',
+    webkitAudioContext:   '@gjsify/webaudio/register',
+    Audio:                '@gjsify/webaudio/register',
+    HTMLAudioElement:     '@gjsify/webaudio/register',
 
     // --- DOM elements (browser-compat) ---------------------------------
     document:             '@gjsify/dom-elements/register',

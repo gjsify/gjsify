@@ -4,6 +4,7 @@
 
 ### Features
 
+* **webaudio:** new `@gjsify/webaudio` package — Web Audio API for GJS backed by GStreamer 1.26. Implements AudioContext, decodeAudioData (MP3/WAV/OGG/FLAC via GStreamer decodebin), AudioBufferSourceNode (per-play pipeline: appsrc→audioconvert→volume→autoaudiosink), GainNode (AudioParam with setTargetAtTime), AudioBuffer (PCM Float32Array), HTMLAudioElement (canPlayType + playbin). 29 tests. Phase 1 — covers Excalibur.js audio needs
 * **showcase:** add Excalibur Jelly Jumper — 2D platformer running natively on GJS/GTK4 and in the browser ([#13](https://github.com/gjsify/gjsify/pull/13)). Based on [excaliburjs/sample-jelly-jumper](https://github.com/excaliburjs/sample-jelly-jumper)
 * **canvas2d:** HSL/HSLA color parsing, shadow blur approximation, pixel-perfect font rendering via FontFace + PangoCairo
 * **webgl:** premultipliedAlpha support, clearBufferfv/iv/uiv/fi WebGL2 entry points, eager context init, uniform name resolution

@@ -1307,6 +1307,59 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@girs/gst-1.0@npm:1.28.1-4.0.0-rc.1, @girs/gst-1.0@npm:^1.28.1-4.0.0-rc.1":
+  version: 1.28.1-4.0.0-rc.1
+  resolution: "@girs/gst-1.0@npm:1.28.1-4.0.0-rc.1"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-rc.1"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.1"
+  checksum: 10/6e50cf92a3fe6557d4ee7dd039909d929915d29a29810c5b51e0999dbc5a2b2b702d2b12de7b690eef383503e28e3250068d9a4de2c96a4e72458c8d2f2b1ca6
+  languageName: node
+  linkType: hard
+
+"@girs/gstapp-1.0@npm:^1.0.0-4.0.0-rc.1":
+  version: 1.0.0-4.0.0-rc.1
+  resolution: "@girs/gstapp-1.0@npm:1.0.0-4.0.0-rc.1"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-rc.1"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.1"
+    "@girs/gstbase-1.0": "npm:1.0.0-4.0.0-rc.1"
+  checksum: 10/9e0b4602889f0a698c5ab44f15aa18bf1d6eb48b06018491430c701d3cd7e4d4bb8bef71d77c571547d3f10df9b619573b348b0cb29dba7ee496c090f14a0ac7
+  languageName: node
+  linkType: hard
+
+"@girs/gstaudio-1.0@npm:^1.0.0-4.0.0-rc.1":
+  version: 1.0.0-4.0.0-rc.1
+  resolution: "@girs/gstaudio-1.0@npm:1.0.0-4.0.0-rc.1"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-rc.1"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.1"
+    "@girs/gstbase-1.0": "npm:1.0.0-4.0.0-rc.1"
+  checksum: 10/4e9c88ba2a6b851fac1e8176d599c2b7d90e0078f831bef134fbb6a28edb833157fee4ae0beb9d7b613f2e279fe7647367faa893e4746bdb80914aaf1a42182d
+  languageName: node
+  linkType: hard
+
+"@girs/gstbase-1.0@npm:1.0.0-4.0.0-rc.1, @girs/gstbase-1.0@npm:^1.0.0-4.0.0-rc.1":
+  version: 1.0.0-4.0.0-rc.1
+  resolution: "@girs/gstbase-1.0@npm:1.0.0-4.0.0-rc.1"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-rc.1"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.1"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.1"
+  checksum: 10/98a06e3ecec183dfa9adcd04f0a6e5f6a7b8c315da7c9c8aeccf4c7259c265bcec7f3ab82b5a2061b406c1fbd3b069b0f93a8b542f8ee902eaf26c1f1f9bf461
+  languageName: node
+  linkType: hard
+
 "@girs/gtk-4.0@npm:4.23.0-4.0.0-rc.1, @girs/gtk-4.0@npm:^4.23.0-4.0.0-rc.1":
   version: 4.23.0-4.0.0-rc.1
   resolution: "@girs/gtk-4.0@npm:4.23.0-4.0.0-rc.1"
@@ -3114,6 +3167,7 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@gjsify/url": "workspace:^"
     "@gjsify/web-streams": "workspace:^"
+    "@gjsify/webaudio": "workspace:^"
     "@gjsify/webcrypto": "workspace:^"
     "@types/node": "npm:^25.5.2"
     typescript: "npm:^6.0.2"
@@ -3145,6 +3199,24 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.5.2"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/webaudio@workspace:^, @gjsify/webaudio@workspace:packages/web/webaudio":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/webaudio@workspace:packages/web/webaudio"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.1"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.1"
+    "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.1"
+    "@girs/gstapp-1.0": "npm:^1.0.0-4.0.0-rc.1"
+    "@girs/gstaudio-1.0": "npm:^1.0.0-4.0.0-rc.1"
+    "@girs/gstbase-1.0": "npm:^1.0.0-4.0.0-rc.1"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.5.2"
     typescript: "npm:^6.0.2"
   languageName: unknown

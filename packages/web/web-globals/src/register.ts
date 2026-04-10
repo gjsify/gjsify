@@ -54,21 +54,5 @@ if (typeof (globalThis as any).PerformanceObserver !== 'function') {
   (globalThis as any).PerformanceObserver = PerformanceObserver;
 }
 
-// AudioContext stub — Web Audio API is not available in GJS.
-// Libraries like Excalibur.js check for window.AudioContext; the stub prevents
-// crashes and silently discards all audio. Future work: GStreamer backend.
-import { AudioContext, HTMLAudioElement } from './audio-stub.js';
-
-if (typeof (globalThis as any).AudioContext === 'undefined') {
-  (globalThis as any).AudioContext = AudioContext;
-}
-if (typeof (globalThis as any).webkitAudioContext === 'undefined') {
-  (globalThis as any).webkitAudioContext = AudioContext;
-}
-// HTMLAudioElement / Audio — Excalibur uses `new Audio()` for format detection
-if (typeof (globalThis as any).Audio === 'undefined') {
-  (globalThis as any).Audio = HTMLAudioElement;
-}
-if (typeof (globalThis as any).HTMLAudioElement === 'undefined') {
-  (globalThis as any).HTMLAudioElement = HTMLAudioElement;
-}
+// Web Audio API via GStreamer
+import '@gjsify/webaudio/register';

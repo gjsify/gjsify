@@ -1,16 +1,16 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-10 (Excalibur Jelly Jumper showcase: 2D platformer running on GJS/GTK4+browser; canvas2d HSL parsing+shadow blur+FontFace; webgl premultiply-alpha+clearBuffer+eager context; dom-elements data: URI+dataset+keyboard event bridge; fetch file:// URI support)
+> Last updated: 2026-04-10 (@gjsify/webaudio: Web Audio API via GStreamer 1.26 — AudioContext, decodeAudioData, AudioBufferSourceNode playback, GainNode volume, HTMLAudioElement format detection. 29 tests. Jelly Jumper showcase now has real audio)
 
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **13 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **39 Node.js packages**, **14 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 32 (82%) | 3 (8%) | 4 (10%) |
-| Web APIs | 13 | 13 (100%) | — | — |
+| Web APIs | 14 | 13 (93%) | 1 (7%) | — |
 | DOM APIs | 5 | 5 (100%) | — | — |
 | Browser UI | 1 | 1 | — | — |
 | Showcases | 5 | 5 | — | — |
@@ -96,6 +96,7 @@ All 13 packages have real implementations:
 | **webcrypto** | — | 486 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
 | **web-globals** | — | 66 | Unified re-export surface for all Web API packages. Root export is pure named re-exports; side effects (registering URL, URLSearchParams, Blob, File, FormData, performance, PerformanceObserver + chaining every sub-package's `/register`) live in `@gjsify/web-globals/register`. Users opt in via the `--globals` CLI flag or an explicit `import '@gjsify/web-globals/register'`. |
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
+| **webaudio** | Gst 1.0, GstApp 1.0 | 29 | AudioContext (decodeAudioData via GStreamer decodebin, createBufferSource, createGain, currentTime via GLib monotonic clock), AudioBuffer (PCM Float32Array storage), AudioBufferSourceNode (GStreamer appsrc→audioconvert→volume→autoaudiosink), GainNode (AudioParam with setTargetAtTime), AudioParam, HTMLAudioElement (canPlayType, playbin playback). **Phase 1 — covers Excalibur.js** |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
 ## DOM Packages (`packages/dom/`)
@@ -199,6 +200,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **Gtk 4.0** | webgl |
 | **GdkPixbuf 2.0** | dom-elements (HTMLImageElement) |
 | **gwebgl 0.1** | webgl (Vala extension) |
+| **Gst 1.0** | webaudio (audio decoding + playback) |
+| **GstApp 1.0** | webaudio (appsrc/appsink for PCM I/O) |
 
 ---
 
@@ -210,7 +213,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Fully implemented | 32 (82%) |
 | Partially implemented | 3 (8%) |
 | Stubs | 4 (10%) |
-| Web API packages | 13 (all implemented) |
+| Web API packages | 14 (13 full, 1 partial) |
 | DOM packages | 5 (all implemented) |
 | Browser UI packages | 1 (adwaita-web) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |

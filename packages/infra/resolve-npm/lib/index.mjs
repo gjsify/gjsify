@@ -166,6 +166,10 @@ export const ALIASES_WEB_FOR_GJS = {
     'xmlhttprequest/register': '@gjsify/xmlhttprequest/register',
     'domparser': '@gjsify/domparser',
     'domparser/register': '@gjsify/domparser/register',
+
+    // Web Audio API (GStreamer backend)
+    'webaudio': '@gjsify/webaudio',
+    'webaudio/register': '@gjsify/webaudio/register',
 }
 
 /** General record of modules for Node */
@@ -224,4 +228,9 @@ export const ALIASES_WEB_FOR_NODE = {
     'domparser': '@gjsify/empty',
     'domparser/register': '@gjsify/empty',
     '@gjsify/domparser/register': '@gjsify/empty',
+
+    // Web Audio API — no-op on Node (experimental --experimental-web-audio not widely available)
+    'webaudio': '@gjsify/empty',
+    'webaudio/register': '@gjsify/empty',
+    '@gjsify/webaudio/register': '@gjsify/empty',
 }

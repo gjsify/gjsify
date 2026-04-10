@@ -9,7 +9,7 @@
 
 // Re-export key types for convenience
 export { DOMException } from '@gjsify/dom-exception';
-export { AudioContext, HTMLAudioElement } from './audio-stub.js';
+export { AudioContext, HTMLAudioElement } from '@gjsify/webaudio';
 export { Event, EventTarget, CustomEvent } from '@gjsify/dom-events';
 export { AbortController, AbortSignal } from '@gjsify/abort-controller';
 export { URL, URLSearchParams } from '@gjsify/url';
