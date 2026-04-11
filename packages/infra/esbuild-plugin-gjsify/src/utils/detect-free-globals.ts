@@ -13,6 +13,26 @@ import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
 const KNOWN_GLOBALS = new Set(Object.keys(GJS_GLOBALS_MAP as Record<string, string>));
 
 /**
+ * Method markers — `<host>.<method>(…)` patterns that imply a global
+ * identifier should be injected even though the identifier itself never
+ * appears in the bundle.
+ *
+ * Example: a project that calls `navigator.getGamepads()` doesn't reference
+ * any of the gamepad-related identifiers in the globals map, but it still
+ * needs `@gjsify/gamepad/register` to patch `navigator` with the method.
+ * This marker maps `navigator.getGamepads` → inject the `GamepadEvent`
+ * register path (which is the gamepad package's register entry).
+ *
+ * Keyed by `host.method` (lowercase host, exact method name). Values are
+ * KNOWN_GLOBALS identifiers — the detector adds them as free globals if
+ * the corresponding member expression is found in the bundle.
+ */
+const METHOD_MARKERS: Record<string, string> = {
+    // Gamepad API — navigator.getGamepads is patched on by @gjsify/gamepad/register
+    'navigator.getGamepads': 'GamepadEvent',
+};
+
+/**
  * Extract all bound names from a binding pattern
  * (Identifier, ObjectPattern, ArrayPattern, AssignmentPattern, RestElement).
  */
@@ -135,11 +155,28 @@ export function detectFreeGlobals(code: string): Set<string> {
             // property is then a dynamic Expression, not a known name.
             if (node.computed) return;
             if (node.object.type !== 'Identifier') return;
-            if (!HOST_OBJECTS.has((node.object as acorn.Identifier).name)) return;
             if (node.property.type !== 'Identifier') return;
+
+            const objName = (node.object as acorn.Identifier).name;
             const propName = (node.property as acorn.Identifier).name;
-            if (KNOWN_GLOBALS.has(propName)) {
-                freeGlobals.add(propName);
+
+            // Pattern A: globalThis.X / global.X / window.X / self.X
+            // The property is a known global identifier itself.
+            if (HOST_OBJECTS.has(objName)) {
+                if (KNOWN_GLOBALS.has(propName)) {
+                    freeGlobals.add(propName);
+                }
+                return;
+            }
+
+            // Pattern B: known-instance method markers like
+            // `navigator.getGamepads` → marker map forwards to a global
+            // identifier that triggers the right register path even though
+            // the identifier itself never appears in the bundle.
+            const markerKey = `${objName}.${propName}`;
+            const markerTarget = METHOD_MARKERS[markerKey];
+            if (markerTarget && KNOWN_GLOBALS.has(markerTarget)) {
+                freeGlobals.add(markerTarget);
             }
         },
         Identifier(node: acorn.Identifier, ancestors: acorn.AnyNode[]) {
