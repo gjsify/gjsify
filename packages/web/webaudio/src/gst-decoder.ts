@@ -44,7 +44,7 @@ export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
     let channels = 0;
 
     while (true) {
-        const sample = (appsink as any).try_pull_sample(2 * Gst.SECOND);
+        const sample = (appsink as any).try_pull_sample(2 * Number(Gst.SECOND));
         if (!sample) break;
 
         // Read format from the first sample's negotiated caps

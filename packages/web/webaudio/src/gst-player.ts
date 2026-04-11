@@ -83,7 +83,7 @@ export class GstPlayer {
         const gstBuf = Gst.Buffer.new_wrapped(pcmData);
         const totalFrames = pcmData.length / (4 * ch);
         gstBuf.pts = 0;
-        gstBuf.duration = Math.floor((totalFrames / sr) * Gst.SECOND);
+        gstBuf.duration = Math.floor((totalFrames / sr) * Number(Gst.SECOND));
         appsrc.push_buffer(gstBuf);
         appsrc.end_of_stream();
 
