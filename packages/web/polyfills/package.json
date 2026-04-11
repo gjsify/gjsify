@@ -18,6 +18,7 @@
         "@gjsify/eventsource": "workspace:^",
         "@gjsify/fetch": "workspace:^",
         "@gjsify/formdata": "workspace:^",
+        "@gjsify/web-globals": "workspace:^",
         "@gjsify/web-streams": "workspace:^",
         "@gjsify/webcrypto": "workspace:^",
         "@gjsify/websocket": "workspace:^",

@@ -119,7 +119,10 @@ describe('create-app E2E', { timeout: 10 * 60 * 1000 }, () => {
   it('gjsify build succeeds with console shim (default)', () => {
     // This is the test that catches the @gjsify/console resolution bug.
     // The default GJS build injects console-gjs.js which imports @gjsify/console.
-    execSync('npx gjsify build src/index.ts --outfile dist/index.js', {
+    // Note: --globals none is required because the minimal scaffolded project
+    // only has @gjsify/cli installed; the auto mode would try to inject
+    // register modules from packages that aren't present.
+    execSync('npx gjsify build src/index.ts --outfile dist/index.js --globals none', {
       cwd: projectDir,
       stdio: 'pipe',
       timeout: 60 * 1000,
@@ -128,7 +131,7 @@ describe('create-app E2E', { timeout: 10 * 60 * 1000 }, () => {
   });
 
   it('gjsify build succeeds with --no-console-shim', () => {
-    execSync('npx gjsify build src/index.ts --outfile dist/no-shim.js --no-console-shim', {
+    execSync('npx gjsify build src/index.ts --outfile dist/no-shim.js --no-console-shim --globals none', {
       cwd: projectDir,
       stdio: 'pipe',
       timeout: 60 * 1000,
@@ -144,7 +147,7 @@ describe('create-app E2E', { timeout: 10 * 60 * 1000 }, () => {
       "console.log(path.join('a', 'b'));\n" +
       "console.log(new EventEmitter());\n"
     );
-    execSync('npx gjsify build src/with-node-imports.ts --outfile dist/with-node-imports.js', {
+    execSync('npx gjsify build src/with-node-imports.ts --outfile dist/with-node-imports.js --globals none', {
       cwd: projectDir,
       stdio: 'pipe',
       timeout: 60 * 1000,

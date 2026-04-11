@@ -2916,6 +2916,7 @@ __metadata:
     "@gjsify/inspector": "workspace:^"
     "@gjsify/module": "workspace:^"
     "@gjsify/net": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
     "@gjsify/os": "workspace:^"
     "@gjsify/path": "workspace:^"
     "@gjsify/perf_hooks": "workspace:^"
@@ -3209,7 +3210,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/web-globals@workspace:packages/web/web-globals":
+"@gjsify/web-globals@workspace:^, @gjsify/web-globals@workspace:packages/web/web-globals":
   version: 0.0.0-use.local
   resolution: "@gjsify/web-globals@workspace:packages/web/web-globals"
   dependencies:
@@ -3244,6 +3245,7 @@ __metadata:
     "@gjsify/eventsource": "workspace:^"
     "@gjsify/fetch": "workspace:^"
     "@gjsify/formdata": "workspace:^"
+    "@gjsify/web-globals": "workspace:^"
     "@gjsify/web-streams": "workspace:^"
     "@gjsify/webcrypto": "workspace:^"
     "@gjsify/websocket": "workspace:^"
