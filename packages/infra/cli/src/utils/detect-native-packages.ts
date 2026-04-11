@@ -135,6 +135,10 @@ function findNearestPackageJson(startDir: string): string | null {
  * Reads the nearest package.json to discover dependencies, then checks each
  * for gjsify native prebuilds metadata.
  *
+ * Also checks the **nearest package.json itself** — a workspace package may
+ * have its own prebuilds (e.g. `@gjsify/webgl` running its own test) and
+ * never list itself in dependencies.
+ *
  * This complements detectNativePackages() (filesystem walk from CWD) by using
  * require.resolve() — which handles hoisting, workspaces, and nested node_modules.
  */
@@ -151,6 +155,14 @@ export function resolveNativePackages(fromFilePath: string): NativePackage[] {
 
         const pkg = readPackageJson(nearestPkgJson);
         if (!pkg) return results;
+
+        // Check the nearest package itself (e.g. @gjsify/webgl running its own
+        // test bundle — webgl never lists itself in dependencies)
+        const ownName = typeof pkg['name'] === 'string' ? pkg['name'] as string : '';
+        if (ownName) {
+            const ownNative = checkPackage(dirname(nearestPkgJson), ownName, arch);
+            if (ownNative) results.push(ownNative);
+        }
 
         const deps = pkg['dependencies'] as Record<string, string> | undefined;
         if (!deps) return results;
