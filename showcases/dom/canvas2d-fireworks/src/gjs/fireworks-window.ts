@@ -58,6 +58,7 @@ export class FireworksWindow extends Adw.ApplicationWindow {
 
         // Initialize fireworks when the 2D context is ready
         canvasWidget.onReady((canvas) => {
+            canvasWidget.grab_focus();
             canvas.width = canvasWidget.get_allocated_width();
             canvas.height = canvasWidget.get_allocated_height();
 

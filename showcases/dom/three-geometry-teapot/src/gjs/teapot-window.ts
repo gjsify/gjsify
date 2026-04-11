@@ -65,6 +65,7 @@ export class TeapotWindow extends Adw.ApplicationWindow {
 
         // Initialize three.js when GL context is ready
         glArea.onReady((canvas) => {
+            glArea.grab_focus();
             const ctx = glArea.get_context()!;
             print(`Context version: OpenGL${ctx.get_use_es() ? ' ES' : ''} ${ctx.get_version().join('.')}`);
 

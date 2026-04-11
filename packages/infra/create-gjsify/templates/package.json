@@ -10,11 +10,11 @@
         "dev": "gjsify build src/index.ts --outfile dist/index.js && gjsify run dist/index.js"
     },
     "devDependencies": {
-        "@gjsify/cli": "^0.1.8",
-        "@types/node": "^25.5.2",
+        "@gjsify/cli": "^0.1.9",
+        "@types/node": "^25.6.0",
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1"
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2"
     }
 }

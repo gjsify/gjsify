@@ -73,6 +73,7 @@ export class PixelWindow extends Adw.ApplicationWindow {
 
         // Initialize three.js when GL context is ready
         glArea.onReady((canvas) => {
+            glArea.grab_focus();
             // Sync canvas dimensions with GTK widget allocation so the
             // three.js resize check in the animation loop picks up changes
             // (e.g. when the sidebar is toggled).

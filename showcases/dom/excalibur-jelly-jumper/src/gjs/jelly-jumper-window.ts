@@ -49,6 +49,7 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
         this._canvasContainer.append(widget);
 
         widget.onReady((canvas: any) => {
+            widget.grab_focus();
             canvas.width = widget.get_allocated_width();
             canvas.height = widget.get_allocated_height();
 
