@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.10](https://github.com/gjsify/gjsify/compare/v0.1.9...v0.1.10) (2026-04-11)
+
+### Features
+
+* **showcases:** add focus to canvas widgets on initialization ([c2a1e4b](https://github.com/gjsify/gjsify/commit/c2a1e4b932aa347e0bbd64887db18e45c9b9bdb1))
+* **website:** show Express.js example first in showcase slideshow ([5d8fe22](https://github.com/gjsify/gjsify/commit/5d8fe22be38d48705e1851dc7eef2f99374755e1))
+* **website:** streamline docs with Quick Start, collapsible sections and CTA ([9f8a10e](https://github.com/gjsify/gjsify/commit/9f8a10e434fcd0151ee9d71e2f1e9b71b1e2f327))
+
+### Bug Fixes
+
+* **website:** rename Express showcase title to express-webserver.ts ([e86b055](https://github.com/gjsify/gjsify/commit/e86b055d387e1f4e149fc3b7c152fe3a154cdd25))
+
 ## [0.1.9](https://github.com/gjsify/gjsify/compare/v0.1.8...v0.1.9) (2026-04-11)
 
 ### Features

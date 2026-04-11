@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/create-app",
-    "version": "0.1.9",
+    "version": "0.1.10",
     "description": "Create a new Gjsify project",
     "type": "module",
     "main": "lib/create.js",
