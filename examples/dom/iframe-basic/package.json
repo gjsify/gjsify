@@ -11,12 +11,12 @@
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.1",
-    "@girs/gjs": "^4.0.0-rc.1",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.2",
+    "@girs/gjs": "^4.0.0-rc.2",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2",
     "@gjsify/cli": "workspace:^",
     "@gjsify/iframe": "workspace:^",
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.6.0",
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",

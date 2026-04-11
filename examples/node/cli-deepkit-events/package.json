@@ -24,7 +24,7 @@
     "@deepkit/type": "^1.0.19",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.6.0",
     "typescript": "^6.0.2"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
