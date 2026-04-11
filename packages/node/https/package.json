@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/https",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "description": "Node.js https module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

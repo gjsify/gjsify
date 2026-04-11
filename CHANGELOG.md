@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/gjsify/gjsify/compare/v0.1.8...v0.1.9) (2026-04-11)
+
+### Features
+
+* **build:** --globals auto — two-pass esbuild analysis ([#15](https://github.com/gjsify/gjsify/issues/15)) ([943f61c](https://github.com/gjsify/gjsify/commit/943f61c972e9b01b93f933191c60128b370cd0a4))
+* **showcase:** excalibur-jelly-jumper — 2D platformer + Browser API stubs ([#13](https://github.com/gjsify/gjsify/issues/13)) ([63e7c25](https://github.com/gjsify/gjsify/commit/63e7c25046527f9cb61c32ff634e78b503cbb786))
+
 ## Unreleased (2026-04-10)
 
 ### Features
