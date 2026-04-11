@@ -43,6 +43,53 @@ interface Slide {
 
 const slides: Slide[] = [
   {
+    id: 'express',
+    name: 'express-webserver',
+    title: 'server.ts',
+    github: 'showcases/node/express-webserver',
+    variant: 'terminal',
+    annotations: [
+      { text: 'A real Express.js\nblog, running on GJS', top: '-90px', right: '8%' },
+    ],
+    code: `import '@gjsify/node-globals';
+import express from 'express';
+import { posts } from './data/posts.js';
+
+const app = express();
+app.use(express.json());
+
+app.get('/api/posts', (_req, res) => {
+  res.json({ count: posts.length, posts });
+});
+
+app.get('/api/posts/:slug', (req, res) => {
+  const post = posts.find((p) => p.slug === req.params.slug);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  res.json(post);
+});
+
+app.use(express.static('public'));
+
+app.listen(3000, () => {
+  console.log('Express server running at http://localhost:3000');
+});`,
+    terminalTitle: 'Terminal',
+    terminalOutput: `$ gjs -m express-webserver.js
+
+  Express.js blog running on GJS
+
+  ➜  Local:    http://localhost:3000/
+  ➜  API:      http://localhost:3000/api/posts
+
+  Press Ctrl+C to stop
+
+[12:34:56] GET /
+[12:34:56] GET /style.css
+[12:34:56] GET /app.js
+[12:34:56] GET /api/runtime
+[12:34:56] GET /api/posts`,
+  },
+  {
     id: 'pixel',
     name: 'three-postprocessing-pixel',
     title: 'pixel-demo.ts',
@@ -142,53 +189,6 @@ app.connect('activate', () => {
     // demo.effectController.autoInterval = 150;
   });
 });`,
-  },
-  {
-    id: 'express',
-    name: 'express-webserver',
-    title: 'server.ts',
-    github: 'showcases/node/express-webserver',
-    variant: 'terminal',
-    annotations: [
-      { text: 'A real Express.js\nblog, running on GJS', top: '-90px', right: '8%' },
-    ],
-    code: `import '@gjsify/node-globals';
-import express from 'express';
-import { posts } from './data/posts.js';
-
-const app = express();
-app.use(express.json());
-
-app.get('/api/posts', (_req, res) => {
-  res.json({ count: posts.length, posts });
-});
-
-app.get('/api/posts/:slug', (req, res) => {
-  const post = posts.find((p) => p.slug === req.params.slug);
-  if (!post) return res.status(404).json({ error: 'Not found' });
-  res.json(post);
-});
-
-app.use(express.static('public'));
-
-app.listen(3000, () => {
-  console.log('Express server running at http://localhost:3000');
-});`,
-    terminalTitle: 'Terminal',
-    terminalOutput: `$ gjs -m express-webserver.js
-
-  Express.js blog running on GJS
-
-  ➜  Local:    http://localhost:3000/
-  ➜  API:      http://localhost:3000/api/posts
-
-  Press Ctrl+C to stop
-
-[12:34:56] GET /
-[12:34:56] GET /style.css
-[12:34:56] GET /app.js
-[12:34:56] GET /api/runtime
-[12:34:56] GET /api/posts`,
   },
 ];
 ---
