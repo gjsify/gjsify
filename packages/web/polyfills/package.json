@@ -15,13 +15,17 @@
         "@gjsify/compression-streams": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/dom-exception": "workspace:^",
+        "@gjsify/domparser": "workspace:^",
         "@gjsify/eventsource": "workspace:^",
         "@gjsify/fetch": "workspace:^",
         "@gjsify/formdata": "workspace:^",
+        "@gjsify/gamepad": "workspace:^",
         "@gjsify/web-globals": "workspace:^",
         "@gjsify/web-streams": "workspace:^",
+        "@gjsify/webaudio": "workspace:^",
         "@gjsify/webcrypto": "workspace:^",
         "@gjsify/websocket": "workspace:^",
-        "@gjsify/webstorage": "workspace:^"
+        "@gjsify/webstorage": "workspace:^",
+        "@gjsify/xmlhttprequest": "workspace:^"
     }
 }

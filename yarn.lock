@@ -1838,18 +1838,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/dom-polyfills@workspace:packages/dom/polyfills":
-  version: 0.0.0-use.local
-  resolution: "@gjsify/dom-polyfills@workspace:packages/dom/polyfills"
-  dependencies:
-    "@gjsify/canvas2d": "workspace:^"
-    "@gjsify/dom-elements": "workspace:^"
-    "@gjsify/event-bridge": "workspace:^"
-    "@gjsify/iframe": "workspace:^"
-    "@gjsify/webgl": "workspace:^"
-  languageName: unknown
-  linkType: soft
-
 "@gjsify/domain@workspace:^, @gjsify/domain@workspace:packages/node/domain":
   version: 0.0.0-use.local
   resolution: "@gjsify/domain@workspace:packages/node/domain"
@@ -1862,7 +1850,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/domparser@workspace:packages/web/domparser":
+"@gjsify/domparser@workspace:^, @gjsify/domparser@workspace:packages/web/domparser":
   version: 0.0.0-use.local
   resolution: "@gjsify/domparser@workspace:packages/web/domparser"
   dependencies:
@@ -3242,14 +3230,18 @@ __metadata:
     "@gjsify/compression-streams": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/dom-exception": "workspace:^"
+    "@gjsify/domparser": "workspace:^"
     "@gjsify/eventsource": "workspace:^"
     "@gjsify/fetch": "workspace:^"
     "@gjsify/formdata": "workspace:^"
+    "@gjsify/gamepad": "workspace:^"
     "@gjsify/web-globals": "workspace:^"
     "@gjsify/web-streams": "workspace:^"
+    "@gjsify/webaudio": "workspace:^"
     "@gjsify/webcrypto": "workspace:^"
     "@gjsify/websocket": "workspace:^"
     "@gjsify/webstorage": "workspace:^"
+    "@gjsify/xmlhttprequest": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -3377,7 +3369,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/xmlhttprequest@workspace:packages/web/xmlhttprequest":
+"@gjsify/xmlhttprequest@workspace:^, @gjsify/xmlhttprequest@workspace:packages/web/xmlhttprequest":
   version: 0.0.0-use.local
   resolution: "@gjsify/xmlhttprequest@workspace:packages/web/xmlhttprequest"
   dependencies:
