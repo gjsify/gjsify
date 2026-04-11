@@ -1,10 +1,15 @@
-// Two-pass build orchestrator for `--globals auto`.
+// Iterative multi-pass build orchestrator for `--globals auto`.
 //
-// Pass 1: esbuild.build() with write:false + minify:true, no globals injection
-//         → produces in-memory bundle
-// Parse:  acorn analyses the bundle for free global identifiers
-// Pass 2: caller runs the real esbuild.build() with the discovered globals
-//         injected via the returned stub path
+// Pass 1: esbuild.build() with write:false, no globals injection
+//         → produces in-memory bundle, parsed by acorn for free globals
+// Pass 2: esbuild.build() with detected globals injected
+//         → some injected register modules pull in MORE code that
+//           references additional globals (tree-shaking dependency cycle)
+// Pass N: repeat until the detected set converges (typically 2–3 iterations)
+//
+// The fixpoint approach handles cases like @gjsify/eventsource where
+// injecting `fetch/register` brings in code that uses `globalThis.Blob`
+// — code that wasn't reachable in pass 1 because nothing pulled it in.
 
 import { build, type BuildOptions } from 'esbuild';
 import { gjsifyPlugin } from '../plugin.js';
@@ -15,6 +20,9 @@ import type { PluginOptions } from '../types/plugin-options.js';
 
 const GLOBALS_MAP: Record<string, string> = GJS_GLOBALS_MAP;
 
+/** Maximum iterations to prevent runaway loops on pathological inputs. */
+const MAX_ITERATIONS = 5;
+
 export interface AutoGlobalsResult {
     /** Global identifiers detected in the bundle */
     detected: Set<string>;
@@ -22,67 +30,99 @@ export interface AutoGlobalsResult {
     injectPath: string | undefined;
 }
 
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+    if (a.size !== b.size) return false;
+    for (const x of a) if (!b.has(x)) return false;
+    return true;
+}
+
+function detectedToRegisterPaths(detected: Set<string>): Set<string> {
+    const paths = new Set<string>();
+    for (const name of detected) {
+        const path = GLOBALS_MAP[name];
+        if (path) paths.add(path);
+    }
+    return paths;
+}
+
 /**
- * Run a first-pass esbuild build (in-memory, minified, no globals) and
- * analyse the output for free references to known GJS globals.
+ * Run an iterative esbuild build (in-memory) with acorn-based global
+ * detection. Each pass uses the globals discovered by the previous pass,
+ * stopping once the detected set is stable (fixpoint reached).
  *
- * Returns the inject stub path that the caller should pass to the second
- * (real) build via `pluginOptions.autoGlobalsInject`.
+ * Returns the inject stub path that the caller should pass to the
+ * final (real) build via `pluginOptions.autoGlobalsInject`.
+ *
+ * We deliberately do NOT minify the analysis builds: minification can
+ * wrap the bundle in an IIFE and alias `globalThis` to a short variable
+ * (e.g. `g.Blob` instead of `globalThis.Blob`), defeating the
+ * MemberExpression detection in detect-free-globals.ts.
  */
 export async function detectAutoGlobals(
     esbuildUserOptions: BuildOptions,
     pluginOptions: Omit<PluginOptions, 'autoGlobalsInject'>,
     verbose?: boolean,
 ): Promise<AutoGlobalsResult> {
-    // First pass: in-memory build, minified, no globals injection.
-    // The full plugin pipeline (aliases, blueprint, deepkit) runs — only
-    // the autoGlobalsInject option is omitted.
-    const firstPassResult = await build({
-        ...esbuildUserOptions,
-        write: false,
-        minify: true,
-        sourcemap: false,
-        metafile: false,
-        logLevel: 'silent',
-        plugins: [
-            gjsifyPlugin({
-                ...pluginOptions,
-                autoGlobalsInject: undefined,
-            } as PluginOptions),
-        ],
-    });
+    let detected = new Set<string>();
+    let currentInject: string | undefined = undefined;
 
-    // Concatenate all output files (typically one for app builds)
-    const bundledCode = firstPassResult.outputFiles
-        ?.map((f) => f.text)
-        .join('\n') ?? '';
+    for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+        const result = await build({
+            ...esbuildUserOptions,
+            write: false,
+            minify: false,
+            sourcemap: false,
+            metafile: false,
+            logLevel: 'silent',
+            plugins: [
+                gjsifyPlugin({
+                    ...pluginOptions,
+                    autoGlobalsInject: currentInject,
+                } as PluginOptions),
+            ],
+        });
 
-    if (!bundledCode) {
-        return { detected: new Set(), injectPath: undefined };
+        const bundledCode = result.outputFiles?.map((f) => f.text).join('\n') ?? '';
+        if (!bundledCode) {
+            return { detected: new Set(), injectPath: undefined };
+        }
+
+        const newDetected = detectFreeGlobals(bundledCode);
+
+        // Fixpoint check: if the set didn't grow, we're done.
+        // (Detection is monotonic — once a global is needed, more code
+        // gets pulled in by the next pass, which can only ADD requirements.)
+        if (setsEqual(detected, newDetected)) {
+            if (verbose) {
+                const sorted = [...detected].sort();
+                console.debug(
+                    `[gjsify] --globals auto: converged after ${iteration - 1} iteration(s), ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}`,
+                );
+            }
+            return { detected, injectPath: currentInject };
+        }
+
+        detected = newDetected;
+        const registerPaths = detectedToRegisterPaths(detected);
+
+        if (registerPaths.size === 0) {
+            return { detected, injectPath: undefined };
+        }
+
+        currentInject = (await writeRegisterInjectFile(registerPaths)) ?? undefined;
+
+        if (verbose) {
+            const sorted = [...detected].sort();
+            console.debug(
+                `[gjsify] --globals auto: iteration ${iteration}, ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}`,
+            );
+        }
     }
-
-    // Analyse the bundled output for free global references
-    const detected = detectFreeGlobals(bundledCode);
 
     if (verbose) {
-        const sorted = [...detected].sort();
         console.debug(
-            `[gjsify] --globals auto: detected ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}`,
+            `[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`,
         );
     }
-
-    if (detected.size === 0) {
-        return { detected, injectPath: undefined };
-    }
-
-    // Map detected identifiers → register paths
-    const registerPaths = new Set<string>();
-    for (const name of detected) {
-        const path = GLOBALS_MAP[name];
-        if (path) registerPaths.add(path);
-    }
-
-    const injectPath = await writeRegisterInjectFile(registerPaths) ?? undefined;
-
-    return { detected, injectPath };
+    return { detected, injectPath: currentInject };
 }

@@ -121,9 +121,27 @@ export function detectFreeGlobals(code: string): Set<string> {
     });
 
     // --- Pass 2: find Identifier nodes in reference position ---
+    // Also detects MemberExpressions like `globalThis.X` / `global.X` /
+    // `window.X` / `self.X` where X is a known global. esbuild's `define`
+    // config replaces `global`/`window` with `globalThis`, but we accept
+    // all four host-object names for safety (esbuild also never renames
+    // these because they are language keywords / pre-defined globals).
     const freeGlobals = new Set<string>();
+    const HOST_OBJECTS = new Set(['globalThis', 'global', 'window', 'self', 'globalObject']);
 
     walk.ancestor(ast, {
+        MemberExpression(node: acorn.MemberExpression) {
+            // Only dot-access — skip computed (bracket) access since the
+            // property is then a dynamic Expression, not a known name.
+            if (node.computed) return;
+            if (node.object.type !== 'Identifier') return;
+            if (!HOST_OBJECTS.has((node.object as acorn.Identifier).name)) return;
+            if (node.property.type !== 'Identifier') return;
+            const propName = (node.property as acorn.Identifier).name;
+            if (KNOWN_GLOBALS.has(propName)) {
+                freeGlobals.add(propName);
+            }
+        },
         Identifier(node: acorn.Identifier, ancestors: acorn.AnyNode[]) {
             const name = node.name;
 
