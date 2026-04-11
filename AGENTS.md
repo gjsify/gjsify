@@ -129,7 +129,14 @@ Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` 
 
 **Blueprint support:** `@gjsify/esbuild-plugin-blueprint` compiles `.blp` files via `blueprint-compiler` → XML string. Wired into `gjsify build` for GJS and browser targets. `import Template from './window.blp'` → string. Type declaration: `@gjsify/esbuild-plugin-blueprint/types` (add to tsconfig `"types"`).
 
-**Globals via `--globals`:** `gjsify build --app gjs` accepts a comma-separated `--globals` list of identifiers (`fetch,Buffer,process,URL,crypto,AbortController,...`). The CLI resolves each identifier against `packages/infra/resolve-npm/lib/globals-map.mjs`, writes a stub `<cwd>/node_modules/.cache/gjsify/auto-globals-<hash>.mjs` with the matching `import '<pkg>/register';` statements, and passes the stub path to the plugin via the `autoGlobalsInject` option. The plugin appends it to esbuild's `inject` list. **There is deliberately no automatic scanning of user code** — experiments with regex, AST and two-pass metafile approaches all leaked in different ways (isomorphic library guards, dynamic imports, runtime feature detection, bracket-notation global access). Explicit `--globals` keeps the CLI layer small and build output predictable. The `@gjsify/create-app` scaffolder ships a sensible default list in its template `package.json` script, covering most Node-style apps out of the box.
+**Globals via `--globals`:** `gjsify build --app gjs` supports four modes:
+
+- `--globals auto` **(default)**: Iterative multi-pass build. Each pass bundles in-memory (unminified, no disk I/O), `acorn` parses the bundled output and detects both free identifiers (`Buffer`) and host-object member expressions (`globalThis.Buffer`, `global.Buffer`, `window.Buffer`, `self.Buffer`) that match `GJS_GLOBALS_MAP`. The orchestrator repeats until the detected set stabilises (typically 2–3 iterations, capped at 5), because injecting register modules pulls in NEW code that can reference additional globals. The final real build uses the converged set. Avoids false positives from source-level scanning because it analyses the **bundled output** after esbuild tree-shaking has removed dead code paths. Minification is deliberately disabled for analysis: it would alias `globalThis` to a short variable name and defeat MemberExpression detection.
+- `--globals auto,<extras>`: Auto mode plus an explicit safety net. The detector cannot statically follow value-flow indirection (e.g. Excalibur stores `globalThis` in `BrowserComponent.nativeComponent` and then calls `nativeComponent.matchMedia(...)` — neither bare `matchMedia` nor `globalThis.matchMedia` appears in the bundle). Combine `auto` with the relevant group or identifiers to inject extras unconditionally: `--globals auto,dom`, `--globals auto,FontFace,matchMedia`, `--globals auto,dom,fetch`. Extras are seeded into pass 1 so any code reachable only through them is also visible to the analyser.
+- `--globals fetch,Buffer,...`: Explicit comma-separated list (or group aliases: `node`, `web`, `dom`) without auto-detection. The CLI resolves each identifier against `globals-map.mjs`, writes a stub, and injects it.
+- `--globals none`: Disables globals injection entirely.
+
+Key files: `packages/infra/esbuild-plugin-gjsify/src/utils/detect-free-globals.ts` (acorn AST analysis) | `packages/infra/esbuild-plugin-gjsify/src/utils/auto-globals.ts` (two-pass orchestrator) | `packages/infra/esbuild-plugin-gjsify/src/utils/scan-globals.ts` (explicit-list resolver) | `packages/infra/resolve-npm/lib/globals-map.mjs` (identifier→register-path map).
 
 ### GLib MainLoop — `ensureMainLoop()`
 
@@ -146,34 +153,60 @@ Every `@gjsify/*` package that registers anything on `globalThis` MUST follow th
    - **DOM constructors** (dom-elements, GTK-only): unconditional `defineGlobal('X', X)` via the package-local helper (writable+configurable; GTK environment always owns these)
    - **Streams**: `isNativeStreamUsable(globalThis.X, 'method')` helper validates whether the existing native implementation is functional before replacing it
    All guards must be idempotent — registering twice must not throw.
-3. **`package.json` declares both subpaths + `sideEffects`:**
+3. **`package.json` declares all subpaths + `sideEffects`:**
    ```jsonc
    "exports": {
-     ".":          { "default": "./lib/esm/index.js" },
-     "./register": { "default": "./lib/esm/register.js" }
+     ".":                    { "default": "./lib/esm/index.js" },
+     "./register":           { "types": "./lib/types/register.d.ts", "default": "./lib/esm/register.js" },
+     "./register/<feature>": { "default": "./lib/esm/register/<feature>.js" }
      // "./globals": "./globals.mjs"  // optional: native-re-exports for Node builds
    },
-   "sideEffects": ["./lib/esm/register.js", "./globals.mjs"]
+   "sideEffects": [
+     "./lib/esm/register.js",
+     "./lib/esm/register/*.js",
+     "./globals.mjs"
+   ]
    ```
-   The `sideEffects` array pins side-effects to register-only so bundlers can tree-shake the root module. Never `"sideEffects": false` if there is a `register.js`.
+   The `sideEffects` array pins side-effects to register-only so bundlers can tree-shake the root module. Never `"sideEffects": false` if there is a `register.js`. The `./register` catch-all keeps a `types` field; granular subpaths typically only need `default`.
 4. **Globals map is authoritative.** Every identifier that `register.ts` writes to `globalThis` MUST have an entry in `packages/infra/resolve-npm/lib/globals-map.mjs` mapping it to the bare-specifier `/register` subpath. The `--globals` CLI flag uses this map to resolve user-provided identifiers to register subpaths.
 5. **Alias layer mirrors the map.** Add new `/register` subpaths to `packages/infra/resolve-npm/lib/index.mjs`:
    - `ALIASES_WEB_FOR_GJS` — bare-specifier `<pkg>/register` → real `@gjsify/<pkg>/register`
    - `ALIASES_WEB_FOR_NODE` — both the bare and the fully-qualified form → `@gjsify/empty` (no-op, Node has native globals)
    - `ALIASES_GENERAL_FOR_NODE` — for `@gjsify/<pkg>/register` paths that are not web-only (e.g. `@gjsify/node-globals/register`, `@gjsify/buffer/register`)
 6. **Tests that need globals** import the `/register` subpath explicitly: `import 'fetch/register'`, `import 'abort-controller/register'`, `import '@gjsify/node-globals/register'`. Do NOT rely on implicit global registration via a named import from the root.
-7. **User projects use the `--globals` CLI flag**, not source-level register imports. The scaffolded template includes a default `--globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController` in its `package.json` script. Users add or remove identifiers from that list as their code's needs grow. Source-level `import '<pkg>/register'` is still supported and equivalent, but less ergonomic because it spreads the globals config across multiple files. Three **group aliases** expand to the full identifier set: `node` (Buffer, process, URL, …), `web` (fetch, streams, crypto, AbortController, events, …), `dom` (document, HTMLCanvasElement, Image, …). Groups are defined in `GJS_GLOBALS_GROUPS` in `globals-map.mjs` and expanded in `scan-globals.ts`.
+7. **User projects rely on `--globals auto` (the default)**, which detects needed globals automatically from the bundled output. No manual `--globals` list or source-level register imports are needed. Users can override with an explicit list (`--globals fetch,Buffer`) or disable entirely (`--globals none`). Source-level `import '<pkg>/register'` is still supported and equivalent. Three **group aliases** expand to the full identifier set: `node` (Buffer, process, URL, …), `web` (fetch, streams, crypto, AbortController, events, …), `dom` (document, HTMLCanvasElement, Image, …). Groups are defined in `GJS_GLOBALS_GROUPS` in `globals-map.mjs` and expanded in `scan-globals.ts`.
 8. **Exception — intra-package class inheritance.** If `src/index.ts` defines a class that extends a global constructor (e.g. `class TextLineStream extends TransformStream`), the class declaration runs at module load time and needs the global set. In this ONE case, `index.ts` may `import '@gjsify/<pkg>/register'` as a side-effect to seed the global before the class body runs. Document the exception explicitly in the file header. Current occurrences: `@gjsify/eventsource`.
-9. **Adding a new global.** Checklist: (a) implement in the package, (b) add to `register.ts` with the appropriate existence guard (see Rule 2), (c) add to `package.json` `sideEffects` if the file is new, (d) add to `GJS_GLOBALS_MAP` in `globals-map.mjs`, (e) add aliases in `resolve-npm/lib/index.mjs`, (f) add the identifier to the `--globals` default in `packages/infra/create-gjsify/templates/package.json.tmpl` if it is broadly useful, (g) add a test in the package's own spec, (h) add the identifier to the appropriate category group in the Known Identifiers table at `website/src/content/docs/cli-reference.md` (§ Globals → Known identifiers).
+9. **Granular register subpaths.** Each register module belongs in its own file under `src/register/<feature>.ts`, grouped by feature (not by every individual identifier — closely-related identifiers like `ReadableStream` + `ReadableStreamDefaultReader` share one file). The catch-all `src/register.ts` only re-exports the granular files via side-effect imports:
+   ```ts
+   // src/register.ts — catch-all
+   import './register/feature-a.js';
+   import './register/feature-b.js';
+   ```
+   This lets `--globals auto` inject only the feature(s) actually needed instead of pulling in the whole package's register module. When you split a register module, each subpath needs: (a) its own file in `src/register/`, (b) its own `./register/<name>` entry in `package.json` `exports`, (c) inclusion in `package.json` `sideEffects` (the `"./lib/esm/register/*.js"` glob covers this), (d) the catch-all `register.ts` updated to import it, (e) the identifier→subpath mapping in `globals-map.mjs` updated to point to the granular path (not the catch-all), (f) entries in `ALIASES_WEB_FOR_GJS`/`ALIASES_WEB_FOR_NODE`/`ALIASES_GENERAL_FOR_NODE` for both the bare and the fully-qualified granular subpath.
+
+10. **Adding a new global.** Checklist:
+    - (a) implement in the package
+    - (b) add to the appropriate `src/register/<feature>.ts` (or create a new file) with the existence guard from Rule 2
+    - (c) ensure the catch-all `src/register.ts` imports the new file (only if you created a new feature file)
+    - (d) confirm `package.json` `exports` has a `./register/<feature>` entry and `sideEffects` covers the file
+    - (e) add the identifier→**granular** subpath in `GJS_GLOBALS_MAP` (`packages/infra/resolve-npm/lib/globals-map.mjs`)
+    - (f) add the granular subpath to all three alias maps in `packages/infra/resolve-npm/lib/index.mjs`: `ALIASES_WEB_FOR_GJS` (real path), `ALIASES_WEB_FOR_NODE` (`@gjsify/empty`), and `ALIASES_GENERAL_FOR_NODE` if it's not web-only
+    - (g) if the package itself is new and not yet in a meta-package, add it to `@gjsify/node-polyfills` or `@gjsify/web-polyfills` so scaffolded apps that depend only on `@gjsify/cli` can resolve it
+    - (h) add a test in the package's own `register.spec.ts` (or appropriate spec)
+    - (i) add the identifier to the category group in `website/src/content/docs/cli-reference.md` (§ Globals → Known identifiers)
+    - Note: `--globals auto` will pick up the new identifier automatically — no template or example `--globals` updates needed.
 
 **Tree-shakeability invariants — permanent, do not break:**
 
 - `src/index.ts` MUST have zero top-level side effects. Any top-level `globalThis.X = ...`, `Object.defineProperty(globalThis, ...)`, or `registerGlobal(...)` in `index.ts` is a regression — move it to `register.ts`.
-- **Auto-injection is permanently off.** The `--globals` flag is the only injection mechanism. Any agent that modifies `scan-globals.ts` to scan source files, adds an `autoGlobals`/`--auto-globals` option, or proposes detecting globals by parsing entry points is reintroducing a deliberately removed feature. The auto-scan approach was tried (regex, AST, two-pass metafile) and rejected because it consistently leaked false positives (isomorphic npm packages, dynamic imports, bracket-notation access, runtime feature detection). Do not add it back.
-- `sideEffects: ["./lib/esm/register.js"]` must remain in every package that registers globals. Never set `"sideEffects": false` on such a package.
-- `globals-map.mjs` is authoritative. If a new identifier is added to `register.ts` but omitted from `globals-map.mjs`, the `--globals` flag silently fails to inject it.
+- **`--globals auto` analyses bundled output, NOT source files.** Previous source-level scanning approaches (regex, AST, metafile on entry points) were tried and rejected — they leaked false positives from isomorphic guards, dynamic imports, and bracket-notation access. The current auto mode parses the **unminified esbuild output** after tree-shaking. Do NOT reintroduce source-level scanning. The iterative multi-pass approach (build → acorn analyse → rebuild → repeat until stable) in `auto-globals.ts` / `detect-free-globals.ts` is the only sanctioned auto-detection mechanism.
+- **Analysis passes must NOT minify.** Minification can wrap the bundle in an IIFE and alias `globalThis` to a short variable (e.g. `g.Blob` instead of `globalThis.Blob`), defeating the `MemberExpression` detection. The `auto-globals.ts` orchestrator passes `minify: false` for this reason — do not change it.
+- **Detection is iterative, not single-pass.** Tree-shaking creates a dependency cycle: pass 1 has no globals injected, so any code paths gated on a global being available are tree-shaken; pass 2 injects those globals, which pulls in NEW code that may reference more globals; repeat until the detected set stabilises. Capped at 5 iterations. Both bare identifiers (`Buffer`) and `host.Identifier` member expressions (`globalThis.Buffer`, `global.Buffer`, `window.Buffer`, `self.Buffer`) are detected.
+- **Method markers for monkey-patched APIs.** Some `@gjsify/*` packages register globals by **patching methods onto an existing host object** instead of defining a fresh global identifier. The canonical example is `@gjsify/gamepad/register`, which sets `globalThis.navigator.getGamepads = …` — neither `getGamepads` nor `Gamepad` ever appears in user code as a free identifier (`navigator.getGamepads()` is a member access on a known instance). To trigger the right register injection, `detect-free-globals.ts` keeps a small `METHOD_MARKERS` table mapping `<host>.<method>` → known-globals identifier. When the analyser sees the marker pattern, it adds the target identifier to the detected set, which then resolves to the appropriate register subpath via `globals-map.mjs`. Add a new entry whenever a register module patches a method instead of defining a global. Current entries: `navigator.getGamepads → GamepadEvent`.
+- `sideEffects: ["./lib/esm/register.js", "./lib/esm/register/*.js"]` must remain in every package that registers globals. Never set `"sideEffects": false` on such a package. The `register/*.js` glob covers granular subpath files.
+- `globals-map.mjs` is authoritative and must point at **granular** subpaths whenever they exist. If a new identifier is added to `register.ts` but omitted from `globals-map.mjs`, `--globals auto` silently fails to inject it. If `globals-map.mjs` points at the catch-all `./register` for an identifier that has a granular subpath, the bundle gets the entire register module instead of just the needed feature.
 
-**No automatic scanning.** The CLI does not parse user source to guess which globals are needed — the `--globals` flag is the single source of truth. If your code references a global and you forgot to list it, you get a `ReferenceError: X is not defined` at runtime; the fix is to add `X` to the `--globals` list. This is deliberate: heuristic scanners could never reliably distinguish isomorphic library guards, dynamic imports, bracket-notation global access, or runtime feature detection.
+**Auto mode is the default.** Most users never need to touch `--globals` — the iterative build detects everything automatically. If auto mode misses a global (e.g. Excalibur passes `globalThis` to a constructor and calls methods through that wrapper, hiding the access from static analysis), the user adds the missing identifier or group to the auto value: `--globals auto,dom` or `--globals auto,matchMedia,FontFace`. If auto mode injects an unwanted global (false positive from an isomorphic library guard that survived tree-shaking), users can switch to a fully explicit list or file an issue.
 
 ```bash
 # Root

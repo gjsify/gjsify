@@ -16,7 +16,7 @@
     "start": "gjsify run dist/index.gjs.js",
     "start:node": "node dist/index.node.mjs",
     "build": "yarn build:gjs && yarn build:node && yarn build:public",
-    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js --globals node,web",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
     "build:public": "mkdir -p dist/public && cp -r src/public/* dist/public/"
   },
@@ -25,7 +25,7 @@
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.6.0",
     "express": "^5.2.1",
     "typescript": "^6.0.2"
   },

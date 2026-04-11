@@ -2,7 +2,7 @@ import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
 import { build, BuildOptions, BuildResult } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
-import { resolveGlobalsList, writeRegisterInjectFile } from '@gjsify/esbuild-plugin-gjsify/globals';
+import { resolveGlobalsList, writeRegisterInjectFile, detectAutoGlobals } from '@gjsify/esbuild-plugin-gjsify/globals';
 import { dirname, extname } from 'path';
 
 export class BuildAction {
@@ -76,16 +76,40 @@ export class BuildAction {
     }
 
     /**
+     * Parse the `--globals` value into { autoMode, extras }.
+     * - `auto`             → { autoMode: true, extras: '' }
+     * - `auto,dom`         → { autoMode: true, extras: 'dom' }
+     * - `auto,dom,fetch`   → { autoMode: true, extras: 'dom,fetch' }
+     * - `dom,fetch`        → { autoMode: false, extras: 'dom,fetch' }
+     * - `none` / ``        → { autoMode: false, extras: '' }
+     * - `undefined`        → { autoMode: true, extras: '' }  (default)
+     */
+    private parseGlobalsValue(value: string | undefined): { autoMode: boolean; extras: string } {
+        if (value === undefined) return { autoMode: true, extras: '' };
+        if (value === 'none' || value === '') return { autoMode: false, extras: '' };
+
+        const tokens = value.split(',').map(t => t.trim()).filter(Boolean);
+        const hasAuto = tokens.includes('auto');
+        const extras = tokens.filter(t => t !== 'auto').join(',');
+
+        return { autoMode: hasAuto, extras };
+    }
+
+    /**
      * Resolve the `--globals` CLI list into a pre-computed inject stub path
      * that the esbuild plugin will append to its `inject` list. Only runs
      * for `--app gjs` — Node and browser builds rely on native globals.
+     *
+     * Used only for the explicit-only path (no `auto` token in the value).
+     * The auto path is handled in `buildApp` via the two-pass build.
      */
     private async resolveGlobalsInject(
         app: App,
-        globals: string | undefined,
+        globals: string,
         verbose: boolean | undefined,
     ): Promise<string | undefined> {
-        if (app !== 'gjs' || !globals) return undefined;
+        if (app !== 'gjs') return undefined;
+        if (!globals) return undefined;
 
         const registerPaths = resolveGlobalsList(globals);
         if (registerPaths.size === 0) return undefined;
@@ -106,13 +130,55 @@ export class BuildAction {
 
         const format: 'esm' | 'cjs' = (esbuild?.format as 'esm' | 'cjs') ?? (esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm');
 
-        // Set default outfile if no outdir is set 
+        // Set default outfile if no outdir is set
         if(esbuild && !esbuild?.outfile && !esbuild?.outdir && (pgk?.main || pgk?.module)) {
             esbuild.outfile = esbuild?.format === 'cjs' ? pgk.main || pgk.module : pgk.module || pgk.main;
         }
 
         const { consoleShim, globals } = this.configData;
-        const autoGlobalsInject = await this.resolveGlobalsInject(app, globals, verbose);
+
+        const pluginOpts = {
+            debug: verbose,
+            app,
+            format,
+            exclude,
+            reflection: typescript?.reflection,
+            consoleShim,
+        };
+
+        const { autoMode, extras } = this.parseGlobalsValue(globals);
+
+        // --- Auto mode (with optional extras): iterative multi-pass build ---
+        // The extras token is used for cases where the detector cannot
+        // statically see a global (e.g. Excalibur indirects globalThis via
+        // BrowserComponent.nativeComponent). Common pattern: --globals auto,dom
+        if (app === 'gjs' && autoMode) {
+            const { injectPath } = await detectAutoGlobals(
+                { ...this.getEsBuildDefaults(), ...esbuild, format },
+                pluginOpts,
+                verbose,
+                { extraGlobalsList: extras },
+            );
+
+            const result = await build({
+                ...this.getEsBuildDefaults(),
+                ...esbuild,
+                format,
+                plugins: [
+                    gjsifyPlugin({
+                        ...pluginOpts,
+                        autoGlobalsInject: injectPath,
+                    }),
+                ],
+            });
+
+            return [result];
+        }
+
+        // --- Explicit list (no `auto` token) or none mode ---
+        const autoGlobalsInject = extras
+            ? await this.resolveGlobalsInject(app, extras, verbose)
+            : undefined;
 
         const result = await build({
             ...this.getEsBuildDefaults(),
@@ -120,25 +186,11 @@ export class BuildAction {
             format,
             plugins: [
                 gjsifyPlugin({
-                    debug: verbose,
-                    app,
-                    format,
-                    exclude,
-                    reflection: typescript?.reflection,
-                    consoleShim,
+                    ...pluginOpts,
                     autoGlobalsInject,
                 }),
             ]
         });
-
-        // See https://esbuild.github.io/api/#metafile
-        // TODO add cli options for this
-        // if(result.metafile) {
-        //     const outFile = esbuild?.outfile ? esbuild.outfile + '.meta.json' : 'meta.json';
-        //     await writeFile(outFile, JSON.stringify(result.metafile));
-        //     let text = await analyzeMetafile(result.metafile)
-        //     console.log(text)
-        // }
 
         return [result];
     }

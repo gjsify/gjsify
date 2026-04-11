@@ -54,11 +54,11 @@ my-app/
 └── tsconfig.json
 ```
 
-The generated `package.json` depends on `@gjsify/cli` and `@girs/gtk-4.0`, so everything you need is in place after `npm install`. The build script comes pre-wired with a `--globals` default that covers the common Node.js and Web API surface:
+The generated `package.json` depends on `@gjsify/cli` and `@girs/gtk-4.0`, so everything you need is in place after `npm install`. The build script is intentionally minimal — no `--globals` list to maintain, since the CLI's default `auto` mode detects which Node.js and Web API globals your code needs:
 
 ```jsonc
 "scripts": {
-  "build": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController",
+  "build": "gjsify build src/index.ts --outfile dist/index.js",
   "start": "gjsify run dist/index.js"
 }
 ```
@@ -70,7 +70,7 @@ The generated `package.json` depends on `@gjsify/cli` and `@girs/gtk-4.0`, so ev
 The scaffolded project ships with three npm scripts:
 
 ```bash
-npm run build   # gjsify build src/index.ts --outfile dist/index.js --globals ...
+npm run build   # gjsify build src/index.ts --outfile dist/index.js
 npm start       # gjsify run dist/index.js
 npm run dev     # build + run in one step
 ```
@@ -82,7 +82,7 @@ npm run dev     # build + run in one step
 The GJSify esbuild plugin does two things for you when you build for GJS:
 
 1. **Automatic module aliasing** — `import { readFileSync } from 'node:fs'` or `import { createServer } from 'node:http'` get rewritten to their `@gjsify/*` equivalents. You never install or import the `@gjsify/*` packages directly.
-2. **Explicit globals via `--globals`** — the scaffolded build script declares which runtime globals your app needs (`fetch`, `Buffer`, `process`, `URL`, `crypto`, `structuredClone`, `AbortController`). The CLI wires up the matching `/register` modules at build time, so at runtime your code can just use them.
+2. **Automatic globals detection (`--globals auto`)** — the CLI parses your bundled output, finds every reference to known globals like `fetch`, `Buffer`, `process`, `URL`, `crypto`, `AbortController`, and injects the matching `/register` modules so they exist at runtime. No manual list to maintain.
 
 ```typescript
 // src/index.ts — look ma, no special imports!
@@ -111,9 +111,9 @@ const ws = new WebSocket('wss://echo.example.com')
 ws.addEventListener('message', (event) => console.log(event.data))
 ```
 
-> **Need a global the default doesn't cover?** Edit the `--globals` list in your `package.json` build script. For example, to add streaming support: `--globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController,ReadableStream,TransformStream`. See the [CLI Reference](/gjsify/cli-reference/#known-identifiers) for the full list of supported identifiers.
+> **Auto detection missed a global?** This is rare, but happens with libraries that wrap `globalThis` in another object (so the access is hidden from static analysis). The fix is to keep auto on and add the missing identifier as an extra: `gjsify build … --globals auto,matchMedia` or `--globals auto,dom` for the entire DOM group. See the [CLI Reference](/gjsify/cli-reference/#known-identifiers) for the full list of supported identifiers.
 
-See [How It Works](/gjsify/how-it-works/) for a full explanation of auto-aliasing and the globals mechanism, or jump straight to the [CLI Reference](/gjsify/cli-reference/) to explore all available commands.
+See [How It Works](/gjsify/how-it-works/) for a full explanation of auto-aliasing and the iterative globals detection, or jump straight to the [CLI Reference](/gjsify/cli-reference/) to explore all available commands.
 
 ## Next Steps
 

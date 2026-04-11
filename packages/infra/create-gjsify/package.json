@@ -34,7 +34,7 @@
         "yargs": "^18.0.0"
     },
     "devDependencies": {
-        "@types/node": "^25.5.2",
+        "@types/node": "^25.6.0",
         "@types/yargs": "^17.0.35",
         "typescript": "^6.0.2"
     }

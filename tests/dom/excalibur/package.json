@@ -6,7 +6,7 @@
     "scripts": {
         "clear": "rm -rf lib test.gjs.mjs tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
-        "build:test:gjs": "gjsify build src/test.mts --app gjs --globals dom,web --outfile test.gjs.mjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "test": "yarn build:test:gjs && yarn test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs"
     },
@@ -14,15 +14,15 @@
         "@gjsify/webgl": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gjs": "^4.0.0-rc.1",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.1",
-        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1",
+        "@girs/gjs": "^4.0.0-rc.2",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2",
         "@gjsify/canvas2d": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.5.2",
+        "@types/node": "^25.6.0",
         "excalibur": "0.32.0",
         "typescript": "^6.0.2"
     },

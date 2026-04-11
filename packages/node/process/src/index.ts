@@ -316,8 +316,9 @@ class Process extends EventEmitter {
       if (e && typeof e === 'object' && (e as NodeJS.ErrnoException).code === 'ENOENT') throw e;
     }
 
-    if (typeof globalThis.process?.chdir === 'function') {
-      globalThis.process.chdir(directory);
+    const nativeProcess = globalThis.process;
+    if (nativeProcess && nativeProcess !== (this as any) && typeof nativeProcess.chdir === 'function') {
+      nativeProcess.chdir(directory);
       return;
     }
 
@@ -325,8 +326,9 @@ class Process extends EventEmitter {
   }
 
   kill(pid: number, signal?: string | number): boolean {
-    if (typeof globalThis.process?.kill === 'function') {
-      return globalThis.process.kill(pid, signal);
+    const nativeProcess = globalThis.process;
+    if (nativeProcess && nativeProcess !== (this as any) && typeof nativeProcess.kill === 'function') {
+      return nativeProcess.kill(pid, signal);
     }
     // On GJS, use GLib.spawn to send signals via /bin/kill
     try {
@@ -352,8 +354,9 @@ class Process extends EventEmitter {
       }
     } catch { /* ignore */ }
 
-    if (typeof globalThis.process?.exit === 'function') {
-      globalThis.process.exit(this.exitCode);
+    const nativeProcess = globalThis.process;
+    if (nativeProcess && nativeProcess !== (this as any) && typeof nativeProcess.exit === 'function') {
+      nativeProcess.exit(this.exitCode);
     }
 
     // Fallback
@@ -405,16 +408,22 @@ class Process extends EventEmitter {
       }
     } catch { /* ignore */ }
 
-    if (typeof globalThis.process?.memoryUsage === 'function') {
-      return globalThis.process.memoryUsage();
+    // Delegate to native process.memoryUsage on Node.js, but NOT when
+    // globalThis.process is this same instance (would infinite-recurse on GJS).
+    const nativeProcess = globalThis.process;
+    if (nativeProcess && nativeProcess !== (this as any) && typeof nativeProcess.memoryUsage === 'function') {
+      return nativeProcess.memoryUsage();
     }
 
     return { rss: 0, heapTotal: 0, heapUsed: 0, external: 0, arrayBuffers: 0 };
   }
 
   cpuUsage(previousValue?: { user: number; system: number }): { user: number; system: number } {
-    if (typeof globalThis.process?.cpuUsage === 'function') {
-      return globalThis.process.cpuUsage(previousValue);
+    // Delegate to native process.cpuUsage on Node.js, but NOT when
+    // globalThis.process is this same instance (would infinite-recurse on GJS).
+    const nativeProcess = globalThis.process;
+    if (nativeProcess && nativeProcess !== (this as any) && typeof nativeProcess.cpuUsage === 'function') {
+      return nativeProcess.cpuUsage(previousValue);
     }
     return { user: 0, system: 0 };
   }

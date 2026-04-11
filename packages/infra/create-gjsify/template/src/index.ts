@@ -1,9 +1,7 @@
 import Gtk from 'gi://Gtk?version=4.0'
 
-// Globals injected via --globals in the build script:
-//   process  → Node.js process API   (@gjsify/process)
-//   crypto   → Web Crypto API        (@gjsify/webcrypto)
-//   Buffer   → Node.js Buffer API    (@gjsify/buffer)
+// Globals (process, crypto, Buffer, etc.) are automatically detected
+// and injected by `gjsify build` via --globals auto (the default).
 
 const app = new Gtk.Application({
     applicationId: 'org.gjsify.example',

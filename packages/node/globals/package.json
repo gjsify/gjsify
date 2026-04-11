@@ -19,10 +19,32 @@
         "./register": {
             "types": "./lib/types/register.d.ts",
             "default": "./lib/esm/register.js"
+        },
+        "./register/process": {
+            "default": "./lib/esm/register/process.js"
+        },
+        "./register/buffer": {
+            "default": "./lib/esm/register/buffer.js"
+        },
+        "./register/timers": {
+            "default": "./lib/esm/register/timers.js"
+        },
+        "./register/encoding": {
+            "default": "./lib/esm/register/encoding.js"
+        },
+        "./register/url": {
+            "default": "./lib/esm/register/url.js"
+        },
+        "./register/structured-clone": {
+            "default": "./lib/esm/register/structured-clone.js"
+        },
+        "./register/microtask": {
+            "default": "./lib/esm/register/microtask.js"
         }
     },
     "sideEffects": [
-        "./lib/esm/register.js"
+        "./lib/esm/register.js",
+        "./lib/esm/register/*.js"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
@@ -38,7 +60,7 @@
         "test:node": "node test.node.mjs"
     },
     "dependencies": {
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.2",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/process": "workspace:^",
         "@gjsify/url": "workspace:^",
@@ -47,7 +69,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.5.2",
+        "@types/node": "^25.6.0",
         "typescript": "^6.0.2"
     }
 }

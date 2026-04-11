@@ -9,7 +9,7 @@
     "start": "gjsify run dist/gjs.js",
     "start:browser": "http-server dist",
     "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
-    "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --globals dom,web --outfile dist/gjs.js",
+    "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
     "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/webgl.css dist/webgl.css"
   },
@@ -17,11 +17,11 @@
     "@gjsify/webgl": "workspace:^"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.1",
-    "@girs/gjs": "^4.0.0-rc.1",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.1",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.2",
+    "@girs/gjs": "^4.0.0-rc.2",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2",
     "@gjsify/cli": "workspace:^",
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.6.0",
     "@types/three": "^0.183.1",
     "http-server": "^14.1.1",
     "three": "0.183.2",

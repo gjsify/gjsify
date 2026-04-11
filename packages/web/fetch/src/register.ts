@@ -1,18 +1,4 @@
-// Side-effect module: registers fetch/Headers/Request/Response as globals on
-// GJS. On Node.js the alias layer routes this to @gjsify/empty — the native
-// globals are fully functional there.
+// Catch-all side-effect module: registers fetch/Headers/Request/Response.
+// For granular imports use '@gjsify/fetch/register/fetch'.
 
-import fetch, { Headers, Request, Response } from './index.js';
-
-if (typeof globalThis.fetch === 'undefined') {
-  (globalThis as any).fetch = fetch;
-}
-if (typeof globalThis.Headers === 'undefined') {
-  (globalThis as any).Headers = Headers;
-}
-if (typeof globalThis.Request === 'undefined') {
-  (globalThis as any).Request = Request;
-}
-if (typeof globalThis.Response === 'undefined') {
-  (globalThis as any).Response = Response;
-}
+import './register/fetch.js';

@@ -30,14 +30,14 @@
         "os"
     ],
     "dependencies": {
-        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.1",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.1",
+        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.2",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.5.2",
+        "@types/node": "^25.6.0",
         "typescript": "^6.0.2"
     }
 }

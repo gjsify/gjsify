@@ -1,9 +1,9 @@
 ---
 title: How It Works
-description: Auto-aliasing, explicit globals and the GJS build pipeline
+description: Auto-aliasing, automatic globals detection and the GJS build pipeline
 ---
 
-GJSify lets you write code against familiar Node.js and Web APIs while running natively on GJS. This page explains the three pieces that make that possible: **automatic module aliasing** at build time, **explicit globals via the `--globals` CLI flag**, and **automatic native library loading** at runtime.
+GJSify lets you write code against familiar Node.js and Web APIs while running natively on GJS. This page explains the three pieces that make that possible: **automatic module aliasing** at build time, **automatic globals detection via `--globals auto`**, and **automatic native library loading** at runtime.
 
 ## Automatic module aliasing
 
@@ -34,67 +34,100 @@ Two things follow from this:
 
 The GJS build targets `firefox128` (SpiderMonkey 128, shipped with GJS 1.86) and externalises `gi://*`, `cairo`, `system` and `gettext` — those are resolved by the GJS runtime itself.
 
-## Explicit globals via `--globals`
+## Automatic globals detection via `--globals auto`
 
 Auto-aliasing turns `import { createServer } from 'node:http'` into the right Gio/Soup-backed module. But plenty of Node.js code also reaches for globals without any imports — `process.env.FOO`, `Buffer.from(data)`, `new URL('https://…')`, `await fetch(...)`. On GJS those globals don't exist until something registers them on `globalThis`.
 
-Every `@gjsify/*` package that provides a Node or Web global exposes a `/register` subpath (e.g. `@gjsify/fetch/register`, `@gjsify/buffer/register`). Importing the subpath as a side-effect runs the registration; importing only named exports from the root module stays completely tree-shakeable.
+Every `@gjsify/*` package that provides a Node or Web global exposes one or more `/register` subpaths (e.g. `@gjsify/fetch/register/fetch`, `@gjsify/node-globals/register/process`). Importing a subpath as a side-effect runs the registration; importing only named exports from the root module stays completely tree-shakeable.
 
-Instead of guessing which registers your project needs, the CLI accepts an explicit list via `--globals`:
-
-```bash
-gjsify build src/index.ts --outfile dist/index.js \
-  --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController
-```
-
-You can also use the three pre-defined group names to avoid listing every identifier manually:
+The CLI's default `--globals auto` discovers which registers your project needs by analysing the bundled output:
 
 ```bash
-# Node.js server app — process, Buffer, URL, …
-gjsify build src/index.ts --outfile dist/index.js --globals node,web
-
-# GTK/canvas app using three.js — document, HTMLCanvasElement, fetch, …
-gjsify build src/index.ts --outfile dist/index.js --globals dom,web
+gjsify build src/index.ts --outfile dist/index.js
+# (--globals auto is the default — no flag needed)
 ```
 
-| Group | Covers |
-|---|---|
-| `node` | `Buffer`, `Blob`, `File`, `process`, `URL`, `URLSearchParams`, `structuredClone`, `btoa`, `atob`, timers |
-| `web` | `fetch`, streams, `crypto`, `AbortController`, DOM events, `FormData`, `performance`, … |
-| `dom` | `document`, `HTMLCanvasElement`, `HTMLImageElement`, `Image`, `MutationObserver`, … |
+### How auto detection works
 
-The CLI resolves each identifier (or group) against a known map, writes a small ESM stub with `import '<pkg>/register';` lines into `node_modules/.cache/gjsify/`, and passes that stub to esbuild's `inject` option. At runtime the globals are set up before your code runs.
+The CLI runs an iterative multi-pass build:
 
-> Tree-shaking works in both directions: globals you declare but your code never touches don't inflate the bundle — each register guard (`if (typeof globalThis.X === 'undefined')`) is a tiny no-op that esbuild can elide. Globals you actually use but forget to declare produce a `ReferenceError` at runtime (fix: add the identifier to `--globals` and rebuild).
+1. **Pass 1** bundles your code into memory (no disk I/O, no minification, no globals injected). [acorn](https://github.com/acornjs/acorn) parses the resulting JavaScript and walks the AST looking for two patterns:
+   - **Free identifiers** (`Buffer`, `fetch`, `process`) — references that are not declared anywhere in the bundle scope.
+   - **Host-object member expressions** (`globalThis.Buffer`, `global.Buffer`, `window.Buffer`, `self.Buffer`) — many npm packages access globals through these wrappers.
+   Each match against the [known-globals table](/gjsify/cli-reference/#known-identifiers) is a discovered global.
+2. **Pass N** builds again with the discovered globals injected via tiny `register` stubs. The newly injected modules can pull in code that references *more* globals, so the loop repeats until the detected set stabilises (typically 2–3 iterations, capped at 5).
+3. The final real build uses the converged set and writes to disk.
 
-### Projects scaffolded via `npx @gjsify/cli create` ship with a sensible default
+> Use `--verbose` to see what auto mode detected per iteration:
+> ```bash
+> gjsify build src/index.ts -o dist/index.js --verbose
+> # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
+> # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+> # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
+> ```
 
-```jsonc
-"scripts": {
-  "build": "gjsify build src/index.ts --outfile dist/index.js --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController"
-}
-```
+### Why analyse the bundled output, not the source?
 
-Those seven identifiers cover practically every Node-style project — Express, Koa, Hono, fetch clients, crypto hashers, etc. Just `yarn install && yarn build` and your bundle ships.
+Earlier design iterations tried to scan your source tree (and transitive npm dependencies) directly. That approach kept leaking:
 
-If you need something the default doesn't cover — say `ReadableStream` for a streaming parser, or `dom` for GTK canvas apps — edit the `--globals` list in the scaffolded `package.json` script. The full table of supported identifiers and groups lives in the [CLI Reference](/gjsify/cli-reference/#globals).
-
-### Why not auto-detection?
-
-Earlier design iterations tried to scan your source tree (and transitive npm dependencies) automatically to figure out which globals you needed. The heuristic kept leaking:
-
-- **Isomorphic npm packages** reference `document` or `window` behind `typeof document !== 'undefined'` feature-detection guards — a static scan can't tell the difference between guarded compat code and real DOM use.
+- **Isomorphic npm packages** reference `document` or `window` behind `typeof document !== 'undefined'` feature-detection guards — a source-level scan cannot tell the difference between guarded compat code and real DOM use.
 - **Dynamic imports** (`import(expr)`), bracket-notation global access (`globalThis['fetch']`) and runtime code-string execution can't be statically analysed at all.
 - **Tree-shaking interactions**: files that esbuild loaded for analysis but then tree-shook away would still contribute false-positive injections.
 
-Explicit declaration in `package.json` is predictable, trivially teachable, and keeps the CLI layer minimal. The `/register` subpath architecture does the heavy lifting — the `--globals` flag is just the thin API on top.
+Analysing the **already-bundled, tree-shaken** output sidesteps every one of these problems — if a global identifier survives esbuild's dead-code elimination, it is genuinely reachable. False positives drop to zero, and the detection cost is just one extra esbuild pass per iteration.
+
+### When auto can't see a global: `--globals auto,<extras>`
+
+The acorn analyser cannot follow value-flow indirection. The canonical example is Excalibur, which stores `globalThis` in `BrowserComponent.nativeComponent` and then calls `nativeComponent.matchMedia(...)` — neither bare `matchMedia` nor `globalThis.matchMedia` appears in the bundle, so the detector misses it.
+
+The fix is to keep auto detection on and add an explicit safety net:
+
+```bash
+# Auto + the entire DOM group
+gjsify build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+
+# Auto + a single identifier we know auto can't see
+gjsify build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+```
+
+The extras are seeded into the very first pass, so any code reachable only through them is also visible to the analyser.
+
+### Other modes
+
+| Mode | Behaviour |
+|---|---|
+| `--globals auto` | Default — fully automatic detection |
+| `--globals auto,<extras>` | Auto + explicit safety net for hard-to-detect cases |
+| `--globals fetch,Buffer,…` | Fully explicit list (or groups: `node`, `web`, `dom`). No auto detection. |
+| `--globals none` | Disable globals injection entirely |
+
+The full table of identifiers and groups lives in the [CLI Reference → Globals](/gjsify/cli-reference/#globals).
+
+### Granular register subpaths
+
+Each polyfill package splits its register code into per-feature subpaths. Detecting `Buffer` injects only `@gjsify/buffer/register`; detecting `process` injects only `@gjsify/node-globals/register/process` — not the entire `node-globals` register module. This means `--globals auto` produces bundles that contain only the register code for identifiers your app actually uses.
+
+For example, an app that uses just `process.env` and `fetch` injects two tiny register stubs (`process` + `fetch`), not the entire Node + Web group.
+
+### Projects scaffolded via `npx @gjsify/cli create`
+
+Scaffolded projects rely on the default `auto` mode and don't pass `--globals` at all:
+
+```jsonc
+"scripts": {
+  "build": "gjsify build src/index.ts --outfile dist/index.js",
+  "start": "gjsify run dist/index.js"
+}
+```
+
+`yarn install && yarn build` is enough — no global lists to maintain, no `ReferenceError`s to chase down.
 
 ### Troubleshooting: `ReferenceError: X is not defined`
 
-If your GJS bundle crashes with `ReferenceError: X is not defined`, the global `X` isn't registered yet. Fix:
+If your GJS bundle crashes with `ReferenceError: X is not defined`, the global `X` was not detected. Fix:
 
 1. Look up `X` in the [Known Identifiers table](/gjsify/cli-reference/#known-identifiers).
-2. Add `X` to the `--globals` list in your `package.json` build script.
+2. If `X` is listed, add it as an extra: edit your build script to use `--globals auto,X` (or use a group: `--globals auto,dom`).
 3. Rebuild and rerun.
 
 If `X` is not in the table, it is not yet implemented in GJSify — check the [Packages Overview](/gjsify/packages/overview/) or open an issue.

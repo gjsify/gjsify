@@ -14,10 +14,20 @@
             "types": "./lib/types/register.d.ts",
             "default": "./lib/esm/register.js"
         },
+        "./register/event-target": {
+            "default": "./lib/esm/register/event-target.js"
+        },
+        "./register/custom-events": {
+            "default": "./lib/esm/register/custom-events.js"
+        },
+        "./register/ui-events": {
+            "default": "./lib/esm/register/ui-events.js"
+        },
         "./globals": "./globals.mjs"
     },
     "sideEffects": [
         "./lib/esm/register.js",
+        "./lib/esm/register/*.js",
         "./globals.mjs"
     ],
     "scripts": {
@@ -42,7 +52,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.5.2",
+        "@types/node": "^25.6.0",
         "typescript": "^6.0.2"
     }
 }
