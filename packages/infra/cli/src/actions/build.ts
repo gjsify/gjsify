@@ -76,25 +76,40 @@ export class BuildAction {
     }
 
     /**
+     * Parse the `--globals` value into { autoMode, extras }.
+     * - `auto`             → { autoMode: true, extras: '' }
+     * - `auto,dom`         → { autoMode: true, extras: 'dom' }
+     * - `auto,dom,fetch`   → { autoMode: true, extras: 'dom,fetch' }
+     * - `dom,fetch`        → { autoMode: false, extras: 'dom,fetch' }
+     * - `none` / ``        → { autoMode: false, extras: '' }
+     * - `undefined`        → { autoMode: true, extras: '' }  (default)
+     */
+    private parseGlobalsValue(value: string | undefined): { autoMode: boolean; extras: string } {
+        if (value === undefined) return { autoMode: true, extras: '' };
+        if (value === 'none' || value === '') return { autoMode: false, extras: '' };
+
+        const tokens = value.split(',').map(t => t.trim()).filter(Boolean);
+        const hasAuto = tokens.includes('auto');
+        const extras = tokens.filter(t => t !== 'auto').join(',');
+
+        return { autoMode: hasAuto, extras };
+    }
+
+    /**
      * Resolve the `--globals` CLI list into a pre-computed inject stub path
      * that the esbuild plugin will append to its `inject` list. Only runs
      * for `--app gjs` — Node and browser builds rely on native globals.
      *
-     * Returns `undefined` for `auto` mode (handled in `buildApp` via
-     * two-pass build) and for explicit opt-out (`none` / empty string).
+     * Used only for the explicit-only path (no `auto` token in the value).
+     * The auto path is handled in `buildApp` via the two-pass build.
      */
     private async resolveGlobalsInject(
         app: App,
-        globals: string | undefined,
+        globals: string,
         verbose: boolean | undefined,
     ): Promise<string | undefined> {
         if (app !== 'gjs') return undefined;
-
-        // auto mode is handled separately in buildApp()
-        if (!globals || globals === 'auto') return undefined;
-
-        // Explicit opt-out
-        if (globals === 'none') return undefined;
+        if (!globals) return undefined;
 
         const registerPaths = resolveGlobalsList(globals);
         if (registerPaths.size === 0) return undefined;
@@ -131,12 +146,18 @@ export class BuildAction {
             consoleShim,
         };
 
-        // --- Auto mode: two-pass build (detect globals from first pass) ---
-        if (app === 'gjs' && (!globals || globals === 'auto')) {
+        const { autoMode, extras } = this.parseGlobalsValue(globals);
+
+        // --- Auto mode (with optional extras): iterative multi-pass build ---
+        // The extras token is used for cases where the detector cannot
+        // statically see a global (e.g. Excalibur indirects globalThis via
+        // BrowserComponent.nativeComponent). Common pattern: --globals auto,dom
+        if (app === 'gjs' && autoMode) {
             const { injectPath } = await detectAutoGlobals(
                 { ...this.getEsBuildDefaults(), ...esbuild, format },
                 pluginOpts,
                 verbose,
+                { extraGlobalsList: extras },
             );
 
             const result = await build({
@@ -154,8 +175,10 @@ export class BuildAction {
             return [result];
         }
 
-        // --- Explicit or none mode ---
-        const autoGlobalsInject = await this.resolveGlobalsInject(app, globals, verbose);
+        // --- Explicit list (no `auto` token) or none mode ---
+        const autoGlobalsInject = extras
+            ? await this.resolveGlobalsInject(app, extras, verbose)
+            : undefined;
 
         const result = await build({
             ...this.getEsBuildDefaults(),

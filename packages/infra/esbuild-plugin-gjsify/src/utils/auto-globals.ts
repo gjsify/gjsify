@@ -14,7 +14,7 @@
 import { build, type BuildOptions } from 'esbuild';
 import { gjsifyPlugin } from '../plugin.js';
 import { detectFreeGlobals } from './detect-free-globals.js';
-import { writeRegisterInjectFile } from './scan-globals.js';
+import { resolveGlobalsList, writeRegisterInjectFile } from './scan-globals.js';
 import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
 import type { PluginOptions } from '../types/plugin-options.js';
 
@@ -45,6 +45,17 @@ function detectedToRegisterPaths(detected: Set<string>): Set<string> {
     return paths;
 }
 
+export interface DetectAutoGlobalsOptions {
+    /**
+     * Extra explicit identifiers (or group aliases like `dom`/`web`/`node`)
+     * that should always be injected, in addition to whatever the iterative
+     * detection finds. Used by `--globals auto,<extras>` for cases where
+     * the detector cannot statically see a global because it's accessed via
+     * indirection (e.g. Excalibur's `BrowserComponent.nativeComponent.matchMedia`).
+     */
+    extraGlobalsList?: string;
+}
+
 /**
  * Run an iterative esbuild build (in-memory) with acorn-based global
  * detection. Each pass uses the globals discovered by the previous pass,
@@ -62,9 +73,23 @@ export async function detectAutoGlobals(
     esbuildUserOptions: BuildOptions,
     pluginOptions: Omit<PluginOptions, 'autoGlobalsInject'>,
     verbose?: boolean,
+    options: DetectAutoGlobalsOptions = {},
 ): Promise<AutoGlobalsResult> {
+    // Resolve any extra explicit identifiers/groups into register paths.
+    // These are merged into the inject set on every iteration so the
+    // first pass already sees the related code.
+    const extraRegisterPaths = options.extraGlobalsList
+        ? resolveGlobalsList(options.extraGlobalsList)
+        : new Set<string>();
+
     let detected = new Set<string>();
     let currentInject: string | undefined = undefined;
+
+    // Seed the first pass with the extras (so any code reachable only
+    // through extra-injected register modules is visible to the analyser).
+    if (extraRegisterPaths.size > 0) {
+        currentInject = (await writeRegisterInjectFile(extraRegisterPaths)) ?? undefined;
+    }
 
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         const result = await build({
@@ -84,7 +109,7 @@ export async function detectAutoGlobals(
 
         const bundledCode = result.outputFiles?.map((f) => f.text).join('\n') ?? '';
         if (!bundledCode) {
-            return { detected: new Set(), injectPath: undefined };
+            return { detected: new Set(), injectPath: currentInject };
         }
 
         const newDetected = detectFreeGlobals(bundledCode);
@@ -95,8 +120,9 @@ export async function detectAutoGlobals(
         if (setsEqual(detected, newDetected)) {
             if (verbose) {
                 const sorted = [...detected].sort();
+                const extras = extraRegisterPaths.size > 0 ? ` (+ ${extraRegisterPaths.size} extra register module(s))` : '';
                 console.debug(
-                    `[gjsify] --globals auto: converged after ${iteration - 1} iteration(s), ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}`,
+                    `[gjsify] --globals auto: converged after ${iteration - 1} iteration(s), ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}${extras}`,
                 );
             }
             return { detected, injectPath: currentInject };
@@ -104,6 +130,8 @@ export async function detectAutoGlobals(
 
         detected = newDetected;
         const registerPaths = detectedToRegisterPaths(detected);
+        // Always merge in the extras
+        for (const p of extraRegisterPaths) registerPaths.add(p);
 
         if (registerPaths.size === 0) {
             return { detected, injectPath: undefined };
