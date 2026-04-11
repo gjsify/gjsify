@@ -11,7 +11,7 @@ Web platform APIs implemented for GJS using native GNOME libraries.
 | `dom-events` | — | Event, CustomEvent, EventTarget, DOMException |
 | `abort-controller` | — | AbortController, AbortSignal |
 | `formdata` | — | FormData, File |
-| `web-globals` | — | Re-exports dom-events + abort-controller |
+| `web-globals` | — | Meta-register for `performance`, `PerformanceObserver`, `FormData` plus chained re-exports of all Web API registers |
 | `websocket` | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
 | `streams` | Gio | ReadableStream, WritableStream, TransformStream |
 | `compression-streams` | Gio | CompressionStream, DecompressionStream |
