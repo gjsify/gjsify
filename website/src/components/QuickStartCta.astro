@@ -1,0 +1,260 @@
+---
+// Quick Start call-to-action — shown below the showcase slideshow on the
+// homepage. Displays the scaffolding command in an Adwaita terminal window
+// so developers familiar with the pattern can get started immediately.
+---
+
+<section class="quick-start-cta">
+  <h2 class="quick-start-title">Get started in seconds</h2>
+
+  <div class="quick-start-window">
+    <div class="quick-start-headerbar">
+      <span class="quick-start-headerbar-start"></span>
+      <span class="quick-start-headerbar-title">Terminal</span>
+      <span class="quick-start-headerbar-end">
+        <button class="quick-start-copy" aria-label="Copy command" data-command="npx @gjsify/cli create my-app">
+          <span class="quick-start-copy-icon" aria-hidden="true"></span>
+        </button>
+      </span>
+    </div>
+    <div class="quick-start-body">
+      <code><span class="quick-start-prompt">$</span> npx @gjsify/cli create my-app</code>
+    </div>
+  </div>
+
+  <p class="quick-start-hint">
+    or run <code>npx @gjsify/cli --help</code> to explore all commands
+  </p>
+  <div class="quick-start-links">
+    <a class="quick-start-btn quick-start-btn-primary" href="/gjsify/getting-started/">Getting Started Guide</a>
+    <a class="quick-start-btn quick-start-btn-minimal" href="/gjsify/cli-reference/">CLI Reference</a>
+  </div>
+</section>
+
+<script>
+  const btn = document.querySelector('.quick-start-copy') as HTMLButtonElement | null;
+  btn?.addEventListener('click', async () => {
+    const cmd = btn.dataset.command;
+    if (!cmd) return;
+    try {
+      await navigator.clipboard.writeText(cmd);
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1500);
+    } catch {
+      // Clipboard API may not be available — ignore silently.
+    }
+  });
+</script>
+
+<style is:global>
+  .quick-start-cta {
+    text-align: center;
+    padding: clamp(3rem, 6vw, 5rem) 1.5rem;
+    max-width: 600px;
+    margin-inline: auto;
+  }
+
+  .quick-start-title {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 800;
+    color: var(--sl-color-white);
+    margin: 0 0 1.5rem;
+  }
+
+  /* ── Adwaita window frame ── */
+  .quick-start-window {
+    border-radius: 12px;
+    box-shadow:
+      0 0 14px 5px rgb(0 0 0 / 15%),
+      0 0 5px 2px rgb(0 0 0 / 10%),
+      0 0 0 1px rgb(0 0 0 / 5%);
+    outline: 1px solid rgb(255 255 255 / 7%);
+    outline-offset: -1px;
+    overflow: hidden;
+    text-align: left;
+  }
+
+  /* ── Headerbar ── */
+  .quick-start-headerbar {
+    display: flex;
+    align-items: center;
+    min-height: 47px;
+    padding: 0 6px;
+    background: #2e2e32;
+    color: #ffffff;
+    box-shadow: inset 0 -1px rgba(0, 0, 6, 0.36);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) .quick-start-headerbar {
+      background: #ffffff;
+      color: rgba(0, 0, 6, 0.8);
+      box-shadow: inset 0 -1px rgba(0, 0, 6, 0.12);
+    }
+  }
+  :root[data-theme='light'] .quick-start-headerbar {
+    background: #ffffff;
+    color: rgba(0, 0, 6, 0.8);
+    box-shadow: inset 0 -1px rgba(0, 0, 6, 0.12);
+  }
+
+  .quick-start-headerbar-start {
+    width: 38px;
+    flex-shrink: 0;
+  }
+
+  .quick-start-headerbar-title {
+    flex: 1;
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.875rem;
+    color: inherit;
+  }
+
+  .quick-start-headerbar-end {
+    display: flex;
+    align-items: center;
+    padding: 0 3px;
+    flex-shrink: 0;
+  }
+
+  /* ── Copy button (Adwaita CSD flat button) ── */
+  .quick-start-copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    cursor: pointer;
+    color: inherit;
+    padding: 0;
+  }
+
+  .quick-start-copy:hover {
+    background: rgba(128, 128, 128, 0.12);
+  }
+
+  .quick-start-copy:active {
+    background: rgba(128, 128, 128, 0.22);
+  }
+
+  .quick-start-copy.copied {
+    color: #2ec27e;
+  }
+
+  .quick-start-copy-icon {
+    display: block;
+    width: 16px;
+    height: 16px;
+    background-color: currentColor;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20height%3D'16px'%20viewBox%3D'0%200%2016%2016'%20width%3D'16px'%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%3E%20%3Cpath%20d%3D'm%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200'%20fill%3D'currentColor'%2F%3E%20%3C%2Fsvg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg%20height%3D'16px'%20viewBox%3D'0%200%2016%2016'%20width%3D'16px'%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%3E%20%3Cpath%20d%3D'm%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200'%20fill%3D'currentColor'%2F%3E%20%3C%2Fsvg%3E");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
+  .quick-start-copy.copied .quick-start-copy-icon {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'16'%20height%3D'16'%20viewBox%3D'0%200%2016%2016'%3E%3Cpath%20d%3D'M13.78%204.22a.75.75%200%200%201%200%201.06l-7.25%207.25a.75.75%200%200%201-1.06%200L2.22%209.28a.75.75%200%200%201%201.06-1.06L6%2010.94l6.72-6.72a.75.75%200%200%201%201.06%200z'%20fill%3D'currentColor'%2F%3E%3C%2Fsvg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'16'%20height%3D'16'%20viewBox%3D'0%200%2016%2016'%3E%3Cpath%20d%3D'M13.78%204.22a.75.75%200%200%201%200%201.06l-7.25%207.25a.75.75%200%200%201-1.06%200L2.22%209.28a.75.75%200%200%201%201.06-1.06L6%2010.94l6.72-6.72a.75.75%200%200%201%201.06%200z'%20fill%3D'currentColor'%2F%3E%3C%2Fsvg%3E");
+  }
+
+  /* ── Code body ── */
+  .quick-start-body {
+    padding: 1rem 1.25rem;
+    background: #222226;
+    font-family: 'Adwaita Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+    font-size: clamp(0.9rem, 1.6vw, 1.05rem);
+    line-height: 1.6;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) .quick-start-body {
+      background: #ffffff;
+    }
+  }
+  :root[data-theme='light'] .quick-start-body {
+    background: #ffffff;
+  }
+
+  .quick-start-body code {
+    background: transparent !important;
+    padding: 0 !important;
+    font-size: inherit;
+    font-family: inherit;
+    color: #ffffff;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) .quick-start-body code {
+      color: rgba(0, 0, 6, 0.8);
+    }
+  }
+  :root[data-theme='light'] .quick-start-body code {
+    color: rgba(0, 0, 6, 0.8);
+  }
+
+  .quick-start-prompt {
+    color: var(--sl-color-gray-3);
+    margin-right: 0.5em;
+    user-select: none;
+  }
+
+  /* ── Hint ── */
+  .quick-start-hint {
+    margin: 1.25rem 0 1.5rem;
+    font-size: 0.9rem;
+    color: var(--sl-color-gray-3);
+  }
+
+  .quick-start-hint code {
+    font-size: 0.85rem;
+    color: var(--sl-color-gray-2);
+  }
+
+  /* ── CTA buttons (same style as Hero) ── */
+  .quick-start-links {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .quick-start-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
+  }
+
+  .quick-start-btn-primary {
+    background: var(--sl-color-accent);
+    color: #fff;
+  }
+
+  .quick-start-btn-primary:hover {
+    background: var(--sl-color-accent-high);
+    box-shadow: 0 4px 16px rgba(53, 132, 228, 0.35);
+    transform: translateY(-1px);
+  }
+
+  .quick-start-btn-minimal {
+    background: transparent;
+    color: var(--sl-color-white);
+    border: 1px solid var(--sl-color-gray-5);
+  }
+
+  .quick-start-btn-minimal:hover {
+    background: var(--sl-color-gray-6);
+    border-color: var(--sl-color-gray-4);
+  }
+</style>

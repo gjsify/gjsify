@@ -3,58 +3,63 @@ title: Getting Started
 description: Scaffold, build and run your first GJSify project
 ---
 
-GJSify lets you write GTK/GNOME apps with the familiar Node.js and Web API ecosystem. `import fs from 'node:fs'`, `fetch(...)`, `WebSocket`, `ReadableStream`, Canvas2D, WebGL — all backed by GLib, Gio, Soup, Cairo and GTK, running natively on Linux via [GJS](https://gjs.guide/).
+## Quick Start
 
-This guide walks you through scaffolding a new project, building it and running it.
+```bash
+npx @gjsify/cli create my-app
+cd my-app && npm install
+npm run dev
+```
+
+That's it — a GTK 4 window running your TypeScript, natively on Linux.
+
+> **Tip:** Run `npx @gjsify/cli --help` to see all available commands at a glance.
 
 ## Prerequisites
 
-You only need a few system packages installed:
+You need a few system packages:
 
-- **GJS** 1.84+ (GNOME 46+) — the GNOME JavaScript runtime
-- **GTK 4** — the UI toolkit used by the default template
-- **Node.js** 24+ — only needed at build time (for `npm`/`npx` and the CLI)
-- **libsoup3** — runtime for HTTP, WebSocket and `fetch`
+- **GJS** 1.84+ — the GNOME JavaScript runtime
+- **GTK 4** — the UI toolkit
+- **Node.js** 24+ — build time only (for `npm`/`npx`)
+- **libsoup3** — HTTP, WebSocket and `fetch` at runtime
 
-On Fedora:
+<details>
+<summary>Install commands</summary>
+
+Fedora:
 
 ```bash
 sudo dnf install gjs gtk4 libsoup3
 ```
 
-On Debian/Ubuntu:
+Debian/Ubuntu:
 
 ```bash
 sudo apt install gjs libgtk-4-1 libsoup-3.0-0
 ```
 
-Not sure if everything is in place? Run the built-in check:
+</details>
+
+Not sure if everything is in place?
 
 ```bash
 npx @gjsify/cli check
 ```
 
-## Scaffold a new project
+## What gets scaffolded
 
-Create a fresh GJSify project in a new directory:
-
-```bash
-npx @gjsify/cli create my-app
-cd my-app
-npm install
-```
-
-This generates a minimal GTK 4 application:
+`gjsify create` generates a minimal GTK 4 project:
 
 ```
 my-app/
 ├── src/
 │   └── index.ts        # Gtk.Application entry point
-├── package.json        # with build/start/dev scripts wired to gjsify CLI
+├── package.json        # build/start/dev scripts wired to gjsify CLI
 └── tsconfig.json
 ```
 
-The generated `package.json` depends on `@gjsify/cli` and `@girs/gtk-4.0`, so everything you need is in place after `npm install`. The build script is intentionally minimal — no `--globals` list to maintain, since the CLI's default `auto` mode detects which Node.js and Web API globals your code needs:
+The build script uses `--globals auto` by default — no manual list to maintain:
 
 ```jsonc
 "scripts": {
@@ -63,11 +68,9 @@ The generated `package.json` depends on `@gjsify/cli` and `@girs/gtk-4.0`, so ev
 }
 ```
 
-> Alternative: you can also call the scaffolder directly via `npx @gjsify/create-app my-app`. Both commands produce the same project.
+> You can also scaffold via `npx @gjsify/create-app my-app` directly.
 
 ## Build and run
-
-The scaffolded project ships with three npm scripts:
 
 ```bash
 npm run build   # gjsify build src/index.ts --outfile dist/index.js
@@ -75,17 +78,16 @@ npm start       # gjsify run dist/index.js
 npm run dev     # build + run in one step
 ```
 
-`gjsify run` automatically sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` for any native prebuilds in your `node_modules` (e.g. `@gjsify/webgl`), so you do not have to wire up the environment yourself.
+`gjsify run` automatically sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` for any native prebuilds (e.g. `@gjsify/webgl`).
 
 ## Using Node.js and Web APIs
 
-The GJSify esbuild plugin does two things for you when you build for GJS:
+Write standard Node.js and Web API code — the esbuild plugin handles everything:
 
-1. **Automatic module aliasing** — `import { readFileSync } from 'node:fs'` or `import { createServer } from 'node:http'` get rewritten to their `@gjsify/*` equivalents. You never install or import the `@gjsify/*` packages directly.
-2. **Automatic globals detection (`--globals auto`)** — the CLI parses your bundled output, finds every reference to known globals like `fetch`, `Buffer`, `process`, `URL`, `crypto`, `AbortController`, and injects the matching `/register` modules so they exist at runtime. No manual list to maintain.
+1. **Auto aliasing** — `import { readFileSync } from 'node:fs'` rewrites to `@gjsify/fs` (backed by Gio)
+2. **Auto globals** — `fetch`, `Buffer`, `process`, `URL` etc. are detected and injected automatically
 
 ```typescript
-// src/index.ts — look ma, no special imports!
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 
@@ -101,7 +103,7 @@ server.listen(parseInt(process.env.PORT ?? '8080'), () => {
 })
 ```
 
-`node:fs` is backed by `Gio.File`, `node:http` by `Soup.Server`, `process.env` by `GLib.getenv()` — from your code's perspective it is just Node.js. The same applies to Web APIs:
+`node:fs` is backed by `Gio.File`, `node:http` by `Soup.Server`, `process.env` by `GLib.getenv()`. The same code works on Node.js and GJS depending on the `--app` target.
 
 ```typescript
 const response = await fetch('https://api.example.com/data')
@@ -111,11 +113,22 @@ const ws = new WebSocket('wss://echo.example.com')
 ws.addEventListener('message', (event) => console.log(event.data))
 ```
 
-> **Auto detection missed a global?** This is rare, but happens with libraries that wrap `globalThis` in another object (so the access is hidden from static analysis). The fix is to keep auto on and add the missing identifier as an extra: `gjsify build … --globals auto,matchMedia` or `--globals auto,dom` for the entire DOM group. See the [CLI Reference](/gjsify/cli-reference/#known-identifiers) for the full list of supported identifiers.
+<details>
+<summary>Auto detection missed a global?</summary>
 
-See [How It Works](/gjsify/how-it-works/) for a full explanation of auto-aliasing and the iterative globals detection, or jump straight to the [CLI Reference](/gjsify/cli-reference/) to explore all available commands.
+This is rare, but happens with libraries that wrap `globalThis` in another object (hiding the access from static analysis). Keep auto on and add the missing identifier:
 
-## Next Steps
+```bash
+gjsify build … --globals auto,matchMedia
+# or use a group:
+gjsify build … --globals auto,dom
+```
+
+See the [CLI Reference](/gjsify/cli-reference/#known-identifiers) for the full list of supported identifiers.
+
+</details>
+
+## Next steps
 
 - [CLI Reference](/gjsify/cli-reference/) — all `gjsify` subcommands and flags
 - [How It Works](/gjsify/how-it-works/) — auto-aliasing, prebuilds and the GJS build pipeline
