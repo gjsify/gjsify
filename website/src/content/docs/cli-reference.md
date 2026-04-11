@@ -247,7 +247,7 @@ gjs -m dist/index.js
 
 ## `gjsify check`
 
-Verify that all required system dependencies are installed: GJS, GTK 4, Blueprint Compiler, and friends. Returns a non-zero exit code if anything is missing and prints the install command for your detected package manager.
+Verify that the required system dependencies are installed: GJS, GTK 4, libsoup3, libadwaita, GObject Introspection, Blueprint Compiler, pkg-config, and Meson. Reports an install command for your detected package manager when something is missing.
 
 ```bash
 npx @gjsify/cli check
@@ -257,6 +257,64 @@ npx @gjsify/cli check --json
 | Option | Default | Description |
 |---|---|---|
 | `--json` | `false` | Output results as JSON |
+
+### Required vs optional dependencies
+
+The check splits dependencies into two categories:
+
+**Required** — always checked, always part of the exit code:
+- Build toolchain: `gjs`, `pkg-config`, `meson`, `blueprint-compiler`
+- Foundational libraries: `gtk4`, `libadwaita-1`, `libsoup-3.0`, `gobject-introspection-1.0`
+
+If any required dep is missing, `gjsify check` prints `✗`, suggests an install command, and exits with code **1**.
+
+**Optional** — only checked if a corresponding `@gjsify/*` package is in your project, and missing entries only generate a warning (`⚠`) without affecting the exit code:
+
+| Optional dep | Required by |
+|---|---|
+| `libmanette-0.2` | `@gjsify/gamepad` |
+| `gstreamer-1.0`, `gstreamer-app-1.0` | `@gjsify/webaudio` |
+| `webkitgtk-6.0` | `@gjsify/iframe` |
+| `gdk-pixbuf-2.0` | `@gjsify/dom-elements`, `@gjsify/canvas2d`, `@gjsify/canvas2d-core` |
+| `pango`, `pangocairo`, `cairo` | `@gjsify/canvas2d`, `@gjsify/canvas2d-core` |
+| `gwebgl` (npm package) | `@gjsify/webgl` |
+
+The conditional logic walks `node_modules/@gjsify/` from your project root. If your project depends only on `@gjsify/fs` and `@gjsify/http`, you will not see warnings about libmanette or GStreamer — those libs aren't needed.
+
+### Exit codes
+
+| Exit | Meaning |
+|---|---|
+| `0` | All required deps found. Optional deps may still be missing (with `⚠` warnings). |
+| `1` | At least one required dep is missing. |
+
+This means CI scripts and pre-flight checks can use `gjsify check` as a hard gate without failing on libraries the user genuinely doesn't need.
+
+### JSON schema
+
+```json
+{
+  "packageManager": "dnf",
+  "deps": [
+    {
+      "id": "gjs",
+      "name": "GJS",
+      "found": true,
+      "version": "1.86.0",
+      "severity": "required"
+    },
+    {
+      "id": "manette",
+      "name": "libmanette",
+      "found": false,
+      "severity": "optional",
+      "requiredBy": ["@gjsify/gamepad"]
+    }
+  ]
+}
+```
+
+The `severity` field is `"required"` or `"optional"`. The `requiredBy` field is present on optional entries and lists the `@gjsify/*` packages that need the library.
 
 ## `gjsify info`
 

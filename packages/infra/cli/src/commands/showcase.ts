@@ -83,14 +83,16 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
         if (needsWebgl) {
             results.push(checkGwebgl(process.cwd()));
         }
-        const missing = results.filter(r => !r.found);
-        if (missing.length > 0) {
+        // Hard-fail only on missing REQUIRED deps (gjs, gwebgl is required if needsWebgl).
+        // For showcase, gwebgl is treated as required because the bundle won't run without it.
+        const missingHard = results.filter(r => !r.found && (r.severity === 'required' || r.id === 'gwebgl'));
+        if (missingHard.length > 0) {
             console.error('Missing system dependencies:\n');
-            for (const dep of missing) {
+            for (const dep of missingHard) {
                 console.error(`  ✗  ${dep.name}`);
             }
             const pm = detectPackageManager();
-            const cmd = buildInstallCommand(pm, missing);
+            const cmd = buildInstallCommand(pm, missingHard);
             if (cmd) {
                 console.error(`\nInstall with:\n  ${cmd}`);
             }
