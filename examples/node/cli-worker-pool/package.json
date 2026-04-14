@@ -9,7 +9,7 @@
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
-    "start": "yarn start:node",
+    "start": "yarn start:gjs",
     "start:gjs": "gjs -m dist/index.gjs.js",
     "start:node": "node dist/index.node.mjs",
     "build": "yarn build:gjs && yarn build:node",
