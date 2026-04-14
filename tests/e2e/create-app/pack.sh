@@ -11,11 +11,17 @@ mkdir -p "$TARBALLS_DIR"
 MONOREPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$MONOREPO_ROOT"
 
-# Collect workspace entries, filtering out root
+# Collect workspace entries, filtering out root and template workspaces.
+# Templates are source-only packages consumed via `create-app` scaffolding,
+# not installed as npm dependencies.
 # Examples are included because @gjsify/cli depends on @gjsify/example-* for showcase.
 ENTRIES=$(yarn workspaces list --json 2>/dev/null | while read -r line; do
   LOC=$(echo "$line" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).location)")
+  NAME=$(echo "$line" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).name)")
   [ "$LOC" = "." ] && continue
+  case "$NAME" in
+    @gjsify/template-*) continue ;;
+  esac
   echo "$line"
 done)
 

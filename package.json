@@ -47,11 +47,11 @@
   "packageManager": "yarn@4.13.0",
   "workspaces": [
     "packages/infra/*",
-    "packages/infra/create-gjsify/template",
     "packages/gjs/*",
     "packages/node/*",
     "packages/web/*",
     "packages/dom/*",
+    "templates/*",
     "examples/node/*",
     "examples/dom/*",
     "showcases/dom/*",

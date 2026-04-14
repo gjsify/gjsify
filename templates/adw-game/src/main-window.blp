@@ -1,0 +1,19 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $MainWindow: Adw.ApplicationWindow {
+  default-width: 800;
+  default-height: 600;
+  title: "new-gjsify-app — Game";
+
+  content: Gtk.Box {
+    orientation: vertical;
+
+    Adw.HeaderBar {}
+
+    Gtk.Box canvasContainer {
+      hexpand: true;
+      vexpand: true;
+    }
+  };
+}

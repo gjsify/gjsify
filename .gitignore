@@ -12,6 +12,7 @@
 node_modules/
 tmp/
 dist/
+dist-templates/
 lib/
 build/
 builddir/
