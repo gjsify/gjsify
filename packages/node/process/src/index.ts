@@ -201,7 +201,10 @@ function getArgv(): string[] {
   try {
     const system = getGjsGlobal().imports?.system;
     if (system?.programArgs) {
-      return [system.programInvocationName || 'gjs', ...system.programArgs];
+      // Node.js convention: argv = [executable, script, ...userArgs].
+      // GJS `system.programInvocationName` holds the script path, so prepend
+      // 'gjs' so consumers like yargs' `hideBin()` (which slices(2)) work.
+      return ['gjs', system.programInvocationName || '', ...system.programArgs];
     }
   } catch { /* ignore */ }
   return ['gjs'];
