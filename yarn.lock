@@ -1658,6 +1658,7 @@ __metadata:
   dependencies:
     "@gjsify/create-app": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
+    "@gjsify/example-dom-adwaita-package-builder": "workspace:^"
     "@gjsify/example-dom-canvas2d-fireworks": "workspace:^"
     "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^"
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
@@ -1933,6 +1934,7 @@ __metadata:
     "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.2"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
@@ -1959,6 +1961,23 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@gjsify/web-streams": "workspace:^"
     "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-dom-adwaita-package-builder@workspace:^, @gjsify/example-dom-adwaita-package-builder@workspace:showcases/dom/adwaita-package-builder":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-adwaita-package-builder@workspace:showcases/dom/adwaita-package-builder"
+  dependencies:
+    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.2"
+    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.2"
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gjs": "npm:^4.0.0-rc.2"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.2"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/esbuild-plugin-blueprint": "workspace:^"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft

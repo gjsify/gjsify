@@ -330,6 +330,8 @@ npx @gjsify/cli gresource data/org.example.App.data.gresource.xml \
 
 Requires `glib-compile-resources` (package: `glib2-devel` on Fedora, `libglib2.0-dev-bin` on Debian/Ubuntu).
 
+See it in action: [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) embeds `style.css` this way.
+
 ## `gjsify gettext`
 
 Compile gettext `.po` files for GNOME apps. Wraps `msgfmt` with the common output shapes — per-language locale tree (`.mo`), metainfo template substitution (`.xml`), and two less-common formats (`.desktop`, `.json`).
@@ -357,5 +359,7 @@ npx @gjsify/cli gettext translations dist/metainfo \
 | `--verbose` | `false` | Print each `msgfmt` invocation |
 
 Requires `msgfmt` (package: `gettext`).
+
+See it in action: [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) uses both `--format mo` (runtime `.mo` tree) and `--format xml --metainfo` (AppStream substitution).
 
 Before running, `gjsify showcase` calls `gjsify check` to verify system dependencies.

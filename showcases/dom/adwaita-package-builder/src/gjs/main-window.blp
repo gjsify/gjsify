@@ -1,0 +1,33 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $MainWindow: Adw.ApplicationWindow {
+  title: _("Adwaita Package Builder");
+  default-width: 480;
+  default-height: 240;
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Box {
+      orientation: vertical;
+      halign: center;
+      valign: center;
+      spacing: 12;
+      margin-start: 24;
+      margin-end: 24;
+      margin-top: 24;
+      margin-bottom: 24;
+
+      Label greeting {
+        styles [ "greeting" ]
+      }
+
+      Label detail {
+        wrap: true;
+        justify: center;
+      }
+    };
+  };
+}

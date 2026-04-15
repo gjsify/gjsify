@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de\n"
+
+msgid "Hello from gjsify"
+msgstr "Hallo von gjsify"
+
+msgid "CSS from GResource · Text from Gettext · Binary from --shebang"
+msgstr "CSS aus GResource · Text aus Gettext · Binary mit --shebang"
+
+msgid "Adwaita Package Builder"
+msgstr "Adwaita-Paketbauer"
+
+msgid "gjsify showcase demonstrating app packaging"
+msgstr "gjsify-Showcase für das App-Packaging"

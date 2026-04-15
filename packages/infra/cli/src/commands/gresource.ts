@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { mkdir } from 'node:fs/promises';
 import { basename, dirname, extname, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { Command } from '../types/index.js';
@@ -67,6 +68,10 @@ export const gresourceCommand: Command<any, GResourceOptions> = {
         if (args.verbose) {
             console.log(`[gjsify gresource] glib-compile-resources ${cmdArgs.join(' ')}`);
         }
+
+        // Ensure the target directory exists — glib-compile-resources writes
+        // a temporary file next to the target and fails with ENOENT otherwise.
+        await mkdir(dirname(target), { recursive: true });
 
         try {
             const { stdout, stderr } = await execFileAsync('glib-compile-resources', cmdArgs);
