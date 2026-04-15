@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **showcases:** new `adwaita-package-builder` showcase — minimal Adwaita app demonstrating `gjsify gresource`, `gjsify gettext`, and `gjsify build --shebang` in a single build pipeline. Produces a directly-executable binary with an embedded GResource (CSS) and per-language `.mo` translations (de/es). Serves as the `gjsify showcase adwaita-package-builder` reference for "how to package a GJS/GNOME app with the gjsify CLI alone"
+
+### Bug Fixes
+
+* **cli/gettext:** `--format mo` no longer passes an invalid `--mo` flag to `msgfmt`. `msgfmt` produces a `.mo` file by default when no format flag is given; the `--mo` pseudo-flag never worked and caused every `gettext --format mo` invocation to fail with "Unbekannte Option »--mo«"
+* **cli/gresource:** create the target directory automatically before invoking `glib-compile-resources`. Previously a target like `dist/app.gresource` failed with ENOENT when `dist/` did not exist, because `glib-compile-resources` writes a temp file next to the target
+
+### Tests
+
+* **event-bridge:** new `event-bridge.spec.ts` regression suite verifying the `motion` handler reads widget-local coords from the signal callback (NOT from `controller.get_current_event().get_position()`, which returns surface-local coords and produced a drag-jump on first move after click). Covers coord forwarding, clamping to widget allocation, and movementX/Y tracking across successive motions
+* **cli-only E2E:** added coverage for `gjsify build --shebang` (shebang prepend + `chmod 0o755` + idempotence on repeated builds), `gjsify gresource` (binary bundle produced, `gresource list` lists the embedded path), and `gjsify gettext --format mo` (per-language locale tree under `<outDir>/<lang>/LC_MESSAGES/<domain>.mo`). Skips gracefully when `glib-compile-resources` / `msgfmt` are not installed
+
 ## [0.1.10](https://github.com/gjsify/gjsify/compare/v0.1.9...v0.1.10) (2026-04-11)
 
 ### Features

@@ -13,7 +13,7 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **5 DOM 
 | Web APIs | 15 | 14 (93%) | 1 (7%) | — |
 | DOM APIs | 5 | 5 (100%) | — | — |
 | Browser UI | 1 | 1 | — | — |
-| Showcases | 5 | 5 | — | — |
+| Showcases | 6 | 6 | — | — |
 | GJS Infrastructure | 4 | 3 | 1 (types) | — |
 | Build/Infra Tools | 9 | 9 | — | — |
 
@@ -221,7 +221,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Build tools | 9 (infra/) |
 | Total test cases | 10,100+ |
 | Spec files | 106 |
-| Showcases | 5 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver) |
+| Showcases | 6 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder) |
 | Real-world examples | 11+ (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, Three.js teapot) |
 | GNOME-integrated packages | 13 (25%) |
 | Alias mappings (GJS) | 60+ |
