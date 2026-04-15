@@ -103,7 +103,13 @@ async function compilePerLanguage(opts: {
         await ensureDir(langDir);
         const outputFile = join(langDir, opts.filename);
 
-        const args = [`--output-file=${outputFile}`, `--${opts.format}`, poFile];
+        // msgfmt produces the binary .mo format by default — there is no
+        // `--mo` flag (only --xml, --desktop, --properties-output, ...).
+        const args = [`--output-file=${outputFile}`];
+        if (opts.format !== 'mo') {
+            args.push(`--${opts.format}`);
+        }
+        args.push(poFile);
 
         if (opts.verbose) {
             console.log(`[gjsify gettext] msgfmt ${args.join(' ')}`);

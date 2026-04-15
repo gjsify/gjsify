@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": [
+            "@girs/gjs",
+            "@girs/gtk-4.0",
+            "@girs/adw-1",
+            "@gjsify/esbuild-plugin-blueprint/types"
+        ],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": ["src/gjs/main.ts"]
+}

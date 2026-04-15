@@ -12,11 +12,15 @@
         }
     },
     "scripts": {
-        "clear": "rm -rf lib tmp tsconfig.tsbuildinfo || exit 0",
+        "clear": "rm -rf lib tmp tsconfig.tsbuildinfo test.gjs.mjs || exit 0",
         "check": "tsc --noEmit",
         "build": "yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-        "build:types": "tsc"
+        "build:types": "tsc",
+        "build:test": "yarn build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
+        "test:gjs": "gjs -m test.gjs.mjs"
     },
     "keywords": [
         "gjs",
@@ -34,6 +38,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
         "@types/node": "^25.6.0",
         "typescript": "^6.0.2"
     }
