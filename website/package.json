@@ -20,7 +20,7 @@
     "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^",
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^",
     "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^",
-    "astro": "^6.1.5",
+    "astro": "^6.1.6",
     "excalibur": "0.32.0",
     "three": "0.183.2"
   },

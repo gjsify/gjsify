@@ -61,9 +61,9 @@
         "node"
     ],
     "dependencies": {
-        "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-rc.2",
-        "@girs/gjs": "^4.0.0-rc.2",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-rc.3",
+        "@girs/gjs": "^4.0.0-rc.3",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
         "@gjsify/abort-controller": "workspace:^",
         "@gjsify/canvas2d-core": "workspace:^",
         "@gjsify/dom-events": "workspace:^",

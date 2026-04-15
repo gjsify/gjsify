@@ -14,9 +14,9 @@
     "build:assets": "cp -f src/browser/index.html dist/index.html"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.2",
-    "@girs/gjs": "^4.0.0-rc.2",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.3",
+    "@girs/gjs": "^4.0.0-rc.3",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.3",
     "@gjsify/canvas2d": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.6.0",

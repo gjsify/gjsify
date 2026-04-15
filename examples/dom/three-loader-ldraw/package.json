@@ -22,11 +22,11 @@
     "@gjsify/webgl": "workspace:^"
   },
   "devDependencies": {
-    "@girs/adw-1": "^1.10.0-4.0.0-rc.2",
-    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.2",
-    "@girs/gjs": "^4.0.0-rc.2",
-    "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.2",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2",
+    "@girs/adw-1": "^1.10.0-4.0.0-rc.3",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.3",
+    "@girs/gjs": "^4.0.0-rc.3",
+    "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.3",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.3",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.6.0",

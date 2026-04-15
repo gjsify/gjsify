@@ -49,10 +49,10 @@
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.2",
-        "@girs/gjs": "^4.0.0-rc.2",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.2",
-        "@girs/soup-3.0": "^3.6.6-4.0.0-rc.2",
+        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.3",
+        "@girs/gjs": "^4.0.0-rc.3",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
+        "@girs/soup-3.0": "^3.6.6-4.0.0-rc.3",
         "@gjsify/formdata": "workspace:^",
         "@gjsify/http": "workspace:^",
         "@gjsify/url": "workspace:^",

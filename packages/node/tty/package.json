@@ -36,7 +36,7 @@
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
         "@gjsify/stream": "workspace:^"
     }
 }
