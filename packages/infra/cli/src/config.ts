@@ -83,6 +83,7 @@ export class Config {
         configData.exclude = cliArgs.exclude || [];
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;
+        if (cliArgs.shebang !== undefined) configData.shebang = cliArgs.shebang;
 
         merge(configData.library ??= {}, pkg, configData.library);
         merge(configData.typescript ??= {}, tsConfig, configData.typescript);

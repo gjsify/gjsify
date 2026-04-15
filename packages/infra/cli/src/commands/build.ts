@@ -94,6 +94,12 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
                 default: 'auto'
             })
+            .option('shebang', {
+                description: "Prepend a `#!/usr/bin/env -S gjs -m` shebang to the output and mark it executable (chmod 755). Only applies to GJS app builds with a single --outfile.",
+                type: 'boolean',
+                normalize: true,
+                default: false
+            })
     },
     handler: async (args) => {
         const config = new Config();

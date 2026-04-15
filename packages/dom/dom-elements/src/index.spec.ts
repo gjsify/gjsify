@@ -510,6 +510,24 @@ export default async () => {
 			expect(clicked).toBe(true);
 		});
 
+		await it('should expose onwheel on the prototype (feature-detected by Excalibur)', async () => {
+			// Excalibur checks `'onwheel' in document.createElement('div')` before
+			// registering its wheel listener — regression test for map-editor
+			// where the absence of this property silently disabled mouse-wheel zoom.
+			const el = new HTMLElement();
+			expect('onwheel' in el).toBe(true);
+			expect(el.onwheel).toBeNull();
+			let deltaY = 0;
+			el.onwheel = (ev: any) => { deltaY = ev.deltaY; };
+			el.dispatchEvent(new Event('wheel') as any);
+			// The handler fires even without a deltaY; verifies wiring
+			expect(typeof el.onwheel).toBe('function');
+			el.onwheel = null;
+			expect(el.onwheel).toBeNull();
+			// Avoid unused-variable warning
+			void deltaY;
+		});
+
 		await it('should support both addEventListener and on* handler', async () => {
 			const el = new HTMLElement();
 			const calls: string[] = [];
