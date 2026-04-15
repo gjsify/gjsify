@@ -55,4 +55,10 @@ export interface CliBuildOptions {
    * bundle. Only applies to GJS app builds.
    */
   globals?: string;
+  /**
+   * Prepend a `#!/usr/bin/env -S gjs -m` shebang to the output file and mark
+   * it executable (chmod 755). Only applies to GJS app builds with a single
+   * `--outfile`. Default: false.
+   */
+  shebang?: boolean;
 }

@@ -37,6 +37,7 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--outdir`, `-d` | path | from `package.json` | Output directory (library mode) |
 | `--minify` | bool | `false` | Minify the output |
 | `--globals` | string | `"auto"` | Globals mode (see below) |
+| `--shebang` | bool | `false` | Prepend `#!/usr/bin/env -S gjs -m` to the outfile and chmod it `0o755`. Only with `--app gjs` and a single `--outfile`. |
 | `--verbose` | bool | `false` | Show detected globals and build details |
 
 <details>
@@ -309,5 +310,52 @@ npx @gjsify/cli showcase three-geometry-teapot
 | `[name]` | — | Showcase name to run. Omit to list available showcases |
 | `--list` | `false` | Force list mode |
 | `--json` | `false` | Output as JSON (list mode only) |
+
+## `gjsify gresource`
+
+Compile a GResource XML descriptor into a binary `.gresource` bundle. Thin wrapper around `glib-compile-resources` — useful when you want to package UI templates and assets into the app bundle without pulling in meson/autotools.
+
+```bash
+npx @gjsify/cli gresource data/org.example.App.data.gresource.xml \
+  --sourcedir data \
+  --target dist/org.example.App.data.gresource
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `<xml>` | — | Path to the `.gresource.xml` descriptor (required) |
+| `--sourcedir` | `dirname(<xml>)` | Directory containing the resource files referenced by `<xml>` |
+| `--target`, `-t` | `<xml-without-.xml>` next to `<xml>` | Output `.gresource` file |
+| `--verbose` | `false` | Print the underlying `glib-compile-resources` invocation |
+
+Requires `glib-compile-resources` (package: `glib2-devel` on Fedora, `libglib2.0-dev-bin` on Debian/Ubuntu).
+
+## `gjsify gettext`
+
+Compile gettext `.po` files for GNOME apps. Wraps `msgfmt` with the common output shapes — per-language locale tree (`.mo`), metainfo template substitution (`.xml`), and two less-common formats (`.desktop`, `.json`).
+
+```bash
+# Compile to runtime .mo locale tree
+npx @gjsify/cli gettext translations dist/locale --domain org.example.App
+
+# Substitute a metainfo template via msgfmt --xml --template
+npx @gjsify/cli gettext translations dist/metainfo \
+  --domain org.example.App \
+  --format xml \
+  --metainfo data/metainfo/org.example.App.metainfo.xml.in
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `<poDir>` | — | Directory containing `<lang>.po` files (required) |
+| `<outDir>` | — | Output directory (locale tree for `--format=mo`, plain dir otherwise) (required) |
+| `--domain` | — | Text domain / application ID (required) |
+| `--format` | `mo` | One of `mo`, `xml`, `desktop`, `json` |
+| `--metainfo` | — | For `--format=xml`: path to the template (`.metainfo.xml.in`) used as `msgfmt --template` |
+| `--filename` | `<domain>.<ext>` | Override the output filename |
+| `--remove-xml-comments` | `true` | For `--format=xml`: strip XML comments from the compiled output |
+| `--verbose` | `false` | Print each `msgfmt` invocation |
+
+Requires `msgfmt` (package: `gettext`).
 
 Before running, `gjsify showcase` calls `gjsify check` to verify system dependencies.
