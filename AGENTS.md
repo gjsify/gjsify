@@ -78,7 +78,7 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| dom-elements | GdkPixbuf | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement, HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,alert}` on import |
+| dom-elements | GdkPixbuf | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement, HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert}` on import |
 | canvas2d | Cairo, GdkPixbuf, PangoCairo | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DWidget→Gtk.DrawingArea |
 | webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), CanvasWebGLWidget→Gtk.GLArea |
 | event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |

@@ -89,14 +89,14 @@ export function attachEventControllers(
     // ---- Motion controller ----
     const motionCtrl = new Gtk.EventControllerMotion();
 
-    motionCtrl.connect('motion', () => {
+    motionCtrl.connect('motion', (_ctrl: Gtk.EventControllerMotion, x: number, y: number) => {
         const el = getElement();
         if (!el) return;
-        // Get coordinates from the current event directly
-        const event = motionCtrl.get_current_event();
-        if (!event) return;
-        const [, x, y] = (event as any).get_position?.() ?? [false, state.lastX, state.lastY];
-        // Fall back to widget-local coords from the controller
+        // Use widget-local coords from the signal directly. Previously we
+        // pulled coords from `motionCtrl.get_current_event().get_position()`,
+        // which returns SURFACE-local coords — inconsistent with `pressed`
+        // (GestureClick passes widget-local coords to its callback) and
+        // caused drag anchors to jump on the first move after a click.
         const allocW = widget.get_allocated_width();
         const allocH = widget.get_allocated_height();
         const cx = Math.max(0, Math.min(x, allocW));
