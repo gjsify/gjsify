@@ -31,6 +31,9 @@
 * **event-bridge:** wire keyboard input to window-level listeners
 * **fetch:** support file:// URIs + root-relative URL rewrite for GJS
 * **gamepad:** new `@gjsify/gamepad` package — Gamepad Web API for GJS backed by libmanette 0.2. Implements Gamepad, GamepadButton, GamepadEvent, GamepadHapticActuator (dual-rumble). Bridges libmanette's event-driven signals to W3C polling-based navigator.getGamepads(). Button/axis mapping from Manette enums to W3C standard layout. Lazy Monitor init + graceful degradation. 19 tests. Enables controller support in excalibur-jelly-jumper showcase
+* **cli:** `--shebang` flag on `gjsify build` — after a successful GJS app build, prepends `#!/usr/bin/env -S gjs -m` to the outfile and sets it executable (`chmod 0o755`). Turns the bundle into a standalone, directly-executable GJS binary (e.g. `./org.myapp.Maker`) without a separate launcher script
+* **cli:** new `gjsify gresource <xml>` command — thin wrapper around `glib-compile-resources` with `--sourcedir` and `--target` options. Default target is derived from the XML descriptor filename. Mirrors the meson/autotools step for packaging UI templates and assets into a binary `.gresource` bundle
+* **cli:** new `gjsify gettext <poDir> <outDir>` command — wraps `msgfmt` for translation workflows. Supports `--format mo` (per-language locale tree `<outDir>/<lang>/LC_MESSAGES/<domain>.mo`, default), `xml` (metainfo template substitution via `msgfmt --template`, with optional `--remove-xml-comments`), `desktop`, and `json`. Replaces hand-rolled shell scripts in GNOME app build pipelines
 
 ### Bug Fixes
 

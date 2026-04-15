@@ -19,4 +19,8 @@ export interface ConfigData {
      * See CliBuildOptions for format.
      */
     globals?: string;
+    /**
+     * Prepend GJS shebang to output and mark executable. See CliBuildOptions.
+     */
+    shebang?: boolean;
 }

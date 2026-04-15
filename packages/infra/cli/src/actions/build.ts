@@ -3,7 +3,10 @@ import type { App } from '@gjsify/esbuild-plugin-gjsify';
 import { build, BuildOptions, BuildResult } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
 import { resolveGlobalsList, writeRegisterInjectFile, detectAutoGlobals } from '@gjsify/esbuild-plugin-gjsify/globals';
-import { dirname, extname } from 'path';
+import { dirname, extname } from 'node:path';
+import { chmod, readFile, writeFile } from 'node:fs/promises';
+
+const GJS_SHEBANG = '#!/usr/bin/env -S gjs -m\n';
 
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {
@@ -123,6 +126,26 @@ export class BuildAction {
         return injectPath ?? undefined;
     }
 
+    /**
+     * Post-processing: prepend GJS shebang and mark the output file executable.
+     * Only runs for GJS app builds with a resolvable single outfile.
+     */
+    private async applyShebang(outfile: string | undefined, verbose: boolean | undefined): Promise<void> {
+        if (!outfile) {
+            if (verbose) console.warn('[gjsify] --shebang skipped: no single outfile (use --outfile for GJS executables)');
+            return;
+        }
+
+        const content = await readFile(outfile, 'utf-8');
+        if (content.startsWith('#!')) {
+            if (verbose) console.debug(`[gjsify] --shebang skipped: ${outfile} already starts with a shebang`);
+        } else {
+            await writeFile(outfile, GJS_SHEBANG + content);
+        }
+        await chmod(outfile, 0o755);
+        if (verbose) console.debug(`[gjsify] --shebang: wrote shebang + chmod 0o755 to ${outfile}`);
+    }
+
     /** Application mode */
     async buildApp(app: App = 'gjs') {
 
@@ -172,6 +195,10 @@ export class BuildAction {
                 ],
             });
 
+            if (app === 'gjs' && this.configData.shebang) {
+                await this.applyShebang(esbuild?.outfile, verbose);
+            }
+
             return [result];
         }
 
@@ -191,6 +218,10 @@ export class BuildAction {
                 }),
             ]
         });
+
+        if (app === 'gjs' && this.configData.shebang) {
+            await this.applyShebang(esbuild?.outfile, verbose);
+        }
 
         return [result];
     }
