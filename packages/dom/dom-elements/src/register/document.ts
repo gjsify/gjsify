@@ -44,6 +44,14 @@ if (typeof (globalThis as any).addEventListener !== 'function') {
 // devicePixelRatio — defaults to 1 (no HiDPI scaling in GTK GL context)
 defineGlobalIfMissing('devicePixelRatio', 1);
 
+// scrollX/scrollY — always 0 in a GTK widget (no page scrolling). Excalibur's
+// getPosition() does `rect.x + window.scrollX`, producing NaN if scrollX is
+// undefined and breaking all pointer coordinates.
+defineGlobalIfMissing('scrollX', 0);
+defineGlobalIfMissing('scrollY', 0);
+defineGlobalIfMissing('pageXOffset', 0);
+defineGlobalIfMissing('pageYOffset', 0);
+
 // alert — stub redirecting to console.error
 defineGlobalIfMissing('alert', (...args: unknown[]) => console.error('alert:', ...args));
 

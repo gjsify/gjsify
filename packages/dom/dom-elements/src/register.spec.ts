@@ -111,5 +111,26 @@ export default async () => {
             });
         });
 
+        await describe('window scroll globals', async () => {
+            // Excalibur's getPosition() computes `rect.x + window.scrollX`.
+            // Without these stubs scrollX is undefined → NaN coords → blank
+            // canvas on any drag/pan. Regression test for map-editor.
+            await it('scrollX and scrollY default to 0', async () => {
+                expect((globalThis as any).scrollX).toBe(0);
+                expect((globalThis as any).scrollY).toBe(0);
+            });
+
+            await it('legacy pageXOffset and pageYOffset default to 0', async () => {
+                expect((globalThis as any).pageXOffset).toBe(0);
+                expect((globalThis as any).pageYOffset).toBe(0);
+            });
+
+            await it('rect.x + window.scrollX is a number (no NaN)', async () => {
+                const rect = (globalThis as any).document.createElement('div').getBoundingClientRect();
+                const pageX = rect.x + (globalThis as any).scrollX;
+                expect(Number.isFinite(pageX)).toBe(true);
+            });
+        });
+
     });
 };

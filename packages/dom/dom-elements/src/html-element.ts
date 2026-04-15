@@ -412,6 +412,17 @@ export class HTMLElement extends Element {
 		this[PS.propertyEventListeners].set('oncontextmenu', value);
 	}
 
+	// Wheel events — Excalibur detects wheel support via
+	// `'onwheel' in document.createElement('div')` and only registers its
+	// wheel listener when the property is present on the prototype chain.
+	get onwheel(): ((event: Event) => void) | null {
+		return this[PS.propertyEventListeners].get('onwheel') ?? null;
+	}
+
+	set onwheel(value: ((event: Event) => void) | null) {
+		this[PS.propertyEventListeners].set('onwheel', value);
+	}
+
 	// Keyboard events
 	get onkeydown(): ((event: Event) => void) | null {
 		return this[PS.propertyEventListeners].get('onkeydown') ?? null;
