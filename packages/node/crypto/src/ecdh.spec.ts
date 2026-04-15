@@ -83,7 +83,11 @@ export default async () => {
       ecdh.generateKeys();
       const priv = ecdh.getPrivateKey();
       expect(Buffer.isBuffer(priv)).toBe(true);
-      expect(priv.length).toBe(32);
+      // Node's native createECDH().getPrivateKey() uses OpenSSL's BN_bn2bin,
+      // which strips leading zero bytes — ~1/256 of random 32-byte keys come
+      // back shorter. Accept anything up to the curve byte length.
+      expect(priv.length).toBeGreaterThan(0);
+      expect(priv.length).toBeLessThan(33);
 
       const ecdh2 = createECDH('secp256k1');
       ecdh2.setPrivateKey(priv);

@@ -1,5 +1,6 @@
 {
-    "name": "new-gjsify-app",
+    "name": "@gjsify/template-web-server-express",
+    "description": "HTTP server using Express (familiar Node.js stack).",
     "version": "0.1.10",
     "type": "module",
     "private": true,
@@ -11,10 +12,13 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@types/express": "^5.0.6",
         "@types/node": "^25.6.0",
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2"
+        "express": "^5.2.1"
     }
 }

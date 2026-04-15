@@ -1,5 +1,6 @@
 {
-    "name": "new-gjsify-app",
+    "name": "@gjsify/template-web-server-hono",
+    "description": "HTTP server using Hono (Web-standard fetch-style API).",
     "version": "0.1.10",
     "type": "module",
     "private": true,
@@ -10,11 +11,14 @@
         "dev": "gjsify build src/index.ts --outfile dist/index.js && gjsify run dist/index.js"
     },
     "devDependencies": {
-        "@gjsify/cli": "^0.1.9",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
         "@types/node": "^25.6.0",
         "typescript": "^6.0.2"
     },
     "dependencies": {
-        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2"
+        "@hono/node-server": "^1.19.13",
+        "hono": "^4.12.12"
     }
 }

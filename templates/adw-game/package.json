@@ -1,0 +1,29 @@
+{
+    "name": "@gjsify/template-adw-game",
+    "description": "Adwaita game shell using Excalibur.js, WebGL → Canvas2D fallback.",
+    "version": "0.1.10",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "check": "tsc --noEmit",
+        "build": "gjsify build src/index.ts --outfile dist/index.js --globals auto,dom",
+        "start": "gjsify run dist/index.js",
+        "dev": "gjsify build src/index.ts --outfile dist/index.js --globals auto,dom && gjsify run dist/index.js"
+    },
+    "devDependencies": {
+        "@girs/adw-1": "^1.10.0-4.0.0-rc.2",
+        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/gjs": "^4.0.0-rc.2",
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2",
+        "@gjsify/canvas2d": "workspace:^",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/esbuild-plugin-blueprint": "workspace:^",
+        "@types/node": "^25.6.0",
+        "typescript": "^6.0.2"
+    },
+    "dependencies": {
+        "@gjsify/webgl": "workspace:^",
+        "excalibur": "0.32.0"
+    }
+}

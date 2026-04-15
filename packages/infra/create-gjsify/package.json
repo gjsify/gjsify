@@ -10,6 +10,10 @@
             "types": "./lib/create.d.ts",
             "import": "./lib/create.js"
         },
+        "./prompt": {
+            "types": "./lib/prompt-template.d.ts",
+            "import": "./lib/prompt-template.js"
+        },
         "./package.json": "./package.json"
     },
     "bin": "./lib/index.js",
@@ -28,7 +32,7 @@
     ],
     "files": [
         "lib",
-        "templates"
+        "dist-templates"
     ],
     "dependencies": {
         "yargs": "^18.0.0"

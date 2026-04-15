@@ -3066,6 +3066,116 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/template-adw-canvas2d@workspace:templates/adw-canvas2d":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/template-adw-canvas2d@workspace:templates/adw-canvas2d"
+  dependencies:
+    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.2"
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gjs": "npm:^4.0.0-rc.2"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.2"
+    "@gjsify/canvas2d": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/esbuild-plugin-blueprint": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/template-adw-game@workspace:templates/adw-game":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/template-adw-game@workspace:templates/adw-game"
+  dependencies:
+    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.2"
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gjs": "npm:^4.0.0-rc.2"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.2"
+    "@gjsify/canvas2d": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/esbuild-plugin-blueprint": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    excalibur: "npm:0.32.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/template-adw-webgl@workspace:templates/adw-webgl":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/template-adw-webgl@workspace:templates/adw-webgl"
+  dependencies:
+    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.2"
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gjs": "npm:^4.0.0-rc.2"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.2"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/esbuild-plugin-blueprint": "workspace:^"
+    "@gjsify/webgl": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    "@types/three": "npm:^0.183.1"
+    three: "npm:0.183.2"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/template-cli@workspace:templates/cli":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/template-cli@workspace:templates/cli"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    "@types/yargs": "npm:^17.0.35"
+    typescript: "npm:^6.0.2"
+    yargs: "npm:^18.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/template-gtk-minimal@workspace:templates/gtk-minimal":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/template-gtk-minimal@workspace:templates/gtk-minimal"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.2"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.2"
+    "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/template-web-server-express@workspace:templates/web-server-express":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/template-web-server-express@workspace:templates/web-server-express"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/express": "npm:^5.0.6"
+    "@types/node": "npm:^25.6.0"
+    express: "npm:^5.2.1"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/template-web-server-hono@workspace:templates/web-server-hono":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/template-web-server-hono@workspace:templates/web-server-hono"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@hono/node-server": "npm:^1.19.13"
+    "@types/node": "npm:^25.6.0"
+    hono: "npm:^4.12.12"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/test-dom-excalibur@workspace:tests/dom/excalibur":
   version: 0.0.0-use.local
   resolution: "@gjsify/test-dom-excalibur@workspace:tests/dom/excalibur"
@@ -9982,17 +10092,6 @@ __metadata:
   checksum: 10/3d4ae0f3b775623ceed8e558b6f9850e897aea981a9c937d3ad4e018669c829beccb2c4b5a6af996726ebf86c5b7638368dfc01f3ac2e395d1df29309bc0c5ca
   languageName: node
   linkType: hard
-
-"new-gjsify-app@workspace:packages/infra/create-gjsify/template":
-  version: 0.0.0-use.local
-  resolution: "new-gjsify-app@workspace:packages/infra/create-gjsify/template"
-  dependencies:
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.2"
-    "@gjsify/cli": "workspace:^"
-    "@types/node": "npm:^25.6.0"
-    typescript: "npm:^6.0.2"
-  languageName: unknown
-  linkType: soft
 
 "nlcst-to-string@npm:^4.0.0":
   version: 4.0.0

@@ -5,7 +5,7 @@
         "target": "ESNext",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
-        "types": ["node", "@girs/gtk-4.0"],
+        "types": ["node", "@girs/gtk-4.0", "@girs/gio-2.0", "@girs/glib-2.0"],
         "esModuleInterop": true,
         "strict": true,
         "skipLibCheck": true

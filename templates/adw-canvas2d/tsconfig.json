@@ -5,7 +5,13 @@
         "target": "ESNext",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
-        "types": ["node", "@girs/gtk-4.0"],
+        "types": [
+            "node",
+            "@girs/gjs",
+            "@girs/gtk-4.0",
+            "@girs/adw-1",
+            "@gjsify/esbuild-plugin-blueprint/types"
+        ],
         "esModuleInterop": true,
         "strict": true,
         "skipLibCheck": true

@@ -1,0 +1,24 @@
+{
+    "name": "@gjsify/template-cli",
+    "description": "Command-line tool using yargs (Node.js + GJS).",
+    "version": "0.1.10",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "check": "tsc --noEmit",
+        "build": "gjsify build src/index.ts --outfile dist/index.js",
+        "start": "gjsify run dist/index.js",
+        "dev": "gjsify build src/index.ts --outfile dist/index.js && gjsify run dist/index.js"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@types/node": "^25.6.0",
+        "@types/yargs": "^17.0.35",
+        "typescript": "^6.0.2"
+    },
+    "dependencies": {
+        "yargs": "^18.0.0"
+    }
+}
