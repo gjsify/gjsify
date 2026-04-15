@@ -1,0 +1,6 @@
+.greeting {
+  font-size: 24pt;
+  font-weight: 800;
+  color: @accent_color;
+  margin: 0;
+}

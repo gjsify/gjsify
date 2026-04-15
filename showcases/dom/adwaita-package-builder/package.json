@@ -1,0 +1,44 @@
+{
+    "name": "@gjsify/example-dom-adwaita-package-builder",
+    "version": "0.1.0",
+    "description": "Minimal Adwaita app showing how to package GResource bundles, gettext translations, and an executable binary with gjsify CLI alone",
+    "main": "dist/com.gjsify.ShowcasePackageBuilder",
+    "type": "module",
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        "./package.json": "./package.json"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo",
+        "check": "tsc --noEmit --skipLibCheck",
+        "build:resources": "gjsify gresource data/com.gjsify.ShowcasePackageBuilder.data.gresource.xml --sourcedir data --target dist/com.gjsify.ShowcasePackageBuilder.data.gresource",
+        "build:i18n": "gjsify gettext po dist/locale --domain com.gjsify.ShowcasePackageBuilder --format mo",
+        "build:metainfo": "gjsify gettext po dist/metainfo --domain com.gjsify.ShowcasePackageBuilder --format xml --metainfo data/com.gjsify.ShowcasePackageBuilder.metainfo.xml.in --filename com.gjsify.ShowcasePackageBuilder.metainfo.xml",
+        "build:app": "gjsify build src/gjs/main.ts --app gjs --shebang --outfile dist/com.gjsify.ShowcasePackageBuilder --globals auto,dom",
+        "build": "yarn build:resources && yarn build:i18n && yarn build:metainfo && yarn build:app",
+        "start": "gjsify run dist/com.gjsify.ShowcasePackageBuilder"
+    },
+    "keywords": [
+        "gjs",
+        "gtk",
+        "adwaita",
+        "showcase",
+        "gresource",
+        "gettext",
+        "shebang"
+    ],
+    "devDependencies": {
+        "@girs/adw-1": "^1.10.0-4.0.0-rc.2",
+        "@girs/gdk-4.0": "^4.0.0-4.0.0-rc.2",
+        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/gjs": "^4.0.0-rc.2",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.2",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.2",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/esbuild-plugin-blueprint": "workspace:^",
+        "typescript": "^6.0.2"
+    }
+}

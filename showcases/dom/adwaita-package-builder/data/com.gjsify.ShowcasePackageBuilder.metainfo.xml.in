@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.gjsify.ShowcasePackageBuilder</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Adwaita Package Builder</name>
+  <summary>gjsify showcase demonstrating app packaging</summary>
+  <description>
+    <p>
+      Minimal Adwaita application that demonstrates how to package a GJS
+      application using only the @gjsify/cli commands: gresource, gettext,
+      and build --shebang.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/gjsify/gjsify</url>
+  <launchable type="desktop-id">com.gjsify.ShowcasePackageBuilder.desktop</launchable>
+</component>
