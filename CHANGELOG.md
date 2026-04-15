@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.11](https://github.com/gjsify/gjsify/compare/v0.1.10...v0.1.11) (2026-04-15)
+
+### Features
+
+* **cli:** GJS app packaging — --shebang + gresource + gettext ([#18](https://github.com/gjsify/gjsify/issues/18)) ([fe267c4](https://github.com/gjsify/gjsify/commit/fe267c41596cb22385cbab3a24c1b08a4747160d))
+* **create-app:** multi-template scaffolding with 7 starter templates ([#16](https://github.com/gjsify/gjsify/issues/16)) ([7a97c8f](https://github.com/gjsify/gjsify/commit/7a97c8f5009059bddb4e2c8934de122f3e092701))
+* **examples:** update start script to use 'yarn start:gjs' ([2ddecca](https://github.com/gjsify/gjsify/commit/2ddeccaed242328b5107b9f8091252443ac95e6d))
+
+### Bug Fixes
+
+* **dom,event-bridge:** close input gaps surfaced by Excalibur in GJS ([#17](https://github.com/gjsify/gjsify/issues/17)) ([f9f01da](https://github.com/gjsify/gjsify/commit/f9f01da2ab18871158738762a52ba8639708304c))
+
 ## Unreleased
 
 ### Features

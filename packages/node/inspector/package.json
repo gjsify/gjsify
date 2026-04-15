@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/inspector",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "description": "Node.js inspector module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

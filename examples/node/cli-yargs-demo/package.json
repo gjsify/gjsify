@@ -27,5 +27,5 @@
     "yargs": "^18.0.0"
   },
   "private": true,
-  "version": "0.1.10"
+  "version": "0.1.11"
 }
