@@ -5,6 +5,8 @@ import type { Command } from '../types/index.js';
 interface CreateOptions {
     'project-name': string;
     template?: string;
+    force: boolean;
+    install: boolean;
 }
 
 export const createCommand: Command<any, CreateOptions> = {
@@ -24,6 +26,17 @@ export const createCommand: Command<any, CreateOptions> = {
                 describe: 'Template to scaffold from',
                 type: 'string',
                 choices: templateChoices.length > 0 ? templateChoices : undefined,
+            })
+            .option('force', {
+                alias: 'f',
+                describe: 'Scaffold into a non-empty directory',
+                type: 'boolean',
+                default: false,
+            })
+            .option('install', {
+                describe: 'Run npm install after scaffolding',
+                type: 'boolean',
+                default: false,
             });
     },
     handler: async (args) => {
@@ -40,6 +53,11 @@ export const createCommand: Command<any, CreateOptions> = {
             const picked = await promptTemplate(templates);
             template = picked.name;
         }
-        await createProject({ projectName: args['project-name'], template });
+        await createProject({
+            projectName: args['project-name'],
+            template,
+            force: args.force,
+            install: args.install,
+        });
     },
 };

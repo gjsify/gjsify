@@ -104,8 +104,9 @@ function processTemplate(name, versionMap) {
     const templatePkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
     // Overwrite the workspace name with the sentinel; createProject() replaces it with the user's project name.
     templatePkg.name = 'new-gjsify-app';
-    templatePkg.dependencies = resolveWorkspaceDeps(templatePkg.dependencies, versionMap, name);
-    templatePkg.devDependencies = resolveWorkspaceDeps(templatePkg.devDependencies, versionMap, name);
+    for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+        templatePkg[field] = resolveWorkspaceDeps(templatePkg[field], versionMap, name);
+    }
     writeFileSync(join(destDir, 'package.json'), JSON.stringify(templatePkg, null, 4) + '\n');
 
     console.log(`process-template: wrote dist-templates/${name}/`);

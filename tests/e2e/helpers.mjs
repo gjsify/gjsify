@@ -10,15 +10,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const MONOREPO_ROOT = join(__dirname, '..', '..');
 
 /**
- * Pack all workspace tarballs via pack.sh into tarballsDir.
- * Returns { "@gjsify/foo": "gjsify-foo-0.1.1.tgz", ... } map.
+ * Pack all workspace tarballs via pack.mjs into tarballsDir.
+ * Returns { "@gjsify/foo": "@gjsify-foo.tgz", ... } map.
  */
 export function packWorkspaces(tarballsDir) {
-  const stdout = execFileSync('bash', [join(__dirname, 'create-app', 'pack.sh'), tarballsDir], {
+  const stdout = execFileSync('node', [join(__dirname, 'pack.mjs'), tarballsDir], {
     cwd: MONOREPO_ROOT,
     encoding: 'utf8',
     maxBuffer: 50 * 1024 * 1024,
-    timeout: 5 * 60 * 1000,
+    timeout: 10 * 60 * 1000,
   });
   return JSON.parse(stdout);
 }
