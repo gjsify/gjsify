@@ -22,6 +22,17 @@ void yargs(hideBin(process.argv))
                 describe: 'Template to scaffold from',
                 type: 'string',
                 choices: templateChoices.length > 0 ? templateChoices : undefined,
+            })
+            .option('force', {
+                alias: 'f',
+                describe: 'Scaffold into a non-empty directory',
+                type: 'boolean',
+                default: false,
+            })
+            .option('install', {
+                describe: 'Run npm install after scaffolding',
+                type: 'boolean',
+                default: false,
             });
     }, async (argv) => {
         const projectName = argv['project-name'] as string;
@@ -39,10 +50,15 @@ void yargs(hideBin(process.argv))
             template = picked.name;
         }
 
-        await createProject({ projectName, template });
+        await createProject({
+            projectName,
+            template,
+            force: argv['force'] as boolean,
+            install: argv['install'] as boolean,
+        });
     })
     .help()
     .argv;
 
-export { createProject, type CreateProjectOptions } from './create.js';
+export { createProject, sanitizeProjectName, type CreateProjectOptions } from './create.js';
 export { discoverTemplates, findTemplate, type TemplateInfo } from './discover-templates.js';
