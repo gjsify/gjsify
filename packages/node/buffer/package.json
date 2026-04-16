@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/buffer",
-    "version": "0.1.12",
+    "version": "0.1.13",
     "description": "Node.js buffer module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

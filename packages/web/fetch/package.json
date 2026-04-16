@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/fetch",
-    "version": "0.1.12",
+    "version": "0.1.13",
     "description": "Web and Node.js fetch module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

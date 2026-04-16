@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.13](https://github.com/gjsify/gjsify/compare/v0.1.12...v0.1.13) (2026-04-16)
+
+### Features
+
+* **infra:** lower CSS Nesting for GTK4 via esbuild target=firefox60 ([#22](https://github.com/gjsify/gjsify/issues/22)) ([3c946c3](https://github.com/gjsify/gjsify/commit/3c946c35392af475fd1c539bf3734695073381af))
+
 ## [0.1.12](https://github.com/gjsify/gjsify/compare/v0.1.11...v0.1.12) (2026-04-16)
 
 ### Features

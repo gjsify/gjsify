@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/compression-streams",
-    "version": "0.1.12",
+    "version": "0.1.13",
     "description": "W3C Compression Streams API for GJS",
     "type": "module",
     "module": "lib/esm/index.js",
