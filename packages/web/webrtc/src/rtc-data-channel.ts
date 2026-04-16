@@ -139,9 +139,10 @@ export class RTCDataChannel extends EventTarget {
 
     get binaryType(): BinaryType { return this._binaryType; }
     set binaryType(v: BinaryType) {
-        if (v !== 'arraybuffer' && v !== 'blob') {
-            throw new TypeError(`Invalid binaryType: ${String(v)}`);
-        }
+        // W3C §6.2 (and WPT RTCDataChannel-binaryType tests): invalid
+        // values must be silently ignored — keep the previous value.
+        // See: refs/wpt/webrtc/RTCDataChannel-binaryType.window.js
+        if (v !== 'arraybuffer' && v !== 'blob') return;
         if (v === 'blob' && typeof (globalThis as any).Blob === 'undefined') {
             const DOMExc = (globalThis as any).DOMException;
             const msg = `binaryType 'blob' requires globalThis.Blob. Import '@gjsify/buffer/register' to provide it.`;

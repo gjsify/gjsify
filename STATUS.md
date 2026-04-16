@@ -129,8 +129,11 @@ All 15 packages have real implementations:
 - RTCDTMFSender, RTCCertificate — not implemented
 - RTCDtlsTransport, RTCIceTransport, RTCSctpTransport — not exposed
 
-**Known deviations from W3C spec:**
-- RTCDataChannel.binaryType defaults to `'arraybuffer'` (browser default is `'blob'`). Matches node-datachannel polyfill, libdatachannel, and simple-peer conventions. Setting `'blob'` requires `globalThis.Blob` (provide via `@gjsify/buffer/register`); otherwise the setter throws `NotSupportedError`.
+**Notes on spec behaviour (verified against WPT):**
+- RTCDataChannel.binaryType defaults to `'arraybuffer'` — this IS the W3C spec default (§6.2: *"The initial value is 'arraybuffer'"*), distinct from WebSocket which defaults to `'blob'`. Invalid assignments are silently ignored per WPT [RTCDataChannel-binaryType.window.js](refs/wpt/webrtc/RTCDataChannel-binaryType.window.js) (matches Firefox / Chrome / Safari).
+- Setting `binaryType` to `'blob'` requires `globalThis.Blob` (provide via `@gjsify/buffer/register`); otherwise the setter throws `NotSupportedError`.
+
+**Current deviation from W3C spec:**
 - `setLocalDescription()` without a description argument (implicit createOffer/createAnswer re-use) is not implemented — callers must pass an explicit `RTCSessionDescriptionInit`.
 
 **How the GJS streaming-thread issue is solved (Phase 1.5):**
