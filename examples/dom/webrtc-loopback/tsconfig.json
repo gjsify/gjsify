@@ -2,7 +2,7 @@
   "compilerOptions": {
     "module": "NodeNext",
     "lib": ["ESNext", "DOM"],
-    "types": ["node"],
+    "types": ["node", "@girs/gjs", "@girs/glib-2.0"],
     "target": "ESNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
