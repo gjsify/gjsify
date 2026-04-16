@@ -1,16 +1,16 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-10 (@gjsify/webaudio: Web Audio API via GStreamer 1.26 — AudioContext, decodeAudioData, AudioBufferSourceNode playback, GainNode volume, HTMLAudioElement format detection. 29 tests. Jelly Jumper showcase now has real audio)
+> Last updated: 2026-04-16 (@gjsify/webrtc initial Phase 1 — W3C WebRTC API via GStreamer webrtcbin. RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary), full register-subpath wiring. Media deferred to Phase 2. Closes initial work for #14.)
 
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **15 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **39 Node.js packages**, **16 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 32 (82%) | 3 (8%) | 4 (10%) |
-| Web APIs | 15 | 14 (93%) | 1 (7%) | — |
+| Web APIs | 16 | 14 (88%) | 2 (13%) | — |
 | DOM APIs | 5 | 5 (100%) | — | — |
 | Browser UI | 1 | 1 | — | — |
 | Showcases | 6 | 6 | — | — |
@@ -81,7 +81,7 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **5 DOM 
 
 ## Web API Packages (`packages/web/`)
 
-All 13 packages have real implementations:
+All 14 packages have real implementations:
 
 | Package | GNOME Libs | Tests | Web APIs |
 |---------|-----------|-------|----------|
@@ -98,7 +98,69 @@ All 13 packages have real implementations:
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
 | **webaudio** | Gst 1.0, GstApp 1.0 | 32 | AudioContext (decodeAudioData via GStreamer decodebin, createBufferSource, createGain, currentTime via GLib monotonic clock), AudioBuffer (PCM Float32Array storage), AudioBufferSourceNode (GStreamer appsrc→audioconvert→volume→autoaudiosink), GainNode (AudioParam with setTargetAtTime), AudioParam, HTMLAudioElement (canPlayType, playbin playback). **Phase 1 — covers Excalibur.js** |
 | **gamepad** | Manette 0.2 | 19 | Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected on globalThis), GamepadHapticActuator (dual-rumble with strong/weak magnitude). Button mapping: Manette→W3C standard layout (17 buttons incl. triggers-as-buttons). Axis mapping: 4 stick axes + trigger axes→button values. Lazy Manette.Monitor init, graceful degradation without libmanette. |
+| **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 18 (loopback skipped pending native bridge) | **Phase 1 — Data Channel skeleton.** RTCPeerConnection class + register subpaths (`/register/peer-connection`, `/register/data-channel`, `/register/error`), RTCDataChannel, RTCSessionDescription (Gst↔JS roundtrip), RTCIceCandidate (with candidate-line parser), RTCError (extends DOMException), all event classes. Constructor + synchronous getters + createDataChannel + close work; **async handshake (createOffer/Answer, setLocal/RemoteDescription) hangs on GJS because webrtcbin fires its signals and Gst.Promise callbacks from GStreamer's internal streaming thread, which GJS blocks** (see "WebRTC Status" below). Phase 1.5 (native Vala signal bridge) unblocks the full data-channel path. Media deferred to Phase 2. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
+
+### WebRTC Status
+
+**Implemented (Phase 1 — Data Channel):**
+- RTCPeerConnection: constructor, createOffer, createAnswer, setLocalDescription, setRemoteDescription, addIceCandidate, close, createDataChannel, getConfiguration
+- State getters: signalingState, connectionState, iceConnectionState, iceGatheringState, localDescription, remoteDescription, currentLocal/RemoteDescription, pendingLocal/RemoteDescription, canTrickleIceCandidates
+- RTCPeerConnection events: negotiationneeded, icecandidate, icegatheringstatechange, iceconnectionstatechange, connectionstatechange, signalingstatechange, datachannel
+- RTCDataChannel: send (string / ArrayBuffer / ArrayBufferView / Blob), close, readyState, bufferedAmount, bufferedAmountLowThreshold, binaryType ('arraybuffer' default, 'blob' lazy via globalThis.Blob), id, label, ordered, protocol, negotiated, maxPacketLifeTime, maxRetransmits
+- RTCDataChannel events: open, close, message, error, bufferedamountlow, closing
+- RTCSessionDescription (with Gst↔JS round-trip via GstSDP), RTCIceCandidate (W3C fields + candidate-line parser), RTCError (extends DOMException), RTCErrorEvent, RTCPeerConnectionIceEvent, RTCDataChannelEvent
+
+**Deferred (Phase 2 — Media):**
+- RTCPeerConnection.addTrack, removeTrack, addTransceiver — throw `NotSupportedError`
+- RTCPeerConnection.getSenders / getReceivers / getTransceivers — return `[]`
+- RTCPeerConnection `track` event — never fires (no media path wired)
+- RTCRtpSender, RTCRtpReceiver, RTCRtpTransceiver, RTCTrackEvent — not exported
+- MediaStream, MediaStreamTrack, getUserMedia, navigator.mediaDevices — not implemented
+- Media pipeline plumbing (decodebin/encodebin, TeeMultiplexer, pad-added routing) — absent
+
+**Deferred (Phase 3 — Stats & advanced):**
+- RTCPeerConnection.getStats — rejects with `NotSupportedError`
+- RTCPeerConnection.restartIce, setConfiguration — throw `NotSupportedError`
+- RTCPeerConnection.getIdentityAssertion, peerIdentity — absent
+- RTCPeerConnection.sctp — returns `null`
+- `icecandidateerror` event — never fires
+- RTCDTMFSender, RTCCertificate — not implemented
+- RTCDtlsTransport, RTCIceTransport, RTCSctpTransport — not exposed
+
+**Known deviations from W3C spec:**
+- RTCDataChannel.binaryType defaults to `'arraybuffer'` (browser default is `'blob'`). Matches node-datachannel polyfill, libdatachannel, and simple-peer conventions. Setting `'blob'` requires `globalThis.Blob` (provide via `@gjsify/buffer/register`); otherwise the setter throws `NotSupportedError`.
+- `setLocalDescription()` without a description argument (implicit createOffer/createAnswer re-use) is not implemented — callers must pass an explicit `RTCSessionDescriptionInit`.
+
+**Known runtime limitation — GJS streaming-thread callbacks (blocker for end-to-end handshake):**
+
+Webrtcbin emits `on-negotiation-needed`, `on-ice-candidate`, `on-data-channel`, **and** its `Gst.Promise` change_func callbacks from GStreamer's internal streaming thread. GJS/SpiderMonkey deliberately blocks any JS callback invoked from a non-main thread (critical log: *"Attempting to call back into JSAPI on a different thread. … it has been blocked."*) to prevent VM corruption. Consequence: `createOffer`, `createAnswer`, `setLocalDescription`, `setRemoteDescription` never resolve on GJS — the GstPromise callback is blocked.
+
+- Node.js (node-gst-webrtc reference) works around this with a native `NgwNative.Promise` wrapper that marshals the reply through a main-context hop before invoking JS — node-gtk's check is weaker than GJS's.
+- In-JS workarounds via `GLib.idle_add` inside the callback body don't help — the callback body never runs.
+- **Resolved by Phase 1.5**: a Vala/C helper (`gjsify-webrtc-native`) that connects to webrtcbin's signals and Gst.Promise callbacks on the C side, then posts them through `g_main_context_invoke()` before invoking the JS callback. All signal/promise wiring in `rtc-peer-connection.ts` and `rtc-data-channel.ts` already defers user-facing dispatch via `GLib.idle_add` — once the Phase 1.5 bridge lands, the existing code becomes the upper half of the working solution without further changes.
+
+What works on GJS today (Phase 1):
+- Module load + global registration (RTCPeerConnection class etc. on globalThis)
+- `new RTCPeerConnection(config)` + synchronous state getters / `getConfiguration` / `close`
+- `createDataChannel()` (synchronous webrtcbin emit returns the channel)
+- `RTCSessionDescription` / `RTCIceCandidate` data classes + Gst↔JS conversion
+- All deferred-API error paths (`addTrack`, `getStats`, etc. throw `NotSupportedError`)
+
+What hangs on GJS today (waits for Phase 1.5):
+- `createOffer`, `createAnswer`, `setLocalDescription`, `setRemoteDescription`
+- `negotiationneeded`, `icecandidate`, `datachannel` events and all RTCDataChannel events (`open`, `message`, `close`, `error`, `bufferedamountlow`)
+- The loopback integration test (auto-skipped with this note)
+
+Tests that pass on GJS today: **18 green** (construction, deferred-API stubs, session-description roundtrip, ICE-candidate parsing, register-subpath wiring). Tests skipped pending native bridge: 1 (loopback).
+
+**System prerequisites:**
+- GStreamer ≥ 1.20 with **gst-plugins-bad** (for webrtcbin) AND **libnice-gstreamer** (for ICE transport — webrtcbin's state-change to PLAYING fails without it)
+- Fedora:   `dnf install gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-extras libnice-gstreamer1`
+- Ubuntu/Debian: `apt install gstreamer1.0-plugins-bad gstreamer1.0-nice`
+- Verify:   `gst-inspect-1.0 webrtcbin && gst-inspect-1.0 nicesrc`
+
+Tests that exercise `webrtcbin` (construction, deferred-APIs-throw, close, loopback) auto-skip with a clear message if the nice plugin is missing; the remaining 18 tests (RTCSessionDescription, RTCIceCandidate parsing, register-subpath wiring) cover the platform-agnostic code paths.
 
 ## DOM Packages (`packages/dom/`)
 
@@ -202,8 +264,10 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **Gtk 4.0** | webgl |
 | **GdkPixbuf 2.0** | dom-elements (HTMLImageElement) |
 | **gwebgl 0.1** | webgl (Vala extension) |
-| **Gst 1.0** | webaudio (audio decoding + playback) |
+| **Gst 1.0** | webaudio (audio decoding + playback), webrtc (pipeline + elements) |
 | **GstApp 1.0** | webaudio (appsrc/appsink for PCM I/O) |
+| **GstWebRTC 1.0** | webrtc (webrtcbin element, signal-based peer negotiation, WebRTCSessionDescription) |
+| **GstSDP 1.0** | webrtc (SDP message parse/serialize via SDPMessage.new_from_text + as_text) |
 
 ---
 
@@ -294,6 +358,54 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 - `refs/wpt/` is the authoritative conformance test source for DOM specs
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
+
+### WebRTC Phase 1.5 — Native signal bridge (GJS streaming-thread workaround)
+
+**Priority: High — blocks the data-channel end-to-end path on GJS.**
+
+Webrtcbin emits all async signals (`on-negotiation-needed`, `on-ice-candidate`, `on-data-channel`) **and** its `Gst.Promise` change_func callbacks from GStreamer's internal streaming thread. GJS blocks JS callbacks from non-main threads to prevent SpiderMonkey VM corruption — so `createOffer`/`createAnswer`/`setLocal/RemoteDescription` hang on GJS today.
+
+Planned solution: a small native helper package (Vala + meson → GIR typelib), e.g. `@gjsify/gjsify-webrtc-native`, that:
+- Connects to webrtcbin's signals on the C side (never touches JS on the streaming thread)
+- Posts each event through `g_main_context_invoke_full()` so it runs on the GLib main thread
+- Emits a GObject signal from the main thread that `@gjsify/webrtc` can safely consume from JS
+- Wraps `Gst.Promise` similarly — register the change_func on the C side, hop to main context, then call into JS
+
+Reference: [refs/node-gst-webrtc/src/](refs/node-gst-webrtc/src/) uses `NgwNative.Promise` and `NgwNative.RTCDataChannel` for the same purpose (node-gtk has a weaker thread check, but the pattern applies). Phase 1's `rtc-peer-connection.ts` / `rtc-data-channel.ts` already route dispatch through `GLib.idle_add` on the JS side; once the native helper exposes a main-thread signal surface, the JS layer becomes the upper half of the full solution without refactoring.
+
+Unblocks: end-to-end data channel loopback (including in the `examples/dom/webrtc-loopback` demo and the currently-skipped spec test). Also a prerequisite for Phase 2 Media, which relies on `pad-added` signals that are delivered from the same streaming thread.
+
+### WebRTC Phase 2 — Media
+
+**Priority: Medium — follow-up to the Phase 1 data-channel MVP (issue #14).**
+
+Implement the media path in `@gjsify/webrtc` so RTCPeerConnection can send and receive audio/video:
+
+- `RTCRtpSender`, `RTCRtpReceiver`, `RTCRtpTransceiver` — wrap `GstWebRTC.WebRTCRTPSender/Receiver/Transceiver`, bridge `kind` enum, expose `track`, `transport`.
+- `addTrack`, `removeTrack`, `addTransceiver`, `getSenders/Receivers/Transceivers` on RTCPeerConnection — remove the current `NotSupportedError` stubs.
+- `MediaStream`, `MediaStreamTrack`, `RTCTrackEvent` — new package or integrated, with `kind`, `enabled`, `readyState`, `stop()`, `clone()`.
+- `pad-added` routing: plumb `decodebin` for inbound RTP streams, `tee` multiplexing so one track can feed multiple consumers.
+- `getUserMedia` / `navigator.mediaDevices` — likely a new `@gjsify/media-devices` package that wraps GStreamer sources (`pipewiresrc`, `v4l2src`, `pulsesrc`).
+
+Reference: [refs/node-gst-webrtc/src/media/](refs/node-gst-webrtc/src/media/) (TeeMultiplexer, ProxyMultiplexer, track inputs) and [refs/node-gst-webrtc/src/webrtc/RTCRtpReceiver.ts](refs/node-gst-webrtc/src/webrtc/RTCRtpReceiver.ts).
+
+### WebRTC Phase 3 — Stats & advanced
+
+**Priority: Low — nice-to-have once Phase 2 lands.**
+
+- `getStats` — emit `get-stats` signal on webrtcbin, convert `GstStructure` → `RTCStatsReport` (Map<string, RTCStats>).
+- `restartIce`, `setConfiguration` — dynamic reconfig.
+- `RTCDtlsTransport`, `RTCIceTransport`, `RTCSctpTransport` — thin proxies over webrtcbin's child transports.
+- `RTCCertificate` — local DTLS certificate management.
+- `RTCDTMFSender` — audio-track-based DTMF via GStreamer `dtmfsrc`.
+- `icecandidateerror` event — map from webrtcbin's ICE failure signals.
+- `peerIdentity`, `getIdentityAssertion` — identity provider integration.
+
+### WebRTC Showcase
+
+**Priority: Low — after Phase 2.**
+
+Promote [examples/dom/webrtc-loopback](examples/dom/webrtc-loopback) to `showcases/dom/webrtc-loopback/` once Media Phase 2 lands, so the showcase demonstrates both data and media paths. Until then it stays as a private example.
 
 ---
 

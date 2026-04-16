@@ -1,0 +1,27 @@
+{
+  "name": "@gjsify/example-dom-webrtc-loopback",
+  "description": "WebRTC data-channel loopback demo (two local peers, GStreamer backend) for GJS",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "yarn start:gjs",
+    "start:gjs": "gjs -m dist/index.gjs.js",
+    "build": "yarn build:gjs",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
+    "@gjsify/webrtc": "workspace:^",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2"
+  },
+  "private": true,
+  "version": "0.1.13"
+}

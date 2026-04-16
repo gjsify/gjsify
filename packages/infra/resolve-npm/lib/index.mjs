@@ -183,6 +183,13 @@ export const ALIASES_WEB_FOR_GJS = {
     // Gamepad API (libmanette backend)
     'gamepad': '@gjsify/gamepad',
     'gamepad/register': '@gjsify/gamepad/register',
+
+    // WebRTC API (GStreamer webrtcbin backend)
+    'webrtc': '@gjsify/webrtc',
+    'webrtc/register': '@gjsify/webrtc/register',
+    'webrtc/register/peer-connection': '@gjsify/webrtc/register/peer-connection',
+    'webrtc/register/data-channel': '@gjsify/webrtc/register/data-channel',
+    'webrtc/register/error': '@gjsify/webrtc/register/error',
 }
 
 /** General record of modules for Node */
@@ -286,4 +293,16 @@ export const ALIASES_WEB_FOR_NODE = {
     'gamepad': '@gjsify/empty',
     'gamepad/register': '@gjsify/empty',
     '@gjsify/gamepad/register': '@gjsify/empty',
+
+    // WebRTC API — no-op on Node (Phase 1 is GStreamer-only, no fallback)
+    'webrtc': '@gjsify/empty',
+    'webrtc/register': '@gjsify/empty',
+    'webrtc/register/peer-connection': '@gjsify/empty',
+    'webrtc/register/data-channel': '@gjsify/empty',
+    'webrtc/register/error': '@gjsify/empty',
+    '@gjsify/webrtc': '@gjsify/empty',
+    '@gjsify/webrtc/register': '@gjsify/empty',
+    '@gjsify/webrtc/register/peer-connection': '@gjsify/empty',
+    '@gjsify/webrtc/register/data-channel': '@gjsify/empty',
+    '@gjsify/webrtc/register/error': '@gjsify/empty',
 }

@@ -51,6 +51,9 @@ export const GJS_GLOBALS_GROUPS = {
         'DOMParser',
         'AudioContext', 'webkitAudioContext', 'Audio', 'HTMLAudioElement',
         'GamepadEvent',
+        'RTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate',
+        'RTCPeerConnectionIceEvent', 'RTCDataChannel', 'RTCDataChannelEvent',
+        'RTCError', 'RTCErrorEvent',
     ],
     dom: [
         'document', 'Image', 'HTMLCanvasElement', 'HTMLImageElement',
@@ -142,6 +145,16 @@ export const GJS_GLOBALS_MAP = {
 
     // --- Gamepad API (libmanette backend) -----------------------------------
     GamepadEvent:         '@gjsify/gamepad/register',
+
+    // --- WebRTC (GStreamer webrtcbin backend) -------------------------------
+    RTCPeerConnection:          '@gjsify/webrtc/register/peer-connection',
+    RTCSessionDescription:      '@gjsify/webrtc/register/peer-connection',
+    RTCIceCandidate:            '@gjsify/webrtc/register/peer-connection',
+    RTCPeerConnectionIceEvent:  '@gjsify/webrtc/register/peer-connection',
+    RTCDataChannel:             '@gjsify/webrtc/register/data-channel',
+    RTCDataChannelEvent:        '@gjsify/webrtc/register/data-channel',
+    RTCError:                   '@gjsify/webrtc/register/error',
+    RTCErrorEvent:              '@gjsify/webrtc/register/error',
 
     // --- DOM elements (granular register subpaths) -------------------------
     document:             '@gjsify/dom-elements/register/document',
