@@ -2,13 +2,17 @@
 // GJS process exchange an offer/answer + ICE candidates, then message each
 // other over a data channel.
 //
-// No imports needed: `gjsify build --globals auto` (the default) detects the
-// RTCPeerConnection / process usage in the bundled output and injects the
-// matching register subpaths (@gjsify/webrtc/register/peer-connection,
-// @gjsify/node-globals/register/process) automatically.
+// `gjsify build --globals auto` (the default) detects the RTCPeerConnection /
+// process usage in the bundled output and injects the matching register
+// subpaths automatically — no manual imports needed. The `gi://GLib` import
+// below is only for running the GLib main loop (needed because the
+// @gjsify/webrtc-native bridge uses `GLib.Idle.add()` to hop webrtcbin's
+// streaming-thread signals onto the main context).
 //
 // Run: yarn build && yarn start
 // Prerequisite: GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer1.
+
+import GLib from 'gi://GLib?version=2.0';
 
 declare const print: ((msg: string) => void) | undefined;
 
@@ -70,7 +74,6 @@ async function main(): Promise<void> {
     pcB.ondatachannel = (ev) => {
         const channelB = ev.channel;
         log('B', `ondatachannel "${channelB.label}"`);
-        channelB.onopen = () => log('B', 'data-channel "chat" open');
         channelB.onmessage = (mev) => {
             if (typeof mev.data === 'string') {
                 log('B', `received: ${mev.data} — echoing back`);
@@ -95,15 +98,23 @@ async function main(): Promise<void> {
     await pcA.setRemoteDescription(answer);
 
     // Quit a short time after the messages have echoed back.
-    setTimeout(() => {
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 8000, () => {
         log('main', 'demo complete — closing peer connections');
         pcA.close();
         pcB.close();
-        setTimeout(() => process.exit(0), 100);
-    }, 8000);
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+            loop.quit();
+            return GLib.SOURCE_REMOVE;
+        });
+        return GLib.SOURCE_REMOVE;
+    });
 }
+
+const loop = GLib.MainLoop.new(null, false);
 
 main().catch((err: any) => {
     log('ERROR', err?.message ?? String(err));
-    process.exit(1);
+    loop.quit();
 });
+
+loop.run();

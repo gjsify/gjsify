@@ -1,16 +1,16 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-16 (@gjsify/webrtc initial Phase 1 — W3C WebRTC API via GStreamer webrtcbin. RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary), full register-subpath wiring. Media deferred to Phase 2. Closes initial work for #14.)
+> Last updated: 2026-04-16 (@gjsify/webrtc Phase 1 + Phase 1.5 — W3C WebRTC API via GStreamer webrtcbin. RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary), full register-subpath wiring. Async handshake + signal delivery works end-to-end via new @gjsify/webrtc-native Vala bridge that marshals webrtcbin streaming-thread signals + Gst.Promise callbacks onto the main GLib context. 23 tests green incl. loopback. Media deferred to Phase 2.)
 
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **16 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **39 Node.js packages**, **17 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 32 (82%) | 3 (8%) | 4 (10%) |
-| Web APIs | 16 | 14 (88%) | 2 (13%) | — |
+| Web APIs | 17 | 15 (88%) | 2 (12%) | — |
 | DOM APIs | 5 | 5 (100%) | — | — |
 | Browser UI | 1 | 1 | — | — |
 | Showcases | 6 | 6 | — | — |
@@ -81,7 +81,7 @@ The project comprises **39 Node.js packages**, **16 Web API packages**, **5 DOM 
 
 ## Web API Packages (`packages/web/`)
 
-All 14 packages have real implementations:
+All 15 packages have real implementations:
 
 | Package | GNOME Libs | Tests | Web APIs |
 |---------|-----------|-------|----------|
@@ -98,12 +98,13 @@ All 14 packages have real implementations:
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
 | **webaudio** | Gst 1.0, GstApp 1.0 | 32 | AudioContext (decodeAudioData via GStreamer decodebin, createBufferSource, createGain, currentTime via GLib monotonic clock), AudioBuffer (PCM Float32Array storage), AudioBufferSourceNode (GStreamer appsrc→audioconvert→volume→autoaudiosink), GainNode (AudioParam with setTargetAtTime), AudioParam, HTMLAudioElement (canPlayType, playbin playback). **Phase 1 — covers Excalibur.js** |
 | **gamepad** | Manette 0.2 | 19 | Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected on globalThis), GamepadHapticActuator (dual-rumble with strong/weak magnitude). Button mapping: Manette→W3C standard layout (17 buttons incl. triggers-as-buttons). Axis mapping: 4 stick axes + trigger axes→button values. Lazy Manette.Monitor init, graceful degradation without libmanette. |
-| **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 18 (loopback skipped pending native bridge) | **Phase 1 — Data Channel skeleton.** RTCPeerConnection class + register subpaths (`/register/peer-connection`, `/register/data-channel`, `/register/error`), RTCDataChannel, RTCSessionDescription (Gst↔JS roundtrip), RTCIceCandidate (with candidate-line parser), RTCError (extends DOMException), all event classes. Constructor + synchronous getters + createDataChannel + close work; **async handshake (createOffer/Answer, setLocal/RemoteDescription) hangs on GJS because webrtcbin fires its signals and Gst.Promise callbacks from GStreamer's internal streaming thread, which GJS blocks** (see "WebRTC Status" below). Phase 1.5 (native Vala signal bridge) unblocks the full data-channel path. Media deferred to Phase 2. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
+| **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 23 | **Phase 1 + 1.5 — Data Channel end-to-end.** RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN config, all sync getters + on-event handlers), RTCDataChannel (string + binary send/receive, bufferedAmount, binaryType), RTCSessionDescription (Gst↔JS roundtrip via GstSDP), RTCIceCandidate (with RFC 5245 candidate-line parser), RTCError (extends DOMException), RTCPeerConnectionIceEvent, RTCDataChannelEvent, RTCErrorEvent. Async handshake works end-to-end on GJS via `@gjsify/webrtc-native`'s Vala signal bridge that marshals webrtcbin's streaming-thread signals + Gst.Promise callbacks onto the main GLib context. Registers via `@gjsify/webrtc/register` (granular `/register/peer-connection`, `/register/data-channel`, `/register/error`) — `--globals auto` picks them up automatically. Media (RTCRtpSender/Receiver, MediaStream, getUserMedia) deferred to Phase 2. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
+| **webrtc-native** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | — | Vala/GObject library consumed by `@gjsify/webrtc`. Exposes three main-thread signal bridges: `WebrtcbinBridge` (wraps webrtcbin's `on-negotiation-needed` / `on-ice-candidate` / `on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open` / `on-close` / `on-error` / `on-message-string` / `on-message-data` / `on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Each bridge connects on the C side (never invokes JS on the streaming thread) and re-emits via `GLib.Idle.add()` on the main context. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64}/`; CI (`.github/workflows/prebuilds.yml`) rebuilds on Vala source changes. |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
 ### WebRTC Status
 
-**Implemented (Phase 1 — Data Channel):**
+**Implemented (Phase 1 + 1.5 — Data Channel end-to-end):**
 - RTCPeerConnection: constructor, createOffer, createAnswer, setLocalDescription, setRemoteDescription, addIceCandidate, close, createDataChannel, getConfiguration
 - State getters: signalingState, connectionState, iceConnectionState, iceGatheringState, localDescription, remoteDescription, currentLocal/RemoteDescription, pendingLocal/RemoteDescription, canTrickleIceCandidates
 - RTCPeerConnection events: negotiationneeded, icecandidate, icegatheringstatechange, iceconnectionstatechange, connectionstatechange, signalingstatechange, datachannel
@@ -132,27 +133,17 @@ All 14 packages have real implementations:
 - RTCDataChannel.binaryType defaults to `'arraybuffer'` (browser default is `'blob'`). Matches node-datachannel polyfill, libdatachannel, and simple-peer conventions. Setting `'blob'` requires `globalThis.Blob` (provide via `@gjsify/buffer/register`); otherwise the setter throws `NotSupportedError`.
 - `setLocalDescription()` without a description argument (implicit createOffer/createAnswer re-use) is not implemented — callers must pass an explicit `RTCSessionDescriptionInit`.
 
-**Known runtime limitation — GJS streaming-thread callbacks (blocker for end-to-end handshake):**
+**How the GJS streaming-thread issue is solved (Phase 1.5):**
 
-Webrtcbin emits `on-negotiation-needed`, `on-ice-candidate`, `on-data-channel`, **and** its `Gst.Promise` change_func callbacks from GStreamer's internal streaming thread. GJS/SpiderMonkey deliberately blocks any JS callback invoked from a non-main thread (critical log: *"Attempting to call back into JSAPI on a different thread. … it has been blocked."*) to prevent VM corruption. Consequence: `createOffer`, `createAnswer`, `setLocalDescription`, `setRemoteDescription` never resolve on GJS — the GstPromise callback is blocked.
+Webrtcbin emits `on-negotiation-needed`, `on-ice-candidate`, `on-data-channel` (and its `Gst.Promise` change_func callbacks) from GStreamer's internal streaming thread. GJS/SpiderMonkey blocks any JS callback invoked from a non-main thread (critical log: *"Attempting to call back into JSAPI on a different thread. … it has been blocked."*) to prevent VM corruption. An in-JS `GLib.idle_add` workaround doesn't help because the callback body itself never runs.
 
-- Node.js (node-gst-webrtc reference) works around this with a native `NgwNative.Promise` wrapper that marshals the reply through a main-context hop before invoking JS — node-gtk's check is weaker than GJS's.
-- In-JS workarounds via `GLib.idle_add` inside the callback body don't help — the callback body never runs.
-- **Resolved by Phase 1.5**: a Vala/C helper (`gjsify-webrtc-native`) that connects to webrtcbin's signals and Gst.Promise callbacks on the C side, then posts them through `g_main_context_invoke()` before invoking the JS callback. All signal/promise wiring in `rtc-peer-connection.ts` and `rtc-data-channel.ts` already defers user-facing dispatch via `GLib.idle_add` — once the Phase 1.5 bridge lands, the existing code becomes the upper half of the working solution without further changes.
+**`@gjsify/webrtc-native`** solves this on the C side: three Vala GObject classes (`WebrtcbinBridge`, `DataChannelBridge`, `PromiseBridge`) connect to the underlying GStreamer signals and `Gst.Promise` change_func, capture their args, then use `GLib.Idle.add()` to re-emit mirror signals on the main GLib context. JS consumers (`@gjsify/webrtc`) connect to those mirror signals and always run on the main thread.
 
-What works on GJS today (Phase 1):
-- Module load + global registration (RTCPeerConnection class etc. on globalThis)
-- `new RTCPeerConnection(config)` + synchronous state getters / `getConfiguration` / `close`
-- `createDataChannel()` (synchronous webrtcbin emit returns the channel)
-- `RTCSessionDescription` / `RTCIceCandidate` data classes + Gst↔JS conversion
-- All deferred-API error paths (`addTrack`, `getStats`, etc. throw `NotSupportedError`)
+Two subtleties in the bridge design:
+1. `WebrtcbinBridge.on_data_channel_cb` wraps the incoming channel in a `DataChannelBridge` *on the streaming thread* before the idle hop — so the bridge's own signal handlers are connected before any `on-message-*` callbacks can fire on the same thread. Without this eager wrap, the first few messages from the remote peer would race the JS-side setup and get dropped.
+2. The `GstWebRTCDataChannelState` C enum is **1-based** (`CONNECTING=1 … CLOSED=4`) but the auto-generated TypeScript declaration omits the initialiser and infers 0-based values. `RTCDataChannel` maps against the real 1-based runtime values.
 
-What hangs on GJS today (waits for Phase 1.5):
-- `createOffer`, `createAnswer`, `setLocalDescription`, `setRemoteDescription`
-- `negotiationneeded`, `icecandidate`, `datachannel` events and all RTCDataChannel events (`open`, `message`, `close`, `error`, `bufferedamountlow`)
-- The loopback integration test (auto-skipped with this note)
-
-Tests that pass on GJS today: **18 green** (construction, deferred-API stubs, session-description roundtrip, ICE-candidate parsing, register-subpath wiring). Tests skipped pending native bridge: 1 (loopback).
+Tests passing on GJS: **23 green**, including the full loopback (two local peers, offer/answer, ICE trickle, data-channel open/send/receive/echo).
 
 **System prerequisites:**
 - GStreamer ≥ 1.20 with **gst-plugins-bad** (for webrtcbin) AND **libnice-gstreamer** (for ICE transport — webrtcbin's state-change to PLAYING fails without it)
@@ -306,6 +297,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**Tree-shakeable globals (`/register` subpath refactor)**~~✓ — every global-providing package now exposes a pure root export and a side-effectful `/register` subpath. Root imports are tree-shakeable; global registration is opt-in via `/register` or the `gjsify build --globals` CLI flag. See the [Tree-shakeable Globals section in AGENTS.md](AGENTS.md#tree-shakeable-globals--register-subpath-convention) for the rules.
 - ~~**Explicit `--globals` CLI flag**~~✓ — `gjsify build --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController` wires the matching `/register` modules into the bundle. Default list pre-wired in the `@gjsify/create-app` template `package.json` script. No auto-scanning — heuristic scanners leaked too many edge cases (isomorphic library guards, dynamic imports, bracket-notation global access).
 - ~~**vm promoted to Partial**~~✓ — createContext, runInNewContext, compileFunction, Script class (37 tests).
+- ~~**WebRTC Phase 1 + 1.5 (Data Channel end-to-end)**~~✓ — `@gjsify/webrtc` (23 tests incl. loopback). RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary send/receive), RTCSessionDescription, RTCIceCandidate, RTCError. Backed by `@gjsify/webrtc-native` Vala bridge (WebrtcbinBridge, DataChannelBridge, PromiseBridge) that marshals webrtcbin's streaming-thread signals + Gst.Promise callbacks onto the main GLib context via `GLib.Idle.add()`. Media (RTCRtpSender/Receiver, MediaStream, getUserMedia) deferred to Phase 2.
 
 ### High Priority
 
@@ -358,22 +350,6 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 - `refs/wpt/` is the authoritative conformance test source for DOM specs
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
-
-### WebRTC Phase 1.5 — Native signal bridge (GJS streaming-thread workaround)
-
-**Priority: High — blocks the data-channel end-to-end path on GJS.**
-
-Webrtcbin emits all async signals (`on-negotiation-needed`, `on-ice-candidate`, `on-data-channel`) **and** its `Gst.Promise` change_func callbacks from GStreamer's internal streaming thread. GJS blocks JS callbacks from non-main threads to prevent SpiderMonkey VM corruption — so `createOffer`/`createAnswer`/`setLocal/RemoteDescription` hang on GJS today.
-
-Planned solution: a small native helper package (Vala + meson → GIR typelib), e.g. `@gjsify/gjsify-webrtc-native`, that:
-- Connects to webrtcbin's signals on the C side (never touches JS on the streaming thread)
-- Posts each event through `g_main_context_invoke_full()` so it runs on the GLib main thread
-- Emits a GObject signal from the main thread that `@gjsify/webrtc` can safely consume from JS
-- Wraps `Gst.Promise` similarly — register the change_func on the C side, hop to main context, then call into JS
-
-Reference: [refs/node-gst-webrtc/src/](refs/node-gst-webrtc/src/) uses `NgwNative.Promise` and `NgwNative.RTCDataChannel` for the same purpose (node-gtk has a weaker thread check, but the pattern applies). Phase 1's `rtc-peer-connection.ts` / `rtc-data-channel.ts` already route dispatch through `GLib.idle_add` on the JS side; once the native helper exposes a main-thread signal surface, the JS layer becomes the upper half of the full solution without refactoring.
-
-Unblocks: end-to-end data channel loopback (including in the `examples/dom/webrtc-loopback` demo and the currently-skipped spec test). Also a prerequisite for Phase 2 Media, which relies on `pad-added` signals that are delivered from the same streaming thread.
 
 ### WebRTC Phase 2 — Media
 

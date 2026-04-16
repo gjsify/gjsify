@@ -1,0 +1,55 @@
+{
+    "name": "@gjsify/webrtc-native",
+    "version": "0.1.13",
+    "description": "Vala-based main-thread signal bridge for @gjsify/webrtc. Marshals webrtcbin signals and GstPromise callbacks from GStreamer's streaming thread onto the GLib main context so GJS can safely handle them.",
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "prebuilds",
+        "meson.build",
+        "src/vala"
+    ],
+    "gjsify": {
+        "prebuilds": "prebuilds"
+    },
+    "scripts": {
+        "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "yarn init:meson --wipe",
+        "build": "yarn build:meson && yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
+        "build:meson": "yarn init:meson && meson compile -C build",
+        "build:types": "tsc",
+        "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifywebrtc.so build/GjsifyWebrtc-0.1.typelib prebuilds/linux-x86_64/"
+    },
+    "keywords": [
+        "gjs",
+        "webrtc",
+        "gstreamer",
+        "webrtcbin",
+        "vala",
+        "native"
+    ],
+    "dependencies": {
+        "@girs/gjs": "^4.0.0-rc.3",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.3",
+        "@girs/gst-1.0": "^1.28.1-4.0.0-rc.3",
+        "@girs/gstwebrtc-1.0": "^1.0.0-4.0.0-rc.3"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^25.6.0",
+        "typescript": "^6.0.2"
+    }
+}

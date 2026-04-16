@@ -29,18 +29,10 @@ if (!webrtcbinReady) {
     );
 }
 
-// Known limitation (see STATUS.md "WebRTC Status"): webrtcbin emits
-// on-negotiation-needed / on-ice-candidate / on-data-channel and its
-// Gst.Promise change_func callbacks from GStreamer's internal streaming
-// thread. GJS blocks JS callbacks invoked from non-main threads (to
-// prevent SpiderMonkey corruption). As a result createOffer/createAnswer/
-// setLocal/RemoteDescription hang on GJS — the loopback test can only run
-// once a native signal-bridge helper lands (Phase 1.5). The suite
-// therefore skips the full handshake but still covers:
-//   - RTCPeerConnection construction (sync)
-//   - Deferred-API error paths (sync)
-//   - RTCSessionDescription / RTCIceCandidate data classes
-const ASYNC_SIGNALS_WORK = false;
+// Phase 1.5 landed: the native @gjsify/webrtc-native bridge marshals
+// webrtcbin signals + Gst.Promise callbacks onto the main thread, so the
+// async handshake now works on GJS too.
+const ASYNC_SIGNALS_WORK = true;
 
 function waitFor<T = void>(ms: number, promise: Promise<T>, label: string): Promise<T> {
     return Promise.race([

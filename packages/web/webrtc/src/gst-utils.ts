@@ -1,15 +1,24 @@
 // Async bridging between GstPromise and JavaScript Promises.
 //
 // Reference: refs/node-gst-webrtc/src/gstUtils.ts (ISC, Ratchanan Srirattanamet)
-// Adapted from node-gtk to GJS — GJS can marshal JS closures directly into
-// `Gst.Promise.new_with_change_func`, which removes the need for a native
-// wrapper (node-gst-webrtc's NgwNative.Promise).
+//
+// Why a native bridge? Gst.Promise.new_with_change_func() invokes its
+// callback on GStreamer's internal streaming thread. GJS blocks any JS
+// callback invoked from a non-main thread (to prevent SpiderMonkey VM
+// corruption), so the change_func is never delivered to JS — the Promise
+// would hang forever.
+//
+// `@gjsify/webrtc-native/PromiseBridge` is a Vala helper that registers
+// the change_func on the C side, hops through `g_main_context_invoke()`
+// to the GLib main thread, and only then emits `replied` / `rejected`
+// signals which JS can safely consume.
 
-import Gst from 'gi://Gst?version=1.0';
-import GLib from 'gi://GLib?version=2.0';
+import type Gst from 'gi://Gst?version=1.0';
+import { PromiseBridge } from '@gjsify/webrtc-native';
 
 /**
- * Wrap a GstPromise-consuming emit into a JS Promise.
+ * Wrap a GstPromise-consuming emit into a JS Promise that resolves on the
+ * main thread.
  *
  * Usage:
  *   const reply = await withGstPromise((promise) => {
@@ -20,30 +29,13 @@ export function withGstPromise(
     emit: (promise: Gst.Promise) => void,
 ): Promise<Gst.Structure | null> {
     return new Promise((resolve, reject) => {
-        const gstPromise = Gst.Promise.new_with_change_func((p: Gst.Promise) => {
-            const result = p.wait();
-            switch (result) {
-                case Gst.PromiseResult.INTERRUPTED:
-                    reject(new Error('GstPromise interrupted'));
-                    return;
-                case Gst.PromiseResult.EXPIRED:
-                    reject(new Error('GstPromise expired'));
-                    return;
-                case Gst.PromiseResult.REPLIED: {
-                    const reply = p.get_reply();
-                    if (reply && reply.has_field('error')) {
-                        const errVal = reply.get_value('error') as any;
-                        const gerr = errVal?.get_boxed?.() as GLib.Error | undefined;
-                        reject(new Error(gerr?.message ?? 'GstPromise error'));
-                        return;
-                    }
-                    resolve(reply);
-                    return;
-                }
-                default:
-                    reject(new Error(`Unexpected GstPromise result: ${result}`));
-            }
+        const bridge = new PromiseBridge();
+        bridge.connect('replied', (_b: unknown, reply: Gst.Structure | null) => {
+            resolve(reply);
         });
-        emit(gstPromise);
+        bridge.connect('rejected', (_b: unknown, message: string) => {
+            reject(new Error(message));
+        });
+        emit(bridge.promise);
     });
 }

@@ -3,14 +3,17 @@
 // Reference: refs/node-gst-webrtc/src/webrtc/RTCDataChannel.ts (ISC) +
 //            refs/node-datachannel/src/polyfill/RTCDataChannel.ts (MIT)
 //
-// Extends the native EventTarget. Bridges the six GstWebRTCDataChannel signals
-// (on-open / on-close / on-error / on-message-string / on-message-data /
-// on-buffered-amount-low) to W3C events, defers dispatch via GLib.idle_add
-// onto the main context (GJS blocks JS callbacks from non-main threads, and
-// webrtcbin fires these signals from the streaming thread — see STATUS.md).
+// Uses `@gjsify/webrtc-native`'s DataChannelBridge to marshal the six
+// GstWebRTCDataChannel signals (on-open / on-close / on-error /
+// on-message-string / on-message-data / on-buffered-amount-low) from the
+// GStreamer streaming thread onto the GLib main context. The raw `connect`
+// path is unusable because GJS blocks JS callbacks invoked from non-main
+// threads — see STATUS.md "WebRTC Status".
 
 import GLib from 'gi://GLib?version=2.0';
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
+
+import { DataChannelBridge, type DataChannelBridge as DataChannelBridgeType } from '@gjsify/webrtc-native';
 
 import { RTCError } from './rtc-error.js';
 import { RTCErrorEvent } from './rtc-events.js';
@@ -18,26 +21,18 @@ import { RTCErrorEvent } from './rtc-events.js';
 export type RTCDataChannelState = 'connecting' | 'open' | 'closing' | 'closed';
 export type BinaryType = 'blob' | 'arraybuffer';
 
+// NOTE: the GstWebRTCDataChannelState C enum is 1-based (CONNECTING=1 …
+// CLOSED=4), but the TypeScript @girs/gstwebrtc-1.0 declaration omits the
+// explicit initialiser so the `.d.ts` mis-infers 0-based values. Map
+// against the real runtime values.
 const STATE_MAP: Record<number, RTCDataChannelState> = {
-    0: 'connecting',
-    1: 'open',
-    2: 'closing',
-    3: 'closed',
+    1: 'connecting',
+    2: 'open',
+    3: 'closing',
+    4: 'closed',
 };
 
 type EventHandler<E extends Event = Event> = ((this: RTCDataChannel, ev: E) => any) | null;
-
-// GstWebRTCDataChannel signals fire on the streaming thread. Hop to the
-// main GLib context before touching the JS VM.
-function deferToMain(fn: () => void): void {
-    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-        try { fn(); } catch (err: any) {
-            // eslint-disable-next-line no-console
-            console.error?.('[webrtc] data-channel handler error:', err?.message ?? String(err));
-        }
-        return GLib.SOURCE_REMOVE;
-    });
-}
 
 /** Convert a JS typed array / ArrayBuffer to a GLib.Bytes. */
 function toGBytes(buffer: ArrayBuffer | ArrayBufferView): GLib.Bytes {
@@ -52,7 +47,6 @@ function toGBytes(buffer: ArrayBuffer | ArrayBufferView): GLib.Bytes {
 
 /** Convert a GLib.Bytes payload to an ArrayBuffer. */
 function bytesToArrayBuffer(bytes: GLib.Bytes): ArrayBuffer {
-    // GLib.Bytes iterable → Uint8Array via toArray() or get_data().
     const arr = (bytes as any).toArray?.();
     if (arr instanceof Uint8Array) {
         return (arr.buffer as ArrayBuffer).slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
@@ -66,9 +60,9 @@ function bytesToArrayBuffer(bytes: GLib.Bytes): ArrayBuffer {
 
 export class RTCDataChannel extends EventTarget {
     private readonly _native: GstWebRTC.WebRTCDataChannel;
+    private readonly _bridge: DataChannelBridgeType;
     private _binaryType: BinaryType = 'arraybuffer';
     private _bufferedAmount = 0;
-    private readonly _signalIds: number[] = [];
     private _closed = false;
 
     // `on<event>` attribute handlers — W3C requires both addEventListener and on*.
@@ -79,20 +73,30 @@ export class RTCDataChannel extends EventTarget {
     private _onbufferedamountlow: EventHandler = null;
     private _onclosing: EventHandler = null;
 
-    /** @internal */
-    constructor(native: GstWebRTC.WebRTCDataChannel) {
+    /**
+     * @internal
+     * Accepts either a raw GstWebRTCDataChannel (for locally-created channels)
+     * or a pre-made DataChannelBridge (for remotely-originated channels that
+     * the WebrtcbinBridge already wrapped on the streaming thread to avoid
+     * missing early messages).
+     */
+    constructor(source: GstWebRTC.WebRTCDataChannel | DataChannelBridgeType) {
         super();
-        this._native = native;
+        if ((source as DataChannelBridgeType).channel !== undefined && (source as any).dispose_bridge) {
+            this._bridge = source as DataChannelBridgeType;
+            this._native = this._bridge.channel as unknown as GstWebRTC.WebRTCDataChannel;
+        } else {
+            this._native = source as GstWebRTC.WebRTCDataChannel;
+            this._bridge = new (DataChannelBridge as any)({ channel: this._native });
+        }
 
-        this._signalIds.push(
-            native.connect('on-open', () => this._handleOpen()),
-            native.connect('on-close', () => this._handleClose()),
-            native.connect('on-error', (_c: any, err: GLib.Error) => this._handleError(err)),
-            native.connect('on-message-string', (_c: any, str: string | null) => this._handleString(str)),
-            native.connect('on-message-data', (_c: any, bytes: GLib.Bytes | null) => this._handleData(bytes)),
-            native.connect('on-buffered-amount-low', () => this._handleBufferedAmountLow()),
-            native.connect('notify::ready-state', () => this._handleReadyStateChange()),
-        );
+        this._bridge.connect('opened', () => this._handleOpen());
+        this._bridge.connect('closed', () => this._handleClose());
+        this._bridge.connect('error-occurred', (_b, message) => this._handleError(message));
+        this._bridge.connect('message-string', (_b, data) => this._handleString(data));
+        this._bridge.connect('message-data', (_b, data) => this._handleData(data));
+        this._bridge.connect('buffered-amount-low', () => this._handleBufferedAmountLow());
+        this._bridge.connect('ready-state-changed', () => this._handleReadyStateChange());
     }
 
     // ---- Properties --------------------------------------------------------
@@ -177,10 +181,8 @@ export class RTCDataChannel extends EventTarget {
             return;
         }
 
-        // Blob support is best-effort — resolve via globalThis.Blob's ArrayBuffer.
         if (typeof (globalThis as any).Blob !== 'undefined' && data instanceof (globalThis as any).Blob) {
             const blob = data as Blob;
-            // Synchronous path unavailable — spec allows deferring, we call async.
             blob.arrayBuffer().then((buf) => {
                 try {
                     this._native.send_data(toGBytes(buf));
@@ -217,83 +219,65 @@ export class RTCDataChannel extends EventTarget {
 
     /** @internal */
     _disconnectSignals(): void {
-        for (const id of this._signalIds) {
-            try { this._native.disconnect(id); } catch { /* ignore */ }
-        }
-        this._signalIds.length = 0;
+        try { this._bridge.dispose_bridge(); } catch { /* ignore */ }
     }
 
     // ---- Signal → event translators ---------------------------------------
+    // Already running on the main context (DataChannelBridge did the hop).
 
     private _handleOpen(): void {
-        deferToMain(() => {
-            const ev = new Event('open');
-            this._onopen?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+        const ev = new Event('open');
+        this._onopen?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
     private _handleClose(): void {
-        deferToMain(() => {
-            this._closed = true;
-            const ev = new Event('close');
-            this._onclose?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+        this._closed = true;
+        const ev = new Event('close');
+        this._onclose?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
-    private _handleError(gerr: GLib.Error): void {
-        deferToMain(() => {
-            const rtcErr = new RTCError(
-                { errorDetail: 'data-channel-failure' },
-                gerr?.message ?? 'RTCDataChannel error',
-            );
-            const ev = new RTCErrorEvent('error', { error: rtcErr });
-            this._onerror?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+    private _handleError(message: string): void {
+        const rtcErr = new RTCError(
+            { errorDetail: 'data-channel-failure' },
+            message || 'RTCDataChannel error',
+        );
+        const ev = new RTCErrorEvent('error', { error: rtcErr });
+        this._onerror?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
-    private _handleString(str: string | null): void {
-        const data = str ?? '';
-        deferToMain(() => {
-            const ev = new MessageEvent('message', { data });
-            this._onmessage?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+    private _handleString(data: string): void {
+        const ev = new MessageEvent('message', { data });
+        this._onmessage?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
-    private _handleData(bytes: GLib.Bytes | null): void {
+    private _handleData(bytes: GLib.Bytes): void {
         if (!bytes) return;
         const buf = bytesToArrayBuffer(bytes);
         let data: ArrayBuffer | Blob = buf;
         if (this._binaryType === 'blob' && typeof (globalThis as any).Blob !== 'undefined') {
             data = new (globalThis as any).Blob([buf]);
         }
-        deferToMain(() => {
-            const ev = new MessageEvent('message', { data });
-            this._onmessage?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+        const ev = new MessageEvent('message', { data });
+        this._onmessage?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
     private _handleBufferedAmountLow(): void {
         this._bufferedAmount = Number(this._native.buffered_amount) || 0;
-        deferToMain(() => {
-            const ev = new Event('bufferedamountlow');
-            this._onbufferedamountlow?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+        const ev = new Event('bufferedamountlow');
+        this._onbufferedamountlow?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
     private _handleReadyStateChange(): void {
-        // 'closing' has no dedicated webrtcbin signal; fire via notify::ready-state.
         if (this.readyState === 'closing') {
-            deferToMain(() => {
-                const ev = new Event('closing');
-                this._onclosing?.call(this, ev);
-                this.dispatchEvent(ev);
-            });
+            const ev = new Event('closing');
+            this._onclosing?.call(this, ev);
+            this.dispatchEvent(ev);
         }
     }
 }

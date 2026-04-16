@@ -8,6 +8,11 @@ import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
+import {
+    WebrtcbinBridge,
+    type WebrtcbinBridge as WebrtcbinBridgeType,
+    type DataChannelBridge as DataChannelBridgeType,
+} from '@gjsify/webrtc-native';
 import { ensureWebrtcbinAvailable, Gst } from './gst-init.js';
 import { withGstPromise } from './gst-utils.js';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from './rtc-session-description.js';
@@ -64,21 +69,6 @@ export interface RTCDataChannelInit {
 
 type EventHandler<E extends Event = Event> =
     ((this: RTCPeerConnection, ev: E) => any) | null;
-
-// Webrtcbin emits signals on GStreamer's streaming thread. GJS blocks JS
-// callbacks from non-main threads, so we hop to the main GLib context via
-// `idle_add` before running user code. Fires with default priority.
-function deferToMain(fn: () => void): void {
-    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-        try { fn(); } catch (err: any) {
-            // Don't let exceptions break the idle source.
-            const msg = err?.message ?? String(err);
-            // eslint-disable-next-line no-console
-            console.error?.('[webrtc] handler error:', msg);
-        }
-        return GLib.SOURCE_REMOVE;
-    });
-}
 
 function throwNotSupported(method: string): never {
     const DOMExc = (globalThis as any).DOMException;
@@ -138,9 +128,9 @@ let globalCounter = 0;
 export class RTCPeerConnection extends EventTarget {
     private _pipeline: Gst.Pipeline;
     private _webrtcbin: Gst.Element;
+    private _bridge: WebrtcbinBridgeType;
     private _conf: RTCConfiguration;
     private _closed = false;
-    private _signalIds: number[] = [];
     private _dataChannels = new Map<unknown, RTCDataChannel>();
     readonly canTrickleIceCandidates: boolean = true;
 
@@ -171,21 +161,23 @@ export class RTCPeerConnection extends EventTarget {
 
         this._pipeline.add(this._webrtcbin);
 
-        this._signalIds.push(
-            this._webrtcbin.connect('on-negotiation-needed', () => this._handleNegotiationNeeded()),
-            this._webrtcbin.connect('on-ice-candidate', (_bin: any, mlineIndex: number, candidate: string) =>
-                this._handleIceCandidate(mlineIndex, candidate)),
-            this._webrtcbin.connect('on-data-channel', (_bin: any, ch: GstWebRTC.WebRTCDataChannel) =>
-                this._handleDataChannel(ch)),
-            this._webrtcbin.connect('notify::connection-state', () =>
-                this._dispatchStateChange('connectionstatechange')),
-            this._webrtcbin.connect('notify::ice-connection-state', () =>
-                this._dispatchStateChange('iceconnectionstatechange')),
-            this._webrtcbin.connect('notify::ice-gathering-state', () =>
-                this._dispatchStateChange('icegatheringstatechange')),
-            this._webrtcbin.connect('notify::signaling-state', () =>
-                this._dispatchStateChange('signalingstatechange')),
-        );
+        // Connect via @gjsify/webrtc-native's WebrtcbinBridge — webrtcbin fires
+        // its signals from the streaming thread, GJS would block direct JS
+        // callbacks. The bridge hops to the main context on the C side.
+        this._bridge = new (WebrtcbinBridge as any)({ bin: this._webrtcbin });
+        this._bridge.connect('negotiation-needed', () => this._handleNegotiationNeeded());
+        this._bridge.connect('icecandidate', (_b, mlineIndex, candidate) =>
+            this._handleIceCandidate(mlineIndex, candidate));
+        this._bridge.connect('datachannel', (_b, channelBridge) =>
+            this._handleDataChannel(channelBridge));
+        this._bridge.connect('connection-state-changed', () =>
+            this._dispatchStateChange('connectionstatechange'));
+        this._bridge.connect('ice-connection-state-changed', () =>
+            this._dispatchStateChange('iceconnectionstatechange'));
+        this._bridge.connect('ice-gathering-state-changed', () =>
+            this._dispatchStateChange('icegatheringstatechange'));
+        this._bridge.connect('signaling-state-changed', () =>
+            this._dispatchStateChange('signalingstatechange'));
 
         // webrtcbin needs PLAYING to exit its `is_closed` state before it accepts
         // createDataChannel/create-offer etc. (see GStreamer webrtcbin source).
@@ -309,8 +301,9 @@ export class RTCPeerConnection extends EventTarget {
         const reply = await withGstPromise((p) => {
             this._webrtcbin.emit('create-offer', opts, p);
         });
-        const gvalue = reply!.get_value('offer') as any;
-        const desc = gvalue.get_boxed() as GstWebRTC.WebRTCSessionDescription;
+        // GJS unboxes `get_value` for boxed types directly to the underlying
+        // struct; no GObject.Value wrapper involvement.
+        const desc = reply!.get_value('offer') as unknown as GstWebRTC.WebRTCSessionDescription;
         return RTCSessionDescription.fromGstDesc(desc).toJSON();
     }
 
@@ -319,8 +312,7 @@ export class RTCPeerConnection extends EventTarget {
         const reply = await withGstPromise((p) => {
             this._webrtcbin.emit('create-answer', opts, p);
         });
-        const gvalue = reply!.get_value('answer') as any;
-        const desc = gvalue.get_boxed() as GstWebRTC.WebRTCSessionDescription;
+        const desc = reply!.get_value('answer') as unknown as GstWebRTC.WebRTCSessionDescription;
         return RTCSessionDescription.fromGstDesc(desc).toJSON();
     }
 
@@ -437,10 +429,7 @@ export class RTCPeerConnection extends EventTarget {
                 try { ch._disconnectSignals(); } catch { /* ignore */ }
             }
             this._dataChannels.clear();
-            for (const id of this._signalIds) {
-                try { this._webrtcbin.disconnect(id); } catch { /* ignore */ }
-            }
-            this._signalIds.length = 0;
+            try { this._bridge.dispose_bridge(); } catch { /* ignore */ }
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -467,51 +456,47 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     // ---- Signal handlers ---------------------------------------------------
+    // The WebrtcbinBridge (webrtc-native) has already marshalled these from
+    // the GStreamer streaming thread onto the GLib main context, so we can
+    // synchronously dispatch from here.
 
     private _handleNegotiationNeeded(): void {
-        deferToMain(() => {
-            const ev = new Event('negotiationneeded');
-            this._onnegotiationneeded?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+        const ev = new Event('negotiationneeded');
+        this._onnegotiationneeded?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
     private _handleIceCandidate(sdpMLineIndex: number, candidate: string): void {
-        deferToMain(() => {
-            const cand = new RTCIceCandidate({ candidate, sdpMLineIndex });
-            const ev = new RTCPeerConnectionIceEvent('icecandidate', { candidate: cand });
-            this._onicecandidate?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+        const cand = new RTCIceCandidate({ candidate, sdpMLineIndex });
+        const ev = new RTCPeerConnectionIceEvent('icecandidate', { candidate: cand });
+        this._onicecandidate?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
-    private _handleDataChannel(native: GstWebRTC.WebRTCDataChannel): void {
+    private _handleDataChannel(channelBridge: DataChannelBridgeType): void {
+        const native = channelBridge.channel as unknown as GstWebRTC.WebRTCDataChannel;
         let js = this._dataChannels.get(native);
         if (!js) {
-            js = new RTCDataChannel(native);
+            js = new RTCDataChannel(channelBridge);
             this._dataChannels.set(native, js);
             js.addEventListener('close', () => {
                 this._dataChannels.delete(native);
             });
         }
-        deferToMain(() => {
-            const ev = new RTCDataChannelEvent('datachannel', { channel: js! });
-            this._ondatachannel?.call(this, ev);
-            this.dispatchEvent(ev);
-        });
+        const ev = new RTCDataChannelEvent('datachannel', { channel: js });
+        this._ondatachannel?.call(this, ev);
+        this.dispatchEvent(ev);
     }
 
     private _dispatchStateChange(type: string): void {
-        deferToMain(() => {
-            const ev = new Event(type);
-            switch (type) {
-                case 'connectionstatechange':     this._onconnectionstatechange?.call(this, ev); break;
-                case 'iceconnectionstatechange':  this._oniceconnectionstatechange?.call(this, ev); break;
-                case 'icegatheringstatechange':   this._onicegatheringstatechange?.call(this, ev); break;
-                case 'signalingstatechange':      this._onsignalingstatechange?.call(this, ev); break;
-            }
-            this.dispatchEvent(ev);
-        });
+        const ev = new Event(type);
+        switch (type) {
+            case 'connectionstatechange':     this._onconnectionstatechange?.call(this, ev); break;
+            case 'iceconnectionstatechange':  this._oniceconnectionstatechange?.call(this, ev); break;
+            case 'icegatheringstatechange':   this._onicegatheringstatechange?.call(this, ev); break;
+            case 'signalingstatechange':      this._onsignalingstatechange?.call(this, ev); break;
+        }
+        this.dispatchEvent(ev);
     }
 
     // ---- on<event> attribute handlers --------------------------------------

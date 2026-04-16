@@ -4,19 +4,10 @@ Two `RTCPeerConnection` instances in a single GJS process perform the full
 WebRTC handshake (offer/answer + ICE trickle) and exchange string and binary
 payloads over a data channel.
 
-This is the smoke-test example for [@gjsify/webrtc](../../../packages/web/webrtc).
-
-## ⚠️ Currently blocked by a GJS limitation (Phase 1.5)
-
-The async handshake (`createOffer`, `setLocalDescription`, …) **hangs on GJS today**
-because webrtcbin fires its signals and `Gst.Promise` callbacks from GStreamer's
-internal streaming thread — GJS deliberately blocks JS callbacks from non-main
-threads to prevent VM corruption. See STATUS.md → "WebRTC Status" for the full
-rationale and the planned Phase 1.5 native bridge (Vala helper that marshals
-webrtcbin signals through `g_main_context_invoke()`).
-
-Running this example today prints `pcA` construction and then hangs. The demo
-will work as documented below once Phase 1.5 lands.
+This is the smoke-test example for [@gjsify/webrtc](../../../packages/web/webrtc),
+backed by the [@gjsify/webrtc-native](../../../packages/web/webrtc-native)
+Vala bridge that marshals webrtcbin's streaming-thread signals and
+`Gst.Promise` callbacks onto the GLib main context.
 
 ## Prerequisites
 

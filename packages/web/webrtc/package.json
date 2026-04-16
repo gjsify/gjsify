@@ -37,7 +37,7 @@
         "build:test": "yarn build:test:gjs",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
-        "test:gjs": "gjs -m test.gjs.mjs"
+        "test:gjs": "gjsify run test.gjs.mjs"
     },
     "keywords": [
         "gjs",
@@ -50,7 +50,8 @@
     ],
     "dependencies": {
         "@gjsify/dom-events": "workspace:^",
-        "@gjsify/dom-exception": "workspace:^"
+        "@gjsify/dom-exception": "workspace:^",
+        "@gjsify/webrtc-native": "workspace:^"
     },
     "devDependencies": {
         "@girs/gjs": "^4.0.0-rc.3",
