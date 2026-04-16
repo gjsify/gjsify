@@ -177,6 +177,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **esbuild-plugin-transform-ext** | Normalize import extensions | Full |
 | **esbuild-plugin-deepkit** | Deepkit type reflection | Full |
 | **esbuild-plugin-blueprint** | Compile `.blp` files via blueprint-compiler→XML | Full |
+| **esbuild-plugin-css** | Bundle `.css` imports (resolve `@import` from node_modules) → JS string | Full |
 | **resolve-npm** | Central alias registry (60+ mappings) | Full |
 | **empty** | Stub module for platform exclusion | Full |
 

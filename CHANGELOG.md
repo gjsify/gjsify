@@ -16,6 +16,7 @@
 
 ### Features
 
+* **infra:** new `@gjsify/esbuild-plugin-css` package. Bundles `.css` imports into a JS string at build time, resolving `@import` statements (including node_modules via `package.json#exports`) through esbuild's own resolver. Wired into `gjsify build` for GJS, browser, and node targets. Fixes the runtime GTK CSS Theme-parser warnings that occurred because `Gtk.CssProvider.load_from_string()` cannot resolve `@import "@scope/pkg/style.css"` at runtime — the imports are now resolved at build time. Config via `PluginOptions.css` (`{ minify, target }`, both default to the parent build's values)
 * **showcases:** new `adwaita-package-builder` showcase — minimal Adwaita app demonstrating `gjsify gresource`, `gjsify gettext`, and `gjsify build --shebang` in a single build pipeline. Produces a directly-executable binary with an embedded GResource (CSS) and per-language `.mo` translations (de/es). Serves as the `gjsify showcase adwaita-package-builder` reference for "how to package a GJS/GNOME app with the gjsify CLI alone"
 
 ### Bug Fixes

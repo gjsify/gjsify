@@ -1,0 +1,12 @@
+/* Nested stylesheet pulled in by runtime-style.css via @import.
+ *
+ * If you see the rounded, tinted background on the runtime note at the bottom
+ * of the window, @gjsify/esbuild-plugin-css correctly resolved and inlined
+ * this file into the JS bundle. Remove the @import in runtime-style.css to
+ * verify the opposite — the background disappears. */
+
+.runtime-note {
+  background: alpha(@accent_bg_color, 0.15);
+  border-radius: 6px;
+  border: 1px solid alpha(@accent_bg_color, 0.3);
+}

@@ -1,0 +1,46 @@
+{
+    "name": "@gjsify/esbuild-plugin-css",
+    "version": "0.1.11",
+    "description": "esbuild plugin that bundles CSS (resolving @import from node_modules) and returns the result as a string for GTK CssProvider.load_from_string()",
+    "type": "module",
+    "main": "dist/esm/index.mjs",
+    "types": "dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/esm/index.mjs"
+        },
+        "./types": "./types.d.ts"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:js && yarn build:types",
+        "build:js": "node esbuild.mjs",
+        "build:types": "tsc --emitDeclarationOnly"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/esbuild-plugin-css#readme",
+    "keywords": [
+        "esbuild",
+        "plugin",
+        "css",
+        "gnome",
+        "gtk",
+        "gjs"
+    ],
+    "devDependencies": {
+        "@gjsify/resolve-npm": "workspace:^",
+        "esbuild": "^0.28.0",
+        "typescript": "^6.0.2"
+    },
+    "peerDependencies": {
+        "esbuild": "^0.28.0"
+    }
+}

@@ -1,0 +1,17 @@
+/* Runtime stylesheet bundled into the JS binary via @gjsify/esbuild-plugin-css.
+ *
+ * Demonstrates the alternative CSS-loading path: unlike data/style.css (which
+ * ships in the GResource bundle and is loaded via `load_from_resource`), this
+ * file is imported from main-window.ts as a JS string and applied via
+ * `CssProvider.load_from_string`. The plugin resolves @import statements at
+ * build time so node_modules CSS would resolve too — here we only exercise
+ * the workspace-relative case to keep the showcase self-contained. */
+
+@import "./overrides.css";
+
+.runtime-note {
+  padding: 6px 12px;
+  opacity: 0.75;
+  font-size: 10pt;
+  font-style: italic;
+}
