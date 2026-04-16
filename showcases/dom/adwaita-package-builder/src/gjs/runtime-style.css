@@ -1,11 +1,11 @@
 /* Runtime stylesheet bundled into the JS binary via @gjsify/esbuild-plugin-css.
  *
- * Demonstrates the alternative CSS-loading path: unlike data/style.css (which
- * ships in the GResource bundle and is loaded via `load_from_resource`), this
- * file is imported from main-window.ts as a JS string and applied via
- * `CssProvider.load_from_string`. The plugin resolves @import statements at
- * build time so node_modules CSS would resolve too — here we only exercise
- * the workspace-relative case to keep the showcase self-contained. */
+ * Demonstrates two build-time CSS transforms:
+ *   1. `@import` resolution — overrides.css is pulled in and concatenated.
+ *   2. CSS Nesting lowering — the nested rule below is flattened to plain
+ *      selectors, because GTK4's CSS parser does not understand nesting.
+ *      esbuild's CSS lowering handles this automatically when the plugin
+ *      uses a conservative target (firefox60 by default in gjsify). */
 
 @import "./overrides.css";
 
@@ -14,4 +14,11 @@
   opacity: 0.75;
   font-size: 10pt;
   font-style: italic;
+
+  /* Nested rule — flattened at build time to `.runtime-note:hover {...}`.
+   * Leave this nested in the source; the output CSS in the bundled binary
+   * will be flat and GTK4-compatible. */
+  &:hover {
+    opacity: 1;
+  }
 }

@@ -35,7 +35,7 @@ LANG=C yarn start                  # Hello from gjsify (source string)
 
 - [src/gjs/main.ts](src/gjs/main.ts) — `Gio.Resource.load` + `Gettext.bindtextdomain` wiring resolved relative to the binary.
 - [src/gjs/main-window.ts](src/gjs/main-window.ts) — two CSS loading paths side by side: `Gtk.CssProvider.load_from_resource` (from GResource) and `load_from_string(runtimeStyle)` (from a JS-bundled string).
-- [src/gjs/runtime-style.css](src/gjs/runtime-style.css) + [src/gjs/overrides.css](src/gjs/overrides.css) — imported as `import css from './runtime-style.css'`. The `@import "./overrides.css"` statement is resolved at build time by `@gjsify/esbuild-plugin-css`; the bundled string in the binary contains both files concatenated.
+- [src/gjs/runtime-style.css](src/gjs/runtime-style.css) + [src/gjs/overrides.css](src/gjs/overrides.css) — imported as `import css from './runtime-style.css'`. The `@import "./overrides.css"` statement is resolved at build time by `@gjsify/esbuild-plugin-css`; the bundled string in the binary contains both files concatenated. `runtime-style.css` also uses CSS Nesting (`.runtime-note { &:hover { … } }`) which is **flattened at build time** to plain GTK4-compatible selectors (`.runtime-note:hover { … }`) — esbuild's CSS lowering, triggered by the `firefox60` default target that ships with gjsify's GJS app builds.
 - [data/](data/) — the source CSS + GResource descriptor + metainfo template.
 - [po/](po/) — `.po` files (one per language) consumed by `msgfmt`.
 
