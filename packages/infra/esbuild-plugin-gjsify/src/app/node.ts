@@ -1,4 +1,5 @@
 import { aliasPlugin } from '@gjsify/esbuild-plugin-alias';
+import { cssPlugin } from '@gjsify/esbuild-plugin-css';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForNode, globToEntryPoints } from "../utils/index.js";
@@ -64,6 +65,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
     await aliasPlugin(aliases).setup(build);
+    await cssPlugin(pluginOptions.css ?? {}).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 
     registerToCommonJSPatch(build);

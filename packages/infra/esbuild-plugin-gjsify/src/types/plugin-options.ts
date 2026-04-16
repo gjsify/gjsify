@@ -1,5 +1,6 @@
 import type { App } from './app.js';
 import type { DeepkitPluginOptions } from '@gjsify/esbuild-plugin-deepkit';
+import type { CssPluginOptions } from '@gjsify/esbuild-plugin-css';
 
 export interface PluginOptions extends DeepkitPluginOptions {
     debug?: boolean;
@@ -22,6 +23,13 @@ export interface PluginOptions extends DeepkitPluginOptions {
      * Only applies to GJS app builds. Default: true.
      */
     consoleShim?: boolean;
+
+    /**
+     * Options forwarded to `@gjsify/esbuild-plugin-css`. By default the CSS
+     * plugin inherits `minify` and `target` from the parent esbuild build, so
+     * this only needs to be set when you want to override those per-app.
+     */
+    css?: CssPluginOptions;
 
     /**
      * Path to a pre-computed globals stub file. The stub is an ESM file

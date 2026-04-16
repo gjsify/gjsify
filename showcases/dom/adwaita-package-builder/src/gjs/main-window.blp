@@ -4,7 +4,7 @@ using Adw 1;
 template $MainWindow: Adw.ApplicationWindow {
   title: _("Adwaita Package Builder");
   default-width: 480;
-  default-height: 240;
+  default-height: 260;
 
   content: Adw.ToolbarView {
     [top]
@@ -27,6 +27,12 @@ template $MainWindow: Adw.ApplicationWindow {
       Label detail {
         wrap: true;
         justify: center;
+      }
+
+      Label runtimeNote {
+        wrap: true;
+        justify: center;
+        styles [ "runtime-note" ]
       }
     };
   };

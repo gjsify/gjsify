@@ -2,7 +2,7 @@
 
 Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js API, Web API, and DOM API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.0.4, ESM-only). All packages use native GNOME libs. Three equal-priority pillars: **Node.js API** (`packages/node/`) | **Web API** (`packages/web/`) | **DOM API** (`packages/dom/`).
+Node.js API, Web API, and DOM API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.1.11, ESM-only). All packages use native GNOME libs. Three equal-priority pillars: **Node.js API** (`packages/node/`) | **Web API** (`packages/web/`) | **DOM API** (`packages/dom/`).
 
 Browser compatibility patches (globals, DOM stubs) belong in packages, not examples. If an example needs a `globalThis.*` polyfill or DOM method stub, add it to `@gjsify/dom-elements` or the appropriate package.
 
@@ -128,6 +128,8 @@ esbuild with platform-specific plugins. Same test source, different resolution p
 Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `packages/infra/esbuild-plugin-gjsify/src/utils/scan-globals.ts` | `packages/infra/resolve-npm/lib/{index,globals-map}.mjs`
 
 **Blueprint support:** `@gjsify/esbuild-plugin-blueprint` compiles `.blp` files via `blueprint-compiler` → XML string. Wired into `gjsify build` for GJS and browser targets. `import Template from './window.blp'` → string. Type declaration: `@gjsify/esbuild-plugin-blueprint/types` (add to tsconfig `"types"`).
+
+**CSS support:** `@gjsify/esbuild-plugin-css` bundles `.css` imports (resolving `@import` from workspace and `node_modules` via esbuild's own resolver — `package.json#exports` is honored) and returns the concatenated CSS as a JS string. Needed for GTK apps that load styles via `Gtk.CssProvider.load_from_string(applicationStyle)`; without it, `@import`s survive into the bundled string and fail at runtime because GTK's CSS parser can't resolve node_modules paths. Wired into `gjsify build` for GJS, browser, and node targets. `import css from './app.css'` → bundled string. Type declaration: `@gjsify/esbuild-plugin-css/types`. Config via `PluginOptions.css` (forwards `{ minify, target }` to the plugin; defaults inherit from the parent build).
 
 **Globals via `--globals`:** `gjsify build --app gjs` supports four modes:
 
@@ -365,7 +367,7 @@ Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. Select: core
 
 ## Package Convention
 
-`packages/node/<name>/`: `@gjsify/<name>`, v0.0.4, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if the package provides globals) | `sideEffects: ["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`, devDep: `@gjsify/unit` | workspace deps: `workspace:^`
+`packages/node/<name>/`: `@gjsify/<name>`, v0.1.11, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if the package provides globals) | `sideEffects: ["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`, devDep: `@gjsify/unit` | workspace deps: `workspace:^`
 
 Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals, if applicable) | `src/*.spec.ts` (specs) | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + any feature-specific `<pkg>/register`). See the Tree-shakeable Globals section for the full rules.
 

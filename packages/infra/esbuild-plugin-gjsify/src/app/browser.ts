@@ -1,5 +1,6 @@
 import { aliasPlugin } from '@gjsify/esbuild-plugin-alias';
 import { blueprintPlugin } from '@gjsify/esbuild-plugin-blueprint';
+import { cssPlugin } from '@gjsify/esbuild-plugin-css';
 import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { globToEntryPoints } from "../utils/index.js";
@@ -59,5 +60,6 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
 
     await aliasPlugin(aliases).setup(build);
     await blueprintPlugin().setup(build);
+    await cssPlugin(pluginOptions.css ?? {}).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 }
