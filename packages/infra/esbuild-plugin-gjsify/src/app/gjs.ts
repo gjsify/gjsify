@@ -95,7 +95,15 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
 
     await aliasPlugin(aliases).setup(build);
     await blueprintPlugin().setup(build);
-    await cssPlugin(pluginOptions.css ?? {}).setup(build);
+    // Default CSS target: firefox60. This triggers esbuild's CSS lowering for
+    // features GTK4's CSS parser does not understand — most importantly CSS
+    // Nesting. Modern features GTK4 *does* support (var(), calc(), :is(),
+    // :where(), :not()) are preserved at this target. Override via
+    // `gjsify.config.js` → `esbuild.css.target` if your GTK version differs.
+    await cssPlugin({
+        minify: pluginOptions.css?.minify,
+        target: pluginOptions.css?.target ?? ['firefox60'],
+    }).setup(build);
     await deepkitPlugin.deepkitPlugin({reflection: pluginOptions.reflection}).setup(build);
 
     registerToCommonJSPatch(build);
