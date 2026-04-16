@@ -70,6 +70,26 @@ export interface RTCDataChannelInit {
 type EventHandler<E extends Event = Event> =
     ((this: RTCPeerConnection, ev: E) => any) | null;
 
+/**
+ * Web-IDL `[EnforceRange] unsigned short` coercion. Coerces via ToNumber,
+ * rejects values that can't be represented as an unsigned short (0..65535).
+ * Matches Web-IDL §3.2.4.10: reject NaN, ±Infinity, and integers outside
+ * the range; "100" → 100; fractional values are truncated.
+ *
+ * Reference: refs/wpt/webrtc/RTCDataChannelInit-{maxPacketLifeTime,maxRetransmits}-enforce-range.html
+ */
+function coerceUnsignedShort(name: string, raw: unknown): number {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) {
+        throw new TypeError(`createDataChannel: ${name} must be a finite number, got ${String(raw)}`);
+    }
+    const truncated = Math.trunc(n);
+    if (truncated < 0 || truncated > 65535) {
+        throw new TypeError(`createDataChannel: ${name}=${truncated} is outside the [0, 65535] range`);
+    }
+    return truncated;
+}
+
 function throwNotSupported(method: string): never {
     const DOMExc = (globalThis as any).DOMException;
     const msg = `RTCPeerConnection.${method} is not implemented in @gjsify/webrtc (Data Channel MVP). Tracking: media support lands in a follow-up PR.`;
@@ -296,7 +316,15 @@ export class RTCPeerConnection extends EventTarget {
 
     // ---- Core methods ------------------------------------------------------
 
+    private _rejectIfClosed(method: string): void {
+        if (!this._closed) return;
+        const DOMExc = (globalThis as any).DOMException;
+        const msg = `RTCPeerConnection.${method}: connection is closed`;
+        throw DOMExc ? new DOMExc(msg, 'InvalidStateError') : new Error(msg);
+    }
+
     async createOffer(_options?: RTCOfferOptions): Promise<RTCSessionDescriptionInit> {
+        this._rejectIfClosed('createOffer');
         const opts = Gst.Structure.new_empty('offer-options');
         const reply = await withGstPromise((p) => {
             this._webrtcbin.emit('create-offer', opts, p);
@@ -308,6 +336,7 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     async createAnswer(_options?: RTCAnswerOptions): Promise<RTCSessionDescriptionInit> {
+        this._rejectIfClosed('createAnswer');
         const opts = Gst.Structure.new_empty('answer-options');
         const reply = await withGstPromise((p) => {
             this._webrtcbin.emit('create-answer', opts, p);
@@ -317,6 +346,7 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     async setLocalDescription(description?: RTCSessionDescriptionInit): Promise<void> {
+        this._rejectIfClosed('setLocalDescription');
         if (!description || !description.sdp || !description.type) {
             // Implicit createOffer/createAnswer is not implemented yet — require explicit SDP.
             throw new TypeError('setLocalDescription requires an RTCSessionDescriptionInit with sdp and type');
@@ -330,6 +360,7 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {
+        this._rejectIfClosed('setRemoteDescription');
         if (!description || !description.sdp || !description.type) {
             throw new TypeError('setRemoteDescription requires an RTCSessionDescriptionInit with sdp and type');
         }
@@ -341,6 +372,7 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     async addIceCandidate(candidate: RTCIceCandidateInit | RTCIceCandidate | null): Promise<void> {
+        this._rejectIfClosed('addIceCandidate');
         if (!candidate) return; // end-of-candidates marker — webrtcbin handles implicitly
         const { candidate: cand, sdpMLineIndex } = candidate;
         if (typeof cand !== 'string' || typeof sdpMLineIndex !== 'number') return;
@@ -360,23 +392,40 @@ export class RTCPeerConnection extends EventTarget {
         if (new TextEncoder().encode(label).byteLength > 65535) {
             throw new TypeError('createDataChannel: label too long (> 65535 bytes)');
         }
-        if (options.maxPacketLifeTime != null && options.maxRetransmits != null) {
+
+        // Web-IDL `[EnforceRange] unsigned short` coercion for the three
+        // numeric options. Input is coerced via ToNumber (so "100" → 100)
+        // then range-checked against [0, 65535]; any value that can't be
+        // represented exactly as an unsigned short throws TypeError. Also
+        // handles WPT's `0` edge case (number) vs `undefined` (no value).
+        const maxPacketLifeTime = options.maxPacketLifeTime == null
+            ? undefined
+            : coerceUnsignedShort('maxPacketLifeTime', options.maxPacketLifeTime);
+        const maxRetransmits = options.maxRetransmits == null
+            ? undefined
+            : coerceUnsignedShort('maxRetransmits', options.maxRetransmits);
+        const id = options.id == null
+            ? undefined
+            : coerceUnsignedShort('id', options.id);
+
+        if (maxPacketLifeTime !== undefined && maxRetransmits !== undefined) {
             throw new TypeError('createDataChannel: maxPacketLifeTime and maxRetransmits are mutually exclusive');
         }
-        if (options.negotiated === true && typeof options.id !== 'number') {
+        if (options.negotiated === true && id === undefined) {
             throw new TypeError('createDataChannel: negotiated=true requires an id');
         }
-        if (typeof options.id === 'number' && (options.id < 0 || options.id >= 65535)) {
-            throw new TypeError('createDataChannel: id out of range');
+        if (id === 65535) {
+            // Per RFC 8832 §5.1, id must be < 65535 (65535 is reserved).
+            throw new TypeError('createDataChannel: id 65535 is reserved');
         }
 
         const gstOpts = Gst.Structure.new_empty('data-channel-opts');
         this._setStructureField(gstOpts, 'ordered', 'boolean', options.ordered);
-        this._setStructureField(gstOpts, 'max-packet-lifetime', 'int', options.maxPacketLifeTime);
-        this._setStructureField(gstOpts, 'max-retransmits', 'int', options.maxRetransmits);
+        this._setStructureField(gstOpts, 'max-packet-lifetime', 'int', maxPacketLifeTime);
+        this._setStructureField(gstOpts, 'max-retransmits', 'int', maxRetransmits);
         this._setStructureField(gstOpts, 'protocol', 'string', options.protocol);
         this._setStructureField(gstOpts, 'negotiated', 'boolean', options.negotiated);
-        this._setStructureField(gstOpts, 'id', 'int', options.id);
+        this._setStructureField(gstOpts, 'id', 'int', id);
 
         let native: GstWebRTC.WebRTCDataChannel | null = null;
         try {

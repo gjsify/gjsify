@@ -143,6 +143,116 @@ export default async () => {
         }
     });
 
+    await describe('WPT — RTCDataChannelInit-maxPacketLifeTime-enforce-range.html', async () => {
+        // Ported: refs/wpt/webrtc/RTCDataChannelInit-maxPacketLifeTime-enforce-range.html
+        //
+        // Web-IDL `[EnforceRange] unsigned short` — value must be 0-65535.
+        // Values outside range (or non-numeric) must throw TypeError.
+        // String values that parse to valid numbers are accepted.
+
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+            return;
+        }
+
+        const validValues = [0, 1, 3, 10, 1000, 65534, 65535];
+        for (const value of validValues) {
+            await it(`maxPacketLifeTime=${value} is accepted`, async () => {
+                const pc = new RTCPeerConnection();
+                const ch = pc.createDataChannel('t', { maxPacketLifeTime: value });
+                expect(ch.maxPacketLifeTime).toBe(value);
+                pc.close();
+            });
+        }
+
+        const badValues: Array<[unknown, string]> = [
+            [-1, 'value -1'],
+            [-100, 'value -100'],
+            [65536, 'value 65536'],
+            [100000, 'value 100000'],
+            [Infinity, 'Infinity'],
+            [-Infinity, '-Infinity'],
+            [NaN, 'NaN'],
+            ['65536', 'string "65536"'],
+        ];
+        for (const [value, desc] of badValues) {
+            await it(`maxPacketLifeTime=${desc} throws TypeError`, async () => {
+                const pc = new RTCPeerConnection();
+                expect(() => pc.createDataChannel('t', { maxPacketLifeTime: value as number })).toThrow();
+                pc.close();
+            });
+        }
+
+        await it('maxPacketLifeTime="100" is coerced to 100', async () => {
+            const pc = new RTCPeerConnection();
+            const ch = pc.createDataChannel('t', { maxPacketLifeTime: '100' as unknown as number });
+            expect(ch.maxPacketLifeTime).toBe(100);
+            pc.close();
+        });
+
+        await it('maxPacketLifeTime omitted returns null', async () => {
+            const pc = new RTCPeerConnection();
+            const ch = pc.createDataChannel('t', {});
+            expect(ch.maxPacketLifeTime).toBeNull();
+            pc.close();
+        });
+    });
+
+    await describe('WPT — RTCDataChannelInit-maxRetransmits-enforce-range.html', async () => {
+        // Ported: refs/wpt/webrtc/RTCDataChannelInit-maxRetransmits-enforce-range.html
+        //
+        // Same coercion rules as maxPacketLifeTime — sharing a single
+        // `coerceUnsignedShort` helper in the implementation.
+
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+            return;
+        }
+
+        const validValues = [0, 1, 3, 10, 1000, 65534, 65535];
+        for (const value of validValues) {
+            await it(`maxRetransmits=${value} is accepted`, async () => {
+                const pc = new RTCPeerConnection();
+                const ch = pc.createDataChannel('t', { maxRetransmits: value });
+                expect(ch.maxRetransmits).toBe(value);
+                pc.close();
+            });
+        }
+
+        const badValues: Array<[unknown, string]> = [
+            [-1, 'value -1'],
+            [65536, 'value 65536'],
+            [Infinity, 'Infinity'],
+            [NaN, 'NaN'],
+            ['65536', 'string "65536"'],
+        ];
+        for (const [value, desc] of badValues) {
+            await it(`maxRetransmits=${desc} throws TypeError`, async () => {
+                const pc = new RTCPeerConnection();
+                expect(() => pc.createDataChannel('t', { maxRetransmits: value as number })).toThrow();
+                pc.close();
+            });
+        }
+
+        await it('maxRetransmits="100" is coerced to 100', async () => {
+            const pc = new RTCPeerConnection();
+            const ch = pc.createDataChannel('t', { maxRetransmits: '100' as unknown as number });
+            expect(ch.maxRetransmits).toBe(100);
+            pc.close();
+        });
+
+        await it('maxRetransmits omitted returns null', async () => {
+            const pc = new RTCPeerConnection();
+            const ch = pc.createDataChannel('t', {});
+            expect(ch.maxRetransmits).toBeNull();
+            pc.close();
+        });
+    });
+
     await describe('WPT — RTCPeerConnection-createDataChannel.html', async () => {
         // Ported: refs/wpt/webrtc/RTCPeerConnection-createDataChannel.html
         //
@@ -259,10 +369,12 @@ export default async () => {
         });
     });
 
-    await describe('WPT — RTCPeerConnection-createOffer.html (subset)', async () => {
-        // Ported subset of: refs/wpt/webrtc/RTCPeerConnection-createOffer.html
+    await describe('WPT — RTCPeerConnection-createOffer.html', async () => {
+        // Ported: refs/wpt/webrtc/RTCPeerConnection-createOffer.html
         //
-        // Basic offer generation + SDP shape.
+        // Tests the base createOffer flow + error cases. We skip the
+        // `generateVideoReceiveOnlyOffer` / `addTransceiver('audio')`
+        // tests because those require media support (Phase 2).
 
         if (!pipelineReady) {
             await it('(skipped — webrtcbin/nicesrc missing)', async () => {
@@ -271,13 +383,24 @@ export default async () => {
             return;
         }
 
-        await it("createOffer() returns { type: 'offer', sdp: string } without a data channel", async () => {
+        await it("createOffer() returns a plain object, not an RTCSessionDescription instance", async () => {
+            const pc = new RTCPeerConnection();
+            try {
+                const offer = await withTimeout(5000, pc.createOffer() as Promise<any>, 'createOffer');
+                expect(typeof offer).toBe('object');
+                // Per spec: createOffer returns RTCSessionDescriptionInit
+                // (a dictionary), not an RTCSessionDescription instance.
+                expect(offer instanceof RTCSessionDescription).toBeFalsy();
+            } finally {
+                pc.close();
+            }
+        });
+
+        await it("createOffer() returns { type: 'offer', sdp: string }", async () => {
             const pc = new RTCPeerConnection();
             try {
                 const offer = await withTimeout(5000, pc.createOffer() as Promise<any>, 'createOffer');
                 expect(offer.type).toBe('offer');
-                // With no transceivers / data channels, webrtcbin may produce
-                // a minimal SDP or an empty one. Just check type is present.
                 expect(typeof offer.sdp).toBe('string');
             } finally {
                 pc.close();
@@ -295,6 +418,257 @@ export default async () => {
             } finally {
                 pc.close();
             }
+        });
+
+        await it("createOffer() after close() rejects with InvalidStateError", async () => {
+            const pc = new RTCPeerConnection();
+            pc.close();
+            let thrown: any = null;
+            try { await pc.createOffer(); } catch (e) { thrown = e; }
+            expect(thrown).toBeDefined();
+            expect((thrown as any)?.name).toBe('InvalidStateError');
+        });
+
+        await it("createOffer() + setLocalDescription() transitions to 'have-local-offer'", async () => {
+            const pc = new RTCPeerConnection();
+            try {
+                pc.createDataChannel('wpt'); // give the offer content
+                const states: string[] = [];
+                pc.addEventListener('signalingstatechange', () => states.push(pc.signalingState));
+                const offer = await withTimeout(5000, pc.createOffer() as Promise<any>, 'createOffer');
+                await withTimeout(5000, pc.setLocalDescription(offer), 'setLocalDescription');
+                expect(pc.signalingState).toBe('have-local-offer');
+                expect(pc.localDescription).toBeDefined();
+                expect(pc.localDescription!.type).toBe('offer');
+                // currentLocalDescription is null until the answer arrives.
+                expect(pc.currentLocalDescription).toBeNull();
+                expect(states).toContain('have-local-offer');
+            } finally {
+                pc.close();
+            }
+        });
+    });
+
+    await describe('WPT — RTCPeerConnection close / InvalidStateError after close', async () => {
+        // Ported: refs/wpt/webrtc/RTCPeerConnection-close* variants.
+        // After close(), all async methods must reject with InvalidStateError.
+
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+            return;
+        }
+
+        const asyncMethods: Array<[string, (pc: RTCPeerConnection) => Promise<unknown>]> = [
+            ['createOffer', (pc) => pc.createOffer() as Promise<unknown>],
+            ['createAnswer', (pc) => pc.createAnswer() as Promise<unknown>],
+            ['setLocalDescription', (pc) => pc.setLocalDescription({ type: 'offer', sdp: 'v=0\r\n' })],
+            ['setRemoteDescription', (pc) => pc.setRemoteDescription({ type: 'offer', sdp: 'v=0\r\n' })],
+            ['addIceCandidate', (pc) => pc.addIceCandidate({ candidate: '', sdpMLineIndex: 0 })],
+        ];
+
+        for (const [name, fn] of asyncMethods) {
+            await it(`${name}() after close() rejects with InvalidStateError`, async () => {
+                const pc = new RTCPeerConnection();
+                pc.close();
+                let thrown: any = null;
+                try { await fn(pc); } catch (e) { thrown = e; }
+                expect(thrown).toBeDefined();
+                expect((thrown as any)?.name).toBe('InvalidStateError');
+            });
+        }
+    });
+
+    await describe('WPT — getConfiguration round-trip', async () => {
+        // Ported subset from: refs/wpt/webrtc/RTCPeerConnection-getConfiguration.html
+        //
+        // getConfiguration() returns a copy of the configuration — mutating
+        // the returned object must not affect the peer connection's state.
+
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+            return;
+        }
+
+        await it("getConfiguration() returns defaults when none were passed", async () => {
+            const pc = new RTCPeerConnection();
+            const cfg = pc.getConfiguration();
+            // Default iceServers: not set (undefined) — spec allows either.
+            // We just check that we get back an object.
+            expect(typeof cfg).toBe('object');
+            pc.close();
+        });
+
+        await it("getConfiguration() preserves iceServers", async () => {
+            const pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.example.com:19302' }],
+            });
+            const cfg = pc.getConfiguration();
+            expect(Array.isArray(cfg.iceServers)).toBeTruthy();
+            expect(cfg.iceServers!.length).toBe(1);
+            pc.close();
+        });
+
+        await it("getConfiguration() returns a copy — mutating it doesn't alter the PC", async () => {
+            const pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.example.com:19302' }],
+            });
+            const cfg1 = pc.getConfiguration();
+            (cfg1 as any).iceServers = [];
+            const cfg2 = pc.getConfiguration();
+            expect(cfg2.iceServers!.length).toBe(1);
+            pc.close();
+        });
+    });
+
+    await describe('WPT — RTCDataChannel-id.html (subset)', async () => {
+        // Ported subset of: refs/wpt/webrtc/RTCDataChannel-id.html
+        //
+        // Spec §6.1.1.3: for non-negotiated channels, `id` is null until
+        // the SCTP transport connects (then assigned based on DTLS role).
+        // For negotiated=true channels, the user-provided id is kept.
+        //
+        // We skip the DTLS-role-based odd/even-id tests because they
+        // require `pc.sctp` which we don't implement (Phase 3).
+
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+            return;
+        }
+
+        await it("id is null for non-negotiated channel before SCTP connects", async () => {
+            const pc = new RTCPeerConnection();
+            try {
+                const dc = pc.createDataChannel('wpt');
+                expect(dc.id).toBeNull();
+            } finally {
+                pc.close();
+            }
+        });
+
+        await it("negotiated=true + id=42 preserves the user-provided id", async () => {
+            const pc = new RTCPeerConnection();
+            try {
+                const dc = pc.createDataChannel('wpt', { negotiated: true, id: 42 });
+                expect(dc.id).toBe(42);
+            } finally {
+                pc.close();
+            }
+        });
+
+        await it("negotiated=true + id=0 is allowed (0 is a valid id)", async () => {
+            const pc = new RTCPeerConnection();
+            try {
+                const dc = pc.createDataChannel('wpt', { negotiated: true, id: 0 });
+                expect(dc.id).toBe(0);
+            } finally {
+                pc.close();
+            }
+        });
+
+        await it("id=65535 throws TypeError (reserved per RFC 8832)", async () => {
+            const pc = new RTCPeerConnection();
+            try {
+                expect(() => pc.createDataChannel('wpt', { negotiated: true, id: 65535 })).toThrow();
+            } finally {
+                pc.close();
+            }
+        });
+    });
+
+    await describe('WPT — signalingstatechange sequencing', async () => {
+        // Ported subset of: refs/wpt/webrtc/RTCPeerConnection-onsignalingstatechanged.https.html
+        //
+        // Negotiation methods must fire signalingstatechange events in the
+        // correct order. We skip the tests that require media tracks; the
+        // data-channel variant still exercises the same state machine.
+
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+            return;
+        }
+
+        await it("setRemoteDescription(offer) transitions B to 'have-remote-offer'", async () => {
+            const pcA = new RTCPeerConnection();
+            const pcB = new RTCPeerConnection();
+            try {
+                pcA.createDataChannel('wpt');
+                const events: string[] = [];
+                pcB.addEventListener('signalingstatechange', () => events.push(pcB.signalingState));
+
+                const offer = await withTimeout(5000, pcA.createOffer() as Promise<any>, 'createOffer');
+                await withTimeout(5000, pcA.setLocalDescription(offer), 'setLocalDescription');
+                await withTimeout(5000, pcB.setRemoteDescription(offer), 'setRemoteDescription');
+
+                expect(events.length).toBeGreaterThan(0);
+                expect(events[0]).toBe('have-remote-offer');
+                expect(pcB.signalingState).toBe('have-remote-offer');
+            } finally {
+                pcA.close();
+                pcB.close();
+            }
+        });
+
+        await it("close() does not fire additional signalingstatechange events", async () => {
+            const pc = new RTCPeerConnection();
+            let eventsAfterClose = 0;
+            pc.close();
+            pc.addEventListener('signalingstatechange', () => { eventsAfterClose++; });
+            // Wait a tick for any queued events to drain.
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(pc.signalingState).toBe('closed');
+            expect(eventsAfterClose).toBe(0);
+        });
+    });
+
+    await describe('WPT — RTCConfiguration-validation.html (subset)', async () => {
+        // Ported: refs/wpt/webrtc/RTCConfiguration-validation.html + the
+        // bundlePolicy / iceTransportPolicy validation tests.
+        //
+        // Atomic setConfiguration (invalid input must leave state unchanged)
+        // is tracked in Phase 3 — we throw NotSupportedError right now.
+
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+            return;
+        }
+
+        await it("accepts iceTransportPolicy='all' (default)", async () => {
+            const pc = new RTCPeerConnection({ iceTransportPolicy: 'all' });
+            expect(pc).toBeDefined();
+            pc.close();
+        });
+
+        await it("accepts iceTransportPolicy='relay'", async () => {
+            const pc = new RTCPeerConnection({ iceTransportPolicy: 'relay' });
+            expect(pc).toBeDefined();
+            pc.close();
+        });
+
+        await it("accepts bundlePolicy='balanced' / 'max-compat' / 'max-bundle'", async () => {
+            for (const policy of ['balanced', 'max-compat', 'max-bundle'] as const) {
+                const pc = new RTCPeerConnection({ bundlePolicy: policy });
+                expect(pc).toBeDefined();
+                pc.close();
+            }
+        });
+
+        await it("setConfiguration throws NotSupportedError (not yet implemented)", async () => {
+            const pc = new RTCPeerConnection();
+            let thrown: any = null;
+            try { (pc as any).setConfiguration({ iceTransportPolicy: 'all' }); } catch (e) { thrown = e; }
+            expect(thrown).toBeDefined();
+            expect((thrown as any)?.name).toBe('NotSupportedError');
+            pc.close();
         });
     });
 

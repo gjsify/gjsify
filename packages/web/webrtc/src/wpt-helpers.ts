@@ -25,11 +25,14 @@ async function exchangeOfferAnswer(
     pc1: RTCPeerConnection,
     pc2: RTCPeerConnection,
 ): Promise<void> {
+    // Late-arriving ICE candidates may fire after the other peer has already
+    // been closed; swallow the InvalidStateError so it doesn't become an
+    // unhandled rejection during test teardown.
     pc1.onicecandidate = (ev) => {
-        if (ev.candidate) pc2.addIceCandidate(ev.candidate.toJSON());
+        if (ev.candidate) pc2.addIceCandidate(ev.candidate.toJSON()).catch(() => {});
     };
     pc2.onicecandidate = (ev) => {
-        if (ev.candidate) pc1.addIceCandidate(ev.candidate.toJSON());
+        if (ev.candidate) pc1.addIceCandidate(ev.candidate.toJSON()).catch(() => {});
     };
     const offer = (await pc1.createOffer()) as RTCSessionDescriptionInit;
     await pc1.setLocalDescription(offer);
