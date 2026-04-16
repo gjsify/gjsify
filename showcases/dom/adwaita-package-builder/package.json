@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-dom-adwaita-package-builder",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "description": "Minimal Adwaita app showing how to package GResource bundles, gettext translations, and an executable binary with gjsify CLI alone",
     "main": "dist/com.gjsify.ShowcasePackageBuilder",
     "type": "module",

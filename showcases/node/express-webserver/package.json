@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-node-express-webserver",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Express.js blog showcase with JSON API and static frontend — a real Node.js web app running on GJS",
   "main": "dist/index.gjs.js",
   "type": "module",

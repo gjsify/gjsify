@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.12](https://github.com/gjsify/gjsify/compare/v0.1.11...v0.1.12) (2026-04-16)
+
+### Features
+
+* **infra:** @gjsify/esbuild-plugin-css — resolve CSS [@import](https://github.com/import) at build time ([#21](https://github.com/gjsify/gjsify/issues/21)) ([812276a](https://github.com/gjsify/gjsify/commit/812276a32c9f2b659a63eef242a6236346feeee9))
+
 ## [0.1.11](https://github.com/gjsify/gjsify/compare/v0.1.10...v0.1.11) (2026-04-15)
 
 ### Features

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/web-polyfills",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "description": "Meta package: all @gjsify Web API polyfill packages as dependencies",
     "type": "module",
     "keywords": [
