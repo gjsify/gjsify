@@ -82,3 +82,6 @@ export { getUserMedia } from './get-user-media.js';
 export type { MediaStreamConstraints, MediaTrackConstraints } from './get-user-media.js';
 
 export { MediaDevices } from './media-devices.js';
+
+export { RTCStatsReport } from './rtc-stats-report.js';
+export type { RTCStats } from './rtc-stats-report.js';

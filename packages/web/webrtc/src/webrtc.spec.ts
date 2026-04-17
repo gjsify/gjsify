@@ -420,5 +420,112 @@ export default async () => {
                 pcB.close();
             });
         });
+
+        // ---- getStats() (Phase 4.2) ----------------------------------------
+        // Ported from refs/wpt/webrtc/RTCPeerConnection-getStats.https.html
+
+        await describe('getStats()', async () => {
+            if (!webrtcbinReady || !ASYNC_SIGNALS_WORK) {
+                await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                    expect(webrtcbinReady).toBeFalsy();
+                });
+            } else {
+                await it('getStats() returns an RTCStatsReport', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    const report = await pc.getStats();
+                    expect(report).toBeDefined();
+                    expect(typeof report.size).toBe('number');
+                    pc.close();
+                });
+
+                await it('getStats(null) returns all stats', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    const report = await pc.getStats(null);
+                    expect(report).toBeDefined();
+                    expect(typeof report.size).toBe('number');
+                    pc.close();
+                });
+
+                await it('getStats() report entries have type, id, timestamp', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    const report = await pc.getStats();
+                    for (const [id, stats] of report) {
+                        expect(typeof id).toBe('string');
+                        expect(id.length).toBeGreaterThan(0);
+                        expect(typeof stats.type).toBe('string');
+                        expect(typeof stats.id).toBe('string');
+                        expect(typeof stats.timestamp).toBe('number');
+                    }
+                    pc.close();
+                });
+
+                await it('getStats() is iterable with forEach', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    const report = await pc.getStats();
+                    let count = 0;
+                    report.forEach(() => { count++; });
+                    expect(count).toBe(report.size);
+                    pc.close();
+                });
+
+                await it('getStats(unknownTrack) rejects with InvalidAccessError', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    const unknownTrack = new MediaStreamTrack({ kind: 'audio' });
+                    let threw = false;
+                    try {
+                        await pc.getStats(unknownTrack);
+                    } catch (e: any) {
+                        threw = true;
+                        expect(e.message).toContain('not associated');
+                    }
+                    expect(threw).toBeTruthy();
+                    pc.close();
+                });
+
+                await it('getStats() on closed connection rejects', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.close();
+                    let threw = false;
+                    try {
+                        await pc.getStats();
+                    } catch (e: any) {
+                        threw = true;
+                        expect(e.message).toContain('closed');
+                    }
+                    expect(threw).toBeTruthy();
+                });
+
+                await it('sender.getStats() returns a report', async () => {
+                    const pc = new RTCPeerConnection();
+                    const transceiver = pc.addTransceiver('audio');
+                    const report = await transceiver.sender.getStats();
+                    expect(report).toBeDefined();
+                    expect(typeof report.size).toBe('number');
+                    pc.close();
+                });
+
+                await it('receiver.getStats() returns a report', async () => {
+                    const pc = new RTCPeerConnection();
+                    const transceiver = pc.addTransceiver('audio');
+                    const report = await transceiver.receiver.getStats();
+                    expect(report).toBeDefined();
+                    expect(typeof report.size).toBe('number');
+                    pc.close();
+                });
+            }
+        });
     });
 };

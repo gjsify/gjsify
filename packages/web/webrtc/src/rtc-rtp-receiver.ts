@@ -18,6 +18,7 @@ import {
 
 import { MediaStreamTrack } from './media-stream-track.js';
 import { getRtpCapabilities } from './rtp-capabilities.js';
+import type { RTCStatsReport } from './rtc-stats-report.js';
 import type { RTCRtpCapabilities, RTCRtpCodecParameters, RTCRtpHeaderExtensionParameters, RTCRtcpParameters } from './rtc-rtp-sender.js';
 
 export interface RTCRtpReceiveParameters {
@@ -45,6 +46,8 @@ export class RTCRtpReceiver {
     private _jitterBufferTarget: number | null = null;
     private _pipeline: any = null;
     private _receiverBridge: ReceiverBridgeType | null = null;
+    /** @internal — stats callback set by RTCPeerConnection */
+    _getStatsForTrack: ((track: MediaStreamTrack) => Promise<RTCStatsReport>) | null = null;
 
     constructor(kind: 'audio' | 'video', gstReceiver: GstWebRTC.WebRTCRTPReceiver | null, pipeline?: any) {
         this._gstReceiver = gstReceiver;
@@ -101,11 +104,12 @@ export class RTCRtpReceiver {
     getContributingSources(): RTCRtpContributingSource[] { return []; }
     getSynchronizationSources(): RTCRtpSynchronizationSource[] { return []; }
 
-    async getStats(): Promise<never> {
-        throw new DOMException(
-            'RTCRtpReceiver.getStats is not implemented',
-            'NotSupportedError',
-        );
+    async getStats(): Promise<RTCStatsReport> {
+        if (this._getStatsForTrack && this._track) {
+            return this._getStatsForTrack(this._track);
+        }
+        const { RTCStatsReport: Report } = await import('./rtc-stats-report.js');
+        return new Report();
     }
 
     static getCapabilities(kind: string): RTCRtpCapabilities | null {

@@ -32,6 +32,8 @@ import { RTCRtpTransceiver } from './rtc-rtp-transceiver.js';
 import { MediaStream } from './media-stream.js';
 import { MediaStreamTrack } from './media-stream-track.js';
 import { RTCTrackEvent } from './rtc-track-event.js';
+import { parseGstStats, filterStatsByTrackId } from './gst-stats-parser.js';
+import type { RTCStatsReport } from './rtc-stats-report.js';
 
 export type RTCSignalingState =
     | 'stable' | 'closed'
@@ -563,6 +565,12 @@ export class RTCPeerConnection extends EventTarget {
             // Create wrapper with the pre-wired sender
             const gstReceiver = gstTrans.receiver ?? null;
             const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
+
+            // Wire stats delegation
+            const statsDelegate = (t: MediaStreamTrack) => this.getStats(t);
+            sender._getStatsForTrack = statsDelegate;
+            receiver._getStatsForTrack = statsDelegate;
+
             jsTrans = new RTCRtpTransceiver(gstTrans, sender, receiver);
             this._transceivers.set(gstTrans, jsTrans);
             this._senders.push(sender);
@@ -668,12 +676,32 @@ export class RTCPeerConnection extends EventTarget {
     getReceivers(): RTCRtpReceiver[] { return [...this._receivers]; }
     getTransceivers(): RTCRtpTransceiver[] { return [...this._transceivers.values()]; }
 
-    getStats(_selector?: unknown): Promise<never> {
-        return Promise.reject((() => {
-            const DOMExc = (globalThis as any).DOMException;
-            const msg = 'RTCPeerConnection.getStats is not implemented in @gjsify/webrtc';
-            return DOMExc ? new DOMExc(msg, 'NotSupportedError') : new Error(msg);
-        })());
+    async getStats(selector?: MediaStreamTrack | null): Promise<RTCStatsReport> {
+        this._rejectIfClosed('getStats');
+
+        // Validate selector — if a track is given, it must belong to a sender or receiver
+        if (selector != null && selector instanceof MediaStreamTrack) {
+            const hasSender = this._senders.some(s => s.track === selector);
+            const hasReceiver = this._receivers.some(r => r.track === selector);
+            if (!hasSender && !hasReceiver) {
+                const DOMExc = (globalThis as any).DOMException;
+                const msg = 'The selector track is not associated with a sender or receiver of this connection';
+                throw DOMExc ? new DOMExc(msg, 'InvalidAccessError') : new Error(msg);
+            }
+        }
+
+        const reply = await withGstPromise((p) => {
+            this._webrtcbin.emit('get-stats', null, p);
+        });
+
+        const report = parseGstStats(reply);
+
+        // If a track selector was provided, filter to relevant stats
+        if (selector != null && selector instanceof MediaStreamTrack) {
+            return filterStatsByTrackId(report, selector.id);
+        }
+
+        return report;
     }
 
     // ---- Not implemented (Phase 3) ------------------------------------------
@@ -707,6 +735,11 @@ export class RTCPeerConnection extends EventTarget {
 
         const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
         const sender = new RTCRtpSender(gstSender, this._pipeline, this._webrtcbin);
+
+        // Wire stats delegation so sender.getStats() / receiver.getStats() work
+        const statsDelegate = (track: MediaStreamTrack) => this.getStats(track);
+        sender._getStatsForTrack = statsDelegate;
+        receiver._getStatsForTrack = statsDelegate;
 
         // Pass mline index to sender for sink pad naming
         try {

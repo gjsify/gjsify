@@ -12,6 +12,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { Gst } from './gst-init.js';
 import { getRtpCapabilities } from './rtp-capabilities.js';
+import type { RTCStatsReport } from './rtc-stats-report.js';
 import type { MediaStreamTrack } from './media-stream-track.js';
 import type { MediaStream } from './media-stream.js';
 
@@ -86,6 +87,8 @@ export class RTCRtpSender {
     private _elements: any[] = [];
     private _valve: any = null;
     _linked = false;
+    /** @internal — stats callback set by RTCPeerConnection */
+    _getStatsForTrack: ((track: MediaStreamTrack) => Promise<RTCStatsReport>) | null = null;
 
     constructor(gstSender: GstWebRTC.WebRTCRTPSender | null, pipeline?: any, webrtcbin?: any) {
         this._gstSender = gstSender;
@@ -302,11 +305,13 @@ export class RTCRtpSender {
         }
     }
 
-    async getStats(): Promise<never> {
-        throw new DOMException(
-            'RTCRtpSender.getStats is not implemented',
-            'NotSupportedError',
-        );
+    async getStats(): Promise<RTCStatsReport> {
+        if (this._getStatsForTrack && this._track) {
+            return this._getStatsForTrack(this._track);
+        }
+        // Fallback: return empty report if no PC or no track
+        const { RTCStatsReport: Report } = await import('./rtc-stats-report.js');
+        return new Report();
     }
 
     setStreams(..._streams: MediaStream[]): void {

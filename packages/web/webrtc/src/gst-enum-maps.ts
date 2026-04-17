@@ -93,3 +93,33 @@ export function gstDirectionToW3C(v: number): RTCRtpTransceiverDirection {
 export function w3cDirectionToGst(d: RTCRtpTransceiverDirection): number {
     return DIRECTION_W3C_TO_GST[d] ?? GstWebRTC.WebRTCRTPTransceiverDirection.NONE;
 }
+
+// ---- Stats type (GstWebRTC → W3C RTCStatsType string) -----------------------
+
+export type RTCStatsType =
+    | 'codec' | 'inbound-rtp' | 'outbound-rtp'
+    | 'remote-inbound-rtp' | 'remote-outbound-rtp'
+    | 'csrc' | 'peer-connection' | 'data-channel'
+    | 'stream' | 'transport' | 'candidate-pair'
+    | 'local-candidate' | 'remote-candidate' | 'certificate';
+
+const STATS_TYPE_MAP: Record<number, RTCStatsType> = {
+    [GstWebRTC.WebRTCStatsType.CODEC]: 'codec',
+    [GstWebRTC.WebRTCStatsType.INBOUND_RTP]: 'inbound-rtp',
+    [GstWebRTC.WebRTCStatsType.OUTBOUND_RTP]: 'outbound-rtp',
+    [GstWebRTC.WebRTCStatsType.REMOTE_INBOUND_RTP]: 'remote-inbound-rtp',
+    [GstWebRTC.WebRTCStatsType.REMOTE_OUTBOUND_RTP]: 'remote-outbound-rtp',
+    [GstWebRTC.WebRTCStatsType.CSRC]: 'csrc',
+    [GstWebRTC.WebRTCStatsType.PEER_CONNECTION]: 'peer-connection',
+    [GstWebRTC.WebRTCStatsType.DATA_CHANNEL]: 'data-channel',
+    [GstWebRTC.WebRTCStatsType.STREAM]: 'stream',
+    [GstWebRTC.WebRTCStatsType.TRANSPORT]: 'transport',
+    [GstWebRTC.WebRTCStatsType.CANDIDATE_PAIR]: 'candidate-pair',
+    [GstWebRTC.WebRTCStatsType.LOCAL_CANDIDATE]: 'local-candidate',
+    [GstWebRTC.WebRTCStatsType.REMOTE_CANDIDATE]: 'remote-candidate',
+    [GstWebRTC.WebRTCStatsType.CERTIFICATE]: 'certificate',
+};
+
+export function gstToStatsType(v: number): RTCStatsType | undefined {
+    return STATS_TYPE_MAP[v];
+}
