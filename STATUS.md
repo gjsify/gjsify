@@ -112,13 +112,25 @@ All 15 packages have real implementations:
 - RTCDataChannel events: open, close, message, error, bufferedamountlow, closing
 - RTCSessionDescription (with Gst↔JS round-trip via GstSDP), RTCIceCandidate (W3C fields + candidate-line parser), RTCError (extends DOMException), RTCErrorEvent, RTCPeerConnectionIceEvent, RTCDataChannelEvent
 
-**Deferred (Phase 2 — Media):**
-- RTCPeerConnection.addTrack, removeTrack, addTransceiver — throw `NotSupportedError`
-- RTCPeerConnection.getSenders / getReceivers / getTransceivers — return `[]`
-- RTCPeerConnection `track` event — never fires (no media path wired)
-- RTCRtpSender, RTCRtpReceiver, RTCRtpTransceiver, RTCTrackEvent — not exported
-- MediaStream, MediaStreamTrack, getUserMedia, navigator.mediaDevices — not implemented
-- Media pipeline plumbing (decodebin/encodebin, TeeMultiplexer, pad-added routing) — absent
+**Implemented (Phase 2 — Media API Surface):**
+- RTCPeerConnection.addTransceiver(kind, init) — creates real GstWebRTC transceivers, returns RTCRtpTransceiver
+- RTCPeerConnection.getSenders / getReceivers / getTransceivers — return live lists
+- RTCPeerConnection.removeTrack(sender) — validates sender, resets track
+- RTCPeerConnection `track` event — fires on pad-added with RTCTrackEvent (receiver, track, streams, transceiver)
+- RTCRtpTransceiver: mid, direction (read/write, mapped to GstWebRTC enum), currentDirection, stop(), setCodecPreferences(codecs)
+- RTCRtpSender: track, dtmf, transport, getParameters/setParameters, replaceTrack (stub), getCapabilities(kind)
+- RTCRtpReceiver: track (stub MediaStreamTrack, muted), jitterBufferTarget (0–4000ms range), getParameters, getCapabilities(kind)
+- MediaStream: id, active, getTracks/getAudioTracks/getVideoTracks, getTrackById, addTrack/removeTrack, clone, addtrack/removetrack events
+- MediaStreamTrack: id, kind, label, enabled, muted, readyState, contentHint, clone, stop
+- MediaStreamTrackEvent, RTCTrackEvent
+- Globals via `@gjsify/webrtc/register/media`: MediaStream, MediaStreamTrack, RTCTrackEvent
+
+**Deferred (Phase 2.5 — Media Pipeline):**
+- RTCPeerConnection.addTrack — throws `NotSupportedError` (requires getUserMedia)
+- getUserMedia, navigator.mediaDevices — not implemented
+- Incoming media pipeline: decodebin, TeeMultiplexer, ProxyMultiplexer, pad-added routing — absent
+- Outgoing media pipeline: encodebin, sender track wiring — absent
+- RTCRtpSender.replaceTrack, setStreams — no-op stubs
 
 **Deferred (Phase 3 — Stats & advanced):**
 - RTCPeerConnection.getStats — rejects with `NotSupportedError`
@@ -146,7 +158,7 @@ Two subtleties in the bridge design:
 1. `WebrtcbinBridge.on_data_channel_cb` wraps the incoming channel in a `DataChannelBridge` *on the streaming thread* before the idle hop — so the bridge's own signal handlers are connected before any `on-message-*` callbacks can fire on the same thread. Without this eager wrap, the first few messages from the remote peer would race the JS-side setup and get dropped.
 2. The `GstWebRTCDataChannelState` C enum is **1-based** (`CONNECTING=1 … CLOSED=4`) but the auto-generated TypeScript declaration omits the initialiser and infers 0-based values. `RTCDataChannel` maps against the real 1-based runtime values.
 
-Tests passing on GJS: **23 green**, including the full loopback (two local peers, offer/answer, ICE trickle, data-channel open/send/receive/echo).
+Tests passing on GJS: **198 green** (89 data-channel + 109 media API WPT tests), including the full loopback (two local peers, offer/answer, ICE trickle, data-channel open/send/receive/echo).
 
 **System prerequisites:**
 - GStreamer ≥ 1.20 with **gst-plugins-bad** (for webrtcbin) AND **libnice-gstreamer** (for ICE transport — webrtcbin's state-change to PLAYING fails without it)
@@ -354,17 +366,17 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
 
-### WebRTC Phase 2 — Media
+### WebRTC Phase 2.5 — Media Pipeline
 
-**Priority: Medium — follow-up to the Phase 1 data-channel MVP (issue #14).**
+**Priority: Medium — follow-up to Phase 2 media API surface (issue #14).**
 
-Implement the media path in `@gjsify/webrtc` so RTCPeerConnection can send and receive audio/video:
+Phase 2 delivered the W3C API classes (RTCRtpTransceiver, RTCRtpSender, RTCRtpReceiver, MediaStream, MediaStreamTrack, RTCTrackEvent). Phase 2.5 wires the actual GStreamer media pipeline so media can flow:
 
-- `RTCRtpSender`, `RTCRtpReceiver`, `RTCRtpTransceiver` — wrap `GstWebRTC.WebRTCRTPSender/Receiver/Transceiver`, bridge `kind` enum, expose `track`, `transport`.
-- `addTrack`, `removeTrack`, `addTransceiver`, `getSenders/Receivers/Transceivers` on RTCPeerConnection — remove the current `NotSupportedError` stubs.
-- `MediaStream`, `MediaStreamTrack`, `RTCTrackEvent` — new package or integrated, with `kind`, `enabled`, `readyState`, `stop()`, `clone()`.
-- `pad-added` routing: plumb `decodebin` for inbound RTP streams, `tee` multiplexing so one track can feed multiple consumers.
-- `getUserMedia` / `navigator.mediaDevices` — likely a new `@gjsify/media-devices` package that wraps GStreamer sources (`pipewiresrc`, `v4l2src`, `pulsesrc`).
+- `addTrack(track, ...streams)` — requires getUserMedia (Phase 2.5 or separate `@gjsify/media-devices` package).
+- Incoming media pipeline: `decodebin` for inbound RTP → `TeeMultiplexer` → `MediaStreamTrack` outputs.
+- Outgoing media pipeline: `encodebin` for outbound tracks → webrtcbin.
+- `RTCRtpSender.replaceTrack`, `setStreams` — wire to GStreamer pipeline.
+- `getUserMedia` / `navigator.mediaDevices` — likely a new `@gjsify/media-devices` package wrapping GStreamer sources (`pipewiresrc`, `v4l2src`, `pulsesrc`).
 
 Reference: [refs/node-gst-webrtc/src/media/](refs/node-gst-webrtc/src/media/) (TeeMultiplexer, ProxyMultiplexer, track inputs) and [refs/node-gst-webrtc/src/webrtc/RTCRtpReceiver.ts](refs/node-gst-webrtc/src/webrtc/RTCRtpReceiver.ts).
 

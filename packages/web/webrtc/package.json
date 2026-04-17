@@ -22,6 +22,9 @@
         },
         "./register/error": {
             "default": "./lib/esm/register/error.js"
+        },
+        "./register/media": {
+            "default": "./lib/esm/register/media.js"
         }
     },
     "sideEffects": [

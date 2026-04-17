@@ -48,3 +48,32 @@ export type {
     RTCDataChannelEventInit,
     RTCErrorEventInit,
 } from './rtc-events.js';
+
+export { RTCRtpSender } from './rtc-rtp-sender.js';
+export type {
+    RTCRtpTransceiverDirection,
+    RTCRtpCapabilities,
+    RTCRtpCodecCapability,
+    RTCRtpHeaderExtensionCapability,
+    RTCRtpSendParameters,
+    RTCRtpEncodingParameters,
+    RTCRtpCodecParameters,
+    RTCRtpHeaderExtensionParameters,
+    RTCRtcpParameters,
+} from './rtc-rtp-sender.js';
+
+export { RTCRtpReceiver } from './rtc-rtp-receiver.js';
+export type { RTCRtpReceiveParameters } from './rtc-rtp-receiver.js';
+
+export { RTCRtpTransceiver } from './rtc-rtp-transceiver.js';
+
+export { MediaStream } from './media-stream.js';
+export { MediaStreamTrackEvent } from './media-stream.js';
+
+export { MediaStreamTrack } from './media-stream-track.js';
+export type { MediaStreamTrackInit } from './media-stream-track.js';
+
+export { RTCTrackEvent } from './rtc-track-event.js';
+export type { RTCTrackEventInit } from './rtc-track-event.js';
+
+export type { RTCRtpTransceiverInit } from './rtc-peer-connection.js';

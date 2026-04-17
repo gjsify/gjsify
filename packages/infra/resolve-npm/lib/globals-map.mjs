@@ -54,6 +54,7 @@ export const GJS_GLOBALS_GROUPS = {
         'RTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate',
         'RTCPeerConnectionIceEvent', 'RTCDataChannel', 'RTCDataChannelEvent',
         'RTCError', 'RTCErrorEvent',
+        'MediaStream', 'MediaStreamTrack', 'RTCTrackEvent',
     ],
     dom: [
         'document', 'Image', 'HTMLCanvasElement', 'HTMLImageElement',
@@ -155,6 +156,9 @@ export const GJS_GLOBALS_MAP = {
     RTCDataChannelEvent:        '@gjsify/webrtc/register/data-channel',
     RTCError:                   '@gjsify/webrtc/register/error',
     RTCErrorEvent:              '@gjsify/webrtc/register/error',
+    MediaStream:                '@gjsify/webrtc/register/media',
+    MediaStreamTrack:           '@gjsify/webrtc/register/media',
+    RTCTrackEvent:              '@gjsify/webrtc/register/media',
 
     // --- DOM elements (granular register subpaths) -------------------------
     document:             '@gjsify/dom-elements/register/document',

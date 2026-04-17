@@ -1,8 +1,8 @@
 // RTCPeerConnection — W3C WebRTC peer connection backed by GStreamer webrtcbin.
 //
 // Reference: refs/node-gst-webrtc/src/webrtc/RTCPeerConnection.ts (ISC)
-// Adapted from node-gtk to GJS. Scope: Data Channel path end-to-end. Media
-// APIs (addTrack, addTransceiver, getStats, etc.) throw NotSupportedError.
+// Adapted from node-gtk to GJS. Phase 1: Data Channel. Phase 2: Media API
+// surface (addTransceiver, getSenders/getReceivers/getTransceivers, RTCTrackEvent).
 
 import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
@@ -19,6 +19,12 @@ import { RTCSessionDescription, type RTCSessionDescriptionInit } from './rtc-ses
 import { RTCIceCandidate, type RTCIceCandidateInit } from './rtc-ice-candidate.js';
 import { RTCDataChannel } from './rtc-data-channel.js';
 import { RTCPeerConnectionIceEvent, RTCDataChannelEvent } from './rtc-events.js';
+import { RTCRtpSender, type RTCRtpTransceiverDirection } from './rtc-rtp-sender.js';
+import { RTCRtpReceiver } from './rtc-rtp-receiver.js';
+import { RTCRtpTransceiver } from './rtc-rtp-transceiver.js';
+import { MediaStream } from './media-stream.js';
+import { MediaStreamTrack } from './media-stream-track.js';
+import { RTCTrackEvent } from './rtc-track-event.js';
 
 export type RTCSignalingState =
     | 'stable' | 'closed'
@@ -92,9 +98,25 @@ function coerceUnsignedShort(name: string, raw: unknown): number {
 
 function throwNotSupported(method: string): never {
     const DOMExc = (globalThis as any).DOMException;
-    const msg = `RTCPeerConnection.${method} is not implemented in @gjsify/webrtc (Data Channel MVP). Tracking: media support lands in a follow-up PR.`;
+    const msg = `RTCPeerConnection.${method} is not implemented in @gjsify/webrtc yet.`;
     if (DOMExc) throw new DOMExc(msg, 'NotSupportedError');
     throw new Error(msg);
+}
+
+export interface RTCRtpTransceiverInit {
+    direction?: RTCRtpTransceiverDirection;
+    streams?: MediaStream[];
+    sendEncodings?: Array<{ rid?: string; active?: boolean; maxBitrate?: number; scaleResolutionDownBy?: number }>;
+}
+
+function directionToGst(d: RTCRtpTransceiverDirection): number {
+    switch (d) {
+        case 'sendrecv': return GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV;
+        case 'sendonly': return GstWebRTC.WebRTCRTPTransceiverDirection.SENDONLY;
+        case 'recvonly': return GstWebRTC.WebRTCRTPTransceiverDirection.RECVONLY;
+        case 'inactive': return GstWebRTC.WebRTCRTPTransceiverDirection.NONE;
+        default: return GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV;
+    }
 }
 
 function gstToSignalingState(v: number): RTCSignalingState {
@@ -152,6 +174,9 @@ export class RTCPeerConnection extends EventTarget {
     private _conf: RTCConfiguration;
     private _closed = false;
     private _dataChannels = new Map<unknown, RTCDataChannel>();
+    private _transceivers = new Map<unknown, RTCRtpTransceiver>();
+    private _senders: RTCRtpSender[] = [];
+    private _receivers: RTCRtpReceiver[] = [];
     readonly canTrickleIceCandidates: boolean = true;
 
     constructor(configuration?: RTCConfiguration) {
@@ -190,6 +215,10 @@ export class RTCPeerConnection extends EventTarget {
             this._handleIceCandidate(mlineIndex, candidate));
         this._bridge.connect('datachannel', (_b, channelBridge) =>
             this._handleDataChannel(channelBridge));
+        this._bridge.connect('new-transceiver', (_b, gstTrans) =>
+            this._handleNewTransceiver(gstTrans));
+        this._bridge.connect('pad-added', (_b, pad) =>
+            this._handlePadAdded(pad));
         this._bridge.connect('connection-state-changed', () =>
             this._dispatchStateChange('connectionstatechange'));
         this._bridge.connect('ice-connection-state-changed', () =>
@@ -478,19 +507,114 @@ export class RTCPeerConnection extends EventTarget {
                 try { ch._disconnectSignals(); } catch { /* ignore */ }
             }
             this._dataChannels.clear();
+            this._transceivers.clear();
+            this._senders.length = 0;
+            this._receivers.length = 0;
             try { this._bridge.dispose_bridge(); } catch { /* ignore */ }
             return GLib.SOURCE_REMOVE;
         });
     }
 
-    // ---- Not implemented (Phase 2 / 3) ------------------------------------
+    // ---- Media / Transceiver API (Phase 2) ----------------------------------
 
-    addTrack(_track: unknown, ..._streams: unknown[]): never { throwNotSupported('addTrack'); }
-    removeTrack(_sender: unknown): never { throwNotSupported('removeTrack'); }
-    addTransceiver(_trackOrKind: unknown, _init?: unknown): never { throwNotSupported('addTransceiver'); }
-    getSenders(): unknown[] { return []; }
-    getReceivers(): unknown[] { return []; }
-    getTransceivers(): unknown[] { return []; }
+    addTransceiver(
+        trackOrKind: MediaStreamTrack | string,
+        init?: RTCRtpTransceiverInit,
+    ): RTCRtpTransceiver {
+        this._rejectIfClosed('addTransceiver');
+
+        let kind: 'audio' | 'video';
+        if (typeof trackOrKind === 'string') {
+            if (trackOrKind !== 'audio' && trackOrKind !== 'video') {
+                throw new TypeError(
+                    `Failed to execute 'addTransceiver' on 'RTCPeerConnection': The provided value '${trackOrKind}' is not a valid enum value of type MediaStreamTrackKind.`,
+                );
+            }
+            kind = trackOrKind;
+        } else if (trackOrKind instanceof MediaStreamTrack) {
+            kind = trackOrKind.kind;
+        } else {
+            throw new TypeError(
+                "Failed to execute 'addTransceiver' on 'RTCPeerConnection': parameter 1 is not of type 'MediaStreamTrack' or a valid MediaStreamTrackKind.",
+            );
+        }
+
+        if (init?.sendEncodings) {
+            const rids = new Set<string>();
+            for (const enc of init.sendEncodings) {
+                if (enc.rid !== undefined) {
+                    if (typeof enc.rid !== 'string' || enc.rid.length === 0 || enc.rid.length > 16 || !/^[a-zA-Z0-9]+$/.test(enc.rid)) {
+                        throw new TypeError(`Invalid RID value: ${enc.rid}`);
+                    }
+                    if (rids.has(enc.rid)) {
+                        throw new TypeError(`Duplicate RID: ${enc.rid}`);
+                    }
+                    rids.add(enc.rid);
+                }
+                if (enc.scaleResolutionDownBy !== undefined && enc.scaleResolutionDownBy < 1.0) {
+                    throw new RangeError('scaleResolutionDownBy must be >= 1.0');
+                }
+            }
+        }
+
+        const direction = init?.direction ?? 'sendrecv';
+        const validDirections = ['sendrecv', 'sendonly', 'recvonly', 'inactive'];
+        if (!validDirections.includes(direction)) {
+            throw new TypeError(
+                `Failed to execute 'addTransceiver' on 'RTCPeerConnection': The provided value '${direction}' is not a valid enum value of type RTCRtpTransceiverDirection.`,
+            );
+        }
+        const caps = Gst.Caps.from_string(`application/x-rtp,media=${kind}`);
+
+        // webrtcbin rejects NONE direction for add-transceiver, so we always
+        // create with SENDRECV and then set the actual direction afterwards.
+        const createDirection = direction === 'inactive'
+            ? GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV
+            : directionToGst(direction);
+
+        // emit('add-transceiver') returns the new GstWebRTCRTPTransceiver directly.
+        // The on-new-transceiver bridge callback fires later via Idle.add, so
+        // we create the wrapper inline from the return value.
+        const gstTrans = this._webrtcbin.emit('add-transceiver', createDirection, caps) as any;
+        if (!gstTrans) {
+            throw new Error('webrtcbin did not create a transceiver');
+        }
+
+        let jsTrans = this._transceivers.get(gstTrans);
+        if (!jsTrans) {
+            jsTrans = this._createTransceiverWrapper(gstTrans);
+        }
+
+        // Apply the actual requested direction (may differ from create direction)
+        (gstTrans as any).direction = directionToGst(direction);
+
+        // Set track on sender if a MediaStreamTrack was provided
+        if (trackOrKind instanceof MediaStreamTrack) {
+            jsTrans.sender._setTrack(trackOrKind);
+        }
+
+        return jsTrans;
+    }
+
+    addTrack(_track: MediaStreamTrack, ..._streams: MediaStream[]): never {
+        throwNotSupported('addTrack');
+    }
+
+    removeTrack(sender: RTCRtpSender): void {
+        this._rejectIfClosed('removeTrack');
+        if (!this._senders.includes(sender)) {
+            throw new DOMException(
+                'sender was not created by this connection',
+                'InvalidAccessError',
+            );
+        }
+        sender._setTrack(null);
+    }
+
+    getSenders(): RTCRtpSender[] { return [...this._senders]; }
+    getReceivers(): RTCRtpReceiver[] { return [...this._receivers]; }
+    getTransceivers(): RTCRtpTransceiver[] { return [...this._transceivers.values()]; }
+
     getStats(_selector?: unknown): Promise<never> {
         return Promise.reject((() => {
             const DOMExc = (globalThis as any).DOMException;
@@ -498,10 +622,35 @@ export class RTCPeerConnection extends EventTarget {
             return DOMExc ? new DOMExc(msg, 'NotSupportedError') : new Error(msg);
         })());
     }
+
+    // ---- Not implemented (Phase 3) ------------------------------------------
+
     restartIce(): never { throwNotSupported('restartIce'); }
     setConfiguration(_configuration: RTCConfiguration): never { throwNotSupported('setConfiguration'); }
     getIdentityAssertion(): Promise<never> {
         return Promise.reject(new Error('getIdentityAssertion is not implemented'));
+    }
+
+    // ---- Transceiver helper -------------------------------------------------
+
+    private _createTransceiverWrapper(gstTrans: any): RTCRtpTransceiver {
+        let kind: 'audio' | 'video' = 'audio';
+        try {
+            const gstKind = gstTrans.kind;
+            if (gstKind === GstWebRTC.WebRTCKind.VIDEO) kind = 'video';
+        } catch { /* default audio */ }
+
+        const gstReceiver = gstTrans.receiver ?? null;
+        const gstSender = gstTrans.sender ?? null;
+
+        const receiver = new RTCRtpReceiver(kind, gstReceiver);
+        const sender = new RTCRtpSender(gstSender);
+        const transceiver = new RTCRtpTransceiver(gstTrans, sender, receiver);
+
+        this._transceivers.set(gstTrans, transceiver);
+        this._senders.push(sender);
+        this._receivers.push(receiver);
+        return transceiver;
     }
 
     // ---- Signal handlers ---------------------------------------------------
@@ -519,6 +668,36 @@ export class RTCPeerConnection extends EventTarget {
         const cand = new RTCIceCandidate({ candidate, sdpMLineIndex });
         const ev = new RTCPeerConnectionIceEvent('icecandidate', { candidate: cand });
         this._onicecandidate?.call(this, ev);
+        this.dispatchEvent(ev);
+    }
+
+    private _handleNewTransceiver(gstTrans: GstWebRTC.WebRTCRTPTransceiver): void {
+        if (this._closed) return;
+        if (this._transceivers.has(gstTrans)) return;
+        this._createTransceiverWrapper(gstTrans);
+    }
+
+    private _handlePadAdded(pad: Gst.Pad): void {
+        if (this._closed) return;
+        // Only process SRC pads (incoming media from remote peer)
+        if (pad.direction !== Gst.PadDirection.SRC) return;
+
+        const gstTrans = (pad as any).transceiver;
+        if (!gstTrans) return;
+
+        let jsTrans = this._transceivers.get(gstTrans);
+        if (!jsTrans) {
+            jsTrans = this._createTransceiverWrapper(gstTrans);
+        }
+
+        const stream = new MediaStream([jsTrans.receiver.track]);
+        const ev = new RTCTrackEvent('track', {
+            receiver: jsTrans.receiver,
+            track: jsTrans.receiver.track,
+            streams: [stream],
+            transceiver: jsTrans,
+        });
+        this._ontrack?.call(this, ev);
         this.dispatchEvent(ev);
     }
 
@@ -573,8 +752,9 @@ export class RTCPeerConnection extends EventTarget {
     get onsignalingstatechange() { return this._onsignalingstatechange; }
     set onsignalingstatechange(v: EventHandler) { this._onsignalingstatechange = v; }
 
-    get ontrack(): EventHandler { return null; } // track events never fire in Phase 1
-    set ontrack(_v: EventHandler) { /* no-op, see STATUS.md */ }
+    private _ontrack: EventHandler<RTCTrackEvent> = null;
+    get ontrack() { return this._ontrack; }
+    set ontrack(v: EventHandler<RTCTrackEvent>) { this._ontrack = v; }
     get onicecandidateerror(): EventHandler { return null; }
     set onicecandidateerror(_v: EventHandler) { /* no-op */ }
 }

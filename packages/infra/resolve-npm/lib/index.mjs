@@ -190,6 +190,7 @@ export const ALIASES_WEB_FOR_GJS = {
     'webrtc/register/peer-connection': '@gjsify/webrtc/register/peer-connection',
     'webrtc/register/data-channel': '@gjsify/webrtc/register/data-channel',
     'webrtc/register/error': '@gjsify/webrtc/register/error',
+    'webrtc/register/media': '@gjsify/webrtc/register/media',
 }
 
 /** General record of modules for Node */
@@ -300,9 +301,11 @@ export const ALIASES_WEB_FOR_NODE = {
     'webrtc/register/peer-connection': '@gjsify/empty',
     'webrtc/register/data-channel': '@gjsify/empty',
     'webrtc/register/error': '@gjsify/empty',
+    'webrtc/register/media': '@gjsify/empty',
     '@gjsify/webrtc': '@gjsify/empty',
     '@gjsify/webrtc/register': '@gjsify/empty',
     '@gjsify/webrtc/register/peer-connection': '@gjsify/empty',
     '@gjsify/webrtc/register/data-channel': '@gjsify/empty',
     '@gjsify/webrtc/register/error': '@gjsify/empty',
+    '@gjsify/webrtc/register/media': '@gjsify/empty',
 }

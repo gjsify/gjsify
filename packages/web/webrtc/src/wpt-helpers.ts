@@ -21,7 +21,7 @@ export function createPeerConnection(): RTCPeerConnection {
  * Mirror WPT's `exchangeOfferAnswer(pc1, pc2)` + `exchangeIceCandidates`.
  * Runs the full handshake to completion.
  */
-async function exchangeOfferAnswer(
+export async function exchangeOfferAnswer(
     pc1: RTCPeerConnection,
     pc2: RTCPeerConnection,
 ): Promise<void> {

@@ -31,6 +31,10 @@ namespace GjsifyWebrtc {
          * remote peer would race the JS-side setup and get dropped.
          */
         public signal void datachannel(DataChannelBridge channel_bridge);
+        /** on-new-transceiver(GstWebRTCRTPTransceiver) */
+        public signal void new_transceiver(Gst.WebRTCRTPTransceiver transceiver);
+        /** pad-added(Gst.Pad) — incoming RTP src pads from webrtcbin */
+        public signal void pad_added(Gst.Pad pad);
         /** notify::connection-state */
         public signal void connection_state_changed();
         /** notify::signaling-state */
@@ -53,6 +57,10 @@ namespace GjsifyWebrtc {
                 (GLib.Callback) on_ice_candidate_cb, this);
             _handler_ids += GLib.Signal.connect(bin, "on-data-channel",
                 (GLib.Callback) on_data_channel_cb, this);
+            _handler_ids += GLib.Signal.connect(bin, "on-new-transceiver",
+                (GLib.Callback) on_new_transceiver_cb, this);
+            _handler_ids += GLib.Signal.connect(bin, "pad-added",
+                (GLib.Callback) on_pad_added_cb, this);
             _handler_ids += bin.notify["connection-state"].connect(this.handle_connection_state);
             _handler_ids += bin.notify["signaling-state"].connect(this.handle_signaling_state);
             _handler_ids += bin.notify["ice-connection-state"].connect(this.handle_ice_connection_state);
@@ -97,6 +105,28 @@ namespace GjsifyWebrtc {
             var bridge = new DataChannelBridge(channel);
             GLib.Idle.add(() => {
                 self.datachannel(bridge);
+                return false;
+            });
+        }
+
+        [CCode (instance_pos = -1)]
+        private static void on_new_transceiver_cb(Gst.Element element,
+                                                   Gst.WebRTCRTPTransceiver trans,
+                                                   WebrtcbinBridge self) {
+            var t = trans;
+            GLib.Idle.add(() => {
+                self.new_transceiver(t);
+                return false;
+            });
+        }
+
+        [CCode (instance_pos = -1)]
+        private static void on_pad_added_cb(Gst.Element element,
+                                             Gst.Pad pad,
+                                             WebrtcbinBridge self) {
+            var p = pad;
+            GLib.Idle.add(() => {
+                self.pad_added(p);
                 return false;
             });
         }

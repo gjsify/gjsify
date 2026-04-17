@@ -9,6 +9,7 @@
 // path (LD_LIBRARY_PATH / GI_TYPELIB_PATH) if needed.
 
 import type Gst from '@girs/gst-1.0';
+import type GstWebRTC from '@girs/gstwebrtc-1.0';
 import type GObject from '@girs/gobject-2.0';
 import type GLib from '@girs/glib-2.0';
 
@@ -41,6 +42,8 @@ export interface WebrtcbinBridge extends GObject.Object {
     connect(signal: 'negotiation-needed', cb: (self: WebrtcbinBridge) => void): number;
     connect(signal: 'icecandidate', cb: (self: WebrtcbinBridge, sdpMLineIndex: number, candidate: string) => void): number;
     connect(signal: 'datachannel', cb: (self: WebrtcbinBridge, channelBridge: DataChannelBridge) => void): number;
+    connect(signal: 'new-transceiver', cb: (self: WebrtcbinBridge, transceiver: GstWebRTC.WebRTCRTPTransceiver) => void): number;
+    connect(signal: 'pad-added', cb: (self: WebrtcbinBridge, pad: Gst.Pad) => void): number;
     connect(signal: 'connection-state-changed', cb: (self: WebrtcbinBridge) => void): number;
     connect(signal: 'signaling-state-changed', cb: (self: WebrtcbinBridge) => void): number;
     connect(signal: 'ice-connection-state-changed', cb: (self: WebrtcbinBridge) => void): number;

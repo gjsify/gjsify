@@ -166,9 +166,11 @@ export default async () => {
                 expect(() => (pc as any).addTrack({}, {})).toThrow();
                 pc.close();
             });
-            await it('addTransceiver throws', async () => {
+            await it('addTransceiver works', async () => {
                 const pc = new RTCPeerConnection();
-                expect(() => (pc as any).addTransceiver('audio')).toThrow();
+                const t = pc.addTransceiver('audio');
+                expect(t).toBeDefined();
+                expect(t.direction).toBe('sendrecv');
                 pc.close();
             });
             await it('getStats rejects', async () => {
