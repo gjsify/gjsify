@@ -1,7 +1,7 @@
 {
   "name": "@gjsify/example-dom-webrtc-video",
-  "description": "WebRTC video preview — getUserMedia webcam to VideoBridge (Gtk.Picture + GStreamer)",
-  "main": "dist/index.gjs.js",
+  "description": "WebRTC video preview — getUserMedia webcam for GJS (VideoBridge) and browser",
+  "main": "dist/gjs.js",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
@@ -10,9 +10,12 @@
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
     "start": "yarn start:gjs",
-    "start:gjs": "gjsify run dist/index.gjs.js",
-    "build": "yarn build:gjs",
-    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
+    "start:gjs": "gjsify run dist/gjs.js",
+    "start:browser": "http-server dist -o -c-1",
+    "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
+    "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
+    "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
+    "build:assets": "cp -f src/browser/index.html dist/index.html"
   },
   "devDependencies": {
     "@girs/adw-1": "^1.10.0-4.0.0-rc.3",
@@ -25,6 +28,7 @@
     "@gjsify/video": "workspace:^",
     "@gjsify/webrtc": "workspace:^",
     "@types/node": "^25.6.0",
+    "http-server": "^14.1.1",
     "typescript": "^6.0.2"
   },
   "private": true,
