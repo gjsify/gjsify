@@ -16,6 +16,7 @@ import {
     RTCSctpTransport,
     RTCDTMFSender,
     RTCDTMFToneChangeEvent,
+    RTCCertificate,
     MediaStreamTrack,
     MediaDevices,
     getUserMedia,
@@ -962,6 +963,69 @@ export default async () => {
                     const pc = new RTCPeerConnection();
                     const tc = pc.addTransceiver('audio');
                     expect(tc.sender.dtmf!.canInsertDTMF).toBeTruthy();
+                    pc.close();
+                });
+            }
+        });
+
+        // ---- RTCCertificate (Phase 4.7) ------------------------------------
+        // Ported from refs/wpt/webrtc/RTCPeerConnection-generateCertificate.html
+        // and refs/wpt/webrtc/RTCCertificate.html
+
+        await describe('RTCCertificate', async () => {
+            await it('generateCertificate with ECDSA P-256 succeeds', async () => {
+                const cert = await RTCPeerConnection.generateCertificate({
+                    name: 'ECDSA',
+                    namedCurve: 'P-256',
+                });
+                expect(cert instanceof RTCCertificate).toBeTruthy();
+                expect(cert.expires).toBeGreaterThan(Date.now());
+            });
+
+            await it('generateCertificate with RSASSA-PKCS1-v1_5 succeeds', async () => {
+                const cert = await RTCPeerConnection.generateCertificate({
+                    name: 'RSASSA-PKCS1-v1_5',
+                    modulusLength: 2048,
+                    publicExponent: new Uint8Array([1, 0, 1]),
+                    hash: 'SHA-256',
+                });
+                expect(cert instanceof RTCCertificate).toBeTruthy();
+                expect(cert.expires).toBeGreaterThan(Date.now());
+            });
+
+            await it('generateCertificate with invalid algorithm rejects', async () => {
+                let threw = false;
+                try {
+                    await RTCPeerConnection.generateCertificate('invalid-algo');
+                } catch (e: any) {
+                    threw = true;
+                    expect(e.name).toBe('NotSupportedError');
+                }
+                expect(threw).toBeTruthy();
+            });
+
+            await it('getFingerprints() returns sha-256 fingerprint', async () => {
+                const cert = await RTCPeerConnection.generateCertificate({
+                    name: 'ECDSA',
+                    namedCurve: 'P-256',
+                });
+                const fps = cert.getFingerprints();
+                expect(Array.isArray(fps)).toBeTruthy();
+                expect(fps.length).toBeGreaterThan(0);
+                expect(fps[0].algorithm).toBe('sha-256');
+                expect(typeof fps[0].value).toBe('string');
+                // Fingerprint format: colon-separated hex pairs
+                expect(fps[0].value).toMatch(/^([0-9A-F]{2}:)+[0-9A-F]{2}$/);
+            });
+
+            if (webrtcbinReady) {
+                await it('certificate can be passed to RTCPeerConnection', async () => {
+                    const cert = await RTCPeerConnection.generateCertificate({
+                        name: 'ECDSA',
+                        namedCurve: 'P-256',
+                    });
+                    const pc = new RTCPeerConnection({ certificates: [cert] as any });
+                    expect(pc).toBeDefined();
                     pc.close();
                 });
             }

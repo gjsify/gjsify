@@ -99,3 +99,6 @@ export type { RTCSctpTransportState } from './rtc-sctp-transport.js';
 
 export { RTCDTMFSender, RTCDTMFToneChangeEvent } from './rtc-dtmf-sender.js';
 export type { RTCDTMFToneChangeEventInit } from './rtc-dtmf-sender.js';
+
+export { RTCCertificate } from './rtc-certificate.js';
+export type { RTCDtlsFingerprint, AlgorithmIdentifier } from './rtc-certificate.js';

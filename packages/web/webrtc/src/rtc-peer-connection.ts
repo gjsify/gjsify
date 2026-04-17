@@ -37,6 +37,7 @@ import type { RTCStatsReport } from './rtc-stats-report.js';
 import { RTCIceTransport } from './rtc-ice-transport.js';
 import { RTCDtlsTransport } from './rtc-dtls-transport.js';
 import { RTCSctpTransport } from './rtc-sctp-transport.js';
+import { RTCCertificate, generateCertificate, type AlgorithmIdentifier } from './rtc-certificate.js';
 
 export type RTCSignalingState =
     | 'stable' | 'closed'
@@ -108,12 +109,6 @@ function coerceUnsignedShort(name: string, raw: unknown): number {
     return truncated;
 }
 
-function throwNotSupported(method: string): never {
-    const DOMExc = (globalThis as any).DOMException;
-    const msg = `RTCPeerConnection.${method} is not implemented in @gjsify/webrtc yet.`;
-    if (DOMExc) throw new DOMExc(msg, 'NotSupportedError');
-    throw new Error(msg);
-}
 
 export interface RTCRtpTransceiverInit {
     direction?: RTCRtpTransceiverDirection;
@@ -161,6 +156,18 @@ export class RTCPeerConnection extends EventTarget {
         }
         this._webrtcbin = bin;
         this._conf = { ...configuration };
+
+        // Validate certificates — expired certs must be rejected
+        if (configuration?.certificates) {
+            for (const cert of configuration.certificates) {
+                if (cert instanceof RTCCertificate && cert.expires <= Date.now()) {
+                    throw new DOMException(
+                        'RTCPeerConnection: one of the provided certificates has expired',
+                        'InvalidAccessError',
+                    );
+                }
+            }
+        }
 
         this._applyIceServers(configuration?.iceServers ?? []);
         this._applyIceTransportPolicy(configuration?.iceTransportPolicy);
@@ -998,4 +1005,10 @@ export class RTCPeerConnection extends EventTarget {
     set ontrack(v: EventHandler<RTCTrackEvent>) { this._ontrack = v; }
     get onicecandidateerror(): EventHandler { return null; }
     set onicecandidateerror(_v: EventHandler) { /* no-op */ }
+
+    // ---- Certificate management (Phase 4.7) --------------------------------
+
+    static generateCertificate(keygenAlgorithm: AlgorithmIdentifier): Promise<RTCCertificate> {
+        return generateCertificate(keygenAlgorithm);
+    }
 }
