@@ -47,9 +47,6 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
         define: {
             global: 'globalThis',
             window: 'globalThis',
-            'process.env.NODE_DEBUG': '""',
-            'process.env.NODE_ENV': '"production"',
-            'process.browser': 'true',
         }
     };
 
