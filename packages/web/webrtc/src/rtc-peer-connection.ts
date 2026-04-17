@@ -328,10 +328,24 @@ export class RTCPeerConnection extends EventTarget {
 
     async setLocalDescription(description?: RTCSessionDescriptionInit): Promise<void> {
         this._rejectIfClosed('setLocalDescription');
-        if (!description || !description.sdp || !description.type) {
-            // Implicit createOffer/createAnswer is not implemented yet — require explicit SDP.
-            throw new TypeError('setLocalDescription requires an RTCSessionDescriptionInit with sdp and type');
+
+        // W3C § 4.4.1.6 — implicit setLocalDescription (perfect negotiation):
+        // When called without arguments (or with empty type/sdp), auto-create
+        // the appropriate SDP based on the current signaling state.
+        if (!description || !description.type || !description.sdp) {
+            const state = this.signalingState;
+            if (state === 'stable' || state === 'have-local-offer') {
+                // Stable → create offer; have-local-offer → rollback + re-offer
+                description = await this.createOffer();
+            } else if (state === 'have-remote-offer' || state === 'have-remote-pranswer') {
+                description = await this.createAnswer();
+            } else {
+                const DOMExc = (globalThis as any).DOMException;
+                const msg = `setLocalDescription: cannot auto-create SDP in signalingState '${state}'`;
+                throw DOMExc ? new DOMExc(msg, 'InvalidStateError') : new Error(msg);
+            }
         }
+
         // On first-time setLocalDescription, the pipeline needs to start running.
         this._pipeline.set_state(Gst.State.PLAYING);
         const gstDesc = new RTCSessionDescription(description).toGstDesc();

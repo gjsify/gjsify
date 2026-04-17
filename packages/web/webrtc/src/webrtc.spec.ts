@@ -309,6 +309,74 @@ export default async () => {
                 pc.close();
             });
 
+            // ---- Implicit setLocalDescription (perfect negotiation) ----
+            // Ported from refs/wpt/webrtc/RTCPeerConnection-restartIce.https.html
+            // (negotiators[1] — "perfect negotiation" path).
+
+            await it('implicit SLD() in stable state creates an offer', async () => {
+                const pc = new RTCPeerConnection();
+                pc.addTransceiver('audio');
+                // Call setLocalDescription with no arguments
+                await pc.setLocalDescription();
+                expect(pc.localDescription).toBeDefined();
+                expect(pc.localDescription!.type).toBe('offer');
+                expect(pc.localDescription!.sdp.length).toBeGreaterThan(0);
+                pc.close();
+            });
+
+            await it('implicit SLD() in have-remote-offer creates an answer', async () => {
+                const pc1 = new RTCPeerConnection();
+                const pc2 = new RTCPeerConnection();
+                pc1.addTransceiver('audio');
+                const offer = await pc1.createOffer();
+                await pc1.setLocalDescription(offer);
+                await pc2.setRemoteDescription(offer);
+                // pc2 is now in have-remote-offer — implicit SLD should create answer
+                expect(pc2.signalingState).toBe('have-remote-offer');
+                await pc2.setLocalDescription();
+                expect(pc2.localDescription).toBeDefined();
+                expect(pc2.localDescription!.type).toBe('answer');
+                pc1.close();
+                pc2.close();
+            });
+
+            await it('perfect negotiation handshake (implicit SLD both sides)', async () => {
+                const pc1 = new RTCPeerConnection();
+                const pc2 = new RTCPeerConnection();
+                pc1.onicecandidate = (ev: any) => {
+                    if (ev.candidate) pc2.addIceCandidate(ev.candidate).catch(() => {});
+                };
+                pc2.onicecandidate = (ev: any) => {
+                    if (ev.candidate) pc1.addIceCandidate(ev.candidate).catch(() => {});
+                };
+                pc1.addTransceiver('audio');
+                // Offerer: implicit SLD
+                await pc1.setLocalDescription();
+                expect(pc1.localDescription!.type).toBe('offer');
+                await pc2.setRemoteDescription(pc1.localDescription!);
+                // Answerer: implicit SLD
+                await pc2.setLocalDescription();
+                expect(pc2.localDescription!.type).toBe('answer');
+                await pc1.setRemoteDescription(pc2.localDescription!);
+                expect(pc1.signalingState).toBe('stable');
+                expect(pc2.signalingState).toBe('stable');
+                pc1.close();
+                pc2.close();
+            });
+
+            await it('implicit SLD() on closed connection throws', async () => {
+                const pc = new RTCPeerConnection();
+                pc.close();
+                let threw = false;
+                try {
+                    await pc.setLocalDescription();
+                } catch (e: any) {
+                    threw = true;
+                    expect(e.message).toContain('closed');
+                }
+                expect(threw).toBeTruthy();
+            });
+
             await it('should send audio from pcA and receive track event on pcB', async () => {
                 const stream = await getUserMedia({ audio: true });
                 const audioTrack = stream.getAudioTracks()[0];
