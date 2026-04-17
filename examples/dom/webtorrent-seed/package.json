@@ -14,7 +14,7 @@
     "start:browser": "http-server dist -o -c-1",
     "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js --globals auto,RTCPeerConnection,RTCSessionDescription,RTCIceCandidate,WebSocket,fetch && node -e \"const fs=require('fs');let c=fs.readFileSync('dist/gjs.js','utf8');c=c.replaceAll('__toESM(require_lib3(), 1)','__toESM(require_lib3(), 0)');fs.writeFileSync('dist/gjs.js',c)\"",
-    "build:browser": "esbuild src/browser/browser.ts --bundle --format=esm --platform=browser --outfile=dist/browser.js --alias:path=path-browserify --alias:crypto=crypto-browserify --alias:stream=stream-browserify --alias:buffer=buffer --define:global=globalThis --define:process.env.NODE_DEBUG='\"\"' --target=esnext",
+    "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
     "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html"
   },
   "devDependencies": {

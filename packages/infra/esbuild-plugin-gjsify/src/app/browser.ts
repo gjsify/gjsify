@@ -47,6 +47,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
         define: {
             global: 'globalThis',
             window: 'globalThis',
+            'process.env.NODE_DEBUG': '""',
         }
     };
 
@@ -54,7 +55,20 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
 
     build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude)
 
-    const aliases = {...pluginOptions.aliases};
+    // Standard Node.js → browser polyfill aliases.
+    // When bundling for the browser, npm packages that import Node builtins
+    // (events, path, crypto, etc.) need browser-compatible replacements —
+    // same mappings that webpack/browserify provide by default.
+    // Projects must install the polyfill packages they need (e.g. path-browserify).
+    // Uninstalled polyfills are skipped — esbuild errors as usual if the
+    // builtin is actually imported.
+    const browserPolyfillAliases: Record<string, string> = {
+        'path': 'path-browserify',
+        'crypto': 'crypto-browserify',
+        'stream': 'stream-browserify',
+    };
+
+    const aliases = {...browserPolyfillAliases, ...pluginOptions.aliases};
 
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
