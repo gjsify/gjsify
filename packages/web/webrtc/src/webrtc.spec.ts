@@ -527,5 +527,149 @@ export default async () => {
                 });
             }
         });
+
+        // ---- restartIce() + setConfiguration() (Phase 4.4) -----------------
+        // Ported from refs/wpt/webrtc/RTCPeerConnection-restartIce.https.html
+        // and refs/wpt/webrtc/RTCPeerConnection-restartIce-onnegotiationneeded.https.html
+
+        await describe('restartIce()', async () => {
+            if (!webrtcbinReady || !ASYNC_SIGNALS_WORK) {
+                await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                    expect(webrtcbinReady).toBeFalsy();
+                });
+            } else {
+                await it('restartIce() has no effect on a closed connection', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.close();
+                    // Should not throw
+                    pc.restartIce();
+                    expect(pc.signalingState).toBe('closed');
+                });
+
+                await it('restartIce() does not fire negotiationneeded before initial negotiation', async () => {
+                    const pc = new RTCPeerConnection();
+                    let fired = false;
+                    pc.onnegotiationneeded = () => { fired = true; };
+                    pc.restartIce();
+                    // Give microtask a chance to fire
+                    await new Promise(r => setTimeout(r, 50));
+                    expect(fired).toBeFalsy();
+                    pc.close();
+                });
+
+                await it('restartIce() fires negotiationneeded after initial negotiation', async () => {
+                    const pc1 = new RTCPeerConnection();
+                    const pc2 = new RTCPeerConnection();
+                    pc1.onicecandidate = (ev: any) => {
+                        if (ev.candidate) pc2.addIceCandidate(ev.candidate).catch(() => {});
+                    };
+                    pc2.onicecandidate = (ev: any) => {
+                        if (ev.candidate) pc1.addIceCandidate(ev.candidate).catch(() => {});
+                    };
+                    pc1.addTransceiver('audio');
+                    // Initial negotiation
+                    const offer = await pc1.createOffer();
+                    await pc1.setLocalDescription(offer);
+                    await pc2.setRemoteDescription(offer);
+                    const answer = await pc2.createAnswer();
+                    await pc2.setLocalDescription(answer);
+                    await pc1.setRemoteDescription(answer);
+
+                    // Now restartIce should fire negotiationneeded
+                    const nnPromise = awaitEvent(pc1, 'negotiationneeded', 3000);
+                    pc1.restartIce();
+                    await nnPromise;
+                    pc1.close();
+                    pc2.close();
+                });
+
+                await it('restartIce() causes fresh ICE credentials in the next offer', async () => {
+                    const pc1 = new RTCPeerConnection();
+                    const pc2 = new RTCPeerConnection();
+                    pc1.onicecandidate = (ev: any) => {
+                        if (ev.candidate) pc2.addIceCandidate(ev.candidate).catch(() => {});
+                    };
+                    pc2.onicecandidate = (ev: any) => {
+                        if (ev.candidate) pc1.addIceCandidate(ev.candidate).catch(() => {});
+                    };
+                    pc1.addTransceiver('audio');
+
+                    // Initial negotiation
+                    let offer = await pc1.createOffer();
+                    await pc1.setLocalDescription(offer);
+                    await pc2.setRemoteDescription(offer);
+                    let answer = await pc2.createAnswer();
+                    await pc2.setLocalDescription(answer);
+                    await pc1.setRemoteDescription(answer);
+
+                    const getUfrags = (sdp: string) =>
+                        sdp.split('\r\n').filter(l => l.startsWith('a=ice-ufrag:'));
+                    const oldUfrags = getUfrags(pc1.localDescription!.sdp);
+
+                    // Restart and re-negotiate
+                    pc1.restartIce();
+                    offer = await pc1.createOffer();
+                    await pc1.setLocalDescription(offer);
+                    await pc2.setRemoteDescription(offer);
+                    answer = await pc2.createAnswer();
+                    await pc2.setLocalDescription(answer);
+                    await pc1.setRemoteDescription(answer);
+
+                    const newUfrags = getUfrags(pc1.localDescription!.sdp);
+                    // At least one ufrag should have changed
+                    expect(oldUfrags.length).toBeGreaterThan(0);
+                    expect(newUfrags.length).toBeGreaterThan(0);
+                    expect(newUfrags[0]).not.toBe(oldUfrags[0]);
+
+                    pc1.close();
+                    pc2.close();
+                });
+            }
+        });
+
+        await describe('setConfiguration()', async () => {
+            if (!webrtcbinReady) {
+                await it('(skipped — webrtcbin missing)', async () => {
+                    expect(webrtcbinReady).toBeFalsy();
+                });
+            } else {
+                await it('setConfiguration() updates iceServers', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.setConfiguration({
+                        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+                    });
+                    const config = pc.getConfiguration();
+                    expect(config.iceServers).toBeDefined();
+                    expect(config.iceServers!.length).toBe(1);
+                    pc.close();
+                });
+
+                await it('setConfiguration() throws on bundlePolicy change', async () => {
+                    const pc = new RTCPeerConnection({ bundlePolicy: 'max-bundle' });
+                    let threw = false;
+                    try {
+                        pc.setConfiguration({ bundlePolicy: 'balanced' });
+                    } catch (e: any) {
+                        threw = true;
+                        expect(e.message).toContain('bundlePolicy');
+                    }
+                    expect(threw).toBeTruthy();
+                    pc.close();
+                });
+
+                await it('setConfiguration() on closed connection throws', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.close();
+                    let threw = false;
+                    try {
+                        pc.setConfiguration({});
+                    } catch (e: any) {
+                        threw = true;
+                        expect(e.message).toContain('closed');
+                    }
+                    expect(threw).toBeTruthy();
+                });
+            }
+        });
     });
 };

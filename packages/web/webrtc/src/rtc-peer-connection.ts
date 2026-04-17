@@ -127,6 +127,8 @@ export class RTCPeerConnection extends EventTarget {
     private _bridge: WebrtcbinBridgeType;
     private _conf: RTCConfiguration;
     private _closed = false;
+    private _iceRestartNeeded = false;
+    private _hasNegotiated = false;
     private _dataChannels = new Map<unknown, RTCDataChannel>();
     private _transceivers = new Map<unknown, RTCRtpTransceiver>();
     private _senders: RTCRtpSender[] = [];
@@ -309,6 +311,11 @@ export class RTCPeerConnection extends EventTarget {
     async createOffer(_options?: RTCOfferOptions): Promise<RTCSessionDescriptionInit> {
         this._rejectIfClosed('createOffer');
         const opts = Gst.Structure.new_empty('offer-options');
+        // If restartIce() was called, request fresh ICE credentials
+        if (this._iceRestartNeeded) {
+            this._setStructureField(opts, 'ice-restart', 'boolean', true);
+            this._iceRestartNeeded = false;
+        }
         const reply = await withGstPromise((p) => {
             this._webrtcbin.emit('create-offer', opts, p);
         });
@@ -366,6 +373,10 @@ export class RTCPeerConnection extends EventTarget {
         await withGstPromise((p) => {
             this._webrtcbin.emit('set-remote-description', gstDesc, p);
         });
+        // Track that at least one negotiation has completed (for restartIce)
+        if (this.signalingState === 'stable') {
+            this._hasNegotiated = true;
+        }
     }
 
     async addIceCandidate(candidate: RTCIceCandidateInit | RTCIceCandidate | null): Promise<void> {
@@ -704,10 +715,48 @@ export class RTCPeerConnection extends EventTarget {
         return report;
     }
 
-    // ---- Not implemented (Phase 3) ------------------------------------------
+    // ---- ICE restart / reconfiguration (Phase 4.4) ---------------------------
 
-    restartIce(): never { throwNotSupported('restartIce'); }
-    setConfiguration(_configuration: RTCConfiguration): never { throwNotSupported('setConfiguration'); }
+    restartIce(): void {
+        if (this._closed) return; // no-op on closed connections per spec
+        this._iceRestartNeeded = true;
+        // Only fire negotiationneeded if we've completed at least one negotiation.
+        // Before initial negotiation, restartIce has no observable effect.
+        if (this._hasNegotiated) {
+            // Fire asynchronously per spec (queued as a microtask)
+            Promise.resolve().then(() => {
+                if (this._closed) return;
+                this._handleNegotiationNeeded();
+            });
+        }
+    }
+
+    setConfiguration(configuration: RTCConfiguration): void {
+        this._rejectIfClosed('setConfiguration');
+
+        // Per spec: bundlePolicy and rtcpMuxPolicy cannot change after construction
+        if (configuration.bundlePolicy && configuration.bundlePolicy !== (this._conf.bundlePolicy ?? 'balanced')) {
+            const DOMExc = (globalThis as any).DOMException;
+            const msg = "setConfiguration: bundlePolicy cannot be changed";
+            throw DOMExc ? new DOMExc(msg, 'InvalidModificationError') : new Error(msg);
+        }
+        if (configuration.rtcpMuxPolicy && configuration.rtcpMuxPolicy !== (this._conf.rtcpMuxPolicy ?? 'require')) {
+            const DOMExc = (globalThis as any).DOMException;
+            const msg = "setConfiguration: rtcpMuxPolicy cannot be changed";
+            throw DOMExc ? new DOMExc(msg, 'InvalidModificationError') : new Error(msg);
+        }
+
+        // Apply new ICE servers
+        if (configuration.iceServers) {
+            this._applyIceServers(configuration.iceServers);
+        }
+        // Apply new ICE transport policy
+        if (configuration.iceTransportPolicy) {
+            this._applyIceTransportPolicy(configuration.iceTransportPolicy);
+        }
+
+        this._conf = { ...this._conf, ...configuration };
+    }
     getIdentityAssertion(): Promise<never> {
         return Promise.reject(new Error('getIdentityAssertion is not implemented'));
     }
