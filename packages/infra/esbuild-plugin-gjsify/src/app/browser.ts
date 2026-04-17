@@ -48,6 +48,8 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
             global: 'globalThis',
             window: 'globalThis',
             'process.env.NODE_DEBUG': '""',
+            'process.env.NODE_ENV': '"production"',
+            'process.browser': 'true',
         }
     };
 
@@ -66,6 +68,7 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
         'path': 'path-browserify',
         'crypto': 'crypto-browserify',
         'stream': 'stream-browserify',
+        'process': 'process/browser',
     };
 
     const aliases = {...browserPolyfillAliases, ...pluginOptions.aliases};
