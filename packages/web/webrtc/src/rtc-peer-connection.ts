@@ -15,6 +15,13 @@ import {
 } from '@gjsify/webrtc-native';
 import { ensureWebrtcbinAvailable, Gst } from './gst-init.js';
 import { withGstPromise } from './gst-utils.js';
+import {
+    gstToSignalingState,
+    gstToConnectionState,
+    gstToIceConnectionState,
+    gstToIceGatheringState,
+    w3cDirectionToGst,
+} from './gst-enum-maps.js';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from './rtc-session-description.js';
 import { RTCIceCandidate, type RTCIceCandidateInit } from './rtc-ice-candidate.js';
 import { RTCDataChannel } from './rtc-data-channel.js';
@@ -109,61 +116,6 @@ export interface RTCRtpTransceiverInit {
     sendEncodings?: Array<{ rid?: string; active?: boolean; maxBitrate?: number; scaleResolutionDownBy?: number }>;
 }
 
-function directionToGst(d: RTCRtpTransceiverDirection): number {
-    switch (d) {
-        case 'sendrecv': return GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV;
-        case 'sendonly': return GstWebRTC.WebRTCRTPTransceiverDirection.SENDONLY;
-        case 'recvonly': return GstWebRTC.WebRTCRTPTransceiverDirection.RECVONLY;
-        case 'inactive': return GstWebRTC.WebRTCRTPTransceiverDirection.NONE;
-        default: return GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV;
-    }
-}
-
-function gstToSignalingState(v: number): RTCSignalingState {
-    switch (v) {
-        case GstWebRTC.WebRTCSignalingState.STABLE: return 'stable';
-        case GstWebRTC.WebRTCSignalingState.CLOSED: return 'closed';
-        case GstWebRTC.WebRTCSignalingState.HAVE_LOCAL_OFFER: return 'have-local-offer';
-        case GstWebRTC.WebRTCSignalingState.HAVE_REMOTE_OFFER: return 'have-remote-offer';
-        case GstWebRTC.WebRTCSignalingState.HAVE_LOCAL_PRANSWER: return 'have-local-pranswer';
-        case GstWebRTC.WebRTCSignalingState.HAVE_REMOTE_PRANSWER: return 'have-remote-pranswer';
-        default: return 'stable';
-    }
-}
-
-function gstToConnectionState(v: number): RTCPeerConnectionState {
-    switch (v) {
-        case GstWebRTC.WebRTCPeerConnectionState.NEW: return 'new';
-        case GstWebRTC.WebRTCPeerConnectionState.CONNECTING: return 'connecting';
-        case GstWebRTC.WebRTCPeerConnectionState.CONNECTED: return 'connected';
-        case GstWebRTC.WebRTCPeerConnectionState.DISCONNECTED: return 'disconnected';
-        case GstWebRTC.WebRTCPeerConnectionState.FAILED: return 'failed';
-        case GstWebRTC.WebRTCPeerConnectionState.CLOSED: return 'closed';
-        default: return 'new';
-    }
-}
-
-function gstToIceConnectionState(v: number): RTCIceConnectionState {
-    switch (v) {
-        case GstWebRTC.WebRTCICEConnectionState.NEW: return 'new';
-        case GstWebRTC.WebRTCICEConnectionState.CHECKING: return 'checking';
-        case GstWebRTC.WebRTCICEConnectionState.CONNECTED: return 'connected';
-        case GstWebRTC.WebRTCICEConnectionState.COMPLETED: return 'completed';
-        case GstWebRTC.WebRTCICEConnectionState.FAILED: return 'failed';
-        case GstWebRTC.WebRTCICEConnectionState.DISCONNECTED: return 'disconnected';
-        case GstWebRTC.WebRTCICEConnectionState.CLOSED: return 'closed';
-        default: return 'new';
-    }
-}
-
-function gstToIceGatheringState(v: number): RTCIceGatheringState {
-    switch (v) {
-        case GstWebRTC.WebRTCICEGatheringState.NEW: return 'new';
-        case GstWebRTC.WebRTCICEGatheringState.GATHERING: return 'gathering';
-        case GstWebRTC.WebRTCICEGatheringState.COMPLETE: return 'complete';
-        default: return 'new';
-    }
-}
 
 let globalCounter = 0;
 
@@ -603,14 +555,16 @@ export class RTCPeerConnection extends EventTarget {
             this._receivers.push(receiver);
 
             // Apply direction
-            (gstTrans as any).direction = directionToGst(direction);
+            (gstTrans as any).direction = w3cDirectionToGst(direction);
         } else {
             // Path B: No GStreamer source, or receive-only/inactive.
             // Use emit('add-transceiver') which creates a transceiver without pads.
             const caps = Gst.Caps.from_string(`application/x-rtp,media=${kind}`);
+            // webrtcbin doesn't accept NONE for add-transceiver; use SENDRECV
+            // and override to inactive after creation.
             const createDirection = direction === 'inactive'
-                ? GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV
-                : directionToGst(direction);
+                ? w3cDirectionToGst('sendrecv')
+                : w3cDirectionToGst(direction);
 
             gstTrans = this._webrtcbin.emit('add-transceiver', createDirection, caps) as any;
             if (!gstTrans) {
@@ -622,7 +576,7 @@ export class RTCPeerConnection extends EventTarget {
                 jsTrans = this._createTransceiverWrapper(gstTrans);
             }
 
-            (gstTrans as any).direction = directionToGst(direction);
+            (gstTrans as any).direction = w3cDirectionToGst(direction);
 
             if (trackOrKind instanceof MediaStreamTrack) {
                 jsTrans.sender._setTrack(trackOrKind);

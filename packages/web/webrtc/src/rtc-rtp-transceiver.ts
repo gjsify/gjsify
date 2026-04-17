@@ -6,29 +6,11 @@
 // Reference: refs/node-gst-webrtc/src/webrtc/RTCRtpTransceiver.ts (ISC)
 // Reference: W3C WebRTC spec § 5.4
 
-import GstWebRTC from 'gi://GstWebRTC?version=1.0';
+import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
+import { gstDirectionToW3C, w3cDirectionToGst } from './gst-enum-maps.js';
 import { RTCRtpSender, type RTCRtpTransceiverDirection, type RTCRtpCodecCapability } from './rtc-rtp-sender.js';
 import { RTCRtpReceiver } from './rtc-rtp-receiver.js';
-
-function gstDirectionToW3C(v: number): RTCRtpTransceiverDirection {
-    switch (v) {
-        case GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV: return 'sendrecv';
-        case GstWebRTC.WebRTCRTPTransceiverDirection.SENDONLY: return 'sendonly';
-        case GstWebRTC.WebRTCRTPTransceiverDirection.RECVONLY: return 'recvonly';
-        default: return 'inactive';
-    }
-}
-
-function w3cDirectionToGst(d: RTCRtpTransceiverDirection): number {
-    switch (d) {
-        case 'sendrecv': return GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV;
-        case 'sendonly': return GstWebRTC.WebRTCRTPTransceiverDirection.SENDONLY;
-        case 'recvonly': return GstWebRTC.WebRTCRTPTransceiverDirection.RECVONLY;
-        case 'inactive': return GstWebRTC.WebRTCRTPTransceiverDirection.NONE;
-        default: return GstWebRTC.WebRTCRTPTransceiverDirection.NONE;
-    }
-}
 
 export class RTCRtpTransceiver {
     private _gstTrans: GstWebRTC.WebRTCRTPTransceiver;

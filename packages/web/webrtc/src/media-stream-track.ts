@@ -12,6 +12,8 @@ import '@gjsify/dom-events/register/event-target';
 
 import GLib from 'gi://GLib?version=2.0';
 
+import { Gst } from './gst-init.js';
+
 /** @internal GStreamer backing for tracks created by getUserMedia */
 export interface MediaStreamTrackGstInit {
     source: any;       // Gst.Element
@@ -108,10 +110,10 @@ export class MediaStreamTrack extends EventTarget {
         if (this._gstSource || this._gstPipeline) {
             try {
                 // Set pipeline to NULL first (this stops all children)
-                this._gstPipeline?.set_state(4 /* Gst.State.NULL */);
+                this._gstPipeline?.set_state(Gst.State.NULL);
             } catch { /* ignore */ }
             try {
-                this._gstSource?.set_state(4 /* Gst.State.NULL */);
+                this._gstSource?.set_state(Gst.State.NULL);
             } catch { /* ignore */ }
             this._gstSource = null;
             this._gstPipeline = null;
