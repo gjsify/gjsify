@@ -59,3 +59,6 @@ import '@gjsify/webaudio/register';
 
 // Gamepad API via libmanette
 import '@gjsify/gamepad/register';
+
+// WebRTC API via GStreamer webrtcbin
+import '@gjsify/webrtc/register';

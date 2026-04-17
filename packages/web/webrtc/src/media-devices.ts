@@ -24,6 +24,25 @@ const DEVICE_CLASS_MAP: Record<string, MediaDeviceKind> = {
 /** Whether getUserMedia has been successfully called (unlocks full device info). */
 let _permissionGranted = false;
 
+/**
+ * Check if GStreamer device monitoring is safe to use.
+ * On CI containers without PipeWire/PulseAudio, starting a DeviceMonitor
+ * can SIGSEGV in native code (before JS error handling can intervene).
+ * This guard prevents the crash by checking for device provider factories first.
+ */
+function isDeviceMonitorSafe(): boolean {
+    try {
+        // DeviceProviderFactory.find() returns null if no providers are registered.
+        // Check for common providers: pulsesrc (PulseAudio), pipewire (PipeWire).
+        const hasPulse = Gst.DeviceProviderFactory.find('pulsedeviceprovider') != null;
+        const hasPipewire = Gst.DeviceProviderFactory.find('pipewiredeviceprovider') != null;
+        const hasAlsa = Gst.DeviceProviderFactory.find('alsadeviceprovider') != null;
+        return hasPulse || hasPipewire || hasAlsa;
+    } catch {
+        return false;
+    }
+}
+
 export class MediaDevices extends EventTarget {
     private _ondevicechange: ((ev: Event) => void) | null = null;
 
@@ -44,71 +63,101 @@ export class MediaDevices extends EventTarget {
     async enumerateDevices(): Promise<MediaDeviceInfo[]> {
         ensureGstInit();
 
-        const monitor = new Gst.DeviceMonitor();
-        monitor.add_filter('Audio/Source', null);
-        monitor.add_filter('Video/Source', null);
-        monitor.add_filter('Audio/Sink', null);
-        monitor.start();
-
-        const gstDevices = monitor.get_devices() ?? [];
+        let monitor: InstanceType<typeof Gst.DeviceMonitor> | null = null;
         const result: MediaDeviceInfo[] = [];
 
-        for (const device of gstDevices) {
-            const deviceClass = device.get_device_class?.() ?? '';
-            const kind = DEVICE_CLASS_MAP[deviceClass];
-            if (!kind) continue;
+        try {
+            // Guard: on CI containers without PipeWire/PulseAudio, DeviceMonitor
+            // can SIGSEGV in native GStreamer code. Check for device providers first.
+            if (!isDeviceMonitorSafe()) {
+                return result;
+            }
 
-            const displayName = device.get_display_name?.() ?? '';
-            let deviceId = '';
-            let groupId = '';
+            monitor = new Gst.DeviceMonitor();
+            monitor.set_show_all_devices(true);
+            const audioCaps = Gst.Caps.from_string('audio/x-raw');
+            const videoCaps = Gst.Caps.from_string('video/x-raw');
+            if (audioCaps) {
+                monitor.add_filter('Audio/Source', audioCaps);
+                monitor.add_filter('Audio/Sink', audioCaps);
+            }
+            if (videoCaps) {
+                monitor.add_filter('Video/Source', videoCaps);
+            }
 
-            // Extract persistent-id from device properties if available
+            if (!monitor.start()) {
+                // DeviceMonitor failed to start — return empty list gracefully
+                return result;
+            }
+
+            let gstDevices: any[];
             try {
-                const props = device.get_properties?.();
-                if (props) {
-                    const n = props.n_fields();
-                    for (let i = 0; i < n; i++) {
-                        const name = props.nth_field_name(i);
-                        if (name === 'persistent-id' || name === 'node.name') {
-                            const val = props.get_value(name);
-                            if (val && !deviceId) deviceId = String(val);
-                        }
-                        if (name === 'group-id') {
-                            const val = props.get_value(name);
-                            if (val) groupId = String(val);
+                gstDevices = monitor.get_devices() ?? [];
+            } catch {
+                // get_devices() can crash on some GStreamer/GJS versions — return empty
+                return result;
+            }
+
+            for (const device of gstDevices) {
+                const deviceClass = device.get_device_class?.() ?? '';
+                const kind = DEVICE_CLASS_MAP[deviceClass];
+                if (!kind) continue;
+
+                const displayName = device.get_display_name?.() ?? '';
+                let deviceId = '';
+                let groupId = '';
+
+                // Extract persistent-id from device properties if available
+                try {
+                    const props = device.get_properties?.();
+                    if (props) {
+                        const n = props.n_fields();
+                        for (let i = 0; i < n; i++) {
+                            const name = props.nth_field_name(i);
+                            if (name === 'persistent-id' || name === 'node.name') {
+                                const val = props.get_value(name);
+                                if (val && !deviceId) deviceId = String(val);
+                            }
+                            if (name === 'group-id') {
+                                const val = props.get_value(name);
+                                if (val) groupId = String(val);
+                            }
                         }
                     }
+                } catch { /* properties may not be available */ }
+
+                // Fallback deviceId from display name hash
+                if (!deviceId) {
+                    deviceId = displayName || `${kind}-${result.length}`;
                 }
-            } catch { /* properties may not be available */ }
 
-            // Fallback deviceId from display name hash
-            if (!deviceId) {
-                deviceId = displayName || `${kind}-${result.length}`;
-            }
-
-            // Per W3C: before getUserMedia permission, expose only empty
-            // deviceId/label/groupId (one device per kind max).
-            if (_permissionGranted) {
-                result.push(new MediaDeviceInfo({
-                    deviceId,
-                    kind,
-                    label: displayName,
-                    groupId,
-                }));
-            } else {
-                // Check if we already have a device of this kind
-                if (!result.some(d => d.kind === kind)) {
+                // Per W3C: before getUserMedia permission, expose only empty
+                // deviceId/label/groupId (one device per kind max).
+                if (_permissionGranted) {
                     result.push(new MediaDeviceInfo({
-                        deviceId: '',
+                        deviceId,
                         kind,
-                        label: '',
-                        groupId: '',
+                        label: displayName,
+                        groupId,
                     }));
+                } else {
+                    // Check if we already have a device of this kind
+                    if (!result.some(d => d.kind === kind)) {
+                        result.push(new MediaDeviceInfo({
+                            deviceId: '',
+                            kind,
+                            label: '',
+                            groupId: '',
+                        }));
+                    }
                 }
             }
+        } catch {
+            // DeviceMonitor or device enumeration crashed — return whatever we have
+            return result;
+        } finally {
+            try { monitor?.stop(); } catch { /* ignore stop errors */ }
         }
-
-        monitor.stop();
 
         // W3C ordering: audioinput first, then videoinput, then audiooutput
         const order: Record<string, number> = { audioinput: 0, videoinput: 1, audiooutput: 2 };

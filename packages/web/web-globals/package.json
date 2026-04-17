@@ -54,7 +54,8 @@
         "@gjsify/url": "workspace:^",
         "@gjsify/web-streams": "workspace:^",
         "@gjsify/webaudio": "workspace:^",
-        "@gjsify/webcrypto": "workspace:^"
+        "@gjsify/webcrypto": "workspace:^",
+        "@gjsify/webrtc": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
