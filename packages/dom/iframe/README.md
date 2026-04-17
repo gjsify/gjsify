@@ -1,6 +1,6 @@
 # @gjsify/iframe
 
-GJS implementation of HTMLIFrameElement using WebKit 6.0. Provides IFrameWidget extending WebKit.WebView with postMessage bridge.
+GJS implementation of HTMLIFrameElement using WebKit 6.0. Provides IFrameBridge extending WebKit.WebView with postMessage bridge.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -15,9 +15,9 @@ yarn add @gjsify/iframe
 ## Usage
 
 ```typescript
-import { IFrameWidget } from '@gjsify/iframe';
+import { IFrameBridge } from '@gjsify/iframe';
 
-const widget = new IFrameWidget();
+const widget = new IFrameBridge();
 
 widget.onReady((iframe) => {
   iframe.contentWindow?.addEventListener('message', (event) => {

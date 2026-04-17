@@ -1,13 +1,13 @@
 // GJS/Adwaita window for the Excalibur Jelly Jumper showcase.
-// Uses CanvasWebGLWidget (WebGL2) as primary renderer. If WebGL2 is
-// unavailable (no GPU), falls back to Canvas2DWidget (Cairo) on startup —
+// Uses WebGLBridge (WebGL2) as primary renderer. If WebGL2 is
+// unavailable (no GPU), falls back to Canvas2DBridge (Cairo) on startup —
 // mirroring the browser's WebGL→Canvas2D fallback path.
 
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { WebGLBridge } from '@gjsify/webgl';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { startGame, type GameHandle } from '../game.js';
 import Template from './jelly-jumper-window.blp';
 
@@ -42,7 +42,7 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
         // Both widgets expose an identical API (onReady, onResize, installGlobals,
         // connect('resize', ...)), so the Canvas 2D fallback path differs from
         // the WebGL path only in the widget constructor.
-        const widget = useFallback ? new Canvas2DWidget() : new CanvasWebGLWidget();
+        const widget = useFallback ? new Canvas2DBridge() : new WebGLBridge();
         widget.set_hexpand(true);
         widget.set_vexpand(true);
         widget.installGlobals();

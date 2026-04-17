@@ -1,16 +1,16 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-10 (@gjsify/webaudio: Web Audio API via GStreamer 1.26 — AudioContext, decodeAudioData, AudioBufferSourceNode playback, GainNode volume, HTMLAudioElement format detection. 29 tests. Jelly Jumper showcase now has real audio)
+> Last updated: 2026-04-17 (@gjsify/webrtc Phase 3 — Outgoing media pipeline + getUserMedia. addTrack wires GStreamer encoder chain (source→valve→convert→encode→payloader→capsfilter→webrtcbin). getUserMedia wraps pipewiresrc/pulsesrc/v4l2src as MediaStreamTracks. replaceTrack with atomic source swap. End-to-end bidirectional audio verified. 229 tests green.)
 
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **15 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **39 Node.js packages**, **17 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 39 | 32 (82%) | 3 (8%) | 4 (10%) |
-| Web APIs | 15 | 14 (93%) | 1 (7%) | — |
+| Web APIs | 17 | 15 (88%) | 2 (12%) | — |
 | DOM APIs | 5 | 5 (100%) | — | — |
 | Browser UI | 1 | 1 | — | — |
 | Showcases | 6 | 6 | — | — |
@@ -81,7 +81,7 @@ The project comprises **39 Node.js packages**, **15 Web API packages**, **5 DOM 
 
 ## Web API Packages (`packages/web/`)
 
-All 13 packages have real implementations:
+All 15 packages have real implementations:
 
 | Package | GNOME Libs | Tests | Web APIs |
 |---------|-----------|-------|----------|
@@ -98,17 +98,101 @@ All 13 packages have real implementations:
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
 | **webaudio** | Gst 1.0, GstApp 1.0 | 32 | AudioContext (decodeAudioData via GStreamer decodebin, createBufferSource, createGain, currentTime via GLib monotonic clock), AudioBuffer (PCM Float32Array storage), AudioBufferSourceNode (GStreamer appsrc→audioconvert→volume→autoaudiosink), GainNode (AudioParam with setTargetAtTime), AudioParam, HTMLAudioElement (canPlayType, playbin playback). **Phase 1 — covers Excalibur.js** |
 | **gamepad** | Manette 0.2 | 19 | Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected on globalThis), GamepadHapticActuator (dual-rumble with strong/weak magnitude). Button mapping: Manette→W3C standard layout (17 buttons incl. triggers-as-buttons). Axis mapping: 4 stick axes + trigger axes→button values. Lazy Manette.Monitor init, graceful degradation without libmanette. |
+| **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 26 | **Phase 1–3 — Data Channel + Media + Outgoing Pipeline.** RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN config, addTransceiver, addTrack, removeTrack, all sync getters + on-event handlers), RTCDataChannel (string + binary send/receive, bufferedAmount, binaryType), RTCRtpSender (track, getParameters/setParameters, replaceTrack with atomic source swap, getCapabilities), RTCRtpReceiver (track with muted→unmuted via ReceiverBridge, jitterBufferTarget), RTCRtpTransceiver (mid, direction, stop, setCodecPreferences), MediaStream, MediaStreamTrack (GStreamer source integration, enabled→valve), getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback), MediaDevices. Outgoing pipeline: source→valve→convert→encode(opus/vp8)→payloader→capsfilter→webrtcbin. End-to-end bidirectional audio verified. Registers via `@gjsify/webrtc/register` (granular subpaths) — `--globals auto` picks them up. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
+| **webrtc-native** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | — | Vala/GObject library consumed by `@gjsify/webrtc`. Exposes three main-thread signal bridges: `WebrtcbinBridge` (wraps webrtcbin's `on-negotiation-needed` / `on-ice-candidate` / `on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open` / `on-close` / `on-error` / `on-message-string` / `on-message-data` / `on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Each bridge connects on the C side (never invokes JS on the streaming thread) and re-emits via `GLib.Idle.add()` on the main context. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64}/`; CI (`.github/workflows/prebuilds.yml`) rebuilds on Vala source changes. |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
+
+### WebRTC Status
+
+**Implemented (Phase 1 + 1.5 — Data Channel end-to-end):**
+- RTCPeerConnection: constructor, createOffer, createAnswer, setLocalDescription, setRemoteDescription, addIceCandidate, close, createDataChannel, getConfiguration
+- State getters: signalingState, connectionState, iceConnectionState, iceGatheringState, localDescription, remoteDescription, currentLocal/RemoteDescription, pendingLocal/RemoteDescription, canTrickleIceCandidates
+- RTCPeerConnection events: negotiationneeded, icecandidate, icegatheringstatechange, iceconnectionstatechange, connectionstatechange, signalingstatechange, datachannel
+- RTCDataChannel: send (string / ArrayBuffer / ArrayBufferView / Blob), close, readyState, bufferedAmount, bufferedAmountLowThreshold, binaryType ('arraybuffer' default, 'blob' lazy via globalThis.Blob), id, label, ordered, protocol, negotiated, maxPacketLifeTime, maxRetransmits
+- RTCDataChannel events: open, close, message, error, bufferedamountlow, closing
+- RTCSessionDescription (with Gst↔JS round-trip via GstSDP), RTCIceCandidate (W3C fields + candidate-line parser), RTCError (extends DOMException), RTCErrorEvent, RTCPeerConnectionIceEvent, RTCDataChannelEvent
+
+**Implemented (Phase 2 — Media API Surface):**
+- RTCPeerConnection.addTransceiver(kind, init) — creates real GstWebRTC transceivers, returns RTCRtpTransceiver
+- RTCPeerConnection.getSenders / getReceivers / getTransceivers — return live lists
+- RTCPeerConnection.removeTrack(sender) — validates sender, resets track
+- RTCPeerConnection `track` event — fires on pad-added with RTCTrackEvent (receiver, track, streams, transceiver)
+- RTCRtpTransceiver: mid, direction (read/write, mapped to GstWebRTC enum), currentDirection, stop(), setCodecPreferences(codecs)
+- RTCRtpSender: track, dtmf, transport, getParameters/setParameters, replaceTrack (stub), getCapabilities(kind)
+- RTCRtpReceiver: track (stub MediaStreamTrack, muted), jitterBufferTarget (0–4000ms range), getParameters, getCapabilities(kind)
+- MediaStream: id, active, getTracks/getAudioTracks/getVideoTracks, getTrackById, addTrack/removeTrack, clone, addtrack/removetrack events
+- MediaStreamTrack: id, kind, label, enabled, muted, readyState, contentHint, clone, stop
+- MediaStreamTrackEvent, RTCTrackEvent
+- Globals via `@gjsify/webrtc/register/media`: MediaStream, MediaStreamTrack, RTCTrackEvent
+
+**Implemented (Phase 2.5 — Incoming Media Pipeline):**
+- ReceiverBridge (Vala): manages muted source → decodebin → tee switching entirely in C to handle decodebin's streaming-thread `pad-added` signal
+- RTCRtpReceiver._connectToPad wires webrtcbin output → ReceiverBridge → media-flowing signal → track unmute
+- Track transitions from muted to unmuted when decoded media replaces the muted source
+- Pipeline cleanup on RTCPeerConnection.close() disposes receiver bridges
+
+**Implemented (Phase 3 — Outgoing Media + getUserMedia):**
+- RTCPeerConnection.addTrack(track, ...streams) — creates transceiver, wires outgoing pipeline via request_pad_simple
+- getUserMedia({ audio, video }) — wraps GStreamer sources (pipewiresrc → pulsesrc → autoaudiosrc → audiotestsrc fallback; pipewiresrc → v4l2src → autovideosrc → videotestsrc fallback)
+- MediaDevices class with getUserMedia, enumerateDevices (stub), getSupportedConstraints
+- navigator.mediaDevices registration via `@gjsify/webrtc/register/media-devices`
+- Outgoing pipeline: source → valve → audioconvert/videoconvert → encoder (opusenc/vp8enc) → payloader (rtpopuspay/rtpvp8pay) → capsfilter → webrtcbin sink pad
+- MediaStreamTrack GStreamer integration: _gstSource, _gstPipeline, enabled→valve.drop, stop()→NULL+dispose
+- RTCRtpSender._wirePipeline builds explicit encoder chains (no Vala bridge needed — all main-thread)
+- RTCRtpSender.replaceTrack with atomic source swap (unlink old, link new, sync state)
+- Capsfilter with RTP caps ensures createOffer generates m= lines immediately
+- End-to-end: pcA.addTrack(getUserMedia audio) → pcB receives track event, track unmutes
+- Single-PC-per-track limitation (multi-PC fan-out via tee deferred to Phase 4)
+
+**Deferred (Phase 4 — Stats & advanced):**
+- RTCPeerConnection.getStats — rejects with `NotSupportedError`
+- RTCPeerConnection.restartIce, setConfiguration — throw `NotSupportedError`
+- RTCPeerConnection.getIdentityAssertion, peerIdentity — absent
+- RTCPeerConnection.sctp — returns `null`
+- `icecandidateerror` event — never fires
+- RTCDTMFSender, RTCCertificate — not implemented
+- RTCDtlsTransport, RTCIceTransport, RTCSctpTransport — not exposed
+- MediaStreamTrack constraints, enumerateDevices with GStreamer Device Monitor
+- Multi-PC-per-track fan-out via tee multiplexer
+
+**Notes on spec behaviour (verified against WPT):**
+- RTCDataChannel.binaryType defaults to `'arraybuffer'` — this IS the W3C spec default (§6.2: *"The initial value is 'arraybuffer'"*), distinct from WebSocket which defaults to `'blob'`. Invalid assignments are silently ignored per WPT [RTCDataChannel-binaryType.window.js](refs/wpt/webrtc/RTCDataChannel-binaryType.window.js) (matches Firefox / Chrome / Safari).
+- Setting `binaryType` to `'blob'` requires `globalThis.Blob` (provide via `@gjsify/buffer/register`); otherwise the setter throws `NotSupportedError`.
+
+**Current deviation from W3C spec:**
+- `setLocalDescription()` without a description argument (implicit createOffer/createAnswer re-use) is not implemented — callers must pass an explicit `RTCSessionDescriptionInit`.
+
+**How the GJS streaming-thread issue is solved (Phase 1.5):**
+
+Webrtcbin emits `on-negotiation-needed`, `on-ice-candidate`, `on-data-channel` (and its `Gst.Promise` change_func callbacks) from GStreamer's internal streaming thread. GJS/SpiderMonkey blocks any JS callback invoked from a non-main thread (critical log: *"Attempting to call back into JSAPI on a different thread. … it has been blocked."*) to prevent VM corruption. An in-JS `GLib.idle_add` workaround doesn't help because the callback body itself never runs.
+
+**`@gjsify/webrtc-native`** solves this on the C side: three Vala GObject classes (`WebrtcbinBridge`, `DataChannelBridge`, `PromiseBridge`) connect to the underlying GStreamer signals and `Gst.Promise` change_func, capture their args, then use `GLib.Idle.add()` to re-emit mirror signals on the main GLib context. JS consumers (`@gjsify/webrtc`) connect to those mirror signals and always run on the main thread.
+
+Two subtleties in the bridge design:
+1. `WebrtcbinBridge.on_data_channel_cb` wraps the incoming channel in a `DataChannelBridge` *on the streaming thread* before the idle hop — so the bridge's own signal handlers are connected before any `on-message-*` callbacks can fire on the same thread. Without this eager wrap, the first few messages from the remote peer would race the JS-side setup and get dropped.
+2. The `GstWebRTCDataChannelState` C enum is **1-based** (`CONNECTING=1 … CLOSED=4`) but the auto-generated TypeScript declaration omits the initialiser and infers 0-based values. `RTCDataChannel` maps against the real 1-based runtime values.
+
+Tests passing on GJS: **203 green** (89 data-channel + 109 media API + 5 media pipeline tests), including the full loopback (two local peers, offer/answer, ICE trickle, data-channel open/send/receive/echo).
+
+**System prerequisites:**
+- GStreamer ≥ 1.20 with **gst-plugins-bad** (for webrtcbin) AND **libnice-gstreamer** (for ICE transport — webrtcbin's state-change to PLAYING fails without it)
+- Fedora:   `dnf install gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-extras libnice-gstreamer1`
+- Ubuntu/Debian: `apt install gstreamer1.0-plugins-bad gstreamer1.0-nice`
+- Verify:   `gst-inspect-1.0 webrtcbin && gst-inspect-1.0 nicesrc`
+
+Tests that exercise `webrtcbin` (construction, deferred-APIs-throw, close, loopback) auto-skip with a clear message if the nice plugin is missing; the remaining 18 tests (RTCSessionDescription, RTCIceCandidate parsing, register-subpath wiring) cover the platform-agnostic code paths.
 
 ## DOM Packages (`packages/dom/`)
 
 | Package | GNOME Libs | Tests | APIs |
 |---------|-----------|-------|------|
-| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect, **dataset/DOMStringMap**), HTMLCanvasElement (base DOM stub), HTMLImageElement (**data: URI support**), Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
-| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D (**HSL/HSLA color parsing**, **shadowBlur approximation**, drawImage via paint+clip, composite operations), CanvasGradient, CanvasPattern, Path2D, ImageData, **FontFace** (pixel-perfect font rendering via PangoCairo), Canvas2DWidget→Gtk.DrawingArea |
-| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders, **clearBufferfv/iv/uiv/fi**, **premultipliedAlpha support**), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render, **eager context init**), Extensions |
+| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect, **dataset/DOMStringMap**), HTMLCanvasElement (base DOM stub), HTMLImageElement (**data: URI support**), HTMLMediaElement, HTMLVideoElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
+| **bridge-types** | — | — | DOMBridgeContainer(interface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
+| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D (**HSL/HSLA color parsing**, **shadowBlur approximation**, drawImage via paint+clip, composite operations), CanvasGradient, CanvasPattern, Path2D, ImageData, **FontFace** (pixel-perfect font rendering via PangoCairo), Canvas2DBridge→Gtk.DrawingArea |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders, **clearBufferfv/iv/uiv/fi**, **premultipliedAlpha support**), HTMLCanvasElement (GTK-backed), WebGLBridge (Gtk.GLArea subclass, rAF, resize re-render, **eager context init**), Extensions |
 | **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent, **window-level keyboard listeners** |
-| **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameWidget→WebKit.WebView, postMessage bridge |
+| **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
+| **video** | Gst 1.0, Gtk 4.0 | — | VideoBridge→Gtk.Picture(gtk4paintablesink). Supports srcObject(MediaStream from getUserMedia/WebRTC) + src(URI via playbin). Phase 1 |
 
 ## Browser UI Packages (`packages/web/adwaita-web/`)
 
@@ -202,8 +286,10 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **Gtk 4.0** | webgl |
 | **GdkPixbuf 2.0** | dom-elements (HTMLImageElement) |
 | **gwebgl 0.1** | webgl (Vala extension) |
-| **Gst 1.0** | webaudio (audio decoding + playback) |
+| **Gst 1.0** | webaudio (audio decoding + playback), webrtc (pipeline + elements) |
 | **GstApp 1.0** | webaudio (appsrc/appsink for PCM I/O) |
+| **GstWebRTC 1.0** | webrtc (webrtcbin element, signal-based peer negotiation, WebRTCSessionDescription) |
+| **GstSDP 1.0** | webrtc (SDP message parse/serialize via SDPMessage.new_from_text + as_text) |
 
 ---
 
@@ -242,6 +328,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**Tree-shakeable globals (`/register` subpath refactor)**~~✓ — every global-providing package now exposes a pure root export and a side-effectful `/register` subpath. Root imports are tree-shakeable; global registration is opt-in via `/register` or the `gjsify build --globals` CLI flag. See the [Tree-shakeable Globals section in AGENTS.md](AGENTS.md#tree-shakeable-globals--register-subpath-convention) for the rules.
 - ~~**Explicit `--globals` CLI flag**~~✓ — `gjsify build --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController` wires the matching `/register` modules into the bundle. Default list pre-wired in the `@gjsify/create-app` template `package.json` script. No auto-scanning — heuristic scanners leaked too many edge cases (isomorphic library guards, dynamic imports, bracket-notation global access).
 - ~~**vm promoted to Partial**~~✓ — createContext, runInNewContext, compileFunction, Script class (37 tests).
+- ~~**WebRTC Phase 1 + 1.5 (Data Channel end-to-end)**~~✓ — `@gjsify/webrtc` (23 tests incl. loopback). RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary send/receive), RTCSessionDescription, RTCIceCandidate, RTCError. Backed by `@gjsify/webrtc-native` Vala bridge (WebrtcbinBridge, DataChannelBridge, PromiseBridge) that marshals webrtcbin's streaming-thread signals + Gst.Promise callbacks onto the main GLib context via `GLib.Idle.add()`. Media (RTCRtpSender/Receiver, MediaStream, getUserMedia) deferred to Phase 2.
 
 ### High Priority
 
@@ -294,6 +381,34 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 - `refs/wpt/` is the authoritative conformance test source for DOM specs
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
+
+### ~~WebRTC Phase 3 — Outgoing Media + getUserMedia~~ ✓
+
+Completed. See "Implemented (Phase 3)" section above. Key decisions: explicit encoder chains (no encodebin/Vala bridge needed), capsfilter for immediate SDP generation, request_pad_simple for transceiver+pad creation.
+
+### Universal DOM Container (`@gjsify/dom-bridge`)
+
+**Priority: Medium — architectural vision for unified DOM-in-GTK.**
+
+A future `@gjsify/dom-bridge` package where `document.createElement("canvas")` + `getContext("2d")` automatically creates the right GTK widget behind the scenes. `document.body` would map to a real GTK container hierarchy. Each child element gets its own bridge transparently. This is the long-term vision for making browser code "just work" in GTK without explicit bridge creation. Deferred from the initial bridge architecture PR — requires deeper integration between `Document`, `Element.appendChild`, and the GTK widget tree.
+
+### WebRTC Phase 4 — Stats & advanced
+
+**Priority: Low — nice-to-have once Phase 3 lands.**
+
+- `getStats` — emit `get-stats` signal on webrtcbin, convert `GstStructure` → `RTCStatsReport` (Map<string, RTCStats>).
+- `restartIce`, `setConfiguration` — dynamic reconfig.
+- `RTCDtlsTransport`, `RTCIceTransport`, `RTCSctpTransport` — thin proxies over webrtcbin's child transports.
+- `RTCCertificate` — local DTLS certificate management.
+- `RTCDTMFSender` — audio-track-based DTMF via GStreamer `dtmfsrc`.
+- `icecandidateerror` event — map from webrtcbin's ICE failure signals.
+- `peerIdentity`, `getIdentityAssertion` — identity provider integration.
+
+### WebRTC Showcase
+
+**Priority: Low — after Phase 2.**
+
+Promote [examples/dom/webrtc-loopback](examples/dom/webrtc-loopback) to `showcases/dom/webrtc-loopback/` once Media Phase 2 lands, so the showcase demonstrates both data and media paths. Until then it stays as a private example.
 
 ---
 

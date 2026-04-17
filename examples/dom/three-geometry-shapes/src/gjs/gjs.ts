@@ -6,7 +6,7 @@ import '@girs/gtk-4.0';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import { start } from '../three-demo.js';
 
 const app = new Gtk.Application({
@@ -27,7 +27,7 @@ app.connect('activate', () => {
         configurable: true,
     });
 
-    const glArea = new CanvasWebGLWidget();
+    const glArea = new WebGLBridge();
     glArea.installGlobals();
 
     glArea.onReady((canvas) => {

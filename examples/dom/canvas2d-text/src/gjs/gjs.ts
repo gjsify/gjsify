@@ -5,7 +5,7 @@ import '@girs/gtk-4.0';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { renderDemo, DEFAULT_WIDTH, DEFAULT_HEIGHT } from '../canvas2d-text-demo.js';
 
 const app = new Gtk.Application({
@@ -18,7 +18,7 @@ app.connect('activate', () => {
     win.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
     win.set_title('Canvas 2D — textBaseline Visual Demo');
 
-    const canvasWidget = new Canvas2DWidget();
+    const canvasWidget = new Canvas2DBridge();
     canvasWidget.installGlobals();
 
     canvasWidget.onReady((canvas) => {

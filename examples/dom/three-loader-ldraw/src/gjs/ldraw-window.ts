@@ -1,5 +1,5 @@
 // Adwaita window for the LDraw loader example.
-// Uses a Blueprint template for the UI layout and CanvasWebGLWidget for WebGL.
+// Uses a Blueprint template for the UI layout and WebGLBridge for WebGL.
 // Ported from refs/three/examples/webgl_loader_ldraw.html
 // Original: MIT license, three.js authors (https://threejs.org)
 // This software uses the LDraw Parts Library (http://www.ldraw.org), CC BY 2.0.
@@ -8,7 +8,7 @@ import GObject from 'gi://GObject?version=2.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
 import Template from './ldraw-window.blp';
 
@@ -46,7 +46,7 @@ export class LDrawWindow extends Adw.ApplicationWindow {
         }));
 
         // Create and insert WebGL widget
-        const glArea = new CanvasWebGLWidget();
+        const glArea = new WebGLBridge();
         glArea.set_hexpand(true);
         glArea.set_vexpand(true);
         glArea.installGlobals();

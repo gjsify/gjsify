@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "lib": ["ESNext", "DOM"],
+    "types": ["node", "@girs/gjs", "@girs/glib-2.0", "@girs/gtk-4.0", "@girs/adw-1"],
+    "target": "ESNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "strict": false
+  },
+  "include": ["src/**/*.ts"]
+}

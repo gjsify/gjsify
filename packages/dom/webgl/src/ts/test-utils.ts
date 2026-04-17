@@ -1,7 +1,7 @@
 // GTK-backed WebGL test utilities for @gjsify/webgl — original implementation
 // Ported from refs/headless-gl/test/util/{make-shader,make-program,draw-triangle}.js
 // Original: MIT license, headless-gl contributors
-// Modifications: TypeScript types; no context creation (context is provided by CanvasWebGLWidget);
+// Modifications: TypeScript types; no context creation (context is provided by WebGLBridge);
 //   makeTestFBO/destroyTestFBO helpers for off-screen rendering (FBO 0 is the Wayland
 //   surface and is not readable outside the GTK render signal).
 

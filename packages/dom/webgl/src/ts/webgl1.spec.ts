@@ -1,11 +1,11 @@
 // WebGL1 tests — exercises WebGLRenderingContext (WebGL 1.0) backed by GTK GLArea.
 // Reference: refs/headless-gl/test/ (buffers, programs, simple-shader, extensions, textures)
 // Ported from headless-gl. Copyright (c) stackgl contributors. MIT license.
-// Modifications: Uses @gjsify/unit, CanvasWebGLWidget widget, GTK-backed context instead of EGL headless.
+// Modifications: Uses @gjsify/unit, WebGLBridge widget, GTK-backed context instead of EGL headless.
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
-import { WebGLRenderingContext, CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLRenderingContext, WebGLBridge } from '@gjsify/webgl';
 import { makeProgram, drawTriangle, readPixel, pixelClose,
          makeTestFBO, destroyTestFBO, makeTestFBOWithDepth, destroyTestFBOWithDepth } from './test-utils.js';
 import GLib from '@girs/glib-2.0';
@@ -19,7 +19,7 @@ export default async () => {
 
 	Gtk.init();
 
-	let glArea!: CanvasWebGLWidget;
+	let glArea!: WebGLBridge;
 	let gl!: WebGLRenderingContext;
 
 	// Use a bare Gtk.Window + GLib.MainLoop to obtain the GL context.
@@ -30,7 +30,7 @@ export default async () => {
 	const win = new Gtk.Window({});
 	win.set_default_size(200, 200);
 
-	glArea = new CanvasWebGLWidget();
+	glArea = new WebGLBridge();
 	glArea.onReady((_c: globalThis.HTMLCanvasElement, g: globalThis.WebGLRenderingContext) => {
 		gl = g as unknown as WebGLRenderingContext;
 		readyLoop.quit();  // Release the setup loop; tests will run after it returns.

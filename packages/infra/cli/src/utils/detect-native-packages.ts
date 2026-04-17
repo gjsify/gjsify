@@ -94,28 +94,39 @@ function checkPackage(pkgDir: string, name: string, arch: string): NativePackage
 }
 
 /**
- * Walk up the directory tree from `startDir` looking for a node_modules directory.
- * Returns all native packages found in the first node_modules encountered.
+ * Walk up the directory tree from `startDir` and merge native packages found
+ * in every `node_modules` encountered.
  *
- * Note: This intentionally stops at the first node_modules to match how Node.js
- * resolves packages from the perspective of the calling project.
+ * We keep walking past the first node_modules because yarn v4 / pnpm hoisting
+ * puts a project's direct deps in a local node_modules (often just `.cache/`
+ * or a subset) while hoisted transitive deps live in a root `node_modules`
+ * higher up. Node's own resolver also walks the chain — returning only the
+ * first hit would miss root-hoisted native packages.
+ *
+ * Deduplication: the first match for a given package name wins (closer
+ * node_modules shadows outer ones), matching Node.js resolution semantics.
  */
 export function detectNativePackages(startDir: string): NativePackage[] {
     const arch = nodeArchToLinuxArch(process.arch);
+    const merged: NativePackage[] = [];
+    const seen = new Set<string>();
     let dir = resolve(startDir);
 
-    // Walk up to filesystem root
     while (true) {
         const nodeModulesDir = join(dir, 'node_modules');
         if (existsSync(nodeModulesDir)) {
-            return scanNodeModules(nodeModulesDir, arch);
+            for (const pkg of scanNodeModules(nodeModulesDir, arch)) {
+                if (seen.has(pkg.name)) continue;
+                seen.add(pkg.name);
+                merged.push(pkg);
+            }
         }
         const parent = resolve(dir, '..');
         if (parent === dir) break; // reached filesystem root
         dir = parent;
     }
 
-    return [];
+    return merged;
 }
 
 /** Walk up from dir to find the nearest package.json. */

@@ -1,4 +1,4 @@
-// CanvasWebGLWidget GTK widget for GJS — original implementation using Gtk.GLArea
+// WebGLBridge — GTK container for HTMLCanvasElement (WebGL) backed by Gtk.GLArea.
 // Provides a Gtk.GLArea subclass that handles all WebGL bootstrapping boilerplate.
 
 import GObject from 'gi://GObject';
@@ -25,7 +25,7 @@ type WebGLReadyCallback = (canvas: globalThis.HTMLCanvasElement, gl: globalThis.
  *
  * Usage:
  * ```ts
- * const widget = new CanvasWebGLWidget();
+ * const widget = new WebGLBridge();
  * widget.installGlobals();  // sets globalThis.requestAnimationFrame
  * widget.onReady((canvas, gl) => {
  *     gl.clearColor(0, 0, 0, 1);
@@ -34,9 +34,9 @@ type WebGLReadyCallback = (canvas: globalThis.HTMLCanvasElement, gl: globalThis.
  * window.set_child(widget);
  * ```
  */
-export const CanvasWebGLWidget = GObject.registerClass(
-    { GTypeName: 'GjsifyCanvasWebGLWidget' },
-    class CanvasWebGLWidget extends Gtk.GLArea {
+export const WebGLBridge = GObject.registerClass(
+    { GTypeName: 'GjsifyWebGLBridge' },
+    class WebGLBridge extends Gtk.GLArea {
         _canvas: OurHTMLCanvasElement | null = null;
         _readyCallbacks: WebGLReadyCallback[] = [];
         _resizeCallbacks: ((width: number, height: number) => void)[] = [];
@@ -98,7 +98,7 @@ export const CanvasWebGLWidget = GObject.registerClass(
             //
             // Also notify onResize() subscribers and dispatch a DOM 'resize'
             // event on the canvas, matching the unified API exposed by
-            // Canvas2DWidget. Consumers can use any of:
+            // Canvas2DBridge. Consumers can use any of:
             //   widget.connect('resize', (w, width, height) => { ... })  // GObject
             //   widget.onResize((width, height) => { ... })              // convenience
             //   canvas.addEventListener('resize', () => { ... })         // DOM
@@ -224,5 +224,5 @@ export const CanvasWebGLWidget = GObject.registerClass(
     }
 );
 
-// Export the instance type so callers can type-annotate their CanvasWebGLWidget variables
-export type CanvasWebGLWidget = InstanceType<typeof CanvasWebGLWidget>;
+// Export the instance type so callers can type-annotate their WebGLBridge variables
+export type WebGLBridge = InstanceType<typeof WebGLBridge>;

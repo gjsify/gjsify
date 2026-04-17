@@ -39,6 +39,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Install GJS and GNOME development libraries
+        # gstreamer1-{,plugins-base-,plugins-bad-free-}devel provide the
+        # gstreamer-1.0 / gstreamer-sdp-1.0 / gstreamer-webrtc-1.0 pkg-config
+        # files + headers needed to compile @gjsify/webrtc-native at Vala
+        # build time. libnice-gstreamer1 provides the `nice` plugin that
+        # webrtcbin needs at runtime for the WebRTC test suite.
         run: >
           dnf install -y
           gjs
@@ -50,6 +55,10 @@ jobs:
           libadwaita-devel
           gdk-pixbuf2-devel
           libepoxy-devel
+          gstreamer1-devel
+          gstreamer1-plugins-base-devel
+          gstreamer1-plugins-bad-free-devel
+          libnice-gstreamer1
           libgda
           libgda-sqlite
           xorg-x11-server-Xvfb

@@ -7,7 +7,7 @@ import { WebGL2RenderingContext } from './webgl2-rendering-context.js';
 (globalThis as any).WebGL2RenderingContext = WebGL2RenderingContext;
 
 export * from './html-canvas-element.js';
-export * from './canvas-webgl-widget.js';
+export * from './webgl-bridge.js';
 // export * from './linkable.js';
 // export * from './utils.js';
 export * from './webgl-active-info.js';

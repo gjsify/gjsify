@@ -6,7 +6,7 @@ import '@girs/gtk-4.0';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 
 const app = new Gtk.Application({
     application_id: 'gjsify.examples.webgl-tutorial-01',
@@ -16,7 +16,7 @@ const app = new Gtk.Application({
 app.connect('activate', () => {
     const win = new Gtk.ApplicationWindow({ application: app });
     win.set_default_size(800, 600);
-    const glArea = new CanvasWebGLWidget();
+    const glArea = new WebGLBridge();
     glArea.onReady((_canvas, gl) => {
         const ctx = glArea.get_context()!;
         print(`Context version: OpenGL${ctx.get_use_es() ? ' ES' : ''} ${ctx.get_version().join('.')}`);

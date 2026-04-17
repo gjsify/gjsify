@@ -1,0 +1,26 @@
+{
+  "name": "@gjsify/example-dom-webrtc-trickle-ice",
+  "description": "WebRTC trickle ICE demo — collect and display ICE candidates on GJS",
+  "main": "dist/gjs.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "gjsify run dist/gjs.js",
+    "build": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js"
+  },
+  "devDependencies": {
+    "@girs/gjs": "^4.0.0-rc.3",
+    "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
+    "@gjsify/webrtc": "workspace:^",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2"
+  },
+  "private": true
+}

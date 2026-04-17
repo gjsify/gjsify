@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "types": [
+      "node",
+      "@girs/gjs",
+      "@girs/gst-1.0",
+      "@girs/glib-2.0",
+      "@girs/gobject-2.0"
+    ],
+    "target": "ESNext",
+    "experimentalDecorators": true,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "outDir": "lib",
+    "rootDir": "src/ts",
+    "declarationDir": "lib/types",
+    "composite": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false
+  },
+  "include": ["src/ts/**/*.ts"]
+}

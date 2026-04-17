@@ -3,10 +3,10 @@
 // Reference: refs/map-editor/packages/message-channel-gjs/ (GJS ↔ WebView communication)
 
 export { HTMLIFrameElement } from './html-iframe-element.js';
-export { IFrameWidget } from './iframe-widget.js';
+export { IFrameBridge } from './iframe-bridge.js';
 export { IFrameWindowProxy } from './iframe-window-proxy.js';
 export { MessageBridge } from './message-bridge.js';
-export type { IFrameWidgetOptions, IFrameReadyCallback, IFrameMessageData } from './types/index.js';
+export type { IFrameBridgeOptions, IFrameReadyCallback, IFrameMessageData } from './types/index.js';
 
 // Side-effect: register DOM globals on import.
 // Same pattern as @gjsify/dom-elements and @gjsify/canvas2d.

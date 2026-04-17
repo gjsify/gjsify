@@ -16,7 +16,7 @@
 import { describe, it, expect, on } from '@gjsify/unit';
 import '@gjsify/dom-elements/register';
 import '@gjsify/canvas2d';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 
@@ -32,7 +32,7 @@ export default async () => {
                 const loop = new GLib.MainLoop(null, false);
                 const win = new Gtk.Window({});
                 win.set_default_size(100, 100);
-                const widget = new CanvasWebGLWidget();
+                const widget = new WebGLBridge();
                 widget.installGlobals();
 
                 let error: unknown = null;
@@ -87,7 +87,7 @@ export default async () => {
                 const loop = new GLib.MainLoop(null, false);
                 const win = new Gtk.Window({});
                 win.set_default_size(100, 100);
-                const widget = new CanvasWebGLWidget();
+                const widget = new WebGLBridge();
                 widget.installGlobals();
 
                 let error: unknown = null;
@@ -154,7 +154,7 @@ export default async () => {
                 const loop = new GLib.MainLoop(null, false);
                 const win = new Gtk.Window({});
                 win.set_default_size(100, 100);
-                const widget = new CanvasWebGLWidget();
+                const widget = new WebGLBridge();
                 widget.installGlobals();
 
                 let error: unknown = null;

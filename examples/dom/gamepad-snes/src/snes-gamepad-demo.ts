@@ -17,7 +17,7 @@ export interface SnesDemo {
 /**
  * Start the SNES gamepad visualizer on the given canvas.
  * Polls `navigator.getGamepads()` and renders every frame via rAF.
- * Works in both browser and GJS (Canvas2DWidget).
+ * Works in both browser and GJS (Canvas2DBridge).
  */
 export function start(canvas: HTMLCanvasElement): SnesDemo {
     const ctx = canvas.getContext('2d')!;

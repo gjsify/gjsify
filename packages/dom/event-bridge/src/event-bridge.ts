@@ -1,6 +1,6 @@
 // GTK Event Controller → DOM Event bridge
 // Attaches GTK4 event controllers to a widget and dispatches standard DOM events
-// on the associated HTMLElement. Used by Canvas2DWidget, CanvasWebGLWidget, IFrameWidget.
+// on the associated HTMLElement. Used by Canvas2DBridge, WebGLBridge, IFrameBridge, VideoBridge.
 //
 // Reference: W3C UIEvents Specification (https://www.w3.org/TR/uievents/)
 

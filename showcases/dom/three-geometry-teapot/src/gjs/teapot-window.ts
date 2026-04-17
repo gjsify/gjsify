@@ -1,10 +1,10 @@
 // Adwaita window for the three.js teapot example.
-// Uses a Blueprint template for the UI layout and CanvasWebGLWidget for WebGL.
+// Uses a Blueprint template for the UI layout and WebGLBridge for WebGL.
 
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import { start, TESS_VALUES, SHADING_VALUES, DEFAULT_TESS_INDEX, DEFAULT_SHADING_INDEX, type TeapotDemo } from '../three-demo.js';
 import Template from './teapot-window.blp';
 
@@ -21,7 +21,7 @@ export class TeapotWindow extends Adw.ApplicationWindow {
     declare private _sidebarToggleButton: Gtk.ToggleButton;
     declare private _pauseButton: Gtk.Button;
 
-    /** Live demo reference; set once the CanvasWebGLWidget is ready. */
+    /** Live demo reference; set once the WebGLBridge is ready. */
     private _demo: TeapotDemo | null = null;
 
     static {
@@ -47,7 +47,7 @@ export class TeapotWindow extends Adw.ApplicationWindow {
         this._shadingRow.set_selected(DEFAULT_SHADING_INDEX);
 
         // Create and insert WebGL widget
-        const glArea = new CanvasWebGLWidget();
+        const glArea = new WebGLBridge();
         glArea.set_hexpand(true);
         glArea.set_vexpand(true);
         glArea.installGlobals();

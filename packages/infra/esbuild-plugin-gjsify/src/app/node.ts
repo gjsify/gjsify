@@ -12,7 +12,10 @@ import type { PluginOptions } from '../types/plugin-options.js';
 
 export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
-    const external = [...EXTERNALS_NODE, 'gi://*', '@girs/*'];
+    // node-datachannel is a native C++ addon that cannot be bundled —
+    // its require('../build/Release/node_datachannel.node') must resolve
+    // at runtime against the real node_modules tree.
+    const external = [...EXTERNALS_NODE, 'gi://*', '@girs/*', 'node-datachannel'];
     const format = pluginOptions.format || 'esm';
 
     pluginOptions.aliases ||= {};

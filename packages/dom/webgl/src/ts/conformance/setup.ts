@@ -1,19 +1,19 @@
 // Shared GL context setup for Khronos conformance test ports.
 // Provides a blocking GTK/GLib initialization pattern identical to webgl1.spec.ts.
 
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 
 export interface GLSetup {
     gl: WebGLRenderingContext;
     gl2: WebGL2RenderingContext | null;
-    glArea: CanvasWebGLWidget;
+    glArea: WebGLBridge;
     win: Gtk.Window;
 }
 
 /**
- * Synchronously initialises a GTK window + CanvasWebGLWidget and blocks until
+ * Synchronously initialises a GTK window + WebGLBridge and blocks until
  * the GL context is ready (or 10 s timeout).
  * Returns null when no display is available.
  */
@@ -26,7 +26,7 @@ export function createGLSetup(): GLSetup | null {
     const win = new Gtk.Window({});
     win.set_default_size(200, 200);
 
-    const glArea = new CanvasWebGLWidget();
+    const glArea = new WebGLBridge();
     glArea.onReady((canvas: globalThis.HTMLCanvasElement, g: globalThis.WebGLRenderingContext) => {
         try {
             const gl = g as unknown as WebGLRenderingContext;

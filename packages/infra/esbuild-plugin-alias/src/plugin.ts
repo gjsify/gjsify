@@ -34,7 +34,7 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
           namespace = 'https';
           resolvedAliasPath = resolvedAliasPath.slice(6)
         } else {
-          const resolvedAlias = (await build.resolve(resolvedAliasPath, {
+          let resolvedAlias = (await build.resolve(resolvedAliasPath, {
             importer: args.importer,
             kind: args.kind,
             namespace: namespace,
@@ -42,8 +42,20 @@ export const aliasPlugin = (aliasObj: Record<string, string>) => {
             pluginData: args.pluginData,
           }));
 
+          // If resolution failed from the importer's directory, retry from
+          // the project root (absWorkingDir). This is needed for browser
+          // polyfill aliases (e.g. path → path-browserify) where the polyfill
+          // is installed in the project root but the importer is inside a
+          // deep node_modules dependency.
+          if (resolvedAlias.errors.length > 0 && build.initialOptions.absWorkingDir) {
+            resolvedAlias = await build.resolve(resolvedAliasPath, {
+              kind: args.kind,
+              namespace: namespace,
+              resolveDir: build.initialOptions.absWorkingDir,
+            });
+          }
+
           if (resolvedAlias.errors.length > 0) {
-            console.error(resolvedAlias.errors);
             return resolvedAlias;
           } else if (resolvedAlias.external) {
             return { path: resolvedAlias.path, external: true };

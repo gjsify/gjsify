@@ -146,3 +146,21 @@
 [submodule "refs/gamepad-mirror"]
 	path = refs/gamepad-mirror
 	url = https://codeberg.org/vendillah/GamepadMirror.git
+[submodule "refs/node-datachannel"]
+	path = refs/node-datachannel
+	url = git@github.com:murat-dogan/node-datachannel.git
+[submodule "refs/epiphany"]
+	path = refs/epiphany
+	url = https://gitlab.gnome.org/GNOME/epiphany.git
+[submodule "refs/libdatachannel"]
+	path = refs/libdatachannel
+	url = git@github.com:paullouisageneau/libdatachannel.git
+[submodule "refs/webkit"]
+	path = refs/webkit
+	url = https://github.com/WebKit/WebKit.git
+[submodule "refs/webrtc-samples"]
+	path = refs/webrtc-samples
+	url = git@github.com:webrtc/samples.git
+[submodule "refs/showtime"]
+	path = refs/showtime
+	url = https://gitlab.gnome.org/GNOME/showtime.git

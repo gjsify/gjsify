@@ -1,6 +1,6 @@
 // SNES Controller — Canvas 2D renderer
 // Draws the SNES controller on a canvas, highlighting active buttons.
-// Platform-agnostic: works with browser <canvas> and GJS Canvas2DWidget.
+// Platform-agnostic: works with browser <canvas> and GJS Canvas2DBridge.
 
 import type { GamepadState } from './snes-controller.js';
 

@@ -23,6 +23,8 @@ export { Element } from './element.js';
 export { HTMLElement, CSSStyleDeclaration } from './html-element.js';
 export { HTMLCanvasElement } from './html-canvas-element.js';
 export { HTMLImageElement } from './html-image-element.js';
+export { HTMLMediaElement } from './html-media-element.js';
+export { HTMLVideoElement } from './html-video-element.js';
 export { Image } from './image.js';
 export { Document, document } from './document.js';
 export { MutationObserver } from './mutation-observer.js';

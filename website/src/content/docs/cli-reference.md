@@ -173,6 +173,16 @@ Any identifier below can appear in `--globals` (or be detected automatically). G
 | `AudioContext`, `webkitAudioContext`, `Audio`, `HTMLAudioElement` | `@gjsify/webaudio/register` |
 | `GamepadEvent` | `@gjsify/gamepad/register` |
 
+**WebRTC (GStreamer webrtcbin, GJS-only)**
+
+| Identifier(s) | Register subpath |
+|---|---|
+| `RTCPeerConnection`, `RTCSessionDescription`, `RTCIceCandidate`, `RTCPeerConnectionIceEvent` | `@gjsify/webrtc/register/peer-connection` |
+| `RTCDataChannel`, `RTCDataChannelEvent` | `@gjsify/webrtc/register/data-channel` |
+| `RTCError`, `RTCErrorEvent` | `@gjsify/webrtc/register/error` |
+| `MediaStream`, `MediaStreamTrack`, `RTCTrackEvent` | `@gjsify/webrtc/register/media` |
+| `MediaDevices` (`navigator.mediaDevices`) | `@gjsify/webrtc/register/media-devices` |
+
 **DOM / browser-compat (GJS/GTK only)**
 
 | Identifier(s) | Register subpath |
@@ -244,6 +254,7 @@ Reports an install command for your detected package manager when something is m
 |---|---|
 | `libmanette-0.2` | `@gjsify/gamepad` |
 | `gstreamer-1.0`, `gstreamer-app-1.0` | `@gjsify/webaudio` |
+| `gstreamer-webrtc-1.0`, `gstreamer-sdp-1.0`, `libnice` | `@gjsify/webrtc` |
 | `webkitgtk-6.0` | `@gjsify/iframe` |
 | `gdk-pixbuf-2.0` | `@gjsify/dom-elements`, `@gjsify/canvas2d` |
 | `pango`, `pangocairo`, `cairo` | `@gjsify/canvas2d` |

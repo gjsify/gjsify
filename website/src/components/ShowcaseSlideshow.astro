@@ -98,14 +98,14 @@ app.listen(3000, () => {
       { text: 'This WebGL demo runs\nnatively on Linux!', top: '-90px', right: '8%' },
     ],
     code: `import Adw from 'gi://Adw?version=1';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import * as THREE from 'three';
 import { RenderPixelatedPass } from 'three/addons/postprocessing/RenderPixelatedPass.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 
 const app = new Adw.Application({ application_id: 'gjsify.examples.pixel' });
 app.connect('activate', () => {
-  const glArea = new CanvasWebGLWidget();
+  const glArea = new WebGLBridge();
   glArea.onReady((canvas) => {
     const renderer = new THREE.WebGLRenderer({ canvas });
     const scene = new THREE.Scene();
@@ -124,13 +124,13 @@ app.connect('activate', () => {
       { text: 'Real Three.js,\npowered by GJS', top: '-90px', right: '8%' },
     ],
     code: `import Adw from 'gi://Adw?version=1';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import * as THREE from 'three';
 import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
 
 const app = new Adw.Application({ application_id: 'gjsify.examples.teapot' });
 app.connect('activate', () => {
-  const glArea = new CanvasWebGLWidget();
+  const glArea = new WebGLBridge();
   glArea.onReady((canvas) => {
     const renderer = new THREE.WebGLRenderer({ canvas });
     const scene = new THREE.Scene();
@@ -151,7 +151,7 @@ app.connect('activate', () => {
       { text: 'The web game engine\nExcalibur.js, natively\nin GJS — no WebView', top: '-90px', right: '8%' },
     ],
     code: `import Adw from 'gi://Adw?version=1';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import * as ex from 'excalibur';
 import { startGame } from './game.js';
 
@@ -159,7 +159,7 @@ const app = new Adw.Application({
   application_id: 'gjsify.examples.jelly-jumper',
 });
 app.connect('activate', () => {
-  const glArea = new CanvasWebGLWidget();
+  const glArea = new WebGLBridge();
   glArea.onReady(async (canvas) => {
     const game = await startGame(canvas);
     // game.mute();   // toggle audio
@@ -176,12 +176,12 @@ app.connect('activate', () => {
       { text: 'Canvas 2D, drawn\nwith Cairo', top: '-90px', right: '8%' },
     ],
     code: `import Adw from 'gi://Adw?version=1';
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { start } from './fireworks.js';
 
 const app = new Adw.Application({ application_id: 'gjsify.examples.fireworks' });
 app.connect('activate', () => {
-  const canvasWidget = new Canvas2DWidget();
+  const canvasWidget = new Canvas2DBridge();
   canvasWidget.installGlobals();
   canvasWidget.onReady((canvas) => {
     const demo = start(canvas);

@@ -1,6 +1,6 @@
 # @gjsify/webgl
 
-GJS implementation of WebGL 1.0/2.0 using a custom Vala extension (gwebgl). Provides CanvasWebGLWidget extending Gtk.GLArea.
+GJS implementation of WebGL 1.0/2.0 using a custom Vala extension (gwebgl). Provides WebGLBridge extending Gtk.GLArea.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -15,9 +15,9 @@ yarn add @gjsify/webgl
 ## Usage
 
 ```typescript
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 
-const widget = new CanvasWebGLWidget();
+const widget = new WebGLBridge();
 widget.installGlobals();
 
 widget.onReady((canvas, gl) => {

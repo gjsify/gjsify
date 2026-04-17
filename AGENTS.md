@@ -8,6 +8,8 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 
 **Architectural decisions must be documented here.** Whenever a new architectural decision is made (new package boundaries, API design patterns, widget conventions, build pipeline changes, dependency strategies, or cross-cutting concerns), update this file immediately so future conversations have the full picture.
 
+**Fix root causes immediately — never paper over bugs.** When a bug is discovered (via examples, tests, or CI), fix it in the core package, not in the consumer. Do not document known limitations as "expected behavior" and move on — trace the issue to its root cause and fix it in the same session. Examples exist to validate the implementation; if an example reveals a bug, the implementation is incomplete. Workarounds, skip-guards, and "known limitation" notes are temporary scaffolding that must be replaced by proper fixes before the PR ships.
+
 ## Structure
 
 `packages/{node/,gjs/,infra/,web/,dom/}` | `showcases/` — curated examples shipped with CLI | `examples/` — private dev/test examples | `refs/` — read-only git submodules (DO NOT modify)
@@ -78,23 +80,25 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| dom-elements | GdkPixbuf | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement, HTMLImageElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert}` on import |
-| canvas2d | Cairo, GdkPixbuf, PangoCairo | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DWidget→Gtk.DrawingArea |
-| webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), CanvasWebGLWidget→Gtk.GLArea |
+| dom-elements | GdkPixbuf | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement, HTMLImageElement, HTMLMediaElement, HTMLVideoElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert}` on import |
+| bridge-types | — | Shared interfaces/classes for GTK-DOM bridges: DOMBridgeContainer(interface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
+| canvas2d | Cairo, GdkPixbuf, PangoCairo | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DBridge→Gtk.DrawingArea |
+| webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), WebGLBridge→Gtk.GLArea |
 | event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |
-| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameWidget→WebKit.WebView, postMessage bridge |
+| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
+| video | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge→Gtk.Picture(gtk4paintablesink). srcObject(MediaStream) + src(URI via playbin) |
 
-### DOM Elements = GTK Widgets
+### DOM Elements = GTK Bridge Containers
 
-Each visual DOM element pairs with a GTK Widget: `HTMLCanvasElement`(2d)→`Canvas2DWidget`→`Gtk.DrawingArea`(Cairo) | `HTMLCanvasElement`(webgl)→`CanvasWebGLWidget`→`Gtk.GLArea`(OpenGL ES/libepoxy) | `HTMLIFrameElement`→`IFrameWidget`→`WebKit.WebView`
+Each visual DOM element pairs with a GTK Bridge Container: `HTMLCanvasElement`(2d)→`Canvas2DBridge`→`Gtk.DrawingArea`(Cairo) | `HTMLCanvasElement`(webgl)→`WebGLBridge`→`Gtk.GLArea`(OpenGL ES/libepoxy) | `HTMLIFrameElement`→`IFrameBridge`→`WebKit.WebView` | `HTMLVideoElement`→`VideoBridge`→`Gtk.Picture`(gtk4paintablesink)
 
-Widget pattern: (1) widget creates DOM element internally (2) app code uses standard DOM API (3) widget translates GTK↔Web lifecycle (signals/draw_func/render ↔ rAF/events/ready)
+Bridge pattern: (1) bridge creates DOM element internally (2) app code uses standard DOM API (3) bridge translates GTK↔Web lifecycle (signals/draw_func/render ↔ rAF/events/ready). Each bridge has its own isolated `BridgeEnvironment` (document, body, window).
 
-Common widget API: `onReady(cb)` — DOM element+context ready | `installGlobals()` — register browser globals (rAF) | element getter (`canvas`, `iframeElement`)
+Common bridge API: `onReady(cb)` — DOM element+context ready | `installGlobals()` — register browser globals (rAF) | element getter (`canvas`, `iframeElement`, `videoElement`) | `environment` — isolated BridgeEnvironment
 
-DOM backing: `HTMLImageElement`→GdkPixbuf | `HTMLCanvasElement`(2d)→Cairo.ImageSurface+PangoCairo | `HTMLCanvasElement`(webgl)→Gtk.GLArea+libepoxy | `HTMLIFrameElement`→WebKit.WebView(postMessage).
+DOM backing: `HTMLImageElement`→GdkPixbuf | `HTMLCanvasElement`(2d)→Cairo.ImageSurface+PangoCairo | `HTMLCanvasElement`(webgl)→Gtk.GLArea+libepoxy | `HTMLIFrameElement`→WebKit.WebView(postMessage) | `HTMLVideoElement`→Gtk.Picture+gtk4paintablesink(GStreamer).
 
-`CanvasWebGLWidget` on resize: dispatches DOM `resize` event on canvas + re-invokes last rAF callback. Demand-driven apps re-render automatically without animation loop. `WebGL2RenderingContext` overrides `texImage2D`, `texSubImage2D`, `drawElements` from WebGL1 base — bypasses WebGL1-only format/type validation. Native Vala layer handles all OpenGL ES 3.2 formats.
+`WebGLBridge` on resize: dispatches DOM `resize` event on canvas + re-invokes last rAF callback. Demand-driven apps re-render automatically without animation loop. `WebGL2RenderingContext` overrides `texImage2D`, `texSubImage2D`, `drawElements` from WebGL1 base — bypasses WebGL1-only format/type validation. Native Vala layer handles all OpenGL ES 3.2 formats.
 
 ### GTK→DOM Event Bridge (`@gjsify/event-bridge`)
 
@@ -108,7 +112,7 @@ DOM backing: `HTMLImageElement`→GdkPixbuf | `HTMLCanvasElement`(2d)→Cairo.Im
 | EventControllerKey | keydown, keyup |
 | EventControllerFocus | focus, focusin, blur, focusout |
 
-Dispatch order: W3C UIEvents spec. Coords: GTK widget-relative→DOM offsetX/Y/clientX/Y. Keys: `key-map.ts` converts ~80 Gdk keyvals→DOM key/code (L/R modifiers, Numpad location). Both Canvas2DWidget/CanvasWebGLWidget call `attachEventControllers(this, () => this._canvas)` in constructor.
+Dispatch order: W3C UIEvents spec. Coords: GTK widget-relative→DOM offsetX/Y/clientX/Y. Keys: `key-map.ts` converts ~80 Gdk keyvals→DOM key/code (L/R modifiers, Numpad location). Both Canvas2DBridge/WebGLBridge call `attachEventControllers(this, () => this._canvas)` in constructor.
 
 UI Event classes in `@gjsify/dom-events`: UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent — Web-standard with init interfaces, `getModifierState()`, `Symbol.toStringTag`.
 
@@ -301,24 +305,31 @@ Add `"require": "./cjs-compat.cjs"` to package.json exports BEFORE `"default"`. 
 
 Vala→Meson→shared lib+GIR typelib→`gi://` import. Example: `packages/dom/webgl/`. Prefer TS; Vala only for C-level access.
 
-### DOM Widget examples
+### DOM Bridge examples
 
 ```ts
 // Canvas 2D
-import { Canvas2DWidget } from '@gjsify/canvas2d';
-const w = new Canvas2DWidget(); w.installGlobals();
+import { Canvas2DBridge } from '@gjsify/canvas2d';
+const w = new Canvas2DBridge(); w.installGlobals();
 w.onReady((canvas, ctx) => { ctx.fillRect(0, 0, 100, 100); }); window.set_child(w);
 
 // WebGL
-import { CanvasWebGLWidget } from '@gjsify/webgl';
-const w = new CanvasWebGLWidget(); w.installGlobals();
+import { WebGLBridge } from '@gjsify/webgl';
+const w = new WebGLBridge(); w.installGlobals();
 w.onReady((canvas, gl) => { gl.clearColor(0, 0, 0, 1); }); window.set_child(w);
 
 // IFrame
-import { IFrameWidget } from '@gjsify/iframe';
-const w = new IFrameWidget();
+import { IFrameBridge } from '@gjsify/iframe';
+const w = new IFrameBridge();
 w.onReady((iframe) => { iframe.contentWindow?.addEventListener('message', handler); });
 w.iframeElement.srcdoc = '<h1>Hello</h1>'; window.set_child(w);
+
+// Video (webcam via getUserMedia)
+import { VideoBridge } from '@gjsify/video';
+const v = new VideoBridge();
+v.onReady(async (video) => {
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
+}); window.set_child(v);
 ```
 
 ### Prebuilds
