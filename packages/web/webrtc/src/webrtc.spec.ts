@@ -1030,5 +1030,79 @@ export default async () => {
                 });
             }
         });
+
+        // ---- Multi-PC fan-out / TeeMultiplexer (Phase 4.8) -----------------
+
+        await describe('Multi-PC fan-out', async () => {
+            if (!webrtcbinReady || !ASYNC_SIGNALS_WORK) {
+                await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                    expect(webrtcbinReady).toBeFalsy();
+                });
+            } else {
+                await it('same track can be added to two PeerConnections', async () => {
+                    const stream = await getUserMedia({ audio: true });
+                    const track = stream.getAudioTracks()[0];
+
+                    const pc1 = new RTCPeerConnection();
+                    const pc2 = new RTCPeerConnection();
+
+                    const sender1 = pc1.addTrack(track);
+                    expect(sender1).toBeDefined();
+                    expect(sender1.track).toBe(track);
+
+                    const sender2 = pc2.addTrack(track);
+                    expect(sender2).toBeDefined();
+                    expect(sender2.track).toBe(track);
+
+                    // Both senders should have the same track
+                    expect(pc1.getSenders().length).toBe(1);
+                    expect(pc2.getSenders().length).toBe(1);
+
+                    track.stop();
+                    pc1.close();
+                    pc2.close();
+                });
+
+                await it('closing one PC does not affect the other', async () => {
+                    const stream = await getUserMedia({ audio: true });
+                    const track = stream.getAudioTracks()[0];
+
+                    const pc1 = new RTCPeerConnection();
+                    const pc2 = new RTCPeerConnection();
+
+                    pc1.addTrack(track);
+                    pc2.addTrack(track);
+
+                    // Close pc1 — pc2's sender should still have the track
+                    pc1.close();
+                    expect(pc2.getSenders()[0].track).toBe(track);
+
+                    track.stop();
+                    pc2.close();
+                });
+
+                await it('track gets a tee multiplexer after second addTrack', async () => {
+                    const stream = await getUserMedia({ audio: true });
+                    const track = stream.getAudioTracks()[0];
+
+                    const pc1 = new RTCPeerConnection();
+                    pc1.addTrack(track);
+
+                    // After first addTrack, no tee yet
+                    expect((track as any)._teeMultiplexer).toBeNull();
+
+                    const pc2 = new RTCPeerConnection();
+                    pc2.addTrack(track);
+
+                    // After second addTrack, tee should be created
+                    expect((track as any)._teeMultiplexer).toBeDefined();
+                    expect((track as any)._teeMultiplexer).not.toBeNull();
+
+                    track.stop();
+                    pc1.close();
+                    pc2.close();
+                });
+            }
+        });
     });
 };

@@ -13,6 +13,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 import { Gst } from './gst-init.js';
 import { getRtpCapabilities } from './rtp-capabilities.js';
 import { RTCDTMFSender } from './rtc-dtmf-sender.js';
+import { TeeMultiplexer } from './tee-multiplexer.js';
 import type { RTCStatsReport } from './rtc-stats-report.js';
 import type { RTCDtlsTransport } from './rtc-dtls-transport.js';
 import type { MediaStreamTrack } from './media-stream-track.js';
@@ -89,6 +90,8 @@ export class RTCRtpSender {
     private _elements: any[] = [];
     private _valve: any = null;
     _linked = false;
+    /** @internal — tee src pad if this sender uses a shared source */
+    private _teeSrcPad: any = null;
     /** @internal — stats callback set by RTCPeerConnection */
     _getStatsForTrack: ((track: MediaStreamTrack) => Promise<RTCStatsReport>) | null = null;
     /** @internal — set by RTCPeerConnection */
@@ -141,15 +144,58 @@ export class RTCRtpSender {
         const source = (track as any)._gstSource;
         if (!source) return; // No GStreamer backing — nothing to wire
 
-        // Move source from its getUserMedia pipeline into the PC pipeline
-        const oldPipeline = (track as any)._gstPipeline;
-        if (oldPipeline && oldPipeline !== this._pipeline) {
+        const trackAny = track as any;
+        let sourceForChain: any; // What to link to the valve (source directly or tee branch)
+
+        if (trackAny._teeMultiplexer) {
+            // Track already has a tee (shared with another PC) — request a new branch
+            const tee = trackAny._teeMultiplexer as TeeMultiplexer;
+            const teeSrcPad = tee.requestSrcPad();
+            this._teeSrcPad = teeSrcPad;
+            sourceForChain = null; // We'll link via pad below
+        } else if (trackAny._gstPipeline && trackAny._gstPipeline !== this._pipeline) {
+            // Source is in another pipeline — this is the second PC using this track.
+            // Insert a tee between source and the existing consumer.
+            // Move source to this pipeline and create a tee.
+            const oldPipeline = trackAny._gstPipeline;
+
+            // First, unlink source from its current peer (the first sender's valve)
+            const sourceSrcPad = source.get_static_pad('src');
+            const oldPeer = sourceSrcPad?.get_peer?.();
+            if (oldPeer) sourceSrcPad.unlink(oldPeer);
+
             source.set_state(Gst.State.NULL);
             oldPipeline.remove(source);
-            (track as any)._gstPipeline = this._pipeline;
-        }
+            this._pipeline.add(source);
+            trackAny._gstPipeline = this._pipeline;
 
-        this._pipeline.add(source);
+            // Create tee in this pipeline
+            const tee = new TeeMultiplexer(this._pipeline, source);
+            trackAny._teeMultiplexer = tee;
+
+            // Reconnect the old consumer (first sender) via a tee branch
+            if (oldPeer) {
+                const firstBranch = tee.requestSrcPad();
+                if (firstBranch) firstBranch.link(oldPeer);
+            }
+
+            // Request a branch for this sender
+            const teeSrcPad = tee.requestSrcPad();
+            this._teeSrcPad = teeSrcPad;
+            sourceForChain = null;
+        } else {
+            // First PC to use this track — move source directly
+            const oldPipeline = trackAny._gstPipeline;
+            if (oldPipeline && oldPipeline !== this._pipeline) {
+                source.set_state(Gst.State.NULL);
+                oldPipeline.remove(source);
+                trackAny._gstPipeline = this._pipeline;
+            }
+            if (source.get_parent() !== this._pipeline) {
+                this._pipeline.add(source);
+            }
+            sourceForChain = source;
+        }
 
         // Valve element for Track.enabled control
         const valve = Gst.ElementFactory.make('valve', null)!;
@@ -177,7 +223,13 @@ export class RTCRtpSender {
             elements.push(convert, resample, encoder, payloader, capsfilter);
             for (const el of elements) this._pipeline.add(el);
 
-            source.link(valve);
+            // Link source/tee → valve
+            if (this._teeSrcPad) {
+                const valveSinkPad = valve.get_static_pad('sink');
+                this._teeSrcPad.link(valveSinkPad);
+            } else if (sourceForChain) {
+                sourceForChain.link(valve);
+            }
             valve.link(convert);
             convert.link(resample);
             resample.link(encoder);
@@ -202,7 +254,13 @@ export class RTCRtpSender {
             elements.push(convert, scale, encoder, payloader, capsfilter);
             for (const el of elements) this._pipeline.add(el);
 
-            source.link(valve);
+            // Link source/tee → valve
+            if (this._teeSrcPad) {
+                const valveSinkPad = valve.get_static_pad('sink');
+                this._teeSrcPad.link(valveSinkPad);
+            } else if (sourceForChain) {
+                sourceForChain.link(valve);
+            }
             valve.link(convert);
             convert.link(scale);
             scale.link(encoder);
@@ -223,11 +281,13 @@ export class RTCRtpSender {
         }
 
         // Sync states — elements added to a PLAYING pipeline
-        for (const el of [source, ...elements]) {
+        // If using a tee branch, don't include the shared source in our element list
+        const ownedElements = this._teeSrcPad ? elements : [source, ...elements];
+        for (const el of ownedElements) {
             el.sync_state_with_parent();
         }
 
-        this._elements = [source, ...elements];
+        this._elements = ownedElements;
         this._linked = true;
 
         // Wire Track.enabled → valve.drop
@@ -242,6 +302,13 @@ export class RTCRtpSender {
         // Disconnect enable callback from the track
         if (this._track) {
             this._track._setEnableCallback(null);
+        }
+        // Release tee branch if using shared source
+        if (this._teeSrcPad && this._track?._teeMultiplexer) {
+            try {
+                (this._track._teeMultiplexer as TeeMultiplexer).releaseSrcPad(this._teeSrcPad);
+            } catch { /* ignore */ }
+            this._teeSrcPad = null;
         }
         for (const el of [...this._elements].reverse()) {
             try {

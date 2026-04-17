@@ -47,6 +47,8 @@ export class MediaStreamTrack extends EventTarget {
     _gstSource: any = null;
     /** @internal Pipeline the source was originally created in */
     _gstPipeline: any = null;
+    /** @internal TeeMultiplexer for multi-PC fan-out (created on second addTrack) */
+    _teeMultiplexer: any = null;
     /** @internal Callback set by RTCRtpSender to control valve drop property */
     private _enableCallback: ((enabled: boolean) => void) | null = null;
 
