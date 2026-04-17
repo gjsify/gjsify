@@ -1,7 +1,4 @@
 // Browser entry — WebTorrent seed + download with DOM logging.
-//
-// Uses the shared torrent-demo logic. In the browser, WebTorrent's
-// pre-built bundle provides all Node.js polyfills (events, path, etc.).
 
 import { runTorrentDemo } from '../torrent-demo.js';
 

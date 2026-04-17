@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-webtorrent-seed",
-  "description": "WebTorrent local seed + download demo — tests WebRTC data channels via P2P torrent transfer for GJS and browser",
+  "description": "WebTorrent local seed + download demo — tests WebRTC data channels via P2P torrent transfer for GJS, Node.js, and browser",
   "main": "dist/gjs.js",
   "type": "module",
   "engines": {
@@ -11,9 +11,11 @@
     "check": "tsc --noEmit",
     "start": "yarn start:gjs",
     "start:gjs": "gjsify run dist/gjs.js",
+    "start:node": "node dist/node.js",
     "start:browser": "http-server dist -o -c-1",
-    "build": "yarn build:gjs && yarn build:browser && yarn build:assets",
+    "build": "yarn build:gjs && yarn build:node && yarn build:browser && yarn build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js --globals auto,RTCPeerConnection,RTCSessionDescription,RTCIceCandidate,WebSocket,fetch && node -e \"const fs=require('fs');let c=fs.readFileSync('dist/gjs.js','utf8');c=c.replaceAll('__toESM(require_lib3(), 1)','__toESM(require_lib3(), 0)');fs.writeFileSync('dist/gjs.js',c)\"",
+    "build:node": "gjsify build src/node/node.ts --app node --outfile dist/node.js",
     "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
     "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html"
   },
