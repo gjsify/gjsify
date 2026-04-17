@@ -149,3 +149,6 @@
 [submodule "refs/node-datachannel"]
 	path = refs/node-datachannel
 	url = git@github.com:murat-dogan/node-datachannel.git
+[submodule "refs/epiphany"]
+	path = refs/epiphany
+	url = https://gitlab.gnome.org/GNOME/epiphany.git
