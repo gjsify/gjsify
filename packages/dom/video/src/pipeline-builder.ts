@@ -54,6 +54,8 @@ export function createPaintableSink(): PaintableSinkResult {
 export interface MediaStreamPipelineResult {
     pipeline: Gst.Pipeline;
     paintable: Gdk.Paintable;
+    /** The tee element inserted after the source for fan-out to other consumers (e.g. WebRTC). Only present for MediaStream pipelines. */
+    tee?: Gst.Element;
 }
 
 /**
@@ -61,8 +63,11 @@ export interface MediaStreamPipelineResult {
  *
  * Expects the track's _gstSource element (from getUserMedia) and the
  * track's _gstPipeline. The source is removed from its original pipeline
- * (created by getUserMedia) and re-parented into a new pipeline with
- * videoconvert → gtk4paintablesink.
+ * (created by getUserMedia) and re-parented into a new pipeline with:
+ *   source → tee → queue → videoconvert → gtk4paintablesink
+ *
+ * The tee element allows other consumers (e.g. RTCPeerConnection.addTrack)
+ * to request additional branches without moving the source across pipelines.
  */
 export function buildMediaStreamPipeline(gstSource: any, gstPipeline: any): MediaStreamPipelineResult {
     ensureGstInit();
@@ -76,23 +81,56 @@ export function buildMediaStreamPipeline(gstSource: any, gstPipeline: any): Medi
     }
 
     const pipeline = new Gst.Pipeline({ name: 'video-bridge-pipeline' });
+
+    // Insert a tee after the source so that additional consumers (e.g. WebRTC
+    // encoder chain) can tap into the same source without cross-pipeline issues.
+    const tee = Gst.ElementFactory.make('tee', 'source-tee');
+    if (!tee) {
+        throw new Error('Failed to create tee element');
+    }
+    (tee as any).allow_not_linked = true;
+
+    const queue = Gst.ElementFactory.make('queue', 'preview-queue');
+    if (!queue) {
+        throw new Error('Failed to create queue element');
+    }
+
     const videoconvert = Gst.ElementFactory.make('videoconvert', 'convert');
     if (!videoconvert) {
         throw new Error('Failed to create videoconvert element');
     }
 
     pipeline.add(gstSource);
+    pipeline.add(tee);
+    pipeline.add(queue);
     pipeline.add(videoconvert);
     pipeline.add(sink);
 
-    if (!gstSource.link(videoconvert)) {
-        throw new Error('Failed to link source → videoconvert');
+    // source → tee
+    if (!gstSource.link(tee)) {
+        throw new Error('Failed to link source → tee');
+    }
+
+    // tee → queue (via request pad)
+    const teeSrcPad = tee.request_pad_simple
+        ? tee.request_pad_simple('src_%u')
+        : (tee as any).get_request_pad('src_%u');
+    const queueSinkPad = queue.get_static_pad('sink');
+    if (teeSrcPad && queueSinkPad) {
+        teeSrcPad.link(queueSinkPad);
+    } else {
+        throw new Error('Failed to link tee → queue');
+    }
+
+    // queue → videoconvert → sink
+    if (!queue.link(videoconvert)) {
+        throw new Error('Failed to link queue → videoconvert');
     }
     if (!videoconvert.link(sink)) {
         throw new Error('Failed to link videoconvert → sink');
     }
 
-    return { pipeline, paintable };
+    return { pipeline, paintable, tee };
 }
 
 /**

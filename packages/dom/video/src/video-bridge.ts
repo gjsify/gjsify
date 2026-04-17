@@ -184,9 +184,16 @@ export const VideoBridge = GObject.registerClass(
             }
 
             try {
-                const { pipeline, paintable } = buildMediaStreamPipeline(track._gstSource, track._gstPipeline);
+                const { pipeline, paintable, tee } = buildMediaStreamPipeline(track._gstSource, track._gstPipeline);
                 this._pipeline = pipeline;
                 this._picture.set_paintable(paintable);
+
+                // Update the track's pipeline and tee references so that other
+                // consumers (e.g. RTCPeerConnection.addTrack) can find the source
+                // in this pipeline and request tee branches without cross-pipeline issues.
+                track._gstPipeline = pipeline;
+                track._gstTee = tee;
+
                 pipeline.set_state(Gst.State.PLAYING);
 
                 this._video.readyState = 4; // HAVE_ENOUGH_DATA

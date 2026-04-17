@@ -585,6 +585,8 @@ export class RTCPeerConnection extends EventTarget {
             // Build encoder chain, link to webrtcbin via request_pad_simple
             const sender = new RTCRtpSender(null, this._pipeline, this._webrtcbin);
             sender._kind = kind;
+            // Allow sender to update our pipeline if it migrates to a VideoBridge pipeline
+            sender._onPipelineChanged = (newPipeline) => { this._pipeline = newPipeline; };
             sender._setTrack(track);
             sender._wirePipeline(track);
 
@@ -826,6 +828,7 @@ export class RTCPeerConnection extends EventTarget {
         const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
         const sender = new RTCRtpSender(gstSender, this._pipeline, this._webrtcbin);
         sender._kind = kind;
+        sender._onPipelineChanged = (newPipeline) => { this._pipeline = newPipeline; };
 
         // Wire stats delegation so sender.getStats() / receiver.getStats() work
         const statsDelegate = (track: MediaStreamTrack) => this.getStats(track);

@@ -45,8 +45,10 @@ export class MediaStreamTrack extends EventTarget {
 
     /** @internal GStreamer source element (e.g. pulsesrc, audiotestsrc) */
     _gstSource: any = null;
-    /** @internal Pipeline the source was originally created in */
+    /** @internal Pipeline the source currently lives in (updated by VideoBridge) */
     _gstPipeline: any = null;
+    /** @internal Tee element inserted by VideoBridge for preview fan-out */
+    _gstTee: any = null;
     /** @internal TeeMultiplexer for multi-PC fan-out (created on second addTrack) */
     _teeMultiplexer: any = null;
     /** @internal Callback set by RTCRtpSender to control valve drop property */

@@ -102,6 +102,8 @@ export class RTCRtpSender {
     _kind: 'audio' | 'video' | null = null;
     /** @internal — back-reference for DTMF stopped/direction checks */
     _transceiver: { stopped: boolean; currentDirection: string | null } | null = null;
+    /** @internal — callback to notify RTCPeerConnection when pipeline changes (cross-pipeline fix) */
+    _onPipelineChanged: ((newPipeline: any) => void) | null = null;
 
     constructor(gstSender: GstWebRTC.WebRTCRTPSender | null, pipeline?: any, webrtcbin?: any) {
         this._gstSender = gstSender;
@@ -147,16 +149,43 @@ export class RTCRtpSender {
         const trackAny = track as any;
         let sourceForChain: any; // What to link to the valve (source directly or tee branch)
 
-        if (trackAny._teeMultiplexer) {
-            // Track already has a tee (shared with another PC) — request a new branch
+        if (trackAny._gstTee && trackAny._gstPipeline && trackAny._gstPipeline !== this._pipeline) {
+            // Source has a tee from VideoBridge (preview) in a different pipeline.
+            // Instead of moving the source, we add our encoder chain elements to
+            // the SOURCE's pipeline and request a new branch from its tee.
+            // The webrtcbin must also move to the source pipeline.
+            const sourcePipeline = trackAny._gstPipeline;
+            const tee = trackAny._gstTee;
+
+            // Move webrtcbin to the source pipeline so everything is in one pipeline
+            if (this._webrtcbin.get_parent() === this._pipeline) {
+                this._pipeline.set_state(Gst.State.NULL);
+                this._pipeline.remove(this._webrtcbin);
+            }
+            sourcePipeline.add(this._webrtcbin);
+            this._webrtcbin.sync_state_with_parent();
+
+            // Switch our pipeline reference to the source's pipeline
+            this._pipeline = sourcePipeline;
+            // Notify the owning RTCPeerConnection to update its pipeline reference
+            this._onPipelineChanged?.(sourcePipeline);
+
+            // Request a new branch from the existing tee
+            const teeSrcPad = tee.request_pad_simple
+                ? tee.request_pad_simple('src_%u')
+                : tee.get_request_pad('src_%u');
+            this._teeSrcPad = teeSrcPad;
+            sourceForChain = null; // We'll link via pad below
+        } else if (trackAny._teeMultiplexer) {
+            // Track already has a TeeMultiplexer (shared with another PC) — request a new branch
             const tee = trackAny._teeMultiplexer as TeeMultiplexer;
             const teeSrcPad = tee.requestSrcPad();
             this._teeSrcPad = teeSrcPad;
             sourceForChain = null; // We'll link via pad below
         } else if (trackAny._gstPipeline && trackAny._gstPipeline !== this._pipeline) {
-            // Source is in another pipeline — this is the second PC using this track.
-            // Insert a tee between source and the existing consumer.
-            // Move source to this pipeline and create a tee.
+            // Source is in another pipeline (no tee from VideoBridge) — this is the
+            // second PC using this track. Insert a tee between source and the
+            // existing consumer. Move source to this pipeline and create a tee.
             const oldPipeline = trackAny._gstPipeline;
 
             // First, unlink source from its current peer (the first sender's valve)
