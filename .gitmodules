@@ -152,3 +152,12 @@
 [submodule "refs/epiphany"]
 	path = refs/epiphany
 	url = https://gitlab.gnome.org/GNOME/epiphany.git
+[submodule "refs/libdatachannel"]
+	path = refs/libdatachannel
+	url = git@github.com:paullouisageneau/libdatachannel.git
+[submodule "refs/webkit"]
+	path = refs/webkit
+	url = https://github.com/WebKit/WebKit.git
+[submodule "refs/webrtc-samples"]
+	path = refs/webrtc-samples
+	url = git@github.com:webrtc/samples.git
