@@ -577,6 +577,7 @@ export class RTCPeerConnection extends EventTarget {
 
             // Build encoder chain, link to webrtcbin via request_pad_simple
             const sender = new RTCRtpSender(null, this._pipeline, this._webrtcbin);
+            sender._kind = kind;
             sender._setTrack(track);
             sender._wirePipeline(track);
 
@@ -599,6 +600,7 @@ export class RTCPeerConnection extends EventTarget {
             receiver._transport = dtls;
 
             jsTrans = new RTCRtpTransceiver(gstTrans, sender, receiver);
+            sender._transceiver = jsTrans;
             this._transceivers.set(gstTrans, jsTrans);
             this._senders.push(sender);
             this._receivers.push(receiver);
@@ -816,6 +818,7 @@ export class RTCPeerConnection extends EventTarget {
 
         const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
         const sender = new RTCRtpSender(gstSender, this._pipeline, this._webrtcbin);
+        sender._kind = kind;
 
         // Wire stats delegation so sender.getStats() / receiver.getStats() work
         const statsDelegate = (track: MediaStreamTrack) => this.getStats(track);
@@ -836,6 +839,7 @@ export class RTCPeerConnection extends EventTarget {
         } catch { /* ignore */ }
 
         const transceiver = new RTCRtpTransceiver(gstTrans, sender, receiver);
+        sender._transceiver = transceiver;
 
         this._transceivers.set(gstTrans, transceiver);
         this._senders.push(sender);

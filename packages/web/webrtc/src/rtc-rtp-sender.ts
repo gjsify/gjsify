@@ -12,6 +12,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { Gst } from './gst-init.js';
 import { getRtpCapabilities } from './rtp-capabilities.js';
+import { RTCDTMFSender } from './rtc-dtmf-sender.js';
 import type { RTCStatsReport } from './rtc-stats-report.js';
 import type { RTCDtlsTransport } from './rtc-dtls-transport.js';
 import type { MediaStreamTrack } from './media-stream-track.js';
@@ -90,6 +91,14 @@ export class RTCRtpSender {
     _linked = false;
     /** @internal — stats callback set by RTCPeerConnection */
     _getStatsForTrack: ((track: MediaStreamTrack) => Promise<RTCStatsReport>) | null = null;
+    /** @internal — set by RTCPeerConnection */
+    _transport: RTCDtlsTransport | null = null;
+    /** @internal — DTMF sender, created lazily for audio senders */
+    private _dtmf: RTCDTMFSender | null = null;
+    /** @internal — the kind of media this sender handles */
+    _kind: 'audio' | 'video' | null = null;
+    /** @internal — back-reference for DTMF stopped/direction checks */
+    _transceiver: { stopped: boolean; currentDirection: string | null } | null = null;
 
     constructor(gstSender: GstWebRTC.WebRTCRTPSender | null, pipeline?: any, webrtcbin?: any) {
         this._gstSender = gstSender;
@@ -97,11 +106,22 @@ export class RTCRtpSender {
         this._webrtcbin = webrtcbin ?? null;
     }
 
-    /** @internal — set by RTCPeerConnection */
-    _transport: RTCDtlsTransport | null = null;
-
     get track(): MediaStreamTrack | null { return this._track; }
-    get dtmf(): null { return null; }
+
+    /** Returns the DTMF sender for audio senders, null for video. */
+    get dtmf(): RTCDTMFSender | null {
+        // Determine kind from track or from what was set by PC
+        const kind = this._track?.kind ?? this._kind;
+        if (kind !== 'audio') return null;
+        if (!this._dtmf) {
+            const dtmf = new RTCDTMFSender();
+            // Wire transceiver state checks for insertDTMF validation
+            dtmf._isStopped = () => this._transceiver?.stopped ?? false;
+            dtmf._getCurrentDirection = () => this._transceiver?.currentDirection ?? null;
+            this._dtmf = dtmf;
+        }
+        return this._dtmf;
+    }
     get transport(): RTCDtlsTransport | null { return this._transport; }
 
     /** @internal */

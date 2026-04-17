@@ -14,6 +14,8 @@ import {
     RTCDtlsTransport,
     RTCIceTransport,
     RTCSctpTransport,
+    RTCDTMFSender,
+    RTCDTMFToneChangeEvent,
     MediaStreamTrack,
     MediaDevices,
     getUserMedia,
@@ -842,6 +844,124 @@ export default async () => {
                     const tc2 = pc.addTransceiver('video');
                     expect(tc1.sender.transport).toBe(tc2.sender.transport);
                     expect(tc1.receiver.transport).toBe(tc2.receiver.transport);
+                    pc.close();
+                });
+            }
+        });
+
+        // ---- RTCDTMFSender (Phase 4.6) -------------------------------------
+        // Ported from refs/wpt/webrtc/RTCDTMFSender-insertDTMF.https.html
+
+        await describe('RTCDTMFSender', async () => {
+            if (!webrtcbinReady) {
+                await it('(skipped — webrtcbin missing)', async () => {
+                    expect(webrtcbinReady).toBeFalsy();
+                });
+            } else {
+                await it('audio sender.dtmf is an RTCDTMFSender', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    expect(tc.sender.dtmf).toBeDefined();
+                    expect(tc.sender.dtmf).not.toBeNull();
+                    expect(tc.sender.dtmf instanceof RTCDTMFSender).toBeTruthy();
+                    pc.close();
+                });
+
+                await it('video sender.dtmf is null', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('video');
+                    expect(tc.sender.dtmf).toBeNull();
+                    pc.close();
+                });
+
+                await it('insertDTMF accepts valid DTMF characters', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    const dtmf = tc.sender.dtmf!;
+                    dtmf.insertDTMF('');
+                    dtmf.insertDTMF('0123456789');
+                    dtmf.insertDTMF('ABCD');
+                    dtmf.insertDTMF('abcd');
+                    dtmf.insertDTMF('#*');
+                    dtmf.insertDTMF(',');
+                    dtmf.insertDTMF('0123456789ABCDabcd#*,');
+                    pc.close();
+                });
+
+                await it('insertDTMF normalizes a-d to A-D', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    const dtmf = tc.sender.dtmf!;
+                    dtmf.insertDTMF('abcd');
+                    expect(dtmf.toneBuffer).toBe('ABCD');
+                    pc.close();
+                });
+
+                await it('insertDTMF throws InvalidCharacterError for invalid characters', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    const dtmf = tc.sender.dtmf!;
+                    let threw = false;
+                    try {
+                        dtmf.insertDTMF('123FFABC');
+                    } catch (e: any) {
+                        threw = true;
+                        expect(e.name).toBe('InvalidCharacterError');
+                    }
+                    expect(threw).toBeTruthy();
+
+                    threw = false;
+                    try {
+                        dtmf.insertDTMF('# *');
+                    } catch (e: any) {
+                        threw = true;
+                        expect(e.name).toBe('InvalidCharacterError');
+                    }
+                    expect(threw).toBeTruthy();
+                    pc.close();
+                });
+
+                await it('insertDTMF throws InvalidStateError if transceiver is stopped', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    const dtmf = tc.sender.dtmf!;
+                    tc.stop();
+                    let threw = false;
+                    try {
+                        dtmf.insertDTMF('');
+                    } catch (e: any) {
+                        threw = true;
+                        expect(e.name).toBe('InvalidStateError');
+                    }
+                    expect(threw).toBeTruthy();
+                    pc.close();
+                });
+
+                await it('toneBuffer updates as tones are played', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    const dtmf = tc.sender.dtmf!;
+                    dtmf.insertDTMF('123', 40, 30);
+                    expect(dtmf.toneBuffer).toBe('123');
+
+                    // Wait for first tone to fire
+                    await new Promise<void>((resolve) => {
+                        dtmf.addEventListener('tonechange', function handler(ev: Event) {
+                            const toneEv = ev as RTCDTMFToneChangeEvent;
+                            if (toneEv.tone === '1') {
+                                expect(dtmf.toneBuffer).toBe('23');
+                                dtmf.removeEventListener('tonechange', handler);
+                                resolve();
+                            }
+                        });
+                    });
+                    pc.close();
+                });
+
+                await it('canInsertDTMF is true for audio sender', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    expect(tc.sender.dtmf!.canInsertDTMF).toBeTruthy();
                     pc.close();
                 });
             }

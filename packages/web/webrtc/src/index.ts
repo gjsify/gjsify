@@ -96,3 +96,6 @@ export type { RTCIceTransportState, RTCIceRole, RTCIceParameters, RTCIceCandidat
 
 export { RTCSctpTransport } from './rtc-sctp-transport.js';
 export type { RTCSctpTransportState } from './rtc-sctp-transport.js';
+
+export { RTCDTMFSender, RTCDTMFToneChangeEvent } from './rtc-dtmf-sender.js';
+export type { RTCDTMFToneChangeEventInit } from './rtc-dtmf-sender.js';
