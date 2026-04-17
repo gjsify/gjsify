@@ -87,3 +87,12 @@ export type { MediaDeviceKind } from './media-device-info.js';
 
 export { RTCStatsReport } from './rtc-stats-report.js';
 export type { RTCStats } from './rtc-stats-report.js';
+
+export { RTCDtlsTransport } from './rtc-dtls-transport.js';
+export type { RTCDtlsTransportState } from './rtc-dtls-transport.js';
+
+export { RTCIceTransport } from './rtc-ice-transport.js';
+export type { RTCIceTransportState, RTCIceRole, RTCIceParameters, RTCIceCandidatePair } from './rtc-ice-transport.js';
+
+export { RTCSctpTransport } from './rtc-sctp-transport.js';
+export type { RTCSctpTransportState } from './rtc-sctp-transport.js';

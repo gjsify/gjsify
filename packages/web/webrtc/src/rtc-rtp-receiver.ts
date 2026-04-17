@@ -19,6 +19,7 @@ import {
 import { MediaStreamTrack } from './media-stream-track.js';
 import { getRtpCapabilities } from './rtp-capabilities.js';
 import type { RTCStatsReport } from './rtc-stats-report.js';
+import type { RTCDtlsTransport } from './rtc-dtls-transport.js';
 import type { RTCRtpCapabilities, RTCRtpCodecParameters, RTCRtpHeaderExtensionParameters, RTCRtcpParameters } from './rtc-rtp-sender.js';
 
 export interface RTCRtpReceiveParameters {
@@ -74,8 +75,11 @@ export class RTCRtpReceiver {
         this._receiverBridge = null;
     }
 
+    /** @internal — set by RTCPeerConnection */
+    _transport: RTCDtlsTransport | null = null;
+
     get track(): MediaStreamTrack { return this._track; }
-    get transport(): null { return null; }
+    get transport(): RTCDtlsTransport | null { return this._transport; }
 
     get jitterBufferTarget(): number | null { return this._jitterBufferTarget; }
     set jitterBufferTarget(v: number | null) {

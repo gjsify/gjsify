@@ -11,6 +11,9 @@ import {
     RTCSessionDescription,
     RTCIceCandidate,
     RTCDataChannel,
+    RTCDtlsTransport,
+    RTCIceTransport,
+    RTCSctpTransport,
     MediaStreamTrack,
     MediaDevices,
     getUserMedia,
@@ -734,6 +737,114 @@ export default async () => {
                     expect(typeof value).toBe('boolean');
                 }
             });
+        });
+
+        // ---- Transport objects (Phase 4.5) ---------------------------------
+        // Ported from refs/wpt/webrtc/RTCDtlsTransport-state.html,
+        // RTCSctpTransport-constructor.html, RTCIceTransport.html
+
+        await describe('Transport objects', async () => {
+            if (!webrtcbinReady || !ASYNC_SIGNALS_WORK) {
+                await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                    expect(webrtcbinReady).toBeFalsy();
+                });
+            } else {
+                await it('pc.sctp is null before data channel negotiation', async () => {
+                    const pc = new RTCPeerConnection();
+                    expect(pc.sctp).toBeNull();
+                    pc.close();
+                });
+
+                await it('pc.sctp is non-null after createDataChannel', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    expect(pc.sctp).toBeDefined();
+                    expect(pc.sctp).not.toBeNull();
+                    pc.close();
+                });
+
+                await it('sctp.transport is an RTCDtlsTransport', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    const sctp = pc.sctp!;
+                    expect(sctp.transport).toBeDefined();
+                    expect(sctp.transport instanceof RTCDtlsTransport).toBeTruthy();
+                    pc.close();
+                });
+
+                await it('sctp.transport.iceTransport is an RTCIceTransport', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    const sctp = pc.sctp!;
+                    expect(sctp.transport.iceTransport).toBeDefined();
+                    expect(sctp.transport.iceTransport instanceof RTCIceTransport).toBeTruthy();
+                    pc.close();
+                });
+
+                await it('sctp.state starts as connecting', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    expect(pc.sctp!.state).toBe('connecting');
+                    pc.close();
+                });
+
+                await it('sctp.maxMessageSize is a number', async () => {
+                    const pc = new RTCPeerConnection();
+                    pc.createDataChannel('test');
+                    expect(typeof pc.sctp!.maxMessageSize).toBe('number');
+                    expect(pc.sctp!.maxMessageSize).toBeGreaterThan(0);
+                    pc.close();
+                });
+
+                await it('sender.transport is the same as receiver.transport', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    expect(tc.sender.transport).toBeDefined();
+                    expect(tc.sender.transport).toBe(tc.receiver.transport);
+                    pc.close();
+                });
+
+                await it('sender.transport is an RTCDtlsTransport', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    expect(tc.sender.transport instanceof RTCDtlsTransport).toBeTruthy();
+                    pc.close();
+                });
+
+                await it('DTLS transport starts in new state', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    expect(tc.sender.transport!.state).toBe('new');
+                    pc.close();
+                });
+
+                await it('ICE transport starts in new state', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    expect(tc.sender.transport!.iceTransport.state).toBe('new');
+                    expect(tc.sender.transport!.iceTransport.gatheringState).toBe('new');
+                    pc.close();
+                });
+
+                await it('DTLS transport goes to closed on pc.close()', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc = pc.addTransceiver('audio');
+                    const dtls = tc.sender.transport!;
+                    pc.close();
+                    // close() is async via idle_add — wait a tick
+                    await new Promise(r => setTimeout(r, 100));
+                    expect(dtls.state).toBe('closed');
+                });
+
+                await it('all transceivers share the same DTLS transport (max-bundle)', async () => {
+                    const pc = new RTCPeerConnection();
+                    const tc1 = pc.addTransceiver('audio');
+                    const tc2 = pc.addTransceiver('video');
+                    expect(tc1.sender.transport).toBe(tc2.sender.transport);
+                    expect(tc1.receiver.transport).toBe(tc2.receiver.transport);
+                    pc.close();
+                });
+            }
         });
     });
 };

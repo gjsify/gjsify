@@ -13,6 +13,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 import { Gst } from './gst-init.js';
 import { getRtpCapabilities } from './rtp-capabilities.js';
 import type { RTCStatsReport } from './rtc-stats-report.js';
+import type { RTCDtlsTransport } from './rtc-dtls-transport.js';
 import type { MediaStreamTrack } from './media-stream-track.js';
 import type { MediaStream } from './media-stream.js';
 
@@ -96,9 +97,12 @@ export class RTCRtpSender {
         this._webrtcbin = webrtcbin ?? null;
     }
 
+    /** @internal — set by RTCPeerConnection */
+    _transport: RTCDtlsTransport | null = null;
+
     get track(): MediaStreamTrack | null { return this._track; }
     get dtmf(): null { return null; }
-    get transport(): null { return null; }
+    get transport(): RTCDtlsTransport | null { return this._transport; }
 
     /** @internal */
     _setTrack(track: MediaStreamTrack | null): void {

@@ -34,6 +34,9 @@ import { MediaStreamTrack } from './media-stream-track.js';
 import { RTCTrackEvent } from './rtc-track-event.js';
 import { parseGstStats, filterStatsByTrackId } from './gst-stats-parser.js';
 import type { RTCStatsReport } from './rtc-stats-report.js';
+import { RTCIceTransport } from './rtc-ice-transport.js';
+import { RTCDtlsTransport } from './rtc-dtls-transport.js';
+import { RTCSctpTransport } from './rtc-sctp-transport.js';
 
 export type RTCSignalingState =
     | 'stable' | 'closed'
@@ -133,6 +136,9 @@ export class RTCPeerConnection extends EventTarget {
     private _transceivers = new Map<unknown, RTCRtpTransceiver>();
     private _senders: RTCRtpSender[] = [];
     private _receivers: RTCRtpReceiver[] = [];
+    private _iceTransport: RTCIceTransport | null = null;
+    private _dtlsTransport: RTCDtlsTransport | null = null;
+    private _sctpTransport: RTCSctpTransport | null = null;
     readonly canTrickleIceCandidates: boolean = true;
 
     constructor(configuration?: RTCConfiguration) {
@@ -292,7 +298,7 @@ export class RTCPeerConnection extends EventTarget {
     get pendingLocalDescription(): RTCSessionDescription | null { return this._descProp('pending_local_description'); }
     get pendingRemoteDescription(): RTCSessionDescription | null { return this._descProp('pending_remote_description'); }
 
-    get sctp(): null { return null; }
+    get sctp(): RTCSctpTransport | null { return this._sctpTransport; }
     get peerIdentity(): Promise<never> {
         return Promise.reject(new TypeError('peerIdentity assertions are not implemented'));
     }
@@ -445,6 +451,9 @@ export class RTCPeerConnection extends EventTarget {
             throw new Error('webrtcbin returned null data channel (check id/label/options)');
         }
 
+        // Data channel created → ensure SCTP transport exists
+        this._ensureSctpTransport();
+
         const js = new RTCDataChannel(native);
         this._dataChannels.set(native, js);
         js.addEventListener('close', () => {
@@ -495,6 +504,10 @@ export class RTCPeerConnection extends EventTarget {
             this._transceivers.clear();
             this._senders.length = 0;
             this._receivers.length = 0;
+            // Close transport objects
+            if (this._dtlsTransport) this._dtlsTransport._setState('closed');
+            if (this._iceTransport) this._iceTransport._setState('closed');
+            if (this._sctpTransport) this._sctpTransport._setState('closed');
             try { this._bridge.dispose_bridge(); } catch { /* ignore */ }
             return GLib.SOURCE_REMOVE;
         });
@@ -577,10 +590,13 @@ export class RTCPeerConnection extends EventTarget {
             const gstReceiver = gstTrans.receiver ?? null;
             const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
 
-            // Wire stats delegation
+            // Wire stats delegation + transport
             const statsDelegate = (t: MediaStreamTrack) => this.getStats(t);
             sender._getStatsForTrack = statsDelegate;
             receiver._getStatsForTrack = statsDelegate;
+            const dtls = this._ensureTransports();
+            sender._transport = dtls;
+            receiver._transport = dtls;
 
             jsTrans = new RTCRtpTransceiver(gstTrans, sender, receiver);
             this._transceivers.set(gstTrans, jsTrans);
@@ -772,6 +788,22 @@ export class RTCPeerConnection extends EventTarget {
         }
     }
 
+    /** Lazily create the shared DTLS and ICE transport instances (max-bundle → one pair). */
+    private _ensureTransports(): RTCDtlsTransport {
+        if (!this._dtlsTransport) {
+            this._iceTransport = new RTCIceTransport();
+            this._dtlsTransport = new RTCDtlsTransport(this._iceTransport);
+        }
+        return this._dtlsTransport;
+    }
+
+    /** Create the SCTP transport when a data channel is first negotiated. */
+    private _ensureSctpTransport(): void {
+        if (this._sctpTransport) return;
+        const dtls = this._ensureTransports();
+        this._sctpTransport = new RTCSctpTransport(dtls);
+    }
+
     private _createTransceiverWrapper(gstTrans: any): RTCRtpTransceiver {
         let kind: 'audio' | 'video' = 'audio';
         try {
@@ -789,6 +821,11 @@ export class RTCPeerConnection extends EventTarget {
         const statsDelegate = (track: MediaStreamTrack) => this.getStats(track);
         sender._getStatsForTrack = statsDelegate;
         receiver._getStatsForTrack = statsDelegate;
+
+        // Assign shared DTLS transport to sender/receiver
+        const dtls = this._ensureTransports();
+        sender._transport = dtls;
+        receiver._transport = dtls;
 
         // Pass mline index to sender for sink pad naming
         try {
@@ -858,6 +895,7 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     private _handleDataChannel(channelBridge: DataChannelBridgeType): void {
+        this._ensureSctpTransport();
         const native = channelBridge.channel as unknown as GstWebRTC.WebRTCDataChannel;
         let js = this._dataChannels.get(native);
         if (!js) {
@@ -873,6 +911,15 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     private _dispatchStateChange(type: string): void {
+        // Sync transport object states from webrtcbin before dispatching
+        if (type === 'connectionstatechange') {
+            this._syncDtlsState();
+        } else if (type === 'iceconnectionstatechange') {
+            this._syncIceState();
+        } else if (type === 'icegatheringstatechange') {
+            this._syncIceGatheringState();
+        }
+
         const ev = new Event(type);
         switch (type) {
             case 'connectionstatechange':     this._onconnectionstatechange?.call(this, ev); break;
@@ -881,6 +928,40 @@ export class RTCPeerConnection extends EventTarget {
             case 'signalingstatechange':      this._onsignalingstatechange?.call(this, ev); break;
         }
         this.dispatchEvent(ev);
+    }
+
+    /** Map PC connection state → DTLS transport state. */
+    private _syncDtlsState(): void {
+        if (!this._dtlsTransport) return;
+        const pcState = this.connectionState;
+        const dtlsMap: Record<string, 'new' | 'connecting' | 'connected' | 'closed' | 'failed'> = {
+            'new': 'new',
+            'connecting': 'connecting',
+            'connected': 'connected',
+            'disconnected': 'connected', // DTLS stays connected even if ICE disconnects
+            'failed': 'failed',
+            'closed': 'closed',
+        };
+        this._dtlsTransport._setState(dtlsMap[pcState] ?? 'new');
+
+        // Connected DTLS → SCTP connected
+        if (pcState === 'connected' && this._sctpTransport) {
+            this._sctpTransport._setState('connected');
+        }
+    }
+
+    /** Map PC ICE connection state → ICE transport state. */
+    private _syncIceState(): void {
+        if (!this._iceTransport) return;
+        const iceState = this.iceConnectionState;
+        this._iceTransport._setState(iceState as any);
+    }
+
+    /** Map PC ICE gathering state → ICE transport gathering state. */
+    private _syncIceGatheringState(): void {
+        if (!this._iceTransport) return;
+        const gatheringState = this.iceGatheringState;
+        this._iceTransport._setGatheringState(gatheringState as any);
     }
 
     // ---- on<event> attribute handlers --------------------------------------
