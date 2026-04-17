@@ -2529,9 +2529,43 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-dom-webtorrent-download@workspace:examples/dom/webtorrent-download":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-webtorrent-download@workspace:examples/dom/webtorrent-download"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/webrtc": "workspace:^"
+    "@gjsify/websocket": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+    webtorrent: "npm:^2.5.18"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-dom-webtorrent-seed@workspace:examples/dom/webtorrent-seed":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webtorrent-seed@workspace:examples/dom/webtorrent-seed"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/webrtc": "workspace:^"
+    "@gjsify/websocket": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+    webtorrent: "npm:^2.5.18"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-dom-webtorrent-stream@workspace:examples/dom/webtorrent-stream":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-webtorrent-stream@workspace:examples/dom/webtorrent-stream"
   dependencies:
     "@girs/gjs": "npm:^4.0.0-rc.3"
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
