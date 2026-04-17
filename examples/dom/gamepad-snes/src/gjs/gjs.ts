@@ -1,5 +1,5 @@
 // SNES Controller Gamepad Visualizer — GJS/Adwaita entry point
-// Uses Canvas2DWidget for rendering and @gjsify/gamepad for controller input.
+// Uses Canvas2DBridge for rendering and @gjsify/gamepad for controller input.
 // Shares the Canvas2D demo engine with the browser version.
 
 import '@girs/gjs';
@@ -7,7 +7,7 @@ import '@girs/gtk-4.0';
 
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { start } from '../snes-gamepad-demo.js';
 
 const app = new Adw.Application({
@@ -23,7 +23,7 @@ app.connect('activate', () => {
         title: 'SNES Gamepad Tester',
     });
 
-    const canvasWidget = new Canvas2DWidget();
+    const canvasWidget = new Canvas2DBridge();
     canvasWidget.set_hexpand(true);
     canvasWidget.set_vexpand(true);
     canvasWidget.installGlobals();

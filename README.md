@@ -104,11 +104,11 @@ abort-controller, compression-streams, dom-events, dom-exception, eventsource, f
 
 | Package | Backed by | Provides |
 |---------|-----------|----------|
-| canvas2d | Cairo, PangoCairo | CanvasRenderingContext2D, Canvas2DWidget → Gtk.DrawingArea |
+| canvas2d | Cairo, PangoCairo | CanvasRenderingContext2D, Canvas2DBridge → Gtk.DrawingArea |
 | dom-elements | GdkPixbuf | Node, Element, HTMLCanvasElement, HTMLImageElement, Document |
 | event-bridge | GTK 4, Gdk 4 | GTK → DOM event mapping (Mouse, Pointer, Keyboard, Wheel, Focus) |
-| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameWidget → WebKit.WebView |
-| webgl | gwebgl (Vala) | WebGL 1.0/2.0, CanvasWebGLWidget → Gtk.GLArea |
+| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge → WebKit.WebView |
+| webgl | gwebgl (Vala) | WebGL 1.0/2.0, WebGLBridge → Gtk.GLArea |
 
 ### GNOME Library Mappings
 

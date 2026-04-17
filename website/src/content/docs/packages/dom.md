@@ -19,17 +19,17 @@ Each visual DOM element is backed by a GTK widget:
 
 | DOM Element | Widget | Backing Library |
 |---|---|---|
-| `HTMLCanvasElement` (2d) | `Canvas2DWidget` → `Gtk.DrawingArea` | Cairo |
-| `HTMLCanvasElement` (webgl) | `CanvasWebGLWidget` → `Gtk.GLArea` | OpenGL ES / libepoxy |
-| `HTMLIFrameElement` | `IFrameWidget` → `WebKit.WebView` | WebKit |
+| `HTMLCanvasElement` (2d) | `Canvas2DBridge` → `Gtk.DrawingArea` | Cairo |
+| `HTMLCanvasElement` (webgl) | `WebGLBridge` → `Gtk.GLArea` | OpenGL ES / libepoxy |
+| `HTMLIFrameElement` | `IFrameBridge` → `WebKit.WebView` | WebKit |
 | `HTMLImageElement` | — | GdkPixbuf |
 
 ## Example: Canvas2D
 
 ```typescript
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 
-const widget = new Canvas2DWidget();
+const widget = new Canvas2DBridge();
 widget.installGlobals();
 
 widget.onReady((canvas, ctx) => {
@@ -45,9 +45,9 @@ window.set_child(widget);
 ## Example: WebGL
 
 ```typescript
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 
-const widget = new CanvasWebGLWidget();
+const widget = new WebGLBridge();
 widget.installGlobals();
 
 widget.onReady((canvas, gl) => {

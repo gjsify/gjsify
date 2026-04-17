@@ -6,7 +6,7 @@ import '@girs/gtk-4.0';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { start } from '../confetti.js';
 
 const app = new Gtk.Application({
@@ -19,7 +19,7 @@ app.connect('activate', () => {
     win.set_default_size(800, 600);
     win.set_title('Falling Confetti — Canvas 2D');
 
-    const canvasWidget = new Canvas2DWidget();
+    const canvasWidget = new Canvas2DBridge();
     canvasWidget.installGlobals(); // sets globalThis.requestAnimationFrame
 
     canvasWidget.onReady((canvas) => {

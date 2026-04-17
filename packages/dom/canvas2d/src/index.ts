@@ -1,9 +1,9 @@
 // Canvas 2D rendering context for GJS, backed by Cairo
-// Core classes live in @gjsify/canvas2d-core; this package adds Canvas2DWidget (GTK).
+// Core classes live in @gjsify/canvas2d-core; this package adds Canvas2DBridge (GTK).
 // Reimplemented for GJS using Cairo (built-in) and GdkPixbuf for pixel I/O.
 
 export { CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, parseColor } from '@gjsify/canvas2d-core';
-export { Canvas2DWidget } from './canvas-drawing-area.js';
+export { Canvas2DBridge } from './canvas2d-bridge.js';
 
 // Side-effect: register the '2d' context factory on HTMLCanvasElement.
 // This is idempotent — @gjsify/dom-elements also registers it via canvas2d-core.

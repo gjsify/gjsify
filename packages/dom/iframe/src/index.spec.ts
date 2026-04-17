@@ -1,4 +1,4 @@
-// Tests for @gjsify/iframe — HTMLIFrameElement, IFrameWindowProxy, IFrameWidget
+// Tests for @gjsify/iframe — HTMLIFrameElement, IFrameWindowProxy, IFrameBridge
 // Reference: refs/happy-dom/packages/happy-dom/test/nodes/html-iframe-element/
 
 import { describe, it, expect } from '@gjsify/unit';

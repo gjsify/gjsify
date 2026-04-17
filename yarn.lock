@@ -1688,6 +1688,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/bridge-types@workspace:^, @gjsify/bridge-types@workspace:packages/dom/bridge-types":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/bridge-types@workspace:packages/dom/bridge-types"
+  dependencies:
+    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.3"
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-elements": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/buffer@workspace:^, @gjsify/buffer@workspace:packages/node/buffer":
   version: 0.0.0-use.local
   resolution: "@gjsify/buffer@workspace:packages/node/buffer"
@@ -2487,6 +2503,24 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
+    "@gjsify/webrtc": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-dom-webrtc-video@workspace:examples/dom/webrtc-video":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-webrtc-video@workspace:examples/dom/webrtc-video"
+  dependencies:
+    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.3"
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/video": "workspace:^"
     "@gjsify/webrtc": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.2"
@@ -3445,6 +3479,26 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/video@workspace:^, @gjsify/video@workspace:packages/dom/video":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/video@workspace:packages/dom/video"
+  dependencies:
+    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.3"
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.3"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.3"
+    "@gjsify/bridge-types": "workspace:^"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/dom-elements": "workspace:^"
+    "@gjsify/dom-events": "workspace:^"
+    "@gjsify/event-bridge": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.2"
   languageName: unknown

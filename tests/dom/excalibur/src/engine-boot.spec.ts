@@ -1,11 +1,11 @@
 // Excalibur engine boot test — verifies ex.Engine initializes without throwing on GJS/WebGL.
-// Pattern: GTK Window + CanvasWebGLWidget + GLib.MainLoop (same as packages/dom/webgl/src/ts/webgl1.spec.ts:18-50)
+// Pattern: GTK Window + WebGLBridge + GLib.MainLoop (same as packages/dom/webgl/src/ts/webgl1.spec.ts:18-50)
 // Only runs when DISPLAY is available (on('Display', ...)).
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import * as ex from 'excalibur';
 import '@gjsify/dom-elements/register';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 
@@ -18,7 +18,7 @@ export default async () => {
                 const loop = new GLib.MainLoop(null, false);
                 const win = new Gtk.Window({});
                 win.set_default_size(300, 200);
-                const widget = new CanvasWebGLWidget();
+                const widget = new WebGLBridge();
                 widget.installGlobals();
 
                 let error: unknown = null;
@@ -59,7 +59,7 @@ export default async () => {
                 const loop = new GLib.MainLoop(null, false);
                 const win = new Gtk.Window({});
                 win.set_default_size(320, 240);
-                const widget = new CanvasWebGLWidget();
+                const widget = new WebGLBridge();
                 widget.installGlobals();
 
                 let game: ex.Engine | null = null;

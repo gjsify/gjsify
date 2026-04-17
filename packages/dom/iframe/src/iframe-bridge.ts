@@ -1,6 +1,5 @@
-// IFrameWidget GTK widget for GJS — original implementation using WebKit.WebView
+// IFrameBridge — GTK container for HTMLIFrameElement backed by WebKit.WebView.
 // Provides a WebKit.WebView subclass that bundles all iframe bootstrapping.
-// Pattern follows packages/dom/webgl/src/ts/webgl-area.ts (WebGLArea)
 
 import GObject from 'gi://GObject';
 import WebKit from 'gi://WebKit?version=6.0';
@@ -10,7 +9,7 @@ import { IFrameWindowProxy } from './iframe-window-proxy.js';
 import { MessageBridge } from './message-bridge.js';
 import * as PS from './property-symbol.js';
 
-import type { IFrameWidgetOptions, IFrameReadyCallback } from './types/index.js';
+import type { IFrameBridgeOptions, IFrameReadyCallback } from './types/index.js';
 
 /**
  * A `WebKit.WebView` subclass that handles iframe bootstrapping:
@@ -22,7 +21,7 @@ import type { IFrameWidgetOptions, IFrameReadyCallback } from './types/index.js'
  *
  * Usage:
  * ```ts
- * const iframeWidget = new IFrameWidget();
+ * const iframeWidget = new IFrameBridge();
  * iframeWidget.installGlobals();
  * iframeWidget.onReady((iframe) => {
  *     iframe.contentWindow?.addEventListener('message', (e) => {
@@ -33,15 +32,15 @@ import type { IFrameWidgetOptions, IFrameReadyCallback } from './types/index.js'
  * window.set_child(iframeWidget);
  * ```
  */
-export const IFrameWidget = GObject.registerClass(
-	{ GTypeName: 'GjsifyIFrameWidget' },
-	class IFrameWidget extends WebKit.WebView {
+export const IFrameBridge = GObject.registerClass(
+	{ GTypeName: 'GjsifyIFrameBridge' },
+	class IFrameBridge extends WebKit.WebView {
 		_iframe: HTMLIFrameElement;
 		_messageBridge: MessageBridge;
 		_readyCallbacks: IFrameReadyCallback[] = [];
-		_options: IFrameWidgetOptions;
+		_options: IFrameBridgeOptions;
 
-		constructor(options?: IFrameWidgetOptions & Partial<WebKit.WebView.ConstructorProps>) {
+		constructor(options?: IFrameBridgeOptions & Partial<WebKit.WebView.ConstructorProps>) {
 			const { enableDeveloperExtras, enableJavascript, ...webViewProps } = options ?? {};
 
 			const userContentManager = new WebKit.UserContentManager();
@@ -59,7 +58,7 @@ export const IFrameWidget = GObject.registerClass(
 
 			// Create the DOM element and link it to this widget
 			this._iframe = new HTMLIFrameElement();
-			this._iframe[PS.iframeWidget] = this as unknown as import('./iframe-widget.js').IFrameWidget;
+			this._iframe[PS.iframeWidget] = this as unknown as import('./iframe-bridge.js').IFrameBridge;
 
 			// Set up the message bridge
 			this._messageBridge = new MessageBridge(this);
@@ -155,4 +154,4 @@ export const IFrameWidget = GObject.registerClass(
 	},
 );
 
-export type IFrameWidget = InstanceType<typeof IFrameWidget>;
+export type IFrameBridge = InstanceType<typeof IFrameBridge>;

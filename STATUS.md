@@ -186,11 +186,13 @@ Tests that exercise `webrtcbin` (construction, deferred-APIs-throw, close, loopb
 
 | Package | GNOME Libs | Tests | APIs |
 |---------|-----------|-------|------|
-| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect, **dataset/DOMStringMap**), HTMLCanvasElement (base DOM stub), HTMLImageElement (**data: URI support**), Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
-| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D (**HSL/HSLA color parsing**, **shadowBlur approximation**, drawImage via paint+clip, composite operations), CanvasGradient, CanvasPattern, Path2D, ImageData, **FontFace** (pixel-perfect font rendering via PangoCairo), Canvas2DWidget→Gtk.DrawingArea |
-| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders, **clearBufferfv/iv/uiv/fi**, **premultipliedAlpha support**), HTMLCanvasElement (GTK-backed), CanvasWebGLWidget (Gtk.GLArea subclass, rAF, resize re-render, **eager context init**), Extensions |
+| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect, **dataset/DOMStringMap**), HTMLCanvasElement (base DOM stub), HTMLImageElement (**data: URI support**), HTMLMediaElement, HTMLVideoElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
+| **bridge-types** | — | — | DOMBridgeContainer(interface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
+| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D (**HSL/HSLA color parsing**, **shadowBlur approximation**, drawImage via paint+clip, composite operations), CanvasGradient, CanvasPattern, Path2D, ImageData, **FontFace** (pixel-perfect font rendering via PangoCairo), Canvas2DBridge→Gtk.DrawingArea |
+| **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders, **clearBufferfv/iv/uiv/fi**, **premultipliedAlpha support**), HTMLCanvasElement (GTK-backed), WebGLBridge (Gtk.GLArea subclass, rAF, resize re-render, **eager context init**), Extensions |
 | **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent, **window-level keyboard listeners** |
-| **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameWidget→WebKit.WebView, postMessage bridge |
+| **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
+| **video** | Gst 1.0, Gtk 4.0 | — | VideoBridge→Gtk.Picture(gtk4paintablesink). Supports srcObject(MediaStream from getUserMedia/WebRTC) + src(URI via playbin). Phase 1 |
 
 ## Browser UI Packages (`packages/web/adwaita-web/`)
 
@@ -383,6 +385,12 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 ### ~~WebRTC Phase 3 — Outgoing Media + getUserMedia~~ ✓
 
 Completed. See "Implemented (Phase 3)" section above. Key decisions: explicit encoder chains (no encodebin/Vala bridge needed), capsfilter for immediate SDP generation, request_pad_simple for transceiver+pad creation.
+
+### Universal DOM Container (`@gjsify/dom-bridge`)
+
+**Priority: Medium — architectural vision for unified DOM-in-GTK.**
+
+A future `@gjsify/dom-bridge` package where `document.createElement("canvas")` + `getContext("2d")` automatically creates the right GTK widget behind the scenes. `document.body` would map to a real GTK container hierarchy. Each child element gets its own bridge transparently. This is the long-term vision for making browser code "just work" in GTK without explicit bridge creation. Deferred from the initial bridge architecture PR — requires deeper integration between `Document`, `Element.appendChild`, and the GTK widget tree.
 
 ### WebRTC Phase 4 — Stats & advanced
 

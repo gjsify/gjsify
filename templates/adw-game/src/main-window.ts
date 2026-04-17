@@ -1,8 +1,8 @@
 import GObject from 'gi://GObject?version=2.0';
 import type Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
-import { CanvasWebGLWidget } from '@gjsify/webgl';
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { WebGLBridge } from '@gjsify/webgl';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { startGame } from './game.js';
 import Template from './main-window.blp';
 
@@ -32,7 +32,7 @@ export class MainWindow extends Adw.ApplicationWindow {
             child = this._canvasContainer.get_first_child();
         }
 
-        const widget = useFallback ? new Canvas2DWidget() : new CanvasWebGLWidget();
+        const widget = useFallback ? new Canvas2DBridge() : new WebGLBridge();
         widget.set_hexpand(true);
         widget.set_vexpand(true);
         widget.installGlobals();

@@ -13,14 +13,14 @@ const { tagName, localName, namespaceURI } = PropertySymbol;
 /**
  * HTML IFrame Element.
  *
- * Backed by WebKit.WebView when connected to an IFrameWidget.
+ * Backed by WebKit.WebView when connected to an IFrameBridge.
  * Without a backing widget, behaves as a pure DOM element with attribute storage.
  *
  * Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLIFrameElement
  */
 export class HTMLIFrameElement extends HTMLElement {
-	/** @internal The backing IFrameWidget (set by IFrameWidget when it creates this element) */
-	[PS.iframeWidget]: import('./iframe-widget.js').IFrameWidget | null = null;
+	/** @internal The backing IFrameBridge (set by IFrameBridge when it creates this element) */
+	[PS.iframeWidget]: import('./iframe-bridge.js').IFrameBridge | null = null;
 
 	/** @internal The contentWindow proxy */
 	[PS.windowProxy]: IFrameWindowProxy | null = null;
@@ -125,7 +125,7 @@ export class HTMLIFrameElement extends HTMLElement {
 
 	/**
 	 * Returns the window proxy for the iframe's content.
-	 * Available after the IFrameWidget has loaded content.
+	 * Available after the IFrameBridge has loaded content.
 	 */
 	get contentWindow(): IFrameWindowProxy | null {
 		return this[PS.windowProxy];
@@ -162,7 +162,7 @@ export class HTMLIFrameElement extends HTMLElement {
 		return 'HTMLIFrameElement';
 	}
 
-	// -- Internal: called by IFrameWidget --
+	// -- Internal: called by IFrameBridge --
 
 	/** @internal Fire load event */
 	_onLoad(): void {

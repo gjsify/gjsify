@@ -1,10 +1,10 @@
 // Adwaita window for the Canvas 2D fireworks example.
-// Uses a Blueprint template for the UI layout and Canvas2DWidget for 2D drawing.
+// Uses a Blueprint template for the UI layout and Canvas2DBridge for 2D drawing.
 
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { start, type FireworksDemo } from '../fireworks.js';
 import Template from './fireworks-window.blp';
 
@@ -18,7 +18,7 @@ export class FireworksWindow extends Adw.ApplicationWindow {
     declare private _sidebarToggleButton: Gtk.ToggleButton;
     declare private _pauseButton: Gtk.Button;
 
-    /** Live demo reference; set once the Canvas2DWidget is ready. */
+    /** Live demo reference; set once the Canvas2DBridge is ready. */
     private _demo: FireworksDemo | null = null;
 
     static {
@@ -50,7 +50,7 @@ export class FireworksWindow extends Adw.ApplicationWindow {
         }));
 
         // Create and insert Canvas 2D widget
-        const canvasWidget = new Canvas2DWidget();
+        const canvasWidget = new Canvas2DBridge();
         canvasWidget.set_hexpand(true);
         canvasWidget.set_vexpand(true);
         canvasWidget.installGlobals(); // sets globalThis.requestAnimationFrame

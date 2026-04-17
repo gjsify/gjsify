@@ -5,6 +5,7 @@ import { Node } from './node.js';
 import { Element } from './element.js';
 import { HTMLElement } from './html-element.js';
 import { HTMLImageElement } from './html-image-element.js';
+import { HTMLVideoElement } from './html-video-element.js';
 import { HTMLCanvasElement } from './html-canvas-element.js';
 import { Text } from './text.js';
 import { Comment } from './comment.js';
@@ -48,6 +49,7 @@ export class Document extends Node {
         const tag = tagName.toLowerCase();
         switch (tag) {
             case 'img': return new HTMLImageElement();
+            case 'video': return new HTMLVideoElement();
             case 'canvas': return new HTMLCanvasElement();
             default: {
                 const factory = Document._elementFactories.get(tag);

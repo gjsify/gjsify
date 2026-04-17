@@ -1,6 +1,6 @@
 # @gjsify/canvas2d
 
-GJS implementation of CanvasRenderingContext2D using Cairo and PangoCairo. Provides Canvas2DWidget extending Gtk.DrawingArea.
+GJS implementation of CanvasRenderingContext2D using Cairo and PangoCairo. Provides Canvas2DBridge extending Gtk.DrawingArea.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -15,9 +15,9 @@ yarn add @gjsify/canvas2d
 ## Usage
 
 ```typescript
-import { Canvas2DWidget } from '@gjsify/canvas2d';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
 
-const widget = new Canvas2DWidget();
+const widget = new Canvas2DBridge();
 widget.installGlobals();
 
 widget.onReady((canvas, ctx) => {

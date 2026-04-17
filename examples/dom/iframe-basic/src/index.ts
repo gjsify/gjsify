@@ -1,6 +1,6 @@
 // IFrame basic example — demonstrates HTMLIFrameElement with bidirectional postMessage
 //
-// This GTK app creates an IFrameWidget (WebKit.WebView) and communicates with
+// This GTK app creates an IFrameBridge (WebKit.WebView) and communicates with
 // its content using the standard postMessage API, just like a browser iframe.
 
 import '@girs/gjs';
@@ -8,7 +8,7 @@ import '@girs/gtk-4.0';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
-import { IFrameWidget } from '@gjsify/iframe';
+import { IFrameBridge } from '@gjsify/iframe';
 
 // HTML content loaded into the iframe via srcdoc
 const IFRAME_CONTENT = `<!DOCTYPE html>
@@ -116,8 +116,8 @@ function activate(app: Gtk.Application) {
     headerBox.append(sendButton);
     box.append(headerBox);
 
-    // Create the IFrameWidget
-    const iframeWidget = new IFrameWidget();
+    // Create the IFrameBridge
+    const iframeWidget = new IFrameBridge();
 
     // Listen for messages from the iframe content
     iframeWidget.onReady((iframe) => {

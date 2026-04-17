@@ -161,3 +161,6 @@
 [submodule "refs/webrtc-samples"]
 	path = refs/webrtc-samples
 	url = git@github.com:webrtc/samples.git
+[submodule "refs/showtime"]
+	path = refs/showtime
+	url = https://gitlab.gnome.org/GNOME/showtime.git

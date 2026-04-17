@@ -57,4 +57,4 @@ GJSify treats the **Node.js API**, the **Web API** and the **DOM API** as three 
 - `packages/web/` — Web platform APIs (`fetch`, `WebSocket`, `ReadableStream`, Web Crypto, …)
 - `packages/dom/` — DOM element classes backed by GTK widgets (`HTMLCanvasElement`, `HTMLImageElement`, `HTMLIFrameElement`, …) plus the GTK→DOM event bridge
 
-Each visual DOM element pairs with a GTK widget: `HTMLCanvasElement` (2D) → `Canvas2DWidget` → `Gtk.DrawingArea`, `HTMLCanvasElement` (WebGL) → `CanvasWebGLWidget` → `Gtk.GLArea`, `HTMLIFrameElement` → `IFrameWidget` → `WebKit.WebView`.
+Each visual DOM element pairs with a GTK widget: `HTMLCanvasElement` (2D) → `Canvas2DBridge` → `Gtk.DrawingArea`, `HTMLCanvasElement` (WebGL) → `WebGLBridge` → `Gtk.GLArea`, `HTMLIFrameElement` → `IFrameBridge` → `WebKit.WebView`.

@@ -77,7 +77,7 @@ export class MessageBridge {
 		this._windowProxy = proxy;
 	}
 
-	/** Update current URI (called by IFrameWidget on load-changed) */
+	/** Update current URI (called by IFrameBridge on load-changed) */
 	updateUri(uri: string): void {
 		this._currentUri = uri;
 	}

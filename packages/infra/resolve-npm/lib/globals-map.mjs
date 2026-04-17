@@ -51,6 +51,7 @@ export const GJS_GLOBALS_GROUPS = {
         'DOMParser',
         'AudioContext', 'webkitAudioContext', 'Audio', 'HTMLAudioElement',
         'GamepadEvent',
+        'MediaDevices',
         'RTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate',
         'RTCPeerConnectionIceEvent', 'RTCDataChannel', 'RTCDataChannelEvent',
         'RTCError', 'RTCErrorEvent',
@@ -148,6 +149,7 @@ export const GJS_GLOBALS_MAP = {
     GamepadEvent:         '@gjsify/gamepad/register',
 
     // --- WebRTC (GStreamer webrtcbin backend) -------------------------------
+    MediaDevices:               '@gjsify/webrtc/register/media-devices',
     RTCPeerConnection:          '@gjsify/webrtc/register/peer-connection',
     RTCSessionDescription:      '@gjsify/webrtc/register/peer-connection',
     RTCIceCandidate:            '@gjsify/webrtc/register/peer-connection',

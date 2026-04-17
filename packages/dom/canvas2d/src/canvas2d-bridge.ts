@@ -1,6 +1,6 @@
-// Canvas2DWidget GTK widget for GJS — original implementation using Gtk.DrawingArea + Cairo
+// Canvas2DBridge — GTK container for HTMLCanvasElement (2D) backed by Cairo.
 // Provides a Gtk.DrawingArea subclass that handles Canvas 2D bootstrapping.
-// Pattern follows packages/dom/iframe/src/iframe-widget.ts (IFrameWidget)
+// Pattern follows packages/dom/iframe/src/iframe-bridge.ts (IFrameBridge)
 
 import GObject from 'gi://GObject';
 import Gdk from 'gi://Gdk?version=4.0';
@@ -23,7 +23,7 @@ type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasR
  *
  * Usage:
  * ```ts
- * const widget = new Canvas2DWidget();
+ * const widget = new Canvas2DBridge();
  * widget.installGlobals();  // sets globalThis.requestAnimationFrame
  * widget.onReady((canvas, ctx) => {
  *     ctx.fillStyle = 'red';
@@ -34,16 +34,16 @@ type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasR
  */
 // Gtk.DrawingArea inherits a 'resize' signal with signature
 // (widget: Drawable, width: int, height: int) from its ancestors (Gtk.Widget).
-// CanvasWebGLWidget uses Gtk.GLArea which has the same-shaped signal. We do
+// WebGLBridge uses Gtk.GLArea which has the same-shaped signal. We do
 // NOT register a custom signal — we piggyback on the inherited one so
 // consumers can use a single pattern on both widgets:
 //   widget.connect('resize', (w, width, height) => { ... })
 // In addition, _onDraw fires onResize(cb) callbacks and dispatches a DOM
 // 'resize' event on the canvas for browser-style listeners.
 
-export const Canvas2DWidget = GObject.registerClass(
-    { GTypeName: 'GjsifyCanvas2DWidget' },
-    class Canvas2DWidget extends Gtk.DrawingArea {
+export const Canvas2DBridge = GObject.registerClass(
+    { GTypeName: 'GjsifyCanvas2DBridge' },
+    class Canvas2DBridge extends Gtk.DrawingArea {
         _canvas: GjsifyHTMLCanvasElement | null = null;
         _ctx: CanvasRenderingContext2D | null = null;
         _readyCallbacks: Canvas2DReadyCallback[] = [];
@@ -101,7 +101,7 @@ export const Canvas2DWidget = GObject.registerClass(
                 // widget.connect('resize', ...) without us emitting it here.
                 // We additionally dispatch a DOM 'resize' event on the canvas
                 // and fire onResize() callbacks for cross-widget API parity
-                // with CanvasWebGLWidget.
+                // with WebGLBridge.
                 this._canvas.width = width;
                 this._canvas.height = height;
                 this._canvas.dispatchEvent(new Event('resize'));
@@ -192,5 +192,5 @@ export const Canvas2DWidget = GObject.registerClass(
     }
 );
 
-// Export the instance type so callers can type-annotate their Canvas2DWidget variables
-export type Canvas2DWidget = InstanceType<typeof Canvas2DWidget>;
+// Export the instance type so callers can type-annotate their Canvas2DBridge variables
+export type Canvas2DBridge = InstanceType<typeof Canvas2DBridge>;
