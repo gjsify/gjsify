@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gamepad",
-    "version": "0.1.14",
+    "version": "0.1.15",
     "description": "Gamepad Web API for GJS using libmanette as backend",
     "type": "module",
     "module": "lib/esm/index.js",

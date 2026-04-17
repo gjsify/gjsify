@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.1.15](https://github.com/gjsify/gjsify/compare/v0.1.14...v0.1.15) (2026-04-17)
+
 ## [0.1.14](https://github.com/gjsify/gjsify/compare/v0.1.13...v0.1.14) (2026-04-17)
 
 ### 🚀 WebRTC lands on GJS — real-time P2P, right in your GNOME app

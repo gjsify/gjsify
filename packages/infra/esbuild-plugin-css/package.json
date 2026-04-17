@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/esbuild-plugin-css",
-    "version": "0.1.14",
+    "version": "0.1.15",
     "description": "esbuild plugin that bundles CSS (resolving @import from node_modules) and returns the result as a string for GTK CssProvider.load_from_string()",
     "type": "module",
     "main": "dist/esm/index.mjs",
