@@ -26,18 +26,21 @@ let _permissionGranted = false;
 
 /**
  * Check if GStreamer device monitoring is safe to use.
- * On CI containers without PipeWire/PulseAudio, starting a DeviceMonitor
- * can SIGSEGV in native code (before JS error handling can intervene).
- * This guard prevents the crash by checking for device provider factories first.
+ * On some GJS/GStreamer combinations (e.g. Fedora 44 / GJS 1.88 in Docker),
+ * DeviceMonitor and DeviceProviderFactory can SIGSEGV in native code — a crash
+ * that JS error handling cannot intercept. We skip device monitoring entirely
+ * when DISPLAY is absent (headless/CI) since there are typically no audio/video
+ * devices in containers anyway.
  */
 function isDeviceMonitorSafe(): boolean {
     try {
-        // DeviceProviderFactory.find() returns null if no providers are registered.
-        // Check for common providers: pulsesrc (PulseAudio), pipewire (PipeWire).
-        const hasPulse = Gst.DeviceProviderFactory.find('pulsedeviceprovider') != null;
-        const hasPipewire = Gst.DeviceProviderFactory.find('pipewiredeviceprovider') != null;
-        const hasAlsa = Gst.DeviceProviderFactory.find('alsadeviceprovider') != null;
-        return hasPulse || hasPipewire || hasAlsa;
+        // Import GLib to check environment — avoid crashing GStreamer APIs
+        const GLib = imports.gi.GLib;
+        // Skip in CI environments or headless containers
+        if (GLib.getenv('CI')) return false;
+        // No display = likely a container without devices
+        if (!GLib.getenv('DISPLAY') && !GLib.getenv('WAYLAND_DISPLAY')) return false;
+        return true;
     } catch {
         return false;
     }
