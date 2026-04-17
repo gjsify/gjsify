@@ -507,6 +507,9 @@ export class RTCPeerConnection extends EventTarget {
                 try { ch._disconnectSignals(); } catch { /* ignore */ }
             }
             this._dataChannels.clear();
+            for (const s of this._senders) {
+                try { s._teardownPipeline(); } catch { /* ignore */ }
+            }
             for (const r of this._receivers) {
                 try { r._dispose(); } catch { /* ignore */ }
             }
@@ -567,40 +570,119 @@ export class RTCPeerConnection extends EventTarget {
                 `Failed to execute 'addTransceiver' on 'RTCPeerConnection': The provided value '${direction}' is not a valid enum value of type RTCRtpTransceiverDirection.`,
             );
         }
-        const caps = Gst.Caps.from_string(`application/x-rtp,media=${kind}`);
+        const hasGstSource = trackOrKind instanceof MediaStreamTrack && (trackOrKind as any)._gstSource;
+        const wantsSend = direction === 'sendrecv' || direction === 'sendonly';
 
-        // webrtcbin rejects NONE direction for add-transceiver, so we always
-        // create with SENDRECV and then set the actual direction afterwards.
-        const createDirection = direction === 'inactive'
-            ? GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV
-            : directionToGst(direction);
+        let gstTrans: any;
+        let jsTrans: RTCRtpTransceiver;
 
-        // emit('add-transceiver') returns the new GstWebRTCRTPTransceiver directly.
-        // The on-new-transceiver bridge callback fires later via Idle.add, so
-        // we create the wrapper inline from the return value.
-        const gstTrans = this._webrtcbin.emit('add-transceiver', createDirection, caps) as any;
-        if (!gstTrans) {
-            throw new Error('webrtcbin did not create a transceiver');
-        }
+        if (hasGstSource && wantsSend) {
+            // Path A: Track has a GStreamer source and needs to send.
+            // Requesting a sink pad from webrtcbin implicitly creates both
+            // the pad AND the transceiver. Using emit('add-transceiver')
+            // would create a duplicate with mline=-1.
+            const track = trackOrKind as MediaStreamTrack;
 
-        let jsTrans = this._transceivers.get(gstTrans);
-        if (!jsTrans) {
-            jsTrans = this._createTransceiverWrapper(gstTrans);
-        }
+            // Build encoder chain, link to webrtcbin via request_pad_simple
+            const sender = new RTCRtpSender(null, this._pipeline, this._webrtcbin);
+            sender._setTrack(track);
+            sender._wirePipeline(track);
 
-        // Apply the actual requested direction (may differ from create direction)
-        (gstTrans as any).direction = directionToGst(direction);
+            // Find the GstTransceiver that request_pad_simple created
+            gstTrans = this._findNewGstTransceiver();
+            if (!gstTrans) {
+                throw new Error('webrtcbin did not create a transceiver for the send pad');
+            }
 
-        // Set track on sender if a MediaStreamTrack was provided
-        if (trackOrKind instanceof MediaStreamTrack) {
-            jsTrans.sender._setTrack(trackOrKind);
+            // Create wrapper with the pre-wired sender
+            const gstReceiver = gstTrans.receiver ?? null;
+            const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
+            jsTrans = new RTCRtpTransceiver(gstTrans, sender, receiver);
+            this._transceivers.set(gstTrans, jsTrans);
+            this._senders.push(sender);
+            this._receivers.push(receiver);
+
+            // Apply direction
+            (gstTrans as any).direction = directionToGst(direction);
+        } else {
+            // Path B: No GStreamer source, or receive-only/inactive.
+            // Use emit('add-transceiver') which creates a transceiver without pads.
+            const caps = Gst.Caps.from_string(`application/x-rtp,media=${kind}`);
+            const createDirection = direction === 'inactive'
+                ? GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV
+                : directionToGst(direction);
+
+            gstTrans = this._webrtcbin.emit('add-transceiver', createDirection, caps) as any;
+            if (!gstTrans) {
+                throw new Error('webrtcbin did not create a transceiver');
+            }
+
+            jsTrans = this._transceivers.get(gstTrans)!;
+            if (!jsTrans) {
+                jsTrans = this._createTransceiverWrapper(gstTrans);
+            }
+
+            (gstTrans as any).direction = directionToGst(direction);
+
+            if (trackOrKind instanceof MediaStreamTrack) {
+                jsTrans.sender._setTrack(trackOrKind);
+            }
         }
 
         return jsTrans;
     }
 
-    addTrack(_track: MediaStreamTrack, ..._streams: MediaStream[]): never {
-        throwNotSupported('addTrack');
+    addTrack(track: MediaStreamTrack, ..._streams: MediaStream[]): RTCRtpSender {
+        this._rejectIfClosed('addTrack');
+
+        if (!(track instanceof MediaStreamTrack)) {
+            throw new TypeError(
+                "Failed to execute 'addTrack' on 'RTCPeerConnection': parameter 1 is not a MediaStreamTrack",
+            );
+        }
+
+        // Check if this track is already assigned to a sender
+        const existing = this._senders.find(s => s.track === track);
+        if (existing) {
+            throw new DOMException(
+                'Track already exists in a sender of this connection',
+                'InvalidAccessError',
+            );
+        }
+
+        // Look for a reusable transceiver (matching kind, no track, recvonly/inactive)
+        let reusable: RTCRtpTransceiver | undefined;
+        for (const t of this._transceivers.values()) {
+            if (
+                t.sender.track === null &&
+                !t.stopped &&
+                t.direction !== 'stopped' &&
+                t.receiver.track.kind === track.kind
+            ) {
+                const dir = t.direction;
+                if (dir === 'recvonly' || dir === 'inactive') {
+                    reusable = t;
+                    break;
+                }
+            }
+        }
+
+        if (reusable) {
+            // Expand direction to include send
+            const dir = reusable.direction;
+            reusable.direction = dir === 'recvonly' ? 'sendrecv' : 'sendonly';
+            reusable.sender._setTrack(track);
+            // Note: _wirePipeline is NOT called here for reusable transceivers.
+            // Tracks with GStreamer sources will be handled by addTransceiver Path A
+            // if no reusable transceiver exists, or the pipeline will be wired
+            // when webrtcbin creates the sink pad during SDP negotiation.
+            return reusable.sender;
+        }
+
+        // Create a new transceiver — addTransceiver handles both _setTrack
+        // and _wirePipeline for tracks with GStreamer sources (Path A).
+        const transceiver = this.addTransceiver(track, { direction: 'sendrecv' });
+        return transceiver.sender;
     }
 
     removeTrack(sender: RTCRtpSender): void {
@@ -636,6 +718,15 @@ export class RTCPeerConnection extends EventTarget {
 
     // ---- Transceiver helper -------------------------------------------------
 
+    /** Find a GstWebRTCRTPTransceiver not yet in our map (created by request_pad_simple). */
+    private _findNewGstTransceiver(): any {
+        for (let i = 0; ; i++) {
+            const gt = this._webrtcbin.emit('get-transceiver', i) as any;
+            if (!gt) return null;
+            if (!this._transceivers.has(gt)) return gt;
+        }
+    }
+
     private _createTransceiverWrapper(gstTrans: any): RTCRtpTransceiver {
         let kind: 'audio' | 'video' = 'audio';
         try {
@@ -647,7 +738,16 @@ export class RTCPeerConnection extends EventTarget {
         const gstSender = gstTrans.sender ?? null;
 
         const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
-        const sender = new RTCRtpSender(gstSender);
+        const sender = new RTCRtpSender(gstSender, this._pipeline, this._webrtcbin);
+
+        // Pass mline index to sender for sink pad naming
+        try {
+            const mline = (gstTrans as any).mlineindex;
+            if (typeof mline === 'number' && mline >= 0) {
+                sender._setMlineIndex(mline);
+            }
+        } catch { /* ignore */ }
+
         const transceiver = new RTCRtpTransceiver(gstTrans, sender, receiver);
 
         this._transceivers.set(gstTrans, transceiver);

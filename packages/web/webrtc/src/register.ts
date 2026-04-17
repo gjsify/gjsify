@@ -7,3 +7,4 @@ import './register/peer-connection.js';
 import './register/data-channel.js';
 import './register/error.js';
 import './register/media.js';
+import './register/media-devices.js';

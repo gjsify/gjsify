@@ -77,3 +77,8 @@ export { RTCTrackEvent } from './rtc-track-event.js';
 export type { RTCTrackEventInit } from './rtc-track-event.js';
 
 export type { RTCRtpTransceiverInit } from './rtc-peer-connection.js';
+
+export { getUserMedia } from './get-user-media.js';
+export type { MediaStreamConstraints, MediaTrackConstraints } from './get-user-media.js';
+
+export { MediaDevices } from './media-devices.js';

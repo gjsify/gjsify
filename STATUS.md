@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-16 (@gjsify/webrtc Phase 1 + Phase 1.5 — W3C WebRTC API via GStreamer webrtcbin. RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary), full register-subpath wiring. Async handshake + signal delivery works end-to-end via new @gjsify/webrtc-native Vala bridge that marshals webrtcbin streaming-thread signals + Gst.Promise callbacks onto the main GLib context. 23 tests green incl. loopback. Media deferred to Phase 2.)
+> Last updated: 2026-04-17 (@gjsify/webrtc Phase 3 — Outgoing media pipeline + getUserMedia. addTrack wires GStreamer encoder chain (source→valve→convert→encode→payloader→capsfilter→webrtcbin). getUserMedia wraps pipewiresrc/pulsesrc/v4l2src as MediaStreamTracks. replaceTrack with atomic source swap. End-to-end bidirectional audio verified. 229 tests green.)
 
 ## Summary
 
@@ -98,7 +98,7 @@ All 15 packages have real implementations:
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
 | **webaudio** | Gst 1.0, GstApp 1.0 | 32 | AudioContext (decodeAudioData via GStreamer decodebin, createBufferSource, createGain, currentTime via GLib monotonic clock), AudioBuffer (PCM Float32Array storage), AudioBufferSourceNode (GStreamer appsrc→audioconvert→volume→autoaudiosink), GainNode (AudioParam with setTargetAtTime), AudioParam, HTMLAudioElement (canPlayType, playbin playback). **Phase 1 — covers Excalibur.js** |
 | **gamepad** | Manette 0.2 | 19 | Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected on globalThis), GamepadHapticActuator (dual-rumble with strong/weak magnitude). Button mapping: Manette→W3C standard layout (17 buttons incl. triggers-as-buttons). Axis mapping: 4 stick axes + trigger axes→button values. Lazy Manette.Monitor init, graceful degradation without libmanette. |
-| **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 23 | **Phase 1 + 1.5 — Data Channel end-to-end.** RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN config, all sync getters + on-event handlers), RTCDataChannel (string + binary send/receive, bufferedAmount, binaryType), RTCSessionDescription (Gst↔JS roundtrip via GstSDP), RTCIceCandidate (with RFC 5245 candidate-line parser), RTCError (extends DOMException), RTCPeerConnectionIceEvent, RTCDataChannelEvent, RTCErrorEvent. Async handshake works end-to-end on GJS via `@gjsify/webrtc-native`'s Vala signal bridge that marshals webrtcbin's streaming-thread signals + Gst.Promise callbacks onto the main GLib context. Registers via `@gjsify/webrtc/register` (granular `/register/peer-connection`, `/register/data-channel`, `/register/error`) — `--globals auto` picks them up automatically. Media (RTCRtpSender/Receiver, MediaStream, getUserMedia) deferred to Phase 2. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
+| **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 26 | **Phase 1–3 — Data Channel + Media + Outgoing Pipeline.** RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN config, addTransceiver, addTrack, removeTrack, all sync getters + on-event handlers), RTCDataChannel (string + binary send/receive, bufferedAmount, binaryType), RTCRtpSender (track, getParameters/setParameters, replaceTrack with atomic source swap, getCapabilities), RTCRtpReceiver (track with muted→unmuted via ReceiverBridge, jitterBufferTarget), RTCRtpTransceiver (mid, direction, stop, setCodecPreferences), MediaStream, MediaStreamTrack (GStreamer source integration, enabled→valve), getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback), MediaDevices. Outgoing pipeline: source→valve→convert→encode(opus/vp8)→payloader→capsfilter→webrtcbin. End-to-end bidirectional audio verified. Registers via `@gjsify/webrtc/register` (granular subpaths) — `--globals auto` picks them up. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
 | **webrtc-native** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | — | Vala/GObject library consumed by `@gjsify/webrtc`. Exposes three main-thread signal bridges: `WebrtcbinBridge` (wraps webrtcbin's `on-negotiation-needed` / `on-ice-candidate` / `on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open` / `on-close` / `on-error` / `on-message-string` / `on-message-data` / `on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Each bridge connects on the C side (never invokes JS on the streaming thread) and re-emits via `GLib.Idle.add()` on the main context. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64}/`; CI (`.github/workflows/prebuilds.yml`) rebuilds on Vala source changes. |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
@@ -131,13 +131,20 @@ All 15 packages have real implementations:
 - Track transitions from muted to unmuted when decoded media replaces the muted source
 - Pipeline cleanup on RTCPeerConnection.close() disposes receiver bridges
 
-**Deferred (Phase 3 — Outgoing Media + getUserMedia):**
-- RTCPeerConnection.addTrack — throws `NotSupportedError` (requires getUserMedia)
-- getUserMedia, navigator.mediaDevices — not implemented
-- Outgoing media pipeline: encodebin, sender track wiring — absent
-- RTCRtpSender.replaceTrack, setStreams — no-op stubs
+**Implemented (Phase 3 — Outgoing Media + getUserMedia):**
+- RTCPeerConnection.addTrack(track, ...streams) — creates transceiver, wires outgoing pipeline via request_pad_simple
+- getUserMedia({ audio, video }) — wraps GStreamer sources (pipewiresrc → pulsesrc → autoaudiosrc → audiotestsrc fallback; pipewiresrc → v4l2src → autovideosrc → videotestsrc fallback)
+- MediaDevices class with getUserMedia, enumerateDevices (stub), getSupportedConstraints
+- navigator.mediaDevices registration via `@gjsify/webrtc/register/media-devices`
+- Outgoing pipeline: source → valve → audioconvert/videoconvert → encoder (opusenc/vp8enc) → payloader (rtpopuspay/rtpvp8pay) → capsfilter → webrtcbin sink pad
+- MediaStreamTrack GStreamer integration: _gstSource, _gstPipeline, enabled→valve.drop, stop()→NULL+dispose
+- RTCRtpSender._wirePipeline builds explicit encoder chains (no Vala bridge needed — all main-thread)
+- RTCRtpSender.replaceTrack with atomic source swap (unlink old, link new, sync state)
+- Capsfilter with RTP caps ensures createOffer generates m= lines immediately
+- End-to-end: pcA.addTrack(getUserMedia audio) → pcB receives track event, track unmutes
+- Single-PC-per-track limitation (multi-PC fan-out via tee deferred to Phase 4)
 
-**Deferred (Phase 3 — Stats & advanced):**
+**Deferred (Phase 4 — Stats & advanced):**
 - RTCPeerConnection.getStats — rejects with `NotSupportedError`
 - RTCPeerConnection.restartIce, setConfiguration — throw `NotSupportedError`
 - RTCPeerConnection.getIdentityAssertion, peerIdentity — absent
@@ -145,6 +152,8 @@ All 15 packages have real implementations:
 - `icecandidateerror` event — never fires
 - RTCDTMFSender, RTCCertificate — not implemented
 - RTCDtlsTransport, RTCIceTransport, RTCSctpTransport — not exposed
+- MediaStreamTrack constraints, enumerateDevices with GStreamer Device Monitor
+- Multi-PC-per-track fan-out via tee multiplexer
 
 **Notes on spec behaviour (verified against WPT):**
 - RTCDataChannel.binaryType defaults to `'arraybuffer'` — this IS the W3C spec default (§6.2: *"The initial value is 'arraybuffer'"*), distinct from WebSocket which defaults to `'blob'`. Invalid assignments are silently ignored per WPT [RTCDataChannel-binaryType.window.js](refs/wpt/webrtc/RTCDataChannel-binaryType.window.js) (matches Firefox / Chrome / Safari).
@@ -371,23 +380,13 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
 
-### WebRTC Phase 3 — Outgoing Media + getUserMedia
+### ~~WebRTC Phase 3 — Outgoing Media + getUserMedia~~ ✓
 
-**Priority: Medium — follow-up to Phase 2.5 incoming media pipeline (issue #14).**
+Completed. See "Implemented (Phase 3)" section above. Key decisions: explicit encoder chains (no encodebin/Vala bridge needed), capsfilter for immediate SDP generation, request_pad_simple for transceiver+pad creation.
 
-Phase 2.5 wired the incoming pipeline (ReceiverBridge: muted → decodebin → tee). Phase 3 adds the outgoing path and media capture:
+### WebRTC Phase 4 — Stats & advanced
 
-- `addTrack(track, ...streams)` — wire track's media through webrtcbin's sender pipeline.
-- `getUserMedia` / `navigator.mediaDevices` — new `@gjsify/media-devices` package wrapping GStreamer sources (`pipewiresrc`, `v4l2src`, `pulsesrc`).
-- Outgoing media pipeline: track → `encodebin` → webrtcbin.
-- `RTCRtpSender.replaceTrack`, `setStreams` — wire to GStreamer pipeline.
-- End-to-end test: two peers exchange actual audio/video.
-
-Reference: [refs/node-gst-webrtc/src/media/](refs/node-gst-webrtc/src/media/) (TeeMultiplexer, ProxyMultiplexer, BaseTrackInput, TestAudioTrackInput).
-
-### WebRTC Phase 3 — Stats & advanced
-
-**Priority: Low — nice-to-have once Phase 2 lands.**
+**Priority: Low — nice-to-have once Phase 3 lands.**
 
 - `getStats` — emit `get-stats` signal on webrtcbin, convert `GstStructure` → `RTCStatsReport` (Map<string, RTCStats>).
 - `restartIce`, `setConfiguration` — dynamic reconfig.

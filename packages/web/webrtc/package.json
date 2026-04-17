@@ -25,6 +25,9 @@
         },
         "./register/media": {
             "default": "./lib/esm/register/media.js"
+        },
+        "./register/media-devices": {
+            "default": "./lib/esm/register/media-devices.js"
         }
     },
     "sideEffects": [

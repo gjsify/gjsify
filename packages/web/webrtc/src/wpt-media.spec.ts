@@ -834,4 +834,244 @@ await describe('Receiver media pipeline (Phase 2.5)', async () => {
     });
 });
 
+// ── Phase 3: addTrack ──────────────────────────────────────────────────
+
+await describe('addTrack (Phase 3)', async () => {
+    await it('should return a sender with the track assigned', async () => {
+        const pc = createPeerConnection();
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        const sender = pc.addTrack(track);
+        expect(sender).toBeDefined();
+        expect(sender.track).toBe(track);
+        closePeerConnections(pc);
+    });
+
+    await it('should throw TypeError for non-MediaStreamTrack argument', async () => {
+        const pc = createPeerConnection();
+        expect(() => (pc as any).addTrack('audio')).toThrow();
+        expect(() => (pc as any).addTrack({})).toThrow();
+        closePeerConnections(pc);
+    });
+
+    await it('should throw InvalidAccessError if track already added', async () => {
+        const pc = createPeerConnection();
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        pc.addTrack(track);
+        let threw = false;
+        try {
+            pc.addTrack(track);
+        } catch (e: any) {
+            threw = true;
+            expect(e.name).toBe('InvalidAccessError');
+        }
+        expect(threw).toBe(true);
+        closePeerConnections(pc);
+    });
+
+    await it('should reuse inactive transceiver with matching kind', async () => {
+        const pc = createPeerConnection();
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+        expect(pc.getTransceivers().length).toBe(1);
+
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        const sender = pc.addTrack(track);
+        // Should reuse, not create a new transceiver
+        expect(pc.getTransceivers().length).toBe(1);
+        expect(sender.track).toBe(track);
+        closePeerConnections(pc);
+    });
+
+    await it('should create new transceiver when no reusable one exists', async () => {
+        const pc = createPeerConnection();
+        // sendrecv transceiver already has send — not reusable
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+        expect(pc.getTransceivers().length).toBe(1);
+
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        pc.addTrack(track);
+        expect(pc.getTransceivers().length).toBe(2);
+        closePeerConnections(pc);
+    });
+
+    await it('should create transceiver with sendrecv direction', async () => {
+        const pc = createPeerConnection();
+        const track = new MediaStreamTrack({ kind: 'video' });
+        pc.addTrack(track);
+        const trans = pc.getTransceivers();
+        expect(trans.length).toBe(1);
+        expect(trans[0].direction).toBe('sendrecv');
+        closePeerConnections(pc);
+    });
+
+    await it('should add sender to getSenders list', async () => {
+        const pc = createPeerConnection();
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        const sender = pc.addTrack(track);
+        expect(pc.getSenders()).toContain(sender);
+        closePeerConnections(pc);
+    });
+
+    await it('should throw InvalidStateError after close', async () => {
+        const pc = createPeerConnection();
+        pc.close();
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        expect(() => pc.addTrack(track)).toThrow();
+    });
+});
+
+// ── Phase 3: removeTrack ───────────────────────────────────────────────
+
+await describe('removeTrack (Phase 3)', async () => {
+    await it('should set sender.track to null', async () => {
+        const pc = createPeerConnection();
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        const sender = pc.addTrack(track);
+        pc.removeTrack(sender);
+        expect(sender.track).toBeNull();
+        closePeerConnections(pc);
+    });
+
+    await it('should throw for sender from different connection', async () => {
+        const pc1 = createPeerConnection();
+        const pc2 = createPeerConnection();
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        const sender = pc1.addTrack(track);
+        expect(() => pc2.removeTrack(sender)).toThrow();
+        closePeerConnections(pc1, pc2);
+    });
+});
+
+// ── Phase 3: replaceTrack ──────────────────────────────────────────────
+
+await describe('replaceTrack (Phase 3)', async () => {
+    await it('should replace track on sender', async () => {
+        const pc = createPeerConnection();
+        const track1 = new MediaStreamTrack({ kind: 'audio' });
+        const sender = pc.addTrack(track1);
+        const track2 = new MediaStreamTrack({ kind: 'audio' });
+        await sender.replaceTrack(track2);
+        expect(sender.track).toBe(track2);
+        closePeerConnections(pc);
+    });
+
+    await it('should accept null to remove track', async () => {
+        const pc = createPeerConnection();
+        const track = new MediaStreamTrack({ kind: 'audio' });
+        const sender = pc.addTrack(track);
+        await sender.replaceTrack(null);
+        expect(sender.track).toBeNull();
+        closePeerConnections(pc);
+    });
+
+    await it('should throw for different kind', async () => {
+        const pc = createPeerConnection();
+        const audio = new MediaStreamTrack({ kind: 'audio' });
+        const sender = pc.addTrack(audio);
+        const video = new MediaStreamTrack({ kind: 'video' });
+        let threw = false;
+        try {
+            await sender.replaceTrack(video);
+        } catch {
+            threw = true;
+        }
+        expect(threw).toBe(true);
+        closePeerConnections(pc);
+    });
+});
+
+// ── Phase 3: getUserMedia ──────────────────────────────────────────────
+
+await describe('getUserMedia (Phase 3)', async () => {
+    const { getUserMedia } = await import('./get-user-media.js');
+
+    await it('should return MediaStream with audio track', async () => {
+        const stream = await getUserMedia({ audio: true });
+        expect(stream).toBeDefined();
+        expect(stream.getAudioTracks().length).toBe(1);
+        expect(stream.getVideoTracks().length).toBe(0);
+        const track = stream.getAudioTracks()[0];
+        expect(track.kind).toBe('audio');
+        expect(track.readyState).toBe('live');
+        stream.getTracks().forEach(t => t.stop());
+    });
+
+    await it('should return MediaStream with video track', async () => {
+        const stream = await getUserMedia({ video: true });
+        expect(stream).toBeDefined();
+        expect(stream.getVideoTracks().length).toBe(1);
+        const track = stream.getVideoTracks()[0];
+        expect(track.kind).toBe('video');
+        stream.getTracks().forEach(t => t.stop());
+    });
+
+    await it('should return MediaStream with both audio and video', async () => {
+        const stream = await getUserMedia({ audio: true, video: true });
+        expect(stream.getAudioTracks().length).toBe(1);
+        expect(stream.getVideoTracks().length).toBe(1);
+        stream.getTracks().forEach(t => t.stop());
+    });
+
+    await it('should throw TypeError without audio or video', async () => {
+        let threw = false;
+        try {
+            await getUserMedia({});
+        } catch (e: any) {
+            threw = true;
+        }
+        expect(threw).toBe(true);
+    });
+
+    await it('track should have GStreamer source backing', async () => {
+        const stream = await getUserMedia({ audio: true });
+        const track = stream.getAudioTracks()[0];
+        expect((track as any)._gstSource).toBeDefined();
+        expect((track as any)._gstSource).not.toBeNull();
+        stream.getTracks().forEach(t => t.stop());
+    });
+
+    await it('stop should set readyState to ended and dispatch event', async () => {
+        const stream = await getUserMedia({ audio: true });
+        const track = stream.getAudioTracks()[0];
+        let ended = false;
+        track.addEventListener('ended', () => { ended = true; });
+        track.stop();
+        expect(track.readyState).toBe('ended');
+        expect(ended).toBe(true);
+    });
+});
+
+// ── Phase 3: MediaDevices ──────────────────────────────────────────────
+
+await describe('MediaDevices (Phase 3)', async () => {
+    const { MediaDevices } = await import('./media-devices.js');
+
+    await it('should have getUserMedia method', async () => {
+        const md = new MediaDevices();
+        expect(typeof md.getUserMedia).toBe('function');
+    });
+
+    await it('should have enumerateDevices method', async () => {
+        const md = new MediaDevices();
+        const devices = await md.enumerateDevices();
+        expect(Array.isArray(devices)).toBe(true);
+    });
+
+    await it('should have getSupportedConstraints method', async () => {
+        const md = new MediaDevices();
+        const sc = md.getSupportedConstraints();
+        expect(typeof sc).toBe('object');
+    });
+
+    await it('getUserMedia should throw without constraints', async () => {
+        const md = new MediaDevices();
+        let threw = false;
+        try {
+            await md.getUserMedia();
+        } catch {
+            threw = true;
+        }
+        expect(threw).toBe(true);
+    });
+});
+
 };

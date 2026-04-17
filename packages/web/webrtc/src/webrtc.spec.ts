@@ -11,6 +11,8 @@ import {
     RTCSessionDescription,
     RTCIceCandidate,
     RTCDataChannel,
+    MediaStreamTrack,
+    getUserMedia,
 } from './index.js';
 
 // Tests that exercise webrtcbin require libnice's GStreamer plugin on the
@@ -268,6 +270,86 @@ export default async () => {
                 pc.close();
                 expect(pc.signalingState).toBe('closed');
                 expect(pc.connectionState).toBe('closed');
+            });
+        });
+
+        // ── Phase 3: End-to-end audio loopback ─────────────────────────
+
+        await describe('End-to-end audio loopback (Phase 3)', async () => {
+            if (!webrtcbinReady) {
+                await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                    expect(webrtcbinReady).toBeFalsy();
+                });
+                return;
+            }
+
+            await it('addTrack with getUserMedia track creates offer with audio m-line', async () => {
+                const stream = await getUserMedia({ audio: true });
+                const audioTrack = stream.getAudioTracks()[0];
+                const pc = new RTCPeerConnection();
+                const sender = pc.addTrack(audioTrack);
+                expect(sender).toBeDefined();
+                expect(sender.track).toBe(audioTrack);
+
+                const offer = await pc.createOffer();
+                expect(offer.sdp).toContain('m=audio');
+
+                audioTrack.stop();
+                pc.close();
+            });
+
+            await it('addTrack with plain MediaStreamTrack (no GStreamer source) works', async () => {
+                const track = new MediaStreamTrack({ kind: 'audio' });
+                const pc = new RTCPeerConnection();
+                const sender = pc.addTrack(track);
+                expect(sender).toBeDefined();
+                expect(sender.track).toBe(track);
+                // No GStreamer source — pipeline not wired, but API works
+                expect(pc.getSenders().length).toBe(1);
+                pc.close();
+            });
+
+            await it('should send audio from pcA and receive track event on pcB', async () => {
+                const stream = await getUserMedia({ audio: true });
+                const audioTrack = stream.getAudioTracks()[0];
+
+                const pcA = new RTCPeerConnection();
+                const pcB = new RTCPeerConnection();
+
+                // ICE exchange
+                pcA.onicecandidate = (ev: any) => {
+                    if (ev.candidate) pcB.addIceCandidate(ev.candidate);
+                };
+                pcB.onicecandidate = (ev: any) => {
+                    if (ev.candidate) pcA.addIceCandidate(ev.candidate);
+                };
+
+                pcA.addTrack(audioTrack);
+
+                // Wait for track event on pcB
+                const trackPromise = new Promise<any>((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('track event timeout')), 15000);
+                    pcB.ontrack = (ev: any) => { clearTimeout(timeout); resolve(ev); };
+                });
+
+                // Offer/answer exchange
+                const offer = await pcA.createOffer();
+                await pcA.setLocalDescription(offer);
+                await pcB.setRemoteDescription(offer);
+                const answer = await pcB.createAnswer();
+                await pcB.setLocalDescription(answer);
+                await pcA.setRemoteDescription(answer);
+
+                // Verify track event fires
+                const ev = await trackPromise;
+                expect(ev.track).toBeDefined();
+                expect(ev.track.kind).toBe('audio');
+                expect(ev.receiver).toBeDefined();
+                expect(ev.transceiver).toBeDefined();
+
+                audioTrack.stop();
+                pcA.close();
+                pcB.close();
             });
         });
     });
