@@ -24,11 +24,6 @@ Adapted from the [webrtc-samples states](https://github.com/webrtc/samples/tree/
 - Adwaita application with `Gtk.Grid` layout for state display
 - `ontrack` event for receiving remote media streams
 
-## Known limitations
-
-- The local video preview (left) may appear black because `addTrack` moves the GStreamer video source from the VideoBridge pipeline to the WebRTC pipeline. The remote video (right) receives the stream via the WebRTC connection.
-- The "don't share a common ancestor" GStreamer warning is expected when linking elements across pipelines — it does not affect functionality.
-
 ## Prerequisites
 
 - Webcam (or virtual video device)
