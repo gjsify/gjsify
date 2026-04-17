@@ -12,6 +12,7 @@ import {
     RTCIceCandidate,
     RTCDataChannel,
     MediaStreamTrack,
+    MediaDevices,
     getUserMedia,
 } from './index.js';
 
@@ -670,6 +671,69 @@ export default async () => {
                     expect(threw).toBeTruthy();
                 });
             }
+        });
+
+        // ---- enumerateDevices / getSupportedConstraints (Phase 4.3) --------
+        // Ported from refs/wpt/mediacapture-streams/MediaDevices-enumerateDevices.https.html
+        // and refs/wpt/mediacapture-streams/MediaDevices-getSupportedConstraints.https.html
+
+        await describe('MediaDevices', async () => {
+            await it('enumerateDevices() returns an array', async () => {
+                const md = new MediaDevices();
+                const devices = await md.enumerateDevices();
+                expect(Array.isArray(devices)).toBeTruthy();
+            });
+
+            await it('enumerateDevices() returns devices with valid kind', async () => {
+                const md = new MediaDevices();
+                const devices = await md.enumerateDevices();
+                const validKinds = ['audioinput', 'audiooutput', 'videoinput'];
+                for (const device of devices) {
+                    expect(validKinds).toContain(device.kind);
+                }
+            });
+
+            await it('enumerateDevices() devices have toJSON()', async () => {
+                const md = new MediaDevices();
+                const devices = await md.enumerateDevices();
+                for (const device of devices) {
+                    const json = device.toJSON() as any;
+                    expect(typeof json.kind).toBe('string');
+                    expect(typeof json.deviceId).toBe('string');
+                    expect(typeof json.label).toBe('string');
+                    expect(typeof json.groupId).toBe('string');
+                }
+            });
+
+            await it('enumerateDevices() sorted: audioinput, videoinput, audiooutput', async () => {
+                const md = new MediaDevices();
+                const devices = await md.enumerateDevices();
+                const order: Record<string, number> = { audioinput: 0, videoinput: 1, audiooutput: 2 };
+                for (let i = 1; i < devices.length; i++) {
+                    expect(order[devices[i].kind]).not.toBeLessThan(order[devices[i - 1].kind]);
+                }
+            });
+
+            await it('getSupportedConstraints() returns an object with boolean values', async () => {
+                const md = new MediaDevices();
+                const supported = md.getSupportedConstraints();
+                expect(typeof supported).toBe('object');
+                // At least deviceId, width, height should be supported
+                expect(supported.deviceId).toBeTruthy();
+                expect(supported.width).toBeTruthy();
+                expect(supported.height).toBeTruthy();
+                expect(supported.frameRate).toBeTruthy();
+                expect(supported.sampleRate).toBeTruthy();
+                expect(supported.channelCount).toBeTruthy();
+            });
+
+            await it('getSupportedConstraints() has boolean-only values', async () => {
+                const md = new MediaDevices();
+                const supported = md.getSupportedConstraints();
+                for (const value of Object.values(supported)) {
+                    expect(typeof value).toBe('boolean');
+                }
+            });
         });
     });
 };

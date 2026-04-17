@@ -2,7 +2,8 @@
 //
 // Phase 3: basic media capture. Tries real audio/video sources first
 // (pipewiresrc, pulsesrc, v4l2src), falls back to test sources.
-// Constraint support is minimal (boolean audio/video only).
+// Phase 4.3: constraint support — width, height, frameRate, sampleRate,
+// channelCount mapped to GStreamer capsfilter elements.
 //
 // Reference: W3C Media Capture and Streams spec § 10.3
 
@@ -36,9 +37,20 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
     const tracks: MediaStreamTrack[] = [];
 
     if (constraints.audio) {
+        const audioConstraints = typeof constraints.audio === 'object' ? constraints.audio : {};
         const source = _createAudioSource();
         const pipeline = new Gst.Pipeline() as any;
         pipeline.add(source);
+
+        // Apply audio constraints via capsfilter
+        const capsStr = _buildAudioCaps(audioConstraints);
+        if (capsStr) {
+            const capsfilter = Gst.ElementFactory.make('capsfilter', null)!;
+            (capsfilter as any).caps = Gst.Caps.from_string(capsStr);
+            pipeline.add(capsfilter);
+            source.link(capsfilter);
+        }
+
         tracks.push(new MediaStreamTrack({
             kind: 'audio',
             label: source.name ?? 'audio',
@@ -47,9 +59,20 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
     }
 
     if (constraints.video) {
+        const videoConstraints = typeof constraints.video === 'object' ? constraints.video : {};
         const source = _createVideoSource();
         const pipeline = new Gst.Pipeline() as any;
         pipeline.add(source);
+
+        // Apply video constraints via capsfilter
+        const capsStr = _buildVideoCaps(videoConstraints);
+        if (capsStr) {
+            const capsfilter = Gst.ElementFactory.make('capsfilter', null)!;
+            (capsfilter as any).caps = Gst.Caps.from_string(capsStr);
+            pipeline.add(capsfilter);
+            source.link(capsfilter);
+        }
+
         tracks.push(new MediaStreamTrack({
             kind: 'video',
             label: source.name ?? 'video',
@@ -58,6 +81,25 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
     }
 
     return new MediaStream(tracks);
+}
+
+/** Build a GStreamer caps string for audio constraints. */
+function _buildAudioCaps(c: MediaTrackConstraints): string | null {
+    const parts: string[] = [];
+    if (c.sampleRate != null) parts.push(`rate=${Math.trunc(c.sampleRate)}`);
+    if (c.channelCount != null) parts.push(`channels=${Math.trunc(c.channelCount)}`);
+    if (parts.length === 0) return null;
+    return `audio/x-raw,${parts.join(',')}`;
+}
+
+/** Build a GStreamer caps string for video constraints. */
+function _buildVideoCaps(c: MediaTrackConstraints): string | null {
+    const parts: string[] = [];
+    if (c.width != null) parts.push(`width=${Math.trunc(c.width)}`);
+    if (c.height != null) parts.push(`height=${Math.trunc(c.height)}`);
+    if (c.frameRate != null) parts.push(`framerate=${Math.trunc(c.frameRate)}/1`);
+    if (parts.length === 0) return null;
+    return `video/x-raw,${parts.join(',')}`;
 }
 
 function _createAudioSource(): any {
