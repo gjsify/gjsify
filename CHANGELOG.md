@@ -2,6 +2,11 @@
 
 ## [0.1.15](https://github.com/gjsify/gjsify/compare/v0.1.14...v0.1.15) (2026-04-17)
 
+### Bug Fixes
+
+* **ci:** add `git pull --rebase` before prebuild push to prevent race-condition rejection when multiple CI jobs write to `main` concurrently
+* **webrtc-native:** ship missing aarch64 prebuilds (`libgjsifywebrtc.so` + `GjsifyWebrtc-0.1.typelib`) — `@gjsify/webrtc` now works on ARM Linux out of the box
+
 ## [0.1.14](https://github.com/gjsify/gjsify/compare/v0.1.13...v0.1.14) (2026-04-17)
 
 ### 🚀 WebRTC lands on GJS — real-time P2P, right in your GNOME app
