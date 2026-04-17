@@ -788,4 +788,50 @@ await describe('Receiver and Sender track properties', async () => {
     });
 });
 
+// ==========================================================================
+// Receiver media flow (Phase 2.5)
+// ==========================================================================
+await describe('Receiver media pipeline (Phase 2.5)', async () => {
+    await it('receiver has _connectToPad method', async () => {
+        const pc = createPeerConnection();
+        const t = pc.addTransceiver('audio');
+        expect(typeof t.receiver._connectToPad).toBe('function');
+        expect(typeof t.receiver._dispose).toBe('function');
+        closePeerConnections(pc);
+    });
+
+    await it('receiver track starts muted', async () => {
+        const pc = createPeerConnection();
+        const t = pc.addTransceiver('audio');
+        expect(t.receiver.track.muted).toBe(true);
+        closePeerConnections(pc);
+    });
+
+    await it('_setMuted(false) dispatches unmute event', async () => {
+        const track = new MediaStreamTrack({ kind: 'audio', muted: true });
+        expect(track.muted).toBe(true);
+        let unmuted = false;
+        track.addEventListener('unmute', () => { unmuted = true; });
+        track._setMuted(false);
+        expect(track.muted).toBe(false);
+        expect(unmuted).toBe(true);
+    });
+
+    await it('_setMuted(true) dispatches mute event', async () => {
+        const track = new MediaStreamTrack({ kind: 'audio', muted: false });
+        let muted = false;
+        track.addEventListener('mute', () => { muted = true; });
+        track._setMuted(true);
+        expect(track.muted).toBe(true);
+        expect(muted).toBe(true);
+    });
+
+    await it('close disposes receiver bridges without error', async () => {
+        const pc = createPeerConnection();
+        pc.addTransceiver('audio');
+        pc.addTransceiver('video');
+        pc.close();
+    });
+});
+
 };

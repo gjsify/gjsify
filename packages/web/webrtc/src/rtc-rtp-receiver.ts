@@ -1,13 +1,20 @@
 // W3C RTCRtpReceiver for GJS.
 //
-// Phase 2: API surface wrapping GstWebRTC.WebRTCRTPReceiver. Creates a stub
-// MediaStreamTrack (muted, 'live') per receiver. No GStreamer pipeline
-// connection — that is Phase 2.5.
+// Wraps GstWebRTC.WebRTCRTPReceiver. Phase 2.5: incoming media pipeline
+// is managed by ReceiverBridge (Vala) which handles decodebin's
+// streaming-thread signals natively and emits media-flowing on the
+// main thread when decoded media replaces the muted source.
 //
 // Reference: refs/node-gst-webrtc/src/webrtc/RTCRtpReceiver.ts (ISC)
 // Reference: W3C WebRTC spec § 5.3
 
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
+import type Gst from 'gi://Gst?version=1.0';
+
+import {
+    ReceiverBridge,
+    type ReceiverBridge as ReceiverBridgeType,
+} from '@gjsify/webrtc-native';
 
 import { MediaStreamTrack } from './media-stream-track.js';
 import type { RTCRtpCapabilities, RTCRtpCodecParameters, RTCRtpHeaderExtensionParameters, RTCRtcpParameters } from './rtc-rtp-sender.js';
@@ -35,10 +42,32 @@ export class RTCRtpReceiver {
     private _gstReceiver: GstWebRTC.WebRTCRTPReceiver | null;
     private _track: MediaStreamTrack;
     private _jitterBufferTarget: number | null = null;
+    private _pipeline: any = null;
+    private _receiverBridge: ReceiverBridgeType | null = null;
 
-    constructor(kind: 'audio' | 'video', gstReceiver: GstWebRTC.WebRTCRTPReceiver | null) {
+    constructor(kind: 'audio' | 'video', gstReceiver: GstWebRTC.WebRTCRTPReceiver | null, pipeline?: any) {
         this._gstReceiver = gstReceiver;
+        this._pipeline = pipeline ?? null;
         this._track = new MediaStreamTrack({ kind, muted: true });
+    }
+
+    /** @internal — called from RTCPeerConnection._handlePadAdded */
+    _connectToPad(pad: Gst.Pad): void {
+        if (!this._pipeline || this._receiverBridge) return;
+        this._receiverBridge = new (ReceiverBridge as any)({
+            pipeline: this._pipeline,
+            kind: this._track.kind,
+        });
+        this._receiverBridge!.connect_to_pad(pad);
+        this._receiverBridge!.connect('media-flowing', () => {
+            this._track._setMuted(false);
+        });
+    }
+
+    /** @internal — called from RTCPeerConnection.close() */
+    _dispose(): void {
+        try { this._receiverBridge?.dispose_bridge(); } catch { /* ignore */ }
+        this._receiverBridge = null;
     }
 
     get track(): MediaStreamTrack { return this._track; }

@@ -507,6 +507,9 @@ export class RTCPeerConnection extends EventTarget {
                 try { ch._disconnectSignals(); } catch { /* ignore */ }
             }
             this._dataChannels.clear();
+            for (const r of this._receivers) {
+                try { r._dispose(); } catch { /* ignore */ }
+            }
             this._transceivers.clear();
             this._senders.length = 0;
             this._receivers.length = 0;
@@ -643,7 +646,7 @@ export class RTCPeerConnection extends EventTarget {
         const gstReceiver = gstTrans.receiver ?? null;
         const gstSender = gstTrans.sender ?? null;
 
-        const receiver = new RTCRtpReceiver(kind, gstReceiver);
+        const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
         const sender = new RTCRtpSender(gstSender);
         const transceiver = new RTCRtpTransceiver(gstTrans, sender, receiver);
 
@@ -689,6 +692,9 @@ export class RTCPeerConnection extends EventTarget {
         if (!jsTrans) {
             jsTrans = this._createTransceiverWrapper(gstTrans);
         }
+
+        // Phase 2.5: wire incoming media through ReceiverBridge (decodebin → tee)
+        jsTrans.receiver._connectToPad(pad);
 
         const stream = new MediaStream([jsTrans.receiver.track]);
         const ev = new RTCTrackEvent('track', {

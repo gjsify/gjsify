@@ -14,6 +14,7 @@ sources = files(
     'src/vala/promise-bridge.vala',
     'src/vala/webrtcbin-bridge.vala',
     'src/vala/data-channel-bridge.vala',
+    'src/vala/receiver-bridge.vala',
 )
 
 libGjsifyWebrtc = library('gjsifywebrtc', sources,

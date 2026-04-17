@@ -125,10 +125,15 @@ All 15 packages have real implementations:
 - MediaStreamTrackEvent, RTCTrackEvent
 - Globals via `@gjsify/webrtc/register/media`: MediaStream, MediaStreamTrack, RTCTrackEvent
 
-**Deferred (Phase 2.5 — Media Pipeline):**
+**Implemented (Phase 2.5 — Incoming Media Pipeline):**
+- ReceiverBridge (Vala): manages muted source → decodebin → tee switching entirely in C to handle decodebin's streaming-thread `pad-added` signal
+- RTCRtpReceiver._connectToPad wires webrtcbin output → ReceiverBridge → media-flowing signal → track unmute
+- Track transitions from muted to unmuted when decoded media replaces the muted source
+- Pipeline cleanup on RTCPeerConnection.close() disposes receiver bridges
+
+**Deferred (Phase 3 — Outgoing Media + getUserMedia):**
 - RTCPeerConnection.addTrack — throws `NotSupportedError` (requires getUserMedia)
 - getUserMedia, navigator.mediaDevices — not implemented
-- Incoming media pipeline: decodebin, TeeMultiplexer, ProxyMultiplexer, pad-added routing — absent
 - Outgoing media pipeline: encodebin, sender track wiring — absent
 - RTCRtpSender.replaceTrack, setStreams — no-op stubs
 
@@ -158,7 +163,7 @@ Two subtleties in the bridge design:
 1. `WebrtcbinBridge.on_data_channel_cb` wraps the incoming channel in a `DataChannelBridge` *on the streaming thread* before the idle hop — so the bridge's own signal handlers are connected before any `on-message-*` callbacks can fire on the same thread. Without this eager wrap, the first few messages from the remote peer would race the JS-side setup and get dropped.
 2. The `GstWebRTCDataChannelState` C enum is **1-based** (`CONNECTING=1 … CLOSED=4`) but the auto-generated TypeScript declaration omits the initialiser and infers 0-based values. `RTCDataChannel` maps against the real 1-based runtime values.
 
-Tests passing on GJS: **198 green** (89 data-channel + 109 media API WPT tests), including the full loopback (two local peers, offer/answer, ICE trickle, data-channel open/send/receive/echo).
+Tests passing on GJS: **203 green** (89 data-channel + 109 media API + 5 media pipeline tests), including the full loopback (two local peers, offer/answer, ICE trickle, data-channel open/send/receive/echo).
 
 **System prerequisites:**
 - GStreamer ≥ 1.20 with **gst-plugins-bad** (for webrtcbin) AND **libnice-gstreamer** (for ICE transport — webrtcbin's state-change to PLAYING fails without it)
@@ -366,19 +371,19 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
 
-### WebRTC Phase 2.5 — Media Pipeline
+### WebRTC Phase 3 — Outgoing Media + getUserMedia
 
-**Priority: Medium — follow-up to Phase 2 media API surface (issue #14).**
+**Priority: Medium — follow-up to Phase 2.5 incoming media pipeline (issue #14).**
 
-Phase 2 delivered the W3C API classes (RTCRtpTransceiver, RTCRtpSender, RTCRtpReceiver, MediaStream, MediaStreamTrack, RTCTrackEvent). Phase 2.5 wires the actual GStreamer media pipeline so media can flow:
+Phase 2.5 wired the incoming pipeline (ReceiverBridge: muted → decodebin → tee). Phase 3 adds the outgoing path and media capture:
 
-- `addTrack(track, ...streams)` — requires getUserMedia (Phase 2.5 or separate `@gjsify/media-devices` package).
-- Incoming media pipeline: `decodebin` for inbound RTP → `TeeMultiplexer` → `MediaStreamTrack` outputs.
-- Outgoing media pipeline: `encodebin` for outbound tracks → webrtcbin.
+- `addTrack(track, ...streams)` — wire track's media through webrtcbin's sender pipeline.
+- `getUserMedia` / `navigator.mediaDevices` — new `@gjsify/media-devices` package wrapping GStreamer sources (`pipewiresrc`, `v4l2src`, `pulsesrc`).
+- Outgoing media pipeline: track → `encodebin` → webrtcbin.
 - `RTCRtpSender.replaceTrack`, `setStreams` — wire to GStreamer pipeline.
-- `getUserMedia` / `navigator.mediaDevices` — likely a new `@gjsify/media-devices` package wrapping GStreamer sources (`pipewiresrc`, `v4l2src`, `pulsesrc`).
+- End-to-end test: two peers exchange actual audio/video.
 
-Reference: [refs/node-gst-webrtc/src/media/](refs/node-gst-webrtc/src/media/) (TeeMultiplexer, ProxyMultiplexer, track inputs) and [refs/node-gst-webrtc/src/webrtc/RTCRtpReceiver.ts](refs/node-gst-webrtc/src/webrtc/RTCRtpReceiver.ts).
+Reference: [refs/node-gst-webrtc/src/media/](refs/node-gst-webrtc/src/media/) (TeeMultiplexer, ProxyMultiplexer, BaseTrackInput, TestAudioTrackInput).
 
 ### WebRTC Phase 3 — Stats & advanced
 

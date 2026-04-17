@@ -69,16 +69,35 @@ export interface DataChannelBridge extends GObject.Object {
     dispose_bridge(): void;
 }
 
+/**
+ * Per-receiver incoming media pipeline. Manages muted source → decodebin →
+ * tee switching entirely in Vala (decodebin's pad-added fires on the
+ * streaming thread). Emits `media-flowing` on the main thread when
+ * decoded media replaces the muted source.
+ */
+export interface ReceiverBridge extends GObject.Object {
+    connect(signal: 'media-flowing', cb: (self: ReceiverBridge) => void): number;
+    connect(signal: string, cb: (...args: any[]) => void): number;
+    disconnect(id: number): void;
+    connect_to_pad(pad: Gst.Pad): void;
+    request_src_pad(): Gst.Pad;
+    release_src_pad(pad: Gst.Pad): void;
+    dispose_bridge(): void;
+}
+
 interface PromiseBridgeCtor { new (): PromiseBridge; }
 interface WebrtcbinBridgeCtor { new (args: { bin: Gst.Element }): WebrtcbinBridge; }
 interface DataChannelBridgeCtor { new (args: { channel: unknown }): DataChannelBridge; }
+interface ReceiverBridgeCtor { new (args: { pipeline: Gst.Pipeline; kind: string }): ReceiverBridge; }
 
 const mod = GjsifyWebrtc as {
     PromiseBridge: PromiseBridgeCtor;
     WebrtcbinBridge: WebrtcbinBridgeCtor;
     DataChannelBridge: DataChannelBridgeCtor;
+    ReceiverBridge: ReceiverBridgeCtor;
 };
 
 export const PromiseBridge = mod.PromiseBridge;
 export const WebrtcbinBridge = mod.WebrtcbinBridge;
 export const DataChannelBridge = mod.DataChannelBridge;
+export const ReceiverBridge = mod.ReceiverBridge;
