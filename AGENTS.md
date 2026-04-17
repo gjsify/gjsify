@@ -8,6 +8,8 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 
 **Architectural decisions must be documented here.** Whenever a new architectural decision is made (new package boundaries, API design patterns, widget conventions, build pipeline changes, dependency strategies, or cross-cutting concerns), update this file immediately so future conversations have the full picture.
 
+**Fix root causes immediately — never paper over bugs.** When a bug is discovered (via examples, tests, or CI), fix it in the core package, not in the consumer. Do not document known limitations as "expected behavior" and move on — trace the issue to its root cause and fix it in the same session. Examples exist to validate the implementation; if an example reveals a bug, the implementation is incomplete. Workarounds, skip-guards, and "known limitation" notes are temporary scaffolding that must be replaced by proper fixes before the PR ships.
+
 ## Structure
 
 `packages/{node/,gjs/,infra/,web/,dom/}` | `showcases/` — curated examples shipped with CLI | `examples/` — private dev/test examples | `refs/` — read-only git submodules (DO NOT modify)
