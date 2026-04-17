@@ -23,7 +23,7 @@
         "check": "tsc --noEmit",
         "init:meson": "meson setup build .",
         "init:meson:wipe": "yarn init:meson --wipe",
-        "build": "yarn build:meson && yarn build:gjsify && yarn build:types",
+        "build": "yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
         "build:meson": "yarn init:meson && meson compile -C build",
         "build:types": "tsc",
