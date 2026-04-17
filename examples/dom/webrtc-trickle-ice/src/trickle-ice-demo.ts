@@ -4,9 +4,10 @@
 // Copyright (c) 2015 The WebRTC project authors. BSD license.
 // Reimplemented for GJS using @gjsify/webrtc.
 //
-// Creates a single RTCPeerConnection with a STUN server, generates an offer,
-// and collects all ICE candidates as they trickle in. No second peer or media
-// stream is needed — this is a diagnostic tool for verifying ICE connectivity.
+// Creates two local RTCPeerConnection instances, performs offer/answer, and
+// collects all ICE candidates as they trickle in from the offerer. GStreamer's
+// webrtcbin only emits ICE candidates after a full offer/answer exchange and
+// pipeline state change to PLAYING, so a second peer is required.
 
 export type LogFn = (tag: string, msg: string) => void;
 
@@ -40,14 +41,18 @@ export async function runTrickleIceDemo(
         iceServers: [{ urls: stunUrl }],
     };
 
-    const pc = new RTCPeerConnection(config);
+    const pc1 = new RTCPeerConnection(config);
+    const pc2 = new RTCPeerConnection(config);
     const candidates: CandidateInfo[] = [];
     const begin = performance.now();
 
-    log('main', `Initial iceGatheringState: ${pc.iceGatheringState}`);
+    log('main', `Initial iceGatheringState: ${pc1.iceGatheringState}`);
 
     return new Promise<CandidateInfo[]>((resolve, reject) => {
-        pc.onicecandidate = (event) => {
+        let gatheringComplete = false;
+
+        // Collect candidates from pc1 and forward to pc2
+        pc1.onicecandidate = (event) => {
             const elapsed = ((performance.now() - begin) / 1000).toFixed(3);
 
             if (event.candidate && event.candidate.candidate !== '') {
@@ -63,52 +68,70 @@ export async function runTrickleIceDemo(
                 };
                 candidates.push(info);
                 log('candidate', `${info.type.padEnd(6)} ${info.protocol.padEnd(4)} ${info.address}:${info.port} (priority: ${info.priority}) [${elapsed}s]`);
+                // Forward to pc2 for connectivity
+                pc2.addIceCandidate(c).catch(() => {});
             }
         };
 
-        pc.onicegatheringstatechange = () => {
-            log('state', `iceGatheringState → ${pc.iceGatheringState}`);
+        // Also forward pc2 candidates to pc1
+        pc2.onicecandidate = (ev) => {
+            if (ev.candidate) pc1.addIceCandidate(ev.candidate).catch(() => {});
+        };
 
-            if (pc.iceGatheringState === 'complete') {
-                const elapsed = ((performance.now() - begin) / 1000).toFixed(3);
-                log('main', `Gathering complete — ${candidates.length} candidate(s) in ${elapsed}s`);
+        pc1.onicegatheringstatechange = () => {
+            log('state', `pc1 iceGatheringState → ${pc1.iceGatheringState}`);
 
-                // Print summary table
-                log('table', '──────────────────────────────────────────────────────────');
-                log('table', 'Type   Proto Address                Port   Priority');
-                log('table', '──────────────────────────────────────────────────────────');
-                for (const c of candidates) {
-                    log('table', `${c.type.padEnd(6)} ${c.protocol.padEnd(5)} ${c.address.padEnd(22)} ${String(c.port).padEnd(6)} ${c.priority}`);
-                }
-                log('table', '──────────────────────────────────────────────────────────');
-
-                pc.close();
+            // Resolve when all candidates have been gathered
+            if (pc1.iceGatheringState === 'complete' && !gatheringComplete) {
+                gatheringComplete = true;
+                printResults();
                 resolve(candidates);
             }
         };
 
-        (pc as any).onicecandidateerror = (e: any) => {
-            log('error', `ICE candidate error: code=${e.errorCode} ${e.errorText ?? ''} (${e.url ?? ''})`);
+        pc1.oniceconnectionstatechange = () => {
+            log('state', `pc1 iceConnectionState → ${pc1.iceConnectionState}`);
         };
 
-        // Create an audio transceiver to generate an m= line in the SDP
-        pc.addTransceiver('audio');
+        function printResults() {
+            const elapsed = ((performance.now() - begin) / 1000).toFixed(3);
+            log('main', `Gathering done — ${candidates.length} candidate(s) in ${elapsed}s`);
+            log('table', '──────────────────────────────────────────────────────────');
+            log('table', 'Type   Proto Address                Port   Priority');
+            log('table', '──────────────────────────────────────────────────────────');
+            for (const c of candidates) {
+                log('table', `${c.type.padEnd(6)} ${c.protocol.padEnd(5)} ${c.address.padEnd(22)} ${String(c.port).padEnd(6)} ${c.priority}`);
+            }
+            log('table', '──────────────────────────────────────────────────────────');
+            pc1.close();
+            pc2.close();
+        }
 
-        pc.createOffer()
-            .then((offer) => pc.setLocalDescription(offer))
+        // Create a data channel to generate an m= line
+        pc1.createDataChannel('ice-probe');
+
+        pc1.createOffer()
+            .then((offer) => pc1.setLocalDescription(offer))
+            .then(() => pc2.setRemoteDescription(pc1.localDescription!))
+            .then(() => pc2.createAnswer())
+            .then((answer) => pc2.setLocalDescription(answer))
+            .then(() => pc1.setRemoteDescription(pc2.localDescription!))
+            .then(() => log('main', 'Offer/answer exchange complete — gathering ICE candidates...'))
             .catch((err) => {
-                log('ERROR', `createOffer failed: ${err.message}`);
-                pc.close();
+                log('ERROR', `Handshake failed: ${err.message}`);
+                pc1.close();
+                pc2.close();
                 reject(err);
             });
 
-        // Timeout after 30s
+        // Timeout after 15s — print whatever we have
         setTimeout(() => {
-            if (pc.iceGatheringState !== 'complete') {
-                log('main', `Timeout — ${candidates.length} candidate(s) gathered so far`);
-                pc.close();
+            if (!gatheringComplete) {
+                gatheringComplete = true;
+                log('main', `Timeout — ${candidates.length} candidate(s) gathered`);
+                printResults();
                 resolve(candidates);
             }
-        }, 30000);
+        }, 15000);
     });
 }
