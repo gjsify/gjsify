@@ -1074,4 +1074,81 @@ await describe('MediaDevices (Phase 3)', async () => {
     });
 });
 
+// ── RTCRtpParameters structure validation ────────────────────────────
+// Ported from refs/wpt/webrtc/RTCRtpParameters-codecs.html,
+// RTCRtpParameters-encodings.html, RTCRtpParameters-headerExtensions.html
+
+await describe('RTCRtpParameters structure (WPT)', async () => {
+    await it('getParameters().encodings entries have active boolean', async () => {
+        const pc = createPeerConnection();
+        try {
+            const t = pc.addTransceiver('audio');
+            const params = t.sender.getParameters();
+            expect(Array.isArray(params.encodings)).toBeTruthy();
+            for (const enc of params.encodings) {
+                expect(typeof enc.active).toBe('boolean');
+            }
+        } finally { pc.close(); }
+    });
+
+    await it('getParameters().codecs entries have mimeType, clockRate, payloadType', async () => {
+        const pc1 = createPeerConnection();
+        const pc2 = createPeerConnection();
+        try {
+            pc1.addTransceiver('audio');
+            await exchangeOfferAnswer(pc1, pc2);
+            const sender = pc1.getSenders()[0];
+            const params = sender.getParameters();
+            expect(params.codecs.length).toBeGreaterThan(0);
+            for (const codec of params.codecs) {
+                expect(typeof codec.mimeType).toBe('string');
+                expect(typeof codec.clockRate).toBe('number');
+                expect(typeof codec.payloadType).toBe('number');
+            }
+        } finally { closePeerConnections(pc1, pc2); }
+    });
+
+    await it('getParameters().headerExtensions entries have uri and id', async () => {
+        const pc1 = createPeerConnection();
+        const pc2 = createPeerConnection();
+        try {
+            pc1.addTransceiver('audio');
+            await exchangeOfferAnswer(pc1, pc2);
+            const sender = pc1.getSenders()[0];
+            const params = sender.getParameters();
+            // headerExtensions may be empty before negotiation on some impls
+            for (const ext of params.headerExtensions) {
+                expect(typeof ext.uri).toBe('string');
+                expect(typeof ext.id).toBe('number');
+            }
+        } finally { closePeerConnections(pc1, pc2); }
+    });
+
+    await it('after negotiation codecs array is non-empty', async () => {
+        const pc1 = createPeerConnection();
+        const pc2 = createPeerConnection();
+        try {
+            pc1.addTransceiver('audio');
+            await exchangeOfferAnswer(pc1, pc2);
+            const sender = pc1.getSenders()[0];
+            const params = sender.getParameters();
+            expect(params.codecs.length).toBeGreaterThan(0);
+        } finally { closePeerConnections(pc1, pc2); }
+    });
+
+    await it('getParameters().rtcp has cname string', async () => {
+        const pc1 = createPeerConnection();
+        const pc2 = createPeerConnection();
+        try {
+            pc1.addTransceiver('audio');
+            await exchangeOfferAnswer(pc1, pc2);
+            const sender = pc1.getSenders()[0];
+            const params = sender.getParameters();
+            if (params.rtcp) {
+                expect(typeof params.rtcp.cname).toBe('string');
+            }
+        } finally { closePeerConnections(pc1, pc2); }
+    });
+});
+
 };

@@ -2494,6 +2494,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-dom-webrtc-dtmf@workspace:examples/dom/webrtc-dtmf":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-webrtc-dtmf@workspace:examples/dom/webrtc-dtmf"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/webrtc": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-dom-webrtc-loopback@workspace:examples/dom/webrtc-loopback":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webrtc-loopback@workspace:examples/dom/webrtc-loopback"
@@ -2506,6 +2521,39 @@ __metadata:
     "@gjsify/webrtc": "workspace:^"
     "@types/node": "npm:^25.6.0"
     http-server: "npm:^14.1.1"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-dom-webrtc-states@workspace:examples/dom/webrtc-states":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-webrtc-states@workspace:examples/dom/webrtc-states"
+  dependencies:
+    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.3"
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/video": "workspace:^"
+    "@gjsify/webrtc": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-dom-webrtc-trickle-ice@workspace:examples/dom/webrtc-trickle-ice":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-webrtc-trickle-ice@workspace:examples/dom/webrtc-trickle-ice"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/webrtc": "workspace:^"
+    "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft

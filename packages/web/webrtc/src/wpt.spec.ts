@@ -923,4 +923,214 @@ export default async () => {
             expect(d2.sdp).toBe(d.sdp);
         });
     });
+
+    // ── RTCDataChannel-send (data type fidelity) ─────────────────────────
+    // Ported from refs/wpt/webrtc/RTCDataChannel-send.html
+    // Tests: string, unicode, ArrayBuffer, Uint8Array round-trips over a
+    // connected data channel pair.
+
+    await describe('WPT — RTCDataChannel-send', async () => {
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+        } else {
+            await it('send/receive ASCII string', async () => {
+                const [chA, chB, pcA, pcB] = await createDataChannelPair();
+                try {
+                    chA.send('hello world');
+                    const msg = await withTimeout(5000, awaitMessage<string>(chB), 'ASCII string');
+                    expect(msg).toBe('hello world');
+                } finally { closePeerConnections(pcA, pcB); }
+            });
+
+            await it('send/receive Unicode string', async () => {
+                const [chA, chB, pcA, pcB] = await createDataChannelPair();
+                try {
+                    const unicode = '\u00fc\u00e4\u00f6\u2603\u{1F600}';
+                    chA.send(unicode);
+                    const msg = await withTimeout(5000, awaitMessage<string>(chB), 'Unicode string');
+                    expect(msg).toBe(unicode);
+                } finally { closePeerConnections(pcA, pcB); }
+            });
+
+            await it('send/receive empty string', async () => {
+                const [chA, chB, pcA, pcB] = await createDataChannelPair();
+                try {
+                    chA.send('');
+                    const msg = await withTimeout(5000, awaitMessage<string>(chB), 'empty string');
+                    expect(msg).toBe('');
+                } finally { closePeerConnections(pcA, pcB); }
+            });
+
+            await it('send/receive ArrayBuffer', async () => {
+                const [chA, chB, pcA, pcB] = await createDataChannelPair();
+                try {
+                    chB.binaryType = 'arraybuffer';
+                    const data = new Uint8Array([1, 2, 3, 4, 5]).buffer;
+                    chA.send(data);
+                    const msg = await withTimeout(5000, awaitMessage<ArrayBuffer>(chB), 'ArrayBuffer');
+                    const arr = new Uint8Array(msg);
+                    expect(arr.length).toBe(5);
+                    expect(arr[0]).toBe(1);
+                    expect(arr[4]).toBe(5);
+                } finally { closePeerConnections(pcA, pcB); }
+            });
+
+            await it('send/receive Uint8Array view', async () => {
+                const [chA, chB, pcA, pcB] = await createDataChannelPair();
+                try {
+                    chB.binaryType = 'arraybuffer';
+                    const view = new Uint8Array([10, 20, 30]);
+                    chA.send(view);
+                    const msg = await withTimeout(5000, awaitMessage<ArrayBuffer>(chB), 'Uint8Array');
+                    const arr = new Uint8Array(msg);
+                    expect(arr.length).toBe(3);
+                    expect(arr[0]).toBe(10);
+                    expect(arr[2]).toBe(30);
+                } finally { closePeerConnections(pcA, pcB); }
+            });
+
+            await it('send on connecting channel throws', async () => {
+                const pc = new RTCPeerConnection();
+                try {
+                    const ch = pc.createDataChannel('test');
+                    expect(ch.readyState).toBe('connecting');
+                    let threw = false;
+                    try { ch.send('data'); } catch { threw = true; }
+                    expect(threw).toBeTruthy();
+                } finally { pc.close(); }
+            });
+        }
+    });
+
+    // ── RTCPeerConnection-setLocalDescription rollback ───────────────────
+    // Ported from refs/wpt/webrtc/RTCPeerConnection-setLocalDescription-rollback.html
+
+    await describe('WPT — setLocalDescription rollback', async () => {
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+        } else {
+            await it('rollback from have-local-offer returns to stable', async () => {
+                const pc = new RTCPeerConnection();
+                try {
+                    pc.addTransceiver('audio');
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    expect(pc.signalingState).toBe('have-local-offer');
+
+                    await pc.setLocalDescription({ type: 'rollback', sdp: '' });
+                    expect(pc.signalingState).toBe('stable');
+                } finally { pc.close(); }
+            });
+
+            await it('rollback clears pendingLocalDescription', async () => {
+                const pc = new RTCPeerConnection();
+                try {
+                    pc.addTransceiver('audio');
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    expect(pc.pendingLocalDescription).toBeDefined();
+
+                    await pc.setLocalDescription({ type: 'rollback', sdp: '' });
+                    expect(pc.pendingLocalDescription).toBeNull();
+                } finally { pc.close(); }
+            });
+
+            await it('rollback fires signalingstatechange', async () => {
+                const pc = new RTCPeerConnection();
+                try {
+                    pc.addTransceiver('audio');
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+
+                    let fired = false;
+                    pc.onsignalingstatechange = () => { fired = true; };
+                    await pc.setLocalDescription({ type: 'rollback', sdp: '' });
+                    expect(fired).toBeTruthy();
+                } finally { pc.close(); }
+            });
+
+            await it('rollback in stable state is a no-op or throws', async () => {
+                const pc = new RTCPeerConnection();
+                try {
+                    expect(pc.signalingState).toBe('stable');
+                    // Per spec, rollback in stable may throw InvalidStateError
+                    // or be a no-op — both are acceptable
+                    try {
+                        await pc.setLocalDescription({ type: 'rollback', sdp: '' });
+                    } catch (e: any) {
+                        expect(e.name === 'InvalidStateError' || e instanceof Error).toBeTruthy();
+                    }
+                    expect(pc.signalingState).toBe('stable');
+                } finally { pc.close(); }
+            });
+        }
+    });
+
+    // ── RTCPeerConnection-createAnswer validation ────────────────────────
+    // Ported from refs/wpt/webrtc/RTCPeerConnection-createAnswer.html
+
+    await describe('WPT — RTCPeerConnection-createAnswer', async () => {
+        if (!pipelineReady) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(pipelineReady).toBeFalsy();
+            });
+        } else {
+            await it('createAnswer returns { type: "answer", sdp } in have-remote-offer', async () => {
+                const pc1 = new RTCPeerConnection();
+                const pc2 = new RTCPeerConnection();
+                try {
+                    pc1.addTransceiver('audio');
+                    const offer = await pc1.createOffer();
+                    await pc2.setRemoteDescription(offer);
+                    expect(pc2.signalingState).toBe('have-remote-offer');
+
+                    const answer = await pc2.createAnswer();
+                    expect(answer.type).toBe('answer');
+                    expect(typeof answer.sdp).toBe('string');
+                    expect(answer.sdp!.length).toBeGreaterThan(0);
+                } finally { closePeerConnections(pc1, pc2); }
+            });
+
+            await it('createAnswer rejects in stable state', async () => {
+                const pc = new RTCPeerConnection();
+                try {
+                    expect(pc.signalingState).toBe('stable');
+                    let threw = false;
+                    try { await pc.createAnswer(); } catch { threw = true; }
+                    expect(threw).toBeTruthy();
+                } finally { pc.close(); }
+            });
+
+            await it('createAnswer SDP contains a= lines', async () => {
+                const pc1 = new RTCPeerConnection();
+                const pc2 = new RTCPeerConnection();
+                try {
+                    pc1.addTransceiver('audio');
+                    const offer = await pc1.createOffer();
+                    await pc2.setRemoteDescription(offer);
+                    const answer = await pc2.createAnswer();
+                    // SDP must contain attribute lines
+                    expect(answer.sdp).toContain('a=');
+                } finally { closePeerConnections(pc1, pc2); }
+            });
+
+            await it('createAnswer rejects after close', async () => {
+                const pc1 = new RTCPeerConnection();
+                const pc2 = new RTCPeerConnection();
+                try {
+                    pc1.addTransceiver('audio');
+                    const offer = await pc1.createOffer();
+                    await pc2.setRemoteDescription(offer);
+                    pc2.close();
+                    let threw = false;
+                    try { await pc2.createAnswer(); } catch { threw = true; }
+                    expect(threw).toBeTruthy();
+                } finally { pc1.close(); }
+            });
+        }
+    });
 };

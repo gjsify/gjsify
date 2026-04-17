@@ -1117,4 +1117,70 @@ export default async () => {
             }
         });
     });
+
+    // ── onnegotiationneeded event tests ──────────────────────────────────
+    // Ported from refs/wpt/webrtc/RTCPeerConnection-onnegotiationneeded.html
+
+    await describe('negotiationneeded event', async () => {
+        if (!webrtcbinReady || !ASYNC_SIGNALS_WORK) {
+            await it('(skipped — webrtcbin/nicesrc missing)', async () => {
+                expect(webrtcbinReady).toBeFalsy();
+            });
+        } else {
+            await it('addTransceiver triggers negotiationneeded', async () => {
+                const pc = new RTCPeerConnection();
+                const nnPromise = awaitEvent(pc, 'negotiationneeded', 3000);
+                pc.addTransceiver('audio');
+                await nnPromise;
+                pc.close();
+            });
+
+            await it('createDataChannel triggers negotiationneeded', async () => {
+                const pc = new RTCPeerConnection();
+                const nnPromise = awaitEvent(pc, 'negotiationneeded', 3000);
+                pc.createDataChannel('test');
+                await nnPromise;
+                pc.close();
+            });
+
+            await it('negotiationneeded does not fire on closed connection', async () => {
+                const pc = new RTCPeerConnection();
+                pc.close();
+                let fired = false;
+                pc.onnegotiationneeded = () => { fired = true; };
+                // addTransceiver on closed connection should throw
+                try { pc.addTransceiver('audio'); } catch { /* expected */ }
+                await new Promise(r => setTimeout(r, 100));
+                expect(fired).toBeFalsy();
+            });
+
+            await it('completing offer/answer allows negotiationneeded to fire again', async () => {
+                const pc1 = new RTCPeerConnection();
+                const pc2 = new RTCPeerConnection();
+                pc1.onicecandidate = (ev: any) => {
+                    if (ev.candidate) pc2.addIceCandidate(ev.candidate).catch(() => {});
+                };
+                pc2.onicecandidate = (ev: any) => {
+                    if (ev.candidate) pc1.addIceCandidate(ev.candidate).catch(() => {});
+                };
+
+                // First negotiation
+                pc1.addTransceiver('audio');
+                const offer1 = await pc1.createOffer();
+                await pc1.setLocalDescription(offer1);
+                await pc2.setRemoteDescription(offer1);
+                const answer1 = await pc2.createAnswer();
+                await pc2.setLocalDescription(answer1);
+                await pc1.setRemoteDescription(answer1);
+
+                // After completing, adding another transceiver should fire again
+                const nnPromise = awaitEvent(pc1, 'negotiationneeded', 3000);
+                pc1.addTransceiver('video');
+                await nnPromise;
+
+                pc1.close();
+                pc2.close();
+            });
+        }
+    });
 };
