@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/v8",
-    "version": "0.1.13",
+    "version": "0.1.14",
     "description": "Node.js v8 module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webrtc",
-    "version": "0.1.13",
+    "version": "0.1.14",
     "description": "W3C WebRTC API for GJS using GStreamer webrtcbin as the peer-connection backend",
     "type": "module",
     "module": "lib/esm/index.js",

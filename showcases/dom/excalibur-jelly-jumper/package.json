@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-dom-excalibur-jelly-jumper",
-    "version": "0.1.13",
+    "version": "0.1.14",
     "description": "2D platformer showcase using Excalibur.js 0.32.0 with Tiled tilemaps, running natively on GJS/GTK4 and in the browser",
     "main": "dist/gjs.js",
     "type": "module",

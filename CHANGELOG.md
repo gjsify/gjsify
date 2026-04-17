@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.14](https://github.com/gjsify/gjsify/compare/v0.1.13...v0.1.14) (2026-04-17)
+
+### Features
+
+* **webrtc:** W3C WebRTC API — Phase 1–3 (data channel + media + outgoing pipeline) ([#23](https://github.com/gjsify/gjsify/issues/23)) ([3ff1df6](https://github.com/gjsify/gjsify/commit/3ff1df6cda08a34a97a13c2a8c2e17068e250bf7))
+
 ## [0.1.13](https://github.com/gjsify/gjsify/compare/v0.1.12...v0.1.13) (2026-04-16)
 
 ### Features
