@@ -60,5 +60,7 @@ import '@gjsify/webaudio/register';
 // Gamepad API via libmanette
 import '@gjsify/gamepad/register';
 
-// WebRTC API via GStreamer webrtcbin
-import '@gjsify/webrtc/register';
+// NOTE: @gjsify/webrtc/register is NOT included here because it requires
+// native GStreamer typelibs (GjsifyWebrtc) that are only available when
+// running via `gjsify run` (which sets LD_LIBRARY_PATH/GI_TYPELIB_PATH).
+// WebRTC globals are auto-injected by `gjsify build --globals auto` instead.

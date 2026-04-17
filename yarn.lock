@@ -3635,7 +3635,6 @@ __metadata:
     "@gjsify/web-streams": "workspace:^"
     "@gjsify/webaudio": "workspace:^"
     "@gjsify/webcrypto": "workspace:^"
-    "@gjsify/webrtc": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.2"
   languageName: unknown

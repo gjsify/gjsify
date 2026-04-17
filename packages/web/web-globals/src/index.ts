@@ -16,4 +16,7 @@ export { URL, URLSearchParams } from '@gjsify/url';
 export { Blob, File } from '@gjsify/buffer';
 export { FormData } from '@gjsify/formdata';
 export { performance, PerformanceObserver } from '@gjsify/perf_hooks';
-export { RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RTCDataChannel, RTCError, MediaStream, MediaStreamTrack } from '@gjsify/webrtc';
+
+// NOTE: @gjsify/webrtc re-exports are NOT included here because the package
+// requires native GStreamer typelibs (GjsifyWebrtc). Import from '@gjsify/webrtc'
+// directly when WebRTC is needed. Globals are auto-injected by --globals auto.
