@@ -142,5 +142,6 @@ jobs:
             echo "No prebuild changes to commit."
           else
             git commit -m "chore: update native prebuilds [skip ci]"
+            git pull --rebase origin main
             git push
           fi

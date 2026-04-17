@@ -2,9 +2,45 @@
 
 ## [0.1.14](https://github.com/gjsify/gjsify/compare/v0.1.13...v0.1.14) (2026-04-17)
 
-### Features
+### 🚀 WebRTC lands on GJS — real-time P2P, right in your GNOME app
 
-* **webrtc:** W3C WebRTC API — Phase 1–3 (data channel + media + outgoing pipeline) ([#23](https://github.com/gjsify/gjsify/issues/23)) ([3ff1df6](https://github.com/gjsify/gjsify/commit/3ff1df6cda08a34a97a13c2a8c2e17068e250bf7))
+This is the release we've been building toward. **`@gjsify/webrtc`** brings the full W3C WebRTC API to GJS, backed by GStreamer's battle-tested `webrtcbin` pipeline. For the first time, you can open peer connections, exchange data, stream audio/video, and seed torrents — all from a native GNOME application written in TypeScript. No browser required.
+
+#### What's included
+
+**Complete W3C surface** — `RTCPeerConnection`, `RTCDataChannel`, `RTCRtpSender/Receiver/Transceiver`, `MediaStream`, `MediaStreamTrack`, `RTCSessionDescription`, `RTCIceCandidate`, `RTCCertificate`, `RTCDTMFSender`, `RTCStatsReport` and all their events. The API is spec-compliant: ICE trickle, offer/answer state machine, `negotiationneeded`, rollback — it all works.
+
+**GStreamer media pipeline** — `getUserMedia({ audio: true, video: true })` hooks into real hardware via PipeWire → PulseAudio → GStreamer fallback chain. `addTrack()` builds a full encoder chain (VP8/Opus → RTP payloaders → webrtcbin sink pads) automatically. Incoming tracks fire the `track` event and transition from muted to unmuted when media flows.
+
+**Cross-pipeline architecture** — the `VideoBridge` (GTK `Gtk.Picture` + `gtk4paintablesink`) and the WebRTC sender can share the same camera source safely via an automatic `tee` branch — no "pipelines don't share a common ancestor" GStreamer warnings, no pipeline stalls.
+
+**DTMF** — `RTCDTMFSender.insertDTMF()` sends tones over audio tracks, with `tonechange` events firing for each digit.
+
+**WebTorrent on GJS** — because WebRTC data channels are first-class, WebTorrent works end-to-end: peer discovery via WebSocket trackers, chunk exchange via RTCDataChannel, multi-file downloads with progress and SHA1 verification. See the `webtorrent-download` and `webtorrent-stream` examples.
+
+**Zero config for consumers** — `gjsify build --globals auto` detects `RTCPeerConnection`, `RTCDataChannel`, etc. in your bundle and injects the right register modules automatically. No `--globals` flag, no source-level register import needed.
+
+**302 tests** — a comprehensive suite ported from the W3C WPT test suite and the MDN samples covering the full lifecycle: data channels, offer/answer, ICE, media tracks, DTMF, RTP parameters, negotiationneeded, rollback, stats.
+
+#### New examples
+
+| Example | What it shows |
+|---------|--------------|
+| `webrtc-loopback` | Two local peers, data channel echo, string + binary |
+| `webrtc-video` | Live webcam preview via `getUserMedia` + `VideoBridge` |
+| `webrtc-trickle-ice` | ICE candidate gathering — collect and print all candidate types |
+| `webrtc-dtmf` | Audio loopback with DTMF tone insertion and `tonechange` logging |
+| `webrtc-states` | Adwaita GUI monitoring signaling/ICE/connection state transitions live |
+| `webtorrent-download` | Multi-file torrent download with per-file progress and verification |
+| `webtorrent-stream` | Chunk-by-chunk torrent streaming via WebRTC data channels |
+
+#### Under the hood
+
+The native `@gjsify/webrtc-native` Vala bridge solves GJS's streaming-thread restriction: GStreamer fires `on-ice-candidate`, `on-data-channel`, and pad signals on a C thread that GJS cannot enter. The bridge captures these on the C side and re-dispatches them via `GLib.Idle.add()` on the main context — making the async handshake safe without any polling.
+
+---
+
+* **webrtc:** W3C WebRTC API — Phase 1–4 complete (data channel + media + outgoing pipeline + DTMF) ([#23](https://github.com/gjsify/gjsify/issues/23)) ([3ff1df6](https://github.com/gjsify/gjsify/commit/3ff1df6cda08a34a97a13c2a8c2e17068e250bf7))
 
 ## [0.1.13](https://github.com/gjsify/gjsify/compare/v0.1.12...v0.1.13) (2026-04-16)
 
