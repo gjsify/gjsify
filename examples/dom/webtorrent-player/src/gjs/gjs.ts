@@ -12,6 +12,15 @@ import { VideoBridge } from '@gjsify/video';
 
 import { runPlayer } from '../player-demo.js';
 
+// WebTorrent's WebRTC peer exchange uses GStreamer-backed RTCPeerConnection which can cause
+// GLib source GC issues. DHT (UDP) + HTTP trackers are sufficient for downloading.
+// Prevent WebTorrent from using WebRTC by hiding the global before import.
+if (typeof globalThis !== 'undefined') {
+    delete (globalThis as any).RTCPeerConnection;
+    delete (globalThis as any).RTCSessionDescription;
+    delete (globalThis as any).RTCIceCandidate;
+}
+
 // Default torrent — Sintel, the open-source Blender short film.
 // See: https://webtorrent.io/free-torrents
 const DEFAULT_TORRENT = '/home/jumplink/Downloads/sintel.torrent';

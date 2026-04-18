@@ -153,8 +153,10 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
     }
   };
 
-  // Listen for cancellation
-  cancellable.connect('cancelled', () => {
+  // Listen for cancellation.
+  // Gio.Cancellable.connect() is g_cancellable_connect() — takes only one argument (the callback),
+  // NOT a GObject signal: do NOT pass a signal name as the first argument.
+  cancellable.connect(() => {
     readable.destroy(new AbortError('The operation was aborted.'));
   });
 

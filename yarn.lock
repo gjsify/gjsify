@@ -2626,6 +2626,7 @@ __metadata:
     "@gjsify/webrtc": "workspace:^"
     "@gjsify/websocket": "workspace:^"
     "@types/node": "npm:^25.6.0"
+    "@types/webtorrent": "npm:^0.110.1"
     typescript: "npm:^6.0.2"
     webtorrent: "npm:^2.5.18"
   languageName: unknown
@@ -5326,6 +5327,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/bittorrent-protocol@npm:*":
+  version: 3.1.7
+  resolution: "@types/bittorrent-protocol@npm:3.1.7"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/9fe176ed75fb902924880ed35f8b1e68dfdeb5f76ad9b831c54c9a95e0c6de28c88a0182b031ac6dd78c3b174f38ae7bff29b5bb3100495e07b49bd589d4ae64
+  languageName: node
+  linkType: hard
+
 "@types/body-parser@npm:*":
   version: 1.19.6
   resolution: "@types/body-parser@npm:1.19.6"
@@ -5526,6 +5536,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/magnet-uri@npm:*":
+  version: 5.1.5
+  resolution: "@types/magnet-uri@npm:5.1.5"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/b0b9fe7e82984f86825021649268499677749d7e9dd350a6bc8dd7322d022a4d09d4feabfadabff73fc2368ab59b143e7640c12aaeba94df917d3ec489b4aceb
+  languageName: node
+  linkType: hard
+
 "@types/mdast@npm:^4.0.0, @types/mdast@npm:^4.0.4":
   version: 4.0.4
   resolution: "@types/mdast@npm:4.0.4"
@@ -5597,6 +5616,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/parse-torrent-file@npm:*":
+  version: 4.0.6
+  resolution: "@types/parse-torrent-file@npm:4.0.6"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/e345e5dcf68800d770206cc65df0886972d17fb1057b5c713c8d3e02ffff6a83b276e96311765163f30b4decf105d7aa779f4227486a240b973eb600d8723ff0
+  languageName: node
+  linkType: hard
+
+"@types/parse-torrent@npm:*":
+  version: 5.8.8
+  resolution: "@types/parse-torrent@npm:5.8.8"
+  dependencies:
+    "@types/magnet-uri": "npm:*"
+    "@types/node": "npm:*"
+    "@types/parse-torrent-file": "npm:*"
+  checksum: 10/7bc9d2ef02fa9f7dc7c1e7ba173559085a3679baaa7f81660979cd4377e4f5726b854fd9f621edb1b0f4b5e8ba83355fc2499d6bb50d1eb41b75a61007ed8eb6
+  languageName: node
+  linkType: hard
+
 "@types/qs@npm:*":
   version: 6.15.0
   resolution: "@types/qs@npm:6.15.0"
@@ -5636,6 +5675,15 @@ __metadata:
     "@types/http-errors": "npm:*"
     "@types/node": "npm:*"
   checksum: 10/f2bad1304c7d0d3b7221faff3e490c40129d3803f4fb1b2fb84f31f561071c5e6a4b876c41bbbe82d5645034eea936e946bcaaf993dac1093ce68b56effad6e0
+  languageName: node
+  linkType: hard
+
+"@types/simple-peer@npm:*":
+  version: 9.11.9
+  resolution: "@types/simple-peer@npm:9.11.9"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/5d97510c27a224f57d2f3dde07cfba28e0a8db092356346cc94a1e78632168d2ffcddc4d88298e88a0fe06b9ef52a60b0973c74158ea25aa74197f7c29c01151
   languageName: node
   linkType: hard
 
@@ -5679,6 +5727,18 @@ __metadata:
   version: 8.3.4
   resolution: "@types/uuid@npm:8.3.4"
   checksum: 10/6f11f3ff70f30210edaa8071422d405e9c1d4e53abbe50fdce365150d3c698fe7bbff65c1e71ae080cbfb8fded860dbb5e174da96fdbbdfcaa3fb3daa474d20f
+  languageName: node
+  linkType: hard
+
+"@types/webtorrent@npm:^0.110.1":
+  version: 0.110.1
+  resolution: "@types/webtorrent@npm:0.110.1"
+  dependencies:
+    "@types/bittorrent-protocol": "npm:*"
+    "@types/node": "npm:*"
+    "@types/parse-torrent": "npm:*"
+    "@types/simple-peer": "npm:*"
+  checksum: 10/e9b02c40d5cfb4ce3dc3aabf40f9436e2c67fca1b7640c85922834d2a9de95a0a53f0334ca9d6b0dcf2fa3cc7b6816d52207fde209582be4bf25b67049408a83
   languageName: node
   linkType: hard
 

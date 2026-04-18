@@ -65,6 +65,9 @@ export const VideoBridge = GObject.registerClass(
         _volumeBtn: Gtk.VolumeButton | null = null;
         _positionTimerId: number | null = null;
         _updatingFromTimer = false;
+        // Auto-hide: timestamp of last mouse motion; timer compares against it to debounce.
+        _lastReveal = 0;
+        _autoHide = false;
 
         constructor(params?: Partial<Gtk.Box.ConstructorProps>) {
             super({
@@ -172,13 +175,18 @@ export const VideoBridge = GObject.registerClass(
 
         /**
          * Show or hide the built-in play/pause + seek + time + volume control bar.
-         * Controls are appended below the video picture.
+         * Controls auto-hide after 2 seconds of mouse inactivity, like browser video players.
+         * Inspired by refs/showtime/showtime/widgets/window.py.
          */
         showControls(show = true): void {
             if (show && !this._controlBar) {
+                this._autoHide = true;
                 this._controlBar = this._buildControlBar();
+                // Start hidden; revealed on first mouse motion.
+                this._controlBar.set_visible(false);
                 this.append(this._controlBar);
                 this._startPositionTimer();
+                this._setupAutoHideMotion();
             } else if (!show && this._controlBar) {
                 this.remove(this._controlBar);
                 this._controlBar = null;
@@ -187,8 +195,37 @@ export const VideoBridge = GObject.registerClass(
                 this._seekScale = null;
                 this._timeLabel = null;
                 this._volumeBtn = null;
+                this._autoHide = false;
                 this._stopPositionTimer();
             }
+        }
+
+        /** @internal Attach EventControllerMotion for auto-hide behavior. */
+        _setupAutoHideMotion(): void {
+            const motion = new Gtk.EventControllerMotion();
+            // Reveal controls on any mouse movement over the bridge widget.
+            motion.connect('motion', () => this._revealControls());
+            motion.connect('enter', () => this._revealControls());
+            this.add_controller(motion);
+
+            // Also add a motion controller to the control bar so hovering it keeps it visible.
+            const barMotion = new Gtk.EventControllerMotion();
+            barMotion.connect('motion', () => this._revealControls());
+            barMotion.connect('enter', () => this._revealControls());
+            this._controlBar?.add_controller(barMotion);
+        }
+
+        /** @internal Show controls and schedule auto-hide after 2 s. */
+        _revealControls(): void {
+            if (!this._controlBar) return;
+            this._controlBar.set_visible(true);
+            const ts = ++this._lastReveal;
+            GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+                if (this._lastReveal === ts && this._controlBar) {
+                    this._controlBar.set_visible(false);
+                }
+                return GLib.SOURCE_REMOVE;
+            });
         }
 
         /** @internal Build the GTK control bar widgets */

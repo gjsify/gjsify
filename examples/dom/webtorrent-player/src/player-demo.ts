@@ -9,6 +9,8 @@
 // Reference: refs/webtorrent-desktop/src/renderer/pages/player-page.js
 
 import WebTorrent from 'webtorrent';
+import type { Torrent, TorrentFile } from 'webtorrent';
+import type { AddressInfo } from 'net';
 
 export interface PlayerCallbacks {
     /** Called when the torrent name / title is known. */
@@ -46,30 +48,36 @@ export async function runPlayer(
     torrentSource: string,
     cb: PlayerCallbacks,
 ): Promise<WebTorrent.Instance> {
-    const client = new WebTorrent() as any;
+    const client = new WebTorrent();
 
     // Start the built-in HTTP streaming server on a random port.
     // The server serves each torrent file at:
     //   http://127.0.0.1:<port>/<infoHash>/<encodedPath>
     // and supports Range requests so GStreamer can seek while the file is
     // still downloading.
-    const server = client.createServer({ hostname: '127.0.0.1' });
+    // Force NodeServer: WebTorrent defaults to BrowserServer when globalThis exists (as in GJS),
+    // which requires ServiceWorkerRegistration. Pass 'node' to use the HTTP streaming server.
+    // The second 'node' argument is undocumented but present in WebTorrent v2 source.
+    const server = (client.createServer as (opts: object, force: string) => import('net').Server)(
+        { hostname: '127.0.0.1' },
+        'node',
+    );
     await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as any).port as number;
+    const port = (server.address() as AddressInfo).port;
 
     cb.onStatus('Adding torrent…');
 
-    const torrent = await new Promise<any>((resolve) => {
-        client.add(torrentSource, (t: any) => resolve(t));
+    const torrent = await new Promise<Torrent>((resolve) => {
+        client.add(torrentSource, (t) => resolve(t));
     });
 
     cb.onName(torrent.name ?? 'WebTorrent Player');
     cb.onStatus(`Connected — searching for peers…`);
 
     // Find the largest video file (most likely the feature film).
-    const videoFile = torrent.files
-        .filter((f: any) => VIDEO_EXTS.test(f.name))
-        .sort((a: any, b: any) => b.length - a.length)[0];
+    const videoFile = (torrent.files as TorrentFile[])
+        .filter((f) => VIDEO_EXTS.test(f.name))
+        .sort((a, b) => b.length - a.length)[0];
 
     if (!videoFile) {
         cb.onStatus(`No playable video file found in ${torrent.name}`);
@@ -80,9 +88,9 @@ export async function runPlayer(
     // + file path, URL-encoding each path segment.
     const encodedPath = videoFile.path
         .split('/')
-        .map((seg: string) => encodeURIComponent(seg))
+        .map((seg) => encodeURIComponent(seg))
         .join('/');
-    const streamUrl = `http://127.0.0.1:${port}/${torrent.infoHash}/${encodedPath}`;
+    const streamUrl = `http://127.0.0.1:${port}/${(torrent as any).infoHash}/${encodedPath}`;
 
     cb.onStreamUrl(streamUrl);
 
@@ -93,7 +101,7 @@ export async function runPlayer(
         const dl = formatSpeed(torrent.downloadSpeed);
         const ul = formatSpeed(torrent.uploadSpeed);
         const peers = torrent.numPeers;
-        const ratio = torrent.ratio.toFixed(2);
+        const ratio = (torrent as any).ratio?.toFixed(2) ?? '0.00';
 
         if (torrent.done) {
             cb.onStatus(`Seeding ↑ ${ul}  ${peers} peer${peers !== 1 ? 's' : ''}  ratio ${ratio}`);
@@ -111,9 +119,9 @@ export async function runPlayer(
         cb.onProgress(1);
     });
 
-    torrent.on('error', (err: any) => {
+    torrent.on('error', (err) => {
         clearInterval(statusTick);
-        cb.onStatus(`Error: ${err?.message ?? err}`);
+        cb.onStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
     });
 
     return client;

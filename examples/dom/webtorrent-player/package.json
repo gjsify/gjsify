@@ -24,6 +24,7 @@
     "@gjsify/webrtc": "workspace:^",
     "@gjsify/websocket": "workspace:^",
     "@types/node": "^25.6.0",
+    "@types/webtorrent": "^0.110.1",
     "typescript": "^6.0.2",
     "webtorrent": "^2.5.18"
   },
