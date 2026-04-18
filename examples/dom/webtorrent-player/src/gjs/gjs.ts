@@ -31,10 +31,7 @@ const app = new Adw.Application({
     application_id: 'io.gjsify.WebtorrentPlayer',
 });
 
-printerr('[webtorrent-player] app created, entering main loop…');
-
 app.connect('activate', () => {
-    printerr('[webtorrent-player] activate: creating window');
     const win = new Adw.ApplicationWindow({ application: app });
     win.set_default_size(900, 580);
     win.set_title('WebTorrent Player');
@@ -75,11 +72,6 @@ app.connect('activate', () => {
     toolbarView.set_content(contentBox);
     win.set_content(toolbarView);
     win.present();
-    printerr(`[webtorrent-player] window presented`);
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1500, () => {
-        printerr(`[webtorrent-player] 1.5s after present: size=${win.get_width()}x${win.get_height()} visible=${win.get_visible()} mapped=${win.get_mapped()}`);
-        return GLib.SOURCE_REMOVE;
-    });
 
     let torrentClient: any = null;
 
