@@ -164,3 +164,6 @@
 [submodule "refs/showtime"]
 	path = refs/showtime
 	url = https://gitlab.gnome.org/GNOME/showtime.git
+[submodule "refs/webtorrent-desktop"]
+	path = refs/webtorrent-desktop
+	url = git@github.com:webtorrent/webtorrent-desktop.git

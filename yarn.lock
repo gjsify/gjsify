@@ -2363,6 +2363,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-dom-video-player@workspace:examples/dom/video-player":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-video-player@workspace:examples/dom/video-player"
+  dependencies:
+    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.3"
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/video": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-dom-webgl-demo-fade@workspace:examples/dom/webgl-demo-fade":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-demo-fade@workspace:examples/dom/webgl-demo-fade"
@@ -2586,6 +2603,26 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
+    "@gjsify/webrtc": "workspace:^"
+    "@gjsify/websocket": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+    webtorrent: "npm:^2.5.18"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-dom-webtorrent-player@workspace:examples/dom/webtorrent-player":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-dom-webtorrent-player@workspace:examples/dom/webtorrent-player"
+  dependencies:
+    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.3"
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/video": "workspace:^"
     "@gjsify/webrtc": "workspace:^"
     "@gjsify/websocket": "workspace:^"
     "@types/node": "npm:^25.6.0"

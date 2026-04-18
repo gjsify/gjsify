@@ -1,5 +1,5 @@
 // VideoBridge GTK container for GJS — Gtk.Box wrapping Gtk.Picture + gtk4paintablesink.
-// Bridges HTMLVideoElement to GStreamer video rendering via Gdk.Paintable.
+// Bridges GstHTMLVideoElement to GStreamer video rendering via Gdk.Paintable.
 //
 // Reference: refs/showtime/showtime/play.py (gtk4paintablesink + optional glsinkbin)
 // Pattern follows packages/dom/canvas2d/src/canvas-drawing-area.ts (Canvas2DBridge)
@@ -7,32 +7,39 @@
 import GObject from 'gi://GObject';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
-import { HTMLVideoElement } from '@gjsify/dom-elements';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import { Event } from '@gjsify/dom-events';
 import { BridgeEnvironment } from '@gjsify/bridge-types';
 import type { BridgeWindowHost } from '@gjsify/bridge-types';
 
 import { buildMediaStreamPipeline, buildUriPipeline } from './pipeline-builder.js';
+import { GstHTMLVideoElement } from './gst-html-video-element.js';
 import { Gst } from './gst-init.js';
 
 type VideoReadyCallback = (video: globalThis.HTMLVideoElement) => void;
 
+function formatTime(seconds: number): string {
+    if (!isFinite(seconds) || isNaN(seconds)) return '--:--';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 /**
  * A `Gtk.Box` subclass that hosts a `Gtk.Picture` for video rendering:
- * - Creates an `HTMLVideoElement` on construction
+ * - Creates a `GstHTMLVideoElement` on construction (DOM API wired to GStreamer)
  * - Renders video via GStreamer `gtk4paintablesink` → `Gdk.Paintable` → `Gtk.Picture`
  * - Supports `video.srcObject = mediaStream` (from getUserMedia/WebRTC)
- * - Supports `video.src = "file:///..."` (URI playback via playbin)
+ * - Supports `video.src = "file:///..."` or HTTP URL (URI playback via playbin)
  * - Fires `onReady()` callbacks with the HTMLVideoElement
- * - `installGlobals()` sets `globalThis.HTMLVideoElement`
+ * - `showControls(true)` appends a play/pause + seek + time + volume control bar
  *
  * Usage:
  * ```ts
  * const bridge = new VideoBridge();
- * bridge.installGlobals();
+ * bridge.showControls(true);
  * bridge.onReady((video) => {
- *     video.srcObject = mediaStream;  // from getUserMedia
+ *     video.src = 'https://example.com/video.mp4';
  * });
  * window.set_child(bridge);
  * ```
@@ -41,13 +48,23 @@ export const VideoBridge = GObject.registerClass(
     { GTypeName: 'GjsifyVideoBridge' },
     class VideoBridge extends Gtk.Box {
         _picture: Gtk.Picture;
-        _video: HTMLVideoElement;
+        _video: GstHTMLVideoElement;
         _pipeline: any | null = null;  // Gst.Pipeline
         _readyCallbacks: VideoReadyCallback[] = [];
         _resizeCallbacks: ((w: number, h: number) => void)[] = [];
         _environment: BridgeEnvironment;
         _timeOrigin: number = GLib.get_monotonic_time();
         _ready = false;
+
+        // Controls
+        _controlBar: Gtk.Box | null = null;
+        _playBtn: Gtk.Button | null = null;
+        _seekAdj: Gtk.Adjustment | null = null;
+        _seekScale: Gtk.Scale | null = null;
+        _timeLabel: Gtk.Label | null = null;
+        _volumeBtn: Gtk.VolumeButton | null = null;
+        _positionTimerId: number | null = null;
+        _updatingFromTimer = false;
 
         constructor(params?: Partial<Gtk.Box.ConstructorProps>) {
             super({
@@ -60,10 +77,10 @@ export const VideoBridge = GObject.registerClass(
             this._picture.set_vexpand(true);
             this.append(this._picture);
 
-            // Create the DOM element
-            this._video = new HTMLVideoElement();
+            // GstHTMLVideoElement: DOM API (play/pause/currentTime/duration/volume)
+            // delegates to the GStreamer pipeline set via _video._pipeline.
+            this._video = new GstHTMLVideoElement();
 
-            // Set up the bridge environment
             const host: BridgeWindowHost = {
                 performanceNow: () => (GLib.get_monotonic_time() - this._timeOrigin) / 1000,
                 getWidth: () => this.get_allocated_width(),
@@ -79,14 +96,11 @@ export const VideoBridge = GObject.registerClass(
             this._environment = new BridgeEnvironment(host);
             this._environment.document.body.appendChild(this._video);
 
-            // Bridge GTK events → DOM events on the video element
             attachEventControllers(this, () => this._video);
 
-            // Listen for srcObject / src changes on the HTMLVideoElement
             this._video.addEventListener('srcobjectchange', () => this._onSrcObjectChange());
             this._video.addEventListener('srcchange', () => this._onSrcChange());
 
-            // Fire ready callbacks once the widget is realized
             this.connect('realize', () => {
                 if (this._ready) return;
                 this._ready = true;
@@ -96,8 +110,6 @@ export const VideoBridge = GObject.registerClass(
                 this._readyCallbacks = [];
             });
 
-            // Handle resize — Gtk.Box has no 'resize' signal (unlike DrawingArea/GLArea).
-            // Use notify on allocation width/height instead.
             let lastWidth = 0;
             let lastHeight = 0;
             const checkResize = () => {
@@ -114,34 +126,26 @@ export const VideoBridge = GObject.registerClass(
             };
             this.connect('notify::width-request', checkResize);
             this.connect('notify::height-request', checkResize);
-            // Also check after the widget is mapped and sized
             this.connect('map', checkResize);
 
-            // Cleanup on unrealize
             this.connect('unrealize', () => {
                 this._destroyPipeline();
+                this._stopPositionTimer();
             });
         }
 
-        /** The HTMLVideoElement backing this bridge. */
-        get element(): HTMLVideoElement {
+        get element(): GstHTMLVideoElement {
             return this._video;
         }
 
-        /** Alias for element — matches browser naming. */
-        get videoElement(): HTMLVideoElement {
+        get videoElement(): GstHTMLVideoElement {
             return this._video;
         }
 
-        /** The isolated browser environment for this bridge. */
         get environment(): BridgeEnvironment {
             return this._environment;
         }
 
-        /**
-         * Register a callback to be invoked once the video element is ready.
-         * If already ready, the callback fires synchronously.
-         */
         onReady(cb: VideoReadyCallback): void {
             if (this._ready) {
                 cb(this._video as unknown as globalThis.HTMLVideoElement);
@@ -150,14 +154,12 @@ export const VideoBridge = GObject.registerClass(
             this._readyCallbacks.push(cb);
         }
 
-        /** Register a callback invoked whenever the widget is resized. */
         onResize(cb: (width: number, height: number) => void): void {
             this._resizeCallbacks.push(cb);
         }
 
-        /** Sets browser globals for video support. */
         installGlobals(): void {
-            (globalThis as any).HTMLVideoElement = HTMLVideoElement;
+            (globalThis as any).HTMLVideoElement = GstHTMLVideoElement;
 
             const timeOrigin = this._timeOrigin;
             if (typeof (globalThis as any).performance === 'undefined') {
@@ -168,6 +170,131 @@ export const VideoBridge = GObject.registerClass(
             }
         }
 
+        /**
+         * Show or hide the built-in play/pause + seek + time + volume control bar.
+         * Controls are appended below the video picture.
+         */
+        showControls(show = true): void {
+            if (show && !this._controlBar) {
+                this._controlBar = this._buildControlBar();
+                this.append(this._controlBar);
+                this._startPositionTimer();
+            } else if (!show && this._controlBar) {
+                this.remove(this._controlBar);
+                this._controlBar = null;
+                this._playBtn = null;
+                this._seekAdj = null;
+                this._seekScale = null;
+                this._timeLabel = null;
+                this._volumeBtn = null;
+                this._stopPositionTimer();
+            }
+        }
+
+        /** @internal Build the GTK control bar widgets */
+        _buildControlBar(): Gtk.Box {
+            const bar = new Gtk.Box({
+                orientation: Gtk.Orientation.HORIZONTAL,
+                spacing: 6,
+                margin_start: 6,
+                margin_end: 6,
+                margin_top: 4,
+                margin_bottom: 4,
+            });
+
+            // Play/pause button
+            this._playBtn = new Gtk.Button({ icon_name: 'media-playback-pause-symbolic' });
+            this._playBtn.connect('clicked', () => {
+                if (this._video.paused) {
+                    this._video.play();
+                    this._playBtn?.set_icon_name('media-playback-pause-symbolic');
+                } else {
+                    this._video.pause();
+                    this._playBtn?.set_icon_name('media-playback-start-symbolic');
+                }
+            });
+            bar.append(this._playBtn);
+
+            // Seek scale: upper = duration in seconds (updated once known)
+            this._seekAdj = new Gtk.Adjustment({ lower: 0, upper: 1, step_increment: 1, page_increment: 10 });
+            this._seekScale = Gtk.Scale.new(Gtk.Orientation.HORIZONTAL, this._seekAdj);
+            this._seekScale.set_hexpand(true);
+            this._seekScale.set_draw_value(false);
+
+            // change-value fires on user interaction; we guard against timer updates
+            this._seekScale.connect('change-value', (_scale: Gtk.Scale, _scroll: Gtk.ScrollType, value: number) => {
+                if (!this._updatingFromTimer && isFinite(value)) {
+                    this._video.currentTime = value;
+                }
+                return false;
+            });
+            bar.append(this._seekScale);
+
+            // Time label
+            this._timeLabel = new Gtk.Label({ label: '--:-- / --:--' });
+            (this._timeLabel as any).use_markup = false;
+            bar.append(this._timeLabel);
+
+            // Volume button (only meaningful for URI/playbin pipelines)
+            this._volumeBtn = new Gtk.VolumeButton();
+            (this._volumeBtn as any).value = 1.0;
+            this._volumeBtn.connect('value-changed', (_btn: Gtk.VolumeButton, value: number) => {
+                this._video.volume = value;
+            });
+            bar.append(this._volumeBtn);
+
+            return bar;
+        }
+
+        /** @internal Update seek bar upper bound when a new pipeline is set */
+        _syncControlsToNewPipeline(): void {
+            if (!this._seekAdj) return;
+            // Duration may not be known yet right after pipeline start;
+            // the position timer will update it on the next tick.
+        }
+
+        /** @internal 200ms timer that updates seek position and time label */
+        _startPositionTimer(): void {
+            if (this._positionTimerId !== null) return;
+            this._positionTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => {
+                if (!this._seekAdj || !this._timeLabel) return GLib.SOURCE_REMOVE;
+
+                const cur = this._video.currentTime;
+                const dur = this._video.duration;
+
+                if (isFinite(dur) && dur > 0) {
+                    // Update seek bar upper bound if duration just became known
+                    if (this._seekAdj.upper !== dur) {
+                        this._seekAdj.upper = dur;
+                    }
+                    this._updatingFromTimer = true;
+                    this._seekAdj.set_value(cur);
+                    this._updatingFromTimer = false;
+                }
+
+                this._timeLabel.set_label(`${formatTime(cur)} / ${formatTime(dur)}`);
+
+                // Sync play/pause button icon
+                if (this._playBtn) {
+                    const icon = this._video.paused
+                        ? 'media-playback-start-symbolic'
+                        : 'media-playback-pause-symbolic';
+                    if ((this._playBtn as any).icon_name !== icon) {
+                        this._playBtn.set_icon_name(icon);
+                    }
+                }
+
+                return GLib.SOURCE_CONTINUE;
+            });
+        }
+
+        _stopPositionTimer(): void {
+            if (this._positionTimerId !== null) {
+                GLib.Source.remove(this._positionTimerId);
+                this._positionTimerId = null;
+            }
+        }
+
         /** @internal Handle srcObject change (MediaStream) */
         _onSrcObjectChange(): void {
             this._destroyPipeline();
@@ -175,7 +302,6 @@ export const VideoBridge = GObject.registerClass(
             const stream = this._video.srcObject;
             if (!stream) return;
 
-            // Find the first video track with a GStreamer source
             const videoTracks = stream.getVideoTracks?.() ?? [];
             const track = videoTracks.find((t: any) => t._gstSource != null);
             if (!track?._gstSource) {
@@ -186,21 +312,19 @@ export const VideoBridge = GObject.registerClass(
             try {
                 const { pipeline, paintable, tee } = buildMediaStreamPipeline(track._gstSource, track._gstPipeline);
                 this._pipeline = pipeline;
+                this._video._pipeline = pipeline;
                 this._picture.set_paintable(paintable);
 
-                // Update the track's pipeline and tee references so that other
-                // consumers (e.g. RTCPeerConnection.addTrack) can find the source
-                // in this pipeline and request tee branches without cross-pipeline issues.
                 track._gstPipeline = pipeline;
                 track._gstTee = tee;
 
                 pipeline.set_state(Gst.State.PLAYING);
 
-                this._video.readyState = 4; // HAVE_ENOUGH_DATA
-                this._video.paused = false;
+                this._video.readyState = 4;
                 this._video.dispatchEvent(new Event('loadedmetadata'));
                 this._video.dispatchEvent(new Event('canplay'));
                 this._video.dispatchEvent(new Event('playing'));
+                this._syncControlsToNewPipeline();
             } catch (err) {
                 console.error('VideoBridge: Failed to build MediaStream pipeline:', err);
             }
@@ -216,14 +340,15 @@ export const VideoBridge = GObject.registerClass(
             try {
                 const { pipeline, paintable } = buildUriPipeline(src);
                 this._pipeline = pipeline;
+                this._video._pipeline = pipeline;
                 this._picture.set_paintable(paintable);
                 pipeline.set_state(Gst.State.PLAYING);
 
                 this._video.readyState = 4;
-                this._video.paused = false;
                 this._video.dispatchEvent(new Event('loadedmetadata'));
                 this._video.dispatchEvent(new Event('canplay'));
                 this._video.dispatchEvent(new Event('playing'));
+                this._syncControlsToNewPipeline();
             } catch (err) {
                 console.error('VideoBridge: Failed to build URI pipeline:', err);
             }
@@ -236,6 +361,7 @@ export const VideoBridge = GObject.registerClass(
                     this._pipeline.set_state(Gst.State.NULL);
                 } catch { /* ignore */ }
                 this._pipeline = null;
+                this._video._pipeline = null;
             }
             this._picture.set_paintable(null);
         }
