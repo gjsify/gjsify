@@ -46,6 +46,9 @@ export class Socket extends EventEmitter {
   private _receiving = false;
   private _address: AddressInfo = { address: '0.0.0.0', family: 'IPv4', port: 0 };
   private _cancellable: Gio.Cancellable = new Gio.Cancellable();
+  // Strong JS ref to the GSocketSource so SM GC cannot finalize the
+  // BoxedInstance while GLib's main context still holds it.
+  private _readSource: GLib.Source | null = null;
   private _reuseAddr: boolean;
   private _connected = false;
   private _remoteAddress: RemoteAddressInfo | null = null;
@@ -268,6 +271,11 @@ export class Socket extends EventEmitter {
 
     this._cancellable.cancel();
 
+    if (this._readSource) {
+      try { this._readSource.destroy(); } catch (_e) { /* ignore */ }
+      this._readSource = null;
+    }
+
     if (this._socket) {
       try {
         this._socket.close();
@@ -467,46 +475,40 @@ export class Socket extends EventEmitter {
   }
 
   private _receiveLoop(): void {
-    if (this._closed || !this._socket) return;
+    if (this._closed || !this._socket || this._readSource) return;
 
-    // Use condition_check to poll for data availability before reading.
-    // We use receive_bytes_from() (GLib 2.80+) instead of receive_from()
-    // because receive_from() has a caller-allocates buffer parameter that
-    // GJS cannot introspect (GI limitation with out caller-allocates args).
-    try {
-      if (!this._socket.condition_check(GLib.IOCondition.IN)) {
-        setTimeout(() => this._receiveLoop(), 50);
-        return;
-      }
-
-      // receive_bytes_from: non-blocking (timeout_us=0), returns [GLib.Bytes, SocketAddress]
-      const [bytes, srcAddr] = this._socket.receive_bytes_from(65536, 0, this._cancellable);
-
-      if (bytes && srcAddr) {
-        const data = Buffer.from(bytes.get_data()!);
-        const inetSockAddr = srcAddr as Gio.InetSocketAddress;
-        const rinfo: AddressInfo = {
-          address: inetSockAddr.get_address().to_string(),
-          family: this.type === 'udp6' ? 'IPv6' : 'IPv4',
-          port: inetSockAddr.get_port(),
-        };
-
-        if (data.length > 0) {
-          this.emit('message', data, rinfo);
+    // Event-driven receive via GSocketSource: the source fires only when the
+    // kernel reports data available (IOCondition.IN). Previously a
+    // setTimeout(fn, 0) polling loop saturated the main loop with 0 ms timers
+    // whenever any UDP traffic was in flight — WebTorrent DHT under load
+    // starved GTK paint + other default-priority timers. receive_bytes_from is
+    // GLib 2.80+ and non-blocking (timeout_us=0); receive_from() isn't
+    // introspectable because its buffer arg is caller-allocated.
+    const source = this._socket.create_source(GLib.IOCondition.IN, this._cancellable);
+    this._readSource = source;
+    source.set_callback(() => {
+      if (this._closed || !this._socket) return GLib.SOURCE_REMOVE;
+      try {
+        const [bytes, srcAddr] = this._socket.receive_bytes_from(65536, 0, this._cancellable);
+        if (bytes && srcAddr) {
+          const data = Buffer.from(bytes.get_data()!);
+          const inetSockAddr = srcAddr as Gio.InetSocketAddress;
+          const rinfo: AddressInfo = {
+            address: inetSockAddr.get_address().to_string(),
+            family: this.type === 'udp6' ? 'IPv6' : 'IPv4',
+            port: inetSockAddr.get_port(),
+          };
+          if (data.length > 0) this.emit('message', data, rinfo);
         }
-      }
-
-      if (!this._closed) {
-        setTimeout(() => this._receiveLoop(), 0);
-      }
-    } catch (err: unknown) {
-      if (!this._closed) {
+      } catch (err) {
         const errObj = err as { code?: number };
-        if (errObj.code !== Gio.IOErrorEnum.CANCELLED) {
+        if (!this._closed && errObj.code !== Gio.IOErrorEnum.CANCELLED) {
           this.emit('error', err);
         }
       }
-    }
+      return GLib.SOURCE_CONTINUE;
+    });
+    source.attach(null);
   }
 }
 
