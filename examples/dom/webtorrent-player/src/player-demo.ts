@@ -78,7 +78,9 @@ export async function runPlayer(
     }
 
     const encodedPath = videoFile.path.split('/').map(encodeURIComponent).join('/');
-    cb.onStreamUrl(`http://127.0.0.1:${port}/${torrent.infoHash}/${encodedPath}`);
+    // WebTorrent v2 serves files under /webtorrent/<infoHash>/<path>; omitting
+    // the /webtorrent prefix causes wrapRequest() to destroy the connection.
+    cb.onStreamUrl(`http://127.0.0.1:${port}/webtorrent/${torrent.infoHash}/${encodedPath}`);
 
     const statusTick = setInterval(() => {
         const peers = torrent.numPeers;
