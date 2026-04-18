@@ -88,9 +88,9 @@ export const VideoBridge = GObject.registerClass(
         // change-value on seekScale fires on user interaction only; the guard prevents
         // programmatic set_value from bouncing through the signal on some compositors.
         _updatingFromTimer = false;
-        // Auto-hide debounce — incremented on every reveal; hide timer skips if it
-        // doesn't match the latest reveal (user moved the mouse again).
-        _lastReveal = 0;
+        // Auto-hide: a single re-armed GLib source. Mouse motion re-starts the
+        // 2s timer by removing and re-adding, so we never pile up pending sources.
+        _hideTimerId: number | null = null;
 
         constructor(params?: Partial<Gtk.Box.ConstructorProps>) {
             super({ ...params, orientation: Gtk.Orientation.VERTICAL });
@@ -193,6 +193,10 @@ export const VideoBridge = GObject.registerClass(
                 this._overlay.remove_overlay(this._controls.bar);
                 this._controls = null;
                 this._stopPositionTimer();
+                if (this._hideTimerId !== null) {
+                    GLib.Source.remove(this._hideTimerId);
+                    this._hideTimerId = null;
+                }
             }
         }
 
@@ -208,11 +212,10 @@ export const VideoBridge = GObject.registerClass(
         _revealControls(): void {
             if (!this._controls) return;
             this._controls.bar.set_visible(true);
-            const ts = ++this._lastReveal;
-            GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, AUTO_HIDE_SECONDS, () => {
-                if (this._lastReveal === ts && this._controls) {
-                    this._controls.bar.set_visible(false);
-                }
+            if (this._hideTimerId !== null) GLib.Source.remove(this._hideTimerId);
+            this._hideTimerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, AUTO_HIDE_SECONDS, () => {
+                this._hideTimerId = null;
+                this._controls?.bar.set_visible(false);
                 return GLib.SOURCE_REMOVE;
             });
         }
