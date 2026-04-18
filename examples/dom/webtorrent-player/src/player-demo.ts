@@ -67,8 +67,14 @@ export async function runPlayer(
 
     cb.onStatus('Adding torrent…');
 
+    // skipVerify: true — without this, WebTorrent reads every chunk of existing
+    // files at /tmp/webtorrent/<name>/ and runs SHA1 over them before announcing
+    // the torrent as ready. On GJS the hashing phase is slow enough to starve
+    // the GTK main loop (no window paint for ~minutes on a typical video).
+    // Trusting the existing data is fine for a demo; to force re-verification
+    // the user can `rm -rf /tmp/webtorrent` between runs.
     const torrent = await new Promise<Torrent>((resolve) => {
-        client.add(torrentSource, (t) => resolve(t));
+        client.add(torrentSource, { skipVerify: true }, (t) => resolve(t));
     });
 
     cb.onName(torrent.name ?? 'WebTorrent Player');
