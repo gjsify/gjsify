@@ -1,23 +1,28 @@
 // Registers: setImmediate, clearImmediate
-// Also patches setTimeout/clearTimeout to work around a GJS 1.86 + SpiderMonkey 128/140 bug:
+// Also patches setTimeout/setInterval/clearTimeout/clearInterval to work around a
+// GJS 1.86 + SpiderMonkey 128/140 bug:
 //
-// GJS _timers.js calls releaseSource(source) before drainMicrotaskQueue(). This removes
-// the source from GJS's internal Map, leaving no JS reference. If SpiderMonkey GC runs
-// during drainMicrotaskQueue, it finalizes the GLib.Source BoxedInstance (calling
-// g_source_unref) while GLib still holds its context/dispatch reference → double-unref
-// crash:
-//   GLib-CRITICAL: g_source_unref_internal: assertion 'old_ref > 0' failed
+// GJS _timers.js wraps user callbacks in a GClosure attached to a GLib.Source
+// BoxedInstance. Inside the dispatch cycle, GJS calls drainMicrotaskQueue() after
+// the user callback returns. During drainMicrotaskQueue SpiderMonkey GC can run
+// precisely — it may determine the source variable is unreachable (liveness analysis
+// past the last use in the GJS callback) even though GLib still holds its own ref
+// for the in-flight dispatch. If SM GC finalizes the BoxedInstance at that moment,
+// it calls g_source_unref, putting the source into an inconsistent state. When GLib
+// then performs its post-dispatch unref, the source's refcount is already 0 → SIGSEGV
+// in g_source_unref_internal (via BoxedInstance::finalize → g_source_unref).
 //
-// Fix: when the callback fires, hold the source in a JS-level Set so SM GC cannot
-// finalize the BoxedInstance during drainMicrotaskQueue. After GLib completes its own
-// post-dispatch unref, schedule cleanup via GLib.idle_add — which returns a numeric
-// source ID (no BoxedInstance) and therefore does not suffer from the same GC race.
-// Using setTimeout for the cleanup (previous approach) recreated the same bug on the
-// cleanup timer itself.
+// Both setTimeout AND setInterval sources are affected. setInterval is NOT safe even
+// though it keeps the source in GJS's own Map — clearInterval called from inside the
+// callback removes the source from the Map, and the same race opens.
+//
+// Fix: pin the source in a JS-level Set so SM GC cannot finalize it during the
+// dangerous window. Schedule cleanup via GLib.timeout_add (numeric source ID, no
+// BoxedInstance — immune to the same race) so the set does not grow without bound.
 
-// Keep strong JS references to expired GLib.Source BoxedInstances until after GLib
-// has completed its post-dispatch unref, to prevent premature SM GC finalization.
-const _gjsTimeoutRefs = new Set<unknown>();
+// Strong JS references to timer/interval sources, pinned across the dispatch cycle
+// so SM GC cannot finalize them while GLib's own ref is still in flight.
+const _gjsTimerRefs = new Set<unknown>();
 
 // Only patch in GJS (where globalThis.setTimeout returns a GLib.Source BoxedInstance).
 // Detection: GJS setTimeout returns an object, Node.js returns a number/Timeout.
@@ -26,14 +31,28 @@ const _isGjsTimer = _testSource !== null && typeof _testSource === 'object';
 globalThis.clearTimeout(_testSource as ReturnType<typeof setTimeout>);
 
 if (_isGjsTimer) {
-    const _orig = globalThis.setTimeout;
-    const _origClear = globalThis.clearTimeout;
+    const _origSetTimeout = globalThis.setTimeout;
+    const _origClearTimeout = globalThis.clearTimeout;
+    const _origSetInterval = (globalThis as any).setInterval;
+    const _origClearInterval = (globalThis as any).clearInterval;
 
     // GJS-only: pull GLib from the runtime's imports object so this file stays
     // importable on Node.js (where the patch is a no-op anyway).
     const GLib = (globalThis as any).imports?.gi?.GLib;
     const PRIORITY_DEFAULT = GLib?.PRIORITY_DEFAULT ?? 0;
     const SOURCE_REMOVE = GLib?.SOURCE_REMOVE ?? false;
+
+    /** Schedule delayed removal via GLib.timeout_add (numeric ID, GC-safe). */
+    function _scheduleUnpin(source: unknown): void {
+        if (!GLib) {
+            _gjsTimerRefs.delete(source);
+            return;
+        }
+        GLib.timeout_add(PRIORITY_DEFAULT, 0, () => {
+            _gjsTimerRefs.delete(source);
+            return SOURCE_REMOVE;
+        });
+    }
 
     (globalThis as any).setTimeout = function(
         this: unknown,
@@ -42,38 +61,51 @@ if (_isGjsTimer) {
         ...args: unknown[]
     ): unknown {
         let source: unknown;
-        source = (_orig as Function).call(this, function(this: unknown) {
-            // Pin the source through the entire GLib dispatch cycle (callback +
-            // releaseSource + drainMicrotaskQueue + GLib's post-dispatch unref).
-            _gjsTimeoutRefs.add(source);
+        source = (_origSetTimeout as Function).call(this, function(this: unknown) {
+            _gjsTimerRefs.add(source);
             try {
                 return (callback as Function).apply(this, args);
             } finally {
-                // Schedule removal via GLib.timeout_add so the source leaves the Set
-                // only after the current dispatch cycle has fully completed. Using
-                // timeout_add (numeric source ID, no BoxedInstance) avoids the same
-                // GC race that would affect a cleanup setTimeout. timeout_add (vs
-                // idle_add) is used so cleanup fires even when the main loop is
-                // busy — under heavy load (e.g. WebTorrent's DHT traffic), idle
-                // callbacks can be starved, letting _gjsTimeoutRefs grow unbounded.
-                if (GLib) {
-                    GLib.timeout_add(PRIORITY_DEFAULT, 0, () => {
-                        _gjsTimeoutRefs.delete(source);
-                        return SOURCE_REMOVE;
-                    });
-                } else {
-                    // Fallback (shouldn't happen in GJS): remove immediately.
-                    _gjsTimeoutRefs.delete(source);
-                }
+                _scheduleUnpin(source);
             }
         }, delay);
+        // Pin from creation too so clearTimeout-before-fire is also safe.
+        _gjsTimerRefs.add(source);
         return source;
     };
 
     (globalThis as any).clearTimeout = function(this: unknown, source: unknown): void {
-        _gjsTimeoutRefs.delete(source);
-        (_origClear as Function).call(this, source);
+        (_origClearTimeout as Function).call(this, source);
+        // Unpin after the current dispatch cycle completes — safe delayed cleanup.
+        _scheduleUnpin(source);
     };
+
+    if (_origSetInterval) {
+        (globalThis as any).setInterval = function(
+            this: unknown,
+            callback: (...args: unknown[]) => unknown,
+            delay = 0,
+            ...args: unknown[]
+        ): unknown {
+            let source: unknown;
+            source = (_origSetInterval as Function).call(this, function(this: unknown) {
+                // Re-pin on every dispatch — Set.add is a no-op if already present.
+                // Cheaper than a removal on the trailing edge because setInterval
+                // fires repeatedly; we only remove on clearInterval.
+                _gjsTimerRefs.add(source);
+                return (callback as Function).apply(this, args);
+            }, delay);
+            _gjsTimerRefs.add(source);
+            return source;
+        };
+    }
+
+    if (_origClearInterval) {
+        (globalThis as any).clearInterval = function(this: unknown, source: unknown): void {
+            (_origClearInterval as Function).call(this, source);
+            _scheduleUnpin(source);
+        };
+    }
 }
 
 function setImmediate<T extends any[]>(callback: (...args: T) => void, ...args: T): ReturnType<typeof setTimeout> {

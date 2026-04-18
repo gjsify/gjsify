@@ -12,27 +12,6 @@ import { VideoBridge } from '@gjsify/video';
 
 import { runPlayer } from '../player-demo.js';
 
-// ---- Crash diagnostics ----
-// "gjs exited with code null" means a native signal (SIGSEGV/SIGABRT) terminated
-// the process — no JS-level trace is emitted. These handlers at least log the
-// last JS-visible state so we can tell how far the app got before dying.
-
-function logDiag(tag: string, msg: string): void {
-    printerr(`[player-diag ${new Date().toISOString()}] ${tag}: ${msg}`);
-}
-
-process.on?.('uncaughtException', (err: Error) => {
-    logDiag('uncaughtException', `${err?.stack ?? err}`);
-});
-process.on?.('unhandledRejection', (reason: unknown) => {
-    logDiag('unhandledRejection', `${(reason as Error)?.stack ?? reason}`);
-});
-process.on?.('exit', (code: number | null) => {
-    logDiag('exit', `code=${code}`);
-});
-
-logDiag('boot', `gjs starting, argv=${JSON.stringify((imports as any).system?.programArgs ?? [])}`);
-
 // WebTorrent's WebRTC peer exchange uses GStreamer-backed RTCPeerConnection which can cause
 // GLib source GC issues. DHT (UDP) + HTTP trackers are sufficient for downloading.
 // Prevent WebTorrent from using WebRTC by hiding the global before import.
