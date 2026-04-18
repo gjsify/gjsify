@@ -10,6 +10,8 @@
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
     "start": "gjsify run dist/gjs.js",
+    "start:debug": "G_DEBUG=fatal-criticals G_MESSAGES_DEBUG=all GJS_DEBUG_OUTPUT=stderr GJS_DEBUG_TOPICS='JS ERROR;JS LOG' gjsify run dist/gjs.js",
+    "start:gdb": "gdb --args gjs -m dist/gjs.js",
     "build": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js --globals auto,RTCPeerConnection,RTCSessionDescription,RTCIceCandidate,WebSocket,fetch && node -e \"const fs=require('fs');let c=fs.readFileSync('dist/gjs.js','utf8');c=c.replaceAll('__toESM(require_lib3(), 1)','__toESM(require_lib3(), 0)');fs.writeFileSync('dist/gjs.js',c)\""
   },
   "devDependencies": {

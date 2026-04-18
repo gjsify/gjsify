@@ -32,7 +32,7 @@ if (_isGjsTimer) {
     // GJS-only: pull GLib from the runtime's imports object so this file stays
     // importable on Node.js (where the patch is a no-op anyway).
     const GLib = (globalThis as any).imports?.gi?.GLib;
-    const PRIORITY_DEFAULT_IDLE = GLib?.PRIORITY_DEFAULT_IDLE ?? 200;
+    const PRIORITY_DEFAULT = GLib?.PRIORITY_DEFAULT ?? 0;
     const SOURCE_REMOVE = GLib?.SOURCE_REMOVE ?? false;
 
     (globalThis as any).setTimeout = function(
@@ -49,12 +49,15 @@ if (_isGjsTimer) {
             try {
                 return (callback as Function).apply(this, args);
             } finally {
-                // Schedule removal via GLib.idle_add so the source leaves the Set
+                // Schedule removal via GLib.timeout_add so the source leaves the Set
                 // only after the current dispatch cycle has fully completed. Using
-                // GLib.idle_add (numeric source ID, no BoxedInstance) avoids the
-                // same GC race that would affect a cleanup setTimeout.
+                // timeout_add (numeric source ID, no BoxedInstance) avoids the same
+                // GC race that would affect a cleanup setTimeout. timeout_add (vs
+                // idle_add) is used so cleanup fires even when the main loop is
+                // busy — under heavy load (e.g. WebTorrent's DHT traffic), idle
+                // callbacks can be starved, letting _gjsTimeoutRefs grow unbounded.
                 if (GLib) {
-                    GLib.idle_add(PRIORITY_DEFAULT_IDLE, () => {
+                    GLib.timeout_add(PRIORITY_DEFAULT, 0, () => {
                         _gjsTimeoutRefs.delete(source);
                         return SOURCE_REMOVE;
                     });
