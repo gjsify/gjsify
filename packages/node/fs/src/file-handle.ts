@@ -135,13 +135,18 @@ export class FileHandle implements IFileHandle {
     private _file: GLib.IOChannel;
 
     /**
-     * Lazily-opened Gio.FileIOStream used by positional read() / write() so that
-     * every call does not re-load the entire file via Gio.File.load_contents().
-     * Shares its seek position between input and output sides, so writes made
-     * through .write() are visible to subsequent .read() calls without a flush.
+     * Lazily-opened Gio streams for positional read() / write() so each call does
+     * not re-load the entire file via Gio.File.load_contents(). The IOStream is
+     * used when the handle was opened with write capability (r+, w, w+, a, a+) —
+     * it shares seek state between input and output so writes are visible to
+     * subsequent reads without a flush. For read-only handles we only open a
+     * FileInputStream; trying to open_readwrite on a read-only file can fall
+     * back to create_readwrite(REPLACE_DESTINATION) which would truncate it.
      */
     private _ioStream: Gio.FileIOStream | null = null;
+    private _readStream: Gio.FileInputStream | null = null;
     private readonly _gFile: Gio.File;
+    private readonly _ioMode: IOMode;
 
     /** Not part of the default implementation, used internal by gjsify */
     private static instances: {[fd: number]: FileHandle} = {};
@@ -165,25 +170,41 @@ export class FileHandle implements IFileHandle {
         this._file.set_encoding(null as unknown as string);
         this.fd = this._file.unix_get_fd();
         this._gFile = Gio.File.new_for_path(pathStr);
+        this._ioMode = ioMode;
 
         FileHandle.instances[this.fd] = this;
         return FileHandle.getInstance(this.fd);
     }
 
-    /**
-     * Get the lazily-opened read/write stream. Opens via open_readwrite; if the
-     * file was created by the IOChannel with mode 'r+' but the OS thinks it is
-     * read-only for open_readwrite, falls back to create_readwrite(REPLACE) —
-     * rare, but keeps the common random-access-file pattern working.
-     */
-    private _getIOStream(): Gio.FileIOStream {
-        if (this._ioStream) return this._ioStream;
-        try {
-            this._ioStream = this._gFile.open_readwrite(null);
-        } catch {
-            this._ioStream = this._gFile.create_readwrite(Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+    /** Lazy-open the read-capable stream appropriate for this handle's mode. */
+    private _getReadStream(): Gio.InputStream {
+        if (this._ioStream) return this._ioStream.get_input_stream();
+        if (this._ioMode === 'r') {
+            if (!this._readStream) this._readStream = this._gFile.read(null);
+            return this._readStream;
         }
+        this._ioStream = this._gFile.open_readwrite(null);
+        return this._ioStream.get_input_stream();
+    }
+
+    /** Lazy-open the write-capable stream (IOStream) for this handle. Only valid
+     *  when the handle was opened with a write-capable mode. */
+    private _getWriteStream(): Gio.FileIOStream {
+        if (this._ioStream) return this._ioStream;
+        if (this._ioMode === 'r') {
+            throw new Error('FileHandle opened read-only; cannot write');
+        }
+        // open_readwrite requires the file to exist. For modes that imply
+        // create-if-missing (w, w+, a, a+) the IOChannel already created it
+        // above; for 'r+' openIOChannel() catches ENOENT and pre-creates it.
+        this._ioStream = this._gFile.open_readwrite(null);
         return this._ioStream;
+    }
+
+    /** Seekable view of whichever stream is currently open. IOStream itself
+     *  is Seekable in Gio; FileInputStream implements Gio.Seekable too. */
+    private _seekableFor(stream: Gio.InputStream | Gio.FileIOStream): Gio.Seekable {
+        return stream as unknown as Gio.Seekable;
     }
 
 
@@ -380,12 +401,13 @@ export class FileHandle implements IFileHandle {
         const readLength = length ?? bufView?.byteLength ?? 65536;
         const startPos = (position as number | null) ?? 0;
 
-        // Positional read via Gio.FileIOStream — seek + read_bytes, touches only
-        // the requested region. The previous implementation used load_contents(),
-        // which read the entire file on every call (O(N²) over a streamed workload).
-        const stream = this._getIOStream();
-        stream.seek(BigInt(startPos), GLib.SeekType.SET, null);
-        const bytes = stream.get_input_stream().read_bytes(readLength, null);
+        // Positional read — seek + read_bytes on the appropriate Gio stream,
+        // touching only the requested region. Replaces the old load_contents()
+        // path that read the entire file on every call (O(N²) over streamed
+        // workloads like WebTorrent piece hashing or random-access-file).
+        const read = this._getReadStream();
+        this._seekableFor(this._ioStream ?? this._readStream!).seek(BigInt(startPos), GLib.SeekType.SET, null);
+        const bytes = read.read_bytes(readLength, null);
         const data = bytes.get_data() as Uint8Array | null;
         const bytesRead = data?.length ?? 0;
         if (bufView && data && bytesRead > 0) {
@@ -560,10 +582,9 @@ export class FileHandle implements IFileHandle {
     async truncate(len: number = 0): Promise<void> {
         const effectiveLen = Math.max(0, len);
         this._file.flush();
-        // Gio.Seekable.truncate extends with zero bytes when growing, matches
-        // POSIX ftruncate(2). Called on the underlying FileOutputStream since
-        // Gio.IOStream itself isn't directly Seekable in @girs/gio-2.0.
-        const out = this._getIOStream().get_output_stream() as Gio.FileOutputStream;
+        // Gio.FileOutputStream implements Seekable.truncate — extends with zeros
+        // when growing, matches POSIX ftruncate(2).
+        const out = this._getWriteStream().get_output_stream() as Gio.FileOutputStream;
         out.truncate(effectiveLen, null);
     }
     /**
@@ -683,10 +704,10 @@ export class FileHandle implements IFileHandle {
         const writeSlice = writeBuf.slice(bufOffset, bufOffset + writeLength);
         const writePos = position ?? 0;
 
-        // Positional write via Gio.FileIOStream — seek + write_bytes, touches only
-        // the requested region. The previous implementation read the entire file,
-        // spliced the new bytes into it, and wrote the whole result back: O(N²).
-        const stream = this._getIOStream();
+        // Positional write — seek + write_bytes on the IOStream, touches only
+        // the requested region. Replaces the old load + splice + replace_contents
+        // path (O(N²) over any streamed workload).
+        const stream = this._getWriteStream();
         stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
         const output = stream.get_output_stream();
         const bytesWritten = output.write_bytes(new GLib.Bytes(writeSlice), null);
@@ -753,7 +774,9 @@ export class FileHandle implements IFileHandle {
      */
     async close(): Promise<void> {
         try { this._ioStream?.close(null); } catch { /* best-effort */ }
+        try { this._readStream?.close(null); } catch { /* best-effort */ }
         this._ioStream = null;
+        this._readStream = null;
         this._file.shutdown(true);
     }
 

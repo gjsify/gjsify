@@ -344,7 +344,26 @@ export const VideoBridge = GObject.registerClass(
             this._pipeline = pipeline;
             this._video._pipeline = pipeline;
             this._picture.set_paintable(paintable);
-            pipeline.set_state(GstRuntime.State.PLAYING);
+
+            // Bus watch surfaces pipeline errors and warnings (missing decoder,
+            // http source failure, missing plugin, etc.). Without this, playbin
+            // can fail to preroll and sit silently in READY forever.
+            const bus = pipeline.get_bus();
+            bus?.add_signal_watch();
+            bus?.connect('message::error', (_b, msg) => {
+                const [err, debug] = msg.parse_error();
+                console.error(`VideoBridge pipeline error: ${err?.message ?? 'unknown'} (${debug ?? ''})`);
+                this._video.dispatchEvent(new Event('error'));
+            });
+            bus?.connect('message::warning', (_b, msg) => {
+                const [err, debug] = msg.parse_warning();
+                console.warn(`VideoBridge pipeline warning: ${err?.message ?? 'unknown'} (${debug ?? ''})`);
+            });
+
+            const ret = pipeline.set_state(GstRuntime.State.PLAYING);
+            if (ret === GstRuntime.StateChangeReturn.FAILURE) {
+                console.error('VideoBridge: pipeline state change to PLAYING failed');
+            }
             this._video.readyState = 4;
             this._video.dispatchEvent(new Event('loadedmetadata'));
             this._video.dispatchEvent(new Event('canplay'));

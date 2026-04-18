@@ -190,7 +190,21 @@ export class ServerResponse extends OutgoingMessage {
     this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
 
     const responseHeaders = this._soupMsg.get_response_headers();
-    responseHeaders.set_encoding(Soup.Encoding.CHUNKED);
+
+    // Choose response transfer encoding:
+    //   - CONTENT_LENGTH when the caller set a Content-Length (range / streaming
+    //     a known-size file, including 206 Partial Content). souphttpsrc and
+    //     other fixed-length-sensitive clients require this.
+    //   - CHUNKED when the length is unknown (e.g. dynamic responses from
+    //     Express-style apps).
+    // Forcing CHUNKED unconditionally broke GStreamer playback from the
+    // WebTorrent HTTP server, which relies on Content-Range + Content-Length
+    // for seekable streams.
+    if (this._headers.has('content-length')) {
+      responseHeaders.set_encoding(Soup.Encoding.CONTENT_LENGTH);
+    } else {
+      responseHeaders.set_encoding(Soup.Encoding.CHUNKED);
+    }
 
     if (!this._headers.has('connection')) {
       responseHeaders.replace('Connection', 'close');
@@ -210,9 +224,9 @@ export class ServerResponse extends OutgoingMessage {
   /** Writable stream _write — sends headers on first call, then appends + flushes each chunk. */
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
+    printerr(`[http-server] _write ${buf.length} bytes streaming=${this._streaming}`);
     this._startStreaming();
     const responseBody = this._soupMsg.get_response_body();
-    // GJS overload: append(data: Uint8Array) — single argument, no MemoryUse parameter
     responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
     this._soupMsg.unpause();
     callback();
