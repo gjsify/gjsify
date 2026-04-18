@@ -62,6 +62,54 @@ const GLIB_FILE_ERROR_TO_NODE: Record<number, string> = {
     24: 'EIO',
 };
 
+// POSIX numeric open(2) flags (values on Linux x86-64).
+const O_RDONLY = 0;
+const O_WRONLY = 1;
+const O_RDWR   = 2;
+const O_CREAT  = 64;
+const O_TRUNC  = 512;
+const O_APPEND = 1024;
+
+/**
+ * Convert a numeric open(2) flags value to a GLib.IOChannel mode string.
+ * GLib.IOChannel.new_file() uses fopen(3) modes: 'r', 'r+', 'w', 'w+', 'a', 'a+'.
+ */
+function numericFlagsToIOMode(flags: number): string {
+    const rdwr   = (flags & O_RDWR)   !== 0;
+    const wronly = (flags & O_WRONLY) !== 0;
+    const append = (flags & O_APPEND) !== 0;
+    const trunc  = (flags & O_TRUNC)  !== 0;
+
+    if (rdwr)   return trunc ? 'w+' : 'r+';
+    if (wronly) return append ? 'a' : 'w';
+    return 'r'; // O_RDONLY
+}
+
+/**
+ * Normalise open flags to a GLib.IOChannel mode string.
+ * Accepts the Node.js string flags ('r', 'w', 'r+', …) or a numeric flags value.
+ */
+function resolveIOMode(flags: OpenFlags | number | undefined, path: string, creat: boolean): string {
+    if (flags === undefined || flags === null) return 'r';
+    if (typeof flags === 'number') {
+        const mode = numericFlagsToIOMode(flags);
+        // O_CREAT + O_RDWR ('r+') requires the file to exist for IOChannel.
+        // If the file doesn't exist yet, create it so 'r+' can open it.
+        if (creat && mode === 'r+' && !GLib.file_test(path, GLib.FileTest.EXISTS)) {
+            GLib.file_set_contents(path, new Uint8Array(0));
+        }
+        return mode;
+    }
+    // String flags — map Node.js extras to IOChannel equivalents.
+    switch (flags) {
+        case 'ax': case 'wx': return 'w';
+        case 'ax+': case 'wx+': return 'w+';
+        case 'as': case 'rs+': return 'r+';
+        case 'as+': return 'a+';
+        default: return flags as string;
+    }
+}
+
 function mapOpenError(err: unknown, path: string): NodeJS.ErrnoException {
     const gErr = err as { code?: number; message?: string } | null | undefined;
     const msg = gErr?.message ?? '';
@@ -85,15 +133,18 @@ export class FileHandle implements IFileHandle {
 
     constructor(readonly options: {
         path: PathLike,
-        flags?: OpenFlags,
+        flags?: OpenFlags | number,
         mode?: Mode
     }) {
         this.options.flags ||= "r";
         this.options.mode ||= 0o666;
+        const pathStr = options.path.toString();
+        const creat = typeof options.flags === 'number' && (options.flags & O_CREAT) !== 0;
+        const ioMode = resolveIOMode(options.flags as OpenFlags | number | undefined, pathStr, creat);
         try {
-            this._file = GLib.IOChannel.new_file(options.path.toString(), this.options.flags);
+            this._file = GLib.IOChannel.new_file(pathStr, ioMode);
         } catch (err: unknown) {
-            throw mapOpenError(err, options.path.toString());
+            throw mapOpenError(err, pathStr);
         }
         // Binary mode: prevent GLib from doing any character set conversion.
         this._file.set_encoding(null as unknown as string);

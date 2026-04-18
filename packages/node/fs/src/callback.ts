@@ -159,7 +159,7 @@ export function open(path: PathLike, ...args: (OpenMode | Mode | OpenCallback | 
             break;
     }
 
-    openP(path, flags as OpenFlags | undefined, mode)
+    openP(path, flags as OpenFlags | number | undefined, mode)
     .then((fileHandle) => {
         callback(null, fileHandle.fd);
     })

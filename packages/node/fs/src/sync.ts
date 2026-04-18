@@ -462,8 +462,8 @@ export function watch(filename: string, options: { persistent?: boolean; recursi
   return new FSWatcher(filename, options, listener);
 }
 
-export function openSync(path: PathLike, flags?: OpenFlags, mode?: Mode): FileHandle {
-  return new FileHandle({ path, flags, mode });
+export function openSync(path: PathLike, flags?: OpenFlags | number, mode?: Mode): FileHandle {
+  return new FileHandle({ path, flags: flags as OpenFlags | undefined, mode });
 }
 
 /**

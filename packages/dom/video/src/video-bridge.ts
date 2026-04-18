@@ -1,5 +1,7 @@
-// VideoBridge GTK container for GJS — Gtk.Box wrapping Gtk.Picture + gtk4paintablesink.
+// VideoBridge GTK container for GJS — Gtk.Box wrapping Gtk.Overlay(Picture + control bar).
 // Bridges GstHTMLVideoElement to GStreamer video rendering via Gdk.Paintable.
+// Controls float over the video via Gtk.Overlay (valign=END), hidden by default,
+// revealed on mouse motion and auto-hidden after 2 s (like browser video players).
 //
 // Reference: refs/showtime/showtime/play.py (gtk4paintablesink + optional glsinkbin)
 // Pattern follows packages/dom/canvas2d/src/canvas-drawing-area.ts (Canvas2DBridge)
@@ -47,6 +49,7 @@ function formatTime(seconds: number): string {
 export const VideoBridge = GObject.registerClass(
     { GTypeName: 'GjsifyVideoBridge' },
     class VideoBridge extends Gtk.Box {
+        _overlay: Gtk.Overlay;
         _picture: Gtk.Picture;
         _video: GstHTMLVideoElement;
         _pipeline: any | null = null;  // Gst.Pipeline
@@ -75,10 +78,15 @@ export const VideoBridge = GObject.registerClass(
                 orientation: Gtk.Orientation.VERTICAL,
             });
 
+            this._overlay = new Gtk.Overlay();
+            this._overlay.set_hexpand(true);
+            this._overlay.set_vexpand(true);
+            this.append(this._overlay);
+
             this._picture = new Gtk.Picture();
             this._picture.set_hexpand(true);
             this._picture.set_vexpand(true);
-            this.append(this._picture);
+            this._overlay.set_child(this._picture);
 
             // GstHTMLVideoElement: DOM API (play/pause/currentTime/duration/volume)
             // delegates to the GStreamer pipeline set via _video._pipeline.
@@ -182,13 +190,16 @@ export const VideoBridge = GObject.registerClass(
             if (show && !this._controlBar) {
                 this._autoHide = true;
                 this._controlBar = this._buildControlBar();
+                // Float over the video at the bottom edge via Gtk.Overlay.
+                this._controlBar.set_halign(Gtk.Align.FILL);
+                this._controlBar.set_valign(Gtk.Align.END);
                 // Start hidden; revealed on first mouse motion.
                 this._controlBar.set_visible(false);
-                this.append(this._controlBar);
+                this._overlay.add_overlay(this._controlBar);
                 this._startPositionTimer();
                 this._setupAutoHideMotion();
             } else if (!show && this._controlBar) {
-                this.remove(this._controlBar);
+                this._overlay.remove_overlay(this._controlBar);
                 this._controlBar = null;
                 this._playBtn = null;
                 this._seekAdj = null;
@@ -238,6 +249,8 @@ export const VideoBridge = GObject.registerClass(
                 margin_top: 4,
                 margin_bottom: 4,
             });
+            // osd style class: semi-transparent dark background so bar is legible over video.
+            bar.add_css_class('osd');
 
             // Play/pause button
             this._playBtn = new Gtk.Button({ icon_name: 'media-playback-pause-symbolic' });
