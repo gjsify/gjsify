@@ -8,6 +8,15 @@
 
 // @ts-ignore — WebTorrent types may not be available
 import WebTorrent from 'webtorrent';
+import type { Instance, TorrentFile } from 'webtorrent';
+import type { EventEmitter } from 'node:events';
+
+// arrayBuffer() exists at runtime but is missing from @types/webtorrent
+interface TorrentFileWithBuffer extends TorrentFile {
+    arrayBuffer(): Promise<ArrayBuffer>;
+}
+// WebTorrent Instance supports 'warning' at runtime but @types/webtorrent omits it
+type InstanceWithWarning = Instance & Pick<EventEmitter, 'on'>;
 
 export type LogFn = (tag: string, msg: string) => void;
 
@@ -49,6 +58,7 @@ export async function runTorrentDemo(log: LogFn): Promise<void> {
 
     const seeder = new WebTorrent(CLIENT_OPTS);
     seeder.on('error', (err: Error) => log('seeder', `ERROR: ${err.message}`));
+    // @ts-ignore — 'warning' exists at runtime but @types/webtorrent Instance omits it
     seeder.on('warning', (err: Error) => log('seeder', `WARN: ${err.message}`));
 
     log('seeder', `Seeding ${SEED_DATA.byteLength} bytes as "${SEED_FILENAME}"...`);
@@ -72,7 +82,7 @@ export async function runTorrentDemo(log: LogFn): Promise<void> {
             reject(err);
         });
 
-        t.on('warning', (err: Error) => log('seeder', `Torrent warn: ${err.message}`));
+        t.on('warning', (err: Error | string) => log('seeder', `Torrent warn: ${err instanceof Error ? err.message : err}`));
         setTimeout(() => reject(new Error('Seed timeout (30s)')), 30000);
     });
 
@@ -82,6 +92,7 @@ export async function runTorrentDemo(log: LogFn): Promise<void> {
 
     const leecher = new WebTorrent(CLIENT_OPTS);
     leecher.on('error', (err: Error) => log('leecher', `ERROR: ${err.message}`));
+    // @ts-ignore — 'warning' exists at runtime but @types/webtorrent Instance omits it
     leecher.on('warning', (err: Error) => log('leecher', `WARN: ${err.message}`));
 
     log('leecher', 'Adding magnet URI...');
@@ -94,12 +105,12 @@ export async function runTorrentDemo(log: LogFn): Promise<void> {
         dl.on('download', (bytes: number) => {
             log('leecher', `Downloaded ${bytes} bytes (${(dl.progress * 100).toFixed(1)}%)`);
         });
-        dl.on('warning', (err: Error) => log('leecher', `WARN: ${err.message}`));
+        dl.on('warning', (err: Error | string) => log('leecher', `WARN: ${err instanceof Error ? err.message : err}`));
 
         dl.on('done', async () => {
             log('leecher', 'Download complete!');
             try {
-                const file = dl.files[0];
+                const file = dl.files[0] as TorrentFileWithBuffer;
                 const buf = await file.arrayBuffer();
                 const text = new TextDecoder().decode(buf);
                 log('leecher', `File: "${file.name}" (${file.length} bytes)`);

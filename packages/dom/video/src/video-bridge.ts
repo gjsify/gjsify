@@ -1,5 +1,5 @@
 // VideoBridge GTK container for GJS — Gtk.Box wrapping Gtk.Overlay(Picture + control bar).
-// Bridges GstHTMLVideoElement to GStreamer video rendering via Gdk.Paintable.
+// Bridges HTMLVideoElement to GStreamer video rendering via Gdk.Paintable.
 // Controls float over the video via Gtk.Overlay (valign=END), hidden by default,
 // revealed on mouse motion and auto-hidden after 2 s (like browser video players).
 //
@@ -14,8 +14,8 @@ import { Event } from '@gjsify/dom-events';
 import { BridgeEnvironment } from '@gjsify/bridge-types';
 import type { BridgeWindowHost } from '@gjsify/bridge-types';
 
+import { HTMLVideoElement } from '@gjsify/dom-elements';
 import { buildMediaStreamPipeline, buildUriPipeline } from './pipeline-builder.js';
-import { GstHTMLVideoElement } from './gst-html-video-element.js';
 import { Gst } from './gst-init.js';
 
 type VideoReadyCallback = (video: globalThis.HTMLVideoElement) => void;
@@ -29,7 +29,7 @@ function formatTime(seconds: number): string {
 
 /**
  * A `Gtk.Box` subclass that hosts a `Gtk.Picture` for video rendering:
- * - Creates a `GstHTMLVideoElement` on construction (DOM API wired to GStreamer)
+ * - Creates a `HTMLVideoElement` on construction (DOM API wired to GStreamer)
  * - Renders video via GStreamer `gtk4paintablesink` → `Gdk.Paintable` → `Gtk.Picture`
  * - Supports `video.srcObject = mediaStream` (from getUserMedia/WebRTC)
  * - Supports `video.src = "file:///..."` or HTTP URL (URI playback via playbin)
@@ -51,7 +51,7 @@ export const VideoBridge = GObject.registerClass(
     class VideoBridge extends Gtk.Box {
         _overlay: Gtk.Overlay;
         _picture: Gtk.Picture;
-        _video: GstHTMLVideoElement;
+        _video: HTMLVideoElement;
         _pipeline: any | null = null;  // Gst.Pipeline
         _readyCallbacks: VideoReadyCallback[] = [];
         _resizeCallbacks: ((w: number, h: number) => void)[] = [];
@@ -88,9 +88,9 @@ export const VideoBridge = GObject.registerClass(
             this._picture.set_vexpand(true);
             this._overlay.set_child(this._picture);
 
-            // GstHTMLVideoElement: DOM API (play/pause/currentTime/duration/volume)
+            // HTMLVideoElement: DOM API (play/pause/currentTime/duration/volume)
             // delegates to the GStreamer pipeline set via _video._pipeline.
-            this._video = new GstHTMLVideoElement();
+            this._video = new HTMLVideoElement();
 
             const host: BridgeWindowHost = {
                 performanceNow: () => (GLib.get_monotonic_time() - this._timeOrigin) / 1000,
@@ -145,11 +145,11 @@ export const VideoBridge = GObject.registerClass(
             });
         }
 
-        get element(): GstHTMLVideoElement {
+        get element(): HTMLVideoElement {
             return this._video;
         }
 
-        get videoElement(): GstHTMLVideoElement {
+        get videoElement(): HTMLVideoElement {
             return this._video;
         }
 
@@ -170,7 +170,7 @@ export const VideoBridge = GObject.registerClass(
         }
 
         installGlobals(): void {
-            (globalThis as any).HTMLVideoElement = GstHTMLVideoElement;
+            (globalThis as any).HTMLVideoElement = HTMLVideoElement;
 
             const timeOrigin = this._timeOrigin;
             if (typeof (globalThis as any).performance === 'undefined') {

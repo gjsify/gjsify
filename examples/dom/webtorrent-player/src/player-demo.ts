@@ -9,8 +9,11 @@
 // Reference: refs/webtorrent-desktop/src/renderer/pages/player-page.js
 
 import WebTorrent from 'webtorrent';
+import type WebTorrentNS from 'webtorrent';
 import type { Torrent, TorrentFile } from 'webtorrent';
-import type { AddressInfo } from 'net';
+
+// NodeServer from @types/webtorrent lacks listen() — it's a Node.js http.Server at runtime.
+type NodeServerWithListen = WebTorrentNS.NodeServer & { listen(port: number, cb?: () => void): void };
 
 export interface PlayerCallbacks {
     /** Called when the torrent name / title is known. */
@@ -26,7 +29,7 @@ export interface PlayerCallbacks {
 const VIDEO_EXTS = /\.(mp4|mkv|webm|avi|mov|m4v|ogv|ogg|ts)$/i;
 
 function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024) return `${Math.round(bytes)} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
@@ -58,12 +61,9 @@ export async function runPlayer(
     // Force NodeServer: WebTorrent defaults to BrowserServer when globalThis exists (as in GJS),
     // which requires ServiceWorkerRegistration. Pass 'node' to use the HTTP streaming server.
     // The second 'node' argument is undocumented but present in WebTorrent v2 source.
-    const server = (client.createServer as (opts: object, force: string) => import('net').Server)(
-        { hostname: '127.0.0.1' },
-        'node',
-    );
+    const server = client.createServer({ hostname: '127.0.0.1' }, 'node') as unknown as NodeServerWithListen;
     await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as AddressInfo).port;
+    const port = server.address().port;
 
     cb.onStatus('Adding torrent…');
 
@@ -90,7 +90,7 @@ export async function runPlayer(
         .split('/')
         .map((seg) => encodeURIComponent(seg))
         .join('/');
-    const streamUrl = `http://127.0.0.1:${port}/${(torrent as any).infoHash}/${encodedPath}`;
+    const streamUrl = `http://127.0.0.1:${port}/${torrent.infoHash}/${encodedPath}`;
 
     cb.onStreamUrl(streamUrl);
 
@@ -101,7 +101,7 @@ export async function runPlayer(
         const dl = formatSpeed(torrent.downloadSpeed);
         const ul = formatSpeed(torrent.uploadSpeed);
         const peers = torrent.numPeers;
-        const ratio = (torrent as any).ratio?.toFixed(2) ?? '0.00';
+        const ratio = torrent.ratio.toFixed(2);
 
         if (torrent.done) {
             cb.onStatus(`Seeding ↑ ${ul}  ${peers} peer${peers !== 1 ? 's' : ''}  ratio ${ratio}`);
