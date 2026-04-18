@@ -1,5 +1,6 @@
 // GJS entry — WebTorrent video player with Adwaita UI.
-// Opens sintel.torrent, streams via HTTP while downloading, plays with controls.
+// Opens a torrent file / magnet URI, streams via HTTP while downloading,
+// plays with built-in controls.
 
 import '@girs/gjs';
 import '@girs/gtk-4.0';
@@ -12,19 +13,19 @@ import { VideoBridge } from '@gjsify/video';
 
 import { runPlayer } from '../player-demo.js';
 
-// WebTorrent's WebRTC peer exchange uses GStreamer-backed RTCPeerConnection which can cause
-// GLib source GC issues. DHT (UDP) + HTTP trackers are sufficient for downloading.
-// Prevent WebTorrent from using WebRTC by hiding the global before import.
-if (typeof globalThis !== 'undefined') {
-    delete (globalThis as any).RTCPeerConnection;
-    delete (globalThis as any).RTCSessionDescription;
-    delete (globalThis as any).RTCIceCandidate;
-}
+// WebTorrent's WebRTC peer exchange uses GStreamer-backed RTCPeerConnection and
+// creates long-lived GLib sources whose GC racing has historically crashed the
+// app. DHT (UDP) + HTTP trackers are sufficient for downloading; hide the
+// globals before the webtorrent import so it falls back to non-WebRTC peers.
+delete (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection;
+delete (globalThis as { RTCSessionDescription?: unknown }).RTCSessionDescription;
+delete (globalThis as { RTCIceCandidate?: unknown }).RTCIceCandidate;
 
-// Default torrent — Sintel, the open-source Blender short film.
-// See: https://webtorrent.io/free-torrents
-const DEFAULT_TORRENT = '/home/jumplink/Downloads/sintel.torrent';
-const torrentSource = (typeof imports !== 'undefined' && (imports as any).system?.programArgs?.[0])
+// Sintel — the open-source Blender short film. See https://webtorrent.io/free-torrents.
+const DEFAULT_TORRENT =
+    'magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&dn=Sintel&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.fastcast.nz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&xs=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fsintel.torrent';
+
+const torrentSource = (imports as { system?: { programArgs?: string[] } }).system?.programArgs?.[0]
     ?? DEFAULT_TORRENT;
 
 const app = new Adw.Application({
@@ -36,14 +37,10 @@ app.connect('activate', () => {
     win.set_default_size(900, 580);
     win.set_title('WebTorrent Player');
 
-    const headerBar = new Adw.HeaderBar();
     const toolbarView = new Adw.ToolbarView();
-    toolbarView.add_top_bar(headerBar);
+    toolbarView.add_top_bar(new Adw.HeaderBar());
 
-    // Main content: video + status bar
-    const contentBox = new Gtk.Box({
-        orientation: Gtk.Orientation.VERTICAL,
-    });
+    const contentBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
 
     const videoBridge = new VideoBridge();
     videoBridge.set_hexpand(true);
@@ -51,76 +48,48 @@ app.connect('activate', () => {
     videoBridge.showControls(true);
     contentBox.append(videoBridge);
 
-    // Download progress bar
-    const progressBar = new Gtk.ProgressBar();
-    progressBar.set_margin_start(8);
-    progressBar.set_margin_end(8);
-    progressBar.set_margin_top(4);
+    const progressBar = new Gtk.ProgressBar({
+        margin_start: 8,
+        margin_end: 8,
+        margin_top: 4,
+    });
     contentBox.append(progressBar);
 
-    // Status label: speed, peers, ETA
     const statusLabel = new Gtk.Label({
         label: 'Starting…',
         xalign: 0,
         margin_start: 8,
         margin_end: 8,
         margin_bottom: 6,
+        use_markup: false,
     });
-    (statusLabel as any).use_markup = false;
     contentBox.append(statusLabel);
 
     toolbarView.set_content(contentBox);
     win.set_content(toolbarView);
     win.present();
 
-    let torrentClient: any = null;
+    let torrentClient: { destroy?: () => void } | null = null;
 
     videoBridge.onReady(async (video) => {
         try {
             torrentClient = await runPlayer(torrentSource, {
-                onName: (name) => {
-                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                        win.set_title(name);
-                        return GLib.SOURCE_REMOVE;
-                    });
-                },
-                onStreamUrl: (url) => {
-                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                        video.src = url;
-                        return GLib.SOURCE_REMOVE;
-                    });
-                },
-                onProgress: (fraction) => {
-                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                        progressBar.set_fraction(fraction);
-                        return GLib.SOURCE_REMOVE;
-                    });
-                },
-                onStatus: (text) => {
-                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                        statusLabel.set_label(text);
-                        return GLib.SOURCE_REMOVE;
-                    });
-                },
+                onName: (name) => win.set_title(name),
+                onStreamUrl: (url) => { video.src = url; },
+                onProgress: (fraction) => progressBar.set_fraction(fraction),
+                onStatus: (text) => statusLabel.set_label(text),
             });
-        } catch (err: any) {
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                statusLabel.set_label(`Error: ${err?.message ?? err}`);
-                return GLib.SOURCE_REMOVE;
-            });
+        } catch (err) {
+            statusLabel.set_label(`Error: ${err instanceof Error ? err.message : String(err)}`);
         }
     });
 
-    const mainLoop = GLib.MainLoop.new(null, false);
     win.connect('close-request', () => {
         torrentClient?.destroy?.();
-        mainLoop.quit();
         return false;
     });
 
-    app.connect('shutdown', () => {
-        torrentClient?.destroy?.();
-    });
+    app.connect('shutdown', () => torrentClient?.destroy?.());
 });
 
 app.run([]);

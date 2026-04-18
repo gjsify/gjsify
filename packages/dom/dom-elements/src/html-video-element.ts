@@ -1,43 +1,42 @@
 // HTMLVideoElement for GJS — video element with optional GStreamer pipeline wiring.
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
-// Reference: refs/happy-dom/packages/happy-dom/src/nodes/html-media-element/HTMLMediaElement.ts
 //
-// _pipeline (any) is set by VideoBridge after each pipeline swap. GStreamer state
-// is queried/controlled via numeric constants so that dom-elements has no static
-// dependency on GStreamer. Mirrors the HTMLImageElement/GdkPixbuf pattern.
-//
-// TypeScript forbids overriding a class field with an accessor. We use
-// Object.defineProperty in the constructor to replace HTMLMediaElement's plain
-// fields (paused, currentTime, duration, volume, muted) with GStreamer-backed
-// descriptors — same technique as GstHTMLVideoElement previously in @gjsify/video.
+// The attached pipeline is set by VideoBridge after each swap. Types come from
+// a type-only Gst import so dom-elements has no runtime dependency on GStreamer
+// (mirrors the HTMLImageElement / GdkPixbuf split). Numeric enum values are
+// still used at runtime because pulling the Gst module eagerly would break the
+// "dom-elements works without gst-init" contract.
 
+import type Gst from '@girs/gst-1.0';
 import { HTMLMediaElement } from './html-media-element.js';
 import { Event } from '@gjsify/dom-events';
 import * as PropertySymbol from './property-symbol.js';
 import { NamespaceURI } from './namespace-uri.js';
 
-// GStreamer state constants — values of Gst.State enum (avoids static gi:// import).
+// Gst.State / Gst.Format / Gst.SeekFlags / Gst.SeekType numeric values, hardcoded
+// to avoid a runtime `gi://Gst` import. Cross-checked against the GStreamer GIR.
 const GST_STATE_PLAYING = 4;
 const GST_STATE_PAUSED  = 3;
-// GStreamer format/seek constants
 const GST_FORMAT_TIME        = 3;
 const GST_SEEK_FLAG_FLUSH    = 1;
 const GST_SEEK_FLAG_KEY_UNIT = 4;
 const GST_SEEK_TYPE_SET      = 1;
 const GST_SEEK_TYPE_NONE     = 0;
 
+type Playbin = Gst.Element & { volume?: number; mute?: boolean };
+
 /**
  * HTML Video Element.
  *
- * Dispatches 'srcobjectchange' when srcObject is set (for bridge containers).
- * Dispatches 'srcchange' when src is set.
+ * Dispatches 'srcobjectchange' when srcObject is set and 'srcchange' when src is set —
+ * bridge containers listen for these to wire up / tear down their pipelines.
  *
  * When a GStreamer pipeline is attached via `_pipeline`, play/pause/seek/volume
  * delegate to it. Without a pipeline the element behaves as a pure DOM stub.
  */
 export class HTMLVideoElement extends HTMLMediaElement {
     /** Set by VideoBridge after every pipeline swap. Null when no media is loaded. */
-    _pipeline: any | null = null;  // Gst.Pipeline
+    _pipeline: Gst.Pipeline | null = null;
 
     private _videoWidth = 0;
     private _videoHeight = 0;
@@ -49,7 +48,9 @@ export class HTMLVideoElement extends HTMLMediaElement {
         this[PropertySymbol.localName] = 'video';
         this[PropertySymbol.namespaceURI] = NamespaceURI.html;
 
-        // Override HTMLMediaElement plain fields with GStreamer-backed descriptors.
+        // HTMLMediaElement defines paused/currentTime/duration/volume/muted as plain
+        // fields. TypeScript forbids overriding a field with an accessor in the
+        // subclass, so we install GStreamer-backed descriptors via defineProperty.
         const self = this;
 
         Object.defineProperty(this, 'paused', {
@@ -58,7 +59,6 @@ export class HTMLVideoElement extends HTMLMediaElement {
                 const [, state] = self._pipeline.get_state(0n);
                 return state !== GST_STATE_PLAYING;
             },
-            set(_v: boolean) { /* driven by play()/pause() */ },
             configurable: true,
             enumerable: true,
         });
@@ -70,8 +70,7 @@ export class HTMLVideoElement extends HTMLMediaElement {
                 return ok ? Number(pos) / 1_000_000_000 : 0;
             },
             set(seconds: number) {
-                if (!self._pipeline) return;
-                self._pipeline.seek(
+                self._pipeline?.seek(
                     1.0,
                     GST_FORMAT_TIME,
                     GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT,
@@ -91,15 +90,12 @@ export class HTMLVideoElement extends HTMLMediaElement {
                 const [ok, dur] = self._pipeline.query_duration(GST_FORMAT_TIME);
                 return ok && Number(dur) > 0 ? Number(dur) / 1_000_000_000 : NaN;
             },
-            set(_v: number) { /* read-only */ },
             configurable: true,
             enumerable: true,
         });
 
         Object.defineProperty(this, 'volume', {
-            get(): number {
-                return self._playbin()?.volume ?? 1.0;
-            },
+            get(): number { return self._playbin()?.volume ?? 1.0; },
             set(v: number) {
                 const pb = self._playbin();
                 if (pb) pb.volume = Math.max(0, Math.min(1, v));
@@ -109,9 +105,7 @@ export class HTMLVideoElement extends HTMLMediaElement {
         });
 
         Object.defineProperty(this, 'muted', {
-            get(): boolean {
-                return self._playbin()?.mute ?? false;
-            },
+            get(): boolean { return self._playbin()?.mute ?? false; },
             set(v: boolean) {
                 const pb = self._playbin();
                 if (pb) pb.mute = v;
@@ -142,7 +136,7 @@ export class HTMLVideoElement extends HTMLMediaElement {
 
     get [Symbol.toStringTag](): string { return 'HTMLVideoElement'; }
 
-    private _playbin(): any | null {
-        return this._pipeline?.get_by_name?.('playbin') ?? null;
+    private _playbin(): Playbin | null {
+        return (this._pipeline?.get_by_name('playbin') as Playbin | null) ?? null;
     }
 }

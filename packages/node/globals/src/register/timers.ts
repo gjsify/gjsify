@@ -1,64 +1,53 @@
-// Registers: setImmediate, clearImmediate
-// Also fully replaces setTimeout / setInterval / clearTimeout / clearInterval on GJS
-// to work around a compound bug in GJS 1.86 + SpiderMonkey 128/140:
+// Registers setImmediate / clearImmediate and — on GJS only — fully replaces
+// setTimeout / setInterval / clearTimeout / clearInterval.
 //
-// GJS's native setTimeout returns a GLib.Source BoxedInstance. Two problems flow from
-// that:
+// Why replace the native timers: GJS's `globalThis.setTimeout` returns a
+// GLib.Source BoxedInstance, which is incompatible with Node.js in two ways:
 //
-//   1. SpiderMonkey GC can finalize the BoxedInstance at points where GLib still
-//      holds an in-flight reference, causing a double-unref / use-after-free →
-//      SIGSEGV in g_source_unref_internal.
-//   2. Node-compat code (WebTorrent, bittorrent-dht, async-limiter, …) calls
-//      `timer.unref()` expecting Node.js semantics ("don't keep the event loop
-//      alive"). On a GJS BoxedInstance `unref()` is `g_source_unref` — it
-//      decrements the GLib refcount and can free the source outright. Later
-//      `clearInterval` then tries to remove a freed source → corruption.
+//   1. SM GC can finalize the BoxedInstance while GLib still holds an in-flight
+//      dispatch ref → double-unref SIGSEGV in g_source_unref_internal.
+//   2. Node-compat libraries call `timer.unref()` to mean "don't keep the event
+//      loop alive". On the BoxedInstance `.unref()` is g_source_unref — it
+//      decrements the GLib refcount and can free the source outright.
 //
-// Pinning the BoxedInstance in a JS Set (previous approach) partially mitigates
-// (1) but does not fix (2) at all: the refcount is decremented at the C level
-// regardless of JS references.
-//
-// Fix: don't use GJS's native setTimeout at all. Back the timers with
-// GLib.timeout_add / GLib.Source.remove (numeric source IDs — no BoxedInstance,
-// no GC race, no external-unref hazard). Return a Node-shaped Timeout object
-// whose `.ref()` / `.unref()` / `.hasRef()` / `.refresh()` methods match Node.js
-// semantics (no-ops for keepAlive — GJS apps already explicitly run a main loop).
-//
-// References:
-//   - refs/node/lib/internal/timers.js (Timeout class shape)
-//   - refs/gjs/modules/esm/_timers.js (the buggy native implementation)
-//
-// Downside: `drainMicrotaskQueue()` is not called after each tick (GJS internals
-// aren't reachable from user JS in a stable way). In practice this is fine —
-// SpiderMonkey's promise job queue drains automatically at JS boundaries.
+// Fix: back the timers with GLib.timeout_add (numeric source IDs — no
+// BoxedInstance, no GC race, no external-unref hazard) and return a Node-shaped
+// Timeout wrapper whose `.ref()` / `.unref()` / `.hasRef()` / `.refresh()` are
+// no-ops on keep-alive (GJS apps run their main loop explicitly).
 
-// GJS detection: native setTimeout returns a GLib.Source BoxedInstance (typeof
-// === 'object'). On Node.js it returns a number/Timeout — in that case we keep
-// the native implementation untouched.
-const _nativeTest = globalThis.setTimeout(() => {}, 0);
-const _isGjsTimer = _nativeTest !== null && typeof _nativeTest === 'object';
-globalThis.clearTimeout(_nativeTest as ReturnType<typeof setTimeout>);
+import type GLibNS from '@girs/glib-2.0';
+
+type GjsGlobalThis = typeof globalThis & {
+    imports?: { gi?: { GLib?: typeof GLibNS } };
+};
+
+function getGLib(): typeof GLibNS | undefined {
+    return (globalThis as GjsGlobalThis).imports?.gi?.GLib;
+}
+
+// On Node.js setTimeout returns a number/Timeout; on GJS an object. If we're
+// on Node.js, leave the native implementation alone.
+const _probe = globalThis.setTimeout(() => {}, 0);
+const _isGjsTimer = _probe !== null && typeof _probe === 'object';
+globalThis.clearTimeout(_probe as ReturnType<typeof setTimeout>);
+
+type TimerCallback = (...args: unknown[]) => unknown;
 
 /**
- * Node-compatible Timeout object returned by our setTimeout / setInterval.
- *
- * Mirrors the public surface of `NodeJS.Timeout`: `.ref()`, `.unref()`,
- * `.hasRef()`, `.refresh()`, `[Symbol.toPrimitive]()` so `+timeout` yields the
- * numeric ID (matches Node.js's behavior for backward-compat code paths).
- *
- * Critically `.unref()` is a no-op (instead of `g_source_unref` as on the raw
- * BoxedInstance). That prevents Node-style libraries from accidentally freeing
- * our GLib sources — the primary crash vector on this codebase.
+ * Node-compatible Timeout returned by our setTimeout / setInterval. Mirrors
+ * `NodeJS.Timeout`: `.ref() / .unref() / .hasRef() / .refresh()`, and
+ * `Symbol.toPrimitive` so `+timeout` yields the numeric GLib source ID (a few
+ * Node-ecosystem libraries key Maps on this coercion).
  */
 class GjsifyTimeout {
     _id: number | null = null;
-    _args: unknown[];
-    _callback: (...args: unknown[]) => unknown;
-    _delay: number;
-    _repeat: boolean;
     _refed = true;
+    readonly _callback: TimerCallback;
+    readonly _delay: number;
+    readonly _args: readonly unknown[];
+    readonly _repeat: boolean;
 
-    constructor(callback: (...args: unknown[]) => unknown, delay: number, args: unknown[], repeat: boolean) {
+    constructor(callback: TimerCallback, delay: number, args: readonly unknown[], repeat: boolean) {
         this._callback = callback;
         this._delay = delay;
         this._args = args;
@@ -66,18 +55,15 @@ class GjsifyTimeout {
         this._schedule();
     }
 
-    private _schedule(): void {
-        const GLib = (globalThis as any).imports?.gi?.GLib;
+    _schedule(): void {
+        const GLib = getGLib();
         if (!GLib) return;
-        // g_timeout_add_full returns a numeric source ID (guint). No BoxedInstance
-        // to be GC'd, no refcount for user code to decrement. The callback is wrapped
-        // in a GClosure managed by GLib; when the source is destroyed (return
-        // G_SOURCE_REMOVE or explicit remove), the GClosure is finalized cleanly.
         this._id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._delay, () => {
             try {
-                this._callback.apply(globalThis, this._args);
+                this._callback.apply(globalThis, this._args as unknown[]);
             } catch (err) {
-                // Surface uncaught exceptions the same way Node.js setTimeout does.
+                // Surface uncaught timer exceptions without killing the main loop,
+                // matching Node.js's `setTimeout(() => { throw… }, 0)` behavior.
                 setTimeout(() => { throw err; }, 0);
             }
             if (this._repeat) return GLib.SOURCE_CONTINUE;
@@ -86,87 +72,51 @@ class GjsifyTimeout {
         });
     }
 
-    /** Node-compat no-op. GJS apps explicitly manage their main loop. */
     ref(): this { this._refed = true; return this; }
-    /** Node-compat no-op (see ref). Crucially NOT `g_source_unref`. */
     unref(): this { this._refed = false; return this; }
     hasRef(): boolean { return this._refed; }
 
-    /** Reset the timer to fire again after `delay` ms from now. */
     refresh(): this {
         this._cancel();
         this._schedule();
         return this;
     }
 
-    /** @internal Remove the underlying GLib source. */
     _cancel(): void {
-        if (this._id !== null) {
-            const GLib = (globalThis as any).imports?.gi?.GLib;
-            try { GLib?.Source.remove(this._id); } catch { /* already removed */ }
-            this._id = null;
-        }
+        if (this._id === null) return;
+        try { getGLib()?.Source.remove(this._id); } catch { /* already removed */ }
+        this._id = null;
     }
 
-    /** Numeric coercion yields the source ID (matches Node.js legacy behavior). */
-    [Symbol.toPrimitive](_hint?: string): number | null { return this._id; }
-
-    /** Support `using` declarations (Explicit Resource Management) in Node 20+. */
+    [Symbol.toPrimitive](): number | null { return this._id; }
     [Symbol.dispose]?(): void { this._cancel(); }
 }
 
-if (_isGjsTimer) {
-    // NOTE: An earlier iteration also monkey-patched GLib.Source.prototype.ref /
-    // .unref to no-op globally as a "safety net" for non-timer BoxedInstances
-    // (GStreamer sources, Gio helpers, etc.). That broke GTK window ref-counting
-    // in subtle ways — windows would appear in the taskbar and then immediately
-    // vanish because JS-side bindings use .ref() internally as part of transfer
-    // semantics, and forcing it to a no-op invalidated the accounting. Since our
-    // own setTimeout/setInterval replacement no longer hands BoxedInstances to
-    // user code at all, the crash surface from Node-compat .unref() calls is
-    // already eliminated without the prototype hack.
-
-    (globalThis as any).setTimeout = function(
-        this: unknown,
-        callback: (...args: unknown[]) => unknown,
-        delay: number | undefined = 0,
-        ...args: unknown[]
-    ): GjsifyTimeout {
-        return new GjsifyTimeout(callback, Math.max(0, delay | 0), args, false);
-    };
-
-    (globalThis as any).clearTimeout = function(this: unknown, timeout: unknown): void {
-        if (timeout instanceof GjsifyTimeout) {
-            timeout._cancel();
-            return;
-        }
-        // Robustness: also accept a bare numeric ID (legacy GJS native returns).
-        if (typeof timeout === 'number') {
-            try { (globalThis as any).imports?.gi?.GLib?.Source.remove(timeout); } catch { /* ignore */ }
-        }
-    };
-
-    (globalThis as any).setInterval = function(
-        this: unknown,
-        callback: (...args: unknown[]) => unknown,
-        delay: number | undefined = 0,
-        ...args: unknown[]
-    ): GjsifyTimeout {
-        return new GjsifyTimeout(callback, Math.max(0, delay | 0), args, true);
-    };
-
-    (globalThis as any).clearInterval = function(this: unknown, timeout: unknown): void {
-        if (timeout instanceof GjsifyTimeout) {
-            timeout._cancel();
-            return;
-        }
-        if (typeof timeout === 'number') {
-            try { (globalThis as any).imports?.gi?.GLib?.Source.remove(timeout); } catch { /* ignore */ }
-        }
-    };
+function removeById(timeout: unknown): void {
+    if (timeout instanceof GjsifyTimeout) {
+        timeout._cancel();
+    } else if (typeof timeout === 'number') {
+        // Legacy: GJS's native setTimeout returned a source whose numeric ID was
+        // recoverable via `+timer`. Accept bare numbers for callers still holding
+        // a pre-patch reference.
+        try { getGLib()?.Source.remove(timeout); } catch { /* ignore */ }
+    }
 }
 
-function setImmediate<T extends any[]>(callback: (...args: T) => void, ...args: T): ReturnType<typeof setTimeout> {
+if (_isGjsTimer) {
+    // Node's setTimeout/setInterval overloads don't admit our return type; assign
+    // via a permissive cast rather than fight the TimerHandler / Timeout intersection.
+    type TimerFn = (cb: TimerCallback, delay?: number, ...args: unknown[]) => GjsifyTimeout;
+    const setT: TimerFn = (cb, delay = 0, ...args) => new GjsifyTimeout(cb, Math.max(0, delay | 0), args, false);
+    const setI: TimerFn = (cb, delay = 0, ...args) => new GjsifyTimeout(cb, Math.max(0, delay | 0), args, true);
+    const g = globalThis as unknown as Record<string, unknown>;
+    g.setTimeout = setT;
+    g.clearTimeout = removeById;
+    g.setInterval = setI;
+    g.clearInterval = removeById;
+}
+
+function setImmediate<T extends unknown[]>(callback: (...args: T) => void, ...args: T): ReturnType<typeof setTimeout> {
   return setTimeout(callback, 0, ...args);
 }
 

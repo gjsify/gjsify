@@ -1,10 +1,8 @@
 // WebTorrent player logic — platform-agnostic.
 // Opens a torrent (file path or magnet URI), starts an HTTP streaming server,
-// and reports the stream URL once the first video file is ready.
-//
-// WebTorrent's built-in HTTP server handles Range requests so GStreamer's
-// playbin can seek during streaming. Playback starts as soon as the first
-// pieces are available — no need to wait for a full download.
+// and reports the stream URL once the first video file is ready. The built-in
+// HTTP server handles Range requests so GStreamer's playbin can seek while the
+// file is still downloading.
 //
 // Reference: refs/webtorrent-desktop/src/renderer/pages/player-page.js
 
@@ -12,7 +10,8 @@ import WebTorrent from 'webtorrent';
 import type WebTorrentNS from 'webtorrent';
 import type { Torrent, TorrentFile } from 'webtorrent';
 
-// NodeServer from @types/webtorrent lacks listen() — it's a Node.js http.Server at runtime.
+// @types/webtorrent's NodeServer lacks listen() — at runtime it's a Node.js
+// http.Server. Filed upstream; for now patch the missing method onto the type.
 type NodeServerWithListen = WebTorrentNS.NodeServer & { listen(port: number, cb?: () => void): void };
 
 export interface PlayerCallbacks {
@@ -34,17 +33,10 @@ function formatBytes(bytes: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatSpeed(bytesPerSec: number): string {
-    return `${formatBytes(bytesPerSec)}/s`;
-}
+const formatSpeed = (bytesPerSec: number): string => `${formatBytes(bytesPerSec)}/s`;
 
 /**
  * Start downloading/streaming a torrent and report events via callbacks.
- *
- * Both WebRTC (browser peers via WebSocket trackers) and TCP (native peers via
- * DHT/BitTorrent trackers) are enabled so the client connects to as many peers
- * as possible.
- *
  * Returns the WebTorrent client so the caller can destroy it on close.
  */
 export async function runPlayer(
@@ -53,26 +45,21 @@ export async function runPlayer(
 ): Promise<WebTorrent.Instance> {
     const client = new WebTorrent();
 
-    // Start the built-in HTTP streaming server on a random port.
-    // The server serves each torrent file at:
-    //   http://127.0.0.1:<port>/<infoHash>/<encodedPath>
-    // and supports Range requests so GStreamer can seek while the file is
-    // still downloading.
-    // Force NodeServer: WebTorrent defaults to BrowserServer when globalThis exists (as in GJS),
-    // which requires ServiceWorkerRegistration. Pass 'node' to use the HTTP streaming server.
-    // The second 'node' argument is undocumented but present in WebTorrent v2 source.
+    // Force the Node HTTP server (WebTorrent defaults to a BrowserServer when
+    // `globalThis` exists — as in GJS — and that path requires the missing
+    // ServiceWorkerRegistration API). The 'node' second arg is undocumented but
+    // present in WebTorrent v2 source.
     const server = client.createServer({ hostname: '127.0.0.1' }, 'node') as unknown as NodeServerWithListen;
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const port = server.address().port;
 
     cb.onStatus('Adding torrent…');
 
-    // skipVerify: true — without this, WebTorrent reads every chunk of existing
-    // files at /tmp/webtorrent/<name>/ and runs SHA1 over them before announcing
-    // the torrent as ready. On GJS the hashing phase is slow enough to starve
-    // the GTK main loop (no window paint for ~minutes on a typical video).
-    // Trusting the existing data is fine for a demo; to force re-verification
-    // the user can `rm -rf /tmp/webtorrent` between runs.
+    // skipVerify: without it WebTorrent reads every chunk of existing files at
+    // /tmp/webtorrent/<name>/ and runs SHA1 over them before announcing the
+    // torrent as ready. On GJS that hashing phase starves the GTK main loop
+    // long enough for the window to never paint. The demo trusts cached data;
+    // users can `rm -rf /tmp/webtorrent` to force re-verification.
     const torrent = await new Promise<Torrent>((resolve) => {
         client.add(torrentSource, { skipVerify: true }, (t) => resolve(t));
     });
@@ -80,7 +67,7 @@ export async function runPlayer(
     cb.onName(torrent.name ?? 'WebTorrent Player');
     cb.onStatus(`Connected — searching for peers…`);
 
-    // Find the largest video file (most likely the feature film).
+    // Largest video file is usually the feature.
     const videoFile = (torrent.files as TorrentFile[])
         .filter((f) => VIDEO_EXTS.test(f.name))
         .sort((a, b) => b.length - a.length)[0];
@@ -90,34 +77,24 @@ export async function runPlayer(
         return client;
     }
 
-    // Build the streaming URL. WebTorrent's server resolves the file by infoHash
-    // + file path, URL-encoding each path segment.
-    const encodedPath = videoFile.path
-        .split('/')
-        .map((seg) => encodeURIComponent(seg))
-        .join('/');
-    const streamUrl = `http://127.0.0.1:${port}/${torrent.infoHash}/${encodedPath}`;
+    const encodedPath = videoFile.path.split('/').map(encodeURIComponent).join('/');
+    cb.onStreamUrl(`http://127.0.0.1:${port}/${torrent.infoHash}/${encodedPath}`);
 
-    cb.onStreamUrl(streamUrl);
-
-    // Periodic status updates — WebTorrent emits 'download'/'upload' events but
-    // polling is simpler for the UI ticker.
     const statusTick = setInterval(() => {
-        const pct = Math.round(torrent.progress * 100);
-        const dl = formatSpeed(torrent.downloadSpeed);
-        const ul = formatSpeed(torrent.uploadSpeed);
         const peers = torrent.numPeers;
-        const ratio = torrent.ratio.toFixed(2);
+        const peerSuffix = peers !== 1 ? 's' : '';
+        const ul = formatSpeed(torrent.uploadSpeed);
 
         if (torrent.done) {
-            cb.onStatus(`Seeding ↑ ${ul}  ${peers} peer${peers !== 1 ? 's' : ''}  ratio ${ratio}`);
+            cb.onStatus(`Seeding ↑ ${ul}  ${peers} peer${peerSuffix}  ratio ${torrent.ratio.toFixed(2)}`);
             cb.onProgress(1);
-        } else {
-            const etaSec = torrent.timeRemaining / 1000;
-            const eta = isFinite(etaSec) ? ` ETA ${Math.round(etaSec)}s` : '';
-            cb.onStatus(`${pct}%  ↓ ${dl}  ↑ ${ul}  ${peers} peer${peers !== 1 ? 's' : ''}${eta}`);
-            cb.onProgress(torrent.progress);
+            return;
         }
+        const dl = formatSpeed(torrent.downloadSpeed);
+        const etaSec = torrent.timeRemaining / 1000;
+        const eta = isFinite(etaSec) ? ` ETA ${Math.round(etaSec)}s` : '';
+        cb.onStatus(`${Math.round(torrent.progress * 100)}%  ↓ ${dl}  ↑ ${ul}  ${peers} peer${peerSuffix}${eta}`);
+        cb.onProgress(torrent.progress);
     }, 500);
 
     torrent.on('done', () => {

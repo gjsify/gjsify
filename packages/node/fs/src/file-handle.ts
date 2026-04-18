@@ -63,50 +63,56 @@ const GLIB_FILE_ERROR_TO_NODE: Record<number, string> = {
 };
 
 // POSIX numeric open(2) flags (values on Linux x86-64).
-const O_RDONLY = 0;
 const O_WRONLY = 1;
 const O_RDWR   = 2;
 const O_CREAT  = 64;
 const O_TRUNC  = 512;
 const O_APPEND = 1024;
 
-/**
- * Convert a numeric open(2) flags value to a GLib.IOChannel mode string.
- * GLib.IOChannel.new_file() uses fopen(3) modes: 'r', 'r+', 'w', 'w+', 'a', 'a+'.
- */
-function numericFlagsToIOMode(flags: number): string {
-    const rdwr   = (flags & O_RDWR)   !== 0;
-    const wronly = (flags & O_WRONLY) !== 0;
-    const append = (flags & O_APPEND) !== 0;
-    const trunc  = (flags & O_TRUNC)  !== 0;
+type IOMode = 'r' | 'r+' | 'w' | 'w+' | 'a' | 'a+';
 
-    if (rdwr)   return trunc ? 'w+' : 'r+';
-    if (wronly) return append ? 'a' : 'w';
-    return 'r'; // O_RDONLY
+/**
+ * Convert open flags (Node.js string or POSIX numeric) to a GLib.IOChannel mode.
+ * IOChannel.new_file() takes fopen(3) modes: 'r', 'r+', 'w', 'w+', 'a', 'a+'.
+ */
+function resolveIOMode(flags: OpenFlags | number | undefined): IOMode {
+    if (flags === undefined || flags === null) return 'r';
+    if (typeof flags === 'number') {
+        const rdwr   = (flags & O_RDWR)   !== 0;
+        const wronly = (flags & O_WRONLY) !== 0;
+        const append = (flags & O_APPEND) !== 0;
+        const trunc  = (flags & O_TRUNC)  !== 0;
+        if (rdwr)   return trunc ? 'w+' : 'r+';
+        if (wronly) return append ? 'a' : 'w';
+        return 'r';
+    }
+    // Node.js string flags — map extras to IOChannel equivalents.
+    switch (flags) {
+        case 'ax': case 'wx':   return 'w';
+        case 'ax+': case 'wx+': return 'w+';
+        case 'as': case 'rs+':  return 'r+';
+        case 'as+':             return 'a+';
+        default:                return flags as IOMode;
+    }
 }
 
 /**
- * Normalise open flags to a GLib.IOChannel mode string.
- * Accepts the Node.js string flags ('r', 'w', 'r+', …) or a numeric flags value.
+ * Open the file with the given IOChannel mode. When the flags request
+ * create-if-missing + read/write without truncation (numeric O_CREAT | O_RDWR,
+ * which maps to IOChannel 'r+' — a mode that requires the file to exist), we
+ * catch the ENOENT and create an empty file, then retry. This avoids a TOCTOU
+ * existence check and keeps the common "file exists" path to a single syscall.
  */
-function resolveIOMode(flags: OpenFlags | number | undefined, path: string, creat: boolean): string {
-    if (flags === undefined || flags === null) return 'r';
-    if (typeof flags === 'number') {
-        const mode = numericFlagsToIOMode(flags);
-        // O_CREAT + O_RDWR ('r+') requires the file to exist for IOChannel.
-        // If the file doesn't exist yet, create it so 'r+' can open it.
-        if (creat && mode === 'r+' && !GLib.file_test(path, GLib.FileTest.EXISTS)) {
+function openIOChannel(path: string, mode: IOMode, creat: boolean): GLib.IOChannel {
+    try {
+        return GLib.IOChannel.new_file(path, mode);
+    } catch (err) {
+        const gErr = err as { code?: number } | null | undefined;
+        if (creat && mode === 'r+' && gErr?.code === GLib.FileError.NOENT) {
             GLib.file_set_contents(path, new Uint8Array(0));
+            return GLib.IOChannel.new_file(path, mode);
         }
-        return mode;
-    }
-    // String flags — map Node.js extras to IOChannel equivalents.
-    switch (flags) {
-        case 'ax': case 'wx': return 'w';
-        case 'ax+': case 'wx+': return 'w+';
-        case 'as': case 'rs+': return 'r+';
-        case 'as+': return 'a+';
-        default: return flags as string;
+        throw err;
     }
 }
 
@@ -140,9 +146,9 @@ export class FileHandle implements IFileHandle {
         this.options.mode ||= 0o666;
         const pathStr = options.path.toString();
         const creat = typeof options.flags === 'number' && (options.flags & O_CREAT) !== 0;
-        const ioMode = resolveIOMode(options.flags as OpenFlags | number | undefined, pathStr, creat);
+        const ioMode = resolveIOMode(options.flags);
         try {
-            this._file = GLib.IOChannel.new_file(pathStr, ioMode);
+            this._file = openIOChannel(pathStr, ioMode, creat);
         } catch (err: unknown) {
             throw mapOpenError(err, pathStr);
         }

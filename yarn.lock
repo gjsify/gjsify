@@ -1926,6 +1926,7 @@ __metadata:
     "@girs/gdkpixbuf-2.0": "npm:^2.0.0-4.0.0-rc.3"
     "@girs/gjs": "npm:^4.0.0-rc.3"
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
+    "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.3"
     "@gjsify/abort-controller": "workspace:^"
     "@gjsify/canvas2d-core": "workspace:^"
     "@gjsify/cli": "workspace:^"
