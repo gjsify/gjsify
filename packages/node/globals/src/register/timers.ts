@@ -116,32 +116,15 @@ class GjsifyTimeout {
 }
 
 if (_isGjsTimer) {
-    // Neutralize GLib.Source.prototype.unref to block Node-compat code that
-    // expects `.unref()` to mean "don't keep the event loop alive" — on a GJS
-    // BoxedInstance the native unref() is g_source_unref, which frees the GLib
-    // source outright and leads to use-after-free at SM GC time. Leaking the
-    // extra refcount is cheap; a freed source → SIGSEGV is not.
-    //
-    // Even though our own setTimeout/setInterval now returns a Node-shaped
-    // Timeout (not a BoxedInstance), any OTHER code paths that hand out GLib
-    // source BoxedInstances (GStreamer plugins, GIO async helpers, Cancellable
-    // sources, third-party gi bindings) get the same protection for free.
-    try {
-        const GLib = (globalThis as any).imports?.gi?.GLib;
-        if (GLib?.Source?.prototype) {
-            const proto = GLib.Source.prototype;
-            const origRef = proto.ref;
-            const origUnref = proto.unref;
-            // No-op ref/unref from JS. GLib's C code still refs/unrefs via its
-            // own paths (g_source_attach, g_source_destroy_internal, etc.) which
-            // don't go through this JS wrapper.
-            proto.ref = function() { return this; };
-            proto.unref = function() { /* no-op */ };
-            // Keep originals accessible in case we ever need them.
-            (proto as any)._gjsify_origRef = origRef;
-            (proto as any)._gjsify_origUnref = origUnref;
-        }
-    } catch (_e) { /* GJS not available; patch is a no-op */ }
+    // NOTE: An earlier iteration also monkey-patched GLib.Source.prototype.ref /
+    // .unref to no-op globally as a "safety net" for non-timer BoxedInstances
+    // (GStreamer sources, Gio helpers, etc.). That broke GTK window ref-counting
+    // in subtle ways — windows would appear in the taskbar and then immediately
+    // vanish because JS-side bindings use .ref() internally as part of transfer
+    // semantics, and forcing it to a no-op invalidated the accounting. Since our
+    // own setTimeout/setInterval replacement no longer hands BoxedInstances to
+    // user code at all, the crash surface from Node-compat .unref() calls is
+    // already eliminated without the prototype hack.
 
     (globalThis as any).setTimeout = function(
         this: unknown,
