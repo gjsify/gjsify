@@ -427,6 +427,8 @@ export class Server extends EventEmitter {
       } catch (err) {
         // steal_connection() may fail if Soup has already started processing
         // the response or if the connection is in an unexpected state.
+        // Surface as 'clientError' (matches Node.js) so apps can log/react.
+        this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
       }
       if (ioStream) {
         const socket = new NetSocket();

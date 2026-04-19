@@ -176,15 +176,34 @@ export class FileHandle implements IFileHandle {
         return FileHandle.getInstance(this.fd);
     }
 
-    /** Lazy-open the read-capable stream appropriate for this handle's mode. */
-    private _getReadStream(): Gio.InputStream {
-        if (this._ioStream) return this._ioStream.get_input_stream();
+    /**
+     * Lazy-open the read-capable stream and return both the input stream and
+     * its seekable view. Both FileInputStream (read-only handle) and
+     * FileIOStream (read/write handle) implement Gio.Seekable, but we return
+     * both to avoid callers needing to know which concrete type they got.
+     */
+    private _getReadStream(): { input: Gio.InputStream; seekable: Gio.Seekable } {
+        if (this._ioStream) {
+            return {
+                input: this._ioStream.get_input_stream(),
+                seekable: this._ioStream as unknown as Gio.Seekable,
+            };
+        }
         if (this._ioMode === 'r') {
             if (!this._readStream) this._readStream = this._gFile.read(null);
-            return this._readStream;
+            return {
+                input: this._readStream,
+                seekable: this._readStream as unknown as Gio.Seekable,
+            };
         }
+        // open_readwrite requires the file to exist. For modes that imply
+        // create-if-missing (w, w+, a, a+) the IOChannel already created it
+        // above; for 'r+' openIOChannel() catches ENOENT and pre-creates it.
         this._ioStream = this._gFile.open_readwrite(null);
-        return this._ioStream.get_input_stream();
+        return {
+            input: this._ioStream.get_input_stream(),
+            seekable: this._ioStream as unknown as Gio.Seekable,
+        };
     }
 
     /** Lazy-open the write-capable stream (IOStream) for this handle. Only valid
@@ -194,17 +213,8 @@ export class FileHandle implements IFileHandle {
         if (this._ioMode === 'r') {
             throw new Error('FileHandle opened read-only; cannot write');
         }
-        // open_readwrite requires the file to exist. For modes that imply
-        // create-if-missing (w, w+, a, a+) the IOChannel already created it
-        // above; for 'r+' openIOChannel() catches ENOENT and pre-creates it.
         this._ioStream = this._gFile.open_readwrite(null);
         return this._ioStream;
-    }
-
-    /** Seekable view of whichever stream is currently open. IOStream itself
-     *  is Seekable in Gio; FileInputStream implements Gio.Seekable too. */
-    private _seekableFor(stream: Gio.InputStream | Gio.FileIOStream): Gio.Seekable {
-        return stream as unknown as Gio.Seekable;
     }
 
 
@@ -405,9 +415,9 @@ export class FileHandle implements IFileHandle {
         // touching only the requested region. Replaces the old load_contents()
         // path that read the entire file on every call (O(N²) over streamed
         // workloads like WebTorrent piece hashing or random-access-file).
-        const read = this._getReadStream();
-        this._seekableFor(this._ioStream ?? this._readStream!).seek(BigInt(startPos), GLib.SeekType.SET, null);
-        const bytes = read.read_bytes(readLength, null);
+        const { input, seekable } = this._getReadStream();
+        seekable.seek(BigInt(startPos), GLib.SeekType.SET, null);
+        const bytes = input.read_bytes(readLength, null);
         const data = bytes.get_data() as Uint8Array | null;
         const bytesRead = data?.length ?? 0;
         if (bufView && data && bytesRead > 0) {
@@ -773,11 +783,16 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async close(): Promise<void> {
+        // Close the Gio streams first; they own an fd wrapping the same file
+        // as the IOChannel. IOChannel.shutdown(true) flushes + closes its own
+        // fd — safe to call even if the Gio streams already released theirs,
+        // but guarded here so a throw from shutdown doesn't strand the stream
+        // references in a "closed but still pinned" state.
         try { this._ioStream?.close(null); } catch { /* best-effort */ }
         try { this._readStream?.close(null); } catch { /* best-effort */ }
         this._ioStream = null;
         this._readStream = null;
-        this._file.shutdown(true);
+        try { this._file.shutdown(true); } catch { /* best-effort */ }
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

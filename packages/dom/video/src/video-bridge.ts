@@ -68,11 +68,20 @@ export const VideoBridge = GObject.registerClass(
         _environment: BridgeEnvironment;
         _timeOrigin: number = GLib.get_monotonic_time();
         _pipeline: Gst.Pipeline | null = null;
+        // Bus associated with _pipeline; stored so `_destroyPipeline` can
+        // disconnect the handlers + `remove_signal_watch` before the pipeline
+        // is nulled. Without cleanup, changing `video.src` repeatedly
+        // accumulates handler connections on each pipeline's bus.
+        _pipelineBus: Gst.Bus | null = null;
+        _pipelineBusHandlers: number[] = [];
         _readyCallbacks: VideoReadyCallback[] = [];
         _resizeCallbacks: ((w: number, h: number) => void)[] = [];
         _ready = false;
 
-        // Control bar (null when showControls(false) or never called).
+        // Control bar + its per-tick change-detection state (null when
+        // showControls(false) or never called). Keeping _lastSeekValue /
+        // _lastTimeText on the same object lets them live and die with the
+        // controls; no separate reset needed.
         _controls: {
             bar: Gtk.Box;
             playBtn: Gtk.Button;
@@ -80,11 +89,10 @@ export const VideoBridge = GObject.registerClass(
             seekScale: Gtk.Scale;
             timeLabel: Gtk.Label;
             volumeBtn: Gtk.VolumeButton;
+            lastSeekValue: number;
+            lastTimeText: string;
         } | null = null;
         _positionTimerId: number | null = null;
-        // Position-timer change detection (skip no-op set_value / set_label on every tick).
-        _lastSeekValue = NaN;
-        _lastTimeText = '';
         // change-value on seekScale fires on user interaction only; the guard prevents
         // programmatic set_value from bouncing through the signal on some compositors.
         _updatingFromTimer = false;
@@ -144,6 +152,7 @@ export const VideoBridge = GObject.registerClass(
             this.connect('unrealize', () => {
                 this._destroyPipeline();
                 this._stopPositionTimer();
+                this._resizeCallbacks = [];
             });
         }
 
@@ -263,7 +272,7 @@ export const VideoBridge = GObject.registerClass(
             volumeBtn.connect('value-changed', (_btn, value) => { this._video.volume = value; });
             bar.append(volumeBtn);
 
-            return { bar, playBtn, seekAdj, seekScale, timeLabel, volumeBtn };
+            return { bar, playBtn, seekAdj, seekScale, timeLabel, volumeBtn, lastSeekValue: NaN, lastTimeText: '' };
         }
 
         _startPositionTimer(): void {
@@ -277,18 +286,18 @@ export const VideoBridge = GObject.registerClass(
 
                 if (isFinite(dur) && dur > 0) {
                     if (controls.seekAdj.upper !== dur) controls.seekAdj.upper = dur;
-                    if (cur !== this._lastSeekValue) {
+                    if (cur !== controls.lastSeekValue) {
                         this._updatingFromTimer = true;
                         controls.seekAdj.set_value(cur);
                         this._updatingFromTimer = false;
-                        this._lastSeekValue = cur;
+                        controls.lastSeekValue = cur;
                     }
                 }
 
                 const text = `${formatTime(cur)} / ${formatTime(dur)}`;
-                if (text !== this._lastTimeText) {
+                if (text !== controls.lastTimeText) {
                     controls.timeLabel.set_label(text);
-                    this._lastTimeText = text;
+                    controls.lastTimeText = text;
                 }
 
                 const icon = this._video.paused ? PLAY_ICON : PAUSE_ICON;
@@ -347,18 +356,26 @@ export const VideoBridge = GObject.registerClass(
 
             // Bus watch surfaces pipeline errors and warnings (missing decoder,
             // http source failure, missing plugin, etc.). Without this, playbin
-            // can fail to preroll and sit silently in READY forever.
+            // can fail to preroll and sit silently in READY forever. Handler
+            // ids + bus are stashed on the instance so `_destroyPipeline` can
+            // disconnect them — otherwise each pipeline swap (new video.src)
+            // leaks a set of signal handlers on the freed bus.
             const bus = pipeline.get_bus();
-            bus?.add_signal_watch();
-            bus?.connect('message::error', (_b, msg) => {
-                const [err, debug] = msg.parse_error();
-                console.error(`VideoBridge pipeline error: ${err?.message ?? 'unknown'} (${debug ?? ''})`);
-                this._video.dispatchEvent(new Event('error'));
-            });
-            bus?.connect('message::warning', (_b, msg) => {
-                const [err, debug] = msg.parse_warning();
-                console.warn(`VideoBridge pipeline warning: ${err?.message ?? 'unknown'} (${debug ?? ''})`);
-            });
+            if (bus) {
+                bus.add_signal_watch();
+                this._pipelineBus = bus;
+                this._pipelineBusHandlers = [
+                    bus.connect('message::error', (_b, msg) => {
+                        const [err, debug] = msg.parse_error();
+                        console.error(`VideoBridge pipeline error: ${err?.message ?? 'unknown'} (${debug ?? ''})`);
+                        this._video.dispatchEvent(new Event('error'));
+                    }),
+                    bus.connect('message::warning', (_b, msg) => {
+                        const [err, debug] = msg.parse_warning();
+                        console.warn(`VideoBridge pipeline warning: ${err?.message ?? 'unknown'} (${debug ?? ''})`);
+                    }),
+                ];
+            }
 
             const ret = pipeline.set_state(GstRuntime.State.PLAYING);
             if (ret === GstRuntime.StateChangeReturn.FAILURE) {
@@ -371,14 +388,20 @@ export const VideoBridge = GObject.registerClass(
         }
 
         _destroyPipeline(): void {
+            if (this._pipelineBus) {
+                for (const id of this._pipelineBusHandlers) {
+                    try { this._pipelineBus.disconnect(id); } catch { /* ignore */ }
+                }
+                try { this._pipelineBus.remove_signal_watch(); } catch { /* ignore */ }
+                this._pipelineBus = null;
+                this._pipelineBusHandlers = [];
+            }
             if (this._pipeline) {
                 try { this._pipeline.set_state(GstRuntime.State.NULL); } catch { /* ignore */ }
                 this._pipeline = null;
                 this._video._pipeline = null;
             }
             this._picture.set_paintable(null);
-            this._lastSeekValue = NaN;
-            this._lastTimeText = '';
         }
     },
 );

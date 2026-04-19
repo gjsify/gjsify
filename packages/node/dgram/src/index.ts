@@ -269,12 +269,14 @@ export class Socket extends EventEmitter {
 
     if (callback) this.once('close', callback);
 
-    this._cancellable.cancel();
-
+    // Destroy the read source before cancelling the shared cancellable — a
+    // pending callback could fire in between otherwise and see the cancellable
+    // already cancelled, emitting an unwanted 'error' on the closed socket.
     if (this._readSource) {
       try { this._readSource.destroy(); } catch (_e) { /* ignore */ }
       this._readSource = null;
     }
+    this._cancellable.cancel();
 
     if (this._socket) {
       try {

@@ -6,14 +6,10 @@
 //
 // Reference: refs/webtorrent-desktop/src/renderer/pages/player-page.js
 
+import './webtorrent-augment.d.ts';
 import { PassThrough } from 'node:stream';
 import WebTorrent from 'webtorrent';
-import type WebTorrentNS from 'webtorrent';
-import type { Torrent, TorrentFile } from 'webtorrent';
-
-// @types/webtorrent's NodeServer lacks listen() — at runtime it's a Node.js
-// http.Server. Filed upstream; patch the missing method onto the type.
-type NodeServerWithListen = WebTorrentNS.NodeServer & { listen(port: number, cb?: () => void): void };
+import type { Torrent, TorrentFile, NodeServer } from 'webtorrent';
 
 export interface PlayerCallbacks {
     /** Called when the torrent name / title is known. */
@@ -50,7 +46,9 @@ export async function runPlayer(
     // `globalThis` exists (as in GJS), and that path requires the missing
     // ServiceWorkerRegistration API. The 'node' second arg is undocumented but
     // present in WebTorrent v2 source.
-    const server = client.createServer({ hostname: '127.0.0.1' }, 'node') as unknown as NodeServerWithListen;
+    // 'node' selects NodeServer (Node http.Server) over BrowserServer, but the
+    // TS return type is the union — narrow at the call site.
+    const server = client.createServer({ hostname: '127.0.0.1' }, 'node') as NodeServer;
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const port = server.address().port;
 
@@ -72,24 +70,19 @@ export async function runPlayer(
         return client;
     }
 
-    // Swap the streamx Readable WebTorrent would pipe into res for a PassThrough
-    // we control. `for await` is our documented working consumer of streamx; the
-    // stock `body.pipe(res)` path never engages our Writable's `_write` under
-    // GJS. setTarget(pt) tells ServerBase.serveFile to do `res.body = pt`, so
-    // wrapRequest ends up running `pump(pt, res)` — one Node-classic stream
-    // piping into another, both under our control and empirically working.
-    type StreamHook = TorrentFile & {
-        on(
-            event: 'stream',
-            listener: (args: { stream: AsyncIterable<Uint8Array> }, setTarget: (t: unknown) => void) => void,
-        ): void;
-    };
-    (videoFile as StreamHook).on('stream', ({ stream }, setTarget) => {
+    // WebTorrent emits 'stream' per HTTP range request with a streamx Readable.
+    // The stock `body.pipe(res)` path never engages our @gjsify/http Writable's
+    // `_write` under GJS (streamx pipe protocol incompat — separate rabbit
+    // hole), so consume the Readable with `for await` and forward chunks
+    // through a Node-classic PassThrough we own. setTarget(pt) makes
+    // ServerBase.serveFile do `res.body = pt`, and wrapRequest then runs
+    // `pump(pt, res)` — both Node streams under our control.
+    videoFile.on('stream', ({ stream }, setTarget) => {
         const pt = new PassThrough();
         (async () => {
             try {
                 for await (const chunk of stream) {
-                    if (!pt.write(chunk as Uint8Array)) {
+                    if (!pt.write(chunk)) {
                         await new Promise<void>((resolve) => pt.once('drain', resolve));
                     }
                 }
@@ -110,30 +103,28 @@ export async function runPlayer(
     // them before handing the URL to GStreamer. Without this, rarest-first
     // piece selection can leave byte 0 undelivered when playbin starts and
     // qtdemux/matroskademux reject the stream with "no known streams found".
-    //
-    // We intentionally do NOT prefetch the end of the file upfront — for
-    // non-faststart MP4s the 'moov' atom lives at the end, but qtdemux seeks
-    // there via a Range request once the start is parsed, and WebTorrent's
-    // FileIterator transparently marks those end pieces critical() + waits
-    // on 'verified' before resolving the read. Prefetching the tail would
-    // just delay time-to-first-frame for the common faststart case.
-    const fileOffset = (videoFile as TorrentFile & { offset: number }).offset;
+    // For non-faststart MP4 qtdemux seeks to the end once the start is parsed;
+    // WebTorrent's FileIterator transparently marks those end pieces critical
+    // and blocks on 'verified', so we don't prefetch the tail upfront.
+    const fileOffset = videoFile.offset;
     const lastByte = fileOffset + videoFile.length - 1;
     const firstPiece = Math.floor(fileOffset / torrent.pieceLength);
     const lastPiece = Math.floor(lastByte / torrent.pieceLength);
-    const bufferPieces = Math.min(4, lastPiece - firstPiece + 1);
-    const headerEnd = firstPiece + bufferPieces - 1;
+    const headerEnd = Math.min(firstPiece + 3, lastPiece);
+    const headerCount = headerEnd - firstPiece + 1;
     torrent.critical(firstPiece, headerEnd);
 
-    const wanted: number[] = [];
-    for (let i = firstPiece; i <= headerEnd; i++) wanted.push(i);
-
-    const wantedReady = (): number => wanted.filter((p) => torrent.bitfield.get(p)).length;
+    const headerReady = (): number => {
+        let n = 0;
+        for (let p = firstPiece; p <= headerEnd; p++) {
+            if (torrent.bitfield.get(p)) n++;
+        }
+        return n;
+    };
 
     // Status ticker — started before the buffering wait so the user sees peer
     // count, speeds, and the "buffering X/N" header chunks arriving instead of
-    // a static "Buffering…" during the wait (which can be long on rare end
-    // pieces under rarest-first selection).
+    // a static "Buffering…" during the wait.
     let streamOpened = false;
     const statusTick = setInterval(() => {
         const peers = torrent.numPeers;
@@ -147,7 +138,7 @@ export async function runPlayer(
             return;
         }
         if (!streamOpened) {
-            cb.onStatus(`Buffering ${wantedReady()}/${wanted.length} chunks  ↓ ${dl}  ${peers} peer${peerSuffix}`);
+            cb.onStatus(`Buffering ${headerReady()}/${headerCount} chunks  ↓ ${dl}  ${peers} peer${peerSuffix}`);
             cb.onProgress(torrent.progress);
             return;
         }
@@ -158,10 +149,9 @@ export async function runPlayer(
     }, 500);
 
     await new Promise<void>((resolve) => {
-        const haveAll = (): boolean => wantedReady() === wanted.length;
-        if (haveAll()) return resolve();
+        if (headerReady() === headerCount) return resolve();
         const onVerified = (): void => {
-            if (haveAll()) {
+            if (headerReady() === headerCount) {
                 torrent.removeListener('verified', onVerified);
                 resolve();
             }
