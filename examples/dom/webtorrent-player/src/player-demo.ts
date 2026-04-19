@@ -106,27 +106,27 @@ export async function runPlayer(
     // the /webtorrent prefix causes wrapRequest() to destroy the connection.
     const streamUrl = `http://127.0.0.1:${port}/webtorrent/${torrent.infoHash}/${encodedPath}`;
 
-    // Prioritize the pieces at the *start* AND *end* of the video file and
-    // wait for both before handing the URL to GStreamer:
-    //  - start: MP4/Matroska header required to initialise qtdemux/matroskademux
-    //  - end: MP4 'moov' atom is often stored at file end (no 'faststart'
-    //    flag); qtdemux seeks there to find stream metadata and fails with
-    //    "no known streams found" if those bytes are missing.
-    // Without explicit critical() + wait, WebTorrent's rarest-first strategy
-    // can leave either region undelivered when playbin starts.
+    // Prioritize the pieces covering the start of the video file and wait for
+    // them before handing the URL to GStreamer. Without this, rarest-first
+    // piece selection can leave byte 0 undelivered when playbin starts and
+    // qtdemux/matroskademux reject the stream with "no known streams found".
+    //
+    // We intentionally do NOT prefetch the end of the file upfront — for
+    // non-faststart MP4s the 'moov' atom lives at the end, but qtdemux seeks
+    // there via a Range request once the start is parsed, and WebTorrent's
+    // FileIterator transparently marks those end pieces critical() + waits
+    // on 'verified' before resolving the read. Prefetching the tail would
+    // just delay time-to-first-frame for the common faststart case.
     const fileOffset = (videoFile as TorrentFile & { offset: number }).offset;
     const lastByte = fileOffset + videoFile.length - 1;
     const firstPiece = Math.floor(fileOffset / torrent.pieceLength);
     const lastPiece = Math.floor(lastByte / torrent.pieceLength);
-    const bufferPieces = 4;
-    const headerRange = { from: firstPiece, to: Math.min(firstPiece + bufferPieces - 1, lastPiece) };
-    const footerRange = { from: Math.max(lastPiece - bufferPieces + 1, headerRange.to + 1), to: lastPiece };
-    torrent.critical(headerRange.from, headerRange.to);
-    if (footerRange.from <= footerRange.to) torrent.critical(footerRange.from, footerRange.to);
+    const bufferPieces = Math.min(4, lastPiece - firstPiece + 1);
+    const headerEnd = firstPiece + bufferPieces - 1;
+    torrent.critical(firstPiece, headerEnd);
 
     const wanted: number[] = [];
-    for (let i = headerRange.from; i <= headerRange.to; i++) wanted.push(i);
-    for (let i = footerRange.from; i <= footerRange.to; i++) wanted.push(i);
+    for (let i = firstPiece; i <= headerEnd; i++) wanted.push(i);
 
     const wantedReady = (): number => wanted.filter((p) => torrent.bitfield.get(p)).length;
 
