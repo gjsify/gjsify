@@ -22,7 +22,6 @@
     "@girs/gjs": "^4.0.0-rc.3",
     "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
     "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.3",
-    "@gjsify/adw-app": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",

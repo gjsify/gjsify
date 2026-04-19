@@ -92,9 +92,7 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 
 Composition-first utilities that make GJS app development feel like modern TypeScript stacks (Remix / Astro / SvelteKit / Solid-Start). **Anything that is not Node.js API, Web API, DOM API, or infrastructure/runtime belongs here.**
 
-| Pkg | Libs | Implements |
-|-----|------|------------|
-| adw-app | Adw 1, Gtk 4.0 | `runAdwApp({ applicationId, title, build })` — composes Adw.Application + ApplicationWindow + ToolbarView + HeaderBar into a single call. `build()` returns the root Widget (or a Promise for async setup like `videoBridge.onReady`). Returns the exit code from `Adw.Application.run()`. No manual `GLib.MainLoop` needed |
+**No current residents.** The pillar directory exists as a home for future elegant app-development patterns and for the bridge widgets listed in the migration roadmap below. Examples and showcases intentionally use the raw `Adw.Application` + `ApplicationWindow` + `ToolbarView` + `HeaderBar` bootstrap — the purpose of showcases is to demonstrate the underlying API, not to hide it behind a helper. A framework-level helper only lands here once it delivers something the inline bootstrap cannot (wiring multiple subsystems together, convention over configuration, composable lifecycle, etc.).
 
 ### Framework vs. DOM distinction
 
@@ -117,7 +115,6 @@ After migration, `packages/dom/` contains only `@gjsify/dom-elements` (pure DOM 
 
 ```
 packages/framework/
-├── adw-app/        # runAdwApp
 ├── bridge-types/   # DOMBridgeContainer + BridgeEnvironment
 ├── event-bridge/   # attachEventControllers (Gtk → DOM events)
 ├── canvas2d/       # Canvas2DBridge → Gtk.DrawingArea (Cairo)
