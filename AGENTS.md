@@ -2,7 +2,7 @@
 
 Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js API, Web API, and DOM API for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.1.11, ESM-only). All packages use native GNOME libs. Three equal-priority pillars: **Node.js API** (`packages/node/`) | **Web API** (`packages/web/`) | **DOM API** (`packages/dom/`).
+Node.js API, Web API, DOM API, and Framework for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.1.11, ESM-only). All packages use native GNOME libs. Four equal-priority pillars: **Node.js API** (`packages/node/`) | **Web API** (`packages/web/`) | **DOM API** (`packages/dom/`) | **Framework** (`packages/framework/`). `packages/infra/` and `packages/gjs/` are supporting infrastructure, not pillars.
 
 Browser compatibility patches (globals, DOM stubs) belong in packages, not examples. If an example needs a `globalThis.*` polyfill or DOM method stub, add it to `@gjsify/dom-elements` or the appropriate package.
 
@@ -12,7 +12,7 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 
 ## Structure
 
-`packages/{node/,gjs/,infra/,web/,dom/}` | `showcases/` — curated examples shipped with CLI | `examples/` — private dev/test examples | `refs/` — read-only git submodules (DO NOT modify)
+`packages/{node/,web/,dom/,framework/,gjs/,infra/}` | `showcases/` — curated examples shipped with CLI | `examples/` — private dev/test examples | `refs/` — read-only git submodules (DO NOT modify)
 
 ## Node.js Packages — `packages/node/*` → `@gjsify/<name>`
 
@@ -87,6 +87,44 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 | event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |
 | iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
 | video | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge→Gtk.Picture(gtk4paintablesink). srcObject(MediaStream) + src(URI via playbin) |
+
+## Framework Packages — `packages/framework/*`
+
+Composition-first utilities that make GJS app development feel like modern TypeScript stacks (Remix / Astro / SvelteKit / Solid-Start). **Anything that is not Node.js API, Web API, DOM API, or infrastructure/runtime belongs here.**
+
+| Pkg | Libs | Implements |
+|-----|------|------------|
+| adw-app | Adw 1, Gtk 4.0 | `runAdwApp({ applicationId, title, build })` — composes Adw.Application + ApplicationWindow + ToolbarView + HeaderBar into a single call. `build()` returns the root Widget (or a Promise for async setup like `videoBridge.onReady`). Returns the exit code from `Adw.Application.run()`. No manual `GLib.MainLoop` needed |
+
+### Framework vs. DOM distinction
+
+`packages/dom/` hosts implementations of the **DOM standard** (Node, Element, HTMLElement, …). `packages/framework/` hosts **composable widgets and helpers** that glue DOM APIs to GTK without BEING part of the DOM spec. The GTK↔DOM bridge widgets (`canvas2d`, `webgl`, `video`, `iframe`, `event-bridge`, `bridge-types`) are Framework citizens that currently live under `packages/dom/` for historical reasons.
+
+### Migration roadmap — bridges move `packages/dom/` → `packages/framework/`
+
+Each bridge moves in its own atomic follow-up PR (package name does NOT change — `@gjsify/canvas2d` stays `@gjsify/canvas2d`). Suggested order:
+
+| Package | Rationale for move |
+|---|---|
+| `@gjsify/bridge-types` | Base interfaces + `BridgeEnvironment` — move first, other bridges depend on it |
+| `@gjsify/event-bridge` | `attachEventControllers` — glue layer, not DOM spec |
+| `@gjsify/canvas2d` | `Canvas2DBridge`→`Gtk.DrawingArea` |
+| `@gjsify/webgl` | `WebGLBridge`→`Gtk.GLArea` (also ships native prebuild) |
+| `@gjsify/video` | `VideoBridge`→`Gtk.Picture` |
+| `@gjsify/iframe` | `IFrameBridge`→`WebKit.WebView` |
+
+After migration, `packages/dom/` contains only `@gjsify/dom-elements` (pure DOM API). Target layout:
+
+```
+packages/framework/
+├── adw-app/        # runAdwApp
+├── bridge-types/   # DOMBridgeContainer + BridgeEnvironment
+├── event-bridge/   # attachEventControllers (Gtk → DOM events)
+├── canvas2d/       # Canvas2DBridge → Gtk.DrawingArea (Cairo)
+├── webgl/          # WebGLBridge → Gtk.GLArea
+├── video/          # VideoBridge → Gtk.Picture (gtk4paintablesink)
+└── iframe/         # IFrameBridge → WebKit.WebView
+```
 
 ### DOM Elements = GTK Bridge Containers
 
@@ -381,6 +419,8 @@ Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. Select: core
 `packages/node/<name>/`: `@gjsify/<name>`, v0.1.11, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if the package provides globals) | `sideEffects: ["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`, devDep: `@gjsify/unit` | workspace deps: `workspace:^`
 
 Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals, if applicable) | `src/*.spec.ts` (specs) | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + any feature-specific `<pkg>/register`). See the Tree-shakeable Globals section for the full rules.
+
+**Framework packages** (`packages/framework/<name>/`): flat name `@gjsify/<name>` (NOT `@gjsify/framework-<name>`), composition-first. **No `/register` subpath, no `globalThis.*` writes, no side effects at module top-level.** Pure named exports only. Framework packages compose standard DOM/GTK APIs into higher-level helpers; they never register browser globals (that is the Web/DOM pillars' job). A framework package that needs a global should import the corresponding `@gjsify/<web-or-dom-pkg>/register` explicitly — not wrap it. Minimal layout: `src/index.ts` + `package.json` + `tsconfig.json`.
 
 Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating. Only extract when second package needs it.
 
