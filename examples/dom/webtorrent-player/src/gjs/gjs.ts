@@ -21,9 +21,12 @@ delete (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection;
 delete (globalThis as { RTCSessionDescription?: unknown }).RTCSessionDescription;
 delete (globalThis as { RTCIceCandidate?: unknown }).RTCIceCandidate;
 
-// Sintel — the open-source Blender short film. See https://webtorrent.io/free-torrents.
+// Big Buck Bunny — open-source Blender short; the MP4 has `faststart` so the
+// `moov` metadata atom sits at the start of the file, letting playbin open
+// the stream after just the header pieces are downloaded (no long wait for
+// rarest-first end-of-file pieces). See https://webtorrent.io/free-torrents.
 const DEFAULT_TORRENT =
-    'magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&dn=Sintel&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.fastcast.nz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&xs=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fsintel.torrent';
+    'magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&dn=Big+Buck+Bunny&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.fastcast.nz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&xs=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fbig-buck-bunny.torrent';
 
 const torrentSource = (imports as { system?: { programArgs?: string[] } }).system?.programArgs?.[0]
     ?? DEFAULT_TORRENT;
