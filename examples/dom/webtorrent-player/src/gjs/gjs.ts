@@ -6,9 +6,8 @@ import '@girs/gjs';
 import '@girs/gtk-4.0';
 import '@girs/adw-1';
 
-import Adw from 'gi://Adw?version=1';
-import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
+import { runAdwApp } from '@gjsify/adw-app';
 import { VideoBridge } from '@gjsify/video';
 
 import { runPlayer } from '../player-demo.js';
@@ -31,68 +30,59 @@ const DEFAULT_TORRENT =
 const torrentSource = (imports as { system?: { programArgs?: string[] } }).system?.programArgs?.[0]
     ?? DEFAULT_TORRENT;
 
-const app = new Adw.Application({
-    application_id: 'io.gjsify.WebtorrentPlayer',
+runAdwApp({
+    applicationId: 'io.gjsify.WebtorrentPlayer',
+    title: 'WebTorrent Player',
+    defaultWidth: 900,
+    defaultHeight: 580,
+    build: ({ app, window }) => {
+        const contentBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+
+        const videoBridge = new VideoBridge();
+        videoBridge.set_hexpand(true);
+        videoBridge.set_vexpand(true);
+        videoBridge.showControls(true);
+        contentBox.append(videoBridge);
+
+        const progressBar = new Gtk.ProgressBar({
+            margin_start: 8,
+            margin_end: 8,
+            margin_top: 4,
+        });
+        contentBox.append(progressBar);
+
+        const statusLabel = new Gtk.Label({
+            label: 'Starting…',
+            xalign: 0,
+            margin_start: 8,
+            margin_end: 8,
+            margin_bottom: 6,
+            use_markup: false,
+        });
+        contentBox.append(statusLabel);
+
+        let torrentClient: { destroy?: () => void } | null = null;
+
+        videoBridge.onReady(async (video) => {
+            try {
+                torrentClient = await runPlayer(torrentSource, {
+                    onName: (name) => window.set_title(name),
+                    onStreamUrl: (url) => { video.src = url; },
+                    onProgress: (fraction) => progressBar.set_fraction(fraction),
+                    onStatus: (text) => statusLabel.set_label(text),
+                });
+            } catch (err) {
+                statusLabel.set_label(`Error: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        });
+
+        window.connect('close-request', () => {
+            torrentClient?.destroy?.();
+            return false;
+        });
+
+        app.connect('shutdown', () => torrentClient?.destroy?.());
+
+        return contentBox;
+    },
 });
-
-app.connect('activate', () => {
-    const win = new Adw.ApplicationWindow({ application: app });
-    win.set_default_size(900, 580);
-    win.set_title('WebTorrent Player');
-
-    const toolbarView = new Adw.ToolbarView();
-    toolbarView.add_top_bar(new Adw.HeaderBar());
-
-    const contentBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
-
-    const videoBridge = new VideoBridge();
-    videoBridge.set_hexpand(true);
-    videoBridge.set_vexpand(true);
-    videoBridge.showControls(true);
-    contentBox.append(videoBridge);
-
-    const progressBar = new Gtk.ProgressBar({
-        margin_start: 8,
-        margin_end: 8,
-        margin_top: 4,
-    });
-    contentBox.append(progressBar);
-
-    const statusLabel = new Gtk.Label({
-        label: 'Starting…',
-        xalign: 0,
-        margin_start: 8,
-        margin_end: 8,
-        margin_bottom: 6,
-        use_markup: false,
-    });
-    contentBox.append(statusLabel);
-
-    toolbarView.set_content(contentBox);
-    win.set_content(toolbarView);
-    win.present();
-
-    let torrentClient: { destroy?: () => void } | null = null;
-
-    videoBridge.onReady(async (video) => {
-        try {
-            torrentClient = await runPlayer(torrentSource, {
-                onName: (name) => win.set_title(name),
-                onStreamUrl: (url) => { video.src = url; },
-                onProgress: (fraction) => progressBar.set_fraction(fraction),
-                onStatus: (text) => statusLabel.set_label(text),
-            });
-        } catch (err) {
-            statusLabel.set_label(`Error: ${err instanceof Error ? err.message : String(err)}`);
-        }
-    });
-
-    win.connect('close-request', () => {
-        torrentClient?.destroy?.();
-        return false;
-    });
-
-    app.connect('shutdown', () => torrentClient?.destroy?.());
-});
-
-app.run([]);

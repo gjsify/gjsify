@@ -5,32 +5,24 @@ import '@girs/gjs';
 import '@girs/gtk-4.0';
 import '@girs/adw-1';
 
-import Adw from 'gi://Adw?version=1';
+import { runAdwApp } from '@gjsify/adw-app';
 import { VideoBridge } from '@gjsify/video';
 
 const VIDEO_URL = 'http://ftp.nluug.nl/pub/graphics/blender/demo/movies/Sintel.2010.720p.mkv';
 
-const app = new Adw.Application({ application_id: 'io.gjsify.VideoPlayer' });
-
-app.connect('activate', () => {
-    const win = new Adw.ApplicationWindow({ application: app });
-    win.set_default_size(900, 560);
-    win.set_title('Video Player');
-
-    const toolbarView = new Adw.ToolbarView();
-    toolbarView.add_top_bar(new Adw.HeaderBar());
-
-    const videoBridge = new VideoBridge();
-    videoBridge.showControls(true);
-    toolbarView.set_content(videoBridge);
-    win.set_content(toolbarView);
-
-    videoBridge.onReady((video) => {
-        win.set_title('Sintel (2010) — Video Player');
-        video.src = VIDEO_URL;
-    });
-
-    win.present();
+runAdwApp({
+    applicationId: 'io.gjsify.VideoPlayer',
+    title: 'Video Player',
+    defaultWidth: 900,
+    defaultHeight: 560,
+    build: ({ window }) =>
+        new Promise((resolve) => {
+            const videoBridge = new VideoBridge();
+            videoBridge.showControls(true);
+            videoBridge.onReady((video) => {
+                window.set_title('Sintel (2010) — Video Player');
+                video.src = VIDEO_URL;
+                resolve(videoBridge);
+            });
+        }),
 });
-
-app.run([]);
