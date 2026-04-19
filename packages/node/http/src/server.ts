@@ -224,7 +224,6 @@ export class ServerResponse extends OutgoingMessage {
   /** Writable stream _write — sends headers on first call, then appends + flushes each chunk. */
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
-    printerr(`[http-server] _write ${buf.length} bytes streaming=${this._streaming}`);
     this._startStreaming();
     const responseBody = this._soupMsg.get_response_body();
     responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
