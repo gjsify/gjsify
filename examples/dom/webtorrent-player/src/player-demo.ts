@@ -128,9 +128,37 @@ export async function runPlayer(
     for (let i = headerRange.from; i <= headerRange.to; i++) wanted.push(i);
     for (let i = footerRange.from; i <= footerRange.to; i++) wanted.push(i);
 
-    cb.onStatus('Buffering…');
+    const wantedReady = (): number => wanted.filter((p) => torrent.bitfield.get(p)).length;
+
+    // Status ticker — started before the buffering wait so the user sees peer
+    // count, speeds, and the "buffering X/N" header chunks arriving instead of
+    // a static "Buffering…" during the wait (which can be long on rare end
+    // pieces under rarest-first selection).
+    let streamOpened = false;
+    const statusTick = setInterval(() => {
+        const peers = torrent.numPeers;
+        const peerSuffix = peers !== 1 ? 's' : '';
+        const ul = formatSpeed(torrent.uploadSpeed);
+        const dl = formatSpeed(torrent.downloadSpeed);
+
+        if (torrent.done) {
+            cb.onStatus(`Seeding ↑ ${ul}  ${peers} peer${peerSuffix}  ratio ${torrent.ratio.toFixed(2)}`);
+            cb.onProgress(1);
+            return;
+        }
+        if (!streamOpened) {
+            cb.onStatus(`Buffering ${wantedReady()}/${wanted.length} chunks  ↓ ${dl}  ${peers} peer${peerSuffix}`);
+            cb.onProgress(torrent.progress);
+            return;
+        }
+        const etaSec = torrent.timeRemaining / 1000;
+        const eta = isFinite(etaSec) ? ` ETA ${Math.round(etaSec)}s` : '';
+        cb.onStatus(`${Math.round(torrent.progress * 100)}%  ↓ ${dl}  ↑ ${ul}  ${peers} peer${peerSuffix}${eta}`);
+        cb.onProgress(torrent.progress);
+    }, 500);
+
     await new Promise<void>((resolve) => {
-        const haveAll = (): boolean => wanted.every((p) => torrent.bitfield.get(p));
+        const haveAll = (): boolean => wantedReady() === wanted.length;
         if (haveAll()) return resolve();
         const onVerified = (): void => {
             if (haveAll()) {
@@ -140,24 +168,8 @@ export async function runPlayer(
         };
         torrent.on('verified', onVerified);
     });
+    streamOpened = true;
     cb.onStreamUrl(streamUrl);
-
-    const statusTick = setInterval(() => {
-        const peers = torrent.numPeers;
-        const peerSuffix = peers !== 1 ? 's' : '';
-        const ul = formatSpeed(torrent.uploadSpeed);
-
-        if (torrent.done) {
-            cb.onStatus(`Seeding ↑ ${ul}  ${peers} peer${peerSuffix}  ratio ${torrent.ratio.toFixed(2)}`);
-            cb.onProgress(1);
-            return;
-        }
-        const dl = formatSpeed(torrent.downloadSpeed);
-        const etaSec = torrent.timeRemaining / 1000;
-        const eta = isFinite(etaSec) ? ` ETA ${Math.round(etaSec)}s` : '';
-        cb.onStatus(`${Math.round(torrent.progress * 100)}%  ↓ ${dl}  ↑ ${ul}  ${peers} peer${peerSuffix}${eta}`);
-        cb.onProgress(torrent.progress);
-    }, 500);
 
     torrent.on('done', () => {
         clearInterval(statusTick);
