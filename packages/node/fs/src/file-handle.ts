@@ -1,7 +1,7 @@
 // Reference: Node.js lib/internal/fs/promises.js (FileHandle)
 // Reimplemented for GJS using Gio.File
 
-import { warnNotImplemented, notImplemented } from '@gjsify/utils';
+import { warnNotImplemented, notImplemented, createGLibFileError } from '@gjsify/utils';
 import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
 import { Stats } from "./stats.js";
@@ -34,33 +34,6 @@ import type {
     ReadPosition,
 } from 'node:fs';
 import type { Interface as ReadlineInterface } from 'node:readline';
-
-/**
- * GLib.FileError enum numeric values → Node.js error code strings.
- * GLib.IOChannel.new_file() throws GLib.FileError (different from Gio.IOErrorEnum).
- */
-const GLIB_FILE_ERROR_TO_NODE: Record<number, string> = {
-    0:  'EEXIST',
-    1:  'EISDIR',
-    2:  'EACCES',
-    3:  'ENAMETOOLONG',
-    4:  'ENOENT',
-    5:  'ENOTDIR',
-    6:  'ENXIO',
-    7:  'ENODEV',
-    8:  'EROFS',
-    11: 'ELOOP',
-    12: 'ENOSPC',
-    13: 'ENOMEM',
-    14: 'EMFILE',
-    15: 'ENFILE',
-    16: 'EBADF',
-    17: 'EINVAL',
-    18: 'EPIPE',
-    21: 'EIO',
-    22: 'EPERM',
-    24: 'EIO',
-};
 
 // POSIX numeric open(2) flags (values on Linux x86-64).
 const O_WRONLY = 1;
@@ -117,16 +90,8 @@ function openIOChannel(path: string, mode: IOMode, creat: boolean): GLib.IOChann
 }
 
 function mapOpenError(err: unknown, path: string): NodeJS.ErrnoException {
-    const gErr = err as { code?: number; message?: string } | null | undefined;
-    const msg = gErr?.message ?? '';
     // GLib.IOChannel.new_file() always throws GLib.FileError (not Gio.IOErrorEnum).
-    // GLIB_FILE_ERROR_TO_NODE maps GLib.FileError numeric values to Node.js codes.
-    const code = GLIB_FILE_ERROR_TO_NODE[gErr?.code ?? -1] ?? 'EIO';
-    const error = new Error(`${code}: ${msg || 'unknown error'}, open '${path}'`) as NodeJS.ErrnoException;
-    error.code = code;
-    error.syscall = 'open';
-    error.path = path;
-    return error;
+    return createGLibFileError(err, 'open', { path }) as NodeJS.ErrnoException;
 }
 
 export class FileHandle implements IFileHandle {

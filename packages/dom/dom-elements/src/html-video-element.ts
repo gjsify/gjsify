@@ -12,6 +12,7 @@ import { HTMLMediaElement } from './html-media-element.js';
 import { Event } from '@gjsify/dom-events';
 import * as PropertySymbol from './property-symbol.js';
 import { NamespaceURI } from './namespace-uri.js';
+import { secondsToGstTime, gstTimeToSeconds } from './gst-time.js';
 
 // Gst.State / Gst.Format / Gst.SeekFlags / Gst.SeekType numeric values, hardcoded
 // to avoid a runtime `gi://Gst` import. Cross-checked against the GStreamer GIR.
@@ -67,7 +68,7 @@ export class HTMLVideoElement extends HTMLMediaElement {
             get(): number {
                 if (!self._pipeline) return 0;
                 const [ok, pos] = self._pipeline.query_position(GST_FORMAT_TIME);
-                return ok ? Number(pos) / 1_000_000_000 : 0;
+                return ok ? gstTimeToSeconds(pos) : 0;
             },
             set(seconds: number) {
                 self._pipeline?.seek(
@@ -75,7 +76,7 @@ export class HTMLVideoElement extends HTMLMediaElement {
                     GST_FORMAT_TIME,
                     GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT,
                     GST_SEEK_TYPE_SET,
-                    BigInt(Math.round(seconds * 1_000_000_000)),
+                    secondsToGstTime(seconds),
                     GST_SEEK_TYPE_NONE,
                     -1n,
                 );
@@ -88,7 +89,7 @@ export class HTMLVideoElement extends HTMLMediaElement {
             get(): number {
                 if (!self._pipeline) return NaN;
                 const [ok, dur] = self._pipeline.query_duration(GST_FORMAT_TIME);
-                return ok && Number(dur) > 0 ? Number(dur) / 1_000_000_000 : NaN;
+                return ok && Number(dur) > 0 ? gstTimeToSeconds(dur) : NaN;
             },
             configurable: true,
             enumerable: true,
