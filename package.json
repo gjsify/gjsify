@@ -51,6 +51,7 @@
     "packages/node/*",
     "packages/web/*",
     "packages/dom/*",
+    "packages/framework/*",
     "templates/*",
     "examples/node/*",
     "examples/dom/*",
