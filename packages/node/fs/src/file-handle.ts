@@ -1,7 +1,7 @@
 // Reference: Node.js lib/internal/fs/promises.js (FileHandle)
 // Reimplemented for GJS using Gio.File
 
-import { warnNotImplemented, notImplemented } from '@gjsify/utils';
+import { warnNotImplemented, notImplemented, createGLibFileError } from '@gjsify/utils';
 import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
 import { Stats } from "./stats.js";
@@ -35,44 +35,63 @@ import type {
 } from 'node:fs';
 import type { Interface as ReadlineInterface } from 'node:readline';
 
+// POSIX numeric open(2) flags (values on Linux x86-64).
+const O_WRONLY = 1;
+const O_RDWR   = 2;
+const O_CREAT  = 64;
+const O_TRUNC  = 512;
+const O_APPEND = 1024;
+
+type IOMode = 'r' | 'r+' | 'w' | 'w+' | 'a' | 'a+';
+
 /**
- * GLib.FileError enum numeric values → Node.js error code strings.
- * GLib.IOChannel.new_file() throws GLib.FileError (different from Gio.IOErrorEnum).
+ * Convert open flags (Node.js string or POSIX numeric) to a GLib.IOChannel mode.
+ * IOChannel.new_file() takes fopen(3) modes: 'r', 'r+', 'w', 'w+', 'a', 'a+'.
  */
-const GLIB_FILE_ERROR_TO_NODE: Record<number, string> = {
-    0:  'EEXIST',
-    1:  'EISDIR',
-    2:  'EACCES',
-    3:  'ENAMETOOLONG',
-    4:  'ENOENT',
-    5:  'ENOTDIR',
-    6:  'ENXIO',
-    7:  'ENODEV',
-    8:  'EROFS',
-    11: 'ELOOP',
-    12: 'ENOSPC',
-    13: 'ENOMEM',
-    14: 'EMFILE',
-    15: 'ENFILE',
-    16: 'EBADF',
-    17: 'EINVAL',
-    18: 'EPIPE',
-    21: 'EIO',
-    22: 'EPERM',
-    24: 'EIO',
-};
+function resolveIOMode(flags: OpenFlags | number | undefined): IOMode {
+    if (flags === undefined || flags === null) return 'r';
+    if (typeof flags === 'number') {
+        const rdwr   = (flags & O_RDWR)   !== 0;
+        const wronly = (flags & O_WRONLY) !== 0;
+        const append = (flags & O_APPEND) !== 0;
+        const trunc  = (flags & O_TRUNC)  !== 0;
+        if (rdwr)   return trunc ? 'w+' : 'r+';
+        if (wronly) return append ? 'a' : 'w';
+        return 'r';
+    }
+    // Node.js string flags — map extras to IOChannel equivalents.
+    switch (flags) {
+        case 'ax': case 'wx':   return 'w';
+        case 'ax+': case 'wx+': return 'w+';
+        case 'as': case 'rs+':  return 'r+';
+        case 'as+':             return 'a+';
+        default:                return flags as IOMode;
+    }
+}
+
+/**
+ * Open the file with the given IOChannel mode. When the flags request
+ * create-if-missing + read/write without truncation (numeric O_CREAT | O_RDWR,
+ * which maps to IOChannel 'r+' — a mode that requires the file to exist), we
+ * catch the ENOENT and create an empty file, then retry. This avoids a TOCTOU
+ * existence check and keeps the common "file exists" path to a single syscall.
+ */
+function openIOChannel(path: string, mode: IOMode, creat: boolean): GLib.IOChannel {
+    try {
+        return GLib.IOChannel.new_file(path, mode);
+    } catch (err) {
+        const gErr = err as { code?: number } | null | undefined;
+        if (creat && mode === 'r+' && gErr?.code === GLib.FileError.NOENT) {
+            GLib.file_set_contents(path, new Uint8Array(0));
+            return GLib.IOChannel.new_file(path, mode);
+        }
+        throw err;
+    }
+}
 
 function mapOpenError(err: unknown, path: string): NodeJS.ErrnoException {
-    const gErr = err as { code?: number; message?: string } | null | undefined;
-    const msg = gErr?.message ?? '';
     // GLib.IOChannel.new_file() always throws GLib.FileError (not Gio.IOErrorEnum).
-    // GLIB_FILE_ERROR_TO_NODE maps GLib.FileError numeric values to Node.js codes.
-    const code = GLIB_FILE_ERROR_TO_NODE[gErr?.code ?? -1] ?? 'EIO';
-    const error = new Error(`${code}: ${msg || 'unknown error'}, open '${path}'`) as NodeJS.ErrnoException;
-    error.code = code;
-    error.syscall = 'open';
-    error.path = path;
-    return error;
+    return createGLibFileError(err, 'open', { path }) as NodeJS.ErrnoException;
 }
 
 export class FileHandle implements IFileHandle {
@@ -80,27 +99,87 @@ export class FileHandle implements IFileHandle {
     /** Not part of the default implementation, used internal by gjsify */
     private _file: GLib.IOChannel;
 
+    /**
+     * Lazily-opened Gio streams for positional read() / write() so each call does
+     * not re-load the entire file via Gio.File.load_contents(). The IOStream is
+     * used when the handle was opened with write capability (r+, w, w+, a, a+) —
+     * it shares seek state between input and output so writes are visible to
+     * subsequent reads without a flush. For read-only handles we only open a
+     * FileInputStream; trying to open_readwrite on a read-only file can fall
+     * back to create_readwrite(REPLACE_DESTINATION) which would truncate it.
+     */
+    private _ioStream: Gio.FileIOStream | null = null;
+    private _readStream: Gio.FileInputStream | null = null;
+    private readonly _gFile: Gio.File;
+    private readonly _ioMode: IOMode;
+
     /** Not part of the default implementation, used internal by gjsify */
     private static instances: {[fd: number]: FileHandle} = {};
 
     constructor(readonly options: {
         path: PathLike,
-        flags?: OpenFlags,
+        flags?: OpenFlags | number,
         mode?: Mode
     }) {
         this.options.flags ||= "r";
         this.options.mode ||= 0o666;
+        const pathStr = options.path.toString();
+        const creat = typeof options.flags === 'number' && (options.flags & O_CREAT) !== 0;
+        const ioMode = resolveIOMode(options.flags);
         try {
-            this._file = GLib.IOChannel.new_file(options.path.toString(), this.options.flags);
+            this._file = openIOChannel(pathStr, ioMode, creat);
         } catch (err: unknown) {
-            throw mapOpenError(err, options.path.toString());
+            throw mapOpenError(err, pathStr);
         }
         // Binary mode: prevent GLib from doing any character set conversion.
         this._file.set_encoding(null as unknown as string);
         this.fd = this._file.unix_get_fd();
+        this._gFile = Gio.File.new_for_path(pathStr);
+        this._ioMode = ioMode;
 
         FileHandle.instances[this.fd] = this;
         return FileHandle.getInstance(this.fd);
+    }
+
+    /**
+     * Lazy-open the read-capable stream and return both the input stream and
+     * its seekable view. Both FileInputStream (read-only handle) and
+     * FileIOStream (read/write handle) implement Gio.Seekable, but we return
+     * both to avoid callers needing to know which concrete type they got.
+     */
+    private _getReadStream(): { input: Gio.InputStream; seekable: Gio.Seekable } {
+        if (this._ioStream) {
+            return {
+                input: this._ioStream.get_input_stream(),
+                seekable: this._ioStream as unknown as Gio.Seekable,
+            };
+        }
+        if (this._ioMode === 'r') {
+            if (!this._readStream) this._readStream = this._gFile.read(null);
+            return {
+                input: this._readStream,
+                seekable: this._readStream as unknown as Gio.Seekable,
+            };
+        }
+        // open_readwrite requires the file to exist. For modes that imply
+        // create-if-missing (w, w+, a, a+) the IOChannel already created it
+        // above; for 'r+' openIOChannel() catches ENOENT and pre-creates it.
+        this._ioStream = this._gFile.open_readwrite(null);
+        return {
+            input: this._ioStream.get_input_stream(),
+            seekable: this._ioStream as unknown as Gio.Seekable,
+        };
+    }
+
+    /** Lazy-open the write-capable stream (IOStream) for this handle. Only valid
+     *  when the handle was opened with a write-capable mode. */
+    private _getWriteStream(): Gio.FileIOStream {
+        if (this._ioStream) return this._ioStream;
+        if (this._ioMode === 'r') {
+            throw new Error('FileHandle opened read-only; cannot write');
+        }
+        this._ioStream = this._gFile.open_readwrite(null);
+        return this._ioStream;
     }
 
 
@@ -295,18 +374,19 @@ export class FileHandle implements IFileHandle {
         const bufView = buffer as unknown as Uint8Array;
         const bufOffset = offset ?? 0;
         const readLength = length ?? bufView?.byteLength ?? 65536;
-
-        // Use Gio.File.load_contents for reliable position-based reads.
-        // GLib.IOChannel.read_chars() is not introspectable in GJS (caller-allocated buffer),
-        // and read_to_end() has stdio-buffer visibility issues after mixed write/read.
-        const gFile = Gio.File.new_for_path(this.options.path.toString());
-        const [, fileContents] = gFile.load_contents(null);
-        const fileData = fileContents as Uint8Array;
         const startPos = (position as number | null) ?? 0;
-        const readData = fileData.slice(startPos, startPos + readLength);
-        const bytesRead = readData.length;
-        if (bufView && bytesRead > 0) {
-            bufView.set(readData, bufOffset);
+
+        // Positional read — seek + read_bytes on the appropriate Gio stream,
+        // touching only the requested region. Replaces the old load_contents()
+        // path that read the entire file on every call (O(N²) over streamed
+        // workloads like WebTorrent piece hashing or random-access-file).
+        const { input, seekable } = this._getReadStream();
+        seekable.seek(BigInt(startPos), GLib.SeekType.SET, null);
+        const bytes = input.read_bytes(readLength, null);
+        const data = bytes.get_data() as Uint8Array | null;
+        const bytesRead = data?.length ?? 0;
+        if (bufView && data && bytesRead > 0) {
+            bufView.set(data, bufOffset);
         }
 
         return {
@@ -477,11 +557,10 @@ export class FileHandle implements IFileHandle {
     async truncate(len: number = 0): Promise<void> {
         const effectiveLen = Math.max(0, len);
         this._file.flush();
-        const gFile = Gio.File.new_for_path(this.options.path.toString());
-        const [, currentContent] = gFile.load_contents(null);
-        const newContent = new Uint8Array(effectiveLen);
-        newContent.set(currentContent.slice(0, Math.min(effectiveLen, currentContent.length)));
-        gFile.replace_contents(newContent, null, false, Gio.FileCreateFlags.NONE, null);
+        // Gio.FileOutputStream implements Seekable.truncate — extends with zeros
+        // when growing, matches POSIX ftruncate(2).
+        const out = this._getWriteStream().get_output_stream() as Gio.FileOutputStream;
+        out.truncate(effectiveLen, null);
     }
     /**
      * Change the file system timestamps of the object referenced by the `FileHandle` then resolves the promise with no arguments upon success.
@@ -600,25 +679,17 @@ export class FileHandle implements IFileHandle {
         const writeSlice = writeBuf.slice(bufOffset, bufOffset + writeLength);
         const writePos = position ?? 0;
 
-        // Use Gio.File for reliable position-based writes.
-        // GLib.IOChannel write_chars + flush does not guarantee data is visible to
-        // subsequent Gio.File or g_file_get_contents readers (stdio-buffer flushing issue).
-        const gFile = Gio.File.new_for_path(this.options.path.toString());
-        let existingData: Uint8Array;
-        try {
-            const [, existing] = gFile.load_contents(null);
-            existingData = existing as Uint8Array;
-        } catch {
-            existingData = new Uint8Array(0);
-        }
-        const newSize = Math.max(existingData.length, writePos + writeSlice.length);
-        const newContent = new Uint8Array(newSize);
-        newContent.set(existingData);
-        newContent.set(writeSlice, writePos);
-        gFile.replace_contents(newContent, null, false, Gio.FileCreateFlags.NONE, null);
+        // Positional write — seek + write_bytes on the IOStream, touches only
+        // the requested region. Replaces the old load + splice + replace_contents
+        // path (O(N²) over any streamed workload).
+        const stream = this._getWriteStream();
+        stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
+        const output = stream.get_output_stream();
+        const bytesWritten = output.write_bytes(new GLib.Bytes(writeSlice), null);
+        output.flush(null);
 
         return {
-            bytesWritten: writeSlice.length,
+            bytesWritten,
             buffer: data
         }
     }
@@ -677,7 +748,16 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async close(): Promise<void> {
-        this._file.shutdown(true);
+        // Close the Gio streams first; they own an fd wrapping the same file
+        // as the IOChannel. IOChannel.shutdown(true) flushes + closes its own
+        // fd — safe to call even if the Gio streams already released theirs,
+        // but guarded here so a throw from shutdown doesn't strand the stream
+        // references in a "closed but still pinned" state.
+        try { this._ioStream?.close(null); } catch { /* best-effort */ }
+        try { this._readStream?.close(null); } catch { /* best-effort */ }
+        this._ioStream = null;
+        this._readStream = null;
+        try { this._file.shutdown(true); } catch { /* best-effort */ }
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

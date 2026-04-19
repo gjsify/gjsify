@@ -99,3 +99,58 @@ export function isNotFoundError(err: unknown): boolean {
   const errObj = err as { code?: number | string } | null | undefined;
   return errObj?.code === 1 || errObj?.code === 'ENOENT';
 }
+
+/**
+ * Map from GLib.FileError numeric values to Node.js error code strings.
+ * Distinct from Gio.IOErrorEnum — GLib.IOChannel.new_file() and some other
+ * low-level GLib APIs throw GLib.FileError (domain "g-file-error"), which
+ * has different numeric values than Gio.IOErrorEnum (domain "g-io-error-quark").
+ */
+export const GLIB_FILE_ERROR_TO_NODE: Record<number, string> = {
+  0:  'EEXIST',
+  1:  'EISDIR',
+  2:  'EACCES',
+  3:  'ENAMETOOLONG',
+  4:  'ENOENT',
+  5:  'ENOTDIR',
+  6:  'ENXIO',
+  7:  'ENODEV',
+  8:  'EROFS',
+  11: 'ELOOP',
+  12: 'ENOSPC',
+  13: 'ENOMEM',
+  14: 'EMFILE',
+  15: 'ENFILE',
+  16: 'EBADF',
+  17: 'EINVAL',
+  18: 'EPIPE',
+  21: 'EIO',
+  22: 'EPERM',
+  24: 'EIO',
+};
+
+/**
+ * Map a GLib.FileError to a Node.js-style ErrnoException. Counterpart to
+ * `createNodeError` for the Gio.IOErrorEnum case; kept separate because the
+ * enum domains differ.
+ */
+export function createGLibFileError(
+  err: unknown,
+  syscall: string,
+  details?: NodeErrorDetails,
+): ErrnoException {
+  const errObj = err as { code?: number; message?: string } | null | undefined;
+  const code = GLIB_FILE_ERROR_TO_NODE[errObj?.code ?? -1] ?? 'EIO';
+
+  let msg = `${code}: ${errObj?.message || 'unknown error'}, ${syscall}`;
+  if (details?.path) msg += ` '${details.path}'`;
+  if (details?.dest) msg += ` -> '${details.dest}'`;
+
+  const error = new Error(msg) as ErrnoException;
+  error.code = code;
+  error.syscall = syscall;
+  error.errno = -(errObj?.code || 0);
+  if (details?.path) error.path = details.path;
+
+  return error;
+}

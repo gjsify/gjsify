@@ -6,6 +6,12 @@
 
 // @ts-ignore — WebTorrent types may not be available
 import WebTorrent from 'webtorrent';
+import type { TorrentFile } from 'webtorrent';
+
+// arrayBuffer() exists at runtime but is missing from @types/webtorrent
+interface TorrentFileWithBuffer extends TorrentFile {
+    arrayBuffer(): Promise<ArrayBuffer>;
+}
 
 export type LogFn = (tag: string, msg: string) => void;
 
@@ -91,7 +97,7 @@ export async function runStreamDemo(log: LogFn): Promise<void> {
         });
 
         dl.on('done', async () => {
-            const file = dl.files[0];
+            const file = dl.files[0] as TorrentFileWithBuffer;
 
             // Stream the file using arrayBuffer (WebTorrent's file.stream()
             // returns a ReadableStream where available, but arrayBuffer is

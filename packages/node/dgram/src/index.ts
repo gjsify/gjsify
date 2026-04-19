@@ -46,6 +46,9 @@ export class Socket extends EventEmitter {
   private _receiving = false;
   private _address: AddressInfo = { address: '0.0.0.0', family: 'IPv4', port: 0 };
   private _cancellable: Gio.Cancellable = new Gio.Cancellable();
+  // Strong JS ref to the GSocketSource so SM GC cannot finalize the
+  // BoxedInstance while GLib's main context still holds it.
+  private _readSource: GLib.Source | null = null;
   private _reuseAddr: boolean;
   private _connected = false;
   private _remoteAddress: RemoteAddressInfo | null = null;
@@ -181,26 +184,65 @@ export class Socket extends EventEmitter {
       buf = this._toBuffer(msg);
     }
 
-    try {
-      const inetAddr = Gio.InetAddress.new_from_string(destAddress);
-      const sockAddr = new Gio.InetSocketAddress({ address: inetAddr, port: destPort });
+    this._resolveAndSend(destAddress, destPort, buf, cb);
+  }
 
-      // Auto-bind if not yet bound
-      if (!this._bound) {
-        const anyAddr = this.type === 'udp6'
-          ? Gio.InetAddress.new_any(Gio.SocketFamily.IPV6)
-          : Gio.InetAddress.new_any(Gio.SocketFamily.IPV4);
-        const anySockAddr = new Gio.InetSocketAddress({ address: anyAddr, port: 0 });
-        this._socket.bind(anySockAddr, false);
-        this._bound = true;
-      }
+  private _autoBind(): void {
+    if (this._bound || !this._socket) return;
+    const anyAddr = this.type === 'udp6'
+      ? Gio.InetAddress.new_any(Gio.SocketFamily.IPV6)
+      : Gio.InetAddress.new_any(Gio.SocketFamily.IPV4);
+    const anySockAddr = new Gio.InetSocketAddress({ address: anyAddr, port: 0 });
+    this._socket.bind(anySockAddr, false);
+    this._bound = true;
+    _activeSockets.add(this);
+    ensureMainLoop();
+  }
 
-      const bytesSent = this._socket.send_to(sockAddr, buf, this._cancellable);
-      if (cb) cb(null, bytesSent);
-    } catch (err) {
-      if (cb) cb(err instanceof Error ? err : new Error(String(err)), 0);
-      else this.emit('error', err);
+  private _resolveAndSend(destAddress: string, destPort: number, buf: Buffer, cb: ((err: Error | null, bytes: number) => void) | undefined): void {
+    if (this._closed || !this._socket) {
+      if (cb) cb(new Error('Socket is closed'), 0);
+      return;
     }
+
+    // Try numeric IP first (fast path, no DNS)
+    let inetAddr = Gio.InetAddress.new_from_string(destAddress);
+
+    const doSend = (addr: Gio.InetAddress) => {
+      try {
+        this._autoBind();
+        const sockAddr = new Gio.InetSocketAddress({ address: addr, port: destPort });
+        const bytesSent = this._socket!.send_to(sockAddr, buf, this._cancellable);
+        if (cb) cb(null, bytesSent);
+      } catch (err) {
+        if (cb) cb(err instanceof Error ? err : new Error(String(err)), 0);
+        else this.emit('error', err);
+      }
+    };
+
+    if (inetAddr) {
+      doSend(inetAddr);
+      return;
+    }
+
+    // Hostname — resolve asynchronously via Gio.Resolver
+    const resolver = Gio.Resolver.get_default();
+    resolver.lookup_by_name_async(destAddress, this._cancellable, (_obj, res) => {
+      try {
+        const addresses = resolver.lookup_by_name_finish(res);
+        if (!addresses || addresses.length === 0) {
+          const err = new Error(`ENOTFOUND ${destAddress}`) as NodeJS.ErrnoException;
+          err.code = 'ENOTFOUND';
+          if (cb) cb(err, 0);
+          else this.emit('error', err);
+          return;
+        }
+        doSend(addresses[0]);
+      } catch (err) {
+        if (cb) cb(err instanceof Error ? err : new Error(String(err)), 0);
+        else this.emit('error', err);
+      }
+    });
   }
 
   private _toBuffer(msg: Buffer | string | Uint8Array | (Buffer | string | Uint8Array)[]): Buffer {
@@ -227,6 +269,13 @@ export class Socket extends EventEmitter {
 
     if (callback) this.once('close', callback);
 
+    // Destroy the read source before cancelling the shared cancellable — a
+    // pending callback could fire in between otherwise and see the cancellable
+    // already cancelled, emitting an unwanted 'error' on the closed socket.
+    if (this._readSource) {
+      try { this._readSource.destroy(); } catch (_e) { /* ignore */ }
+      this._readSource = null;
+    }
     this._cancellable.cancel();
 
     if (this._socket) {
@@ -428,47 +477,40 @@ export class Socket extends EventEmitter {
   }
 
   private _receiveLoop(): void {
-    if (this._closed || !this._socket) return;
+    if (this._closed || !this._socket || this._readSource) return;
 
-    // Use condition_timed_wait with a short timeout to poll for data
-    // Then read with receive_from
-    try {
-      if (!this._socket.condition_check(GLib.IOCondition.IN)) {
-        // No data yet, schedule retry
-        setTimeout(() => this._receiveLoop(), 50);
-        return;
-      }
-
-      const buf = new Uint8Array(65536);
-      const result = (this._socket as unknown as { receive_from(buf: Uint8Array, cancellable: Gio.Cancellable): [number, Gio.SocketAddress | null] }).receive_from(buf, this._cancellable);
-      const bytesRead = Array.isArray(result) ? result[0] : result;
-      const srcAddr = Array.isArray(result) ? result[1] : null;
-
-      if (bytesRead > 0 && srcAddr) {
-        const data = Buffer.from(buf.subarray(0, bytesRead as number));
-        const inetSockAddr = srcAddr as Gio.InetSocketAddress;
-        const rinfo: AddressInfo = {
-          address: inetSockAddr.get_address().to_string(),
-          family: this.type === 'udp6' ? 'IPv6' : 'IPv4',
-          port: inetSockAddr.get_port(),
-        };
-
-        this.emit('message', data, rinfo);
-      }
-
-      // Continue receiving
-      if (!this._closed) {
-        setTimeout(() => this._receiveLoop(), 0);
-      }
-    } catch (err: unknown) {
-      if (!this._closed) {
-        // IOErrorEnum CANCELLED is expected when socket is closed
+    // Event-driven receive via GSocketSource: the source fires only when the
+    // kernel reports data available (IOCondition.IN). Previously a
+    // setTimeout(fn, 0) polling loop saturated the main loop with 0 ms timers
+    // whenever any UDP traffic was in flight — WebTorrent DHT under load
+    // starved GTK paint + other default-priority timers. receive_bytes_from is
+    // GLib 2.80+ and non-blocking (timeout_us=0); receive_from() isn't
+    // introspectable because its buffer arg is caller-allocated.
+    const source = this._socket.create_source(GLib.IOCondition.IN, this._cancellable);
+    this._readSource = source;
+    source.set_callback(() => {
+      if (this._closed || !this._socket) return GLib.SOURCE_REMOVE;
+      try {
+        const [bytes, srcAddr] = this._socket.receive_bytes_from(65536, 0, this._cancellable);
+        if (bytes && srcAddr) {
+          const data = Buffer.from(bytes.get_data()!);
+          const inetSockAddr = srcAddr as Gio.InetSocketAddress;
+          const rinfo: AddressInfo = {
+            address: inetSockAddr.get_address().to_string(),
+            family: this.type === 'udp6' ? 'IPv6' : 'IPv4',
+            port: inetSockAddr.get_port(),
+          };
+          if (data.length > 0) this.emit('message', data, rinfo);
+        }
+      } catch (err) {
         const errObj = err as { code?: number };
-        if (errObj.code !== Gio.IOErrorEnum.CANCELLED) {
+        if (!this._closed && errObj.code !== Gio.IOErrorEnum.CANCELLED) {
           this.emit('error', err);
         }
       }
-    }
+      return GLib.SOURCE_CONTINUE;
+    });
+    source.attach(null);
   }
 }
 

@@ -6,6 +6,12 @@
 
 // @ts-ignore — WebTorrent types may not be available
 import WebTorrent from 'webtorrent';
+import type { TorrentFile } from 'webtorrent';
+
+// arrayBuffer() exists at runtime but is missing from @types/webtorrent
+interface TorrentFileWithBuffer extends TorrentFile {
+    arrayBuffer(): Promise<ArrayBuffer>;
+}
 
 export type LogFn = (tag: string, msg: string) => void;
 
@@ -56,12 +62,14 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
     const seeder = new WebTorrent(CLIENT_OPTS);
     seeder.on('error', (err: Error) => log('seeder', `ERROR: ${err.message}`));
 
+    // Cast to Buffer[] — Buffer is always available in GJS; File is the browser fallback.
+    // Mixed (Buffer | File)[] doesn't match WebTorrent's seed() overloads.
     const seedInputs = FILES.map(f => {
         const data = new TextEncoder().encode(f.content);
         return typeof Buffer !== 'undefined'
             ? Object.assign(Buffer.from(data), { name: f.name })
             : new File([data], f.name, { type: 'text/plain' });
-    });
+    }) as Buffer[];
 
     log('seeder', `Seeding ${FILES.length} files...`);
 
@@ -126,7 +134,7 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
             // Verify each file
             let allMatch = true;
             for (let i = 0; i < dl.files.length; i++) {
-                const file = dl.files[i];
+                const file = dl.files[i] as TorrentFileWithBuffer;
                 const buf = await file.arrayBuffer();
                 const text = new TextDecoder().decode(buf);
                 const expected = FILES.find(f => file.path.endsWith(f.name));
