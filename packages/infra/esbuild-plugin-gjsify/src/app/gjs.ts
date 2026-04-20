@@ -7,6 +7,7 @@ import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import { readFile } from 'fs/promises';
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -96,6 +97,23 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
             pluginOptions.autoGlobalsInject,
         ];
     }
+
+    // Inject __dirname / __filename for CJS modules in node_modules.
+    // platform: 'neutral' does not define these (unlike platform: 'node').
+    // Many CJS npm packages use __dirname to locate companion files at runtime
+    // (e.g. socket.io serving its client bundle, template engines, etc.).
+    // The injected values are compile-time constants matching each module's
+    // original source path — the same approach platform: 'node' uses internally.
+    build.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
+        if (!args.path.includes('node_modules')) return undefined;
+        const src = await readFile(args.path, 'utf8');
+        if (!src.includes('__dirname') && !src.includes('__filename')) return undefined;
+        const dir = dirname(args.path);
+        const preamble =
+            `var __dirname = ${JSON.stringify(dir)};\n` +
+            `var __filename = ${JSON.stringify(args.path)};\n`;
+        return { contents: preamble + src, loader: 'js' };
+    });
 
     merge(build.initialOptions, esbuildOptions);
 
