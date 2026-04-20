@@ -680,14 +680,24 @@ export class FileHandle implements IFileHandle {
         const writeSlice = writeBuf.slice(bufOffset, bufOffset + writeLength);
         const writePos = position ?? 0;
 
-        // Positional write — seek + write_bytes on the IOStream, touches only
-        // the requested region. Replaces the old load + splice + replace_contents
-        // path (O(N²) over any streamed workload).
+        // Positional write — seek + write_bytes_async on the IOStream, touches
+        // only the requested region. Uses async Gio I/O so the GLib main loop
+        // (and GTK events) are not blocked during the write.
         const stream = this._getWriteStream();
         stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
         const output = stream.get_output_stream();
-        const bytesWritten = output.write_bytes(new GLib.Bytes(writeSlice), null);
-        output.flush(null);
+        const bytesWritten = await new Promise<number>((resolve, reject) => {
+            output.write_bytes_async(new GLib.Bytes(writeSlice), GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
+                try { resolve(output.write_bytes_finish(asyncResult)); }
+                catch (err) { reject(err); }
+            });
+        });
+        await new Promise<void>((resolve, reject) => {
+            output.flush_async(GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
+                try { output.flush_finish(asyncResult); resolve(); }
+                catch (err) { reject(err); }
+            });
+        });
 
         return {
             bytesWritten,
