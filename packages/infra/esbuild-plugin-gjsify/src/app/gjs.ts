@@ -6,9 +6,8 @@ import { merge } from "../utils/merge.js";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
 import { fileURLToPath } from 'url';
-import { dirname, resolve, join } from 'path';
+import { dirname, resolve } from 'path';
 import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -99,20 +98,22 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         ];
     }
 
-    // Force random-access-file to use its Node.js (fs-backed) entry instead
-    // of the browser stub that throws "random-access-file is not supported".
-    // Registered as a direct onResolve hook (not via the alias plugin) because
-    // the alias plugin calls build.resolve(pkg/index.js) which conflicts with
-    // any esbuild native alias that has 'random-access-file' as a prefix key —
-    // esbuild would append '/index.js' to the absolute path producing a broken
-    // double-suffix path that triggers "Cannot read directory ... not a directory".
-    {
-        const workingDir = build.initialOptions.absWorkingDir ?? process.cwd();
-        const rafIndex = join(workingDir, 'node_modules', 'random-access-file', 'index.js');
-        if (existsSync(rafIndex)) {
-            build.onResolve({ filter: /^random-access-file$/ }, () => ({ path: rafIndex }));
-        }
-    }
+    // Force random-access-file to use its Node.js (fs-backed) entry (index.js)
+    // instead of the browser stub that throws "not supported in the browser".
+    // With mainFields:['browser',...] esbuild picks the "browser" field which
+    // maps to the stub. We redirect the bare specifier to index.js via
+    // build.resolve() so Yarn's hoisted node_modules layout is handled
+    // correctly (existsSync on the local node_modules/ path would fail).
+    // Using build.resolve (not the alias plugin) avoids the esbuild native-alias
+    // prefix-matching bug where 'random-access-file' + '/index.js' → broken path.
+    build.onResolve({ filter: /^random-access-file$/ }, async (args) => {
+        const result = await build.resolve('random-access-file/index.js', {
+            kind: args.kind,
+            resolveDir: args.resolveDir,
+        });
+        if (result.errors.length > 0) return undefined;
+        return { path: result.path };
+    });
 
     // Inject __dirname / __filename for CJS modules in node_modules.
     // platform: 'neutral' does not define these (unlike platform: 'node').

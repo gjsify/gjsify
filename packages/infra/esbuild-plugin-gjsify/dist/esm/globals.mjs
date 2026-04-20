@@ -19832,9 +19832,8 @@ function registerToCommonJSPatch(build2) {
 
 // src/app/gjs.ts
 import { fileURLToPath as fileURLToPath3 } from "url";
-import { dirname, resolve as resolve2, join as join2 } from "path";
+import { dirname, resolve as resolve2 } from "path";
 import { readFile } from "fs/promises";
-import { existsSync as existsSync2 } from "fs";
 var _shimDir = dirname(fileURLToPath3(import.meta.url));
 var setupForGjs = async (build2, pluginOptions) => {
   const external = ["gi://*", "cairo", "gettext", "system"];
@@ -19908,13 +19907,14 @@ var setupForGjs = async (build2, pluginOptions) => {
       pluginOptions.autoGlobalsInject
     ];
   }
-  {
-    const workingDir = build2.initialOptions.absWorkingDir ?? process.cwd();
-    const rafIndex = join2(workingDir, "node_modules", "random-access-file", "index.js");
-    if (existsSync2(rafIndex)) {
-      build2.onResolve({ filter: /^random-access-file$/ }, () => ({ path: rafIndex }));
-    }
-  }
+  build2.onResolve({ filter: /^random-access-file$/ }, async (args) => {
+    const result = await build2.resolve("random-access-file/index.js", {
+      kind: args.kind,
+      resolveDir: args.resolveDir
+    });
+    if (result.errors.length > 0) return void 0;
+    return { path: result.path };
+  });
   build2.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
     if (!args.path.includes("node_modules")) return void 0;
     const src = await readFile(args.path, "utf8");
