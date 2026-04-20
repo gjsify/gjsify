@@ -11,6 +11,7 @@ export * from './fs.js';
 export * from './gio.js';
 export * from './gio-errors.js';
 export * from './message.js';
+export * from './microtask.js';
 export * from './next-tick.js';
 export * from './path.js';
 export * from './structured-clone.js';

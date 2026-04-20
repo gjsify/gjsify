@@ -2,7 +2,7 @@
 // Reimplemented for GJS using EventEmitter and microtask scheduling
 
 import { EventEmitter } from '@gjsify/events';
-import { nextTick } from '@gjsify/utils';
+import { nextTick, queueMicrotask } from '@gjsify/utils';
 import type { ReadableOptions, WritableOptions, DuplexOptions, TransformOptions, FinishedOptions } from 'node:stream';
 
 // ---- Default high water marks ----
@@ -1398,26 +1398,24 @@ export function finished(stream: Stream | Readable | Writable, optsOrCb: Finishe
   const readableEnded = (stream as unknown as Record<string, unknown>).readableEnded === true;
   const destroyed = (stream as unknown as Record<string, unknown>).destroyed === true;
 
-  const scheduleCallback = (fn: () => void) => Promise.resolve().then(fn);
-
   if (destroyed) {
     const storedErr = (stream as unknown as Record<string, unknown>)._err as Error | null | undefined;
     if (storedErr) {
       // Stream was destroyed with an error (may have fired before we registered listener)
-      scheduleCallback(() => done(storedErr));
+      queueMicrotask(() => done(storedErr));
     } else if ((isWritableStream && writableFinished) || (isReadableStream && readableEnded)) {
       // Stream was destroyed after completing normally — treat as success
-      scheduleCallback(() => done());
+      queueMicrotask(() => done());
     } else {
       // Stream was destroyed without completing — premature close
-      scheduleCallback(() => done(new Error('premature close')));
+      queueMicrotask(() => done(new Error('premature close')));
     }
   } else if (isWritableStream && !isReadableStream && writableFinished) {
-    scheduleCallback(() => done());
+    queueMicrotask(() => done());
   } else if (!isWritableStream && isReadableStream && readableEnded) {
-    scheduleCallback(() => done());
+    queueMicrotask(() => done());
   } else if (isWritableStream && isReadableStream && writableFinished && readableEnded) {
-    scheduleCallback(() => done());
+    queueMicrotask(() => done());
   }
 
   return function cleanup() {
