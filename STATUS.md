@@ -387,6 +387,21 @@ Not yet implemented (but potentially relevant for GJS projects):
 2. **ESM builds no longer pull CJS entries through the `require` condition.** [packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts](packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts) previously listed `['browser', 'import', 'require']` as conditions even for ESM format. esbuild picks the first matching condition in an exports-map's declared order, so packages like `bitfield` that list `"require"` before `"import"` silently routed through the CJS entry. That entry is then wrapped by `__toESM(mod, 1)` which double-wraps an already-default-exported CJS class (`exports.default = X`) as `{ default: { __esModule: true, default: X } }` — causing `new Pkg.default(...)` to throw `is not a constructor` at runtime. Mirrors Node's own ESM resolution: in ESM mode Node never applies the `require` condition. CJS-only packages still resolve via `main`/`module` mainField fallback.
 3. **`random-access-file` browser stub aliased to the Node entry.** [packages/infra/resolve-npm/lib/index.mjs](packages/infra/resolve-npm/lib/index.mjs) `ALIASES_GENERAL_FOR_GJS` now maps `random-access-file` → `random-access-file/index.js`. Without this, esbuild's `browser` mainField precedence routed to the package's browser stub that unconditionally throws "random-access-file is not supported in the browser" on construction — fs-chunk-store (used by webtorrent to write seed chunks) then failed to `.put()`, silently stalling every `client.seed(Buffer)` call. GJS has a working `fs` via `@gjsify/fs`, so the real implementation just works.
 
+### streamx (`tests/integration/streamx/`)
+
+6 spec files ported from `refs/streamx/test/` plus an original `throughput.spec.ts`. **Node: 155/155 green. GJS: 156/156 green (1 GJS-only test), 0 skips.**
+
+| Port | Node | GJS | Exercises |
+|---|---|---|---|
+| readable.spec.ts | ✅ (24) | ✅ (24) | Readable push/pause/resume/from/setEncoding/isDisturbed |
+| writable.spec.ts | ✅ (10) | ✅ (10) | Writable write/drain/writev/cork/drained-helper |
+| transform.spec.ts | ✅ (2) | ✅ (2) | Transform teardown + PassThrough pipe |
+| pipeline.spec.ts | ✅ (5) | ✅ (5) | pipeline/pipelinePromise + error propagation |
+| duplex.spec.ts | ✅ (5) | ✅ (5) | Duplex open/map/readable/destroy |
+| throughput.spec.ts | ✅ (5) | ✅ (6) | queueMicrotask injection, 100-chunk no-loss, pipeline byte preservation, Duplex echo, timing |
+
+Root cause of 0 B/s symptom (webtorrent-player): `queueMicrotask` must be injected so streamx uses Promise-based microtask scheduling instead of `process.nextTick` fallback. The throughput GJS-only test confirms injection works and pipeline completes within 1 s.
+
 ### socket.io (`tests/integration/socket.io/`)
 
 3 test suites ported from socket.io v4 upstream into `@gjsify/unit` style. **Node: 20/20 green. GJS: 20/20 green, 0 skips.** Transport: polling only (`transports: ['polling']`).

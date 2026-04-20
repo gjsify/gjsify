@@ -3200,6 +3200,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/integration-streamx@workspace:tests/integration/streamx":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/integration-streamx@workspace:tests/integration/streamx"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    "@types/streamx": "npm:^2.0.0"
+    streamx: "npm:^2.0.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/integration-webtorrent@workspace:tests/integration/webtorrent":
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-webtorrent@workspace:tests/integration/webtorrent"
@@ -5768,6 +5784,15 @@ __metadata:
   version: 0.17.4
   resolution: "@types/stats.js@npm:0.17.4"
   checksum: 10/6f1a20e09da0c0b371b3c095b2787a91a9397944679aa506a0886160faf0ad185b911a34b4ec325f146810c5be969f085e81264e2dbe39fd57eb8ff98347b5f4
+  languageName: node
+  linkType: hard
+
+"@types/streamx@npm:^2.0.0":
+  version: 2.9.5
+  resolution: "@types/streamx@npm:2.9.5"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/22edaad47027cb00e53099030c4d2943faedf4458dd4cefaea8b77d01bea2bd56d7f18ece4799d544f7d682c0b30579d202ce6ada9ba74dc309ee60ac5deba33
   languageName: node
   linkType: hard
 
@@ -14181,7 +14206,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"streamx@npm:^2.10.3, streamx@npm:^2.12.5, streamx@npm:^2.17.0, streamx@npm:^2.22.1, streamx@npm:^2.23.0, streamx@npm:^2.25.0":
+"streamx@npm:^2.0.0, streamx@npm:^2.10.3, streamx@npm:^2.12.5, streamx@npm:^2.17.0, streamx@npm:^2.22.1, streamx@npm:^2.23.0, streamx@npm:^2.25.0":
   version: 2.25.0
   resolution: "streamx@npm:2.25.0"
   dependencies:
