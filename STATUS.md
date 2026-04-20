@@ -363,9 +363,49 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ---
 
+## Integration Test Coverage
+
+`tests/integration/` validates `@gjsify/*` implementations by running curated upstream tests from popular npm packages. Opt-in target: `yarn test:integration`.
+
+### webtorrent (`tests/integration/webtorrent/`)
+
+7 test files ported from `refs/webtorrent/test/` into `@gjsify/unit` style. **Node: 185/185 green. GJS: 185/185 green, 0 skips.**
+
+| Port | Node | GJS | Exercises |
+|---|---|---|---|
+| selections.spec.ts | ✅ | ✅ | Pure JS (smoke test of infrastructure) |
+| rarity-map.spec.ts | ✅ | ✅ | `@gjsify/buffer`, `@gjsify/events`, bittorrent-protocol wire-stub |
+| client-destroy.spec.ts | ✅ | ✅ | `@gjsify/events`, lifecycle + error suppression |
+| client-add.spec.ts | ✅ | ✅ | Torrent parsing, magnet URI, infoHash, `@gjsify/crypto` |
+| bitfield.spec.ts | ✅ | ✅ | `@gjsify/fs` (fs-chunk-store), `@gjsify/path`, `@gjsify/buffer` |
+| file-buffer.spec.ts | ✅ | ✅ | `@gjsify/fs` seed path + async arrayBuffer slicing |
+| iterator.spec.ts | ✅ | ✅ | `@gjsify/stream` async iterator over chunk store |
+
+### Root-cause fixes surfaced by the webtorrent port and landed in this PR
+
+1. **`@gjsify/fs` now accepts `URL` path arguments.** Added a `normalizePath` helper in [packages/node/fs/src/utils.ts](packages/node/fs/src/utils.ts) and routed every public entry point (`readFileSync`, `readFile`, `writeFile`, `stat`, `lstat`, `readdirSync`, `realpathSync`, `symlinkSync`, `unlinkSync`, `renameSync`, `copyFileSync`, `accessSync`, `appendFileSync`, `readlinkSync`, `linkSync`, `truncateSync`, `chmodSync`, `chownSync`, `rmdirSync`, `rmSync`, `mkdirSync`, `promises.*`, `FSWatcher`, `ReadStream`, `FileHandle`, `watch`) through it. Previously threw "Expected type string for argument 'path' but got type Object" on any `new URL('file:///path')` call.
+2. **ESM builds no longer pull CJS entries through the `require` condition.** [packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts](packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts) previously listed `['browser', 'import', 'require']` as conditions even for ESM format. esbuild picks the first matching condition in an exports-map's declared order, so packages like `bitfield` that list `"require"` before `"import"` silently routed through the CJS entry. That entry is then wrapped by `__toESM(mod, 1)` which double-wraps an already-default-exported CJS class (`exports.default = X`) as `{ default: { __esModule: true, default: X } }` — causing `new Pkg.default(...)` to throw `is not a constructor` at runtime. Mirrors Node's own ESM resolution: in ESM mode Node never applies the `require` condition. CJS-only packages still resolve via `main`/`module` mainField fallback.
+3. **`random-access-file` browser stub aliased to the Node entry.** [packages/infra/resolve-npm/lib/index.mjs](packages/infra/resolve-npm/lib/index.mjs) `ALIASES_GENERAL_FOR_GJS` now maps `random-access-file` → `random-access-file/index.js`. Without this, esbuild's `browser` mainField precedence routed to the package's browser stub that unconditionally throws "random-access-file is not supported in the browser" on construction — fs-chunk-store (used by webtorrent to write seed chunks) then failed to `.put()`, silently stalling every `client.seed(Buffer)` call. GJS has a working `fs` via `@gjsify/fs`, so the real implementation just works.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
+
+### Integration tests — socket.io port
+
+**Priority: Medium — second pillar of integration testing.**
+
+Follow-up to the webtorrent PR. Port 5–7 tests from `refs/socket.io/packages/{socket.io,engine.io,socket.io-parser}/test/` into `tests/integration/socket.io/`. Candidates identified during planning:
+- `socket.io-parser/test/parser.js` (pure, buffer serialization)
+- `engine.io/test/server.js` "should register a new client" (HTTP handshake + polling)
+- `engine.io/test/server.js` "should be able to open with ws directly" (WebSocket upgrade)
+- `engine.io/test/server.js` "should trigger on server if the client does not pong" (timers)
+- `socket.io/test/handshake.ts` "should send CORS headers on OPTIONS"
+- `socket.io/test/socket.ts` "should receive events"
+- `socket.io/test/socket.ts` "should emit events with binary data"
+- `socket.io/test/namespaces.ts` "should automatically connect"
+
+Upstream uses mocha + expect.js — manual rewrite into `@gjsify/unit` style per the established port convention. Evaluate `@gjsify/test-compat` shim if more than one mocha-based integration target lands after this one.
 
 ### Browser Testing Infrastructure for DOM Packages
 

@@ -7,7 +7,7 @@ import { join, dirname } from 'node:path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
 import { realpathSync, readdirSync as readdirSyncFn, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, linkSync } from './sync.js';
 import { FileHandle } from './file-handle.js';
-import { tempDirPath } from './utils.js';
+import { tempDirPath, normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError } from './errors.js';
@@ -77,7 +77,7 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
     _mode = options;
   }
 
-  const pathStr = path.toString();
+  const pathStr = normalizePath(path);
 
   if (recursive) {
     return mkdirRecursiveAsync(pathStr);
@@ -90,7 +90,7 @@ async function mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | nul
         file.make_directory_finish(res);
         resolve(undefined);
       } catch (err: unknown) {
-        reject(createNodeError(err, 'mkdir', path));
+        reject(createNodeError(err, 'mkdir', pathStr));
       }
     });
   });
@@ -152,7 +152,8 @@ async function mkdirRecursiveAsync(pathStr: string): Promise<string | undefined>
 }
 
 async function readFile(path: PathLike | FileHandle, options: ReadOptions = { encoding: null, flag: 'r' }) {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path as PathLike);
+  const file = Gio.File.new_for_path(pathStr);
 
   let ok: boolean;
   let data: Uint8Array;
@@ -167,11 +168,11 @@ async function readFile(path: PathLike | FileHandle, options: ReadOptions = { en
       });
     });
   } catch (error) {
-    throw createNodeError(error, 'open', path.toString() as PathLike);
+    throw createNodeError(error, 'open', pathStr);
   }
 
   if (!ok) {
-    throw createNodeError(new Error('failed to read file'), 'open', path.toString() as PathLike);
+    throw createNodeError(new Error('failed to read file'), 'open', pathStr);
   }
 
   return encodeUint8Array(getEncodingFromOptions(options, 'buffer'), data);
@@ -230,8 +231,9 @@ async function mkdtemp(prefix: string, options?: BufferEncodingOption | ObjectEn
   return decode(path, encoding);
 }
 
-async function writeFile(path: string, data: string | Uint8Array | unknown) {
-  const file = Gio.File.new_for_path(path);
+async function writeFile(path: PathLike, data: string | Uint8Array | unknown) {
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
 
   // Convert data to Uint8Array if it's a string
   let bytes: Uint8Array;
@@ -250,7 +252,7 @@ async function writeFile(path: string, data: string | Uint8Array | unknown) {
       try {
         resolve(file.replace_finish(res));
       } catch (err: unknown) {
-        reject(createNodeError(err, 'open', path));
+        reject(createNodeError(err, 'open', pathStr));
       }
     });
   });
@@ -264,7 +266,7 @@ async function writeFile(path: string, data: string | Uint8Array | unknown) {
           outputStream.write_bytes_finish(res);
           resolve();
         } catch (err: unknown) {
-          reject(createNodeError(err, 'write', path));
+          reject(createNodeError(err, 'write', pathStr));
         }
       });
     });
@@ -277,7 +279,7 @@ async function writeFile(path: string, data: string | Uint8Array | unknown) {
         outputStream.close_finish(res);
         resolve();
       } catch (err: unknown) {
-        reject(createNodeError(err, 'close', path));
+        reject(createNodeError(err, 'close', pathStr));
       }
     });
   });
@@ -294,20 +296,21 @@ async function writeFile(path: string, data: string | Uint8Array | unknown) {
  * @return Fulfills with `undefined` upon success.
  */
 async function rmdir(path: PathLike, _options?: RmDirOptions): Promise<void> {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   // Check if it's a directory
   const info = await new Promise<Gio.FileInfo>((resolve, reject) => {
     file.query_info_async('standard::type', Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         resolve(file.query_info_finish(res));
       } catch (err: unknown) {
-        reject(createNodeError(err, 'rmdir', path));
+        reject(createNodeError(err, 'rmdir', pathStr));
       }
     });
   });
   if (info.get_file_type() !== Gio.FileType.DIRECTORY) {
     const err = Object.assign(new Error(), { code: 4 }); // Gio.IOErrorEnum.NOT_DIRECTORY
-    throw createNodeError(err, 'rmdir', path);
+    throw createNodeError(err, 'rmdir', pathStr);
   }
   // Check if empty
   const children = await new Promise<Gio.FileEnumerator>((resolve, reject) => {
@@ -315,14 +318,14 @@ async function rmdir(path: PathLike, _options?: RmDirOptions): Promise<void> {
       try {
         resolve(file.enumerate_children_finish(res));
       } catch (err: unknown) {
-        reject(createNodeError(err, 'rmdir', path));
+        reject(createNodeError(err, 'rmdir', pathStr));
       }
     });
   });
   const firstChild = children.next_file(null);
   if (firstChild !== null) {
     const err = Object.assign(new Error(), { code: 5 }); // Gio.IOErrorEnum.NOT_EMPTY
-    throw createNodeError(err, 'rmdir', path);
+    throw createNodeError(err, 'rmdir', pathStr);
   }
   // Delete the empty directory
   await new Promise<void>((resolve, reject) => {
@@ -331,21 +334,22 @@ async function rmdir(path: PathLike, _options?: RmDirOptions): Promise<void> {
         file.delete_finish(res);
         resolve();
       } catch (err: unknown) {
-        reject(createNodeError(err, 'rmdir', path));
+        reject(createNodeError(err, 'rmdir', pathStr));
       }
     });
   });
 }
 
-async function unlink(path: string): Promise<void> {
-  const file = Gio.File.new_for_path(path);
+async function unlink(path: PathLike): Promise<void> {
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   await new Promise<void>((resolve, reject) => {
     file.delete_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         file.delete_finish(res);
         resolve();
       } catch (err: unknown) {
-        reject(createNodeError(err, 'unlink', path));
+        reject(createNodeError(err, 'unlink', pathStr));
       }
     });
   });
@@ -425,14 +429,15 @@ async function _writeStr(
 // --- helpers ---
 
 function queryInfoAsync(path: PathLike, flags: Gio.FileQueryInfoFlags, syscall: string, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
+  const pathStr = normalizePath(path);
   return new Promise((resolve, reject) => {
-    const file = Gio.File.new_for_path(path.toString());
+    const file = Gio.File.new_for_path(pathStr);
     file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         const info = file.query_info_finish(res);
-        resolve(options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
+        resolve(options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr));
       } catch (err: unknown) {
-        reject(createNodeError(err, syscall, path));
+        reject(createNodeError(err, syscall, pathStr));
       }
     });
   });
@@ -463,14 +468,16 @@ async function realpath(path: PathLike): Promise<string> {
 }
 
 async function symlink(target: PathLike, path: PathLike, _type?: string): Promise<void> {
+  const pathStr = normalizePath(path);
+  const targetStr = normalizePath(target);
   return new Promise((resolve, reject) => {
-    const file = Gio.File.new_for_path(path.toString());
-    file.make_symbolic_link_async(target.toString(), GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
+    const file = Gio.File.new_for_path(pathStr);
+    file.make_symbolic_link_async(targetStr, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
       try {
         file.make_symbolic_link_finish(res);
         resolve();
       } catch (err: unknown) {
-        reject(createNodeError(err, 'symlink', target, path));
+        reject(createNodeError(err, 'symlink', targetStr, pathStr));
       }
     });
   });
@@ -482,7 +489,7 @@ async function symlink(target: PathLike, path: PathLike, _type?: string): Promis
  * @return Fulfills with `undefined` upon success.
  */
 async function rm(path: PathLike, options?: RmOptions): Promise<void> {
-  const pathStr = path.toString();
+  const pathStr = normalizePath(path);
   const file = Gio.File.new_for_path(pathStr);
   const recursive = options?.recursive || false;
   const force = options?.force || false;

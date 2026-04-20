@@ -1,0 +1,37 @@
+{
+    "name": "@gjsify/integration-webtorrent",
+    "description": "Integration tests: webtorrent on GJS and Node. Ports a curated subset of refs/webtorrent/test/ to validate @gjsify/* implementations.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist fixtures tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "prebuild:test:gjs": "node scripts/copy-fixtures.mjs",
+        "prebuild:test:node": "node scripts/copy-fixtures.mjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile dist/test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "yarn build:test:node && yarn build:test:gjs",
+        "test": "yarn build:test && yarn test:node && yarn test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@girs/gjs": "^4.0.0-rc.3",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.6.0",
+        "bittorrent-protocol": "^4.1.20",
+        "parse-torrent": "^7.0.0",
+        "randombytes": "^2.1.0",
+        "typescript": "^6.0.2",
+        "webtorrent": "^2.8.5",
+        "webtorrent-fixtures": "1.7.5"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

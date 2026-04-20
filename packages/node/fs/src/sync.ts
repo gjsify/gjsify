@@ -13,7 +13,7 @@ import { FileHandle } from './file-handle.js';
 import { Dirent } from './dirent.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError, isNotFoundError } from './errors.js';
-import { tempDirPath } from './utils.js';
+import { tempDirPath, normalizePath } from './utils.js';
 
 import type { OpenFlags, EncodingOption } from './types/index.js';
 import type {
@@ -31,24 +31,26 @@ export { existsSync }
 // --- stat / lstat ---
 
 export function statSync(path: PathLike, options?: StatSyncOptions): Stats | BigIntStats | undefined {
+  const pathStr = normalizePath(path);
   try {
-    const file = Gio.File.new_for_path(path.toString());
+    const file = Gio.File.new_for_path(pathStr);
     const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NONE, null);
-    return options?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
+    return options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr);
   } catch (err: unknown) {
     if (options?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
-    throw createNodeError(err, 'stat', path);
+    throw createNodeError(err, 'stat', pathStr);
   }
 }
 
 export function lstatSync(path: PathLike, options?: StatSyncOptions): Stats | BigIntStats | undefined {
+  const pathStr = normalizePath(path);
   try {
-    const file = Gio.File.new_for_path(path.toString());
+    const file = Gio.File.new_for_path(pathStr);
     const info = file.query_info(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
-    return options?.bigint ? new BigIntStats(info, path) : new Stats(info, path);
+    return options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr);
   } catch (err: unknown) {
     if (options?.throwIfNoEntry === false && isNotFoundError(err)) return undefined;
-    throw createNodeError(err, 'lstat', path);
+    throw createNodeError(err, 'lstat', pathStr);
   }
 }
 
@@ -58,7 +60,7 @@ export function readdirSync(
   path: PathLike,
   options?: { withFileTypes?: boolean; encoding?: string; recursive?: boolean }
 ): string[] | Dirent[] {
-  const pathStr = path.toString();
+  const pathStr = normalizePath(path);
   const file = Gio.File.new_for_path(pathStr);
   const enumerator = file.enumerate_children(
     'standard::name,standard::type',
@@ -101,7 +103,8 @@ export function readdirSync(
 const MAX_SYMLINK_DEPTH = 40; // matches Linux MAXSYMLINKS
 
 export function realpathSync(path: PathLike): string {
-  let current = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  let current = Gio.File.new_for_path(pathStr);
   let depth = 0;
 
   while (true) {
@@ -120,7 +123,7 @@ export function realpathSync(path: PathLike): string {
     current = parent ? parent.resolve_relative_path(target) : Gio.File.new_for_path(target);
 
     if (++depth > MAX_SYMLINK_DEPTH) {
-      throw new Error(`ELOOP: too many levels of symbolic links, realpath '${path}'`);
+      throw new Error(`ELOOP: too many levels of symbolic links, realpath '${pathStr}'`);
     }
   }
 }
@@ -129,24 +132,27 @@ export function realpathSync(path: PathLike): string {
 // --- symlink ---
 
 export function symlinkSync(target: PathLike, path: PathLike, _type?: 'file' | 'dir' | 'junction'): void {
-  const file = Gio.File.new_for_path(path.toString());
-  file.make_symbolic_link(target.toString(), null);
+  const pathStr = normalizePath(path);
+  const targetStr = normalizePath(target);
+  const file = Gio.File.new_for_path(pathStr);
+  file.make_symbolic_link(targetStr, null);
 }
 
-export function readFileSync(path: string, options = { encoding: null, flag: 'r' }) {
-  const file = Gio.File.new_for_path(path);
+export function readFileSync(path: PathLike, options: any = { encoding: null, flag: 'r' }) {
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
 
   try {
     const [ok, data] = file.load_contents(null);
 
     if (!ok) {
-      throw createNodeError(new Error('failed to read file'), 'read', path);
+      throw createNodeError(new Error('failed to read file'), 'read', pathStr);
     }
 
     return encodeUint8Array(getEncodingFromOptions(options, "buffer"), data);
   } catch (err: unknown) {
     if ((err as { code?: unknown }).code && typeof (err as { code?: unknown }).code === 'string') throw err; // Already a Node error
-    throw createNodeError(err, 'read', path);
+    throw createNodeError(err, 'read', pathStr);
   }
 }
 
@@ -203,9 +209,7 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
     mode = options || 0o777;
   }
 
-  if (typeof path !== 'string') {
-    path = path.toString();
-  }
+  path = normalizePath(path);
 
   if(typeof mode === 'string') {
     throw new TypeError("mode as string is currently not supported!");
@@ -275,57 +279,63 @@ function mkdirSyncRecursive(pathStr: string, mode: number): string | undefined {
  * @since v0.1.21
  */
 export function rmdirSync(path: PathLike, _options?: RmDirOptions): void {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   try {
     // Check if it's a directory
     const info = file.query_info('standard::type', Gio.FileQueryInfoFlags.NONE, null);
     if (info.get_file_type() !== Gio.FileType.DIRECTORY) {
       const err = Object.assign(new Error(), { code: 4 }); // Gio.IOErrorEnum.NOT_DIRECTORY
-      throw createNodeError(err, 'rmdir', path);
+      throw createNodeError(err, 'rmdir', pathStr);
     }
     // Check if empty — rmdir only removes empty directories (use rmSync for recursive)
     const enumerator = file.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
     if (enumerator.next_file(null) !== null) {
       const err = Object.assign(new Error(), { code: 5 }); // Gio.IOErrorEnum.NOT_EMPTY
-      throw createNodeError(err, 'rmdir', path);
+      throw createNodeError(err, 'rmdir', pathStr);
     }
     file.delete(null);
   } catch (err: unknown) {
     if ((err as { code?: unknown }).code && typeof (err as { code?: unknown }).code === 'string') throw err; // Already a Node error
-    throw createNodeError(err, 'rmdir', path);
+    throw createNodeError(err, 'rmdir', pathStr);
   }
 }
 
 export function unlinkSync(path: PathLike): void {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   try {
     file.delete(null);
   } catch (err: unknown) {
-    throw createNodeError(err, 'unlink', path);
+    throw createNodeError(err, 'unlink', pathStr);
   }
 }
 
-export function writeFileSync(path: string, data: string | Uint8Array) {
-  GLib.file_set_contents(path, data);
+export function writeFileSync(path: PathLike, data: string | Uint8Array) {
+  GLib.file_set_contents(normalizePath(path), data);
 }
 
 // --- rename ---
 
 export function renameSync(oldPath: PathLike, newPath: PathLike): void {
-  const src = Gio.File.new_for_path(oldPath.toString());
-  const dest = Gio.File.new_for_path(newPath.toString());
+  const oldStr = normalizePath(oldPath);
+  const newStr = normalizePath(newPath);
+  const src = Gio.File.new_for_path(oldStr);
+  const dest = Gio.File.new_for_path(newStr);
   try {
     src.move(dest, Gio.FileCopyFlags.OVERWRITE, null, null);
   } catch (err: unknown) {
-    throw createNodeError(err, 'rename', oldPath, newPath);
+    throw createNodeError(err, 'rename', oldStr, newStr);
   }
 }
 
 // --- copyFile ---
 
 export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void {
-  const srcFile = Gio.File.new_for_path(src.toString());
-  const destFile = Gio.File.new_for_path(dest.toString());
+  const srcStr = normalizePath(src);
+  const destStr = normalizePath(dest);
+  const srcFile = Gio.File.new_for_path(srcStr);
+  const destFile = Gio.File.new_for_path(destStr);
   let flags = Gio.FileCopyFlags.NONE;
   // mode 0 = default (overwrite), COPYFILE_EXCL (1) = no overwrite
   if (mode && (mode & 1) === 0) {
@@ -336,40 +346,42 @@ export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void
   try {
     srcFile.copy(destFile, flags, null, null);
   } catch (err: unknown) {
-    throw createNodeError(err, 'copyfile', src, dest);
+    throw createNodeError(err, 'copyfile', srcStr, destStr);
   }
 }
 
 // --- access ---
 
 export function accessSync(path: PathLike, mode?: number): void {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   try {
     const info = file.query_info('access::*', Gio.FileQueryInfoFlags.NONE, null);
     // mode: F_OK=0, R_OK=4, W_OK=2, X_OK=1
     if (mode !== undefined && mode !== 0) {
       // Gio.IOErrorEnum.PERMISSION_DENIED = 14 → maps to EACCES via createNodeError
-      const permErr = { code: 14, message: `permission denied, access '${path}'` };
+      const permErr = { code: 14, message: `permission denied, access '${pathStr}'` };
       if ((mode & 4) && !info.get_attribute_boolean('access::can-read')) {
-        throw createNodeError(permErr, 'access', path);
+        throw createNodeError(permErr, 'access', pathStr);
       }
       if ((mode & 2) && !info.get_attribute_boolean('access::can-write')) {
-        throw createNodeError(permErr, 'access', path);
+        throw createNodeError(permErr, 'access', pathStr);
       }
       if ((mode & 1) && !info.get_attribute_boolean('access::can-execute')) {
-        throw createNodeError(permErr, 'access', path);
+        throw createNodeError(permErr, 'access', pathStr);
       }
     }
   } catch (err: unknown) {
     if ((err as { code?: unknown }).code && typeof (err as { code?: unknown }).code === 'string') throw err; // Already a Node-style error
-    throw createNodeError(err, 'access', path);
+    throw createNodeError(err, 'access', pathStr);
   }
 }
 
 // --- appendFile ---
 
 export function appendFileSync(path: PathLike, data: string | Uint8Array, options?: { encoding?: string; mode?: number; flag?: string } | string): void {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   let bytes: Uint8Array;
   if (typeof data === 'string') {
     bytes = new TextEncoder().encode(data);
@@ -384,19 +396,20 @@ export function appendFileSync(path: PathLike, data: string | Uint8Array, option
     }
     stream.close(null);
   } catch (err: unknown) {
-    throw createNodeError(err, 'appendfile', path);
+    throw createNodeError(err, 'appendfile', pathStr);
   }
 }
 
 // --- readlink ---
 
 export function readlinkSync(path: PathLike, options?: { encoding?: string } | string): string | Buffer {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   try {
     const info = file.query_info('standard::symlink-target', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
     const target = info.get_symlink_target();
     if (!target) {
-      throw Object.assign(new Error(`EINVAL: invalid argument, readlink '${path}'`), { code: 'EINVAL', errno: -22, syscall: 'readlink', path: path.toString() });
+      throw Object.assign(new Error(`EINVAL: invalid argument, readlink '${pathStr}'`), { code: 'EINVAL', errno: -22, syscall: 'readlink', path: pathStr });
     }
     const encoding = typeof options === 'string' ? options : options?.encoding;
     if (encoding === 'buffer') {
@@ -405,24 +418,27 @@ export function readlinkSync(path: PathLike, options?: { encoding?: string } | s
     return target;
   } catch (err: unknown) {
     if (typeof (err as { code?: unknown }).code === 'string') throw err;
-    throw createNodeError(err, 'readlink', path);
+    throw createNodeError(err, 'readlink', pathStr);
   }
 }
 
 // --- link ---
 
 export function linkSync(existingPath: PathLike, newPath: PathLike): void {
+  const existingStr = normalizePath(existingPath);
+  const newStr = normalizePath(newPath);
   // Gio doesn't have a direct hard link API, use GLib
-  const result = GLib.spawn_command_line_sync(`ln ${existingPath.toString()} ${newPath.toString()}`);
+  const result = GLib.spawn_command_line_sync(`ln ${existingStr} ${newStr}`);
   if (!result[0]) {
-    throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingPath}' -> '${newPath}'`), { code: 'EPERM', errno: -1, syscall: 'link', path: existingPath.toString(), dest: newPath.toString() });
+    throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'`), { code: 'EPERM', errno: -1, syscall: 'link', path: existingStr, dest: newStr });
   }
 }
 
 // --- truncate ---
 
 export function truncateSync(path: PathLike, len?: number): void {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   try {
     const stream = file.replace(null, false, Gio.FileCreateFlags.NONE, null);
     if (len && len > 0) {
@@ -435,31 +451,33 @@ export function truncateSync(path: PathLike, len?: number): void {
     }
     stream.close(null);
   } catch (err: unknown) {
-    throw createNodeError(err, 'truncate', path);
+    throw createNodeError(err, 'truncate', pathStr);
   }
 }
 
 // --- chmodSync ---
 
 export function chmodSync(path: PathLike, mode: Mode): void {
+  const pathStr = normalizePath(path);
   const modeNum = typeof mode === 'string' ? parseInt(mode, 8) : mode;
-  const result = GLib.spawn_command_line_sync(`chmod ${modeNum.toString(8)} ${path.toString()}`);
+  const result = GLib.spawn_command_line_sync(`chmod ${modeNum.toString(8)} ${pathStr}`);
   if (!result[0]) {
-    throw Object.assign(new Error(`EPERM: operation not permitted, chmod '${path}'`), { code: 'EPERM', errno: -1, syscall: 'chmod', path: path.toString() });
+    throw Object.assign(new Error(`EPERM: operation not permitted, chmod '${pathStr}'`), { code: 'EPERM', errno: -1, syscall: 'chmod', path: pathStr });
   }
 }
 
 // --- chownSync ---
 
 export function chownSync(path: PathLike, uid: number, gid: number): void {
-  const result = GLib.spawn_command_line_sync(`chown ${uid}:${gid} ${path.toString()}`);
+  const pathStr = normalizePath(path);
+  const result = GLib.spawn_command_line_sync(`chown ${uid}:${gid} ${pathStr}`);
   if (!result[0]) {
-    throw Object.assign(new Error(`EPERM: operation not permitted, chown '${path}'`), { code: 'EPERM', errno: -1, syscall: 'chown', path: path.toString() });
+    throw Object.assign(new Error(`EPERM: operation not permitted, chown '${pathStr}'`), { code: 'EPERM', errno: -1, syscall: 'chown', path: pathStr });
   }
 }
 
-export function watch(filename: string, options: { persistent?: boolean; recursive?: boolean; encoding?: string } | undefined, listener: ((eventType: string, filename: string | null) => void) | undefined) {
-  return new FSWatcher(filename, options, listener);
+export function watch(filename: PathLike, options: { persistent?: boolean; recursive?: boolean; encoding?: string } | undefined, listener: ((eventType: string, filename: string | null) => void) | undefined) {
+  return new FSWatcher(normalizePath(filename), options, listener);
 }
 
 export function openSync(path: PathLike, flags?: OpenFlags | number, mode?: Mode): FileHandle {
@@ -507,7 +525,7 @@ export function mkdtempSync(prefix: string, options?: EncodingOption | BufferEnc
  * @since v14.14.0
  */
 export function rmSync(path: PathLike, options?: RmOptions): void {
-  const pathStr = path.toString();
+  const pathStr = normalizePath(path);
   const file = Gio.File.new_for_path(pathStr);
   const recursive = options?.recursive || false;
   const force = options?.force || false;

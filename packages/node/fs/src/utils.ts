@@ -1,6 +1,27 @@
 // Shared filesystem utilities for GJS — original implementation using Gio
 
 import { existsSync } from './sync.js';
+import { fileURLToPath, URL as NodeURL } from 'node:url';
+
+import type { PathLike } from 'node:fs';
+
+/**
+ * Node's fs accepts `string`, `Buffer` and `URL` (file:// scheme) for path
+ * arguments. GJS's `Gio.File.new_for_path` only accepts strings, so every
+ * public fs entry point funnels its `path` through this helper.
+ *
+ * - `URL` → converted via `fileURLToPath` (throws for non-file: schemes).
+ * - `Buffer` → decoded as UTF-8 (matches Node's Linux behaviour).
+ * - `string` → returned as-is.
+ */
+export function normalizePath(path: PathLike): string {
+  if (path instanceof URL || path instanceof NodeURL) {
+    return fileURLToPath(path as URL);
+  }
+  if (typeof path === 'string') return path;
+  // Buffer / typed array
+  return (path as Buffer).toString();
+}
 
 const CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 

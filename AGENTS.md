@@ -10,9 +10,18 @@ Browser compatibility patches (globals, DOM stubs) belong in packages, not examp
 
 **Fix root causes immediately — never paper over bugs.** When a bug is discovered (via examples, tests, or CI), fix it in the core package, not in the consumer. Do not document known limitations as "expected behavior" and move on — trace the issue to its root cause and fix it in the same session. Examples exist to validate the implementation; if an example reveals a bug, the implementation is incomplete. Workarounds, skip-guards, and "known limitation" notes are temporary scaffolding that must be replaced by proper fixes before the PR ships.
 
+**Root-cause fixes beat scope discipline.** An expanding PR scope is the *expected* cost of this rule, not a reason to defer. Every new example, integration test, or third-party npm consumer exists precisely to surface where our `@gjsify/*` implementations fall short of Node/Web/DOM standards. When such a gap appears, widen the current PR to fix the root cause — bundling the gap fix with the feature that exposed it keeps the history coherent ("here is X, here is the X-revealed gap, here is the fix"). Do NOT ship the feature with a workaround and file a TODO for the fix; the TODO will rot and the workaround will ossify. The long-term goal is `@gjsify/*` wrappers that work **out of the box** with as much of the TypeScript / JavaScript ecosystem as possible, so that arbitrary npm packages run on GJS with no patching. Every root fix you land moves that goal forward; every deferred fix delays it.
+
+Exceptions — narrowly scoped, must be documented per case:
+- The gap is a non-standard hack (e.g. a specific npm package relies on `process.binding(...)` internals, monkey-patches V8-only APIs, or probes for Node's C++ addons). These will not be replicated; wrap or skip at the consumer level with a comment explaining why.
+- The gap depends on upstream GJS / SpiderMonkey work that is currently impossible to do in userspace (track it in STATUS.md "Upstream GJS Patch Candidates" and leave a narrowly-scoped consumer guard until upstream lands).
+- The fix requires a genuinely large cross-cutting rewrite (e.g. switching an entire subsystem to a new GNOME library). In this case: write a Plan, confirm with the user, and split across follow-up PRs — but still avoid the workaround in the feature PR; instead, land a minimal root fix that unblocks the specific case and track the broader rewrite.
+
+When none of those apply, the default is: fix the root cause in this PR, no matter how much it grows.
+
 ## Structure
 
-`packages/{node/,web/,dom/,framework/,gjs/,infra/}` | `showcases/` — curated examples shipped with CLI | `examples/` — private dev/test examples | `refs/` — read-only git submodules (DO NOT modify)
+`packages/{node/,web/,dom/,framework/,gjs/,infra/}` | `showcases/` — curated examples shipped with CLI | `examples/` — private dev/test examples | `tests/integration/` — curated upstream tests ported from popular npm packages (webtorrent, socket.io, …) to validate `@gjsify/*` impls end-to-end | `refs/` — read-only git submodules (DO NOT modify)
 
 ## Node.js Packages — `packages/node/*` → `@gjsify/<name>`
 
@@ -410,6 +419,27 @@ Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. Select: core
 ### Deno Web API Refs — `refs/deno/`
 
 `ext/web/`{`06_streams`(R/W/TransformStream), `14_compression`(Compression/DecompressionStream), `02_event`(Event,EventTarget,CustomEvent,ErrorEvent,CloseEvent,MessageEvent), `03_abort_signal`(AbortController/Signal), `08_text_encoding`(TextEncoder/Decoder), `09_file,10_filereader`(Blob,File,FileReader), `15_performance`(Performance,Mark/Measure/Observer), `02_structured_clone,13_message_port,16_image_data,01_broadcast_channel,01_urlpattern`} | `ext/fetch/`{`20-26`(fetch,Headers,Request,Response,FormData), `27_eventsource`(SSE)} | `ext/crypto/00_crypto`(SubtleCrypto,CryptoKey,getRandomValues,randomUUID) | `ext/{websocket/01,webstorage/01,cache/01,image/01}`(WebSocket,Storage,Cache,ImageBitmap)
+
+### Integration Tests — `tests/integration/`
+
+A sibling to `tests/e2e/` and `tests/dom/`, dedicated to **running curated upstream tests from popular npm packages against `@gjsify/*` implementations**. Integration tests *validate* the Node/Web/DOM/Framework pillars end-to-end in a real consumer — they are not themselves a pillar.
+
+Layout: `tests/integration/<pkg>/` with `package.json` named `@gjsify/integration-<pkg>`, `private: true`, scripts `prebuild:test:{gjs,node}` (→ fixtures), `build:test:{gjs,node}` (→ `dist/test.{gjs,node}.mjs`), `test:{gjs,node}`, `test`. Specs live in `src/*.spec.ts`, aggregator in `src/test.mts`. Fixtures (if any) copied at prebuild time from an npm devDep into `./fixtures/` (gitignored) and loaded via `new URL('../fixtures/<file>', import.meta.url)` + `fileURLToPath` — NOT bundled into the JS, NOT committed. See `tests/integration/README.md` for the port convention.
+
+**Port convention — manual rewrite into `@gjsify/unit` style.** Each upstream test file becomes one `<name>.spec.ts` with:
+
+```ts
+// SPDX-License-Identifier: MIT
+// Ported from refs/<pkg>/test/<name>.js
+// Original: Copyright (c) <holder>. <license>.
+// Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
+```
+
+tape → gjsify-unit mapping: `t.equal` → `expect().toBe` | `t.deepEqual` → `expect().toStrictEqual` | `t.ok/notOk` → `expect().toBeTruthy/Falsy` | `t.error(err)` → `expect(err).toBeFalsy()` | `t.throws(fn)` → `expect(fn).toThrow()` | `t.plan/t.end` → omitted (Promise resolves) | callback-style cleanup → `new Promise((res, rej) => op(err => err ? rej(err) : res()))`. **Never weaken assertions.** When a port fails, fix the root cause in `@gjsify/*` — don't guard the assertion. Exception: if a port reveals a pre-known `@gjsify/*` gap that is out of scope for the current PR, wrap the suite with `on('Node.js', async () => { … })` and document the gap in the file header *plus* in `STATUS.md` `## Integration Test Coverage`. These skips are temporary.
+
+No `@gjsify/test-compat` shim package today (manual rewrite keeps the codebase idiomatic). Revisit when a second test-runner dialect (mocha + expect.js for socket.io) is added.
+
+**Scripts.** From the repo root: `yarn test:integration` (both runtimes) | `yarn test:integration:node` | `yarn test:integration:gjs`. The target is **not** part of `yarn test` — keep it opt-in to avoid blocking PRs on `@gjsify/*` gaps that are already tracked.
 
 ## Package Convention
 

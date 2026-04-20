@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/fixtures.ts",
+        "src/test-helpers.ts",
+        "src/selections.spec.ts",
+        "src/rarity-map.spec.ts",
+        "src/client-destroy.spec.ts",
+        "src/bitfield.spec.ts",
+        "src/file-buffer.spec.ts",
+        "src/iterator.spec.ts",
+        "src/client-add.spec.ts"
+    ]
+}

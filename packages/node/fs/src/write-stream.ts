@@ -4,8 +4,8 @@
 // Modifications: Rewritten to use Gio.File for GJS
 
 import { Writable } from "node:stream";
-import { fileURLToPath, URL } from "node:url";
 import { open, write, close } from "./callback.js";
+import { normalizePath } from "./utils.js";
 
 import type { OpenFlags } from './types/index.js';
 import type { PathLike, WriteStream as IWriteStream } from 'node:fs';
@@ -14,13 +14,10 @@ import type { CreateWriteStreamOptions } from 'node:fs/promises'; // Types from 
 const kIsPerformingIO = Symbol("kIsPerformingIO");
 const kIoDone = Symbol("kIoDone");
 
-export function toPathIfFileURL(
-  fileURLOrPath: string | Buffer | URL,
-): string | Buffer {
-  if (!(fileURLOrPath instanceof URL)) {
-    return fileURLOrPath;
-  }
-  return fileURLToPath(fileURLOrPath);
+// Legacy alias — delegates to the fs-package-internal `normalizePath`.
+// Accepts Buffer for compatibility with older call-sites; always returns a string.
+export function toPathIfFileURL(fileURLOrPath: string | Buffer | URL): string {
+  return normalizePath(fileURLOrPath as any);
 }
 export class WriteStream extends Writable implements IWriteStream {
 
