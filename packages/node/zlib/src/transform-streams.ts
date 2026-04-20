@@ -17,9 +17,6 @@ function getGioCompressorFormat(format: GioFormat): Gio.ZlibCompressorFormat {
   }
 }
 
-function getGioDecompressorFormat(format: GioFormat): Gio.ZlibCompressorFormat {
-  return getGioCompressorFormat(format);
-}
 
 function toUint8Array(chunk: Uint8Array | string): Uint8Array {
   if (typeof chunk === 'string') return new TextEncoder().encode(chunk);
@@ -74,7 +71,7 @@ export class ZlibTransform extends Transform {
   }
 
   private _decompress(data: Uint8Array): Uint8Array {
-    const decompressor = new Gio.ZlibDecompressor({ format: getGioDecompressorFormat(this._format) });
+    const decompressor = new Gio.ZlibDecompressor({ format: getGioCompressorFormat(this._format) });
     const memInput = Gio.MemoryInputStream.new_from_bytes(new GLib.Bytes(data));
     const converter = new Gio.ConverterInputStream({
       base_stream: memInput,

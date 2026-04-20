@@ -246,17 +246,6 @@ export class Socket extends Duplex {
           this._reading = false;
           break;
         }
-
-        // Yield to the GLib main loop at idle priority so GTK input events
-        // (mouse, keyboard, window management) can be processed between reads.
-        // Without this, rapid I/O completion callbacks form a microtask chain
-        // that drains before GTK macrotasks, starving window event processing.
-        await new Promise<void>(resolve => {
-          GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-            resolve();
-            return GLib.SOURCE_REMOVE;
-          });
-        });
       }
     } catch (err: unknown) {
       if (!this._cancellable.is_cancelled()) {

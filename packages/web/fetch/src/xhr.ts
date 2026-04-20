@@ -1,11 +1,5 @@
-// XMLHttpRequest — minimal implementation for GJS using the fetch() API.
+// XMLHttpRequest — fetch()-backed subset for GJS; covers engine.io-client usage.
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest
-// Implements the subset needed by engine.io-client and similar HTTP libraries.
-//
-// Full XHR is not reimplemented here; only the properties/methods that
-// non-trivially differ from fetch (readyState, onreadystatechange, etc.) are
-// added. Libraries that use the XHR object directly for upload progress, streams,
-// or synchronous XHR will need the broader implementation.
 
 import fetch from './index.js';
 

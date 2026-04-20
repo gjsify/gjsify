@@ -44,19 +44,8 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         // use their pure-JS browser entry instead of index.js (which does require('crypto')
         // and causes circular dependencies via the crypto → @gjsify/crypto alias).
         mainFields: format === 'esm' ? ['browser', 'module', 'main'] : ['browser', 'main', 'module'],
-        // https://esbuild.github.io/api/#conditions
-        // For ESM format, NEVER ask for the `require` condition. Some packages
-        // (e.g. `bitfield`) list `require` before `import` in their `exports`
-        // map, and esbuild picks the FIRST matching condition in export-object
-        // order — so including `require` in the conditions silently routes
-        // ESM builds through the CJS entry. That path then gets wrapped by
-        // `__toESM(..., /*isNodeMode*/ 1)` which double-wraps an already-
-        // default-exported CJS class (`exports.default = X`) into
-        // `{ default: { __esModule: true, default: X } }`, crashing at
-        // `new import_pkg.default(...)` with "X is not a constructor" at
-        // runtime. Mirrors Node's own ESM resolution: in ESM mode Node never
-        // applies the `require` condition. CJS-only packages still resolve
-        // via `main`/`module` field fallback below.
+        // ESM: omit 'require' — esbuild uses the first matching condition, so packages
+        // listing 'require' before 'import' would silently route through their CJS entry.
         conditions: format === 'esm' ? ['browser', 'import'] : ['browser', 'require', 'import'],
         external,
         loader: {
@@ -98,14 +87,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         ];
     }
 
-    // Force random-access-file to use its Node.js (fs-backed) entry (index.js)
-    // instead of the browser stub that throws "not supported in the browser".
-    // With mainFields:['browser',...] esbuild picks the "browser" field which
-    // maps to the stub. We redirect the bare specifier to index.js via
-    // build.resolve() so Yarn's hoisted node_modules layout is handled
-    // correctly (existsSync on the local node_modules/ path would fail).
-    // Using build.resolve (not the alias plugin) avoids the esbuild native-alias
-    // prefix-matching bug where 'random-access-file' + '/index.js' → broken path.
+    // random-access-file's 'browser' field maps to a throwing stub; force the fs-backed Node entry.
     build.onResolve({ filter: /^random-access-file$/ }, async (args) => {
         const result = await build.resolve('random-access-file/index.js', {
             kind: args.kind,
@@ -115,12 +97,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         return { path: result.path };
     });
 
-    // Inject __dirname / __filename for CJS modules in node_modules.
-    // platform: 'neutral' does not define these (unlike platform: 'node').
-    // Many CJS npm packages use __dirname to locate companion files at runtime
-    // (e.g. socket.io serving its client bundle, template engines, etc.).
-    // The injected values are compile-time constants matching each module's
-    // original source path — the same approach platform: 'node' uses internally.
+    // Inject __dirname/__filename as compile-time constants for CJS node_modules (platform:'neutral' omits them).
     build.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
         if (!args.path.includes('node_modules')) return undefined;
         const src = await readFile(args.path, 'utf8');

@@ -367,10 +367,7 @@ class Process extends EventEmitter {
   }
 
   nextTick(callback: Function, ...args: unknown[]): void {
-    // On GJS, schedule via GLib idle at PRIORITY_HIGH_IDLE (100) so GTK input
-    // events at PRIORITY_DEFAULT (0) are processed between nextTick callbacks.
-    // queueMicrotask drains synchronously before GLib dispatches any event
-    // source, causing the window to freeze during heavy I/O.
+    // GLib.idle_add lets GTK events (PRIORITY_DEFAULT=0) interleave; queueMicrotask would freeze the window.
     const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib?.idle_add) {
       GLib.idle_add(GLib.PRIORITY_HIGH_IDLE ?? 100, () => {
