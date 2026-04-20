@@ -439,6 +439,18 @@ export class Server extends EventEmitter {
       }
     }
 
+    // Populate req.socket with address info (engine.io and others need remoteAddress)
+    const remoteHost = soupMsg.get_remote_host() ?? '127.0.0.1';
+    const remoteAddr = soupMsg.get_remote_address();
+    const remotePort = (remoteAddr instanceof Gio.InetSocketAddress) ? remoteAddr.get_port() : 0;
+    req.socket = {
+      remoteAddress: remoteHost,
+      remotePort,
+      localAddress: this._address?.address ?? '127.0.0.1',
+      localPort: this._address?.port ?? 0,
+      encrypted: false,
+    } as any;
+
     // Get request body
     const body = soupMsg.get_request_body();
     if (body && body.data && body.data.length > 0) {

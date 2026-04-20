@@ -28,6 +28,7 @@ import { URL } from '@gjsify/url';
 
 export { FormData, Headers, Request, Response, FetchError, AbortError, isRedirect };
 export { Blob, File };
+export { XMLHttpRequest, XMLHttpRequestUpload } from './xhr.js';
 
 import type { SystemError } from './types/index.js';
 

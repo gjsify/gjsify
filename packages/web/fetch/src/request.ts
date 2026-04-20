@@ -279,6 +279,15 @@ export class Request extends Body {
 
     options.headers._appendToSoupMessage(message);
 
+    // Attach the request body to the Soup message (needed for POST/PUT/PATCH).
+    // Use _rawBodyBuffer to read the body without consuming the stream (the
+    // `body` getter may have already put the internal Readable into flowing mode,
+    // draining its buffer before we get here).
+    const rawBuf = this._rawBodyBuffer;
+    if (rawBuf !== null && rawBuf.byteLength > 0) {
+      message.set_request_body_from_bytes(null, new GLib.Bytes(rawBuf));
+    }
+
     const cancellable = new Gio.Cancellable();
 
     this[INTERNALS].inputStream = await soupSendAsync(session, message, GLib.PRIORITY_DEFAULT, cancellable);

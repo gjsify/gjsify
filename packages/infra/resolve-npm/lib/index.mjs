@@ -79,6 +79,19 @@ export const ALIASES_GENERAL_FOR_GJS = {
     // precedence would otherwise silently route to the throwing stub.
     // webtorrent's fs-chunk-store pulls random-access-file in transitively.
     'random-access-file': 'random-access-file/index.js',
+
+    // engine.io-client ships both polling-xhr.node.js (uses xmlhttprequest-ssl /
+    // Node http.request) and polling-xhr.js (uses globalThis.XMLHttpRequest).
+    // The package.json `browser` field maps .node.js → .js for browser builds, but
+    // esbuild with platform:neutral does not apply browser-field path maps.
+    // We apply them explicitly here: the aliasPlugin matches the relative import
+    // specifier exactly (since onResolve args.path = the original import string)
+    // and resolves ./polling-xhr.js relative to the importer's directory.
+    // @gjsify/fetch provides a proper XMLHttpRequest on globalThis via register/xhr.
+    './polling-xhr.node.js': './polling-xhr.js',
+    './websocket.node.js': './websocket.js',
+    './globals.node.js': './globals.js',
+
 }
 
 /** Record of Node.js modules (build in or not) and his replacement for Gjs */
@@ -171,6 +184,7 @@ export const ALIASES_WEB_FOR_GJS = {
     'eventsource/register': '@gjsify/eventsource/register',
     'fetch/register': '@gjsify/fetch/register',
     'fetch/register/fetch': '@gjsify/fetch/register/fetch',
+    'fetch/register/xhr': '@gjsify/fetch/register/xhr',
     'webcrypto/register': '@gjsify/webcrypto/register',
     'web-streams/register': '@gjsify/web-streams/register',
     'web-streams/register/readable': '@gjsify/web-streams/register/readable',
@@ -179,9 +193,11 @@ export const ALIASES_WEB_FOR_GJS = {
     'web-streams/register/text-streams': '@gjsify/web-streams/register/text-streams',
     'web-streams/register/queuing': '@gjsify/web-streams/register/queuing',
 
-    // xmlhttprequest + DOMParser
-    'xmlhttprequest': '@gjsify/xmlhttprequest',
-    'xmlhttprequest/register': '@gjsify/xmlhttprequest/register',
+    // xmlhttprequest (implemented in @gjsify/fetch)
+    'xmlhttprequest': '@gjsify/fetch',
+    'xmlhttprequest/register': '@gjsify/fetch/register/xhr',
+    '@gjsify/xmlhttprequest': '@gjsify/fetch',
+    '@gjsify/xmlhttprequest/register': '@gjsify/fetch/register/xhr',
     'domparser': '@gjsify/domparser',
     'domparser/register': '@gjsify/domparser/register',
 
@@ -252,6 +268,7 @@ export const ALIASES_WEB_FOR_NODE = {
     'eventsource/register': '@gjsify/empty',
     'fetch/register': '@gjsify/empty',
     'fetch/register/fetch': '@gjsify/empty',
+    'fetch/register/xhr': '@gjsify/empty',
     'webcrypto/register': '@gjsify/empty',
     'web-streams/register': '@gjsify/empty',
     'web-streams/register/readable': '@gjsify/empty',
@@ -269,6 +286,7 @@ export const ALIASES_WEB_FOR_NODE = {
     '@gjsify/eventsource/register': '@gjsify/empty',
     '@gjsify/fetch/register': '@gjsify/empty',
     '@gjsify/fetch/register/fetch': '@gjsify/empty',
+    '@gjsify/fetch/register/xhr': '@gjsify/empty',
     '@gjsify/webcrypto/register': '@gjsify/empty',
     '@gjsify/web-streams/register': '@gjsify/empty',
     '@gjsify/web-streams/register/readable': '@gjsify/empty',
@@ -290,6 +308,7 @@ export const ALIASES_WEB_FOR_NODE = {
     // xmlhttprequest + DOMParser — no-op on Node
     'xmlhttprequest': '@gjsify/empty',
     'xmlhttprequest/register': '@gjsify/empty',
+    '@gjsify/xmlhttprequest': '@gjsify/empty',
     '@gjsify/xmlhttprequest/register': '@gjsify/empty',
     'domparser': '@gjsify/empty',
     'domparser/register': '@gjsify/empty',

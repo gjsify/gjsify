@@ -387,25 +387,33 @@ Not yet implemented (but potentially relevant for GJS projects):
 2. **ESM builds no longer pull CJS entries through the `require` condition.** [packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts](packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts) previously listed `['browser', 'import', 'require']` as conditions even for ESM format. esbuild picks the first matching condition in an exports-map's declared order, so packages like `bitfield` that list `"require"` before `"import"` silently routed through the CJS entry. That entry is then wrapped by `__toESM(mod, 1)` which double-wraps an already-default-exported CJS class (`exports.default = X`) as `{ default: { __esModule: true, default: X } }` — causing `new Pkg.default(...)` to throw `is not a constructor` at runtime. Mirrors Node's own ESM resolution: in ESM mode Node never applies the `require` condition. CJS-only packages still resolve via `main`/`module` mainField fallback.
 3. **`random-access-file` browser stub aliased to the Node entry.** [packages/infra/resolve-npm/lib/index.mjs](packages/infra/resolve-npm/lib/index.mjs) `ALIASES_GENERAL_FOR_GJS` now maps `random-access-file` → `random-access-file/index.js`. Without this, esbuild's `browser` mainField precedence routed to the package's browser stub that unconditionally throws "random-access-file is not supported in the browser" on construction — fs-chunk-store (used by webtorrent to write seed chunks) then failed to `.put()`, silently stalling every `client.seed(Buffer)` call. GJS has a working `fs` via `@gjsify/fs`, so the real implementation just works.
 
+### socket.io (`tests/integration/socket.io/`)
+
+3 test suites ported from socket.io v4 upstream into `@gjsify/unit` style. **Node: 20/20 green. GJS: 20/20 green, 0 skips.** Transport: polling only (`transports: ['polling']`).
+
+| Port | Node | GJS | Exercises |
+|---|---|---|---|
+| handshake.spec.ts | ✅ (4) | ✅ (4) | CORS headers (OPTIONS/GET), `allowRequest` accept/reject, `@gjsify/fetch`, `@gjsify/http` |
+| socket-middleware.spec.ts | ✅ (2) | ✅ (2) | `socket.use()` middleware chain + error propagation |
+| socket-timeout.spec.ts | ✅ (4) | ✅ (4) | `socket.timeout().emit()` ack timeout, `emitWithAck()` with/without ack |
+
+WebSocket transport deferred — requires a server-side `ws` package shim (see Open TODOs).
+
+### Root-cause fixes surfaced by the socket.io port and landed in this PR
+
+1. **`@gjsify/fetch` POST body never sent.** `Request._send()` in [packages/web/fetch/src/request.ts](packages/web/fetch/src/request.ts) never attached the body to the `Soup.Message`. Root cause: the `.body` getter creates a Web ReadableStream whose `start(controller)` runs synchronously, switching the internal Node Readable to flowing mode and draining its buffer before `_send()` ran. Fix: added `_rawBodyBuffer` getter to `Body` class that reads directly from `Body[INTERNALS].body` without going through the Web stream, then calls `message.set_request_body_from_bytes(null, new GLib.Bytes(rawBuf))`.
+2. **`IncomingMessage` wrongly emitted `'close'` after body stream ends.** Engine.io registers `req.on('close', onClose)` to detect dropped connections during long-poll. Our `Readable._emitEnd()` auto-emitted `'close'` after `'end'` (mimicking `autoDestroy` behavior), which engine.io treated as a premature disconnect. Fix: added `_autoClose()` protected hook to `Readable` (emits `'close'` by default) and overrode it in `IncomingMessage` to be a no-op — `'close'` now fires only via `destroy()`, matching Node.js HTTP semantics.
+3. **`EventEmitter.prototype` methods were non-enumerable.** Socket.io v4 builds `Server`→Namespace proxy methods by iterating `Object.keys(EventEmitter.prototype)`. ES class methods are non-enumerable, so this returned `[]` and no proxy was created. `io.on('connection', handler)` attached to the Server's own EventEmitter instead of the default namespace, so the `connection` event (fired by `namespace._doConnect`) never reached user handlers. Fix: after the class declaration in [packages/node/events/src/event-emitter.ts](packages/node/events/src/event-emitter.ts), `Object.defineProperty` re-declares all 15 public instance methods as `enumerable: true`, matching Node.js's prototype-assignment style.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-### Integration tests — socket.io port
+### Integration tests — socket.io WebSocket transport
 
-**Priority: Medium — second pillar of integration testing.**
+**Priority: Medium.**
 
-Follow-up to the webtorrent PR. Port 5–7 tests from `refs/socket.io/packages/{socket.io,engine.io,socket.io-parser}/test/` into `tests/integration/socket.io/`. Candidates identified during planning:
-- `socket.io-parser/test/parser.js` (pure, buffer serialization)
-- `engine.io/test/server.js` "should register a new client" (HTTP handshake + polling)
-- `engine.io/test/server.js` "should be able to open with ws directly" (WebSocket upgrade)
-- `engine.io/test/server.js` "should trigger on server if the client does not pong" (timers)
-- `socket.io/test/handshake.ts` "should send CORS headers on OPTIONS"
-- `socket.io/test/socket.ts` "should receive events"
-- `socket.io/test/socket.ts` "should emit events with binary data"
-- `socket.io/test/namespaces.ts` "should automatically connect"
-
-Upstream uses mocha + expect.js — manual rewrite into `@gjsify/unit` style per the established port convention. Evaluate `@gjsify/test-compat` shim if more than one mocha-based integration target lands after this one.
+Socket.io WebSocket transport requires a server-side `ws` npm package shim (Soup WebSocket server + per-message framing). Currently bypassed with `transports: ['polling']`. Once the `ws` shim lands, port `socket.ts` and `namespaces.ts` from `refs/socket.io/packages/socket.io/test/`.
 
 ### Browser Testing Infrastructure for DOM Packages
 

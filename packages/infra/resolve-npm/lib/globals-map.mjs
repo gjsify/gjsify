@@ -48,6 +48,7 @@ export const GJS_GLOBALS_GROUPS = {
         'DOMException',
         'performance', 'PerformanceObserver',
         'XMLHttpRequest',
+        'XMLHttpRequestUpload',
         'DOMParser',
         'AudioContext', 'webkitAudioContext', 'Audio', 'HTMLAudioElement',
         'GamepadEvent',
@@ -133,8 +134,9 @@ export const GJS_GLOBALS_MAP = {
     // --- DOMException ------------------------------------------------------
     DOMException:         'dom-exception/register',
 
-    // --- XMLHttpRequest + URL.createObjectURL ------------------------------
-    XMLHttpRequest:       '@gjsify/xmlhttprequest/register',
+    // --- XMLHttpRequest (implemented in @gjsify/fetch) ---------------------
+    XMLHttpRequest:       'fetch/register/xhr',
+    XMLHttpRequestUpload: 'fetch/register/xhr',
 
     // --- DOMParser ---------------------------------------------------------
     DOMParser:            '@gjsify/domparser/register',

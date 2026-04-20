@@ -2,8 +2,11 @@ import { describe, it, expect } from '@gjsify/unit';
 import zlib, {
   deflateRaw, inflateRaw, deflate, inflate, gzip, gunzip,
   gzipSync, gunzipSync, deflateSync, inflateSync, deflateRawSync, inflateRawSync,
+  createGzip, createGunzip, createDeflate, createInflate,
+  createDeflateRaw, createInflateRaw,
   constants,
 } from 'node:zlib';
+import { pipeline } from 'node:stream';
 import { Buffer } from 'node:buffer';
 
 export default async () => {
@@ -1144,6 +1147,120 @@ export default async () => {
         inflateRaw(compressed, (err, data) => err ? reject(err) : resolve(data as unknown as Buffer));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('mixed sync async raw');
+    });
+  });
+
+  // --- Transform stream API ---
+  await describe('zlib Transform streams', async () => {
+    await it('exports createGzip, createGunzip, etc. as functions', async () => {
+      expect(typeof createGzip).toBe('function');
+      expect(typeof createGunzip).toBe('function');
+      expect(typeof createDeflate).toBe('function');
+      expect(typeof createInflate).toBe('function');
+      expect(typeof createDeflateRaw).toBe('function');
+      expect(typeof createInflateRaw).toBe('function');
+    });
+
+    await it('createGzip → createGunzip round-trip', async () => {
+      const input = Buffer.from('hello zlib transform streams');
+      const compressed = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const gz = createGzip();
+        gz.on('data', (c: Buffer) => chunks.push(c));
+        gz.on('end', () => resolve(Buffer.concat(chunks)));
+        gz.on('error', reject);
+        gz.end(input);
+      });
+      const decompressed = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const gunz = createGunzip();
+        gunz.on('data', (c: Buffer) => chunks.push(c));
+        gunz.on('end', () => resolve(Buffer.concat(chunks)));
+        gunz.on('error', reject);
+        gunz.end(compressed);
+      });
+      expect(decompressed.toString()).toBe('hello zlib transform streams');
+    });
+
+    await it('createDeflate → createInflate round-trip', async () => {
+      const input = Buffer.from('deflate stream round trip test');
+      const compressed = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const d = createDeflate();
+        d.on('data', (c: Buffer) => chunks.push(c));
+        d.on('end', () => resolve(Buffer.concat(chunks)));
+        d.on('error', reject);
+        d.end(input);
+      });
+      const decompressed = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const i = createInflate();
+        i.on('data', (c: Buffer) => chunks.push(c));
+        i.on('end', () => resolve(Buffer.concat(chunks)));
+        i.on('error', reject);
+        i.end(compressed);
+      });
+      expect(decompressed.toString()).toBe('deflate stream round trip test');
+    });
+
+    await it('createDeflateRaw → createInflateRaw round-trip', async () => {
+      const input = Buffer.from('raw deflate round trip');
+      const compressed = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const d = createDeflateRaw();
+        d.on('data', (c: Buffer) => chunks.push(c));
+        d.on('end', () => resolve(Buffer.concat(chunks)));
+        d.on('error', reject);
+        d.end(input);
+      });
+      const decompressed = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const i = createInflateRaw();
+        i.on('data', (c: Buffer) => chunks.push(c));
+        i.on('end', () => resolve(Buffer.concat(chunks)));
+        i.on('error', reject);
+        i.end(compressed);
+      });
+      expect(decompressed.toString()).toBe('raw deflate round trip');
+    });
+
+    await it('pipeline: gzip → gunzip produces original bytes', async () => {
+      const { Readable } = await import('node:stream');
+      const input = 'pipeline round trip via gzip';
+      const result = await new Promise<string>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const sink = new (require('node:stream').Writable)({
+          write(chunk: Buffer, _enc: string, cb: () => void) { chunks.push(chunk); cb(); },
+        });
+        sink.on('finish', () => resolve(Buffer.concat(chunks).toString()));
+        pipeline(
+          Readable.from([Buffer.from(input)]),
+          createGzip(),
+          createGunzip(),
+          sink,
+          (err) => { if (err) reject(err); }
+        );
+      });
+      expect(result).toBe(input);
+    });
+
+    await it('createGzip output is shorter than input for compressible data', async () => {
+      const input = Buffer.from('a'.repeat(1000));
+      const compressed = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const gz = createGzip();
+        gz.on('data', (c: Buffer) => chunks.push(c));
+        gz.on('end', () => resolve(Buffer.concat(chunks)));
+        gz.on('error', reject);
+        gz.end(input);
+      });
+      expect(compressed.length).toBeLessThan(input.length);
+    });
+
+    await it('default export includes createGzip etc.', async () => {
+      expect(typeof zlib.createGzip).toBe('function');
+      expect(typeof zlib.createDeflate).toBe('function');
+      expect(typeof zlib.createInflate).toBe('function');
     });
   });
 };

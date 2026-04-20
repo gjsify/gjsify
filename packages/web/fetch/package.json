@@ -17,6 +17,9 @@
         "./register/fetch": {
             "default": "./lib/esm/register/fetch.js"
         },
+        "./register/xhr": {
+            "default": "./lib/esm/register/xhr.js"
+        },
         "./globals": "./globals.mjs"
     },
     "sideEffects": [

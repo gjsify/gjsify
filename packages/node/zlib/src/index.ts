@@ -1,6 +1,15 @@
 // Reference: Node.js lib/zlib.js
 // Reimplemented for GJS using Web Compression API / Gio.ZlibCompressor
 
+export {
+  ZlibTransform,
+  createGzip, createGunzip,
+  createDeflate, createInflate,
+  createDeflateRaw, createInflateRaw,
+  createUnzip,
+  createBrotliCompress, createBrotliDecompress,
+} from './transform-streams.js';
+
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import type { ZlibOptions } from 'node:zlib';
@@ -323,8 +332,21 @@ export const constants = {
 
 // ---- Default export ----
 
+import {
+  createGzip, createGunzip,
+  createDeflate, createInflate,
+  createDeflateRaw, createInflateRaw,
+  createUnzip,
+  createBrotliCompress, createBrotliDecompress,
+} from './transform-streams.js';
+
 export default {
   gzip, gunzip, deflate, inflate, deflateRaw, inflateRaw,
   gzipSync, gunzipSync, deflateSync, inflateSync, deflateRawSync, inflateRawSync,
+  createGzip, createGunzip,
+  createDeflate, createInflate,
+  createDeflateRaw, createInflateRaw,
+  createUnzip,
+  createBrotliCompress, createBrotliDecompress,
   constants,
 };

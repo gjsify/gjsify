@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### 🧪 Integration tests — socket.io on GJS (2026-04-20)
+
+**`tests/integration/socket.io/`** — 3 test suites ported from socket.io v4 upstream into `@gjsify/unit` style. **Node: 20/20 green. GJS: 20/20 green, 0 skips.**
+
+- **`handshake.spec.ts`** — CORS OPTIONS/GET headers, `allowRequest` accept/reject (4 tests)
+- **`socket-middleware.spec.ts`** — `socket.use()` middleware chain, error propagation (2 tests)
+- **`socket-timeout.spec.ts`** — `socket.timeout().emit()` ack timeout, `emitWithAck()` with/without ack (4 tests)
+
+Transport: polling only (`transports: ['polling']`). WebSocket transport requires a server-side `ws` shim and is deferred.
+
+### Root-cause fixes uncovered by the socket.io port (bundled)
+
+- **`@gjsify/fetch` POST body never sent** — `Request._send()` in `packages/web/fetch/src/request.ts` never attached the request body to the `Soup.Message`. Added `_rawBodyBuffer` getter to `Body` class (reads directly from `Body[INTERNALS].body` without draining the stream) and call `message.set_request_body_from_bytes(null, new GLib.Bytes(rawBuf))` in `_send()`. Previously, accessing the `.body` getter triggered streaming mode and drained the buffer before `_send()` read it.
+- **`IncomingMessage` wrongly emitted `'close'` after body stream ends** — engine.io registers `req.on('close', onClose)` to detect premature TCP disconnection during long-poll. Our `Readable` base was auto-emitting `'close'` after `'end'` (matching `autoDestroy` behavior), which engine.io misinterpreted as a dropped connection, sending a `CLOSE` packet and killing the session. Fix: added `_autoClose()` protected hook to `Readable` (in `packages/node/stream/`) that emits `'close'` by default, and overrode it in `IncomingMessage` (in `packages/node/http/`) to be a no-op — `'close'` now only fires via `destroy()`, matching Node.js HTTP semantics.
+- **`EventEmitter.prototype` methods were non-enumerable** — Socket.io v4 builds `Server` → Namespace proxy methods by iterating `Object.keys(EventEmitter.prototype)`. ES class methods are non-enumerable by default, so `Object.keys` returned `[]` and no proxy was created. `io.on('connection', handler)` attached to the Server's own EventEmitter instead of the default namespace, so the `connection` event (fired by `namespace._doConnect`) never reached the handler. Fix: after the class declaration in `packages/node/events/src/event-emitter.ts`, `Object.defineProperty` re-declares all 15 public instance methods as `enumerable: true`, matching Node.js's prototype-assignment style.
+
 ### 🧪 Integration tests — webtorrent on GJS (2026-04-20)
 
 New `tests/integration/` pillar that runs curated upstream tests from popular npm packages against `@gjsify/*` implementations — validating the stack end-to-end in a real consumer. **Node: 185/185 green. GJS: 185/185 green, 0 skips.**
