@@ -350,7 +350,12 @@ class Readable_ extends Stream_ {
     if (this._readableState.endEmitted) return;
     this._readableState.endEmitted = true;
     this.emit('end');
-    nextTick(() => this.emit('close'));
+    nextTick(() => this._autoClose());
+  }
+
+  /** Override in subclasses to suppress automatic 'close' after 'end'. */
+  protected _autoClose(): void {
+    this.emit('close');
   }
 
   /** Schedule a single 'readable' event per microtask cycle (deduplicates multiple pushes). */

@@ -1,0 +1,195 @@
+// XMLHttpRequest — minimal implementation for GJS using the fetch() API.
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest
+// Implements the subset needed by engine.io-client and similar HTTP libraries.
+//
+// Full XHR is not reimplemented here; only the properties/methods that
+// non-trivially differ from fetch (readyState, onreadystatechange, etc.) are
+// added. Libraries that use the XHR object directly for upload progress, streams,
+// or synchronous XHR will need the broader implementation.
+
+import fetch from './index.js';
+import { Headers } from './index.js';
+
+export const UNSENT = 0;
+export const OPENED = 1;
+export const HEADERS_RECEIVED = 2;
+export const LOADING = 3;
+export const DONE = 4;
+
+type EventHandler = ((event: ProgressEvent) => void) | null;
+
+export class XMLHttpRequest extends EventTarget {
+  static UNSENT = UNSENT;
+  static OPENED = OPENED;
+  static HEADERS_RECEIVED = HEADERS_RECEIVED;
+  static LOADING = LOADING;
+  static DONE = DONE;
+
+  readonly UNSENT = UNSENT;
+  readonly OPENED = OPENED;
+  readonly HEADERS_RECEIVED = HEADERS_RECEIVED;
+  readonly LOADING = LOADING;
+  readonly DONE = DONE;
+
+  readyState: number = UNSENT;
+  status: number = 0;
+  statusText: string = '';
+  responseType: string = '';
+  responseText: string = '';
+  response: unknown = null;
+  responseURL: string = '';
+  withCredentials: boolean = false;
+  timeout: number = 0;
+  upload: XMLHttpRequestUpload = new XMLHttpRequestUpload();
+
+  onreadystatechange: ((event: Event) => void) | null = null;
+  onload: EventHandler = null;
+  onerror: EventHandler = null;
+  onabort: EventHandler = null;
+  ontimeout: EventHandler = null;
+  onloadstart: EventHandler = null;
+  onloadend: EventHandler = null;
+  onprogress: EventHandler = null;
+
+  private _method = 'GET';
+  private _url = '';
+  private _headers = new Map<string, string>();
+  private _responseHeaders = new Map<string, string>();
+  private _controller = new AbortController();
+  private _aborted = false;
+  private _timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  open(method: string, url: string, _async = true, _user?: string | null, _password?: string | null): void {
+    this._method = method.toUpperCase();
+    this._url = url;
+    this._headers.clear();
+    this._responseHeaders.clear();
+    this._aborted = false;
+    this._controller = new AbortController();
+    this._setReadyState(OPENED);
+  }
+
+  setRequestHeader(header: string, value: string): void {
+    if (this.readyState < OPENED) throw new DOMException('Must open first', 'InvalidStateError');
+    this._headers.set(header.toLowerCase(), value);
+  }
+
+  getResponseHeader(header: string): string | null {
+    return this._responseHeaders.get(header.toLowerCase()) ?? null;
+  }
+
+  getAllResponseHeaders(): string {
+    const lines: string[] = [];
+    this._responseHeaders.forEach((v, k) => lines.push(`${k}: ${v}`));
+    return lines.join('\r\n');
+  }
+
+  send(body?: Document | XMLHttpRequestBodyInit | null): void {
+    if (this.readyState !== OPENED) throw new DOMException('Must open first', 'InvalidStateError');
+    if (this._aborted) return;
+
+    const headersInit: Record<string, string> = {};
+    this._headers.forEach((v, k) => { headersInit[k] = v; });
+
+    const fetchOptions: RequestInit = {
+      method: this._method,
+      headers: new Headers(headersInit),
+      credentials: this.withCredentials ? 'include' : 'omit',
+      signal: this._controller.signal,
+    };
+
+    if (body != null && this._method !== 'GET' && this._method !== 'HEAD') {
+      fetchOptions.body = body as BodyInit;
+    }
+
+    if (this.timeout > 0) {
+      this._timeoutId = setTimeout(() => {
+        this._controller.abort();
+        this._onTimeout();
+      }, this.timeout);
+    }
+
+    this.dispatchEvent(new Event('loadstart'));
+    if (this.onloadstart) this.onloadstart(new ProgressEvent('loadstart'));
+
+    fetch(this._url, fetchOptions)
+      .then(async (res) => {
+        if (this._aborted) return;
+        if (this._timeoutId) { clearTimeout(this._timeoutId); this._timeoutId = null; }
+
+        this.status = res.status;
+        this.statusText = res.statusText;
+        this.responseURL = res.url;
+
+        res.headers.forEach((v: string, k: string) => {
+          this._responseHeaders.set(k.toLowerCase(), v);
+        });
+
+        this._setReadyState(HEADERS_RECEIVED);
+        this._setReadyState(LOADING);
+
+        const text = await res.text();
+        this.responseText = text;
+        this.response = this.responseType === '' || this.responseType === 'text' ? text : text;
+
+        this._setReadyState(DONE);
+        this.dispatchEvent(new ProgressEvent('load'));
+        this.dispatchEvent(new ProgressEvent('loadend'));
+        if (this.onload) this.onload(new ProgressEvent('load'));
+        if (this.onloadend) this.onloadend(new ProgressEvent('loadend'));
+      })
+      .catch((_err: Error) => {
+        if (this._timeoutId) { clearTimeout(this._timeoutId); this._timeoutId = null; }
+        if (this._aborted) return;
+
+        this._setReadyState(DONE);
+        const ev = new ProgressEvent('error');
+        this.dispatchEvent(ev);
+        if (this.onerror) this.onerror(ev);
+        if (this.onloadend) this.onloadend(new ProgressEvent('loadend'));
+      });
+  }
+
+  abort(): void {
+    if (this._aborted) return;
+    this._aborted = true;
+    if (this._timeoutId) { clearTimeout(this._timeoutId); this._timeoutId = null; }
+    this._controller.abort();
+    if (this.readyState !== UNSENT && this.readyState !== DONE) {
+      this._setReadyState(DONE);
+      this.status = 0;
+    }
+    const ev = new ProgressEvent('abort');
+    this.dispatchEvent(ev);
+    if (this.onabort) this.onabort(ev);
+    if (this.onloadend) this.onloadend(new ProgressEvent('loadend'));
+  }
+
+  overrideMimeType(_mime: string): void { /* no-op */ }
+
+  private _onTimeout(): void {
+    if (this._aborted) return;
+    this._aborted = true;
+    this._setReadyState(DONE);
+    const ev = new ProgressEvent('timeout');
+    this.dispatchEvent(ev);
+    if (this.ontimeout) this.ontimeout(ev);
+  }
+
+  private _setReadyState(state: number): void {
+    this.readyState = state;
+    const ev = new Event('readystatechange');
+    this.dispatchEvent(ev);
+    if (this.onreadystatechange) this.onreadystatechange(ev);
+  }
+}
+
+export class XMLHttpRequestUpload extends EventTarget {
+  onprogress: EventHandler = null;
+  onloadstart: EventHandler = null;
+  onloadend: EventHandler = null;
+  onload: EventHandler = null;
+  onerror: EventHandler = null;
+  onabort: EventHandler = null;
+  ontimeout: EventHandler = null;
+}

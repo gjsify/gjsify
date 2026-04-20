@@ -21,6 +21,9 @@ export class IncomingMessage extends Readable {
   socket: any = null;
   aborted = false;
 
+  /** Node.js legacy alias for socket — needed by engine.io and other HTTP consumers. */
+  get connection() { return this.socket; }
+
   private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -29,6 +32,14 @@ export class IncomingMessage extends Readable {
 
   _read(_size: number): void {
     // Data is pushed externally via _pushBody or _pushStream
+  }
+
+  // HTTP IncomingMessage 'close' fires when the socket is destroyed (connection
+  // lost), not when the request body stream ends. Suppress the Readable's
+  // automatic emit-close-after-end so that engine.io and other HTTP libs don't
+  // misinterpret body-stream completion as a premature connection close.
+  protected _autoClose(): void {
+    // no-op — 'close' is emitted via destroy() only
   }
 
   /** Finish the readable stream with the body data (used by server-side handler). */

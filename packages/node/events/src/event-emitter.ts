@@ -707,6 +707,31 @@ export class EventEmitter {
 // Make EventEmitter reference itself for backwards compatibility
 (EventEmitter as unknown as Record<string, typeof EventEmitter>).EventEmitter = EventEmitter;
 
+// Node.js EventEmitter uses direct prototype assignment (e.g. EventEmitter.prototype.on = fn)
+// which makes methods enumerable. ES class methods are non-enumerable by default.
+// This matters for consumers that iterate Object.keys(EventEmitter.prototype) to discover
+// methods — most notably socket.io v4, which builds Server↔Namespace proxy methods this way.
+// Re-declare each public method as enumerable to match Node.js behavior.
+{
+  const methods: (keyof EventEmitter)[] = [
+    'setMaxListeners', 'getMaxListeners', 'emit', 'addListener', 'on',
+    'prependListener', 'once', 'prependOnceListener', 'removeListener', 'off',
+    'removeAllListeners', 'listeners', 'rawListeners', 'listenerCount', 'eventNames',
+  ];
+  for (const m of methods) {
+    const fn = (EventEmitter.prototype as any)[m];
+    if (typeof fn === 'function') {
+      Object.defineProperty(EventEmitter.prototype, m, {
+        enumerable: true, configurable: true, writable: true, value: fn,
+      });
+    }
+  }
+  // Expose prototype data properties to match Node.js Object.keys(EventEmitter.prototype).
+  Object.defineProperty(EventEmitter.prototype, '_events',      { enumerable: true, configurable: true, writable: true, value: undefined });
+  Object.defineProperty(EventEmitter.prototype, '_eventsCount', { enumerable: true, configurable: true, writable: true, value: 0 });
+  Object.defineProperty(EventEmitter.prototype, '_maxListeners',{ enumerable: true, configurable: true, writable: true, value: undefined });
+}
+
 function unwrapListeners(arr: EventListener[]): EventListener[] {
   const ret = new Array(arr.length);
   for (let i = 0; i < ret.length; ++i) {

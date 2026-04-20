@@ -162,6 +162,15 @@ export default class Body {
         return this[INTERNALS].stream;
     }
 
+    /** Return the raw body buffer without consuming the stream (used by Request._send). */
+    get _rawBodyBuffer(): Buffer | null {
+        const b = this[INTERNALS].body;
+        if (b === null) return null;
+        if (Buffer.isBuffer(b)) return b;
+        if (b instanceof Uint8Array) return Buffer.from(b.buffer, b.byteOffset, b.byteLength);
+        return null;
+    }
+
     get bodyUsed() {
         return this[INTERNALS].disturbed;
     }
