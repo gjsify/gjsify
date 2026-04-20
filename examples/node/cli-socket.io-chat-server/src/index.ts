@@ -46,7 +46,6 @@ const httpServer = createServer((req, res) => {
 const io = new Server(httpServer, {
   transports: ['polling'],
   httpCompression: false,
-  serveClient: false,  // client loaded from CDN — avoids __dirname in GJS bundle
 });
 
 // --- chat logic (ported verbatim from the original example) ---
