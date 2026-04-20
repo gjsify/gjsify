@@ -159,6 +159,64 @@ export default async () => {
         cleanup();
       }
     });
+
+    // Regression: ReadStream uses _construct() for async file opening.
+    // Verifies that 'open' and 'ready' fire and that pending starts as true.
+    await it('should emit open and ready events before data, pending starts true', async () => {
+      setup();
+      try {
+        const filePath = join(tmpDir, 'open-ready.txt');
+        writeFileSync(filePath, 'hello');
+        const stream = createReadStream(filePath);
+        expect(stream.pending).toBeTruthy();
+        const events: string[] = [];
+        let openFd: number | undefined;
+        await new Promise<void>((resolve, reject) => {
+          stream.on('open', (fd: number) => { openFd = fd; events.push('open'); });
+          stream.on('ready', () => events.push('ready'));
+          stream.on('data', () => { if (!events.includes('data')) events.push('data'); });
+          stream.on('end', () => resolve());
+          stream.on('error', reject);
+          stream.resume();
+        });
+        expect(openFd).toBeDefined();
+        // 'open' and 'ready' must have fired (file was opened)
+        expect(events).toContain('open');
+        expect(events).toContain('ready');
+        // 'open' must fire before any data event
+        const openIdx = events.indexOf('open');
+        const dataIdx = events.indexOf('data');
+        if (dataIdx !== -1) expect(openIdx).toBeLessThan(dataIdx);
+      } finally {
+        cleanup();
+      }
+    });
+
+    // Regression: piping a ReadStream before the file is open (while pending=true)
+    // must still deliver all data. Previously _pendingReadSize approach hung under
+    // backpressure on GJS 1.88; _construct() fixes this properly.
+    await it('should pipe correctly when pipe() is called before file opens', async () => {
+      setup();
+      try {
+        const srcPath = join(tmpDir, 'pre-pipe-src.txt');
+        const dstPath = join(tmpDir, 'pre-pipe-dst.txt');
+        const size = 3 * 64 * 1024; // 3 × 64KB — forces multiple read chunks + backpressure
+        writeFileSync(srcPath, 'X'.repeat(size));
+        await new Promise<void>((resolve, reject) => {
+          const src = createReadStream(srcPath);
+          const dst = createWriteStream(dstPath);
+          // pipe() is called immediately — src is still pending (file not open yet)
+          expect(src.pending).toBeTruthy();
+          src.on('error', reject);
+          dst.on('error', reject);
+          dst.on('finish', resolve);
+          src.pipe(dst);
+        });
+        expect(readFileSync(dstPath, 'utf8').length).toBe(size);
+      } finally {
+        cleanup();
+      }
+    });
   });
 
   // ---- createWriteStream ----

@@ -195,6 +195,22 @@ export default async () => {
       expect(order[2]).toBe(3);
     });
 
+    // Regression: process.nextTick must be deferred (not run synchronously).
+    // On GJS, it should route through GLib idle (not microtask queue) so that
+    // GTK input events (PRIORITY_DEFAULT = 0) can interleave between nextTick
+    // callbacks (PRIORITY_HIGH_IDLE = 100), preventing window freezes.
+    await it("process.nextTick is deferred, not synchronous", async () => {
+      let ranSynchronously = false;
+      let ranInNextTick = false;
+      process.nextTick(() => { ranInNextTick = true; });
+      // This line runs before the nextTick callback fires
+      ranSynchronously = !ranInNextTick;
+      // Wait for the nextTick callback
+      await new Promise<void>(resolve => process.nextTick(resolve));
+      expect(ranSynchronously).toBeTruthy();
+      expect(ranInNextTick).toBeTruthy();
+    });
+
     await it("process.exit should be a function", async () => {
       expect(typeof process.exit).toBe("function");
     });
