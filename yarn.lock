@@ -2878,6 +2878,31 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-node-cli-socket.io-chat-server@workspace:examples/node/cli-socket.io-chat-server":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-socket.io-chat-server@workspace:examples/node/cli-socket.io-chat-server"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    socket.io: "npm:^4.8.1"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-socket.io-pingpong@workspace:examples/node/cli-socket.io-pingpong":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-socket.io-pingpong@workspace:examples/node/cli-socket.io-pingpong"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    socket.io: "npm:^4.8.1"
+    socket.io-client: "npm:^4.8.1"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-node-cli-worker-pool@workspace:examples/node/cli-worker-pool":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-node-cli-worker-pool@workspace:examples/node/cli-worker-pool"

@@ -4,7 +4,8 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { Transform } from 'node:stream';
-import type { TransformOptions, ZlibOptions } from 'node:zlib';
+import type { TransformOptions } from 'node:stream';
+import type { ZlibOptions } from 'node:zlib';
 
 type GioFormat = 'gzip' | 'deflate' | 'deflate-raw';
 
@@ -20,9 +21,8 @@ function getGioDecompressorFormat(format: GioFormat): Gio.ZlibCompressorFormat {
   return getGioCompressorFormat(format);
 }
 
-function toUint8Array(chunk: Buffer | Uint8Array | string): Uint8Array {
+function toUint8Array(chunk: Uint8Array | string): Uint8Array {
   if (typeof chunk === 'string') return new TextEncoder().encode(chunk);
-  if (chunk instanceof Uint8Array) return chunk;
   return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
 }
 
@@ -32,13 +32,13 @@ export class ZlibTransform extends Transform {
   private _chunks: Uint8Array[] = [];
 
   constructor(format: GioFormat, mode: 'compress' | 'decompress', options?: ZlibOptions) {
-    super(options as TransformOptions);
+    super(options as unknown as TransformOptions);
     this._format = format;
     this._mode = mode;
   }
 
-  _transform(chunk: Buffer | Uint8Array | string, _encoding: string, callback: (err?: Error) => void): void {
-    this._chunks.push(toUint8Array(chunk));
+  _transform(chunk: unknown, _encoding: string, callback: (err?: Error) => void): void {
+    this._chunks.push(toUint8Array(chunk as Uint8Array | string));
     callback();
   }
 

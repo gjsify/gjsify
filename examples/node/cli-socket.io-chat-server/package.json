@@ -1,0 +1,27 @@
+{
+  "name": "@gjsify/example-node-cli-socket.io-chat-server",
+  "description": "Socket.IO classic chat server running on GJS — browser clients connect on http://localhost:3000",
+  "main": "dist/index.gjs.mjs",
+  "type": "module",
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit --skipLibCheck",
+    "start": "yarn start:gjs",
+    "start:gjs": "gjsify run dist/index.gjs.mjs",
+    "start:node": "node dist/index.node.mjs",
+    "build": "yarn build:gjs && yarn build:node",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.mjs",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@types/node": "^25.6.0",
+    "socket.io": "^4.8.1",
+    "typescript": "^6.0.2"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "private": true,
+  "version": "0.1.15"
+}
