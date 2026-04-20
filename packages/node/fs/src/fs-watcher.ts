@@ -4,20 +4,22 @@
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'node:events';
+import { normalizePath } from './utils.js';
 const privates = new WeakMap;
 
-import type { FSWatcher as IFSWatcher } from 'node:fs';
+import type { FSWatcher as IFSWatcher, PathLike } from 'node:fs';
 
 export class FSWatcher extends EventEmitter implements IFSWatcher {
 
-  constructor(filename: string, options, listener) {
+  constructor(filename: PathLike, options, listener) {
     super();
     if (!options || typeof options !== 'object')
       options = {persistent: true};
 
     const persistent = options.persistent !== false;
     const cancellable = Gio.Cancellable.new();
-    const file = Gio.File.new_for_path(filename);
+    const pathStr = normalizePath(filename);
+    const file = Gio.File.new_for_path(pathStr);
     const watcher = file.monitor(Gio.FileMonitorFlags.NONE, cancellable);
     watcher.connect('changed', changed.bind(this));
 

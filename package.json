@@ -12,6 +12,9 @@
     "test": "yarn workspaces foreach -v --no-private --all --exclude '@girs/*' --exclude '@gjsify/example-*' --exclude '@gjsify/website' run test",
     "test:examples": "yarn workspaces foreach -ptv -A --include '@gjsify/example-node-cli-*' run test",
     "test:examples:net": "yarn workspaces foreach -tv -A --include '@gjsify/example-node-net-*' run test",
+    "test:integration": "yarn workspaces foreach -tv -A --include '@gjsify/integration-*' run test",
+    "test:integration:node": "yarn workspaces foreach -tv -A --include '@gjsify/integration-*' run test:node",
+    "test:integration:gjs": "yarn workspaces foreach -tv -A --include '@gjsify/integration-*' run test:gjs",
     "test:e2e": "node --test tests/lint-engines.mjs && node --test tests/e2e/create-app/run.mjs && node --test tests/e2e/cli-only/run.mjs && node --test tests/e2e/standalone-plugin/run.mjs",
     "test:e2e:create-app": "node --test tests/e2e/create-app/run.mjs",
     "test:e2e:cli-only": "node --test tests/e2e/cli-only/run.mjs",
@@ -58,6 +61,7 @@
     "showcases/dom/*",
     "showcases/node/*",
     "tests/dom/*",
+    "tests/integration/*",
     "website"
   ]
 }

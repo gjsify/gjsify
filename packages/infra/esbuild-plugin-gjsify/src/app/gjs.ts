@@ -44,7 +44,19 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         // and causes circular dependencies via the crypto → @gjsify/crypto alias).
         mainFields: format === 'esm' ? ['browser', 'module', 'main'] : ['browser', 'main', 'module'],
         // https://esbuild.github.io/api/#conditions
-        conditions: format === 'esm' ? ['browser', 'import', 'require'] : ['browser', 'require', 'import'],
+        // For ESM format, NEVER ask for the `require` condition. Some packages
+        // (e.g. `bitfield`) list `require` before `import` in their `exports`
+        // map, and esbuild picks the FIRST matching condition in export-object
+        // order — so including `require` in the conditions silently routes
+        // ESM builds through the CJS entry. That path then gets wrapped by
+        // `__toESM(..., /*isNodeMode*/ 1)` which double-wraps an already-
+        // default-exported CJS class (`exports.default = X`) into
+        // `{ default: { __esModule: true, default: X } }`, crashing at
+        // `new import_pkg.default(...)` with "X is not a constructor" at
+        // runtime. Mirrors Node's own ESM resolution: in ESM mode Node never
+        // applies the `require` condition. CJS-only packages still resolve
+        // via `main`/`module` field fallback below.
+        conditions: format === 'esm' ? ['browser', 'import'] : ['browser', 'require', 'import'],
         external,
         loader: {
             '.ts': 'ts',

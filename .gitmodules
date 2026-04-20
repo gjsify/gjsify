@@ -167,3 +167,9 @@
 [submodule "refs/webtorrent-desktop"]
 	path = refs/webtorrent-desktop
 	url = git@github.com:webtorrent/webtorrent-desktop.git
+[submodule "refs/webtorrent"]
+	path = refs/webtorrent
+	url = git@github.com:webtorrent/webtorrent.git
+[submodule "refs/socket.io"]
+	path = refs/socket.io
+	url = git@github.com:socketio/socket.io.git

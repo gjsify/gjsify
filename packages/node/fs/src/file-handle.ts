@@ -6,6 +6,7 @@ import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
 import { Stats } from "./stats.js";
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
+import { normalizePath } from './utils.js';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 // Type-only import for ReadableStream — the runtime constructor is resolved
@@ -123,7 +124,7 @@ export class FileHandle implements IFileHandle {
     }) {
         this.options.flags ||= "r";
         this.options.mode ||= 0o666;
-        const pathStr = options.path.toString();
+        const pathStr = normalizePath(options.path);
         const creat = typeof options.flags === 'number' && (options.flags & O_CREAT) !== 0;
         const ioMode = resolveIOMode(options.flags);
         try {
@@ -524,7 +525,7 @@ export class FileHandle implements IFileHandle {
     ): Promise<BigIntStats>
     async stat(opts?: StatOptions): Promise<Stats | BigIntStats> {
         warnNotImplemented('fs.FileHandle.stat');
-        return new Stats(this.options.path.toString());
+        return new Stats(normalizePath(this.options.path));
     }
     /**
      * Truncates the file.

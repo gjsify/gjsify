@@ -70,6 +70,15 @@ export const ALIASES_GENERAL_FOR_GJS = {
     // @gjsify/domparser, so jsdom and its whatwg-url/webidl-conversions
     // deps (which use SharedArrayBuffer — unavailable in GJS) are never needed.
     'jsdom': '@gjsify/empty',
+
+    // Force the Node (fs-backed) entry of random-access-file. The package's
+    // `browser` field points at a stub that throws
+    //   Error: "random-access-file is not supported in the browser"
+    // on every call. GJS has a working `fs` via @gjsify/fs, so the real
+    // implementation works out of the box — but esbuild's `browser` mainField
+    // precedence would otherwise silently route to the throwing stub.
+    // webtorrent's fs-chunk-store pulls random-access-file in transitively.
+    'random-access-file': 'random-access-file/index.js',
 }
 
 /** Record of Node.js modules (build in or not) and his replacement for Gjs */

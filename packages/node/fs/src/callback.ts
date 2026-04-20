@@ -10,6 +10,7 @@ import { Buffer } from 'node:buffer';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError } from './errors.js';
 import { realpathSync, readdirSync, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, mkdirSync, rmdirSync, readFileSync, writeFileSync } from './sync.js';
+import { normalizePath } from './utils.js';
 // encoding helpers available if needed in future
 
 import type { OpenFlags } from './types/index.js';
@@ -23,13 +24,14 @@ function parseOptsCb(optionsOrCallback: unknown, maybeCallback?: Function): { op
 }
 
 function statImpl(path: PathLike, flags: Gio.FileQueryInfoFlags, syscall: string, options: Record<string, unknown>, callback: Function): void {
-  const file = Gio.File.new_for_path(path.toString());
+  const pathStr = normalizePath(path);
+  const file = Gio.File.new_for_path(pathStr);
   file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
     try {
       const info = file.query_info_finish(res);
-      callback(null, options?.bigint ? new BigIntStats(info, path) : new Stats(info, path));
+      callback(null, options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr));
     } catch (err: unknown) {
-      callback(createNodeError(err, syscall, path));
+      callback(createNodeError(err, syscall, pathStr));
     }
   });
 }
@@ -89,13 +91,15 @@ export function symlink(target: PathLike, path: PathLike, typeOrCallback: string
   if (typeof callback !== 'function') {
     throw new TypeError('Callback must be a function. Received ' + typeof callback);
   }
-  const file = Gio.File.new_for_path(path.toString());
-  file.make_symbolic_link_async(target.toString(), GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
+  const pathStr = normalizePath(path);
+  const targetStr = normalizePath(target);
+  const file = Gio.File.new_for_path(pathStr);
+  file.make_symbolic_link_async(targetStr, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
     try {
       file.make_symbolic_link_finish(res);
       callback(null);
     } catch (err: unknown) {
-      callback(createNodeError(err, 'symlink', target, path));
+      callback(createNodeError(err, 'symlink', targetStr, pathStr));
     }
   });
 }
@@ -616,10 +620,11 @@ export function readFile(path: PathLike, options: { encoding?: string; flag?: st
 export function readFile(path: PathLike, optsOrCb: { encoding?: string; flag?: string } | string | ((err: NodeJS.ErrnoException | null, data: Buffer) => void), maybeCb?: (err: NodeJS.ErrnoException | null, data: string | Buffer | null) => void): void {
   const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
   const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+  const pathStr = normalizePath(path);
   Promise.resolve().then(() => {
     try {
       const readOpts = typeof options === 'string' ? { encoding: options as string | null, flag: 'r' } : { encoding: (options?.encoding ?? null) as string | null, flag: options?.flag ?? 'r' };
-      callback(null, readFileSync(path.toString(), readOpts) as unknown as Buffer);
+      callback(null, readFileSync(pathStr, readOpts) as unknown as Buffer);
     } catch (err: unknown) {
       callback(err as NodeJS.ErrnoException, null as unknown as Buffer);
     }
@@ -632,9 +637,10 @@ export function writeFile(path: PathLike, data: string | Uint8Array, callback: N
 export function writeFile(path: PathLike, data: string | Uint8Array, options: { encoding?: string; mode?: number; flag?: string } | string, callback: NoParamCallback): void;
 export function writeFile(path: PathLike, data: string | Uint8Array, optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback, maybeCb?: NoParamCallback): void {
   const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+  const pathStr = normalizePath(path);
   Promise.resolve().then(() => {
     try {
-      writeFileSync(path.toString(), data);
+      writeFileSync(pathStr, data);
       callback(null);
     } catch (err: unknown) {
       callback(err as NodeJS.ErrnoException);
@@ -645,13 +651,15 @@ export function writeFile(path: PathLike, data: string | Uint8Array, optsOrCb: {
 // --- link (callback) ---
 
 export function link(existingPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
+  const existingStr = normalizePath(existingPath);
+  const newStr = normalizePath(newPath);
   Promise.resolve().then(() => {
     try {
-      const result = GLib.spawn_command_line_sync(`ln ${existingPath.toString()} ${newPath.toString()}`);
+      const result = GLib.spawn_command_line_sync(`ln ${existingStr} ${newStr}`);
       if (!result[0]) {
-        throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingPath}' -> '${newPath}'`), {
+        throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'`), {
           code: 'EPERM', errno: -1, syscall: 'link',
-          path: existingPath.toString(), dest: newPath.toString()
+          path: existingStr, dest: newStr
         });
       }
       callback(null);
@@ -664,9 +672,10 @@ export function link(existingPath: PathLike, newPath: PathLike, callback: NoPara
 // --- unlink (callback) ---
 
 export function unlink(path: PathLike, callback: NoParamCallback): void {
+  const pathStr = normalizePath(path);
   Promise.resolve().then(() => {
     try {
-      GLib.unlink(path.toString());
+      GLib.unlink(pathStr);
       callback(null);
     } catch (err: unknown) {
       callback(err as NodeJS.ErrnoException);

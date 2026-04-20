@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### 🧪 Integration tests — webtorrent on GJS (2026-04-20)
+
+New `tests/integration/` pillar that runs curated upstream tests from popular npm packages against `@gjsify/*` implementations — validating the stack end-to-end in a real consumer. **Node: 185/185 green. GJS: 185/185 green, 0 skips.**
+
+- **`tests/integration/webtorrent/`** — 7 test files ported from `refs/webtorrent/test/` into `@gjsify/unit` style: `selections`, `client-destroy`, `client-add`, `rarity-map`, `bitfield`, `file-buffer`, `iterator`. Fixtures (leaves.torrent, alice, numbers, …) copied from the `webtorrent-fixtures` npm dep at build time; parsed locally via `parse-torrent`.
+- **New root scripts:** `yarn test:integration`, `yarn test:integration:node`, `yarn test:integration:gjs`. Not part of `yarn test` — opt-in target.
+- **Port convention** documented in `AGENTS.md` `## References → Integration Tests` and `tests/integration/README.md`: manual rewrite into `@gjsify/unit` style (no `@gjsify/test-compat` shim until a second test-runner dialect lands).
+
+### Root-cause fixes uncovered by the webtorrent port (bundled into this PR)
+
+Per `AGENTS.md`'s strengthened **Root-cause fixes beat scope discipline** rule — integration gaps get fixed in the PR that surfaced them, not deferred.
+
+- **`@gjsify/fs` now accepts `URL` path arguments** across every public entry point (`readFileSync`, `readFile`, `writeFile`, `stat`, `lstat`, `readdirSync`, `realpathSync`, `symlinkSync`, `unlinkSync`, `renameSync`, `copyFileSync`, `accessSync`, `appendFileSync`, `readlinkSync`, `linkSync`, `truncateSync`, `chmodSync`, `chownSync`, `rmdirSync`, `rmSync`, `mkdirSync`, `promises.*`, `FSWatcher`, `ReadStream`, `FileHandle`, `watch`). New `normalizePath` helper in `packages/node/fs/src/utils.ts`. Closes the "Expected type string for argument 'path'" crash on `new URL('file:///…')` arguments. **494 fs tests green** on both runtimes.
+- **ESM builds no longer pull CJS entries through the `require` condition.** `packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts` previously included `require` in its conditions list even for ESM format. esbuild picks the first matching condition in an exports-map's declared order; packages like `bitfield` that list `"require"` before `"import"` silently routed through the CJS entry, got wrapped by `__toESM(mod, 1)` into `{ default: { __esModule: true, default: X } }`, and threw `is not a constructor` at runtime. Matches Node's own ESM resolution: the `require` condition is never applied in ESM mode.
+- **`random-access-file` browser stub aliased to its Node entry.** `packages/infra/resolve-npm/lib/index.mjs` `ALIASES_GENERAL_FOR_GJS` now maps `random-access-file` → `random-access-file/index.js`. The package's `browser` field points at a stub that unconditionally throws "random-access-file is not supported in the browser"; esbuild's `browser` mainField precedence otherwise silently routed to it, silently stalling every `client.seed(Buffer)` call through fs-chunk-store. GJS has a working `fs`, so the real implementation works out of the box.
+
+### AGENTS.md — strengthened root-cause principle
+
+New paragraph **Root-cause fixes beat scope discipline**: integration gaps get fixed in the PR that surfaces them, not deferred. Workarounds + TODOs rot; bundled root-cause fixes keep history coherent. Documented narrow exceptions (non-standard Node internals, upstream-GJS blockers, genuinely cross-cutting rewrites). Long-term goal: `@gjsify/*` wrappers that run arbitrary npm packages **out of the box**.
+
 ## [0.1.15](https://github.com/gjsify/gjsify/compare/v0.1.14...v0.1.15) (2026-04-17)
 
 ### Bug Fixes

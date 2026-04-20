@@ -6,7 +6,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { Buffer } from "node:buffer";
 import { Readable } from "node:stream";
-import { URL, fileURLToPath } from "node:url";
+import { normalizePath } from './utils.js';
 
 import type { CreateReadStreamOptions } from 'node:fs/promises';
 import type { PathLike, ReadStream as IReadStream } from 'node:fs';
@@ -33,9 +33,7 @@ export class ReadStream extends Readable implements IReadStream {
   }
 
   constructor(path: PathLike, opts?: CreateReadStreamOptions) {
-    if (path instanceof URL) {
-      path = fileURLToPath(path);
-    }
+    const pathStr = normalizePath(path);
 
     super({
       highWaterMark: opts?.highWaterMark ?? 64 * 1024,
@@ -43,8 +41,8 @@ export class ReadStream extends Readable implements IReadStream {
       objectMode: false,
     });
 
-    this.path = path.toString();
-    this._gioFile = Gio.File.new_for_path(this.path.toString());
+    this.path = pathStr;
+    this._gioFile = Gio.File.new_for_path(pathStr);
     this._start = (opts?.start as number) ?? 0;
     this._end = (opts?.end as number) ?? Infinity;
     this._pos = this._start;
