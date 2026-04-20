@@ -112,7 +112,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         const preamble =
             `var __dirname = ${JSON.stringify(dir)};\n` +
             `var __filename = ${JSON.stringify(args.path)};\n`;
-        return { contents: preamble + src, loader: 'js' };
+        return { contents: preamble + src, loader: 'js', resolveDir: dir };
     });
 
     merge(build.initialOptions, esbuildOptions);
