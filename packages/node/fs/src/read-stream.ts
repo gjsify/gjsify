@@ -19,13 +19,17 @@ export class ReadStream extends Readable implements IReadStream {
 
   private _gioFile: Gio.File;
   private _inputStream: Gio.FileInputStream | null = null;
+  private _cancellable = new Gio.Cancellable();
   private _start: number;
   private _end: number;
   private _pos: number;
+  // Saved size from a _read() call that arrived before the file was open
+  private _pendingReadSize: number | null = null;
 
   close(callback?: (err?: NodeJS.ErrnoException | null) => void): void {
+    this._cancellable.cancel();
     if (this._inputStream) {
-      try { this._inputStream.close(null); } catch {}
+      this._inputStream.close_async(GLib.PRIORITY_DEFAULT, null, () => {});
       this._inputStream = null;
     }
     this.destroy();
@@ -47,18 +51,24 @@ export class ReadStream extends Readable implements IReadStream {
     this._end = (opts?.end as number) ?? Infinity;
     this._pos = this._start;
 
-    // Validate file existence eagerly (like Node.js) to emit error event
-    Promise.resolve().then(() => {
-      if (!this._inputStream && !this.destroyed) {
-        try {
-          this._inputStream = this._gioFile.read(null);
-          this.pending = false;
-          this.emit('open', 0);
-          this.emit('ready');
-          if (this._start > 0 && this._inputStream.can_seek()) {
-            this._inputStream.seek(this._start, GLib.SeekType.SET, null);
-          }
-        } catch (err) {
+    this._gioFile.read_async(GLib.PRIORITY_DEFAULT, this._cancellable, (_source, asyncResult) => {
+      if (this.destroyed) return;
+      try {
+        this._inputStream = this._gioFile.read_finish(asyncResult);
+        this.pending = false;
+        this.emit('open', 0);
+        this.emit('ready');
+        if (this._start > 0 && this._inputStream!.can_seek()) {
+          this._inputStream!.seek(this._start, GLib.SeekType.SET, null);
+        }
+        // Resume any _read() that arrived before the file was open
+        if (this._pendingReadSize !== null) {
+          const size = this._pendingReadSize;
+          this._pendingReadSize = null;
+          this._doRead(size);
+        }
+      } catch (err) {
+        if (!this._cancellable.is_cancelled()) {
           this.destroy(err as Error);
         }
       }
@@ -66,15 +76,16 @@ export class ReadStream extends Readable implements IReadStream {
   }
 
   override _read(size: number): void {
-    // Stream is opened eagerly in constructor; if not yet ready, wait
     if (!this._inputStream) {
       if (this.destroyed) return;
-      // Retry on next tick (constructor's async open hasn't completed yet)
-      Promise.resolve().then(() => this._read(size));
+      // File not open yet — save size, _doRead will fire when open completes
+      this._pendingReadSize = size;
       return;
     }
+    this._doRead(size);
+  }
 
-    // Calculate how many bytes to read
+  private _doRead(size: number): void {
     let toRead = size;
     if (this._end !== Infinity) {
       const remaining = this._end - this._pos + 1;
@@ -85,27 +96,32 @@ export class ReadStream extends Readable implements IReadStream {
       toRead = Math.min(size, remaining);
     }
 
-    try {
-      const gbytes = this._inputStream!.read_bytes(toRead, null);
-      const data = gbytes.get_data();
+    const stream = this._inputStream!;
+    stream.read_bytes_async(toRead, GLib.PRIORITY_DEFAULT, this._cancellable, (_source, asyncResult) => {
+      try {
+        const gbytes = stream.read_bytes_finish(asyncResult);
+        const data = gbytes.get_data();
 
-      if (!data || data.length === 0) {
-        // EOF
-        this.push(null);
-        return;
+        if (!data || data.length === 0) {
+          this.push(null);
+          return;
+        }
+
+        this.bytesRead += data.length;
+        this._pos += data.length;
+        this.push(Buffer.from(data));
+      } catch (err) {
+        if (!this._cancellable.is_cancelled()) {
+          this.destroy(err as Error);
+        }
       }
-
-      this.bytesRead += data.length;
-      this._pos += data.length;
-      this.push(Buffer.from(data));
-    } catch (err) {
-      this.destroy(err as Error);
-    }
+    });
   }
 
   override _destroy(error: Error | null, callback: (error?: Error | null) => void): void {
+    this._cancellable.cancel();
     if (this._inputStream) {
-      try { this._inputStream.close(null); } catch {}
+      this._inputStream.close_async(GLib.PRIORITY_DEFAULT, null, () => {});
       this._inputStream = null;
     }
     callback(error);
