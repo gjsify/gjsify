@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### 🧪 Integration tests — streamx on GJS (2026-04-20)
+
+**`tests/integration/streamx/`** — 6 spec files (155 Node + 156 GJS tests) ported from `refs/streamx/test/` plus a new `throughput.spec.ts`. All green on both runtimes.
+
+- **`readable.spec.ts`** — Readable push/pause/resume/from/setEncoding/isDisturbed (24 tests)
+- **`writable.spec.ts`** — write/drain/writev/cork/drained-helper (10 tests)
+- **`transform.spec.ts`** — Transform teardown + PassThrough pipe (2 tests)
+- **`pipeline.spec.ts`** — pipeline/pipelinePromise + error propagation (5 tests)
+- **`duplex.spec.ts`** — Duplex open/map/readable/destroy (5 tests)
+- **`throughput.spec.ts`** — queueMicrotask injection, 100-chunk no-loss, pipeline byte preservation, Duplex echo, timing (6 tests on GJS)
+
+**Root cause identified for webtorrent-player 0 B/s symptom:** streamx falls back to `process.nextTick` if `queueMicrotask` is not defined globally. On GJS, `process.nextTick` routes through `GLib.idle_add(PRIORITY_HIGH_IDLE)`, which fires much later in the event loop than a true microtask. `queueMicrotask` is now injected via `@gjsify/node-globals/register/microtask` (auto-detected by the build system). The throughput GJS-only test confirms injection works and all pipeline operations complete in < 1 s.
+
+### fix — `@gjsify/web-streams` pipeTo scheduling (2026-04-20)
+
+`packages/web/streams/src/readable-stream.ts` was importing `nextTick as _queueMicrotask` from `@gjsify/utils`. On GJS, `nextTick` routes through `GLib.idle_add`, which requires a running GLib main loop to fire. Test suites using `async/await` without a GTK application loop never drain the GLib idle queue, causing `pipeThrough` and `TextEncoderStream + TextDecoderStream` round-trips to stall. Fixed by importing `queueMicrotask` (always `Promise.resolve().then()`) instead. Fixes 7 CI failures.
+
 ### 🧪 Integration tests — socket.io on GJS (2026-04-20)
 
 **`tests/integration/socket.io/`** — 3 test suites ported from socket.io v4 upstream into `@gjsify/unit` style. **Node: 20/20 green. GJS: 20/20 green, 0 skips.**

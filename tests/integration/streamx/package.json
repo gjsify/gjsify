@@ -1,0 +1,32 @@
+{
+    "name": "@gjsify/integration-streamx",
+    "description": "Integration tests: streamx on GJS and Node. Ports refs/streamx/test/ to validate @gjsify/* stream scheduling (queueMicrotask injection, pipeline correctness, 0 B/s root cause).",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile dist/test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "yarn build:test:node && yarn build:test:gjs",
+        "test": "yarn build:test && yarn test:node && yarn test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@girs/gjs": "^4.0.0-rc.3",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.6.0",
+        "@types/streamx": "^2.0.0",
+        "streamx": "^2.0.0",
+        "typescript": "^6.0.2"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

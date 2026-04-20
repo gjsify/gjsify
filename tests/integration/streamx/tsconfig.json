@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/declarations.d.ts",
+        "src/readable.spec.ts",
+        "src/writable.spec.ts",
+        "src/transform.spec.ts",
+        "src/pipeline.spec.ts",
+        "src/duplex.spec.ts",
+        "src/throughput.spec.ts"
+    ]
+}
