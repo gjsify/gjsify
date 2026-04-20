@@ -173,3 +173,6 @@
 [submodule "refs/socket.io"]
 	path = refs/socket.io
 	url = git@github.com:socketio/socket.io.git
+[submodule "refs/streamx"]
+	path = refs/streamx
+	url = https://github.com/mafintosh/streamx
