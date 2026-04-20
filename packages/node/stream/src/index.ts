@@ -501,6 +501,8 @@ class Readable_ extends Stream_ {
     this.destroyed = true;
     this.readable = false;
     this.readableAborted = !this.readableEnded;
+    // Store the error so finished() can retrieve it if called after destroy() but before 'error' fires
+    if (error) (this as any)._err = error;
 
     const cb = (err?: Error | null) => {
       // Emit error and close in separate nextTick calls (matches Node.js behavior)
@@ -934,6 +936,8 @@ class Writable_ extends Stream_ {
     if (this.destroyed) return this;
     this.destroyed = true;
     this.writable = false;
+    // Store the error so finished() can retrieve it if called after destroy() but before 'error' fires
+    if (error) (this as any)._err = error;
 
     const cb = (err?: Error | null) => {
       if (err) nextTick(() => this.emit('error', err));
@@ -1394,14 +1398,26 @@ export function finished(stream: Stream | Readable | Writable, optsOrCb: Finishe
   const readableEnded = (stream as unknown as Record<string, unknown>).readableEnded === true;
   const destroyed = (stream as unknown as Record<string, unknown>).destroyed === true;
 
+  const scheduleCallback = (fn: () => void) => Promise.resolve().then(fn);
+
   if (destroyed) {
-    queueMicrotask(() => done(((stream as unknown as Record<string, unknown>)._err as Error | null) || null));
+    const storedErr = (stream as unknown as Record<string, unknown>)._err as Error | null | undefined;
+    if (storedErr) {
+      // Stream was destroyed with an error (may have fired before we registered listener)
+      scheduleCallback(() => done(storedErr));
+    } else if ((isWritableStream && writableFinished) || (isReadableStream && readableEnded)) {
+      // Stream was destroyed after completing normally — treat as success
+      scheduleCallback(() => done());
+    } else {
+      // Stream was destroyed without completing — premature close
+      scheduleCallback(() => done(new Error('premature close')));
+    }
   } else if (isWritableStream && !isReadableStream && writableFinished) {
-    queueMicrotask(() => done());
+    scheduleCallback(() => done());
   } else if (!isWritableStream && isReadableStream && readableEnded) {
-    queueMicrotask(() => done());
+    scheduleCallback(() => done());
   } else if (isWritableStream && isReadableStream && writableFinished && readableEnded) {
-    queueMicrotask(() => done());
+    scheduleCallback(() => done());
   }
 
   return function cleanup() {
