@@ -23,8 +23,6 @@ export class ReadStream extends Readable implements IReadStream {
   private _start: number;
   private _end: number;
   private _pos: number;
-  // Saved size from a _read() call that arrived before the file was open
-  private _pendingReadSize: number | null = null;
 
   close(callback?: (err?: NodeJS.ErrnoException | null) => void): void {
     this._cancellable.cancel();
@@ -50,9 +48,14 @@ export class ReadStream extends Readable implements IReadStream {
     this._start = (opts?.start as number) ?? 0;
     this._end = (opts?.end as number) ?? Infinity;
     this._pos = this._start;
+  }
 
+  // Use _construct() for async file opening so the stream machinery defers
+  // _read() until the file is open. This avoids the fragile _pendingReadSize
+  // pattern and correctly handles backpressure via the constructed flag.
+  override _construct(callback: (err?: Error | null) => void): void {
     this._gioFile.read_async(GLib.PRIORITY_DEFAULT, this._cancellable, (_source, asyncResult) => {
-      if (this.destroyed) return;
+      if (this.destroyed) { callback(); return; }
       try {
         this._inputStream = this._gioFile.read_finish(asyncResult);
         this.pending = false;
@@ -61,27 +64,16 @@ export class ReadStream extends Readable implements IReadStream {
         if (this._start > 0 && this._inputStream!.can_seek()) {
           this._inputStream!.seek(this._start, GLib.SeekType.SET, null);
         }
-        // Resume any _read() that arrived before the file was open
-        if (this._pendingReadSize !== null) {
-          const size = this._pendingReadSize;
-          this._pendingReadSize = null;
-          this._doRead(size);
-        }
+        callback();
       } catch (err) {
         if (!this._cancellable.is_cancelled()) {
-          this.destroy(err as Error);
+          callback(err as Error);
         }
       }
     });
   }
 
   override _read(size: number): void {
-    if (!this._inputStream) {
-      if (this.destroyed) return;
-      // File not open yet — save size, _doRead will fire when open completes
-      this._pendingReadSize = size;
-      return;
-    }
     this._doRead(size);
   }
 
