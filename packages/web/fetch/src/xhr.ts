@@ -8,7 +8,6 @@
 // or synchronous XHR will need the broader implementation.
 
 import fetch from './index.js';
-import { Headers } from './index.js';
 
 export const UNSENT = 0;
 export const OPENED = 1;
@@ -93,7 +92,7 @@ export class XMLHttpRequest extends EventTarget {
 
     const fetchOptions: RequestInit = {
       method: this._method,
-      headers: new Headers(headersInit),
+      headers: headersInit,
       credentials: this.withCredentials ? 'include' : 'omit',
       signal: this._controller.signal,
     };
