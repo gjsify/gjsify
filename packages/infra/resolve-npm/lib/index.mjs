@@ -71,15 +71,6 @@ export const ALIASES_GENERAL_FOR_GJS = {
     // deps (which use SharedArrayBuffer — unavailable in GJS) are never needed.
     'jsdom': '@gjsify/empty',
 
-    // Force the Node (fs-backed) entry of random-access-file. The package's
-    // `browser` field points at a stub that throws
-    //   Error: "random-access-file is not supported in the browser"
-    // on every call. GJS has a working `fs` via @gjsify/fs, so the real
-    // implementation works out of the box — but esbuild's `browser` mainField
-    // precedence would otherwise silently route to the throwing stub.
-    // webtorrent's fs-chunk-store pulls random-access-file in transitively.
-    'random-access-file': 'random-access-file/index.js',
-
     // engine.io-client ships both polling-xhr.node.js (uses xmlhttprequest-ssl /
     // Node http.request) and polling-xhr.js (uses globalThis.XMLHttpRequest).
     // The package.json `browser` field maps .node.js → .js for browser builds, but
