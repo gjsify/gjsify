@@ -367,15 +367,8 @@ class Process extends EventEmitter {
   }
 
   nextTick(callback: Function, ...args: unknown[]): void {
-    // GLib.idle_add lets GTK events (PRIORITY_DEFAULT=0) interleave; queueMicrotask would freeze the window.
-    const GLib = getGjsGlobal().imports?.gi?.GLib;
-    if (GLib?.idle_add) {
-      GLib.idle_add(GLib.PRIORITY_HIGH_IDLE ?? 100, () => {
-        callback(...args);
-        return false; // GLib.SOURCE_REMOVE
-      });
-      return;
-    }
+    // Use microtask (fires before GLib I/O callbacks) to match Node.js process.nextTick semantics.
+    // GTK interleaving is handled at the stream level (@gjsify/utils nextTick → GLib.idle_add).
     if (typeof queueMicrotask === 'function') {
       queueMicrotask(() => callback(...args));
     } else {
