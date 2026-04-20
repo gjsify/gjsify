@@ -12546,14 +12546,6 @@ var ALIASES_GENERAL_FOR_GJS = {
   // @gjsify/domparser, so jsdom and its whatwg-url/webidl-conversions
   // deps (which use SharedArrayBuffer — unavailable in GJS) are never needed.
   "jsdom": "@gjsify/empty",
-  // Force the Node (fs-backed) entry of random-access-file. The package's
-  // `browser` field points at a stub that throws
-  //   Error: "random-access-file is not supported in the browser"
-  // on every call. GJS has a working `fs` via @gjsify/fs, so the real
-  // implementation works out of the box — but esbuild's `browser` mainField
-  // precedence would otherwise silently route to the throwing stub.
-  // webtorrent's fs-chunk-store pulls random-access-file in transitively.
-  "random-access-file": "random-access-file/index.js",
   // engine.io-client ships both polling-xhr.node.js (uses xmlhttprequest-ssl /
   // Node http.request) and polling-xhr.js (uses globalThis.XMLHttpRequest).
   // The package.json `browser` field maps .node.js → .js for browser builds, but
@@ -19840,8 +19832,9 @@ function registerToCommonJSPatch(build2) {
 
 // src/app/gjs.ts
 import { fileURLToPath as fileURLToPath3 } from "url";
-import { dirname, resolve as resolve2 } from "path";
+import { dirname, resolve as resolve2, join as join2 } from "path";
 import { readFile } from "fs/promises";
+import { existsSync as existsSync2 } from "fs";
 var _shimDir = dirname(fileURLToPath3(import.meta.url));
 var setupForGjs = async (build2, pluginOptions) => {
   const external = ["gi://*", "cairo", "gettext", "system"];
@@ -19914,6 +19907,13 @@ var setupForGjs = async (build2, pluginOptions) => {
       ...esbuildOptions.inject ?? [],
       pluginOptions.autoGlobalsInject
     ];
+  }
+  {
+    const workingDir = build2.initialOptions.absWorkingDir ?? process.cwd();
+    const rafIndex = join2(workingDir, "node_modules", "random-access-file", "index.js");
+    if (existsSync2(rafIndex)) {
+      build2.onResolve({ filter: /^random-access-file$/ }, () => ({ path: rafIndex }));
+    }
   }
   build2.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
     if (!args.path.includes("node_modules")) return void 0;
