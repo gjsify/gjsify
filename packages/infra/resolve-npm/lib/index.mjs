@@ -240,7 +240,11 @@ export const ALIASES_WEB_FOR_NODE = {
     'dom-events': '@gjsify/dom-events/globals',
     'dom-exception': '@gjsify/dom-exception/globals',
     'eventsource': '@gjsify/eventsource/globals',
-    'fetch': '@gjsify/fetch/globals',
+    // 'fetch' bare specifier is intentionally not aliased on Node:
+    // fetch/Headers/Request/Response/FormData are native globals since Node 18,
+    // so specs / app code should read them off globalThis. Users who need the
+    // value form should `import { fetch } from '@gjsify/fetch'` explicitly.
+    // 'fetch': '@gjsify/fetch/globals',
     'formdata': '@gjsify/formdata/globals',
     'html-image-element': '@gjsify/html-image-element',
     'webcrypto': '@gjsify/webcrypto/globals',

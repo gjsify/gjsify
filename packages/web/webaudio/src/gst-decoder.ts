@@ -27,6 +27,13 @@ const PIPELINE_DESC =
 export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
     ensureGstInit();
 
+    // Reject non-ArrayBuffer / empty input before touching GStreamer —
+    // gst_memory_new_wrapped() asserts data != NULL and empty TypedArrays
+    // marshal to a NULL pointer through GI.
+    if (!(arrayBuffer instanceof ArrayBuffer) || arrayBuffer.byteLength === 0) {
+        throw new DOMException('Unable to decode audio data', 'EncodingError');
+    }
+
     const pipeline = Gst.parse_launch(PIPELINE_DESC) as Gst.Bin;
     const appsrc = pipeline.get_by_name('src')!;
     const appsink = pipeline.get_by_name('sink')!;
