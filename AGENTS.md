@@ -1,27 +1,20 @@
 # AGENTS.md — gjsify
 
-Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
+IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js API, Web API, DOM API, and Framework for GJS (GNOME JS). Monorepo (Yarn workspaces, v0.1.11, ESM-only). All packages use native GNOME libs. Four equal-priority pillars: **Node.js API** (`packages/node/`) | **Web API** (`packages/web/`) | **DOM API** (`packages/dom/`) | **Framework** (`packages/framework/`). `packages/infra/` and `packages/gjs/` are supporting infrastructure, not pillars.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.1.11, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/`. `packages/infra/` + `packages/gjs/` = supporting infra.
 
-Browser compatibility patches (globals, DOM stubs) belong in packages, not examples. If an example needs a `globalThis.*` polyfill or DOM method stub, add it to `@gjsify/dom-elements` or the appropriate package.
+## Governance — non-negotiable
 
-**Architectural decisions must be documented here.** Whenever a new architectural decision is made (new package boundaries, API design patterns, widget conventions, build pipeline changes, dependency strategies, or cross-cutting concerns), update this file immediately so future conversations have the full picture.
-
-**Fix root causes immediately — never paper over bugs.** When a bug is discovered (via examples, tests, or CI), fix it in the core package, not in the consumer. Do not document known limitations as "expected behavior" and move on — trace the issue to its root cause and fix it in the same session. Examples exist to validate the implementation; if an example reveals a bug, the implementation is incomplete. Workarounds, skip-guards, and "known limitation" notes are temporary scaffolding that must be replaced by proper fixes before the PR ships.
-
-**Root-cause fixes beat scope discipline.** An expanding PR scope is the *expected* cost of this rule, not a reason to defer. Every new example, integration test, or third-party npm consumer exists precisely to surface where our `@gjsify/*` implementations fall short of Node/Web/DOM standards. When such a gap appears, widen the current PR to fix the root cause — bundling the gap fix with the feature that exposed it keeps the history coherent ("here is X, here is the X-revealed gap, here is the fix"). Do NOT ship the feature with a workaround and file a TODO for the fix; the TODO will rot and the workaround will ossify. The long-term goal is `@gjsify/*` wrappers that work **out of the box** with as much of the TypeScript / JavaScript ecosystem as possible, so that arbitrary npm packages run on GJS with no patching. Every root fix you land moves that goal forward; every deferred fix delays it.
-
-Exceptions — narrowly scoped, must be documented per case:
-- The gap is a non-standard hack (e.g. a specific npm package relies on `process.binding(...)` internals, monkey-patches V8-only APIs, or probes for Node's C++ addons). These will not be replicated; wrap or skip at the consumer level with a comment explaining why.
-- The gap depends on upstream GJS / SpiderMonkey work that is currently impossible to do in userspace (track it in STATUS.md "Upstream GJS Patch Candidates" and leave a narrowly-scoped consumer guard until upstream lands).
-- The fix requires a genuinely large cross-cutting rewrite (e.g. switching an entire subsystem to a new GNOME library). In this case: write a Plan, confirm with the user, and split across follow-up PRs — but still avoid the workaround in the feature PR; instead, land a minimal root fix that unblocks the specific case and track the broader rewrite.
-
-When none of those apply, the default is: fix the root cause in this PR, no matter how much it grows.
+|doc: update AGENTS.md immediately on any architectural decision (package boundaries, API patterns, build, deps, cross-cutting) — never leave drift between sessions
+|polyfills: browser-compat patches belong in packages, not examples — add to `@gjsify/dom-elements` or the right pkg
+|root-cause: fix bugs in the core package in the SAME PR that exposed them — no "known limitation" notes, no skip-guards, no TODO-for-later (workarounds ossify); examples/tests/CI exist to surface impl gaps
+|scope: expanding PR scope is the *expected* cost, not a reason to defer — goal is `@gjsify/*` running arbitrary npm packages unmodified on GJS
+|exceptions (narrow, documented per case): (a) non-standard Node-internal hack (`process.binding`, V8-only monkey-patching, C++ addons) → wrap/skip at consumer with explanatory comment; (b) upstream GJS/SpiderMonkey gap → track in STATUS.md "Upstream GJS Patch Candidates"; (c) cross-cutting rewrite → Plan + user confirm + split PRs, but still land a minimal root fix in the feature PR
 
 ## Structure
 
-`packages/{node/,web/,dom/,framework/,gjs/,infra/}` | `showcases/` — curated examples shipped with CLI | `examples/` — private dev/test examples | `tests/integration/` — curated upstream tests ported from popular npm packages (webtorrent, socket.io, …) to validate `@gjsify/*` impls end-to-end | `refs/` — read-only git submodules (DO NOT modify)
+`packages/{node,web,dom,framework,gjs,infra}/` | `showcases/` (published, CLI deps) | `examples/` (private dev/test) | `tests/integration/` (ported upstream tests validating `@gjsify/*` end-to-end) | `refs/` (read-only submodules — DO NOT modify)
 
 ## Node.js Packages — `packages/node/*` → `@gjsify/<name>`
 
@@ -63,7 +56,7 @@ When none of those apply, the default is: fix the root cause in this PR, no matt
 | v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
 | vm | — | Stub | runInThisContext (eval), Script |
 | worker_threads | — | Stub | isMainThread only |
-| ws (npm) | Soup 3.0 | Partial | `ws`-compatible WebSocket client + WebSocketServer over @gjsify/websocket and Soup.Server; `ws` and `isomorphic-ws` both aliased here; missing noServer/handleUpgrade, verifyClient, custom perMessageDeflate, ping/pong events |
+| ws (npm) | Soup 3.0 | Partial | `ws`-compat WebSocket client + WebSocketServer over @gjsify/websocket + Soup.Server; aliases `ws`+`isomorphic-ws`; missing noServer/handleUpgrade, verifyClient, custom perMessageDeflate, ping/pong events |
 | zlib | — | Full | gzip/deflate via Web Compression API, Gio.ZlibCompressor fallback |
 
 ## Web Packages — `packages/web/*`
@@ -72,82 +65,64 @@ When none of those apply, the default is: fix the root cause in this PR, no matt
 |-----|------|------------|
 | fetch | Soup 3.0, Gio | fetch(), Request, Response, Headers |
 | dom-events | — | Event, CustomEvent, EventTarget, UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent, DOMException |
-| dom-exception | — | DOMException (WebIDL standard) |
+| dom-exception | — | DOMException (WebIDL) |
 | abort-controller | — | AbortController, AbortSignal |
 | formdata | — | FormData, File |
-| streams | — | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream |
+| streams | — | ReadableStream, WritableStream, TransformStream, TextEncoder/DecoderStream |
 | compression-streams | Gio | CompressionStream, DecompressionStream |
 | webcrypto | GLib | crypto.subtle, getRandomValues, randomUUID |
-| eventsource | Soup 3.0 | EventSource (Server-Sent Events) |
+| eventsource | Soup 3.0 | EventSource (SSE) |
 | websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
 | webstorage | Gio | localStorage, sessionStorage |
 | webaudio | Gst 1.0, GstApp 1.0 | AudioContext(decodeAudioData via GStreamer decodebin), AudioBufferSourceNode(appsrc→volume→autoaudiosink), GainNode(AudioParam+setTargetAtTime), AudioBuffer(PCM Float32), HTMLAudioElement(canPlayType+playbin). Phase 1 |
-| gamepad | Manette 0.2 | Gamepad(navigator.getGamepads polling via libmanette signals), GamepadButton(pressed/touched/value), GamepadEvent(gamepadconnected/gamepaddisconnected), GamepadHapticActuator(dual-rumble). Lazy Manette.Monitor init, graceful degradation without libmanette |
-| web-globals | — | Re-exports all web API globals (dom-events, abort-controller, streams, webcrypto, etc.) |
-| adwaita-web | — | Browser Adwaita components: AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView. Custom Elements + SCSS source partials in `scss/` (mirrors `refs/adwaita-web/scss/`). Built to `dist/adwaita-web.css` via the `sass` package. Light/dark theme. Consumers: `import '@gjsify/adwaita-web'` (custom elements) + `import '@gjsify/adwaita-web/style.css'` (or `@use '@gjsify/adwaita-web/scss/...'`). No GJS deps. **Long-term goal:** complete the framework — port additional components from `refs/adwaita-web/scss/` (button, entry, dialog, popover, banner, tabs, …); see STATUS.md roadmap |
+| gamepad | Manette 0.2 | Gamepad(navigator.getGamepads polling via libmanette signals), GamepadButton, GamepadEvent(gamepadconnected/disconnected), GamepadHapticActuator(dual-rumble). Lazy Manette.Monitor init, graceful degradation without libmanette |
+| web-globals | — | Re-exports all web API globals |
+| adwaita-web | — | Browser Adwaita components (AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView). Custom Elements + SCSS partials in `scss/` (mirrors `refs/adwaita-web/scss/`). Built to `dist/adwaita-web.css` via `sass`. Light/dark. Consumer: `import '@gjsify/adwaita-web'` + `'@gjsify/adwaita-web/style.css'` (or `@use '.../scss/...'`). No GJS deps. Long-term: port remaining components (button, entry, dialog, popover, banner, tabs, …) from `refs/adwaita-web/scss/` — see STATUS.md |
 
 ## DOM Packages — `packages/dom/*`
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| dom-elements | GdkPixbuf | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvasElement, HTMLImageElement, HTMLMediaElement, HTMLVideoElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert}` on import |
-| bridge-types | — | Shared interfaces/classes for GTK-DOM bridges: DOMBridgeContainer(interface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
+| dom-elements | GdkPixbuf | Node(ownerDocument→document, event bubbling), Element(setPointerCapture,releasePointerCapture,hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvas/Image/Media/VideoElement, Image, Document, Text, Comment, DocumentFragment, DOMTokenList, Mutation/Resize/IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert}` on import |
+| bridge-types | — | DOMBridgeContainer(iface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
 | canvas2d | Cairo, GdkPixbuf, PangoCairo | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DBridge→Gtk.DrawingArea |
 | webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), WebGLBridge→Gtk.GLArea |
-| event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent |
+| event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→Mouse/Pointer/Keyboard/Wheel/FocusEvent |
 | iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
 | video | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge→Gtk.Picture(gtk4paintablesink). srcObject(MediaStream) + src(URI via playbin) |
 
-## Framework Packages — `packages/framework/*`
+## Framework — `packages/framework/*`
 
-Composition-first utilities that make GJS app development feel like modern TypeScript stacks (Remix / Astro / SvelteKit / Solid-Start). **Anything that is not Node.js API, Web API, DOM API, or infrastructure/runtime belongs here.**
+Composition-first (Remix/Astro/SvelteKit/Solid-Start feel). Anything NOT Node/Web/DOM/infra belongs here. **No current residents.** Showcases use raw `Adw.Application`+`ApplicationWindow`+`ToolbarView`+`HeaderBar` — purpose is to demonstrate API, not hide it. A helper lands here only when it delivers what inline bootstrap cannot (multi-subsystem wiring, convention-over-config, composable lifecycle).
 
-**No current residents.** The pillar directory exists as a home for future elegant app-development patterns and for the bridge widgets listed in the migration roadmap below. Examples and showcases intentionally use the raw `Adw.Application` + `ApplicationWindow` + `ToolbarView` + `HeaderBar` bootstrap — the purpose of showcases is to demonstrate the underlying API, not to hide it behind a helper. A framework-level helper only lands here once it delivers something the inline bootstrap cannot (wiring multiple subsystems together, convention over configuration, composable lifecycle, etc.).
+**Framework vs DOM:** `packages/dom/` = DOM spec impls. `packages/framework/` = composable widgets/helpers gluing DOM↔GTK without being DOM spec. Bridge widgets (`canvas2d,webgl,video,iframe,event-bridge,bridge-types`) are Framework citizens currently under `packages/dom/` for historical reasons.
 
-### Framework vs. DOM distinction
+**Migration roadmap — bridges `packages/dom/` → `packages/framework/`** (atomic follow-up PRs, name unchanged):
 
-`packages/dom/` hosts implementations of the **DOM standard** (Node, Element, HTMLElement, …). `packages/framework/` hosts **composable widgets and helpers** that glue DOM APIs to GTK without BEING part of the DOM spec. The GTK↔DOM bridge widgets (`canvas2d`, `webgl`, `video`, `iframe`, `event-bridge`, `bridge-types`) are Framework citizens that currently live under `packages/dom/` for historical reasons.
-
-### Migration roadmap — bridges move `packages/dom/` → `packages/framework/`
-
-Each bridge moves in its own atomic follow-up PR (package name does NOT change — `@gjsify/canvas2d` stays `@gjsify/canvas2d`). Suggested order:
-
-| Package | Rationale for move |
+| Pkg | Rationale |
 |---|---|
-| `@gjsify/bridge-types` | Base interfaces + `BridgeEnvironment` — move first, other bridges depend on it |
-| `@gjsify/event-bridge` | `attachEventControllers` — glue layer, not DOM spec |
-| `@gjsify/canvas2d` | `Canvas2DBridge`→`Gtk.DrawingArea` |
-| `@gjsify/webgl` | `WebGLBridge`→`Gtk.GLArea` (also ships native prebuild) |
-| `@gjsify/video` | `VideoBridge`→`Gtk.Picture` |
-| `@gjsify/iframe` | `IFrameBridge`→`WebKit.WebView` |
+| bridge-types | Base ifaces + `BridgeEnvironment` (move first) |
+| event-bridge | `attachEventControllers` glue |
+| canvas2d | `Canvas2DBridge`→`Gtk.DrawingArea` |
+| webgl | `WebGLBridge`→`Gtk.GLArea` (ships prebuild) |
+| video | `VideoBridge`→`Gtk.Picture` |
+| iframe | `IFrameBridge`→`WebKit.WebView` |
 
-After migration, `packages/dom/` contains only `@gjsify/dom-elements` (pure DOM API). Target layout:
+After migration: `packages/dom/` contains only `@gjsify/dom-elements`.
 
-```
-packages/framework/
-├── bridge-types/   # DOMBridgeContainer + BridgeEnvironment
-├── event-bridge/   # attachEventControllers (Gtk → DOM events)
-├── canvas2d/       # Canvas2DBridge → Gtk.DrawingArea (Cairo)
-├── webgl/          # WebGLBridge → Gtk.GLArea
-├── video/          # VideoBridge → Gtk.Picture (gtk4paintablesink)
-└── iframe/         # IFrameBridge → WebKit.WebView
-```
+### Bridge pattern
 
-### DOM Elements = GTK Bridge Containers
+Pairings: `HTMLCanvasElement`(2d)→`Canvas2DBridge`→`Gtk.DrawingArea`(Cairo) | `HTMLCanvasElement`(webgl)→`WebGLBridge`→`Gtk.GLArea`(libepoxy) | `HTMLIFrameElement`→`IFrameBridge`→`WebKit.WebView` | `HTMLVideoElement`→`VideoBridge`→`Gtk.Picture`(gtk4paintablesink).
 
-Each visual DOM element pairs with a GTK Bridge Container: `HTMLCanvasElement`(2d)→`Canvas2DBridge`→`Gtk.DrawingArea`(Cairo) | `HTMLCanvasElement`(webgl)→`WebGLBridge`→`Gtk.GLArea`(OpenGL ES/libepoxy) | `HTMLIFrameElement`→`IFrameBridge`→`WebKit.WebView` | `HTMLVideoElement`→`VideoBridge`→`Gtk.Picture`(gtk4paintablesink)
+Protocol: (1) bridge creates DOM element internally (2) app uses standard DOM API (3) bridge translates GTK↔Web lifecycle (signals/draw_func/render ↔ rAF/events/ready). Each bridge owns isolated `BridgeEnvironment` (document, body, window). Common API: `onReady(cb)`, `installGlobals()`, element getter (`canvas`/`iframeElement`/`videoElement`), `environment`.
 
-Bridge pattern: (1) bridge creates DOM element internally (2) app code uses standard DOM API (3) bridge translates GTK↔Web lifecycle (signals/draw_func/render ↔ rAF/events/ready). Each bridge has its own isolated `BridgeEnvironment` (document, body, window).
+DOM backing: Image→GdkPixbuf | Canvas(2d)→Cairo.ImageSurface+PangoCairo | Canvas(webgl)→Gtk.GLArea+libepoxy | IFrame→WebKit.WebView(postMessage) | Video→Gtk.Picture+gtk4paintablesink(GStreamer).
 
-Common bridge API: `onReady(cb)` — DOM element+context ready | `installGlobals()` — register browser globals (rAF) | element getter (`canvas`, `iframeElement`, `videoElement`) | `environment` — isolated BridgeEnvironment
-
-DOM backing: `HTMLImageElement`→GdkPixbuf | `HTMLCanvasElement`(2d)→Cairo.ImageSurface+PangoCairo | `HTMLCanvasElement`(webgl)→Gtk.GLArea+libepoxy | `HTMLIFrameElement`→WebKit.WebView(postMessage) | `HTMLVideoElement`→Gtk.Picture+gtk4paintablesink(GStreamer).
-
-`WebGLBridge` on resize: dispatches DOM `resize` event on canvas + re-invokes last rAF callback. Demand-driven apps re-render automatically without animation loop. `WebGL2RenderingContext` overrides `texImage2D`, `texSubImage2D`, `drawElements` from WebGL1 base — bypasses WebGL1-only format/type validation. Native Vala layer handles all OpenGL ES 3.2 formats.
+`WebGLBridge` on resize: dispatches DOM `resize` + re-invokes last rAF callback (demand-driven re-render, no animation loop). `WebGL2RenderingContext` overrides `texImage2D`/`texSubImage2D`/`drawElements` from WebGL1 base (bypasses WebGL1 format/type validation). Native Vala handles all GLES 3.2 formats.
 
 ### GTK→DOM Event Bridge (`@gjsify/event-bridge`)
 
-`attachEventControllers(widget, getElement)` attaches GTK4 controllers→dispatches DOM events:
+`attachEventControllers(widget, getElement)` attaches GTK4 controllers, dispatches DOM events:
 
 | GTK Controller | DOM Events |
 |---|---|
@@ -157,124 +132,106 @@ DOM backing: `HTMLImageElement`→GdkPixbuf | `HTMLCanvasElement`(2d)→Cairo.Im
 | EventControllerKey | keydown, keyup |
 | EventControllerFocus | focus, focusin, blur, focusout |
 
-Dispatch order: W3C UIEvents spec. Coords: GTK widget-relative→DOM offsetX/Y/clientX/Y. Keys: `key-map.ts` converts ~80 Gdk keyvals→DOM key/code (L/R modifiers, Numpad location). Both Canvas2DBridge/WebGLBridge call `attachEventControllers(this, () => this._canvas)` in constructor.
+Dispatch: W3C UIEvents. Coords: GTK widget-relative → DOM offsetX/Y/clientX/Y. Keys: `key-map.ts` maps ~80 Gdk keyvals → DOM key/code (L/R modifiers, Numpad location). Canvas2D/WebGL bridges call `attachEventControllers(this, () => this._canvas)` in constructor. Event classes in `@gjsify/dom-events`: UIEvent/MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent — W3C-standard with init ifaces, `getModifierState()`, `Symbol.toStringTag`.
 
-UI Event classes in `@gjsify/dom-events`: UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent — Web-standard with init interfaces, `getModifierState()`, `Symbol.toStringTag`.
+### Context factory registry
 
-### Context Factory Registry
+`HTMLCanvasElement.registerContextFactory` — `@gjsify/canvas2d` registers `'2d'`→CanvasRenderingContext2D(Cairo); `@gjsify/webgl` registers `'webgl'`/`'webgl2'` via subclass override + fallthrough.
 
-`HTMLCanvasElement.registerContextFactory` — modular context registration: `@gjsify/canvas2d` registers `'2d'`→CanvasRenderingContext2D(Cairo) | `@gjsify/webgl` registers `'webgl'`/`'webgl2'` via subclass override+fallthrough
+## Build — esbuild, platform plugins
 
-## Build
+Targets: **GJS** `--app gjs` (`assert`→`@gjsify/assert`, externals `gi://*`+`cairo`+`system`+`gettext`, `firefox128`) | **Node** `--app node` (`@gjsify/process`→`process`, `node24`) | **Browser** `--app browser` (`esnext`)
 
-esbuild with platform-specific plugins. Same test source, different resolution per platform.
+Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `.../utils/scan-globals.ts` | `packages/infra/resolve-npm/lib/{index,globals-map}.mjs`
 
-- **GJS** (`gjsify build --app gjs`): `assert`→`@gjsify/assert`. Externals: `gi://*`, `cairo`, `system`, `gettext`. Target: `firefox128`
-- **Node** (`gjsify build --app node`): `@gjsify/process`→`process`. Target: `node24`
+**Blueprint** (`@gjsify/esbuild-plugin-blueprint`): `.blp` → XML string via `blueprint-compiler`. GJS+browser. `import T from './window.blp'` → string. Types: add `@gjsify/esbuild-plugin-blueprint/types` to tsconfig.
 
-- **Browser** (`gjsify build --app browser`): Standard browser target. Target: `esnext`
+**CSS** (`@gjsify/esbuild-plugin-css`): bundles `.css` imports, resolves `@import` from workspace+node_modules via esbuild (honors `package.json#exports`). Required for GTK `Gtk.CssProvider.load_from_string(applicationStyle)` — otherwise `@import`s survive into bundled string, GTK CSS parser fails on node_modules paths. All targets. `import css from './app.css'` → string. Config: `PluginOptions.css` forwards `{minify,target}`. **GTK4 CSS lowering:** GJS target defaults `css.target=['firefox60']` → flattens CSS Nesting (`.p{&:hover{}}` → `.p:hover{}`); preserves `var()`, `calc()`, `:is()`, `:where()`, `:not()`. Override via `gjsify.config.js`. Browser/node inherit parent target.
 
-Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `packages/infra/esbuild-plugin-gjsify/src/utils/scan-globals.ts` | `packages/infra/resolve-npm/lib/{index,globals-map}.mjs`
+### `--globals` modes (GJS)
 
-**Blueprint support:** `@gjsify/esbuild-plugin-blueprint` compiles `.blp` files via `blueprint-compiler` → XML string. Wired into `gjsify build` for GJS and browser targets. `import Template from './window.blp'` → string. Type declaration: `@gjsify/esbuild-plugin-blueprint/types` (add to tsconfig `"types"`).
+|**auto (default)**: iterative multi-pass build — each pass bundles in-memory (unminified, no disk I/O), acorn parses output for free identifiers (`Buffer`) + host-object member exprs (`{globalThis,global,window,self}.Buffer`) matching `GJS_GLOBALS_MAP`. Repeats until stable (2–3 iters, capped 5) — injecting register modules pulls in NEW code that may reference more globals. Final build uses converged set. Analyses **bundled output after tree-shaking** — avoids source-scan false positives. Passes MUST NOT minify (minifier aliases `globalThis` → short var, defeats MemberExpression detection).
+|**auto,\<extras\>**: auto + safety net for value-flow indirection detector can't follow (e.g. Excalibur stores `globalThis` in `BrowserComponent.nativeComponent`, then calls `nativeComponent.matchMedia()`). Forms: `auto,dom` / `auto,FontFace,matchMedia` / `auto,dom,fetch`. Extras seeded into pass 1.
+|**explicit list** `fetch,Buffer,...` or group aliases `node`/`web`/`dom`: no auto-detect.
+|**none**: disables injection.
 
-**CSS support:** `@gjsify/esbuild-plugin-css` bundles `.css` imports (resolving `@import` from workspace and `node_modules` via esbuild's own resolver — `package.json#exports` is honored) and returns the concatenated CSS as a JS string. Needed for GTK apps that load styles via `Gtk.CssProvider.load_from_string(applicationStyle)`; without it, `@import`s survive into the bundled string and fail at runtime because GTK's CSS parser can't resolve node_modules paths. Wired into `gjsify build` for GJS, browser, and node targets. `import css from './app.css'` → bundled string. Type declaration: `@gjsify/esbuild-plugin-css/types`. Config via `PluginOptions.css` (forwards `{ minify, target }` to the plugin). **GTK4 CSS lowering:** the GJS app target defaults `css.target` to `['firefox60']`, which triggers esbuild's built-in lowering for features GTK4's CSS parser does not support — most importantly **CSS Nesting** is flattened at build time (e.g. `.parent { &:hover { … } }` → `.parent:hover { … }`). Features GTK4 *does* support (`var()`, `calc()`, `:is()`, `:where()`, `:not()`) are preserved. Override via `gjsify.config.js` → `esbuild.css.target` if your GTK version accepts newer CSS. Browser + node targets inherit the parent build's target (no GTK-specific lowering).
+Key files: `.../utils/detect-free-globals.ts` (acorn AST) | `.../auto-globals.ts` (orchestrator) | `.../scan-globals.ts` (explicit) | `packages/infra/resolve-npm/lib/globals-map.mjs`.
 
-**Globals via `--globals`:** `gjsify build --app gjs` supports four modes:
+### GLib MainLoop
 
-- `--globals auto` **(default)**: Iterative multi-pass build. Each pass bundles in-memory (unminified, no disk I/O), `acorn` parses the bundled output and detects both free identifiers (`Buffer`) and host-object member expressions (`globalThis.Buffer`, `global.Buffer`, `window.Buffer`, `self.Buffer`) that match `GJS_GLOBALS_MAP`. The orchestrator repeats until the detected set stabilises (typically 2–3 iterations, capped at 5), because injecting register modules pulls in NEW code that can reference additional globals. The final real build uses the converged set. Avoids false positives from source-level scanning because it analyses the **bundled output** after esbuild tree-shaking has removed dead code paths. Minification is deliberately disabled for analysis: it would alias `globalThis` to a short variable name and defeat MemberExpression detection.
-- `--globals auto,<extras>`: Auto mode plus an explicit safety net. The detector cannot statically follow value-flow indirection (e.g. Excalibur stores `globalThis` in `BrowserComponent.nativeComponent` and then calls `nativeComponent.matchMedia(...)` — neither bare `matchMedia` nor `globalThis.matchMedia` appears in the bundle). Combine `auto` with the relevant group or identifiers to inject extras unconditionally: `--globals auto,dom`, `--globals auto,FontFace,matchMedia`, `--globals auto,dom,fetch`. Extras are seeded into pass 1 so any code reachable only through them is also visible to the analyser.
-- `--globals fetch,Buffer,...`: Explicit comma-separated list (or group aliases: `node`, `web`, `dom`) without auto-detection. The CLI resolves each identifier against `globals-map.mjs`, writes a stub, and injects it.
-- `--globals none`: Disables globals injection entirely.
-
-Key files: `packages/infra/esbuild-plugin-gjsify/src/utils/detect-free-globals.ts` (acorn AST analysis) | `packages/infra/esbuild-plugin-gjsify/src/utils/auto-globals.ts` (two-pass orchestrator) | `packages/infra/esbuild-plugin-gjsify/src/utils/scan-globals.ts` (explicit-list resolver) | `packages/infra/resolve-npm/lib/globals-map.mjs` (identifier→register-path map).
-
-### GLib MainLoop — `ensureMainLoop()`
-
-GJS needs GLib MainLoop for async I/O. `ensureMainLoop()` (`@gjsify/utils`): idempotent, non-blocking, no-op on Node.js. Used in: `http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bind()`. Public: `import { ensureMainLoop } from '@gjsify/node-globals'` (re-exported from the `@gjsify/utils` root). GTK apps must NOT use it (use `Gtk.Application.runAsync()`).
+`ensureMainLoop()` (`@gjsify/utils`, re-exported from `@gjsify/node-globals`): idempotent, non-blocking, no-op on Node. Used in `http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bind()`. **GTK apps MUST NOT use it** — use `Gtk.Application.runAsync()`.
 
 ### Don't patch — implement at the source
 
-We own implementations of almost every Web / Node / DOM API surface in the monorepo. That ownership is an asset: when a feature is needed, the first question is **"which of our packages should own this, and can we implement it there directly?"** — not "where can we monkey-patch it in?".
+We own ~every Web/Node/DOM API. First question for any new feature: *"which package owns this, can we implement it there?"* — not *"where can we monkey-patch it in?"*. Patching propagates uncertainty (readers must reason about "which code installed this?"); first-class methods are self-documenting.
 
 **Hard rules:**
 
-- **Reading globals:** in *implementation code*, prefer an explicit `import { X } from '@gjsify/<pkg>'` over `(globalThis as any).X`. Imports give bundlers visibility into the dependency (cleaner tree-shaking), give TypeScript real types (no `as any`), and surface missing deps as build-time errors instead of runtime undefined-then-fallback branches. `globalThis` reads are only justified for:
-  1. **Writes in register modules** — that's the module's purpose.
-  2. **Existence probes in register modules** — `if (typeof globalThis.X === 'undefined') { globalThis.X = X; }` — idiomatic pattern to avoid clobbering a polyfill.
-  3. **Env-var-like debug flags** — `globalThis.__GJSIFY_DEBUG_X`.
-  4. **GJS runtime bootstrap** — `globalThis.imports.*` before `@girs/*` resolves, and similar bootstrap-only reads.
-  5. **Genuinely soft dependencies** — where the whole point is to work without the dep (e.g. fallback to `Error` if `DOMException` isn't registered). Rare.
-- **Patching classes you own:** if the missing method belongs conceptually to a class in our monorepo (`URL.createObjectURL` → `@gjsify/url`'s `URL`, `Headers.getSetCookie` → `@gjsify/fetch`'s `Headers`, etc.), **put it on the class**, not on `globalThis.X.method = …` in some register module. Reach for patching only when the target class is genuinely external (a native global we can't subclass, a third-party library type). Patching our own classes in a register module is a code smell that usually means the API belongs inside the package that owns the class.
-- **"There is no module to import from":** if you catch yourself thinking this for something like a DOM global, check again — the workspace almost certainly has a `@gjsify/dom-*` / `@gjsify/web-*` / `@gjsify/node-*` package that exports the class. Add the dep. The only times this is legitimately true are for (a) pre-registration bootstrap (register modules themselves, before anything else runs) and (b) values that have no module form at all (GJS `imports` object, Node's `process.argv` before `@gjsify/process` loads, etc.).
+- **Reading globals:** prefer `import { X } from '@gjsify/<pkg>'` over `(globalThis as any).X` in impl code. Imports give bundlers tree-shaking visibility, TS real types, surface missing deps as build errors. `globalThis` reads only justified for: (1) writes in register modules; (2) existence probes in register modules (`if (typeof globalThis.X === 'undefined') { globalThis.X = X }`); (3) debug flags (`globalThis.__GJSIFY_DEBUG_X`); (4) GJS runtime bootstrap (`globalThis.imports.*` before `@girs/*` resolves); (5) genuinely soft deps (rare — fallback to `Error` if `DOMException` not registered); (6) `globals.mjs` Node adapter — re-exports native value (`export default globalThis.crypto`) so alias layer can redirect bare specifiers on Node. Only non-register file allowed to read `globalThis.X` without `as any`.
+- **Patching classes you own:** method belongs to a monorepo class (`URL.createObjectURL`→`@gjsify/url`, `Headers.getSetCookie`→`@gjsify/fetch`) → put it on the class, NOT on `globalThis.X.method=…` in a register module. Patch only when target is genuinely external (native global we can't subclass, third-party type).
+- **"No module to import from":** check again — workspace almost certainly has `@gjsify/dom-*`/`@gjsify/web-*`/`@gjsify/node-*` exporting the class. Add the dep. Legit exceptions: (a) pre-registration bootstrap; (b) values with no module form (GJS `imports`, Node's `process.argv` before `@gjsify/process` loads).
 
-**Why this matters:** patching propagates uncertainty — now every reader has to reason about "which code has run to install this method?". First-class methods on our own classes are self-documenting: `URL.createObjectURL` exists because `@gjsify/url`'s `URL` class declares it.
+### Tree-shakeable globals — `/register` subpath convention
 
-### Tree-shakeable Globals — `/register` subpath convention
+Every pkg registering anything on `globalThis` MUST follow these rules.
 
-Every `@gjsify/*` package that registers anything on `globalThis` MUST follow these rules so that user bundles stay tree-shakeable and the `--globals` CLI flag can resolve identifiers correctly.
-
-1. **No side-effects in `src/index.ts`.** The root entry is named exports only. Any `globalThis.X = ...`, `Object.defineProperty(globalThis, ...)`, or `registerGlobal('X', ...)` call at module top level is a bug — move it to `src/register.ts`.
-2. **Side-effects live in `src/register.ts`.** This file exists solely to register globals. Imports what it needs from `./index.js` and uses an existence guard. Use the pattern that matches the global type:
-   - **Function/class globals** (most packages): `if (typeof globalThis.X === 'undefined') { (globalThis as any).X = X; }`
-   - **Plain-value globals** (process, Buffer, global in node-globals): `if (!('X' in globalThis)) { Object.defineProperty(globalThis, 'X', { value: X, writable: true, configurable: true }); }`
-   - **DOM constructors** (dom-elements, GTK-only): unconditional `defineGlobal('X', X)` via the package-local helper (writable+configurable; GTK environment always owns these)
-   - **Streams**: `isNativeStreamUsable(globalThis.X, 'method')` helper validates whether the existing native implementation is functional before replacing it
-   All guards must be idempotent — registering twice must not throw.
-3. **`package.json` declares all subpaths + `sideEffects`:**
+1. **No side-effects in `src/index.ts`.** Root = named exports only. Any top-level `globalThis.X=…`/`defineProperty(globalThis,…)`/`registerGlobal(…)` = bug → move to `register.ts`.
+2. **Side-effects in `src/register.ts`.** Imports from `./index.js` with existence guard. Patterns (all idempotent — twice must not throw):
+   - Function/class: `if (typeof globalThis.X === 'undefined') { (globalThis as any).X = X; }`
+   - Plain-value (process, Buffer, global): `if (!('X' in globalThis)) { Object.defineProperty(globalThis,'X',{value:X,writable:true,configurable:true}); }`
+   - DOM constructors (GTK-only, dom-elements): unconditional `defineGlobal('X', X)` (GTK env owns these)
+   - Streams: `isNativeStreamUsable(globalThis.X,'method')` validates native before replacing
+3. **`package.json` subpaths + `sideEffects`:**
    ```jsonc
    "exports": {
      ".":                    { "default": "./lib/esm/index.js" },
      "./register":           { "types": "./lib/types/register.d.ts", "default": "./lib/esm/register.js" },
      "./register/<feature>": { "default": "./lib/esm/register/<feature>.js" }
-     // "./globals": "./globals.mjs"  // optional: native-re-exports for Node builds
+     // "./globals": "./globals.mjs"  // optional native-re-exports for Node
    },
-   "sideEffects": [
-     "./lib/esm/register.js",
-     "./lib/esm/register/*.js",
-     "./globals.mjs"
-   ]
+   "sideEffects": ["./lib/esm/register.js","./lib/esm/register/*.js","./globals.mjs"]
    ```
-   The `sideEffects` array pins side-effects to register-only so bundlers can tree-shake the root module. Never `"sideEffects": false` if there is a `register.js`. The `./register` catch-all keeps a `types` field; granular subpaths typically only need `default`.
-4. **Globals map is authoritative.** Every identifier that `register.ts` writes to `globalThis` MUST have an entry in `packages/infra/resolve-npm/lib/globals-map.mjs` mapping it to the bare-specifier `/register` subpath. The `--globals` CLI flag uses this map to resolve user-provided identifiers to register subpaths.
-5. **Alias layer mirrors the map.** Add new `/register` subpaths to `packages/infra/resolve-npm/lib/index.mjs`:
-   - `ALIASES_WEB_FOR_GJS` — bare-specifier `<pkg>/register` → real `@gjsify/<pkg>/register`
-   - `ALIASES_WEB_FOR_NODE` — both the bare and the fully-qualified form → `@gjsify/empty` (no-op, Node has native globals)
-   - `ALIASES_GENERAL_FOR_NODE` — for `@gjsify/<pkg>/register` paths that are not web-only (e.g. `@gjsify/node-globals/register`, `@gjsify/buffer/register`)
-6. **Tests that need globals** import the `/register` subpath explicitly: `import 'fetch/register'`, `import 'abort-controller/register'`, `import '@gjsify/node-globals/register'`. Do NOT rely on implicit global registration via a named import from the root.
-7. **User projects rely on `--globals auto` (the default)**, which detects needed globals automatically from the bundled output. No manual `--globals` list or source-level register imports are needed. Users can override with an explicit list (`--globals fetch,Buffer`) or disable entirely (`--globals none`). Source-level `import '<pkg>/register'` is still supported and equivalent. Three **group aliases** expand to the full identifier set: `node` (Buffer, process, URL, …), `web` (fetch, streams, crypto, AbortController, events, …), `dom` (document, HTMLCanvasElement, Image, …). Groups are defined in `GJS_GLOBALS_GROUPS` in `globals-map.mjs` and expanded in `scan-globals.ts`.
-8. **Exception — intra-package class inheritance.** If `src/index.ts` defines a class that extends a global constructor (e.g. `class TextLineStream extends TransformStream`), the class declaration runs at module load time and needs the global set. In this ONE case, `index.ts` may `import '@gjsify/<pkg>/register'` as a side-effect to seed the global before the class body runs. Document the exception explicitly in the file header. Current occurrences: `@gjsify/eventsource`.
-9. **Granular register subpaths.** Each register module belongs in its own file under `src/register/<feature>.ts`, grouped by feature (not by every individual identifier — closely-related identifiers like `ReadableStream` + `ReadableStreamDefaultReader` share one file). The catch-all `src/register.ts` only re-exports the granular files via side-effect imports:
+   Pins side-effects to register-only. Never `"sideEffects":false` if `register.js` exists. `./register` catch-all keeps `types`; granular subpaths only need `default`.
+
+   **`register.ts` vs `globals.mjs` — distinct patterns:**
+
+   | | `register.ts` | `globals.mjs` |
+   |---|---|---|
+   | Direction | **writes to** globalThis | **reads from** globalThis, re-exports |
+   | Runtime | GJS | Node |
+   | Purpose | installs our GJS impl as global | re-exports native Node value as named exports |
+   | Trigger | `--globals auto` injects import | `ALIASES_WEB_FOR_NODE` redirects bare specifier here |
+   | Node alias | → `@gjsify/empty` (no-op) | → used as alias target |
+
+   `register.ts`: *how does our GJS impl reach globalThis?* | `globals.mjs`: *what does bare `<pkg>` resolve to on Node?* Cross-platform `import { subtle } from 'webcrypto'` → GJS: `@gjsify/webcrypto`; Node: alias → `@gjsify/webcrypto/globals` re-exporting native `globalThis.crypto`. This is the only legitimate non-register file reading `globalThis.X` without `as any`.
+4. **Globals map authoritative.** Every identifier `register.ts` writes to globalThis MUST map in `packages/infra/resolve-npm/lib/globals-map.mjs` → bare `/register` subpath. Used by `--globals` CLI.
+5. **Alias layer mirrors map** in `packages/infra/resolve-npm/lib/index.mjs`:
+   - `ALIASES_WEB_FOR_GJS`: `<pkg>/register` → `@gjsify/<pkg>/register`
+   - `ALIASES_WEB_FOR_NODE`: both forms → `@gjsify/empty`
+   - `ALIASES_GENERAL_FOR_NODE`: non-web `@gjsify/<pkg>/register` (node-globals, buffer)
+6. **Tests import `/register` explicitly:** `import 'fetch/register'`, `import '@gjsify/node-globals/register'`. No implicit reliance on root named import.
+7. **Users rely on `--globals auto` (default)** — detects from bundled output. Override: explicit list (`fetch,Buffer`), groups (`node`/`web`/`dom` from `GJS_GLOBALS_GROUPS` in globals-map.mjs), or `none`. Source-level `import '<pkg>/register'` still supported + equivalent.
+8. **Exception — intra-package class inheritance:** if `src/index.ts` class extends a global constructor (`class TextLineStream extends TransformStream`), class body runs at module load → `index.ts` may `import '@gjsify/<pkg>/register'` as side-effect. Document in file header. Current: `@gjsify/eventsource`.
+9. **Granular subpaths.** Each register module in own file `src/register/<feature>.ts`, grouped by feature (related identifiers share a file). Catch-all `src/register.ts` re-exports via side-effect imports:
    ```ts
    // src/register.ts — catch-all
    import './register/feature-a.js';
    import './register/feature-b.js';
    ```
-   This lets `--globals auto` inject only the feature(s) actually needed instead of pulling in the whole package's register module. When you split a register module, each subpath needs: (a) its own file in `src/register/`, (b) its own `./register/<name>` entry in `package.json` `exports`, (c) inclusion in `package.json` `sideEffects` (the `"./lib/esm/register/*.js"` glob covers this), (d) the catch-all `register.ts` updated to import it, (e) the identifier→subpath mapping in `globals-map.mjs` updated to point to the granular path (not the catch-all), (f) entries in `ALIASES_WEB_FOR_GJS`/`ALIASES_WEB_FOR_NODE`/`ALIASES_GENERAL_FOR_NODE` for both the bare and the fully-qualified granular subpath.
+   When splitting: (a) own file in `src/register/`, (b) `./register/<name>` export in package.json, (c) covered by sideEffects glob, (d) update catch-all, (e) globals-map.mjs → granular path (NOT catch-all), (f) all three alias maps for bare + fully-qualified form.
+10. **Adding a new global — checklist:** (a) implement (b) add to `src/register/<feature>.ts` with Rule-2 guard (c) catch-all imports it if new file (d) package.json `exports` + sideEffects covers it (e) identifier → **granular** subpath in GJS_GLOBALS_MAP (f) all three alias maps in resolve-npm/lib/index.mjs (g) if new package, add to `@gjsify/node-polyfills` or `@gjsify/web-polyfills` (so CLI-only scaffolds resolve) (h) `register.spec.ts` (i) `website/src/content/docs/cli-reference.md` § Globals → Known identifiers. `--globals auto` picks up new identifier automatically.
 
-10. **Adding a new global.** Checklist:
-    - (a) implement in the package
-    - (b) add to the appropriate `src/register/<feature>.ts` (or create a new file) with the existence guard from Rule 2
-    - (c) ensure the catch-all `src/register.ts` imports the new file (only if you created a new feature file)
-    - (d) confirm `package.json` `exports` has a `./register/<feature>` entry and `sideEffects` covers the file
-    - (e) add the identifier→**granular** subpath in `GJS_GLOBALS_MAP` (`packages/infra/resolve-npm/lib/globals-map.mjs`)
-    - (f) add the granular subpath to all three alias maps in `packages/infra/resolve-npm/lib/index.mjs`: `ALIASES_WEB_FOR_GJS` (real path), `ALIASES_WEB_FOR_NODE` (`@gjsify/empty`), and `ALIASES_GENERAL_FOR_NODE` if it's not web-only
-    - (g) if the package itself is new and not yet in a meta-package, add it to `@gjsify/node-polyfills` or `@gjsify/web-polyfills` so scaffolded apps that depend only on `@gjsify/cli` can resolve it
-    - (h) add a test in the package's own `register.spec.ts` (or appropriate spec)
-    - (i) add the identifier to the category group in `website/src/content/docs/cli-reference.md` (§ Globals → Known identifiers)
-    - Note: `--globals auto` will pick up the new identifier automatically — no template or example `--globals` updates needed.
+**Tree-shakeability invariants — permanent:**
 
-**Tree-shakeability invariants — permanent, do not break:**
+- `src/index.ts` zero top-level side effects. Any `globalThis.X=…`/`defineProperty(globalThis,…)` there = regression → move to `register.ts`.
+- **`--globals auto` analyses bundled output, NOT source.** Source-level approaches (regex, AST, metafile on entries) were tried + rejected — false positives from isomorphic guards, dynamic imports, bracket-notation access. Current mode parses **unminified esbuild output after tree-shaking**. Do NOT reintroduce source scanning. Iterative multi-pass (build→acorn→rebuild→repeat until stable) in `auto-globals.ts`/`detect-free-globals.ts` is the ONLY sanctioned mechanism.
+- **Analysis MUST NOT minify.** Minifier wraps bundle in IIFE aliasing `globalThis` → short var (`g.Blob` vs `globalThis.Blob`), defeats MemberExpression detection. `auto-globals.ts` passes `minify:false` — do not change.
+- **Detection is iterative.** Tree-shaking creates dep cycle: pass 1 has no globals injected → code gated on globals is shaken; pass 2 injects → pulls NEW code referencing more globals; repeat until stable (cap 5). Detects bare identifiers + `host.Identifier` member exprs (globalThis/global/window/self).
+- **Method markers for monkey-patched APIs.** Some packages register by patching a method on a host object instead of defining a fresh global (canonical: `@gjsify/gamepad/register` sets `globalThis.navigator.getGamepads=…` — neither `getGamepads` nor `Gamepad` appears as free identifier). `detect-free-globals.ts` keeps `METHOD_MARKERS`: `<host>.<method>` → target identifier. Add entry whenever register patches a method. Current: `navigator.getGamepads → GamepadEvent`.
+- `sideEffects:["./lib/esm/register.js","./lib/esm/register/*.js"]` must remain. Never `false` on a register-providing package.
+- `globals-map.mjs` MUST point at **granular** subpaths when they exist. Missing entry → `--globals auto` silently fails to inject. Pointing at catch-all when granular exists → bundle pulls entire register module instead of needed feature.
 
-- `src/index.ts` MUST have zero top-level side effects. Any top-level `globalThis.X = ...`, `Object.defineProperty(globalThis, ...)`, or `registerGlobal(...)` in `index.ts` is a regression — move it to `register.ts`.
-- **`--globals auto` analyses bundled output, NOT source files.** Previous source-level scanning approaches (regex, AST, metafile on entry points) were tried and rejected — they leaked false positives from isomorphic guards, dynamic imports, and bracket-notation access. The current auto mode parses the **unminified esbuild output** after tree-shaking. Do NOT reintroduce source-level scanning. The iterative multi-pass approach (build → acorn analyse → rebuild → repeat until stable) in `auto-globals.ts` / `detect-free-globals.ts` is the only sanctioned auto-detection mechanism.
-- **Analysis passes must NOT minify.** Minification can wrap the bundle in an IIFE and alias `globalThis` to a short variable (e.g. `g.Blob` instead of `globalThis.Blob`), defeating the `MemberExpression` detection. The `auto-globals.ts` orchestrator passes `minify: false` for this reason — do not change it.
-- **Detection is iterative, not single-pass.** Tree-shaking creates a dependency cycle: pass 1 has no globals injected, so any code paths gated on a global being available are tree-shaken; pass 2 injects those globals, which pulls in NEW code that may reference more globals; repeat until the detected set stabilises. Capped at 5 iterations. Both bare identifiers (`Buffer`) and `host.Identifier` member expressions (`globalThis.Buffer`, `global.Buffer`, `window.Buffer`, `self.Buffer`) are detected.
-- **Method markers for monkey-patched APIs.** Some `@gjsify/*` packages register globals by **patching methods onto an existing host object** instead of defining a fresh global identifier. The canonical example is `@gjsify/gamepad/register`, which sets `globalThis.navigator.getGamepads = …` — neither `getGamepads` nor `Gamepad` ever appears in user code as a free identifier (`navigator.getGamepads()` is a member access on a known instance). To trigger the right register injection, `detect-free-globals.ts` keeps a small `METHOD_MARKERS` table mapping `<host>.<method>` → known-globals identifier. When the analyser sees the marker pattern, it adds the target identifier to the detected set, which then resolves to the appropriate register subpath via `globals-map.mjs`. Add a new entry whenever a register module patches a method instead of defining a global. Current entries: `navigator.getGamepads → GamepadEvent`.
-- `sideEffects: ["./lib/esm/register.js", "./lib/esm/register/*.js"]` must remain in every package that registers globals. Never set `"sideEffects": false` on such a package. The `register/*.js` glob covers granular subpath files.
-- `globals-map.mjs` is authoritative and must point at **granular** subpaths whenever they exist. If a new identifier is added to `register.ts` but omitted from `globals-map.mjs`, `--globals auto` silently fails to inject it. If `globals-map.mjs` points at the catch-all `./register` for an identifier that has a granular subpath, the bundle gets the entire register module instead of just the needed feature.
-
-**Auto mode is the default.** Most users never need to touch `--globals` — the iterative build detects everything automatically. If auto mode misses a global (e.g. Excalibur passes `globalThis` to a constructor and calls methods through that wrapper, hiding the access from static analysis), the user adds the missing identifier or group to the auto value: `--globals auto,dom` or `--globals auto,matchMedia,FontFace`. If auto mode injects an unwanted global (false positive from an isomorphic library guard that survived tree-shaking), users can switch to a fully explicit list or file an issue.
+**Auto is the default.** If auto misses (value-flow indirection): `--globals auto,dom` or `auto,matchMedia,FontFace`. If auto injects false positive: switch to explicit list or file issue.
 
 ```bash
 # Root
@@ -290,121 +247,101 @@ yarn build:test:{gjs,node} | yarn test:{gjs,node}
 
 ```
 Node→GNOME: fs→Gio.File{,I/O}Stream | Buffer→GLib.Bytes/ByteArray/Uint8Array | net.Socket→Gio.Socket{Connection,Client} | http→Soup.{Session,Server} | crypto→GLib.{Checksum,Hmac} | process.env→GLib.{g,s}etenv() | url.URL→GLib.Uri
-Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Streams→Gio.{In,Out}putStream | Compression→Gio.ZlibCompressor | SubtleCrypto→GLib.Checksum+Hmac | localStorage→Gio.File/GLib.KeyFile | ImageBitmap→GdkPixbuf.Pixbuf | EventSource→Soup.Session(SSE) | Gamepad→Manette.{Monitor,Device}(libmanette)
+Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Streams→Gio.{In,Out}putStream | Compression→Gio.ZlibCompressor | SubtleCrypto→GLib.Checksum+Hmac | localStorage→Gio.File/GLib.KeyFile | ImageBitmap→GdkPixbuf.Pixbuf | EventSource→Soup.Session(SSE) | Gamepad→Manette.{Monitor,Device}
 ```
 
 ## References — `refs/`
 
-### Node.js
+IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for refs/ submodules.
 
-| Path | Use |
-|------|-----|
-| `refs/node/` | Canonical spec. `lib/<name>.js`, `test/parallel/test-<name>*.js` |
-| `refs/node-test/` | **Primary test source.** 3897 tests, 43 modules. `parallel/`, `module-categories/` |
-| `refs/deno/` | TS ref. Polyfills: `ext/node/polyfills/`. **Also primary Web API ref** |
-| `refs/bun/` | Clean TS tests: `test/js/node/` |
-| `refs/quickjs/` | Language feature tests: `tests/` |
-| `refs/workerd/` | 67 modules. Tests: `src/workerd/api/node/tests/` |
-| `refs/edgejs/` | Test harness patterns (uses node-test) |
-| `refs/llrt/` | TS tests: `tests/unit/*.test.ts` (assert,buffer,crypto,events,fs,net,path,stream) |
+### Node.js
+|`refs/node/` canonical spec — `lib/<name>.js`, `test/parallel/test-<name>*.js`
+|`refs/node-test/` **primary test source** — 3897 tests / 43 modules, `parallel/`, `module-categories/`
+|`refs/deno/` TS ref — polyfills `ext/node/polyfills/`; **also primary Web API ref**
+|`refs/bun/` clean TS tests — `test/js/node/`
+|`refs/quickjs/` language features — `tests/`
+|`refs/workerd/` 67 modules — `src/workerd/api/node/tests/`
+|`refs/edgejs/` test harness patterns (uses node-test)
+|`refs/llrt/` TS tests — `tests/unit/*.test.ts` (assert,buffer,crypto,events,fs,net,path,stream)
 
 ### Web API
-
-| Path | Use |
-|------|-----|
-| `refs/deno/` | **Primary.** `ext/{web,fetch,crypto,websocket,webstorage,cache,image}/` |
-| `refs/wpt/` | W3C canonical test suite |
-| `refs/happy-dom/` | DOM(60+ types), 296 tests. Ref for dom-events, dom-elements |
-| `refs/jsdom/` | 30+ modules, WPT integration |
-| `refs/undici/` | 366 tests. fetch, WebSocket, Cache, EventSource |
-| `refs/headless-gl/` | **Primary WebGL test ref.** 42 tests |
-| `refs/webgl/` | Khronos spec + conformance tests. Authoritative |
-| `refs/three/` | three.js. Ref for WebGL examples |
-| `refs/libepoxy/` | OpenGL func ptrs. Used by Vala ext |
-| `refs/node-gst-webrtc/` | WebRTC via GStreamer |
+|`refs/deno/` **primary** — `ext/{web,fetch,crypto,websocket,webstorage,cache,image}/`
+|`refs/wpt/` W3C canonical test suite
+|`refs/happy-dom/` DOM (60+ types), 296 tests — ref for dom-events, dom-elements
+|`refs/jsdom/` 30+ modules, WPT integration
+|`refs/undici/` 366 tests — fetch, WebSocket, Cache, EventSource
+|`refs/headless-gl/` **primary WebGL test ref** — 42 tests
+|`refs/webgl/` Khronos spec + conformance (authoritative)
+|`refs/three/` three.js — ref for WebGL examples
+|`refs/libepoxy/` OpenGL fn ptrs (used by Vala ext)
+|`refs/node-gst-webrtc/` WebRTC via GStreamer
 
 ### Other
+`refs/gjs/`(internals) | `refs/stream-http/`(HTTP via streams) | `refs/troll/`(GJS utils) | `refs/crypto-browserify/`(orchestrator → sub-pkgs: `refs/{browserify-cipher,browserify-sign,create-ecdh,create-hash,create-hmac,diffie-hellman,hash-base,pbkdf2,public-encrypt,randombytes,randomfill}`) | `refs/readable-stream/`(edge cases) | `refs/ungap-structured-clone/`(→`packages/gjs/utils/src/structured-clone.ts`)
 
-`refs/gjs/`(GJS internals) | `refs/stream-http/`(HTTP via streams) | `refs/troll/`(GJS utils) | `refs/crypto-browserify/`(crypto orchestrator→sub-pkgs: `refs/{browserify-cipher,browserify-sign,create-ecdh,create-hash,create-hmac,diffie-hellman,hash-base,pbkdf2,public-encrypt,randombytes,randomfill}`) | `refs/readable-stream/`(stream edge cases) | `refs/ungap-structured-clone/`(→`packages/gjs/utils/src/structured-clone.ts`)
+### Adwaita/GTK design
+|`refs/adwaita-web/` Web Framework based on GTK4/Libadwaita — CSS/component ref for `@gjsify/adwaita-web`
+|`refs/libadwaita/` canonical CSS colors, radii, widget styles
+|`refs/adwaita-fonts/` Adwaita Sans/Mono (SIL OFL) — browser examples
+|`refs/app-mockups/` GNOME mockup PNGs/SVGs — visual ref
 
-### Adwaita / GTK Design
+### Build/tooling
+`refs/astro/`(website ref) | `refs/deepkit/`(type compiler) | `refs/gjsify-vite/`(`examples/gtk/three-geometry-shapes/refs/gjsify-vite/`, Vite plugins for GJS)
 
-| Path | Use |
-|------|-----|
-| `refs/adwaita-web/` | Web Framework based on GTK4/Libadwaita. CSS/component reference for `@gjsify/adwaita-web` |
-| `refs/libadwaita/` | Original libadwaita source. Canonical CSS colors, radii, widget styles |
-| `refs/adwaita-fonts/` | Adwaita Sans/Mono font files (SIL OFL). Used in browser examples |
-| `refs/app-mockups/` | GNOME app mockup PNGs/SVGs. Visual reference for Adwaita UI |
+## npm packages — reimplement in TS
 
-### Build / Tooling
+npm pkgs cause GJS problems (legacy CJS, missing-globals-at-load, circular deps, `"browser"` field). Use as **references only** — rewrite in TS with `@gjsify/*` imports.
 
-`refs/astro/`(Astro framework, website reference) | `refs/deepkit/`(Deepkit, type compiler) | `refs/gjsify-vite/`(`examples/gtk/three-geometry-shapes/refs/gjsify-vite/`, Vite plugins for GJS)
+## CJS-ESM Interop (GJS)
 
-## npm Packages — Prefer reimplementing in TS
+Problem: esbuild GJS (`esm`+`neutral`) wraps ESM with `__toCommonJS` → namespace object, not constructor. Breaks `util.inherits(Child, require('stream'))`.
 
-npm pkgs cause GJS problems: legacy CJS patterns, missing globals at load, circular deps, `"browser"` field. Use as **references only** — read source, rewrite in TS with `@gjsify/*` imports.
-
-## CJS-ESM Interop for GJS Builds
-
-**Problem:** esbuild GJS build (`esm`+`neutral`) wraps ESM with `__toCommonJS`→namespace object instead of constructor. Breaks `util.inherits(Child, require('stream'))`.
-
-**Fix 1: `__toCommonJS` patch (auto)** — `esbuild-plugin-gjsify/src/app/gjs.ts` `onEnd`. Unwraps ESM with only default export. No action needed.
-
-**Fix 2: `cjs-compat.cjs` (manual)** — For `@gjsify/*` pkgs with BOTH named+default exports where `require()` must return constructor. Add when: (1) default=constructor/class (2) has named exports (3) default has named as properties (4) CJS consumers use as constructor/inherits/call.
-
-Symptoms: `TypeError: super constructor to "inherits" must have prototype` | `X is not a function` | `X.call is not a function`
-
-Needs wrapper: `stream`(✅), `events`(✅). Not needed: `buffer`, `util`, `http`, `path` (return plain objects).
-
+|**Fix 1 `__toCommonJS` patch (auto)**: `esbuild-plugin-gjsify/src/app/gjs.ts` `onEnd` unwraps ESM with only default export. No action needed.
+|**Fix 2 `cjs-compat.cjs` (manual)**: for pkgs with BOTH named+default exports where `require()` must return constructor. Symptoms: `super constructor to "inherits" must have prototype` / `X is not a function` / `X.call is not a function`. **Needed:** `stream`, `events`. **Not needed:** `buffer`, `util`, `http`, `path` (plain objects).
 ```js
 // packages/node/<name>/cjs-compat.cjs
 const mod = require('./lib/esm/index.js');
 module.exports = mod.default || mod;
 ```
-Add `"require": "./cjs-compat.cjs"` to package.json exports BEFORE `"default"`. esbuild selects condition by consumer syntax.
+Add `"require":"./cjs-compat.cjs"` to package.json `exports` BEFORE `"default"`.
 
 ## Native Extensions (Vala)
 
-Vala→Meson→shared lib+GIR typelib→`gi://` import. Example: `packages/dom/webgl/`. Prefer TS; Vala only for C-level access.
+Vala → Meson → shared lib + GIR typelib → `gi://` import. Example: `packages/dom/webgl/`. Prefer TS; Vala only for C-level access.
 
-### DOM Bridge examples
+### DOM bridge examples
 
 ```ts
-// Canvas 2D
 import { Canvas2DBridge } from '@gjsify/canvas2d';
 const w = new Canvas2DBridge(); w.installGlobals();
-w.onReady((canvas, ctx) => { ctx.fillRect(0, 0, 100, 100); }); window.set_child(w);
+w.onReady((canvas, ctx) => { ctx.fillRect(0,0,100,100); }); window.set_child(w);
 
-// WebGL
 import { WebGLBridge } from '@gjsify/webgl';
 const w = new WebGLBridge(); w.installGlobals();
-w.onReady((canvas, gl) => { gl.clearColor(0, 0, 0, 1); }); window.set_child(w);
+w.onReady((canvas, gl) => { gl.clearColor(0,0,0,1); }); window.set_child(w);
 
-// IFrame
 import { IFrameBridge } from '@gjsify/iframe';
 const w = new IFrameBridge();
-w.onReady((iframe) => { iframe.contentWindow?.addEventListener('message', handler); });
+w.onReady(iframe => iframe.contentWindow?.addEventListener('message', handler));
 w.iframeElement.srcdoc = '<h1>Hello</h1>'; window.set_child(w);
 
-// Video (webcam via getUserMedia)
 import { VideoBridge } from '@gjsify/video';
 const v = new VideoBridge();
-v.onReady(async (video) => {
-    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
-}); window.set_child(v);
+v.onReady(async video => { video.srcObject = await navigator.mediaDevices.getUserMedia({video:true}); });
+window.set_child(v);
 ```
 
 ### Prebuilds
 
-Native libs ship in `prebuilds/linux-<arch>/` (`.so`+`.typelib`). `package.json`: `"files":["lib","prebuilds"]`, `"gjsify":{"prebuilds":"prebuilds"}`. CLI auto-sets `LD_LIBRARY_PATH`/`GI_TYPELIB_PATH`: `gjsify run dist/gjs.js` | `gjsify info [file]` (print env, `--export` for eval). Built by `.github/workflows/prebuilds.yml` (x86_64+aarch64, Fedora). Local: `yarn build:prebuilds`.
+Native libs in `prebuilds/linux-<arch>/` (`.so`+`.typelib`). `package.json`: `"files":["lib","prebuilds"]`, `"gjsify":{"prebuilds":"prebuilds"}`. CLI auto-sets `LD_LIBRARY_PATH`/`GI_TYPELIB_PATH`: `gjsify run dist/gjs.js` | `gjsify info [file]` (`--export` for eval). Built by `.github/workflows/prebuilds.yml` (x86_64+aarch64, Fedora). Local: `yarn build:prebuilds`.
 
 **gi:// ordering:** `GIRepository.prepend_search_path()` must run before `gi://Foo` resolves. Static `gi://` imports resolve in ESM Linking (before code). Use `gjsify run` or two-file loader (loader calls prepend_search_path, then `await import('./bundle.js')`).
 
 ## Testing
 
-### Framework: `@gjsify/unit`
+### Framework `@gjsify/unit`
 
-```typescript
+```ts
 import { describe, it, expect, on } from '@gjsify/unit';
 export default async () => {
   await describe('module.function', async () => {
@@ -418,97 +355,82 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 
 ### Rules
 
-1. **Cross-platform pkgs:** `node:` prefix for all Node.js imports (value+type). **Never import `@gjsify/*` directly** (except `@gjsify/unit`). Aliased Web pkgs: bare specifier from `ALIASES_WEB_FOR_{GJS,NODE}`.
-2. **GJS-only pkgs** (dom-elements, webgl): Import `@gjsify/*` directly. No aliases, no `test:node`.
-3. Node.js tests=test correctness; GJS tests=our implementation. Both must pass.
-4. Common `*.spec.ts`: both platforms, no `@girs/*`. Platform-specific `*.gjs.spec.ts`/`on('Gjs')`: minimal.
-5. Layout: `src/index.ts`(impl) | `src/*.spec.ts`(specs) | `src/test.mts`(entry).
-6. **Never weaken tests** — fix implementation, not tests. No platform guards.
-7. **`/register` side effects in a dedicated spec file:** Tests that verify globalThis wiring (e.g. `globalThis.FontFace`, `globalThis.__gjsify_globalEventTarget`) require `import '<pkg>/register'`. Put these in a separate `register.spec.ts` — NOT in the common `*.spec.ts`. Reason: even if the global itself (e.g. `FontFace`) is pure JS, the `/register` file pulls in GTK/Cairo implementation files via its import chain, which crashes on Node.js. The global value and the registration machinery are separate concerns. The common spec tests the class/value directly via named import (cross-platform); `register.spec.ts` tests that `/register` correctly wires it onto globalThis (GJS-only, wrap all tests in `on('Gjs', ...)`). Add to `test.mts` as a named suite. Applies only to packages that have no `test:node` (GJS-only packages like dom-elements, webgl). For cross-platform packages, the `/register` test belongs in a `.gjs.spec.ts` file. Example: `packages/dom/dom-elements/src/register.spec.ts`.
+1. **Cross-platform pkgs:** `node:` prefix for all Node imports (value+type). **Never import `@gjsify/*` directly** (except `@gjsify/unit`). Aliased Web pkgs: bare specifier from `ALIASES_WEB_FOR_{GJS,NODE}`.
+2. **GJS-only pkgs** (dom-elements, webgl): import `@gjsify/*` directly. No aliases, no `test:node`.
+3. Node tests = correctness of test; GJS tests = our impl. Both must pass.
+4. Common `*.spec.ts`: both platforms, no `@girs/*`. Platform-specific `*.gjs.spec.ts` / `on('Gjs')`: minimal.
+5. Layout: `src/index.ts`(impl) | `src/*.spec.ts` | `src/test.mts`(entry).
+6. **Never weaken tests** — fix impl. No platform guards.
+7. **`/register` side-effect tests in dedicated file:** Tests verifying globalThis wiring (`globalThis.FontFace`, `globalThis.__gjsify_globalEventTarget`) need `import '<pkg>/register'` → put in `register.spec.ts`, NOT common spec. Reason: even pure-JS global — `/register` pulls GTK/Cairo via import chain, crashes on Node. Common spec tests class/value via named import; `register.spec.ts` tests wiring (GJS-only, wrap in `on('Gjs',...)`). Add to `test.mts` as named suite. Applies only to GJS-only packages. Cross-platform: `/register` test → `.gjs.spec.ts`. Example: `packages/dom/dom-elements/src/register.spec.ts`.
 
-### Regression Tests from Examples
+### Regression tests from examples
 
-When real-world examples uncover bugs (GC, missing globals, CJS-ESM, MainLoop) — always add targeted test to relevant `*.spec.ts`. Examples=integration validation; regression tests=permanent safety net.
+Real-world examples uncovering bugs (GC, missing globals, CJS-ESM, MainLoop) → always add targeted test to relevant `*.spec.ts`. Examples = integration validation; regression tests = permanent safety net.
 
-### Test Sources
+### Test sources
 
-Rewrite using `@gjsify/unit`, bare specifiers. Never copy verbatim. Select: core behavior, GNOME-relevant edge cases, error conditions, cross-platform compat. Skip: V8 internals, native addons, stubbed features.
+Rewrite in `@gjsify/unit` with bare specifiers. Never copy verbatim. Select: core behavior, GNOME-relevant edge cases, errors, cross-platform. Skip: V8 internals, native addons, stubbed features.
 
-### Deno Web API Refs — `refs/deno/`
+### Deno Web API refs — `refs/deno/`
 
-`ext/web/`{`06_streams`(R/W/TransformStream), `14_compression`(Compression/DecompressionStream), `02_event`(Event,EventTarget,CustomEvent,ErrorEvent,CloseEvent,MessageEvent), `03_abort_signal`(AbortController/Signal), `08_text_encoding`(TextEncoder/Decoder), `09_file,10_filereader`(Blob,File,FileReader), `15_performance`(Performance,Mark/Measure/Observer), `02_structured_clone,13_message_port,16_image_data,01_broadcast_channel,01_urlpattern`} | `ext/fetch/`{`20-26`(fetch,Headers,Request,Response,FormData), `27_eventsource`(SSE)} | `ext/crypto/00_crypto`(SubtleCrypto,CryptoKey,getRandomValues,randomUUID) | `ext/{websocket/01,webstorage/01,cache/01,image/01}`(WebSocket,Storage,Cache,ImageBitmap)
+`ext/web/`{`06_streams`, `14_compression`, `02_event`(Event,EventTarget,CustomEvent,ErrorEvent,CloseEvent,MessageEvent), `03_abort_signal`, `08_text_encoding`, `09_file,10_filereader`(Blob,File,FileReader), `15_performance`, `02_structured_clone,13_message_port,16_image_data,01_broadcast_channel,01_urlpattern`} | `ext/fetch/`{`20-26`(fetch,Headers,Request,Response,FormData), `27_eventsource`} | `ext/crypto/00_crypto`(SubtleCrypto,CryptoKey,getRandomValues,randomUUID) | `ext/{websocket/01,webstorage/01,cache/01,image/01}`
 
-### Integration Tests — `tests/integration/`
+### Integration tests — `tests/integration/`
 
-A sibling to `tests/e2e/` and `tests/dom/`, dedicated to **running curated upstream tests from popular npm packages against `@gjsify/*` implementations**. Integration tests *validate* the Node/Web/DOM/Framework pillars end-to-end in a real consumer — they are not themselves a pillar.
+Sibling to `tests/e2e/`/`tests/dom/`. Runs curated upstream tests from npm packages against `@gjsify/*` — validates pillars end-to-end in a real consumer (not itself a pillar).
 
-Layout: `tests/integration/<pkg>/` with `package.json` named `@gjsify/integration-<pkg>`, `private: true`, scripts `prebuild:test:{gjs,node}` (→ fixtures), `build:test:{gjs,node}` (→ `dist/test.{gjs,node}.mjs`), `test:{gjs,node}`, `test`. Specs live in `src/*.spec.ts`, aggregator in `src/test.mts`. Fixtures (if any) copied at prebuild time from an npm devDep into `./fixtures/` (gitignored) and loaded via `new URL('../fixtures/<file>', import.meta.url)` + `fileURLToPath` — NOT bundled into the JS, NOT committed. See `tests/integration/README.md` for the port convention.
+Layout: `tests/integration/<pkg>/` → `@gjsify/integration-<pkg>`, `private:true`, scripts `prebuild:test:{gjs,node}` (→ fixtures), `build:test:{gjs,node}` (→ `dist/test.{gjs,node}.mjs`), `test:{gjs,node}`, `test`. Specs `src/*.spec.ts`, aggregator `src/test.mts`. Fixtures copied at prebuild from npm devDep → `./fixtures/` (gitignored), loaded via `new URL('../fixtures/<file>', import.meta.url)` + `fileURLToPath` — NOT bundled, NOT committed. See `tests/integration/README.md`.
 
-**Port convention — manual rewrite into `@gjsify/unit` style.** Each upstream test file becomes one `<name>.spec.ts` with:
-
+**Port convention — manual rewrite to `@gjsify/unit`.** Each upstream file → `<name>.spec.ts`:
 ```ts
 // SPDX-License-Identifier: MIT
 // Ported from refs/<pkg>/test/<name>.js
 // Original: Copyright (c) <holder>. <license>.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 ```
+tape→gjsify-unit: `t.equal`→`expect().toBe` | `t.deepEqual`→`toStrictEqual` | `t.ok/notOk`→`toBeTruthy/Falsy` | `t.error(err)`→`expect(err).toBeFalsy()` | `t.throws(fn)`→`expect(fn).toThrow()` | `t.plan/t.end` omitted | callback cleanup → `new Promise((res,rej)=>op(err=>err?rej(err):res()))`. **Never weaken.** Failure → root-cause fix. Exception: pre-known out-of-scope gap → wrap suite with `on('Node.js', async ()=>{…})` + document in file header + STATUS.md `## Integration Test Coverage`. Skips temporary.
 
-tape → gjsify-unit mapping: `t.equal` → `expect().toBe` | `t.deepEqual` → `expect().toStrictEqual` | `t.ok/notOk` → `expect().toBeTruthy/Falsy` | `t.error(err)` → `expect(err).toBeFalsy()` | `t.throws(fn)` → `expect(fn).toThrow()` | `t.plan/t.end` → omitted (Promise resolves) | callback-style cleanup → `new Promise((res, rej) => op(err => err ? rej(err) : res()))`. **Never weaken assertions.** When a port fails, fix the root cause in `@gjsify/*` — don't guard the assertion. Exception: if a port reveals a pre-known `@gjsify/*` gap that is out of scope for the current PR, wrap the suite with `on('Node.js', async () => { … })` and document the gap in the file header *plus* in `STATUS.md` `## Integration Test Coverage`. These skips are temporary.
+No `@gjsify/test-compat` shim today (manual rewrite keeps code idiomatic). Revisit when 2nd dialect (mocha+expect.js for socket.io) is added.
 
-No `@gjsify/test-compat` shim package today (manual rewrite keeps the codebase idiomatic). Revisit when a second test-runner dialect (mocha + expect.js for socket.io) is added.
+Scripts: `yarn test:integration[:node|:gjs]`. NOT part of `yarn test` — opt-in to avoid blocking PRs on tracked gaps.
 
-**Scripts.** From the repo root: `yarn test:integration` (both runtimes) | `yarn test:integration:node` | `yarn test:integration:gjs`. The target is **not** part of `yarn test` — keep it opt-in to avoid blocking PRs on `@gjsify/*` gaps that are already tracked.
+**Protocol-fuzzing integration** (`tests/integration/autobahn/`, non-port): runs [crossbario/autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite) Python fuzzingserver in Podman/Docker, points Gjs drivers at it. Thin echo-client iterating `getCaseCount`→`runCase`→`updateReports` (pattern from `refs/ws/test/autobahn.js`). Validation: diff `reports/output/clients/index.json` vs `reports/baseline/<agent>.json` via `scripts/validate-reports.mjs` (regressions/improvements/missing per agent). Two drivers: `@gjsify/websocket` (W3C over Soup) + `@gjsify/ws` (npm `ws` wrapper) — isolates wrapper-layer from transport-layer bugs. Runtime: `scripts/autobahn-up.mjs`/`down.mjs` — `CONTAINER_RUNTIME=podman|docker` overrides auto-detection (prefers Podman; Fedora default).
 
-**Protocol-fuzzing integration (non-port):** `tests/integration/autobahn/` is the exception to the "port upstream tests" pattern. It runs the [crossbario/autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite) Python fuzzingserver in a Podman/Docker container and points Gjs-side driver scripts at it. The driver is not a ported test file; it's a thin echo-client that iterates `getCaseCount` → `runCase` → `updateReports`, matching the pattern of `refs/ws/test/autobahn.js`. Validation is done by diffing the generated `reports/output/clients/index.json` against a committed `reports/baseline/<agent>.json` — `scripts/validate-reports.mjs` surfaces regressions, improvements, and missing cases per agent. Two drivers exist: one for `@gjsify/websocket` (foundational W3C WebSocket over Soup), one for `@gjsify/ws` (the npm `ws` wrapper on top). Comparing the two scores isolates wrapper-layer bugs from transport-layer bugs. Runtime abstraction lives in `scripts/autobahn-up.mjs` / `autobahn-down.mjs` — `CONTAINER_RUNTIME=podman|docker` env var overrides the auto-detection (prefers Podman; Fedora default).
+## Package convention
 
-## Package Convention
+`packages/node/<name>/` → `@gjsify/<name>`, v0.1.11, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
 
-`packages/node/<name>/`: `@gjsify/<name>`, v0.1.11, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if the package provides globals) | `sideEffects: ["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`, devDep: `@gjsify/unit` | workspace deps: `workspace:^`
+Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals) | `src/*.spec.ts` | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + feature-specific `<pkg>/register`). Full rules: Tree-shakeable Globals section.
 
-Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals, if applicable) | `src/*.spec.ts` (specs) | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + any feature-specific `<pkg>/register`). See the Tree-shakeable Globals section for the full rules.
+**Framework packages** (`packages/framework/<name>/`): flat name `@gjsify/<name>` (NOT `@gjsify/framework-<name>`), composition-first. **No `/register`, no `globalThis.*` writes, no top-level side effects.** Pure named exports. Compose standard DOM/GTK APIs; never register browser globals (Web/DOM pillars' job). A framework pkg needing a global imports `@gjsify/<web-or-dom-pkg>/register` explicitly. Minimal: `src/index.ts` + `package.json` + `tsconfig.json`.
 
-**Framework packages** (`packages/framework/<name>/`): flat name `@gjsify/<name>` (NOT `@gjsify/framework-<name>`), composition-first. **No `/register` subpath, no `globalThis.*` writes, no side effects at module top-level.** Pure named exports only. Framework packages compose standard DOM/GTK APIs into higher-level helpers; they never register browser globals (that is the Web/DOM pillars' job). A framework package that needs a global should import the corresponding `@gjsify/<web-or-dom-pkg>/register` explicitly — not wrap it. Minimal layout: `src/index.ts` + `package.json` + `tsconfig.json`.
+Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating; only extract when 2nd package needs it.
 
-Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating. Only extract when second package needs it.
+**`@gjsify/stream` direct imports** in internal modules/test files needing non-standard exports (`Stream_`, `makeCallable`, internal state types) are allowed. All public code (examples, showcases, cross-package APIs) must use `node:stream`.
 
-**`@gjsify/stream` direct imports in internal modules:** Internal modules and test files that need non-standard exports (e.g. `Stream_`, `makeCallable`, internal state types) may import `@gjsify/stream` directly. All public-facing code (examples, showcases, cross-package APIs) must use `node:stream`.
+## Example convention (GTK + browser)
 
-## Example Convention (GTK + Browser)
-
-Dual-target examples with Adwaita UI:
+Dual-target with Adwaita UI:
 
 ```
 examples/gtk/<name>/src/
-  <shared>.ts        # Platform-agnostic logic, shared constants
-  gjs/               # GJS/GTK4 native
-    gjs.ts           # Adw.Application entry
-    <window>.ts      # GObject.registerClass window
-    <window>.blp     # Blueprint template
-  browser/           # Browser target
-    browser.ts       # @gjsify/adwaita-web programmatic UI
-    index.html       # Minimal shell (<body> only)
-    webgl.css        # Layout styles
-  assets/            # Shared resources (textures, fonts)
+  <shared>.ts        # Platform-agnostic logic + constants
+  gjs/               # Adw.Application, GObject window, .blp
+  browser/           # @gjsify/adwaita-web UI, index.html, .css
+  assets/            # Shared (textures, fonts)
 ```
 
 Scripts: `build:gjs`→`gjsify build src/gjs/gjs.ts --app gjs` | `build:browser`→`gjsify build src/browser/browser.ts --app browser` | `start`→`gjsify run dist/gjs.js` | `start:browser`→`http-server dist`
 
-Constants (dropdown items, defaults) live in shared `.ts` — both `gjs/` and `browser/` import from there. No duplication in HTML templates.
+Constants (dropdowns, defaults) in shared `.ts` — both `gjs/` + `browser/` import. No duplication in HTML.
 
 ## Showcase — `gjsify showcase`
 
-Showcases are polished, curated examples under `showcases/`. They are published npm packages (`@gjsify/example-{dom,node}-<name>`) and serve as CLI dependencies. Showcases are always self-contained and independently runnable — both via `gjsify showcase <name>` (GJS) and as standalone projects (`yarn start` / `yarn start:browser`).
+Polished examples under `showcases/`. Published npm packages (`@gjsify/example-{dom,node}-<name>`), CLI deps. Self-contained + independently runnable (`gjsify showcase <name>`, `yarn start[:browser]`).
 
-### Showcase Rules
+Rules: CLI executable via `gjsify showcase <name>` | browser version embedded in website (imports as npm package: `import { mount } from '@gjsify/example-dom-three-postprocessing-pixel/browser'`) | full npm package — export browser entry + assets + package.json via `exports`, never reference internals via relative paths | self-contained | production-quality, not experiments.
 
-- **CLI dependency:** Showcases are dependencies of `@gjsify/cli` and can be executed directly via `gjsify showcase <name>`
-- **Website integration:** The browser version of showcases can be embedded in the website. The website imports showcases as npm packages (e.g. `import { mount } from '@gjsify/example-dom-three-postprocessing-pixel/browser'`)
-- **Full npm packages:** Showcases must export everything needed via `package.json` `exports` — browser entry, shared logic, assets. Never reference showcase internals via relative filesystem paths; always resolve through the package name
-- **Self-contained:** Each showcase is independently buildable and runnable without the rest of the monorepo
-- **Polished examples:** Showcases are production-quality demonstrations, not development experiments
-
-### Showcase exports pattern
-
+Exports pattern:
 ```json
 "exports": {
   "./browser": "./src/browser/browser.ts",
@@ -517,27 +439,22 @@ Showcases are polished, curated examples under `showcases/`. They are published 
   "./package.json": "./package.json"
 }
 ```
+Assets via `require.resolve('@gjsify/example-dom-<name>/assets/<file>')`.
 
-Assets are resolved via `require.resolve('@gjsify/example-dom-<name>/assets/<file>')` — never via relative filesystem paths.
+`examples/` → private (`"private":true`, no version, not published, not in CLI) — dev/test only.
 
-### Examples vs Showcases
+Discovery: `gjsify showcase` lists; `<name>` runs `check` then shared `runGjsBundle()`. Dynamic scan of CLI's `package.json` for `@gjsify/example-*` deps, `require.resolve` each, read `main`.
 
-Examples under `examples/` are private (`"private": true`, no version) and are NOT published or included in the CLI. They serve as dev/test projects only.
+**Adding a showcase:** (1) `showcases/{dom,node}/<name>/` named `@gjsify/example-{dom,node}-<name>` (2) `"files":["dist"]`, keep version, no `"private"` (3) export browser entry + assets + package.json (4) all deps → devDependencies except `@gjsify/webgl` (5) add as dep in `packages/infra/cli/package.json` (6) rebuild CLI.
 
-### Discovery & Execution
+**Dep rule:** esbuild-bundled → `devDependencies`. Only packages with native prebuilds needed by `gjsify run` at runtime (only `@gjsify/webgl` today) stay in `dependencies`.
 
-`gjsify showcase` lists available showcases | `gjsify showcase <name>` runs `check` first, then executes via shared `runGjsBundle()` logic. Discovery is dynamic: scans CLI's own `package.json` for `@gjsify/example-*` deps, resolves each via `require.resolve`, reads `main` field.
-
-**Adding a new showcase:** (1) create under `showcases/{dom,node}/<name>/` with name `@gjsify/example-{dom,node}-<name>` (2) set `"files":["dist"]`, keep version, no `"private"` (3) export browser entry, assets, and `package.json` (4) move all deps to `devDependencies` except `@gjsify/webgl` (5) add as dependency in `packages/infra/cli/package.json` (6) rebuild CLI
-
-**Dependency rule for published showcases:** Everything bundled by esbuild → `devDependencies`. Only packages with native prebuilds needed by `gjsify run` at runtime (currently only `@gjsify/webgl`) stay in `dependencies`.
-
-## Implementation Workflow (TDD)
+## Implementation workflow (TDD)
 
 1. Study API: `refs/node/lib/<name>.js`
-2. Port tests to `*.spec.ts` using `@gjsify/unit`
+2. Port tests to `*.spec.ts` via `@gjsify/unit`
 3. `yarn test:node` — verify tests correct
-4. `yarn test:gjs` — expect failures → fix implementation
+4. `yarn test:gjs` — expect failures → fix impl
 5. Implement with `@girs/*`, consult `refs/{deno,bun,quickjs,workerd}/`
 6. Iterate until both pass
 7. Full: `yarn install && yarn clear && yarn build && yarn check && yarn test`
@@ -548,27 +465,27 @@ Examples under `examples/` are private (`"private": true`, no version) and are N
 
 ## Source Attribution
 
-Templates: **A**(direct adaptation): `SPDX-License-Identifier: MIT` + `Adapted from <project> (<refs/path>). Copyright (c) <year> <holder>` + `Modifications: <brief>` | **B**(API reimpl): `Reference: Node.js lib/<name>.js[, refs/deno/...]` + `Reimplemented for GJS using <lib>` | **C**(ported tests): `Ported from refs/<project>/test/...` + `Original: MIT, <holder>` | **D**(spec algorithm): `Implements <algo> per <spec> (<RFC>)` + `Reference: refs/<project>/path. Copyright (c) <holder>. <license>.`
+**Templates** — **A** (direct adaptation): `SPDX-License-Identifier: MIT` + `Adapted from <project> (<refs/path>). Copyright (c) <year> <holder>` + `Modifications: <brief>` | **B** (API reimpl): `Reference: Node.js lib/<name>.js[, refs/deno/...]` + `Reimplemented for GJS using <lib>` | **C** (ported tests): `Ported from refs/<project>/test/...` + `Original: MIT, <holder>` | **D** (spec algorithm): `Implements <algo> per <spec> (<RFC>)` + `Reference: refs/<project>/path. Copyright (c) <holder>. <license>.`
 
-Every impl→A or B. Every ported test→C. Original: `// <Module> for GJS — original implementation using <library>`. Use `refs/` paths over URLs.
+Every impl → A or B. Every ported test → C. Original: `// <Module> for GJS — original implementation using <library>`. Use `refs/` paths over URLs.
 
-### Copyright
+### Copyright (refs/<pkg> → holder, license)
 
-`refs/{node,node-test}/`→Node.js contributors, MIT | `refs/deno/`→2018-2026 Deno authors, MIT | `refs/bun/`→Oven, MIT | `refs/quickjs/`→Bellard+Gordon, MIT | `refs/workerd/`→Cloudflare, Apache 2.0 | `refs/edgejs/`→Wasmer, MIT | `refs/{crypto-browserify,browserify-cipher,create-hash,create-hmac,randombytes,randomfill}/`→crypto-browserify contributors, MIT | `refs/{browserify-sign,diffie-hellman,public-encrypt}/`→Calvin Metcalf, ISC/MIT | `refs/create-ecdh/`→createECDH contributors, MIT | `refs/hash-base/`→Kirill Fomichev, MIT | `refs/pbkdf2/`→Daniel Cousens, MIT | `refs/readable-stream/`→Node.js contributors, MIT | `refs/undici/`→Matteo Collina+contributors, MIT | `refs/gjs/`→GNOME contributors, MIT/LGPLv2+ | `refs/headless-gl/`→Mikola Lysenko, BSD-2-Clause | `refs/webgl/`→Khronos Group, MIT | `refs/three/`→three.js authors, MIT | `refs/libepoxy/`→Intel, MIT | `refs/node-gst-webrtc/`→Ratchanan Srirattanamet, ISC | `refs/llrt/`→Amazon, Apache 2.0 | `refs/happy-dom/`→David Ortner, MIT | `refs/jsdom/`→Elijah Insua, MIT | `refs/wpt/`→web-platform-tests contributors, 3-Clause BSD | `refs/ungap-structured-clone/`→Andrea Giammarchi, ISC | `refs/adwaita-web/`→mclellac, MIT | `refs/libadwaita/`→GNOME contributors, LGPLv2.1+ | `refs/adwaita-fonts/`→Inter/Iosevka/GNOME contributors, SIL OFL 1.1 | `refs/app-mockups/`→GNOME contributors, CC-BY-SA | node-fetch→MIT | event-target-shim→Toru Nagashima, MIT | gjs-require→Andrea Giammarchi, ISC
+|node,node-test → Node.js contributors, MIT |deno → 2018-2026 Deno authors, MIT |bun → Oven, MIT |quickjs → Bellard+Gordon, MIT |workerd → Cloudflare, Apache 2.0 |edgejs → Wasmer, MIT |crypto-browserify,browserify-cipher,create-hash,create-hmac,randombytes,randomfill → crypto-browserify contributors, MIT |browserify-sign,diffie-hellman,public-encrypt → Calvin Metcalf, ISC/MIT |create-ecdh → createECDH contributors, MIT |hash-base → Kirill Fomichev, MIT |pbkdf2 → Daniel Cousens, MIT |readable-stream → Node.js contributors, MIT |undici → Matteo Collina+contributors, MIT |gjs → GNOME contributors, MIT/LGPLv2+ |headless-gl → Mikola Lysenko, BSD-2-Clause |webgl → Khronos Group, MIT |three → three.js authors, MIT |libepoxy → Intel, MIT |node-gst-webrtc → Ratchanan Srirattanamet, ISC |llrt → Amazon, Apache 2.0 |happy-dom → David Ortner, MIT |jsdom → Elijah Insua, MIT |wpt → web-platform-tests contributors, 3-Clause BSD |ungap-structured-clone → Andrea Giammarchi, ISC |adwaita-web → mclellac, MIT |libadwaita → GNOME contributors, LGPLv2.1+ |adwaita-fonts → Inter/Iosevka/GNOME, SIL OFL 1.1 |app-mockups → GNOME contributors, CC-BY-SA |node-fetch → MIT |event-target-shim → Toru Nagashima, MIT |gjs-require → Andrea Giammarchi, ISC
 
 ## STATUS.md & CHANGELOG.md Maintenance
 
-**STATUS.md must always reflect the current state of the codebase.** Whenever a feature lands, a bug is fixed, a test is added, a workaround is discovered, or a deferred item is identified, STATUS.md must be updated in the same commit. Never leave STATUS.md drift between sessions.
+**STATUS.md always reflects current codebase state.** Feature lands / bug fixed / test added / workaround discovered / deferred item identified → update STATUS.md in the same commit. Never leave drift.
 
-Update STATUS.md when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates".
+Update when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates".
 
-**Track deferred work in the dedicated `Open TODOs` section.** Every "out of scope", "follow-up" or "later" note from a PR description, plan file or commit message must have a corresponding entry there — otherwise it gets forgotten. When a TODO is resolved, move it to the relevant `### Completed` list (or delete it if trivial).
+**Track deferred work in dedicated `Open TODOs` section.** Every "out of scope" / "follow-up" / "later" note from PR description / plan file / commit message must have a corresponding entry — otherwise forgotten. Resolved TODO → move to `### Completed` list (or delete if trivial).
 
-**Changelog entries live ONLY in CHANGELOG.md.** STATUS.md describes the current state; CHANGELOG.md records what changed and when. Do NOT add dated "Latest:" lines, changelog highlights, or per-session summaries to STATUS.md — they belong in CHANGELOG.md. Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
+**Changelog entries ONLY in CHANGELOG.md.** STATUS.md = current state; CHANGELOG.md = what changed + when. Do NOT add dated "Latest:" lines, changelog highlights, or per-session summaries to STATUS.md. Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
 
 ## Constraints
 
-Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128` | ESM-only | GNOME libs + standard JS only | Tests pass on both Node.js and GJS | Do not modify `refs/`
+Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128` | ESM-only | GNOME libs + standard JS only | Tests pass on both Node + GJS | Do NOT modify `refs/`
 
 ## JS Feature Availability
 
@@ -580,10 +497,8 @@ Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128` | ESM-only
 
 ### SM140 (GJS 1.85.2+/1.87+, upcoming)
 
-All SM128-missing features become available. Notable: Error.captureStackTrace native (drop polyfill) | Temporal API | Iterator helpers | import...with{type:"json"}
+All SM128-missing features become available. Notable: Error.captureStackTrace native (drop polyfill) | Temporal | Iterator helpers | `import...with{type:"json"}`
 
-## Writing Agent Context Files
+## Writing agent context files
 
-Pipe-delimited format | single-line directives | strip prose | abbreviated keys (req,opt,str,int,bool,len,min,max,def) | flatten with brace expansion | "Prefer retrieval-led reasoning" preamble
-
-Compression: 70–80% token reduction | preserve actionable info+structural boundaries | keep non-obvious code examples | never compress error messages/edge case docs
+Pipe-delimited | single-line directives | strip prose | abbreviated keys (req,opt,str,int,bool,len,min,max,def) | flatten with brace expansion | "Prefer retrieval-led reasoning" preamble. Compression: 70–80% token reduction | preserve actionable info + structural boundaries | keep non-obvious code examples | never compress error messages / edge case docs.
