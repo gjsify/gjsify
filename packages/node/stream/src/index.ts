@@ -1204,8 +1204,12 @@ class Duplex_ extends Readable_ {
       });
     };
 
-    // Wait for all pending writes to complete before calling _final
-    if (this._pendingWrites > 0) {
+    // Wait for all pending writes to complete before calling _final.
+    // Transform._write is synchronous (calls user cb in same tick), so _pendingWrites
+    // can be 0 even while follow-up writes sit in _duplexWriteQueue. Check the queue
+    // and the write-in-flight flag too, otherwise end() fires _final — which for
+    // Transform pushes null — before the queued chunks reach _transform.
+    if (this._pendingWrites > 0 || this._duplexWriting || this._duplexWriteQueue.length > 0) {
       this._pendingEndCb = doFinal;
     } else {
       doFinal();
