@@ -63,6 +63,7 @@ When none of those apply, the default is: fix the root cause in this PR, no matt
 | v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
 | vm | — | Stub | runInThisContext (eval), Script |
 | worker_threads | — | Stub | isMainThread only |
+| ws (npm) | Soup 3.0 | Partial | `ws`-compatible WebSocket client + WebSocketServer over @gjsify/websocket and Soup.Server; `ws` and `isomorphic-ws` both aliased here; missing noServer/handleUpgrade, verifyClient, custom perMessageDeflate, ping/pong events |
 | zlib | — | Full | gzip/deflate via Web Compression API, Gio.ZlibCompressor fallback |
 
 ## Web Packages — `packages/web/*`

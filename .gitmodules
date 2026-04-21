@@ -176,3 +176,6 @@
 [submodule "refs/streamx"]
 	path = refs/streamx
 	url = https://github.com/mafintosh/streamx
+[submodule "refs/ws"]
+	path = refs/ws
+	url = git@github.com:websockets/ws.git

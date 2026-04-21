@@ -12618,7 +12618,25 @@ var ALIASES_NODE_FOR_GJS = {
   "worker_threads": "@gjsify/worker_threads",
   "zlib": "@gjsify/zlib",
   // Third party Node Modules
-  "node-fetch": "@gjsify/fetch"
+  "node-fetch": "@gjsify/fetch",
+  // `ws` npm package — drop-in CLIENT+SERVER wrapper. The client side
+  // delegates to globalThis.WebSocket (Soup.WebsocketConnection via
+  // @gjsify/websocket); the server side wraps Soup.Server. Aliasing
+  // `ws` here replaces the broken browser-field stub in the upstream
+  // package ("ws does not work in the browser") that esbuild's
+  // "browser" condition would otherwise load. Consumer code like
+  //   import ws, { WebSocket, WebSocketServer } from 'ws'
+  // resolves to @gjsify/ws unchanged, including the `typeof ws ===
+  // 'function'` heuristic used by @thaunknown/simple-websocket and
+  // similar transitive users.
+  "ws": "@gjsify/ws",
+  // isomorphic-ws's browser.js is literally `module.exports = WebSocket`
+  // — just the native class. On GJS that native class is @gjsify/websocket
+  // (Soup.WebsocketConnection), so skip the @gjsify/ws ws-API wrapper
+  // entirely and route isomorphic-ws directly to @gjsify/websocket.
+  // Consumers who do `import WS from 'isomorphic-ws'` get our class
+  // unchanged — one less delegation hop than going through @gjsify/ws.
+  "isomorphic-ws": "@gjsify/websocket"
 };
 var ALIASES_WEB_FOR_GJS = {
   // Bare specifiers (named imports, pure — no side-effects after Stage 2)
