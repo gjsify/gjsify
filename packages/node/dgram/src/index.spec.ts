@@ -269,9 +269,51 @@ export default async () => {
           });
         });
       });
+
     });
 
     // --- Additional tests ---
+
+    // Cross-platform fix: mismatched address-family sends must fail cleanly
+    // via the callback with EINVAL. On Node this matches the kernel errno;
+    // on GJS, Gio.Socket.send_to would otherwise throw NOT_SUPPORTED with a
+    // German message before our fix. Numeric IPs skip the DNS path so these
+    // run without MainLoop — safe for GJS even without a bind.
+    await describe('address-family mismatch (numeric IP, sync path)', async () => {
+      await it('udp4 + ::1 → EINVAL via callback', async () => {
+        const client = createSocket('udp4');
+        await new Promise<void>((resolve, reject) => {
+          client.send('x', 12345, '::1', (err) => {
+            try {
+              expect(err).not.toBeNull();
+              expect((err as NodeJS.ErrnoException).code).toBe('EINVAL');
+              client.close();
+              resolve();
+            } catch (e) {
+              client.close();
+              reject(e);
+            }
+          });
+        });
+      });
+
+      await it('udp6 + 127.0.0.1 → EINVAL via callback', async () => {
+        const client = createSocket('udp6');
+        await new Promise<void>((resolve, reject) => {
+          client.send('x', 12345, '127.0.0.1', (err) => {
+            try {
+              expect(err).not.toBeNull();
+              expect((err as NodeJS.ErrnoException).code).toBe('EINVAL');
+              client.close();
+              resolve();
+            } catch (e) {
+              client.close();
+              reject(e);
+            }
+          });
+        });
+      });
+    });
 
     await describe('createSocket with reuseAddr option', async () => {
       await it('should create a socket with reuseAddr true', async () => {
