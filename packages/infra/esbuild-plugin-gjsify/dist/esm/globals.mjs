@@ -6049,6 +6049,7 @@ var GJS_GLOBALS_GROUPS = {
     "WheelEvent",
     "FocusEvent",
     "EventSource",
+    "WebSocket",
     "DOMException",
     "performance",
     "PerformanceObserver",
@@ -6141,6 +6142,11 @@ var GJS_GLOBALS_MAP = {
   WheelEvent: "dom-events/register/ui-events",
   FocusEvent: "dom-events/register/ui-events",
   EventSource: "eventsource/register",
+  // --- WebSocket ---------------------------------------------------------
+  // Single register module sets globalThis.{WebSocket,MessageEvent,CloseEvent}.
+  // MessageEvent is shared with dom-events in practice — whichever register
+  // runs first installs it; both guard with typeof === 'undefined'.
+  WebSocket: "websocket/register",
   // --- Performance -------------------------------------------------------
   performance: "@gjsify/web-globals/register/performance",
   PerformanceObserver: "@gjsify/web-globals/register/performance",
@@ -12667,6 +12673,7 @@ var ALIASES_WEB_FOR_GJS = {
   "dom-events/register/ui-events": "@gjsify/dom-events/register/ui-events",
   "dom-exception/register": "@gjsify/dom-exception/register",
   "eventsource/register": "@gjsify/eventsource/register",
+  "websocket/register": "@gjsify/websocket/register",
   "fetch/register": "@gjsify/fetch/register",
   "fetch/register/fetch": "@gjsify/fetch/register/fetch",
   "fetch/register/xhr": "@gjsify/fetch/register/xhr",
@@ -12742,6 +12749,7 @@ var ALIASES_WEB_FOR_NODE = {
   "dom-events/register/ui-events": "@gjsify/empty",
   "dom-exception/register": "@gjsify/empty",
   "eventsource/register": "@gjsify/empty",
+  "websocket/register": "@gjsify/empty",
   "fetch/register": "@gjsify/empty",
   "fetch/register/fetch": "@gjsify/empty",
   "fetch/register/xhr": "@gjsify/empty",
@@ -12760,6 +12768,7 @@ var ALIASES_WEB_FOR_NODE = {
   "@gjsify/dom-events/register/ui-events": "@gjsify/empty",
   "@gjsify/dom-exception/register": "@gjsify/empty",
   "@gjsify/eventsource/register": "@gjsify/empty",
+  "@gjsify/websocket/register": "@gjsify/empty",
   "@gjsify/fetch/register": "@gjsify/empty",
   "@gjsify/fetch/register/fetch": "@gjsify/empty",
   "@gjsify/fetch/register/xhr": "@gjsify/empty",
