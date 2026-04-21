@@ -199,6 +199,29 @@ export class Socket extends EventEmitter {
     ensureMainLoop();
   }
 
+  /** Socket family that matches `this.type` (udp4 → IPv4, udp6 → IPv6). */
+  private _socketFamily(): Gio.SocketFamily {
+    return this.type === 'udp6' ? Gio.SocketFamily.IPV6 : Gio.SocketFamily.IPV4;
+  }
+
+  /** True when `addr` can be sent to from a socket bound with `this._socketFamily()`. */
+  private _isAddressCompatible(addr: Gio.InetAddress): boolean {
+    return addr.get_family() === this._socketFamily();
+  }
+
+  /** Build an EINVAL error for a destination whose family doesn't match the socket.
+   *  Matches Node.js dgram behavior (node reports EINVAL from sendto(2) when the
+   *  destination address family is incompatible with the bound socket). */
+  private _mismatchError(destAddress: string): NodeJS.ErrnoException {
+    const want = this.type === 'udp6' ? 'IPv6' : 'IPv4';
+    const err = new Error(
+      `EINVAL: cannot send to ${destAddress} from a ${want} socket (address-family mismatch)`,
+    ) as NodeJS.ErrnoException;
+    err.code = 'EINVAL';
+    err.syscall = 'send';
+    return err;
+  }
+
   private _resolveAndSend(destAddress: string, destPort: number, buf: Buffer, cb: ((err: Error | null, bytes: number) => void) | undefined): void {
     if (this._closed || !this._socket) {
       if (cb) cb(new Error('Socket is closed'), 0);
@@ -209,6 +232,18 @@ export class Socket extends EventEmitter {
     let inetAddr = Gio.InetAddress.new_from_string(destAddress);
 
     const doSend = (addr: Gio.InetAddress) => {
+      // Address-family mismatch — e.g. IPv6 destination, IPv4-bound socket.
+      // Gio.Socket.send_to would throw Gio.IOErrorEnum.NOT_SUPPORTED
+      // ("Die Adressfamilie wird von der Protokollfamilie nicht unterstützt").
+      // DHT/tracker code treats this as a recoverable warning and keeps going;
+      // surface it as ENETUNREACH so consumers see a familiar Node errno
+      // instead of a raw GLib German message.
+      if (!this._isAddressCompatible(addr)) {
+        const err = this._mismatchError(destAddress);
+        if (cb) cb(err, 0);
+        else this.emit('error', err);
+        return;
+      }
       try {
         this._autoBind();
         const sockAddr = new Gio.InetSocketAddress({ address: addr, port: destPort });
@@ -237,7 +272,18 @@ export class Socket extends EventEmitter {
           else this.emit('error', err);
           return;
         }
-        doSend(addresses[0]);
+        // Prefer an address whose family matches this socket. Without this,
+        // picking addresses[0] (which can be IPv6) for an IPv4-bound socket
+        // hits EAFNOSUPPORT deep in Gio.Socket.send_to. DHT code queries many
+        // tracker/bootstrap hostnames that return mixed A / AAAA records.
+        const compatible = addresses.find(a => this._isAddressCompatible(a));
+        if (!compatible) {
+          const err = this._mismatchError(destAddress);
+          if (cb) cb(err, 0);
+          else this.emit('error', err);
+          return;
+        }
+        doSend(compatible);
       } catch (err) {
         if (cb) cb(err instanceof Error ? err : new Error(String(err)), 0);
         else this.emit('error', err);
