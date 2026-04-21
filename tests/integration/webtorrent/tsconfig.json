@@ -17,6 +17,7 @@
         "src/bitfield.spec.ts",
         "src/file-buffer.spec.ts",
         "src/iterator.spec.ts",
-        "src/client-add.spec.ts"
+        "src/client-add.spec.ts",
+        "src/wire-transfer.spec.ts"
     ]
 }
