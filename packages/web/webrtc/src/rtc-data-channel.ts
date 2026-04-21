@@ -14,6 +14,8 @@ import GLib from 'gi://GLib?version=2.0';
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { DataChannelBridge, type DataChannelBridge as DataChannelBridgeType } from '@gjsify/webrtc-native';
+import { DOMException } from '@gjsify/dom-exception';
+import { Blob } from '@gjsify/buffer';
 
 import { RTCError } from './rtc-error.js';
 import { RTCErrorEvent } from './rtc-events.js';
@@ -143,11 +145,9 @@ export class RTCDataChannel extends EventTarget {
         // values must be silently ignored — keep the previous value.
         // See: refs/wpt/webrtc/RTCDataChannel-binaryType.window.js
         if (v !== 'arraybuffer' && v !== 'blob') return;
-        if (v === 'blob' && typeof (globalThis as any).Blob === 'undefined') {
-            const DOMExc = (globalThis as any).DOMException;
-            const msg = `binaryType 'blob' requires globalThis.Blob. Import '@gjsify/buffer/register' to provide it.`;
-            throw DOMExc ? new DOMExc(msg, 'NotSupportedError') : new Error(msg);
-        }
+        // Blob is always available — we import it from @gjsify/buffer (GJS)
+        // or use the native one (Node), so the formerly gated `if (!Blob)`
+        // branch that threw NotSupportedError is no longer reachable.
         this._binaryType = v;
     }
 
@@ -171,9 +171,10 @@ export class RTCDataChannel extends EventTarget {
     send(data: string | ArrayBuffer | ArrayBufferView | Blob): void {
         const state = this.readyState;
         if (state !== 'open') {
-            const DOMExc = (globalThis as any).DOMException;
-            const msg = `RTCDataChannel.send: readyState is '${state}', expected 'open'`;
-            throw DOMExc ? new DOMExc(msg, 'InvalidStateError') : new Error(msg);
+            throw new DOMException(
+                `RTCDataChannel.send: readyState is '${state}', expected 'open'`,
+                'InvalidStateError',
+            );
         }
 
         if (typeof data === 'string') {
@@ -182,8 +183,8 @@ export class RTCDataChannel extends EventTarget {
             return;
         }
 
-        if (typeof (globalThis as any).Blob !== 'undefined' && data instanceof (globalThis as any).Blob) {
-            const blob = data as Blob;
+        if (data instanceof Blob) {
+            const blob = data;
             blob.arrayBuffer().then((buf) => {
                 try {
                     this._native.send_data(toGBytes(buf));
@@ -258,10 +259,8 @@ export class RTCDataChannel extends EventTarget {
     private _handleData(bytes: GLib.Bytes): void {
         if (!bytes) return;
         const buf = bytesToArrayBuffer(bytes);
-        let data: ArrayBuffer | Blob = buf;
-        if (this._binaryType === 'blob' && typeof (globalThis as any).Blob !== 'undefined') {
-            data = new (globalThis as any).Blob([buf]);
-        }
+        const data: ArrayBuffer | Blob =
+            this._binaryType === 'blob' ? new Blob([buf]) : buf;
         const ev = new MessageEvent('message', { data });
         this._onmessage?.call(this, ev);
         this.dispatchEvent(ev);

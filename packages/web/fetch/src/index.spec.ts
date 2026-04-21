@@ -1,6 +1,10 @@
 import { describe, it, expect, on } from '@gjsify/unit';
 
-import fetch, { Headers, Request, Response, FormData } from 'fetch';
+// fetch / Headers / Request / Response / FormData are accessed off globalThis:
+// on Node they are native, on GJS they are installed by
+// `@gjsify/fetch/register` (pulled in automatically by `--globals auto`).
+// XMLHttpRequest is GJS-only and is likewise read from globalThis inside an
+// on('Gjs', …) gate further below.
 
 export default async () => {
 
@@ -273,6 +277,58 @@ export default async () => {
 			const r = await fetch('data:text/plain;base64,aGVsbG8=');
 			const text = await r.text();
 			expect(text).toBe('hello');
+		});
+	});
+
+	await on('Gjs', async () => {
+		await describe('XMLHttpRequest responseType', async () => {
+			// Regression: Excalibur.js sets responseType='arraybuffer' for audio and
+			// 'blob' for images. Before this fix XHR ignored responseType and always
+			// returned text, which crashed gst_memory_new_wrapped on audio decode and
+			// broke URL.createObjectURL on image load.
+			//
+			// XMLHttpRequest is accessed off globalThis (not imported). On GJS it's
+			// registered by `@gjsify/fetch/register/xhr` (pulled in by --globals
+			// auto when the detector sees `new XMLHttpRequest()`); on Node there
+			// is no native XMLHttpRequest, so the suite is gated with on('Gjs', …).
+			const XHR = (globalThis as any).XMLHttpRequest;
+
+			const runXhr = (init: (xhr: any) => void) => new Promise<any>((resolve, reject) => {
+				const xhr = new XHR();
+				xhr.open('GET', 'data:text/plain;base64,aGVsbG8=');
+				init(xhr);
+				xhr.onload = () => resolve(xhr);
+				xhr.onerror = () => reject(new Error('xhr error'));
+				xhr.send();
+			});
+
+			await it('responseType="arraybuffer" yields ArrayBuffer', async () => {
+				const xhr = await runXhr((x) => { x.responseType = 'arraybuffer'; });
+				expect(xhr.response instanceof ArrayBuffer).toBe(true);
+				expect((xhr.response as ArrayBuffer).byteLength).toBe(5);
+			});
+
+			await it('responseType="text" yields decoded string', async () => {
+				const xhr = await runXhr((x) => { x.responseType = 'text'; });
+				expect(xhr.response).toBe('hello');
+				expect(xhr.responseText).toBe('hello');
+			});
+
+			await it('default responseType "" yields text', async () => {
+				const xhr = await runXhr(() => { /* responseType left at "" */ });
+				expect(xhr.response).toBe('hello');
+				expect(xhr.responseText).toBe('hello');
+			});
+
+			await it('responseType="blob" attaches _tmpPath for URL.createObjectURL', async () => {
+				const xhr = await runXhr((x) => { x.responseType = 'blob'; });
+				const blob = xhr.response as Blob & { _tmpPath?: string };
+				expect(blob instanceof Blob).toBe(true);
+				expect(typeof blob._tmpPath).toBe('string');
+				const url = URL.createObjectURL(blob);
+				expect(url.startsWith('file://')).toBe(true);
+				URL.revokeObjectURL(url);
+			});
 		});
 	});
 };

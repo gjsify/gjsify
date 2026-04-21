@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### fix — Excalibur Jelly Jumper showcase startup crash (2026-04-21)
+
+**Root cause:** Our `@gjsify/fetch` `XMLHttpRequest` ignored `responseType` and always returned the body as a string. Excalibur sets `responseType = 'arraybuffer'` for audio and `'blob'` for images, then feeds the (string) "arraybuffer" into `AudioContext.decodeAudioData`. Our webaudio decoder wraps the input in a `Uint8Array` and hands it to `Gst.Buffer.new_wrapped`; `new Uint8Array('')` is length 0, which marshals to a `NULL` data pointer and trips the `gst_memory_new_wrapped: assertion 'data != NULL' failed` critical — killing the GJS process before the game loop ran.
+
+**Fix (bundled):**
+
+- **`@gjsify/fetch` `XMLHttpRequest`** (`packages/web/fetch/src/xhr.ts`) now honours the spec: `arraybuffer` → real `ArrayBuffer`, `blob` → `Blob` with the body materialised to a GLib temp file and `_tmpPath` attached, `json` → parsed JSON, `text`/`''`/`document` → decoded text.
+- **`URL.createObjectURL` / `URL.revokeObjectURL` are first-class static methods on `@gjsify/url`'s URL class** (`packages/node/url/src/index.ts`). `createObjectURL(blob)` reads `blob._tmpPath` and returns `file://<tmpPath>`; `revokeObjectURL(url)` unlinks the temp file. No more monkey-patching the URL class from `register/xhr.ts` — the API belongs to the package that owns URL.
+- **`@gjsify/webaudio` decoder guard** (`packages/web/webaudio/src/gst-decoder.ts`) — reject non-ArrayBuffer / zero-byte input with `DOMException('Unable to decode audio data', 'EncodingError')` before touching GStreamer, so downstream consumers that hand us malformed buffers get a spec-compliant error instead of a process-killing critical.
+- **Regression test** in `packages/web/fetch/src/index.spec.ts` — 4 new cases covering `responseType=arraybuffer|blob|text|''`, `_tmpPath` attachment, and the `URL.createObjectURL` → `file://` round-trip (all under `on('Gjs', …)` since Node has no native XHR).
+
+**Review-driven cleanup — "imports over `globalThis`" pass:**
+
+- **New `AGENTS.md` rule "Don't patch — implement at the source".** We own implementations of almost every Web / Node / DOM API surface; when a method is missing, the first question is which of our classes should own it — not where to monkey-patch it. `globalThis` reads in implementation code are now explicitly restricted to register-module writes, existence probes, env-var-like debug flags, GJS bootstrap, and genuinely soft deps.
+- **`packages/web/fetch/globals.mjs` removed.** Node natively exposes `fetch`/`Headers`/`Request`/`Response`/`FormData` as globals (Node 18+); re-exporting them through an alias module only added friction. Specs read these off `globalThis`, matching the Node-native pattern. On GJS the same identifiers come from `@gjsify/fetch/register`. The `'fetch': '@gjsify/fetch/globals'` alias in `ALIASES_WEB_FOR_NODE` is gone.
+- **`@gjsify/webrtc` DOMException / Blob reads** (`rtc-peer-connection.ts`, `rtc-data-channel.ts`) now import `DOMException` from `@gjsify/dom-exception` and `Blob` from `@gjsify/buffer` instead of reading `(globalThis as any).X`. 8 `DOMException` call sites and the `Blob` instanceof + constructor sites collapse to plain typed code; the `if (DOMExc) new DOMExc(…) else new Error(…)` fallbacks become dead code. `@gjsify/buffer` added as a hard dep of `@gjsify/webrtc`.
+- **`URL.createObjectURL` method marker removed** from `packages/infra/esbuild-plugin-gjsify/src/utils/detect-free-globals.ts` — it was needed when `createObjectURL` lived in the XHR register module, but now that it's a static method on the URL class, the free `URL` identifier (already in `GJS_GLOBALS_MAP`) already pulls in the right register path.
+
 ### 🧪 Integration tests — streamx on GJS (2026-04-20)
 
 **`tests/integration/streamx/`** — 6 spec files (155 Node + 156 GJS tests) ported from `refs/streamx/test/` plus a new `throughput.spec.ts`. All green on both runtimes.

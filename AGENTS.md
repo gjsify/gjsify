@@ -192,6 +192,23 @@ Key files: `packages/infra/esbuild-plugin-gjsify/src/utils/detect-free-globals.t
 
 GJS needs GLib MainLoop for async I/O. `ensureMainLoop()` (`@gjsify/utils`): idempotent, non-blocking, no-op on Node.js. Used in: `http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bind()`. Public: `import { ensureMainLoop } from '@gjsify/node-globals'` (re-exported from the `@gjsify/utils` root). GTK apps must NOT use it (use `Gtk.Application.runAsync()`).
 
+### Don't patch — implement at the source
+
+We own implementations of almost every Web / Node / DOM API surface in the monorepo. That ownership is an asset: when a feature is needed, the first question is **"which of our packages should own this, and can we implement it there directly?"** — not "where can we monkey-patch it in?".
+
+**Hard rules:**
+
+- **Reading globals:** in *implementation code*, prefer an explicit `import { X } from '@gjsify/<pkg>'` over `(globalThis as any).X`. Imports give bundlers visibility into the dependency (cleaner tree-shaking), give TypeScript real types (no `as any`), and surface missing deps as build-time errors instead of runtime undefined-then-fallback branches. `globalThis` reads are only justified for:
+  1. **Writes in register modules** — that's the module's purpose.
+  2. **Existence probes in register modules** — `if (typeof globalThis.X === 'undefined') { globalThis.X = X; }` — idiomatic pattern to avoid clobbering a polyfill.
+  3. **Env-var-like debug flags** — `globalThis.__GJSIFY_DEBUG_X`.
+  4. **GJS runtime bootstrap** — `globalThis.imports.*` before `@girs/*` resolves, and similar bootstrap-only reads.
+  5. **Genuinely soft dependencies** — where the whole point is to work without the dep (e.g. fallback to `Error` if `DOMException` isn't registered). Rare.
+- **Patching classes you own:** if the missing method belongs conceptually to a class in our monorepo (`URL.createObjectURL` → `@gjsify/url`'s `URL`, `Headers.getSetCookie` → `@gjsify/fetch`'s `Headers`, etc.), **put it on the class**, not on `globalThis.X.method = …` in some register module. Reach for patching only when the target class is genuinely external (a native global we can't subclass, a third-party library type). Patching our own classes in a register module is a code smell that usually means the API belongs inside the package that owns the class.
+- **"There is no module to import from":** if you catch yourself thinking this for something like a DOM global, check again — the workspace almost certainly has a `@gjsify/dom-*` / `@gjsify/web-*` / `@gjsify/node-*` package that exports the class. Add the dep. The only times this is legitimately true are for (a) pre-registration bootstrap (register modules themselves, before anything else runs) and (b) values that have no module form at all (GJS `imports` object, Node's `process.argv` before `@gjsify/process` loads, etc.).
+
+**Why this matters:** patching propagates uncertainty — now every reader has to reason about "which code has run to install this method?". First-class methods on our own classes are self-documenting: `URL.createObjectURL` exists because `@gjsify/url`'s `URL` class declares it.
+
 ### Tree-shakeable Globals — `/register` subpath convention
 
 Every `@gjsify/*` package that registers anything on `globalThis` MUST follow these rules so that user bundles stay tree-shakeable and the `--globals` CLI flag can resolve identifiers correctly.

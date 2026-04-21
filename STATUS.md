@@ -90,7 +90,7 @@ All 15 packages have real implementations:
 | **dom-events** | — | 142 (3 specs) | Event, EventTarget, CustomEvent |
 | **dom-exception** | — | 64 | DOMException polyfill (WebIDL standard) |
 | **eventsource** | — | 15 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
-| **fetch** | Soup 3.0, Gio, GLib | 51 | fetch(), Request, Response, Headers, Referrer-Policy, **file:// URI support** |
+| **fetch** | Soup 3.0, Gio, GLib | 73 | fetch(), Request, Response, Headers, Referrer-Policy, **file:// URI support**, XMLHttpRequest (full `responseType` support: arraybuffer / blob + temp-file / json / text / document), URL.createObjectURL / URL.revokeObjectURL (patched by `register/xhr`, Blob→`file://<tmpPath>`) |
 | **formdata** | — | 49 | FormData, File, multipart encoding |
 | **streams** | — | 283 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **webcrypto** | — | 486 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |

@@ -22,6 +22,7 @@ import {
     gstToIceGatheringState,
     w3cDirectionToGst,
 } from './gst-enum-maps.js';
+import { DOMException } from '@gjsify/dom-exception';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from './rtc-session-description.js';
 import { RTCIceCandidate, type RTCIceCandidateInit } from './rtc-ice-candidate.js';
 import { RTCDataChannel } from './rtc-data-channel.js';
@@ -142,10 +143,10 @@ export class RTCPeerConnection extends EventTarget {
 
         const [major, minor] = Gst.version();
         if (major < 1 || (major === 1 && minor < 20)) {
-            const DOMExc = (globalThis as any).DOMException;
-            const msg = `@gjsify/webrtc requires GStreamer >= 1.20 (you have ${major}.${minor}). webrtcbin is only stable from 1.20 onward.`;
-            if (DOMExc) throw new DOMExc(msg, 'NotSupportedError');
-            throw new Error(msg);
+            throw new DOMException(
+                `@gjsify/webrtc requires GStreamer >= 1.20 (you have ${major}.${minor}). webrtcbin is only stable from 1.20 onward.`,
+                'NotSupportedError',
+            );
         }
 
         const id = ++globalCounter;
@@ -316,9 +317,10 @@ export class RTCPeerConnection extends EventTarget {
 
     private _rejectIfClosed(method: string): void {
         if (!this._closed) return;
-        const DOMExc = (globalThis as any).DOMException;
-        const msg = `RTCPeerConnection.${method}: connection is closed`;
-        throw DOMExc ? new DOMExc(msg, 'InvalidStateError') : new Error(msg);
+        throw new DOMException(
+            `RTCPeerConnection.${method}: connection is closed`,
+            'InvalidStateError',
+        );
     }
 
     async createOffer(_options?: RTCOfferOptions): Promise<RTCSessionDescriptionInit> {
@@ -362,9 +364,10 @@ export class RTCPeerConnection extends EventTarget {
             } else if (state === 'have-remote-offer' || state === 'have-remote-pranswer') {
                 description = await this.createAnswer();
             } else {
-                const DOMExc = (globalThis as any).DOMException;
-                const msg = `setLocalDescription: cannot auto-create SDP in signalingState '${state}'`;
-                throw DOMExc ? new DOMExc(msg, 'InvalidStateError') : new Error(msg);
+                throw new DOMException(
+                    `setLocalDescription: cannot auto-create SDP in signalingState '${state}'`,
+                    'InvalidStateError',
+                );
             }
         }
 
@@ -402,10 +405,10 @@ export class RTCPeerConnection extends EventTarget {
 
     createDataChannel(label: string, options: RTCDataChannelInit = {}): RTCDataChannel {
         if (this._closed) {
-            const DOMExc = (globalThis as any).DOMException;
-            const msg = 'Cannot create a data channel on a closed RTCPeerConnection';
-            if (DOMExc) throw new DOMExc(msg, 'InvalidStateError');
-            throw new Error(msg);
+            throw new DOMException(
+                'Cannot create a data channel on a closed RTCPeerConnection',
+                'InvalidStateError',
+            );
         }
         if (typeof label !== 'string') {
             throw new TypeError('createDataChannel: label must be a string');
@@ -722,9 +725,10 @@ export class RTCPeerConnection extends EventTarget {
             const hasSender = this._senders.some(s => s.track === selector);
             const hasReceiver = this._receivers.some(r => r.track === selector);
             if (!hasSender && !hasReceiver) {
-                const DOMExc = (globalThis as any).DOMException;
-                const msg = 'The selector track is not associated with a sender or receiver of this connection';
-                throw DOMExc ? new DOMExc(msg, 'InvalidAccessError') : new Error(msg);
+                throw new DOMException(
+                    'The selector track is not associated with a sender or receiver of this connection',
+                    'InvalidAccessError',
+                );
             }
         }
 
@@ -763,14 +767,16 @@ export class RTCPeerConnection extends EventTarget {
 
         // Per spec: bundlePolicy and rtcpMuxPolicy cannot change after construction
         if (configuration.bundlePolicy && configuration.bundlePolicy !== (this._conf.bundlePolicy ?? 'balanced')) {
-            const DOMExc = (globalThis as any).DOMException;
-            const msg = "setConfiguration: bundlePolicy cannot be changed";
-            throw DOMExc ? new DOMExc(msg, 'InvalidModificationError') : new Error(msg);
+            throw new DOMException(
+                'setConfiguration: bundlePolicy cannot be changed',
+                'InvalidModificationError',
+            );
         }
         if (configuration.rtcpMuxPolicy && configuration.rtcpMuxPolicy !== (this._conf.rtcpMuxPolicy ?? 'require')) {
-            const DOMExc = (globalThis as any).DOMException;
-            const msg = "setConfiguration: rtcpMuxPolicy cannot be changed";
-            throw DOMExc ? new DOMExc(msg, 'InvalidModificationError') : new Error(msg);
+            throw new DOMException(
+                'setConfiguration: rtcpMuxPolicy cannot be changed',
+                'InvalidModificationError',
+            );
         }
 
         // Apply new ICE servers

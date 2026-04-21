@@ -55,6 +55,7 @@
         "peer-connection"
     ],
     "dependencies": {
+        "@gjsify/buffer": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/dom-exception": "workspace:^",
         "@gjsify/webrtc-native": "workspace:^"

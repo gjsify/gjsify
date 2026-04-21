@@ -32,6 +32,11 @@ const METHOD_MARKERS: Record<string, string> = {
     'navigator.getGamepads': 'GamepadEvent',
     // WebRTC — navigator.mediaDevices is patched on by @gjsify/webrtc/register/media-devices
     'navigator.mediaDevices': 'MediaDevices',
+    // Note: URL.createObjectURL / URL.revokeObjectURL don't need markers —
+    // they are first-class static methods on @gjsify/url's URL class, so the
+    // free `URL` identifier (detected directly, maps to
+    // @gjsify/node-globals/register/url in GJS_GLOBALS_MAP) already pulls in
+    // the correct register module.
 };
 
 /**

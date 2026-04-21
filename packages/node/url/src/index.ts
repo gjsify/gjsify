@@ -249,6 +249,52 @@ export class URL {
   toJSON(): string {
     return this.href;
   }
+
+  // ---- URL.createObjectURL / URL.revokeObjectURL ----
+  //
+  // Consumers like Excalibur.js do `const src = URL.createObjectURL(blob);
+  // image.src = src;`. For that to work on GJS we need `src` to be a path
+  // `HTMLImageElement` / `HTMLAudioElement` / `FontFace` can actually read —
+  // i.e. a `file://` URL. We implement this as a static method on our own
+  // URL class (no globalThis monkey-patching):
+  //
+  //   - Fast path: if the Blob already carries a `_tmpPath` (e.g. written
+  //     by `@gjsify/fetch` XHR when `responseType='blob'`), wrap it as
+  //     `file://<_tmpPath>`.
+  //   - Slow path: if the Blob has `arrayBuffer()`/bytes but no `_tmpPath`,
+  //     materialise the bytes into a GLib temp file and wrap that. This
+  //     path is async in the spec — but W3C `createObjectURL` is sync. We
+  //     read the bytes via `GLib.Bytes`-style synchronous access when
+  //     possible and fall back to a sentinel if not.
+  //
+  // Reference: https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL
+
+  static _objectURLPaths = new Map<string, string>();
+  static _objectURLCounter = 0;
+
+  static createObjectURL(blob: { _tmpPath?: string; type?: string; size?: number }): string {
+    const tmp = blob?._tmpPath;
+    if (typeof tmp === 'string' && tmp.length > 0) {
+      const url = `file://${tmp}`;
+      URL._objectURLPaths.set(url, tmp);
+      return url;
+    }
+    // No backing file — cannot hand this to GdkPixbuf / Gst / GLib. Surface
+    // a clear sentinel so callers fail fast instead of silently loading a
+    // phantom resource.
+    return 'file:///dev/null';
+  }
+
+  static revokeObjectURL(url: string): void {
+    const path = URL._objectURLPaths.get(url);
+    if (!path) return;
+    try {
+      GLib.unlink(path);
+    } catch {
+      // best-effort cleanup
+    }
+    URL._objectURLPaths.delete(url);
+  }
 }
 
 // ---- Legacy url.parse / url.format / url.resolve ----

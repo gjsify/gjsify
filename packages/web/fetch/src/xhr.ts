@@ -1,7 +1,43 @@
-// XMLHttpRequest — fetch()-backed subset for GJS; covers engine.io-client usage.
+// XMLHttpRequest — fetch()-backed XHR for GJS.
+// Covers engine.io-client (polling XHR) and Excalibur.js (ImageSource/Sound)
+// use cases. For `responseType === 'blob'` the bytes are written to a GLib
+// temp file and the returned Blob carries a `_tmpPath` that
+// `URL.createObjectURL` turns into a `file://` URL, so that HTMLImageElement
+// / Image / HTMLAudioElement can stream the asset through GdkPixbuf / Gst.
+//
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest
 
+import GLib from 'gi://GLib?version=2.0';
 import fetch from './index.js';
+
+let _blobCounter = 0;
+
+function guessBlobExt(url: string): string {
+  const lower = url.toLowerCase().split('?')[0]!;
+  const dot = lower.lastIndexOf('.');
+  const ext = dot > -1 ? lower.slice(dot) : '';
+  // Restrict to a small safe allow-list; unknown → .bin
+  switch (ext) {
+    case '.png': case '.jpg': case '.jpeg': case '.gif':
+    case '.webp': case '.svg': case '.bmp':
+    case '.ttf': case '.otf': case '.woff': case '.woff2':
+    case '.mp3': case '.wav': case '.ogg': case '.flac': case '.m4a':
+    case '.mp4': case '.webm': case '.mkv':
+    case '.xml': case '.tmx': case '.json':
+      return ext;
+    default:
+      return '.bin';
+  }
+}
+
+function writeBlobToTempFile(bytes: Uint8Array, url: string): string {
+  const tmpPath = GLib.build_filenamev([
+    GLib.get_tmp_dir(),
+    `gjsify-blob-${_blobCounter++}${guessBlobExt(url)}`,
+  ]);
+  GLib.file_set_contents(tmpPath, bytes);
+  return tmpPath;
+}
 
 export const UNSENT = 0;
 export const OPENED = 1;
@@ -121,9 +157,52 @@ export class XMLHttpRequest extends EventTarget {
         this._setReadyState(HEADERS_RECEIVED);
         this._setReadyState(LOADING);
 
-        const text = await res.text();
-        this.responseText = text;
-        this.response = this.responseType === '' || this.responseType === 'text' ? text : text;
+        switch (this.responseType) {
+          case 'arraybuffer': {
+            const ab = await res.arrayBuffer();
+            this.response = ab;
+            this.responseText = '';
+            break;
+          }
+          case 'blob': {
+            // Materialise the body to a GLib temp file so URL.createObjectURL
+            // can hand Image / Audio / Font consumers a loadable `file://` URL.
+            const ab = await res.arrayBuffer();
+            const bytes = new Uint8Array(ab);
+            const tmpPath = writeBlobToTempFile(bytes, this._url);
+            const blob = new Blob([ab], {
+              type: this._responseHeaders.get('content-type') ?? '',
+            });
+            (blob as unknown as { _tmpPath: string })._tmpPath = tmpPath;
+            this.response = blob;
+            this.responseText = '';
+            break;
+          }
+          case 'json': {
+            const text = await res.text();
+            this.responseText = '';
+            try {
+              this.response = text.length > 0 ? JSON.parse(text) : null;
+            } catch {
+              this.response = null;
+            }
+            break;
+          }
+          case 'document': {
+            const text = await res.text();
+            this.responseText = text;
+            this.response = text;
+            break;
+          }
+          case '':
+          case 'text':
+          default: {
+            const text = await res.text();
+            this.responseText = text;
+            this.response = text;
+            break;
+          }
+        }
 
         this._setReadyState(DONE);
         this.dispatchEvent(new ProgressEvent('load'));
