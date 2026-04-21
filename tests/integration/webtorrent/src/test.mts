@@ -14,6 +14,7 @@ import bitfieldSuite from './bitfield.spec.js';
 import fileBufferSuite from './file-buffer.spec.js';
 import iteratorSuite from './iterator.spec.js';
 import clientAddSuite from './client-add.spec.js';
+import wireTransferSuite from './wire-transfer.spec.js';
 
 run({
   selectionsSuite,
@@ -23,4 +24,5 @@ run({
   fileBufferSuite,
   iteratorSuite,
   clientAddSuite,
+  wireTransferSuite,
 });

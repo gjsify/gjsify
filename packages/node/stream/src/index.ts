@@ -731,7 +731,11 @@ class Writable_ extends Stream_ {
   private _doWrite(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     this._writableState.writing = true;
     this._write(chunk, encoding, (err) => {
-      this._writableState.writing = false;
+      // MARKER_GIO_PENDING_FIX
+      // Keep writing=true until _drainWriteBuffer finds the buffer empty.
+      // Clearing it here would let microtask-scheduled writers (e.g. streamx via
+      // queueMicrotask) call _doWrite concurrently before the nextTick fires,
+      // resulting in overlapping write_bytes_async calls (GIO_ERROR_PENDING).
       this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
       if (err) {
         nextTick(() => {
@@ -757,6 +761,8 @@ class Writable_ extends Stream_ {
       const next = this._writeBuffer.shift()!;
       this._doWrite(next.chunk, next.encoding, next.callback);
     } else {
+      // Only release the write lock when the buffer is truly empty.
+      this._writableState.writing = false;
       this._maybeFinish();
     }
   }
@@ -972,6 +978,11 @@ class Duplex_ extends Readable_ {
   _writableState = { highWaterMark: 0, objectMode: false };
 
   private _duplexCorkedBuffer: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
+  // Write serialization — prevents concurrent write_bytes_async calls (GIO_ERROR_PENDING).
+  // Duplex inherits from Readable, not Writable, so it needs its own queue separate from
+  // Writable_._doWrite/_drainWriteBuffer.
+  private _duplexWriting = false;
+  private _duplexWriteQueue: Array<{ chunk: any; encoding: string; callback: (error?: Error | null) => void }> = [];
   private _writeImpl: ((chunk: any, encoding: string, cb: (error?: Error | null) => void) => void) | undefined;
   private _finalImpl: ((cb: (error?: Error | null) => void) => void) | undefined;
   private _defaultEncoding = 'utf8';
@@ -1094,23 +1105,56 @@ class Duplex_ extends Readable_ {
     }
 
     const cb = callback || (() => {});
+    this._duplexDoWrite(chunk, encoding as string, cb);
+
+    return belowHWM;
+  }
+
+  private _duplexDoWrite(chunk: any, encoding: string, cb: (error?: Error | null) => void): void {
+    if (this._duplexWriting) {
+      this._duplexWriteQueue.push({ chunk, encoding, callback: cb });
+      return;
+    }
+    this._duplexWriting = true;
+    this._duplexStartWrite(chunk, encoding, cb);
+  }
+
+  // Starts a write assuming _duplexWriting is already true. After the write
+  // completes, either start the next queued write (keeping _duplexWriting=true
+  // to preserve FIFO order) or clear the flag and emit 'drain'. The 'drain'
+  // listener on streamx may synchronously call conn.write() — emitting drain
+  // BEFORE the queue is fully processed would let that new write bypass the
+  // queue, causing out-of-order bytes on the wire (and, for bittorrent-protocol,
+  // desync of piece header vs. piece payload).
+  private _duplexStartWrite(chunk: any, encoding: string, cb: (error?: Error | null) => void): void {
     this._pendingWrites++;
-    this._write(chunk, encoding as string, (err) => {
+    this._write(chunk, encoding, (err) => {
       this._pendingWrites--;
       this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
       if (err) {
         nextTick(() => {
           cb(err);
+          this._duplexWriting = false;
           this.emit('error', err);
+          if (this._duplexWriteQueue.length > 0) {
+            const next = this._duplexWriteQueue.shift()!;
+            this._duplexWriting = true;
+            this._duplexStartWrite(next.chunk, next.encoding, next.callback);
+          }
         });
       } else {
         nextTick(() => {
           cb();
+          if (this._duplexWriteQueue.length > 0) {
+            const next = this._duplexWriteQueue.shift()!;
+            this._duplexStartWrite(next.chunk, next.encoding, next.callback);
+            return;
+          }
+          this._duplexWriting = false;
           if (this.writableNeedDrain && this.writableLength <= this.writableHighWaterMark) {
             this.writableNeedDrain = false;
             this.emit('drain');
           }
-          // If end() is waiting for pending writes to complete, trigger it now
           if (this._pendingWrites === 0 && this._pendingEndCb) {
             const endCb = this._pendingEndCb;
             this._pendingEndCb = null;
@@ -1119,8 +1163,13 @@ class Duplex_ extends Readable_ {
         });
       }
     });
+  }
 
-    return belowHWM;
+  private _duplexDrainQueue(): void {
+    if (this._duplexWriteQueue.length > 0) {
+      const next = this._duplexWriteQueue.shift()!;
+      this._duplexDoWrite(next.chunk, next.encoding, next.callback);
+    }
   }
 
   end(chunk?: any, encoding?: string | (() => void), callback?: () => void): this {

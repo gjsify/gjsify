@@ -4,27 +4,37 @@
 
 declare const queueMicrotask: ((cb: () => void) => void) | undefined;
 
-// On GJS, nextTick MUST go through the GLib main loop instead of the JS
-// microtask queue. queueMicrotask/Promise chains drain synchronously within a
-// single GLib dispatch, starving GTK input-event sources and freezing the
-// window during heavy I/O (e.g. WebTorrent downloads). Scheduling via
-// GLib.idle_add at PRIORITY_HIGH_IDLE (100) lets GTK event sources at
-// PRIORITY_DEFAULT (0) run between every stream/pipe step.
-function tryGLibIdle(cb: () => void): boolean {
+// On GJS, nextTick goes through the GLib main loop instead of the JS
+// microtask queue, so I/O events are interleaved between stream/pipe steps.
+//
+// PRIORITY_DEFAULT (0) is required: GJS 1.86 maintains an internal
+// Promise/microtask-drain source at priority 0 that returns SOURCE_CONTINUE,
+// permanently blocking any source at priority > 0 (including PRIORITY_HIGH_IDLE
+// = 100) from ever dispatching. Using PRIORITY_DEFAULT ensures nextTick
+// callbacks fire within the same GLib dispatch band as I/O events.
+//
+// We use GLib.timeout_add rather than GLib.idle_add: timeout_add returns a
+// numeric source ID (no BoxedInstance, no GC race). GLib.idle_add has the same
+// GC-race hazard as the old GLib.Source BoxedInstance approach fixed in
+// @gjsify/node-globals timers.
+function tryGLibTimeout(cb: () => void): boolean {
   const GLib = (globalThis as any).imports?.gi?.GLib;
-  if (!GLib?.idle_add) return false;
-  GLib.idle_add(GLib.PRIORITY_HIGH_IDLE ?? 100, () => { cb(); return false; });
+  if (!GLib?.timeout_add) return false;
+  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+    cb();
+    return false;
+  });
   return true;
 }
 
 /**
  * Schedule a function on the next turn of the event loop.
- * On GJS: uses GLib.idle_add(PRIORITY_HIGH_IDLE) so GTK events are interleaved.
+ * On GJS: uses GLib.timeout_add(PRIORITY_DEFAULT, delay=0).
  * On Node.js: uses process.nextTick → queueMicrotask → Promise.resolve().then().
  */
 export const nextTick = (fn: (...args: unknown[]) => void, ...args: unknown[]): void => {
   const cb = args.length > 0 ? () => fn(...args) : fn as () => void;
-  if (tryGLibIdle(cb)) return;
+  if (tryGLibTimeout(cb)) return;
   if (typeof globalThis.process?.nextTick === 'function') {
     globalThis.process.nextTick(fn, ...args);
     return;
