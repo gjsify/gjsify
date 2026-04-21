@@ -4,7 +4,7 @@
 // between stream operations and prevent window freezes under heavy I/O.
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import { nextTick } from './next-tick.js';
+import { nextTick, __resetBurstStateForTests } from './next-tick.js';
 
 export default async () => {
   await describe('nextTick', async () => {
@@ -70,6 +70,46 @@ export default async () => {
         // On Node.js: nextTick fires before Promise.resolve microtasks by spec
         expect(order).toContain('tick');
         expect(order).toContain('microtask');
+      });
+
+      // Burst-yield behavior. When hundreds of nextTicks fire in a tight
+      // loop (webtorrent DHT bootstrap, streamx pipe bursts, …) GLib
+      // dispatches the whole batch at PRIORITY_DEFAULT before coming back
+      // to collect GTK input events — the window appears frozen. After
+      // BURST_YIELD_THRESHOLD consecutive calls within BURST_IDLE_MS, the
+      // scheduler switches to delay=1ms timeouts, forcing a main-loop
+      // iteration between bursts so GTK events can drain. Normal,
+      // non-bursty code pays zero latency because the counter resets on
+      // any gap > BURST_IDLE_MS.
+      await it('GJS: a tight burst of 256 nextTicks still completes', async () => {
+        __resetBurstStateForTests();
+        let fired = 0;
+        const target = 256;
+        await new Promise<void>(resolve => {
+          for (let i = 0; i < target; i++) {
+            nextTick(() => {
+              fired++;
+              if (fired === target) resolve();
+            });
+          }
+        });
+        expect(fired).toBe(target);
+      });
+
+      await it('GJS: order is preserved inside and across bursts', async () => {
+        __resetBurstStateForTests();
+        const order: number[] = [];
+        const target = 128;
+        await new Promise<void>(resolve => {
+          for (let i = 0; i < target; i++) {
+            nextTick(() => {
+              order.push(i);
+              if (order.length === target) resolve();
+            });
+          }
+        });
+        // FIFO across the whole burst, including the yield points.
+        for (let i = 0; i < target; i++) expect(order[i]).toBe(i);
       });
     });
   });
