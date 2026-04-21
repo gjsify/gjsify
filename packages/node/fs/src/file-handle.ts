@@ -113,6 +113,13 @@ export class FileHandle implements IFileHandle {
     private _readStream: Gio.FileInputStream | null = null;
     private readonly _gFile: Gio.File;
     private readonly _ioMode: IOMode;
+    // Serialize async I/O on the shared FileIOStream. Concurrent write_bytes_async
+    // calls hit Gio.IOErrorEnum.PENDING ("Datenstrom hat noch einen ausstehenden
+    // Vorgang"); overlapping seek()s on the shared cursor also corrupt positions.
+    // random-access-file (used by fs-chunk-store / webtorrent) issues many
+    // concurrent positional writes, so every async op on this handle chains
+    // through _ioLock.
+    private _ioLock: Promise<unknown> = Promise.resolve();
 
     /** Not part of the default implementation, used internal by gjsify */
     private static instances: {[fd: number]: FileHandle} = {};
@@ -181,6 +188,14 @@ export class FileHandle implements IFileHandle {
         }
         this._ioStream = this._gFile.open_readwrite(null);
         return this._ioStream;
+    }
+
+    /** Serialize an async operation on the shared FileIOStream. */
+    private _serialize<T>(op: () => Promise<T>): Promise<T> {
+        const prev = this._ioLock;
+        const next = prev.catch(() => {}).then(op);
+        this._ioLock = next;
+        return next;
     }
 
 
@@ -381,19 +396,19 @@ export class FileHandle implements IFileHandle {
         // touching only the requested region. Replaces the old load_contents()
         // path that read the entire file on every call (O(N²) over streamed
         // workloads like WebTorrent piece hashing or random-access-file).
-        const { input, seekable } = this._getReadStream();
-        seekable.seek(BigInt(startPos), GLib.SeekType.SET, null);
-        const bytes = input.read_bytes(readLength, null);
-        const data = bytes.get_data() as Uint8Array | null;
-        const bytesRead = data?.length ?? 0;
-        if (bufView && data && bytesRead > 0) {
-            bufView.set(data, bufOffset);
-        }
-
-        return {
-            bytesRead,
-            buffer: buffer as T,
-        };
+        // Serialized with writes: seek() on the shared FileIOStream cursor must
+        // not interleave with a pending write_bytes_async.
+        return this._serialize(async () => {
+            const { input, seekable } = this._getReadStream();
+            seekable.seek(BigInt(startPos), GLib.SeekType.SET, null);
+            const bytes = input.read_bytes(readLength, null);
+            const data = bytes.get_data() as Uint8Array | null;
+            const bytesRead = data?.length ?? 0;
+            if (bufView && data && bytesRead > 0) {
+                bufView.set(data, bufOffset);
+            }
+            return { bytesRead, buffer: buffer as T };
+        });
     }
     /**
      * Returns a `ReadableStream` that may be used to read the files data.
@@ -682,21 +697,26 @@ export class FileHandle implements IFileHandle {
 
         // Positional write — seek + write_bytes_async on the IOStream, touches
         // only the requested region. Uses async Gio I/O so the GLib main loop
-        // (and GTK events) are not blocked during the write.
-        const stream = this._getWriteStream();
-        stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
-        const output = stream.get_output_stream();
-        const bytesWritten = await new Promise<number>((resolve, reject) => {
-            output.write_bytes_async(new GLib.Bytes(writeSlice), GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
-                try { resolve(output.write_bytes_finish(asyncResult)); }
-                catch (err) { reject(err); }
+        // (and GTK events) are not blocked during the write. Serialized via
+        // _serialize() so concurrent callers (e.g. random-access-file) don't
+        // trigger GIO_ERROR_PENDING or corrupt the shared seek cursor.
+        const bytesWritten = await this._serialize(async () => {
+            const stream = this._getWriteStream();
+            stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
+            const output = stream.get_output_stream();
+            const written = await new Promise<number>((resolve, reject) => {
+                output.write_bytes_async(new GLib.Bytes(writeSlice), GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
+                    try { resolve(output.write_bytes_finish(asyncResult)); }
+                    catch (err) { reject(err); }
+                });
             });
-        });
-        await new Promise<void>((resolve, reject) => {
-            output.flush_async(GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
-                try { output.flush_finish(asyncResult); resolve(); }
-                catch (err) { reject(err); }
+            await new Promise<void>((resolve, reject) => {
+                output.flush_async(GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
+                    try { output.flush_finish(asyncResult); resolve(); }
+                    catch (err) { reject(err); }
+                });
             });
+            return written;
         });
 
         return {
