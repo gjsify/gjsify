@@ -421,12 +421,14 @@ RFC 6455 WebSocket protocol compliance validated by the [crossbario/autobahn-tes
 
 | Driver | Target | Baseline (247 cases, Autobahn 0.10.9) |
 |---|---|---|
-| `fuzzingclient-driver.ts` → `@gjsify/websocket` (W3C `WebSocket` over `Soup.WebsocketConnection`) | foundational RFC 6455 compliance at the Soup layer | **239 OK / 4 NON-STRICT / 3 INFORMATIONAL / 1 FAILED** |
-| `fuzzingclient-driver-ws.ts` → `@gjsify/ws` (npm `ws` wrapper on top of `@gjsify/websocket`) | API-wrapper semantics: EventEmitter handlers, binary type coercion, close-reason byte encoding | **239 OK / 4 NON-STRICT / 3 INFORMATIONAL / 1 FAILED** |
+| `fuzzingclient-driver.ts` → `@gjsify/websocket` (W3C `WebSocket` over `Soup.WebsocketConnection`) | foundational RFC 6455 compliance at the Soup layer | **240 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
+| `fuzzingclient-driver-ws.ts` → `@gjsify/ws` (npm `ws` wrapper on top of `@gjsify/websocket`) | API-wrapper semantics: EventEmitter handlers, binary type coercion, close-reason byte encoding | **240 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
 
-Identical scores confirm `@gjsify/ws` adds zero regressions over `@gjsify/websocket`. Both fail the same case:
+Identical scores confirm `@gjsify/ws` adds zero regressions over `@gjsify/websocket`.
 
-- **6.7.1** — single NUL byte (`\x00`) in a text frame. We echo back an empty string instead of `"\x00"`. Root cause likely in how `Soup.WebsocketConnection.send_text` encodes the payload or how `get_data()` decodes it on the receive side. Separate follow-up fix.
+**NON-STRICT (4 cases, all of form 6.4.x)** — fragmented text messages with invalid UTF-8 in a later fragment. `behaviorClose` is `OK` (we send close code 1007 as RFC requires), only `behavior` is NON-STRICT because Autobahn expects the failure to occur *fast* — immediately when the invalid byte arrives, not at end-of-message. Soup's `WebsocketConnection` buffers the message before UTF-8 validation; fast-fail would require changes in libsoup. Acceptable for Phase 1.
+
+**INFORMATIONAL (3 cases)** — implementation-defined close behaviors (7.1.6 large-message-then-close race, 7.13.x custom close codes). By Autobahn's own classification these are never failures — just observations.
 
 Cases excluded from the baseline: `9.*` (performance, ~30 min per run) and `12.*`/`13.*` (permessage-deflate — separate validation axis). Re-enable by editing `config/fuzzingserver.json` and refreshing the baselines.
 
@@ -435,6 +437,8 @@ Cases excluded from the baseline: `9.*` (performance, ~30 min per run) and `12.*
 ### Root-cause fixes surfaced by the Autobahn pillar and landed in this PR
 
 1. **`@gjsify/websocket` now ships a `/register` subpath.** Before this PR, `globalThis.WebSocket` had no register entry — the CLI's `--globals` flag silently ignored `WebSocket` tokens (unknown identifier), and `--globals auto` had no way to inject the class when user code wrote `new WebSocket(...)`. Consumers who needed it either pre-declared the global manually (webtorrent-player) or imported the class by name. Now `@gjsify/websocket/register` sets `globalThis.{WebSocket,MessageEvent,CloseEvent}` with existence guards, gets listed in `GJS_GLOBALS_MAP` (→ `websocket/register`) and both alias maps (`ALIASES_WEB_FOR_GJS`, `ALIASES_WEB_FOR_NODE`), and is added to the `web` global group so `--globals web` picks it up alongside `fetch`/`crypto`/stream globals. The Autobahn driver was the first consumer of the full `--globals auto` path for `WebSocket`, so the missing register entry showed up immediately.
+
+2. **`WebSocket.send(string)` no longer truncates payloads at embedded NUL bytes.** Previously `send()` routed strings through `Soup.WebsocketConnection.send_text(str)`. That method's C signature is `const char *` — null-terminated — so any `\x00` in the JS string was silently truncated at the GI marshaling boundary. Autobahn case 6.7.1 (send a text frame whose single payload byte is `0x00`) exercised this directly and reported the frame as empty. Fix: route strings through `send_message(Soup.WebsocketDataType.TEXT, GLib.Bytes)` — we now encode the JS string as UTF-8 bytes ourselves and hand Soup a byte buffer, which preserves embedded NULs (and anything else the string happens to contain). Binary sends go through the same `send_message` path for consistency. The 6.7.1 regression flipped from `FAILED` to `OK` in both agent baselines.
 
 ### Root-cause fixes surfaced by the socket.io port and landed in this PR
 
@@ -445,6 +449,21 @@ Cases excluded from the baseline: `9.*` (performance, ~30 min per run) and `12.*
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
+
+### Split `@gjsify/node-globals/register` into topic-specific packages
+
+**Priority: Medium — reduces bundle size, improves tree-shake signal.**
+
+`@gjsify/node-globals/register` is the historical kitchen-sink side-effect module: importing it registers `Buffer`, `process`, `URL`, `TextEncoder`/`TextDecoder`, `structuredClone`, `setImmediate`, `atob`/`btoa`, and more in one shot. Every integration driver and test entry-point still imports it, pulling the whole set into bundles that only need a subset. We have since moved to **granular, feature-scoped register subpaths** (e.g. `@gjsify/fetch/register/fetch`, `@gjsify/fetch/register/xhr`, `@gjsify/dom-events/register/ui-events`), and the CLI's `--globals auto` can inject exactly the identifiers a bundle references.
+
+Migration (each step a separate PR, chosen by which consumer first complains):
+
+1. Audit `@gjsify/node-globals/src/register.ts` — list every global it sets, which package should own each.
+2. Move each registration into its owning package's own `register.ts` if that doesn't already exist, and add the identifier to `GJS_GLOBALS_MAP` so `--globals auto` finds it.
+3. Replace downstream `import '@gjsify/node-globals/register'` lines with granular imports (or the appropriate `--globals` flag), one consumer at a time.
+4. When the last consumer is migrated, delete `@gjsify/node-globals/register` and fold the package's remaining non-register exports into a smaller surface (or deprecate entirely if nothing else lives there).
+
+Keep the top-level `@gjsify/node-globals` package bare-specifier alias (`@gjsify/runtime` in some layouts) for **new** consumers that genuinely want "give me the full Node runtime surface" — but mark it opt-in, not the default path.
 
 ### Integration tests — socket.io WebSocket transport
 
