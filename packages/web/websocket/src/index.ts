@@ -152,6 +152,15 @@ export class WebSocket extends EventTarget {
 
   /**
    * Send data through the WebSocket connection.
+   *
+   * For strings, we intentionally route through `send_message(TEXT, bytes)`
+   * rather than the simpler `send_text(str)` API. Reason: `send_text()`
+   * takes a C `const char*` (null-terminated), so any embedded `\x00` in
+   * the JS string gets truncated at the first NUL at the GI boundary —
+   * Autobahn case 6.7.1 (single NUL in a text frame) was returned as an
+   * empty string. Going through `GLib.Bytes` preserves the exact byte
+   * sequence; Soup still sets the text-frame opcode because we pass
+   * `Soup.WebsocketDataType.TEXT` explicitly.
    */
   send(data: string | ArrayBuffer | ArrayBufferView): void {
     if (this.readyState !== OPEN) {
@@ -160,7 +169,12 @@ export class WebSocket extends EventTarget {
     if (!this._connection) return;
 
     if (typeof data === 'string') {
-      this._connection.send_text(data);
+      // Encode the JS string as UTF-8 bytes and ship as a text-framed
+      // message. TextEncoder has been a SpiderMonkey built-in since
+      // SM52 — same rationale as the TextDecoder usage in _onMessage
+      // above; no explicit register import needed.
+      const bytes = new TextEncoder().encode(data);
+      this._connection.send_message(Soup.WebsocketDataType.TEXT, new GLib.Bytes(bytes));
     } else {
       let bytes: Uint8Array;
       if (data instanceof ArrayBuffer) {
@@ -169,7 +183,7 @@ export class WebSocket extends EventTarget {
         // ArrayBufferView (TypedArray or DataView)
         bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
       }
-      this._connection.send_binary(bytes);
+      this._connection.send_message(Soup.WebsocketDataType.BINARY, new GLib.Bytes(bytes));
     }
   }
 

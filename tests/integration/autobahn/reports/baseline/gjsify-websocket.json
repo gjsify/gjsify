@@ -1001,9 +1001,9 @@
       "remoteCloseCode": 1000
     },
     "6.7.1": {
-      "behavior": "FAILED",
-      "behaviorClose": "WRONG CODE",
-      "remoteCloseCode": 1001
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
     },
     "6.7.2": {
       "behavior": "OK",
