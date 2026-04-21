@@ -1,0 +1,4 @@
+# Autobahn runtime output is regenerated per run. Only the baseline/
+# subdirectory is tracked (see reports/baseline/).
+reports/output/
+dist/

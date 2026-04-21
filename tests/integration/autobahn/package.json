@@ -1,0 +1,36 @@
+{
+    "name": "@gjsify/integration-autobahn",
+    "description": "RFC 6455 WebSocket protocol compliance tests for @gjsify/websocket and @gjsify/ws, driven by the crossbario Autobahn Testsuite fuzzingserver.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo reports/output || exit 0",
+        "check": "tsc --noEmit",
+        "build:driver:gjs": "gjsify build src/fuzzingclient-driver.ts --app gjs --outfile dist/driver-websocket.gjs.mjs --globals auto,WebSocket",
+        "build:driver:ws:gjs": "gjsify build src/fuzzingclient-driver-ws.ts --app gjs --outfile dist/driver-ws.gjs.mjs --globals auto,WebSocket",
+        "build": "yarn build:driver:gjs && yarn build:driver:ws:gjs",
+        "autobahn:up": "node scripts/autobahn-up.mjs && node scripts/wait-for-autobahn.mjs",
+        "autobahn:down": "node scripts/autobahn-down.mjs",
+        "driver:websocket:gjs": "gjs -m dist/driver-websocket.gjs.mjs",
+        "driver:ws:gjs": "gjs -m dist/driver-ws.gjs.mjs",
+        "test": "yarn build && yarn autobahn:up && yarn driver:websocket:gjs && yarn driver:ws:gjs && node scripts/validate-reports.mjs && yarn autobahn:down",
+        "test:websocket": "yarn build && yarn autobahn:up && yarn driver:websocket:gjs && node scripts/validate-reports.mjs websocket && yarn autobahn:down",
+        "test:ws": "yarn build && yarn autobahn:up && yarn driver:ws:gjs && node scripts/validate-reports.mjs ws && yarn autobahn:down",
+        "report:show": "echo 'Open reports/output/clients/index.html in a browser'"
+    },
+    "devDependencies": {
+        "@girs/gjs": "^4.0.0-rc.3",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/websocket": "workspace:^",
+        "@gjsify/ws": "workspace:^",
+        "@types/node": "^25.6.0",
+        "typescript": "^6.0.2"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

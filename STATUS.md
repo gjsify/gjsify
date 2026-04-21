@@ -415,6 +415,27 @@ Root cause of 0 B/s symptom (webtorrent-player): `queueMicrotask` must be inject
 
 WebSocket transport deferred — requires a server-side `ws` package shim (see Open TODOs).
 
+### autobahn (`tests/integration/autobahn/`)
+
+RFC 6455 WebSocket protocol compliance validated by the [crossbario/autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite) fuzzingserver running in a Podman/Docker container. Two client drivers exercise the stack from different entry points:
+
+| Driver | Target | Baseline (247 cases, Autobahn 0.10.9) |
+|---|---|---|
+| `fuzzingclient-driver.ts` → `@gjsify/websocket` (W3C `WebSocket` over `Soup.WebsocketConnection`) | foundational RFC 6455 compliance at the Soup layer | **239 OK / 4 NON-STRICT / 3 INFORMATIONAL / 1 FAILED** |
+| `fuzzingclient-driver-ws.ts` → `@gjsify/ws` (npm `ws` wrapper on top of `@gjsify/websocket`) | API-wrapper semantics: EventEmitter handlers, binary type coercion, close-reason byte encoding | **239 OK / 4 NON-STRICT / 3 INFORMATIONAL / 1 FAILED** |
+
+Identical scores confirm `@gjsify/ws` adds zero regressions over `@gjsify/websocket`. Both fail the same case:
+
+- **6.7.1** — single NUL byte (`\x00`) in a text frame. We echo back an empty string instead of `"\x00"`. Root cause likely in how `Soup.WebsocketConnection.send_text` encodes the payload or how `get_data()` decodes it on the receive side. Separate follow-up fix.
+
+Cases excluded from the baseline: `9.*` (performance, ~30 min per run) and `12.*`/`13.*` (permessage-deflate — separate validation axis). Re-enable by editing `config/fuzzingserver.json` and refreshing the baselines.
+
+**Not wired into CI yet** — Podman-in-CI on Fedora requires privileged containers or socket sharing that our current CI config doesn't enable. Manual `yarn test` + baseline commit is the Phase 1 workflow. Baseline JSON under `reports/baseline/<agent>.json` is tracked; regressions surface in PR diffs.
+
+### Root-cause fixes surfaced by the Autobahn pillar and landed in this PR
+
+1. **`@gjsify/websocket` now ships a `/register` subpath.** Before this PR, `globalThis.WebSocket` had no register entry — the CLI's `--globals` flag silently ignored `WebSocket` tokens (unknown identifier), and `--globals auto` had no way to inject the class when user code wrote `new WebSocket(...)`. Consumers who needed it either pre-declared the global manually (webtorrent-player) or imported the class by name. Now `@gjsify/websocket/register` sets `globalThis.{WebSocket,MessageEvent,CloseEvent}` with existence guards, gets listed in `GJS_GLOBALS_MAP` (→ `websocket/register`) and both alias maps (`ALIASES_WEB_FOR_GJS`, `ALIASES_WEB_FOR_NODE`), and is added to the `web` global group so `--globals web` picks it up alongside `fetch`/`crypto`/stream globals. The Autobahn driver was the first consumer of the full `--globals auto` path for `WebSocket`, so the missing register entry showed up immediately.
+
 ### Root-cause fixes surfaced by the socket.io port and landed in this PR
 
 1. **`@gjsify/fetch` POST body never sent.** `Request._send()` in [packages/web/fetch/src/request.ts](packages/web/fetch/src/request.ts) never attached the body to the `Soup.Message`. Root cause: the `.body` getter creates a Web ReadableStream whose `start(controller)` runs synchronously, switching the internal Node Readable to flowing mode and draining its buffer before `_send()` ran. Fix: added `_rawBodyBuffer` getter to `Body` class that reads directly from `Body[INTERNALS].body` without going through the Web stream, then calls `message.set_request_body_from_bytes(null, new GLib.Bytes(rawBuf))`.

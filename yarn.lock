@@ -3184,6 +3184,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/integration-autobahn@workspace:tests/integration/autobahn":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/integration-autobahn@workspace:tests/integration/autobahn"
+  dependencies:
+    "@girs/gjs": "npm:^4.0.0-rc.3"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/websocket": "workspace:^"
+    "@gjsify/ws": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/integration-socket.io@workspace:tests/integration/socket.io":
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-socket.io@workspace:tests/integration/socket.io"
@@ -3938,7 +3953,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/ws@workspace:packages/node/ws":
+"@gjsify/ws@workspace:^, @gjsify/ws@workspace:packages/node/ws":
   version: 0.0.0-use.local
   resolution: "@gjsify/ws@workspace:packages/node/ws"
   dependencies:

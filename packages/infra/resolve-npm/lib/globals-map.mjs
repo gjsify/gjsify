@@ -45,6 +45,7 @@ export const GJS_GLOBALS_GROUPS = {
         'ErrorEvent', 'CloseEvent', 'ProgressEvent', 'UIEvent',
         'MouseEvent', 'PointerEvent', 'KeyboardEvent', 'WheelEvent', 'FocusEvent',
         'EventSource',
+        'WebSocket',
         'DOMException',
         'performance', 'PerformanceObserver',
         'XMLHttpRequest',
@@ -126,6 +127,12 @@ export const GJS_GLOBALS_MAP = {
     WheelEvent:           'dom-events/register/ui-events',
     FocusEvent:           'dom-events/register/ui-events',
     EventSource:          'eventsource/register',
+
+    // --- WebSocket ---------------------------------------------------------
+    // Single register module sets globalThis.{WebSocket,MessageEvent,CloseEvent}.
+    // MessageEvent is shared with dom-events in practice — whichever register
+    // runs first installs it; both guard with typeof === 'undefined'.
+    WebSocket:            'websocket/register',
 
     // --- Performance -------------------------------------------------------
     performance:          '@gjsify/web-globals/register/performance',
