@@ -7,6 +7,7 @@
 // This module is GJS-only — the Node alias layer routes it to @gjsify/empty.
 
 import Gst from 'gi://Gst?version=1.0';
+import { DOMException } from '@gjsify/dom-exception';
 
 let initialized = false;
 
@@ -42,11 +43,7 @@ export function ensureWebrtcbinAvailable(): void {
 }
 
 function throwNotSupported(message: string): never {
-    const DOMExceptionCtor: typeof DOMException | undefined = (globalThis as any).DOMException;
-    if (DOMExceptionCtor) {
-        throw new DOMExceptionCtor(message, 'NotSupportedError');
-    }
-    throw new Error(message);
+    throw new DOMException(message, 'NotSupportedError');
 }
 
 export { Gst };

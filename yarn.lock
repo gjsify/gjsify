@@ -3729,6 +3729,7 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
+    "@gjsify/dom-exception": "workspace:^"
     "@gjsify/event-bridge": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.2"
@@ -3979,6 +3980,7 @@ __metadata:
     "@girs/gjs": "npm:^4.0.0-rc.3"
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.3"
     "@gjsify/cli": "workspace:^"
+    "@gjsify/fetch": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.2"
   languageName: unknown

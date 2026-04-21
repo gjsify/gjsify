@@ -35,6 +35,7 @@
         "@gjsify/bridge-types": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
+        "@gjsify/dom-exception": "workspace:^",
         "@gjsify/event-bridge": "workspace:^"
     },
     "devDependencies": {

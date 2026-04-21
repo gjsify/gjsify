@@ -4,6 +4,7 @@
 
 import GLib from 'gi://GLib?version=2.0';
 import System from 'system';
+import fetch from '@gjsify/fetch';
 
 let _blobCounter = 0;
 
@@ -183,7 +184,7 @@ export class XMLHttpRequest {
             if (url.startsWith('file://')) {
                 return readFileUrl(url);
             }
-            return (globalThis as any).fetch(url, { method: this._method })
+            return fetch(url, { method: this._method })
                 .then((r: any) => {
                     if (DEBUG) console.log(`[xmlhttprequest] fetch ok ${url} status=${r.status}`);
                     this.status = r.status === 0 ? 200 : r.status;

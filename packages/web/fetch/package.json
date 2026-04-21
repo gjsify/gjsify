@@ -3,15 +3,15 @@
     "version": "0.1.15",
     "description": "Web and Node.js fetch module for Gjs",
     "module": "lib/esm/index.js",
-    "types": "lib/types/index.d.ts",
+    "types": "lib/index.d.ts",
     "type": "module",
     "exports": {
         ".": {
-            "types": "./lib/types/index.d.ts",
+            "types": "./lib/index.d.ts",
             "default": "./lib/esm/index.js"
         },
         "./register": {
-            "types": "./lib/types/register.d.ts",
+            "types": "./lib/register.d.ts",
             "default": "./lib/esm/register.js"
         },
         "./register/fetch": {
