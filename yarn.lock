@@ -3865,6 +3865,7 @@ __metadata:
     "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.3"
     "@girs/gstsdp-1.0": "npm:^1.0.0-4.0.0-rc.3"
     "@girs/gstwebrtc-1.0": "npm:^1.0.0-4.0.0-rc.3"
+    "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/dom-exception": "workspace:^"
