@@ -730,13 +730,34 @@ class Writable_ extends Stream_ {
 
   private _doWrite(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     this._writableState.writing = true;
+    // Track whether the user's _write called its callback synchronously. When it
+    // does (e.g. Writable with a synchronous `write` option), Node drains the
+    // buffer on the same tick — tests that issue N sync writes expect N sync
+    // `_write` dispatches. Deferring via nextTick here broke that expectation.
+    let sync = true;
     this._write(chunk, encoding, (err) => {
-      // MARKER_GIO_PENDING_FIX
-      // Keep writing=true until _drainWriteBuffer finds the buffer empty.
-      // Clearing it here would let microtask-scheduled writers (e.g. streamx via
-      // queueMicrotask) call _doWrite concurrently before the nextTick fires,
-      // resulting in overlapping write_bytes_async calls (GIO_ERROR_PENDING).
       this.writableLength -= this.writableObjectMode ? 1 : (chunk?.length ?? 1);
+      if (sync) {
+        // Synchronous completion: defer the user callback + 'drain' emit to
+        // nextTick (Node semantics — user code must not see its own write
+        // return before the callback on the same tick), but drain the buffer
+        // synchronously so follow-up writes fire on the same tick.
+        nextTick(() => {
+          if (err) {
+            callback(err);
+            this.emit('error', err);
+            return;
+          }
+          callback();
+          if (this.writableNeedDrain && this.writableLength <= this.writableHighWaterMark) {
+            this.writableNeedDrain = false;
+            this.emit('drain');
+          }
+        });
+        if (!err) this._drainWriteBuffer();
+        return;
+      }
+      // Asynchronous completion — full defer.
       if (err) {
         nextTick(() => {
           callback(err);
@@ -754,6 +775,7 @@ class Writable_ extends Stream_ {
         });
       }
     });
+    sync = false;
   }
 
   private _drainWriteBuffer(): void {
