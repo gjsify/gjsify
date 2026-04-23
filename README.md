@@ -8,12 +8,14 @@ Use Node.js APIs, Web APIs, and DOM interfaces in GNOME desktop applications. gj
 
 ## Features
 
-- **40 Node.js modules** — fs, net, http, crypto, streams, child_process, and more
-- **12 Web API packages** — fetch, WebSocket, WebCrypto, Streams, EventSource, AbortController
-- **5 DOM packages** — Canvas2D (Cairo), WebGL (OpenGL ES), DOM elements, event bridge, iframes (WebKit)
+- **42 Node.js modules** — fs, net, http, crypto, streams, child_process, sqlite, ws, and more
+- **19 Web API packages** — fetch, XMLHttpRequest, WebSocket, WebCrypto, WebRTC, WebAudio, Streams, EventSource, AbortController, DOMParser, Gamepad
+- **8 DOM / bridge packages** — Canvas2D (Cairo), Canvas2D-core (headless), WebGL (OpenGL ES), DOM elements, event bridge, iframes (WebKit), video (gtk4paintablesink), bridge-types
+- **3 Adwaita packages for browser targets** — Web Components, Adwaita Sans fonts, symbolic icons
+- **4 integration test suites** — webtorrent, socket.io, streamx, Autobahn RFC 6455 fuzzing
 - **ESM-only**, TypeScript-first, esbuild-based build system
-- Native GNOME library bindings: `Gio` for I/O, `Soup 3.0` for HTTP, `GLib` for crypto/process, `Cairo` for 2D, `GTK 4` for UI
-- Every test runs on both Node.js and GJS
+- Native GNOME library bindings: `Gio` for I/O, `Soup 3.0` for HTTP, `GLib` for crypto/process, `Cairo` for 2D, `GTK 4` for UI, `GStreamer` for media + WebRTC, `libgda` for SQLite, `Manette` for gamepads, `WebKit` for iframes
+- Every unit test runs on both Node.js and GJS
 
 ## Quick Start
 
@@ -92,28 +94,35 @@ console.log(text);
 
 | Status | Packages |
 |--------|----------|
-| **Full** (32) | assert, async_hooks, buffer, child_process, console, constants, crypto, dgram, diagnostics_channel, dns, events, fs, globals, http, https, module, net, os, path, perf_hooks, process, querystring, readline, stream, string_decoder, sys, timers, tls, tty, url, util, zlib |
-| **Partial** (3) | worker_threads (subprocess-based, no SharedArrayBuffer), http2 (constants only), vm (eval-based, no realm isolation) |
+| **Full** (34) | assert, async_hooks, buffer, child_process, console, constants, crypto, dgram, diagnostics_channel, dns, events, fs, globals, http, https, module, net, os, path, perf_hooks, process, querystring, readline, stream, string_decoder, sys, timers, tls, tty, url, util, zlib |
+| **Partial** (5) | sqlite (libgda-backed subset), ws (no noServer/perMessageDeflate/ping-pong events), worker_threads (subprocess-based, no SharedArrayBuffer), http2 (constants only), vm (eval-based, no realm isolation) |
 | **Stub** (4) | cluster, domain, inspector, v8 |
+
+Plus `@gjsify/node-polyfills` meta package for scaffolding.
 
 ### Web APIs
 
-abort-controller, compression-streams, dom-events, dom-exception, eventsource, fetch, formdata, streams, webcrypto, web-globals, websocket, webstorage.
+abort-controller, compression-streams, dom-events, dom-exception, domparser, eventsource, fetch, formdata, gamepad, web-globals, web-streams, webaudio, webcrypto, webrtc (+ `webrtc-native` Vala prebuild), websocket, webstorage, xmlhttprequest. Plus `@gjsify/web-polyfills` meta.
 
-### DOM
+Adwaita for browser targets: `adwaita-web`, `adwaita-fonts`, `adwaita-icons`.
+
+### DOM / Bridges
 
 | Package | Backed by | Provides |
 |---------|-----------|----------|
-| canvas2d | Cairo, PangoCairo | CanvasRenderingContext2D, Canvas2DBridge → Gtk.DrawingArea |
-| dom-elements | GdkPixbuf | Node, Element, HTMLCanvasElement, HTMLImageElement, Document |
+| canvas2d-core | Cairo, PangoCairo | Headless CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData |
+| canvas2d | canvas2d-core, Gtk 4 | Re-exports canvas2d-core + FontFace + Canvas2DBridge → Gtk.DrawingArea |
+| dom-elements | GdkPixbuf, canvas2d-core | Node, Element, HTMLCanvasElement (auto-registers `'2d'`), HTMLImageElement, Document |
 | event-bridge | GTK 4, Gdk 4 | GTK → DOM event mapping (Mouse, Pointer, Keyboard, Wheel, Focus) |
 | iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge → WebKit.WebView |
+| video | Gst 1.0, Gtk 4 | HTMLVideoElement, VideoBridge → Gtk.Picture (gtk4paintablesink) |
 | webgl | gwebgl (Vala) | WebGL 1.0/2.0, WebGLBridge → Gtk.GLArea |
+| bridge-types | — | Shared BridgeEnvironment / BridgeWindow interfaces |
 
 ### GNOME Library Mappings
 
-| Node.js | GNOME |
-|---------|-------|
+| Node.js / Web / DOM | GNOME |
+|---|-------|
 | fs | Gio.File, Gio.FileIOStream |
 | net | Gio.SocketClient, Gio.SocketService |
 | http/https | Soup.Server, Soup.Session |
@@ -123,21 +132,35 @@ abort-controller, compression-streams, dom-events, dom-exception, eventsource, f
 | tls | Gio.TlsClientConnection |
 | url | GLib.Uri |
 | process | GLib (env, pid, cwd) |
+| sqlite | Gda (SQLite provider) |
+| fetch / XMLHttpRequest / WebSocket / EventSource | Soup 3.0 |
+| WebRTC | GStreamer (`webrtcbin`) + `@gjsify/webrtc-native` Vala bridges |
+| WebAudio | GStreamer (`decodebin`, `appsrc`, `volume`, `autoaudiosink`) |
+| Video | Gtk.Picture + gtk4paintablesink (GStreamer) |
+| Canvas 2D | Cairo + PangoCairo |
+| WebGL | Gtk.GLArea + libepoxy via `gwebgl` Vala |
+| Iframe | WebKit.WebView |
+| Gamepad | libmanette |
 
 ## Project Structure
 
 ```
 packages/
-  node/       # 40 Node.js API packages (@gjsify/<name>)
-  web/        # 12 Web API packages (fetch, WebSocket, etc.)
-  dom/        # 5 DOM packages (Canvas2D, WebGL, DOM elements, etc.)
-  gjs/        # GJS utilities, types, test framework
+  node/       # 42 Node.js API packages (@gjsify/<name>) + node-polyfills meta
+  web/        # 19 Web API packages (fetch, XHR, WebSocket, WebRTC, WebAudio, …) + web-polyfills meta
+  dom/        # 8 DOM / bridge packages (canvas2d-core, canvas2d, webgl, dom-elements, event-bridge, iframe, video, bridge-types)
+  gjs/        # GJS utilities, types, test framework (@gjsify/unit)
   infra/      # Build tools, esbuild plugins, CLI, create-app
 examples/
-  cli/        # CLI examples (fs, path, events, etc.)
-  gtk/        # GTK, Canvas2D, WebGL, and three.js examples
-  net/        # Network examples (Express, Hono, Koa, WebSocket)
-refs/         # Read-only reference submodules (Node.js, Deno, Bun, etc.)
+  dom/        # DOM-pillar examples (WebGL tutorials, WebRTC, WebTorrent, three.js, canvas2d, video, iframe, gamepad)
+  node/       # Node-pillar examples (Express, Hono, Koa, socket.io, SSE chat, WS chat, Deepkit, CLI tools)
+showcases/
+  dom/        # Polished DOM showcases consumed by `gjsify showcase`
+  node/       # Polished Node showcases
+tests/
+  e2e/        # End-to-end build/test runner
+  integration/ # Curated upstream test suites (webtorrent, socket.io, streamx, Autobahn)
+refs/         # 59 read-only reference submodules (Node.js, Deno, Bun, WebKit, GStreamer, …)
 ```
 
 ## Development
@@ -149,8 +172,13 @@ yarn build
 # Type check
 yarn check
 
-# Run all tests
+# Run all unit tests
 yarn test
+
+# Run opt-in integration suites (webtorrent, socket.io, streamx, Autobahn)
+yarn test:integration
+yarn test:integration:node
+yarn test:integration:gjs
 
 # Per-package testing
 cd packages/node/fs

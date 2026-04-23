@@ -7,11 +7,14 @@ DOM elements and graphics APIs for GJS, bridging the gap between web and GTK.
 
 | Package | GNOME Libs | Implements |
 |---|---|---|
-| `dom-elements` | GdkPixbuf | Node, Element, HTMLElement, HTMLCanvasElement, HTMLImageElement, Document, MutationObserver |
-| `canvas2d` | Cairo, PangoCairo | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData |
+| `dom-elements` | GdkPixbuf, `@gjsify/canvas2d-core` | Node, Element, HTMLElement, HTMLCanvasElement (auto-registers `'2d'` context factory), HTMLImageElement, HTMLMediaElement, HTMLVideoElement, Document, MutationObserver, ResizeObserver, IntersectionObserver |
+| `canvas2d-core` | Cairo, PangoCairo | **Headless** CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData — no GTK dependency |
+| `canvas2d` | `@gjsify/canvas2d-core`, Cairo, PangoCairo, Gtk 4 | Re-exports canvas2d-core + FontFace + Canvas2DBridge → Gtk.DrawingArea |
 | `webgl` | Gtk 4.0, GObject, libepoxy | WebGL 1.0/2.0 via Vala native extension |
 | `event-bridge` | Gtk 4.0, Gdk 4.0 | GTK→DOM event mapping (mouse, pointer, keyboard, wheel, focus) |
-| `iframe` | WebKit 6.0 | HTMLIFrameElement, postMessage bridge |
+| `iframe` | WebKit 6.0 | HTMLIFrameElement, IFrameBridge → WebKit.WebView, postMessage bridge |
+| `video` | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge → Gtk.Picture (gtk4paintablesink). `srcObject` (MediaStream from getUserMedia/WebRTC) + `src` (URI via playbin) |
+| `bridge-types` | — | DOMBridgeContainer interface, BridgeEnvironment, BridgeWindow |
 
 ## DOM Elements = GTK Widgets
 
@@ -19,9 +22,10 @@ Each visual DOM element is backed by a GTK widget:
 
 | DOM Element | Widget | Backing Library |
 |---|---|---|
-| `HTMLCanvasElement` (2d) | `Canvas2DBridge` → `Gtk.DrawingArea` | Cairo |
-| `HTMLCanvasElement` (webgl) | `WebGLBridge` → `Gtk.GLArea` | OpenGL ES / libepoxy |
-| `HTMLIFrameElement` | `IFrameBridge` → `WebKit.WebView` | WebKit |
+| `HTMLCanvasElement` (2d) | `Canvas2DBridge` → `Gtk.DrawingArea` | Cairo + PangoCairo |
+| `HTMLCanvasElement` (webgl/webgl2) | `WebGLBridge` → `Gtk.GLArea` | OpenGL ES / libepoxy via `gwebgl` Vala |
+| `HTMLIFrameElement` | `IFrameBridge` → `WebKit.WebView` | WebKit 6.0 |
+| `HTMLVideoElement` | `VideoBridge` → `Gtk.Picture` | gtk4paintablesink (GStreamer) |
 | `HTMLImageElement` | — | GdkPixbuf |
 
 ## Example: Canvas2D
