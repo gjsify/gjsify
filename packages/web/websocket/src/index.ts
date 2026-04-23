@@ -15,6 +15,26 @@ const OPEN = 1;
 const CLOSING = 2;
 const CLOSED = 3;
 
+// libsoup exposes an extension's spec name only as a class-level C field that
+// GI doesn't surface on the JS object. Map by constructor for the one
+// extension Soup ships today; fall back to the stripped GType name for any
+// third-party extension registered against the session.
+function extensionName(ext: Soup.WebsocketExtension): string {
+  if (ext instanceof Soup.WebsocketExtensionDeflate) return 'permessage-deflate';
+  const gtype = (ext.constructor as { $gtype?: { name?: string } }).$gtype?.name ?? '';
+  return gtype.replace(/^SoupWebsocketExtension/, '').toLowerCase();
+}
+
+function serializeExtensions(exts: Soup.WebsocketExtension[] | null): string {
+  if (!exts || exts.length === 0) return '';
+  return exts
+    .map((ext) => {
+      const params = ext.get_response_params();
+      return params ? `${extensionName(ext)}${params}` : extensionName(ext);
+    })
+    .join(', ');
+}
+
 /**
  * W3C WebSocket API implementation using Soup 3.0.
  *
@@ -59,6 +79,17 @@ export class WebSocket extends EventTarget {
     this._protocols = typeof protocols === 'string' ? [protocols] : (protocols ?? []);
     this._session = new Soup.Session();
 
+    // Enable permessage-deflate (RFC 7692). The Soup docs claim a
+    // WebsocketExtensionManager is added to fresh sessions automatically,
+    // but in practice `new Soup.Session()` ships without one — adding the
+    // deflate type alone yields a runtime warning ("No feature manager for
+    // feature of type 'SoupWebsocketExtensionDeflate'") and the
+    // `Sec-WebSocket-Extensions` header is never sent. Register the manager
+    // first, then the deflate extension as its sub-feature. Browsers always
+    // offer deflate, so we match that unconditionally (no opt-out today).
+    this._session.add_feature_by_type(Soup.WebsocketExtensionManager.$gtype);
+    this._session.add_feature_by_type(Soup.WebsocketExtensionDeflate.$gtype);
+
     // Connect asynchronously
     this._connect();
   }
@@ -78,6 +109,7 @@ export class WebSocket extends EventTarget {
           this._connection = this._session.websocket_connect_finish(asyncRes);
           this.readyState = OPEN;
           this.protocol = this._connection.get_protocol() ?? '';
+          this.extensions = serializeExtensions(this._connection.get_extensions());
 
           // Wire up Soup signals
           this._connection.connect('message', (_conn: Soup.WebsocketConnection, type: number, message: GLib.Bytes) => {

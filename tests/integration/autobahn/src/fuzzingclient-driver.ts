@@ -69,12 +69,13 @@ function getCaseCount(): Promise<number> {
   });
 }
 
-// Upper bound per case. Autobahn cases complete in < 1 s on a healthy
-// implementation; hanging past this means our WebSocket (or Soup under it)
-// failed to close on an error the RFC requires, and we'd block the whole
-// run waiting for it. 10 s is generous enough for the slow cases (6.4.x
-// fragmented long UTF-8 payloads) while catching real hangs.
-const CASE_TIMEOUT_MS = 10_000;
+// Upper bound per case. Most cases complete in < 1 s, but the largest
+// permessage-deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 messages
+// at 131 072 bytes each, ~128 MB roundtrip through GJS) legitimately need
+// 10–30 s. Autobahn's own server-side timeout is 60 s for these. We
+// match that so genuine slow cases pass while still catching real hangs
+// in well under a minute.
+const CASE_TIMEOUT_MS = 60_000;
 
 function waitCloseWithTimeout(ws: WebSocket, timeoutMs: number): Promise<'ok' | 'timeout'> {
   return new Promise((resolve) => {
@@ -135,7 +136,21 @@ async function main() {
   process.stdout.write('Done. Reports under reports/output/clients/\n');
 }
 
-main().catch((err) => {
-  process.stderr.write(`driver failed: ${(err as Error).message}\n`);
-  (globalThis as any).process?.exit?.(1);
-});
+// `process.exit()` from `@gjsify/process` reaches `imports.system.exit`
+// via `globalThis.imports`, which is empty in GJS ESM bundles — so the
+// fallback throw is silently swallowed and the GLib main loop keeps the
+// process alive. `System.exit` works when called from a standalone script
+// or a MainLoop idle callback, but in this bundle (Soup session + deflate
+// extensions registered + lots of Node-runtime patching) it silently
+// returns without killing the process. The calls below remain as the
+// correct documented entry points; the `scripts/run-driver.mjs` wrapper
+// watchdogs "Done." in the log and SIGKILLs the process after a short
+// grace period as a safety net. Tracked as a follow-up in STATUS.md.
+import System from 'system';
+
+main()
+  .then(() => System.exit(0))
+  .catch((err) => {
+    process.stderr.write(`driver failed: ${(err as Error).message}\n`);
+    System.exit(1);
+  });

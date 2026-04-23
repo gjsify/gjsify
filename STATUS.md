@@ -419,18 +419,18 @@ WebSocket transport deferred — requires a server-side `ws` package shim (see O
 
 RFC 6455 WebSocket protocol compliance validated by the [crossbario/autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite) fuzzingserver running in a Podman/Docker container. Two client drivers exercise the stack from different entry points:
 
-| Driver | Target | Baseline (247 cases, Autobahn 0.10.9) |
+| Driver | Target | Baseline (463 cases, Autobahn 0.10.9) |
 |---|---|---|
-| `fuzzingclient-driver.ts` → `@gjsify/websocket` (W3C `WebSocket` over `Soup.WebsocketConnection`) | foundational RFC 6455 compliance at the Soup layer | **240 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
-| `fuzzingclient-driver-ws.ts` → `@gjsify/ws` (npm `ws` wrapper on top of `@gjsify/websocket`) | API-wrapper semantics: EventEmitter handlers, binary type coercion, close-reason byte encoding | **240 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
+| `fuzzingclient-driver.ts` → `@gjsify/websocket` (W3C `WebSocket` over `Soup.WebsocketConnection`) | foundational RFC 6455 compliance at the Soup layer, including permessage-deflate framing (RFC 7692) | **456 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
+| `fuzzingclient-driver-ws.ts` → `@gjsify/ws` (npm `ws` wrapper on top of `@gjsify/websocket`) | API-wrapper semantics: EventEmitter handlers, binary type coercion, close-reason byte encoding, deflate pass-through | **456 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
 
 Identical scores confirm `@gjsify/ws` adds zero regressions over `@gjsify/websocket`.
 
-**NON-STRICT (4 cases, all of form 6.4.x)** — fragmented text messages with invalid UTF-8 in a later fragment. `behaviorClose` is `OK` (we send close code 1007 as RFC requires), only `behavior` is NON-STRICT because Autobahn expects the failure to occur *fast* — immediately when the invalid byte arrives, not at end-of-message. Soup's `WebsocketConnection` buffers the message before UTF-8 validation; fast-fail would require changes in libsoup. Acceptable for Phase 1.
+**NON-STRICT (4 cases, all of form 6.4.x)** — fragmented text messages with invalid UTF-8 in a later fragment. `behaviorClose` is `OK` (we send close code 1007 as RFC requires), only `behavior` is NON-STRICT because Autobahn expects the failure to occur *fast* — immediately when the invalid byte arrives, not at end-of-message. `Soup.WebsocketConnection` only surfaces coalesced messages (no pre-assembly `frame` signal is exposed over GI), so per-fragment validation cannot run before libsoup has already buffered the whole message. Tracked as an upstream libsoup patch candidate under "Upstream GJS Patch Candidates" below.
 
 **INFORMATIONAL (3 cases)** — implementation-defined close behaviors (7.1.6 large-message-then-close race, 7.13.x custom close codes). By Autobahn's own classification these are never failures — just observations.
 
-Cases excluded from the baseline: `9.*` (performance, ~30 min per run) and `12.*`/`13.*` (permessage-deflate — separate validation axis). Re-enable by editing `config/fuzzingserver.json` and refreshing the baselines.
+Cases excluded from the baseline: `9.*` (performance, ~30 min per run). The `12.*` / `13.*` permessage-deflate suites are part of the baseline since deflate landed enabled in this iteration.
 
 **Not wired into CI yet** — Podman-in-CI on Fedora requires privileged containers or socket sharing that our current CI config doesn't enable. Manual `yarn test` + baseline commit is the Phase 1 workflow. Baseline JSON under `reports/baseline/<agent>.json` is tracked; regressions surface in PR diffs.
 
@@ -439,6 +439,14 @@ Cases excluded from the baseline: `9.*` (performance, ~30 min per run) and `12.*
 1. **`@gjsify/websocket` now ships a `/register` subpath.** Before this PR, `globalThis.WebSocket` had no register entry — the CLI's `--globals` flag silently ignored `WebSocket` tokens (unknown identifier), and `--globals auto` had no way to inject the class when user code wrote `new WebSocket(...)`. Consumers who needed it either pre-declared the global manually (webtorrent-player) or imported the class by name. Now `@gjsify/websocket/register` sets `globalThis.{WebSocket,MessageEvent,CloseEvent}` with existence guards, gets listed in `GJS_GLOBALS_MAP` (→ `websocket/register`) and both alias maps (`ALIASES_WEB_FOR_GJS`, `ALIASES_WEB_FOR_NODE`), and is added to the `web` global group so `--globals web` picks it up alongside `fetch`/`crypto`/stream globals. The Autobahn driver was the first consumer of the full `--globals auto` path for `WebSocket`, so the missing register entry showed up immediately.
 
 2. **`WebSocket.send(string)` no longer truncates payloads at embedded NUL bytes.** Previously `send()` routed strings through `Soup.WebsocketConnection.send_text(str)`. That method's C signature is `const char *` — null-terminated — so any `\x00` in the JS string was silently truncated at the GI marshaling boundary. Autobahn case 6.7.1 (send a text frame whose single payload byte is `0x00`) exercised this directly and reported the frame as empty. Fix: route strings through `send_message(Soup.WebsocketDataType.TEXT, GLib.Bytes)` — we now encode the JS string as UTF-8 bytes ourselves and hand Soup a byte buffer, which preserves embedded NULs (and anything else the string happens to contain). Binary sends go through the same `send_message` path for consistency. The 6.7.1 regression flipped from `FAILED` to `OK` in both agent baselines.
+
+3. **`@gjsify/websocket` now negotiates permessage-deflate (RFC 7692).** Soup documents `WebsocketExtensionManager` as "added to the session by default," but in practice `new Soup.Session()` ships without one — so the client never sent a `Sec-WebSocket-Extensions` header and Autobahn marked every `12.*` / `13.*` case `UNIMPLEMENTED`. Fix: in the `WebSocket` constructor, explicitly register both the manager and the deflate extension type via `Session.add_feature_by_type(Soup.WebsocketExtensionManager.$gtype)` followed by `Session.add_feature_by_type(Soup.WebsocketExtensionDeflate.$gtype)`. Adding deflate alone fails with a runtime warning (`No feature manager for feature of type 'SoupWebsocketExtensionDeflate'`) — the manager must land first. Browsers always offer deflate, so we match that unconditionally (no opt-out today). The 216 previously-UNIMPLEMENTED deflate cases flipped to OK in both agent baselines.
+
+4. **`WebSocket.extensions` now reflects the actual negotiated extensions** (was hardcoded `''`). After `websocket_connect_finish` succeeds we call `this._connection.get_extensions()` and serialize each `Soup.WebsocketExtension` into the `Sec-WebSocket-Extensions` response-header format (`"permessage-deflate"` or `"permessage-deflate; client_max_window_bits=15"`). Libsoup doesn't surface an extension's spec name on the JS object (it's a class-level C field), so we `instanceof`-check `Soup.WebsocketExtensionDeflate` for the one extension Soup ships today and fall back to the stripped GType name for any third-party extension registered on the session. W3C spec compliance: `WebSocket.extensions` must echo the server-accepted extensions after `open`.
+
+5. **Driver case-timeout bumped to 60 s, from 10 s.** The largest deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 messages of 131 072 bytes each, ~128 MB roundtrip through GJS) legitimately need 10–30 s; the prior 10 s cap timed out 12 of them and reported `FAILED` even though they were making steady progress. 60 s matches Autobahn's own server-side case timeout for these cases.
+
+6. **Driver exit watchdog (`scripts/run-driver.mjs`).** `System.exit(0)` called from the bundled driver's `Promise.then` continuation silently returns in this context (the GLib main loop kept alive by `ensureMainLoop()` keeps the process running even after main() has resolved and the Autobahn report is written). The same `System.exit` call works from a standalone script or a MainLoop idle callback, so the blocker is specific to the driver bundle's heavily-patched `@gjsify/node-globals` runtime surface. Workaround: a Node wrapper polls for the `Done.` marker in the driver's log, gives the process 3 s to self-exit, then `SIGKILL`s. The report is on disk before `Done.` is printed so no data is lost. Removal blocker tracked below in Open TODOs.
 
 ### Root-cause fixes surfaced by the socket.io port and landed in this PR
 
@@ -508,6 +516,25 @@ A future `@gjsify/dom-bridge` package where `document.createElement("canvas")` +
 - `icecandidateerror` event — map from webrtcbin's ICE failure signals.
 - `peerIdentity`, `getIdentityAssertion` — identity provider integration.
 
+### Autobahn — expand coverage and wire into CI
+
+**Priority: Medium.**
+
+Current baseline excludes cases `9.*` (performance — ~30 min/run). The `12.*` / `13.*` permessage-deflate suites are now part of the baseline. Remaining items:
+
+- `6.4.x` NON-STRICT fragmented-text-with-invalid-UTF-8 cases close with `1007` but not "fast enough" by Autobahn's yardstick — libsoup surfaces only coalesced messages to GJS, so fast-fail needs an upstream libsoup change. Tracked under "Upstream GJS Patch Candidates" below.
+- Podman-in-CI needs privileged containers (or socket sharing) that our Fedora-based CI doesn't currently grant. Until that lands, the suite is a manual opt-in run + baseline-commit workflow.
+
+Plan: (1) investigate libsoup patch for `6.4.x` fragment-level UTF-8 validation; (2) wire autobahn scripts into a nightly CI job once Podman-in-CI is unblocked.
+
+### Autobahn driver — `System.exit()` bypass in bundled driver context
+
+**Priority: Low — has a working watchdog workaround, not on the user-visible surface.**
+
+Calling `System.exit(0)` from the bundled Autobahn driver's `Promise.then` continuation silently returns without terminating the gjs process, even though the exact same call works from a standalone script or a plain `GLib.MainLoop` idle callback. The GLib main loop that `ensureMainLoop()` starts for Soup's async I/O keeps the process alive indefinitely after `main()` has resolved and the Autobahn report is on disk. `tests/integration/autobahn/scripts/run-driver.mjs` compensates: it watches the log for the `Done.` marker the driver prints on success, allows a 3 s grace window for a clean exit, then `SIGKILL`s. No data loss — the report is flushed before `Done.` is emitted.
+
+Next steps to remove the watchdog: (1) isolate whether the block is in `@gjsify/process`'s `exit()` shim, in how we patch `globalThis.imports`, or in an interaction with `@gjsify/node-globals/register` preventing the libc `exit` syscall from propagating; (2) write a minimal reproducer outside the Autobahn pillar; (3) fix root-cause, drop the wrapper, inline `gjs -m dist/driver-*.gjs.mjs` back into the package.json scripts.
+
 ### WebRTC Showcase
 
 **Priority: Low — after Phase 2.**
@@ -527,6 +554,7 @@ Workarounds we maintain that could be eliminated with upstream GJS/SpiderMonkey 
 | `structuredClone` not available as global in GJS ESM | worker_threads, potentially all packages using message passing | Full polyfill in `@gjsify/utils` (`structured-clone.ts`) — supports Date, RegExp, Map, Set, Error types, ArrayBuffer, TypedArrays, DataView, Blob, File, circular refs, DataCloneError | Expose `structuredClone` as global in GJS ESM context (already available in SpiderMonkey 128) |
 | `TextDecoder` malformed UTF-8 handling differs across SpiderMonkey versions | string_decoder | Pure manual UTF-8 decoder implementing W3C maximal subpart algorithm (`utf8DecodeMaximalSubpart`) | Fix SpiderMonkey 115's `TextDecoder` to follow W3C encoding spec for maximal subpart replacement |
 | `queueMicrotask` not exposed as global in GJS 1.86 | timers, stream (any code needing microtask scheduling) | `Promise.resolve().then()` workaround | Expose `queueMicrotask` as global (already exists in SpiderMonkey 128) |
+| `Soup.WebsocketConnection` only emits the coalesced `message` signal — no fragment-level / frame-level hook is exposed over GI. A text message with invalid UTF-8 in a later fragment is only validated after libsoup has buffered the entire message, so the RFC 6455 "fail the connection at the first invalid byte" timing is unreachable from JS. | @gjsify/websocket (manifests as Autobahn cases 6.4.1–6.4.4 `behavior: NON-STRICT, behaviorClose: OK, remoteCloseCode: 1007`) | None needed at the application layer — libsoup itself sends close 1007 and the client does so at end-of-message, which is RFC-correct but "late" by Autobahn's strict timing definition. No code is shipped to work around this. | **libsoup patch (`soup/websocket/*`)** — expose either a per-frame `incoming-fragment` signal or an opt-in "validate-as-you-go" mode on `SoupWebsocketConnection` for text opcodes. Either shape lets the client fail the connection before the next fragment arrives on the wire, flipping 6.4.x from NON-STRICT to strictly-OK. |
 
 ## Changelog
 
