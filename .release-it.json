@@ -14,7 +14,9 @@
   "npm": {
     "publish": false
   },
-  "hooks": {},
+  "hooks": {
+    "after:bump": "node scripts/bump-docs-version.mjs ${latestVersion} ${version}"
+  },
   "plugins": {
     "@release-it/bumper": {
       "out": [
