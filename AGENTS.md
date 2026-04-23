@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.1.11, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/`. `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.1.15, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (19 + 1 meta) | **DOM** `packages/dom/` (8) | **Framework** `packages/framework/` (not yet populated). `packages/infra/` + `packages/gjs/` = supporting infra.
 
 ## Governance — non-negotiable
 
@@ -26,15 +26,16 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess |
 | cluster | — | Stub | isPrimary, isWorker |
 | console | — | Full | Console with stream support |
-| crypto | GLib | Partial | Hash(GLib.Checksum), Hmac(GLib.Hmac), randomBytes/UUID |
+| constants | — | Full | Flattened re-export of os.constants (errno, signals, priority, dlopen) + fs.constants + legacy crypto constants. Deprecated Node alias |
+| crypto | GLib | Full | Hash(GLib.Checksum), Hmac(GLib.Hmac), randomBytes/UUID, PBKDF2/HKDF/scrypt, AES CBC/CTR/ECB/GCM, DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, KeyObject JWK, X509Certificate |
 | dgram | Gio | Full | UDP via Gio.Socket |
 | diagnostics_channel | — | Full | Channel, TracingChannel |
 | dns | Gio | Full | lookup, resolve4/6, reverse via Gio.Resolver + promises |
 | domain | — | Stub | Deprecated |
-| events | — | Full | EventEmitter, once, on, listenerCount |
-| fs | Gio | Full | sync, callback, promises, streams, FSWatcher |
-| globals | GLib | Full | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate |
-| http | Soup 3.0 | Partial | Server(Soup.Server), IncomingMessage, ServerResponse |
+| events | — | Full | EventEmitter (prototype methods made enumerable for socket.io v4 compat), once, on, listenerCount, makeCallable (util.inherits CJS compat) |
+| fs | Gio | Full | sync, callback, promises, streams, FSWatcher, URL path args accepted everywhere |
+| globals | GLib | Full | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate, queueMicrotask |
+| http | Soup 3.0 | Partial | Server(Soup.Server, chunked+upgrade), ClientRequest, IncomingMessage (close-only-via-destroy per Node semantics), Agent |
 | http2 | — | Stub | constants only |
 | https | — | Partial | Agent, stub request/get |
 | inspector | — | Stub | Session stub |
@@ -43,28 +44,32 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | os | GLib | Full | homedir, hostname, cpus |
 | path | — | Full | POSIX + Win32 |
 | perf_hooks | — | Full | performance (Web API / GLib fallback) |
-| process | GLib | Full | extends EventEmitter, env, cwd, platform |
+| polyfills | — | Meta | `@gjsify/node-polyfills` — umbrella dep-only package pulling every Node polyfill. Used by `create-app` templates + CLI scaffolds. No runtime code |
+| process | GLib | Full | extends EventEmitter, env, cwd, platform, nextTick (batched GLib-idle delivery to keep GTK input responsive) |
 | querystring | — | Full | parse/stringify |
 | readline | — | Full | Interface, createInterface, question, prompt, async iterator |
-| stream | — | Full | Readable, Writable, Duplex, Transform, PassThrough |
+| sqlite | Gda 6.0 | Partial | node:sqlite — DatabaseSync, StatementSync via `gi://Gda?version=6.0` (libgda SQLite provider). URL + Uint8Array path args, param binding, typed readers, error codes |
+| stream | — | Full | Readable (protected `_autoClose` hook), Writable, Duplex, Transform, PassThrough, pipe/pipeline/finished, FIFO write-ordering across drain re-entry, serialized concurrent I/O |
 | string_decoder | — | Full | UTF-8, Base64, hex, streaming |
-| timers | — | Full | setTimeout/setInterval/setImmediate + promises |
+| sys | — | Full | Deprecated alias for util |
+| timers | — | Full | setTimeout/setInterval/setImmediate + promises (GLib-source-safe: replaces setTimeout/setInterval with `GLib.timeout_add` to avoid SM-GC race on GLib.Source BoxedInstances) |
 | tls | Gio | Partial | TLSSocket via Gio.TlsClientConnection |
 | tty | — | Full | ReadStream/WriteStream, ANSI escapes |
-| url | GLib | Full | URL, URLSearchParams via GLib.Uri |
+| url | GLib | Full | URL (with static `URL.createObjectURL` / `URL.revokeObjectURL` over `Blob._tmpPath` + `file://`), URLSearchParams via GLib.Uri |
 | util | — | Full | inspect, format, promisify, types |
 | v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
-| vm | — | Stub | runInThisContext (eval), Script |
-| worker_threads | — | Stub | isMainThread only |
-| ws (npm) | Soup 3.0 | Partial | `ws`-compat WebSocket client + WebSocketServer over @gjsify/websocket + Soup.Server; aliases `ws`+`isomorphic-ws`; missing noServer/handleUpgrade, verifyClient, custom perMessageDeflate, ping/pong events |
+| vm | — | Partial | runInThisContext (eval), runInNewContext (Function+sandbox), Script, compileFunction. No realm isolation |
+| worker_threads | — | Partial | MessageChannel/MessagePort/BroadcastChannel with structured clone; Worker via Gio.Subprocess (file-based resolution). No SharedArrayBuffer, no transferList |
+| ws (npm) | Soup 3.0 | Partial | `ws`-compat WebSocket client + WebSocketServer over `@gjsify/websocket` + Soup.Server; aliases `ws`+`isomorphic-ws`. Validated by Autobahn suite (240 OK / 4 NON-STRICT / 3 INFO / 0 FAILED). Missing noServer/handleUpgrade, verifyClient, custom perMessageDeflate, ping/pong events |
 | zlib | — | Full | gzip/deflate via Web Compression API, Gio.ZlibCompressor fallback |
 
 ## Web Packages — `packages/web/*`
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| fetch | Soup 3.0, Gio | fetch(), Request, Response, Headers |
-| dom-events | — | Event, CustomEvent, EventTarget, UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent, DOMException |
+| fetch | Soup 3.0, Gio | fetch(), Request (raw body via `set_request_body_from_bytes`), Response, Headers. **No XHR** — moved to `@gjsify/xmlhttprequest` |
+| xmlhttprequest | Soup 3.0, GLib | XMLHttpRequest (full `responseType`: arraybuffer/blob/json/text/document). Backs Excalibur's asset loader. No longer lives inside fetch |
+| dom-events | — | Event, CustomEvent, EventTarget, UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent |
 | dom-exception | — | DOMException (WebIDL) |
 | abort-controller | — | AbortController, AbortSignal |
 | formdata | — | FormData, File |
@@ -72,24 +77,31 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | compression-streams | Gio | CompressionStream, DecompressionStream |
 | webcrypto | GLib | crypto.subtle, getRandomValues, randomUUID |
 | eventsource | Soup 3.0 | EventSource (SSE) |
-| websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent |
+| websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent. NUL-byte-safe text frames (send via `send_message(TEXT, GLib.Bytes)` — Soup's `send_text` truncates at `\0`). RFC 6455 fuzz-validated via Autobahn |
 | webstorage | Gio | localStorage, sessionStorage |
 | webaudio | Gst 1.0, GstApp 1.0 | AudioContext(decodeAudioData via GStreamer decodebin), AudioBufferSourceNode(appsrc→volume→autoaudiosink), GainNode(AudioParam+setTargetAtTime), AudioBuffer(PCM Float32), HTMLAudioElement(canPlayType+playbin). Phase 1 |
+| webrtc | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | Full W3C WebRTC — RTCPeerConnection, RTCDataChannel (string+binary), RTCRtpSender/Receiver/Transceiver, MediaStream, MediaStreamTrack, getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback chain), RTCDTMFSender, RTCCertificate, RTCStatsReport, RTCIceCandidate, RTCSessionDescription. Tee-multiplexer for shared-source fan-out (VideoBridge preview ↔ PC sender). Backed by `@gjsify/webrtc-native` |
+| webrtc-native | Gst 1.0, GstWebRTC 1.0 | **Vala/GObject prebuild.** Three main-thread signal bridges: `WebrtcbinBridge` (wraps `on-negotiation-needed`/`on-ice-candidate`/`on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open`/`on-close`/`on-error`/`on-message-string`/`on-message-data`/`on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Captures signals on C side, re-emits via `GLib.Idle.add()` on the GLib main context — makes webrtcbin's streaming-thread callbacks safe to handle from JS. Ships as `.so` + `.typelib` prebuild for linux-{x86_64,aarch64} |
+| domparser | — | DOMParser.parseFromString (XML / HTML) with minimal DOM (tagName, getAttribute, children, querySelector/All, textContent, innerHTML). Sized for excalibur-tiled + simple config parsing |
 | gamepad | Manette 0.2 | Gamepad(navigator.getGamepads polling via libmanette signals), GamepadButton, GamepadEvent(gamepadconnected/disconnected), GamepadHapticActuator(dual-rumble). Lazy Manette.Monitor init, graceful degradation without libmanette |
 | web-globals | — | Re-exports all web API globals |
+| polyfills | — | Meta | `@gjsify/web-polyfills` — umbrella dep-only package pulling every Web polyfill. Used by `create-app` templates + CLI scaffolds. No runtime code |
 | adwaita-web | — | Browser Adwaita components (AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView). Custom Elements + SCSS partials in `scss/` (mirrors `refs/adwaita-web/scss/`). Built to `dist/adwaita-web.css` via `sass`. Light/dark. Consumer: `import '@gjsify/adwaita-web'` + `'@gjsify/adwaita-web/style.css'` (or `@use '.../scss/...'`). No GJS deps. Long-term: port remaining components (button, entry, dialog, popover, banner, tabs, …) from `refs/adwaita-web/scss/` — see STATUS.md |
+| adwaita-fonts | — | Adwaita Sans TTF files + `@font-face` CSS (fontsource-style). Consumed by browser showcases. Sourced from `refs/adwaita-fonts/`, SIL OFL 1.1 |
+| adwaita-icons | — | Adwaita symbolic icons as importable SVG strings (categories: actions/devices/mimetypes/places/status/ui). `toDataUri()` helper. Sourced from `refs/adwaita-icon-theme/`, CC0-1.0 / LGPLv3 |
 
 ## DOM Packages — `packages/dom/*`
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| dom-elements | GdkPixbuf | Node(ownerDocument→document, event bubbling), Element(setPointerCapture,releasePointerCapture,hasPointerCapture), HTMLElement(getBoundingClientRect), HTMLCanvas/Image/Media/VideoElement, Image, Document, Text, Comment, DocumentFragment, DOMTokenList, Mutation/Resize/IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert}` on import |
+| dom-elements | GdkPixbuf, `@gjsify/canvas2d-core` | Node(ownerDocument→document, event bubbling), Element(setPointerCapture,releasePointerCapture,hasPointerCapture), HTMLElement(getBoundingClientRect, dataset/DOMStringMap), HTMLCanvas/Image(data: URIs)/Media/VideoElement, Image, Document, Text, Comment, DocumentFragment, DOMTokenList, Mutation/Resize/IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert}` on import. Auto-registers the `'2d'` context factory via `@gjsify/canvas2d-core` so `canvas.getContext('2d')` works without an explicit import |
+| canvas2d-core | Cairo, PangoCairo | **Headless** CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, color parser. NO GTK dependency — usable in worker-like contexts. Extracted from `@gjsify/canvas2d` to break the dom-elements↔canvas2d cycle |
+| canvas2d | `@gjsify/canvas2d-core`, Cairo, GdkPixbuf, PangoCairo, Gtk 4 | Re-exports canvas2d-core + **FontFace** (PangoCairo font loading) + `Canvas2DBridge`→`Gtk.DrawingArea` GTK widget |
 | bridge-types | — | DOMBridgeContainer(iface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
-| canvas2d | Cairo, GdkPixbuf, PangoCairo | CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, Canvas2DBridge→Gtk.DrawingArea |
 | webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), WebGLBridge→Gtk.GLArea |
 | event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→Mouse/Pointer/Keyboard/Wheel/FocusEvent |
 | iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
-| video | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge→Gtk.Picture(gtk4paintablesink). srcObject(MediaStream) + src(URI via playbin) |
+| video | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge→Gtk.Picture(gtk4paintablesink). srcObject(MediaStream from getUserMedia/WebRTC) + src(URI via playbin). Phase 1 |
 
 ## Framework — `packages/framework/*`
 
@@ -103,12 +115,12 @@ Composition-first (Remix/Astro/SvelteKit/Solid-Start feel). Anything NOT Node/We
 |---|---|
 | bridge-types | Base ifaces + `BridgeEnvironment` (move first) |
 | event-bridge | `attachEventControllers` glue |
-| canvas2d | `Canvas2DBridge`→`Gtk.DrawingArea` |
+| canvas2d | `Canvas2DBridge`→`Gtk.DrawingArea` (the GTK-widget wrapper only; `canvas2d-core` stays in `packages/dom/`) |
 | webgl | `WebGLBridge`→`Gtk.GLArea` (ships prebuild) |
 | video | `VideoBridge`→`Gtk.Picture` |
 | iframe | `IFrameBridge`→`WebKit.WebView` |
 
-After migration: `packages/dom/` contains only `@gjsify/dom-elements`.
+After migration: `packages/dom/` contains only `@gjsify/dom-elements` + `@gjsify/canvas2d-core` (headless DOM + headless 2D).
 
 ### Bridge pattern
 
@@ -243,11 +255,12 @@ yarn build:test:{gjs,node} | yarn test:{gjs,node}
 
 ## GNOME Libs & Mappings — `node_modules/@girs/*`
 
-`@girs/glib-2.0`(ByteArray,Checksum,DateTime,Regex,URI,env,MainLoop) | `@girs/gobject-2.0`(signals,properties) | `@girs/gio-2.0`(File,streams,Socket,TLS,DBus) | `@girs/giounix-2.0`(Unix FDs) | `@girs/soup-3.0`(HTTP,WebSocket,cookies) | `@girs/gjs`(runtime)
+`@girs/glib-2.0`(ByteArray,Checksum,DateTime,Regex,URI,env,MainLoop) | `@girs/gobject-2.0`(signals,properties) | `@girs/gio-2.0`(File,streams,Socket,TLS,DBus) | `@girs/giounix-2.0`(Unix FDs) | `@girs/soup-3.0`(HTTP,WebSocket,cookies) | `@girs/gda-6.0`(SQLite) | `@girs/gst-1.0`+`@girs/gstapp-1.0`+`@girs/gstwebrtc-1.0`+`@girs/gstsdp-1.0`(media pipelines, WebRTC) | `@girs/manette-0.2`(gamepads) | `@girs/webkit-6.0`(iframe, WebView) | `@girs/gjs`(runtime)
 
 ```
-Node→GNOME: fs→Gio.File{,I/O}Stream | Buffer→GLib.Bytes/ByteArray/Uint8Array | net.Socket→Gio.Socket{Connection,Client} | http→Soup.{Session,Server} | crypto→GLib.{Checksum,Hmac} | process.env→GLib.{g,s}etenv() | url.URL→GLib.Uri
-Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | Streams→Gio.{In,Out}putStream | Compression→Gio.ZlibCompressor | SubtleCrypto→GLib.Checksum+Hmac | localStorage→Gio.File/GLib.KeyFile | ImageBitmap→GdkPixbuf.Pixbuf | EventSource→Soup.Session(SSE) | Gamepad→Manette.{Monitor,Device}
+Node→GNOME: fs→Gio.File{,I/O}Stream | Buffer→GLib.Bytes/ByteArray/Uint8Array | net.Socket→Gio.Socket{Connection,Client} | http→Soup.{Session,Server} | crypto→GLib.{Checksum,Hmac} | process.env→GLib.{g,s}etenv() | url.URL→GLib.Uri | sqlite→Gda.Connection(SQLite provider)
+Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | XMLHttpRequest→Soup.Session+GLib(temp files) | Streams→Gio.{In,Out}putStream | Compression→Gio.ZlibCompressor | SubtleCrypto→GLib.Checksum+Hmac | localStorage→Gio.File/GLib.KeyFile | ImageBitmap→GdkPixbuf.Pixbuf | EventSource→Soup.Session(SSE) | Gamepad→Manette.{Monitor,Device} | WebRTC→Gst.webrtcbin+GstSDP+@gjsify/webrtc-native(Vala signal bridges) | getUserMedia→GStreamer pipewiresrc/pulsesrc/v4l2src
+DOM→GNOME: Canvas2D→Cairo+PangoCairo | WebGL→Gtk.GLArea+libepoxy(via gwebgl Vala) | HTMLVideoElement→Gtk.Picture+gtk4paintablesink | HTMLIFrameElement→WebKit.WebView
 ```
 
 ## References — `refs/`
@@ -263,6 +276,7 @@ IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for re
 |`refs/workerd/` 67 modules — `src/workerd/api/node/tests/`
 |`refs/edgejs/` test harness patterns (uses node-test)
 |`refs/llrt/` TS tests — `tests/unit/*.test.ts` (assert,buffer,crypto,events,fs,net,path,stream)
+|`refs/ws/` primary source for `@gjsify/ws` drop-in + reference Autobahn driver
 
 ### Web API
 |`refs/deno/` **primary** — `ext/{web,fetch,crypto,websocket,webstorage,cache,image}/`
@@ -274,7 +288,32 @@ IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for re
 |`refs/webgl/` Khronos spec + conformance (authoritative)
 |`refs/three/` three.js — ref for WebGL examples
 |`refs/libepoxy/` OpenGL fn ptrs (used by Vala ext)
-|`refs/node-gst-webrtc/` WebRTC via GStreamer
+|`refs/node-gst-webrtc/` WebRTC via GStreamer — primary `@gjsify/webrtc` reference
+|`refs/node-datachannel/`, `refs/libdatachannel/` alternative WebRTC impl via libdatachannel (C++ + Node bindings) — cross-reference for RTCDataChannel semantics
+|`refs/webrtc-samples/` — MDN/Google WebRTC sample apps, behavior ref
+|`refs/webkit/` — WebKit engine; reference for `@gjsify/iframe` (WebKit.WebView) + DOM spec behavior
+|`refs/epiphany/` — GNOME Web; real-world embedder of WebKit.WebView, pattern for browser-hosting GTK apps
+|`refs/node-canvas/` — node-canvas (Cairo-backed Canvas 2D) — reference for `@gjsify/canvas2d-core` Cairo idioms
+
+### WebSocket & networking
+|`refs/ws/` **npm `ws` canonical** — reference for `@gjsify/ws` wrapper semantics + Autobahn driver (`test/autobahn.js`)
+|`refs/socket.io/` — Socket.IO v4 source, test suite + `packages/socket.io/test/` ported into `tests/integration/socket.io/`
+
+### Streams
+|`refs/streamx/` — mafintosh/streamx streams; queueMicrotask-driven scheduling. Test suite ported into `tests/integration/streamx/`
+
+### BitTorrent
+|`refs/webtorrent/`, `refs/webtorrent-desktop/` — WebTorrent client + Electron desktop app; test suite ported into `tests/integration/webtorrent/`
+
+### Games
+|`refs/excalibur/` — Excalibur.js game engine; primary driver for `@gjsify/webaudio`, input (gamepad), event-bridge gaps
+|`refs/excalibur-tiled/` — Tiled map loader plugin for Excalibur; primary DOMParser consumer
+|`refs/peachy/` — GNOME GJS game example (vixalien) — practical GJS+GTK pattern ref
+|`refs/map-editor/` — PixelRPG map editor; Excalibur + Tiled GJS showcase
+
+### GNOME app samples
+|`refs/showtime/` — GNOME video player (Gtk4 + gtk4paintablesink) — reference for `@gjsify/video` VideoBridge
+|`refs/gamepad-mirror/` — Manette 0.2 gamepad reference app
 
 ### Other
 `refs/gjs/`(internals) | `refs/stream-http/`(HTTP via streams) | `refs/troll/`(GJS utils) | `refs/crypto-browserify/`(orchestrator → sub-pkgs: `refs/{browserify-cipher,browserify-sign,create-ecdh,create-hash,create-hmac,diffie-hellman,hash-base,pbkdf2,public-encrypt,randombytes,randomfill}`) | `refs/readable-stream/`(edge cases) | `refs/ungap-structured-clone/`(→`packages/gjs/utils/src/structured-clone.ts`)
@@ -282,8 +321,10 @@ IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for re
 ### Adwaita/GTK design
 |`refs/adwaita-web/` Web Framework based on GTK4/Libadwaita — CSS/component ref for `@gjsify/adwaita-web`
 |`refs/libadwaita/` canonical CSS colors, radii, widget styles
-|`refs/adwaita-fonts/` Adwaita Sans/Mono (SIL OFL) — browser examples
+|`refs/adwaita-fonts/` Adwaita Sans/Mono (SIL OFL) — sources packaged into `@gjsify/adwaita-fonts`
+|`refs/adwaita-icon-theme/` GNOME symbolic icons (CC0/LGPLv3) — sources packaged into `@gjsify/adwaita-icons`
 |`refs/app-mockups/` GNOME mockup PNGs/SVGs — visual ref
+|`refs/app-icon-requests/` GNOME app icon requests — supplemental visual ref
 
 ### Build/tooling
 `refs/astro/`(website ref) | `refs/deepkit/`(type compiler) | `refs/gjsify-vite/`(`examples/gtk/three-geometry-shapes/refs/gjsify-vite/`, Vite plugins for GJS)
@@ -394,11 +435,20 @@ No `@gjsify/test-compat` shim today (manual rewrite keeps code idiomatic). Revis
 
 Scripts: `yarn test:integration[:node|:gjs]`. NOT part of `yarn test` — opt-in to avoid blocking PRs on tracked gaps.
 
-**Protocol-fuzzing integration** (`tests/integration/autobahn/`, non-port): runs [crossbario/autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite) Python fuzzingserver in Podman/Docker, points Gjs drivers at it. Thin echo-client iterating `getCaseCount`→`runCase`→`updateReports` (pattern from `refs/ws/test/autobahn.js`). Validation: diff `reports/output/clients/index.json` vs `reports/baseline/<agent>.json` via `scripts/validate-reports.mjs` (regressions/improvements/missing per agent). Two drivers: `@gjsify/websocket` (W3C over Soup) + `@gjsify/ws` (npm `ws` wrapper) — isolates wrapper-layer from transport-layer bugs. Runtime: `scripts/autobahn-up.mjs`/`down.mjs` — `CONTAINER_RUNTIME=podman|docker` overrides auto-detection (prefers Podman; Fedora default).
+**Current suites:**
+
+| Suite | Source | Node | GJS | Pillars exercised |
+|---|---|---|---|---|
+| `tests/integration/webtorrent/` | `refs/webtorrent/test/` — 7 ports | 185/185 | 185/185 | fs (URL paths), stream, events, buffer, crypto, esbuild `require` condition fix, `random-access-file` alias |
+| `tests/integration/socket.io/` | `refs/socket.io/packages/socket.io/test/` — 3 ports | 20/20 | 20/20 | http, fetch (raw body), events (enumerable proto), IncomingMessage close semantics, polling transport |
+| `tests/integration/streamx/` | `refs/streamx/test/` — 6 ports + `throughput.spec.ts` | 155/155 | 156/156 | stream, queueMicrotask injection (fixes 0 B/s regression) |
+| `tests/integration/autobahn/` | crossbario fuzzingserver (non-port) | — | 240 OK / 4 NON-STRICT / 3 INFO / 0 FAILED × 2 agents | websocket, ws wrapper, RFC 6455 |
+
+**Protocol-fuzzing integration** (`tests/integration/autobahn/`, non-port): runs [crossbario/autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite) Python fuzzingserver in Podman/Docker, points Gjs drivers at it. Thin echo-client iterating `getCaseCount`→`runCase`→`updateReports` (pattern from `refs/ws/test/autobahn.js`). Validation: diff `reports/output/clients/index.json` vs `reports/baseline/<agent>.json` via `scripts/validate-reports.mjs` (regressions/improvements/missing per agent). Two drivers: `@gjsify/websocket` (W3C over Soup) + `@gjsify/ws` (npm `ws` wrapper) — isolates wrapper-layer from transport-layer bugs. Runtime: `scripts/autobahn-up.mjs`/`down.mjs` — `CONTAINER_RUNTIME=podman|docker` overrides auto-detection (prefers Podman; Fedora default). Baselines under `reports/baseline/` are committed; regressions surface in PR diffs. Not wired into CI yet (Podman-in-CI needs privileged containers).
 
 ## Package convention
 
-`packages/node/<name>/` → `@gjsify/<name>`, v0.1.11, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
+`packages/node/<name>/` → `@gjsify/<name>`, v0.1.15, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
 
 Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals) | `src/*.spec.ts` | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + feature-specific `<pkg>/register`). Full rules: Tree-shakeable Globals section.
 
@@ -471,7 +521,7 @@ Every impl → A or B. Every ported test → C. Original: `// <Module> for GJS �
 
 ### Copyright (refs/<pkg> → holder, license)
 
-|node,node-test → Node.js contributors, MIT |deno → 2018-2026 Deno authors, MIT |bun → Oven, MIT |quickjs → Bellard+Gordon, MIT |workerd → Cloudflare, Apache 2.0 |edgejs → Wasmer, MIT |crypto-browserify,browserify-cipher,create-hash,create-hmac,randombytes,randomfill → crypto-browserify contributors, MIT |browserify-sign,diffie-hellman,public-encrypt → Calvin Metcalf, ISC/MIT |create-ecdh → createECDH contributors, MIT |hash-base → Kirill Fomichev, MIT |pbkdf2 → Daniel Cousens, MIT |readable-stream → Node.js contributors, MIT |undici → Matteo Collina+contributors, MIT |gjs → GNOME contributors, MIT/LGPLv2+ |headless-gl → Mikola Lysenko, BSD-2-Clause |webgl → Khronos Group, MIT |three → three.js authors, MIT |libepoxy → Intel, MIT |node-gst-webrtc → Ratchanan Srirattanamet, ISC |llrt → Amazon, Apache 2.0 |happy-dom → David Ortner, MIT |jsdom → Elijah Insua, MIT |wpt → web-platform-tests contributors, 3-Clause BSD |ungap-structured-clone → Andrea Giammarchi, ISC |adwaita-web → mclellac, MIT |libadwaita → GNOME contributors, LGPLv2.1+ |adwaita-fonts → Inter/Iosevka/GNOME, SIL OFL 1.1 |app-mockups → GNOME contributors, CC-BY-SA |node-fetch → MIT |event-target-shim → Toru Nagashima, MIT |gjs-require → Andrea Giammarchi, ISC
+|node,node-test → Node.js contributors, MIT |deno → 2018-2026 Deno authors, MIT |bun → Oven, MIT |quickjs → Bellard+Gordon, MIT |workerd → Cloudflare, Apache 2.0 |edgejs → Wasmer, MIT |crypto-browserify,browserify-cipher,create-hash,create-hmac,randombytes,randomfill → crypto-browserify contributors, MIT |browserify-sign,diffie-hellman,public-encrypt → Calvin Metcalf, ISC/MIT |create-ecdh → createECDH contributors, MIT |hash-base → Kirill Fomichev, MIT |pbkdf2 → Daniel Cousens, MIT |readable-stream → Node.js contributors, MIT |undici → Matteo Collina+contributors, MIT |gjs → GNOME contributors, MIT/LGPLv2+ |headless-gl → Mikola Lysenko, BSD-2-Clause |webgl → Khronos Group, MIT |three → three.js authors, MIT |libepoxy → Intel, MIT |node-gst-webrtc → Ratchanan Srirattanamet, ISC |node-datachannel → Murat Doğan, MPL 2.0 |libdatachannel → Paul-Louis Ageneau, MPL 2.0 |webkit → WebKit contributors, LGPLv2 / BSD-2-Clause |epiphany → GNOME contributors, GPLv3 |webrtc-samples → WebRTC authors, BSD-3-Clause |node-canvas → Automattic, MIT |llrt → Amazon, Apache 2.0 |happy-dom → David Ortner, MIT |jsdom → Elijah Insua, MIT |wpt → web-platform-tests contributors, 3-Clause BSD |ungap-structured-clone → Andrea Giammarchi, ISC |ws → WebSocket/IO contributors, MIT |socket.io → Automattic, MIT |streamx → Mathias Buus, MIT |webtorrent,webtorrent-desktop → WebTorrent LLC, MIT |excalibur → Excalibur.js authors, BSD-2-Clause |excalibur-tiled → Excalibur.js authors, BSD-2-Clause |peachy → vixalien, MIT |map-editor → PixelRPG, MIT |gamepad-mirror → vendillah, GPLv3 |showtime → GNOME contributors, GPLv3 |adwaita-web → mclellac, MIT |libadwaita → GNOME contributors, LGPLv2.1+ |adwaita-fonts → Inter/Iosevka/GNOME, SIL OFL 1.1 |adwaita-icon-theme → GNOME contributors, CC0-1.0 / LGPLv3 |app-mockups,app-icon-requests → GNOME contributors, CC-BY-SA |node-fetch → MIT |event-target-shim → Toru Nagashima, MIT |gjs-require → Andrea Giammarchi, ISC
 
 ## STATUS.md & CHANGELOG.md Maintenance
 

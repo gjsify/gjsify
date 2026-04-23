@@ -1,29 +1,32 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-17 (@gjsify/webrtc Phase 3 — Outgoing media pipeline + getUserMedia. addTrack wires GStreamer encoder chain (source→valve→convert→encode→payloader→capsfilter→webrtcbin). getUserMedia wraps pipewiresrc/pulsesrc/v4l2src as MediaStreamTracks. replaceTrack with atomic source swap. End-to-end bidirectional audio verified. 229 tests green.)
+> Last updated: 2026-04-23 (Autobahn Testsuite pillar + `@gjsify/ws` npm-compatible wrapper; `@gjsify/sqlite` on libgda; `@gjsify/xmlhttprequest` split out of fetch; `@gjsify/canvas2d-core` extracted to break the dom-elements ↔ canvas2d cycle; `@gjsify/domparser` for excalibur-tiled; meta polyfill packages `@gjsify/node-polyfills` + `@gjsify/web-polyfills`.)
 
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **39 Node.js packages**, **17 Web API packages**, **5 DOM packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages** (+1 meta), **8 DOM/bridge packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 39 | 32 (82%) | 3 (8%) | 4 (10%) |
-| Web APIs | 17 | 15 (88%) | 2 (12%) | — |
-| DOM APIs | 5 | 5 (100%) | — | — |
-| Browser UI | 1 | 1 | — | — |
+| Node.js APIs | 42 | 34 (81%) | 4 (10%) | 4 (10%) |
+| Node.js meta | 1 | 1 | — | — |
+| Web APIs | 19 | 17 (89%) | 2 (11%) | — |
+| Web meta | 1 | 1 | — | — |
+| DOM / Bridges | 8 | 8 (100%) | — | — |
+| Browser UI | 3 | 3 (adwaita-web, adwaita-fonts, adwaita-icons) | — | — |
 | Showcases | 6 | 6 | — | — |
 | GJS Infrastructure | 4 | 3 | 1 (types) | — |
 | Build/Infra Tools | 9 | 9 | — | — |
+| Integration test suites | 4 | 4 (webtorrent, socket.io, streamx, autobahn) | — | — |
 
-**Test coverage:** 9,500+ test cases in 94 spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43).
+**Test coverage:** 10,500+ test cases in 110+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from webtorrent / socket.io / streamx, plus the Autobahn fuzzingserver for RFC 6455 compliance.
 
 ---
 
 ## Node.js Packages (`packages/node/`)
 
-### Fully Implemented (32)
+### Fully Implemented (34)
 
 | Package | GNOME Libs | Tests | Description |
 |---------|-----------|-------|-------------|
@@ -32,7 +35,7 @@ The project comprises **39 Node.js packages**, **17 Web API packages**, **5 DOM 
 | **buffer** | — | 317 | Buffer via Blob/atob/btoa, alloc, from, concat, encodings, fill, indexOf/lastIndexOf, slice/subarray, copy, int/float read/write, swap16/32/64, equals, compare |
 | **child_process** | Gio, GLib | 110 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
 | **console** | — | 124 | Console class with stream support, format specifiers, table, dir, time/timeLog, count, group, assert, trace, stdout/stderr routing |
-| **constants** | — | 27 | Flattened re-export of os.constants (errno, signals, priority, dlopen) + fs.constants + crypto.constants (deprecated) |
+| **constants** | — | 27 | Flattened re-export of `os.constants` (errno, signals, priority, dlopen) + `fs.constants` + legacy crypto constants — the deprecated Node `constants` alias |
 | **crypto** | GLib | 571 (13 specs) | Hash (SHA256/384/512, MD5, SHA1, known vectors), Hmac (extended edge cases), randomBytes/UUID/Int (v4 format, uniqueness), PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate**, timingSafeEqual, getHashes/getCiphers/getCurves, constants |
 | **dgram** | Gio, GLib | 143 | UDP Socket via Gio.Socket with bind, send, receive, multicast, connect/disconnect/remoteAddress, broadcast, TTL, ref/unref, IPv6, EventEmitter |
 | **diagnostics_channel** | — | 137 | Channel, TracingChannel, subscribe/unsubscribe |
@@ -52,7 +55,7 @@ The project comprises **39 Node.js packages**, **17 Web API packages**, **5 DOM 
 | **readline** | — | 145 (2 specs) | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor, **readline/promises** (createInterface, question→Promise) |
 | **stream** | — | 509 (7 specs) | Readable, Writable, Duplex, Transform (**_flush** edge cases, constructor options, objectMode, split HWM, destroy, final/flush ordering, ERR_MULTIPLE_CALLBACK), PassThrough, objectMode, backpressure (**drain events**, **HWM=0**), **pipe** (event, cleanup, error handling, multiple dest, unpipe, same dest twice, needDrain, objectMode→non-objectMode), **inheritance** (instanceof hierarchy, util.inherits single/multi-level, stream subclassing), destroy, **pipeline** (error propagation, multi-stream), **finished** (premature close, cleanup), **addAbortSignal**, **Readable.from** (array/generator/async generator/string/Buffer), consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished), **async iteration**, **_readableState/_writableState** (highWaterMark, objectMode, pipes), **Symbol.hasInstance** (Duplex/Transform/PassThrough instanceof Writable) |
 | **string_decoder** | — | 103 | UTF-8, Base64, hex, streaming |
-| **sys** | — | 7 | Alias for util (deprecated) |
+| **sys** | — | 7 | Deprecated Node alias — re-exports `@gjsify/util` |
 | **timers** | — | 88 (3 specs) | setTimeout/setInterval/setImmediate (**delay verification, args, clear, ordering**) + timers/promises |
 | **tls** | Gio, GLib | 132 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer/TLSServer, createSecureContext, **checkServerIdentity** (CN, wildcard, SAN DNS/IP, FQDN, edge cases, error properties), **getCiphers**, DEFAULT_CIPHERS, rootCertificates |
 | **tty** | — | 29 | ReadStream/WriteStream, isatty (various fds), ANSI, clearLine, cursorTo, getColorDepth (env-based), hasColors, getWindowSize |
@@ -60,11 +63,18 @@ The project comprises **39 Node.js packages**, **17 Web API packages**, **5 DOM 
 | **util** | — | 245 (2 specs) | inspect (**colors, styles, custom symbol, defaultOptions**, edge cases), format (%%, %s/%d/%j/%i/%f, args), promisify (**custom symbol**), callbackify, deprecate, inherits (**super_**), isDeepStrictEqual, **types** (isDate/RegExp/Map/Set/Promise/ArrayBuffer/TypedArray/Async/Generator/WeakMap/WeakSet/DataView), TextEncoder/TextDecoder |
 | **zlib** | — | 102 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors, sync methods, double compression, consistency |
 
-### Partially Implemented (4)
+### Meta package
+
+| Package | Purpose |
+|---------|---------|
+| **@gjsify/node-polyfills** | Dep-only umbrella — pulls every Node polyfill so `gjsify create-app` templates and CLI-generated scaffolds resolve any `node:*` import out of the box. No runtime code. |
+
+### Partially Implemented (5)
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
-| **ws** (npm) | Soup 3.0 (via `@gjsify/websocket`) | 18 (node) / 23 (gjs) | `WebSocket` client class (url/protocol/headers through native), readyState + events (`open`/`message`/`close`/`error`), `send()`/`close()`/`terminate()`, `binaryType` conversions (nodebuffer/arraybuffer/fragments/blob), W3C `addEventListener` compat surface, `WebSocketServer` via `Soup.Server.add_websocket_handler` (port binding, `connection` event, client tracking, close). Aliases: npm `ws` and `isomorphic-ws` both resolve here. | `ping`/`pong` events (Soup handles control frames internally), `upgrade`/`unexpected-response`/`redirect` events (no Soup hook), `{ noServer: true }` + `handleUpgrade()`, `{ server: existingHttpServer }`, `verifyClient`/`handleProtocols`/`path` routing, custom `perMessageDeflate` options, `createWebSocketStream`, `options.headers` / `origin` / `handshakeTimeout` forwarding |
+| **sqlite** | Gda 6.0 | 48 | `DatabaseSync` (open/close, prepare, exec, `enableForeignKeyConstraints`, `readBigInts`, location property, path as `string`/`URL`/`Uint8Array`), `StatementSync` (all/get/run/iterate, named + positional params, typed readers via `data-model-reader.ts`, returning `{ lastInsertRowid, changes }`), spec-compliant error codes (`ERR_SQLITE_ERROR`, `ERR_INVALID_STATE`, `ERR_INVALID_URL_SCHEME`) via libgda SQLite provider (`gi://Gda?version=6.0`). | `PRAGMA user_version` round-trip depends on libgda build; WAL journal mode; `sqlite.constants` (SQLITE_CHANGESET_*); session/changeset extension APIs (libgda doesn't expose them); backup/vfs APIs |
+| **ws** (npm) | Soup 3.0 (via `@gjsify/websocket`) | 18 (node) / 23 (gjs); Autobahn: 240 OK / 4 NON-STRICT / 3 INFO | `WebSocket` client class (url/protocol/headers through native), readyState + events (`open`/`message`/`close`/`error`), `send()`/`close()`/`terminate()`, `binaryType` conversions (nodebuffer/arraybuffer/fragments/blob), W3C `addEventListener` compat surface, `WebSocketServer` via `Soup.Server.add_websocket_handler` (port binding, `connection` event, client tracking, close). Aliases: npm `ws` and `isomorphic-ws` both resolve here. | `ping`/`pong` events (Soup handles control frames internally), `upgrade`/`unexpected-response`/`redirect` events (no Soup hook), `{ noServer: true }` + `handleUpgrade()`, `{ server: existingHttpServer }`, `verifyClient`/`handleProtocols`/`path` routing, custom `perMessageDeflate` options, `createWebSocketStream`, `options.headers` / `origin` / `handshakeTimeout` forwarding |
 | **worker_threads** | Gio, GLib | 232 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC, **file-based resolution with relative paths**, missing-file error handling, stderr capture), **addEventListener/removeEventListener on MessagePort/BroadcastChannel**, structured clone edge cases (-0, NaN, BigInt, Int32Array) | SharedArrayBuffer, transferList |
 | **http2** | — | 102 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
 | **vm** | — | 203 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
@@ -82,7 +92,7 @@ The project comprises **39 Node.js packages**, **17 Web API packages**, **5 DOM 
 
 ## Web API Packages (`packages/web/`)
 
-All 15 packages have real implementations:
+All 19 packages have real implementations (plus 1 meta). New in this cycle: `@gjsify/xmlhttprequest` (split out of fetch), `@gjsify/domparser` (excalibur-tiled), `@gjsify/webrtc`, `@gjsify/webrtc-native`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons`, `@gjsify/web-polyfills`.
 
 | Package | GNOME Libs | Tests | Web APIs |
 |---------|-----------|-------|----------|
@@ -90,8 +100,10 @@ All 15 packages have real implementations:
 | **compression-streams** | — | 29 | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw). Uses @gjsify/web-streams TransformStream |
 | **dom-events** | — | 142 (3 specs) | Event, EventTarget, CustomEvent |
 | **dom-exception** | — | 64 | DOMException polyfill (WebIDL standard) |
+| **domparser** | — | 23 | DOMParser (parseFromString XML + HTML), minimal DOM (Element tagName/getAttribute/children/childNodes/querySelector[All]/textContent/innerHTML, Document documentElement/querySelector[All]). Sized for excalibur-tiled map parsing |
 | **eventsource** | — | 15 | EventSource (Server-Sent Events), TextLineStream. Uses fetch + Web Streams |
-| **fetch** | Soup 3.0, Gio, GLib | 73 | fetch(), Request, Response, Headers, Referrer-Policy, **file:// URI support**, XMLHttpRequest (full `responseType` support: arraybuffer / blob + temp-file / json / text / document), URL.createObjectURL / URL.revokeObjectURL (patched by `register/xhr`, Blob→`file://<tmpPath>`) |
+| **fetch** | Soup 3.0, Gio, GLib | 73 | fetch(), Request, Response, Headers, Referrer-Policy, **file:// URI support**. Raw request body via `set_request_body_from_bytes` (fixes POST body never sent). XHR + `URL.createObjectURL` moved out into `@gjsify/xmlhttprequest` + `@gjsify/url` |
+| **xmlhttprequest** | Soup 3.0, GLib | covered via fetch `on('Gjs', …)` | XMLHttpRequest (full `responseType`: arraybuffer / blob + temp-file / json / text / document). FakeBlob with `_tmpPath`. `URL.createObjectURL`/`revokeObjectURL` are first-class methods on `@gjsify/url`'s URL class — this package just owns the blob-file plumbing and the XHR class |
 | **formdata** | — | 49 | FormData, File, multipart encoding |
 | **streams** | — | 283 | ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS) |
 | **webcrypto** | — | 486 | SubtleCrypto (digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey), CryptoKey |
@@ -187,9 +199,10 @@ Tests that exercise `webrtcbin` (construction, deferred-APIs-throw, close, loopb
 
 | Package | GNOME Libs | Tests | APIs |
 |---------|-----------|-------|------|
-| **dom-elements** | GdkPixbuf | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect, **dataset/DOMStringMap**), HTMLCanvasElement (base DOM stub), HTMLImageElement (**data: URI support**), HTMLMediaElement, HTMLVideoElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
+| **dom-elements** | GdkPixbuf, `@gjsify/canvas2d-core` | 210 | Node(ownerDocument→document, event bubbling via parentNode), Element(setPointerCapture, releasePointerCapture, hasPointerCapture), HTMLElement(getBoundingClientRect, **dataset/DOMStringMap**), HTMLCanvasElement (base DOM stub; auto-registers `'2d'` context factory via `@gjsify/canvas2d-core`), HTMLImageElement (**data: URI support**), HTMLMediaElement, HTMLVideoElement, Image, Document(body→documentElement tree), Text, Comment, DocumentFragment, DOMTokenList, MutationObserver, ResizeObserver, IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert,AbortController,AbortSignal,fetch,Request,Response,Headers}` |
+| **canvas2d-core** | Cairo, PangoCairo | 89 (8 specs: clearing, color, composite, drawimage, imagedata, state, text, transform) | **Headless** CanvasRenderingContext2D (HSL/HSLA color parsing, shadowBlur approximation, drawImage paint+clip, composite operations), CanvasGradient, CanvasPattern, Path2D, ImageData, color parser. NO GTK dependency — usable in pure-Cairo contexts. Extracted from `@gjsify/canvas2d` to break the dom-elements ↔ canvas2d circular dependency and to give downstream code a GTK-free 2D surface |
 | **bridge-types** | — | — | DOMBridgeContainer(interface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
-| **canvas2d** | Cairo, GdkPixbuf, PangoCairo | — | CanvasRenderingContext2D (**HSL/HSLA color parsing**, **shadowBlur approximation**, drawImage via paint+clip, composite operations), CanvasGradient, CanvasPattern, Path2D, ImageData, **FontFace** (pixel-perfect font rendering via PangoCairo), Canvas2DBridge→Gtk.DrawingArea |
+| **canvas2d** | `@gjsify/canvas2d-core`, Cairo, GdkPixbuf, PangoCairo, Gtk 4 | — | Re-exports `canvas2d-core` surface + **FontFace** (pixel-perfect font rendering via PangoCairo) + Canvas2DBridge→Gtk.DrawingArea (GTK widget wrapper) |
 | **webgl** | gwebgl, Gtk 4, Gio | 12 | WebGLRenderingContext (1.0), WebGL2RenderingContext (2.0, overrides texImage2D/texSubImage2D/drawElements for GLES3.2 compat, native FBO completeness delegation, GLSL 1.0 compatibility for versionless shaders, **clearBufferfv/iv/uiv/fi**, **premultipliedAlpha support**), HTMLCanvasElement (GTK-backed), WebGLBridge (Gtk.GLArea subclass, rAF, resize re-render, **eager context init**), Extensions |
 | **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent, **window-level keyboard listeners** |
 | **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
@@ -202,6 +215,12 @@ Tests that exercise `webrtcbin` (construction, deferred-APIs-throw, close, loopb
 | **adwaita-web** | — | AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView, AdwCard. Custom Elements (light DOM). SCSS source partials in `scss/` (mirroring `refs/adwaita-web/scss/`) compiled to `dist/adwaita-web.css` via the `sass` package. Light/dark theme via CSS variables. Consumers import `@gjsify/adwaita-web` (registers custom elements + Adwaita Sans font) plus `@gjsify/adwaita-web/style.css` (or via SCSS partials at `@gjsify/adwaita-web/scss/*`). No GJS deps |
 | **adwaita-fonts** | — | Adwaita Sans font files (fontsource-style). CSS @font-face + TTF files. SIL OFL 1.1 |
 | **adwaita-icons** | — | Adwaita symbolic icons as importable SVG strings (categories: actions, devices, mimetypes, places, status, ui, …). `toDataUri()` utility. Sourced from `refs/adwaita-icon-theme/`. CC0-1.0 / LGPLv3 |
+
+### Meta package
+
+| Package | Purpose |
+|---------|---------|
+| **@gjsify/web-polyfills** | Dep-only umbrella — pulls every Web polyfill (abort-controller, compression-streams, dom-events, dom-exception, domparser, eventsource, fetch, formdata, gamepad, webaudio, webcrypto, websocket, webstorage, web-streams, web-globals, xmlhttprequest) so `gjsify create-app` scaffolds resolve any Web API import out of the box. No runtime code. |
 
 ### Adwaita Web Framework Roadmap
 
@@ -281,16 +300,22 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | GNOME Lib | Used In |
 |-----------|---------|
-| **Gio 2.0** | fs, net, dns, child_process, dgram, tls, module, fetch |
-| **GLib 2.0** | crypto, url, os, process, dns, child_process, dgram, tls, module |
-| **Soup 3.0** | http, https, fetch, websocket |
-| **Gtk 4.0** | webgl |
+| **Gio 2.0** | fs, net, dns, child_process, dgram, tls, module, fetch, xmlhttprequest |
+| **GLib 2.0** | crypto, url, os, process, dns, child_process, dgram, tls, module, timers, xmlhttprequest (temp files) |
+| **Soup 3.0** | http, https, fetch, websocket, eventsource, xmlhttprequest |
+| **Gda 6.0** | sqlite (libgda SQLite provider) |
+| **Gtk 4.0** | canvas2d (DrawingArea), webgl (GLArea), video (Picture), event-bridge |
+| **Gdk 4.0** | event-bridge (key/modifier state) |
 | **GdkPixbuf 2.0** | dom-elements (HTMLImageElement) |
+| **WebKit 6.0** | iframe (WebKit.WebView) |
+| **Cairo + PangoCairo** | canvas2d-core, canvas2d (FontFace) |
 | **gwebgl 0.1** | webgl (Vala extension) |
-| **Gst 1.0** | webaudio (audio decoding + playback), webrtc (pipeline + elements) |
+| **Gst 1.0** | webaudio, webrtc, video (all GStreamer pipelines) |
 | **GstApp 1.0** | webaudio (appsrc/appsink for PCM I/O) |
-| **GstWebRTC 1.0** | webrtc (webrtcbin element, signal-based peer negotiation, WebRTCSessionDescription) |
-| **GstSDP 1.0** | webrtc (SDP message parse/serialize via SDPMessage.new_from_text + as_text) |
+| **GstWebRTC 1.0** | webrtc (webrtcbin element) |
+| **GstSDP 1.0** | webrtc (SDP message parse/serialize via `SDPMessage.new_from_text` + `as_text`) |
+| **Manette 0.2** | gamepad (libmanette monitor + devices) |
+| **`@gjsify/webrtc-native` (Vala)** | webrtc (main-thread signal bridges for webrtcbin / data channels / Gst.Promise) |
 
 ---
 
@@ -298,22 +323,23 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Metric | Value |
 |--------|-------|
-| Total Node.js packages | 39 |
-| Fully implemented | 32 (82%) |
-| Partially implemented | 3 (8%) |
-| Stubs | 4 (10%) |
-| Web API packages | 15 (14 full, 1 partial) |
-| DOM packages | 5 (all implemented) |
-| Browser UI packages | 1 (adwaita-web) |
+| Total Node.js packages | 42 + 1 meta |
+| Fully implemented | 34 (81%) |
+| Partially implemented | 4 (10%) — sqlite, ws, worker_threads, http2, vm |
+| Stubs | 4 (10%) — cluster, domain, inspector, v8 |
+| Web API packages | 19 + 1 meta (17 full, 2 partial) |
+| DOM / Bridge packages | 8 (all implemented) — dom-elements, canvas2d-core, canvas2d, bridge-types, webgl, event-bridge, iframe, video |
+| Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
-| Total test cases | 10,100+ |
-| Spec files | 106 |
+| Total test cases | 10,500+ (unit) + 360+ (integration) |
+| Spec files | 110+ |
+| Integration test suites | 4 (webtorrent, socket.io, streamx, autobahn) |
 | Showcases | 6 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder) |
-| Real-world examples | 11+ (Express, Koa, Static file server, SSE chat, Hono REST, WS chat, file search, DNS lookup, worker pool, GTK dashboard, Three.js teapot) |
-| GNOME-integrated packages | 13 (25%) |
-| Alias mappings (GJS) | 60+ |
-| Reference submodules | 42 |
+| Real-world examples | 50+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, Gio cat, worker pool, yargs, GTK HTTP dashboard) |
+| GNOME-integrated packages | 20+ (Gio, GLib, Soup, Gda, Gst, GstApp, GstWebRTC, GstSDP, Manette, WebKit, Gtk, Cairo, PangoCairo, GdkPixbuf, libepoxy) |
+| Alias mappings (GJS) | 70+ |
+| Reference submodules | 59 |
 
 ---
 
@@ -330,6 +356,15 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**Explicit `--globals` CLI flag**~~✓ — `gjsify build --globals fetch,Buffer,process,URL,crypto,structuredClone,AbortController` wires the matching `/register` modules into the bundle. Default list pre-wired in the `@gjsify/create-app` template `package.json` script. No auto-scanning — heuristic scanners leaked too many edge cases (isomorphic library guards, dynamic imports, bracket-notation global access).
 - ~~**vm promoted to Partial**~~✓ — createContext, runInNewContext, compileFunction, Script class (37 tests).
 - ~~**WebRTC Phase 1 + 1.5 (Data Channel end-to-end)**~~✓ — `@gjsify/webrtc` (23 tests incl. loopback). RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary send/receive), RTCSessionDescription, RTCIceCandidate, RTCError. Backed by `@gjsify/webrtc-native` Vala bridge (WebrtcbinBridge, DataChannelBridge, PromiseBridge) that marshals webrtcbin's streaming-thread signals + Gst.Promise callbacks onto the main GLib context via `GLib.Idle.add()`. Media (RTCRtpSender/Receiver, MediaStream, getUserMedia) deferred to Phase 2.
+- ~~**WebRTC Phase 2 + 2.5 + 3 (Media)**~~✓ — Full W3C media surface: `addTransceiver`, `addTrack`/`removeTrack`, `RTCRtpSender`/`Receiver`/`Transceiver`, `MediaStream`/`MediaStreamTrack`, `getUserMedia` (pipewiresrc/pulsesrc/v4l2src), incoming pipeline via `ReceiverBridge` (Vala, decodebin → tee switching), outgoing pipeline via explicit encoder chain (source→valve→convert→encode→payloader→capsfilter→webrtcbin). Tee-multiplexer for fan-out. DTMF via `RTCDTMFSender`. WebTorrent on GJS is now end-to-end thanks to RTCDataChannel maturity.
+- ~~**npm `ws` drop-in wrapper**~~✓ — `@gjsify/ws` (`packages/node/ws/`) wraps `@gjsify/websocket` + `Soup.Server.add_websocket_handler`. Aliased via `ws` and `isomorphic-ws`. Autobahn fuzzingserver reports identical 240/4/3/0 scores as the underlying `@gjsify/websocket`, confirming zero wrapper regressions.
+- ~~**Autobahn RFC 6455 pillar**~~✓ — `tests/integration/autobahn/` (two driver agents: `@gjsify/websocket` W3C, `@gjsify/ws` npm wrapper). Baseline: 240 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED per agent (cases 9.* / 12.* / 13.* excluded — performance + permessage-deflate deferred).
+- ~~**`@gjsify/sqlite`**~~✓ — `node:sqlite` on top of `gi://Gda?version=6.0`. DatabaseSync / StatementSync with the subset of the API realistic libgda exposes; 48 tests.
+- ~~**`@gjsify/canvas2d-core` extraction**~~✓ — Headless Cairo/PangoCairo 2D surface split out of `@gjsify/canvas2d`. Breaks the dom-elements ↔ canvas2d cycle; `@gjsify/dom-elements` auto-registers the `'2d'` context factory via the new package.
+- ~~**XHR + `URL.createObjectURL` moved to their natural homes**~~✓ — `@gjsify/xmlhttprequest` owns the XHR class + FakeBlob; `@gjsify/url` owns `URL.createObjectURL`/`revokeObjectURL` as static methods on the URL class. `@gjsify/fetch` no longer monkey-patches URL from a register module.
+- ~~**Meta polyfill packages**~~✓ — `@gjsify/node-polyfills` + `@gjsify/web-polyfills`. Dep-only umbrellas so `gjsify create-app` templates + CLI scaffolds resolve any `node:*` / Web import without hand-rolling dep lists.
+- ~~**Integration suites**~~✓ — `tests/integration/{webtorrent,socket.io,streamx,autobahn}/`. Opt-in via `yarn test:integration`. Every suite uncovered root-cause fixes (URL-path fs, esbuild `require` condition, `random-access-file` alias, fetch POST body, IncomingMessage close semantics, EventEmitter prototype enumerability, queueMicrotask injection, NUL-byte-safe WebSocket text frames) that landed in the surfacing PR.
+- ~~**GLib.Source GC race hardening**~~✓ — `@gjsify/node-globals/register/timers` replaces `setTimeout`/`setInterval` with `GLib.timeout_add` (numeric source IDs, no BoxedInstance). Prevents SIGSEGV in `g_source_unref_internal` under webtorrent/bittorrent-dht/async-limiter load where libraries routinely call `timer.unref()`.
 
 ### High Priority
 
@@ -494,10 +529,6 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
 
-### ~~WebRTC Phase 3 — Outgoing Media + getUserMedia~~ ✓
-
-Completed. See "Implemented (Phase 3)" section above. Key decisions: explicit encoder chains (no encodebin/Vala bridge needed), capsfilter for immediate SDP generation, request_pad_simple for transceiver+pad creation.
-
 ### Universal DOM Container (`@gjsify/dom-bridge`)
 
 **Priority: Medium — architectural vision for unified DOM-in-GTK.**
@@ -534,6 +565,12 @@ Plan: (1) investigate libsoup patch for `6.4.x` fragment-level UTF-8 validation;
 Calling `System.exit(0)` from the bundled Autobahn driver's `Promise.then` continuation silently returns without terminating the gjs process, even though the exact same call works from a standalone script or a plain `GLib.MainLoop` idle callback. The GLib main loop that `ensureMainLoop()` starts for Soup's async I/O keeps the process alive indefinitely after `main()` has resolved and the Autobahn report is on disk. `tests/integration/autobahn/scripts/run-driver.mjs` compensates: it watches the log for the `Done.` marker the driver prints on success, allows a 3 s grace window for a clean exit, then `SIGKILL`s. No data loss — the report is flushed before `Done.` is emitted.
 
 Next steps to remove the watchdog: (1) isolate whether the block is in `@gjsify/process`'s `exit()` shim, in how we patch `globalThis.imports`, or in an interaction with `@gjsify/node-globals/register` preventing the libc `exit` syscall from propagating; (2) write a minimal reproducer outside the Autobahn pillar; (3) fix root-cause, drop the wrapper, inline `gjs -m dist/driver-*.gjs.mjs` back into the package.json scripts.
+
+### `@gjsify/sqlite` — expand API surface
+
+**Priority: Low — libgda-shaped.**
+
+Today's partial-implementation covers DatabaseSync/StatementSync against Node 24's `node:sqlite`. Libgda does not expose session/changeset, WAL-mode toggles, backup or VFS APIs, so those are open gaps. The closest path forward is either (a) wrap `sqlite3` directly via `cwrap`/`libsqlite3` GI bindings (expensive: no upstream GIR), or (b) live with the libgda-shaped subset and document the gaps per API. (b) is the current direction. `sqlite.constants` (`SQLITE_CHANGESET_*`) remains unimplemented until (a).
 
 ### WebRTC Showcase
 

@@ -26,6 +26,12 @@
 // the --globals auto detection rules.
 import '@gjsify/node-globals/register';
 import { WebSocket } from '@gjsify/websocket';
+// `System.exit()` is the reliable GJS exit path. process.exit() from
+// @gjsify/process reaches imports.system.exit via globalThis.imports, which
+// is empty in GJS ESM bundles and silently no-ops. The scripts/run-driver.mjs
+// wrapper watchdogs the "Done." log marker and SIGKILLs after a grace period
+// as a safety net for cases where System.exit() itself doesn't terminate.
+import { exit as systemExit } from 'system';
 // @gjsify/websocket uses Soup.Session internally, which needs a running
 // GLib main loop for async I/O. ensureMainLoop() kicks it off so our
 // `await new Promise(...)` over WebSocket events actually resolves.
@@ -136,21 +142,9 @@ async function main() {
   process.stdout.write('Done. Reports under reports/output/clients/\n');
 }
 
-// `process.exit()` from `@gjsify/process` reaches `imports.system.exit`
-// via `globalThis.imports`, which is empty in GJS ESM bundles — so the
-// fallback throw is silently swallowed and the GLib main loop keeps the
-// process alive. `System.exit` works when called from a standalone script
-// or a MainLoop idle callback, but in this bundle (Soup session + deflate
-// extensions registered + lots of Node-runtime patching) it silently
-// returns without killing the process. The calls below remain as the
-// correct documented entry points; the `scripts/run-driver.mjs` wrapper
-// watchdogs "Done." in the log and SIGKILLs the process after a short
-// grace period as a safety net. Tracked as a follow-up in STATUS.md.
-import System from 'system';
-
 main()
-  .then(() => System.exit(0))
+  .then(() => systemExit(0))
   .catch((err) => {
     process.stderr.write(`driver failed: ${(err as Error).message}\n`);
-    System.exit(1);
+    systemExit(1);
   });
