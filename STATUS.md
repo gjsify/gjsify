@@ -358,7 +358,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**WebRTC Phase 1 + 1.5 (Data Channel end-to-end)**~~✓ — `@gjsify/webrtc` (23 tests incl. loopback). RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary send/receive), RTCSessionDescription, RTCIceCandidate, RTCError. Backed by `@gjsify/webrtc-native` Vala bridge (WebrtcbinBridge, DataChannelBridge, PromiseBridge) that marshals webrtcbin's streaming-thread signals + Gst.Promise callbacks onto the main GLib context via `GLib.Idle.add()`. Media (RTCRtpSender/Receiver, MediaStream, getUserMedia) deferred to Phase 2.
 - ~~**WebRTC Phase 2 + 2.5 + 3 (Media)**~~✓ — Full W3C media surface: `addTransceiver`, `addTrack`/`removeTrack`, `RTCRtpSender`/`Receiver`/`Transceiver`, `MediaStream`/`MediaStreamTrack`, `getUserMedia` (pipewiresrc/pulsesrc/v4l2src), incoming pipeline via `ReceiverBridge` (Vala, decodebin → tee switching), outgoing pipeline via explicit encoder chain (source→valve→convert→encode→payloader→capsfilter→webrtcbin). Tee-multiplexer for fan-out. DTMF via `RTCDTMFSender`. WebTorrent on GJS is now end-to-end thanks to RTCDataChannel maturity.
 - ~~**npm `ws` drop-in wrapper**~~✓ — `@gjsify/ws` (`packages/node/ws/`) wraps `@gjsify/websocket` + `Soup.Server.add_websocket_handler`. Aliased via `ws` and `isomorphic-ws`. Autobahn fuzzingserver reports identical 240/4/3/0 scores as the underlying `@gjsify/websocket`, confirming zero wrapper regressions.
-- ~~**Autobahn RFC 6455 pillar**~~✓ — `tests/integration/autobahn/` (two driver agents: `@gjsify/websocket` W3C, `@gjsify/ws` npm wrapper). Baseline: 456 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED per agent (full suite — 9.* performance + 12.*/13.* permessage-deflate all enabled).
+- ~~**Autobahn RFC 6455 pillar**~~✓ — `tests/integration/autobahn/` (two driver agents: `@gjsify/websocket` W3C, `@gjsify/ws` npm wrapper). Baseline: 510 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED per agent (full suite — 9.* performance + 12.*/13.* permessage-deflate all enabled).
 - ~~**`@gjsify/sqlite`**~~✓ — `node:sqlite` on top of `gi://Gda?version=6.0`. DatabaseSync / StatementSync with the subset of the API realistic libgda exposes; 48 tests.
 - ~~**`@gjsify/canvas2d-core` extraction**~~✓ — Headless Cairo/PangoCairo 2D surface split out of `@gjsify/canvas2d`. Breaks the dom-elements ↔ canvas2d cycle; `@gjsify/dom-elements` auto-registers the `'2d'` context factory via the new package.
 - ~~**XHR + `URL.createObjectURL` moved to their natural homes**~~✓ — `@gjsify/xmlhttprequest` owns the XHR class + FakeBlob; `@gjsify/url` owns `URL.createObjectURL`/`revokeObjectURL` as static methods on the URL class. `@gjsify/fetch` no longer monkey-patches URL from a register module.
@@ -454,10 +454,10 @@ WebSocket transport deferred — requires a server-side `ws` package shim (see O
 
 RFC 6455 WebSocket protocol compliance validated by the [crossbario/autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite) fuzzingserver running in a Podman/Docker container. Two client drivers exercise the stack from different entry points:
 
-| Driver | Target | Baseline (463 cases, Autobahn 0.10.9) |
+| Driver | Target | Baseline (517 cases, Autobahn 0.10.9) |
 |---|---|---|
-| `fuzzingclient-driver.ts` → `@gjsify/websocket` (W3C `WebSocket` over `Soup.WebsocketConnection`) | foundational RFC 6455 compliance at the Soup layer, including permessage-deflate framing (RFC 7692) | **456 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
-| `fuzzingclient-driver-ws.ts` → `@gjsify/ws` (npm `ws` wrapper on top of `@gjsify/websocket`) | API-wrapper semantics: EventEmitter handlers, binary type coercion, close-reason byte encoding, deflate pass-through | **456 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
+| `fuzzingclient-driver.ts` → `@gjsify/websocket` (W3C `WebSocket` over `Soup.WebsocketConnection`) | foundational RFC 6455 compliance at the Soup layer, including permessage-deflate framing (RFC 7692) | **510 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
+| `fuzzingclient-driver-ws.ts` → `@gjsify/ws` (npm `ws` wrapper on top of `@gjsify/websocket`) | API-wrapper semantics: EventEmitter handlers, binary type coercion, close-reason byte encoding, deflate pass-through | **510 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** |
 
 Identical scores confirm `@gjsify/ws` adds zero regressions over `@gjsify/websocket`.
 

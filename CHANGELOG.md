@@ -8,7 +8,7 @@ Removes the `9.*` exclusion from `tests/integration/autobahn/config/fuzzingserve
 
 Driver case-timeout raised from 60 s → **480 s** to match Autobahn's own server-side ceiling. The previous 60 s was calibrated for the deflate cases (12.*); the 9.5.* throughput cases at maximum scale may legitimately need several minutes on the GLib event loop. No code changes to `@gjsify/websocket` or `@gjsify/ws` — pure test-coverage expansion.
 
-Baselines (`reports/baseline/gjsify-websocket.json` + `gjsify-ws.json`) refreshed after running the suite locally with the new 9.* cases. Throughput-bounded outcomes at maximum scale (e.g. 9.5.6: 1 M messages × 2 KB = 2 GB) are committed as-is — the baseline records real behaviour, not aspirational targets.
+Root-cause fix landed alongside: `Soup.WebsocketConnection` has a built-in default limit of 128 KB per incoming frame — any frame larger causes Soup to silently drop the connection. All 28 initially-FAILED 9.* cases (frames ≥ 256 KB) were caused by this limit. Fix: set `max_incoming_payload_size = 100 MB` immediately after `websocket_connect_finish()`, matching the npm `ws` package's default `maxPayload`. All 54 Autobahn 9.* cases now pass: **510 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** over 517 total cases per agent.
 
 ### feat — `@gjsify/websocket` permessage-deflate + Autobahn baseline expansion (2026-04-23)
 
