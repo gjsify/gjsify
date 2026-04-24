@@ -95,6 +95,49 @@ export class Socket extends Duplex {
   }
 
   /**
+   * @internal For HTTP upgrade handoff: configures write capability and address
+   * info from the IOStream but does NOT start the async read loop. Used by
+   * http.Server._handleRequest so handleUpgrade() can write the 101 response and
+   * then hand the IOStream to Soup.WebsocketConnection without a read-loop race.
+   */
+  _attachOutputOnly(ioStream: Gio.IOStream): void {
+    this._ioStream = ioStream;
+    try {
+      const sockConn = ioStream as unknown as Gio.SocketConnection;
+      if (typeof sockConn.get_socket === 'function') {
+        this._connection = sockConn;
+        const remoteAddr = sockConn.get_remote_address() as Gio.InetSocketAddress;
+        this.remoteAddress = remoteAddr.get_address().to_string();
+        this.remotePort = remoteAddr.get_port();
+        this.remoteFamily = remoteAddr.get_address().get_family() === Gio.SocketFamily.IPV6 ? 'IPv6' : 'IPv4';
+        const localAddr = sockConn.get_local_address() as Gio.InetSocketAddress;
+        this.localAddress = localAddr.get_address().to_string();
+        this.localPort = localAddr.get_port();
+      }
+    } catch { /* not a SocketConnection — use IOStream only */ }
+    this._inputStream = ioStream.get_input_stream();
+    this._outputStream = ioStream.get_output_stream();
+    this.connecting = false;
+    this.pending = false;
+    this.readyState = 'open';
+    this.emit('connect');
+    this.emit('ready');
+    // Intentionally NO _startReading() — caller will hand off to Soup.WebsocketConnection
+  }
+
+  /** Release IOStream ownership to the caller (Soup.WebsocketConnection handoff).
+   *  Nullifies the socket's stream references so they are not closed when the
+   *  socket itself is later destroyed. */
+  _releaseIOStream(): Gio.IOStream | null {
+    const s = this._ioStream;
+    this._ioStream = null;
+    this._inputStream = null;
+    this._outputStream = null;
+    this._connection = null;
+    return s;
+  }
+
+  /**
    * Initiate a TCP connection.
    */
   connect(options: SocketConnectOptions | number, host?: string | (() => void), connectionListener?: () => void): this;
