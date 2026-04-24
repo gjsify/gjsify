@@ -41,9 +41,13 @@ ensureMainLoop();
 const AUTOBAHN_URL = 'ws://127.0.0.1:9001';
 const AGENT = 'gjsify-websocket';
 
+// Deflate must be opted in explicitly — @gjsify/websocket defaults to false
+// to avoid corrupted round-trips with local Soup.Server fixtures in unit tests.
+const WS_OPTS = { perMessageDeflate: true };
+
 function connect(path: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${AUTOBAHN_URL}${path}`);
+    const ws = new WebSocket(`${AUTOBAHN_URL}${path}`, undefined, WS_OPTS);
     ws.binaryType = 'arraybuffer';
     ws.addEventListener('open', () => resolve(ws), { once: true });
     ws.addEventListener('error', (ev: any) => reject(
@@ -60,7 +64,7 @@ function waitClose(ws: WebSocket): Promise<void> {
 
 function getCaseCount(): Promise<number> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`);
+    const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`, undefined, WS_OPTS);
     let count = -1;
     ws.addEventListener('message', (ev: any) => {
       count = parseInt(String(ev?.data ?? ''), 10);
