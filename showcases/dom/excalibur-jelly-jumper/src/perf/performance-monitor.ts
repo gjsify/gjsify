@@ -43,6 +43,10 @@ export class PerformanceMonitor {
     return this._lastStats
   }
 
+  setLogging(enabled: boolean): void {
+    this._logToConsole = enabled
+  }
+
   onUpdate(cb: (stats: PerfStats) => void): void {
     this._updateCallback = cb
   }

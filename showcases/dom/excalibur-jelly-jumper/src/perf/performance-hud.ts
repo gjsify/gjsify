@@ -56,9 +56,8 @@ export class PerformanceHUD extends ex.ScreenElement {
     engine.input.keyboard.on('press', (evt: ex.KeyEvent) => {
       if (evt.key === ex.Keys.F1) {
         this._hudVisible = !this._hudVisible
-        this._lines.forEach(l => {
-          l.graphics.opacity = this._hudVisible ? 1 : 0
-        })
+        this._lines.forEach(l => { l.graphics.opacity = this._hudVisible ? 1 : 0 })
+        this._monitor.setLogging(this._hudVisible)
       }
     })
   }

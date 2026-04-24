@@ -107,10 +107,9 @@ export async function startGame(canvas: HTMLCanvasElement, options?: StartGameOp
   game.screen.pixelRatioOverride = pixelRatio
   game.screen.applyResolutionAndViewport()
 
-  // HUD always present (hidden by default, F1 to reveal). Console [PERF]
-  // logging only when enablePerf:true or ?perf=1 is set.
+  // HUD always present (hidden by default). F1 toggles both HUD and [PERF] logging.
   const monitor = new PerformanceMonitor(platform)
-  monitor.attach(game, options?.enablePerf ?? false)
+  monitor.attach(game, false)
   const hud = new PerformanceHUD(monitor, platform)
   game.currentScene.add(hud)
 
