@@ -91,10 +91,14 @@ console.log(line);
 console.log('\nBottleneck hints:');
 const drawDelta = avg(gjs, 'draw_avg_ms') - avg(browser, 'draw_avg_ms');
 const updateDelta = avg(gjs, 'update_avg_ms') - avg(browser, 'update_avg_ms');
+const frameDelta = avg(gjs, 'frame_avg_ms') - avg(browser, 'frame_avg_ms');
 const droppedAvg = avg(gjs, 'dropped');
+const unexplained = frameDelta - updateDelta - drawDelta;
 
 if (drawDelta > 3) console.log(`  • Draw is ${drawDelta.toFixed(1)}ms slower on GJS → consider pixelRatio:2 or WebGL bridge overhead`);
-if (updateDelta > 2) console.log(`  • Update is ${updateDelta.toFixed(1)}ms slower on GJS → physics/logic cost or fixedUpdateFps jitter`);
-if (droppedAvg > 5) console.log(`  • ${droppedAvg.toFixed(1)} dropped frames/batch on GJS → accumulator catching up, try fixedUpdateFps:30`);
-if (drawDelta <= 3 && updateDelta <= 2 && droppedAvg <= 5) console.log('  • No significant bottleneck detected from logs alone — check __GJSIFY_DEBUG_RAF interval variance');
+if (updateDelta > 3) console.log(`  • Update is ${updateDelta.toFixed(1)}ms slower on GJS → physics/logic cost; profile actor update() hotpaths`);
+if (unexplained > 2) console.log(`  • ${unexplained.toFixed(1)}ms/frame unaccounted overhead on GJS (not update, not draw) → WebGL bridge + GTK compositor + SpiderMonkey vs V8`);
+if (droppedAvg > 5 && updateDelta > 3) console.log(`  • ${droppedAvg.toFixed(1)} dropped frames/batch on GJS → if fixedUpdateFps is already ≤30, the physics step itself is too expensive`);
+if (droppedAvg > 5 && updateDelta <= 3) console.log(`  • ${droppedAvg.toFixed(1)} dropped frames/batch on GJS → caused by per-frame runtime overhead, not physics; core package optimization needed`);
+if (drawDelta <= 3 && updateDelta <= 3 && unexplained <= 2) console.log('  • No significant bottleneck detected from logs alone');
 console.log();
