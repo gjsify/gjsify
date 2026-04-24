@@ -60,7 +60,20 @@ export const WebGLBridge = GObject.registerClass(
             // never steals focus from the game canvas.
             attachEventControllers(this, () => this._canvas, { captureKeys: true });
 
-            // Initialize canvas on first render
+            // Persistent tick callback: fires every GTK frame clock tick.
+            // Calls queue_render() only when a frame callback is pending — avoids
+            // redundant GPU wakeups when the animation loop is idle.
+            // SOURCE_CONTINUE keeps a single GLib.Source alive for the widget lifetime,
+            // eliminating per-rAF GLib.Source allocation + GObject signal connect/disconnect.
+            this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, _frameClock: Gdk.FrameClock) => {
+                if (this._frameCallback !== null) {
+                    this.queue_render();
+                }
+                return GLib.SOURCE_CONTINUE;
+            });
+
+            // One-shot init render handler: bootstraps the GL context and canvas,
+            // then installs the persistent frame render handler.
             const initId = this.connect('render', () => {
                 this.disconnect(initId);
                 this.make_current();
@@ -86,6 +99,24 @@ export const WebGLBridge = GObject.registerClass(
                     }
                     this._readyCallbacks = [];
                 }
+
+                // Persistent frame render handler — installed once after canvas init.
+                // Fires after the tick callback calls queue_render() with a pending rAF.
+                // Clears _frameCallback before invoking it so re-entrant rAF calls
+                // (standard game loop pattern) set a fresh pending callback correctly.
+                this._renderTag = this.connect('render', (_widget: Gtk.GLArea) => {
+                    if (this._frameCallback !== null) {
+                        const time = (GLib.get_monotonic_time() - this._timeOrigin) / 1000;
+                        if ((globalThis as any).__GJSIFY_DEBUG_RAF === true) {
+                            console.log(`[rAF] frame callback fires t=${time.toFixed(1)}`);
+                        }
+                        const cb = this._frameCallback;
+                        this._frameCallback = null;
+                        cb(time);
+                    }
+                    return true;
+                });
+
                 return true;
             });
 
@@ -169,34 +200,16 @@ export const WebGLBridge = GObject.registerClass(
 
         /**
          * Schedules a single animation frame callback, matching the browser `requestAnimationFrame` API.
-         * Backed by GTK frame clock (vsync-synced) + the GLArea render signal.
-         * Returns 0 (handle — cancel not yet implemented).
+         * Backed by a persistent GTK frame clock tick callback (vsync-synced) + a persistent GLArea
+         * render signal handler. Both are installed once at construction / first render respectively,
+         * eliminating per-frame GLib.Source allocation and GObject signal connect/disconnect overhead.
+         * Returns 0 (handle — cancel via cancelAnimationFrame clears the pending callback).
          */
         requestAnimationFrame(cb: FrameRequestCallback): number {
             this._frameCallback = cb;
-            if (this._tickCallbackId === null) {
-                this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, _frameClock: Gdk.FrameClock) => {
-                    this._tickCallbackId = null;
-                    if (this._renderTag === null) {
-                        this._renderTag = this.connect('render', (_widget: Gtk.GLArea) => {
-                            this.disconnect(this._renderTag!);
-                            this._renderTag = null;
-                            // DOMHighResTimeStamp: ms since time origin, matching performance.now()
-                            const time = (GLib.get_monotonic_time() - this._timeOrigin) / 1000;
-                            if ((globalThis as any).__GJSIFY_DEBUG_RAF === true) {
-                                console.log(`[rAF] frame callback fires t=${time.toFixed(1)}`);
-                            }
-                            this._frameCallback?.(time);
-                            return true;
-                        });
-                    }
-                    this.queue_render();
-                    return GLib.SOURCE_REMOVE;
-                });
-            }
-            // Ensure GTK schedules a new frame so the tick callback fires.
-            // Without this, requestAnimationFrame called during the paint phase
-            // (e.g. from onReady) may not trigger the frame clock to tick again.
+            // Trigger a render pass immediately. The persistent tick callback fires on
+            // every GTK frame tick and calls queue_render() whenever _frameCallback is set,
+            // keeping the loop going; this call ensures the first/resumed frame isn't delayed.
             this.queue_render();
             return 0;
         }
