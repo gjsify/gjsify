@@ -334,12 +334,10 @@ namespace Gwebgl {
             glVertexAttribIPointer((GL.GLuint) index, (GL.GLint) size, (GL.GLenum) type, (GL.GLsizei) stride, ptr);
         }
 
-        public void drawBuffers(int[] buffers) {
-            GL.GLenum[] enums = new GL.GLenum[buffers.length];
-            for (int i = 0; i < buffers.length; i++) {
-                enums[i] = (GL.GLenum) buffers[i];
-            }
-            glDrawBuffers((GL.GLsizei) buffers.length, enums);
+        // uint[] maps to GL.GLenum[] (both unsigned 32-bit) — cast directly,
+        // no intermediate array allocation or conversion loop needed.
+        public void drawBuffers(uint[] buffers) {
+            glDrawBuffers((GL.GLsizei) buffers.length, (GL.GLenum[]) buffers);
         }
 
         public void drawRangeElements(int mode, uint start, uint end, int count, int type, long offset) {
@@ -351,20 +349,12 @@ namespace Gwebgl {
             glBlitFramebuffer((GL.GLint) srcX0, (GL.GLint) srcY0, (GL.GLint) srcX1, (GL.GLint) srcY1, (GL.GLint) dstX0, (GL.GLint) dstY0, (GL.GLint) dstX1, (GL.GLint) dstY1, (GL.GLbitfield) mask, (GL.GLenum) filter);
         }
 
-        public void invalidateFramebuffer(int target, int[] attachments) {
-            GL.GLenum[] enums = new GL.GLenum[attachments.length];
-            for (int i = 0; i < attachments.length; i++) {
-                enums[i] = (GL.GLenum) attachments[i];
-            }
-            glInvalidateFramebuffer((GL.GLenum) target, (GL.GLsizei) attachments.length, enums);
+        public void invalidateFramebuffer(int target, uint[] attachments) {
+            glInvalidateFramebuffer((GL.GLenum) target, (GL.GLsizei) attachments.length, (GL.GLenum[]) attachments);
         }
 
-        public void invalidateSubFramebuffer(int target, int[] attachments, int x, int y, int width, int height) {
-            GL.GLenum[] enums = new GL.GLenum[attachments.length];
-            for (int i = 0; i < attachments.length; i++) {
-                enums[i] = (GL.GLenum) attachments[i];
-            }
-            glInvalidateSubFramebuffer((GL.GLenum) target, (GL.GLsizei) attachments.length, enums, (GL.GLint) x, (GL.GLint) y, (GL.GLsizei) width, (GL.GLsizei) height);
+        public void invalidateSubFramebuffer(int target, uint[] attachments, int x, int y, int width, int height) {
+            glInvalidateSubFramebuffer((GL.GLenum) target, (GL.GLsizei) attachments.length, (GL.GLenum[]) attachments, (GL.GLint) x, (GL.GLint) y, (GL.GLsizei) width, (GL.GLsizei) height);
         }
 
         public void readBuffer(int src) {

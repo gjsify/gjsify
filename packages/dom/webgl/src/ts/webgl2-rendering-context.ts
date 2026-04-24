@@ -918,7 +918,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         // GtkGLArea uses its own FBO (not FBO 0), so GL_BACK → GL_INVALID_OPERATION.
         // Map GL_BACK → GL_COLOR_ATTACHMENT0 which is the attachment GTK's FBO uses.
         const mapped = buffers.map(b => b === 0x0405 /* GL_BACK */ ? this.COLOR_ATTACHMENT0 : b);
-        this._native2.drawBuffers(Array.from(mapped) as number[]);
+        this._native2.drawBuffers(mapped);
     }
 
     drawRangeElements(mode: GLenum, start: GLuint, end: GLuint, count: GLsizei, type: GLenum, offset: GLintptr): void {
@@ -1023,11 +1023,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     invalidateFramebuffer(target: GLenum, attachments: GLenum[]): void {
-        this._native2.invalidateFramebuffer(target, Array.from(attachments) as number[]);
+        this._native2.invalidateFramebuffer(target, attachments);
     }
 
     invalidateSubFramebuffer(target: GLenum, attachments: GLenum[], x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
-        this._native2.invalidateSubFramebuffer(target, Array.from(attachments) as number[], x, y, width, height);
+        this._native2.invalidateSubFramebuffer(target, attachments, x, y, width, height);
     }
 
     readBuffer(src: GLenum): void {
