@@ -917,8 +917,15 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         // GL_BACK (0x0405) is only valid for the window-system default framebuffer (FBO 0).
         // GtkGLArea uses its own FBO (not FBO 0), so GL_BACK → GL_INVALID_OPERATION.
         // Map GL_BACK → GL_COLOR_ATTACHMENT0 which is the attachment GTK's FBO uses.
-        const mapped = buffers.map(b => b === 0x0405 /* GL_BACK */ ? this.COLOR_ATTACHMENT0 : b);
-        this._native2.drawBuffers(mapped);
+        let hasBack = false;
+        for (let i = 0; i < buffers.length; i++) {
+            if (buffers[i] === 0x0405) { hasBack = true; break; }
+        }
+        if (!hasBack) {
+            this._native2.drawBuffers(buffers);
+            return;
+        }
+        this._native2.drawBuffers(buffers.map(b => b === 0x0405 /* GL_BACK */ ? this.COLOR_ATTACHMENT0 : b));
     }
 
     drawRangeElements(mode: GLenum, start: GLuint, end: GLuint, count: GLsizei, type: GLenum, offset: GLintptr): void {
@@ -1081,25 +1088,25 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     uniform1uiv(location: WebGLUniformLocation | null, data: Uint32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
-        this._native2.uniform1uiv((location as WebGLUniformLocation)._, arr.length, Array.from(arr) as number[]);
+        this._native2.uniform1uiv((location as WebGLUniformLocation)._, arr.length, arr);
     }
 
     uniform2uiv(location: WebGLUniformLocation | null, data: Uint32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
-        this._native2.uniform2uiv((location as WebGLUniformLocation)._, arr.length / 2, Array.from(arr) as number[]);
+        this._native2.uniform2uiv((location as WebGLUniformLocation)._, arr.length / 2, arr);
     }
 
     uniform3uiv(location: WebGLUniformLocation | null, data: Uint32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
-        this._native2.uniform3uiv((location as WebGLUniformLocation)._, arr.length / 3, Array.from(arr) as number[]);
+        this._native2.uniform3uiv((location as WebGLUniformLocation)._, arr.length / 3, arr);
     }
 
     uniform4uiv(location: WebGLUniformLocation | null, data: Uint32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Uint32Array ? data : new Uint32Array(data as number[]);
-        this._native2.uniform4uiv((location as WebGLUniformLocation)._, arr.length / 4, Array.from(arr) as number[]);
+        this._native2.uniform4uiv((location as WebGLUniformLocation)._, arr.length / 4, arr);
     }
 
     // ─── Non-square Matrix Uniforms ───────────────────────────────────────
@@ -1107,37 +1114,37 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     uniformMatrix2x3fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
-        this._native2.uniformMatrix2x3fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+        this._native2.uniformMatrix2x3fv((location as WebGLUniformLocation)._, transpose, arr);
     }
 
     uniformMatrix3x2fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
-        this._native2.uniformMatrix3x2fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+        this._native2.uniformMatrix3x2fv((location as WebGLUniformLocation)._, transpose, arr);
     }
 
     uniformMatrix2x4fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
-        this._native2.uniformMatrix2x4fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+        this._native2.uniformMatrix2x4fv((location as WebGLUniformLocation)._, transpose, arr);
     }
 
     uniformMatrix4x2fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
-        this._native2.uniformMatrix4x2fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+        this._native2.uniformMatrix4x2fv((location as WebGLUniformLocation)._, transpose, arr);
     }
 
     uniformMatrix3x4fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
-        this._native2.uniformMatrix3x4fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+        this._native2.uniformMatrix3x4fv((location as WebGLUniformLocation)._, transpose, arr);
     }
 
     uniformMatrix4x3fv(location: WebGLUniformLocation | null, transpose: GLboolean, data: Float32List, _srcOffset?: GLuint, _srcLength?: GLuint): void {
         if (!location) return;
         const arr = data instanceof Float32Array ? data : new Float32Array(data as number[]);
-        this._native2.uniformMatrix4x3fv((location as WebGLUniformLocation)._, transpose, Array.from(arr));
+        this._native2.uniformMatrix4x3fv((location as WebGLUniformLocation)._, transpose, arr);
     }
 
     // ─── getUniform — WebGL2 uint type support ────────────────────────────

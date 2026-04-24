@@ -79,16 +79,15 @@ export class PhysicsActor extends ex.Actor {
       this._ray2.pos.setTo(br, y); this._ray2.dir.setTo(0, dy)
     }
 
-    return (
-      [
-        ...this.raycast(this._ray1, distance, opts),
-        ...this.raycast(this._ray2, distance, opts),
-      ]
-        // make unique
-        .filter((value, index, self) => {
-          return self.indexOf(value) === index
-        })
-    )
+    const hits1 = this.raycast(this._ray1, distance, opts)
+    const hits2 = this.raycast(this._ray2, distance, opts)
+    if (hits2.length === 0) return hits1
+    if (hits1.length === 0) return hits2
+    const result = hits1.slice()
+    for (const h of hits2) {
+      if (hits1.indexOf(h) === -1) result.push(h)
+    }
+    return result
   }
 
   getGlobalOldPos() {
