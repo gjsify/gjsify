@@ -530,7 +530,6 @@ export class WebSocketServer extends EventEmitter {
         this.clients.add(ws);
         ws.on('close', () => this.clients.delete(ws));
       }
-      this.emit('connection', ws, req);
       cb(ws, req);
     });
   }

@@ -108,8 +108,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   ws.on('message', (data) => {
     const text = data.toString();
     console.log(`[ws] ${nick}: ${text}`);
-    // Echo back to sender with attribution, broadcast to others
-    ws.send(JSON.stringify({ type: 'message', nick, text }));
+    // Broadcast to all other clients — sender already shows message locally
     broadcast(ws, JSON.stringify({ type: 'message', nick, text }));
   });
 
