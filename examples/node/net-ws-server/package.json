@@ -1,0 +1,30 @@
+{
+  "name": "@gjsify/example-node-net-ws-server",
+  "description": "Authenticated WebSocket server using the ws npm package — demonstrates noServer+handleUpgrade, verifyClient, handleProtocols, and the 'headers' event",
+  "main": "dist/index.gjs.mjs",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "yarn start:gjs",
+    "start:gjs": "gjsify run dist/index.gjs.mjs",
+    "start:node": "node dist/index.node.mjs",
+    "build": "yarn build:gjs && yarn build:node && yarn build:public",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.mjs",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
+    "build:public": "cp -r src/public dist/public"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2",
+    "ws": "^8.18.2"
+  },
+  "private": true,
+  "version": "0.1.15"
+}

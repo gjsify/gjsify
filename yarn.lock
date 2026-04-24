@@ -3048,6 +3048,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-node-net-ws-server@workspace:examples/node/net-ws-server":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-net-ws-server@workspace:examples/node/net-ws-server"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.2"
+    ws: "npm:^8.18.2"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/fetch@workspace:^, @gjsify/fetch@workspace:packages/web/fetch":
   version: 0.0.0-use.local
   resolution: "@gjsify/fetch@workspace:packages/web/fetch"
@@ -15526,7 +15539,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ws@npm:^8.17.0, ws@npm:^8.17.1, ws@npm:^8.18.3":
+"ws@npm:^8.17.0, ws@npm:^8.17.1, ws@npm:^8.18.2, ws@npm:^8.18.3":
   version: 8.20.0
   resolution: "ws@npm:8.20.0"
   peerDependencies:
