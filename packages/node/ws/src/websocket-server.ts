@@ -28,7 +28,12 @@ import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { ensureMainLoop } from '@gjsify/utils';
 import { CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
-import type { Server as HttpServer } from '@gjsify/http';
+
+/** Structural duck-type for @gjsify/http Server — avoids a hard dep on @gjsify/http. */
+interface HttpServer {
+  soupServer: Soup.Server | null;
+  address(): { address: string; family: string; port: number } | null;
+}
 
 // ── verifyClient types ──────────────────────────────────────────────────────
 
