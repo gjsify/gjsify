@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import GLib from '@girs/glib-2.0';
+import Gio from '@girs/gio-2.0';
 import Soup from '@girs/soup-3.0';
 import { WebSocket, MessageEvent, CloseEvent } from 'websocket';
 
@@ -154,6 +155,92 @@ export default async () => {
 
       expect(result).toBe(1000);
       server.disconnect();
+    });
+  });
+
+  // --- WebSocket client options ---
+  // Ref: refs/ws/test/websocket.test.js §"options" (headers, origin, handshakeTimeout)
+  await describe('WebSocket client options', async () => {
+    await it('should send custom headers with the upgrade request', async () => {
+      const server = new Soup.Server({});
+      let receivedCookieHeader: string | null = null;
+
+      server.add_websocket_handler('/ws', null, null,
+        (_srv: Soup.Server, msg: Soup.ServerMessage, _path: string, connection: Soup.WebsocketConnection) => {
+          receivedCookieHeader = msg.get_request_headers().get_one('Cookie') ?? null;
+          connection.close(1000, 'done');
+        },
+      );
+      server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+      const port = (server.get_listeners()[0].get_local_address() as any).get_port();
+
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, undefined, {
+          headers: { Cookie: 'foo=bar' },
+        });
+        ws.addEventListener('close', () => resolve(), { once: true });
+        ws.addEventListener('error', () => reject(new Error('WebSocket error')), { once: true });
+        setTimeout(() => reject(new Error('Timeout')), 5000);
+      });
+
+      expect(receivedCookieHeader).toBe('foo=bar');
+      server.disconnect();
+    });
+
+    await it('should set the Origin header when the origin option is given', async () => {
+      const server = new Soup.Server({});
+      let receivedOrigin: string | null = null;
+
+      server.add_websocket_handler('/ws', null, null,
+        (_srv: Soup.Server, msg: Soup.ServerMessage, _path: string, connection: Soup.WebsocketConnection) => {
+          receivedOrigin = msg.get_request_headers().get_one('Origin') ?? null;
+          connection.close(1000, 'done');
+        },
+      );
+      server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+      const port = (server.get_listeners()[0].get_local_address() as any).get_port();
+
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, undefined, {
+          origin: 'https://example.com:8000',
+        });
+        ws.addEventListener('close', () => resolve(), { once: true });
+        ws.addEventListener('error', () => reject(new Error('WebSocket error')), { once: true });
+        setTimeout(() => reject(new Error('Timeout')), 5000);
+      });
+
+      expect(receivedOrigin).toBe('https://example.com:8000');
+      server.disconnect();
+    });
+
+    await it('should fire error with "Opening handshake has timed out" when handshakeTimeout expires', async () => {
+      // Use a raw TCP listener that accepts connections but never sends a 101.
+      // Soup's websocket_connect_async will wait for the upgrade response; after
+      // handshakeTimeout ms we cancel via Gio.Cancellable.
+      const service = new Gio.SocketService();
+      const port = service.add_any_inet_port(null);
+      const heldConns: Gio.SocketConnection[] = [];
+      service.connect('incoming', (_svc: Gio.SocketService, conn: Gio.SocketConnection) => {
+        heldConns.push(conn); // Hold reference — never write back
+        return true;
+      });
+      service.start();
+
+      const error = await new Promise<Error>((resolve, reject) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, undefined, {
+          handshakeTimeout: 200,
+        });
+        ws.addEventListener('error', (ev: any) => {
+          resolve(ev.error instanceof Error ? ev.error : new Error(ev.message ?? 'unknown'));
+        }, { once: true });
+        ws.addEventListener('open', () => reject(new Error('Unexpected open')), { once: true });
+        setTimeout(() => reject(new Error('Test timeout')), 5000);
+      });
+
+      expect(error instanceof Error).toBe(true);
+      expect(error.message).toBe('Opening handshake has timed out');
+
+      service.stop();
     });
   });
 
