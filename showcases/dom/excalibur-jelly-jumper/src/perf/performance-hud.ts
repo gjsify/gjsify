@@ -42,7 +42,7 @@ export class PerformanceHUD extends ex.ScreenElement {
         pos: ex.vec(0, i * 9),
         anchor: ex.vec(0, 0),
         font,
-        color: ex.Color.fromRGB(0, 255, 80),
+        color: ex.Color.Black,
         z: this.z,
         coordPlane: ex.CoordPlane.Screen,
       })
