@@ -31,6 +31,7 @@ export class PerformanceMonitor {
   private _droppedFrames = 0
   private _sampleCount = 0
   private readonly _logInterval = 60
+  private _logToConsole = false
   private _updateCallback?: (stats: PerfStats) => void
   private _lastStats: PerfStats | null = null
 
@@ -46,7 +47,8 @@ export class PerformanceMonitor {
     this._updateCallback = cb
   }
 
-  attach(engine: ex.Engine): void {
+  attach(engine: ex.Engine, logToConsole = false): void {
+    this._logToConsole = logToConsole
     engine.on('preupdate', () => {
       this._updateStart = performance.now()
     })
@@ -104,7 +106,7 @@ export class PerformanceMonitor {
       dropped: this._droppedFrames,
     }
     this._lastStats = stats
-    console.log('[PERF]', JSON.stringify(stats))
+    if (this._logToConsole) console.log('[PERF]', JSON.stringify(stats))
     this._updateCallback?.(stats)
   }
 }

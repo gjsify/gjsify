@@ -107,12 +107,12 @@ export async function startGame(canvas: HTMLCanvasElement, options?: StartGameOp
   game.screen.pixelRatioOverride = pixelRatio
   game.screen.applyResolutionAndViewport()
 
-  if (options?.enablePerf) {
-    const monitor = new PerformanceMonitor(platform)
-    monitor.attach(game)
-    const hud = new PerformanceHUD(monitor, platform)
-    game.currentScene.add(hud)
-  }
+  // HUD always present (hidden by default, F1 to reveal). Console [PERF]
+  // logging only when enablePerf:true or ?perf=1 is set.
+  const monitor = new PerformanceMonitor(platform)
+  monitor.attach(game, options?.enablePerf ?? false)
+  const hud = new PerformanceHUD(monitor, platform)
+  game.currentScene.add(hud)
 
   let paused = false
   return {

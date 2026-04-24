@@ -10,7 +10,7 @@ export class PerformanceHUD extends ex.ScreenElement {
   private _frameCount = 0
   private readonly _monitor: PerformanceMonitor
   private readonly _platform: string
-  private _hudVisible = true
+  private _hudVisible = false
 
   constructor(monitor: PerformanceMonitor, platform: string) {
     super({
@@ -49,6 +49,9 @@ export class PerformanceHUD extends ex.ScreenElement {
       this._lines.push(label)
       this.addChild(label)
     }
+
+    // Start hidden — F1 to reveal
+    this._lines.forEach(l => { l.graphics.opacity = 0 })
 
     engine.input.keyboard.on('press', (evt: ex.KeyEvent) => {
       if (evt.key === ex.Keys.F1) {

@@ -62,8 +62,8 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
             startGame(canvas, {
                 platform: 'gjs',
                 enablePerf: true,
-                // pixelRatio: 2,     // Fix A: uncomment to test 2× vs 4× framebuffer cost
-                // fixedUpdateFps: 30, // Fix B: uncomment to test lower fixed-update rate
+                // pixelRatio: 2,  // Fix A: uncomment to test 2× vs 4× framebuffer cost
+                fixedUpdateFps: 30, // Fix B: reduces accumulator cascade on GLib-delayed frames
             })
                 .then(game => { this._game = game; })
                 .catch(err => {
