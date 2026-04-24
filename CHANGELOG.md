@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### feat — `createWebSocketStream` + socket.io WebSocket transport (2026-04-24)
+
+**`createWebSocketStream(ws, options)`** — wraps any `ws`-shaped WebSocket (client or server-side) in a Node.js `Duplex` stream. Text frames are converted to `Buffer` before being pushed into the readable side (non-objectMode). Backpressure: `ws.pause()` / `ws.resume()` are called if present. `_final` sends a close frame and waits for the corresponding 'close' event before completing. `_destroy` calls `ws.terminate()` for immediate teardown. 3 new GJS tests (echo via pipe, EOF on client close, write → message). 43 GJS / 19 Node tests total.
+
+**socket.io examples** — `cli-socket.io-chat-server` and `cli-socket.io-pingpong` both remove the `transports: ['polling']` override. Engine.io now uses our `{ noServer: true }` + `handleUpgrade()` to upgrade browser connections to WebSocket automatically (confirmed via DevTools: 101 Switching Protocols visible). Added READMEs for both examples and for `net-ws-server`. Bug fix: removed spurious double `'connection'` emission from `_completeUpgrade` (caller's callback is now the sole emitter).
+
 ### feat — WebSocket server Phase 3: `{ noServer: true }` + `handleUpgrade()` + `'headers'` event (2026-04-24)
 
 Completes the standard engine.io / socket.io integration pattern for `@gjsify/ws` `WebSocketServer`.

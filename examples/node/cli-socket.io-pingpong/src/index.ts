@@ -1,7 +1,7 @@
-// Socket.IO ping-pong round-trip demo for GJS
+// Socket.IO ping-pong round-trip demo — GJS + Node.js
 // Adapted from refs/socket.io/examples/typescript-example/esm/
 // Copyright (c) 2014-2024 Damien Arrachequesne. MIT.
-// Rewritten for GJS: single-process server+client, gjsify transports, clean shutdown.
+// Rewritten for GJS: single-process server+client, clean shutdown.
 
 import '@gjsify/node-globals/register';
 import { createServer } from 'node:http';
@@ -12,7 +12,6 @@ const MAX_ROUNDTRIPS = 5;
 
 const httpServer = createServer();
 const ioServer = new Server(httpServer, {
-  transports: ['polling'],
   httpCompression: false,
 });
 
@@ -34,9 +33,7 @@ httpServer.listen(0, () => {
   const port = typeof addr === 'object' && addr ? addr.port : 0;
   console.log(`[server] listening on port ${port}\n`);
 
-  const socket = ioc(`http://localhost:${port}`, {
-    transports: ['polling'],
-  });
+  const socket = ioc(`http://localhost:${port}`);
 
   let count = 0;
 

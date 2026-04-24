@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>@gjsify/ws — WebSocket Server Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      padding: 1rem;
+      gap: 1rem;
+    }
+
+    header { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    header h1 { font-size: 1.1rem; color: #89b4fa; }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 0.2em 0.6em;
+      border-radius: 999px;
+      background: #313244;
+      color: #a6adc8;
+    }
+    .badge.connected { background: #a6e3a1; color: #1e1e2e; }
+    .badge.disconnected { background: #f38ba8; color: #1e1e2e; }
+
+    .connect-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+    input, button, select {
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid #45475a;
+      background: #313244;
+      color: #cdd6f4;
+      font-size: 0.875rem;
+    }
+    input:focus, select:focus { outline: 2px solid #89b4fa; border-color: transparent; }
+
+    button {
+      cursor: pointer;
+      background: #89b4fa;
+      color: #1e1e2e;
+      border: none;
+      font-weight: 600;
+    }
+    button:hover { background: #b4d0fa; }
+    button:disabled { background: #45475a; color: #585b70; cursor: not-allowed; }
+    button.danger { background: #f38ba8; }
+    button.danger:hover { background: #f5a7bc; }
+
+    #log {
+      flex: 1;
+      overflow-y: auto;
+      background: #181825;
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+
+    .entry { display: flex; gap: 0.75rem; }
+    .entry .ts { color: #585b70; flex-shrink: 0; }
+    .entry.info .msg  { color: #89b4fa; }
+    .entry.join .msg  { color: #a6e3a1; }
+    .entry.leave .msg { color: #f38ba8; }
+    .entry.chat .msg  { color: #cdd6f4; }
+    .entry.error .msg { color: #fab387; }
+    .entry.sent .msg  { color: #cba6f7; }
+
+    .send-row { display: flex; gap: 0.5rem; }
+    #msgInput { flex: 1; }
+
+    .meta {
+      font-size: 0.75rem;
+      color: #585b70;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .meta .label { color: #6c7086; }
+    .meta .val { color: #89dceb; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>@gjsify/ws WebSocket Server</h1>
+    <span id="statusBadge" class="badge disconnected">disconnected</span>
+  </header>
+
+  <div class="connect-row">
+    <input id="nickInput" type="text" placeholder="Nick" value="alice" style="width:120px">
+    <input id="tokenInput" type="text" placeholder="Token" value="gjsify" style="width:120px">
+    <select id="protoSelect">
+      <option value="chat.v1">chat.v1 (negotiated)</option>
+      <option value="">no subprotocol</option>
+    </select>
+    <button id="connectBtn">Connect</button>
+    <button id="disconnectBtn" class="danger" disabled>Disconnect</button>
+  </div>
+
+  <div class="meta">
+    <span><span class="label">URL: </span><span class="val" id="urlDisplay">—</span></span>
+    <span><span class="label">Protocol: </span><span class="val" id="protoDisplay">—</span></span>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="send-row">
+    <input id="msgInput" type="text" placeholder="Message…" disabled>
+    <button id="sendBtn" disabled>Send</button>
+  </div>
+
+  <script>
+    let ws = null;
+
+    const logEl = document.getElementById('log');
+    const statusBadge = document.getElementById('statusBadge');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const msgInput = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const urlDisplay = document.getElementById('urlDisplay');
+    const protoDisplay = document.getElementById('protoDisplay');
+
+    function addEntry(type, tsText, msgText) {
+      const row = document.createElement('div');
+      row.className = 'entry ' + type;
+
+      const tsSpan = document.createElement('span');
+      tsSpan.className = 'ts';
+      tsSpan.textContent = tsText;
+
+      const msgSpan = document.createElement('span');
+      msgSpan.className = 'msg';
+      msgSpan.textContent = msgText;
+
+      row.appendChild(tsSpan);
+      row.appendChild(msgSpan);
+      logEl.appendChild(row);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function log(type, text) {
+      addEntry(type, new Date().toTimeString().slice(0, 8), text);
+    }
+
+    function setConnected(connected) {
+      statusBadge.textContent = connected ? 'connected' : 'disconnected';
+      statusBadge.className = 'badge ' + (connected ? 'connected' : 'disconnected');
+      connectBtn.disabled = connected;
+      disconnectBtn.disabled = !connected;
+      msgInput.disabled = !connected;
+      sendBtn.disabled = !connected;
+      if (!connected) { urlDisplay.textContent = '—'; protoDisplay.textContent = '—'; }
+    }
+
+    connectBtn.addEventListener('click', () => {
+      const nick  = document.getElementById('nickInput').value.trim() || 'anonymous';
+      const token = document.getElementById('tokenInput').value.trim();
+      const proto = document.getElementById('protoSelect').value;
+      const url   = 'ws://' + location.host + '/ws?token=' + encodeURIComponent(token) + '&nick=' + encodeURIComponent(nick);
+
+      urlDisplay.textContent = url;
+      log('info', 'Connecting' + (proto ? ' [' + proto + ']' : '') + '…');
+
+      ws = proto ? new WebSocket(url, [proto]) : new WebSocket(url);
+
+      ws.addEventListener('open', () => {
+        protoDisplay.textContent = ws.protocol || '(none)';
+        log('info', 'Connected ✓  protocol: ' + (ws.protocol || '(none)'));
+        setConnected(true);
+        msgInput.focus();
+      });
+
+      ws.addEventListener('message', (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if      (msg.type === 'info')    log('info',  'ℹ ' + msg.text);
+          else if (msg.type === 'join')    log('join',  '→ ' + msg.nick + ' joined');
+          else if (msg.type === 'leave')   log('leave', '← ' + msg.nick + ' left');
+          else if (msg.type === 'message') log('chat',  msg.nick + ': ' + msg.text);
+          else                             log('info',  e.data);
+        } catch {
+          log('info', e.data);
+        }
+      });
+
+      ws.addEventListener('close', (e) => {
+        log('leave', 'Disconnected (code ' + e.code + ')');
+        setConnected(false);
+        ws = null;
+      });
+
+      ws.addEventListener('error', () => {
+        log('error', 'Connection error — wrong token or server unreachable');
+      });
+    });
+
+    disconnectBtn.addEventListener('click', () => {
+      ws && ws.close(1000, 'user disconnect');
+    });
+
+    function sendMessage() {
+      const text = msgInput.value.trim();
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(text);
+      log('sent', 'you: ' + text);
+      msgInput.value = '';
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+  </script>
+</body>
+</html>
