@@ -2,7 +2,7 @@
 
 Authenticated WebSocket chat server using the [`ws`](https://github.com/websockets/ws) npm package — runs on **GJS** and **Node.js**.
 
-Demonstrates the server-side features added in `@gjsify/ws` Phase 2 + Phase 3:
+Demonstrates the server-side features in `@gjsify/ws`:
 
 | Feature | What it does |
 |---|---|
