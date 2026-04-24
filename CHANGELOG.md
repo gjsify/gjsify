@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### feat — Autobahn 9.* performance suite enabled (2026-04-24)
+
+Removes the `9.*` exclusion from `tests/integration/autobahn/config/fuzzingserver.json`, completing the full RFC 6455 test matrix. The performance suite covers large-payload throughput: single frames up to 16 MB (9.1.*/9.2.*), fragmented large messages (9.3.*/9.4.*), high-frequency messaging up to 1 M messages × 2 KB (9.5.*/9.6.*), sleep/send timing (9.7.*), and slow-consumer scenarios (9.8.*). Approximately 46 additional cases per agent; expect a full run to take 30–90 min locally.
+
+Driver case-timeout raised from 60 s → **480 s** to match Autobahn's own server-side ceiling. The previous 60 s was calibrated for the deflate cases (12.*); the 9.5.* throughput cases at maximum scale may legitimately need several minutes on the GLib event loop. No code changes to `@gjsify/websocket` or `@gjsify/ws` — pure test-coverage expansion.
+
+Root-cause fix landed alongside: `Soup.WebsocketConnection` has a built-in default limit of 128 KB per incoming frame — any frame larger causes Soup to silently drop the connection. All 28 initially-FAILED 9.* cases (frames ≥ 256 KB) were caused by this limit. Fix: set `max_incoming_payload_size = 100 MB` immediately after `websocket_connect_finish()`, matching the npm `ws` package's default `maxPayload`. All 54 Autobahn 9.* cases now pass: **510 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** over 517 total cases per agent.
+
 ### feat — `@gjsify/websocket` permessage-deflate + Autobahn baseline expansion (2026-04-23)
 
 Lands every remaining baseline-visible follow-up from PR #30 (Autobahn pillar) in one PR. Both agent drivers now score **456 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** against the full 463-case suite — up from `240 OK` over 247 cases in the initial Autobahn baseline.
@@ -10,7 +18,7 @@ Lands every remaining baseline-visible follow-up from PR #30 (Autobahn pillar) i
 
 - **`@gjsify/websocket` negotiates permessage-deflate (RFC 7692).** The Soup docs claim a `WebsocketExtensionManager` ships in every `Soup.Session` by default, but in practice `new Soup.Session()` comes without one — so we never advertised `Sec-WebSocket-Extensions` and Autobahn reported every `12.*` / `13.*` case `UNIMPLEMENTED`. Fix: in the `WebSocket` constructor, explicitly `Session.add_feature_by_type(Soup.WebsocketExtensionManager.$gtype)` followed by `Session.add_feature_by_type(Soup.WebsocketExtensionDeflate.$gtype)`. Adding deflate without the manager triggers a runtime warning (`No feature manager for feature of type 'SoupWebsocketExtensionDeflate'`). Browsers always offer deflate — we match that unconditionally (no opt-out today). **216 previously-UNIMPLEMENTED deflate cases → OK.**
 - **`WebSocket.extensions` now reflects the server-accepted extensions** (was hardcoded `''`). After `websocket_connect_finish` succeeds we call `get_extensions()` on the `Soup.WebsocketConnection` and serialize each `Soup.WebsocketExtension` to the `Sec-WebSocket-Extensions` response-header format (e.g. `"permessage-deflate"` or `"permessage-deflate; client_max_window_bits=15"`). The extension spec name isn't exposed on the JS object (class-level C field, not marshaled over GI), so we `instanceof`-check `Soup.WebsocketExtensionDeflate` and fall back to the stripped GType name for any third-party extension. Real W3C spec bug, surfaced by turning on deflate tests.
-- **`tests/integration/autobahn/config/fuzzingserver.json` no longer excludes `12.*` / `13.*`.** Performance suite `9.*` stays excluded (~30 min per run).
+- **`tests/integration/autobahn/config/fuzzingserver.json` no longer excludes `12.*` / `13.*`.** Performance suite `9.*` remained excluded at this point — enabled in the follow-up PR.
 - **Autobahn driver case-timeout bumped 10 s → 60 s.** The largest deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 × 131 072-byte messages, ~128 MB roundtrip) legitimately need 10–30 s; matches Autobahn's own server-side timeout.
 - **`tests/integration/autobahn/scripts/run-driver.mjs` watchdog.** `System.exit(0)` from the bundled driver's `Promise.then` continuation silently returns without terminating the gjs process (see STATUS.md Open TODOs for the isolation status of that bypass). The wrapper tails the log, waits for the `Done.` marker, grants a 3 s grace window, then `SIGKILL`s. Report is on disk before `Done.` is printed, so no data loss. Temporary — removed once the exit-bypass root cause is fixed.
 - **Refreshed baselines** in `reports/baseline/gjsify-websocket.json` + `gjsify-ws.json` reflect the 216 new OK cases. Run diff vs. the old baseline is pure improvement (no regressions, no new missings).

@@ -69,17 +69,20 @@ or commit only the relevant agent's section if a single library changed.
 
 ## Excluded cases
 
-`config/fuzzingserver.json` currently excludes:
+`config/fuzzingserver.json` has no exclusions — the full Autobahn suite
+is enabled, including:
 
-- **9.\*** — performance tests (large payloads, rapid-fire messages).
-  These take 30+ minutes per run and probe throughput, not compliance.
-  Revisit in a separate perf-focused PR.
-- **12.\*, 13.\*** — permessage-deflate extension tests. Soup's deflate
-  handling is a separate validation axis; excluding keeps this PR's
-  baseline focused on core protocol.
-
-Enable them by deleting entries from `exclude-cases` and refreshing the
-baseline.
+- **9.\*** — performance cases (large payloads, rapid-fire messages).
+  Cases 9.1.*/9.2.* probe single frames up to 16 MB; 9.5.* probe up to
+  1 M messages × 2 KB = 2 GB total roundtrip. Expect a full run to take
+  30–90 min. The driver timeout is set to 480 s per case (matching the
+  Autobahn server's own limit) so throughput-limited cases complete rather
+  than being aborted early. Results at maximum scale (9.5.6) may be
+  INFORMATIONAL or FAILED on GJS — the baseline captures real behaviour,
+  not aspirational targets.
+- **12.\*, 13.\*** — permessage-deflate extension tests. Enabled in
+  PR #32. Soup's `WebsocketExtensionDeflate` is used when
+  `perMessageDeflate: true` is passed to the constructor.
 
 ## Not wired into CI yet
 

@@ -79,13 +79,16 @@ function getCaseCount(): Promise<number> {
   });
 }
 
-// Upper bound per case. Most cases complete in < 1 s, but the largest
-// permessage-deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 messages
-// at 131 072 bytes each, ~128 MB roundtrip through GJS) legitimately need
-// 10–30 s. Autobahn's own server-side timeout is 60 s for these. We
-// match that so genuine slow cases pass while still catching real hangs
-// in well under a minute.
-const CASE_TIMEOUT_MS = 60_000;
+// Upper bound per case. Most cases complete in < 1 s. Exceptions:
+// - 12.2.10+, 12.3.10+, 12.5.17 — 1000 messages × 131 072 bytes with
+//   permessage-deflate (~128 MB roundtrip through GJS): 10–30 s each.
+// - 9.5.* at maximum scale — up to 1 M messages × 2 000 bytes = 2 GB
+//   roundtrip; may legitimately need several minutes on the GLib event loop.
+// Autobahn's own server-side timeout is 480 s for all cases. We match
+// that ceiling so the driver never aborts a progressing case before the
+// server does. The run-driver.mjs watchdog SIGKILLs the process if
+// "Done." never appears (safety net for genuine hangs).
+const CASE_TIMEOUT_MS = 480_000;
 
 function waitCloseWithTimeout(ws: WebSocket, timeoutMs: number): Promise<'ok' | 'timeout'> {
   return new Promise((resolve) => {

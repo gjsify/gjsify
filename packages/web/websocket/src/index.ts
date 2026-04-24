@@ -124,6 +124,11 @@ export class WebSocket extends EventTarget {
       (_self: unknown, asyncRes: Gio.AsyncResult) => {
         try {
           this._connection = this._session.websocket_connect_finish(asyncRes);
+          // Soup's built-in default is 128 KB — too low for large frames
+          // (Autobahn 9.1.* sends single frames up to 16 MB; npm ws defaults
+          // to 100 MB). Set before wiring signals so the limit is in place
+          // before the first frame arrives. 0 = unlimited.
+          this._connection.max_incoming_payload_size = 100 * 1024 * 1024;
           this.readyState = OPEN;
           this.protocol = this._connection.get_protocol() ?? '';
           this.extensions = serializeExtensions(this._connection.get_extensions());
