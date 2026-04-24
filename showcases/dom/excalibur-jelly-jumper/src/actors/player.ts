@@ -207,9 +207,10 @@ export default class Player extends PhysicsActor {
   }
 
   get bouncepad() {
-    return Array.from(this.touching.bottom).find((e) =>
-      e.hasTag('bouncepad')
-    ) as Bouncepad | undefined
+    for (const e of this.touching.bottom) {
+      if (e.hasTag('bouncepad')) return e as Bouncepad
+    }
+    return undefined
   }
 
   get isTouchingLadder() {

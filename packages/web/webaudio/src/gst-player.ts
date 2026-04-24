@@ -5,6 +5,7 @@
 //
 // Reference: GStreamer 1.0 via gi://Gst
 
+import GLib from 'gi://GLib?version=2.0';
 import { ensureGstInit, Gst } from './gst-init.js';
 import type { AudioBuffer } from './audio-buffer.js';
 
@@ -141,15 +142,21 @@ export class GstPlayer {
     }
 
     private _cleanup(): void {
-        if (this._pipeline) {
-            this._pipeline.set_state(Gst.State.NULL);
-            this._pipeline = null;
-        }
-        if (this._busWatchId !== null) {
-            // Bus watch is automatically removed when pipeline is disposed
-            this._busWatchId = null;
-        }
+        const pipeline = this._pipeline;
+        this._pipeline = null;
         this._volumeElement = null;
+        this._busWatchId = null;
+
+        if (pipeline) {
+            // Defer NULL-state transition to a low-priority idle so this method does not
+            // block the GLib main loop when called from within the bus-watch callback (EOS/ERROR).
+            // autoaudiosink teardown flushes the audio device, which can take several ms and
+            // causes frame drops when SFX fire frequently during gameplay.
+            GLib.idle_add(GLib.PRIORITY_LOW, () => {
+                pipeline.set_state(Gst.State.NULL);
+                return GLib.SOURCE_REMOVE;
+            });
+        }
     }
 
     /**

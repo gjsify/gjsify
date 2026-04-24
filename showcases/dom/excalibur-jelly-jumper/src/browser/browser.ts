@@ -14,6 +14,8 @@ export interface MountOptions {
     assetBase?: string;
     /** Start with audio muted (default: true for browser). */
     startMuted?: boolean;
+    /** Enable in-game FPS overlay + [PERF] console logging (also auto-enabled via ?perf=1). */
+    enablePerf?: boolean;
 }
 
 export interface ShowcaseHandle {
@@ -125,7 +127,8 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         if (game) return;
         if (canvasContainer.clientWidth === 0 || canvasContainer.clientHeight === 0) return;
         ro.disconnect();
-        startGame(canvas, { startMuted: pendingMuted, assetBase: options?.assetBase }).then(g => {
+        const enablePerf = options?.enablePerf ?? (typeof location !== 'undefined' && new URLSearchParams(location.search).get('perf') === '1');
+        startGame(canvas, { startMuted: pendingMuted, assetBase: options?.assetBase, platform: 'browser', enablePerf }).then(g => {
             game = g;
             if (pendingPause) { game.pause(); pendingPause = false; }
             updatePauseButton(game.isPaused);

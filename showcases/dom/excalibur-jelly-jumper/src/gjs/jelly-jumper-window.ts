@@ -59,7 +59,11 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
                 this._game?.engine.screen.applyResolutionAndViewport();
             });
 
-            startGame(canvas)
+            startGame(canvas, {
+                platform: 'gjs',
+                enablePerf: true,
+                fixedUpdateFps: 30, // reduces accumulator cascade on GLib-delayed frames
+            })
                 .then(game => { this._game = game; })
                 .catch(err => {
                     if (useFallback) {

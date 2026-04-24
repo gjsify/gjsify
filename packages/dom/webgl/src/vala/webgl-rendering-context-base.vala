@@ -1528,9 +1528,12 @@ namespace Gwebgl {
         // forward to the corresponding raw GL calls. Shared by both WebGL1
         // and WebGL2 contexts.
 
+        // Cached VariantType for byte-array ("ay") comparison — avoids allocating
+        // a new VariantType object on every bufferData / texImage2D / readPixels call.
+        private static GLib.VariantType _byte_array_vtype = new GLib.VariantType("ay");
+
         public bool isVariantOfByteArray(Variant variant) {
-            var type = variant.get_type();
-            return type.equal(new GLib.VariantType("ay"));
+            return variant.is_of_type(_byte_array_vtype);
         }
 
         public void bufferData(int target, Variant variant, int usage) {
