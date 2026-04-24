@@ -318,6 +318,13 @@ export class Server extends EventEmitter {
   private _soupServer: Soup.Server | null = null;
   private _address: { port: number; family: string; address: string } | null = null;
 
+  /** Exposes the underlying Soup.Server so consumers (e.g. WebSocketServer
+   *  in `@gjsify/ws`) can register additional handlers (websocket, path-
+   *  specific) on the same server instance without port sharing conflicts. */
+  get soupServer(): Soup.Server | null {
+    return this._soupServer;
+  }
+
   constructor(requestListener?: ((req: IncomingMessage, res: ServerResponse) => void) | Record<string, unknown>);
   constructor(options: Record<string, unknown>, requestListener?: (req: IncomingMessage, res: ServerResponse) => void);
   constructor(
@@ -418,25 +425,31 @@ export class Server extends EventEmitter {
     // Reference: Node.js lib/_http_server.js — emits 'upgrade' with (req, socket, head)
     const connectionHeader = (req.headers['connection'] as string || '').toLowerCase();
     const upgradeHeader = (req.headers['upgrade'] as string || '').toLowerCase();
-    if (connectionHeader.includes('upgrade') && upgradeHeader && this.listenerCount('upgrade') > 0) {
-      // Steal the raw TCP connection from Soup before it sends a response.
-      // This gives us a Gio.IOStream positioned after the parsed HTTP request.
-      let ioStream: Gio.IOStream | null = null;
-      try {
-        ioStream = soupMsg.steal_connection();
-      } catch (err) {
-        // steal_connection() may fail if Soup has already started processing
-        // the response or if the connection is in an unexpected state.
-        // Surface as 'clientError' (matches Node.js) so apps can log/react.
-        this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
+    if (connectionHeader.includes('upgrade') && upgradeHeader === 'websocket') {
+      if (this.listenerCount('upgrade') > 0) {
+        // Steal the raw TCP connection from Soup before it sends a response.
+        // This gives us a Gio.IOStream positioned after the parsed HTTP request.
+        let ioStream: Gio.IOStream | null = null;
+        try {
+          ioStream = soupMsg.steal_connection();
+        } catch (err) {
+          // steal_connection() may fail if Soup has already started processing
+          // the response or if the connection is in an unexpected state.
+          // Surface as 'clientError' (matches Node.js) so apps can log/react.
+          this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
+        }
+        if (ioStream) {
+          const socket = new NetSocket();
+          socket._setupFromIOStream(ioStream);
+          // head: any data after HTTP headers — empty for upgrade requests
+          this.emit('upgrade', req, socket, Buffer.alloc(0));
+          return;
+        }
       }
-      if (ioStream) {
-        const socket = new NetSocket();
-        socket._setupFromIOStream(ioStream);
-        // head: any data after HTTP headers — empty for upgrade requests
-        this.emit('upgrade', req, socket, Buffer.alloc(0));
-        return;
-      }
+      // No 'upgrade' listener: return without pausing or emitting 'request'.
+      // Soup will continue to any add_websocket_handler registered for this path
+      // (e.g. from WebSocketServer with { server: httpServer } mode).
+      return;
     }
 
     // Populate req.socket with address info (engine.io and others need remoteAddress)

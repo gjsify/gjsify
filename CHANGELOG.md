@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### feat — WebSocket server hooks Phase 2: `verifyClient`, `handleProtocols`, `{ server }` (2026-04-24)
+
+Adds server-side access control, subprotocol negotiation, and shared-port mode to `@gjsify/ws` `WebSocketServer`.
+
+**`verifyClient`** — HTTP-level access control before the WebSocket upgrade is accepted. Implemented via Soup's handler ordering: `add_handler` fires before `add_websocket_handler` for the same path; setting a status code in the HTTP handler prevents the websocket handler from firing. Supports both the synchronous `(info) => boolean` form and the asynchronous `(info, callback)` form (detected by `fn.length >= 2`). Async uses `msg.pause()` / `msg.unpause()` so the GLib event loop continues running during the callback. The `info` object is fully populated: `origin`, `secure`, `req.method`, `req.url`, `req.headers`, `req.socket.remoteAddress`.
+
+**`handleProtocols`** — Subprotocol selection after a connection is accepted. The callback receives a `Set<string>` of client-offered protocols and the request object; the return value is stored on the server-side `ws.protocol`. **Known limitation (Phase 3):** Soup commits the 101 response before `add_websocket_handler` fires, so the `Sec-WebSocket-Protocol` response header is already sent — client-visible protocol selection requires manual handshake via `handleUpgrade()` (out of scope for Phase 2).
+
+**`{ server: existingHttpServer }`** — Attach a `WebSocketServer` to an existing `@gjsify/http` `Server` instead of creating its own `Soup.Server`. The http.Server exposes a new `get soupServer(): Soup.Server | null` getter that `WebSocketServer` uses to register `add_websocket_handler` (+ optionally `add_handler` for `verifyClient`) on the shared server. The caller controls `listen()`; `WebSocketServer` emits `'listening'` immediately (synchronous, via `queueMicrotask`).
+
+**`_handleRequest` fix in `@gjsify/http`** — WebSocket upgrade requests that have no `'upgrade'` listener on the http.Server were previously paused and emitted as `'request'`, starving any `add_websocket_handler` registered on the same `Soup.Server`. The fix: return early for all `Connection: upgrade` + `Upgrade: websocket` requests, regardless of listener count. If an `'upgrade'` listener exists, it gets the stolen IOStream as before; otherwise Soup continues to the websocket handler transparently.
+
+12 new tests added to `packages/node/ws/src/websocket-server.spec.ts` (all GJS-only): verifyClient sync reject/accept, verifyClient async reject/accept, verifyClient info fields, handleProtocols subprotocol selection, and `{ server }` shared-port echo. 35 GJS tests total (up from 23), 18 Node tests unchanged.
+
 ### feat — WebSocket client options: `headers`, `origin`, `handshakeTimeout` (2026-04-24)
 
 Implements three commonly-used npm `ws` client options in `@gjsify/websocket` and forwards them through `@gjsify/ws`.

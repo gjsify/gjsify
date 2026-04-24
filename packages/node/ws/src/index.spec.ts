@@ -122,22 +122,10 @@ export default async () => {
     });
   });
 
-  // These tests validate Phase 1 scope limitations of @gjsify/ws.
-  // Real npm ws supports { noServer: true }, { server }, verifyClient — our
-  // wrapper does not yet. Only run on GJS where these options hit our
-  // explicit "not supported" throws.
   await on('Gjs', async () => {
     await describe('GJS: WebSocketServer option validation', async () => {
       await it('throws when given { noServer: true }', async () => {
         expect(() => new WebSocketServer({ noServer: true })).toThrow();
-      });
-
-      await it('throws when given an external { server }', async () => {
-        expect(() => new WebSocketServer({ server: {} as any })).toThrow();
-      });
-
-      await it('throws when given verifyClient', async () => {
-        expect(() => new WebSocketServer({ port: 0, verifyClient: (() => true) as any })).toThrow();
       });
     });
   });
