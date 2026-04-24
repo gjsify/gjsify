@@ -170,6 +170,106 @@ export default async () => {
       });
     });
 
+    // ── noServer + handleUpgrade ──────────────────────────────────────────
+
+    await describe('WebSocketServer noServer + handleUpgrade', async () => {
+      await it('echo works end-to-end via handleUpgrade', async () => {
+        const { createServer } = await import('node:http');
+        const server = createServer();
+        const wss = new WebSocketServer({ noServer: true });
+        server.on('upgrade', (req: any, socket: any, head: any) => {
+          wss.handleUpgrade(req, socket, head, (ws: any) => wss.emit('connection', ws, req));
+        });
+        await new Promise<void>((resolve, reject) => {
+          wss.on('connection', (ws: any) => {
+            ws.on('message', (msg: any) => { ws.send(String(msg)); });
+          });
+          server.listen(0, () => {
+            const addr = server.address() as { address: string; family: string; port: number };
+            const client = new WebSocket(`ws://127.0.0.1:${addr.port}/`);
+            client.on('open', () => client.send('hello'));
+            client.on('message', (data: any) => {
+              expect(String(data)).toBe('hello');
+              client.close();
+              server.close();
+              wss.close();
+              resolve();
+            });
+            client.on('error', reject);
+          });
+        });
+      });
+
+      await it('verifyClient reject via handleUpgrade closes client', async () => {
+        const { createServer } = await import('node:http');
+        const server = createServer();
+        const wss = new WebSocketServer({ noServer: true, verifyClient: () => false });
+        server.on('upgrade', (req: any, socket: any, head: any) => {
+          wss.handleUpgrade(req, socket, head, () => {});
+        });
+        await new Promise<void>((resolve) => {
+          server.listen(0, () => {
+            const addr = server.address() as { address: string; family: string; port: number };
+            const client = new WebSocket(`ws://127.0.0.1:${addr.port}/`);
+            const done = () => { server.close(); wss.close(); resolve(); };
+            client.on('error', done);
+            client.on('unexpected-response', done);
+          });
+        });
+      });
+
+      await it('handleProtocols selection appears in client ws.protocol via handleUpgrade', async () => {
+        const { createServer } = await import('node:http');
+        const server = createServer();
+        const wss = new WebSocketServer({
+          noServer: true,
+          handleProtocols: (protocols: Set<string>) => protocols.has('bar') ? 'bar' : false,
+        });
+        server.on('upgrade', (req: any, socket: any, head: any) => {
+          wss.handleUpgrade(req, socket, head, (ws: any) => wss.emit('connection', ws, req));
+        });
+        let clientProtocol = '';
+        await new Promise<void>((resolve, reject) => {
+          wss.on('connection', (ws: any) => { ws.close(); });
+          server.listen(0, () => {
+            const addr = server.address() as { address: string; family: string; port: number };
+            const client = new WebSocket(`ws://127.0.0.1:${addr.port}/`, ['foo', 'bar']);
+            client.on('open', () => { clientProtocol = (client as any).protocol; });
+            client.on('close', () => { server.close(); wss.close(); resolve(); });
+            client.on('error', reject);
+          });
+        });
+        expect(clientProtocol).toBe('bar');
+      });
+
+      await it('headers event allows injecting custom response headers', async () => {
+        const { createServer } = await import('node:http');
+        const server = createServer();
+        const wss = new WebSocketServer({ noServer: true });
+        let headersEventFired = false;
+        wss.on('headers', (headers: string[]) => {
+          headersEventFired = true;
+          headers.push('X-Custom: gjsify');
+        });
+        server.on('upgrade', (req: any, socket: any, head: any) => {
+          wss.handleUpgrade(req, socket, head, (ws: any) => wss.emit('connection', ws, req));
+        });
+        await new Promise<void>((resolve, reject) => {
+          wss.on('connection', (ws: any) => { ws.close(); });
+          server.listen(0, () => {
+            const addr = server.address() as { address: string; family: string; port: number };
+            const client = new WebSocket(`ws://127.0.0.1:${addr.port}/`);
+            client.on('open', () => {
+              expect(headersEventFired).toBe(true);
+              client.close();
+            });
+            client.on('close', () => { server.close(); wss.close(); resolve(); });
+            client.on('error', reject);
+          });
+        });
+      });
+    });
+
     // ── { server } mode ───────────────────────────────────────────────────
 
     await describe('WebSocketServer { server } mode', async () => {

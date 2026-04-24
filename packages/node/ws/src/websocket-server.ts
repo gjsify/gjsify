@@ -2,32 +2,38 @@
 //
 // Reference: refs/ws/lib/websocket-server.js
 //
-// Phase 2 scope (this file):
+// Supported:
 //   - `new WebSocketServer({ port, host })` → standalone Soup.Server
 //   - `new WebSocketServer({ server: httpServer })` → attach to existing @gjsify/http Server
+//   - `new WebSocketServer({ noServer: true })` → caller calls handleUpgrade() manually
 //   - `verifyClient(info)` / `verifyClient(info, cb)` — sync + async access control
-//     Mechanism: add_handler registered BEFORE add_websocket_handler. Soup calls
-//     add_handler first for all requests; if it sets a status code the websocket
-//     handler never fires. Soup processes: add_handler → add_websocket_handler.
+//     Mechanism (Soup path): add_handler registered BEFORE add_websocket_handler.
+//     Mechanism (handleUpgrade path): HTTP 4xx response written before 101.
 //   - `handleProtocols(protocols, req)` — select subprotocol from client offer.
-//     Limitation: Soup's 101 response is committed before our callback fires, so
-//     the Sec-WebSocket-Protocol response header cannot be set per-request without
-//     Phase 3 (manual handshake). Server-side ws.protocol IS correct; client-side
-//     ws.protocol requires Phase 3.
-//   - Emits 'listening' / 'connection' / 'close' / 'error' like ws
+//     Note: In the Soup path the 101 response is committed before our callback fires,
+//     so client-side ws.protocol won't reflect the selection. In the handleUpgrade
+//     path it IS reflected because we write the 101 ourselves.
+//   - `handleUpgrade(req, socket, head, cb)` — manual upgrade routing.
+//     Computes Sec-WebSocket-Accept, emits 'headers', writes 101 via socket.write(),
+//     then creates Soup.WebsocketConnection from the IOStream and calls cb(ws, req).
+//   - Emits 'listening' / 'connection' / 'close' / 'error' / 'headers' like ws
 //
-// Still not supported (Phase 3):
-//   - `{ noServer: true }` + handleUpgrade() (external upgrade routing)
-//
-// Each gap throws a clear error at construction/call site.
+// Not supported:
+//   - `ping()`/`pong()` events — libsoup 3 GI does not expose a user-level API;
+//     Soup handles control frames internally (Phase 4).
+//   - `createWebSocketStream()` (Phase 4)
 
 import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
+import { createHash } from '@gjsify/crypto';
 import Soup from '@girs/soup-3.0';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { ensureMainLoop } from '@gjsify/utils';
 import { CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
+
+const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+const WS_KEY_REGEX = /^[+/0-9A-Za-z]{22}==$/;
 
 /** Structural duck-type for @gjsify/http Server — avoids a hard dep on @gjsify/http. */
 interface HttpServer {
@@ -212,10 +218,15 @@ export class WebSocketServer extends EventEmitter {
     this.path = options.path ?? '/';
 
     if (options.noServer) {
-      throw new Error(
-        'ws.WebSocketServer with { noServer: true } is not yet supported on Gjs. ' +
-        'Use { port } or { server: httpServer } instead.',
-      );
+      if (options.port !== undefined || options.server !== undefined) {
+        throw new Error(
+          'ws.WebSocketServer: { noServer: true } is mutually exclusive with port and server.',
+        );
+      }
+      // noServer mode: caller manages the http.Server and calls handleUpgrade() manually.
+      // No Soup.Server is created; no port is bound.
+      if (callback) this.once('listening', callback);
+      return;
     }
 
     if (options.port === undefined && !options.server) {
@@ -407,12 +418,145 @@ export class WebSocketServer extends EventEmitter {
     }
   }
 
-  /** ws-only: manual upgrade routing — not supported on Gjs (requires noServer mode). */
-  handleUpgrade(): void {
-    throw new Error('ws.WebSocketServer.handleUpgrade() is not supported on Gjs (requires noServer mode).');
+  /** Manual WebSocket upgrade — matches npm ws semantics exactly.
+   *  The caller intercepts 'upgrade' on an http.Server (typically with
+   *  { noServer: true } on this WebSocketServer) and passes the raw
+   *  IncomingMessage + net.Socket + head buffer here.
+   *
+   *  Internally: validates headers, runs verifyClient, computes
+   *  Sec-WebSocket-Accept, emits 'headers' (mutable array), writes the 101
+   *  response via socket.write(), then creates Soup.WebsocketConnection from
+   *  the underlying IOStream and calls cb(ws, req). */
+  handleUpgrade(
+    req: any,
+    socket: any,
+    _head: Buffer,
+    cb: (ws: ServerSideWebSocket, req: any) => void,
+  ): void {
+    if (!this._validateUpgradeHeaders(req, socket)) return;
+    const key = (req.headers?.['sec-websocket-key'] ?? '') as string;
+
+    const doUpgrade = () => this._completeUpgrade(req, socket, key, cb);
+
+    if (this.options.verifyClient) {
+      const vc = this.options.verifyClient;
+      const info = this._buildVerifyClientInfoFromReq(req);
+      if (vc.length >= 2) {
+        (vc as VerifyClientAsync)(info, (result: boolean, code = 401) => {
+          if (!result) { this._abortHandshake(socket, code); return; }
+          doUpgrade();
+        });
+        return;
+      }
+      if (!(vc as VerifyClientSync)(info)) {
+        this._abortHandshake(socket, 401);
+        return;
+      }
+    }
+    doUpgrade();
   }
 
   shouldHandle(req: { url?: string }): boolean {
-    return req?.url === this.path;
+    if (this.path === '/') return true;
+    const url = req?.url ?? '/';
+    return url === this.path || url.startsWith(this.path + '?') || url.startsWith(this.path + '/');
+  }
+
+  // ── handleUpgrade helpers ───────────────────────────────────────────────
+
+  private _validateUpgradeHeaders(req: any, socket: any): boolean {
+    const h = req.headers ?? {};
+    if (req.method !== 'GET') { this._abortHandshake(socket, 405); return false; }
+    if ((h['upgrade'] ?? '').toLowerCase() !== 'websocket') { this._abortHandshake(socket, 400); return false; }
+    if (!WS_KEY_REGEX.test(h['sec-websocket-key'] ?? '')) { this._abortHandshake(socket, 400); return false; }
+    const ver = Number(h['sec-websocket-version'] ?? '0');
+    if (ver !== 13 && ver !== 8) { this._abortHandshake(socket, 426); return false; }
+    if (!this.shouldHandle(req)) { this._abortHandshake(socket, 400); return false; }
+    return true;
+  }
+
+  private _completeUpgrade(
+    req: any,
+    socket: any,
+    key: string,
+    cb: (ws: ServerSideWebSocket, req: any) => void,
+  ): void {
+    const digest = createHash('sha1').update(key + WS_GUID).digest('base64');
+
+    const responseHeaders = [
+      'HTTP/1.1 101 Switching Protocols',
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      `Sec-WebSocket-Accept: ${digest}`,
+    ];
+
+    let selectedProtocol: string | null = null;
+    if (this.options.handleProtocols) {
+      const raw = (req.headers?.['sec-websocket-protocol'] ?? '') as string;
+      const offered = new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
+      const sel = this.options.handleProtocols(offered, this._buildVerifyClientInfoFromReq(req).req);
+      if (sel) {
+        selectedProtocol = sel;
+        responseHeaders.push(`Sec-WebSocket-Protocol: ${sel}`);
+      }
+    }
+
+    // Emit 'headers' hook — listeners may push additional response headers.
+    this.emit('headers', responseHeaders, req);
+
+    // Write the 101 response then hand the IOStream to Soup.WebsocketConnection.
+    const responseStr = responseHeaders.join('\r\n') + '\r\n\r\n';
+    socket.write(responseStr, () => {
+      const ioStream: Gio.IOStream | null = typeof socket._releaseIOStream === 'function'
+        ? socket._releaseIOStream()
+        : null;
+      if (!ioStream) { socket.destroy?.(); return; }
+
+      const rawUrl = req.url ?? '/';
+      const uri = GLib.Uri.parse(`ws://localhost${rawUrl}`, GLib.UriFlags.NONE);
+      const conn = Soup.WebsocketConnection['new'](
+        ioStream,
+        uri,
+        Soup.WebsocketConnectionType.SERVER,
+        null,
+        selectedProtocol,
+        [],
+      );
+
+      const ws = new ServerSideWebSocket(conn, rawUrl);
+      if (selectedProtocol) ws.protocol = selectedProtocol;
+
+      if (this.options.clientTracking !== false) {
+        this.clients.add(ws);
+        ws.on('close', () => this.clients.delete(ws));
+      }
+      this.emit('connection', ws, req);
+      cb(ws, req);
+    });
+  }
+
+  private _abortHandshake(socket: any, code: number): void {
+    const statusTexts: Record<number, string> = {
+      400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden',
+      405: 'Method Not Allowed', 426: 'Upgrade Required',
+    };
+    const msg = statusTexts[code] ?? 'Error';
+    socket.write?.(`HTTP/1.1 ${code} ${msg}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`, () => {
+      socket.destroy?.();
+    });
+  }
+
+  private _buildVerifyClientInfoFromReq(req: any): VerifyClientInfo {
+    const h = req.headers ?? {};
+    return {
+      origin: (h['origin'] as string) ?? '',
+      secure: false,
+      req: {
+        method: req.method ?? 'GET',
+        url: req.url ?? '/',
+        headers: h,
+        socket: { remoteAddress: req.socket?.remoteAddress ?? '127.0.0.1', remotePort: req.socket?.remotePort ?? 0 },
+      },
+    };
   }
 }

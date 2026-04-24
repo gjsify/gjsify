@@ -124,8 +124,12 @@ export default async () => {
 
   await on('Gjs', async () => {
     await describe('GJS: WebSocketServer option validation', async () => {
-      await it('throws when given { noServer: true }', async () => {
-        expect(() => new WebSocketServer({ noServer: true })).toThrow();
+      await it('accepts { noServer: true } without throwing', async () => {
+        expect(() => new WebSocketServer({ noServer: true })).not.toThrow();
+      });
+
+      await it('throws when { noServer: true } is combined with port', async () => {
+        expect(() => new WebSocketServer({ noServer: true, port: 8080 })).toThrow();
       });
     });
   });

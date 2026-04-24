@@ -35,6 +35,7 @@
         "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
         "@girs/soup-3.0": "^3.6.6-4.0.0-rc.3",
         "@gjsify/buffer": "workspace:^",
+        "@gjsify/crypto": "workspace:^",
         "@gjsify/events": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@gjsify/websocket": "workspace:^"

@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### feat — WebSocket server Phase 3: `{ noServer: true }` + `handleUpgrade()` + `'headers'` event (2026-04-24)
+
+Completes the standard engine.io / socket.io integration pattern for `@gjsify/ws` `WebSocketServer`.
+
+**`{ noServer: true }`** — Constructor no longer throws. In this mode no `Soup.Server` is created and no port is bound. The caller owns an `http.Server`, listens on the `'upgrade'` event, and passes the raw request + socket + head to `handleUpgrade()`. Mutually exclusive with `port` and `server`.
+
+**`handleUpgrade(req, socket, head, cb)`** — Full manual upgrade implementation:
+1. Validates request headers (method=GET, Upgrade=websocket, Sec-WebSocket-Key format, Sec-WebSocket-Version 13/8, path via `shouldHandle`). Rejects with HTTP 4xx via `socket.write` + `socket.destroy` on any failure.
+2. Runs `verifyClient` (sync or async) if configured — 401 abort on rejection.
+3. Computes `Sec-WebSocket-Accept` via SHA-1 + GUID (`@gjsify/crypto` `createHash('sha1')`).
+4. Runs `handleProtocols` if configured — appends `Sec-WebSocket-Protocol` to response headers. **Unlike the Soup path, the client now sees the correct subprotocol** because we write the 101 ourselves (resolves the Phase 2 client-visible protocol limitation).
+5. Emits `'headers'` (mutable `string[]`) — listeners may push additional response headers (e.g. `Set-Cookie`).
+6. Writes the 101 response via `socket.write()`.
+7. Calls `socket._releaseIOStream()` to hand the raw `Gio.IOStream` to `Soup.WebsocketConnection['new']()`. Wraps in `ServerSideWebSocket`, tracks in `clients`, emits `'connection'`, calls `cb(ws, req)`.
+
+**`'headers'` event** — Mutable `string[]` emitted before every 101 write in the `handleUpgrade` path. Enables engine.io / socket.io to inject `Set-Cookie` and other headers.
+
+**`_attachOutputOnly` in `@gjsify/net` `Socket`** — New internal method used by `http.Server._handleRequest` in the upgrade path instead of `_setupFromIOStream`. Sets up write capability and address info from the `Gio.IOStream` but does NOT start the async read loop, eliminating a fatal race where both the `NetSocket` read loop and `Soup.WebsocketConnection` would consume the same input stream.
+
+**`_releaseIOStream` in `@gjsify/net` `Socket`** — Transfers `Gio.IOStream` ownership to the caller. The socket's references are nulled so it does not close the stream when garbage-collected or destroyed.
+
+5 new tests added to `packages/node/ws/src/index.spec.ts` (updated stale "noServer throws" → "noServer accepted" + "noServer+port throws"). 4 new tests in `websocket-server.spec.ts` (GJS-only): echo via handleUpgrade, verifyClient reject via handleUpgrade, handleProtocols client-visible via handleUpgrade, 'headers' event. **40 GJS tests total** (up from 35), 18 Node tests unchanged.
+
 ### feat — WebSocket server hooks Phase 2: `verifyClient`, `handleProtocols`, `{ server }` (2026-04-24)
 
 Adds server-side access control, subprotocol negotiation, and shared-port mode to `@gjsify/ws` `WebSocketServer`.

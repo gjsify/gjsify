@@ -425,31 +425,32 @@ export class Server extends EventEmitter {
     // Reference: Node.js lib/_http_server.js — emits 'upgrade' with (req, socket, head)
     const connectionHeader = (req.headers['connection'] as string || '').toLowerCase();
     const upgradeHeader = (req.headers['upgrade'] as string || '').toLowerCase();
-    if (connectionHeader.includes('upgrade') && upgradeHeader === 'websocket') {
+    if (connectionHeader.includes('upgrade') && upgradeHeader) {
       if (this.listenerCount('upgrade') > 0) {
-        // Steal the raw TCP connection from Soup before it sends a response.
-        // This gives us a Gio.IOStream positioned after the parsed HTTP request.
+        // Any protocol upgrade with an 'upgrade' listener: steal the raw TCP
+        // connection and hand it to the listener as a net.Socket Duplex.
         let ioStream: Gio.IOStream | null = null;
         try {
           ioStream = soupMsg.steal_connection();
         } catch (err) {
-          // steal_connection() may fail if Soup has already started processing
-          // the response or if the connection is in an unexpected state.
-          // Surface as 'clientError' (matches Node.js) so apps can log/react.
           this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
         }
         if (ioStream) {
           const socket = new NetSocket();
-          socket._setupFromIOStream(ioStream);
+          socket._attachOutputOnly(ioStream);
           // head: any data after HTTP headers — empty for upgrade requests
           this.emit('upgrade', req, socket, Buffer.alloc(0));
           return;
         }
       }
-      // No 'upgrade' listener: return without pausing or emitting 'request'.
-      // Soup will continue to any add_websocket_handler registered for this path
-      // (e.g. from WebSocketServer with { server: httpServer } mode).
-      return;
+      if (upgradeHeader === 'websocket') {
+        // WebSocket upgrade + no 'upgrade' listener: return without pausing or
+        // emitting 'request'. Soup continues to any add_websocket_handler on
+        // this path (e.g. from WebSocketServer with { server: httpServer } mode).
+        return;
+      }
+      // Non-WebSocket upgrade + no 'upgrade' listener: fall through to the
+      // regular request handler so the app can respond with 426 or similar.
     }
 
     // Populate req.socket with address info (engine.io and others need remoteAddress)
