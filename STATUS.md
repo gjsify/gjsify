@@ -358,7 +358,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**WebRTC Phase 1 + 1.5 (Data Channel end-to-end)**~~✓ — `@gjsify/webrtc` (23 tests incl. loopback). RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary send/receive), RTCSessionDescription, RTCIceCandidate, RTCError. Backed by `@gjsify/webrtc-native` Vala bridge (WebrtcbinBridge, DataChannelBridge, PromiseBridge) that marshals webrtcbin's streaming-thread signals + Gst.Promise callbacks onto the main GLib context via `GLib.Idle.add()`. Media (RTCRtpSender/Receiver, MediaStream, getUserMedia) deferred to Phase 2.
 - ~~**WebRTC Phase 2 + 2.5 + 3 (Media)**~~✓ — Full W3C media surface: `addTransceiver`, `addTrack`/`removeTrack`, `RTCRtpSender`/`Receiver`/`Transceiver`, `MediaStream`/`MediaStreamTrack`, `getUserMedia` (pipewiresrc/pulsesrc/v4l2src), incoming pipeline via `ReceiverBridge` (Vala, decodebin → tee switching), outgoing pipeline via explicit encoder chain (source→valve→convert→encode→payloader→capsfilter→webrtcbin). Tee-multiplexer for fan-out. DTMF via `RTCDTMFSender`. WebTorrent on GJS is now end-to-end thanks to RTCDataChannel maturity.
 - ~~**npm `ws` drop-in wrapper**~~✓ — `@gjsify/ws` (`packages/node/ws/`) wraps `@gjsify/websocket` + `Soup.Server.add_websocket_handler`. Aliased via `ws` and `isomorphic-ws`. Autobahn fuzzingserver reports identical 240/4/3/0 scores as the underlying `@gjsify/websocket`, confirming zero wrapper regressions.
-- ~~**Autobahn RFC 6455 pillar**~~✓ — `tests/integration/autobahn/` (two driver agents: `@gjsify/websocket` W3C, `@gjsify/ws` npm wrapper). Baseline: 240 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED per agent (cases 9.* / 12.* / 13.* excluded — performance + permessage-deflate deferred).
+- ~~**Autobahn RFC 6455 pillar**~~✓ — `tests/integration/autobahn/` (two driver agents: `@gjsify/websocket` W3C, `@gjsify/ws` npm wrapper). Baseline: 456 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED per agent (full suite — 9.* performance + 12.*/13.* permessage-deflate all enabled).
 - ~~**`@gjsify/sqlite`**~~✓ — `node:sqlite` on top of `gi://Gda?version=6.0`. DatabaseSync / StatementSync with the subset of the API realistic libgda exposes; 48 tests.
 - ~~**`@gjsify/canvas2d-core` extraction**~~✓ — Headless Cairo/PangoCairo 2D surface split out of `@gjsify/canvas2d`. Breaks the dom-elements ↔ canvas2d cycle; `@gjsify/dom-elements` auto-registers the `'2d'` context factory via the new package.
 - ~~**XHR + `URL.createObjectURL` moved to their natural homes**~~✓ — `@gjsify/xmlhttprequest` owns the XHR class + FakeBlob; `@gjsify/url` owns `URL.createObjectURL`/`revokeObjectURL` as static methods on the URL class. `@gjsify/fetch` no longer monkey-patches URL from a register module.
@@ -465,7 +465,7 @@ Identical scores confirm `@gjsify/ws` adds zero regressions over `@gjsify/websoc
 
 **INFORMATIONAL (3 cases)** — implementation-defined close behaviors (7.1.6 large-message-then-close race, 7.13.x custom close codes). By Autobahn's own classification these are never failures — just observations.
 
-Cases excluded from the baseline: `9.*` (performance, ~30 min per run). The `12.*` / `13.*` permessage-deflate suites are part of the baseline since deflate landed enabled in this iteration.
+No cases are excluded from the baseline. The full Autobahn suite is enabled: core RFC 6455 (1.*/2.*/3.*/4.*/5.*/6.*/7.*), permessage-deflate (12.*/13.*), and the performance group (9.*). The 9.* cases probe large-payload throughput (single frames up to 16 MB, up to 1 M messages × 2 KB); a full run takes 30–90 min locally. Driver timeout is 480 s per case, matching the Autobahn server's own limit, so throughput-limited cases at maximum scale run to completion rather than being aborted early.
 
 **Not wired into CI yet** — Podman-in-CI on Fedora requires privileged containers or socket sharing that our current CI config doesn't enable. Manual `yarn test` + baseline commit is the Phase 1 workflow. Baseline JSON under `reports/baseline/<agent>.json` is tracked; regressions surface in PR diffs.
 
@@ -479,7 +479,7 @@ Cases excluded from the baseline: `9.*` (performance, ~30 min per run). The `12.
 
 4. **`WebSocket.extensions` now reflects the actual negotiated extensions** (was hardcoded `''`). After `websocket_connect_finish` succeeds we call `this._connection.get_extensions()` and serialize each `Soup.WebsocketExtension` into the `Sec-WebSocket-Extensions` response-header format (`"permessage-deflate"` or `"permessage-deflate; client_max_window_bits=15"`). Libsoup doesn't surface an extension's spec name on the JS object (it's a class-level C field), so we `instanceof`-check `Soup.WebsocketExtensionDeflate` for the one extension Soup ships today and fall back to the stripped GType name for any third-party extension registered on the session. W3C spec compliance: `WebSocket.extensions` must echo the server-accepted extensions after `open`.
 
-5. **Driver case-timeout bumped to 60 s, from 10 s.** The largest deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 messages of 131 072 bytes each, ~128 MB roundtrip through GJS) legitimately need 10–30 s; the prior 10 s cap timed out 12 of them and reported `FAILED` even though they were making steady progress. 60 s matches Autobahn's own server-side case timeout for these cases.
+5. **Driver case-timeout bumped from 10 s → 60 s (PR #32), then 60 s → 480 s (this PR).** The deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 messages × 131 072 bytes, ~128 MB roundtrip) need 10–30 s. The 9.5.* performance cases at maximum scale (1 M messages × 2 KB = 2 GB roundtrip) may need several minutes. 480 s matches the Autobahn server's own ceiling for all cases, ensuring the driver never aborts a progressing case before the server does.
 
 6. **Driver exit watchdog (`scripts/run-driver.mjs`).** `System.exit(0)` called from the bundled driver's `Promise.then` continuation silently returns in this context (the GLib main loop kept alive by `ensureMainLoop()` keeps the process running even after main() has resolved and the Autobahn report is written). The same `System.exit` call works from a standalone script or a MainLoop idle callback, so the blocker is specific to the driver bundle's heavily-patched `@gjsify/node-globals` runtime surface. Workaround: a Node wrapper polls for the `Done.` marker in the driver's log, gives the process 3 s to self-exit, then `SIGKILL`s. The report is on disk before `Done.` is printed so no data is lost. Removal blocker tracked below in Open TODOs.
 
@@ -547,11 +547,11 @@ A future `@gjsify/dom-bridge` package where `document.createElement("canvas")` +
 - `icecandidateerror` event — map from webrtcbin's ICE failure signals.
 - `peerIdentity`, `getIdentityAssertion` — identity provider integration.
 
-### Autobahn — expand coverage and wire into CI
+### Autobahn — wire into CI
 
 **Priority: Medium.**
 
-Current baseline excludes cases `9.*` (performance — ~30 min/run). The `12.*` / `13.*` permessage-deflate suites are now part of the baseline. Remaining items:
+Full Autobahn suite (core + permessage-deflate + performance 9.*) is now part of the baseline. Remaining items:
 
 - `6.4.x` NON-STRICT fragmented-text-with-invalid-UTF-8 cases close with `1007` but not "fast enough" by Autobahn's yardstick — libsoup surfaces only coalesced messages to GJS, so fast-fail needs an upstream libsoup change. Tracked under "Upstream GJS Patch Candidates" below.
 - Podman-in-CI needs privileged containers (or socket sharing) that our Fedora-based CI doesn't currently grant. Until that lands, the suite is a manual opt-in run + baseline-commit workflow.
