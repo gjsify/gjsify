@@ -3963,6 +3963,7 @@ __metadata:
     "@girs/soup-3.0": "npm:^3.6.6-4.0.0-rc.3"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
+    "@gjsify/crypto": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
