@@ -1,7 +1,7 @@
-// Socket.IO chat server for GJS
+// Socket.IO chat server — GJS + Node.js
 // Adapted from refs/socket.io/examples/chat/index.js
 // Copyright (c) 2014-2024 Damien Arrachequesne. MIT.
-// Rewritten for GJS: plain http.createServer instead of express, gjsify transports.
+// Rewritten for GJS: plain http.createServer instead of express.
 
 import '@gjsify/node-globals/register';
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
@@ -44,7 +44,6 @@ const httpServer = createServer((req, res) => {
 });
 
 const io = new Server(httpServer, {
-  transports: ['polling'],
   httpCompression: false,
 });
 
