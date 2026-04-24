@@ -45,6 +45,17 @@ export interface WebSocketOptions {
    *  Autobahn fuzzingserver). @gjsify/ws enables it by default, matching the
    *  real ws npm package. */
   perMessageDeflate?: boolean;
+  /** Extra HTTP headers to send with the WebSocket upgrade request.
+   *  Useful for authentication cookies, Authorization, or custom
+   *  application-level headers. Array values are sent as repeated headers. */
+  headers?: Record<string, string | string[]>;
+  /** Value for the HTTP `Origin` header sent during the upgrade handshake.
+   *  Passed directly as the `origin` argument to Soup's
+   *  `websocket_connect_async`. `null` omits the header (default). */
+  origin?: string | null;
+  /** Abort the opening handshake after this many milliseconds. Fires an
+   *  'error' event with message "Opening handshake has timed out". */
+  handshakeTimeout?: number;
 }
 
 /**
@@ -84,6 +95,9 @@ export class WebSocket extends EventTarget {
   private _connection: Soup.WebsocketConnection | null = null;
   private _session: Soup.Session;
   private _protocols: string[];
+  private _cancellable: Gio.Cancellable | null = null;
+  private _handshakeTimedOut = false;
+  private _handshakeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(url: string | URL, protocols?: string | string[], options?: WebSocketOptions) {
     super();
@@ -108,20 +122,49 @@ export class WebSocket extends EventTarget {
     }
 
     // Connect asynchronously
-    this._connect();
+    this._connect(options);
   }
 
-  private _connect(): void {
+  private _connect(options?: WebSocketOptions): void {
     const uri = GLib.Uri.parse(this.url, GLib.UriFlags.NONE);
     const msg = new Soup.Message({ method: 'GET', uri });
 
+    // Apply custom upgrade-request headers (e.g. Cookie, Authorization).
+    if (options?.headers) {
+      const reqHeaders = msg.get_request_headers();
+      for (const [name, value] of Object.entries(options.headers)) {
+        if (Array.isArray(value)) {
+          value.forEach(v => reqHeaders.append(name, v));
+        } else {
+          reqHeaders.replace(name, value);
+        }
+      }
+    }
+
+    // Set up handshake timeout via Gio.Cancellable so we can abort the async
+    // connect operation after the caller-specified deadline.
+    if (options?.handshakeTimeout) {
+      this._cancellable = new Gio.Cancellable();
+      const cancellable = this._cancellable;
+      this._handshakeTimer = setTimeout(() => {
+        this._handshakeTimedOut = true;
+        this._handshakeTimer = null;
+        cancellable.cancel();
+      }, options.handshakeTimeout);
+    }
+
     this._session.websocket_connect_async(
       msg,
-      null, // origin
+      options?.origin ?? null,
       this._protocols.length > 0 ? this._protocols : null,
       GLib.PRIORITY_DEFAULT,
-      null, // cancellable
+      this._cancellable,
       (_self: unknown, asyncRes: Gio.AsyncResult) => {
+        if (this._handshakeTimer !== null) {
+          clearTimeout(this._handshakeTimer);
+          this._handshakeTimer = null;
+        }
+
         try {
           this._connection = this._session.websocket_connect_finish(asyncRes);
           // Soup's built-in default is 128 KB — too low for large frames
@@ -152,13 +195,23 @@ export class WebSocket extends EventTarget {
           if (this.onopen) this.onopen.call(this, openEvent);
         } catch (error: unknown) {
           this.readyState = CLOSED;
+
+          const errorMessage = this._handshakeTimedOut
+            ? 'Opening handshake has timed out'
+            : (error instanceof Error ? error.message : String(error));
+          const err = new Error(errorMessage);
+
+          // Attach error info to the event so wrapper layers (e.g. @gjsify/ws)
+          // can surface a typed Error to their own 'error' listeners.
           const errorEvent = new Event('error');
+          (errorEvent as any).error = err;
+          (errorEvent as any).message = errorMessage;
           this.dispatchEvent(errorEvent);
           if (this.onerror) this.onerror.call(this, errorEvent);
 
           const closeEvent = new CloseEvent('close', {
             code: 1006,
-            reason: error instanceof Error ? error.message : String(error),
+            reason: errorMessage,
             wasClean: false,
           });
           this.dispatchEvent(closeEvent);

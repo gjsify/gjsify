@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### feat — WebSocket client options: `headers`, `origin`, `handshakeTimeout` (2026-04-24)
+
+Implements three commonly-used npm `ws` client options in `@gjsify/websocket` and forwards them through `@gjsify/ws`.
+
+**`options.headers`** — Extra HTTP headers sent with the WebSocket upgrade request (e.g. `Cookie`, `Authorization`). Wired into `Soup.Message.get_request_headers()` before `websocket_connect_async` using `replace()` for single values and `append()` for array values.
+
+**`options.origin`** — Sets the HTTP `Origin` header by passing the value as the second argument to `websocket_connect_async` (was hardcoded `null`).
+
+**`options.handshakeTimeout`** — Aborts the opening handshake after N milliseconds. Implemented via `Gio.Cancellable`: a `setTimeout` fires after the deadline, sets a `_handshakeTimedOut` flag and calls `cancellable.cancel()`; in the async callback, the catch block checks the flag and emits an error with message `"Opening handshake has timed out"` (matching npm `ws` behavior exactly). The error event carries both `.error` (an `Error` instance) and `.message` so the `@gjsify/ws` wrapper surfaces a typed `Error` to its `EventEmitter` listeners.
+
+Error events from connection failures now carry `.error` and `.message` properties so wrapper layers can extract a typed `Error` regardless of the failure mode.
+
+3 new tests added to `packages/web/websocket/src/index.spec.ts` — headers, origin, and handshakeTimeout all verified end-to-end against real Soup.Server / Gio.SocketService listeners. 31 tests total, all passing.
+
 ### feat — Autobahn 9.* performance suite enabled (2026-04-24)
 
 Removes the `9.*` exclusion from `tests/integration/autobahn/config/fuzzingserver.json`, completing the full RFC 6455 test matrix. The performance suite covers large-payload throughput: single frames up to 16 MB (9.1.*/9.2.*), fragmented large messages (9.3.*/9.4.*), high-frequency messaging up to 1 M messages × 2 KB (9.5.*/9.6.*), sleep/send timing (9.7.*), and slow-consumer scenarios (9.8.*). Approximately 46 additional cases per agent; expect a full run to take 30–90 min locally.

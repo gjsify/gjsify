@@ -157,7 +157,14 @@ export class WebSocket extends EventEmitter {
     // perMessageDeflate defaults to true (matches real ws npm package).
     // @gjsify/websocket's opt-in flag prevents the always-on Soup deflate
     // registration that can corrupt round-trips with local Soup.Server fixtures.
-    const nativeOpts = { perMessageDeflate: options.perMessageDeflate !== false };
+    // headers / origin / handshakeTimeout are forwarded to @gjsify/websocket
+    // which wires them into the Soup upgrade request.
+    const nativeOpts = {
+      perMessageDeflate: options.perMessageDeflate !== false,
+      headers: options.headers,
+      origin: options.origin,
+      handshakeTimeout: options.handshakeTimeout,
+    };
 
     try {
       this._native = new (NativeWebSocket as any)(url, protocols, nativeOpts);
@@ -174,14 +181,6 @@ export class WebSocket extends EventEmitter {
     this._native.addEventListener('message', (ev: any) => this._onMessage(ev));
     this._native.addEventListener('close', (ev: any) => this._onClose(ev));
     this._native.addEventListener('error', (ev: any) => this._onError(ev));
-
-    // options.headers / origin / handshakeTimeout are not currently forwarded
-    // to Soup — W3C WebSocket has no API for them. If a consumer sets them
-    // we silently ignore (documented). TODO: extend @gjsify/websocket with
-    // an internal hook for Soup.Message setup when these are needed.
-    if (options.headers || options.origin || options.handshakeTimeout) {
-      // No-op — surface in STATUS.md, not as a runtime warning (spammy).
-    }
   }
 
   private _fail(err: string | Error): void {
