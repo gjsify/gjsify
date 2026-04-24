@@ -60,7 +60,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
 | vm | — | Partial | runInThisContext (eval), runInNewContext (Function+sandbox), Script, compileFunction. No realm isolation |
 | worker_threads | — | Partial | MessageChannel/MessagePort/BroadcastChannel with structured clone; Worker via Gio.Subprocess (file-based resolution). No SharedArrayBuffer, no transferList |
-| ws (npm) | Soup 3.0 | Partial | `ws`-compat WebSocket client + WebSocketServer over `@gjsify/websocket` + Soup.Server; aliases `ws`+`isomorphic-ws`. Validated by Autobahn suite (240 OK / 4 NON-STRICT / 3 INFO / 0 FAILED). Missing noServer/handleUpgrade, verifyClient, custom perMessageDeflate, ping/pong events |
+| ws (npm) | Soup 3.0 | Partial | `ws`-compat WebSocket client + WebSocketServer over `@gjsify/websocket` + Soup.Server; aliases `ws`+`isomorphic-ws`. 18 node / 40 GJS tests. Autobahn: 510 OK / 4 NON-STRICT / 3 INFO / 0 FAILED. WebSocketServer: port binding, `{ server }` shared-port, `{ noServer: true }` + `handleUpgrade()`, `verifyClient` (sync+async), `handleProtocols`, `'headers'` event, client tracking. Missing: custom perMessageDeflate, ping/pong events (Soup handles control frames internally — no GI API), createWebSocketStream |
 | zlib | — | Full | gzip/deflate via Web Compression API, Gio.ZlibCompressor fallback |
 
 ## Web Packages — `packages/web/*`
