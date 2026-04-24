@@ -4,6 +4,8 @@ import Level1 from './scenes/level1.js'
 import Demo from './scenes/demo.js'
 import { GRAVITY } from './physics/gravity.js'
 import { AudioManager } from './state/audio.js'
+import { PerformanceMonitor } from './perf/performance-monitor.js'
+import { PerformanceHUD } from './perf/performance-hud.js'
 
 export interface GameHandle {
   engine: ex.Engine
@@ -19,9 +21,23 @@ export interface StartGameOptions {
   startMuted?: boolean
   /** Base URL for game assets. When set, all `/res/...` paths are rewritten. */
   assetBase?: string
+  /** Platform tag shown in the perf HUD and [PERF] console lines. */
+  platform?: 'gjs' | 'browser'
+  /**
+   * Override pixel ratio (device pixel ratio multiplier).
+   * Default: 4. Reduce to 2 on GJS to halve framebuffer work per frame.
+   */
+  pixelRatio?: number
+  /**
+   * Fixed physics update rate in fps. Default: 60.
+   * Reduce to 30 on GJS if the accumulator causes jitter (>16ms frames).
+   */
+  fixedUpdateFps?: number
+  /** Enable in-game FPS overlay (F1 to toggle) + [PERF] console logging. */
+  enablePerf?: boolean
 }
 
-function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
+function buildEngineOptions(canvas: HTMLCanvasElement, options?: StartGameOptions): ex.EngineOptions {
   return {
     canvasElement: canvas,
     suppressMinimumBrowserFeatureDetection: true,
@@ -31,7 +47,7 @@ function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
       width: (ex.Resolution.SNES.height / 9) * 16,
     },
     displayMode: ex.DisplayMode.FitContainerAndFill,
-    fixedUpdateFps: 60,
+    fixedUpdateFps: options?.fixedUpdateFps ?? 60,
     physics: {
       gravity: GRAVITY,
       solver: ex.SolverStrategy.Arcade,
@@ -42,7 +58,7 @@ function buildEngineOptions(canvas: HTMLCanvasElement): ex.EngineOptions {
         compositeStrategy: 'separate',
       },
     },
-    pixelRatio: 4,
+    pixelRatio: options?.pixelRatio ?? 4,
     pixelArt: true,
     scenes: {
       root: {
@@ -82,11 +98,21 @@ export async function startGame(canvas: HTMLCanvasElement, options?: StartGameOp
   if (options?.assetBase) rebaseResources(options.assetBase)
   AudioManager.init(options?.startMuted)
 
-  const game = new ex.Engine(buildEngineOptions(canvas))
+  const pixelRatio = options?.pixelRatio ?? 4
+  const platform = options?.platform ?? 'browser'
+
+  const game = new ex.Engine(buildEngineOptions(canvas, options))
 
   await game.start(loader)
-  game.screen.pixelRatioOverride = 4
+  game.screen.pixelRatioOverride = pixelRatio
   game.screen.applyResolutionAndViewport()
+
+  if (options?.enablePerf) {
+    const monitor = new PerformanceMonitor(platform)
+    monitor.attach(game)
+    const hud = new PerformanceHUD(monitor, platform)
+    game.currentScene.add(hud)
+  }
 
   let paused = false
   return {

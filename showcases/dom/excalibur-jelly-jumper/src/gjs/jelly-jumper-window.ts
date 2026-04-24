@@ -59,7 +59,12 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
                 this._game?.engine.screen.applyResolutionAndViewport();
             });
 
-            startGame(canvas)
+            startGame(canvas, {
+                platform: 'gjs',
+                enablePerf: true,
+                // pixelRatio: 2,     // Fix A: uncomment to test 2× vs 4× framebuffer cost
+                // fixedUpdateFps: 30, // Fix B: uncomment to test lower fixed-update rate
+            })
                 .then(game => { this._game = game; })
                 .catch(err => {
                     if (useFallback) {
