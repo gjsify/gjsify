@@ -9,6 +9,7 @@
 
 import { WebSocket } from './websocket.js';
 import { WebSocketServer } from './websocket-server.js';
+import { createWebSocketStream } from './stream.js';
 
 // ws index.js does these in CommonJS — we replicate on the class so
 // `new (require('ws'))(url)` and `const { WebSocket } = require('ws')` both
@@ -16,17 +17,9 @@ import { WebSocketServer } from './websocket-server.js';
 // these properties; aliasing + the gjs CJS-compat layer handles the rest.
 (WebSocket as any).WebSocket = WebSocket;
 (WebSocket as any).WebSocketServer = WebSocketServer;
-(WebSocket as any).Server = WebSocketServer; // historical alias
-// createWebSocketStream is the only remaining commonly-imported helper from
-// ws/index.js we don't implement yet — adding a stub throws if invoked so
-// consumers know to file an issue rather than debug a silent mis-pipe.
-(WebSocket as any).createWebSocketStream = () => {
-  throw new Error(
-    '@gjsify/ws: createWebSocketStream is not yet implemented. ' +
-    'File an issue at https://github.com/gjsify/gjsify if you need this API.',
-  );
-};
+(WebSocket as any).Server = WebSocketServer;
+(WebSocket as any).createWebSocketStream = createWebSocketStream;
 
-export { WebSocket, WebSocketServer };
+export { WebSocket, WebSocketServer, createWebSocketStream };
 export { WebSocketServer as Server };
 export default WebSocket;
