@@ -45,29 +45,29 @@ export class EnemySpawner extends ex.Actor {
     this.scene!.engine.add(this.spawnedInstance)
   }
 
-  onPreUpdate(engine: ex.Engine, elapsed: number): void {
-    const camera = engine.currentScene.camera
-    const boundsWithBuffer = new ex.BoundingBox(
-      camera.viewport.left - this.OFFSCREEN_BUFFER,
-      camera.viewport.top - this.OFFSCREEN_BUFFER,
-      camera.viewport.right + this.OFFSCREEN_BUFFER,
-      camera.viewport.bottom + this.OFFSCREEN_BUFFER
-    )
+  onPreUpdate(engine: ex.Engine, _elapsed: number): void {
+    const vp = engine.currentScene.camera.viewport
+    const buf = this.OFFSCREEN_BUFFER
+    const left   = vp.left   - buf
+    const top    = vp.top    - buf
+    const right  = vp.right  + buf
+    const bottom = vp.bottom + buf
 
-    const isOffScreen = !boundsWithBuffer.contains(this.pos)
+    const { x, y } = this.pos
+    const isOffScreen = x < left || x > right || y < top || y > bottom
 
     if (!isOffScreen) {
       this.spawnInstance()
-    } else if (isOffScreen && !this.spawnedInstance) {
+    } else if (!this.spawnedInstance) {
       this.canSpawn = true
     }
 
-    if (
-      this.spawnedInstance &&
-      !boundsWithBuffer.contains(this.spawnedInstance.getGlobalPos())
-    ) {
-      this.spawnedInstance.kill()
-      this.spawnedInstance = null
+    if (this.spawnedInstance) {
+      const ip = this.spawnedInstance.getGlobalPos()
+      if (ip.x < left || ip.x > right || ip.y < top || ip.y > bottom) {
+        this.spawnedInstance.kill()
+        this.spawnedInstance = null
+      }
     }
   }
 }
