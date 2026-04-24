@@ -38,10 +38,14 @@ export interface ClientOptions {
   origin?: string;
   headers?: Record<string, string | string[]>;
   handshakeTimeout?: number;
+  /** Enable permessage-deflate (RFC 7692). Defaults to true, matching the real
+   *  ws npm package. Set to false to disable deflate negotiation (useful when
+   *  the remote server has buggy deflate handling). */
+  perMessageDeflate?: boolean;
   // Explicitly NOT honored on Gjs (documented in README):
   //   agent, rejectUnauthorized, ca, cert, key, passphrase, pfx, crl,
-  //   ciphers, secureProtocol, perMessageDeflate, maxPayload,
-  //   followRedirects, maxRedirects, skipUTF8Validation, allowSynchronousEvents
+  //   ciphers, secureProtocol, maxPayload, followRedirects, maxRedirects,
+  //   skipUTF8Validation, allowSynchronousEvents
 }
 
 type MessageHandler = (data: unknown, isBinary: boolean) => void;
@@ -150,10 +154,13 @@ export class WebSocket extends EventEmitter {
       return;
     }
 
+    // perMessageDeflate defaults to true (matches real ws npm package).
+    // @gjsify/websocket's opt-in flag prevents the always-on Soup deflate
+    // registration that can corrupt round-trips with local Soup.Server fixtures.
+    const nativeOpts = { perMessageDeflate: options.perMessageDeflate !== false };
+
     try {
-      this._native = protocols && protocols.length > 0
-        ? new (NativeWebSocket as any)(url, protocols)
-        : new (NativeWebSocket as any)(url);
+      this._native = new (NativeWebSocket as any)(url, protocols, nativeOpts);
     } catch (err) {
       queueMicrotask(() => this._fail(err instanceof Error ? err : new Error(String(err))));
       return;

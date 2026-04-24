@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### feat — `@gjsify/websocket` permessage-deflate + Autobahn baseline expansion (2026-04-23)
+
+Lands every remaining baseline-visible follow-up from PR #30 (Autobahn pillar) in one PR. Both agent drivers now score **456 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED** against the full 463-case suite — up from `240 OK` over 247 cases in the initial Autobahn baseline.
+
+**Shipped code changes:**
+
+- **`@gjsify/websocket` negotiates permessage-deflate (RFC 7692).** The Soup docs claim a `WebsocketExtensionManager` ships in every `Soup.Session` by default, but in practice `new Soup.Session()` comes without one — so we never advertised `Sec-WebSocket-Extensions` and Autobahn reported every `12.*` / `13.*` case `UNIMPLEMENTED`. Fix: in the `WebSocket` constructor, explicitly `Session.add_feature_by_type(Soup.WebsocketExtensionManager.$gtype)` followed by `Session.add_feature_by_type(Soup.WebsocketExtensionDeflate.$gtype)`. Adding deflate without the manager triggers a runtime warning (`No feature manager for feature of type 'SoupWebsocketExtensionDeflate'`). Browsers always offer deflate — we match that unconditionally (no opt-out today). **216 previously-UNIMPLEMENTED deflate cases → OK.**
+- **`WebSocket.extensions` now reflects the server-accepted extensions** (was hardcoded `''`). After `websocket_connect_finish` succeeds we call `get_extensions()` on the `Soup.WebsocketConnection` and serialize each `Soup.WebsocketExtension` to the `Sec-WebSocket-Extensions` response-header format (e.g. `"permessage-deflate"` or `"permessage-deflate; client_max_window_bits=15"`). The extension spec name isn't exposed on the JS object (class-level C field, not marshaled over GI), so we `instanceof`-check `Soup.WebsocketExtensionDeflate` and fall back to the stripped GType name for any third-party extension. Real W3C spec bug, surfaced by turning on deflate tests.
+- **`tests/integration/autobahn/config/fuzzingserver.json` no longer excludes `12.*` / `13.*`.** Performance suite `9.*` stays excluded (~30 min per run).
+- **Autobahn driver case-timeout bumped 10 s → 60 s.** The largest deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 × 131 072-byte messages, ~128 MB roundtrip) legitimately need 10–30 s; matches Autobahn's own server-side timeout.
+- **`tests/integration/autobahn/scripts/run-driver.mjs` watchdog.** `System.exit(0)` from the bundled driver's `Promise.then` continuation silently returns without terminating the gjs process (see STATUS.md Open TODOs for the isolation status of that bypass). The wrapper tails the log, waits for the `Done.` marker, grants a 3 s grace window, then `SIGKILL`s. Report is on disk before `Done.` is printed, so no data loss. Temporary — removed once the exit-bypass root cause is fixed.
+- **Refreshed baselines** in `reports/baseline/gjsify-websocket.json` + `gjsify-ws.json` reflect the 216 new OK cases. Run diff vs. the old baseline is pure improvement (no regressions, no new missings).
+
+**6.4.x documented as upstream libsoup gap.** The 4 NON-STRICT fragmented-text-with-invalid-UTF-8 cases stay NON-STRICT: `Soup.WebsocketConnection` only surfaces the coalesced `message` signal (no `frame`/`fragment` signal over GI), so validation can only run at end-of-message — RFC-correct close code 1007 but "late" by Autobahn's fast-fail definition. Added to STATUS.md "Upstream GJS Patch Candidates" with the proposed libsoup change (per-frame `incoming-fragment` signal or opt-in per-fragment validation mode on `SoupWebsocketConnection`).
+
 ### fix — Excalibur Jelly Jumper showcase startup crash (2026-04-21)
 
 **Root cause:** Our `@gjsify/fetch` `XMLHttpRequest` ignored `responseType` and always returned the body as a string. Excalibur sets `responseType = 'arraybuffer'` for audio and `'blob'` for images, then feeds the (string) "arraybuffer" into `AudioContext.decodeAudioData`. Our webaudio decoder wraps the input in a `Uint8Array` and hands it to `Gst.Buffer.new_wrapped`; `new Uint8Array('')` is length 0, which marshals to a `NULL` data pointer and trips the `gst_memory_new_wrapped: assertion 'data != NULL' failed` critical — killing the GJS process before the game loop ran.

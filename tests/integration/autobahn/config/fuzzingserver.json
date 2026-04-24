@@ -3,9 +3,7 @@
   "outdir": "/reports/output/clients",
   "cases": ["*"],
   "exclude-cases": [
-    "9.*",
-    "12.*",
-    "13.*"
+    "9.*"
   ],
   "exclude-agent-cases": {}
 }

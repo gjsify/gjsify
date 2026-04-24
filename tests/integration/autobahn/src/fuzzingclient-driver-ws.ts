@@ -13,6 +13,12 @@ import '@gjsify/node-globals/register';
 //   ws → @gjsify/ws → @gjsify/websocket → Soup.WebsocketConnection.
 // The shape of the import matches what real npm `ws` consumers use.
 import WebSocket from 'ws';
+// `System.exit()` is the reliable GJS exit path. process.exit() from
+// @gjsify/process reaches imports.system.exit via globalThis.imports, which
+// is empty in GJS ESM bundles and silently no-ops. The scripts/run-driver.mjs
+// wrapper watchdogs the "Done." log marker and SIGKILLs after a grace period
+// as a safety net for cases where System.exit() itself doesn't terminate.
+import { exit as systemExit } from 'system';
 // @gjsify/websocket (underneath @gjsify/ws) needs a running GLib main loop
 // for Soup async I/O. ensureMainLoop() kicks it off so await'ed
 // WebSocket events can resolve.
@@ -49,7 +55,13 @@ function getCaseCount(): Promise<number> {
   });
 }
 
-const CASE_TIMEOUT_MS = 10_000;
+// Upper bound per case. Most cases complete in < 1 s, but the largest
+// permessage-deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 messages
+// at 131 072 bytes each, ~128 MB roundtrip through GJS) legitimately need
+// 10–30 s. Autobahn's own server-side timeout is 60 s for these. We
+// match that so genuine slow cases pass while still catching real hangs
+// in well under a minute.
+const CASE_TIMEOUT_MS = 60_000;
 
 function waitCloseWithTimeout(ws: InstanceType<typeof WebSocket>, timeoutMs: number): Promise<'ok' | 'timeout'> {
   return new Promise((resolve) => {
@@ -105,7 +117,9 @@ async function main() {
   process.stdout.write('Done. Reports under reports/output/clients/\n');
 }
 
-main().catch((err) => {
-  process.stderr.write(`driver failed: ${(err as Error).message}\n`);
-  (globalThis as any).process?.exit?.(1);
-});
+main()
+  .then(() => systemExit(0))
+  .catch((err) => {
+    process.stderr.write(`driver failed: ${(err as Error).message}\n`);
+    systemExit(1);
+  });

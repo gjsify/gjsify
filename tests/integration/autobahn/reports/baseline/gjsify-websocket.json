@@ -85,6 +85,1086 @@
       "behaviorClose": "OK",
       "remoteCloseCode": 1000
     },
+    "12.1.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.1.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.2.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.3.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.4.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "12.5.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.1.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.2.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.3.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.4.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.5.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.6.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.1": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.10": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.11": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.12": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.13": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.14": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.15": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.16": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.17": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.18": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.2": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.3": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.4": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.5": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.6": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.7": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.8": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
+    "13.7.9": {
+      "behavior": "OK",
+      "behaviorClose": "OK",
+      "remoteCloseCode": 1000
+    },
     "2.1": {
       "behavior": "OK",
       "behaviorClose": "OK",

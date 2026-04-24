@@ -1,15 +1,16 @@
 ---
 title: Overview
-description: Summary of all 57+ GJSify packages
+description: Summary of all 70+ GJSify packages
 ---
 
-GJSify provides **57+ packages** organized into three categories, all implementing standard APIs using native GNOME libraries.
+GJSify provides **70+ packages** organized into four categories, all implementing standard APIs using native GNOME libraries.
 
 | Category | Packages | Description |
 |---|---|---|
-| [Node.js Modules](./node) | 40 | `fs`, `net`, `http`, `crypto`, `stream`, `events`, and more |
-| [Web APIs](./web) | 12 | `fetch`, `WebSocket`, `AbortController`, `Streams`, and more |
-| [DOM & Graphics](./dom) | 5 | Canvas2D, WebGL, DOM elements, event bridge, iframe |
+| [Node.js Modules](./node) | 42 + 1 meta | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws`, and more |
+| [Web APIs](./web) | 19 + 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, `Streams`, `DOMParser`, and more |
+| [DOM & Graphics](./dom) | 8 | Canvas2D (+ headless core), WebGL, DOM elements, event bridge, iframe, video, bridge-types |
+| Adwaita for browser | 3 | `@gjsify/adwaita-web`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
 
 ## Status Legend
 

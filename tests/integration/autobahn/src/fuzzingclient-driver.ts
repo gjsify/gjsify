@@ -26,6 +26,12 @@
 // the --globals auto detection rules.
 import '@gjsify/node-globals/register';
 import { WebSocket } from '@gjsify/websocket';
+// `System.exit()` is the reliable GJS exit path. process.exit() from
+// @gjsify/process reaches imports.system.exit via globalThis.imports, which
+// is empty in GJS ESM bundles and silently no-ops. The scripts/run-driver.mjs
+// wrapper watchdogs the "Done." log marker and SIGKILLs after a grace period
+// as a safety net for cases where System.exit() itself doesn't terminate.
+import { exit as systemExit } from 'system';
 // @gjsify/websocket uses Soup.Session internally, which needs a running
 // GLib main loop for async I/O. ensureMainLoop() kicks it off so our
 // `await new Promise(...)` over WebSocket events actually resolves.
@@ -35,9 +41,13 @@ ensureMainLoop();
 const AUTOBAHN_URL = 'ws://127.0.0.1:9001';
 const AGENT = 'gjsify-websocket';
 
+// Deflate must be opted in explicitly — @gjsify/websocket defaults to false
+// to avoid corrupted round-trips with local Soup.Server fixtures in unit tests.
+const WS_OPTS = { perMessageDeflate: true };
+
 function connect(path: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${AUTOBAHN_URL}${path}`);
+    const ws = new WebSocket(`${AUTOBAHN_URL}${path}`, undefined, WS_OPTS);
     ws.binaryType = 'arraybuffer';
     ws.addEventListener('open', () => resolve(ws), { once: true });
     ws.addEventListener('error', (ev: any) => reject(
@@ -54,7 +64,7 @@ function waitClose(ws: WebSocket): Promise<void> {
 
 function getCaseCount(): Promise<number> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`);
+    const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`, undefined, WS_OPTS);
     let count = -1;
     ws.addEventListener('message', (ev: any) => {
       count = parseInt(String(ev?.data ?? ''), 10);
@@ -69,12 +79,13 @@ function getCaseCount(): Promise<number> {
   });
 }
 
-// Upper bound per case. Autobahn cases complete in < 1 s on a healthy
-// implementation; hanging past this means our WebSocket (or Soup under it)
-// failed to close on an error the RFC requires, and we'd block the whole
-// run waiting for it. 10 s is generous enough for the slow cases (6.4.x
-// fragmented long UTF-8 payloads) while catching real hangs.
-const CASE_TIMEOUT_MS = 10_000;
+// Upper bound per case. Most cases complete in < 1 s, but the largest
+// permessage-deflate cases (12.2.10+, 12.3.10+, 12.5.17 — 1000 messages
+// at 131 072 bytes each, ~128 MB roundtrip through GJS) legitimately need
+// 10–30 s. Autobahn's own server-side timeout is 60 s for these. We
+// match that so genuine slow cases pass while still catching real hangs
+// in well under a minute.
+const CASE_TIMEOUT_MS = 60_000;
 
 function waitCloseWithTimeout(ws: WebSocket, timeoutMs: number): Promise<'ok' | 'timeout'> {
   return new Promise((resolve) => {
@@ -135,7 +146,9 @@ async function main() {
   process.stdout.write('Done. Reports under reports/output/clients/\n');
 }
 
-main().catch((err) => {
-  process.stderr.write(`driver failed: ${(err as Error).message}\n`);
-  (globalThis as any).process?.exit?.(1);
-});
+main()
+  .then(() => systemExit(0))
+  .catch((err) => {
+    process.stderr.write(`driver failed: ${(err as Error).message}\n`);
+    systemExit(1);
+  });
