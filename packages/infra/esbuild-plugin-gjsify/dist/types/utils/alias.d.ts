@@ -6,9 +6,6 @@ export declare const getAliasesForGjs: (options: ResolveAliasOptions) => {
 export declare const getAliasesForNode: (options: ResolveAliasOptions) => {
     [x: string]: string;
 };
-export declare const getAliasesForBrowser: (_options?: ResolveAliasOptions) => {
-    [x: string]: string;
-};
 /** Array of Node.js build in module names (also with node: prefix) */
 export declare const externalNode: string[];
 /** Array of NPM module names for which we have our own implementation */

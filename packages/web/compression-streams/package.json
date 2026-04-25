@@ -28,6 +28,7 @@
         "build:types": "tsc",
         "build:test": "yarn build:test:gjs && yarn build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
         "test": "yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
         "test:gjs": "gjs -m test.gjs.mjs",

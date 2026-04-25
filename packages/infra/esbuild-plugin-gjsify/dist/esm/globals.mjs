@@ -12823,22 +12823,6 @@ var ALIASES_WEB_FOR_NODE = {
 };
 
 // src/utils/alias.ts
-var NODE_BUILTINS_EMPTY = Object.fromEntries(
-  [...EXTERNALS_NODE, ...EXTERNALS_NODE.map((m) => `node:${m}`)].map((m) => [m, "@gjsify/empty"])
-);
-var ALIASES_FOR_BROWSER = {
-  ...NODE_BUILTINS_EMPTY,
-  // ALL ALIASES_WEB_FOR_NODE: bare specifiers → globals re-exports, /register → empty
-  ...ALIASES_WEB_FOR_NODE,
-  // GJS helper registers → no-op
-  ...ALIASES_GENERAL_FOR_NODE,
-  // assert — needed by @gjsify/unit internally (override empty from NODE_BUILTINS_EMPTY)
-  "assert": "@gjsify/assert",
-  "node:assert": "@gjsify/assert",
-  // node:stream/web → browser streams globals (override empty from NODE_BUILTINS_EMPTY)
-  "node:stream/web": "@gjsify/web-streams/globals",
-  "stream/web": "@gjsify/web-streams/globals"
-};
 var setNodeAliasPrefix = (ALIASES) => {
   for (const ALIAS in ALIASES) {
     if (ALIAS.startsWith("node:")) {
@@ -12860,9 +12844,6 @@ var getAliasesForGjs = (options) => {
 };
 var getAliasesForNode = (options) => {
   return { ...getAliasesGeneralForNode(options), ...getAliasesGjsForNode(options), ...getAliasesWebForNode(options) };
-};
-var getAliasesForBrowser = (_options) => {
-  return { ...ALIASES_FOR_BROWSER };
 };
 var externalNode = [...EXTERNALS_NODE, ...EXTERNALS_NODE.map((E) => `node:${E}`)];
 var externalNPM = [...EXTERNALS_NPM];
@@ -19848,12 +19829,12 @@ var setupForBrowser = async (build2, pluginOptions) => {
   merge(build2.initialOptions, esbuildOptions);
   build2.initialOptions.entryPoints = await globToEntryPoints(build2.initialOptions.entryPoints, pluginOptions.exclude);
   const browserPolyfillAliases = {
-    "path": "path-browserify",
-    "crypto": "crypto-browserify",
-    "stream": "stream-browserify",
-    "process": "process/browser"
+    "process": "@gjsify/empty",
+    "node:process": "@gjsify/empty",
+    "assert": "@gjsify/assert",
+    "node:assert": "@gjsify/assert"
   };
-  const aliases = { ...browserPolyfillAliases, ...getAliasesForBrowser(), ...pluginOptions.aliases };
+  const aliases = { ...browserPolyfillAliases, ...pluginOptions.aliases };
   if (pluginOptions.debug) console.debug("initialOptions", build2.initialOptions);
   await gjsImportsEmptyPlugin.setup(build2);
   await aliasPlugin(aliases).setup(build2);
