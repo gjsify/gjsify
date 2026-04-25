@@ -1,6 +1,5 @@
 // MCP Server example — Streamable HTTP transport.
-// Demonstrates an HTTP-based MCP server using @modelcontextprotocol/sdk
-// with @hono/node-server for the Node.js HTTP ↔ Web Standard bridge.
+// Demonstrates an HTTP-based MCP server using @modelcontextprotocol/sdk.
 // Runs on both Node.js and GJS via @gjsify/*.
 //
 // Usage:
@@ -8,8 +7,10 @@
 //   gjsify run dist/index.gjs.mjs  → http://localhost:3000/mcp
 
 import { createServer } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -69,14 +70,28 @@ function createMcpServer(): McpServer {
   return server;
 }
 
+/** Read the full request body as a string, then parse as JSON. */
+function readRequestBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk: any) => { data += String(chunk); });
+    req.on('end', () => {
+      try {
+        resolve(data ? JSON.parse(data) : undefined);
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 async function main() {
-  // Per-session transport map (stateful mode)
   const transports = new Map<string, StreamableHTTPServerTransport>();
 
-  const httpServer = createServer(async (req, res) => {
+  const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
-    // Only handle /mcp endpoint
     if (url.pathname !== '/mcp') {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not found. MCP endpoint is at /mcp');
@@ -84,45 +99,67 @@ async function main() {
     }
 
     if (req.method === 'POST') {
-      // Check for existing session
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
-      let transport: StreamableHTTPServerTransport;
 
-      if (sessionId && transports.has(sessionId)) {
-        transport = transports.get(sessionId)!;
-      } else {
-        // New session — create transport and server
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => crypto.randomUUID(),
-        });
+      try {
+        // Parse the body first — needed to check if this is an initialize request
+        const body = await readRequestBody(req);
 
-        transport.onclose = () => {
-          if (transport.sessionId) {
-            transports.delete(transport.sessionId);
-          }
-        };
+        if (sessionId && transports.has(sessionId)) {
+          // Existing session — route to its transport
+          const transport = transports.get(sessionId)!;
+          await transport.handleRequest(req, res, body);
+        } else if (!sessionId && isInitializeRequest(body)) {
+          // New initialization — create transport + server for this session
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => crypto.randomUUID(),
+            onsessioninitialized: (sid: string) => {
+              transports.set(sid, transport);
+            },
+          });
 
-        const mcpServer = createMcpServer();
-        await mcpServer.connect(transport);
+          transport.onclose = () => {
+            if (transport.sessionId) {
+              transports.delete(transport.sessionId);
+            }
+          };
 
-        if (transport.sessionId) {
-          transports.set(transport.sessionId, transport);
+          const mcpServer = createMcpServer();
+          await mcpServer.connect(transport);
+          await transport.handleRequest(req, res, body);
+        } else if (sessionId) {
+          // Unknown session ID
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32001, message: 'Session not found' },
+            id: null,
+          }));
+        } else {
+          // Non-initialize request without session ID
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32000, message: 'Bad Request: Server not initialized' },
+            id: null,
+          }));
+        }
+      } catch (e) {
+        console.error('Error handling POST:', e);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('Internal server error');
         }
       }
-
-      await transport.handleRequest(req, res);
     } else if (req.method === 'GET') {
-      // SSE endpoint for server-initiated messages
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
       if (sessionId && transports.has(sessionId)) {
-        const transport = transports.get(sessionId)!;
-        await transport.handleRequest(req, res);
+        await transports.get(sessionId)!.handleRequest(req, res);
       } else {
         res.writeHead(400, { 'Content-Type': 'text/plain' });
         res.end('Missing or invalid session ID');
       }
     } else if (req.method === 'DELETE') {
-      // Session termination
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
       if (sessionId && transports.has(sessionId)) {
         const transport = transports.get(sessionId)!;
