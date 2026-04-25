@@ -358,10 +358,15 @@ export class Server extends EventEmitter {
     try {
       this._soupServer = new Soup.Server({});
 
-      // Add a catch-all handler
-      this._soupServer.add_handler(null, (server: Soup.Server, msg: Soup.ServerMessage, path: string) => {
+      // Catch-all handler. Soup routes WebSocket upgrade requests here when no
+      // specific-path add_websocket_handler matches (add_websocket_handler(null,…)
+      // is broken when there is also an add_handler(null,…) — they share the same
+      // SoupServerHandler slot and libsoup always prefers the HTTP callback).
+      // Instead we intercept upgrades inside _handleRequest via steal_connection().
+      this._soupServer.add_handler(null, (_server: Soup.Server, msg: Soup.ServerMessage, path: string) => {
         this._handleRequest(msg, path);
       });
+
 
       this._soupServer.listen_local(port, Soup.ServerListenOptions.IPV4_ONLY);
       ensureMainLoop();
@@ -421,39 +426,15 @@ export class Server extends EventEmitter {
       }
     });
 
-    // Check for HTTP upgrade request (WebSocket, etc.)
-    // Reference: Node.js lib/_http_server.js — emits 'upgrade' with (req, socket, head)
+    // Intercept WebSocket upgrade requests — Soup calls add_handler for upgrades
+    // when no specific-path add_websocket_handler matches the request path.
+    // steal_connection() must be called synchronously here; after we return,
+    // Soup would attempt to send a response on the same stream.
     const connectionHeader = (req.headers['connection'] as string || '').toLowerCase();
     const upgradeHeader = (req.headers['upgrade'] as string || '').toLowerCase();
-    if (connectionHeader.includes('upgrade') && upgradeHeader) {
-      if (this.listenerCount('upgrade') > 0) {
-        // Any protocol upgrade with an 'upgrade' listener: steal the raw TCP
-        // connection and hand it to the listener as a net.Socket Duplex.
-        let ioStream: Gio.IOStream | null = null;
-        try {
-          ioStream = soupMsg.steal_connection();
-        } catch (err) {
-          this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
-        }
-        if (ioStream) {
-          const socket = new NetSocket();
-          socket._attachOutputOnly(ioStream);
-          // head: any data after HTTP headers — empty for upgrade requests
-          this.emit('upgrade', req, socket, Buffer.alloc(0));
-          return;
-        }
-      }
-      if (upgradeHeader === 'websocket') {
-        // WebSocket upgrade + no 'upgrade' listener: return without pausing or
-        // emitting 'request'. Soup continues to any add_websocket_handler on
-        // this path (e.g. from WebSocketServer with { server: httpServer } mode).
-        return;
-      }
-      // Non-WebSocket upgrade + no 'upgrade' listener: fall through to the
-      // regular request handler so the app can respond with 426 or similar.
-    }
-
-    // Populate req.socket with address info (engine.io and others need remoteAddress)
+    // Populate req.socket with address info — engine.io Socket constructor reads
+    // req.connection.remoteAddress (req.connection is an alias for req.socket).
+    // Must be set BEFORE emitting 'upgrade' so WebSocket-only paths don't crash.
     const remoteHost = soupMsg.get_remote_host() ?? '127.0.0.1';
     const remoteAddr = soupMsg.get_remote_address();
     const remotePort = (remoteAddr instanceof Gio.InetSocketAddress) ? remoteAddr.get_port() : 0;
@@ -464,6 +445,22 @@ export class Server extends EventEmitter {
       localPort: this._address?.port ?? 0,
       encrypted: false,
     } as any;
+
+    if (connectionHeader.includes('upgrade') && upgradeHeader === 'websocket'
+        && this.listenerCount('upgrade') > 0) {
+      let ioStream: Gio.IOStream | null = null;
+      try {
+        ioStream = soupMsg.steal_connection();
+      } catch (err) {
+        this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
+      }
+      if (ioStream) {
+        const socket = new NetSocket();
+        socket._attachOutputOnly(ioStream);
+        this.emit('upgrade', req, socket, Buffer.alloc(0));
+        return;
+      }
+    }
 
     // Get request body
     const body = soupMsg.get_request_body();
