@@ -76,7 +76,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **sqlite** | Gda 6.0 | 48 | `DatabaseSync` (open/close, prepare, exec, `enableForeignKeyConstraints`, `readBigInts`, location property, path as `string`/`URL`/`Uint8Array`), `StatementSync` (all/get/run/iterate, named + positional params, typed readers via `data-model-reader.ts`, returning `{ lastInsertRowid, changes }`), spec-compliant error codes (`ERR_SQLITE_ERROR`, `ERR_INVALID_STATE`, `ERR_INVALID_URL_SCHEME`) via libgda SQLite provider (`gi://Gda?version=6.0`). | `PRAGMA user_version` round-trip depends on libgda build; WAL journal mode; `sqlite.constants` (SQLITE_CHANGESET_*); session/changeset extension APIs (libgda doesn't expose them); backup/vfs APIs |
 | **ws** (npm) | Soup 3.0 (via `@gjsify/websocket`) | 19 (node) / 43 (gjs); Autobahn: 510 OK / 4 NON-STRICT / 3 INFO | `WebSocket` client class (url/protocol/headers through native), readyState + events (`open`/`message`/`close`/`error`), `send()`/`close()`/`terminate()`, `binaryType` conversions (nodebuffer/arraybuffer/fragments/blob), W3C `addEventListener` compat surface, `WebSocketServer` via `Soup.Server.add_websocket_handler` (port binding, `connection` event, client tracking, close), `options.headers` (custom upgrade headers), `options.origin` (Origin header), `options.handshakeTimeout` (Gio.Cancellable abort), `verifyClient` (sync + async, both paths), `handleProtocols` (subprotocol selection — client-visible in handleUpgrade path), `{ server: existingHttpServer }` (shared-port mode via `soupServer` getter), **`{ noServer: true }` + `handleUpgrade(req, socket, head, cb)`** (manual upgrade routing — computes Sec-WebSocket-Accept, emits `'headers'` for custom response headers, creates Soup.WebsocketConnection from the IOStream), **`'headers'` event** (mutable string array before 101 write), **`createWebSocketStream(ws, options)`** (Duplex bridge — pipe-based echo, backpressure, EOF on close). Aliases: npm `ws` and `isomorphic-ws` both resolve here. | `ping`/`pong` events (Soup handles control frames internally — libsoup 3 GI does not expose user-level send API), `upgrade`/`unexpected-response`/`redirect` events (no Soup hook) |
 | **worker_threads** | Gio, GLib | 232 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC, **file-based resolution with relative paths**, missing-file error handling, stderr capture), **addEventListener/removeEventListener on MessagePort/BroadcastChannel**, structured clone edge cases (-0, NaN, BigInt, Int32Array) | SharedArrayBuffer, transferList |
-| **http2** | — | 102 | Complete constants, getDefaultSettings, getPackedSettings/getUnpackedSettings, Http2Session/Stream class stubs | createServer/createSecureServer/connect (Soup 3.0 lacks multiplexed stream API) |
+| **http2** | Soup 3.0 | 128 (102 Node + 26 GJS) | `createServer()` (HTTP/1.1 only, no h2c), `createSecureServer()` (HTTP/2 via ALPN + TLS), `connect()` (Soup.Session, auto-h2 over HTTPS), compat layer (`Http2ServerRequest`/`Http2ServerResponse`), session API (`'stream'` event + `ServerHttp2Stream.respond()`), `ClientHttp2Session.request()` → `ClientHttp2Stream` (Duplex, response body streaming), complete protocol constants + settings pack/unpack | `pushStream()` (Soup has no server-push API), stream IDs (Soup-internal), flow control/priority (Soup-internal), h2c/cleartext HTTP/2 (Soup limitation) — Phase 2 requires Vala/nghttp2 native extension |
 | **vm** | — | 203 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
 
 ### Stubs (4)
@@ -325,7 +325,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 |--------|-------|
 | Total Node.js packages | 42 + 1 meta |
 | Fully implemented | 34 (81%) |
-| Partially implemented | 4 (10%) — sqlite, ws, worker_threads, http2, vm |
+| Partially implemented | 5 (12%) — sqlite, ws, worker_threads, http2, vm |
 | Stubs | 4 (10%) — cluster, domain, inspector, v8 |
 | Web API packages | 19 + 1 meta (17 full, 2 partial) |
 | DOM / Bridge packages | 8 (all implemented) — dom-elements, canvas2d-core, canvas2d, bridge-types, webgl, event-bridge, iframe, video |
@@ -389,7 +389,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 3. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
 4. **BYOB Byte Streams** — ReadableByteStreamController for optimized binary streaming.
-5. **http2 client** — Soup.Session supports HTTP/2 via ALPN; wrap behind Http2Session API. Requires nghttp2 bindings or pure-JS HTTP/2 frame parser.
+5. **http2 Phase 2: full multiplexed stream API** — `pushStream()`, stream IDs, flow control, GOAWAY ping/pong. Requires Vala native extension wrapping nghttp2 or libsoup internals (similar to `@gjsify/webrtc-native`).
 
 ### Low Priority
 

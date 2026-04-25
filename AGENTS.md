@@ -36,7 +36,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | fs | Gio | Full | sync, callback, promises, streams, FSWatcher, URL path args accepted everywhere |
 | globals | GLib | Full | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate, queueMicrotask |
 | http | Soup 3.0 | Partial | Server(Soup.Server, chunked+upgrade), ClientRequest, IncomingMessage (close-only-via-destroy per Node semantics), Agent |
-| http2 | — | Stub | constants only |
+| http2 | Soup 3.0 | Partial | createServer/createSecureServer/connect + compat layer (Http2ServerRequest/Response) + session API ('stream' event). createServer()=HTTP/1.1 only (no h2c); createSecureServer()=h2 via ALPN. pushStream/stream-IDs/flow-control=Phase 2 (Vala/nghttp2) |
 | https | — | Partial | Agent, stub request/get |
 | inspector | — | Stub | Session stub |
 | module | Gio, GLib | Full | builtinModules, isBuiltin, createRequire |
