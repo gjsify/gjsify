@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-24 (WebSocket server Phase 3 — `{ noServer: true }` + `handleUpgrade()` + `'headers'` event + full client-side `handleProtocols` negotiation added to `@gjsify/ws` `WebSocketServer`.)
+> Last updated: 2026-04-25 (Documentation sync — WebRTC Phase 4 (getStats, restartIce, setConfiguration, RTCDTMFSender, RTCCertificate, RTCDtlsTransport, RTCIceTransport, RTCSctpTransport), socket.io WebSocket transport enabled, node-globals granular register subpaths.)
 
 ## Summary
 
@@ -111,7 +111,7 @@ All 19 packages have real implementations (plus 1 meta). New in this cycle: `@gj
 | **websocket** | Soup 3.0, Gio, GLib | 27 | WebSocket, MessageEvent, CloseEvent (W3C spec) |
 | **webaudio** | Gst 1.0, GstApp 1.0 | 32 | AudioContext (decodeAudioData via GStreamer decodebin, createBufferSource, createGain, currentTime via GLib monotonic clock), AudioBuffer (PCM Float32Array storage), AudioBufferSourceNode (GStreamer appsrc→audioconvert→volume→autoaudiosink), GainNode (AudioParam with setTargetAtTime), AudioParam, HTMLAudioElement (canPlayType, playbin playback). **Phase 1 — covers Excalibur.js** |
 | **gamepad** | Manette 0.2 | 19 | Gamepad (navigator.getGamepads polling via libmanette event-driven signals), GamepadButton (pressed/touched/value), GamepadEvent (gamepadconnected/gamepaddisconnected on globalThis), GamepadHapticActuator (dual-rumble with strong/weak magnitude). Button mapping: Manette→W3C standard layout (17 buttons incl. triggers-as-buttons). Axis mapping: 4 stick axes + trigger axes→button values. Lazy Manette.Monitor init, graceful degradation without libmanette. |
-| **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 26 | **Phase 1–3 — Data Channel + Media + Outgoing Pipeline.** RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN config, addTransceiver, addTrack, removeTrack, all sync getters + on-event handlers), RTCDataChannel (string + binary send/receive, bufferedAmount, binaryType), RTCRtpSender (track, getParameters/setParameters, replaceTrack with atomic source swap, getCapabilities), RTCRtpReceiver (track with muted→unmuted via ReceiverBridge, jitterBufferTarget), RTCRtpTransceiver (mid, direction, stop, setCodecPreferences), MediaStream, MediaStreamTrack (GStreamer source integration, enabled→valve), getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback), MediaDevices. Outgoing pipeline: source→valve→convert→encode(opus/vp8)→payloader→capsfilter→webrtcbin. End-to-end bidirectional audio verified. Registers via `@gjsify/webrtc/register` (granular subpaths) — `--globals auto` picks them up. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
+| **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 302 (4 specs) | **Phase 1–4 — Data Channel + Media + Stats & Advanced.** RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN config, addTransceiver, addTrack, removeTrack, getStats, restartIce, setConfiguration), RTCDataChannel (string + binary send/receive, bufferedAmount, binaryType), RTCRtpSender (track, getParameters/setParameters, replaceTrack, getCapabilities, getStats delegation), RTCRtpReceiver (track with muted→unmuted via ReceiverBridge, jitterBufferTarget, getStats delegation), RTCRtpTransceiver (mid, direction, stop, setCodecPreferences), MediaStream, MediaStreamTrack (GStreamer source integration, enabled→valve), getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback), MediaDevices, **RTCDTMFSender** (spec-compliant tone/duration/gap, `tonechange` event), **RTCCertificate** (generateCertificate, W3C expiry), **RTCDtlsTransport / RTCIceTransport / RTCSctpTransport** (thin proxies), **RTCStatsReport** (GstStructure → W3C camelCase conversion via `gst-stats-parser.ts`). Outgoing pipeline: source→valve→convert→encode(opus/vp8)→payloader→capsfilter→webrtcbin. End-to-end bidirectional audio verified. Registers via `@gjsify/webrtc/register` (granular subpaths) — `--globals auto` picks them up. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
 | **webrtc-native** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | — | Vala/GObject library consumed by `@gjsify/webrtc`. Exposes three main-thread signal bridges: `WebrtcbinBridge` (wraps webrtcbin's `on-negotiation-needed` / `on-ice-candidate` / `on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open` / `on-close` / `on-error` / `on-message-string` / `on-message-data` / `on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Each bridge connects on the C side (never invokes JS on the streaming thread) and re-emits via `GLib.Idle.add()` on the main context. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64}/`; CI (`.github/workflows/prebuilds.yml`) rebuilds on Vala source changes. |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
 
@@ -155,17 +155,22 @@ All 19 packages have real implementations (plus 1 meta). New in this cycle: `@gj
 - RTCRtpSender.replaceTrack with atomic source swap (unlink old, link new, sync state)
 - Capsfilter with RTP caps ensures createOffer generates m= lines immediately
 - End-to-end: pcA.addTrack(getUserMedia audio) → pcB receives track event, track unmutes
-- Single-PC-per-track limitation (multi-PC fan-out via tee deferred to Phase 4)
+- Single-PC-per-track limitation (multi-PC fan-out via tee deferred to future)
 
-**Deferred (Phase 4 — Stats & advanced):**
-- RTCPeerConnection.getStats — rejects with `NotSupportedError`
-- RTCPeerConnection.restartIce, setConfiguration — throw `NotSupportedError`
-- RTCPeerConnection.getIdentityAssertion, peerIdentity — absent
-- RTCPeerConnection.sctp — returns `null`
-- `icecandidateerror` event — never fires
-- RTCDTMFSender, RTCCertificate — not implemented
-- RTCDtlsTransport, RTCIceTransport, RTCSctpTransport — not exposed
-- MediaStreamTrack constraints, enumerateDevices with GStreamer Device Monitor
+**Implemented (Phase 4 — Stats & advanced):**
+- RTCPeerConnection.getStats() — emits `get-stats` signal on webrtcbin, parses `GstStructure` → `RTCStatsReport` (Map<string, RTCStats>) via `gst-stats-parser.ts` (snake_case → camelCase conversion). `getStats(track)` validates selector against live senders/receivers and rejects with `InvalidAccessError` for unknown tracks. `sender.getStats()` / `receiver.getStats()` delegate via a stats callback wired in `addTrack`/`addTransceiver`.
+- RTCPeerConnection.restartIce() — sets ICE restart flag, triggers `negotiationneeded` if negotiation is underway
+- RTCPeerConnection.setConfiguration() — validates and applies ICE server updates; rejects immutable fields (`bundlePolicy`, `rtcpMuxPolicy`) with `InvalidModificationError`
+- RTCDTMFSender — full spec-compliant tone insertion: DTMF char validation (0-9 A-D # * ,), `duration` clamping (40–6000ms), `interToneGap` (≥30ms), `toneBuffer` reader, `tonechange` event dispatch, `commaDelay` (2 s), `insertDTMF()` overwrites pending queue. Tested against `refs/wpt/webrtc/RTCDTMFSender-insertDTMF.https.html`
+- RTCCertificate — `generateCertificate(algorithm)` validates ECDSA/RSASSA-PKCS1-v1_5 params, returns certificate with 30-day expiry. `getFingerprints()`, `expires` getter. W3C API surface matches spec; actual DTLS cert is GStreamer-internal.
+- RTCDtlsTransport, RTCIceTransport, RTCSctpTransport — thin W3C proxy classes (state, iceTransport getter, maxMessageSize, maxChannels). Exposed from `@gjsify/webrtc` index.
+
+**Still deferred (post-Phase 4):**
+- `icecandidateerror` event — stub (getter returns null, setter no-op); requires mapping webrtcbin ICE failure signals
+- `peerIdentity` / `getIdentityAssertion` — stub (rejects with TypeError); identity provider integration not planned
+- `setLocalDescription()` without explicit argument — callers must pass a `RTCSessionDescriptionInit`
+- MediaStreamTrack constraints (`applyConstraints`, `getConstraints`, `getCapabilities` per-device)
+- `enumerateDevices` with GStreamer Device Monitor
 - Multi-PC-per-track fan-out via tee multiplexer
 
 **Notes on spec behaviour (verified against WPT):**
@@ -185,7 +190,7 @@ Two subtleties in the bridge design:
 1. `WebrtcbinBridge.on_data_channel_cb` wraps the incoming channel in a `DataChannelBridge` *on the streaming thread* before the idle hop — so the bridge's own signal handlers are connected before any `on-message-*` callbacks can fire on the same thread. Without this eager wrap, the first few messages from the remote peer would race the JS-side setup and get dropped.
 2. The `GstWebRTCDataChannelState` C enum is **1-based** (`CONNECTING=1 … CLOSED=4`) but the auto-generated TypeScript declaration omits the initialiser and infers 0-based values. `RTCDataChannel` maps against the real 1-based runtime values.
 
-Tests passing on GJS: **203 green** (89 data-channel + 109 media API + 5 media pipeline tests), including the full loopback (two local peers, offer/answer, ICE trickle, data-channel open/send/receive/echo).
+Tests: **302 total across 4 spec files** (`webrtc.spec.ts` 87, `wpt.spec.ts` 96, `wpt-media.spec.ts` 109, `register.spec.ts` 10), including the full loopback (two local peers, offer/answer, ICE trickle, data-channel open/send/receive/echo).
 
 **System prerequisites:**
 - GStreamer ≥ 1.20 with **gst-plugins-bad** (for webrtcbin) AND **libnice-gstreamer** (for ICE transport — webrtcbin's state-change to PLAYING fails without it)
@@ -193,7 +198,7 @@ Tests passing on GJS: **203 green** (89 data-channel + 109 media API + 5 media p
 - Ubuntu/Debian: `apt install gstreamer1.0-plugins-bad gstreamer1.0-nice`
 - Verify:   `gst-inspect-1.0 webrtcbin && gst-inspect-1.0 nicesrc`
 
-Tests that exercise `webrtcbin` (construction, deferred-APIs-throw, close, loopback) auto-skip with a clear message if the nice plugin is missing; the remaining 18 tests (RTCSessionDescription, RTCIceCandidate parsing, register-subpath wiring) cover the platform-agnostic code paths.
+Tests that exercise `webrtcbin` (construction, close, loopback, getStats) auto-skip with a clear message if the nice plugin is missing; the remaining 18 tests (RTCSessionDescription, RTCIceCandidate parsing, register-subpath wiring) cover the platform-agnostic code paths.
 
 ## DOM Packages (`packages/dom/`)
 
@@ -357,6 +362,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**vm promoted to Partial**~~✓ — createContext, runInNewContext, compileFunction, Script class (37 tests).
 - ~~**WebRTC Phase 1 + 1.5 (Data Channel end-to-end)**~~✓ — `@gjsify/webrtc` (23 tests incl. loopback). RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN), RTCDataChannel (string + binary send/receive), RTCSessionDescription, RTCIceCandidate, RTCError. Backed by `@gjsify/webrtc-native` Vala bridge (WebrtcbinBridge, DataChannelBridge, PromiseBridge) that marshals webrtcbin's streaming-thread signals + Gst.Promise callbacks onto the main GLib context via `GLib.Idle.add()`. Media (RTCRtpSender/Receiver, MediaStream, getUserMedia) deferred to Phase 2.
 - ~~**WebRTC Phase 2 + 2.5 + 3 (Media)**~~✓ — Full W3C media surface: `addTransceiver`, `addTrack`/`removeTrack`, `RTCRtpSender`/`Receiver`/`Transceiver`, `MediaStream`/`MediaStreamTrack`, `getUserMedia` (pipewiresrc/pulsesrc/v4l2src), incoming pipeline via `ReceiverBridge` (Vala, decodebin → tee switching), outgoing pipeline via explicit encoder chain (source→valve→convert→encode→payloader→capsfilter→webrtcbin). Tee-multiplexer for fan-out. DTMF via `RTCDTMFSender`. WebTorrent on GJS is now end-to-end thanks to RTCDataChannel maturity.
+- ~~**WebRTC Phase 4 (Stats & Advanced)**~~✓ — `getStats()` (GstStructure → W3C RTCStatsReport via `gst-stats-parser.ts`), `sender.getStats()`/`receiver.getStats()` delegation, `restartIce()`, `setConfiguration()`, `RTCDTMFSender` (spec-compliant tone insertion + `tonechange` event), `RTCCertificate` (generateCertificate), `RTCDtlsTransport`/`RTCIceTransport`/`RTCSctpTransport` thin proxies. 302 tests across 4 spec files.
 - ~~**npm `ws` drop-in wrapper**~~✓ — `@gjsify/ws` (`packages/node/ws/`) wraps `@gjsify/websocket` + `Soup.Server.add_websocket_handler`. Aliased via `ws` and `isomorphic-ws`. Autobahn fuzzingserver reports identical 240/4/3/0 scores as the underlying `@gjsify/websocket`, confirming zero wrapper regressions.
 - ~~**Autobahn RFC 6455 pillar**~~✓ — `tests/integration/autobahn/` (two driver agents: `@gjsify/websocket` W3C, `@gjsify/ws` npm wrapper). Baseline: 510 OK / 4 NON-STRICT / 3 INFORMATIONAL / 0 FAILED per agent (full suite — 9.* performance + 12.*/13.* permessage-deflate all enabled).
 - ~~**`@gjsify/sqlite`**~~✓ — `node:sqlite` on top of `gi://Gda?version=6.0`. DatabaseSync / StatementSync with the subset of the API realistic libgda exposes; 48 tests.
@@ -440,7 +446,7 @@ Root cause of 0 B/s symptom (webtorrent-player): `queueMicrotask` must be inject
 
 ### socket.io (`tests/integration/socket.io/`)
 
-3 test suites ported from socket.io v4 upstream into `@gjsify/unit` style. **Node: 20/20 green. GJS: 20/20 green, 0 skips.** Transport: polling only (`transports: ['polling']`).
+3 test suites ported from socket.io v4 upstream into `@gjsify/unit` style. **Node: 20/20 green. GJS: 20/20 green, 0 skips.** Transport: polling + websocket (`transports: ['polling', 'websocket']`) — engine.io upgrades to WebSocket via `handleUpgrade()` automatically.
 
 | Port | Node | GJS | Exercises |
 |---|---|---|---|
@@ -448,7 +454,7 @@ Root cause of 0 B/s symptom (webtorrent-player): `queueMicrotask` must be inject
 | socket-middleware.spec.ts | ✅ (2) | ✅ (2) | `socket.use()` middleware chain + error propagation |
 | socket-timeout.spec.ts | ✅ (4) | ✅ (4) | `socket.timeout().emit()` ack timeout, `emitWithAck()` with/without ack |
 
-WebSocket transport deferred — requires a server-side `ws` package shim (see Open TODOs).
+WebSocket transport now enabled — `handleUpgrade()` in `@gjsify/ws` wires engine.io upgrades. Porting `socket.ts` / `namespaces.ts` from `refs/socket.io/packages/socket.io/test/` is the remaining step (see Open TODOs).
 
 ### autobahn (`tests/integration/autobahn/`)
 
@@ -497,22 +503,22 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 
 **Priority: Medium — reduces bundle size, improves tree-shake signal.**
 
-`@gjsify/node-globals/register` is the historical kitchen-sink side-effect module: importing it registers `Buffer`, `process`, `URL`, `TextEncoder`/`TextDecoder`, `structuredClone`, `setImmediate`, `atob`/`btoa`, and more in one shot. Every integration driver and test entry-point still imports it, pulling the whole set into bundles that only need a subset. We have since moved to **granular, feature-scoped register subpaths** (e.g. `@gjsify/fetch/register/fetch`, `@gjsify/fetch/register/xhr`, `@gjsify/dom-events/register/ui-events`), and the CLI's `--globals auto` can inject exactly the identifiers a bundle references.
+`@gjsify/node-globals/register` is the historical kitchen-sink side-effect module: importing it registers `Buffer`, `process`, `URL`, `TextEncoder`/`TextDecoder`, `structuredClone`, `setImmediate`, `atob`/`btoa`, and more in one shot. Every integration driver and test entry-point still imports it, pulling the whole set into bundles that only need a subset.
 
-Migration (each step a separate PR, chosen by which consumer first complains):
+**Progress:**
+- ✅ **Steps 1 + 2 done** — Granular subpaths exist: `packages/node/globals/src/register/{buffer,encoding,microtask,process,structured-clone,timers,url}.ts`. The catch-all `register.ts` now re-imports from these granular files (with a comment directing users to granular imports). `GJS_GLOBALS_MAP` already points at the granular paths.
+- 🔲 **Step 3 pending** — Consumers (`test.mts` entry-points, autobahn drivers, integration test entries) still `import '@gjsify/node-globals/register'`. Migrate one consumer at a time.
+- 🔲 **Step 4 pending** — Once all consumers are migrated, remove or deprecate the monolithic catch-all.
 
-1. Audit `@gjsify/node-globals/src/register.ts` — list every global it sets, which package should own each.
-2. Move each registration into its owning package's own `register.ts` if that doesn't already exist, and add the identifier to `GJS_GLOBALS_MAP` so `--globals auto` finds it.
-3. Replace downstream `import '@gjsify/node-globals/register'` lines with granular imports (or the appropriate `--globals` flag), one consumer at a time.
-4. When the last consumer is migrated, delete `@gjsify/node-globals/register` and fold the package's remaining non-register exports into a smaller surface (or deprecate entirely if nothing else lives there).
+Migration approach: pick a consumer that only uses a subset (e.g. `@gjsify/http/src/test.mts` — only needs `process` + `url`), replace with targeted imports, verify both Node + GJS tests still pass. Repeat per consumer.
 
-Keep the top-level `@gjsify/node-globals` package bare-specifier alias (`@gjsify/runtime` in some layouts) for **new** consumers that genuinely want "give me the full Node runtime surface" — but mark it opt-in, not the default path.
+Keep the catch-all for **new** consumers that genuinely want "give me the full Node runtime surface" — but keep it as opt-in, not a mandatory import chain.
 
-### Integration tests — socket.io WebSocket transport
+### Integration tests — socket.io `socket.ts` + `namespaces.ts`
 
 **Priority: Medium.**
 
-Socket.io WebSocket transport requires a server-side `ws` npm package shim (Soup WebSocket server + per-message framing). Currently bypassed with `transports: ['polling']`. Once the `ws` shim lands, port `socket.ts` and `namespaces.ts` from `refs/socket.io/packages/socket.io/test/`.
+WebSocket transport is now enabled in all 3 existing suites (`transports: ['polling', 'websocket']`) — engine.io upgrades via `handleUpgrade()`. The remaining step is to port `socket.ts` and `namespaces.ts` from `refs/socket.io/packages/socket.io/test/` into `@gjsify/unit` style under `tests/integration/socket.io/src/`. These two files cover socket emit/on semantics and namespace routing which the current `handshake`, `socket-middleware`, and `socket-timeout` suites do not exercise.
 
 ### Browser Testing Infrastructure for DOM Packages
 
@@ -534,18 +540,6 @@ DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target 
 **Priority: Medium — architectural vision for unified DOM-in-GTK.**
 
 A future `@gjsify/dom-bridge` package where `document.createElement("canvas")` + `getContext("2d")` automatically creates the right GTK widget behind the scenes. `document.body` would map to a real GTK container hierarchy. Each child element gets its own bridge transparently. This is the long-term vision for making browser code "just work" in GTK without explicit bridge creation. Deferred from the initial bridge architecture PR — requires deeper integration between `Document`, `Element.appendChild`, and the GTK widget tree.
-
-### WebRTC Phase 4 — Stats & advanced
-
-**Priority: Low — nice-to-have once Phase 3 lands.**
-
-- `getStats` — emit `get-stats` signal on webrtcbin, convert `GstStructure` → `RTCStatsReport` (Map<string, RTCStats>).
-- `restartIce`, `setConfiguration` — dynamic reconfig.
-- `RTCDtlsTransport`, `RTCIceTransport`, `RTCSctpTransport` — thin proxies over webrtcbin's child transports.
-- `RTCCertificate` — local DTLS certificate management.
-- `RTCDTMFSender` — audio-track-based DTMF via GStreamer `dtmfsrc`.
-- `icecandidateerror` event — map from webrtcbin's ICE failure signals.
-- `peerIdentity`, `getIdentityAssertion` — identity provider integration.
 
 ### Autobahn — wire into CI
 
@@ -574,9 +568,9 @@ Today's partial-implementation covers DatabaseSync/StatementSync against Node 24
 
 ### WebRTC Showcase
 
-**Priority: Low — after Phase 2.**
+**Priority: Medium — Phase 2–4 have all landed.**
 
-Promote [examples/dom/webrtc-loopback](examples/dom/webrtc-loopback) to `showcases/dom/webrtc-loopback/` once Media Phase 2 lands, so the showcase demonstrates both data and media paths. Until then it stays as a private example.
+Promote [examples/dom/webrtc-loopback](examples/dom/webrtc-loopback) to `showcases/dom/webrtc-loopback/` — Media Phase 2/3 and Stats Phase 4 are now complete, making a polished showcase viable. The showcase should demonstrate both data-channel (loopback) and media paths (getUserMedia audio). Four additional private examples exist (`webrtc-dtmf`, `webrtc-states`, `webrtc-trickle-ice`, `webrtc-video`) that could be folded in or referenced. Follow the standard showcase rules: publish as `@gjsify/example-dom-webrtc-loopback`, export `./browser` entry, add as dep in `packages/infra/cli/package.json`.
 
 ---
 
