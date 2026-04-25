@@ -342,25 +342,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@conventional-changelog/git-client@npm:^2.7.0":
-  version: 2.7.0
-  resolution: "@conventional-changelog/git-client@npm:2.7.0"
-  dependencies:
-    "@simple-libs/child-process-utils": "npm:^1.0.0"
-    "@simple-libs/stream-utils": "npm:^1.2.0"
-    semver: "npm:^7.5.2"
-  peerDependencies:
-    conventional-commits-filter: ^5.0.0
-    conventional-commits-parser: ^6.4.0
-  peerDependenciesMeta:
-    conventional-commits-filter:
-      optional: true
-    conventional-commits-parser:
-      optional: true
-  checksum: 10/d170ae97ce9771aa77c4ab66127ddbdd154e6b0801b3315d38f3a57bff2d515239140f0cdf0110641f732072493020ef281295209daf68601982b9675c23ba2f
-  languageName: node
-  linkType: hard
-
 "@csstools/color-helpers@npm:^6.0.2":
   version: 6.0.2
   resolution: "@csstools/color-helpers@npm:6.0.2"
@@ -4970,20 +4951,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@release-it/conventional-changelog@npm:^11.0.0":
-  version: 11.0.0
-  resolution: "@release-it/conventional-changelog@npm:11.0.0"
+"@release-it/conventional-changelog@npm:^10.0.6":
+  version: 10.0.6
+  resolution: "@release-it/conventional-changelog@npm:10.0.6"
   dependencies:
-    "@conventional-changelog/git-client": "npm:^2.7.0"
+    "@conventional-changelog/git-client": "npm:^2.6.0"
     concat-stream: "npm:^2.0.0"
     conventional-changelog: "npm:^7.2.0"
-    conventional-changelog-angular: "npm:^8.3.1"
-    conventional-changelog-conventionalcommits: "npm:^9.3.1"
+    conventional-changelog-angular: "npm:^8.3.0"
+    conventional-changelog-conventionalcommits: "npm:^9.3.0"
     conventional-recommended-bump: "npm:^11.2.0"
     semver: "npm:^7.7.4"
   peerDependencies:
-    release-it: ^18.0.0 || ^19.0.0 || ^20.0.0
-  checksum: 10/f568cfdcb8f68b6b35f97247611b87054cece919d020ee6af074e99beb0dac40ae160e7bddd4041ea2939a2e0a17a723ea2408afe6803950fcecbcabd44181aa
+    release-it: ^18.0.0 || ^19.0.0
+  checksum: 10/8d0e1b94763717ae5e09575f71ab1582aead34ade30a414bcdfd66d191e08ae0dcb72faff13063708f0757b3f839ad1e1694ce60a75a264f78cee852b9184a3c
   languageName: node
   linkType: hard
 
@@ -7226,7 +7207,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"conventional-changelog-angular@npm:^8.3.1":
+"conventional-changelog-angular@npm:^8.3.0":
   version: 8.3.1
   resolution: "conventional-changelog-angular@npm:8.3.1"
   dependencies:
@@ -7235,7 +7216,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"conventional-changelog-conventionalcommits@npm:^9.3.1":
+"conventional-changelog-conventionalcommits@npm:^9.3.0, conventional-changelog-conventionalcommits@npm:^9.3.1":
   version: 9.3.1
   resolution: "conventional-changelog-conventionalcommits@npm:9.3.1"
   dependencies:
@@ -9314,10 +9295,10 @@ __metadata:
   resolution: "gjsify@workspace:."
   dependencies:
     "@release-it/bumper": "npm:^7.0.5"
-    "@release-it/conventional-changelog": "npm:^11.0.0"
+    "@release-it/conventional-changelog": "npm:^10.0.6"
     conventional-changelog-conventionalcommits: "npm:^9.3.1"
-    release-it: "npm:^20.0.1"
-    typescript: "npm:^6.0.3"
+    release-it: "npm:^20.0.0"
+    typescript: "npm:^6.0.2"
   languageName: unknown
   linkType: soft
 
@@ -13126,7 +13107,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"release-it@npm:^20.0.1":
+"release-it@npm:^20.0.0":
   version: 20.0.1
   resolution: "release-it@npm:20.0.1"
   dependencies:
@@ -14678,7 +14659,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^6.0.3":
+"typescript@npm:^6.0.2, typescript@npm:^6.0.3":
   version: 6.0.3
   resolution: "typescript@npm:6.0.3"
   bin:
@@ -14688,7 +14669,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3A^6.0.3#optional!builtin<compat/typescript>":
+"typescript@patch:typescript@npm%3A^6.0.2#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^6.0.3#optional!builtin<compat/typescript>":
   version: 6.0.3
   resolution: "typescript@patch:typescript@npm%3A6.0.3#optional!builtin<compat/typescript>::version=6.0.3&hash=5786d5"
   bin:
