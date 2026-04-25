@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "include": [
+        "playwright.config.ts",
+        "specs/**/*.ts",
+        "scripts/**/*.ts"
+    ]
+}

@@ -1,0 +1,24 @@
+{
+    "name": "@gjsify/browser-tests",
+    "description": "Playwright-based browser tests for @gjsify/web-* and @gjsify/dom-* packages. Validates Web/DOM API implementations against Firefox (SpiderMonkey — same engine as GJS).",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "build:bundles": "yarn workspaces foreach -tv -A --include '@gjsify/fetch' --include '@gjsify/streams' --include '@gjsify/webcrypto' --include '@gjsify/dom-events' --include '@gjsify/abort-controller' --include '@gjsify/formdata' --include '@gjsify/eventsource' --include '@gjsify/webstorage' --include '@gjsify/compression-streams' --include '@gjsify/domparser' --include '@gjsify/websocket' --include '@gjsify/canvas2d-core' run build:test:browser",
+        "test": "playwright test",
+        "test:unit": "playwright test specs/unit.spec.ts",
+        "test:wpt": "playwright test specs/wpt/",
+        "test:headed": "playwright test --headed",
+        "test:debug": "playwright test --debug"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.50.0",
+        "http-server": "^14.1.1",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

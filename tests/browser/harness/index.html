@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>gjsify browser tests</title>
+  <style>
+    body { font-family: monospace; padding: 1rem; background: #1a1a1a; color: #ccc; }
+    #gjsify-test-results { white-space: pre-wrap; }
+    .pass { color: #4caf50; }
+    .fail { color: #f44336; }
+  </style>
+</head>
+<body>
+  <div id="gjsify-test-results">Loading…</div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const bundle = params.get('bundle');
+    const el = document.getElementById('gjsify-test-results');
+
+    if (!bundle) {
+      el.textContent = 'No bundle specified. Pass ?bundle=/path/to/test.browser.mjs';
+      document.documentElement.dataset.testsDone = 'true';
+      window.__gjsify_test_results = { passed: 0, failed: 0, total: 0, errors: [] };
+    } else {
+      try {
+        await import(bundle);
+        // @gjsify/unit sets window.__gjsify_test_results and data-tests-done
+        // when run() completes. Wait handled by Playwright via waitForSelector.
+      } catch (e) {
+        const msg = e?.message ?? String(e);
+        el.textContent = `Bundle load error: ${msg}`;
+        console.error('gjsify harness: failed to load bundle', bundle, e);
+        document.documentElement.dataset.testsDone = 'true';
+        window.__gjsify_test_results = {
+          passed: 0,
+          failed: 1,
+          total: 1,
+          errors: [{ suite: '__load__', test: 'import bundle', message: msg }],
+        };
+      }
+    }
+  </script>
+</body>
+</html>

@@ -14,6 +14,8 @@ let countTestsFailed = 0;
 let countTestsIgnored = 0;
 let runtime = '';
 let runStartTime = 0;
+let currentSuite = '';
+let testErrors: Array<{ suite: string; test: string; message: string }> = [];
 
 export interface TimeoutConfig {
 	/** Per-it() timeout in ms. Default: 5000. 0 = disabled. */
@@ -373,6 +375,8 @@ export const describe = async function(moduleName: string, callback: Callback, o
 
 	print('\n' + moduleName);
 
+	const prevSuite = currentSuite;
+	currentSuite = moduleName;
 	const t0 = now();
 	try {
 		await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);
@@ -386,6 +390,8 @@ export const describe = async function(moduleName: string, callback: Callback, o
 	}
 	const duration = now() - t0;
 	print(`  ${GRAY}↳ ${formatDuration(duration)}${RESET}`);
+
+	currentSuite = prevSuite;
 
 	// Reset after and before callbacks
 	beforeEachCb = null;
@@ -508,6 +514,7 @@ export const it = async function(expectation: string, callback: () => void | Pro
 		if (!e.__testFailureCounted) {
 			++countTestsFailed;
 		}
+		testErrors.push({ suite: currentSuite, test: expectation, message: e.message || String(e) });
 		const icon = e instanceof TimeoutError ? '⏱' : '❌';
 		print(`  ${RED}${icon}${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
 		print(`${RED}${e.message}${RESET}`);
@@ -581,6 +588,18 @@ assert.deepStrictEqual = function<T>(actual: unknown, expected: T, message?: str
 
 // TODO wrap more assert methods
 
+const browserSignalDone = () => {
+	const doc = (globalThis as any).document;
+	if (!doc) return;
+	(globalThis as any).__gjsify_test_results = {
+		passed: countTestsOverall - countTestsFailed,
+		failed: countTestsFailed,
+		total: countTestsOverall,
+		errors: testErrors,
+	};
+	doc.documentElement.dataset.testsDone = 'true';
+};
+
 const runTests = async function(namespaces: Namespaces) {
 	// recursively check the test directory for executable tests
 	for( const subNamespace in namespaces ) {
@@ -639,6 +658,10 @@ const getRuntime = async () => {
 			runtime = 'Gjs ' + process.versions.gjs;
 		} else if (process?.versions?.node) {
 			runtime = 'Node.js ' + process.versions.node;
+		} else if (typeof (globalThis as any).document !== 'undefined') {
+			runtime = 'Browser';
+		} else {
+			runtime = 'Unknown';
 		}
 	}
 	return runtime || 'Unknown';
@@ -680,6 +703,12 @@ export const run = async (namespaces: Namespaces, options?: { timeout?: number; 
 	.then(async () => {
 		printResult();
 		print();
+
+		// Browser: signal results via DOM, then stop — no mainloop or process.exit
+		if (runtime === 'Browser') {
+			browserSignalDone();
+			return;
+		}
 
 		quitMainLoop(); // Pre-quit ensureMainLoop's loop so it exits immediately when the hook fires
 		mainloop?.quit();
