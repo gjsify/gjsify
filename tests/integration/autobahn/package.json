@@ -22,14 +22,14 @@
         "report:show": "echo 'Open reports/output/clients/index.html in a browser'"
     },
     "devDependencies": {
-        "@girs/gjs": "^4.0.0-rc.3",
+        "@girs/gjs": "^4.0.0-rc.5",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/websocket": "workspace:^",
         "@gjsify/ws": "workspace:^",
         "@types/node": "^25.6.0",
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"

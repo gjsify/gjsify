@@ -13,10 +13,10 @@
     "build": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js --globals auto,RTCPeerConnection,RTCSessionDescription,RTCIceCandidate,WebSocket,fetch && node -e \"const fs=require('fs');let c=fs.readFileSync('dist/gjs.js','utf8');c=c.replaceAll('__toESM(require_lib3(), 1)','__toESM(require_lib3(), 0)');fs.writeFileSync('dist/gjs.js',c)\""
   },
   "devDependencies": {
-    "@girs/adw-1": "^1.10.0-4.0.0-rc.3",
-    "@girs/gjs": "^4.0.0-rc.3",
-    "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.3",
+    "@girs/adw-1": "^1.10.0-4.0.0-rc.5",
+    "@girs/gjs": "^4.0.0-rc.5",
+    "@girs/glib-2.0": "^2.88.0-4.0.0-rc.5",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.5",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
@@ -25,8 +25,8 @@
     "@gjsify/websocket": "workspace:^",
     "@types/node": "^25.6.0",
     "@types/webtorrent": "^0.110.1",
-    "typescript": "^6.0.2",
-    "webtorrent": "^2.5.18"
+    "typescript": "^6.0.3",
+    "webtorrent": "^2.8.5"
   },
   "private": true,
   "version": "0.1.15"

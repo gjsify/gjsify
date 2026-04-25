@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-25 (Documentation sync — WebRTC Phase 4 (getStats, restartIce, setConfiguration, RTCDTMFSender, RTCCertificate, RTCDtlsTransport, RTCIceTransport, RTCSctpTransport), socket.io WebSocket transport enabled, node-globals granular register subpaths.)
+> Last updated: 2026-04-25 (socket.io integration: 112/112 Node+GJS; WebSocket-only transport fixed — req.socket set for upgrades + --globals auto,WebSocket for engine.io-client alias detection; socket.spec.ts + namespaces.spec.ts ported.)
 
 ## Summary
 
@@ -337,7 +337,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
-| Total test cases | 10,500+ (unit) + 360+ (integration) |
+| Total test cases | 10,500+ (unit) + 584+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn) |
 | Spec files | 110+ |
 | Integration test suites | 4 (webtorrent, socket.io, streamx, autobahn) |
 | Showcases | 6 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder) |
@@ -446,15 +446,19 @@ Root cause of 0 B/s symptom (webtorrent-player): `queueMicrotask` must be inject
 
 ### socket.io (`tests/integration/socket.io/`)
 
-3 test suites ported from socket.io v4 upstream into `@gjsify/unit` style. **Node: 20/20 green. GJS: 20/20 green, 0 skips.** Transport: polling + websocket (`transports: ['polling', 'websocket']`) — engine.io upgrades to WebSocket via `handleUpgrade()` automatically.
+5 test suites ported from socket.io v4 upstream into `@gjsify/unit` style. **Node: 112/112 green. GJS: 112/112 green, 0 skips.** Full transport coverage: polling, polling→WebSocket upgrade, and WebSocket-only (`transports: ['websocket']`).
 
 | Port | Node | GJS | Exercises |
 |---|---|---|---|
 | handshake.spec.ts | ✅ (4) | ✅ (4) | CORS headers (OPTIONS/GET), `allowRequest` accept/reject, `@gjsify/fetch`, `@gjsify/http` |
 | socket-middleware.spec.ts | ✅ (2) | ✅ (2) | `socket.use()` middleware chain + error propagation |
 | socket-timeout.spec.ts | ✅ (4) | ✅ (4) | `socket.timeout().emit()` ack timeout, `emitWithAck()` with/without ack |
+| socket.spec.ts | ✅ (63) | ✅ (63) | emit/on, callbacks/acks, `onAny`/`offAny`/`prependAny`, volatile events (ws-only), compression, disconnect, handshake metadata, reserved event guards |
+| namespaces.spec.ts | ✅ (39) | ✅ (39) | namespace basics, connection/disconnect events, multi-namespace, socket discovery (`allSockets`), `except()`, volatile in namespace, `new_namespace` event, dynamic namespaces (regex + function) |
 
-WebSocket transport now enabled — `handleUpgrade()` in `@gjsify/ws` wires engine.io upgrades. Porting `socket.ts` / `namespaces.ts` from `refs/socket.io/packages/socket.io/test/` is the remaining step (see Open TODOs).
+Two bugs fixed to enable WebSocket-only transport (`transports: ['websocket']`):
+1. **`req.socket` not set for WebSocket upgrades** — engine.io's `Socket` constructor reads `req.connection.remoteAddress`; `req.connection` is an alias for `req.socket`. The upgrade intercept path in `@gjsify/http` now sets `req.socket` before emitting `'upgrade'`.
+2. **`globalThis.WebSocket` not injected** — `engine.io-client` accesses `WebSocket` via `globalThisShim = globalThis; ...; new globalThisShim.WebSocket(...)` which the `--globals auto` detector cannot follow through the alias. Fixed by `--globals auto,WebSocket` in the GJS test build command.
 
 ### autobahn (`tests/integration/autobahn/`)
 
@@ -514,11 +518,6 @@ Migration approach: pick a consumer that only uses a subset (e.g. `@gjsify/http/
 
 Keep the catch-all for **new** consumers that genuinely want "give me the full Node runtime surface" — but keep it as opt-in, not a mandatory import chain.
 
-### Integration tests — socket.io `socket.ts` + `namespaces.ts`
-
-**Priority: Medium.**
-
-WebSocket transport is now enabled in all 3 existing suites (`transports: ['polling', 'websocket']`) — engine.io upgrades via `handleUpgrade()`. The remaining step is to port `socket.ts` and `namespaces.ts` from `refs/socket.io/packages/socket.io/test/` into `@gjsify/unit` style under `tests/integration/socket.io/src/`. These two files cover socket emit/on semantics and namespace routing which the current `handshake`, `socket-middleware`, and `socket-timeout` suites do not exercise.
 
 ### Browser Testing Infrastructure for DOM Packages
 

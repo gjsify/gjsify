@@ -14,7 +14,7 @@
     "@deepkit/core": "^1.0.19",
     "@deepkit/type": "^1.0.19",
     "@gjsify/esbuild-plugin-deepkit": "workspace:^",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

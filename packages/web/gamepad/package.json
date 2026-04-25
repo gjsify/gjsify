@@ -39,12 +39,12 @@
         "@gjsify/dom-events": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gjs": "^4.0.0-rc.3",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
-        "@girs/manette-0.2": "^0.2.13-4.0.0-rc.3",
+        "@girs/gjs": "^4.0.0-rc.5",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.5",
+        "@girs/manette-0.2": "^0.2.13-4.0.0-rc.5",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.6.0",
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     }
 }
