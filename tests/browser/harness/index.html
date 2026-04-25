@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>gjsify browser test harness</title>
+</head>
+<body>
+  <div id="gjsify-test-results"></div>
+  <script type="module">
+    const src = new URL(location.href).searchParams.get('bundle');
+    if (src) {
+      await import(decodeURIComponent(src));
+    }
+  </script>
+</body>
+</html>

@@ -28,7 +28,8 @@
         },
         "./register/queuing": {
             "default": "./lib/esm/register/queuing.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "sideEffects": [
         "./lib/esm/register.js",

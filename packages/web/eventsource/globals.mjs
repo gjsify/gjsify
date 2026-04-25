@@ -16,7 +16,7 @@ export class TextLineStream extends TransformStream {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
         for (const line of lines) {
-          controller.enqueue(line);
+          controller.enqueue(line.endsWith('\r') ? line.slice(0, -1) : line);
         }
       },
       flush(controller) {

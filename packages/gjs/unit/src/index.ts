@@ -102,7 +102,11 @@ export type Callback = () => Promise<void>;
 export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser' | 'Display';
 
 // Makes this work on Gjs and Node.js
-export const print = globalThis.print || console.log;
+// In browsers, globalThis.print is window.print() (the print dialog), not text output.
+// Use console.log in browser contexts to avoid triggering print dialogs.
+export const print = (typeof (globalThis as any).document !== 'undefined')
+    ? console.log
+    : (globalThis.print || console.log);
 
 class MatcherFactory {
 
@@ -617,6 +621,15 @@ const printResult = () => {
 
 const getRuntime = async () => {
 	if(runtime && runtime !== 'Unknown') {
+		return runtime;
+	}
+
+	// Check browser before attempting dynamic import('process') — dynamic imports
+	// are NOT aliased by esbuild, so import('process') throws in the browser,
+	// which previously caused the catch block to set runtime='Unknown' before
+	// reaching the document check.
+	if (typeof (globalThis as any).document !== 'undefined') {
+		runtime = 'Browser';
 		return runtime;
 	}
 

@@ -6330,6 +6330,22 @@ var ALIASES_WEB_FOR_NODE = {
 };
 
 // src/utils/alias.ts
+var NODE_BUILTINS_EMPTY = Object.fromEntries(
+  [...EXTERNALS_NODE, ...EXTERNALS_NODE.map((m) => `node:${m}`)].map((m) => [m, "@gjsify/empty"])
+);
+var ALIASES_FOR_BROWSER = {
+  ...NODE_BUILTINS_EMPTY,
+  // ALL ALIASES_WEB_FOR_NODE: bare specifiers → globals re-exports, /register → empty
+  ...ALIASES_WEB_FOR_NODE,
+  // GJS helper registers → no-op
+  ...ALIASES_GENERAL_FOR_NODE,
+  // assert — needed by @gjsify/unit internally (override empty from NODE_BUILTINS_EMPTY)
+  "assert": "@gjsify/assert",
+  "node:assert": "@gjsify/assert",
+  // node:stream/web → browser streams globals (override empty from NODE_BUILTINS_EMPTY)
+  "node:stream/web": "@gjsify/web-streams/globals",
+  "stream/web": "@gjsify/web-streams/globals"
+};
 var setNodeAliasPrefix = (ALIASES) => {
   for (const ALIAS in ALIASES) {
     if (ALIAS.startsWith("node:")) {
@@ -6351,6 +6367,9 @@ var getAliasesForGjs = (options) => {
 };
 var getAliasesForNode = (options) => {
   return { ...getAliasesGeneralForNode(options), ...getAliasesGjsForNode(options), ...getAliasesWebForNode(options) };
+};
+var getAliasesForBrowser = (_options) => {
+  return { ...ALIASES_FOR_BROWSER };
 };
 var externalNode = [...EXTERNALS_NODE, ...EXTERNALS_NODE.map((E) => `node:${E}`)];
 var externalNPM = [...EXTERNALS_NPM];
@@ -13374,6 +13393,14 @@ function cssPlugin(options = {}) {
 
 // src/app/browser.ts
 import * as deepkitPlugin from "@gjsify/esbuild-plugin-deepkit";
+var gjsImportsEmptyPlugin = {
+  name: "gjs-imports-empty",
+  setup(build) {
+    build.onResolve({ filter: /^@girs\// }, () => ({ path: "__girs_empty__", namespace: "gjs-imports-empty" }));
+    build.onResolve({ filter: /^gi:\/\// }, () => ({ path: "__gi_empty__", namespace: "gjs-imports-empty" }));
+    build.onLoad({ filter: /.*/, namespace: "gjs-imports-empty" }, () => ({ contents: "export {}; export default {};", loader: "js" }));
+  }
+};
 var setupForBrowser = async (build, pluginOptions) => {
   const external = [];
   pluginOptions.aliases ||= {};
@@ -13419,8 +13446,9 @@ var setupForBrowser = async (build, pluginOptions) => {
     "stream": "stream-browserify",
     "process": "process/browser"
   };
-  const aliases = { ...browserPolyfillAliases, ...pluginOptions.aliases };
+  const aliases = { ...browserPolyfillAliases, ...getAliasesForBrowser(), ...pluginOptions.aliases };
   if (pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
+  await gjsImportsEmptyPlugin.setup(build);
   await aliasPlugin(aliases).setup(build);
   await blueprintPlugin().setup(build);
   await cssPlugin(pluginOptions.css ?? {}).setup(build);
@@ -13662,6 +13690,7 @@ export {
   index_default as default,
   externalNPM,
   externalNode,
+  getAliasesForBrowser,
   getAliasesForGjs,
   getAliasesForNode,
   getJsExtensions,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 
 import {
 	Event, UIEvent, MouseEvent, PointerEvent,
@@ -59,12 +59,13 @@ export const UIEventsTest = async () => {
 		});
 
 		await it('should create with init values', async () => {
-			const e = new MouseEvent('mousemove', {
+			// Use mousedown: button/buttons are only meaningful on click/down/up events,
+			// not mousemove (browsers correctly return button=0 for mousemove per spec).
+			const e = new MouseEvent('mousedown', {
 				clientX: 100, clientY: 200,
 				button: 2, buttons: 4,
 				altKey: true, ctrlKey: true,
 				movementX: 5, movementY: -3,
-				offsetX: 10, offsetY: 20,
 				screenX: 300, screenY: 400,
 			});
 			expect(e.clientX).toBe(100);
@@ -75,10 +76,18 @@ export const UIEventsTest = async () => {
 			expect(e.ctrlKey).toBe(true);
 			expect(e.movementX).toBe(5);
 			expect(e.movementY).toBe(-3);
-			expect(e.offsetX).toBe(10);
-			expect(e.offsetY).toBe(20);
 			expect(e.screenX).toBe(300);
 			expect(e.screenY).toBe(400);
+		});
+
+		// offsetX/offsetY are @gjsify/dom-events extensions — not part of the standard
+		// MouseEventInit dictionary, so browsers ignore them in the constructor.
+		await on('Gjs', async () => {
+			await it('should propagate offsetX/offsetY from init (GJS extension)', async () => {
+				const e = new MouseEvent('mousemove', { clientX: 100, offsetX: 10, offsetY: 20 });
+				expect(e.offsetX).toBe(10);
+				expect(e.offsetY).toBe(20);
+			});
 		});
 
 		await it('should have legacy aliases', async () => {
