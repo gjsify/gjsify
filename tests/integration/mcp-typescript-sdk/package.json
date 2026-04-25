@@ -1,0 +1,32 @@
+{
+    "name": "@gjsify/integration-mcp-typescript-sdk",
+    "description": "Integration tests: MCP TypeScript SDK on GJS and Node. Ports a curated subset of refs/mcp-typescript-sdk/test/ to validate @gjsify/* implementations.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --globals auto --outfile dist/test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "yarn build:test:node && yarn build:test:gjs",
+        "test": "yarn build:test && yarn test:node && yarn test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@girs/gjs": "^4.0.0-rc.5",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "@types/node": "^25.6.0",
+        "typescript": "^6.0.3",
+        "zod": "^3.25.67"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}
