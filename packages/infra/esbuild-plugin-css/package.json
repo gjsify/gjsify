@@ -38,7 +38,7 @@
     "devDependencies": {
         "@gjsify/resolve-npm": "workspace:^",
         "esbuild": "^0.28.0",
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     },
     "peerDependencies": {
         "esbuild": "^0.28.0"

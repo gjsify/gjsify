@@ -34,10 +34,10 @@
         "@gjsify/unit": "workspace:^",
         "@types/diffie-hellman": "^5.0.3",
         "@types/node": "^25.6.0",
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     },
     "dependencies": {
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.5",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/stream": "workspace:^",
         "@gjsify/utils": "workspace:^"

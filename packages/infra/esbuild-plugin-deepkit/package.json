@@ -33,7 +33,7 @@
     ],
     "dependencies": {
         "@deepkit/type-compiler": "^1.0.19",
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     },
     "devDependencies": {
         "@types/node": "^25.6.0",
