@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { Socket as NetSocket } from '@gjsify/net/socket';
-import { deferEmit, ensureMainLoop } from '@gjsify/utils';
+import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
 
@@ -387,12 +387,8 @@ export class Server extends EventEmitter {
 
       deferEmit(this, 'listening');
     } catch (err: unknown) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      if (this.listenerCount('error') === 0) {
-        // No error listener — throw like Node.js does for unhandled EventEmitter errors
-        throw error;
-      }
-      deferEmit(this, 'error', error);
+      const nodeErr = createNodeError(err, 'listen', { address: hostname, port });
+      deferEmit(this, 'error', nodeErr);
     }
 
     return this;

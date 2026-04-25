@@ -8,5 +8,6 @@ import extendedTestSuite from './extended.spec.js';
 import streamingTestSuite from './streaming.spec.js';
 import timeoutTestSuite from './timeout.spec.js';
 import upgradeTestSuite from './upgrade.spec.js';
+import listenErrorTestSuite from './listen-error.spec.js';
 
-run({testSuite, clientTestSuite, extendedTestSuite, streamingTestSuite, timeoutTestSuite, upgradeTestSuite});
+run({testSuite, clientTestSuite, extendedTestSuite, streamingTestSuite, timeoutTestSuite, upgradeTestSuite, listenErrorTestSuite});
