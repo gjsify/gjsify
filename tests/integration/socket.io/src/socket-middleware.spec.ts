@@ -14,7 +14,7 @@ function getPort(io: Server): number {
 
 function createClient(io: Server, nsp: string = '/', opts?: any) {
   return ioc(`http://localhost:${getPort(io)}${nsp}`, {
-    transports: ['polling'],
+    transports: ['polling', 'websocket'],
     multiplex: false,
     ...opts,
   });
@@ -23,7 +23,7 @@ function createClient(io: Server, nsp: string = '/', opts?: any) {
 export default async () => {
     await describe('socket middleware', async () => {
       await it('should call functions', async () => {
-        const io = new Server(0, { transports: ['polling'] });
+        const io = new Server(0, { transports: ['polling', 'websocket'] });
         const client = createClient(io);
 
         client.emit('join', 'woot');
@@ -61,7 +61,7 @@ export default async () => {
       });
 
       await it('should pass errors', async () => {
-        const io = new Server(0, { transports: ['polling'] });
+        const io = new Server(0, { transports: ['polling', 'websocket'] });
         const client = createClient(io);
 
         client.emit('join', 'woot');

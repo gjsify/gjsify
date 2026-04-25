@@ -15,7 +15,7 @@ function getPort(io: Server): number {
 function createClient(io: Server, nsp: string = '/', opts?: any) {
   const port = getPort(io);
   return ioc(`http://localhost:${port}${nsp}`, {
-    transports: ['polling'],
+    transports: ['polling', 'websocket'],
     ...opts,
   });
 }
@@ -35,7 +35,7 @@ export default async () => {
             allowedHeaders: ['content-type'],
             credentials: true,
           },
-          transports: ['polling'],
+          transports: ['polling', 'websocket'],
         });
 
         const port = getPort(io);
@@ -61,7 +61,7 @@ export default async () => {
             allowedHeaders: ['content-type'],
             credentials: true,
           },
-          transports: ['polling'],
+          transports: ['polling', 'websocket'],
         });
 
         const port = getPort(io);
@@ -80,7 +80,7 @@ export default async () => {
       await it('should allow request if allowRequest returns true', async () => {
         const io = new Server(0, {
           allowRequest: (_req: any, callback: any) => callback(null, true),
-          transports: ['polling'],
+          transports: ['polling', 'websocket'],
         });
 
         const port = getPort(io);
@@ -95,7 +95,7 @@ export default async () => {
       await it('should disallow request if allowRequest returns false', async () => {
         const io = new Server(0, {
           allowRequest: (_req: any, callback: any) => callback(null, false),
-          transports: ['polling'],
+          transports: ['polling', 'websocket'],
         });
 
         const port = getPort(io);

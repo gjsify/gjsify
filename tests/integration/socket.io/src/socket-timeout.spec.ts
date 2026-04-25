@@ -14,7 +14,7 @@ function getPort(io: Server): number {
 
 function createClient(io: Server, nsp: string = '/', opts?: any) {
   return ioc(`http://localhost:${getPort(io)}${nsp}`, {
-    transports: ['polling'],
+    transports: ['polling', 'websocket'],
     ...opts,
   });
 }
@@ -22,7 +22,7 @@ function createClient(io: Server, nsp: string = '/', opts?: any) {
 export default async () => {
     await describe('socket timeout', async () => {
       await it('should timeout if the client does not acknowledge the event', async () => {
-        const io = new Server(0, { transports: ['polling'] });
+        const io = new Server(0, { transports: ['polling', 'websocket'] });
         const client = createClient(io);
 
         await new Promise<void>((resolve, reject) => {
@@ -43,7 +43,7 @@ export default async () => {
       });
 
       await it('should not timeout if the client does acknowledge the event', async () => {
-        const io = new Server(0, { transports: ['polling'] });
+        const io = new Server(0, { transports: ['polling', 'websocket'] });
         const client = createClient(io);
 
         client.on('echo', (arg: number, cb: (v: number) => void) => {
@@ -69,7 +69,7 @@ export default async () => {
       });
 
       await it('should timeout if the client does not acknowledge the event (promise)', async () => {
-        const io = new Server(0, { transports: ['polling'] });
+        const io = new Server(0, { transports: ['polling', 'websocket'] });
         const client = createClient(io);
 
         await new Promise<void>((resolve, reject) => {
@@ -89,7 +89,7 @@ export default async () => {
       });
 
       await it('should not timeout if the client does acknowledge the event (promise)', async () => {
-        const io = new Server(0, { transports: ['polling'] });
+        const io = new Server(0, { transports: ['polling', 'websocket'] });
         const client = createClient(io);
 
         client.on('echo', (arg: number, cb: (v: number) => void) => {
