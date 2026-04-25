@@ -11,7 +11,7 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.38.3",
+    "@astrojs/starlight": "^0.38.4",
     "@fontsource/coming-soon": "^5.2.8",
     "@gjsify/adwaita-fonts": "workspace:^",
     "@gjsify/adwaita-icons": "workspace:^",
@@ -20,12 +20,12 @@
     "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^",
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^",
     "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^",
-    "astro": "^6.1.6",
+    "astro": "^6.1.9",
     "excalibur": "0.32.0",
-    "three": "0.183.2"
+    "three": "0.184.0"
   },
   "devDependencies": {
-    "@types/three": "^0.183.1"
+    "@types/three": "^0.184.0"
   },
   "engines": {
     "node": ">=22.12.0"

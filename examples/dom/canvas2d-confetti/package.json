@@ -14,14 +14,14 @@
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/canvas2d.css dist/canvas2d.css"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.3",
-    "@girs/gjs": "^4.0.0-rc.3",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.3",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.5",
+    "@girs/gjs": "^4.0.0-rc.5",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.5",
     "@gjsify/canvas2d": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.6.0",
     "http-server": "^14.1.1",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

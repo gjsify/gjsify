@@ -17,15 +17,15 @@
     "@gjsify/webgl": "workspace:^"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.3",
-    "@girs/gjs": "^4.0.0-rc.3",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.3",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.5",
+    "@girs/gjs": "^4.0.0-rc.5",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.5",
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.6.0",
-    "@types/three": "^0.183.1",
+    "@types/three": "^0.184.0",
     "http-server": "^14.1.1",
-    "three": "0.183.2",
-    "typescript": "^6.0.2"
+    "three": "0.184.0",
+    "typescript": "^6.0.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

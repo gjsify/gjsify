@@ -11,16 +11,16 @@
         "dev": "gjsify build src/index.ts --outfile dist/index.js --globals auto,dom && gjsify run dist/index.js"
     },
     "devDependencies": {
-        "@girs/adw-1": "^1.10.0-4.0.0-rc.3",
-        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.3",
-        "@girs/gjs": "^4.0.0-rc.3",
-        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.3",
-        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.3",
+        "@girs/adw-1": "^1.10.0-4.0.0-rc.5",
+        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.5",
+        "@girs/gjs": "^4.0.0-rc.5",
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.5",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.5",
         "@gjsify/canvas2d": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/esbuild-plugin-blueprint": "workspace:^",
         "@types/node": "^25.6.0",
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     },
     "dependencies": {
         "@gjsify/webgl": "workspace:^",

@@ -14,9 +14,9 @@
         "@gjsify/webgl": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gjs": "^4.0.0-rc.3",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.3",
-        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.3",
+        "@girs/gjs": "^4.0.0-rc.5",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.5",
+        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.5",
         "@gjsify/canvas2d": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
@@ -24,7 +24,7 @@
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.6.0",
         "excalibur": "0.32.0",
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"

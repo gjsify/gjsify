@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "@gjsify/esbuild-plugin-transform-ext": "workspace:^",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
