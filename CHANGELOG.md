@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### feat — `@gjsify/http2`: compat layer + session API via Soup 3.0 (2026-04-25)
+
+`http2.createServer()`, `http2.createSecureServer()`, `http2.connect()` are now functional instead of throwing.
+
+**Server (Soup.Server-backed):**
+- `createServer(handler)` → `Http2Server` — Soup.Server on plain TCP (HTTP/1.1, no h2c)
+- `createSecureServer({ cert, key }, handler)` → `Http2SecureServer` — Soup.Server with TLS; auto-advertises `h2` via ALPN, falls back to HTTP/1.1
+- Server emits both `'request'` (compat API: `(Http2ServerRequest, Http2ServerResponse)`) and `'stream'` (session API: `(ServerHttp2Stream, headers)`) on each request
+- `Http2ServerRequest` extends `Readable` — method, url, headers, raw body stream
+- `Http2ServerResponse` extends `Writable` — writeHead, setHeader, write, end, respond (session alias)
+- `ServerHttp2Stream` — facade over response, exposes `respond(headers)`, `write()`, `end()`
+
+**Client (Soup.Session-backed):**
+- `connect(authority, options)` → `ClientHttp2Session` — wraps Soup.Session; over HTTPS auto-upgrades to HTTP/2 via ALPN
+- `session.request(headers, { endStream })` → `ClientHttp2Stream` — Duplex: writable = request body, readable = response body; emits `'response'` event with response headers
+
+**Phase 1 limitations** (documented in source): no `pushStream`, no stream IDs, no explicit flow control/priority (all Soup-internal). `createServer()` serves HTTP/1.1 only (Soup has no h2c support). Phase 2 requires a Vala/nghttp2 native extension.
+
+**Tests:** 128 total (102 Node + 26 new GJS integration tests). Codebase refactored into `src/protocol.ts` (constants), `src/server.ts`, `src/client-session.ts`, `src/index.ts`.
+
 ### feat — `createWebSocketStream` + socket.io WebSocket transport (2026-04-24)
 
 **`createWebSocketStream(ws, options)`** — wraps any `ws`-shaped WebSocket (client or server-side) in a Node.js `Duplex` stream. Text frames are converted to `Buffer` before being pushed into the readable side (non-objectMode). Backpressure: `ws.pause()` / `ws.resume()` are called if present. `_final` sends a close frame and waits for the corresponding 'close' event before completing. `_destroy` calls `ws.terminate()` for immediate teardown. 3 new GJS tests (echo via pipe, EOF on client close, write → message). 43 GJS / 19 Node tests total.
