@@ -446,20 +446,22 @@ export class Server extends EventEmitter {
       encrypted: false,
     } as any;
 
-    if (connectionHeader.includes('upgrade') && upgradeHeader === 'websocket'
-        && this.listenerCount('upgrade') > 0) {
-      let ioStream: Gio.IOStream | null = null;
-      try {
-        ioStream = soupMsg.steal_connection();
-      } catch (err) {
-        this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
+    if (connectionHeader.includes('upgrade') && upgradeHeader) {
+      if (this.listenerCount('upgrade') > 0) {
+        let ioStream: Gio.IOStream | null = null;
+        try {
+          ioStream = soupMsg.steal_connection();
+        } catch (err) {
+          this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
+        }
+        if (ioStream) {
+          const socket = new NetSocket();
+          socket._attachOutputOnly(ioStream);
+          this.emit('upgrade', req, socket, Buffer.alloc(0));
+          return;
+        }
       }
-      if (ioStream) {
-        const socket = new NetSocket();
-        socket._attachOutputOnly(ioStream);
-        this.emit('upgrade', req, socket, Buffer.alloc(0));
-        return;
-      }
+      if (upgradeHeader === 'websocket') { return; }
     }
 
     // Get request body
