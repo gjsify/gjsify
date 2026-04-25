@@ -115,7 +115,7 @@ export default async () => {
         await client.connect(clientTransport);
 
         const result = await client.readResource({ uri: 'test://localhost/info' });
-        expect(result.contents[0].text).toBe('HTTP transport works!');
+        expect((result.contents[0] as any).text).toBe('HTTP transport works!');
 
         await client.close();
       } finally {

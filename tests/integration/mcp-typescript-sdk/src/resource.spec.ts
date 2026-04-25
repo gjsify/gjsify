@@ -47,7 +47,7 @@ export default async () => {
 
       const result = await client.readResource({ uri: 'test://localhost/resource' });
       expect(result.contents.length).toBe(1);
-      expect(result.contents[0].text).toBe('Hello from resource');
+      expect((result.contents[0] as any).text).toBe('Hello from resource');
 
       await client.close();
       await mcpServer.close();
@@ -115,7 +115,7 @@ export default async () => {
       await Promise.all([client.connect(clientTransport), mcpServer.connect(serverTransport)]);
 
       const result = await client.readResource({ uri: 'test://resource/42' });
-      expect(result.contents[0].text).toBe('Content for 42');
+      expect((result.contents[0] as any).text).toBe('Content for 42');
 
       await client.close();
       await mcpServer.close();
