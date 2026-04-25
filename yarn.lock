@@ -1281,6 +1281,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@girs/gjsifywebrtc-0.1@npm:^0.1.0-4.0.0-rc.5":
+  version: 0.1.0-4.0.0-rc.5
+  resolution: "@girs/gjsifywebrtc-0.1@npm:0.1.0-4.0.0-rc.5"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.5"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.5"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-rc.5"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.5"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.5"
+    "@girs/gstsdp-1.0": "npm:1.0.0-4.0.0-rc.5"
+    "@girs/gstwebrtc-1.0": "npm:1.0.0-4.0.0-rc.5"
+  checksum: 10/cc41d23e3233d72fa6e9455590b3be19fa4c7324498eb4202f5db5cc2c9c02da1c5617adeb4013d482e28d51405340a0e043b7c815679070fa312dd43eae5e1a
+  languageName: node
+  linkType: hard
+
 "@girs/glib-2.0@npm:2.88.0-4.0.0-rc.5, @girs/glib-2.0@npm:^2.88.0-4.0.0-rc.5":
   version: 2.88.0-4.0.0-rc.5
   resolution: "@girs/glib-2.0@npm:2.88.0-4.0.0-rc.5"
@@ -1410,7 +1425,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gstwebrtc-1.0@npm:^1.0.0-4.0.0-rc.5":
+"@girs/gstwebrtc-1.0@npm:1.0.0-4.0.0-rc.5, @girs/gstwebrtc-1.0@npm:^1.0.0-4.0.0-rc.5":
   version: 1.0.0-4.0.0-rc.5
   resolution: "@girs/gstwebrtc-1.0@npm:1.0.0-4.0.0-rc.5"
   dependencies:
@@ -3838,6 +3853,7 @@ __metadata:
   resolution: "@gjsify/webrtc-native@workspace:packages/web/webrtc-native"
   dependencies:
     "@girs/gjs": "npm:^4.0.0-rc.5"
+    "@girs/gjsifywebrtc-0.1": "npm:^0.1.0-4.0.0-rc.5"
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.5"
     "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.5"
     "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.5"

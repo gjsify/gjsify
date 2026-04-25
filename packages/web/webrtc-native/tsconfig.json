@@ -4,6 +4,7 @@
     "types": [
       "node",
       "@girs/gjs",
+      "@girs/gjsifywebrtc-0.1",
       "@girs/gst-1.0",
       "@girs/glib-2.0",
       "@girs/gobject-2.0"
