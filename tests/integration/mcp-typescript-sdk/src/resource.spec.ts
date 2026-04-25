@@ -36,14 +36,16 @@ export default async () => {
       const mcpServer = new McpServer({ name: 'test server', version: '1.0' });
       const client = new Client({ name: 'test client', version: '1.0' });
 
-      mcpServer.registerResource('test', 'test://resource', {},
-        async () => ({ contents: [{ uri: 'test://resource', text: 'Hello from resource' }] }),
+      // Use authority+path URI to avoid GJS URL normalization
+      // (GJS normalizes test:///x → test:/x and test://x → test://x/)
+      mcpServer.registerResource('test', 'test://localhost/resource', {},
+        async () => ({ contents: [{ uri: 'test://localhost/resource', text: 'Hello from resource' }] }),
       );
 
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
       await Promise.all([client.connect(clientTransport), mcpServer.connect(serverTransport)]);
 
-      const result = await client.readResource({ uri: 'test://resource' });
+      const result = await client.readResource({ uri: 'test://localhost/resource' });
       expect(result.contents.length).toBe(1);
       expect(result.contents[0].text).toBe('Hello from resource');
 
