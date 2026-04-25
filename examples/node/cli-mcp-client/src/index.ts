@@ -60,7 +60,7 @@ async function main() {
 
   // --- Read resource ---
   const resourceResult = await client.readResource({ uri: 'info://server' });
-  console.log('server-info:', resourceResult.contents[0].text);
+  console.log('server-info:', (resourceResult.contents[0] as any).text);
 
   // --- List prompts ---
   const { prompts } = await client.listPrompts();
