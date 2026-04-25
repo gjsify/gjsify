@@ -13374,6 +13374,14 @@ function cssPlugin(options = {}) {
 
 // src/app/browser.ts
 import * as deepkitPlugin from "@gjsify/esbuild-plugin-deepkit";
+var gjsImportsEmptyPlugin = {
+  name: "gjs-imports-empty",
+  setup(build) {
+    build.onResolve({ filter: /^@girs\// }, () => ({ path: "__girs_empty__", namespace: "gjs-imports-empty" }));
+    build.onResolve({ filter: /^gi:\/\// }, () => ({ path: "__gi_empty__", namespace: "gjs-imports-empty" }));
+    build.onLoad({ filter: /.*/, namespace: "gjs-imports-empty" }, () => ({ contents: "export {}; export default {};", loader: "js" }));
+  }
+};
 var setupForBrowser = async (build, pluginOptions) => {
   const external = [];
   pluginOptions.aliases ||= {};
@@ -13414,13 +13422,14 @@ var setupForBrowser = async (build, pluginOptions) => {
   merge(build.initialOptions, esbuildOptions);
   build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude);
   const browserPolyfillAliases = {
-    "path": "path-browserify",
-    "crypto": "crypto-browserify",
-    "stream": "stream-browserify",
-    "process": "process/browser"
+    "process": "@gjsify/empty",
+    "node:process": "@gjsify/empty",
+    "assert": "@gjsify/assert",
+    "node:assert": "@gjsify/assert"
   };
   const aliases = { ...browserPolyfillAliases, ...pluginOptions.aliases };
   if (pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
+  await gjsImportsEmptyPlugin.setup(build);
   await aliasPlugin(aliases).setup(build);
   await blueprintPlugin().setup(build);
   await cssPlugin(pluginOptions.css ?? {}).setup(build);

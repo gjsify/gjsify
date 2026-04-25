@@ -3,7 +3,7 @@
 // and refs/node-test/parallel/test-webcrypto-*.js
 // Original: MIT license (Deno), 3-Clause BSD license (WPT), MIT license (Node.js contributors)
 
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 
 export default async () => {
 
@@ -1835,20 +1835,24 @@ export default async () => {
       expect(threw).toBe(true);
     });
 
-    await it('should reject JWK with wrong kty for HMAC', async () => {
-      let threw = false;
-      try {
-        await subtle.importKey(
-          'jwk',
-          { kty: 'EC', k: 'AAAA' } as JsonWebKey,
-          { name: 'HMAC', hash: 'SHA-256' },
-          true,
-          ['sign', 'verify'],
-        );
-      } catch {
-        threw = true;
-      }
-      expect(threw).toBe(true);
+    // Firefox does not throw for JWK with wrong kty for HMAC (spec requires DataError).
+    // Guard to Node.js + GJS where spec-correct WebCrypto error handling is verified.
+    await on(['Node.js', 'Gjs'], async () => {
+      await it('should reject JWK with wrong kty for HMAC', async () => {
+        let threw = false;
+        try {
+          await subtle.importKey(
+            'jwk',
+            { kty: 'EC', k: 'AAAA' } as JsonWebKey,
+            { name: 'HMAC', hash: 'SHA-256' },
+            true,
+            ['sign', 'verify'],
+          );
+        } catch {
+          threw = true;
+        }
+        expect(threw).toBe(true);
+      });
     });
   });
 

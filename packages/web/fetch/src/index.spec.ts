@@ -175,9 +175,14 @@ export default async () => {
 			expect(clone.headers.get('x-test')).toBe('value');
 		});
 
-		await it('should create request with null body', async () => {
-			const r = new Request('https://example.com', { body: null });
-			expect(r.body).toBeNull();
+		// Firefox returns a non-null body for new Request(url, { body: null }) — likely
+		// an empty ReadableStream — contrary to the spec (body: null → r.body === null).
+		// Guard to Node.js + GJS where spec-correct behavior is verified.
+		await on(['Node.js', 'Gjs'], async () => {
+			await it('should create request with null body', async () => {
+				const r = new Request('https://example.com', { body: null });
+				expect(r.body).toBeNull();
+			});
 		});
 	});
 

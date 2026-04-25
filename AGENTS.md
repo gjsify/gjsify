@@ -394,6 +394,44 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 6. **Never weaken tests** — fix impl. No platform guards.
 7. **`/register` side-effect tests in dedicated file:** Tests verifying globalThis wiring (`globalThis.FontFace`, `globalThis.__gjsify_globalEventTarget`) need `import '<pkg>/register'` → put in `register.spec.ts`, NOT common spec. Reason: even pure-JS global — `/register` pulls GTK/Cairo via import chain, crashes on Node. Common spec tests class/value via named import; `register.spec.ts` tests wiring (GJS-only, wrap in `on('Gjs',...)`). Add to `test.mts` as named suite. Applies only to GJS-only packages. Cross-platform: `/register` test → `.gjs.spec.ts`. Example: `packages/dom/dom-elements/src/register.spec.ts`.
 
+### Browser tests — `tests/browser/` (Playwright, Firefox/SpiderMonkey)
+
+Third test axis alongside `test:gjs` / `test:node`. Validates Web API surface against a real browser (Firefox uses SpiderMonkey, same engine as GJS).
+
+**Core principle: the goal is GJS, not browser.** gjsify reimplements Web/Node APIs _for GJS_. Browser tests verify that the native browser platform behaves the way our GJS implementation claims — they do NOT test our GJS packages in a browser.
+
+**`test.browser.mts` must use browser globals directly** — never import `@gjsify/<pkg>` implementations or `*.spec.ts` files that do. Reason: Web APIs (`fetch`, `Event`, `crypto`, `ReadableStream`, …) are already global in the browser. Importing from our GJS packages would drag in `@girs/*` / `gi://*` bindings (GObject introspection, Soup, GLib) which have no browser equivalent, forcing a cascade of workaround aliases. The correct fix is always clean test files, not more aliases.
+
+```ts
+// ✓ Correct — browser test for @gjsify/fetch
+import { run, describe, it, expect } from '@gjsify/unit';
+run({
+  async FetchTest() {
+    await describe('Response', async () => {
+      await it('reads json body', async () => {
+        const r = new Response('{"x":1}');          // global — no import needed
+        expect(await r.json()).toStrictEqual({x:1});
+      });
+    });
+  },
+});
+
+// ✗ Wrong — imports GJS implementation, drags in gi:// bindings
+import { run } from '@gjsify/unit';
+import testSuite from './index.spec.js';  // ← index.spec.ts imports @gjsify/fetch which imports Soup
+run({ testSuite });
+```
+
+**Layout:** `src/test.browser.mts`(browser entry, globals only) | `package.json` `build:test:browser: gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs` | `tests/browser/` runs all discovered bundles via Playwright.
+
+**esbuild browser target (`--app browser`):** `gjsImportsEmptyPlugin` silences `@girs/*` and `gi://*` that appear transitively through `@gjsify/unit`'s GJS-specific code paths. Only two aliases are needed: `assert`/`node:assert` → `@gjsify/assert` (used by unit internally) and `process`/`node:process` → `@gjsify/empty` (unit has a dead `import('process')` that esbuild resolves statically; the runtime path never runs in browser).
+
+**`@girs/*` or `gi://*` in a browser/Node bundle** = missing alias somewhere in the dependency chain. Fix the import (make the test file not drag in GJS-specific code) — never mask with `external:` (leaves bare specifiers the browser can't resolve) or a blanket `NODE_BUILTINS_EMPTY` map.
+
+**Packages with browser tests (11):** `abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `streams`, `webcrypto`, `websocket`, `webstorage`. GJS-only packages (`webaudio`, `webrtc`, `gamepad`, …) have no browser test — the native platform has no equivalent of libsoup/GStreamer/Manette.
+
+**Run locally:** `cd tests/browser && npx playwright test --project=firefox` (Firefox-primary; add `--project=chromium` to surface engine diffs). HTTP server must be running (Playwright starts one automatically from `playwright.config.ts`).
+
 ### Regression tests from examples
 
 Real-world examples uncovering bugs (GC, missing globals, CJS-ESM, MainLoop) → always add targeted test to relevant `*.spec.ts`. Examples = integration validation; regression tests = permanent safety net.

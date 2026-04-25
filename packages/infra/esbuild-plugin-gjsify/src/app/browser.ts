@@ -6,8 +6,23 @@ import { merge } from "../utils/merge.js";
 import { globToEntryPoints } from "../utils/index.js";
 
 // Types
-import type { PluginBuild, BuildOptions } from "esbuild";
+import type { Plugin, PluginBuild, BuildOptions } from "esbuild";
 import type { PluginOptions } from '../types/plugin-options.js';
+
+// Redirect @girs/* and gi://* imports to an empty module.
+// These are GJS-specific (GObject introspection bindings / GI protocol) with
+// no browser equivalent. They appear transitively via @gjsify/unit and similar
+// packages that have GJS-specific code paths. Marking them external would leave
+// bare specifiers in the bundle that the browser cannot resolve at runtime;
+// instead we return an empty ESM module so the bundle is self-contained.
+const gjsImportsEmptyPlugin: Plugin = {
+    name: 'gjs-imports-empty',
+    setup(build) {
+        build.onResolve({ filter: /^@girs\// }, () => ({ path: '__girs_empty__', namespace: 'gjs-imports-empty' }));
+        build.onResolve({ filter: /^gi:\/\// }, () => ({ path: '__gi_empty__', namespace: 'gjs-imports-empty' }));
+        build.onLoad({ filter: /.*/, namespace: 'gjs-imports-empty' }, () => ({ contents: 'export {}; export default {};', loader: 'js' }));
+    },
+};
 
 export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
@@ -61,17 +76,23 @@ export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginO
     // Projects must install the polyfill packages they need (e.g. path-browserify).
     // Uninstalled polyfills are skipped — esbuild errors as usual if the
     // builtin is actually imported.
+    // Browser build aliases.
+    // @gjsify/unit has `await import('process')` inside a try-catch that is
+    // unreachable in browser (typeof document check comes first), but esbuild
+    // still resolves it statically. Map to @gjsify/empty so the build succeeds.
+    // assert → @gjsify/assert because @gjsify/unit imports node:assert at the top level.
     const browserPolyfillAliases: Record<string, string> = {
-        'path': 'path-browserify',
-        'crypto': 'crypto-browserify',
-        'stream': 'stream-browserify',
-        'process': 'process/browser',
+        'process': '@gjsify/empty',
+        'node:process': '@gjsify/empty',
+        'assert': '@gjsify/assert',
+        'node:assert': '@gjsify/assert',
     };
 
     const aliases = {...browserPolyfillAliases, ...pluginOptions.aliases};
 
     if(pluginOptions.debug) console.debug("initialOptions", build.initialOptions);
 
+    await gjsImportsEmptyPlugin.setup(build);
     await aliasPlugin(aliases).setup(build);
     await blueprintPlugin().setup(build);
     await cssPlugin(pluginOptions.css ?? {}).setup(build);
