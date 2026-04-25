@@ -6,7 +6,7 @@
 // Streamable HTTP transport end-to-end tests.
 // Tests @gjsify/http Server + @gjsify/fetch client + @gjsify/streams ReadableStream + SSE.
 
-import { describe, it, expect, on } from '@gjsify/unit';
+import { describe, it, expect } from '@gjsify/unit';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -65,9 +65,6 @@ async function setupServer() {
 }
 
 export default async () => {
-  // Streamable HTTP tests require @gjsify/http + @gjsify/fetch + @gjsify/streams
-  // working together — currently Node.js only. GJS support tracked in STATUS.md.
-  await on('Node.js', async () => {
   await describe('MCP Streamable HTTP Transport', async () => {
 
     await it('should connect client to HTTP server and list tools', async () => {
@@ -149,5 +146,4 @@ export default async () => {
     });
 
   });
-  }); // on('Node.js')
 };

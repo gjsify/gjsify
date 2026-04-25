@@ -527,6 +527,62 @@ class Readable_ extends Stream_ {
     return this;
   }
 
+  /**
+   * Converts this Node.js Readable to a Web ReadableStream.
+   * Used by @hono/node-server to bridge Node.js HTTP → Web Standard Request.
+   */
+  static toWeb(nodeReadable: Readable_): ReadableStream<Uint8Array> {
+    return new ReadableStream({
+      start(controller) {
+        nodeReadable.on('data', (chunk: unknown) => {
+          if (typeof chunk === 'string') {
+            controller.enqueue(new TextEncoder().encode(chunk));
+          } else if (chunk instanceof Uint8Array) {
+            controller.enqueue(chunk);
+          } else if (chunk && typeof (chunk as any).length === 'number') {
+            controller.enqueue(new Uint8Array(chunk as any));
+          }
+        });
+        nodeReadable.on('end', () => {
+          controller.close();
+        });
+        nodeReadable.on('error', (err: Error) => {
+          controller.error(err);
+        });
+      },
+      cancel() {
+        nodeReadable.destroy();
+      },
+    });
+  }
+
+  /**
+   * Creates a Node.js Readable from a Web ReadableStream.
+   */
+  static fromWeb(webStream: ReadableStream<Uint8Array>, options?: ReadableOptions): Readable_ {
+    const reader = webStream.getReader();
+    return new Readable_({
+      ...options,
+      read() {
+        reader.read().then(
+          ({ done, value }) => {
+            if (done) {
+              this.push(null);
+            } else {
+              this.push(value);
+            }
+          },
+          (err) => {
+            this.destroy(err);
+          },
+        );
+      },
+      destroy(error, callback) {
+        reader.cancel(error?.message).then(() => callback(null), callback);
+      },
+    });
+  }
+
   [Symbol.asyncIterator](): AsyncIterableIterator<unknown> {
     const readable = this;
     const buffer: unknown[] = [];
