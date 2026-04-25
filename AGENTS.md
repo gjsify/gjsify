@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.1.15, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (19 + 1 meta) | **DOM** `packages/dom/` (8) | **Framework** `packages/framework/` (not yet populated). `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.1.15, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (19 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
 
 ## Governance — non-negotiable
 
@@ -96,31 +96,21 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 |-----|------|------------|
 | dom-elements | GdkPixbuf, `@gjsify/canvas2d-core` | Node(ownerDocument→document, event bubbling), Element(setPointerCapture,releasePointerCapture,hasPointerCapture), HTMLElement(getBoundingClientRect, dataset/DOMStringMap), HTMLCanvas/Image(data: URIs)/Media/VideoElement, Image, Document, Text, Comment, DocumentFragment, DOMTokenList, Mutation/Resize/IntersectionObserver, Attr, NamedNodeMap, NodeList. Auto-registers `globalThis.{Image,HTMLCanvasElement,document,self,devicePixelRatio,scrollX,scrollY,pageXOffset,pageYOffset,alert}` on import. Auto-registers the `'2d'` context factory via `@gjsify/canvas2d-core` so `canvas.getContext('2d')` works without an explicit import |
 | canvas2d-core | Cairo, PangoCairo | **Headless** CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, color parser. NO GTK dependency — usable in worker-like contexts. Extracted from `@gjsify/canvas2d` to break the dom-elements↔canvas2d cycle |
-| canvas2d | `@gjsify/canvas2d-core`, Cairo, GdkPixbuf, PangoCairo, Gtk 4 | Re-exports canvas2d-core + **FontFace** (PangoCairo font loading) + `Canvas2DBridge`→`Gtk.DrawingArea` GTK widget |
-| bridge-types | — | DOMBridgeContainer(iface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
-| webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), WebGLBridge→Gtk.GLArea |
-| event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→Mouse/Pointer/Keyboard/Wheel/FocusEvent |
-| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
-| video | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge→Gtk.Picture(gtk4paintablesink). srcObject(MediaStream from getUserMedia/WebRTC) + src(URI via playbin). Phase 1 |
 
 ## Framework — `packages/framework/*`
 
-Composition-first (Remix/Astro/SvelteKit/Solid-Start feel). Anything NOT Node/Web/DOM/infra belongs here. **No current residents.** Showcases use raw `Adw.Application`+`ApplicationWindow`+`ToolbarView`+`HeaderBar` — purpose is to demonstrate API, not hide it. A helper lands here only when it delivers what inline bootstrap cannot (multi-subsystem wiring, convention-over-config, composable lifecycle).
+Composition-first (Remix/Astro/SvelteKit/Solid-Start feel). Anything NOT Node/Web/DOM/infra belongs here. Showcases use raw `Adw.Application`+`ApplicationWindow`+`ToolbarView`+`HeaderBar` — purpose is to demonstrate API, not hide it. A helper lands here only when it delivers what inline bootstrap cannot (multi-subsystem wiring, convention-over-config, composable lifecycle).
 
-**Framework vs DOM:** `packages/dom/` = DOM spec impls. `packages/framework/` = composable widgets/helpers gluing DOM↔GTK without being DOM spec. Bridge widgets (`canvas2d,webgl,video,iframe,event-bridge,bridge-types`) are Framework citizens currently under `packages/dom/` for historical reasons.
+**Framework vs DOM:** `packages/dom/` = DOM spec impls (`@gjsify/dom-elements`, `@gjsify/canvas2d-core`). `packages/framework/` = composable widgets/helpers gluing DOM↔GTK without being DOM spec.
 
-**Migration roadmap — bridges `packages/dom/` → `packages/framework/`** (atomic follow-up PRs, name unchanged):
-
-| Pkg | Rationale |
-|---|---|
-| bridge-types | Base ifaces + `BridgeEnvironment` (move first) |
-| event-bridge | `attachEventControllers` glue |
-| canvas2d | `Canvas2DBridge`→`Gtk.DrawingArea` (the GTK-widget wrapper only; `canvas2d-core` stays in `packages/dom/`) |
-| webgl | `WebGLBridge`→`Gtk.GLArea` (ships prebuild) |
-| video | `VideoBridge`→`Gtk.Picture` |
-| iframe | `IFrameBridge`→`WebKit.WebView` |
-
-After migration: `packages/dom/` contains only `@gjsify/dom-elements` + `@gjsify/canvas2d-core` (headless DOM + headless 2D).
+| Pkg | Libs | Implements |
+|-----|------|------------|
+| bridge-types | — | DOMBridgeContainer(iface), BridgeEnvironment(isolated document+body+window per bridge), BridgeWindow(rAF, performance.now, viewport) |
+| event-bridge | Gtk 4.0, Gdk 4.0 | GTK→DOM event bridge: attachEventControllers() maps GTK controllers→Mouse/Pointer/Keyboard/Wheel/FocusEvent |
+| canvas2d | `@gjsify/canvas2d-core`, Cairo, GdkPixbuf, PangoCairo, Gtk 4 | Re-exports canvas2d-core + **FontFace** (PangoCairo font loading) + `Canvas2DBridge`→`Gtk.DrawingArea` GTK widget |
+| webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), WebGLBridge→Gtk.GLArea |
+| video | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge→Gtk.Picture(gtk4paintablesink). srcObject(MediaStream from getUserMedia/WebRTC) + src(URI via playbin). Phase 1 |
+| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
 
 ### Bridge pattern
 
@@ -348,7 +338,7 @@ Add `"require":"./cjs-compat.cjs"` to package.json `exports` BEFORE `"default"`.
 
 ## Native Extensions (Vala)
 
-Vala → Meson → shared lib + GIR typelib → `gi://` import. Example: `packages/dom/webgl/`. Prefer TS; Vala only for C-level access.
+Vala → Meson → shared lib + GIR typelib → `gi://` import. Example: `packages/framework/webgl/`. Prefer TS; Vala only for C-level access.
 
 ### DOM bridge examples
 

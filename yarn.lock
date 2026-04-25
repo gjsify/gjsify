@@ -1688,9 +1688,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/bridge-types@workspace:^, @gjsify/bridge-types@workspace:packages/dom/bridge-types":
+"@gjsify/bridge-types@workspace:^, @gjsify/bridge-types@workspace:packages/framework/bridge-types":
   version: 0.0.0-use.local
-  resolution: "@gjsify/bridge-types@workspace:packages/dom/bridge-types"
+  resolution: "@gjsify/bridge-types@workspace:packages/framework/bridge-types"
   dependencies:
     "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.3"
     "@girs/gjs": "npm:^4.0.0-rc.3"
@@ -1734,9 +1734,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/canvas2d@workspace:^, @gjsify/canvas2d@workspace:packages/dom/canvas2d":
+"@gjsify/canvas2d@workspace:^, @gjsify/canvas2d@workspace:packages/framework/canvas2d":
   version: 0.0.0-use.local
-  resolution: "@gjsify/canvas2d@workspace:packages/dom/canvas2d"
+  resolution: "@gjsify/canvas2d@workspace:packages/framework/canvas2d"
   dependencies:
     "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.3"
     "@girs/gdkpixbuf-2.0": "npm:^2.0.0-4.0.0-rc.3"
@@ -2059,9 +2059,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/event-bridge@workspace:^, @gjsify/event-bridge@workspace:packages/dom/event-bridge":
+"@gjsify/event-bridge@workspace:^, @gjsify/event-bridge@workspace:packages/framework/event-bridge":
   version: 0.0.0-use.local
-  resolution: "@gjsify/event-bridge@workspace:packages/dom/event-bridge"
+  resolution: "@gjsify/event-bridge@workspace:packages/framework/event-bridge"
   dependencies:
     "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.3"
     "@girs/gjs": "npm:^4.0.0-rc.3"
@@ -3169,9 +3169,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/iframe@workspace:^, @gjsify/iframe@workspace:packages/dom/iframe":
+"@gjsify/iframe@workspace:^, @gjsify/iframe@workspace:packages/framework/iframe":
   version: 0.0.0-use.local
-  resolution: "@gjsify/iframe@workspace:packages/dom/iframe"
+  resolution: "@gjsify/iframe@workspace:packages/framework/iframe"
   dependencies:
     "@girs/gjs": "npm:^4.0.0-rc.3"
     "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.3"
@@ -3728,9 +3728,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/video@workspace:^, @gjsify/video@workspace:packages/dom/video":
+"@gjsify/video@workspace:^, @gjsify/video@workspace:packages/framework/video":
   version: 0.0.0-use.local
-  resolution: "@gjsify/video@workspace:packages/dom/video"
+  resolution: "@gjsify/video@workspace:packages/framework/video"
   dependencies:
     "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.3"
     "@girs/gjs": "npm:^4.0.0-rc.3"
@@ -3849,9 +3849,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/webgl@workspace:^, @gjsify/webgl@workspace:packages/dom/webgl":
+"@gjsify/webgl@workspace:^, @gjsify/webgl@workspace:packages/framework/webgl":
   version: 0.0.0-use.local
-  resolution: "@gjsify/webgl@workspace:packages/dom/webgl"
+  resolution: "@gjsify/webgl@workspace:packages/framework/webgl"
   dependencies:
     "@girs/gjs": "npm:^4.0.0-rc.3"
     "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.3"

@@ -32,7 +32,14 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         target: [ "node24" ],
         platform: "node",
         mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
-        conditions: format === 'esm' ? ['module', 'import'] : ['require'],
+        // Use CJS-priority conditions for Node.js bundles. esbuild picks the
+        // first matching key in the exports map (not the first in this array),
+        // so including 'import' would cause packages like ws v8 — whose exports
+        // map lists "import" before "require" — to resolve to an incomplete ESM
+        // wrapper (missing the Server alias). Omitting 'import' forces fallback
+        // to 'require' → the authoritative CJS entry. Packages with no 'require'
+        // condition fall back to mainFields ['module', 'main', 'browser'].
+        conditions: format === 'esm' ? ['require', 'node', 'module'] : ['require'],
         // In ESM output, CJS require() calls to external modules (Node.js
         // builtins) need a real require function. Node.js ESM doesn't provide
         // one natively, so we create it via createRequire().
