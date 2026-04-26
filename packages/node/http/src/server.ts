@@ -8,6 +8,7 @@ import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { Socket as NetSocket } from '@gjsify/net/socket';
 import { ServerRequestSocket } from './server-request-socket.js';
+import { SoupMessageLifecycle } from './soup-message-lifecycle.js';
 import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
@@ -102,15 +103,18 @@ export class ServerResponse extends OutgoingMessage {
   private _streaming = false;
   private _soupMsg: Soup.ServerMessage;
   private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
-  // Set to true by 'wrote-chunk' signal (fires synchronously inside Soup's IO loop,
-  // just before the HTTP1 layer calls soup_server_message_pause() again). By the
-  // time our JS resumes, Soup has already auto-paused → safe to call unpause().
-  private _soupNeedsUnpause = false;
-  private _soupWroteChunkId = 0;
+  /** @internal Set by Server._handleRequest right after construction. Owns
+   *  GC guard, signal handlers, wrote-chunk tracking, and peer-close watchdog. */
+  private _lifecycle: SoupMessageLifecycle | null = null;
 
   constructor(soupMsg: Soup.ServerMessage) {
     super();
     this._soupMsg = soupMsg;
+  }
+
+  /** @internal Wire the lifecycle helper. Called once by Server._handleRequest. */
+  _attachLifecycle(lifecycle: SoupMessageLifecycle): void {
+    this._lifecycle = lifecycle;
   }
 
   /** Set a timeout for the response. Emits 'timeout' if response not sent within msecs. */
@@ -226,65 +230,44 @@ export class ServerResponse extends OutgoingMessage {
       }
     }
 
-    // 'wrote-chunk' fires synchronously inside Soup's IO loop just before the
-    // HTTP1 layer auto-pauses the message. Setting _soupNeedsUnpause here means
-    // that by the time our JS can call _write()/_final() again, Soup has already
-    // incremented pause_count — so our next unpause() is safe and necessary.
-    this._soupWroteChunkId = this._soupMsg.connect('wrote-chunk', () => {
-      this._soupNeedsUnpause = true;
-    });
-
-    // Consume the initial pause token placed by _handleRequest.
+    // Consume the initial pause token placed by _handleRequest. The lifecycle
+    // helper has already wired the 'wrote-chunk' signal, so subsequent writes
+    // know whether Soup has auto-paused via consumeUnpauseTicket().
     this._soupMsg.unpause();
   }
 
   /** Writable stream _write — sends headers on first call, then appends each chunk. */
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
-    try {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
-      this._startStreaming(); // connects 'wrote-chunk' + calls unpause() on first write
-      const responseBody = this._soupMsg.get_response_body();
-      responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
-      // If Soup auto-paused after the previous chunk (signalled via 'wrote-chunk'),
-      // wake it again so it picks up this new chunk.
-      if (this._soupNeedsUnpause) {
-        this._soupNeedsUnpause = false;
-        this._soupMsg.unpause();
-      }
-      callback();
-    } catch (err) {
-      callback(err instanceof Error ? err : new Error(String(err)));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
+    this._startStreaming();
+    const responseBody = this._soupMsg.get_response_body();
+    responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+    // If Soup auto-paused after the previous chunk (signalled by 'wrote-chunk'
+    // and tracked by the lifecycle helper), wake it so it picks up this chunk.
+    if (this._lifecycle?.consumeUnpauseTicket()) {
+      this._soupMsg.unpause();
     }
+    callback();
   }
 
   /** Called by Writable.end() — completes the body (streaming) or sends batch response (no-body). */
   _final(callback: (error?: Error | null) => void): void {
-    try {
-      if (this._streaming) {
-        // Disconnect the wrote-chunk tracker — we will add no more body chunks.
-        if (this._soupWroteChunkId) {
-          this._soupMsg.disconnect(this._soupWroteChunkId);
-          this._soupWroteChunkId = 0;
-        }
-        this._soupMsg.get_response_body().complete();
-        // If Soup auto-paused after the last chunk, wake it to send the
-        // chunked terminator (0\r\n\r\n). If Soup is already running (single-chunk
-        // path where GLib hasn't yielded yet), _soupNeedsUnpause is false and
-        // Soup will find the complete() on its next iteration without an extra
-        // unpause — which would corrupt pause_count.
-        if (this._soupNeedsUnpause) {
-          this._soupNeedsUnpause = false;
-          this._soupMsg.unpause();
-        }
-      } else {
-        // Batch mode — no write() was called (e.g. redirects, 204, empty end())
-        this._sendBatchResponse();
+    if (this._streaming) {
+      this._soupMsg.get_response_body().complete();
+      // If Soup auto-paused after the last chunk, wake it to send the
+      // chunked terminator (0\r\n\r\n). If Soup is already running (single-
+      // chunk path where GLib hasn't yielded), the ticket is false and Soup
+      // will find the complete() on its next iteration — calling unpause()
+      // anyway would decrement pause_count below zero.
+      if (this._lifecycle?.consumeUnpauseTicket()) {
+        this._soupMsg.unpause();
       }
-      this.finished = true;
-      callback();
-    } catch (err) {
-      callback(err instanceof Error ? err : new Error(String(err)));
+    } else {
+      // Batch mode — no write() was called (e.g. redirects, 204, empty end())
+      this._sendBatchResponse();
     }
+    this.finished = true;
+    callback();
   }
 
   /** Batch response — sends status + headers + empty/no body in one shot (for responses without write()). */
@@ -297,34 +280,28 @@ export class ServerResponse extends OutgoingMessage {
       this._timeoutTimer = null;
     }
 
-    try {
-      this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
+    this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
 
-      const responseHeaders = this._soupMsg.get_response_headers();
+    const responseHeaders = this._soupMsg.get_response_headers();
 
-      if (!this._headers.has('connection')) {
-        responseHeaders.replace('Connection', 'close');
-      }
-
-      for (const [key, value] of this._headers) {
-        if (Array.isArray(value)) {
-          for (const v of value) {
-            responseHeaders.append(key, v);
-          }
-        } else {
-          responseHeaders.replace(key, value as string);
-        }
-      }
-
-      const contentType = (this._headers.get('content-type') as string) || 'text/plain';
-      this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, new Uint8Array(0));
-      // Unpause exactly once — batch responses have no prior _write/_startStreaming call.
-      this._soupMsg.unpause();
-    } catch (err) {
-      // Surface as an 'error' event so callers can observe; default Writable
-      // behavior also emits this if no one listens.
-      this.emit('error', err instanceof Error ? err : new Error(String(err)));
+    if (!this._headers.has('connection')) {
+      responseHeaders.replace('Connection', 'close');
     }
+
+    for (const [key, value] of this._headers) {
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          responseHeaders.append(key, v);
+        }
+      } else {
+        responseHeaders.replace(key, value as string);
+      }
+    }
+
+    const contentType = (this._headers.get('content-type') as string) || 'text/plain';
+    this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, new Uint8Array(0));
+    // Unpause exactly once — batch responses have no prior _write/_startStreaming call.
+    this._soupMsg.unpause();
   }
 
   /** Write status + headers + body in one call (convenience). */
@@ -352,13 +329,6 @@ export class ServerResponse extends OutgoingMessage {
 // This Set keeps a strong reference to every listening server.
 const _activeServers = new Set<Server>();
 
-// GC guard for active Soup.ServerMessages. After Hono/other frameworks finish
-// piping the response, they release their reference to `res` (ServerResponse).
-// If GJS's SpiderMonkey GC collects ServerResponse before Soup emits 'finished',
-// the _soupMsg GObject is freed while Soup may still be reading/writing it →
-// SIGSEGV. This Set holds a direct reference to the GObject so collection cannot
-// happen until Soup signals it is done with the message.
-const _activeSoupMessages = new Set<Soup.ServerMessage>();
 
 /**
  * HTTP Server wrapping Soup.Server.
@@ -519,46 +489,16 @@ export class Server extends EventEmitter {
       req._pushBody(null);
     }
 
-    // GC guard: keep soupMsg alive until Soup signals it's done. Without this
-    // the SpiderMonkey GC can collect ServerResponse (and the JS wrapper around
-    // _soupMsg) after Hono drops its reference to `res`, causing a SIGSEGV
-    // when Soup's IO touches the freed object.
-    //
-    // Skip GET requests: those are typically long-poll / SSE streams that
-    // never receive a 'finished' signal and never trigger 'disconnected' on
-    // peer-side TCP close (Soup only polls the socket while writing). Holding
-    // them would leak GLib sources and crash after a handful of aborted
-    // long-polls. The Soup-side ref is enough for the duration of an in-flight
-    // write; GC during a long-poll is fine because by then Soup is paused and
-    // not actively touching the message.
-    // GC guard + connection lifecycle wiring.
-    //
-    // (1) Keep soupMsg alive until Soup signals it's done. SpiderMonkey GC may
-    //     otherwise collect ServerResponse (and the JS wrapper around _soupMsg)
-    //     after Hono drops its reference to `res`, freeing the GObject while
-    //     Soup's IO is still touching it → SIGSEGV.
-    //
-    // (2) Translate Soup's 'disconnected' (client TCP close) and 'finished'
-    //     (response complete) signals into Node's req/res 'close' events so
-    //     consumers that listen for 'close' (instead of 'finish'/'end') can
-    //     release their state.
-    _activeSoupMessages.add(soupMsg);
-    const disconnectedId = soupMsg.connect('disconnected', () => {
-      if (!req.aborted) {
-        req.aborted = true;
-        req.emit('aborted');
-        req.emit('close');
-      }
-      if (!res.writableEnded && !res.finished) {
-        res.emit('close');
-      }
-    });
-    const finishedId = soupMsg.connect('finished', () => {
-      soupMsg.disconnect(finishedId);
-      soupMsg.disconnect(disconnectedId);
-      _activeSoupMessages.delete(soupMsg);
-      if (!req.aborted) req.emit('close');
-    });
+    // Wire the SoupMessageLifecycle helper. It owns:
+    //   * GC guard for soupMsg (keeps the GObject alive until Soup is done).
+    //   * 'disconnected' and 'finished' Soup signals → req/res 'close'/'aborted'.
+    //   * 'wrote-chunk' tracking so ServerResponse can re-unpause Soup safely.
+    //   * The HUP/ERR watchdog that detects peer-close on paused long-poll
+    //     responses (libsoup limitation: it stops polling the input stream
+    //     while the message is paused, so 'disconnected' never fires for
+    //     SSE/long-poll clients that hang up). The watchdog is started lazily
+    //     from ServerResponse._startStreaming after the first write.
+    res._attachLifecycle(new SoupMessageLifecycle(soupMsg, req, res));
 
     // Pause Soup's processing — ServerResponse._sendBatchResponse/_final calls unpause().
     soupMsg.pause();

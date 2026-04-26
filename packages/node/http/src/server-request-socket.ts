@@ -25,6 +25,12 @@ export class ServerRequestSocket extends Duplex {
   bytesRead = 0;
   bytesWritten = 0;
 
+  // Reference kept so pause()/resume() can drive the underlying Soup message.
+  private readonly _soupMsg: Soup.ServerMessage;
+  // Track whether we previously paused Soup so we don't double-pause /
+  // double-unpause (which would corrupt Soup's pause_count).
+  private _soupPaused = false;
+
   constructor(
     soupMsg: Soup.ServerMessage,
     localAddress: string,
@@ -32,12 +38,30 @@ export class ServerRequestSocket extends Duplex {
     encrypted = false,
   ) {
     super({ allowHalfOpen: true });
+    this._soupMsg = soupMsg;
     this.remoteAddress = soupMsg.get_remote_host() ?? '127.0.0.1';
     const remoteAddr = soupMsg.get_remote_address();
     this.remotePort = (remoteAddr instanceof Gio.InetSocketAddress) ? remoteAddr.get_port() : 0;
     this.localAddress = localAddress;
     this.localPort = localPort;
     this.encrypted = encrypted;
+  }
+
+  // pause/resume: forward to the Soup message so backpressure-aware Node
+  // consumers can throttle the response. Soup's pause is reference-counted
+  // internally; we guard with _soupPaused to keep our own callers paired.
+  pause(): this {
+    if (this._soupPaused) return this;
+    this._soupPaused = true;
+    try { this._soupMsg.pause(); } catch { /* message already finished */ }
+    return super.pause() as this;
+  }
+
+  resume(): this {
+    if (!this._soupPaused) return super.resume() as this;
+    this._soupPaused = false;
+    try { this._soupMsg.unpause(); } catch { /* message already finished */ }
+    return super.resume() as this;
   }
 
   // Soup owns the TCP connection — no data flows through this Duplex.
