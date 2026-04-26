@@ -40,13 +40,17 @@ function createMcpServer(): McpServer {
     content: [{ type: 'text', text: String(a + b) }],
   }));
 
+  // Use explicit path component (info://server/meta, not info://server) — GJS's
+  // URL parser normalises authority-only URIs to add a trailing slash, which
+  // breaks string-equality lookup against the registered template on the
+  // server side. Node's URL parser preserves the bare authority form.
   server.registerResource(
     'server-info',
-    'info://server',
+    'info://server/meta',
     { description: 'Server metadata', mimeType: 'application/json' },
     async () => ({
       contents: [{
-        uri: 'info://server',
+        uri: 'info://server/meta',
         text: JSON.stringify({
           name: 'gjsify-http-server',
           version: '1.0.0',
@@ -88,6 +92,13 @@ function readRequestBody(req: IncomingMessage): Promise<unknown> {
 
 async function main() {
   const transports = new Map<string, StreamableHTTPServerTransport>();
+  // Per-session McpServer instances. Held in a map (not just locally scoped
+  // inside the request handler) so that GJS's SpiderMonkey GC cannot collect
+  // them between requests — collecting an active McpServer pulls down the
+  // GLib sources its underlying Soup connection still references, producing
+  // `g_source_unref_internal: assertion 'old_ref > 0' failed` and a SIGSEGV
+  // on the next request.
+  const mcpServers = new Map<string, McpServer>();
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
@@ -111,20 +122,23 @@ async function main() {
           await transport.handleRequest(req, res, body);
         } else if (!sessionId && isInitializeRequest(body)) {
           // New initialization — create transport + server for this session
+          const mcpServer = createMcpServer();
           const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => crypto.randomUUID(),
             onsessioninitialized: (sid: string) => {
               transports.set(sid, transport);
+              mcpServers.set(sid, mcpServer);
             },
           });
 
           transport.onclose = () => {
-            if (transport.sessionId) {
-              transports.delete(transport.sessionId);
+            const sid = transport.sessionId;
+            if (sid) {
+              transports.delete(sid);
+              mcpServers.delete(sid);
             }
           };
 
-          const mcpServer = createMcpServer();
           await mcpServer.connect(transport);
           await transport.handleRequest(req, res, body);
         } else if (sessionId) {
