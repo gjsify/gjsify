@@ -1,0 +1,29 @@
+{
+    "name": "@gjsify/integration-mcp-inspector-cli",
+    "description": "End-to-end integration tests using the official @modelcontextprotocol/inspector CLI as a black-box client against the GJS and Node builds of examples/node/net-mcp-server. Catches regressions in @gjsify/http that only show up under the inspector's exact request shape (the trigger of the original SIGSEGV).",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "prebuild:test": "node -e \"require('child_process').spawnSync('npx',['--yes','@modelcontextprotocol/inspector','--help'],{stdio:'inherit'})\"",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "yarn build:test:node",
+        "test": "yarn prebuild:test && yarn build:test && yarn test:node",
+        "test:node": "node dist/test.node.mjs"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/example-node-net-mcp-server": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@modelcontextprotocol/inspector": "^0.18.0",
+        "@types/node": "^25.6.0",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}
