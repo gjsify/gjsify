@@ -7,6 +7,7 @@ import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { Socket as NetSocket } from '@gjsify/net/socket';
+import { ServerRequestSocket } from './server-request-socket.js';
 import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
@@ -101,6 +102,11 @@ export class ServerResponse extends OutgoingMessage {
   private _streaming = false;
   private _soupMsg: Soup.ServerMessage;
   private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  // Set to true by 'wrote-chunk' signal (fires synchronously inside Soup's IO loop,
+  // just before the HTTP1 layer calls soup_server_message_pause() again). By the
+  // time our JS resumes, Soup has already auto-paused → safe to call unpause().
+  private _soupNeedsUnpause = false;
+  private _soupWroteChunkId = 0;
 
   constructor(soupMsg: Soup.ServerMessage) {
     super();
@@ -219,31 +225,66 @@ export class ServerResponse extends OutgoingMessage {
         responseHeaders.replace(key, value as string);
       }
     }
+
+    // 'wrote-chunk' fires synchronously inside Soup's IO loop just before the
+    // HTTP1 layer auto-pauses the message. Setting _soupNeedsUnpause here means
+    // that by the time our JS can call _write()/_final() again, Soup has already
+    // incremented pause_count — so our next unpause() is safe and necessary.
+    this._soupWroteChunkId = this._soupMsg.connect('wrote-chunk', () => {
+      this._soupNeedsUnpause = true;
+    });
+
+    // Consume the initial pause token placed by _handleRequest.
+    this._soupMsg.unpause();
   }
 
-  /** Writable stream _write — sends headers on first call, then appends + flushes each chunk. */
+  /** Writable stream _write — sends headers on first call, then appends each chunk. */
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
-    this._startStreaming();
-    const responseBody = this._soupMsg.get_response_body();
-    responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
-    this._soupMsg.unpause();
-    callback();
+    try {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
+      this._startStreaming(); // connects 'wrote-chunk' + calls unpause() on first write
+      const responseBody = this._soupMsg.get_response_body();
+      responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+      // If Soup auto-paused after the previous chunk (signalled via 'wrote-chunk'),
+      // wake it again so it picks up this new chunk.
+      if (this._soupNeedsUnpause) {
+        this._soupNeedsUnpause = false;
+        this._soupMsg.unpause();
+      }
+      callback();
+    } catch (err) {
+      callback(err instanceof Error ? err : new Error(String(err)));
+    }
   }
 
   /** Called by Writable.end() — completes the body (streaming) or sends batch response (no-body). */
   _final(callback: (error?: Error | null) => void): void {
-    if (this._streaming) {
-      // Streaming mode — signal no more chunks
-      const responseBody = this._soupMsg.get_response_body();
-      responseBody.complete();
-      this._soupMsg.unpause();
-    } else {
-      // Batch mode — no write() was called (e.g. redirects, 204, empty end())
-      this._sendBatchResponse();
+    try {
+      if (this._streaming) {
+        // Disconnect the wrote-chunk tracker — we will add no more body chunks.
+        if (this._soupWroteChunkId) {
+          this._soupMsg.disconnect(this._soupWroteChunkId);
+          this._soupWroteChunkId = 0;
+        }
+        this._soupMsg.get_response_body().complete();
+        // If Soup auto-paused after the last chunk, wake it to send the
+        // chunked terminator (0\r\n\r\n). If Soup is already running (single-chunk
+        // path where GLib hasn't yielded yet), _soupNeedsUnpause is false and
+        // Soup will find the complete() on its next iteration without an extra
+        // unpause — which would corrupt pause_count.
+        if (this._soupNeedsUnpause) {
+          this._soupNeedsUnpause = false;
+          this._soupMsg.unpause();
+        }
+      } else {
+        // Batch mode — no write() was called (e.g. redirects, 204, empty end())
+        this._sendBatchResponse();
+      }
+      this.finished = true;
+      callback();
+    } catch (err) {
+      callback(err instanceof Error ? err : new Error(String(err)));
     }
-    this.finished = true;
-    callback();
   }
 
   /** Batch response — sends status + headers + empty/no body in one shot (for responses without write()). */
@@ -256,27 +297,34 @@ export class ServerResponse extends OutgoingMessage {
       this._timeoutTimer = null;
     }
 
-    this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
+    try {
+      this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
 
-    const responseHeaders = this._soupMsg.get_response_headers();
+      const responseHeaders = this._soupMsg.get_response_headers();
 
-    if (!this._headers.has('connection')) {
-      responseHeaders.replace('Connection', 'close');
-    }
-
-    for (const [key, value] of this._headers) {
-      if (Array.isArray(value)) {
-        for (const v of value) {
-          responseHeaders.append(key, v);
-        }
-      } else {
-        responseHeaders.replace(key, value as string);
+      if (!this._headers.has('connection')) {
+        responseHeaders.replace('Connection', 'close');
       }
-    }
 
-    // Empty body — use set_response so Soup knows the response is complete.
-    const contentType = (this._headers.get('content-type') as string) || 'text/plain';
-    this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, new Uint8Array(0));
+      for (const [key, value] of this._headers) {
+        if (Array.isArray(value)) {
+          for (const v of value) {
+            responseHeaders.append(key, v);
+          }
+        } else {
+          responseHeaders.replace(key, value as string);
+        }
+      }
+
+      const contentType = (this._headers.get('content-type') as string) || 'text/plain';
+      this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, new Uint8Array(0));
+      // Unpause exactly once — batch responses have no prior _write/_startStreaming call.
+      this._soupMsg.unpause();
+    } catch (err) {
+      // Surface as an 'error' event so callers can observe; default Writable
+      // behavior also emits this if no one listens.
+      this.emit('error', err instanceof Error ? err : new Error(String(err)));
+    }
   }
 
   /** Write status + headers + body in one call (convenience). */
@@ -303,6 +351,14 @@ export class ServerResponse extends OutgoingMessage {
 // the return value, the Server (and its Soup.Server) gets collected after ~10s.
 // This Set keeps a strong reference to every listening server.
 const _activeServers = new Set<Server>();
+
+// GC guard for active Soup.ServerMessages. After Hono/other frameworks finish
+// piping the response, they release their reference to `res` (ServerResponse).
+// If GJS's SpiderMonkey GC collects ServerResponse before Soup emits 'finished',
+// the _soupMsg GObject is freed while Soup may still be reading/writing it →
+// SIGSEGV. This Set holds a direct reference to the GObject so collection cannot
+// happen until Soup signals it is done with the message.
+const _activeSoupMessages = new Set<Soup.ServerMessage>();
 
 /**
  * HTTP Server wrapping Soup.Server.
@@ -431,16 +487,11 @@ export class Server extends EventEmitter {
     // Populate req.socket with address info — engine.io Socket constructor reads
     // req.connection.remoteAddress (req.connection is an alias for req.socket).
     // Must be set BEFORE emitting 'upgrade' so WebSocket-only paths don't crash.
-    const remoteHost = soupMsg.get_remote_host() ?? '127.0.0.1';
-    const remoteAddr = soupMsg.get_remote_address();
-    const remotePort = (remoteAddr instanceof Gio.InetSocketAddress) ? remoteAddr.get_port() : 0;
-    req.socket = {
-      remoteAddress: remoteHost,
-      remotePort,
-      localAddress: this._address?.address ?? '127.0.0.1',
-      localPort: this._address?.port ?? 0,
-      encrypted: false,
-    } as any;
+    req.socket = new ServerRequestSocket(
+      soupMsg,
+      this._address?.address ?? '127.0.0.1',
+      this._address?.port ?? 0,
+    ) as any;
 
     if (connectionHeader.includes('upgrade') && upgradeHeader) {
       if (this.listenerCount('upgrade') > 0) {
@@ -468,14 +519,70 @@ export class Server extends EventEmitter {
       req._pushBody(null);
     }
 
-    // Pause Soup's processing — we'll set the response when ServerResponse.end() is called
-    soupMsg.pause();
-
-    res.on('finish', () => {
-      soupMsg.unpause();
+    // GC guard: keep soupMsg alive until Soup signals it's done. Without this
+    // the SpiderMonkey GC can collect ServerResponse (and the JS wrapper around
+    // _soupMsg) after Hono drops its reference to `res`, causing a SIGSEGV
+    // when Soup's IO touches the freed object.
+    //
+    // Skip GET requests: those are typically long-poll / SSE streams that
+    // never receive a 'finished' signal and never trigger 'disconnected' on
+    // peer-side TCP close (Soup only polls the socket while writing). Holding
+    // them would leak GLib sources and crash after a handful of aborted
+    // long-polls. The Soup-side ref is enough for the duration of an in-flight
+    // write; GC during a long-poll is fine because by then Soup is paused and
+    // not actively touching the message.
+    // GC guard + connection lifecycle wiring.
+    //
+    // (1) Keep soupMsg alive until Soup signals it's done. SpiderMonkey GC may
+    //     otherwise collect ServerResponse (and the JS wrapper around _soupMsg)
+    //     after Hono drops its reference to `res`, freeing the GObject while
+    //     Soup's IO is still touching it → SIGSEGV.
+    //
+    // (2) Translate Soup's 'disconnected' (client TCP close) and 'finished'
+    //     (response complete) signals into Node's req/res 'close' events so
+    //     consumers that listen for 'close' (instead of 'finish'/'end') can
+    //     release their state.
+    _activeSoupMessages.add(soupMsg);
+    const disconnectedId = soupMsg.connect('disconnected', () => {
+      if (!req.aborted) {
+        req.aborted = true;
+        req.emit('aborted');
+        req.emit('close');
+      }
+      if (!res.writableEnded && !res.finished) {
+        res.emit('close');
+      }
+    });
+    const finishedId = soupMsg.connect('finished', () => {
+      soupMsg.disconnect(finishedId);
+      soupMsg.disconnect(disconnectedId);
+      _activeSoupMessages.delete(soupMsg);
+      if (!req.aborted) req.emit('close');
     });
 
-    this.emit('request', req, res);
+    // Pause Soup's processing — ServerResponse._sendBatchResponse/_final calls unpause().
+    soupMsg.pause();
+
+    // Emit synchronously. Async request handlers that reject without a .catch()
+    // would become unhandled GLib-callback rejections — GJS only g_warning()s
+    // those, but they can also mask the real crash. Catch them here so errors
+    // surface as proper log lines rather than silent exits.
+    try {
+      const result = this.emit('request', req, res) as unknown;
+      if (result instanceof Promise || (result !== null && typeof result === 'object' && typeof (result as any).then === 'function')) {
+        (result as Promise<unknown>).catch((err: unknown) => {
+          console.error('[HTTP] Unhandled error in async request handler:', err);
+          if (!res.headersSent) {
+            try { res.writeHead(500); res.end('Internal Server Error'); } catch { /* ignore */ }
+          }
+        });
+      }
+    } catch (err) {
+      console.error('[HTTP] Unhandled error in request handler:', err);
+      if (!res.headersSent) {
+        try { res.writeHead(500); res.end('Internal Server Error'); } catch { /* ignore */ }
+      }
+    }
   }
 
   address(): { port: number; family: string; address: string } | null {
