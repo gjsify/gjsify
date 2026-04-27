@@ -2,6 +2,7 @@
 // Provides an implicit event loop analogous to Node.js's built-in event loop.
 
 import type GLib from '@girs/glib-2.0';
+import { installCriticalLogWriter } from './log-writer.js';
 
 /** Sentinel to prevent double-start (setMainLoopHook throws if called twice). */
 let _started = false;
@@ -23,6 +24,14 @@ export function ensureMainLoop(): GLib.MainLoop | undefined {
   const gjsImports = (globalThis as any).imports;
   if (!gjsImports) return undefined; // Not GJS
   if (_started) return _loop!;
+
+  // Install our verbose log writer before any GLib WARNING/CRITICAL message
+  // could be emitted from this main loop. Without this, GJS+libsoup crashes
+  // (see STATUS.md "Boxed-Source GC race") leave no diagnostic on stderr —
+  // the assertion message buffers behind the SIGSEGV and never reaches the
+  // user. Synchronous import so the writer is in place before any subsequent
+  // GLib callback can raise.
+  try { installCriticalLogWriter(); } catch { /* best-effort */ }
 
   const GLibModule = gjsImports.gi.GLib;
   _loop = new GLibModule.MainLoop(null, false);
