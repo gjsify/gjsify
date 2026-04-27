@@ -12,7 +12,11 @@ on:
       - 'packages/dom/webgl/meson.build'
       - 'packages/web/webrtc-native/src/vala/**'
       - 'packages/web/webrtc-native/meson.build'
+      - 'packages/node/http-soup-bridge/src/vala/**'
+      - 'packages/node/http-soup-bridge/meson.build'
       - '.github/workflows/prebuilds.yml'
+
+
 
 jobs:
   build-prebuilds:
@@ -34,6 +38,7 @@ jobs:
       - name: Install prerequisites
         # gstreamer*-devel packages provide the .pc files for gstreamer-sdp-1.0
         # and gstreamer-webrtc-1.0 that @gjsify/webrtc-native needs at Vala build time.
+        # libsoup3-devel is needed by @gjsify/http-soup-bridge for libsoup-3.0.
         run: >
           dnf install -y
           git tar xz findutils
@@ -44,6 +49,7 @@ jobs:
           gstreamer1-devel
           gstreamer1-plugins-base-devel
           gstreamer1-plugins-bad-free-devel
+          libsoup3-devel
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -96,6 +102,30 @@ jobs:
           path: packages/web/webrtc-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
+      # -------- @gjsify/http-soup-bridge (GjsifyHttpSoupBridge) --------
+      - name: Build @gjsify/http-soup-bridge Vala library
+        working-directory: packages/node/http-soup-bridge
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/http-soup-bridge prebuilds
+        working-directory: packages/node/http-soup-bridge
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgjsifyhttpsoupbridge.so build/GjsifyHttpSoupBridge-1.0.gir build/GjsifyHttpSoupBridge-1.0.typelib "prebuilds/linux-${ARCH}/"
+          echo "@gjsify/http-soup-bridge prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/http-soup-bridge prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: http-soup-bridge-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/http-soup-bridge/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
   # Commit prebuilds back to the repo (only on push to main, not PRs)
   commit-prebuilds:
     name: Commit prebuilds to repo
@@ -133,11 +163,24 @@ jobs:
           name: webrtc-native-prebuilds-linux-aarch64
           path: packages/web/webrtc-native/prebuilds/linux-aarch64/
 
+      # -------- @gjsify/http-soup-bridge --------
+      - name: Download http-soup-bridge x86_64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http-soup-bridge-prebuilds-linux-x86_64
+          path: packages/node/http-soup-bridge/prebuilds/linux-x86_64/
+
+      - name: Download http-soup-bridge aarch64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http-soup-bridge-prebuilds-linux-aarch64
+          path: packages/node/http-soup-bridge/prebuilds/linux-aarch64/
+
       - name: Commit prebuilds
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/dom/webgl/prebuilds/ packages/web/webrtc-native/prebuilds/
+          git add packages/dom/webgl/prebuilds/ packages/web/webrtc-native/prebuilds/ packages/node/http-soup-bridge/prebuilds/
           if git diff --cached --quiet; then
             echo "No prebuild changes to commit."
           else
