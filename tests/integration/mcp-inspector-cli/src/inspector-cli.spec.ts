@@ -87,18 +87,21 @@ export default async () => {
 
         // Original crash trigger: server kept dying after the first tool call.
         // Each invocation is a fresh inspector subprocess and a fresh HTTP
-        // session, so this exercises the Soup ServerMessage lifecycle the same
+        // session, so this exercises the libsoup-server lifecycle the same
         // way the interactive inspector UI does.
         //
-        // Note: limited to 3 iterations on the GJS target. Each Inspector run
-        // opens a long-poll GET stream that libsoup keeps alive until the JS
-        // wrapper is GC'd; under heavier load (~5+ rapid subprocess calls) the
-        // server can crash from accumulated paused-message state. Tracked as a
-        // separate issue; this test guards the regression in the original
-        // crash window (1-3 calls).
+        // Cap is 4 (was 3 before the bridge): @gjsify/http-soup-bridge
+        // eliminated the libsoup-internal Boxed-Source GC race, so the
+        // first inspector iteration no longer crashes the server outright.
+        // A residual deferred-GC SIGSEGV from Boxed wrappers created
+        // elsewhere in the MCP-SDK / Hono / web-streams stack still hits
+        // around GJS's 10 s deferred-GC heuristic — total runtime of N
+        // iterations × ~3 s/iteration must stay under that window.
+        // Tracked as a separate STATUS.md item; revisit once the offending
+        // wrapper is identified and pinned.
         await it('survives a sequence of inspector invocations on the same server', async () => {
           await withServer(target, async (server) => {
-            for (let i = 1; i <= 3; i++) {
+            for (let i = 1; i <= 4; i++) {
               const r = await runInspector(server.baseUrl, [
                 '--method', 'tools/call',
                 '--tool-name', 'echo',
