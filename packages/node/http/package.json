@@ -41,6 +41,7 @@
         "@girs/soup-3.0": "^3.6.6-4.0.0-rc.5",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/events": "workspace:^",
+        "@gjsify/http-soup-bridge": "workspace:^",
         "@gjsify/net": "workspace:^",
         "@gjsify/stream": "workspace:^",
         "@gjsify/url": "workspace:^",

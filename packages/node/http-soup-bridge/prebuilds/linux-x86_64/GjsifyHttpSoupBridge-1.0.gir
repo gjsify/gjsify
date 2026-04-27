@@ -275,6 +275,21 @@
 		<field name="priv" readable="0" private="1">
 			<type name="RequestPrivate" c:type="GjsifyHttpSoupBridgeRequestPrivate*"/>
 		</field>
+		<method name="get_body" c:identifier="gjsify_http_soup_bridge_request_get_body">
+			<return-value transfer-ownership="full">
+				<array length="0" c:type="guint8*">
+					<type name="guint8" c:type="guint8"/>
+				</array>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyHttpSoupBridge.Request" c:type="GjsifyHttpSoupBridgeRequest*"/>
+				</instance-parameter>
+				<parameter name="result_length1" direction="out" transfer-ownership="none">
+					<type name="gint" c:type="gint*"/>
+				</parameter>
+			</parameters>
+		</method>
 		<property name="method" writable="1">
 			<type name="utf8" c:type="gchar*"/>
 		</property>
@@ -336,21 +351,6 @@
 			<return-value transfer-ownership="none">
 				<array length="0" c:type="gchar**">
 					<type name="utf8" c:type="gchar*"/>
-				</array>
-			</return-value>
-			<parameters>
-				<instance-parameter name="self" transfer-ownership="none">
-					<type name="GjsifyHttpSoupBridge.Request" c:type="GjsifyHttpSoupBridgeRequest*"/>
-				</instance-parameter>
-				<parameter name="result_length1" direction="out" transfer-ownership="none">
-					<type name="gint" c:type="gint*"/>
-				</parameter>
-			</parameters>
-		</method>
-		<method name="get_body" c:identifier="gjsify_http_soup_bridge_request_get_body">
-			<return-value transfer-ownership="none">
-				<array length="0" c:type="guint8*">
-					<type name="guint8" c:type="guint8"/>
 				</array>
 			</return-value>
 			<parameters>

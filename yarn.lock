@@ -3206,7 +3206,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/http-soup-bridge@workspace:packages/node/http-soup-bridge":
+"@gjsify/http-soup-bridge@workspace:^, @gjsify/http-soup-bridge@workspace:packages/node/http-soup-bridge":
   version: 0.0.0-use.local
   resolution: "@gjsify/http-soup-bridge@workspace:packages/node/http-soup-bridge"
   dependencies:
@@ -3248,6 +3248,7 @@ __metadata:
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
+    "@gjsify/http-soup-bridge": "workspace:^"
     "@gjsify/net": "workspace:^"
     "@gjsify/stream": "workspace:^"
     "@gjsify/unit": "workspace:^"

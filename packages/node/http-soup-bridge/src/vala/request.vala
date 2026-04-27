@@ -33,8 +33,19 @@ namespace GjsifyHttpSoupBridge {
         public string  remote_address  { get; private set; default = ""; }
         public uint    remote_port     { get; private set; default = 0; }
         public string[] header_pairs   { get; private set; default = new string[0]; }
-        public uint8[]  body           { get; private set; default = new uint8[0]; }
         public bool     aborted        { get; private set; default = false; }
+
+        // Body bytes are exposed as a method (not a property) because
+        // GIR-marshalled `uint8[]` properties round-trip through `weak`
+        // references that get cleared by the time JS reads them. A method
+        // returning `(transfer full)` is the only shape we've found that
+        // reliably hands the bytes to JS.
+        private uint8[] _body = new uint8[0];
+        public uint8[] get_body() {
+            var copy = new uint8[_body.length];
+            GLib.Memory.copy(copy, _body, _body.length);
+            return (owned)copy;
+        }
 
         public signal void aborted_signal();
         public signal void close();
@@ -80,13 +91,15 @@ namespace GjsifyHttpSoupBridge {
             header_pairs = arr;
 
             // Snapshot the request body. Soup buffers it for us before
-            // dispatching the handler. flatten() returns a GLib.Bytes
-            // representing the accumulated body; we copy out the bytes so
-            // JS never holds a SoupMessageBody handle.
+            // dispatching the handler (`add_handler` fires after `got-body`).
+            // We deep-copy the bytes so JS never holds a SoupMessageBody
+            // handle and so the buffer survives Soup's per-message tear-down.
             unowned Soup.MessageBody req_body = msg.get_request_body();
-            var data = req_body.flatten();
-            if (data != null && data.get_size() > 0) {
-                body = data.get_data();
+            unowned uint8[] raw = req_body.data;
+            if (raw.length > 0) {
+                var copy = new uint8[raw.length];
+                GLib.Memory.copy(copy, raw, raw.length);
+                _body = (owned)copy;
             }
 
             // Wire the unambiguous peer-close path: Soup's 'disconnected'
