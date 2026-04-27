@@ -27,10 +27,9 @@ export function ensureMainLoop(): GLib.MainLoop | undefined {
 
   // Install our verbose log writer before any GLib WARNING/CRITICAL message
   // could be emitted from this main loop. Without this, GJS+libsoup crashes
-  // (see STATUS.md "Boxed-Source GC race") leave no diagnostic on stderr —
-  // the assertion message buffers behind the SIGSEGV and never reaches the
-  // user. Synchronous import so the writer is in place before any subsequent
-  // GLib callback can raise.
+  // leave no diagnostic on stderr — the assertion message buffers behind the
+  // SIGSEGV and never reaches the user. Synchronous import so the writer is
+  // in place before any subsequent GLib callback can raise.
   try { installCriticalLogWriter(); } catch { /* best-effort */ }
 
   const GLibModule = gjsImports.gi.GLib;

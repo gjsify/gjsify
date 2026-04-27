@@ -26,8 +26,8 @@
 //     (and a coredump on systemd-coredump) instead of a silent SIGSEGV.
 //   * Suppress the advisory if `G_DEBUG` is already set.
 //
-// Reference: STATUS.md "Upstream GJS Patch Candidates" → the two libsoup-
-// related entries describing the underlying refcount races.
+// See https://github.com/gjsify/gjsify/blob/main/STATUS.md#upstream-gjs-patch-candidates
+// for the open libsoup-related refcount races.
 
 import type GLibNS from '@girs/glib-2.0';
 
@@ -69,9 +69,10 @@ export function installCriticalLogWriter(): void {
     const lines = [
         '[gjsify] @gjsify/http server starting on GJS.',
         '[gjsify] If the process exits silently with "gjs exited with code null",',
-        '[gjsify] re-run with G_DEBUG=fatal-criticals so the underlying GLib',
-        '[gjsify] assertion (typically a Soup/Boxed-Source GC race, see STATUS.md)',
-        '[gjsify] aborts with a backtrace + coredump instead of a silent SIGSEGV.',
+        '[gjsify] re-run with G_DEBUG=fatal-criticals to convert the silent',
+        '[gjsify] SIGSEGV into a SIGABRT with a backtrace + coredump, then file',
+        '[gjsify] an issue at https://github.com/gjsify/gjsify/issues with the',
+        '[gjsify] backtrace and a minimal reproduction.',
         '[gjsify] Set GJSIFY_QUIET_CRASH_HINT=1 to suppress this notice.',
     ];
     try {
