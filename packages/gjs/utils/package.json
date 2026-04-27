@@ -24,7 +24,7 @@
         "build:test": "yarn build:test:gjs",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --outfile test.gjs.js",
         "test": "yarn build:gjsify && yarn build:test && yarn test:gjs",
-        "test:gjs": "gjs -m test.gjs.js"
+        "test:gjs": "gjsify run test.gjs.js"
     },
     "keywords": [
         "gjs",
