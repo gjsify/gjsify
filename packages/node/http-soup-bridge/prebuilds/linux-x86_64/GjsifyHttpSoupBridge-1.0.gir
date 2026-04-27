@@ -399,9 +399,9 @@
 		<field name="priv" readable="0" private="1">
 			<type name="ServerPrivate" c:type="GjsifyHttpSoupBridgeServerPrivate*"/>
 		</field>
-		<method name="listen" c:identifier="gjsify_http_soup_bridge_server_listen">
+		<method name="listen" c:identifier="gjsify_http_soup_bridge_server_listen" throws="1">
 			<return-value transfer-ownership="full">
-				<type name="gboolean" c:type="gboolean"/>
+				<type name="none" c:type="void"/>
 			</return-value>
 			<parameters>
 				<instance-parameter name="self" transfer-ownership="none">

@@ -339,8 +339,7 @@ export class Server extends EventEmitter {
         this.emit('error', new Error(msg));
       });
 
-      const ok = this._bridge.listen(port, hostname);
-      if (!ok) throw new Error('Soup.Server.listen failed');
+      this._bridge.listen(port, hostname);
 
       ensureMainLoop();
 

@@ -31,7 +31,8 @@ declare module 'gi://GjsifyHttpSoupBridge?version=1.0' {
 
             constructor();
 
-            listen(port: number, hostname: string): boolean;
+            /** Throws a GLib.Error (Gio.IOErrorEnum) on bind failure (e.g. EADDRINUSE / EACCES). */
+            listen(port: number, hostname: string): void;
             close(): void;
 
             connect(signal: 'request-received', cb: (self: Server, req: Request, res: Response) => void): number;

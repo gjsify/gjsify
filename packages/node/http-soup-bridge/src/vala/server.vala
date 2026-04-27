@@ -47,27 +47,21 @@ namespace GjsifyHttpSoupBridge {
             });
         }
 
-        public bool listen(uint port_arg, string hostname) {
-            try {
-                soup_server.listen_local(port_arg, Soup.ServerListenOptions.IPV4_ONLY);
-                var listeners = soup_server.get_listeners();
-                if (listeners != null && listeners.length() > 0) {
-                    var laddr = listeners.nth_data(0).get_local_address() as GLib.InetSocketAddress;
-                    if (laddr != null) {
-                        port = laddr.get_port();
-                    } else {
-                        port = port_arg;
-                    }
+        public void listen(uint port_arg, string hostname) throws GLib.Error {
+            soup_server.listen_local(port_arg, Soup.ServerListenOptions.IPV4_ONLY);
+            var listeners = soup_server.get_listeners();
+            if (listeners != null && listeners.length() > 0) {
+                var laddr = listeners.nth_data(0).get_local_address() as GLib.InetSocketAddress;
+                if (laddr != null) {
+                    port = laddr.get_port();
                 } else {
                     port = port_arg;
                 }
-                address = hostname;
-                listening = true;
-                return true;
-            } catch (GLib.Error e) {
-                error_occurred(e.message);
-                return false;
+            } else {
+                port = port_arg;
             }
+            address = hostname;
+            listening = true;
         }
 
         public void close() {
