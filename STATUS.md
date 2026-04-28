@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-28 (`@gjsify/http-soup-bridge` Vala native bridge fixes MCP/SSE crashes; MCP TypeScript SDK + inspector-cli integration suites (122 tests); Playwright browser tests for 11 web packages + 2 DOM packages (dom-elements, canvas2d-core) — 13 bundles total; http2 Phase 1 (128 tests); socket.io 112/112 with WebSocket-only transport; multi-arch prebuilds ppc64/s390x/riscv64.)
+> Last updated: 2026-04-28 (`@gjsify/http-soup-bridge` Vala native bridge fixes MCP/SSE crashes; MCP TypeScript SDK + inspector-cli integration suites (122 tests); Playwright browser tests for 11 web packages + 2 DOM packages (dom-elements, canvas2d-core) — 13 bundles total; http2 Phase 1 (128 tests); socket.io 112/112 with WebSocket-only transport; multi-arch prebuilds ppc64/s390x/riscv64; SQLite todo store example cross-validated on GJS and Node.js.)
 
 ## Summary
 
@@ -348,7 +348,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Spec files | 110+ |
 | Integration test suites | 6 (webtorrent, socket.io, streamx, autobahn, mcp-typescript-sdk, mcp-inspector-cli) |
 | Showcases | 6 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder) |
-| Real-world examples | 50+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, Gio cat, worker pool, yargs, GTK HTTP dashboard) |
+| Real-world examples | 51+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, SQLite JSON store, Gio cat, worker pool, yargs, GTK HTTP dashboard) |
 | GNOME-integrated packages | 20+ (Gio, GLib, Soup, Gda, Gst, GstApp, GstWebRTC, GstSDP, Manette, WebKit, Gtk, Cairo, PangoCairo, GdkPixbuf, libepoxy) |
 | Alias mappings (GJS) | 70+ |
 | Reference submodules | 59 |
@@ -397,7 +397,7 @@ Not yet implemented (but potentially relevant for GJS projects):
    | ~~**CLI file search**~~✓ | cli | fs, path, readline, process | `examples/cli/file-search` |
    | ~~**DNS lookup tool**~~✓ | cli | dns, net, readline | `examples/cli/dns-lookup` |
    | ~~**Worker pool**~~✓ | cli | worker_threads, events, crypto | `examples/cli/worker-pool` |
-   | **SQLite/JSON data store** | cli | fs, crypto, buffer, stream | — |
+   | ~~**SQLite/JSON data store**~~✓ | cli | node:sqlite, fs, os, path | `examples/node/cli-sqlite-json-store` |
    | ~~**GTK + HTTP** (dashboard)~~✓ | gtk | Gtk 4, http (Soup-bridge backed) | `examples/node/gtk-http-dashboard` |
 
    These examples serve as integration tests and surface real CJS-ESM interop issues, missing globals, GC problems, and MainLoop edge cases that unit tests alone don't catch.

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### feat(examples) — SQLite todo store example cross-validated on GJS and Node.js (2026-04-28)
+
+New example `examples/node/cli-sqlite-json-store` (`@gjsify/example-node-cli-sqlite-json-store`) demonstrates `node:sqlite` (`DatabaseSync` + `StatementSync`) running identically on both GJS (via `@gjsify/sqlite` / `gi://Gda`) and Node.js (native).
+
+**Features demonstrated:**
+- `prepare().run()` for DDL (CREATE TABLE) and transaction control (BEGIN/COMMIT)
+- Named parameter binding (`{ title, priority, done, created_at }`) via bare-name resolution
+- `run()` returning `{ lastInsertRowid, changes }` for INSERT/UPDATE/DELETE
+- `get()` for single-row queries (SELECT BY ID, COUNT)
+- `all()` for multi-row queries with ORDER BY
+- Prepared statement reuse across multiple calls
+- Transaction-wrapped bulk insert
+- File-based database in a temp directory (cleaned up after the demo)
+
+Validates that the `@gjsify/sqlite` implementation handles the full CRUD cycle correctly on GJS: CREATE TABLE, INSERT, SELECT, UPDATE, DELETE, BEGIN/COMMIT all work. No core issues found — output is bit-identical between GJS and Node.js runs.
+
 ### feat(tests/browser) — browser tests for dom-elements and canvas2d-core (2026-04-28)
 
 Extends the Playwright browser test infrastructure (from PR #42) to cover DOM packages:
