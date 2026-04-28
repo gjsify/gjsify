@@ -30,6 +30,7 @@
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
         "build:meson": "yarn init:meson && meson compile -C build",
         "build:types": "tsc",
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x86_64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyHttpSoupBridge-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true",
         "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifyhttpsoupbridge.so build/GjsifyHttpSoupBridge-1.0.gir build/GjsifyHttpSoupBridge-1.0.typelib prebuilds/linux-x86_64/"
     },
     "keywords": [
@@ -50,9 +51,9 @@
         "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.5",
         "@girs/soup-3.0": "^3.6.6-4.0.0-rc.5"
     },
-    "//": "@girs/gjsifyhttpsoupbridge-1.0 is generated locally via ts-for-gir until the user publishes it to npm. See README.md 'TS types' section.",
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@ts-for-gir/cli": "^4.0.0-rc.6",
         "@types/node": "^25.6.0",
         "typescript": "^6.0.3"
     }
