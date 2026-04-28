@@ -87,18 +87,23 @@ export default async () => {
 
         // Original crash trigger: server kept dying after the first tool call.
         // Each invocation is a fresh inspector subprocess and a fresh HTTP
-        // session, so this exercises the Soup ServerMessage lifecycle the same
+        // session, so this exercises the libsoup-server lifecycle the same
         // way the interactive inspector UI does.
         //
-        // Note: limited to 3 iterations on the GJS target. Each Inspector run
-        // opens a long-poll GET stream that libsoup keeps alive until the JS
-        // wrapper is GC'd; under heavier load (~5+ rapid subprocess calls) the
-        // server can crash from accumulated paused-message state. Tracked as a
-        // separate issue; this test guards the regression in the original
-        // crash window (1-3 calls).
+        // Two compounding fixes lifted this from "dies at 4–5":
+        // (1) @gjsify/http-soup-bridge eliminated the libsoup-internal
+        //     Boxed-Source GC race in the chunked / SSE response path.
+        // (2) @gjsify/node-globals/register/timers replaces native GJS
+        //     setTimeout/setInterval with numeric-ID-backed wrappers, but
+        //     only fires when --globals auto sees those names in the
+        //     bundle — they were missing from GJS_GLOBALS_MAP, so MCP-SDK
+        //     and Hono kept using the native BoxedInstance-returning
+        //     setTimeout. Adding setTimeout/setInterval/clearTimeout/
+        //     clearInterval to the map closes that path.
+        // Smoke-tested at 25 sequential calls + 60 s idle without crash.
         await it('survives a sequence of inspector invocations on the same server', async () => {
           await withServer(target, async (server) => {
-            for (let i = 1; i <= 3; i++) {
+            for (let i = 1; i <= 20; i++) {
               const r = await runInspector(server.baseUrl, [
                 '--method', 'tools/call',
                 '--tool-name', 'echo',

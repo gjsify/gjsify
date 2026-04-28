@@ -25,11 +25,12 @@ function getGLib(): typeof GLibNS | undefined {
     return (globalThis as GjsGlobalThis).imports?.gi?.GLib;
 }
 
-// On Node.js setTimeout returns a number/Timeout; on GJS an object. If we're
-// on Node.js, leave the native implementation alone.
-const _probe = globalThis.setTimeout(() => {}, 0);
-const _isGjsTimer = _probe !== null && typeof _probe === 'object';
-globalThis.clearTimeout(_probe as ReturnType<typeof setTimeout>);
+// Detect GJS via `imports.gi.GLib` rather than probing setTimeout — calling
+// the native GJS setTimeout (even with `clearTimeout` immediately after) leaks
+// a GLib.Source BoxedInstance into module scope, whose deferred GC finalize
+// hits `g_source_unref` on a freed source ~10 s later (the original Boxed-
+// Source race). Detection by API presence is allocation-free.
+const _isGjsTimer = getGLib() !== undefined;
 
 type TimerCallback = (...args: unknown[]) => unknown;
 

@@ -6093,6 +6093,16 @@ var GJS_GLOBALS_MAP = {
   // --- Node.js globals (granular register subpaths) ----------------------
   Buffer: "@gjsify/node-globals/register/buffer",
   process: "@gjsify/node-globals/register/process",
+  // setTimeout / setInterval ARE provided natively by GJS, but their return
+  // value is a GLib.Source BoxedInstance whose deferred-GC finalize calls
+  // g_source_unref on a possibly-freed source — silent SIGSEGV ~10 s after
+  // any third-party library uses them. Our `register/timers` replacement
+  // returns numeric IDs instead. Listing them here forces auto-globals to
+  // inject the override on every bundle that calls setTimeout.
+  setTimeout: "@gjsify/node-globals/register/timers",
+  setInterval: "@gjsify/node-globals/register/timers",
+  clearTimeout: "@gjsify/node-globals/register/timers",
+  clearInterval: "@gjsify/node-globals/register/timers",
   setImmediate: "@gjsify/node-globals/register/timers",
   clearImmediate: "@gjsify/node-globals/register/timers",
   queueMicrotask: "@gjsify/node-globals/register/microtask",

@@ -1,14 +1,27 @@
 // Reference: Node.js lib/_http_server.js
-// Reimplemented for GJS using Soup.Server
+// Reimplemented for GJS using the @gjsify/http-soup-bridge native package.
+//
+// Why the bridge: see STATUS.md "Upstream GJS Patch Candidates" — two
+// distinct GJS↔libsoup binding races (Boxed-Source GC race + shared
+// `GMainContext` ref imbalance) make any in-JS Soup.Server wiring
+// SIGSEGV silently after a non-GJS HTTP client (MCP Inspector subprocess,
+// Node.js fetch, browser EventSource) sends a chunked SSE response. The
+// bridge keeps every libsoup boxed type C-side; JS only sees plain
+// GObject ref-counted bridge classes (`Server` / `Request` / `Response`)
+// whose lifetime SpiderMonkey GC cannot race against. Same pattern as
+// `@gjsify/webrtc-native`.
 
-import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { Socket as NetSocket } from '@gjsify/net/socket';
+import {
+  Server as BridgeServer,
+  type Request as BridgeRequest,
+  type Response as BridgeResponse,
+} from '@gjsify/http-soup-bridge';
 import { ServerRequestSocket } from './server-request-socket.js';
-import { SoupMessageLifecycle } from './soup-message-lifecycle.js';
 import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
@@ -94,27 +107,27 @@ export class OutgoingMessage extends Writable {
 
 /**
  * ServerResponse — Writable stream representing an HTTP response.
- * Extends OutgoingMessage for shared header management.
+ *
+ * Holds a `BridgeResponse` from `@gjsify/http-soup-bridge`. All header /
+ * status / body operations delegate to the bridge, which handles the
+ * underlying Soup.ServerMessage in C-space (no JS-visible boxed types).
  */
 export class ServerResponse extends OutgoingMessage {
   statusCode = 200;
   statusMessage = '';
 
   private _streaming = false;
-  private _soupMsg: Soup.ServerMessage;
+  private _bridge: BridgeResponse;
   private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
-  /** @internal Set by Server._handleRequest right after construction. Owns
-   *  GC guard, signal handlers, wrote-chunk tracking, and peer-close watchdog. */
-  private _lifecycle: SoupMessageLifecycle | null = null;
 
-  constructor(soupMsg: Soup.ServerMessage) {
+  constructor(bridge: BridgeResponse) {
     super();
-    this._soupMsg = soupMsg;
-  }
-
-  /** @internal Wire the lifecycle helper. Called once by Server._handleRequest. */
-  _attachLifecycle(lifecycle: SoupMessageLifecycle): void {
-    this._lifecycle = lifecycle;
+    this._bridge = bridge;
+    // Translate the bridge's `'close'` signal into a Node-style 'close'
+    // event for consumers (Hono, MCP transport, engine.io, etc.).
+    bridge.connect('close', () => {
+      this.emit('close');
+    });
   }
 
   /** Set a timeout for the response. Emits 'timeout' if response not sent within msecs. */
@@ -166,8 +179,6 @@ export class ServerResponse extends OutgoingMessage {
 
   /** Flush headers (send them immediately). */
   flushHeaders(): void {
-    // In our Soup-based implementation, headers are sent with the body.
-    // This is a no-op but marks headersSent for compatibility.
     if (!this.headersSent) {
       this.headersSent = true;
     }
@@ -175,17 +186,16 @@ export class ServerResponse extends OutgoingMessage {
 
   /** Add trailing headers for chunked transfer encoding. */
   addTrailers(headers: Record<string, string>): void {
-    // Soup.Server doesn't support HTTP trailers natively.
-    // Store for compatibility but they won't be sent.
+    // Soup.Server doesn't support HTTP trailers natively. Stored for
+    // compatibility but not transmitted.
     for (const [key, value] of Object.entries(headers)) {
-      // Trailers are appended after the body in chunked encoding
       this._headers.set('trailer-' + key.toLowerCase(), value);
     }
   }
 
   /**
-   * Send status + headers to the client via Soup and switch to streaming (chunked) mode.
-   * Called on the first write() — subsequent writes append chunks and unpause.
+   * Push our header map to the bridge and call write_head() on first
+   * write. Idempotent.
    */
   private _startStreaming(): void {
     if (this._streaming) return;
@@ -197,111 +207,42 @@ export class ServerResponse extends OutgoingMessage {
       this._timeoutTimer = null;
     }
 
-    this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
-
-    const responseHeaders = this._soupMsg.get_response_headers();
-
-    // Choose response transfer encoding:
-    //   - CONTENT_LENGTH when the caller set a Content-Length (range / streaming
-    //     a known-size file, including 206 Partial Content). souphttpsrc and
-    //     other fixed-length-sensitive clients require this.
-    //   - CHUNKED when the length is unknown (e.g. dynamic responses from
-    //     Express-style apps).
-    // Forcing CHUNKED unconditionally broke GStreamer playback from the
-    // WebTorrent HTTP server, which relies on Content-Range + Content-Length
-    // for seekable streams.
-    if (this._headers.has('content-length')) {
-      responseHeaders.set_encoding(Soup.Encoding.CONTENT_LENGTH);
-    } else {
-      responseHeaders.set_encoding(Soup.Encoding.CHUNKED);
-    }
-
-    if (!this._headers.has('connection')) {
-      responseHeaders.replace('Connection', 'close');
-    }
-
     for (const [key, value] of this._headers) {
       if (Array.isArray(value)) {
-        for (const v of value) {
-          responseHeaders.append(key, v);
-        }
+        for (const v of value) this._bridge.append_header(key, v);
       } else {
-        responseHeaders.replace(key, value as string);
+        this._bridge.set_header(key, value as string);
       }
     }
 
-    // Consume the initial pause token placed by _handleRequest. The lifecycle
-    // helper has already wired the 'wrote-chunk' signal, so subsequent writes
-    // know whether Soup has auto-paused via consumeUnpauseTicket().
-    this._soupMsg.unpause();
+    this._bridge.write_head(this.statusCode, this.statusMessage || null);
   }
 
   /** Writable stream _write — sends headers on first call, then appends each chunk. */
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
     this._startStreaming();
-    const responseBody = this._soupMsg.get_response_body();
-    responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
-    // If Soup auto-paused after the previous chunk (signalled by 'wrote-chunk'
-    // and tracked by the lifecycle helper), wake it so it picks up this chunk.
-    if (this._lifecycle?.consumeUnpauseTicket()) {
-      this._soupMsg.unpause();
-    }
+    this._bridge.write_chunk(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
     callback();
   }
 
-  /** Called by Writable.end() — completes the body (streaming) or sends batch response (no-body). */
+  /** Called by Writable.end() — finishes the bridge response. */
   _final(callback: (error?: Error | null) => void): void {
-    if (this._streaming) {
-      this._soupMsg.get_response_body().complete();
-      // If Soup auto-paused after the last chunk, wake it to send the
-      // chunked terminator (0\r\n\r\n). If Soup is already running (single-
-      // chunk path where GLib hasn't yielded), the ticket is false and Soup
-      // will find the complete() on its next iteration — calling unpause()
-      // anyway would decrement pause_count below zero.
-      if (this._lifecycle?.consumeUnpauseTicket()) {
-        this._soupMsg.unpause();
+    if (!this._streaming) {
+      // Batch mode — push headers + status then end with no body. The
+      // bridge's `end()` on a fresh Response sends an empty body.
+      for (const [key, value] of this._headers) {
+        if (Array.isArray(value)) {
+          for (const v of value) this._bridge.append_header(key, v);
+        } else {
+          this._bridge.set_header(key, value as string);
+        }
       }
-    } else {
-      // Batch mode — no write() was called (e.g. redirects, 204, empty end())
-      this._sendBatchResponse();
+      this._bridge.write_head(this.statusCode, this.statusMessage || null);
     }
+    this._bridge.end();
     this.finished = true;
     callback();
-  }
-
-  /** Batch response — sends status + headers + empty/no body in one shot (for responses without write()). */
-  private _sendBatchResponse(): void {
-    if (this.headersSent) return;
-    this.headersSent = true;
-
-    if (this._timeoutTimer) {
-      clearTimeout(this._timeoutTimer);
-      this._timeoutTimer = null;
-    }
-
-    this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
-
-    const responseHeaders = this._soupMsg.get_response_headers();
-
-    if (!this._headers.has('connection')) {
-      responseHeaders.replace('Connection', 'close');
-    }
-
-    for (const [key, value] of this._headers) {
-      if (Array.isArray(value)) {
-        for (const v of value) {
-          responseHeaders.append(key, v);
-        }
-      } else {
-        responseHeaders.replace(key, value as string);
-      }
-    }
-
-    const contentType = (this._headers.get('content-type') as string) || 'text/plain';
-    this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, new Uint8Array(0));
-    // Unpause exactly once — batch responses have no prior _write/_startStreaming call.
-    this._soupMsg.unpause();
   }
 
   /** Write status + headers + body in one call (convenience). */
@@ -323,15 +264,20 @@ export class ServerResponse extends OutgoingMessage {
   }
 }
 
-// GC guard — GJS garbage-collects objects with no JS references. When frameworks
-// like Koa/Express create an http.Server inside .listen() and the caller discards
-// the return value, the Server (and its Soup.Server) gets collected after ~10s.
-// This Set keeps a strong reference to every listening server.
+// GC guard — GJS garbage-collects objects with no JS references. When
+// frameworks like Koa/Express create an http.Server inside .listen() and
+// the caller discards the return value, the Server (and its bridge
+// underneath) gets collected after ~10 s. This Set keeps a strong
+// reference to every listening server.
 const _activeServers = new Set<Server>();
 
-
 /**
- * HTTP Server wrapping Soup.Server.
+ * HTTP Server — wraps a `@gjsify/http-soup-bridge` Server.
+ *
+ * Public API matches Node.js `http.Server`. Internal differences from the
+ * pre-bridge version are invisible to consumers (Hono / Express / MCP /
+ * engine.io / `@gjsify/ws`) — they continue to use `.on('request', …)`,
+ * `.on('upgrade', …)`, `.listen()`, `.close()`, `.address()`, etc.
  */
 export class Server extends EventEmitter {
   listening = false;
@@ -341,14 +287,14 @@ export class Server extends EventEmitter {
   headersTimeout = 60000;
   requestTimeout = 300000;
 
-  private _soupServer: Soup.Server | null = null;
+  private _bridge: BridgeServer | null = null;
   private _address: { port: number; family: string; address: string } | null = null;
 
   /** Exposes the underlying Soup.Server so consumers (e.g. WebSocketServer
    *  in `@gjsify/ws`) can register additional handlers (websocket, path-
-   *  specific) on the same server instance without port sharing conflicts. */
-  get soupServer(): Soup.Server | null {
-    return this._soupServer;
+   *  specific) on the same server instance without port-sharing conflicts. */
+  get soupServer(): unknown {
+    return this._bridge?.soup_server ?? null;
   }
 
   constructor(requestListener?: ((req: IncomingMessage, res: ServerResponse) => void) | Record<string, unknown>);
@@ -358,11 +304,8 @@ export class Server extends EventEmitter {
     requestListener?: (req: IncomingMessage, res: ServerResponse) => void,
   ) {
     super();
-    // Support Node.js signature: new Server(options, listener)
     const listener = typeof optionsOrListener === 'function' ? optionsOrListener : requestListener;
-    if (listener) {
-      this.on('request', listener);
-    }
+    if (listener) this.on('request', listener);
   }
 
   listen(port?: number, hostname?: string, backlog?: number, callback?: () => void): this;
@@ -382,35 +325,27 @@ export class Server extends EventEmitter {
     if (callback) this.once('listening', callback);
 
     try {
-      this._soupServer = new Soup.Server({});
+      this._bridge = new BridgeServer();
 
-      // Catch-all handler. Soup routes WebSocket upgrade requests here when no
-      // specific-path add_websocket_handler matches (add_websocket_handler(null,…)
-      // is broken when there is also an add_handler(null,…) — they share the same
-      // SoupServerHandler slot and libsoup always prefers the HTTP callback).
-      // Instead we intercept upgrades inside _handleRequest via steal_connection().
-      this._soupServer.add_handler(null, (_server: Soup.Server, msg: Soup.ServerMessage, path: string) => {
-        this._handleRequest(msg, path);
+      this._bridge.connect('request-received', (_self: BridgeServer, req: BridgeRequest, res: BridgeResponse) => {
+        this._handleRequest(req, res);
       });
 
+      this._bridge.connect('upgrade', (_self: BridgeServer, req: BridgeRequest, iostream: Gio.IOStream, _head: unknown) => {
+        this._handleUpgrade(req, iostream);
+      });
 
-      this._soupServer.listen_local(port, Soup.ServerListenOptions.IPV4_ONLY);
+      this._bridge.connect('error-occurred', (_self: BridgeServer, msg: string) => {
+        this.emit('error', new Error(msg));
+      });
+
+      this._bridge.listen(port, hostname);
+
       ensureMainLoop();
 
-      // Get the actual port from listeners
-      const listeners = this._soupServer.get_listeners();
-      let actualPort = port;
-      if (listeners && listeners.length > 0) {
-        const addr = listeners[0].get_local_address() as Gio.InetSocketAddress;
-        if (addr && typeof addr.get_port === 'function') {
-          actualPort = addr.get_port();
-        }
-      }
-
       this.listening = true;
-      this._address = { port: actualPort, family: 'IPv4', address: hostname };
+      this._address = { port: this._bridge.port, family: 'IPv4', address: this._bridge.address || hostname };
       _activeServers.add(this);
-
       deferEmit(this, 'listening');
     } catch (err: unknown) {
       const nodeErr = createNodeError(err, 'listen', { address: hostname, port });
@@ -420,96 +355,62 @@ export class Server extends EventEmitter {
     return this;
   }
 
-  private _handleRequest(soupMsg: Soup.ServerMessage, path: string): void {
+  private _handleRequest(bridgeReq: BridgeRequest, bridgeRes: BridgeResponse): void {
     const req = new IncomingMessage();
-    const res = new ServerResponse(soupMsg);
+    const res = new ServerResponse(bridgeRes);
 
-    // Populate request properties
-    req.method = soupMsg.get_method();
-    req.url = soupMsg.get_uri().get_path();
-    const query = soupMsg.get_uri().get_query();
-    if (query) req.url += '?' + query;
+    req.method = bridgeReq.method;
+    req.url = bridgeReq.url;
     req.httpVersion = '1.1';
 
-    // Parse headers
-    const requestHeaders = soupMsg.get_request_headers();
-    requestHeaders.foreach((name: string, value: string) => {
+    // header_pairs is [name, value, name, value, …]
+    const pairs = bridgeReq.header_pairs ?? [];
+    for (let i = 0; i + 1 < pairs.length; i += 2) {
+      const name = pairs[i];
+      const value = pairs[i + 1];
       const lower = name.toLowerCase();
       req.rawHeaders.push(name, value);
       if (lower in req.headers) {
         const existing = req.headers[lower];
-        if (Array.isArray(existing)) {
-          existing.push(value);
-        } else {
-          req.headers[lower] = [existing as string, value];
-        }
+        if (Array.isArray(existing)) existing.push(value);
+        else req.headers[lower] = [existing as string, value];
       } else {
         req.headers[lower] = value;
       }
-    });
+    }
 
-    // Intercept WebSocket upgrade requests — Soup calls add_handler for upgrades
-    // when no specific-path add_websocket_handler matches the request path.
-    // steal_connection() must be called synchronously here; after we return,
-    // Soup would attempt to send a response on the same stream.
-    const connectionHeader = (req.headers['connection'] as string || '').toLowerCase();
-    const upgradeHeader = (req.headers['upgrade'] as string || '').toLowerCase();
-    // Populate req.socket with address info — engine.io Socket constructor reads
-    // req.connection.remoteAddress (req.connection is an alias for req.socket).
-    // Must be set BEFORE emitting 'upgrade' so WebSocket-only paths don't crash.
     req.socket = new ServerRequestSocket(
-      soupMsg,
+      bridgeReq.remote_address ?? '127.0.0.1',
+      bridgeReq.remote_port ?? 0,
       this._address?.address ?? '127.0.0.1',
       this._address?.port ?? 0,
-    ) as any;
+      bridgeRes,
+    ) as unknown as import('net').Socket;
 
-    if (connectionHeader.includes('upgrade') && upgradeHeader) {
-      if (this.listenerCount('upgrade') > 0) {
-        let ioStream: Gio.IOStream | null = null;
-        try {
-          ioStream = soupMsg.steal_connection();
-        } catch (err) {
-          this.emit('clientError', err instanceof Error ? err : new Error(String(err)));
-        }
-        if (ioStream) {
-          const socket = new NetSocket();
-          socket._attachOutputOnly(ioStream);
-          this.emit('upgrade', req, socket, Buffer.alloc(0));
-          return;
-        }
+    // Push body bytes (pre-buffered by libsoup) and EOF. Body is exposed
+    // as a method (not a property) on the bridge — GIR-marshalled
+    // `uint8[]` properties get cleared by the time JS reads them.
+    const body = bridgeReq.get_body();
+    if (body.length > 0) req._pushBody(body);
+    else req._pushBody(null);
+
+    // Translate bridge 'aborted_signal' / 'close' into req events.
+    bridgeReq.connect('aborted_signal', () => {
+      if (!req.aborted) {
+        req.aborted = true;
+        req.emit('aborted');
       }
-      if (upgradeHeader === 'websocket') { return; }
-    }
+    });
+    bridgeReq.connect('close', () => {
+      req.emit('close');
+    });
 
-    // Get request body
-    const body = soupMsg.get_request_body();
-    if (body && body.data && body.data.length > 0) {
-      req._pushBody(body.data);
-    } else {
-      req._pushBody(null);
-    }
-
-    // Wire the SoupMessageLifecycle helper. It owns:
-    //   * GC guard for soupMsg (keeps the GObject alive until Soup is done).
-    //   * 'disconnected' and 'finished' Soup signals → req/res 'close'/'aborted'.
-    //   * 'wrote-chunk' tracking so ServerResponse can re-unpause Soup safely.
-    //   * The HUP/ERR watchdog that detects peer-close on paused long-poll
-    //     responses (libsoup limitation: it stops polling the input stream
-    //     while the message is paused, so 'disconnected' never fires for
-    //     SSE/long-poll clients that hang up). The watchdog is started lazily
-    //     from ServerResponse._startStreaming after the first write.
-    res._attachLifecycle(new SoupMessageLifecycle(soupMsg, req, res));
-
-    // Pause Soup's processing — ServerResponse._sendBatchResponse/_final calls unpause().
-    soupMsg.pause();
-
-    // Emit synchronously. Async request handlers that reject without a .catch()
-    // would become unhandled GLib-callback rejections — GJS only g_warning()s
-    // those, but they can also mask the real crash. Catch them here so errors
-    // surface as proper log lines rather than silent exits.
+    // Emit synchronously. Async handler rejections that escape user code
+    // are caught here so they surface on stderr instead of becoming silent
+    // GLib-callback rejections.
     try {
       const result = this.emit('request', req, res) as unknown;
-      if (result instanceof Promise || (result !== null && typeof result === 'object' && typeof (result as any).then === 'function')) {
+      if (result instanceof Promise || (result !== null && typeof result === 'object' && typeof (result as { then?: unknown }).then === 'function')) {
         (result as Promise<unknown>).catch((err: unknown) => {
           console.error('[HTTP] Unhandled error in async request handler:', err);
           if (!res.headersSent) {
@@ -525,13 +426,35 @@ export class Server extends EventEmitter {
     }
   }
 
+  private _handleUpgrade(bridgeReq: BridgeRequest, iostream: Gio.IOStream): void {
+    const req = new IncomingMessage();
+    req.method = bridgeReq.method;
+    req.url = bridgeReq.url;
+    req.httpVersion = '1.1';
+
+    const pairs = bridgeReq.header_pairs ?? [];
+    for (let i = 0; i + 1 < pairs.length; i += 2) {
+      const name = pairs[i];
+      const value = pairs[i + 1];
+      const lower = name.toLowerCase();
+      req.rawHeaders.push(name, value);
+      req.headers[lower] = value;
+    }
+
+    if (this.listenerCount('upgrade') > 0) {
+      const socket = new NetSocket();
+      socket._attachOutputOnly(iostream);
+      this.emit('upgrade', req, socket, Buffer.alloc(0));
+    }
+  }
+
   address(): { port: number; family: string; address: string } | null {
     return this._address;
   }
 
   /**
    * Register a WebSocket handler on this server (GJS only).
-   * Delegates to Soup.Server.add_websocket_handler().
+   * Delegates to the underlying `Soup.Server.add_websocket_handler()`.
    * @param path URL path to handle WebSocket upgrades (e.g., '/ws')
    * @param callback Called for each new WebSocket connection with the Soup.WebsocketConnection
    */
@@ -539,12 +462,20 @@ export class Server extends EventEmitter {
     path: string,
     callback: (connection: unknown) => void,
   ): void {
-    if (!this._soupServer) {
+    if (!this._bridge) {
       throw new Error('Server must be listening before adding WebSocket handlers. Call listen() first.');
     }
-    this._soupServer.add_websocket_handler(
+    const soupServer = this._bridge.soup_server as {
+      add_websocket_handler: (
+        p: string | null,
+        origin: string | null,
+        protocols: string[] | null,
+        cb: (srv: unknown, msg: unknown, p: string, conn: unknown) => void,
+      ) => void;
+    };
+    soupServer.add_websocket_handler(
       path, null, null,
-      (_srv: Soup.Server, _msg: Soup.ServerMessage, _path: string, connection: unknown) => {
+      (_srv, _msg, _p, connection) => {
         callback(connection);
       },
     );
@@ -553,9 +484,9 @@ export class Server extends EventEmitter {
   close(callback?: (err?: Error) => void): this {
     if (callback) this.once('close', callback);
 
-    if (this._soupServer) {
-      this._soupServer.disconnect();
-      this._soupServer = null;
+    if (this._bridge) {
+      this._bridge.close();
+      this._bridge = null;
     }
 
     this.listening = false;

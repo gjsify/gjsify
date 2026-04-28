@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### feat — `@gjsify/http-soup-bridge`: native Vala bridge for libsoup HTTP server (2026-04-27)
+
+New native package + integration into `@gjsify/http`. Closes both libsoup-related entries from STATUS.md "Upstream GJS Patch Candidates" by moving the entire `Soup.Server` interaction into Vala-emitted C and exposing JS only through plain GObject classes. Same pattern as `@gjsify/webrtc-native` — see PR #44 for full context.
+
+**The bridge package** (`packages/node/http-soup-bridge/`):
+
+- `Server` (`src/vala/server.vala`) — wraps `Soup.Server` + `add_handler` + `add_websocket_handler`. Emits `request_received(req, res)` / `upgrade(req, iostream, head)` / `error_occurred(msg)` signals to JS.
+- `Request` (`src/vala/request.vala`) — read-side snapshot. `method` / `url` / `header_pairs` / `remote_address` / `remote_port` are properties; `get_body()` is a method (a GIR-marshalled `uint8[]` property loses bytes through the round-trip).
+- `Response` (`src/vala/response.vala`) — write side. Owns `SoupServerMessage` privately; all pause/unpause bookkeeping (the seven concerns previously in `SoupMessageLifecycle.ts`) move into Vala.
+- `peer-close-watch.vala` — `g_socket_create_source(IN | HUP | ERR)` + non-blocking `g_socket_receive_message(MSG_PEEK)` for long-poll TCP-close detection. The capability we couldn't reach from JS (`Gio.Socket.receive_message` not introspectable, Linux POLLRDHUP not exposed in `IOCondition`).
+- All cross-thread emissions hop through `GLib.Idle.add()` to the default main context before re-emission.
+
+**`@gjsify/http` integration** (`packages/node/http/src/server.ts`):
+
+- `Server` constructs a `BridgeServer`, wires `request-received` / `upgrade` / `error-occurred` signals into Node-style `'request'` / `'upgrade'` / `'error'` events.
+- `ServerResponse` is a thin `Writable` over `BridgeResponse` — `set_header` / `write_head` / `write_chunk` / `end` delegate.
+- `IncomingMessage` reads request fields from the bridge `Request` snapshot.
+- `ServerRequestSocket` constructed from plain `string` / `uint` values rather than holding a `SoupServerMessage`.
+- `soup-message-lifecycle.ts` deleted — its concerns are intrinsic to the bridge.
+- All seven existing `@gjsify/http` test specs pass unchanged; 1038 GJS / 1034 Node tests green.
+
+**Build / CI:**
+
+- `meson` produces `libgjsifyhttpsoupbridge.so` + `GjsifyHttpSoupBridge-1.0.{gir,typelib}`.
+- TS types bootstrapped locally via `ts-for-gir generate` until `@girs/gjsifyhttpsoupbridge-1.0` is published to npm.
+- `.github/workflows/prebuilds.yml` extended with a `libsoup3-devel` install + matrix entry that produces `prebuilds/linux-{x86_64,aarch64}/` and auto-commits them on `main` pushes.
+
+**Verification (local, Fedora 43, GJS 1.86 / libsoup 3.6.6):**
+
+| Scenario | Pre-bridge | This change |
+|---|---|---|
+| Single Node.js fetch with chunked SSE → wait 30 s | 💥 SIGSEGV at ~13 s | ✅ alive |
+| 50 sequential Node.js SSE fetches against the bridge alone | 💥 crash at ~5 | ✅ all 200, alive |
+| `mcp-inspector-cli` sequential-call cap | 3 | 4 |
+| Total tests on this branch | 1742 | 1788 |
+
+**Known residual issue:** the example MCP server (which pulls MCP SDK + @hono/node-server + web-streams polyfill) still hits a deferred-GC SIGSEGV ~13 s after a Node-fetch SSE request. The crash signature (`BoxedBase::finalize → g_source_unref`) is the same shape as the original libsoup-side race, but the offending wrapper is no longer in our HTTP-server path — it's allocated by some Boxed-creating path in the MCP / Hono / streams stack. Tracked under STATUS.md "Open issues"; the fix needs a coredump with debug symbols to identify which Boxed type.
+
+
+
 ### refactor — `@gjsify/http`: consolidate Soup.ServerMessage lifecycle + fix MCP server crashes (2026-04-26)
 
 Resolves the SIGSEGV that prevented MCP servers (and other Hono-based apps) from running on GJS. The fix landed across multiple files; the centerpiece is a new `SoupMessageLifecycle` helper that consolidates everything related to one in-flight Soup message: GC guard, `'finished'`/`'disconnected'` signal handling (translated to Node-style req/res `'close'`/`'aborted'` events), and `'wrote-chunk'`-driven re-unpause tracking via a unpause-ticket pattern (`consumeUnpauseTicket()`).

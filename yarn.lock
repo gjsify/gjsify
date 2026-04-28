@@ -3206,6 +3206,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/http-soup-bridge@workspace:^, @gjsify/http-soup-bridge@workspace:packages/node/http-soup-bridge":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/http-soup-bridge@workspace:packages/node/http-soup-bridge"
+  dependencies:
+    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.5"
+    "@girs/gjs": "npm:^4.0.0-rc.5"
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.5"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.5"
+    "@girs/soup-3.0": "npm:^3.6.6-4.0.0-rc.5"
+    "@gjsify/cli": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/http2@workspace:^, @gjsify/http2@workspace:packages/node/http2":
   version: 0.0.0-use.local
   resolution: "@gjsify/http2@workspace:packages/node/http2"
@@ -3233,6 +3248,7 @@ __metadata:
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
+    "@gjsify/http-soup-bridge": "workspace:^"
     "@gjsify/net": "workspace:^"
     "@gjsify/stream": "workspace:^"
     "@gjsify/unit": "workspace:^"

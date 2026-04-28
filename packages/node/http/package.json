@@ -21,7 +21,7 @@
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
         "test": "yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
-        "test:gjs": "gjs -m test.gjs.mjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
         "test:node": "node test.node.mjs"
     },
     "keywords": [
@@ -41,6 +41,7 @@
         "@girs/soup-3.0": "^3.6.6-4.0.0-rc.5",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/events": "workspace:^",
+        "@gjsify/http-soup-bridge": "workspace:^",
         "@gjsify/net": "workspace:^",
         "@gjsify/stream": "workspace:^",
         "@gjsify/url": "workspace:^",

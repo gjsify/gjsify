@@ -55,8 +55,14 @@ export interface RunningServer {
 export async function startServer(target: ServerTarget, opts: { startupTimeoutMs?: number } = {}): Promise<RunningServer> {
   const port = await getFreePort();
   const bundle = SERVER_BUNDLES[target];
-  const cmd = target === 'gjs' ? 'gjs' : 'node';
-  const args = target === 'gjs' ? ['-m', bundle] : [bundle];
+  // For the GJS target we use `gjsify run` (not `gjs -m`) so that
+  // LD_LIBRARY_PATH / GI_TYPELIB_PATH get auto-injected from every
+  // workspace `@gjsify/*` package's `gjsify.prebuilds` field. Without
+  // this the example fails to load the @gjsify/http-soup-bridge typelib.
+  const cmd = target === 'gjs'
+    ? new URL('../../../../node_modules/.bin/gjsify', import.meta.url).pathname
+    : 'node';
+  const args = target === 'gjs' ? ['run', bundle] : [bundle];
 
   const proc = spawn(cmd, args, {
     env: { ...process.env, PORT: String(port) },
