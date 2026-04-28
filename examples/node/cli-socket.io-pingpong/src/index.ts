@@ -3,7 +3,6 @@
 // Copyright (c) 2014-2024 Damien Arrachequesne. MIT.
 // Rewritten for GJS: single-process server+client, clean shutdown.
 
-import '@gjsify/node-globals/register';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { io as ioc } from 'socket.io-client';

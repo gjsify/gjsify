@@ -213,6 +213,7 @@ Every pkg registering anything on `globalThis` MUST follow these rules.
    - `ALIASES_WEB_FOR_NODE`: both forms → `@gjsify/empty`
    - `ALIASES_GENERAL_FOR_NODE`: non-web `@gjsify/<pkg>/register` (node-globals, buffer)
 6. **Tests import `/register` explicitly:** `import 'fetch/register'`, `import '@gjsify/node-globals/register'`. No implicit reliance on root named import.
+   **Examples and application code must NOT import `/register` directly.** Rely on `--globals auto` (the default for `gjsify build`). Explicit register imports in application code pull the catch-all into the bundle instead of only the granular subpaths that are actually used, bloating every build. They also hide detection gaps — if auto misses a global, the explicit import papers over the bug instead of surfacing it. Rule: if a global is needed, it must be detectable from the bundled output; if auto can't find it, fix the detector or add a `--globals auto,<extra>` override in the build script.
 7. **Users rely on `--globals auto` (default)** — detects from bundled output. Override: explicit list (`fetch,Buffer`), groups (`node`/`web`/`dom` from `GJS_GLOBALS_GROUPS` in globals-map.mjs), or `none`. Source-level `import '<pkg>/register'` still supported + equivalent.
 8. **Exception — intra-package class inheritance:** if `src/index.ts` class extends a global constructor (`class TextLineStream extends TransformStream`), class body runs at module load → `index.ts` may `import '@gjsify/<pkg>/register'` as side-effect. Document in file header. Current: `@gjsify/eventsource`.
 9. **Granular subpaths.** Each register module in own file `src/register/<feature>.ts`, grouped by feature (related identifiers share a file). Catch-all `src/register.ts` re-exports via side-effect imports:
@@ -500,6 +501,8 @@ examples/gtk/<name>/src/
 ```
 
 Scripts: `build:gjs`→`gjsify build src/gjs/gjs.ts --app gjs` | `build:browser`→`gjsify build src/browser/browser.ts --app browser` | `start`→`gjsify run dist/gjs.js` | `start:browser`→`http-server dist`
+
+**No explicit `/register` imports in example source.** Do not write `import '@gjsify/node-globals/register'` or any other `/register` side-effect import in `examples/` or `showcases/` source files. `gjsify build` uses `--globals auto` by default, which injects only the granular register subpaths actually referenced in the bundle. Explicit catch-all imports bloat the bundle and mask auto-detection gaps. If a global is needed and auto doesn't pick it up, add `--globals auto,<identifier>` to the build script instead.
 
 Constants (dropdowns, defaults) in shared `.ts` — both `gjs/` + `browser/` import. No duplication in HTML.
 

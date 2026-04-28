@@ -1,4 +1,3 @@
-import '@gjsify/node-globals/register';
 import { serialize, deserialize } from '@deepkit/type';
 
 const printGjs = (globalThis as unknown as { print?: (msg: string) => void }).print;

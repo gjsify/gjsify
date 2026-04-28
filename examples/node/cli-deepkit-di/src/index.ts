@@ -1,4 +1,3 @@
-import '@gjsify/node-globals/register';
 
 import { InjectorContext } from '@deepkit/injector';
 

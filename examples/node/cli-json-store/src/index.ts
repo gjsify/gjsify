@@ -1,6 +1,5 @@
 // JSON file-based data store — demonstrates fs, crypto, buffer, path on GJS
 // Reference: Node.js fs, crypto, path APIs
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import * as fs from 'node:fs';
 import * as path from 'node:path';

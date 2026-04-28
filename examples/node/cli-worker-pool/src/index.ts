@@ -3,7 +3,6 @@
 // events (EventEmitter), process, crypto (randomUUID)
 // Note: On GJS, workers use Gio.Subprocess, not true threads
 
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { EventEmitter } from 'node:events';
 import { MessageChannel } from 'node:worker_threads';

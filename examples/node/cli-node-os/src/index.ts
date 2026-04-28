@@ -1,4 +1,3 @@
-import '@gjsify/node-globals/register';
 import { homedir, hostname, tmpdir, cpus, EOL, type, release, userInfo, endianness } from 'os';
 
 console.log('=== @gjsify/os example ===\n');

@@ -1,7 +1,6 @@
 // Recursive file search (simplified grep) for Node.js and GJS
 // Demonstrates: fs (readdir, stat, createReadStream), path, readline, process
 
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { readdirSync, statSync, createReadStream } from 'node:fs';
 import { join, relative, extname } from 'node:path';

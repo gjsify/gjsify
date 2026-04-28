@@ -3,7 +3,6 @@
 // Copyright (c) 2014-2024 Damien Arrachequesne. MIT.
 // Rewritten for GJS: plain http.createServer instead of express.
 
-import '@gjsify/node-globals/register';
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';

@@ -1,4 +1,3 @@
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import express from 'express';
 
