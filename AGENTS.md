@@ -7,6 +7,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 ## Governance — non-negotiable
 
 |doc: update AGENTS.md immediately on any architectural decision (package boundaries, API patterns, build, deps, cross-cutting) — never leave drift between sessions
+|status: update STATUS.md in EVERY PR/commit that changes code or tests — new/promoted packages, test counts, Completed items, Metrics, Open TODOs; STATUS.md drift = blocked PR
 |polyfills: browser-compat patches belong in packages, not examples — add to `@gjsify/dom-elements` or the right pkg
 |root-cause: fix bugs in the core package in the SAME PR that exposed them — no "known limitation" notes, no skip-guards, no TODO-for-later (workarounds ossify); examples/tests/CI exist to surface impl gaps
 |scope: expanding PR scope is the *expected* cost, not a reason to defer — goal is `@gjsify/*` running arbitrary npm packages unmodified on GJS
@@ -555,7 +556,20 @@ Every impl → A or B. Every ported test → C. Original: `// <Module> for GJS �
 
 **STATUS.md always reflects current codebase state.** Feature lands / bug fixed / test added / workaround discovered / deferred item identified → update STATUS.md in the same commit. Never leave drift.
 
-Update when: adding/expanding tests (counts) | fixing impls (Working/Missing) | completing stubs (move category). Keep Metrics current. Add GJS/SpiderMonkey workarounds to "Upstream GJS Patch Candidates".
+**Every PR that touches code or tests MUST include a STATUS.md update.** No exceptions. PRs without the update are incomplete. Checklist:
+
+| Trigger | Required STATUS.md change |
+|---|---|
+| New package added | Add row to the correct table (Fully/Partially/Stub or new section); add entry to GNOME Library Usage if it uses a GNOME lib; update Metrics package counts |
+| Package promoted (Stub→Partial, Partial→Full) | Move row to new table; update summary table percentages; add to `### Completed` |
+| Tests added or counts change | Update test count in the package row; update Metrics "Total test cases" |
+| New integration test suite | Add section under "Integration Test Coverage"; update Metrics suite count + test total |
+| Bug fixed / workaround removed | Update Working/Missing column; strike through "Upstream GJS Patch Candidates" entry if resolved |
+| Deferred item identified | Add entry to "Open TODOs" with priority and next steps |
+| Deferred item resolved | Move from "Open TODOs" to `### Completed` (or delete if trivial) |
+| Native Vala bridge added | Add dedicated package table + GNOME Library Usage row; update multi-arch prebuild list |
+| New architecture/platform supported | Update all affected package prebuild lists; update Metrics |
+| Header `> Last updated:` | Always update to the current date with a one-line summary of what changed |
 
 **Track deferred work in dedicated `Open TODOs` section.** Every "out of scope" / "follow-up" / "later" note from PR description / plan file / commit message must have a corresponding entry — otherwise forgotten. Resolved TODO → move to `### Completed` list (or delete if trivial).
 
