@@ -182,3 +182,6 @@
 [submodule "refs/libsoup"]
 	path = refs/libsoup
 	url = https://gitlab.gnome.org/GNOME/libsoup.git
+[submodule "refs/esbuild"]
+	path = refs/esbuild
+	url = https://github.com/evanw/esbuild
