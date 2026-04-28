@@ -1,4 +1,7 @@
-import '@gjsify/node-globals/register';
+import '@gjsify/node-globals/register/process';
+import '@gjsify/node-globals/register/buffer';
+import '@gjsify/node-globals/register/timers';
+import '@gjsify/node-globals/register/url';
 import { run } from '@gjsify/unit';
 
 import testSuiteCallback from './callback.spec.js';

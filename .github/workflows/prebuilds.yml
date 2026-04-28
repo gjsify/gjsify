@@ -7,9 +7,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'packages/dom/webgl/src/vala/**'
-      - 'packages/dom/webgl/src/vapi/**'
-      - 'packages/dom/webgl/meson.build'
+      - 'packages/framework/webgl/src/vala/**'
+      - 'packages/framework/webgl/src/vapi/**'
+      - 'packages/framework/webgl/meson.build'
       - 'packages/web/webrtc-native/src/vala/**'
       - 'packages/web/webrtc-native/meson.build'
       - 'packages/node/http-soup-bridge/src/vala/**'
@@ -56,13 +56,13 @@ jobs:
 
       # -------- @gjsify/webgl (gwebgl) --------
       - name: Build @gjsify/webgl Vala library
-        working-directory: packages/dom/webgl
+        working-directory: packages/framework/webgl
         run: |
           meson setup build .
           meson compile -C build
 
       - name: Collect @gjsify/webgl prebuilds
-        working-directory: packages/dom/webgl
+        working-directory: packages/framework/webgl
         env:
           ARCH: ${{ matrix.arch }}
         run: |
@@ -75,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: webgl-prebuilds-linux-${{ matrix.arch }}
-          path: packages/dom/webgl/prebuilds/linux-${{ matrix.arch }}/
+          path: packages/framework/webgl/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
       # -------- @gjsify/webrtc-native (GjsifyWebrtc) --------
@@ -142,13 +142,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: webgl-prebuilds-linux-x86_64
-          path: packages/dom/webgl/prebuilds/linux-x86_64/
+          path: packages/framework/webgl/prebuilds/linux-x86_64/
 
       - name: Download webgl aarch64 prebuilds
         uses: actions/download-artifact@v4
         with:
           name: webgl-prebuilds-linux-aarch64
-          path: packages/dom/webgl/prebuilds/linux-aarch64/
+          path: packages/framework/webgl/prebuilds/linux-aarch64/
 
       # -------- @gjsify/webrtc-native --------
       - name: Download webrtc-native x86_64 prebuilds
@@ -180,7 +180,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/dom/webgl/prebuilds/ packages/web/webrtc-native/prebuilds/ packages/node/http-soup-bridge/prebuilds/
+          git add packages/framework/webgl/prebuilds/ packages/web/webrtc-native/prebuilds/ packages/node/http-soup-bridge/prebuilds/
           if git diff --cached --quiet; then
             echo "No prebuild changes to commit."
           else

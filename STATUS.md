@@ -385,7 +385,7 @@ Not yet implemented (but potentially relevant for GJS projects):
    | ~~**DNS lookup tool**~~✓ | cli | dns, net, readline | `examples/cli/dns-lookup` |
    | ~~**Worker pool**~~✓ | cli | worker_threads, events, crypto | `examples/cli/worker-pool` |
    | **SQLite/JSON data store** | cli | fs, crypto, buffer, stream | — |
-   | **GTK + HTTP** (dashboard) | gtk | Gtk 4, Soup, fetch, WebSocket | — |
+   | ~~**GTK + HTTP** (dashboard)~~✓ | gtk | Gtk 4, http (Soup-bridge backed) | `examples/node/gtk-http-dashboard` |
 
    These examples serve as integration tests and surface real CJS-ESM interop issues, missing globals, GC problems, and MainLoop edge cases that unit tests alone don't catch.
 
@@ -511,10 +511,9 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 
 **Progress:**
 - ✅ **Steps 1 + 2 done** — Granular subpaths exist: `packages/node/globals/src/register/{buffer,encoding,microtask,process,structured-clone,timers,url}.ts`. The catch-all `register.ts` now re-imports from these granular files (with a comment directing users to granular imports). `GJS_GLOBALS_MAP` already points at the granular paths.
-- 🔲 **Step 3 pending** — Consumers (`test.mts` entry-points, autobahn drivers, integration test entries) still `import '@gjsify/node-globals/register'`. Migrate one consumer at a time.
-- 🔲 **Step 4 pending** — Once all consumers are migrated, remove or deprecate the monolithic catch-all.
-
-Migration approach: pick a consumer that only uses a subset (e.g. `@gjsify/http/src/test.mts` — only needs `process` + `url`), replace with targeted imports, verify both Node + GJS tests still pass. Repeat per consumer.
+- ✅ **Step 3 done for per-package test entries and Autobahn drivers** — All `packages/{node,web}/*/src/test.mts` entries (buffer, fs, module, stream, timers, tty, worker_threads, fetch, formdata) now import only the granular subpaths each test actually needs. The two Autobahn drivers in `tests/integration/autobahn/src/` now use `register/process` + `register/timers`. Self-tests of the meta packages `@gjsify/node-globals` and `@gjsify/web-globals` keep the catch-all because they verify the entire register surface by design.
+- 🔲 **Step 3 deferred for examples + integration suites** — `examples/node/*` and `tests/integration/{webtorrent,socket.io,streamx,mcp-typescript-sdk,mcp-inspector-cli}/src/test.mts` still import the catch-all. These are legitimate "full Node runtime surface" consumers (real-world third-party libraries pull in everything), so the catch-all is the right shape for them. Migrate only if a specific consumer benefits from a smaller bundle.
+- 🔲 **Step 4 pending** — Catch-all is now genuinely opt-in. Keep it indefinitely as the "full surface" entry point; do not deprecate.
 
 Keep the catch-all for **new** consumers that genuinely want "give me the full Node runtime surface" — but keep it as opt-in, not a mandatory import chain.
 
