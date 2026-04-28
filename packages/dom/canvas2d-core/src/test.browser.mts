@@ -299,9 +299,9 @@ run({
                 expect(nearlyEqual(m.f, 0)).toBe(true);
             });
 
-            await it('setTransform accepts DOMMatrix-like object', async () => {
+            await it('setTransform accepts DOMMatrix2DInit object', async () => {
                 const ctx = makeCtx();
-                ctx.setTransform({ a: 2, b: 0, c: 0, d: 2, e: 5, f: 10, is2D: true, isIdentity: false, m11: 2, m12: 0, m13: 0, m14: 0, m21: 0, m22: 2, m23: 0, m24: 0, m31: 0, m32: 0, m33: 1, m34: 0, m41: 5, m42: 10, m43: 0, m44: 1 });
+                ctx.setTransform({ a: 2, b: 0, c: 0, d: 2, e: 5, f: 10 });
                 const m = ctx.getTransform();
                 expect(nearlyEqual(m.a, 2)).toBe(true);
                 expect(nearlyEqual(m.e, 5)).toBe(true);
