@@ -164,10 +164,10 @@ jobs:
             base_image: fedora:43
 
           # RISC-V boards (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …)
-          # ubuntu:24.04 is used because fedora:43 has no official riscv64 image.
+          # ubuntu:26.04 is used because fedora:43 has no official riscv64 image.
           - arch: riscv64
             qemu_arch: riscv64
-            base_image: ubuntu:24.04
+            base_image: ubuntu:26.04
 
     steps:
       - name: Checkout repository
