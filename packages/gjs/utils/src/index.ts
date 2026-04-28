@@ -16,4 +16,3 @@ export * from './next-tick.js';
 export * from './path.js';
 export * from './structured-clone.js';
 export * from './main-loop.js';
-export * from './log-writer.js';
