@@ -33,5 +33,5 @@
 		"@types/node",
 		"src"
 	],
-  	"exclude": ["src/test.mts"]
+  	"exclude": ["src/test.mts", "src/test.browser.mts"]
 }

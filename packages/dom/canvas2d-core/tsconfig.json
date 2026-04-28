@@ -41,6 +41,7 @@
         "../../../node_modules/@girs/gobject-2.0/gobject-2.0-ambient.d.ts"
     ],
     "exclude": [
-        "src/test.mts"
+        "src/test.mts",
+        "src/test.browser.mts"
     ]
 }
