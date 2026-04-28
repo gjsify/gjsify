@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### refactor — `@gjsify/http`: consolidate Soup.ServerMessage lifecycle + fix MCP server crashes (2026-04-26)
+
+Resolves the SIGSEGV that prevented MCP servers (and other Hono-based apps) from running on GJS. The fix landed across multiple files; the centerpiece is a new `SoupMessageLifecycle` helper that consolidates everything related to one in-flight Soup message: GC guard, `'finished'`/`'disconnected'` signal handling (translated to Node-style req/res `'close'`/`'aborted'` events), and `'wrote-chunk'`-driven re-unpause tracking via a unpause-ticket pattern (`consumeUnpauseTicket()`).
+
+**Bug fixes** — these were the actual SIGSEGV causes:
+
+- **GC use-after-free on `Soup.ServerMessage`**: After Hono drops its reference to `res`, SpiderMonkey GC was free to collect the JS wrapper around `_soupMsg` while Soup's IO was still touching it. The lifecycle helper now pins the GObject in a module-level `_activeMessages` Set until Soup signals `'finished'`.
+- **Missing re-unpause on multi-chunk responses**: libsoup HTTP1 IO calls `soup_server_message_pause()` between chunks; without a matching `unpause()`, subsequent appended chunks (and the chunked terminator) were never sent. The `'wrote-chunk'` signal fires synchronously inside Soup's IO right before the auto-pause, so by the time JS resumes the unpause is safe and necessary.
+- **Soup signals not propagated to req/res**: Frameworks that listen for `req.on('close')` (MCP SDK, engine.io, anything streaming) had no cleanup trigger. Now `'disconnected'` emits `'aborted'`+`'close'` on req and `'close'` on res; `'finished'` emits `'close'` on req for the normal completion path.
+- **Async handler rejections swallowed by GLib's callback layer**: User-code `async (req, res) => { … }` rejections were lost as g_warnings — now caught and logged with a 500 fallback in `Server._handleRequest`.
+- **`req.socket` was a plain object missing `destroySoon`**: Hono calls `socket.destroySoon()` after every response. New `ServerRequestSocket extends Duplex` provides a real `net.Socket` duck-type with `destroySoon`/`pause`/`resume`/`setNoDelay`/etc. — `pause/resume` now actually forward to the underlying Soup message so backpressure works.
+- **`@gjsify/net.Socket.destroySoon()` was missing entirely**: added with a matching unit test.
+- **`@gjsify/fetch` body wrapper raised inside the nextTick queue**: `controller.close()` would throw if the consumer cancelled; now guarded with a `closed` flag and try/catch (eliminates the constant `gjsify-nextTick-WARNING` spam during MCP responses).
+
+**Refactor:**
+
+- All defensive try/catch wrappers around Soup API calls in `_write`/`_final`/`_sendBatchResponse` removed — libsoup's GI-bound C API does not raise JS exceptions, so they were dead code. The async-handler catch in `_handleRequest` stays.
+- `ServerResponse` is now thin: drops `_soupNeedsUnpause`/`_soupWroteChunkId`/etc., delegates everything via `_attachLifecycle()`.
+
+**Examples:**
+
+- `examples/node/net-mcp-server`: holds `McpServer` instances per session in a parallel `mcpServers` Map (was locally scoped inside the request handler — could be GC'd between requests, pulling down its underlying GLib sources). Resource URI changed from `info://server` to `info://server/meta` to work around a separate GJS URL-parsing quirk that adds a trailing slash to authority-only URIs.
+
+**Tests:**
+
+- New `tests/integration/mcp-typescript-sdk/streamable-http.spec.ts` cases: multiple sequential tool calls on a shared client, multiple per-session transports following the real-world pattern, raw HTTP fetch loop without MCP, forced `imports.system.gc()` between tool calls, inspector-style mixed workload.
+- New `tests/integration/mcp-inspector-cli/` suite — drives the official `@modelcontextprotocol/inspector` CLI as a subprocess against both GJS and Node builds of the example MCP server. Catches regressions in the exact wire shape that produced the original crash. 14 tests (7 × 2 server targets).
+
+**Known limitations (tracked in STATUS.md "Upstream GJS Patch Candidates"):**
+
+1. *Long-poll/SSE peer-close not detected on paused messages.* libsoup stops polling the input stream while a server message is paused, so `'disconnected'` never fires for long-poll/SSE clients that hang up. `SoupMessageLifecycle` opts GET requests *out* of the GC guard so SpiderMonkey GC can eventually collect them, but the libsoup-side state accumulation still crashes the GJS process after ~5 hung long-polls. The inspector-CLI sequential-call test stays capped at 3 iterations.
+
+2. *GJS Boxed-Source GC race for chunked responses to non-GJS HTTP clients.* A single `fetch()` from a Node.js process to our HTTP server with a chunked `text/event-stream` response causes a SIGSEGV ~10–13 s later (`gjs exited with code null`, no JS traceback). Backtrace: `BoxedBase::finalize → g_source_unref → assertion 'old_ref > 0' failed`. A libsoup-internal `GLib.Source` is exposed to JS without proper transfer ownership; GLib frees it when Soup completes the response, then GJS's deferred-GC heuristic (`g_timeout_add_seconds(10, …)`, `refs/gjs/gjs/context.cpp:873-906`) fires the JS finalizer which double-unrefs. **In-process MCP `client.callTool` does NOT trigger this** — the CI suite passes — but external HTTP clients (MCP Inspector subprocess, browser EventSource, raw `node -e 'fetch(…)'`) do. We attempted but rejected: eager `imports.system.gc()` after `'finished'` (corrupts shared keep-alive state when a sibling long-poll exists), idle-only GC gated on `_inFlightCount === 0` (paused long-polls keep count > 0 forever), forced `Connection: close` (no help), `condition_check(HUP|ERR)` watchdog (Linux POLLHUP only fires on bilateral close, not the typical client-side half-close), `Gio.Socket.receive_message(MSG_PEEK)` non-destructive probe (not introspectable from JS — `(out caller-allocates)` for `gint8[]` buffers is not bound). A real fix requires either a GJS GIR-bindings audit to identify and fix the offending transfer-mode annotation, or a libsoup patch moving chunked-write internals away from JS-visible Sources.
+
+1742+ tests stay green on Node and GJS; new `mcp-inspector-cli` suite adds 14.
+
 ### feat — `@gjsify/http2`: compat layer + session API via Soup 3.0 (2026-04-25)
 
 `http2.createServer()`, `http2.createSecureServer()`, `http2.connect()` are now functional instead of throwing.

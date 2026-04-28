@@ -428,6 +428,17 @@ export class Socket extends Duplex {
     return this;
   }
 
+  /** Half-close then destroy: end() if writable, destroy() once finished. */
+  destroySoon(): void {
+    if (this.writable)
+      this.end();
+
+    if (this.writableFinished)
+      this.destroy();
+    else
+      this.once('finish', this.destroy.bind(this));
+  }
+
   /** Get the underlying socket address info. */
   address(): { port: number; family: string; address: string } | {} {
     if (this.localAddress && this.localPort) {

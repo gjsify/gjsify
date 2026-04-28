@@ -285,7 +285,8 @@ export class Request extends Body {
     // draining its buffer before we get here).
     const rawBuf = this._rawBodyBuffer;
     if (rawBuf !== null && rawBuf.byteLength > 0) {
-      message.set_request_body_from_bytes(null, new GLib.Bytes(rawBuf));
+      const contentType = options.headers.get('content-type') || null;
+      message.set_request_body_from_bytes(contentType, new GLib.Bytes(rawBuf));
     }
 
     const cancellable = new Gio.Cancellable();

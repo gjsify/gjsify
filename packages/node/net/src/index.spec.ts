@@ -234,6 +234,11 @@ export default async () => {
         expect(typeof socket.destroy).toBe('function');
       });
 
+      await it('should have destroySoon method', async () => {
+        const socket = new Socket();
+        expect(typeof socket.destroySoon).toBe('function');
+      });
+
       await it('should return empty object from address() when not connected', async () => {
         const socket = new Socket();
         const addr = socket.address();

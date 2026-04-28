@@ -137,19 +137,31 @@ export default class Body {
 
         // If ReadableStream is available, wrap the Readable into one
         if (typeof ReadableStream !== 'undefined') {
+            let closed = false;
             return new ReadableStream<Uint8Array>({
                 start(controller) {
                     stream.on('data', (chunk: Buffer | Uint8Array) => {
-                        controller.enqueue(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
+                        if (closed) return;
+                        try {
+                            controller.enqueue(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
+                        } catch { /* consumer cancelled — drop */ }
                     });
                     stream.on('end', () => {
-                        controller.close();
+                        if (closed) return;
+                        closed = true;
+                        // Defensive: consumer may have cancelled the stream already,
+                        // in which case .close() throws TypeError. Don't surface that
+                        // as an unhandled error in the nextTick queue.
+                        try { controller.close(); } catch { /* already closed/cancelled */ }
                     });
                     stream.on('error', (err: Error) => {
-                        controller.error(err);
+                        if (closed) return;
+                        closed = true;
+                        try { controller.error(err); } catch { /* already closed/cancelled */ }
                     });
                 },
                 cancel() {
+                    closed = true;
                     stream.destroy();
                 }
             });

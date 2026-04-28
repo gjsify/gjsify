@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/helpers.ts",
+        "src/protocol.spec.ts",
+        "src/tool.spec.ts",
+        "src/resource.spec.ts",
+        "src/prompt.spec.ts",
+        "src/streamable-http.spec.ts"
+    ]
+}

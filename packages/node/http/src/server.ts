@@ -7,7 +7,9 @@ import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { Socket as NetSocket } from '@gjsify/net/socket';
-import { deferEmit, ensureMainLoop } from '@gjsify/utils';
+import { ServerRequestSocket } from './server-request-socket.js';
+import { SoupMessageLifecycle } from './soup-message-lifecycle.js';
+import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
 
@@ -101,10 +103,18 @@ export class ServerResponse extends OutgoingMessage {
   private _streaming = false;
   private _soupMsg: Soup.ServerMessage;
   private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  /** @internal Set by Server._handleRequest right after construction. Owns
+   *  GC guard, signal handlers, wrote-chunk tracking, and peer-close watchdog. */
+  private _lifecycle: SoupMessageLifecycle | null = null;
 
   constructor(soupMsg: Soup.ServerMessage) {
     super();
     this._soupMsg = soupMsg;
+  }
+
+  /** @internal Wire the lifecycle helper. Called once by Server._handleRequest. */
+  _attachLifecycle(lifecycle: SoupMessageLifecycle): void {
+    this._lifecycle = lifecycle;
   }
 
   /** Set a timeout for the response. Emits 'timeout' if response not sent within msecs. */
@@ -219,25 +229,39 @@ export class ServerResponse extends OutgoingMessage {
         responseHeaders.replace(key, value as string);
       }
     }
+
+    // Consume the initial pause token placed by _handleRequest. The lifecycle
+    // helper has already wired the 'wrote-chunk' signal, so subsequent writes
+    // know whether Soup has auto-paused via consumeUnpauseTicket().
+    this._soupMsg.unpause();
   }
 
-  /** Writable stream _write — sends headers on first call, then appends + flushes each chunk. */
+  /** Writable stream _write — sends headers on first call, then appends each chunk. */
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
     this._startStreaming();
     const responseBody = this._soupMsg.get_response_body();
     responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
-    this._soupMsg.unpause();
+    // If Soup auto-paused after the previous chunk (signalled by 'wrote-chunk'
+    // and tracked by the lifecycle helper), wake it so it picks up this chunk.
+    if (this._lifecycle?.consumeUnpauseTicket()) {
+      this._soupMsg.unpause();
+    }
     callback();
   }
 
   /** Called by Writable.end() — completes the body (streaming) or sends batch response (no-body). */
   _final(callback: (error?: Error | null) => void): void {
     if (this._streaming) {
-      // Streaming mode — signal no more chunks
-      const responseBody = this._soupMsg.get_response_body();
-      responseBody.complete();
-      this._soupMsg.unpause();
+      this._soupMsg.get_response_body().complete();
+      // If Soup auto-paused after the last chunk, wake it to send the
+      // chunked terminator (0\r\n\r\n). If Soup is already running (single-
+      // chunk path where GLib hasn't yielded), the ticket is false and Soup
+      // will find the complete() on its next iteration — calling unpause()
+      // anyway would decrement pause_count below zero.
+      if (this._lifecycle?.consumeUnpauseTicket()) {
+        this._soupMsg.unpause();
+      }
     } else {
       // Batch mode — no write() was called (e.g. redirects, 204, empty end())
       this._sendBatchResponse();
@@ -274,9 +298,10 @@ export class ServerResponse extends OutgoingMessage {
       }
     }
 
-    // Empty body — use set_response so Soup knows the response is complete.
     const contentType = (this._headers.get('content-type') as string) || 'text/plain';
     this._soupMsg.set_response(contentType, Soup.MemoryUse.COPY, new Uint8Array(0));
+    // Unpause exactly once — batch responses have no prior _write/_startStreaming call.
+    this._soupMsg.unpause();
   }
 
   /** Write status + headers + body in one call (convenience). */
@@ -303,6 +328,7 @@ export class ServerResponse extends OutgoingMessage {
 // the return value, the Server (and its Soup.Server) gets collected after ~10s.
 // This Set keeps a strong reference to every listening server.
 const _activeServers = new Set<Server>();
+
 
 /**
  * HTTP Server wrapping Soup.Server.
@@ -387,12 +413,8 @@ export class Server extends EventEmitter {
 
       deferEmit(this, 'listening');
     } catch (err: unknown) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      if (this.listenerCount('error') === 0) {
-        // No error listener — throw like Node.js does for unhandled EventEmitter errors
-        throw error;
-      }
-      deferEmit(this, 'error', error);
+      const nodeErr = createNodeError(err, 'listen', { address: hostname, port });
+      deferEmit(this, 'error', nodeErr);
     }
 
     return this;
@@ -435,16 +457,11 @@ export class Server extends EventEmitter {
     // Populate req.socket with address info — engine.io Socket constructor reads
     // req.connection.remoteAddress (req.connection is an alias for req.socket).
     // Must be set BEFORE emitting 'upgrade' so WebSocket-only paths don't crash.
-    const remoteHost = soupMsg.get_remote_host() ?? '127.0.0.1';
-    const remoteAddr = soupMsg.get_remote_address();
-    const remotePort = (remoteAddr instanceof Gio.InetSocketAddress) ? remoteAddr.get_port() : 0;
-    req.socket = {
-      remoteAddress: remoteHost,
-      remotePort,
-      localAddress: this._address?.address ?? '127.0.0.1',
-      localPort: this._address?.port ?? 0,
-      encrypted: false,
-    } as any;
+    req.socket = new ServerRequestSocket(
+      soupMsg,
+      this._address?.address ?? '127.0.0.1',
+      this._address?.port ?? 0,
+    ) as any;
 
     if (connectionHeader.includes('upgrade') && upgradeHeader) {
       if (this.listenerCount('upgrade') > 0) {
@@ -472,14 +489,40 @@ export class Server extends EventEmitter {
       req._pushBody(null);
     }
 
-    // Pause Soup's processing — we'll set the response when ServerResponse.end() is called
+    // Wire the SoupMessageLifecycle helper. It owns:
+    //   * GC guard for soupMsg (keeps the GObject alive until Soup is done).
+    //   * 'disconnected' and 'finished' Soup signals → req/res 'close'/'aborted'.
+    //   * 'wrote-chunk' tracking so ServerResponse can re-unpause Soup safely.
+    //   * The HUP/ERR watchdog that detects peer-close on paused long-poll
+    //     responses (libsoup limitation: it stops polling the input stream
+    //     while the message is paused, so 'disconnected' never fires for
+    //     SSE/long-poll clients that hang up). The watchdog is started lazily
+    //     from ServerResponse._startStreaming after the first write.
+    res._attachLifecycle(new SoupMessageLifecycle(soupMsg, req, res));
+
+    // Pause Soup's processing — ServerResponse._sendBatchResponse/_final calls unpause().
     soupMsg.pause();
 
-    res.on('finish', () => {
-      soupMsg.unpause();
-    });
-
-    this.emit('request', req, res);
+    // Emit synchronously. Async request handlers that reject without a .catch()
+    // would become unhandled GLib-callback rejections — GJS only g_warning()s
+    // those, but they can also mask the real crash. Catch them here so errors
+    // surface as proper log lines rather than silent exits.
+    try {
+      const result = this.emit('request', req, res) as unknown;
+      if (result instanceof Promise || (result !== null && typeof result === 'object' && typeof (result as any).then === 'function')) {
+        (result as Promise<unknown>).catch((err: unknown) => {
+          console.error('[HTTP] Unhandled error in async request handler:', err);
+          if (!res.headersSent) {
+            try { res.writeHead(500); res.end('Internal Server Error'); } catch { /* ignore */ }
+          }
+        });
+      }
+    } catch (err) {
+      console.error('[HTTP] Unhandled error in request handler:', err);
+      if (!res.headersSent) {
+        try { res.writeHead(500); res.end('Internal Server Error'); } catch { /* ignore */ }
+      }
+    }
   }
 
   address(): { port: number; family: string; address: string } | null {
