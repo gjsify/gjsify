@@ -8,7 +8,8 @@
 // the gap narrows down which wrapper-layer features drop frames or mis-code
 // close reasons.
 
-import '@gjsify/node-globals/register';
+import '@gjsify/node-globals/register/process';
+import '@gjsify/node-globals/register/timers';
 // Importing `ws` here goes through the bundler alias:
 //   ws → @gjsify/ws → @gjsify/websocket → Soup.WebsocketConnection.
 // The shape of the import matches what real npm `ws` consumers use.

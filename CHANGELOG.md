@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### chore — extend native prebuilds to linux-ppc64, linux-s390x, linux-riscv64 (2026-04-28)
+
+Added QEMU-based CI builds for three additional Linux architectures in `.github/workflows/prebuilds.yml`.
+
+**New `build-prebuilds-qemu` job** uses `uraimo/run-on-arch-action@v2` on `ubuntu-latest` host runners with QEMU binary-format emulation:
+
+- **`linux-ppc64`** (IBM POWER9/10) — `base_image: fedora:43` (official ppc64le manifest entry), same dnf packages as the native Fedora job. Targets Raptor Computing Talos II / Blackbird workstations running GNOME on Fedora.
+- **`linux-s390x`** (IBM Z mainframes) — `base_image: fedora:43` (official s390x manifest entry), same dnf packages. Enterprise Linux server deployments.
+- **`linux-riscv64`** (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …) — `base_image: ubuntu:24.04` (fedora:43 has no riscv64 image), apt-get package equivalents. Auto-detected via `command -v dnf` in the `install:` block.
+
+**Architecture → prebuilds dir** mapping relies on Node.js `process.arch` which already returns `'ppc64'`, `'s390x'`, `'riscv64'` for these platforms — the existing `nodeArchToLinuxArch()` in `packages/infra/cli/src/utils/detect-native-packages.ts` passes them through as-is, so no CLI changes were needed.
+
+**`commit-prebuilds` job** updated to `needs: [build-prebuilds, build-prebuilds-qemu]` and downloads artifacts for all five architectures per package (15 download steps total across webgl, webrtc-native, http-soup-bridge).
+
+Prebuilt `.so` + `.typelib` directories added: `prebuilds/linux-{ppc64,s390x,riscv64}/` in `@gjsify/webgl`, `@gjsify/webrtc-native`, `@gjsify/http-soup-bridge`. READMEs and STATUS.md updated to reflect the expanded platform matrix.
+
+### chore — repo stability sweep (2026-04-28)
+
+Three small fixes around the recent `@gjsify/http-soup-bridge` landing:
+
+**CI: prebuilds workflow path correction.** `.github/workflows/prebuilds.yml` still pointed at `packages/dom/webgl`, but that package was moved to `packages/framework/webgl` in `319762fb1`. Every prebuild run on `main` was failing in the first `meson setup` step with `chdir to cwd packages/dom/webgl: no such file or directory`. Updated all path references (trigger paths, working-directory, artifact paths, commit-prebuilds add list) to `packages/framework/webgl`. The other two prebuild targets (`packages/web/webrtc-native`, `packages/node/http-soup-bridge`) were unaffected.
+
+**Examples: `gjs -m` → `gjsify run` across all `examples/node/*`.** Once `@gjsify/http` started depending on the `GjsifyHttpSoupBridge-1.0` typelib, every example using `node:http` / Hono / Express / Koa / SSE / WebSocket needed `LD_LIBRARY_PATH` + `GI_TYPELIB_PATH` set to the prebuilds directory. `gjsify run` does that automatically; raw `gjs -m` does not. Migrated `start:gjs` (and `test:gjs` where present) in all 23 `examples/node/*` packages — both the directly-affected HTTP-stack examples (`gtk-http-dashboard`, `net-hono-rest`, `net-express-hello`, `net-koa-blog`, `net-sse-chat`, `net-ws-chat`, `net-static-file-server`) and the rest of the `cli-*` examples for consistency. Dashboard verified end-to-end: GTK window opens, HTTP server accepts requests, JSON responses round-trip.
+
+**Tests: granular `/register` subpath migration.** `@gjsify/node-globals/register` is now genuinely opt-in (Step 3 of the split tracked in STATUS.md). The 9 per-package test entries in `packages/{node,web}/*/src/test.mts` and the 2 Autobahn driver bundles now import only the granular subpaths each test actually needs (`register/process` is universal for `@gjsify/unit`'s `process.env` / `process.exit` reads; the rest is per-package — `register/buffer`, `register/timers`, `register/url`, `register/microtask`, `register/structured-clone`). The two meta-package self-tests (`@gjsify/node-globals`, `@gjsify/web-globals`) keep the catch-all because they verify the entire register surface by design. Examples and integration suites (webtorrent, socket.io, streamx, mcp-typescript-sdk, mcp-inspector-cli) keep the catch-all — they're the legitimate "give me the full Node runtime surface" consumers (real third-party libraries pull in everything). Repo-wide `yarn check` clean; all migrated package tests green on Node + GJS.
+
 ### feat — `@gjsify/http-soup-bridge`: native Vala bridge for libsoup HTTP server (2026-04-27)
 
 New native package + integration into `@gjsify/http`. Closes both libsoup-related entries from STATUS.md "Upstream GJS Patch Candidates" by moving the entire `Soup.Server` interaction into Vala-emitted C and exposing JS only through plain GObject classes. Same pattern as `@gjsify/webrtc-native` — see PR #44 for full context.

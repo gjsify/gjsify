@@ -10,7 +10,7 @@
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit",
     "start": "yarn start:gjs",
-    "start:gjs": "gjs -m dist/index.gjs.js",
+    "start:gjs": "gjsify run dist/index.gjs.js",
     "start:node": "node dist/index.node.mjs",
     "build": "yarn build:gjs && yarn build:node && yarn build:public",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
@@ -21,7 +21,7 @@
     "build:test": "yarn build:test:gjs && yarn build:test:node",
     "test": "yarn build && yarn build:test:node && yarn test:node",
     "test:node": "node test.node.mjs",
-    "test:gjs": "gjs -m test.gjs.mjs"
+    "test:gjs": "gjsify run test.gjs.mjs"
   },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",

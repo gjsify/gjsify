@@ -24,7 +24,8 @@
 // (tested in @gjsify/websocket's own unit spec). Explicit import keeps
 // bundler dependency tracking clean and survives any future changes to
 // the --globals auto detection rules.
-import '@gjsify/node-globals/register';
+import '@gjsify/node-globals/register/process';
+import '@gjsify/node-globals/register/timers';
 import { WebSocket } from '@gjsify/websocket';
 // `System.exit()` is the reliable GJS exit path. process.exit() from
 // @gjsify/process reaches imports.system.exit via globalThis.imports, which

@@ -6,7 +6,7 @@
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "tsc --noEmit --skipLibCheck",
-    "start": "gjs -m dist/index.gjs.js",
+    "start": "gjsify run dist/index.gjs.js",
     "build": "yarn build:gjs",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js"
   },

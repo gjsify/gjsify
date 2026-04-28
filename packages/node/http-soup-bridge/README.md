@@ -76,7 +76,9 @@ the `gjsify.prebuilds` field at startup, so consumers don't need to install
 the bridge into a system path.
 
 The CI workflow at `.github/workflows/prebuilds.yml` builds prebuilds for
-linux-x86_64 + linux-aarch64 and auto-commits them to the repo.
+linux-x86_64, linux-aarch64, linux-ppc64, linux-s390x, and linux-riscv64
+and auto-commits them to the repo. x86_64 and aarch64 use native GitHub
+runners; ppc64, s390x, and riscv64 use QEMU via `uraimo/run-on-arch-action`.
 
 ## TS types
 
