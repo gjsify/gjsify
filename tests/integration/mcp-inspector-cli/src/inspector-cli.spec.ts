@@ -90,18 +90,20 @@ export default async () => {
         // session, so this exercises the libsoup-server lifecycle the same
         // way the interactive inspector UI does.
         //
-        // Cap is 4 (was 3 before the bridge): @gjsify/http-soup-bridge
-        // eliminated the libsoup-internal Boxed-Source GC race, so the
-        // first inspector iteration no longer crashes the server outright.
-        // A residual deferred-GC SIGSEGV from Boxed wrappers created
-        // elsewhere in the MCP-SDK / Hono / web-streams stack still hits
-        // around GJS's 10 s deferred-GC heuristic — total runtime of N
-        // iterations × ~3 s/iteration must stay under that window.
-        // Tracked as a separate STATUS.md item; revisit once the offending
-        // wrapper is identified and pinned.
+        // Two compounding fixes lifted this from "dies at 4–5":
+        // (1) @gjsify/http-soup-bridge eliminated the libsoup-internal
+        //     Boxed-Source GC race in the chunked / SSE response path.
+        // (2) @gjsify/node-globals/register/timers replaces native GJS
+        //     setTimeout/setInterval with numeric-ID-backed wrappers, but
+        //     only fires when --globals auto sees those names in the
+        //     bundle — they were missing from GJS_GLOBALS_MAP, so MCP-SDK
+        //     and Hono kept using the native BoxedInstance-returning
+        //     setTimeout. Adding setTimeout/setInterval/clearTimeout/
+        //     clearInterval to the map closes that path.
+        // Smoke-tested at 25 sequential calls + 60 s idle without crash.
         await it('survives a sequence of inspector invocations on the same server', async () => {
           await withServer(target, async (server) => {
-            for (let i = 1; i <= 4; i++) {
+            for (let i = 1; i <= 20; i++) {
               const r = await runInspector(server.baseUrl, [
                 '--method', 'tools/call',
                 '--tool-name', 'echo',
