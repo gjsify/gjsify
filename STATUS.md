@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-28 (`@gjsify/http-soup-bridge` Vala native bridge fixes MCP/SSE crashes; MCP TypeScript SDK + inspector-cli integration suites (122 tests); Playwright browser tests for 11 web packages; http2 Phase 1 (128 tests); socket.io 112/112 with WebSocket-only transport; multi-arch prebuilds ppc64/s390x/riscv64.)
+> Last updated: 2026-04-28 (`@gjsify/http-soup-bridge` Vala native bridge fixes MCP/SSE crashes; MCP TypeScript SDK + inspector-cli integration suites (122 tests); Playwright browser tests for 11 web packages + 2 DOM packages (dom-elements, canvas2d-core) — 13 bundles total; http2 Phase 1 (128 tests); socket.io 112/112 with WebSocket-only transport; multi-arch prebuilds ppc64/s390x/riscv64.)
 
 ## Summary
 
@@ -558,18 +558,16 @@ Keep the catch-all for **new** consumers that genuinely want "give me the full N
 
 ### Browser Testing Infrastructure for DOM Packages
 
-**Priority: Medium — web packages done, DOM packages still pending.**
+**Priority: Low — web packages done, DOM packages done. GTK-only framework packages are intentionally excluded.**
 
 **Progress:** PR #42 (`feat(tests/browser)`) landed Playwright browser test infrastructure (`tests/browser/`) and added `test:browser` targets to **11 web packages**: `abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `streams`, `webcrypto`, `websocket`, `webstorage`. Firefox-primary via Playwright. Tests use browser globals directly (no `@gjsify/*` imports). 4 spec correctness issues were discovered and fixed in the process.
 
-**Still needed — DOM packages:**
+**DOM packages added:** `dom-elements` and `canvas2d-core` now have `src/test.browser.mts` + `build:test:browser` scripts. `discover-bundles.mjs` extended to scan `packages/dom/*/dist/` in addition to `packages/web/*/dist/`. 13 bundles total discovered. Tests cover: Node tree ops, Element attributes, classList, HTMLElement properties, Text/Comment/DocumentFragment, DOMMatrix, CSSStyleDeclaration, FontFace, FontFaceSet, matchMedia (dom-elements); clearRect, save/restore, transforms, ImageData, text, composite ops, drawImage, path ops (canvas2d-core).
 
-`packages/dom/*` and `packages/framework/*` bridge packages currently only have GJS tests. The correct test target for DOM behaviour is a **real browser**:
+**Intentionally excluded (no browser equivalent):**
 
-- Add `test.browser.mts` + `build:test:browser` scripts to `dom-elements`, `canvas2d-core`, `canvas2d`, `event-bridge`
-- Specs use browser globals directly — no `import '@gjsify/*'` that would drag in `@girs/*` bindings
-- Once browser coverage exists, `register.spec.ts` workaround files can fold back into common spec (no platform guards needed)
-- `refs/wpt/` is the authoritative conformance test source for DOM specs
+- `canvas2d` (`Canvas2DBridge → Gtk.DrawingArea`) — GTK-only, no browser canvas widget
+- `event-bridge` (`attachEventControllers` requires GTK4 controllers + GDK Display) — GTK-only
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
 

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### feat(tests/browser) — browser tests for dom-elements and canvas2d-core (2026-04-28)
+
+Extends the Playwright browser test infrastructure (from PR #42) to cover DOM packages:
+
+- **`packages/dom/dom-elements/src/test.browser.mts`** (new): Browser tests using native browser globals covering Node tree operations, Element attributes, classList/DOMTokenList, HTMLElement properties (title, lang, hidden, tabIndex, draggable, contentEditable, on* handlers), Text/Comment/DocumentFragment, DOMMatrix (identity, 6/16-element init, multiply, inverse, translate, scale), CSSStyleDeclaration via `element.style`, FontFace/FontFaceSet, `window.matchMedia`.
+- **`packages/dom/canvas2d-core/src/test.browser.mts`** (new): Browser tests using `document.createElement('canvas').getContext('2d')` covering clearRect (with transform/clip/globalAlpha/negative-width), save/restore state round-trips (fillStyle, strokeStyle, globalAlpha, globalCompositeOperation, lineWidth, lineCap, lineJoin, miterLimit, lineDash, font/textAlign/textBaseline, imageSmoothingEnabled), transforms (translate, scale, transform, setTransform, getTransform, DOMMatrix.multiply round-trip), ImageData (createImageData, getImageData, putImageData), text (measureText, fillText, strokeText), all 26 composite operations, drawImage (3/5/9-arg canvas-to-canvas), path operations (fillRect, arc, clip).
+- **`tests/browser/scripts/discover-bundles.mjs`**: Extended to scan `packages/dom/*/dist/` in addition to `packages/web/*/dist/`. Total discovered bundles: 13 (11 web + 2 DOM).
+- `build:test:browser` script added to both `packages/dom/dom-elements/package.json` and `packages/dom/canvas2d-core/package.json`.
+
+GTK-only packages (`canvas2d` with Canvas2DBridge, `event-bridge` with attachEventControllers) are intentionally excluded — they have no browser equivalent.
+
 ### chore — extend native prebuilds to linux-ppc64, linux-s390x, linux-riscv64 (2026-04-28)
 
 Added QEMU-based CI builds for three additional Linux architectures in `.github/workflows/prebuilds.yml`.
