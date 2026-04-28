@@ -36,6 +36,9 @@ This package ships prebuilt native libraries for supported platforms:
 prebuilds/
   linux-x86_64/   libgwebgl.so + Gwebgl-0.1.typelib
   linux-aarch64/  libgwebgl.so + Gwebgl-0.1.typelib
+  linux-ppc64/    libgwebgl.so + Gwebgl-0.1.typelib
+  linux-s390x/    libgwebgl.so + Gwebgl-0.1.typelib
+  linux-riscv64/  libgwebgl.so + Gwebgl-0.1.typelib
 ```
 
 Use the gjsify CLI to run your app — it automatically sets `LD_LIBRARY_PATH` and
@@ -71,7 +74,7 @@ yarn build:prebuilds
 
 ## Prebuilt binaries
 
-Prebuilds for `linux-x86_64` and `linux-aarch64` are built automatically by CI
+Prebuilds for `linux-x86_64`, `linux-aarch64`, `linux-ppc64`, `linux-s390x`, and `linux-riscv64` are built automatically by CI
 (`.github/workflows/prebuilds.yml`) when the Vala source changes and committed back
 to the repository. They are included in the npm package via the `files` field.
 

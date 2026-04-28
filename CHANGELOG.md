@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### chore — extend native prebuilds to linux-ppc64, linux-s390x, linux-riscv64 (2026-04-28)
+
+Added QEMU-based CI builds for three additional Linux architectures in `.github/workflows/prebuilds.yml`.
+
+**New `build-prebuilds-qemu` job** uses `uraimo/run-on-arch-action@v2` on `ubuntu-latest` host runners with QEMU binary-format emulation:
+
+- **`linux-ppc64`** (IBM POWER9/10) — `base_image: fedora:43` (official ppc64le manifest entry), same dnf packages as the native Fedora job. Targets Raptor Computing Talos II / Blackbird workstations running GNOME on Fedora.
+- **`linux-s390x`** (IBM Z mainframes) — `base_image: fedora:43` (official s390x manifest entry), same dnf packages. Enterprise Linux server deployments.
+- **`linux-riscv64`** (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …) — `base_image: ubuntu:24.04` (fedora:43 has no riscv64 image), apt-get package equivalents. Auto-detected via `command -v dnf` in the `install:` block.
+
+**Architecture → prebuilds dir** mapping relies on Node.js `process.arch` which already returns `'ppc64'`, `'s390x'`, `'riscv64'` for these platforms — the existing `nodeArchToLinuxArch()` in `packages/infra/cli/src/utils/detect-native-packages.ts` passes them through as-is, so no CLI changes were needed.
+
+**`commit-prebuilds` job** updated to `needs: [build-prebuilds, build-prebuilds-qemu]` and downloads artifacts for all five architectures per package (15 download steps total across webgl, webrtc-native, http-soup-bridge).
+
+Prebuilt `.so` + `.typelib` directories added: `prebuilds/linux-{ppc64,s390x,riscv64}/` in `@gjsify/webgl`, `@gjsify/webrtc-native`, `@gjsify/http-soup-bridge`. READMEs and STATUS.md updated to reflect the expanded platform matrix.
+
 ### chore — repo stability sweep (2026-04-28)
 
 Three small fixes around the recent `@gjsify/http-soup-bridge` landing:

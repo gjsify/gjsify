@@ -19,6 +19,9 @@ on:
 
 
 jobs:
+  # ----------------------------------------------------------------
+  # Native runners — x86_64 and aarch64
+  # ----------------------------------------------------------------
   build-prebuilds:
     name: Build prebuilds (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -126,10 +129,146 @@ jobs:
           path: packages/node/http-soup-bridge/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
-  # Commit prebuilds back to the repo (only on push to main, not PRs)
+  # ----------------------------------------------------------------
+  # QEMU-emulated builds — ppc64, s390x, riscv64
+  #
+  # All three run on ubuntu-latest host runners using QEMU binary
+  # format emulation via uraimo/run-on-arch-action.
+  #
+  # ppc64 + s390x: fedora:43 has official images for both → same dnf
+  #   package names as the native job above.
+  # riscv64: fedora:43 has no riscv64 image → ubuntu:24.04 is used
+  #   instead (package names differ; auto-detected via command -v dnf).
+  #
+  # Node.js process.arch values used as the prebuilds/ dir suffix:
+  #   ppc64le (QEMU) → process.arch 'ppc64'  → prebuilds/linux-ppc64/
+  #   s390x          → process.arch 's390x'  → prebuilds/linux-s390x/
+  #   riscv64        → process.arch 'riscv64'→ prebuilds/linux-riscv64/
+  # ----------------------------------------------------------------
+  build-prebuilds-qemu:
+    name: Build prebuilds (${{ matrix.arch }}) [QEMU]
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # IBM POWER9/10 workstations and servers (e.g. Raptor Computing Talos II)
+          - arch: ppc64
+            qemu_arch: ppc64le
+            base_image: fedora:43
+
+          # IBM Z mainframes — enterprise Linux servers
+          - arch: s390x
+            qemu_arch: s390x
+            base_image: fedora:43
+
+          # RISC-V boards (StarFive VisionFive 2, Milk-V Pioneer, SiFive HiFive, …)
+          # ubuntu:24.04 is used because fedora:43 has no official riscv64 image.
+          - arch: riscv64
+            qemu_arch: riscv64
+            base_image: ubuntu:24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build all prebuilds on ${{ matrix.arch }} via QEMU
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: ${{ matrix.qemu_arch }}
+          distro: none
+          base_image: ${{ matrix.base_image }}
+          githubToken: ${{ github.token }}
+
+          # Detect package manager: dnf for Fedora (ppc64/s390x), apt-get for Ubuntu (riscv64).
+          install: |
+            if command -v dnf > /dev/null 2>&1; then
+              dnf install -y \
+                git tar xz findutils \
+                meson vala gcc pkgconf \
+                glib2-devel gobject-introspection-devel \
+                gtk4-devel gdk-pixbuf2-devel \
+                libepoxy-devel \
+                gstreamer1-devel \
+                gstreamer1-plugins-base-devel \
+                gstreamer1-plugins-bad-free-devel \
+                libsoup3-devel
+            else
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                git tar xz-utils findutils \
+                meson valac gcc pkg-config \
+                libglib2.0-dev gobject-introspection libgirepository1.0-dev \
+                libgtk-4-dev libgdk-pixbuf-2.0-dev \
+                libepoxy-dev \
+                libgstreamer1.0-dev \
+                libgstreamer-plugins-base1.0-dev \
+                libgstreamer-plugins-bad1.0-dev \
+                libsoup-3.0-dev
+            fi
+
+          run: |
+            set -e
+            ARCH="${{ matrix.arch }}"
+
+            # -------- @gjsify/webgl --------
+            cd packages/framework/webgl
+            meson setup build .
+            meson compile -C build
+            mkdir -p "prebuilds/linux-${ARCH}"
+            cp build/libgwebgl.so build/Gwebgl-0.1.typelib "prebuilds/linux-${ARCH}/"
+            echo "@gjsify/webgl prebuilds for linux-${ARCH}:"
+            ls -lh "prebuilds/linux-${ARCH}/"
+            cd ../../..
+
+            # -------- @gjsify/webrtc-native --------
+            cd packages/web/webrtc-native
+            meson setup build .
+            meson compile -C build
+            mkdir -p "prebuilds/linux-${ARCH}"
+            cp build/libgjsifywebrtc.so build/GjsifyWebrtc-0.1.typelib "prebuilds/linux-${ARCH}/"
+            echo "@gjsify/webrtc-native prebuilds for linux-${ARCH}:"
+            ls -lh "prebuilds/linux-${ARCH}/"
+            cd ../../..
+
+            # -------- @gjsify/http-soup-bridge --------
+            cd packages/node/http-soup-bridge
+            meson setup build .
+            meson compile -C build
+            mkdir -p "prebuilds/linux-${ARCH}"
+            cp build/libgjsifyhttpsoupbridge.so build/GjsifyHttpSoupBridge-1.0.gir build/GjsifyHttpSoupBridge-1.0.typelib "prebuilds/linux-${ARCH}/"
+            echo "@gjsify/http-soup-bridge prebuilds for linux-${ARCH}:"
+            ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/webgl prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webgl-prebuilds-linux-${{ matrix.arch }}
+          path: packages/framework/webgl/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      - name: Upload @gjsify/webrtc-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webrtc-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/web/webrtc-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      - name: Upload @gjsify/http-soup-bridge prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: http-soup-bridge-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/http-soup-bridge/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+  # ----------------------------------------------------------------
+  # Commit all prebuilds back to the repo
+  # (only on push to main, not on PRs)
+  # ----------------------------------------------------------------
   commit-prebuilds:
     name: Commit prebuilds to repo
-    needs: build-prebuilds
+    needs: [build-prebuilds, build-prebuilds-qemu]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
 
@@ -150,6 +289,24 @@ jobs:
           name: webgl-prebuilds-linux-aarch64
           path: packages/framework/webgl/prebuilds/linux-aarch64/
 
+      - name: Download webgl ppc64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: webgl-prebuilds-linux-ppc64
+          path: packages/framework/webgl/prebuilds/linux-ppc64/
+
+      - name: Download webgl s390x prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: webgl-prebuilds-linux-s390x
+          path: packages/framework/webgl/prebuilds/linux-s390x/
+
+      - name: Download webgl riscv64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: webgl-prebuilds-linux-riscv64
+          path: packages/framework/webgl/prebuilds/linux-riscv64/
+
       # -------- @gjsify/webrtc-native --------
       - name: Download webrtc-native x86_64 prebuilds
         uses: actions/download-artifact@v4
@@ -163,6 +320,24 @@ jobs:
           name: webrtc-native-prebuilds-linux-aarch64
           path: packages/web/webrtc-native/prebuilds/linux-aarch64/
 
+      - name: Download webrtc-native ppc64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: webrtc-native-prebuilds-linux-ppc64
+          path: packages/web/webrtc-native/prebuilds/linux-ppc64/
+
+      - name: Download webrtc-native s390x prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: webrtc-native-prebuilds-linux-s390x
+          path: packages/web/webrtc-native/prebuilds/linux-s390x/
+
+      - name: Download webrtc-native riscv64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: webrtc-native-prebuilds-linux-riscv64
+          path: packages/web/webrtc-native/prebuilds/linux-riscv64/
+
       # -------- @gjsify/http-soup-bridge --------
       - name: Download http-soup-bridge x86_64 prebuilds
         uses: actions/download-artifact@v4
@@ -175,6 +350,24 @@ jobs:
         with:
           name: http-soup-bridge-prebuilds-linux-aarch64
           path: packages/node/http-soup-bridge/prebuilds/linux-aarch64/
+
+      - name: Download http-soup-bridge ppc64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http-soup-bridge-prebuilds-linux-ppc64
+          path: packages/node/http-soup-bridge/prebuilds/linux-ppc64/
+
+      - name: Download http-soup-bridge s390x prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http-soup-bridge-prebuilds-linux-s390x
+          path: packages/node/http-soup-bridge/prebuilds/linux-s390x/
+
+      - name: Download http-soup-bridge riscv64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http-soup-bridge-prebuilds-linux-riscv64
+          path: packages/node/http-soup-bridge/prebuilds/linux-riscv64/
 
       - name: Commit prebuilds
         run: |
