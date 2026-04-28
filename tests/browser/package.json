@@ -1,0 +1,15 @@
+{
+    "name": "@gjsify/tests-browser",
+    "version": "0.1.15",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "playwright test --project=firefox",
+        "test:firefox": "playwright test --project=firefox",
+        "test:chromium": "playwright test --project=chromium"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.52.0",
+        "http-server": "^14.1.1"
+    }
+}

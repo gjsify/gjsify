@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### fix(@gjsify/unit) — add browserSignalDone for Playwright test completion (2026-04-28)
+
+`@gjsify/unit` now sets `window.__gjsify_test_results` and `document.documentElement.dataset.testsDone = 'true'` when a test run finishes in a browser context. This is required for the Playwright harness (`tests/browser/specs/unit.spec.ts`) to detect that tests have completed and to read pass/fail counts.
+
+**Changes:**
+- Added `testErrors` array — collects `{ suite, test, message }` for every failed `it()` call
+- Added `currentSuite` tracking — `describe()` sets it on entry and restores on exit so nested describes work correctly
+- Added `browserSignalDone()` — called from `run()` after `printResult()`; no-op when `document` is absent (GJS / Node.js)
+
+Without this fix, `dom-elements` and `canvas2d-core` browser test bundles timed out in Playwright even though the tests ran successfully — the harness never received the done signal.
+
+### feat(tests/browser) — promote to yarn workspace, add dom-elements + canvas2d-core (2026-04-28)
+
+`tests/browser/` is now a proper yarn workspace (`@gjsify/tests-browser`) with `@playwright/test` as a dev dependency. This makes `playwright` available to the workspace without requiring a global install.
+
+**New browser test bundles (verified green in Firefox):**
+- `packages/dom/dom-elements/dist/test.browser.mjs` — Node tree ops, Element attributes, classList, HTMLElement properties, Text/Comment/DocumentFragment, DOMMatrix, CSSStyleDeclaration, FontFace, FontFaceSet, matchMedia
+- `packages/dom/canvas2d-core/dist/test.browser.mjs` — clearRect with active state, save/restore for all context properties, transforms, ImageData (RGBA byte order), text metrics, composite ops, drawImage (3/5/9-arg), path ops
+
+`discover-bundles.mjs` already scanned `packages/dom/` (added in a prior PR). Total: 13 passing browser bundles.
+
 ### feat(examples) — SQLite todo store example cross-validated on GJS and Node.js (2026-04-28)
 
 New example `examples/node/cli-sqlite-json-store` (`@gjsify/example-node-cli-sqlite-json-store`) demonstrates `node:sqlite` (`DatabaseSync` + `StatementSync`) running identically on both GJS (via `@gjsify/sqlite` / `gi://Gda`) and Node.js (native).

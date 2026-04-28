@@ -14,6 +14,8 @@ let countTestsFailed = 0;
 let countTestsIgnored = 0;
 let runtime = '';
 let runStartTime = 0;
+let currentSuite = '';
+let testErrors: Array<{ suite: string; test: string; message: string }> = [];
 
 export interface TimeoutConfig {
 	/** Per-it() timeout in ms. Default: 5000. 0 = disabled. */
@@ -377,6 +379,8 @@ export const describe = async function(moduleName: string, callback: Callback, o
 
 	print('\n' + moduleName);
 
+	const prevSuite = currentSuite;
+	currentSuite = moduleName;
 	const t0 = now();
 	try {
 		await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);
@@ -388,6 +392,7 @@ export const describe = async function(moduleName: string, callback: Callback, o
 			throw e;
 		}
 	}
+	currentSuite = prevSuite;
 	const duration = now() - t0;
 	print(`  ${GRAY}↳ ${formatDuration(duration)}${RESET}`);
 
@@ -512,6 +517,7 @@ export const it = async function(expectation: string, callback: () => void | Pro
 		if (!e.__testFailureCounted) {
 			++countTestsFailed;
 		}
+		testErrors.push({ suite: currentSuite, test: expectation, message: e.message ?? String(e) });
 		const icon = e instanceof TimeoutError ? '⏱' : '❌';
 		print(`  ${RED}${icon}${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
 		print(`${RED}${e.message}${RESET}`);
@@ -599,6 +605,18 @@ const runTests = async function(namespaces: Namespaces) {
 		}
 	}
 }
+
+const browserSignalDone = () => {
+	const doc = (globalThis as any).document;
+	if (!doc) return;
+	(globalThis as any).__gjsify_test_results = {
+		passed: countTestsOverall - countTestsFailed,
+		failed: countTestsFailed,
+		total: countTestsOverall,
+		errors: testErrors,
+	};
+	doc.documentElement.dataset.testsDone = 'true';
+};
 
 const printResult = () => {
 	const totalMs = runStartTime > 0 ? now() - runStartTime : 0;
@@ -692,6 +710,7 @@ export const run = async (namespaces: Namespaces, options?: { timeout?: number; 
 	})
 	.then(async () => {
 		printResult();
+		browserSignalDone();
 		print();
 
 		quitMainLoop(); // Pre-quit ensureMainLoop's loop so it exits immediately when the hook fires

@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-28 (`@gjsify/http-soup-bridge` Vala native bridge fixes MCP/SSE crashes; MCP TypeScript SDK + inspector-cli integration suites (122 tests); Playwright browser tests for 11 web packages + 2 DOM packages (dom-elements, canvas2d-core) — 13 bundles total; http2 Phase 1 (128 tests); socket.io 112/112 with WebSocket-only transport; multi-arch prebuilds ppc64/s390x/riscv64; SQLite todo store example cross-validated on GJS and Node.js.)
+> Last updated: 2026-04-28 (`@gjsify/unit` extended with `browserSignalDone` so browser bundles signal test completion to Playwright; `tests/browser` promoted to a yarn workspace; all 13 browser test bundles verified green in Firefox (11 web + dom-elements + canvas2d-core); SQLite todo store example cross-validated on GJS and Node.js.)
 
 ## Summary
 
@@ -380,7 +380,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**GLib.Source GC race hardening**~~✓ — `@gjsify/node-globals/register/timers` replaces `setTimeout`/`setInterval` with `GLib.timeout_add` (numeric source IDs, no BoxedInstance). Prevents SIGSEGV in `g_source_unref_internal` under webtorrent/bittorrent-dht/async-limiter load where libraries routinely call `timer.unref()`.
 - ~~**socket.io 112/112 with WebSocket-only transport**~~✓ — All 5 socket.io test suites pass on Node + GJS (112/112, 0 skips). Fixed two root-cause bugs: `req.socket` not set for upgrade requests (engine.io reads `req.connection.remoteAddress`); `globalThis.WebSocket` not injected because `engine.io-client` accesses it via an intermediate variable alias that `--globals auto` cannot follow (fixed with `--globals auto,WebSocket`).
 - ~~**http2 Phase 1**~~✓ — `@gjsify/http2` promoted from stub to partial (128 tests: 102 Node + 26 GJS). `createServer()` (HTTP/1.1 via Soup.Server), `createSecureServer()` (HTTP/2 via ALPN+TLS), `connect()` (Soup.Session, auto-h2 over HTTPS), compat layer (`Http2ServerRequest`/`Http2ServerResponse`), session API (`'stream'` event + `ServerHttp2Stream.respond()`), `ClientHttp2Session.request()` → `ClientHttp2Stream` (Duplex, response body streaming), full protocol constants + settings pack/unpack.
-- ~~**Playwright browser test infrastructure**~~✓ — `tests/browser/` (Firefox-primary via Playwright). 11 web packages with `build:test:browser` targets and `dist/test.browser.mjs` bundles; all use browser globals directly (no `@gjsify/*` imports). 4 spec correctness issues discovered and fixed (`dom-events` `MouseEvent.button` for `mousemove`, `fetch` null body Firefox quirk, `webcrypto` JWK kty validation, `eventsource` `\r\n` stripping).
+- ~~**Playwright browser test infrastructure**~~✓ — `tests/browser/` (Firefox-primary via Playwright, now a proper yarn workspace with `@playwright/test`). 13 bundles total: 11 web packages + `dom-elements` + `canvas2d-core`. All use browser globals directly (no `@gjsify/*` imports). `@gjsify/unit` extended with `browserSignalDone` (sets `window.__gjsify_test_results` + `data-tests-done` attribute for Playwright to detect completion). `discover-bundles.mjs` scans both `packages/web/` and `packages/dom/`. 4 spec correctness issues discovered and fixed in web packages (`dom-events` `MouseEvent.button` for `mousemove`, `fetch` null body Firefox quirk, `webcrypto` JWK kty validation, `eventsource` `\r\n` stripping). GTK-only framework packages (`canvas2d`, `event-bridge`) intentionally excluded — no browser equivalent.
 - ~~**`@gjsify/http-soup-bridge` Vala native bridge**~~✓ — Eliminates both libsoup GC crashes (Boxed-Source SIGSEGV + GMainContext ref imbalance) by keeping every `SoupServerMessage` reference C-side. Pure-HTTP stack survives 50+ sequential SSE fetches from Node.js clients. `mcp-inspector-cli` cap raised from 3 → 4. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/`.
 - ~~**MCP TypeScript SDK integration suites**~~✓ — `tests/integration/mcp-typescript-sdk/` (108 tests) and `tests/integration/mcp-inspector-cli/` (14 tests). Validates `@gjsify/http`, `@gjsify/fetch`, `@gjsify/net`, `@gjsify/ws`, `@gjsify/events` against the Model Context Protocol SDK and official MCP Inspector CLI subprocess. Surfaced and fixed: `ServerRequestSocket.destroySoon()`, `SoupMessageLifecycle` GC-guard, async-handler rejection swallowing, `McpServer` GC between requests.
 - ~~**Multi-arch native prebuilds (ppc64/s390x/riscv64)**~~✓ — QEMU-based CI builds for three additional Linux architectures via `uraimo/run-on-arch-action`. `@gjsify/webgl`, `@gjsify/webrtc-native`, `@gjsify/http-soup-bridge` all ship prebuilds for linux-{x86_64,aarch64,ppc64,s390x,riscv64}. `nodeArchToLinuxArch()` in the CLI passes these through as-is.
@@ -556,20 +556,9 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 Keep the catch-all for **new** consumers that genuinely want "give me the full Node runtime surface" — but keep it as opt-in, not a mandatory import chain.
 
 
-### Browser Testing Infrastructure for DOM Packages
+### ~~Browser Testing Infrastructure for DOM Packages~~✓
 
-**Priority: Low — web packages done, DOM packages done. GTK-only framework packages are intentionally excluded.**
-
-**Progress:** PR #42 (`feat(tests/browser)`) landed Playwright browser test infrastructure (`tests/browser/`) and added `test:browser` targets to **11 web packages**: `abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `streams`, `webcrypto`, `websocket`, `webstorage`. Firefox-primary via Playwright. Tests use browser globals directly (no `@gjsify/*` imports). 4 spec correctness issues were discovered and fixed in the process.
-
-**DOM packages added:** `dom-elements` and `canvas2d-core` now have `src/test.browser.mts` + `build:test:browser` scripts. `discover-bundles.mjs` extended to scan `packages/dom/*/dist/` in addition to `packages/web/*/dist/`. 13 bundles total discovered. Tests cover: Node tree ops, Element attributes, classList, HTMLElement properties, Text/Comment/DocumentFragment, DOMMatrix, CSSStyleDeclaration, FontFace, FontFaceSet, matchMedia (dom-elements); clearRect, save/restore, transforms, ImageData, text, composite ops, drawImage, path ops (canvas2d-core).
-
-**Intentionally excluded (no browser equivalent):**
-
-- `canvas2d` (`Canvas2DBridge → Gtk.DrawingArea`) — GTK-only, no browser canvas widget
-- `event-bridge` (`attachEventControllers` requires GTK4 controllers + GDK Display) — GTK-only
-
-**Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
+**Completed.** All 13 browser test bundles (11 web + `dom-elements` + `canvas2d-core`) pass in Firefox. `tests/browser` is a proper yarn workspace. `@gjsify/unit` ships `browserSignalDone`. GTK-only framework packages (`canvas2d`, `event-bridge`) intentionally excluded — no browser equivalent.
 
 ### Universal DOM Container (`@gjsify/dom-bridge`)
 
