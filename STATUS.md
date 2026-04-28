@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-25 (socket.io integration: 112/112 Node+GJS; WebSocket-only transport fixed — req.socket set for upgrades + --globals auto,WebSocket for engine.io-client alias detection; socket.spec.ts + namespaces.spec.ts ported.)
+> Last updated: 2026-04-28 (`@gjsify/http-soup-bridge` Vala native bridge fixes MCP/SSE crashes; MCP TypeScript SDK + inspector-cli integration suites (122 tests); Playwright browser tests for 11 web packages; http2 Phase 1 (128 tests); socket.io 112/112 with WebSocket-only transport; multi-arch prebuilds ppc64/s390x/riscv64.)
 
 ## Summary
 
@@ -9,7 +9,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 42 | 34 (81%) | 4 (10%) | 4 (10%) |
+| Node.js APIs | 42 | 34 (81%) | 5 (12%) | 4 (10%) |
 | Node.js meta | 1 | 1 | — | — |
 | Web APIs | 19 | 17 (89%) | 2 (11%) | — |
 | Web meta | 1 | 1 | — | — |
@@ -62,6 +62,12 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **url** | GLib | 278 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 245 (2 specs) | inspect (**colors, styles, custom symbol, defaultOptions**, edge cases), format (%%, %s/%d/%j/%i/%f, args), promisify (**custom symbol**), callbackify, deprecate, inherits (**super_**), isDeepStrictEqual, **types** (isDate/RegExp/Map/Set/Promise/ArrayBuffer/TypedArray/Async/Generator/WeakMap/WeakSet/DataView), TextEncoder/TextDecoder |
 | **zlib** | — | 102 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors, sync methods, double compression, consistency |
+
+### Native HTTP Bridge
+
+| Package | GNOME Libs | Description |
+|---------|-----------|-------------|
+| **@gjsify/http-soup-bridge** (Vala) | Soup 3.0 | Vala/GObject library consumed by `@gjsify/http`. Wraps `Soup.Server` + `SoupServerMessage` and exposes JS only through plain GObject classes whose lifetime SpiderMonkey GC cannot race against. Solves two libsoup GC crashes: (1) `BoxedBase::finalize → g_source_unref` SIGSEGV from deferred-GC on in-flight Soup messages, (2) `g_main_context_unref` assertion from shared `GMainContext` ref imbalance. Contains `Server` (wraps `Soup.Server`, emits `request-received` / `upgrade` / `error-occurred` signals), `Request` (read-side snapshot — method, url, headers, `get_body()`), `Response` (write side, owns `SoupServerMessage` C-side including all pause/unpause bookkeeping), and a peer-close watcher (`g_socket_create_source(IN|HUP|ERR)` + non-blocking `MSG_PEEK` probe — capability unreachable from JS because `Gio.Socket.receive_message` is not introspectable). Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/`; CI (`.github/workflows/prebuilds.yml`) rebuilds on Vala source changes (native runners for x86_64/aarch64; QEMU via `uraimo/run-on-arch-action` for ppc64/s390x/riscv64). |
 
 ### Meta package
 
@@ -321,6 +327,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **GstSDP 1.0** | webrtc (SDP message parse/serialize via `SDPMessage.new_from_text` + `as_text`) |
 | **Manette 0.2** | gamepad (libmanette monitor + devices) |
 | **`@gjsify/webrtc-native` (Vala)** | webrtc (main-thread signal bridges for webrtcbin / data channels / Gst.Promise) |
+| **`@gjsify/http-soup-bridge` (Vala)** | http (libsoup server bridge — GC-safe SoupServerMessage lifetime, SSE/long-poll peer-close detection via `g_socket_create_source`) |
 
 ---
 
@@ -337,9 +344,9 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
-| Total test cases | 10,500+ (unit) + 584+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn) |
+| Total test cases | 10,500+ (unit) + 706+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli) |
 | Spec files | 110+ |
-| Integration test suites | 4 (webtorrent, socket.io, streamx, autobahn) |
+| Integration test suites | 6 (webtorrent, socket.io, streamx, autobahn, mcp-typescript-sdk, mcp-inspector-cli) |
 | Showcases | 6 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder) |
 | Real-world examples | 50+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, Gio cat, worker pool, yargs, GTK HTTP dashboard) |
 | GNOME-integrated packages | 20+ (Gio, GLib, Soup, Gda, Gst, GstApp, GstWebRTC, GstSDP, Manette, WebKit, Gtk, Cairo, PangoCairo, GdkPixbuf, libepoxy) |
@@ -371,6 +378,12 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**Meta polyfill packages**~~✓ — `@gjsify/node-polyfills` + `@gjsify/web-polyfills`. Dep-only umbrellas so `gjsify create-app` templates + CLI scaffolds resolve any `node:*` / Web import without hand-rolling dep lists.
 - ~~**Integration suites**~~✓ — `tests/integration/{webtorrent,socket.io,streamx,autobahn}/`. Opt-in via `yarn test:integration`. Every suite uncovered root-cause fixes (URL-path fs, esbuild `require` condition, `random-access-file` alias, fetch POST body, IncomingMessage close semantics, EventEmitter prototype enumerability, queueMicrotask injection, NUL-byte-safe WebSocket text frames) that landed in the surfacing PR.
 - ~~**GLib.Source GC race hardening**~~✓ — `@gjsify/node-globals/register/timers` replaces `setTimeout`/`setInterval` with `GLib.timeout_add` (numeric source IDs, no BoxedInstance). Prevents SIGSEGV in `g_source_unref_internal` under webtorrent/bittorrent-dht/async-limiter load where libraries routinely call `timer.unref()`.
+- ~~**socket.io 112/112 with WebSocket-only transport**~~✓ — All 5 socket.io test suites pass on Node + GJS (112/112, 0 skips). Fixed two root-cause bugs: `req.socket` not set for upgrade requests (engine.io reads `req.connection.remoteAddress`); `globalThis.WebSocket` not injected because `engine.io-client` accesses it via an intermediate variable alias that `--globals auto` cannot follow (fixed with `--globals auto,WebSocket`).
+- ~~**http2 Phase 1**~~✓ — `@gjsify/http2` promoted from stub to partial (128 tests: 102 Node + 26 GJS). `createServer()` (HTTP/1.1 via Soup.Server), `createSecureServer()` (HTTP/2 via ALPN+TLS), `connect()` (Soup.Session, auto-h2 over HTTPS), compat layer (`Http2ServerRequest`/`Http2ServerResponse`), session API (`'stream'` event + `ServerHttp2Stream.respond()`), `ClientHttp2Session.request()` → `ClientHttp2Stream` (Duplex, response body streaming), full protocol constants + settings pack/unpack.
+- ~~**Playwright browser test infrastructure**~~✓ — `tests/browser/` (Firefox-primary via Playwright). 11 web packages with `build:test:browser` targets and `dist/test.browser.mjs` bundles; all use browser globals directly (no `@gjsify/*` imports). 4 spec correctness issues discovered and fixed (`dom-events` `MouseEvent.button` for `mousemove`, `fetch` null body Firefox quirk, `webcrypto` JWK kty validation, `eventsource` `\r\n` stripping).
+- ~~**`@gjsify/http-soup-bridge` Vala native bridge**~~✓ — Eliminates both libsoup GC crashes (Boxed-Source SIGSEGV + GMainContext ref imbalance) by keeping every `SoupServerMessage` reference C-side. Pure-HTTP stack survives 50+ sequential SSE fetches from Node.js clients. `mcp-inspector-cli` cap raised from 3 → 4. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/`.
+- ~~**MCP TypeScript SDK integration suites**~~✓ — `tests/integration/mcp-typescript-sdk/` (108 tests) and `tests/integration/mcp-inspector-cli/` (14 tests). Validates `@gjsify/http`, `@gjsify/fetch`, `@gjsify/net`, `@gjsify/ws`, `@gjsify/events` against the Model Context Protocol SDK and official MCP Inspector CLI subprocess. Surfaced and fixed: `ServerRequestSocket.destroySoon()`, `SoupMessageLifecycle` GC-guard, async-handler rejection swallowing, `McpServer` GC between requests.
+- ~~**Multi-arch native prebuilds (ppc64/s390x/riscv64)**~~✓ — QEMU-based CI builds for three additional Linux architectures via `uraimo/run-on-arch-action`. `@gjsify/webgl`, `@gjsify/webrtc-native`, `@gjsify/http-soup-bridge` all ship prebuilds for linux-{x86_64,aarch64,ppc64,s390x,riscv64}. `nodeArchToLinuxArch()` in the CLI passes these through as-is.
 
 ### High Priority
 
@@ -479,6 +492,31 @@ No cases are excluded from the baseline. The full Autobahn suite is enabled: cor
 
 **Not wired into CI yet** — Podman-in-CI on Fedora requires privileged containers or socket sharing that our current CI config doesn't enable. Manual `yarn test` + baseline commit is the Phase 1 workflow. Baseline JSON under `reports/baseline/<agent>.json` is tracked; regressions surface in PR diffs.
 
+### mcp-typescript-sdk (`tests/integration/mcp-typescript-sdk/`)
+
+Validates `@gjsify/http`, `@gjsify/fetch`, `@gjsify/net`, `@gjsify/ws`, and `@gjsify/events` against the [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk). **Node: 108/108 green. GJS: 108/108 green, 0 skips.**
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| protocol.spec.ts | ✅ | ✅ | MCP protocol messages, JSON-RPC framing, request/response matching |
+| tool.spec.ts | ✅ | ✅ | `server.tool()` registration, `client.callTool()`, argument validation |
+| resource.spec.ts | ✅ | ✅ | `server.resource()`, `client.readResource()`, URI templates |
+| prompt.spec.ts | ✅ | ✅ | `server.prompt()`, `client.getPrompt()`, argument schemas |
+| streamable-http.spec.ts | ✅ | ✅ | Streamable HTTP transport: sequential tool calls, multi-session, raw HTTP, forced GC, inspector-style mixed workload |
+
+Root-cause fixes surfaced: `ServerRequestSocket.destroySoon()` missing from `@gjsify/http`, async handler rejections swallowed in `_handleRequest`, `McpServer` instances GC'd between requests when locally-scoped in handler.
+
+### mcp-inspector-cli (`tests/integration/mcp-inspector-cli/`)
+
+Drives the official `@modelcontextprotocol/inspector` CLI as a subprocess against both GJS and Node builds of `examples/node/net-mcp-server`. Catches regressions in the exact wire shape that produced the original MCP crash. **Node: 14/14 green. GJS: 14/14 green, 0 skips.**
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| inspector.spec.ts | ✅ (7) | ✅ (7) | Tool list, tool call, resource list, resource read, prompt list, prompt get, server info — each via Node server build |
+| inspector-gjs.spec.ts | ✅ (7) | ✅ (7) | Same 7 scenarios against GJS server build |
+
+Sequential call cap: N ≤ 4 to stay under the residual deferred-GC window from MCP SDK / Hono / web-streams (tracked in "Upstream GJS Patch Candidates").
+
 ### Root-cause fixes surfaced by the Autobahn pillar and landed in this PR
 
 1. **`@gjsify/websocket` now ships a `/register` subpath.** Before this PR, `globalThis.WebSocket` had no register entry — the CLI's `--globals` flag silently ignored `WebSocket` tokens (unknown identifier), and `--globals auto` had no way to inject the class when user code wrote `new WebSocket(...)`. Consumers who needed it either pre-declared the global manually (webtorrent-player) or imported the class by name. Now `@gjsify/websocket/register` sets `globalThis.{WebSocket,MessageEvent,CloseEvent}` with existence guards, gets listed in `GJS_GLOBALS_MAP` (→ `websocket/register`) and both alias maps (`ALIASES_WEB_FOR_GJS`, `ALIASES_WEB_FOR_NODE`), and is added to the `web` global group so `--globals web` picks it up alongside `fetch`/`crypto`/stream globals. The Autobahn driver was the first consumer of the full `--globals auto` path for `WebSocket`, so the missing register entry showed up immediately.
@@ -520,15 +558,17 @@ Keep the catch-all for **new** consumers that genuinely want "give me the full N
 
 ### Browser Testing Infrastructure for DOM Packages
 
-**Priority: High — architectural gap**
+**Priority: Medium — web packages done, DOM packages still pending.**
 
-DOM tests (`packages/dom/*`) currently only run on GJS. The correct test target for DOM behaviour is a **real browser**, not Node.js. Node.js lacks a DOM and would require heavy polyfilling that obscures whether our implementation is correct. We do not yet have a browser test runner integrated into the monorepo.
+**Progress:** PR #42 (`feat(tests/browser)`) landed Playwright browser test infrastructure (`tests/browser/`) and added `test:browser` targets to **11 web packages**: `abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `streams`, `webcrypto`, `websocket`, `webstorage`. Firefox-primary via Playwright. Tests use browser globals directly (no `@gjsify/*` imports). 4 spec correctness issues were discovered and fixed in the process.
 
-**What is needed:**
-- A browser test runner (e.g. Playwright, WPT harness, or a `gjsify build --app browser` + headless Chromium setup) that executes `*.spec.ts` suites in a real browser context
-- Specs must be written **without** manual `import '<pkg>/register'` in source. Instead: `gjsify build --globals` injects the register for GJS; the browser provides native globals. The same spec file then runs on both GJS and browser without platform guards
-- Once browser infrastructure exists, `register.spec.ts` files (created as a temporary GJS-only workaround for testing `globalThis` wiring) should fold back into the common spec — no manual register import, runs on GJS + browser
-- Priority packages: `dom-elements`, `canvas2d`, `canvas2d-core`, `event-bridge`
+**Still needed — DOM packages:**
+
+`packages/dom/*` and `packages/framework/*` bridge packages currently only have GJS tests. The correct test target for DOM behaviour is a **real browser**:
+
+- Add `test.browser.mts` + `build:test:browser` scripts to `dom-elements`, `canvas2d-core`, `canvas2d`, `event-bridge`
+- Specs use browser globals directly — no `import '@gjsify/*'` that would drag in `@girs/*` bindings
+- Once browser coverage exists, `register.spec.ts` workaround files can fold back into common spec (no platform guards needed)
 - `refs/wpt/` is the authoritative conformance test source for DOM specs
 
 **Current workaround:** GJS-only `register.spec.ts` per package for tests that verify globalThis wiring after `/register` runs. See AGENTS.md Rule 7.
