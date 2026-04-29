@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-29 (`@gjsify/v8` **promoted Stub → Partial** — real heap stats via `/proc/self/status`, V8 wire format serialize/deserialize (all scalar/TypedArray/Buffer/BigInt/circular/Date round-trips), `Serializer`/`Deserializer`/`DefaultSerializer`/`DefaultDeserializer` classes, `isStringOneByteRepresentation`, `GCProfiler`, `startCpuProfile`; 72 tests (was 8); previously: `@gjsify/fs` complete.)
+> Last updated: 2026-04-29 (axios integration suite added — `tests/integration/axios/` (Node: 68/68, GJS: 52/52 + 12 ignored); `@gjsify/fetch` double-decompression fixed (remove Soup.ContentDecoder, let JS handle gzip/deflate); BOM stripping in XHR responseText; `@gjsify/zlib` brotli stubs; `examples/node/cli-axios-http-client/` example. Previously: `@gjsify/v8` promoted Stub → Partial.)
 
 ## Summary
 
@@ -344,11 +344,11 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
-| Total test cases | 10,622+ (unit, +64 v8 serdes+heap) + 706+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli) |
+| Total test cases | 10,622+ (unit, +64 v8 serdes+heap) + 826+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli + 68 axios/120 GJS) |
 | Spec files | 110+ |
-| Integration test suites | 6 (webtorrent, socket.io, streamx, autobahn, mcp-typescript-sdk, mcp-inspector-cli) |
+| Integration test suites | 7 (webtorrent, socket.io, streamx, autobahn, mcp-typescript-sdk, mcp-inspector-cli, axios) |
 | Showcases | 6 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder) |
-| Real-world examples | 51+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, SQLite JSON store, Gio cat, worker pool, yargs, GTK HTTP dashboard) |
+| Real-world examples | 52+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, SQLite JSON store, Gio cat, worker pool, yargs, GTK HTTP dashboard, **axios HTTP client**) |
 | GNOME-integrated packages | 20+ (Gio, GLib, Soup, Gda, Gst, GstApp, GstWebRTC, GstSDP, Manette, WebKit, Gtk, Cairo, PangoCairo, GdkPixbuf, libepoxy) |
 | Alias mappings (GJS) | 70+ |
 | Reference submodules | 59 |
@@ -505,6 +505,25 @@ Validates `@gjsify/http`, `@gjsify/fetch`, `@gjsify/net`, `@gjsify/ws`, and `@gj
 | streamable-http.spec.ts | ✅ | ✅ | Streamable HTTP transport: sequential tool calls, multi-session, raw HTTP, forced GC, inspector-style mixed workload |
 
 Root-cause fixes surfaced: `ServerRequestSocket.destroySoon()` missing from `@gjsify/http`, async handler rejections swallowed in `_handleRequest`, `McpServer` instances GC'd between requests when locally-scoped in handler.
+
+### axios (`tests/integration/axios/`)
+
+Validates axios 1.x against `@gjsify/*` using real localhost `node:http` servers (no mocking). On GJS, axios selects the XHR adapter (not the HTTP adapter) because `globalThis.XMLHttpRequest` is available via `@gjsify/fetch`. **Node: 68/68 green. GJS: 52/52 green, 12 ignored (HTTP-adapter-only features).**
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| basic.spec.ts | ✅ (12) | ✅ (12) | GET/POST/PUT/DELETE, 4xx/5xx, validateStatus, BOM JSON, Buffer body |
+| headers.spec.ts | ✅ (8) | ✅ (5) + 3 ignored | Custom headers, Content-Length, CRLF sanitization; UA default + false + Content-Length override = HTTP-adapter-only |
+| timeout.spec.ts | ✅ (6) | ✅ (5) + 1 ignored | Timeout rejection, ECONNABORTED, isAxiosError; invalid timeout ERR_BAD_OPTION_VALUE = HTTP-adapter only |
+| redirects.spec.ts | ✅ (7) | ✅ (5) + 2 ignored | 302/301 follow, maxRedirects:0, HEAD preserved, chain; ERR_FR_TOO_MANY_REDIRECTS + beforeRedirect = follow-redirects HTTP only |
+| compression.spec.ts | ✅ (8) | ✅ (5) + 2 ignored | gzip/deflate auto-decompress, invalid gzip error, empty gzip, chunked+gzip, brotli (Node.js only); deflate-raw + decompress:false = HTTP-adapter only |
+| streams.spec.ts | ✅ (6) | ✅ (3) + 3 ignored | Buffer body, 128 KB response, arraybuffer; responseType:stream + Readable body + req.pipe = HTTP-adapter only |
+| abort.spec.ts | ✅ (5) | ✅ (5) | CancelToken, AbortController, isCancel |
+
+Root-cause fixes surfaced:
+1. **`@gjsify/fetch` double-decompression bug** — `Soup.ContentDecoder` (auto-added to every new session) decodes gzip/deflate but does NOT remove the `Content-Encoding` header. `@gjsify/fetch` then tried `DecompressionStream` on already-decoded data → "Network Error". Fixed by calling `session.remove_feature_by_type(Soup.ContentDecoder.$gtype)` before each request, letting the JS-level `DecompressionStream` handle decompression exclusively.
+2. **BOM stripping in XHR responseText** — `@gjsify/fetch`'s `XMLHttpRequest.responseText` now strips the UTF-8 BOM (`﻿`) so `JSON.parse` receives clean text and `response.data.key` resolves correctly.
+3. **`@gjsify/zlib` brotli stubs** — `brotliCompress`, `brotliDecompress`, `brotliCompressSync`, `brotliDecompressSync` added as stubs that throw "not supported" (GJS Web platform has no native brotli API). Required for the test bundle to build; brotli test wrapped with `on('Node.js', ...)`.
 
 ### mcp-inspector-cli (`tests/integration/mcp-inspector-cli/`)
 

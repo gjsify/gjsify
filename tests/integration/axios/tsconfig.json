@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/test-server.ts",
+        "src/basic.spec.ts",
+        "src/headers.spec.ts",
+        "src/timeout.spec.ts",
+        "src/redirects.spec.ts",
+        "src/compression.spec.ts",
+        "src/streams.spec.ts",
+        "src/abort.spec.ts"
+    ]
+}

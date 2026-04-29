@@ -1,0 +1,29 @@
+{
+    "name": "@gjsify/example-node-cli-axios-http-client",
+    "description": "axios HTTP client demo for Node.js and GJS — starts a local server and makes GET/POST/error/timeout/concurrent requests",
+    "version": "0.1.15",
+    "type": "module",
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo",
+        "check": "tsc --noEmit",
+        "start": "yarn start:gjs",
+        "start:gjs": "gjsify run dist/index.gjs.js",
+        "start:node": "node dist/index.node.mjs",
+        "build": "yarn build:gjs && yarn build:node",
+        "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+        "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@types/node": "^25.6.0",
+        "axios": "^1.15.2",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

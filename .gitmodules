@@ -185,3 +185,6 @@
 [submodule "refs/esbuild"]
 	path = refs/esbuild
 	url = https://github.com/evanw/esbuild
+[submodule "refs/axios"]
+	path = refs/axios
+	url = git@github.com:axios/axios.git

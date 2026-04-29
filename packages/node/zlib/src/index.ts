@@ -299,6 +299,26 @@ export function inflateRawSync(data: string | Uint8Array | ArrayBuffer, _options
   return decompressWithGio(toUint8Array(data), 'deflate-raw');
 }
 
+// ---- Brotli (not available in GJS — stubs throw at call time) ----
+
+export function brotliCompress(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
+  const cb = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callback) as ZlibCallback;
+  cb(new Error('brotliCompress: Brotli is not supported in this environment'), null as any);
+}
+
+export function brotliDecompress(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
+  const cb = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callback) as ZlibCallback;
+  cb(new Error('brotliDecompress: Brotli is not supported in this environment'), null as any);
+}
+
+export function brotliCompressSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+  throw new Error('brotliCompressSync: Brotli is not supported in this environment');
+}
+
+export function brotliDecompressSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+  throw new Error('brotliDecompressSync: Brotli is not supported in this environment');
+}
+
 // ---- Constants ----
 
 export const constants = {
@@ -343,6 +363,7 @@ import {
 export default {
   gzip, gunzip, deflate, inflate, deflateRaw, inflateRaw,
   gzipSync, gunzipSync, deflateSync, inflateSync, deflateRawSync, inflateRawSync,
+  brotliCompress, brotliDecompress, brotliCompressSync, brotliDecompressSync,
   createGzip, createGunzip,
   createDeflate, createInflate,
   createDeflateRaw, createInflateRaw,

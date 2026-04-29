@@ -277,6 +277,12 @@ export class Request extends Body {
       throw new Error('Cannot send request: no Soup session (non-HTTP URL?)');
     }
 
+    // Soup auto-adds ContentDecoder to new sessions, but it decodes the body
+    // without removing the Content-Encoding header, causing double-decompression
+    // if we also run DecompressionStream below. Remove it so our JS-level
+    // decompression in index.ts handles everything correctly.
+    try { session.remove_feature_by_type(Soup.ContentDecoder.$gtype); } catch { /* not present */ }
+
     options.headers._appendToSoupMessage(message);
 
     // Attach the request body to the Soup message (needed for POST/PUT/PATCH).

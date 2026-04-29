@@ -198,8 +198,11 @@ export class XMLHttpRequest extends EventTarget {
           case 'text':
           default: {
             const text = await res.text();
-            this.responseText = text;
-            this.response = text;
+            // Strip UTF-8 BOM (U+FEFF) — browsers do this automatically; required
+            // for JSON.parse to succeed on BOM-prefixed JSON responses.
+            const stripped = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+            this.responseText = stripped;
+            this.response = stripped;
             break;
           }
         }
