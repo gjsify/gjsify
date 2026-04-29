@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-29 (`@gjsify/fs` **complete** — adds `utimes`/`lutimes`/`lchown`/`lchmod`, all fd-based ops (`fstat`, `ftruncate`, `fdatasync`, `fsync`, `fchmod`, `fchown`, `futimes`, `closeSync`, `readSync`, `writeSync`, `readv`, `writev`), `exists`, `openAsBlob`; FileHandle stubs fully implemented (`stat`, `chmod`, `chown`, `utimes`, `datasync`, `sync`, `readv`, `writev`, `readLines`); 28 new tests, 638/637 total GJS/Node; previously: `watchFile`/`unwatchFile`, `statfsSync`/`statfs`.)
+> Last updated: 2026-04-29 (`@gjsify/v8` **promoted Stub → Partial** — real heap stats via `/proc/self/status`, V8 wire format serialize/deserialize (all scalar/TypedArray/Buffer/BigInt/circular/Date round-trips), `Serializer`/`Deserializer`/`DefaultSerializer`/`DefaultDeserializer` classes, `isStringOneByteRepresentation`, `GCProfiler`, `startCpuProfile`; 72 tests (was 8); previously: `@gjsify/fs` complete.)
 
 ## Summary
 
@@ -75,7 +75,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 |---------|---------|
 | **@gjsify/node-polyfills** | Dep-only umbrella — pulls every Node polyfill so `gjsify create-app` templates and CLI-generated scaffolds resolve any `node:*` import out of the box. No runtime code. |
 
-### Partially Implemented (5)
+### Partially Implemented (6)
 
 | Package | GNOME Libs | Tests | Working | Missing |
 |---------|-----------|-------|---------|---------|
@@ -84,15 +84,15 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **worker_threads** | Gio, GLib | 232 | MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC, **file-based resolution with relative paths**, missing-file error handling, stderr capture), **addEventListener/removeEventListener on MessagePort/BroadcastChannel**, structured clone edge cases (-0, NaN, BigInt, Int32Array) | SharedArrayBuffer, transferList |
 | **http2** | Soup 3.0 | 128 (102 Node + 26 GJS) | `createServer()` (HTTP/1.1 only, no h2c), `createSecureServer()` (HTTP/2 via ALPN + TLS), `connect()` (Soup.Session, auto-h2 over HTTPS), compat layer (`Http2ServerRequest`/`Http2ServerResponse`), session API (`'stream'` event + `ServerHttp2Stream.respond()`), `ClientHttp2Session.request()` → `ClientHttp2Stream` (Duplex, response body streaming), complete protocol constants + settings pack/unpack | `pushStream()` (Soup has no server-push API), stream IDs (Soup-internal), flow control/priority (Soup-internal), h2c/cleartext HTTP/2 (Soup limitation) — Phase 2 requires Vala/nghttp2 native extension |
 | **vm** | — | 203 | runInThisContext (eval), runInNewContext (Function constructor with sandbox), runInContext, createContext/isContext, compileFunction, Script (reusable, runInNewContext) | True sandbox isolation (requires SpiderMonkey Realms) |
+| **v8** | GLib | 72 | Real heap stats via `/proc/self/status` (VmRSS/VmPeak/VmSize/VmData), V8 wire format v15 serialize/deserialize (all scalars, TypedArrays, Buffer, BigInt, circular refs, Date, RegExp, ArrayBuffer), `Serializer`/`Deserializer`/`DefaultSerializer`/`DefaultDeserializer` classes, `isStringOneByteRepresentation`, `GCProfiler`, `startCpuProfile` | `getHeapSpaceStatistics` (no SpiderMonkey heap-space API), `getHeapSnapshot`/`writeHeapSnapshot` (no Readable stream from GJS), CPU profiling, `queryObjects`, `promiseHooks`, `cachedDataVersionTag` (all V8-internal) |
 
-### Stubs (4)
+### Stubs (3)
 
 | Package | Tests | Description | Effort |
 |---------|-------|-------------|--------|
 | **cluster** | 5 | isPrimary, isMaster, isWorker; fork() throws | High — requires multi-process architecture |
 | **domain** | 10 | Deprecated Node.js API; pass-through | Low — intentionally minimal |
 | **inspector** | 9 | Session.post(), open/close; empty | Medium — V8-specific, hard to port |
-| **v8** | 8 | getHeapStatistics (JSON-based), serialize/deserialize | Medium — V8-specific |
 
 ---
 
@@ -337,14 +337,14 @@ Not yet implemented (but potentially relevant for GJS projects):
 |--------|-------|
 | Total Node.js packages | 42 + 1 meta |
 | Fully implemented | 34 (81%) |
-| Partially implemented | 5 (12%) — sqlite, ws, worker_threads, http2, vm |
-| Stubs | 4 (10%) — cluster, domain, inspector, v8 |
+| Partially implemented | 6 (14%) — sqlite, ws, worker_threads, http2, vm, v8 |
+| Stubs | 3 (7%) — cluster, domain, inspector |
 | Web API packages | 19 + 1 meta (17 full, 2 partial) |
 | DOM / Bridge packages | 8 (all implemented) — dom-elements, canvas2d-core, canvas2d, bridge-types, webgl, event-bridge, iframe, video |
 | Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
-| Total test cases | 10,558+ (unit, +28 fs utimes+fd-ops) + 706+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli) |
+| Total test cases | 10,622+ (unit, +64 v8 serdes+heap) + 706+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli) |
 | Spec files | 110+ |
 | Integration test suites | 6 (webtorrent, socket.io, streamx, autobahn, mcp-typescript-sdk, mcp-inspector-cli) |
 | Showcases | 6 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder) |
@@ -384,6 +384,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**`@gjsify/http-soup-bridge` Vala native bridge**~~✓ — Eliminates both libsoup GC crashes (Boxed-Source SIGSEGV + GMainContext ref imbalance) by keeping every `SoupServerMessage` reference C-side. Pure-HTTP stack survives 50+ sequential SSE fetches from Node.js clients. `mcp-inspector-cli` cap raised from 3 → 4. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/`.
 - ~~**MCP TypeScript SDK integration suites**~~✓ — `tests/integration/mcp-typescript-sdk/` (108 tests) and `tests/integration/mcp-inspector-cli/` (14 tests). Validates `@gjsify/http`, `@gjsify/fetch`, `@gjsify/net`, `@gjsify/ws`, `@gjsify/events` against the Model Context Protocol SDK and official MCP Inspector CLI subprocess. Surfaced and fixed: `ServerRequestSocket.destroySoon()`, `SoupMessageLifecycle` GC-guard, async-handler rejection swallowing, `McpServer` GC between requests.
 - ~~**Multi-arch native prebuilds (ppc64/s390x/riscv64)**~~✓ — QEMU-based CI builds for three additional Linux architectures via `uraimo/run-on-arch-action`. `@gjsify/webgl`, `@gjsify/webrtc-native`, `@gjsify/http-soup-bridge` all ship prebuilds for linux-{x86_64,aarch64,ppc64,s390x,riscv64}. `nodeArchToLinuxArch()` in the CLI passes these through as-is.
+- ~~**`@gjsify/v8` promoted Stub → Partial**~~✓ — Real heap stats via `/proc/self/status` (Linux). V8 wire format v15 serialize/deserialize (`Serializer`/`Deserializer`/`DefaultSerializer`/`DefaultDeserializer` classes) covering scalars, TypedArrays, Buffer, BigInt, circular refs, Date, RegExp, ArrayBuffer. `isStringOneByteRepresentation`, `GCProfiler`, `startCpuProfile`. 72 tests (was 8).
 
 ### High Priority
 
@@ -412,9 +413,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### Low Priority
 
-6. **v8** — Approximate heap statistics via GJS runtime info.
-7. **cluster** — Multi-process via Gio.Subprocess pool.
-8. **inspector** — GJS debugger integration (gjs --debugger).
+6. **cluster** — Multi-process via Gio.Subprocess pool.
+7. **inspector** — GJS debugger integration (gjs --debugger).
 
 ---
 

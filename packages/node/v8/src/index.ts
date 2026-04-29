@@ -1,37 +1,45 @@
-// Reference: Node.js lib/v8.js — stub for GJS
+// Reference: Node.js lib/v8.js
+// Reimplemented for GJS — heap stats via /proc/self/status, serialization via V8 wire format
 
-export function getHeapStatistics(): Record<string, number> {
-  return {
-    total_heap_size: 0,
-    total_heap_size_executable: 0,
-    total_physical_size: 0,
-    total_available_size: 0,
-    used_heap_size: 0,
-    heap_size_limit: 0,
-    malloced_memory: 0,
-    peak_malloced_memory: 0,
-    does_zap_garbage: 0,
-    number_of_native_contexts: 0,
-    number_of_detached_contexts: 0,
-    external_memory: 0,
-  };
+import { getHeapStatistics } from './heap.js';
+import {
+  Serializer, Deserializer, DefaultSerializer, DefaultDeserializer,
+} from './serdes.js';
+
+export { getHeapStatistics };
+export { Serializer, Deserializer, DefaultSerializer, DefaultDeserializer };
+
+export function serialize(value: unknown): Buffer {
+  const ser = new DefaultSerializer();
+  ser.writeHeader();
+  ser.writeValue(value);
+  return ser.releaseBuffer();
 }
 
-export function getHeapSpaceStatistics(): any[] {
-  return [];
+export function deserialize(buffer: NodeJS.ArrayBufferView | ArrayBuffer): unknown {
+  const des = new DefaultDeserializer(buffer);
+  des.readHeader();
+  return des.readValue();
 }
 
-export function setFlagsFromString(_flags: string): void {}
+// ─── Stubs — no GJS equivalent ────────────────────────────────────────────────
 
-export function getHeapSnapshot(): any {
-  return null;
+export interface HeapSpaceInfo {
+  space_name: string;
+  space_size: number;
+  space_used_size: number;
+  space_available_size: number;
+  physical_space_size: number;
 }
 
-export function writeHeapSnapshot(_filename?: string): string {
-  return '';
-}
+export function getHeapSpaceStatistics(): HeapSpaceInfo[] { return []; }
 
-export function getHeapCodeStatistics(): Record<string, number> {
+export function getHeapCodeStatistics(): {
+  code_and_metadata_size: number;
+  bytecode_and_metadata_size: number;
+  external_script_source_size: number;
+  cpu_profiler_metadata_size: number;
+} {
   return {
     code_and_metadata_size: 0,
     bytecode_and_metadata_size: 0,
@@ -40,21 +48,71 @@ export function getHeapCodeStatistics(): Record<string, number> {
   };
 }
 
-export function serialize(value: any): Buffer {
-  return Buffer.from(JSON.stringify(value));
+export function setFlagsFromString(_flags: string): void {}
+
+export function getHeapSnapshot(_options?: object): null { return null; }
+
+export function writeHeapSnapshot(_filename?: string): string { return ''; }
+
+export function isStringOneByteRepresentation(content: string): boolean {
+  for (let i = 0; i < content.length; i++) {
+    if (content.charCodeAt(i) > 255) return false;
+  }
+  return true;
 }
 
-export function deserialize(buffer: Buffer): any {
-  return JSON.parse(buffer.toString());
+// ─── GCProfiler ───────────────────────────────────────────────────────────────
+
+export class GCProfiler {
+  #running = false;
+  #startTime = 0;
+
+  start(): void {
+    if (this.#running) return;
+    this.#running = true;
+    this.#startTime = Date.now();
+  }
+
+  stop(): { version: number; startTime: number; endTime: number; stats: never[] } | undefined {
+    if (!this.#running) return undefined;
+    this.#running = false;
+    try {
+      const system = (globalThis as any).imports?.system;
+      if (typeof system?.gc === 'function') system.gc();
+    } catch { /* ignore */ }
+    return { version: 1, startTime: this.#startTime, endTime: Date.now(), stats: [] };
+  }
+
+  [Symbol.dispose](): void { this.stop(); }
 }
+
+// ─── SyncCPUProfileHandle / startCpuProfile ───────────────────────────────────
+
+export class SyncCPUProfileHandle {
+  stop(): undefined { return undefined; }
+  [Symbol.dispose](): void { this.stop(); }
+}
+
+export function startCpuProfile(): SyncCPUProfileHandle {
+  return new SyncCPUProfileHandle();
+}
+
+// ─── default export ───────────────────────────────────────────────────────────
 
 export default {
   getHeapStatistics,
   getHeapSpaceStatistics,
+  getHeapCodeStatistics,
   setFlagsFromString,
   getHeapSnapshot,
   writeHeapSnapshot,
-  getHeapCodeStatistics,
   serialize,
   deserialize,
+  isStringOneByteRepresentation,
+  Serializer,
+  Deserializer,
+  DefaultSerializer,
+  DefaultDeserializer,
+  GCProfiler,
+  startCpuProfile,
 };
