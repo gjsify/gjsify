@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-28 (`@gjsify/unit` extended with `browserSignalDone` so browser bundles signal test completion to Playwright; `tests/browser` promoted to a yarn workspace; all 13 browser test bundles verified green in Firefox (11 web + dom-elements + canvas2d-core); SQLite todo store example cross-validated on GJS and Node.js.)
+> Last updated: 2026-04-29 (`@gjsify/child_process` `spawn()` now sets `child.stdout`/`child.stderr` as Readable streams via `GioInputStreamReadable`; Hono REST API example now passes on GJS (4/4 tests); `@gjsify/unit` runtime detection fixed to check `process.versions.gjs` before `globalThis.document`.)
 
 ## Summary
 
@@ -33,7 +33,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **assert** | — | 117 | AssertionError, deepEqual, throws, strict mode |
 | **async_hooks** | — | 130 | AsyncLocalStorage (run, enterWith, snapshot, exit), AsyncResource (bind, runInAsyncScope, triggerAsyncId), createHook |
 | **buffer** | — | 317 | Buffer via Blob/atob/btoa, alloc, from, concat, encodings, fill, indexOf/lastIndexOf, slice/subarray, copy, int/float read/write, swap16/32/64, equals, compare |
-| **child_process** | Gio, GLib | 110 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
+| **child_process** | Gio, GLib | 116 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher; `spawn()` now provides `child.stdout`/`child.stderr` as Readable streams (GioInputStreamReadable) |
 | **console** | — | 124 | Console class with stream support, format specifiers, table, dir, time/timeLog, count, group, assert, trace, stdout/stderr routing |
 | **constants** | — | 27 | Flattened re-export of `os.constants` (errno, signals, priority, dlopen) + `fs.constants` + legacy crypto constants — the deprecated Node `constants` alias |
 | **crypto** | GLib | 571 (13 specs) | Hash (SHA256/384/512, MD5, SHA1, known vectors), Hmac (extended edge cases), randomBytes/UUID/Int (v4 format, uniqueness), PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate**, timingSafeEqual, getHashes/getCiphers/getCurves, constants |
@@ -393,7 +393,7 @@ Not yet implemented (but potentially relevant for GJS projects):
    |---------|----------|-----------------|--------|
    | ~~**Static file server**~~✓ | net | http, fs, path, stream, zlib | `examples/net/static-file-server` |
    | ~~**SSE chat**~~✓ | net | http, events, fs, SSE protocol | `examples/net/sse-chat` |
-   | ~~**Hono REST API**~~✓ | net | hono, http, JSON CRUD | `examples/net/hono-rest` (GJS WIP) |
+   | ~~**Hono REST API**~~✓ | net | hono, http, JSON CRUD | `examples/node/net-hono-rest` (Node + GJS ✓) |
    | ~~**CLI file search**~~✓ | cli | fs, path, readline, process | `examples/cli/file-search` |
    | ~~**DNS lookup tool**~~✓ | cli | dns, net, readline | `examples/cli/dns-lookup` |
    | ~~**Worker pool**~~✓ | cli | worker_threads, events, crypto | `examples/cli/worker-pool` |

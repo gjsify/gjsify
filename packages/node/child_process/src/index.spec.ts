@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 // Testing the child_process module API — all commands are hardcoded safe literals
-import { execSync, execFileSync, spawnSync, exec, execFile } from 'node:child_process';
+import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
 
 // Ported from refs/node/test/parallel/test-child-process-exec*.js
 // Original: MIT license, Node.js contributors
@@ -678,6 +678,42 @@ export default async () => {
 			const lines = (result as string).trim().split('\n');
 			expect(lines[0]).toBe('combined');
 			expect(lines[1]).toBe('/tmp');
+		});
+	});
+
+	// ==================== spawn() with streaming stdout/stderr ====================
+
+	await describe('child_process.spawn stdout/stderr streaming', async () => {
+		await it('spawn() sets proc.stdout as a Readable', async () => {
+			const proc = spawn('echo', ['streaming_test']);
+			expect(proc.stdout).toBeDefined();
+			expect(typeof proc.stdout!.on).toBe('function');
+		});
+
+		await it('spawn() stdout emits data event with subprocess output', async () => {
+			const output = await new Promise<string>((resolve, reject) => {
+				const proc = spawn('echo', ['hello_stream']);
+				expect(proc.stdout).toBeDefined();
+				let buf = '';
+				proc.stdout!.on('data', (chunk: Buffer) => { buf += chunk.toString(); });
+				proc.stdout!.on('end', () => resolve(buf.trim()));
+				proc.on('error', reject);
+				setTimeout(() => reject(new Error('spawn stdout timeout')), 5000);
+			});
+			expect(output).toBe('hello_stream');
+		});
+
+		await it('spawn() stderr emits data event with subprocess stderr output', async () => {
+			const output = await new Promise<string>((resolve, reject) => {
+				const proc = spawn('sh', ['-c', 'echo err_stream >&2']);
+				expect(proc.stderr).toBeDefined();
+				let buf = '';
+				proc.stderr!.on('data', (chunk: Buffer) => { buf += chunk.toString(); });
+				proc.stderr!.on('end', () => resolve(buf.trim()));
+				proc.on('error', reject);
+				setTimeout(() => reject(new Error('spawn stderr timeout')), 5000);
+			});
+			expect(output).toBe('err_stream');
 		});
 	});
 };

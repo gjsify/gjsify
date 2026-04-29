@@ -4,20 +4,30 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { spawn } from 'node:child_process';
 import { get as httpGet, request as httpRequest } from 'node:http';
-import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ChildProcess } from 'node:child_process';
 import type { IncomingMessage } from 'node:http';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 13002;
 
+// Resolve the server bundle and gjsify binary relative to this bundle's URL,
+// matching the pattern used in tests/integration/mcp-inspector-cli/src/helpers.ts.
+// The test bundle lives at examples/node/net-hono-rest/test.{gjs,node}.mjs.
+const _here = fileURLToPath(import.meta.url);
+const _distUrl = new URL('dist/', `file://${_here}`);
+const SERVER_BUNDLES = {
+  gjs: fileURLToPath(new URL('index.gjs.js', _distUrl)),
+  node: fileURLToPath(new URL('index.node.mjs', _distUrl)),
+} as const;
+
+// Full path to gjsify binary (auto-sets LD_LIBRARY_PATH / GI_TYPELIB_PATH for prebuilds).
+const GJSIFY_BIN = fileURLToPath(new URL('../../../node_modules/.bin/gjsify', `file://${_here}`));
+
 function getServerCmd(): { cmd: string; args: string[] } {
-  const isGJS = typeof (globalThis as any).imports?.gi !== 'undefined';
-  const dist = isGJS ? 'dist/index.gjs.js' : 'dist/index.node.mjs';
+  const isGJS = typeof (globalThis as any).process?.versions?.gjs === 'string';
   return isGJS
-    ? { cmd: 'gjs', args: ['-m', join(__dirname, dist)] }
-    : { cmd: 'node', args: [join(__dirname, dist)] };
+    ? { cmd: GJSIFY_BIN, args: ['run', SERVER_BUNDLES.gjs] }
+    : { cmd: 'node', args: [SERVER_BUNDLES.node] };
 }
 
 function startServer(): Promise<{ proc: ChildProcess; kill: () => void }> {
@@ -27,20 +37,40 @@ function startServer(): Promise<{ proc: ChildProcess; kill: () => void }> {
       env: { ...process.env, PORT: String(PORT) },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let stdout = '';
-    const timeout = setTimeout(() => {
-      proc.kill('SIGTERM');
-      reject(new Error(`Server startup timeout. stdout: ${stdout}`));
-    }, 15000);
 
-    proc.stdout!.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
-      if (/running at|listening/i.test(stdout)) {
-        clearTimeout(timeout);
+    let stdoutBuf = '';
+    let stderrBuf = '';
+    proc.stdout!.on('data', (b: Buffer) => { stdoutBuf += b.toString('utf8'); });
+    proc.stderr!.on('data', (b: Buffer) => { stderrBuf += b.toString('utf8'); });
+
+    const timeoutMs = 15000;
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM');
+      reject(new Error(
+        `Server did not log "running at" within ${timeoutMs}ms.\nstdout: ${stdoutBuf}\nstderr: ${stderrBuf}`,
+      ));
+    }, timeoutMs);
+
+    // Poll every 50 ms so the GLib event loop has time to process I/O events.
+    const check = setInterval(() => {
+      if (/running at|listening/i.test(stdoutBuf)) {
+        clearTimeout(timer);
+        clearInterval(check);
         resolve({ proc, kill: () => proc.kill('SIGTERM') });
+      } else if ((proc as any).exitCode !== null) {
+        clearTimeout(timer);
+        clearInterval(check);
+        reject(new Error(
+          `Server exited before listening.\nstdout: ${stdoutBuf}\nstderr: ${stderrBuf}`,
+        ));
       }
+    }, 50);
+
+    proc.on('error', (e) => {
+      clearTimeout(timer);
+      clearInterval(check);
+      reject(e);
     });
-    proc.on('error', (e) => { clearTimeout(timeout); reject(e); });
   });
 }
 
