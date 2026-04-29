@@ -396,9 +396,11 @@ export const getSoupRequestOptions = (request: Request) => {
 		headers.set('User-Agent', 'gjsify-fetch');
 	}
 
-	// HTTP-network-or-cache fetch step 2.15
+	// HTTP-network-or-cache fetch step 2.15. Brotli ('br') is omitted: SpiderMonkey
+	// 128's DecompressionStream supports only 'gzip' and 'deflate', so advertising
+	// 'br' would let servers respond with bodies we cannot decode.
 	if (request.compress && !headers.has('Accept-Encoding')) {
-		headers.set('Accept-Encoding', 'gzip, deflate, br');
+		headers.set('Accept-Encoding', 'gzip, deflate');
 	}
 
 	let { agent } = request;

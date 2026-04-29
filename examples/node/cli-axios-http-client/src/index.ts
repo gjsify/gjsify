@@ -1,112 +1,83 @@
-import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+// axios HTTP client demo — adapted from the official axios TypeScript example
+// at https://axios.rest/pages/getting-started/examples/typescript.html.
+// Uses https://jsonplaceholder.typicode.com (a free fake REST API) so the demo
+// exercises real HTTPS, JSON parsing, and concurrent requests on Node.js + GJS.
+
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 interface Post {
-  id?: number;
+  userId: number;
+  id: number;
   title: string;
   body: string;
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (c: Buffer) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
-  });
+interface User {
+  id: number;
+  name: string;
+  username: string;
+  email: string;
 }
 
-async function startServer(): Promise<{ port: number; close: () => Promise<void> }> {
-  return new Promise((resolve, reject) => {
-    const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-      const url = req.url ?? '/';
-
-      if (req.method === 'GET' && url.startsWith('/posts/')) {
-        const id = parseInt(url.slice('/posts/'.length), 10);
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ id, title: `Post #${id}`, body: `Body of post ${id}` }));
-        return;
-      }
-
-      if (req.method === 'POST' && url === '/posts') {
-        const raw = await readBody(req);
-        const data: Post = JSON.parse(raw);
-        res.statusCode = 201;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ ...data, id: Math.floor(Math.random() * 1000) + 1 }));
-        return;
-      }
-
-      if (req.method === 'GET' && url === '/slow') {
-        await new Promise<void>((r) => setTimeout(r, 200));
-        res.end('done');
-        return;
-      }
-
-      res.statusCode = 404;
-      res.end(JSON.stringify({ error: 'Not found' }));
-    });
-
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address() as { port: number };
-      resolve({
-        port: addr.port,
-        close: () => new Promise<void>((r) => server.close(() => r())),
-      });
-    });
-    server.once('error', reject);
-  });
-}
-
-async function main() {
-  const srv = await startServer();
-  const baseURL = `http://127.0.0.1:${srv.port}`;
-
-  const client: AxiosInstance = axios.create({ baseURL, timeout: 5000 });
-
-  client.interceptors.request.use((config) => {
-    console.log(`→ ${config.method?.toUpperCase()} ${config.url}`);
-    return config;
-  });
-
-  // GET a post
-  const getRes = await client.get<Post>('/posts/1');
-  console.log(`GET /posts/1 → ${getRes.status} "${getRes.data.title}"`);
-
-  // POST a new post
-  const postRes = await client.post<Post>('/posts', { title: 'gjsify test', body: 'hello from GJS' });
-  console.log(`POST /posts → ${postRes.status} id=${postRes.data.id}`);
-
-  // Error handling — 404
-  try {
-    await client.get('/not-found');
-  } catch (err) {
-    const e = err as AxiosError;
-    console.log(`GET /not-found → caught AxiosError status=${e.response?.status}`);
-  }
-
-  // Timeout — /slow with tight timeout
-  try {
-    await client.get('/slow', { timeout: 50 });
-  } catch (err) {
-    const e = err as AxiosError;
-    console.log(`GET /slow (timeout=50ms) → caught ${e.code}`);
-  }
-
-  // Concurrent requests
-  const ids = [2, 3, 4];
-  const results = await Promise.all(ids.map((id) => client.get<Post>(`/posts/${id}`)));
-  console.log(`Concurrent → ${results.map((r) => `"${r.data.title}"`).join(', ')}`);
-
-  await srv.close();
-  console.log('Done.');
-}
-
-main().then(() => {
-  // GJS keeps the GLib MainLoop alive after server.close(); exit explicitly so
-  // the CLI returns control to the shell on both runtimes.
-  process.exit(0);
-}).catch((err) => {
-  console.error(err);
-  process.exit(1);
+const api: AxiosInstance = axios.create({
+  baseURL: 'https://jsonplaceholder.typicode.com',
+  timeout: 10_000,
+  headers: { 'Accept': 'application/json' },
 });
+
+api.interceptors.request.use((config) => {
+  console.log(`→ ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+  return config;
+});
+
+// GET — fetch a single post
+const post = await api.get<Post>('/posts/1');
+console.log(`GET /posts/1 → ${post.status} "${post.data.title}"`);
+
+// GET — list with query params (typed)
+const userPosts = await api.get<Post[]>('/posts', { params: { userId: 1 } });
+console.log(`GET /posts?userId=1 → ${userPosts.data.length} posts`);
+
+// POST — create a new post
+const created = await api.post<Post>('/posts', {
+  userId: 1,
+  title: 'gjsify demo',
+  body: 'hello from axios on GJS + Node.js',
+});
+console.log(`POST /posts → ${created.status} id=${created.data.id}`);
+
+// PUT — replace a post
+const updated = await api.put<Post>('/posts/1', {
+  id: 1,
+  userId: 1,
+  title: 'updated title',
+  body: 'updated body',
+});
+console.log(`PUT /posts/1 → ${updated.status} title="${updated.data.title}"`);
+
+// DELETE — remove a post
+const deleted = await api.delete('/posts/1');
+console.log(`DELETE /posts/1 → ${deleted.status}`);
+
+// Error handling — 404
+try {
+  await api.get('/posts/0');
+} catch (err) {
+  const e = err as AxiosError;
+  console.log(`GET /posts/0 → caught AxiosError status=${e.response?.status}`);
+}
+
+// Concurrent requests — fetch a post and its author in parallel
+const [postRes, authorRes] = await Promise.all([
+  api.get<Post>('/posts/2'),
+  api.get<User>('/users/1'),
+]);
+console.log(`Concurrent → post="${postRes.data.title}" by ${authorRes.data.name} <${authorRes.data.email}>`);
+
+console.log('Done.');
+
+// GJS keeps the GLib MainLoop alive after the last HTTPS request settles;
+// exit explicitly so the CLI returns control to the shell on both runtimes.
+// Note: top-level await is required here — `main().then(...)` would let the GJS
+// module finish synchronously and Soup callbacks would never fire.
+process.exit(0);
