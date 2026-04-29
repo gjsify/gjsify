@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { normalizePath } from './utils.js';
 const privates = new WeakMap;
 
-import type { FSWatcher as IFSWatcher, PathLike } from 'node:fs';
+import type { FSWatcher as IFSWatcher, PathLike, WatchOptions } from 'node:fs';
 
 export class FSWatcher extends EventEmitter implements IFSWatcher {
 
@@ -103,3 +103,88 @@ function changed(watcher, file, otherFile, eventType) {
 }
 
 export default FSWatcher;
+
+// ─── fs.promises.watch ────────────────────────────────────────────────────────
+
+type WatchEvent = { eventType: string; filename: string | null };
+
+function gioEventToNodeType(eventType: Gio.FileMonitorEvent): string | null {
+  switch (eventType) {
+    case Gio.FileMonitorEvent.CHANGES_DONE_HINT: return 'change';
+    case Gio.FileMonitorEvent.DELETED:
+    case Gio.FileMonitorEvent.CREATED:
+    case Gio.FileMonitorEvent.RENAMED:
+    case Gio.FileMonitorEvent.MOVED_IN:
+    case Gio.FileMonitorEvent.MOVED_OUT: return 'rename';
+    default: return null;
+  }
+}
+
+export async function* watchAsync(
+  filename: PathLike,
+  options?: WatchOptions & { signal?: AbortSignal },
+): AsyncIterableIterator<WatchEvent> {
+  const signal = (options as any)?.signal as AbortSignal | undefined;
+
+  if (signal?.aborted) return;
+
+  const pathStr = normalizePath(filename);
+  const file = Gio.File.new_for_path(pathStr);
+  const cancellable = Gio.Cancellable.new();
+
+  let watcher: Gio.FileMonitor;
+  try {
+    watcher = file.monitor(Gio.FileMonitorFlags.NONE, cancellable);
+  } catch {
+    return;
+  }
+
+  const eventQueue: WatchEvent[] = [];
+  const waiterQueue: Array<{ resolve: (r: IteratorResult<WatchEvent>) => void }> = [];
+  let finished = false;
+
+  function enqueue(event: WatchEvent): void {
+    if (finished) return;
+    if (waiterQueue.length > 0) {
+      waiterQueue.shift()!.resolve({ value: event, done: false });
+    } else {
+      eventQueue.push(event);
+    }
+  }
+
+  function terminate(): void {
+    if (finished) return;
+    finished = true;
+    if (!cancellable.is_cancelled()) cancellable.cancel();
+    while (waiterQueue.length > 0) {
+      waiterQueue.shift()!.resolve({ value: undefined as any, done: true });
+    }
+  }
+
+  const signalId = watcher.connect('changed', (_mon: Gio.FileMonitor, changedFile: Gio.File, _otherFile: Gio.File | null, eventType: Gio.FileMonitorEvent) => {
+    const type = gioEventToNodeType(eventType);
+    if (type === null) return;
+    enqueue({ eventType: type, filename: changedFile?.get_basename() ?? null });
+  });
+
+  const abortHandler = () => terminate();
+  signal?.addEventListener('abort', abortHandler);
+
+  try {
+    while (!finished) {
+      if (eventQueue.length > 0) {
+        yield eventQueue.shift()!;
+        continue;
+      }
+      const result = await new Promise<IteratorResult<WatchEvent>>(resolve => {
+        waiterQueue.push({ resolve });
+      });
+      if (result.done) break;
+      yield result.value;
+    }
+  } finally {
+    signal?.removeEventListener('abort', abortHandler);
+    try { watcher.disconnect(signalId); } catch {}
+    if (!cancellable.is_cancelled()) cancellable.cancel();
+  }
+}
