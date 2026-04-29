@@ -64,6 +64,7 @@ import {
 } from './write-stream.js';
 import * as promises from './promises.js';
 import { cpSync, cp } from './cp.js';
+import { Dir, opendir, opendirSync } from './dir.js';
 import { Stats, BigIntStats } from './stats.js';
 import { Dirent } from './dirent.js';
 
@@ -119,6 +120,7 @@ export {
   Stats,
   BigIntStats,
   Dirent,
+  Dir,
   // Sync API
   existsSync,
   readdirSync,
@@ -144,6 +146,7 @@ export {
   chmodSync,
   chownSync,
   cpSync,
+  opendirSync,
   watch,
   // Streams
   createReadStream,
@@ -178,6 +181,7 @@ export {
   writeFile,
   unlink,
   link,
+  opendir,
 };
 
 export default {
@@ -185,6 +189,7 @@ export default {
   Stats,
   BigIntStats,
   Dirent,
+  Dir,
   constants,
   existsSync,
   readdirSync,
@@ -210,6 +215,7 @@ export default {
   chmodSync,
   chownSync,
   cpSync,
+  opendirSync,
   watch,
   createReadStream,
   ReadStream,
@@ -241,4 +247,5 @@ export default {
   writeFile,
   unlink,
   link,
+  opendir,
 };

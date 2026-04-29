@@ -16,5 +16,6 @@ import testSuiteExtended from './extended.spec.js';
 import testSuiteErrors from './errors.spec.js';
 import testSuiteStreams from './streams.spec.js';
 import testSuiteCp from './cp.spec.js';
+import testSuiteDir from './dir.spec.js';
 
-run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended, testSuiteErrors, testSuiteStreams, testSuiteCp});
+run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended, testSuiteErrors, testSuiteStreams, testSuiteCp, testSuiteDir});

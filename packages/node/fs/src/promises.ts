@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path';
 import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js';
 import { realpathSync, readdirSync as readdirSyncFn, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, linkSync } from './sync.js';
 import { cpAsync } from './cp.js';
+import { opendirAsync, Dir } from './dir.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath, normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
@@ -576,6 +577,8 @@ async function link(existingPath: PathLike, newPath: PathLike): Promise<void> {
   linkSync(existingPath, newPath);
 }
 
+export type { Dir };
+
 export {
   readFile,
   mkdir,
@@ -601,6 +604,7 @@ export {
   chown,
   link,
   cpAsync as cp,
+  opendirAsync as opendir,
 };
 
 export default {
@@ -628,4 +632,5 @@ export default {
   chown,
   link,
   cp: cpAsync,
+  opendir: opendirAsync,
 };
