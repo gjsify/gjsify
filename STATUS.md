@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-29 (axios integration suite added — `tests/integration/axios/` (Node: 68/68, GJS: 52/52 + 12 ignored); `@gjsify/fetch` double-decompression fixed (remove Soup.ContentDecoder, let JS handle gzip/deflate); BOM stripping in XHR responseText; `@gjsify/zlib` brotli stubs; `examples/node/cli-axios-http-client/` example. Previously: `@gjsify/v8` promoted Stub → Partial.)
+> Last updated: 2026-04-29 (ts-for-gir integration suite Phase 1 added — `tests/integration/ts-for-gir/` validates `@gi.ts/parser` v4.0.0-rc.6 + `fast-xml-parser` on GJS using gjsify's own Vala-generated GIR fixtures: Node 18/18, GJS 18/18, 0 skips. New strategic goal: `ts-for-gir` runs unmodified on GJS. Earlier today: axios integration suite — `tests/integration/axios/` (Node: 68/68, GJS: 52/52 + 12 ignored); `@gjsify/fetch` double-decompression fixed (remove Soup.ContentDecoder, let JS handle gzip/deflate); BOM stripping in XHR responseText; `@gjsify/zlib` brotli stubs; `examples/node/cli-axios-http-client/` example. Previously: `@gjsify/v8` promoted Stub → Partial.)
 
 ## Summary
 
@@ -536,6 +536,21 @@ Drives the official `@modelcontextprotocol/inspector` CLI as a subprocess agains
 
 Sequential call cap: N ≤ 4 to stay under the residual deferred-GC window from MCP SDK / Hono / web-streams (tracked in "Upstream GJS Patch Candidates").
 
+### ts-for-gir (`tests/integration/ts-for-gir/`)
+
+Phase 1: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/tree/main/packages/parser) v4.0.0-rc.6 — the GObject Introspection XML parser used by `ts-for-gir` to read `.gir` files. One runtime dep (`fast-xml-parser`), pure-function API: `parser.parseGir(xml: string): GirXML`. **Node: 18/18 green. GJS: 18/18 green, 0 skips.**
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| parser.spec.ts (Gwebgl-0.1.gir) | ✅ (7) | ✅ (7) | `<repository>` version, `<namespace>` shape, `<include>` deps, classes (3) + 259 methods, `<enumeration>`, `<constructor>` rename/restore (fast-xml-parser security workaround) |
+| parser.spec.ts (GjsifyWebrtc-0.1.gir) | ✅ (4) | ✅ (4) | `<glib:signal>` parsing (replied/rejected), class properties typed via `Gst.Promise`, multi-namespace deps (Gst, GstWebRTC) |
+| parser.spec.ts (GjsifyHttpSoupBridge-1.0.gir) | ✅ (4) | ✅ (4) | Soup/Gio deps, method `<parameters>` shape with `<instance-parameter>`, 3 classes / 30 methods |
+| parser.spec.ts (inline edge cases) | ✅ (3) | ✅ (3) | Empty `<repository>`, namespace without classes, round-trip of inline class+method |
+
+Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated GIRs — committed alongside the suite (no prebuild copy step), real-world parser surface, no upstream-fixture coupling.
+
+`refs/ts-for-gir/` submodule added for future phases (see Open TODOs). `@gjsify/node-globals/register` deliberately not imported — `gjsify build --globals auto` (default) covers the surface; `fast-xml-parser` is pure ES.
+
 ### Root-cause fixes surfaced by the Autobahn pillar and landed in this PR
 
 1. **`@gjsify/websocket` now ships a `/register` subpath.** Before this PR, `globalThis.WebSocket` had no register entry — the CLI's `--globals` flag silently ignored `WebSocket` tokens (unknown identifier), and `--globals auto` had no way to inject the class when user code wrote `new WebSocket(...)`. Consumers who needed it either pre-declared the global manually (webtorrent-player) or imported the class by name. Now `@gjsify/websocket/register` sets `globalThis.{WebSocket,MessageEvent,CloseEvent}` with existence guards, gets listed in `GJS_GLOBALS_MAP` (→ `websocket/register`) and both alias maps (`ALIASES_WEB_FOR_GJS`, `ALIASES_WEB_FOR_NODE`), and is added to the `web` global group so `--globals web` picks it up alongside `fetch`/`crypto`/stream globals. The Autobahn driver was the first consumer of the full `--globals auto` path for `WebSocket`, so the missing register entry showed up immediately.
@@ -569,11 +584,25 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 **Progress:**
 - ✅ **Steps 1 + 2 done** — Granular subpaths exist: `packages/node/globals/src/register/{buffer,encoding,microtask,process,structured-clone,timers,url}.ts`. The catch-all `register.ts` now re-imports from these granular files (with a comment directing users to granular imports). `GJS_GLOBALS_MAP` already points at the granular paths.
 - ✅ **Step 3 done for per-package test entries and Autobahn drivers** — All `packages/{node,web}/*/src/test.mts` entries (buffer, fs, module, stream, timers, tty, worker_threads, fetch, formdata) now import only the granular subpaths each test actually needs. The two Autobahn drivers in `tests/integration/autobahn/src/` now use `register/process` + `register/timers`. Self-tests of the meta packages `@gjsify/node-globals` and `@gjsify/web-globals` keep the catch-all because they verify the entire register surface by design.
-- 🔲 **Step 3 deferred for examples + integration suites** — `examples/node/*` and `tests/integration/{webtorrent,socket.io,streamx,mcp-typescript-sdk,mcp-inspector-cli}/src/test.mts` still import the catch-all. These are legitimate "full Node runtime surface" consumers (real-world third-party libraries pull in everything), so the catch-all is the right shape for them. Migrate only if a specific consumer benefits from a smaller bundle.
+- 🔲 **Step 3 deferred for examples + integration suites** — `examples/node/*` and `tests/integration/{webtorrent,socket.io,streamx,mcp-typescript-sdk,mcp-inspector-cli}/src/test.mts` still import the catch-all. These are legitimate "full Node runtime surface" consumers (real-world third-party libraries pull in everything), so the catch-all is the right shape for them. Migrate only if a specific consumer benefits from a smaller bundle. The new `tests/integration/ts-for-gir/` suite already follows the no-catch-all pattern (`--globals auto` only).
 - 🔲 **Step 4 pending** — Catch-all is now genuinely opt-in. Keep it indefinitely as the "full surface" entry point; do not deprecate.
 
 Keep the catch-all for **new** consumers that genuinely want "give me the full Node runtime surface" — but keep it as opt-in, not a mandatory import chain.
 
+
+### ts-for-gir — extend integration suite beyond `@gi.ts/parser`
+
+**Priority: High — strategic goal: `ts-for-gir` runs unmodified on GJS.**
+
+Phase 1 (this PR) covers `@gi.ts/parser` only. Subsequent phases:
+
+- **Phase 2:** `@ts-for-gir/lib` pure-function surface — `TypeExpression`, `TypeIdentifier`, `ModuleTypeIdentifier`, `NativeType`, `OrType`, `TupleType`, `FunctionType`, `GenericType`, `PromiseType` builders. No real GIR pipeline yet; just the type system.
+- **Phase 3:** Generator pipeline — feed a real GIR (e.g. `Gwebgl-0.1.gir` from `tests/integration/ts-for-gir/girs/`) through `Generator` and snapshot-assert the resulting `.d.ts` shape. Exercises `@gjsify/lib` end-to-end (`ejs`, `lodash`, `glob`).
+- **Phase 4:** CLI tarball end-to-end — port `refs/ts-for-gir/tests/e2e/cli/run.mjs` style test that installs the published tarball and runs `ts-for-gir generate` against a small set of GIRs. Blocked on GJS readiness of `yargs`, `inquirer`, `@inquirer/prompts`, `prettier`, `cosmiconfig`.
+- **Phase 5:** Language-server vitest port (`refs/ts-for-gir/tests/language-server-validation/src/gvariant-validation.test.ts`). Blocked on the `typescript` package running on GJS.
+- **External-deps regex assertion port** (`refs/ts-for-gir/tests/external-deps/assert.mjs`) — meaningful only after Phase 3 lands.
+
+`refs/ts-for-gir/` submodule is pinned at the ts-for-gir commit corresponding to `@gi.ts/parser@4.0.0-rc.6`; bump the submodule alongside the published-package version when porting future phases.
 
 ### ~~Browser Testing Infrastructure for DOM Packages~~✓
 
