@@ -13,7 +13,6 @@
 // Then open http://localhost:3001 in a browser, or connect directly:
 //   wscat -c "ws://localhost:3001/ws?token=gjsify&nick=alice" -s chat/v1
 
-import '@gjsify/node-globals/register';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';

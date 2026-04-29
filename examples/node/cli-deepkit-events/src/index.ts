@@ -1,4 +1,3 @@
-import '@gjsify/node-globals/register';
 import { EventDispatcher, EventToken, DataEventToken, BaseEvent, DataEvent } from '@deepkit/event';
 
 const printGjs = (globalThis as unknown as { print?: (msg: string) => void }).print;

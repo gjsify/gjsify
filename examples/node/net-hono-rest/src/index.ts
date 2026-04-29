@@ -1,7 +1,6 @@
 // Hono REST API example for Node.js and GJS
 // Demonstrates: Hono framework, JSON CRUD API, validation, @hono/node-server
 
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';

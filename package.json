@@ -60,6 +60,7 @@
     "examples/dom/*",
     "showcases/dom/*",
     "showcases/node/*",
+    "tests/browser",
     "tests/dom/*",
     "tests/integration/*",
     "website"

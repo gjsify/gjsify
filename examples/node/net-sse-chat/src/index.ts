@@ -2,7 +2,6 @@
 // Demonstrates: http.createServer, events.EventEmitter, fs.readFileSync,
 // SSE protocol, JSON parsing, URL routing
 
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';

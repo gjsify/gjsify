@@ -1,7 +1,6 @@
 // Interactive DNS lookup tool for Node.js and GJS
 // Demonstrates: dns (lookup, resolve4, resolve6, reverse), readline, net.isIP
 
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { lookup, resolve4, resolve6, reverse } from 'node:dns';
 import { isIP, isIPv4, isIPv6 } from 'node:net';

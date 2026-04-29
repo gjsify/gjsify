@@ -1,6 +1,5 @@
 // SQLite-backed todo store — demonstrates node:sqlite on GJS and Node.js
 // Reference: Node.js lib/sqlite.js
-import '@gjsify/node-globals/register';
 import { DatabaseSync } from 'node:sqlite';
 import { runtimeName } from '@gjsify/runtime';
 import * as os from 'node:os';

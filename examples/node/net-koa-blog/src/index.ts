@@ -1,7 +1,6 @@
 // Reference: koajs/examples/blog (https://github.com/koajs/examples/tree/master/blog)
 // Reimplemented with EJS templates for GJS using @gjsify/node-globals
 
-import '@gjsify/node-globals/register';
 import { runtimeName } from '@gjsify/runtime';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';

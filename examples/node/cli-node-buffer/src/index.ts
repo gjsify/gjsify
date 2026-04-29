@@ -1,4 +1,3 @@
-import '@gjsify/node-globals/register';
 import { Buffer } from 'buffer';
 
 console.log('=== @gjsify/buffer example ===\n');

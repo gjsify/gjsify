@@ -2,7 +2,6 @@
 // Reference: https://yargs.js.org/
 // Reimplemented for GJS using @gjsify/node-globals (process, Buffer, etc.)
 
-import '@gjsify/node-globals/register'; // Must be first — sets up process, Buffer, URL, etc.
 import { runtimeName } from '@gjsify/runtime';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
