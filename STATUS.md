@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-29 (`@gjsify/child_process` `spawn()` now sets `child.stdout`/`child.stderr` as Readable streams via `GioInputStreamReadable`; Hono REST API example now passes on GJS (4/4 tests); `@gjsify/unit` runtime detection fixed to check `process.versions.gjs` before `globalThis.document`.)
+> Last updated: 2026-04-29 (`@gjsify/fs` adds `cpSync`/`cp`/`promises.cp` via Gio.File.copy + enumerate_children (11 tests, 521 total); `@gjsify/child_process` `spawn()` now sets `child.stdout`/`child.stderr` as Readable streams via `GioInputStreamReadable`; Hono REST API example now passes on GJS; `@gjsify/unit` runtime detection fixed.)
 
 ## Summary
 
@@ -20,7 +20,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | Build/Infra Tools | 9 | 9 | — | — |
 | Integration test suites | 4 | 4 (webtorrent, socket.io, streamx, autobahn) | — | — |
 
-**Test coverage:** 10,500+ test cases in 110+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from webtorrent / socket.io / streamx, plus the Autobahn fuzzingserver for RFC 6455 compliance.
+**Test coverage:** 10,550+ test cases in 111+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from webtorrent / socket.io / streamx, plus the Autobahn fuzzingserver for RFC 6455 compliance.
 
 ---
 
@@ -41,7 +41,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **diagnostics_channel** | — | 137 | Channel, TracingChannel, subscribe/unsubscribe |
 | **dns** | Gio, GLib | 121 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
 | **events** | — | 255+ (2 specs) | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator, **makeCallable** (`.call(this)` + `util.inherits` CJS compat) |
-| **fs** | Gio, GLib | 465 (9 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping, fs.constants (O_RDONLY/WRONLY/RDWR/CREAT/EXCL/S_IFMT/S_IFREG), readdir options (withFileTypes, encoding), appendFileSync, mkdirSync recursive edge cases |
+| **fs** | Gio, GLib | 521 (10 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/cp/cpSync/promises.cp/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping, fs.constants (O_RDONLY/WRONLY/RDWR/CREAT/EXCL/S_IFMT/S_IFREG), readdir options (withFileTypes, encoding), appendFileSync, mkdirSync recursive edge cases |
 | **globals** | — | 221 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate. Root export is pure; side effects live in `@gjsify/node-globals/register`. Users opt in via the `--globals` CLI flag (default-wired in the `@gjsify/create-app` template) or an explicit `import '@gjsify/node-globals/register'`. |
 | **http** | Soup 3.0, Gio, GLib | 1038 (7 specs) | Server (Soup.Server, **chunked streaming**, **upgrade event**, **`SoupMessageLifecycle` per-request helper**: GC guard for in-flight Soup messages + `'wrote-chunk'`-driven re-unpause + `'disconnected'`/`'finished'` → req/res `'close'`/`'aborted'` translation), ClientRequest (Soup.Session, **timeout events**, **auth option**, **signal option**), IncomingMessage (**timeout events**), ServerResponse (**setTimeout**, chunked transfer), OutgoingMessage, **`ServerRequestSocket`** (Duplex-typed `req.socket` with working `pause`/`resume`/`destroySoon` for Hono backpressure), STATUS_CODES, METHODS, Agent (**constructor options**, keepAlive, maxSockets, scheduling), validateHeaderName/Value, maxHeaderSize, round-trip on GJS. **Known limitation:** libsoup stops polling the input stream while a server message is paused, so `'disconnected'` does not fire for long-poll/SSE clients that hang up — see "Upstream GJS Patch Candidates" |
 | **https** | Soup 3.0 | 99 | Agent (defaultPort, protocol, maxSockets, destroy, options, keepAlive, scheduling), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server |

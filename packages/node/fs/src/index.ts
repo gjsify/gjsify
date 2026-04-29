@@ -63,6 +63,7 @@ import {
   WriteStream
 } from './write-stream.js';
 import * as promises from './promises.js';
+import { cpSync, cp } from './cp.js';
 import { Stats, BigIntStats } from './stats.js';
 import { Dirent } from './dirent.js';
 
@@ -142,6 +143,7 @@ export {
   truncateSync,
   chmodSync,
   chownSync,
+  cpSync,
   watch,
   // Streams
   createReadStream,
@@ -163,6 +165,7 @@ export {
   stat,
   rename,
   copyFile,
+  cp,
   access,
   appendFile,
   readlink,
@@ -206,6 +209,7 @@ export default {
   truncateSync,
   chmodSync,
   chownSync,
+  cpSync,
   watch,
   createReadStream,
   ReadStream,
@@ -224,6 +228,7 @@ export default {
   stat,
   rename,
   copyFile,
+  cp,
   access,
   appendFile,
   readlink,
