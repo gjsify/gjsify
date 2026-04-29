@@ -65,6 +65,7 @@ import {
 import * as promises from './promises.js';
 import { cpSync, cp } from './cp.js';
 import { Dir, opendir, opendirSync } from './dir.js';
+import { glob, globSync } from './glob.js';
 import { Stats, BigIntStats } from './stats.js';
 import { Dirent } from './dirent.js';
 
@@ -147,6 +148,8 @@ export {
   chownSync,
   cpSync,
   opendirSync,
+  globSync,
+  glob,
   watch,
   // Streams
   createReadStream,
@@ -216,6 +219,8 @@ export default {
   chownSync,
   cpSync,
   opendirSync,
+  globSync,
+  glob,
   watch,
   createReadStream,
   ReadStream,

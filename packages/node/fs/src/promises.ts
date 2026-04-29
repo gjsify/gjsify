@@ -8,6 +8,7 @@ import { getEncodingFromOptions, encodeUint8Array, decode } from './encoding.js'
 import { realpathSync, readdirSync as readdirSyncFn, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, linkSync } from './sync.js';
 import { cpAsync } from './cp.js';
 import { opendirAsync, Dir } from './dir.js';
+import { globAsync } from './glob.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath, normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
@@ -605,6 +606,7 @@ export {
   link,
   cpAsync as cp,
   opendirAsync as opendir,
+  globAsync as glob,
 };
 
 export default {
@@ -633,4 +635,5 @@ export default {
   link,
   cp: cpAsync,
   opendir: opendirAsync,
+  glob: globAsync,
 };
