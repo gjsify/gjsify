@@ -102,7 +102,11 @@ async function main() {
   console.log('Done.');
 }
 
-main().catch((err) => {
+main().then(() => {
+  // GJS keeps the GLib MainLoop alive after server.close(); exit explicitly so
+  // the CLI returns control to the shell on both runtimes.
+  process.exit(0);
+}).catch((err) => {
   console.error(err);
   process.exit(1);
 });
