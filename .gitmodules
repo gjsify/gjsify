@@ -188,3 +188,6 @@
 [submodule "refs/axios"]
 	path = refs/axios
 	url = git@github.com:axios/axios.git
+[submodule "refs/ts-for-gir"]
+	path = refs/ts-for-gir
+	url = git@github.com:gjsify/ts-for-gir.git

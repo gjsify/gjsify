@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### feat(tests/integration/ts-for-gir) — Phase 1: `@gi.ts/parser` integration suite (2026-04-29)
+
+New strategic goal: **`ts-for-gir` runs unmodified on GJS.** ts-for-gir publishes ~10 npm packages (`@gi.ts/parser`, `@ts-for-gir/lib`, `@ts-for-gir/cli`, `@ts-for-gir/generator-*`, `@ts-for-gir/language-server`, `@ts-for-gir/reporter`, `@ts-for-gir/typedoc-theme`); validating them progressively against `@gjsify/*` is the next surface that exercises the full Node.js pillar end-to-end.
+
+**Phase 1 covers `@gi.ts/parser` v4.0.0-rc.6** — the smallest, most isolated package: one runtime dep (`fast-xml-parser`), pure-function API `parser.parseGir(xml: string): GirXML`. **Node: 18/18 green. GJS: 18/18 green, 0 skips.**
+
+Fixtures are gjsify's own Vala-generated GIRs (`Gwebgl-0.1.gir`, `GjsifyWebrtc-0.1.gir`, `GjsifyHttpSoupBridge-1.0.gir`), committed under `tests/integration/ts-for-gir/girs/`. Real-world parser surface — exercises classes (10 total), 300 methods, 40 properties, 26 signals (`<glib:signal>`), an enumeration, the `<constructor>` rename/restore workaround for fast-xml-parser's prototype-pollution guard, and multi-namespace `<include>` deps (Soup, Gst, GstWebRTC, Gio, GObject, GLib).
+
+`refs/ts-for-gir/` git submodule added for porting reference in subsequent phases. The suite is the first to deliberately omit `import '@gjsify/node-globals/register'` — `gjsify build --globals auto` (default) covers everything `fast-xml-parser` and the test code need; explicit `/register` imports in non-package code are now considered an anti-pattern (CLAUDE.md `### Don't patch — implement at the source`).
+
+Out of scope for Phase 1, tracked in STATUS.md Open TODOs: `@ts-for-gir/lib` type-system tests, generator pipeline (Greeter.gir → .d.ts snapshot), CLI tarball end-to-end (blocked on yargs/inquirer/prettier GJS readiness), language-server vitest port (blocked on `typescript` package on GJS).
+
 ### fix(@gjsify/unit) — add browserSignalDone for Playwright test completion (2026-04-28)
 
 `@gjsify/unit` now sets `window.__gjsify_test_results` and `document.documentElement.dataset.testsDone = 'true'` when a test run finishes in a browser context. This is required for the Playwright harness (`tests/browser/specs/unit.spec.ts`) to detect that tests have completed and to read pass/fail counts.
