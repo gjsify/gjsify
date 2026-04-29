@@ -6,8 +6,49 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
 import { Buffer } from 'node:buffer';
-import type { Readable, Writable } from 'node:stream';
+import { Readable } from 'node:stream';
+import type { Writable } from 'node:stream';
 import { gbytesToUint8Array, deferEmit } from '@gjsify/utils';
+
+// Wraps a Gio.InputStream as a Node.js Readable so proc.stdout/stderr work
+// with standard stream consumers (.on('data', ...), pipe, async iteration).
+class GioInputStreamReadable extends Readable {
+  private _stream: Gio.InputStream;
+  private _cancellable = new Gio.Cancellable();
+
+  constructor(stream: Gio.InputStream) {
+    super();
+    this._stream = stream;
+  }
+
+  override _read(size: number): void {
+    this._stream.read_bytes_async(
+      Math.max(size, 4096),
+      GLib.PRIORITY_DEFAULT,
+      this._cancellable,
+      (_source, result) => {
+        try {
+          const gbytes = this._stream.read_bytes_finish(result);
+          const data = gbytes.get_data();
+          if (!data || data.length === 0) {
+            this.push(null);
+          } else {
+            this.push(Buffer.from(data));
+          }
+        } catch (err) {
+          if (!this._cancellable.is_cancelled()) {
+            this.destroy(err as Error);
+          }
+        }
+      },
+    );
+  }
+
+  override _destroy(error: Error | null, callback: (err?: Error | null) => void): void {
+    this._cancellable.cancel();
+    callback(error);
+  }
+}
 
 interface ExecError extends Error {
   status?: number;
@@ -353,6 +394,12 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
     const proc = _spawnSubprocess(argv, flags, options);
     child._setSubprocess(proc);
     _activeProcesses.add(child);
+
+    const stdoutPipe = proc.get_stdout_pipe();
+    if (stdoutPipe) child.stdout = new GioInputStreamReadable(stdoutPipe);
+
+    const stderrPipe = proc.get_stderr_pipe();
+    if (stderrPipe) child.stderr = new GioInputStreamReadable(stderrPipe);
 
     proc.wait_async(null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {

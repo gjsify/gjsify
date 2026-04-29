@@ -106,7 +106,10 @@ export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser' | 'Disp
 // Makes this work on Gjs and Node.js
 // In browsers, globalThis.print is window.print() (the print dialog), not text output.
 // Use console.log in browser contexts to avoid triggering print dialogs.
-export const print = (typeof (globalThis as any).document !== 'undefined')
+// GJS check takes priority: @gjsify/dom-elements can set globalThis.document on GJS,
+// which would otherwise cause a false-positive browser detection.
+const _isGjsProcess = typeof (globalThis as any).process?.versions?.gjs === 'string';
+export const print = (!_isGjsProcess && typeof (globalThis as any).document !== 'undefined')
     ? console.log
     : (globalThis.print || console.log);
 
@@ -642,36 +645,40 @@ const getRuntime = async () => {
 		return runtime;
 	}
 
-	// Check browser before attempting dynamic import('process') — dynamic imports
-	// are NOT aliased by esbuild, so import('process') throws in the browser,
-	// which previously caused the catch block to set runtime='Unknown' before
-	// reaching the document check.
-	if (typeof (globalThis as any).document !== 'undefined') {
-		runtime = 'Browser';
-		return runtime;
-	}
-
 	if(globalThis.Deno?.version?.deno) {
 		return 'Deno ' + globalThis.Deno?.version?.deno;
-	} else {
+	}
+
+	// Check process (GJS / Node) BEFORE document: @gjsify/dom-elements can set
+	// globalThis.document on GJS, which would otherwise cause a false browser-positive.
+	// dynamic import('process') throws in the browser so this stays safe there.
+	{
 		let process = globalThis.process;
 
 		if(!process) {
 			try {
 				process = await import('process');
-			} catch (error) {
-				console.error(error)
-				console.warn(error.message);
-				runtime = 'Unknown'
+			} catch (_e) {
+				// browser or runtime without process — fall through to document check
 			}
 		}
 
 		if(process?.versions?.gjs) {
 			runtime = 'Gjs ' + process.versions.gjs;
+			return runtime;
 		} else if (process?.versions?.node) {
 			runtime = 'Node.js ' + process.versions.node;
+			return runtime;
 		}
 	}
+
+	// Only treat as Browser after confirming no Node/GJS process is present.
+	// dynamic imports throw in browsers, so we are safely past that path here.
+	if (typeof (globalThis as any).document !== 'undefined') {
+		runtime = 'Browser';
+		return runtime;
+	}
+
 	return runtime || 'Unknown';
 }
 

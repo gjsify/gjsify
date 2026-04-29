@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-28 (`@gjsify/unit` extended with `browserSignalDone` so browser bundles signal test completion to Playwright; `tests/browser` promoted to a yarn workspace; all 13 browser test bundles verified green in Firefox (11 web + dom-elements + canvas2d-core); SQLite todo store example cross-validated on GJS and Node.js.)
+> Last updated: 2026-04-29 (`@gjsify/fs` adds `globSync`/`glob`/`promises.glob` with full glob-to-regex engine (17 new tests, 557 total); previously: `cpSync`/`cp`/`promises.cp` + `Dir`/`opendir`/`opendirSync`/`promises.opendir` via Gio; `@gjsify/child_process` `spawn()` now sets `child.stdout`/`child.stderr` as Readable streams; `@gjsify/unit` runtime detection fixed.)
 
 ## Summary
 
@@ -20,7 +20,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | Build/Infra Tools | 9 | 9 | — | — |
 | Integration test suites | 4 | 4 (webtorrent, socket.io, streamx, autobahn) | — | — |
 
-**Test coverage:** 10,500+ test cases in 110+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from webtorrent / socket.io / streamx, plus the Autobahn fuzzingserver for RFC 6455 compliance.
+**Test coverage:** 10,570+ test cases in 112+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from webtorrent / socket.io / streamx, plus the Autobahn fuzzingserver for RFC 6455 compliance.
 
 ---
 
@@ -33,7 +33,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **assert** | — | 117 | AssertionError, deepEqual, throws, strict mode |
 | **async_hooks** | — | 130 | AsyncLocalStorage (run, enterWith, snapshot, exit), AsyncResource (bind, runInAsyncScope, triggerAsyncId), createHook |
 | **buffer** | — | 317 | Buffer via Blob/atob/btoa, alloc, from, concat, encodings, fill, indexOf/lastIndexOf, slice/subarray, copy, int/float read/write, swap16/32/64, equals, compare |
-| **child_process** | Gio, GLib | 110 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher |
+| **child_process** | Gio, GLib | 116 | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess; cwd/env via Gio.SubprocessLauncher; `spawn()` now provides `child.stdout`/`child.stderr` as Readable streams (GioInputStreamReadable) |
 | **console** | — | 124 | Console class with stream support, format specifiers, table, dir, time/timeLog, count, group, assert, trace, stdout/stderr routing |
 | **constants** | — | 27 | Flattened re-export of `os.constants` (errno, signals, priority, dlopen) + `fs.constants` + legacy crypto constants — the deprecated Node `constants` alias |
 | **crypto** | GLib | 571 (13 specs) | Hash (SHA256/384/512, MD5, SHA1, known vectors), Hmac (extended edge cases), randomBytes/UUID/Int (v4 format, uniqueness), PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, **KeyObject (JWK import/export)**, **X509Certificate**, timingSafeEqual, getHashes/getCiphers/getCurves, constants |
@@ -41,7 +41,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **diagnostics_channel** | — | 137 | Channel, TracingChannel, subscribe/unsubscribe |
 | **dns** | Gio, GLib | 121 (2 specs) | lookup, resolve4/6, reverse via Gio.Resolver + dns/promises |
 | **events** | — | 255+ (2 specs) | EventEmitter, once, on, listenerCount, setMaxListeners, errorMonitor, captureRejections, getEventListeners, prependListener, eventNames, rawListeners, Symbol events, async iterator, **makeCallable** (`.call(this)` + `util.inherits` CJS compat) |
-| **fs** | Gio, GLib | 465 (9 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, ENOENT error mapping, fs.constants (O_RDONLY/WRONLY/RDWR/CREAT/EXCL/S_IFMT/S_IFREG), readdir options (withFileTypes, encoding), appendFileSync, mkdirSync recursive edge cases |
+| **fs** | Gio, GLib | 557 (12 specs) | sync, callback, promises, streams, FSWatcher, symlinks, FileHandle (read/write/truncate/writeFile/stat/readFile/appendFile), access/copyFile/cp/cpSync/promises.cp/rename/lstat, mkdir/rmdir/mkdtemp/chmod/truncate, **Dir/opendir/opendirSync/promises.opendir** (async iterator, read/readSync, close/closeSync), **globSync/glob/promises.glob** (*, **, ?, {a,b}, extglob, exclude fn/array), ENOENT error mapping, fs.constants (O_RDONLY/WRONLY/RDWR/CREAT/EXCL/S_IFMT/S_IFREG), readdir options (withFileTypes, encoding), appendFileSync, mkdirSync recursive edge cases |
 | **globals** | — | 221 | process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate. Root export is pure; side effects live in `@gjsify/node-globals/register`. Users opt in via the `--globals` CLI flag (default-wired in the `@gjsify/create-app` template) or an explicit `import '@gjsify/node-globals/register'`. |
 | **http** | Soup 3.0, Gio, GLib | 1038 (7 specs) | Server (Soup.Server, **chunked streaming**, **upgrade event**, **`SoupMessageLifecycle` per-request helper**: GC guard for in-flight Soup messages + `'wrote-chunk'`-driven re-unpause + `'disconnected'`/`'finished'` → req/res `'close'`/`'aborted'` translation), ClientRequest (Soup.Session, **timeout events**, **auth option**, **signal option**), IncomingMessage (**timeout events**), ServerResponse (**setTimeout**, chunked transfer), OutgoingMessage, **`ServerRequestSocket`** (Duplex-typed `req.socket` with working `pause`/`resume`/`destroySoon` for Hono backpressure), STATUS_CODES, METHODS, Agent (**constructor options**, keepAlive, maxSockets, scheduling), validateHeaderName/Value, maxHeaderSize, round-trip on GJS. **Known limitation:** libsoup stops polling the input stream while a server message is paused, so `'disconnected'` does not fire for long-poll/SSE clients that hang up — see "Upstream GJS Patch Candidates" |
 | **https** | Soup 3.0 | 99 | Agent (defaultPort, protocol, maxSockets, destroy, options, keepAlive, scheduling), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server |
@@ -344,7 +344,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
 | Build tools | 9 (infra/) |
-| Total test cases | 10,500+ (unit) + 706+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli) |
+| Total test cases | 10,517+ (unit) + 706+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli) |
 | Spec files | 110+ |
 | Integration test suites | 6 (webtorrent, socket.io, streamx, autobahn, mcp-typescript-sdk, mcp-inspector-cli) |
 | Showcases | 6 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder) |
@@ -393,7 +393,7 @@ Not yet implemented (but potentially relevant for GJS projects):
    |---------|----------|-----------------|--------|
    | ~~**Static file server**~~✓ | net | http, fs, path, stream, zlib | `examples/net/static-file-server` |
    | ~~**SSE chat**~~✓ | net | http, events, fs, SSE protocol | `examples/net/sse-chat` |
-   | ~~**Hono REST API**~~✓ | net | hono, http, JSON CRUD | `examples/net/hono-rest` (GJS WIP) |
+   | ~~**Hono REST API**~~✓ | net | hono, http, JSON CRUD | `examples/node/net-hono-rest` (Node + GJS ✓) |
    | ~~**CLI file search**~~✓ | cli | fs, path, readline, process | `examples/cli/file-search` |
    | ~~**DNS lookup tool**~~✓ | cli | dns, net, readline | `examples/cli/dns-lookup` |
    | ~~**Worker pool**~~✓ | cli | worker_threads, events, crypto | `examples/cli/worker-pool` |
