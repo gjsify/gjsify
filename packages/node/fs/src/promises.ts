@@ -9,6 +9,7 @@ import { realpathSync, readdirSync as readdirSyncFn, renameSync, copyFileSync, a
 import { cpAsync } from './cp.js';
 import { opendirAsync, Dir } from './dir.js';
 import { globAsync } from './glob.js';
+import { watchAsync } from './fs-watcher.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath, normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
@@ -607,6 +608,7 @@ export {
   cpAsync as cp,
   opendirAsync as opendir,
   globAsync as glob,
+  watchAsync as watch,
 };
 
 export default {
@@ -636,4 +638,5 @@ export default {
   cp: cpAsync,
   opendir: opendirAsync,
   glob: globAsync,
+  watch: watchAsync,
 };
