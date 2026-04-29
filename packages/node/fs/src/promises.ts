@@ -10,6 +10,7 @@ import { cpAsync } from './cp.js';
 import { opendirAsync, Dir } from './dir.js';
 import { globAsync } from './glob.js';
 import { watchAsync } from './fs-watcher.js';
+import { statfsAsync } from './statfs.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath, normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
@@ -609,6 +610,7 @@ export {
   opendirAsync as opendir,
   globAsync as glob,
   watchAsync as watch,
+  statfsAsync as statfs,
 };
 
 export default {
@@ -639,4 +641,5 @@ export default {
   opendir: opendirAsync,
   glob: globAsync,
   watch: watchAsync,
+  statfs: statfsAsync,
 };
