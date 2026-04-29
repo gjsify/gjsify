@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-29 (`@gjsify/fs` adds `globSync`/`glob`/`promises.glob` with full glob-to-regex engine (17 new tests, 557 total); previously: `cpSync`/`cp`/`promises.cp` + `Dir`/`opendir`/`opendirSync`/`promises.opendir` via Gio; `@gjsify/child_process` `spawn()` now sets `child.stdout`/`child.stderr` as Readable streams; `@gjsify/unit` runtime detection fixed.)
+> Last updated: 2026-04-29 (`@gjsify/fs` adds `globSync`/`glob`/`promises.glob` with full glob-to-regex engine (17 new tests, 557 total); `cpSync`/`cp`/`promises.cp` + `Dir`/`opendir`/`opendirSync`/`promises.opendir` via Gio; `@gjsify/child_process` `spawn()` now sets `child.stdout`/`child.stderr` as Readable streams via `GioInputStreamReadable`; Hono REST API example passes on GJS (4/4 tests); `@gjsify/unit` runtime detection fixed.)
 
 ## Summary
 
