@@ -4,11 +4,13 @@
 import { warnNotImplemented, notImplemented, createGLibFileError } from '@gjsify/utils';
 import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
-import { Stats } from "./stats.js";
+import { Stats, BigIntStats, STAT_ATTRIBUTES } from "./stats.js";
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
+import { chmodSync, chownSync } from './sync.js';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
+import { createInterface } from 'node:readline';
 // Type-only import for ReadableStream — the runtime constructor is resolved
 // via globalThis inside readableWebStream() to avoid bundling the entire
 // WHATWG streams implementation for apps that never call this method.
@@ -29,7 +31,6 @@ import type {
     OpenMode,
     PathLike,
     StatOptions,
-    BigIntStats,
     WriteVResult,
     ReadVResult,
     ReadPosition,
@@ -245,7 +246,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async chown(uid: number, gid: number): Promise<void> {
-        warnNotImplemented('fs.FileHandle.chown');
+        chownSync(normalizePath(this.options.path), uid, gid);
     }
     /**
      * Modifies the permissions on the file. See [`chmod(2)`](http://man7.org/linux/man-pages/man2/chmod.2.html).
@@ -254,7 +255,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async chmod(mode: Mode): Promise<void> {
-        warnNotImplemented('fs.FileHandle.chmod');
+        chmodSync(normalizePath(this.options.path), mode);
     }
     /**
      * Unlike the 16 kb default `highWaterMark` for a `stream.Readable`, the stream
@@ -340,7 +341,7 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills with `undefined` upon success.
      */
     async datasync(): Promise<void> {
-        warnNotImplemented('fs.FileHandle.datasync');
+        this._file.flush();
     }
     /**
      * Request that all data for the open file descriptor is flushed to the storage
@@ -350,7 +351,7 @@ export class FileHandle implements IFileHandle {
      * @return Fufills with `undefined` upon success.
      */
     async sync(): Promise<void> {
-        warnNotImplemented('fs.FileHandle.sync');
+        this._file.flush();
     }
     /**
      * Reads data from the file and stores that in the given buffer.
@@ -522,7 +523,7 @@ export class FileHandle implements IFileHandle {
      * @param options See `filehandle.createReadStream()` for the options.
      */
     readLines(options?: CreateReadStreamOptions): ReadlineInterface {
-        notImplemented('fs.FileHandle.readLines');
+        return createInterface({ input: this.createReadStream(options), crlfDelay: Infinity });
     }
     /**
      * @since v10.0.0
@@ -539,8 +540,15 @@ export class FileHandle implements IFileHandle {
         }
     ): Promise<BigIntStats>
     async stat(opts?: StatOptions): Promise<Stats | BigIntStats> {
-        warnNotImplemented('fs.FileHandle.stat');
-        return new Stats(normalizePath(this.options.path));
+        const info = await new Promise<Gio.FileInfo>((resolve, reject) => {
+            this._gFile.query_info_async(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
+                try { resolve(this._gFile.query_info_finish(res)); } catch (e) { reject(e); }
+            });
+        });
+        const pathStr = normalizePath(this.options.path);
+        return opts?.bigint
+            ? new BigIntStats(info, pathStr)
+            : new Stats(info, pathStr);
     }
     /**
      * Truncates the file.
@@ -583,7 +591,8 @@ export class FileHandle implements IFileHandle {
      * @since v10.0.0
      */
     async utimes(atime: string | number | Date, mtime: string | number | Date): Promise<void> {
-        warnNotImplemented('fs.FileHandle.utimes');
+        const { utimesSync } = await import('./utimes.js');
+        utimesSync(normalizePath(this.options.path), atime, mtime);
     }
     /**
      * Asynchronously writes data to a file, replacing the file if it already exists.`data` can be a string, a buffer, an
@@ -742,11 +751,16 @@ export class FileHandle implements IFileHandle {
      * position.
      */
     async writev<TBuffers extends readonly NodeJS.ArrayBufferView[]>(buffers: TBuffers, position?: number): Promise<WriteVResult<TBuffers>> {
-        warnNotImplemented('fs.FileHandle.writev');
-        return {
-            bytesWritten: 0,
-            buffers: buffers as unknown as TBuffers,
+        let bytesWritten = 0;
+        for (const buf of buffers) {
+            const b = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
+            const res = await this.write(
+                b, 0, b.byteLength,
+                position != null ? position + bytesWritten : null,
+            );
+            bytesWritten += res.bytesWritten;
         }
+        return { bytesWritten, buffers: buffers as unknown as TBuffers };
     }
     /**
      * Read from a file and write to an array of [ArrayBufferView](https://developer.mozilla.org/en-US/docs/Web/API/ArrayBufferView) s
@@ -755,12 +769,57 @@ export class FileHandle implements IFileHandle {
      * @return Fulfills upon success an object containing two properties:
      */
     async readv<TBuffers extends readonly NodeJS.ArrayBufferView[]>(buffers: TBuffers, position?: number): Promise<ReadVResult<TBuffers>> {
-        warnNotImplemented('fs.FileHandle.readv');
-        return {
-            bytesRead: 0,
-            buffers: buffers as unknown as TBuffers,
+        let bytesRead = 0;
+        for (const buf of buffers) {
+            const res = await this.read({
+                buffer: Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength),
+                position: position != null ? position + bytesRead : null,
+            });
+            bytesRead += res.bytesRead;
+            if (res.bytesRead < buf.byteLength) break;
+        }
+        return { bytesRead, buffers: buffers as unknown as TBuffers };
+    }
+    /** @internal */ _flushSync(): void {
+        this._file.flush();
+    }
+
+    /** @internal */ _closeSync(): void {
+        try { this._ioStream?.close(null); } catch { /* best-effort */ }
+        try { this._readStream?.close(null); } catch { /* best-effort */ }
+        this._ioStream = null;
+        this._readStream = null;
+        try { this._file.shutdown(true); } catch { /* best-effort */ }
+        delete (FileHandle as any).instances[this.fd];
+    }
+
+    /** @internal */ _readSync(buffer: NodeJS.ArrayBufferView, offset: number, length: number, position: number | null): number {
+        const stream = this._gFile.read(null);
+        try {
+            if (position !== null && position >= 0) {
+                (stream as unknown as Gio.Seekable).seek(position, GLib.SeekType.SET, null);
+            }
+            const bytes = stream.read_bytes(length, null);
+            const arr = bytes.get_data()!;
+            new Uint8Array((buffer as any).buffer, (buffer as any).byteOffset + offset).set(arr.subarray(0, arr.length));
+            return arr.length;
+        } finally {
+            stream.close(null);
         }
     }
+
+    /** @internal */ _writeSync(data: Uint8Array, position: number | null): number {
+        const stream = this._gFile.open_readwrite(null);
+        try {
+            if (position !== null && position >= 0) {
+                (stream as unknown as Gio.Seekable).seek(position, GLib.SeekType.SET, null);
+            }
+            return stream.get_output_stream().write_bytes(GLib.Bytes.new(data), null);
+        } finally {
+            stream.close(null);
+        }
+    }
+
     /**
      * Closes the file handle after waiting for any pending operation on the handle to
      * complete.

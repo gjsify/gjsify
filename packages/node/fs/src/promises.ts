@@ -11,6 +11,19 @@ import { opendirAsync, Dir } from './dir.js';
 import { globAsync } from './glob.js';
 import { watchAsync } from './fs-watcher.js';
 import { statfsAsync } from './statfs.js';
+import { utimesAsync, lutimesAsync, lchownAsync, lchmodAsync } from './utimes.js';
+import {
+  fstatAsync,
+  ftruncateAsync,
+  fdatasyncAsync,
+  fsyncAsync,
+  fchmodAsync,
+  fchownAsync,
+  futimesAsync,
+  readvAsync,
+  writevAsync,
+  openAsBlob,
+} from './fd-ops.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath, normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
@@ -611,6 +624,20 @@ export {
   globAsync as glob,
   watchAsync as watch,
   statfsAsync as statfs,
+  utimesAsync as utimes,
+  lutimesAsync as lutimes,
+  lchownAsync as lchown,
+  lchmodAsync as lchmod,
+  fstatAsync as fstat,
+  ftruncateAsync as ftruncate,
+  fdatasyncAsync as fdatasync,
+  fsyncAsync as fsync,
+  fchmodAsync as fchmod,
+  fchownAsync as fchown,
+  futimesAsync as futimes,
+  readvAsync as readv,
+  writevAsync as writev,
+  openAsBlob,
 };
 
 export default {
@@ -642,4 +669,18 @@ export default {
   glob: globAsync,
   watch: watchAsync,
   statfs: statfsAsync,
+  utimes: utimesAsync,
+  lutimes: lutimesAsync,
+  lchown: lchownAsync,
+  lchmod: lchmodAsync,
+  fstat: fstatAsync,
+  ftruncate: ftruncateAsync,
+  fdatasync: fdatasyncAsync,
+  fsync: fsyncAsync,
+  fchmod: fchmodAsync,
+  fchown: fchownAsync,
+  futimes: futimesAsync,
+  readv: readvAsync,
+  writev: writevAsync,
+  openAsBlob,
 };

@@ -70,6 +70,23 @@ import { StatWatcher, watchFile, unwatchFile } from './stat-watcher.js';
 import { statfsSync, statfs } from './statfs.js';
 import { Stats, BigIntStats } from './stats.js';
 import { Dirent } from './dirent.js';
+import {
+  utimesSync, utimes, lutimesSync, lutimes,
+  lchownSync, lchown, lchmodSync, lchmod,
+} from './utimes.js';
+import {
+  fstatSync, fstat,
+  ftruncateSync, ftruncate,
+  fdatasyncSync, fdatasync,
+  fsyncSync, fsync,
+  fchmodSync, fchmod,
+  fchownSync, fchown,
+  futimesSync, futimes,
+  closeSync, readSync, writeSync,
+  readvSync, readv,
+  writevSync, writev,
+  exists, openAsBlob,
+} from './fd-ops.js';
 
 // --- fs.constants ---
 export const constants = {
@@ -158,6 +175,21 @@ export {
   unwatchFile,
   statfsSync,
   statfs,
+  // utimes / lutimes / lchown / lchmod
+  utimesSync, utimes, lutimesSync, lutimes,
+  lchownSync, lchown, lchmodSync, lchmod,
+  // fd-based ops
+  fstatSync, fstat,
+  ftruncateSync, ftruncate,
+  fdatasyncSync, fdatasync,
+  fsyncSync, fsync,
+  fchmodSync, fchmod,
+  fchownSync, fchown,
+  futimesSync, futimes,
+  closeSync, readSync, writeSync,
+  readvSync, readv,
+  writevSync, writev,
+  exists, openAsBlob,
   // Streams
   createReadStream,
   ReadStream,
@@ -234,6 +266,19 @@ export default {
   unwatchFile,
   statfsSync,
   statfs,
+  utimesSync, utimes, lutimesSync, lutimes,
+  lchownSync, lchown, lchmodSync, lchmod,
+  fstatSync, fstat,
+  ftruncateSync, ftruncate,
+  fdatasyncSync, fdatasync,
+  fsyncSync, fsync,
+  fchmodSync, fchmod,
+  fchownSync, fchown,
+  futimesSync, futimes,
+  closeSync, readSync, writeSync,
+  readvSync, readv,
+  writevSync, writev,
+  exists, openAsBlob,
   createReadStream,
   ReadStream,
   createWriteStream,
