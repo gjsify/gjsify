@@ -3450,6 +3450,8 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/runtime": "workspace:^"
     "@gjsify/unit": "workspace:^"
+    "@ts-for-gir/generator-typescript": "npm:^4.0.0-rc.6"
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.6"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"
   languageName: unknown
@@ -6616,6 +6618,53 @@ __metadata:
     ts-for-gir: bin/ts-for-gir
     ts-for-gir-dev: bin/ts-for-gir-dev
   checksum: 10/70d71e09a88afeb264395946d8e60d8d2fd1993637adc326aaa256910bba746727efaa7f71ea1ac0da609f9c027576a1240334869f11e709d188ccb6ced2dac0
+  languageName: node
+  linkType: hard
+
+"@ts-for-gir/generator-base@npm:^4.0.0-rc.6":
+  version: 4.0.0-rc.6
+  resolution: "@ts-for-gir/generator-base@npm:4.0.0-rc.6"
+  dependencies:
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.6"
+  checksum: 10/cbfd23389a5b5e58aed22580fa50040950a56c9622b055ff811cfb5821ac1a8f5eaf843a58c88776c3116e63a499762e8d792ae79fc554abfbd082530d1cb120
+  languageName: node
+  linkType: hard
+
+"@ts-for-gir/generator-typescript@npm:^4.0.0-rc.6":
+  version: 4.0.0-rc.6
+  resolution: "@ts-for-gir/generator-typescript@npm:4.0.0-rc.6"
+  dependencies:
+    "@gi.ts/parser": "npm:^4.0.0-rc.6"
+    "@ts-for-gir/generator-base": "npm:^4.0.0-rc.6"
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.6"
+    "@ts-for-gir/templates": "npm:^4.0.0-rc.6"
+    ejs: "npm:^5.0.2"
+    xml2js: "npm:^0.6.2"
+  checksum: 10/d24eb3e432ca6ffae85d0a18ddda88dbe5b5d5fe2e70ad8b7677a8e1f84662fd67b73af207b457bba26fee1d0603b46e2053516453ff4040d0f0c55ab6f22de5
+  languageName: node
+  linkType: hard
+
+"@ts-for-gir/lib@npm:^4.0.0-rc.6":
+  version: 4.0.0-rc.6
+  resolution: "@ts-for-gir/lib@npm:4.0.0-rc.6"
+  dependencies:
+    "@gi.ts/parser": "npm:^4.0.0-rc.6"
+    "@ts-for-gir/reporter": "npm:^4.0.0-rc.6"
+    "@ts-for-gir/templates": "npm:^4.0.0-rc.6"
+    colorette: "npm:^2.0.20"
+    ejs: "npm:^5.0.2"
+    glob: "npm:^13.0.6"
+    lodash: "npm:4.18.1"
+  checksum: 10/ed878456af3e4b5225f7e1e30ca76a0563b04189ddfe6c9bcb7742051888684d1a13f5d8ed2eb225834dfe18ba254ae6cbbeba88a0e7d589067219064d8005f6
+  languageName: node
+  linkType: hard
+
+"@ts-for-gir/reporter@npm:^4.0.0-rc.6":
+  version: 4.0.0-rc.6
+  resolution: "@ts-for-gir/reporter@npm:4.0.0-rc.6"
+  dependencies:
+    colorette: "npm:^2.0.20"
+  checksum: 10/5c215b2b0a6afe88c628267d9f6121d7793a8c452d1ed8734c0624f2cad67eb8037548bbcb4104b890e6176b554431b00f786a70668e307ef3d6a3eefae97088
   languageName: node
   linkType: hard
 
@@ -12342,6 +12391,13 @@ __metadata:
   version: 4.7.0
   resolution: "lodash.uniqby@npm:4.7.0"
   checksum: 10/256616bd1bd6be84d8a5eceb61338a0ab8d8b34314ba7bfd5f0de35227d0e2c1e659c61ff4ac31eba6a664085cc7e397bc34c3534fba208102db660a4f98f211
+  languageName: node
+  linkType: hard
+
+"lodash@npm:4.18.1":
+  version: 4.18.1
+  resolution: "lodash@npm:4.18.1"
+  checksum: 10/306fea53dfd39dad1f03d45ba654a2405aebd35797b673077f401edb7df2543623dc44b9effbb98f69b32152295fff725a4cec99c684098947430600c6af0c3f
   languageName: node
   linkType: hard
 

@@ -9,7 +9,11 @@
 
 import { run } from '@gjsify/unit';
 import parserSuite from './parser.spec.js';
+import libSuite from './lib.spec.js';
+import generatorSuite from './generator.spec.js';
 
 run({
   parserSuite,
+  libSuite,
+  generatorSuite,
 });

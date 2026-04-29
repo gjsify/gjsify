@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-29 (ts-for-gir integration suite Phase 1 added — `tests/integration/ts-for-gir/` validates `@gi.ts/parser` v4.0.0-rc.6 + `fast-xml-parser` on GJS using gjsify's own Vala-generated GIR fixtures: Node 18/18, GJS 18/18, 0 skips. New strategic goal: `ts-for-gir` runs unmodified on GJS. Earlier today: axios integration suite — `tests/integration/axios/` (Node: 68/68, GJS: 52/52 + 12 ignored); `@gjsify/fetch` double-decompression fixed (remove Soup.ContentDecoder, let JS handle gzip/deflate); BOM stripping in XHR responseText; `@gjsify/zlib` brotli stubs; `examples/node/cli-axios-http-client/` example. Previously: `@gjsify/v8` promoted Stub → Partial.)
+> Last updated: 2026-04-29 (ts-for-gir Phases 2+3 landed — `@ts-for-gir/lib` type-expression builders: Node 51/51, GJS 51/51; `@ts-for-gir/generator-typescript` pipeline (DependencyManager+GirModule.load+parse+ModuleGenerator.generateModule): Node 18/18, GJS 18/18. Total suite: Node 169/169, GJS 169/169. `glob`, `ejs`, `lodash`, `colorette` all work on GJS. Earlier today: ts-for-gir Phase 1 — `@gi.ts/parser` + `fast-xml-parser` on GJS. Axios integration suite. `@gjsify/fetch` double-decompression fix.)
 
 ## Summary
 
@@ -538,7 +538,7 @@ Sequential call cap: N ≤ 4 to stay under the residual deferred-GC window from 
 
 ### ts-for-gir (`tests/integration/ts-for-gir/`)
 
-Phase 1: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/tree/main/packages/parser) v4.0.0-rc.6 — the GObject Introspection XML parser used by `ts-for-gir` to read `.gir` files. One runtime dep (`fast-xml-parser`), pure-function API: `parser.parseGir(xml: string): GirXML`. **Node: 18/18 green. GJS: 18/18 green, 0 skips.**
+Phases 1–3: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/tree/main/packages/parser) v4.0.0-rc.6, [`@ts-for-gir/lib`](https://github.com/gjsify/ts-for-gir/tree/main/packages/lib) v4.0.0-rc.6, and [`@ts-for-gir/generator-typescript`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-typescript) v4.0.0-rc.6. **Node: 169/169 green. GJS: 169/169 green, 0 skips.** `glob`, `ejs`, `lodash`, `colorette` all work on GJS via `@gjsify/*` polyfills.
 
 | Suite | Node | GJS | Exercises |
 |---|---|---|---|
@@ -546,10 +546,12 @@ Phase 1: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/tree/m
 | parser.spec.ts (GjsifyWebrtc-0.1.gir) | ✅ (4) | ✅ (4) | `<glib:signal>` parsing (replied/rejected), class properties typed via `Gst.Promise`, multi-namespace deps (Gst, GstWebRTC) |
 | parser.spec.ts (GjsifyHttpSoupBridge-1.0.gir) | ✅ (4) | ✅ (4) | Soup/Gio deps, method `<parameters>` shape with `<instance-parameter>`, 3 classes / 30 methods |
 | parser.spec.ts (inline edge cases) | ✅ (3) | ✅ (3) | Empty `<repository>`, namespace without classes, round-trip of inline class+method |
+| lib.spec.ts | ✅ (51) | ✅ (51) | `TypeExpression` class hierarchy: `TypeIdentifier`/`ModuleTypeIdentifier`, `NativeType`, `OrType`/`BinaryType`/`TupleType`, `FunctionType`, `PromiseType`, `NullableType`, `ArrayType`, `ClosureType`, `GenericType`; primitive constants (`VoidType`, `StringType`, `NumberType`, `AnyType`, `NullType`, `NeverType`, `UnknownType`, `ThisType`, `ObjectType`, `Uint8ArrayType`, `AnyFunctionType`, `BigintOrNumberType`); `equals()` semantics (set vs. positional); `unwrap()`/`deepUnwrap()` on wrapper types |
+| generator.spec.ts | ✅ (18) | ✅ (18) | `DependencyManager.get()` resolves from real tmpdir GIR via `glob`; `GirModule.load()` + `parse()` + `initTransitiveDependencies()`; `ModuleGenerator.generateModule()` produces a `GeneratedModule` with `name`/`version`/`members`; record/function/enum/constant members are present; `generateModule()` is idempotent; `allowMissingDeps` handles GObject stub dep |
 
-Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated GIRs — committed alongside the suite (no prebuild copy step), real-world parser surface, no upstream-fixture coupling.
+Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated GIRs — committed alongside the suite (no prebuild copy step), real-world parser surface, no upstream-fixture coupling. Phase 3 additionally writes a minimal synthetic GIR to `tmpdir()` at test-module load time so `DependencyManager` can resolve it via `glob` on the real filesystem.
 
-`refs/ts-for-gir/` submodule added for future phases (see Open TODOs). `@gjsify/node-globals/register` deliberately not imported — `gjsify build --globals auto` (default) covers the surface; `fast-xml-parser` is pure ES.
+`refs/ts-for-gir/` submodule pinned at the commit corresponding to `@gi.ts/parser@4.0.0-rc.6`. `@gjsify/node-globals/register` deliberately not imported — `gjsify build --globals auto` (default) covers everything `fast-xml-parser`, `@ts-for-gir/lib`, and `@ts-for-gir/generator-typescript` need.
 
 ### Root-cause fixes surfaced by the Autobahn pillar and landed in this PR
 
@@ -590,17 +592,20 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 Keep the catch-all for **new** consumers that genuinely want "give me the full Node runtime surface" — but keep it as opt-in, not a mandatory import chain.
 
 
-### ts-for-gir — extend integration suite beyond `@gi.ts/parser`
+### ts-for-gir — extend integration suite beyond Phase 3
 
 **Priority: High — strategic goal: `ts-for-gir` runs unmodified on GJS.**
 
-Phase 1 (this PR) covers `@gi.ts/parser` only. Subsequent phases:
+Phases 1–3 landed:
+- ✅ **Phase 1:** `@gi.ts/parser` — GIR XML parser + `fast-xml-parser`. Node 18/18, GJS 18/18.
+- ✅ **Phase 2:** `@ts-for-gir/lib` — `TypeExpression` class hierarchy, primitive constants, `equals()` / `unwrap()` semantics. Node 51/51, GJS 51/51.
+- ✅ **Phase 3:** Generator pipeline — `DependencyManager` → `GirModule.load/parse` → `ModuleGenerator.generateModule()`. Exercises `glob`, `ejs`, `lodash`, `colorette` on GJS. Node 18/18, GJS 18/18.
 
-- **Phase 2:** `@ts-for-gir/lib` pure-function surface — `TypeExpression`, `TypeIdentifier`, `ModuleTypeIdentifier`, `NativeType`, `OrType`, `TupleType`, `FunctionType`, `GenericType`, `PromiseType` builders. No real GIR pipeline yet; just the type system.
-- **Phase 3:** Generator pipeline — feed a real GIR (e.g. `Gwebgl-0.1.gir` from `tests/integration/ts-for-gir/girs/`) through `Generator` and snapshot-assert the resulting `.d.ts` shape. Exercises `@gjsify/lib` end-to-end (`ejs`, `lodash`, `glob`).
+Remaining phases:
+
 - **Phase 4:** CLI tarball end-to-end — port `refs/ts-for-gir/tests/e2e/cli/run.mjs` style test that installs the published tarball and runs `ts-for-gir generate` against a small set of GIRs. Blocked on GJS readiness of `yargs`, `inquirer`, `@inquirer/prompts`, `prettier`, `cosmiconfig`.
 - **Phase 5:** Language-server vitest port (`refs/ts-for-gir/tests/language-server-validation/src/gvariant-validation.test.ts`). Blocked on the `typescript` package running on GJS.
-- **External-deps regex assertion port** (`refs/ts-for-gir/tests/external-deps/assert.mjs`) — meaningful only after Phase 3 lands.
+- **External-deps regex assertion port** (`refs/ts-for-gir/tests/external-deps/assert.mjs`) — meaningful only after Phase 4 lands.
 
 `refs/ts-for-gir/` submodule is pinned at the ts-for-gir commit corresponding to `@gi.ts/parser@4.0.0-rc.6`; bump the submodule alongside the published-package version when porting future phases.
 

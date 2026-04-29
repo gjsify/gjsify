@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### feat(tests/integration/ts-for-gir) — Phases 2+3: `@ts-for-gir/lib` type system + generator pipeline on GJS (2026-04-29)
+
+Extends the ts-for-gir integration suite with two new spec files: **`lib.spec.ts`** (51 tests, Phase 2) and **`generator.spec.ts`** (18 tests, Phase 3). All 169 tests pass on both Node.js and GJS with 0 skips.
+
+**Phase 2 — `@ts-for-gir/lib` type expression builders.** Tests the entire `TypeExpression` class hierarchy as pure value-objects: `TypeIdentifier`, `ModuleTypeIdentifier` (3-arg constructor `name/moduleName/namespace`), `NativeType`, `OrType`/`BinaryType` (set-semantic `equals()` — order-independent), `TupleType` (positional `equals()`), `FunctionType` (plain-object parameter map), `PromiseType`/`ClosureType` (`unwrap()` returns `this`; inner type at `.type`; `ClosureType.deepUnwrap()` returns inner type), `NullableType`, `ArrayType`, `GenericType`, and all 13 primitive singleton constants (`VoidType`, `BooleanType`, `StringType`, `NumberType`, `AnyType`, `NullType`, `NeverType`, `UnknownType`, `ThisType`, `ObjectType`, `Uint8ArrayType`, `AnyFunctionType`, `BigintOrNumberType`). No GIR pipeline — pure type system validation.
+
+**Phase 3 — `@ts-for-gir/generator-typescript` pipeline.** Tests the full DependencyManager → GirModule.load → GirModule.parse → ModuleGenerator.generateModule chain against a minimal synthetic GIR written to `tmpdir()` at module load time. Key findings: `DependencyManager.get()` requires `girDirectories` to point at the real filesystem (it uses `glob` internally — not an in-memory API); `IntrospectedRecord.members` is an array (`.find()` not `.get()`); `initTransitiveDependencies([])` must be called before `new ModuleGenerator()` because the constructor reads `girModule.transitiveDependencies`; `allowMissingDeps: true` keeps GObject-2.0 as a stub dep so `generateModule()` succeeds. Exercises `glob`, `ejs`, `lodash`, `colorette` — all work on GJS via `@gjsify/*` polyfills.
+
+**New devDeps** in `tests/integration/ts-for-gir/package.json`: `@ts-for-gir/lib@^4.0.0-rc.6`, `@ts-for-gir/generator-typescript@^4.0.0-rc.6`.
+
 ### feat(tests/integration/ts-for-gir) — Phase 1: `@gi.ts/parser` integration suite (2026-04-29)
 
 New strategic goal: **`ts-for-gir` runs unmodified on GJS.** ts-for-gir publishes ~10 npm packages (`@gi.ts/parser`, `@ts-for-gir/lib`, `@ts-for-gir/cli`, `@ts-for-gir/generator-*`, `@ts-for-gir/language-server`, `@ts-for-gir/reporter`, `@ts-for-gir/typedoc-theme`); validating them progressively against `@gjsify/*` is the next surface that exercises the full Node.js pillar end-to-end.
