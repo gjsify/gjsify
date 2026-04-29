@@ -66,6 +66,8 @@ import * as promises from './promises.js';
 import { cpSync, cp } from './cp.js';
 import { Dir, opendir, opendirSync } from './dir.js';
 import { glob, globSync } from './glob.js';
+import { StatWatcher, watchFile, unwatchFile } from './stat-watcher.js';
+import { statfsSync, statfs } from './statfs.js';
 import { Stats, BigIntStats } from './stats.js';
 import { Dirent } from './dirent.js';
 
@@ -118,6 +120,7 @@ export const constants = {
 
 export {
   FSWatcher,
+  StatWatcher,
   Stats,
   BigIntStats,
   Dirent,
@@ -151,6 +154,10 @@ export {
   globSync,
   glob,
   watch,
+  watchFile,
+  unwatchFile,
+  statfsSync,
+  statfs,
   // Streams
   createReadStream,
   ReadStream,
@@ -189,6 +196,7 @@ export {
 
 export default {
   FSWatcher,
+  StatWatcher,
   Stats,
   BigIntStats,
   Dirent,
@@ -222,6 +230,10 @@ export default {
   globSync,
   glob,
   watch,
+  watchFile,
+  unwatchFile,
+  statfsSync,
+  statfs,
   createReadStream,
   ReadStream,
   createWriteStream,

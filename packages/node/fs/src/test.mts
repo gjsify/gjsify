@@ -19,5 +19,7 @@ import testSuiteCp from './cp.spec.js';
 import testSuiteDir from './dir.spec.js';
 import testSuiteGlob from './glob.spec.js';
 import testSuiteWatch from './watch.spec.js';
+import testSuiteWatchFile from './watchfile.spec.js';
+import testSuiteStatFs from './statfs.spec.js';
 
-run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended, testSuiteErrors, testSuiteStreams, testSuiteCp, testSuiteDir, testSuiteGlob, testSuiteWatch});
+run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended, testSuiteErrors, testSuiteStreams, testSuiteCp, testSuiteDir, testSuiteGlob, testSuiteWatch, testSuiteWatchFile, testSuiteStatFs});
