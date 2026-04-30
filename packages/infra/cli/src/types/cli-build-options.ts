@@ -61,4 +61,33 @@ export interface CliBuildOptions {
    * `--outfile`. Default: false.
    */
   shebang?: boolean;
+  /**
+   * Module names that should NOT be bundled. Each name remains as a literal
+   * `import`/`require` in the output and is resolved by the runtime against
+   * its own `node_modules` (or equivalent) at execution time.
+   *
+   * Repeat the flag or pass a comma-separated value:
+   * `--external typedoc,prettier --external typescript`. Glob-style wildcards
+   * (`@inquirer/*`, `lodash-*`) are forwarded as-is to esbuild.
+   *
+   * @see https://esbuild.github.io/api/#external
+   */
+  external?: string[];
+  /**
+   * Substitute compile-time constants in the bundle. Each entry is a
+   * `KEY=VALUE` pair where `VALUE` is an arbitrary JS expression — string
+   * literals must be quoted (`--define VERSION='"1.2.3"'`). Useful for
+   * upstream packages that read a build-time constant via
+   * `typeof __FOO__ !== 'undefined'`.
+   *
+   * @see https://esbuild.github.io/api/#define
+   */
+  define?: string[];
+  /**
+   * Map module specifiers to alternative targets at bundle time. Each entry
+   * is `FROM=TO` where `FROM` is the imported package name and `TO` is the
+   * substitute (typically `@gjsify/empty` to drop a heavy dep that the test
+   * scenario never executes). Layered on top of the built-in alias map.
+   */
+  alias?: string[];
 }

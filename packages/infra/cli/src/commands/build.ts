@@ -100,6 +100,26 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
                 default: false
             })
+            .option('external', {
+                description: "Module names that should NOT be bundled. Repeat the flag or pass a comma-separated list (e.g. --external typedoc,prettier). Globs are forwarded to esbuild as-is. See https://esbuild.github.io/api/#external",
+                array: true,
+                type: 'string',
+                default: [] as string[],
+                coerce: (arg: string[]) => arg.flatMap((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+            })
+            .option('define', {
+                description: "Substitute compile-time constants. Each entry is KEY=VALUE where VALUE is a JS expression (string literals must be quoted: --define VERSION='\"1.2.3\"'). Repeat the flag or pass comma-separated. See https://esbuild.github.io/api/#define",
+                array: true,
+                type: 'string',
+                default: [] as string[],
+            })
+            .option('alias', {
+                description: "Map module specifiers at bundle time. Each entry is FROM=TO (e.g. --alias typedoc=@gjsify/empty). Layered on top of the built-in alias map. Useful for stubbing heavy deps the test scenario never executes.",
+                array: true,
+                type: 'string',
+                default: [] as string[],
+                coerce: (arg: string[]) => arg.flatMap((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+            })
     },
     handler: async (args) => {
         const config = new Config();

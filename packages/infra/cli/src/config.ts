@@ -87,13 +87,42 @@ export class Config {
 
         merge(configData.library ??= {}, pkg, configData.library);
         merge(configData.typescript ??= {}, tsConfig, configData.typescript);
+
+        // Parse `KEY=VALUE` style flags into Record<string, string>.
+        // - `--define`: VALUE is a JS expression (string literals must be
+        //   pre-quoted by the caller, e.g. `'"1.2.3"'`).
+        // - `--alias`: VALUE is the substitute module specifier.
+        const parseKvPairs = (entries: readonly string[], flag: string): Record<string, string> => {
+            const out: Record<string, string> = {};
+            for (const entry of entries) {
+                const idx = entry.indexOf('=');
+                if (idx === -1) {
+                    throw new Error(`Invalid --${flag} value '${entry}'. Expected KEY=VALUE.`);
+                }
+                const key = entry.slice(0, idx).trim();
+                const value = entry.slice(idx + 1);
+                if (!key) {
+                    throw new Error(`Invalid --${flag} value '${entry}'. Empty key.`);
+                }
+                out[key] = value;
+            }
+            return out;
+        };
+        const defineMap = parseKvPairs(cliArgs.define ?? [], 'define');
+        const aliasMap = parseKvPairs(cliArgs.alias ?? [], 'alias');
+        if (Object.keys(aliasMap).length) {
+            configData.aliases = { ...(configData.aliases ?? {}), ...aliasMap };
+        }
+
         merge(configData.esbuild ??= {}, {
             format: cliArgs.format,
             minify: cliArgs.minify,
             entryPoints: cliArgs.entryPoints,
             outfile: cliArgs.outfile,
             outdir: cliArgs.outdir,
-            logLevel: cliArgs.logLevel || 'warning'
+            logLevel: cliArgs.logLevel || 'warning',
+            ...(cliArgs.external?.length ? { external: cliArgs.external } : {}),
+            ...(Object.keys(defineMap).length ? { define: defineMap } : {}),
         });
 
         if(configData.verbose) console.debug("configData", configData);

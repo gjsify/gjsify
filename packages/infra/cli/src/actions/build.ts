@@ -149,7 +149,7 @@ export class BuildAction {
     /** Application mode */
     async buildApp(app: App = 'gjs') {
 
-        const { verbose, esbuild, typescript, exclude, library: pgk } = this.configData;
+        const { verbose, esbuild, typescript, exclude, library: pgk, aliases } = this.configData;
 
         const format: 'esm' | 'cjs' = (esbuild?.format as 'esm' | 'cjs') ?? (esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm');
 
@@ -167,6 +167,7 @@ export class BuildAction {
             exclude,
             reflection: typescript?.reflection,
             consoleShim,
+            ...(aliases ? { aliases } : {}),
         };
 
         const { autoMode, extras } = this.parseGlobalsValue(globals);

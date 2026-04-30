@@ -13,6 +13,8 @@
         "src/test.mts",
         "src/parser.spec.ts",
         "src/lib.spec.ts",
-        "src/generator.spec.ts"
+        "src/generator.spec.ts",
+        "src/cli.spec.ts",
+        "src/cli.entry.ts"
     ]
 }

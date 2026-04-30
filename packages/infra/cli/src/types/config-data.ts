@@ -23,4 +23,9 @@ export interface ConfigData {
      * Prepend GJS shebang to output and mark executable. See CliBuildOptions.
      */
     shebang?: boolean;
+    /**
+     * Extra module aliases layered on top of the built-in alias map.
+     * Comes from `gjsify build --alias FROM=TO`.
+     */
+    aliases?: Record<string, string>;
 }

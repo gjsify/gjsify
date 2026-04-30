@@ -17,7 +17,10 @@ const _shimDir = dirname(fileURLToPath(import.meta.url));
 
 export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
-    const external = ['gi://*', 'cairo', 'gettext', 'system'];
+    // User-supplied externals (`gjsify build --external <name>`) merge in so
+    // they survive the merge-overwrite of `build.initialOptions.external`.
+    const userExternal = build.initialOptions.external ?? [];
+    const external = ['gi://*', 'cairo', 'gettext', 'system', ...userExternal];
     const format = pluginOptions.format || 'esm';
 
     pluginOptions.aliases ||= {};
