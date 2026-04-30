@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### feat(integration/ts-for-gir) — Phase 4b: non-interactive `@ts-for-gir/cli` on GJS (2026-04-30)
+
+The same `@ts-for-gir/cli@4.0.0-rc.6` bundle that Phase 4a proved on Node now also runs on GJS. `dist/cli.gjs.mjs` is built via [`tests/integration/ts-for-gir/scripts/build-cli-gjs.mjs`](tests/integration/ts-for-gir/scripts/build-cli-gjs.mjs) — a small `gjsify build` wrapper that injects `--alias` paths from a per-test stub directory ([`tests/integration/ts-for-gir/src/stubs/`](tests/integration/ts-for-gir/src/stubs/)) for the bundle-hostile deps:
+
+- `typedoc` and `@ts-for-gir/typedoc-theme` (read their own `package.json` via `import.meta.url`-relative path; bundle escapes the package and crashes)
+- `prettier` (same `import.meta.url` issue + plugin auto-loader walks the filesystem)
+- `@inquirer/prompts` and `inquirer` (hundreds of named exports; alias-resistant)
+- `@ts-for-gir/generator-html-doc` and `@ts-for-gir/generator-json` (cut the dep tree at the highest level — these are the only two consumers of typedoc/prettier in the CLI's call graph)
+
+The stubs export the symbols that `@ts-for-gir/cli`'s `commands/` and `generation-handler.ts` import, so the bundle compiles and every command that does not execute the stubbed code at runtime works (`--version`, `--help`, `list`, `copy`, `analyze`). Commands that DO need the stubbed code (`doc`, `json`, the interactive prompts inside `create`) throw a clear "stubbed on GJS" error at the call site.
+
+`cli.spec.ts` now spawns BOTH bundles from the Node test runtime: `node dist/cli.node.mjs <args>` and `gjs -m dist/cli.gjs.mjs <args>`, with `LD_LIBRARY_PATH`/`GI_TYPELIB_PATH` pointing at the `@gjsify/*` prebuild dirs. Same 5 assertions per bundle = **10 CLI tests, all green on Node**. Skipped when the spec runs on the GJS test runtime — `@gjsify/child_process` (Gio.Subprocess) currently hangs the parent's main loop when it spawns another `gjs`, tracked as Phase 5 in STATUS.md. Spawning from Node still validates the GJS bundle end-to-end.
+
+**Total ts-for-gir suite: Node 229/229, GJS 169/169.**
+
+**Three runtime fixes in [`tests/integration/ts-for-gir/src/cli.entry.ts`](tests/integration/ts-for-gir/src/cli.entry.ts) that make the GJS bundle terminate cleanly:**
+
+1. **GLib MainLoop bootstrap.** The CLI's `list`/`generate` handlers do async `fs/promises` I/O. On GJS that needs the GLib main context to dispatch — without it the process exits before the handler ever runs. We start an idempotent `GLib.MainLoop().runAsync()` inline (4 lines, accessing `imports.gi.GLib` directly) rather than importing `ensureMainLoop` from `@gjsify/utils`, because `@gjsify/utils`'s other source files have non-type imports of `@girs/glib-2.0` / `@girs/gio-2.0`, which become runtime `import "@girs/*"` statements in the Node bundle and crash Node's ESM loader on the first `gi://` URL.
+
+2. **yargs `.exitProcess(false)`.** Without it, yargs's internal `process.exit(0)` for `--version` / `--help` runs synchronously inside `parseAsync`. On GJS that triggers `imports.system.exit` while the GLib MainLoop is still parked in `runAsync()`, deadlocking the process for the entire CLI test timeout. With `exitProcess(false)`, parseAsync resolves cleanly and our own `shutdown()` runs.
+
+3. **`GLib.idle_add` + `imports.system.exit` shutdown.** Calling `imports.system.exit` from inside a promise-microtask continuation (which is where the `await yargs(…).parseAsync()` resolution lands) leaves the process parked even after the loop is quit. Scheduling the exit on a `GLib.idle_add` callback hands control back to the loop first, so the syscall fires from a fresh main-loop iteration.
+
+Build script + entry file diffs are scoped to the integration test — no `@gjsify/*` package code changes in this PR. The corner cases above all live in upstream packages (yargs, typedoc, GLib's loop semantics) and are best worked around at the consumer level for now.
+
 ### feat(integration/ts-for-gir) — Phase 4a: non-interactive `@ts-for-gir/cli` on Node (2026-04-30)
 
 Bundled `@ts-for-gir/cli@4.0.0-rc.6` runs end-to-end on Node via `gjsify build` + a small in-project `cli.entry.ts` shim that mirrors the upstream `start.ts` wiring (the published package's `exports` map only exposes `.`, not the full source tree). New `cli.spec.ts` (5 tests) spawns the bundled CLI as a subprocess and asserts on stdout/stderr:
