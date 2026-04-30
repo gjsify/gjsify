@@ -70,7 +70,7 @@ class GjsifyTimeout {
             if (this._repeat) return GLib.SOURCE_CONTINUE;
             this._id = null;
             return GLib.SOURCE_REMOVE;
-        });
+        }, null);
     }
 
     ref(): this { this._refed = true; return this; }

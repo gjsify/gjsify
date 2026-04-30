@@ -311,7 +311,7 @@ export default async () => {
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
               process.stdout.write('BEFORE_ASYNC TIMEOUT_ADD(0) FIRED\n');
               return false;
-            });
+            }, null);
             outputStream.write_bytes_async(
               new GLib.Bytes(new Uint8Array([1, 2, 3, 4])),
               GLib.PRIORITY_DEFAULT,
@@ -324,7 +324,7 @@ export default async () => {
                   GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
                     process.stdout.write('AFTER_ASYNC TIMEOUT_ADD(0) FIRED\n');
                     return false;
-                  });
+                  }, null);
                   try {
                     callback(null);
                     process.stdout.write('callback(null) returned OK\n');
@@ -334,7 +334,7 @@ export default async () => {
                   GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
                     process.stdout.write('AFTER_CALLBACK TIMEOUT_ADD(0) FIRED\n');
                     return false;
-                  });
+                  }, null);
                 } catch (e: any) {
                   process.stdout.write('PATCHED WRITE ERR: ' + e.message + '\n');
                   callback(e);

@@ -48,7 +48,7 @@ export function createGLSetup(): GLSetup | null {
     const giveUpId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
         readyLoop.quit();
         return GLib.SOURCE_REMOVE;
-    });
+    }, null);
 
     readyLoop.run();
     GLib.source_remove(giveUpId);

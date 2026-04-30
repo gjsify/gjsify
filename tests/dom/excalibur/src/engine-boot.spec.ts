@@ -28,7 +28,7 @@ export default async () => {
                 const giveUpId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
                     loop.quit();
                     return GLib.SOURCE_REMOVE;
-                });
+                }, null);
 
                 widget.onReady((canvas) => {
                     GLib.source_remove(giveUpId);
@@ -68,7 +68,7 @@ export default async () => {
                 const giveUpId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
                     loop.quit();
                     return GLib.SOURCE_REMOVE;
-                });
+                }, null);
 
                 widget.onReady((canvas) => {
                     GLib.source_remove(giveUpId);
