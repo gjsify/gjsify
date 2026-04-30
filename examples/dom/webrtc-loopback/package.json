@@ -18,8 +18,8 @@
     "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html"
   },
   "devDependencies": {
-    "@girs/gjs": "^4.0.0-rc.5",
-    "@girs/glib-2.0": "^2.88.0-4.0.0-rc.5",
+    "@girs/gjs": "^4.0.0-rc.7",
+    "@girs/glib-2.0": "^2.88.0-4.0.0-rc.7",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",

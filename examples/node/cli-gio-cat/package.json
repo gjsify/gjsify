@@ -12,8 +12,8 @@
     "test": "yarn build && rm -f /tmp/gio-cat-example.txt && echo ok > /tmp/gio-cat-example.txt && gjs -m dist/index.js /tmp/gio-cat-example.txt"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.5",
-    "@girs/gjs": "^4.0.0-rc.5",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.7",
+    "@girs/gjs": "^4.0.0-rc.7",
     "@gjsify/cli": "workspace:^",
     "typescript": "^6.0.3"
   },

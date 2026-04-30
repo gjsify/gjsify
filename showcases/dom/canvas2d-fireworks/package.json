@@ -22,11 +22,11 @@
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/canvas2d.css dist/canvas2d.css"
   },
   "devDependencies": {
-    "@girs/adw-1": "^1.10.0-4.0.0-rc.5",
-    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.5",
-    "@girs/gjs": "^4.0.0-rc.5",
-    "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.5",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.5",
+    "@girs/adw-1": "^1.10.0-4.0.0-rc.7",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.7",
+    "@girs/gjs": "^4.0.0-rc.7",
+    "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.7",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.7",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/canvas2d": "workspace:^",
     "@gjsify/cli": "workspace:^",

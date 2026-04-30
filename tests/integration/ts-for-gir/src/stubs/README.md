@@ -27,6 +27,6 @@ prompts inside `create` and the version-conflict resolver) fail at the
 exact call site with a clear "stubbed on GJS" error.
 
 Stubs live in-test (not as a separate workspace package) because they're
-bound to one upstream pin (`@ts-for-gir/cli@4.0.0-rc.6`) and may need to
+bound to one upstream pin (`@ts-for-gir/cli@4.0.0-rc.7`) and may need to
 change shape with the next ts-for-gir release. Promote to a package only if
 a second consumer needs them.

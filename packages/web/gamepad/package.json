@@ -39,9 +39,9 @@
         "@gjsify/dom-events": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gjs": "^4.0.0-rc.5",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.5",
-        "@girs/manette-0.2": "^0.2.13-4.0.0-rc.5",
+        "@girs/gjs": "^4.0.0-rc.7",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.7",
+        "@girs/manette-0.2": "^0.2.13-4.0.0-rc.7",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.6.0",

@@ -102,7 +102,7 @@ function describeForBundle(bundle: RuntimeBundle): () => Promise<void> {
       await it('--version prints the injected version', async () => {
         const r = await runCli(bundle, ['--version']);
         expect(r.code).toBe(0);
-        expect(r.stdout.trim()).toBe('4.0.0-rc.6');
+        expect(r.stdout.trim()).toBe('4.0.0-rc.7');
       }, { timeout: CLI_TEST_TIMEOUT_MS });
 
       await it('--help prints the command tree and the global options', async () => {

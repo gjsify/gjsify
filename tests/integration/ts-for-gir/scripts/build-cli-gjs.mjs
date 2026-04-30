@@ -32,7 +32,7 @@ const args = [
   'src/cli.entry.ts',
   '--app', 'gjs',
   '--outfile', 'dist/cli.gjs.mjs',
-  '--define', '__TS_FOR_GIR_VERSION__="4.0.0-rc.6"',
+  '--define', '__TS_FOR_GIR_VERSION__="4.0.0-rc.7"',
   '--alias', aliases,
 ];
 
