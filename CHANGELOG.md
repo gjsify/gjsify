@@ -25,7 +25,7 @@ Bundled `@ts-for-gir/cli@4.0.0-rc.6` runs end-to-end on Node via `gjsify build` 
    - `--define KEY=VALUE` (repeatable): substitutes compile-time constants. VALUE is a JS expression — string literals must be JSON-quoted (`--define VERSION='"1.2.3"'`). Required for upstream packages that gate behavior on `typeof __FOO__ !== 'undefined'`.
    - `--alias FROM=TO[,FROM=TO...]` (repeatable): layers user aliases on top of the gjsify built-in alias map.
 
-**Found and worked around an upstream packaging gap in `@ts-for-gir/cli@4.0.0-rc.6`:** `generation-handler.ts` imports `@ts-for-gir/generator-html-doc` and `@ts-for-gir/generator-json` at top level but neither is listed under `dependencies`. Both packages exist on npm (manually installable) — workaround in our test package is to add them as devDeps. Tracked for upstream fix.
+**Re-bundling `@ts-for-gir/cli` from source needs explicit devDeps for the workspace generators.** `generation-handler.ts` imports `@ts-for-gir/generator-html-doc` and `@ts-for-gir/generator-json` at top level. Neither is listed under `dependencies` — and that is intentional: `@ts-for-gir/cli` publishes a pre-bundled `bin/ts-for-gir` (28k lines of esbuild output, all generators inlined) that end-users run directly, so the generator packages are dev-only for the upstream repo. Our integration test re-bundles `src/start.ts` ourselves to layer in gjsify's GJS-specific transforms, so we declare the generator packages as devDeps in `tests/integration/ts-for-gir/package.json`. Not an upstream bug.
 
 ### feat(tests/integration/ts-for-gir) — Phases 2+3: `@ts-for-gir/lib` type system + generator pipeline on GJS (2026-04-29)
 

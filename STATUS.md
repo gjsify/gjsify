@@ -567,7 +567,7 @@ Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated 
 
    Documented in [website/src/content/docs/cli-reference.md](website/src/content/docs/cli-reference.md).
 
-4. **Found and worked around an upstream packaging gap in `@ts-for-gir/cli@4.0.0-rc.6`.** [`generation-handler.ts`](node_modules/@ts-for-gir/cli/src/generation-handler.ts) imports `@ts-for-gir/generator-html-doc` and `@ts-for-gir/generator-json` at top level, but neither is listed under `dependencies`. Both packages exist on npm and the user can install them manually. Workaround in our test package is to add both as devDeps. Filed for upstream fix (will be removed once upstream `4.0.0-rc.7` ships with corrected `dependencies`).
+4. **Re-bundling `@ts-for-gir/cli` from source needs explicit devDeps for the workspace generators.** [`generation-handler.ts`](node_modules/@ts-for-gir/cli/src/generation-handler.ts) imports `@ts-for-gir/generator-html-doc` and `@ts-for-gir/generator-json` at top level. Neither is listed under `dependencies` — and that is intentional: `@ts-for-gir/cli` publishes a pre-bundled [`bin/ts-for-gir`](node_modules/@ts-for-gir/cli/bin/ts-for-gir) (28k lines of esbuild output, all generators inlined) that end-users run directly, so the generator packages are dev-only for the upstream repo. Our integration test re-bundles `src/start.ts` ourselves (because we want gjsify's GJS-specific transforms layered in), which means we need build-time access to every transitive package the upstream bundle inlines. Resolved by adding `@ts-for-gir/generator-html-doc@^4.0.0-rc.6` and `@ts-for-gir/generator-json@^4.0.0-rc.6` as devDeps in `tests/integration/ts-for-gir/package.json`. Not an upstream bug — a deliberate consequence of how we're consuming the package.
 
 ### Root-cause fixes surfaced by the Autobahn pillar and landed in this PR
 
@@ -629,7 +629,6 @@ Remaining phases:
 - **Phase 5:** CLI tarball end-to-end — bypass `gjsify build` entirely and `npm install @ts-for-gir/cli`, then exec it as a child process. Validates the published distribution shape rather than our bundle. Blocked on Phase 4b.
 - **Phase 6:** Language-server vitest port (`refs/ts-for-gir/tests/language-server-validation/src/gvariant-validation.test.ts`). Blocked on the `typescript` package running on GJS.
 - **External-deps regex assertion port** (`refs/ts-for-gir/tests/external-deps/assert.mjs`) — meaningful only after Phase 5 lands.
-- **Upstream `@ts-for-gir/cli@4.0.0-rc.6` packaging fix** — `generation-handler.ts` imports `@ts-for-gir/generator-html-doc` and `@ts-for-gir/generator-json` but neither is listed under `dependencies`. Both packages exist on npm, so installing them manually unblocks bundling — but a fresh consumer hits this at first build. Contribute the fix to upstream and remove the workaround devDeps in `tests/integration/ts-for-gir/package.json` once `4.0.0-rc.7` ships.
 
 `refs/ts-for-gir/` submodule is pinned at the ts-for-gir commit corresponding to `@gi.ts/parser@4.0.0-rc.6`; bump the submodule alongside the published-package version when porting future phases.
 
