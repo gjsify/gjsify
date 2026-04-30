@@ -11,6 +11,8 @@
     },
     "files": [
         "src/test.mts",
-        "src/parser.spec.ts"
+        "src/parser.spec.ts",
+        "src/lib.spec.ts",
+        "src/generator.spec.ts"
     ]
 }
