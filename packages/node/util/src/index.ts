@@ -412,6 +412,70 @@ export function formatWithOptions(inspectOptions: InspectOptions, fmt: string, .
   return format(fmt, ...args);
 }
 
+// ---- styleText / stripVTControlCharacters (Node 21+ / 16.11+) ----
+
+// Matches all ANSI escape code sequences. Same regex used by Node — sourced
+// from Sindre Sorhus's chalk/ansi-regex (MIT). Kept module-local; the only
+// consumer is stripVTControlCharacters and its callers.
+const ANSI_REGEX = new RegExp(
+  '[\\u001B\\u009B][[\\]()#;?]*' +
+    '(?:(?:(?:(?:;[-a-zA-Z\\d\\/\\#&.:=?%@~_]+)*' +
+    '|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/\\#&.:=?%@~_]*)*)?' +
+    '(?:\\u0007|\\u001B\\u005C|\\u009C))' +
+    '|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?' +
+    '[\\dA-PR-TZcf-nq-uy=><~]))',
+  'g',
+);
+
+export function stripVTControlCharacters(str: string): string {
+  if (typeof str !== 'string') {
+    throw new TypeError('The "str" argument must be of type string. Received ' + typeof str);
+  }
+  // Short-circuit: ESC () or CSI () introducer must be present.
+  if (str.indexOf('') === -1 && str.indexOf('') === -1) return str;
+  return str.replace(ANSI_REGEX, '');
+}
+
+interface StyleTextOptions {
+  validateStream?: boolean;
+  stream?: { isTTY?: boolean };
+}
+
+/**
+ * Apply ANSI styling to text, using the format names from `inspect.colors`.
+ * Per Node's spec, when `validateStream` is true (default) and the target
+ * stream is not a TTY, return the unstyled text. We use `process.stdout` as
+ * the default stream — the same as Node.
+ */
+export function styleText(
+  format: string | string[],
+  text: string,
+  options?: StyleTextOptions,
+): string {
+  if (typeof text !== 'string') {
+    throw new TypeError('The "text" argument must be of type string. Received ' + typeof text);
+  }
+  const validateStream = options?.validateStream ?? true;
+  if (validateStream) {
+    const stream = options?.stream ?? (globalThis as { process?: { stdout?: { isTTY?: boolean } } }).process?.stdout;
+    if (!stream?.isTTY) return text;
+  }
+
+  const formats = Array.isArray(format) ? format : [format];
+  let openCodes = '';
+  let closeCodes = '';
+  for (const key of formats) {
+    if (key === 'none') continue;
+    const style = inspect.colors[key];
+    if (style === undefined) {
+      throw new TypeError(`The "format" argument must be one of: ${Object.keys(inspect.colors).join(', ')}. Received '${key}'`);
+    }
+    openCodes += `[${style[0]}m`;
+    closeCodes = `[${style[1]}m` + closeCodes;
+  }
+  return `${openCodes}${text}${closeCodes}`;
+}
+
 // ---- promisify / callbackify ----
 
 const kCustomPromisify = Symbol.for('nodejs.util.promisify.custom');
@@ -650,6 +714,8 @@ export function toUSVString(string: string): string {
 export default {
   format,
   formatWithOptions,
+  styleText,
+  stripVTControlCharacters,
   inspect,
   promisify,
   callbackify,

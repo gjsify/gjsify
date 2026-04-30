@@ -468,4 +468,73 @@ export default async () => {
       expect(util.TextDecoder).toBeDefined();
     });
   });
+
+  // ===================== styleText =====================
+  await describe('util.styleText', async () => {
+    await it('returns plain text when stream is not a TTY', async () => {
+      // Default options: validateStream=true, stream=process.stdout (no isTTY in test runtime).
+      expect(util.styleText('red', 'hello')).toBe('hello');
+    });
+
+    await it('wraps text in ANSI codes when validateStream=false', async () => {
+      const out = util.styleText('red', 'hello', { validateStream: false });
+      expect(out).toBe('[31mhello[39m');
+    });
+
+    await it('applies bold modifier with validateStream=false', async () => {
+      const out = util.styleText('bold', 'X', { validateStream: false });
+      expect(out).toBe('[1mX[22m');
+    });
+
+    await it('accepts an array of formats and stacks codes', async () => {
+      const out = util.styleText(['red', 'bold'], 'X', { validateStream: false });
+      // open codes appended, close codes prepended in reverse order
+      expect(out).toBe('[31m[1mX[22m[39m');
+    });
+
+    await it('returns text untouched when format is "none"', async () => {
+      // 'none' is a valid runtime sentinel per refs/node/lib/util.js:207 but is
+      // missing from `InspectColor` in @types/node — call via dynamic dispatch.
+      const fn = util.styleText as (f: string, t: string, o?: { validateStream?: boolean }) => string;
+      expect(fn('none', 'plain', { validateStream: false })).toBe('plain');
+    });
+
+
+    await it('throws on invalid format key', async () => {
+      // Deliberately invalid format — exercises the runtime error branch.
+      const fn = util.styleText as (f: string, t: string, o?: { validateStream?: boolean }) => string;
+      expect(() => fn('not-a-color', 'x', { validateStream: false })).toThrow();
+    });
+
+    await it('throws when text is not a string', async () => {
+      // Deliberately wrong text type — exercises the runtime error branch.
+      const fn = util.styleText as (f: 'red', t: unknown, o?: { validateStream?: boolean }) => string;
+      expect(() => fn('red', 42, { validateStream: false })).toThrow();
+    });
+  });
+
+  // ===================== stripVTControlCharacters =====================
+  await describe('util.stripVTControlCharacters', async () => {
+    await it('returns string unchanged when no escape sequence is present', async () => {
+      expect(util.stripVTControlCharacters('plain')).toBe('plain');
+      expect(util.stripVTControlCharacters('')).toBe('');
+    });
+
+    await it('strips a simple SGR (color) sequence', async () => {
+      expect(util.stripVTControlCharacters('[31mred[39m')).toBe('red');
+    });
+
+    await it('strips multiple sequences in one string', async () => {
+      const styled = '[1m[31mbold-red[39m[22m';
+      expect(util.stripVTControlCharacters(styled)).toBe('bold-red');
+    });
+
+    await it('preserves non-ANSI characters around sequences', async () => {
+      expect(util.stripVTControlCharacters('a[31mb[39mc')).toBe('abc');
+    });
+
+    await it('throws TypeError when input is not a string', async () => {
+      expect(() => util.stripVTControlCharacters(42 as unknown as string)).toThrow();
+    });
+  });
 };

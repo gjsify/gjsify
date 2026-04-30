@@ -19800,7 +19800,8 @@ var gjsImportsEmptyPlugin = {
   }
 };
 var setupForBrowser = async (build2, pluginOptions) => {
-  const external = [];
+  const userExternal = build2.initialOptions.external ?? [];
+  const external = [...userExternal];
   pluginOptions.aliases ||= {};
   pluginOptions.exclude ||= [];
   const esbuildOptions = {
@@ -19891,7 +19892,8 @@ import { dirname, resolve as resolve2 } from "path";
 import { readFile } from "fs/promises";
 var _shimDir = dirname(fileURLToPath3(import.meta.url));
 var setupForGjs = async (build2, pluginOptions) => {
-  const external = ["gi://*", "cairo", "gettext", "system"];
+  const userExternal = build2.initialOptions.external ?? [];
+  const external = ["gi://*", "cairo", "gettext", "system", ...userExternal];
   const format2 = pluginOptions.format || "esm";
   pluginOptions.aliases ||= {};
   pluginOptions.exclude ||= [];
@@ -19985,8 +19987,11 @@ var __filename = ${JSON.stringify(args.path)};
 
 // src/app/node.ts
 import * as deepkitPlugin5 from "@gjsify/esbuild-plugin-deepkit";
+import { dirname as dirname2 } from "node:path";
+import { readFile as readFile2 } from "node:fs/promises";
 var setupForNode = async (build2, pluginOptions) => {
-  const external = [...EXTERNALS_NODE, "gi://*", "@girs/*", "node-datachannel"];
+  const userExternal = build2.initialOptions.external ?? [];
+  const external = [...EXTERNALS_NODE, "gi://*", "@girs/*", "node-datachannel", ...userExternal];
   const format2 = pluginOptions.format || "esm";
   pluginOptions.aliases ||= {};
   pluginOptions.exclude ||= [];
@@ -20009,12 +20014,21 @@ var setupForNode = async (build2, pluginOptions) => {
     // to 'require' → the authoritative CJS entry. Packages with no 'require'
     // condition fall back to mainFields ['module', 'main', 'browser'].
     conditions: format2 === "esm" ? ["require", "node", "module"] : ["require"],
-    // In ESM output, CJS require() calls to external modules (Node.js
-    // builtins) need a real require function. Node.js ESM doesn't provide
-    // one natively, so we create it via createRequire().
+    // ESM output of bundled CJS code still needs `require()` (esbuild emits
+    // calls to it for external Node builtins). Node ESM has no `require`
+    // natively, so we synthesize one via `module.createRequire`.
+    //
+    // We deliberately do NOT shim `__filename` / `__dirname` here even
+    // though some bundled CJS consumers (e.g. typescript's
+    // `isFileSystemCaseSensitive`) reach for them. esbuild already emits
+    // per-source-file `var __filename = fileURLToPath(import.meta.url)`
+    // for ESM input that uses these identifiers, and a top-of-bundle
+    // `const __filename = …` collides with those declarations. CJS
+    // modules wrapped in `__commonJS()` get their own scope and are
+    // handled separately — see `cjsFilenameDirnamePatch` below.
     ...format2 === "esm" ? {
       banner: {
-        js: "import { createRequire as __gjsify_createRequire } from 'module';\nconst require = __gjsify_createRequire(import.meta.url);"
+        js: "import { createRequire as __gjsifyCreateRequire } from 'module';\nconst require = __gjsifyCreateRequire(import.meta.url);"
       }
     } : {},
     external,
@@ -20034,6 +20048,16 @@ var setupForNode = async (build2, pluginOptions) => {
       window: "globalThis"
     }
   };
+  build2.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
+    if (!args.path.includes("node_modules")) return void 0;
+    const src = await readFile2(args.path, "utf8");
+    if (!src.includes("__dirname") && !src.includes("__filename")) return void 0;
+    const dir = dirname2(args.path);
+    const preamble = `var __dirname = ${JSON.stringify(dir)};
+var __filename = ${JSON.stringify(args.path)};
+`;
+    return { contents: preamble + src, loader: "js", resolveDir: dir };
+  });
   merge(build2.initialOptions, esbuildOptions);
   build2.initialOptions.entryPoints = await globToEntryPoints(build2.initialOptions.entryPoints, pluginOptions.exclude);
   const aliases = { ...getAliasesForNode({ external }), ...pluginOptions.aliases };

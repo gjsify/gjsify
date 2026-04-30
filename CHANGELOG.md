@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### feat(integration/ts-for-gir) — Phase 4a: non-interactive `@ts-for-gir/cli` on Node (2026-04-30)
+
+Bundled `@ts-for-gir/cli@4.0.0-rc.6` runs end-to-end on Node via `gjsify build` + a small in-project `cli.entry.ts` shim that mirrors the upstream `start.ts` wiring (the published package's `exports` map only exposes `.`, not the full source tree). New `cli.spec.ts` (5 tests) spawns the bundled CLI as a subprocess and asserts on stdout/stderr:
+
+- `--version` → `"4.0.0-rc.6"` (proves the new `gjsify build --define` flag injects the `__TS_FOR_GIR_VERSION__` build-time constant)
+- `--help` → renders the full command tree (analyze, create, generate, json, list, copy, doc) — proves yargs's command registration loads cleanly
+- yargs `.strict()` rejects unknown commands
+- `list --help` → renders per-command flags (proves cosmiconfig + the option builder load)
+- `list -g <dir>` → walks our local Vala-generated GIRs via `glob` and renders them through colorette
+
+**Total ts-for-gir suite: Node 199/199, GJS 169/169 + 1 ignored (the gated CLI suite — see STATUS.md Phase 4b).**
+
+**Three root-cause fixes landed in the same PR — surfaced by the bundling and runtime errors:**
+
+1. **`@gjsify/util` gains `styleText` and `stripVTControlCharacters`** ([packages/node/util/src/index.ts](packages/node/util/src/index.ts)). Required by every `@inquirer/*` package — `@inquirer/core/lib/screen-manager.js` calls `stripVTControlCharacters`, and `theme.js`/`Separator.js` import `styleText`. Implementations follow Node's spec from `refs/node/lib/util.js:167` (styleText) and `refs/node/lib/internal/util/inspect.js:3036` (stripVTControlCharacters), reusing our existing `inspect.colors` map for ANSI code lookup. 12 new tests in `extended.spec.ts` (258 total, all green on Node + GJS).
+
+2. **Per-source-file `__filename`/`__dirname` injection in the Node app target** ([packages/infra/esbuild-plugin-gjsify/src/app/node.ts](packages/infra/esbuild-plugin-gjsify/src/app/node.ts)). esbuild does not auto-shim CJS-only globals when emitting ESM output. Bundled `typescript` (`isFileSystemCaseSensitive` calls `swapCase(__filename)` for case-sensitive-FS detection) crashes with `ReferenceError: __filename is not defined`. Mirrors the existing GJS target hook: any `node_modules/*.{js,cjs}` file referencing these names gets a per-file `var` preamble with the source-file path. A top-of-bundle banner was attempted first but collided with source files that declare these names themselves (e.g. `@ts-for-gir/lib/src/utils/path.ts`).
+
+3. **Three new pass-through flags on `gjsify build`: `--define`, `--external`, `--alias`** ([packages/infra/cli/src/commands/build.ts](packages/infra/cli/src/commands/build.ts), [packages/infra/cli/src/config.ts](packages/infra/cli/src/config.ts), [packages/infra/cli/src/actions/build.ts](packages/infra/cli/src/actions/build.ts), [packages/infra/cli/src/types/](packages/infra/cli/src/types/)). esbuild already supports all three natively; the CLI just needed surface area.
+   - `--external <pkg>[,<pkg>...]` (repeatable): marks modules as runtime imports. The plugin merges user externals with the platform's built-in list (`EXTERNALS_NODE`, `gi://*`, `cairo`, etc.) so neither overrides the other.
+   - `--define KEY=VALUE` (repeatable): substitutes compile-time constants. VALUE is a JS expression — string literals must be JSON-quoted (`--define VERSION='"1.2.3"'`). Required for upstream packages that gate behavior on `typeof __FOO__ !== 'undefined'`.
+   - `--alias FROM=TO[,FROM=TO...]` (repeatable): layers user aliases on top of the gjsify built-in alias map.
+
+**Re-bundling `@ts-for-gir/cli` from source needs explicit devDeps for the workspace generators.** `generation-handler.ts` imports `@ts-for-gir/generator-html-doc` and `@ts-for-gir/generator-json` at top level. Neither is listed under `dependencies` — and that is intentional: `@ts-for-gir/cli` publishes a pre-bundled `bin/ts-for-gir` (28k lines of esbuild output, all generators inlined) that end-users run directly, so the generator packages are dev-only for the upstream repo. Our integration test re-bundles `src/start.ts` ourselves to layer in gjsify's GJS-specific transforms, so we declare the generator packages as devDeps in `tests/integration/ts-for-gir/package.json`. Not an upstream bug.
+
 ### feat(tests/integration/ts-for-gir) — Phases 2+3: `@ts-for-gir/lib` type system + generator pipeline on GJS (2026-04-29)
 
 Extends the ts-for-gir integration suite with two new spec files: **`lib.spec.ts`** (51 tests, Phase 2) and **`generator.spec.ts`** (18 tests, Phase 3). All 169 tests pass on both Node.js and GJS with 0 skips.

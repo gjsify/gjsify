@@ -51,10 +51,25 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--console-shim` | bool | `true` | Inject the GJS console shim. Disable with `--no-console-shim` |
 | `--exclude` | glob[] | `[]` | Glob patterns to exclude from entry points and aliases |
 | `--log-level` | `silent` \| `error` \| `warning` \| `info` \| `debug` \| `verbose` | `warning` | esbuild log level |
+| `--external` | name[] | `[]` | Module specifiers that should NOT be bundled — they remain as runtime imports. Repeatable; comma-separated values are split. Merged with the platform's built-in externals. |
+| `--define` | `KEY=VALUE`[] | `[]` | esbuild `--define` pass-through. VALUE is a JS expression — string literals must be JSON-quoted (`--define VERSION='"1.2.3"'`). Repeatable. Merged with built-in defines like `global: 'globalThis'`. |
+| `--alias` | `FROM=TO`[] | `[]` | Layered on top of the built-in alias map. Useful for stubbing heavy deps (`--alias typedoc=@gjsify/empty`). Repeatable. |
 
 For `--app gjs`, the target is `firefox128` (SpiderMonkey 128) and `gi://*`, `cairo`, `system` and `gettext` are externalised. For `--app node`, the target is `node24`.
 
 </details>
+
+#### Bundling third-party CLIs that read their own `package.json` at load time
+
+Tools like `typedoc` and `prettier` read their own `package.json` via `Path.join(fileURLToPath(import.meta.url), '../../../package.json')` during top-level evaluation. When bundled, `import.meta.url` resolves to the bundle file, not the original main, so the lookup escapes the package and crashes. Combine `--external` (so Node's runtime resolver finds the package in `node_modules`) with `--define` for any build-time version constants the bundled code expects:
+
+```bash
+gjsify build src/cli.entry.ts --app node --outfile dist/cli.mjs \
+  --define '__MY_VERSION__="1.0.0"' \
+  --external typedoc,prettier,@inquirer/prompts,inquirer
+```
+
+`--external` is the right answer on Node. On GJS, `gjsify run` does not yet have a node_modules-style runtime resolver, so externalised packages fail with `ImportError: Module not found`. Bundling them is the only option on GJS today; the alternative is upstream switching to a `--define`-injected version constant.
 
 ### Globals
 

@@ -26,7 +26,10 @@ const gjsImportsEmptyPlugin: Plugin = {
 
 export const setupForBrowser = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
-    const external: string[] = [];
+    // User-supplied externals (`gjsify build --external <name>`) merge in so
+    // they survive the merge-overwrite of `build.initialOptions.external`.
+    const userExternal = build.initialOptions.external ?? [];
+    const external: string[] = [...userExternal];
 
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];

@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-04-29 (ts-for-gir Phases 2+3 landed — `@ts-for-gir/lib` type-expression builders: Node 51/51, GJS 51/51; `@ts-for-gir/generator-typescript` pipeline (DependencyManager+GirModule.load+parse+ModuleGenerator.generateModule): Node 18/18, GJS 18/18. Total suite: Node 169/169, GJS 169/169. `glob`, `ejs`, `lodash`, `colorette` all work on GJS. Earlier today: ts-for-gir Phase 1 — `@gi.ts/parser` + `fast-xml-parser` on GJS. Axios integration suite. `@gjsify/fetch` double-decompression fix.)
+> Last updated: 2026-04-30 (ts-for-gir Phase 4a landed — non-interactive `@ts-for-gir/cli` on Node: bundled CLI runs `--version`, `--help`, `list -g <dir>` end-to-end against gjsify's GIR fixtures (5/5). Validates yargs + cosmiconfig + glob + colorette on top of the new infrastructure: `util.styleText` + `util.stripVTControlCharacters` (for `@inquirer/*`), per-file `__filename`/`__dirname` injection in the Node app target (for bundled `typescript`), and three new `gjsify build` flags — `--define`, `--external`, `--alias`. Total ts-for-gir suite: Node 199/199, GJS 169/169 + 1 ignored (the CLI suite is gated on `on('Node.js')` — Phase 4b). `@gjsify/util`: 258/258. Yesterday: ts-for-gir Phases 2+3 — `@ts-for-gir/lib` type system + generator pipeline.)
 
 ## Summary
 
@@ -538,7 +538,7 @@ Sequential call cap: N ≤ 4 to stay under the residual deferred-GC window from 
 
 ### ts-for-gir (`tests/integration/ts-for-gir/`)
 
-Phases 1–3: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/tree/main/packages/parser) v4.0.0-rc.6, [`@ts-for-gir/lib`](https://github.com/gjsify/ts-for-gir/tree/main/packages/lib) v4.0.0-rc.6, and [`@ts-for-gir/generator-typescript`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-typescript) v4.0.0-rc.6. **Node: 169/169 green. GJS: 169/169 green, 0 skips.** `glob`, `ejs`, `lodash`, `colorette` all work on GJS via `@gjsify/*` polyfills.
+Phases 1–4a: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/tree/main/packages/parser), [`@ts-for-gir/lib`](https://github.com/gjsify/ts-for-gir/tree/main/packages/lib), [`@ts-for-gir/generator-typescript`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-typescript), and [`@ts-for-gir/cli`](https://github.com/gjsify/ts-for-gir/tree/main/packages/cli) — all at v4.0.0-rc.6. **Node: 199/199 green. GJS: 169/169 green + 1 ignored (the deliberately-gated Phase 4a CLI suite — see Phase 4b open TODO).** `glob`, `ejs`, `lodash`, `colorette`, `cosmiconfig`, `yargs` all work on GJS/Node via `@gjsify/*` polyfills.
 
 | Suite | Node | GJS | Exercises |
 |---|---|---|---|
@@ -548,10 +548,26 @@ Phases 1–3: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/t
 | parser.spec.ts (inline edge cases) | ✅ (3) | ✅ (3) | Empty `<repository>`, namespace without classes, round-trip of inline class+method |
 | lib.spec.ts | ✅ (51) | ✅ (51) | `TypeExpression` class hierarchy: `TypeIdentifier`/`ModuleTypeIdentifier`, `NativeType`, `OrType`/`BinaryType`/`TupleType`, `FunctionType`, `PromiseType`, `NullableType`, `ArrayType`, `ClosureType`, `GenericType`; primitive constants (`VoidType`, `StringType`, `NumberType`, `AnyType`, `NullType`, `NeverType`, `UnknownType`, `ThisType`, `ObjectType`, `Uint8ArrayType`, `AnyFunctionType`, `BigintOrNumberType`); `equals()` semantics (set vs. positional); `unwrap()`/`deepUnwrap()` on wrapper types |
 | generator.spec.ts | ✅ (18) | ✅ (18) | `DependencyManager.get()` resolves from real tmpdir GIR via `glob`; `GirModule.load()` + `parse()` + `initTransitiveDependencies()`; `ModuleGenerator.generateModule()` produces a `GeneratedModule` with `name`/`version`/`members`; record/function/enum/constant members are present; `generateModule()` is idempotent; `allowMissingDeps` handles GObject stub dep |
+| cli.spec.ts | ✅ (5) | (skip) | Spawns the bundled `ts-for-gir` CLI as a subprocess: `--version` returns the `--define`-injected `4.0.0-rc.6`; `--help` lists every command from yargs's command tree; yargs `.strict()` rejects unknown commands; `list --help` prints the per-command flags from cosmiconfig + the option builder; `list -g <dir>` walks our local fixtures via `glob` and renders them through colorette. GJS-skipped via `on('Node.js')` — see Phase 4b TODO |
 
-Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated GIRs — committed alongside the suite (no prebuild copy step), real-world parser surface, no upstream-fixture coupling. Phase 3 additionally writes a minimal synthetic GIR to `tmpdir()` at test-module load time so `DependencyManager` can resolve it via `glob` on the real filesystem.
+Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated GIRs — committed alongside the suite (no prebuild copy step), real-world parser surface, no upstream-fixture coupling. Phase 3 additionally writes a minimal synthetic GIR to `tmpdir()` at test-module load time so `DependencyManager` can resolve it via `glob` on the real filesystem. Phase 4a bundles the upstream CLI's `start.ts` workflow into `dist/cli.node.mjs` via a small `src/cli.entry.ts` shim that mirrors the upstream wiring (the published package's `exports` map only exposes `.`, so we re-construct the yargs setup against the named exports). The CLI bundle is built with `--define '__TS_FOR_GIR_VERSION__="4.0.0-rc.6"' --external typedoc,prettier,@inquirer/prompts,inquirer` — all four are runtime-only deps that Node resolves from `node_modules`.
 
 `refs/ts-for-gir/` submodule pinned at the commit corresponding to `@gi.ts/parser@4.0.0-rc.6`. `@gjsify/node-globals/register` deliberately not imported — `gjsify build --globals auto` (default) covers everything `fast-xml-parser`, `@ts-for-gir/lib`, and `@ts-for-gir/generator-typescript` need.
+
+### Root-cause fixes surfaced by ts-for-gir Phase 4a and landed in this PR
+
+1. **`util.styleText` and `util.stripVTControlCharacters` added to `@gjsify/util`** ([packages/node/util/src/index.ts](packages/node/util/src/index.ts)). Required by every `@inquirer/*` package — `@inquirer/core/lib/screen-manager.js` calls `stripVTControlCharacters`, and `theme.js`/`Separator.js`/the prompt packages all import `styleText`. Implementations match Node's spec from [refs/node/lib/util.js:167](refs/node/lib/util.js#L167) (styleText) and [refs/node/lib/internal/util/inspect.js:3036](refs/node/lib/internal/util/inspect.js#L3036) (stripVTControlCharacters), reusing our existing `inspect.colors` map for ANSI code lookup. Sindre Sorhus's `ansi-regex` (MIT) is the regex source — same as Node's. 12 new tests under `extended.spec.ts` cover both functions on Node + GJS (258/258 total).
+
+2. **Per-source-file `__filename`/`__dirname` injection in the Node app target** ([packages/infra/esbuild-plugin-gjsify/src/app/node.ts](packages/infra/esbuild-plugin-gjsify/src/app/node.ts)). esbuild does NOT auto-shim CJS-only globals when emitting ESM output — bundled `typescript` (`isFileSystemCaseSensitive` calls `swapCase(__filename)` for case-sensitive-FS detection) crashes at runtime with `ReferenceError: __filename is not defined`. We mirror the GJS target's existing `onLoad` hook: any `node_modules/*.{js,cjs}` file that references `__filename`/`__dirname` gets a per-file `var` preamble with the source-file path. A top-of-bundle banner was attempted first but collided with source files that already declare these names themselves (e.g. `@ts-for-gir/lib/src/utils/path.ts`).
+
+3. **Three new pass-through flags on `gjsify build`: `--define`, `--external`, `--alias`** ([packages/infra/cli/src/commands/build.ts](packages/infra/cli/src/commands/build.ts), [packages/infra/cli/src/config.ts](packages/infra/cli/src/config.ts), [packages/infra/cli/src/actions/build.ts](packages/infra/cli/src/actions/build.ts), [packages/infra/cli/src/types/cli-build-options.ts](packages/infra/cli/src/types/cli-build-options.ts), [packages/infra/cli/src/types/config-data.ts](packages/infra/cli/src/types/config-data.ts)). esbuild already supports all three natively; the CLI just needed surface area.
+   - `--external <pkg>[,<pkg>...]` (repeatable) marks modules as runtime imports — esbuild leaves `import 'pkg'` literally in the output. The plugin merges user externals with the platform's built-in list (`EXTERNALS_NODE`, `gi://*`, `cairo`, etc.) so neither overrides the other.
+   - `--define KEY=VALUE` (repeatable) substitutes compile-time constants. VALUE is a JS expression (string literals must be JSON-quoted by the caller). Required for upstream packages that gate behavior on `typeof __FOO__ !== 'undefined'` — e.g. `@ts-for-gir/lib`'s `__TS_FOR_GIR_VERSION__`. The deep-merge in the plugin already preserves user defines alongside built-in ones (`global: 'globalThis'`).
+   - `--alias FROM=TO[,FROM=TO...]` (repeatable) layers user aliases on top of the gjsify built-in alias map. Each entry is forwarded to `pluginOpts.aliases`.
+
+   Documented in [website/src/content/docs/cli-reference.md](website/src/content/docs/cli-reference.md).
+
+4. **Re-bundling `@ts-for-gir/cli` from source needs explicit devDeps for the workspace generators.** [`generation-handler.ts`](node_modules/@ts-for-gir/cli/src/generation-handler.ts) imports `@ts-for-gir/generator-html-doc` and `@ts-for-gir/generator-json` at top level. Neither is listed under `dependencies` — and that is intentional: `@ts-for-gir/cli` publishes a pre-bundled [`bin/ts-for-gir`](node_modules/@ts-for-gir/cli/bin/ts-for-gir) (28k lines of esbuild output, all generators inlined) that end-users run directly, so the generator packages are dev-only for the upstream repo. Our integration test re-bundles `src/start.ts` ourselves (because we want gjsify's GJS-specific transforms layered in), which means we need build-time access to every transitive package the upstream bundle inlines. Resolved by adding `@ts-for-gir/generator-html-doc@^4.0.0-rc.6` and `@ts-for-gir/generator-json@^4.0.0-rc.6` as devDeps in `tests/integration/ts-for-gir/package.json`. Not an upstream bug — a deliberate consequence of how we're consuming the package.
 
 ### Root-cause fixes surfaced by the Autobahn pillar and landed in this PR
 
@@ -592,20 +608,27 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 Keep the catch-all for **new** consumers that genuinely want "give me the full Node runtime surface" — but keep it as opt-in, not a mandatory import chain.
 
 
-### ts-for-gir — extend integration suite beyond Phase 3
+### ts-for-gir — extend integration suite beyond Phase 4a
 
 **Priority: High — strategic goal: `ts-for-gir` runs unmodified on GJS.**
 
-Phases 1–3 landed:
+Phases 1–4a landed:
 - ✅ **Phase 1:** `@gi.ts/parser` — GIR XML parser + `fast-xml-parser`. Node 18/18, GJS 18/18.
 - ✅ **Phase 2:** `@ts-for-gir/lib` — `TypeExpression` class hierarchy, primitive constants, `equals()` / `unwrap()` semantics. Node 51/51, GJS 51/51.
 - ✅ **Phase 3:** Generator pipeline — `DependencyManager` → `GirModule.load/parse` → `ModuleGenerator.generateModule()`. Exercises `glob`, `ejs`, `lodash`, `colorette` on GJS. Node 18/18, GJS 18/18.
+- ✅ **Phase 4a:** Non-interactive CLI on Node — bundled `@ts-for-gir/cli` runs `--version`, `--help`, and `list -g <dir>` end-to-end. Node 5/5. Surfaced `util.styleText` / `util.stripVTControlCharacters` gaps in `@gjsify/util`, the missing `__filename`/`__dirname` shim in the Node ESM bundle target, and the lack of `--define`/`--external`/`--alias` flags on `gjsify build` — all fixed at the source.
 
 Remaining phases:
 
-- **Phase 4:** CLI tarball end-to-end — port `refs/ts-for-gir/tests/e2e/cli/run.mjs` style test that installs the published tarball and runs `ts-for-gir generate` against a small set of GIRs. Blocked on GJS readiness of `yargs`, `inquirer`, `@inquirer/prompts`, `prettier`, `cosmiconfig`.
-- **Phase 5:** Language-server vitest port (`refs/ts-for-gir/tests/language-server-validation/src/gvariant-validation.test.ts`). Blocked on the `typescript` package running on GJS.
-- **External-deps regex assertion port** (`refs/ts-for-gir/tests/external-deps/assert.mjs`) — meaningful only after Phase 4 lands.
+- **Phase 4b — CLI on GJS.** The same bundle does not currently load on GJS. Two intertwined blockers:
+  1. `typedoc` reads its own `package.json` at module-load time via `Path.join(fileURLToPath(import.meta.url), '../../../package.json')`. When bundled, `import.meta.url` resolves to the bundle file, not typedoc's main. Marking `typedoc` external (which fixes Node) breaks GJS because `gjsify run` has no node_modules-style runtime resolver for bare specifiers. Aliasing `typedoc` to `@gjsify/empty` fails because esbuild requires the named imports to actually exist on the alias target. Two clean fixes possible: (a) upstream `typedoc` switches to a `--define`-injected version constant; (b) `gjsify run` grows a Node-compat npm-package resolver that participates in GJS's module loader.
+  2. Same pattern repeats for `@inquirer/prompts` / `inquirer` (they're alias-resistant for the same named-export reason). `prettier`'s plugin auto-loader has the same `import.meta.url`-vs-bundle mismatch.
+
+  Track each as its own PR. Until then, the `cli.spec.ts` suite is gated on `on('Node.js', …)`.
+
+- **Phase 5:** CLI tarball end-to-end — bypass `gjsify build` entirely and `npm install @ts-for-gir/cli`, then exec it as a child process. Validates the published distribution shape rather than our bundle. Blocked on Phase 4b.
+- **Phase 6:** Language-server vitest port (`refs/ts-for-gir/tests/language-server-validation/src/gvariant-validation.test.ts`). Blocked on the `typescript` package running on GJS.
+- **External-deps regex assertion port** (`refs/ts-for-gir/tests/external-deps/assert.mjs`) — meaningful only after Phase 5 lands.
 
 `refs/ts-for-gir/` submodule is pinned at the ts-for-gir commit corresponding to `@gi.ts/parser@4.0.0-rc.6`; bump the submodule alongside the published-package version when porting future phases.
 
