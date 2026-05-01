@@ -22,14 +22,14 @@ runTrickleIceDemo(log)
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
             loop.quit();
             return GLib.SOURCE_REMOVE;
-        }, null);
+        });
     })
     .catch((err: any) => {
         log('ERROR', err?.message ?? String(err));
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
             loop.quit();
             return GLib.SOURCE_REMOVE;
-        }, null);
+        });
     });
 
 loop.run();

@@ -117,7 +117,7 @@ app.connect('activate', () => {
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             label.set_label(text);
             return GLib.SOURCE_REMOVE;
-        }, null);
+        });
     }
 
     const callbacks: StateCallbacks = {

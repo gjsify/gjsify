@@ -83,7 +83,7 @@ function activate(app: Gtk.Application): void {
       const iter = logBuffer.get_end_iter();
       logBuffer.insert(iter, logLine + '\n', -1);
       return GLib.SOURCE_REMOVE;
-    }, null);
+    });
 
     // Respond with JSON
     const data = JSON.stringify({
@@ -107,7 +107,7 @@ function activate(app: Gtk.Application): void {
       statusLabel.set_label(`Server: http://localhost:${PORT} | Uptime: ${formatUptime()}`);
     }
     return GLib.SOURCE_CONTINUE;
-  }, null);
+  });
 }
 
 // Main — app.run() starts the GTK event loop. ensureMainLoop() (called by

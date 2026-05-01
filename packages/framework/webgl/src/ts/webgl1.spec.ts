@@ -43,7 +43,7 @@ export default async () => {
 	const giveUpId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
 		readyLoop.quit();
 		return GLib.SOURCE_REMOVE;
-	}, null);
+	});
 
 	// Blocks until onReady fires (or 10s timeout).
 	// After this returns, gl is set and the window is still alive with a valid GL context.
