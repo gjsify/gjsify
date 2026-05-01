@@ -24,7 +24,6 @@ const aliases = [
   `typedoc=${join(STUBS, 'typedoc.ts')}`,
   `@inquirer/prompts=${join(STUBS, 'inquirer-prompts.ts')}`,
   `inquirer=${join(STUBS, 'inquirer-prompts.ts')}`,
-  `prettier=${join(STUBS, 'prettier.ts')}`,
 ].join(',');
 
 const args = [
@@ -32,7 +31,7 @@ const args = [
   'src/cli.entry.ts',
   '--app', 'gjs',
   '--outfile', 'dist/cli.gjs.mjs',
-  '--define', '__TS_FOR_GIR_VERSION__="4.0.0-rc.7"',
+  '--define', '__TS_FOR_GIR_VERSION__="4.0.0-rc.8"',
   '--alias', aliases,
 ];
 

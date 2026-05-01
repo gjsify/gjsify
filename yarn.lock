@@ -1233,12 +1233,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@gi.ts/parser@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@gi.ts/parser@npm:4.0.0-rc.7"
+"@gi.ts/parser@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@gi.ts/parser@npm:4.0.0-rc.8"
   dependencies:
     fast-xml-parser: "npm:^5.7.2"
-  checksum: 10/704155ae2b2d00b66c3f1709a989e5410d831c7c31de9b70a08befe1c5bc4579bcf2ba2ce1ad3fd1eed5fad728db4b8f452fe58cf09fe28549011895b1b25e47
+  checksum: 10/609091bb050596ff8272ae8b0c0cb8cfa373aef71cc247d181dc6b16866f7bf0b883011a685c75b3533af7537a9f7c633d3830b7f67e5fa4b34938ad26e9646b
   languageName: node
   linkType: hard
 
@@ -1284,6 +1284,17 @@ __metadata:
     "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.7"
     "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.7"
   checksum: 10/1c37c6ed06839862506b9ab8e01fd8e9d032ffeaeaf39dcbd3dbf5720ce5409e5d4477ec2dd57297f2b927756d0b209d5c647a793bc86d2c8320111152d976fa
+  languageName: node
+  linkType: hard
+
+"@girs/cairo-1.0@npm:1.0.0-4.0.0-rc.8":
+  version: 1.0.0-4.0.0-rc.8
+  resolution: "@girs/cairo-1.0@npm:1.0.0-4.0.0-rc.8"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.8"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.8"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.8"
+  checksum: 10/92e5a9f2e7c510edb2659c424a3e1c37210cad4abc06cd48dfd518be922892cb43adaee022e0fee2a49e2582cca8427a42ac3bbb642dbe691becf28b7dd3f419
   languageName: node
   linkType: hard
 
@@ -1367,6 +1378,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@girs/gio-2.0@npm:2.88.0-4.0.0-rc.8":
+  version: 2.88.0-4.0.0-rc.8
+  resolution: "@girs/gio-2.0@npm:2.88.0-4.0.0-rc.8"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.8"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.8"
+    "@girs/gmodule-2.0": "npm:2.0.0-4.0.0-rc.8"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.8"
+  checksum: 10/d849a31e0ae53e06dd8773fecf66196473217998b14c25af99863892c86bf593528841255cd8682799e60a0f4059ed39896180152fb7573a6400747c6a43307e
+  languageName: node
+  linkType: hard
+
 "@girs/giounix-2.0@npm:^2.0.0-4.0.0-rc.7":
   version: 2.0.0-4.0.0-rc.7
   resolution: "@girs/giounix-2.0@npm:2.0.0-4.0.0-rc.7"
@@ -1401,6 +1424,18 @@ __metadata:
     "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.7"
     "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.7"
   checksum: 10/54189da286da9d62efbbd92cd2931eef89ef3383207c779e46b358a3328452d9acae17b84a3795a9af9433664d414125d71324f88b4ddb15a21ba01f88935d4e
+  languageName: node
+  linkType: hard
+
+"@girs/gjs@npm:4.0.0-rc.8, @girs/gjs@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@girs/gjs@npm:4.0.0-rc.8"
+  dependencies:
+    "@girs/cairo-1.0": "npm:1.0.0-4.0.0-rc.8"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.8"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.8"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.8"
+  checksum: 10/f514c4ce4768c4d45931ed15f8b6f68c3749e98638ec4c5c55e46aabffede698308ed7604777b951eb0353dc02598e212263aef64893da79bd7a67930f35a82a
   languageName: node
   linkType: hard
 
@@ -1439,6 +1474,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@girs/glib-2.0@npm:2.88.0-4.0.0-rc.8":
+  version: 2.88.0-4.0.0-rc.8
+  resolution: "@girs/glib-2.0@npm:2.88.0-4.0.0-rc.8"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.8"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.8"
+  checksum: 10/88b0e9b13df82ddacd4dec7bafe36a2220e7194da7c5f5fe6583ea48a118a02034ffc914b4b3653d0efb964e397943a94ceb222855ab2300b71903d4202562ee
+  languageName: node
+  linkType: hard
+
 "@girs/gmodule-2.0@npm:2.0.0-4.0.0-rc.5":
   version: 2.0.0-4.0.0-rc.5
   resolution: "@girs/gmodule-2.0@npm:2.0.0-4.0.0-rc.5"
@@ -1461,6 +1506,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@girs/gmodule-2.0@npm:2.0.0-4.0.0-rc.8":
+  version: 2.0.0-4.0.0-rc.8
+  resolution: "@girs/gmodule-2.0@npm:2.0.0-4.0.0-rc.8"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.8"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.8"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.8"
+  checksum: 10/28c50928d6f86299e6d8d460ce801c2a1651cb5e2f4f7844873965a0c88d4599662f464efe24cc80b64fa7b3fff185fa6b17d851731026a9a3c69c613904eb48
+  languageName: node
+  linkType: hard
+
 "@girs/gobject-2.0@npm:2.88.0-4.0.0-rc.5":
   version: 2.88.0-4.0.0-rc.5
   resolution: "@girs/gobject-2.0@npm:2.88.0-4.0.0-rc.5"
@@ -1478,6 +1534,16 @@ __metadata:
     "@girs/gjs": "npm:4.0.0-rc.7"
     "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.7"
   checksum: 10/1d88907d84da2bd59243917e9577f0384dd7c1b3c5476a28a292197ba94baf964694a600ecf0d5287ef072b14f625d8e604b4c9813eabdf45d564593b7399c3a
+  languageName: node
+  linkType: hard
+
+"@girs/gobject-2.0@npm:2.88.0-4.0.0-rc.8":
+  version: 2.88.0-4.0.0-rc.8
+  resolution: "@girs/gobject-2.0@npm:2.88.0-4.0.0-rc.8"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.8"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.8"
+  checksum: 10/f6f13541ed10afa124c0acbf9b7d47f2a7657d4356e46e60a63fc9090f4a3b770afa7ca629ce6fbb2efc74397c60faf98873fd8d0de178f45c4754f99b7e37c5
   languageName: node
   linkType: hard
 
@@ -3510,7 +3576,7 @@ __metadata:
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"
-    zod: "npm:4.4.1"
+    zod: "npm:4.3.6"
   languageName: unknown
   linkType: soft
 
@@ -3550,16 +3616,16 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-ts-for-gir@workspace:tests/integration/ts-for-gir"
   dependencies:
-    "@gi.ts/parser": "npm:^4.0.0-rc.7"
-    "@girs/gjs": "npm:^4.0.0-rc.7"
+    "@gi.ts/parser": "npm:^4.0.0-rc.8"
+    "@girs/gjs": "npm:^4.0.0-rc.8"
     "@gjsify/cli": "workspace:^"
     "@gjsify/runtime": "workspace:^"
     "@gjsify/unit": "workspace:^"
-    "@ts-for-gir/cli": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/generator-html-doc": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/generator-json": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/generator-typescript": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/lib": "npm:^4.0.0-rc.7"
+    "@ts-for-gir/cli": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/generator-html-doc": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/generator-json": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/generator-typescript": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.8"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"
   languageName: unknown
@@ -6730,85 +6796,106 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ts-for-gir/generator-base@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@ts-for-gir/generator-base@npm:4.0.0-rc.7"
+"@ts-for-gir/cli@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/cli@npm:4.0.0-rc.8"
   dependencies:
-    "@ts-for-gir/lib": "npm:^4.0.0-rc.7"
-  checksum: 10/db88394468fe2c732c6863ce2b8167234e45e98450c9db7f4f714a58a53bb76c0aab83295d280067382bdc074a567f2f5947bcaaef4ef9b970c0f9df85158094
-  languageName: node
-  linkType: hard
-
-"@ts-for-gir/generator-html-doc@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@ts-for-gir/generator-html-doc@npm:4.0.0-rc.7"
-  dependencies:
-    "@ts-for-gir/generator-base": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/generator-json": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/lib": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/typedoc-theme": "npm:^4.0.0-rc.7"
+    "@inquirer/prompts": "npm:^8.4.2"
+    "@ts-for-gir/templates": "npm:^4.0.0-rc.8"
+    colorette: "npm:^2.0.20"
+    cosmiconfig: "npm:^9.0.1"
+    ejs: "npm:^5.0.2"
+    glob: "npm:^13.0.6"
+    inquirer: "npm:^13.4.2"
     typedoc: "npm:^0.28.19"
-  checksum: 10/34e8f01fdfd38d6445353beac94345dc5a5bce2996806d56da01821c9a08023f4f5e602482b000435fe63b465fbbc64f485cb187ec87e177129f5d99cc3d9c64
+    yargs: "npm:^18.0.0"
+  bin:
+    cli: bin/ts-for-gir
+    ts-for-gir: bin/ts-for-gir
+    ts-for-gir-dev: bin/ts-for-gir-dev
+  checksum: 10/5bc7194a937be5a7ef6a24d8d0889ff3c1b5cec81d0be24a5d2da145b37536afcad67a5b70524ce739d56d3d457e1dc1b980b25e975b829536ea3ab4324a73b7
   languageName: node
   linkType: hard
 
-"@ts-for-gir/generator-json@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@ts-for-gir/generator-json@npm:4.0.0-rc.7"
+"@ts-for-gir/generator-base@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/generator-base@npm:4.0.0-rc.8"
   dependencies:
-    "@gi.ts/parser": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/generator-base": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/generator-typescript": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/gir-module-metadata": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/lib": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/reporter": "npm:^4.0.0-rc.7"
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.8"
+  checksum: 10/fff281c7bc97cbda5037faf9dd8787bc868d1a506329fdfb4a9f2ee628a58edf35bf525499ed59a7c127397fd7139c92096170b3e25dfea77125079f27106183
+  languageName: node
+  linkType: hard
+
+"@ts-for-gir/generator-html-doc@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/generator-html-doc@npm:4.0.0-rc.8"
+  dependencies:
+    "@ts-for-gir/generator-base": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/generator-json": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/typedoc-theme": "npm:^4.0.0-rc.8"
     typedoc: "npm:^0.28.19"
-  checksum: 10/08b6638d4fb16466218ac7be116e8f36430f5c5e8bf51da73b9e6833399cf63f329d49dfb66df293f5a7bf153b09f66913a438624f8b36f3810f906ca4237e29
+  checksum: 10/902dd4939f2ce884637f553fa3124b59313d27257396139da7a84041a894dbad2b6078160bd6a6f7f30437027c1fac74e63ce0069ddb7ca962c5bab4028a5b01
   languageName: node
   linkType: hard
 
-"@ts-for-gir/generator-typescript@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@ts-for-gir/generator-typescript@npm:4.0.0-rc.7"
+"@ts-for-gir/generator-json@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/generator-json@npm:4.0.0-rc.8"
   dependencies:
-    "@gi.ts/parser": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/generator-base": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/lib": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/templates": "npm:^4.0.0-rc.7"
+    "@gi.ts/parser": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/generator-base": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/generator-typescript": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/gir-module-metadata": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/reporter": "npm:^4.0.0-rc.8"
+    typedoc: "npm:^0.28.19"
+  checksum: 10/6bd9721dd185ca6f8b046ac2bae4e2b4a20fc4ff382703ddb91392ea83021277734855dfff2084abba664e50e4cfa19a85230e074eeeb765e8774327d35d288a
+  languageName: node
+  linkType: hard
+
+"@ts-for-gir/generator-typescript@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/generator-typescript@npm:4.0.0-rc.8"
+  dependencies:
+    "@gi.ts/parser": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/generator-base": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/templates": "npm:^4.0.0-rc.8"
     ejs: "npm:^5.0.2"
     xml2js: "npm:^0.6.2"
-  checksum: 10/6bb32697b7ece64e7f82c8bd8b87f79ca3ba815a870ead2fb75d87a3b8bc036f23c3156d791126644c1f5f11fac6f17f685f9a4f5bde9e2080087620405d7209
+  checksum: 10/4aec4c616f42af8338754f8ae30d98067aa39af0583bc71a0fd259e4bf2204d6f46159c67354fa50fdb8854b1193a35566a9217a6962e13974cf9af968f92456
   languageName: node
   linkType: hard
 
-"@ts-for-gir/gir-module-metadata@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@ts-for-gir/gir-module-metadata@npm:4.0.0-rc.7"
-  checksum: 10/6e9c64ee96fe7e4468b183842b8d96d0550f65cf7b74b65ec7455ec0c837f747820b5f5a85e5e0c4c0d56f3535526cedae8fb53d6f60873051b50fe2a1cfa5e6
+"@ts-for-gir/gir-module-metadata@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/gir-module-metadata@npm:4.0.0-rc.8"
+  checksum: 10/b373ddfdd8fcb3b4930f8bce8fb47b49bd83c179429600b0a9cedddccaf8cc0317bf2920054183e90bd207064d0fb10154bb4b86bc0b1c09d77ab9958403801a
   languageName: node
   linkType: hard
 
-"@ts-for-gir/lib@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@ts-for-gir/lib@npm:4.0.0-rc.7"
+"@ts-for-gir/lib@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/lib@npm:4.0.0-rc.8"
   dependencies:
-    "@gi.ts/parser": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/reporter": "npm:^4.0.0-rc.7"
-    "@ts-for-gir/templates": "npm:^4.0.0-rc.7"
+    "@gi.ts/parser": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/reporter": "npm:^4.0.0-rc.8"
+    "@ts-for-gir/templates": "npm:^4.0.0-rc.8"
     colorette: "npm:^2.0.20"
     ejs: "npm:^5.0.2"
     glob: "npm:^13.0.6"
     lodash: "npm:4.18.1"
-  checksum: 10/b9aa54981fafb1d697a4b8b3573a25273b6038524681328f373cb7bcc6b4394246f2d046e6dc354c271dc3f8dcea0d6fb91582a58a9b63b45d6f9d7319f0fae9
+  checksum: 10/d6b193dfe035e98886bb9a79755a0399fb4a2f911acd7cdde32621ff84c0aaaf1247b542aa01df58945f0a6cd1283011d31e29ecf4f86e715b8244f64825356c
   languageName: node
   linkType: hard
 
-"@ts-for-gir/reporter@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@ts-for-gir/reporter@npm:4.0.0-rc.7"
+"@ts-for-gir/reporter@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/reporter@npm:4.0.0-rc.8"
   dependencies:
     colorette: "npm:^2.0.20"
-  checksum: 10/70d83a71880b80cb91ab425ddf5c3b62d24cb1f7993c5c3784550be9c43149414fcfd9e92efd7f25c7bb3fda3d3f767822ebb1c68276e6bcf91de1cea397390d
+  checksum: 10/edab40d5a5f41b82d3133553288fd07381ad52a40e89cc84714b2d567171c6b05bf9f6ec62a08ffe8cc7ffd7e82df373a918cb0c8b0399be6cb821dde5a52128
   languageName: node
   linkType: hard
 
@@ -6819,13 +6906,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ts-for-gir/typedoc-theme@npm:^4.0.0-rc.7":
-  version: 4.0.0-rc.7
-  resolution: "@ts-for-gir/typedoc-theme@npm:4.0.0-rc.7"
+"@ts-for-gir/templates@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/templates@npm:4.0.0-rc.8"
+  checksum: 10/ce2c0d1a851578e9f725a5df2d40977caec1413073d19169121d45057f7de676e1dae7b8485ab434c1ee54dd9582112582d6e8f399277a88fd7a258d1bb305c7
+  languageName: node
+  linkType: hard
+
+"@ts-for-gir/typedoc-theme@npm:^4.0.0-rc.8":
+  version: 4.0.0-rc.8
+  resolution: "@ts-for-gir/typedoc-theme@npm:4.0.0-rc.8"
   dependencies:
     lunr: "npm:^2.3.9"
     typedoc: "npm:^0.28.19"
-  checksum: 10/70678e2e5e3d994339f8cd09b87e419d4be22da314b4d98cf2015a32a4c6a0e6feb876905803fa27de3b1a5d6a3609d5969055daca32a218aa4f2d3f055d08fe
+  checksum: 10/3d5383de44b8af77f7c9d8bceac7a918ad2f97b320a020c1b56105db565f356c8a17e84f599f030396eccdfbe96849d624ca1cd4a8d441fb0920b6a39750a939
   languageName: node
   linkType: hard
 
@@ -18125,10 +18219,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:4.4.1, zod@npm:^4.4.1":
-  version: 4.4.1
-  resolution: "zod@npm:4.4.1"
-  checksum: 10/e9c62dc846ed4c6ab5b062ffdc9ac7d38eadc41a921b71015f3a9d9ef6d3448c72ac93beb0015bd33d774e68e804e65840834101296950f5cbd7e3d64973f64c
+"zod@npm:4.3.6, zod@npm:^3.25 || ^4.0, zod@npm:^4.3.6":
+  version: 4.3.6
+  resolution: "zod@npm:4.3.6"
+  checksum: 10/25fc0f62e01b557b4644bf0b393bbaf47542ab30877c37837ea8caf314a8713d220c7d7fe51f68ffa72f0e1018ddfa34d96f1973d23033f5a2a5a9b6b9d9da01
   languageName: node
   linkType: hard
 
@@ -18139,10 +18233,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^3.25 || ^4.0, zod@npm:^4.3.6":
-  version: 4.3.6
-  resolution: "zod@npm:4.3.6"
-  checksum: 10/25fc0f62e01b557b4644bf0b393bbaf47542ab30877c37837ea8caf314a8713d220c7d7fe51f68ffa72f0e1018ddfa34d96f1973d23033f5a2a5a9b6b9d9da01
+"zod@npm:^4.4.1":
+  version: 4.4.1
+  resolution: "zod@npm:4.4.1"
+  checksum: 10/e9c62dc846ed4c6ab5b062ffdc9ac7d38eadc41a921b71015f3a9d9ef6d3448c72ac93beb0015bd33d774e68e804e65840834101296950f5cbd7e3d64973f64c
   languageName: node
   linkType: hard
 
