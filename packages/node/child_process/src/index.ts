@@ -8,7 +8,7 @@ import { EventEmitter } from 'node:events';
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
-import { gbytesToUint8Array, deferEmit } from '@gjsify/utils';
+import { gbytesToUint8Array, deferEmit, ensureMainLoop } from '@gjsify/utils';
 
 // Wraps a Gio.InputStream as a Node.js Readable so proc.stdout/stderr work
 // with standard stream consumers (.on('data', ...), pipe, async iteration).
@@ -227,6 +227,7 @@ function _exec(
   try {
     const proc = _spawnSubprocess([shell, '-c', command], flags, opts);
     child._setSubprocess(proc);
+    ensureMainLoop();
 
     proc.communicate_utf8_async(null, null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {
@@ -297,6 +298,7 @@ export function execFile(
   try {
     const proc = _spawnSubprocess([file, ..._args], flags, _opts);
     child._setSubprocess(proc);
+    ensureMainLoop();
 
     proc.communicate_utf8_async(null, null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {
@@ -401,6 +403,7 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
     const stderrPipe = proc.get_stderr_pipe();
     if (stderrPipe) child.stderr = new GioInputStreamReadable(stderrPipe);
 
+    ensureMainLoop();
     proc.wait_async(null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {
         proc.wait_finish(result);

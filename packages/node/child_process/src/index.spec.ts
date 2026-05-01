@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 // Testing the child_process module API — all commands are hardcoded safe literals
 import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
 
@@ -714,6 +714,32 @@ export default async () => {
 				setTimeout(() => reject(new Error('spawn stderr timeout')), 5000);
 			});
 			expect(output).toBe('err_stream');
+		});
+	});
+
+	await on('Gjs', async () => {
+		await describe('child_process.spawn — GJS-from-GJS', async () => {
+			await it('spawning a gjs child fires close with exit code 0', async () => {
+				// Minimal script that does nothing — gjs exits 0 naturally.
+				const code = await new Promise<number | null>((resolve, reject) => {
+					const child = spawn('gjs', ['-c', 'const x = 1;']);
+					child.on('close', resolve);
+					child.on('error', reject);
+					setTimeout(() => reject(new Error('gjs child did not close within 10 s')), 10_000);
+				});
+				expect(code).toBe(0);
+			});
+
+			await it('spawning a gjs child that throws fires close with non-zero exit code', async () => {
+				// Uncaught throw — gjs exits 1.
+				const code = await new Promise<number | null>((resolve, reject) => {
+					const child = spawn('gjs', ['-c', 'throw new Error("intentional")']);
+					child.on('close', resolve);
+					child.on('error', reject);
+					setTimeout(() => reject(new Error('gjs child did not close within 10 s')), 10_000);
+				});
+				expect(code).not.toBe(0);
+			});
 		});
 	});
 };
