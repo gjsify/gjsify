@@ -28,7 +28,7 @@ export default async () => {
                 const giveUpId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
                     loop.quit();
                     return GLib.SOURCE_REMOVE;
-                }, null);
+                });
 
                 widget.onReady((canvas) => {
                     GLib.source_remove(giveUpId);
@@ -36,7 +36,7 @@ export default async () => {
                         game = new ex.Engine({
                             canvasElement: canvas as any,
                             suppressPlayButton: true,
-                            
+
                         });
                     } catch (e) {
                         error = e;
@@ -68,7 +68,7 @@ export default async () => {
                 const giveUpId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10000, () => {
                     loop.quit();
                     return GLib.SOURCE_REMOVE;
-                }, null);
+                });
 
                 widget.onReady((canvas) => {
                     GLib.source_remove(giveUpId);
@@ -76,7 +76,7 @@ export default async () => {
                         game = new ex.Engine({
                             canvasElement: canvas as any,
                             suppressPlayButton: true,
-                            
+
                         });
                     } catch (e) {
                         error = e;
