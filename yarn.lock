@@ -1946,7 +1946,6 @@ __metadata:
   dependencies:
     "@gjsify/create-app": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
-    "@gjsify/example-dom-adwaita-package-builder": "workspace:^"
     "@gjsify/example-dom-canvas2d-fireworks": "workspace:^"
     "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^"
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
@@ -2267,9 +2266,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-dom-adwaita-package-builder@workspace:^, @gjsify/example-dom-adwaita-package-builder@workspace:showcases/dom/adwaita-package-builder":
+"@gjsify/example-dom-adwaita-package-builder@workspace:examples/dom/adwaita-package-builder":
   version: 0.0.0-use.local
-  resolution: "@gjsify/example-dom-adwaita-package-builder@workspace:showcases/dom/adwaita-package-builder"
+  resolution: "@gjsify/example-dom-adwaita-package-builder@workspace:examples/dom/adwaita-package-builder"
   dependencies:
     "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.8"
     "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.8"
