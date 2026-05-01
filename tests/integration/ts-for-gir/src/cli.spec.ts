@@ -1,22 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Validates that the @ts-for-gir/cli command tree (yargs + cosmiconfig + glob
 // + colorette + the lighter command modules) runs end-to-end on top of
-// @gjsify/* polyfills on BOTH Node and GJS.
+// @gjsify/* polyfills on Node and GJS.
 //
-// The suite spawns BOTH bundles (`dist/cli.node.mjs` and `dist/cli.gjs.mjs`)
-// as subprocesses from Node. Spawning from inside the GJS test runner would
-// be the natural counterpart but `@gjsify/child_process` (Gio.Subprocess)
-// currently hangs the parent's main loop when spawning another `gjs` and
-// waiting for `close`/`exit` events — tracked as a separate `@gjsify/*` gap
-// outside the scope of this PR. Spawning from Node still validates the GJS
-// bundle end-to-end: cold-starting `gjs -m <bundle>` exercises the entire
-// SpiderMonkey 128 module chain plus our `@gjsify/*` polyfills.
-//
-// On GJS the suite is gated via the runtime check below — re-running the
-// subprocess assertions would be redundant after Node has proven both
-// bundles work.
+// From Node: both bundles (dist/cli.node.mjs + dist/cli.gjs.mjs) are tested
+// as subprocesses.
+// From GJS: only the GJS bundle is tested — the Node bundle test spawns
+// `node`, which may not be in PATH inside a GNOME runtime. Phase 5 added
+// ensureMainLoop() to @gjsify/child_process.spawn() so spawning `gjs -m
+// <bundle>` from a GJS parent now works correctly.
 
-import { describe, expect, it } from '@gjsify/unit';
+import { describe, expect, it, on } from '@gjsify/unit';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -28,7 +22,6 @@ const CLI_NODE_BUNDLE = join(PROJECT_ROOT, 'dist', 'cli.node.mjs');
 const CLI_GJS_BUNDLE = join(PROJECT_ROOT, 'dist', 'cli.gjs.mjs');
 const GIRS_DIR = join(PROJECT_ROOT, 'girs');
 
-const isGjs = typeof (globalThis as { imports?: unknown }).imports !== 'undefined';
 // The CLI bundle is ~13–28 MB; cold-starting `gjs -m <bundle>` takes 5–10s
 // while it walks the bundle, registers the GLib MainLoop, and parses yargs
 // config. Generous budget so the test is not flaky under CI load.
@@ -159,13 +152,11 @@ function describeForBundle(bundle: RuntimeBundle): () => Promise<void> {
 }
 
 export default async () => {
-  if (isGjs) {
-    // Skip on GJS — `@gjsify/child_process` (Gio.Subprocess) currently hangs
-    // when the parent is also `gjs` and is waiting on the child's close/exit
-    // events. Both bundles are exercised from the Node side; re-running them
-    // here would be a no-op against the same on-disk artifacts.
-    return;
-  }
-  await describeForBundle(NODE_BUNDLE)();
+  // Node bundle spawns `node <bundle>` — requires `node` in PATH, not
+  // guaranteed in a GNOME runtime. Run from Node parent only.
+  await on('Node.js', async () => {
+    await describeForBundle(NODE_BUNDLE)();
+  });
+  // GJS bundle: runs from both Node and GJS parents (Phase 5).
   await describeForBundle(GJS_BUNDLE)();
 };
