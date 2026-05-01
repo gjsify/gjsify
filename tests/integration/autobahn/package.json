@@ -22,7 +22,7 @@
         "report:show": "echo 'Open reports/output/clients/index.html in a browser'"
     },
     "devDependencies": {
-        "@girs/gjs": "^4.0.0-rc.7",
+        "@girs/gjs": "^4.0.0-rc.8",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
