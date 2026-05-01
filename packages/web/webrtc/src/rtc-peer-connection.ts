@@ -520,7 +520,7 @@ export class RTCPeerConnection extends EventTarget {
             if (this._sctpTransport) this._sctpTransport._setState('closed');
             try { this._bridge.dispose_bridge(); } catch { /* ignore */ }
             return GLib.SOURCE_REMOVE;
-        }, null);
+        });
     }
 
     // ---- Media / Transceiver API (Phase 2) ----------------------------------

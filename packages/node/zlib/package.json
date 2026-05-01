@@ -30,8 +30,8 @@
         "zlib"
     ],
     "dependencies": {
-        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.8",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.8"
+        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.9",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.9"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

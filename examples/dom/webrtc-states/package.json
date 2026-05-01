@@ -13,10 +13,10 @@
     "build": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js"
   },
   "devDependencies": {
-    "@girs/adw-1": "^1.10.0-4.0.0-rc.8",
-    "@girs/gjs": "^4.0.0-rc.8",
-    "@girs/glib-2.0": "^2.88.0-4.0.0-rc.8",
-    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.8",
+    "@girs/adw-1": "^1.10.0-4.0.0-rc.9",
+    "@girs/gjs": "^4.0.0-rc.9",
+    "@girs/glib-2.0": "^2.88.0-4.0.0-rc.9",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.9",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",

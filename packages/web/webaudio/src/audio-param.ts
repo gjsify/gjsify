@@ -74,7 +74,7 @@ export class AudioParam {
             this._value += diff * factor;
             this._onChange?.(this._value);
             return GLib.SOURCE_CONTINUE;
-        }, null);
+        });
 
         return this;
     }

@@ -159,7 +159,7 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
   // NOT a GObject signal: do NOT pass a signal name as the first argument.
   cancellable.connect(() => {
     readable.destroy(new AbortError('The operation was aborted.'));
-  }, null);
+  });
 
   // Handle stream errors
   readable.on('error', (error: SystemError) => {

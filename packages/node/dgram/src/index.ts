@@ -555,7 +555,7 @@ export class Socket extends EventEmitter {
         }
       }
       return GLib.SOURCE_CONTINUE;
-    }, null);
+    });
     source.attach(null);
   }
 }

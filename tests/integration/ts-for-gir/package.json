@@ -20,16 +20,16 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@gi.ts/parser": "^4.0.0-rc.8",
-        "@girs/gjs": "^4.0.0-rc.8",
+        "@gi.ts/parser": "^4.0.0-rc.9",
+        "@girs/gjs": "^4.0.0-rc.9",
         "@gjsify/cli": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@ts-for-gir/cli": "^4.0.0-rc.8",
-        "@ts-for-gir/generator-html-doc": "^4.0.0-rc.8",
-        "@ts-for-gir/generator-json": "^4.0.0-rc.8",
-        "@ts-for-gir/generator-typescript": "^4.0.0-rc.8",
-        "@ts-for-gir/lib": "^4.0.0-rc.8",
+        "@ts-for-gir/cli": "^4.0.0-rc.9",
+        "@ts-for-gir/generator-html-doc": "^4.0.0-rc.9",
+        "@ts-for-gir/generator-json": "^4.0.0-rc.9",
+        "@ts-for-gir/generator-typescript": "^4.0.0-rc.9",
+        "@ts-for-gir/lib": "^4.0.0-rc.9",
         "@types/node": "^25.6.0",
         "typescript": "^6.0.3"
     },

@@ -45,15 +45,15 @@
         "long-poll"
     ],
     "dependencies": {
-        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.8",
-        "@girs/gjs": "^4.0.0-rc.8",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.8",
-        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.8",
-        "@girs/soup-3.0": "^3.6.6-4.0.0-rc.8"
+        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.9",
+        "@girs/gjs": "^4.0.0-rc.9",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.9",
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.9",
+        "@girs/soup-3.0": "^3.6.6-4.0.0-rc.9"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@ts-for-gir/cli": "^4.0.0-rc.8",
+        "@ts-for-gir/cli": "^4.0.0-rc.9",
         "@types/node": "^25.6.0",
         "typescript": "^6.0.3"
     }
