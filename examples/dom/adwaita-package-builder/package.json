@@ -38,5 +38,6 @@
         "@gjsify/esbuild-plugin-blueprint": "workspace:^",
         "@gjsify/esbuild-plugin-css": "workspace:^",
         "typescript": "^6.0.3"
-    }
+    },
+    "version": "0.2.0"
 }

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/perf_hooks",
-    "version": "0.1.15",
+    "version": "0.2.0",
     "description": "Node.js perf_hooks module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

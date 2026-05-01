@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/websocket",
-    "version": "0.1.15",
+    "version": "0.2.0",
     "description": "W3C WebSocket API for GJS using Soup 3.0",
     "type": "module",
     "module": "lib/esm/index.js",

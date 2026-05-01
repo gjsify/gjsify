@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/constants",
-    "version": "0.1.15",
+    "version": "0.2.0",
     "description": "Node.js constants module for Gjs (deprecated, re-exports from os/fs/crypto)",
     "type": "module",
     "module": "lib/esm/index.js",
