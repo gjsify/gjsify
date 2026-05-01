@@ -30,7 +30,11 @@ export class FSWatcher extends EventEmitter implements IFSWatcher {
     if (persistent) {
       // Add a never-firing timeout source to keep the mainloop alive.
       // This is a lightweight way to hold a ref on the main context.
-      sourceId = GLib.timeout_add(GLib.PRIORITY_LOW, 2147483647, () => GLib.SOURCE_CONTINUE, null);
+      sourceId = (GLib.timeout_add as unknown as (priority: number, interval: number, fn: () => boolean) => number)(
+        GLib.PRIORITY_LOW,
+        2147483647,
+        () => GLib.SOURCE_CONTINUE,
+      );
     }
 
     privates.set(this, {
@@ -64,7 +68,11 @@ export class FSWatcher extends EventEmitter implements IFSWatcher {
     const priv = privates.get(this);
     if (!priv.persistent && !priv.cancellable.is_cancelled()) {
       priv.persistent = true;
-      priv.sourceId = GLib.timeout_add(GLib.PRIORITY_LOW, 2147483647, () => GLib.SOURCE_CONTINUE, null);
+      priv.sourceId = (GLib.timeout_add as unknown as (priority: number, interval: number, fn: () => boolean) => number)(
+        GLib.PRIORITY_LOW,
+        2147483647,
+        () => GLib.SOURCE_CONTINUE,
+      );
     }
     return this;
   }
