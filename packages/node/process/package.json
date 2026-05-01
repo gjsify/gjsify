@@ -30,7 +30,8 @@
         "process"
     ],
     "dependencies": {
-        "@gjsify/events": "workspace:^"
+        "@gjsify/events": "workspace:^",
+        "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

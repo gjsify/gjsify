@@ -226,7 +226,7 @@ export const VideoBridge = GObject.registerClass(
                 this._hideTimerId = null;
                 this._controls?.bar.set_visible(false);
                 return GLib.SOURCE_REMOVE;
-            });
+            }, null);
         }
 
         _buildControlBar(): NonNullable<VideoBridge['_controls']> {
@@ -304,7 +304,7 @@ export const VideoBridge = GObject.registerClass(
                 if (controls.playBtn.get_icon_name() !== icon) controls.playBtn.set_icon_name(icon);
 
                 return GLib.SOURCE_CONTINUE;
-            });
+            }, null);
         }
 
         _stopPositionTimer(): void {

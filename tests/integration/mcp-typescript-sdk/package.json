@@ -17,7 +17,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "^4.0.0-rc.5",
+        "@girs/gjs": "^4.0.0-rc.8",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
@@ -25,7 +25,7 @@
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@types/node": "^25.6.0",
         "typescript": "^6.0.3",
-        "zod": "^4.3.6"
+        "zod": "4.3.6"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"

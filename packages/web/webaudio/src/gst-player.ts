@@ -155,7 +155,7 @@ export class GstPlayer {
             GLib.idle_add(GLib.PRIORITY_LOW, () => {
                 pipeline.set_state(Gst.State.NULL);
                 return GLib.SOURCE_REMOVE;
-            });
+            }, null);
         }
     }
 

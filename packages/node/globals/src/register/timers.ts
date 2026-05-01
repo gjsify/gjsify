@@ -59,7 +59,21 @@ class GjsifyTimeout {
     _schedule(): void {
         const GLib = getGLib();
         if (!GLib) return;
-        this._id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._delay, () => {
+        // The `@girs/glib-2.0` typings list `g_timeout_add` with a 4th
+        // `notify: DestroyNotify | null` parameter, but the GJS runtime
+        // introspection wraps it as 3-arg `(priority, interval, function)`
+        // (notify is auto-managed). Passing an explicit `null` triggers
+        // `Too many arguments to function GLib.timeout_add: expected 3,
+        // got 4` warnings on every scheduled tick — quiet on GJS 1.86+,
+        // but spammed by GJS 1.84 (Fedora 42), where the warning hot path
+        // slows the test runner enough to push 5-second timeouts over.
+        // Drop the `null` (cast away the typing-vs-runtime divergence).
+        const timeoutAdd = GLib.timeout_add.bind(GLib) as unknown as (
+            priority: number,
+            interval: number,
+            fn: () => boolean,
+        ) => number;
+        this._id = timeoutAdd(GLib.PRIORITY_DEFAULT, this._delay, () => {
             try {
                 this._callback.apply(globalThis, this._args as unknown[]);
             } catch (err) {

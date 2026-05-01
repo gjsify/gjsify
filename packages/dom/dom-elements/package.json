@@ -62,16 +62,16 @@
         "node"
     ],
     "dependencies": {
-        "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-rc.5",
-        "@girs/gjs": "^4.0.0-rc.5",
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.5",
+        "@girs/gdkpixbuf-2.0": "^2.0.0-4.0.0-rc.8",
+        "@girs/gjs": "^4.0.0-rc.8",
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.8",
         "@gjsify/abort-controller": "workspace:^",
         "@gjsify/canvas2d-core": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/fetch": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gst-1.0": "^1.28.1-4.0.0-rc.5",
+        "@girs/gst-1.0": "^1.28.1-4.0.0-rc.8",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.6.0",

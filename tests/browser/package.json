@@ -9,7 +9,7 @@
         "test:chromium": "playwright test --project=chromium"
     },
     "devDependencies": {
-        "@playwright/test": "^1.52.0",
+        "@playwright/test": "^1.59.1",
         "http-server": "^14.1.1"
     }
 }

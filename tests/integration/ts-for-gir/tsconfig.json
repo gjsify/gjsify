@@ -15,6 +15,10 @@
         "src/lib.spec.ts",
         "src/generator.spec.ts",
         "src/cli.spec.ts",
-        "src/cli.entry.ts"
+        "src/cli.entry.ts",
+        "src/stubs/typedoc.ts",
+        "src/stubs/inquirer-prompts.ts",
+        "src/stubs/generator-html-doc.ts",
+        "src/stubs/generator-json.ts"
     ]
 }
