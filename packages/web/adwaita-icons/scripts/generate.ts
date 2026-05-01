@@ -29,6 +29,7 @@ const CATEGORIES = [
 function toCamelCase(filename: string): string {
     return filename
         .replace(/\.svg$/, '')
+        .replace(/[^a-z0-9-]/gi, '-')
         .replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
 }
 
@@ -43,7 +44,7 @@ function processSvg(raw: string): string {
     return svg;
 }
 
-function generateCategory(category: string): { code: string; exports: string[] } {
+function generateCategory(category: string, seen: Set<string>): { code: string; exports: string[] } {
     const dir = join(SYMBOLIC_DIR, category);
     if (!existsSync(dir)) {
         return { code: '', exports: [] };
@@ -67,6 +68,11 @@ function generateCategory(category: string): { code: string; exports: string[] }
         const raw = readFileSync(join(dir, file), 'utf-8');
         const svg = processSvg(raw);
         const name = toCamelCase(file);
+        if (seen.has(name)) {
+            console.warn(`  ⚠ Skipping duplicate "${name}" in ${category} (already exported by an earlier category)`);
+            continue;
+        }
+        seen.add(name);
         exports.push(name);
         lines.push(`/** ${file.replace('.svg', '')} */`);
         lines.push(`export const ${name} = \`${svg.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;`);
@@ -81,9 +87,10 @@ function generateCategory(category: string): { code: string; exports: string[] }
 console.log(`Reading icons from: ${SYMBOLIC_DIR}`);
 
 const allExports: Map<string, string[]> = new Map();
+const seen = new Set<string>();
 
 for (const category of CATEGORIES) {
-    const { code, exports } = generateCategory(category);
+    const { code, exports } = generateCategory(category, seen);
     if (exports.length === 0) {
         console.log(`  ${category}: (empty, skipped)`);
         continue;

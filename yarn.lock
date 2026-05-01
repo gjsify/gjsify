@@ -1817,6 +1817,7 @@ __metadata:
   resolution: "@gjsify/adwaita-icons@workspace:packages/web/adwaita-icons"
   dependencies:
     tsx: "npm:^4.21.0"
+    typescript: "npm:^6.0.3"
   languageName: unknown
   linkType: soft
 
@@ -3953,6 +3954,7 @@ __metadata:
   dependencies:
     "@playwright/test": "npm:^1.59.1"
     http-server: "npm:^14.1.1"
+    typescript: "npm:^6.0.3"
   languageName: unknown
   linkType: soft
 
