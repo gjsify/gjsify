@@ -3086,6 +3086,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-node-cli-node-process@workspace:examples/node/cli-node-process":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-process@workspace:examples/node/cli-node-process"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/terminal-native": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-node-cli-node-url@workspace:examples/node/cli-node-url":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-node-cli-node-url@workspace:examples/node/cli-node-url"
