@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-05-02 — Added `@gjsify/terminal-native` optional Vala prebuild (Posix.isatty, ioctl TIOCGWINSZ, termios raw mode, SIGWINCH ResizeWatcher). `@gjsify/tty` and `@gjsify/process` now use native terminal primitives when installed, GLib/env fallback otherwise. E2E test suite `tests/e2e/terminal-native/` 16/16 green (with + without core module).
+> Last updated: 2026-05-02 — Three build infrastructure fixes: (1) `@gjsify/esbuild-plugin-deepkit` now defaults `reflection` to `false` instead of `true` (prevents `function extends()` invalid-JS in TypeScript codebases that use method named `extends`); (2) `@gjsify/esbuild-plugin-gjsify` GJS target now captures and merges user-supplied `inject` arrays instead of discarding them; (3) GJS target injects a synchronous `process` stub via esbuild `banner` so packages that access `globalThis.process.platform` at top-level (e.g. glob, path-scurry) no longer crash before any module init fires — the full `@gjsify/process` implementation is still wired up afterwards via `--globals auto`.
 
 ## Summary
 
@@ -362,6 +362,9 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### Completed
 
+- ~~**`esbuild-plugin-deepkit` reflection default**~~✓ — Changed default from `true` to `false`; opt-in per build. Prevents `function extends()` invalid-JS in TypeScript codebases with methods named `extends`.
+- ~~**`esbuild-plugin-gjsify` GJS target: user inject preservation**~~✓ — Plugin now captures user-supplied `inject` arrays from `.gjsifyrc.js` and merges them alongside the console shim and auto-globals inject instead of discarding them.
+- ~~**`esbuild-plugin-gjsify` GJS target: synchronous process stub banner**~~✓ — Plugin injects a minimal synchronous `globalThis.process` stub via esbuild `banner` (before any module code). Fixes npm packages that access `process.platform` at top-level (glob, path-scurry, readable-stream). The full `@gjsify/process` is still wired up via `--globals auto` for consumers that need the complete API.
 - ~~**Web Streams API**~~✓ — `@gjsify/web-streams` (72 tests). ReadableStream, WritableStream, TransformStream, TextEncoderStream, TextDecoderStream, queuing strategies.
 - ~~**WebCrypto (crypto.subtle)**~~✓ — `@gjsify/webcrypto` (42 tests). SubtleCrypto: digest, AES-CBC/CTR/GCM, HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, importKey/exportKey, generateKey.
 - ~~**EventSource**~~✓ — `@gjsify/eventsource` (24 tests). Server-Sent Events via fetch + Web Streams.

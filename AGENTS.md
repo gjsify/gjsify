@@ -148,6 +148,10 @@ Targets: **GJS** `--app gjs` (`assert`→`@gjsify/assert`, externals `gi://*`+`c
 
 Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `.../utils/scan-globals.ts` | `packages/infra/resolve-npm/lib/{index,globals-map}.mjs`
 
+**Deepkit** (`@gjsify/esbuild-plugin-deepkit`): TypeScript runtime reflection via `@deepkit/type-compiler`. Default: `reflection: false` (opt-in). Set `typescript.reflection: true` in `.gjsifyrc.js` to enable. Keep disabled unless the project explicitly uses Deepkit runtime types — it transforms TypeScript `extends` method definitions into invalid `function extends()` syntax that breaks the parser.
+
+**GJS target process bootstrap** (`packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts`): The GJS target always injects a minimal synchronous `globalThis.process` stub via esbuild `banner`. This runs before any bundled module code — including esbuild helpers. Required because packages like `glob` and `path-scurry` access `globalThis.process.platform` at top-level during `__esm` lazy init, before any import-triggered side effect can fire. The full `@gjsify/process` implementation is wired up afterwards by `--globals auto`. User banners from `.gjsifyrc.js` are appended after the process stub.
+
 **Blueprint** (`@gjsify/esbuild-plugin-blueprint`): `.blp` → XML string via `blueprint-compiler`. GJS+browser. `import T from './window.blp'` → string. Types: add `@gjsify/esbuild-plugin-blueprint/types` to tsconfig.
 
 **CSS** (`@gjsify/esbuild-plugin-css`): bundles `.css` imports, resolves `@import` from workspace+node_modules via esbuild (honors `package.json#exports`). Required for GTK `Gtk.CssProvider.load_from_string(applicationStyle)` — otherwise `@import`s survive into bundled string, GTK CSS parser fails on node_modules paths. All targets. `import css from './app.css'` → string. Config: `PluginOptions.css` forwards `{minify,target}`. **GTK4 CSS lowering:** GJS target defaults `css.target=['firefox60']` → flattens CSS Nesting (`.p{&:hover{}}` → `.p:hover{}`); preserves `var()`, `calc()`, `:is()`, `:where()`, `:not()`. Override via `gjsify.config.js`. Browser/node inherit parent target.
