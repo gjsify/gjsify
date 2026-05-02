@@ -250,13 +250,37 @@ const startTime = Date.now();
 
 class ProcessWriteStream extends EventEmitter {
   readonly fd: number;
+  // Required by Stream.pipe(): without this, pipe skips dest.write() entirely.
+  writable = true;
+  private _outGio: any = null;
 
   constructor(fd: number) {
     super();
     this.fd = fd;
+    // GioUnix.OutputStream (GJS ≥ 1.88) / Gio.UnixOutputStream (older):
+    // write raw bytes without the implicit newline that console.log/print add.
+    const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
+    if (_gi) {
+      let gio: any = null;
+      try { gio = (_gi as any)['GioUnix']; } catch { /* try Gio */ }
+      if (!gio) { try { gio = (_gi as any)['Gio']; } catch { /* absent */ } }
+      if (gio) {
+        const Cls = gio.OutputStream ?? gio.UnixOutputStream;
+        if (Cls) { try { this._outGio = Cls.new(this.fd, false); } catch { /* fallback */ } }
+      }
+    }
   }
 
-  write(data: string): boolean {
+  write(data: string | Uint8Array): boolean {
+    if (this._outGio) {
+      try {
+        const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+        this._outGio.write_all(bytes, null);
+        return true;
+      } catch { /* fall through to console fallback */ }
+    }
+    // Fallback (Node.js or GJS without Gio): console adds a trailing newline
+    // which breaks terminal UI, but is acceptable for simple logging scenarios.
     if (this.fd === 2) {
       console.error(data);
     } else {
@@ -308,14 +332,16 @@ class ProcessWriteStream extends EventEmitter {
 class ProcessReadStream extends EventEmitter {
   readonly fd: number;
   isRaw = false;
-  // @inquirer/core checks `'readableFlowing' in input` to distinguish real
-  // Readable streams from legacy streams — expose the property so it
-  // defers the first render cycle by one setImmediate tick.
-  readableFlowing: boolean | null = null;
+  // Do NOT expose `readableFlowing` as an instance property: @inquirer/core uses
+  // `'readableFlowing' in input` to defer startCycle() via setImmediate.
+  // In GJS, setImmediate fires as a microtask — fine for TTY, but the property
+  // must stay absent so @inquirer/core calls startCycle() on its own schedule.
+  // Flow state is tracked internally via `_flowing`.
 
   private _gio: any = null;
   private _stdinGio: any = null;
   private _reading = false;
+  private _flowing = false;
 
   constructor(fd: number) {
     super();
@@ -347,7 +373,7 @@ class ProcessReadStream extends EventEmitter {
   setEncoding(_enc: string): this { return this; }
 
   resume(): this {
-    this.readableFlowing = true;
+    this._flowing = true;
     if (this._gio && this.fd === 0 && !this._reading) {
       this._startReading();
     }
@@ -355,7 +381,7 @@ class ProcessReadStream extends EventEmitter {
   }
 
   pause(): this {
-    this.readableFlowing = false;
+    this._flowing = false;
     this._reading = false;
     return this;
   }
@@ -370,8 +396,11 @@ class ProcessReadStream extends EventEmitter {
     this._reading = true;
 
     if (!this._stdinGio) {
+      // GioUnix (GJS ≥ 1.88): class is InputStream.  Gio (older): UnixInputStream.
+      const Cls = (this._gio as any).InputStream ?? (this._gio as any).UnixInputStream;
+      if (!Cls) { this._reading = false; return; }
       try {
-        this._stdinGio = (this._gio as any).UnixInputStream.new(this.fd, false);
+        this._stdinGio = Cls.new(this.fd, false);
       } catch {
         this._reading = false;
         return;

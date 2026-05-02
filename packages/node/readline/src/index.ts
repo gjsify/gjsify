@@ -28,6 +28,9 @@ export class Interface extends EventEmitter {
 
   private _input: Readable | null;
   private _output: Writable | null;
+
+  get input(): Readable | null { return this._input; }
+  get output(): Writable | null { return this._output; }
   private _prompt: string;
   private _closed = false;
   private _paused = false;
