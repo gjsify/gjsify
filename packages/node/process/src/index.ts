@@ -308,10 +308,27 @@ class ProcessWriteStream extends EventEmitter {
 class ProcessReadStream extends EventEmitter {
   readonly fd: number;
   isRaw = false;
+  // @inquirer/core checks `'readableFlowing' in input` to distinguish real
+  // Readable streams from legacy streams — expose the property so it
+  // defers the first render cycle by one setImmediate tick.
+  readableFlowing: boolean | null = null;
+
+  private _gio: any = null;
+  private _stdinGio: any = null;
+  private _reading = false;
 
   constructor(fd: number) {
     super();
     this.fd = fd;
+    // GioUnix.InputStream (GJS ≥ 1.88) supersedes Gio.UnixInputStream.
+    // Fall back to Gio for older runtimes.
+    const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
+    if (_gi) {
+      try { this._gio = (_gi as any)['GioUnix']; } catch { /* try Gio fallback */ }
+      if (!this._gio) {
+        try { this._gio = (_gi as any)['Gio']; } catch { /* typelib absent */ }
+      }
+    }
   }
 
   get isTTY(): boolean {
@@ -327,9 +344,68 @@ class ProcessReadStream extends EventEmitter {
     return this;
   }
 
-  resume(): this { return this; }
-  pause(): this { return this; }
+  setEncoding(_enc: string): this { return this; }
+
+  resume(): this {
+    this.readableFlowing = true;
+    if (this._gio && this.fd === 0 && !this._reading) {
+      this._startReading();
+    }
+    return this;
+  }
+
+  pause(): this {
+    this.readableFlowing = false;
+    this._reading = false;
+    return this;
+  }
+
   read(): null { return null; }
+
+  // Asynchronous byte-level read loop via Gio.UnixInputStream.
+  // Each chunk is emitted as a 'data' event so readline / @inquirer/core
+  // can parse keypress sequences from raw terminal input.
+  private _startReading(): void {
+    if (!this._gio || this._reading) return;
+    this._reading = true;
+
+    if (!this._stdinGio) {
+      try {
+        this._stdinGio = (this._gio as any).UnixInputStream.new(this.fd, false);
+      } catch {
+        this._reading = false;
+        return;
+      }
+    }
+
+    const loop = () => {
+      if (!this._reading) return;
+      (this._stdinGio as any).read_bytes_async(
+        4096,
+        0, // GLib.PRIORITY_DEFAULT
+        null,
+        (src: any, res: any) => {
+          try {
+            const bytes = (src as any).read_bytes_finish(res);
+            const data: Uint8Array | null = bytes?.get_data?.() ?? null;
+            if (data && data.byteLength > 0) {
+              this.emit('data', Buffer.from(data));
+            } else if (data !== null && data.byteLength === 0) {
+              // EOF
+              this._reading = false;
+              this.emit('end');
+              return;
+            }
+          } catch {
+            this._reading = false;
+            return;
+          }
+          if (this._reading) loop();
+        },
+      );
+    };
+    loop();
+  }
 }
 
 // Use GLib.get_monotonic_time() for hrtime if available
