@@ -1,9 +1,12 @@
 // Node.js tty module for GJS
 // Reference: Node.js lib/tty.js
 // Uses ANSI escape sequences for terminal control.
+// When @gjsify/terminal-native is installed, upgrades isatty / getWindowSize /
+// setRawMode from stubs to real Posix.isatty / ioctl(TIOCGWINSZ) / termios.
 
 import { Writable, Readable } from 'node:stream';
 import GLib from '@girs/glib-2.0';
+import { nativeTerminal } from '@gjsify/terminal-native';
 
 export class ReadStream extends Readable {
   isRaw = false;
@@ -19,6 +22,9 @@ export class ReadStream extends Readable {
   }
 
   setRawMode(mode: boolean) {
+    if (nativeTerminal) {
+      nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+    }
     if (this.isRaw !== mode) {
       this.isRaw = mode;
       this.emit('modeChange');
@@ -29,11 +35,13 @@ export class ReadStream extends Readable {
 
 export class WriteStream extends Writable {
   isRaw = false;
-  columns = 80;
-  rows = 24;
   readonly fd: number;
 
   protected _print = console.log;
+
+  // Mutable backing fields — updated by _detectSize() and _changeColumns/Rows.
+  private _columns = 80;
+  private _rows = 24;
 
   constructor(fd: number) {
     super();
@@ -45,8 +53,40 @@ export class WriteStream extends Writable {
     return isatty(this.fd);
   }
 
-  /** Detect terminal size from environment or defaults. */
+  get columns(): number {
+    if (nativeTerminal) {
+      const [ok, , cols] = nativeTerminal.Terminal.get_size(this.fd);
+      if (ok && cols > 0) return cols;
+    }
+    return this._columns;
+  }
+
+  set columns(v: number) {
+    this._columns = v;
+  }
+
+  get rows(): number {
+    if (nativeTerminal) {
+      const [ok, rows] = nativeTerminal.Terminal.get_size(this.fd);
+      if (ok && rows > 0) return rows;
+    }
+    return this._rows;
+  }
+
+  set rows(v: number) {
+    this._rows = v;
+  }
+
+  /** Detect terminal size from environment or native ioctl. */
   private _detectSize(): void {
+    if (nativeTerminal) {
+      const [ok, rows, cols] = nativeTerminal.Terminal.get_size(this.fd);
+      if (ok && cols > 0) {
+        this._columns = cols;
+        this._rows = rows;
+        return;
+      }
+    }
     const cols = parseInt(
       (globalThis as any).process?.env?.COLUMNS ||
       (typeof GLib !== 'undefined' ? GLib.getenv('COLUMNS') : '') || '0',
@@ -57,8 +97,8 @@ export class WriteStream extends Writable {
       (typeof GLib !== 'undefined' ? GLib.getenv('LINES') : '') || '0',
       10,
     );
-    if (cols > 0) this.columns = cols;
-    if (rows > 0) this.rows = rows;
+    if (cols > 0) this._columns = cols;
+    if (rows > 0) this._rows = rows;
   }
 
   /**
@@ -180,6 +220,9 @@ export class WriteStream extends Writable {
   }
 
   setRawMode(mode: boolean) {
+    if (nativeTerminal) {
+      nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+    }
     if (this.isRaw !== mode) {
       this.isRaw = mode;
       this.emit('modeChange');
@@ -193,15 +236,15 @@ export class WriteStream extends Writable {
   }
 
   _changeColumns(columns: number) {
-    if (columns !== this.columns) {
-      this.columns = columns;
+    if (columns !== this._columns) {
+      this._columns = columns;
       this.emit('resize');
     }
   }
 
   _changeRows(rows: number) {
-    if (rows !== this.rows) {
-      this.rows = rows;
+    if (rows !== this._rows) {
+      this._rows = rows;
       this.emit('resize');
     }
   }
@@ -209,14 +252,17 @@ export class WriteStream extends Writable {
 
 /**
  * Check if a file descriptor refers to a TTY.
- * Uses GLib.log_writer_supports_color() as a reliable TTY proxy: if a fd supports
- * ANSI colors it is connected to an interactive terminal.
+ * Uses Posix.isatty() when @gjsify/terminal-native is installed (accurate).
+ * Falls back to GLib.log_writer_supports_color() as a reliable TTY proxy.
  */
 export function isatty(fd: number | ReadStream | WriteStream): boolean {
   if (fd instanceof ReadStream || fd instanceof WriteStream) {
     return isatty(fd.fd);
   }
   if (typeof fd === 'number') {
+    if (nativeTerminal) {
+      return nativeTerminal.Terminal.is_tty(fd);
+    }
     return GLib.log_writer_supports_color(fd);
   }
   return false;

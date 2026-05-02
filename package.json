@@ -63,6 +63,7 @@
     "tests/browser",
     "tests/dom/*",
     "tests/integration/*",
+    "tests/e2e/*",
     "website"
   ]
 }

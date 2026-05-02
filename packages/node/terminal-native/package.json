@@ -1,0 +1,58 @@
+{
+    "name": "@gjsify/terminal-native",
+    "version": "0.2.0",
+    "description": "Optional Vala/GObject bridge providing Posix.isatty(), ioctl(TIOCGWINSZ), termios raw-mode and SIGWINCH for GJS. Enhances @gjsify/tty and @gjsify/process with correct terminal behaviour when installed.",
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "prebuilds",
+        "meson.build",
+        "src/vala"
+    ],
+    "gjsify": {
+        "prebuilds": "prebuilds"
+    },
+    "keywords": [
+        "gjs",
+        "terminal",
+        "tty",
+        "isatty",
+        "ioctl",
+        "termios",
+        "raw-mode",
+        "sigwinch",
+        "vala",
+        "native"
+    ],
+    "scripts": {
+        "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
+        "build:types": "tsc",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "yarn init:meson --wipe",
+        "build:meson": "yarn init:meson && meson compile -C build",
+        "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifyterminal.so build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib prebuilds/linux-x86_64/",
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x86_64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyTerminal-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
+    },
+    "dependencies": {
+        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.9",
+        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.9"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@ts-for-gir/cli": "^4.0.0-rc.9",
+        "@types/node": "^25.6.0",
+        "typescript": "^6.0.3"
+    }
+}

@@ -1,15 +1,15 @@
 # gjsify — Project Status
 
-> Last updated: 2026-05-01 (Phase 5: fixed `@gjsify/child_process` GJS-from-GJS deadlock — `ensureMainLoop()` added to `spawn`, `_exec`, and `execFile` so GLib async callbacks dispatch in any GJS context. `cli.spec.ts` GJS-skip guard removed; GJS bundle tests now run from GJS parent. ts-for-gir: Node 229/229, GJS 199/199. child_process: 118/118.)
+> Last updated: 2026-05-02 — Added `@gjsify/terminal-native` optional Vala prebuild (Posix.isatty, ioctl TIOCGWINSZ, termios raw mode, SIGWINCH ResizeWatcher). `@gjsify/tty` and `@gjsify/process` now use native terminal primitives when installed, GLib/env fallback otherwise. E2E test suite `tests/e2e/terminal-native/` 16/16 green (with + without core module).
 
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
-The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages** (+1 meta), **8 DOM/bridge packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **43 Node.js packages** (+1 meta), **19 Web API packages** (+1 meta), **8 DOM/bridge packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 42 | 34 (81%) | 5 (12%) | 4 (10%) |
+| Node.js APIs | 43 | 35 (81%) | 5 (12%) | 4 (9%) |
 | Node.js meta | 1 | 1 | — | — |
 | Web APIs | 19 | 17 (89%) | 2 (11%) | — |
 | Web meta | 1 | 1 | — | — |
@@ -50,7 +50,7 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **os** | GLib | 276 | homedir, hostname, cpus, platform, arch, type, release, endianness, EOL, devNull, availableParallelism, userInfo, networkInterfaces, constants (signals/errno), loadavg, uptime, memory |
 | **path** | — | 432 | POSIX + Win32 (1,052 lines total) |
 | **perf_hooks** | — | 115 | performance (now, timeOrigin, mark/measure, getEntries/ByName/ByType, clearMarks/clearMeasures, toJSON), monitorEventLoopDelay, PerformanceObserver, eventLoopUtilization, timerify |
-| **process** | GLib | 143 (2 specs) | EventEmitter-based, env (CRUD, enumerate, coerce), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint (**monotonicity, diff**), memoryUsage (**field validation**), nextTick (**FIFO ordering, args**), exit/kill, config, execArgv, cpuUsage (**delta**), **signal handler registration**, **stdout/stderr write methods**, **emitWarning** |
+| **process** | GLib, GjsifyTerminal | 143 (2 specs) | EventEmitter-based, env (CRUD, enumerate, coerce), cwd/chdir, platform, arch, pid/ppid, version/versions, argv, hrtime/hrtime.bigint (**monotonicity, diff**), memoryUsage (**field validation**), nextTick (**FIFO ordering, args**), exit/kill, config, execArgv, cpuUsage (**delta**), **signal handler registration**, **stdout/stderr write methods**, **emitWarning**; stdin/stdout/stderr as ProcessReadStream/ProcessWriteStream with `isTTY`, `setRawMode`, `columns`/`rows` via `@gjsify/terminal-native` (native) or env/GLib fallback; SIGWINCH→stdout/stderr 'resize' |
 | **querystring** | — | 471 | parse/stringify with full encoding |
 | **readline** | — | 145 (2 specs) | Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor, **readline/promises** (createInterface, question→Promise) |
 | **stream** | — | 509 (7 specs) | Readable, Writable, Duplex, Transform (**_flush** edge cases, constructor options, objectMode, split HWM, destroy, final/flush ordering, ERR_MULTIPLE_CALLBACK), PassThrough, objectMode, backpressure (**drain events**, **HWM=0**), **pipe** (event, cleanup, error handling, multiple dest, unpipe, same dest twice, needDrain, objectMode→non-objectMode), **inheritance** (instanceof hierarchy, util.inherits single/multi-level, stream subclassing), destroy, **pipeline** (error propagation, multi-stream), **finished** (premature close, cleanup), **addAbortSignal**, **Readable.from** (array/generator/async generator/string/Buffer), consumers (text/json/buffer/blob/arrayBuffer), promises (pipeline/finished), **async iteration**, **_readableState/_writableState** (highWaterMark, objectMode, pipes), **Symbol.hasInstance** (Duplex/Transform/PassThrough instanceof Writable) |
@@ -58,15 +58,17 @@ The project comprises **42 Node.js packages** (+1 meta), **19 Web API packages**
 | **sys** | — | 7 | Deprecated Node alias — re-exports `@gjsify/util` |
 | **timers** | — | 88 (3 specs) | setTimeout/setInterval/setImmediate (**delay verification, args, clear, ordering**) + timers/promises |
 | **tls** | Gio, GLib | 132 | TLSSocket (encrypted, getPeerCertificate, getProtocol, getCipher, **ALPN**), **connect with TLS handshake**, createServer/TLSServer, createSecureContext, **checkServerIdentity** (CN, wildcard, SAN DNS/IP, FQDN, edge cases, error properties), **getCiphers**, DEFAULT_CIPHERS, rootCertificates |
-| **tty** | — | 29 | ReadStream/WriteStream, isatty (various fds), ANSI, clearLine, cursorTo, getColorDepth (env-based), hasColors, getWindowSize |
+| **terminal-native** | GjsifyTerminal (Vala) | 16 (e2e) | Optional Vala prebuild: `GjsifyTerminal.Terminal.is_tty(fd)` (Posix.isatty), `get_size(fd, out rows, out cols, ...)` (ioctl TIOCGWINSZ), `set_raw_mode(fd, bool)` (termios ICANON+ECHO). `ResizeWatcher`: `resized(rows,cols)` signal on SIGWINCH. Loaded via synchronous `imports.gi.GjsifyTerminal` try/catch — GLib/env fallback when not installed. Ships as `.so`+`.typelib` in `prebuilds/linux-x86_64/`. E2E: 16/16 (with + without native). |
+| **tty** | GjsifyTerminal | 29 | ReadStream/WriteStream, isatty (Posix or GLib fallback), ANSI, clearLine, cursorTo, getColorDepth (env-based), hasColors, getWindowSize (ioctl or env/default fallback), setRawMode (termios or no-op fallback) — all terminal primitives via `@gjsify/terminal-native` when installed |
 | **url** | GLib | 278 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 245 (2 specs) | inspect (**colors, styles, custom symbol, defaultOptions**, edge cases), format (%%, %s/%d/%j/%i/%f, args), promisify (**custom symbol**), callbackify, deprecate, inherits (**super_**), isDeepStrictEqual, **types** (isDate/RegExp/Map/Set/Promise/ArrayBuffer/TypedArray/Async/Generator/WeakMap/WeakSet/DataView), TextEncoder/TextDecoder |
 | **zlib** | — | 102 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors, sync methods, double compression, consistency |
 
-### Native HTTP Bridge
+### Native Bridges
 
 | Package | GNOME Libs | Description |
 |---------|-----------|-------------|
+| **@gjsify/terminal-native** (Vala) | Linux/Posix (Vala VAPIs) | Optional Vala prebuild providing real Linux terminal syscalls to `@gjsify/tty` and `@gjsify/process`. `Terminal` class: `is_tty(fd)` → `Posix.isatty()`, `get_size(fd, out rows, out cols, out xpixel, out ypixel)` → `ioctl(TIOCGWINSZ)`, `set_raw_mode(fd, enable)` → `tcgetattr/tcsetattr` (ICANON+ECHO). `ResizeWatcher` class: `resized(rows, cols)` GObject signal wired to SIGWINCH via `GLib.Unix.signal_add()`. TypeScript wrapper: synchronous `imports.gi.GjsifyTerminal` with try/catch — safe when typelib not installed, no crash. Consumers see native behaviour when installed, GLib/env fallback otherwise. Ships as `.so`+`.typelib` in `prebuilds/linux-x86_64/`. CI builds pending (add to `.github/workflows/prebuilds.yml`). |
 | **@gjsify/http-soup-bridge** (Vala) | Soup 3.0 | Vala/GObject library consumed by `@gjsify/http`. Wraps `Soup.Server` + `SoupServerMessage` and exposes JS only through plain GObject classes whose lifetime SpiderMonkey GC cannot race against. Solves two libsoup GC crashes: (1) `BoxedBase::finalize → g_source_unref` SIGSEGV from deferred-GC on in-flight Soup messages, (2) `g_main_context_unref` assertion from shared `GMainContext` ref imbalance. Contains `Server` (wraps `Soup.Server`, emits `request-received` / `upgrade` / `error-occurred` signals), `Request` (read-side snapshot — method, url, headers, `get_body()`), `Response` (write side, owns `SoupServerMessage` C-side including all pause/unpause bookkeeping), and a peer-close watcher (`g_socket_create_source(IN|HUP|ERR)` + non-blocking `MSG_PEEK` probe — capability unreachable from JS because `Gio.Socket.receive_message` is not introspectable). Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/`; CI (`.github/workflows/prebuilds.yml`) rebuilds on Vala source changes (native runners for x86_64/aarch64; QEMU via `uraimo/run-on-arch-action` for ppc64/s390x/riscv64). |
 
 ### Meta package
@@ -328,6 +330,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **Manette 0.2** | gamepad (libmanette monitor + devices) |
 | **`@gjsify/webrtc-native` (Vala)** | webrtc (main-thread signal bridges for webrtcbin / data channels / Gst.Promise) |
 | **`@gjsify/http-soup-bridge` (Vala)** | http (libsoup server bridge — GC-safe SoupServerMessage lifetime, SSE/long-poll peer-close detection via `g_socket_create_source`) |
+| **`@gjsify/terminal-native` (Vala)** | tty, process (optional terminal syscalls — Posix.isatty, ioctl TIOCGWINSZ, termios raw mode, SIGWINCH; GLib/env fallback when not installed) |
 
 ---
 
@@ -335,8 +338,8 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Metric | Value |
 |--------|-------|
-| Total Node.js packages | 42 + 1 meta |
-| Fully implemented | 34 (81%) |
+| Total Node.js packages | 43 + 1 meta |
+| Fully implemented | 35 (81%) |
 | Partially implemented | 6 (14%) — sqlite, ws, worker_threads, http2, vm, v8 |
 | Stubs | 3 (7%) — cluster, domain, inspector |
 | Web API packages | 19 + 1 meta (17 full, 2 partial) |

@@ -3,6 +3,7 @@
 
 import { EventEmitter } from '@gjsify/events';
 import { ensureMainLoop, quitMainLoop } from '@gjsify/utils';
+import { nativeTerminal } from '@gjsify/terminal-native';
 
 type ProcessPlatform = NodeJS.Platform;
 type ProcessArch = NodeJS.Architecture;
@@ -243,6 +244,94 @@ function getPid(): number {
 
 const startTime = Date.now();
 
+// Minimal EventEmitter-backed streams for process.stdout/stderr/stdin.
+// Full stream semantics live in @gjsify/tty; these provide the subset that
+// most npm packages need: write(), fd, isTTY, columns, rows, setRawMode().
+
+class ProcessWriteStream extends EventEmitter {
+  readonly fd: number;
+
+  constructor(fd: number) {
+    super();
+    this.fd = fd;
+  }
+
+  write(data: string): boolean {
+    if (this.fd === 2) {
+      console.error(data);
+    } else {
+      console.log(data);
+    }
+    return true;
+  }
+
+  get isTTY(): boolean {
+    if (nativeTerminal) return nativeTerminal.Terminal.is_tty(this.fd);
+    try {
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
+      if (GLib) return !!(GLib as any).log_writer_supports_color(this.fd);
+    } catch { /* ignore */ }
+    return false;
+  }
+
+  get columns(): number {
+    if (nativeTerminal) {
+      const [ok, , cols] = nativeTerminal.Terminal.get_size(this.fd);
+      if (ok && cols > 0) return cols;
+    }
+    try {
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
+      if (GLib) {
+        const c = parseInt((GLib as any).getenv('COLUMNS') ?? '0', 10);
+        if (c > 0) return c;
+      }
+    } catch { /* ignore */ }
+    return 80;
+  }
+
+  get rows(): number {
+    if (nativeTerminal) {
+      const [ok, rows] = nativeTerminal.Terminal.get_size(this.fd);
+      if (ok && rows > 0) return rows;
+    }
+    try {
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
+      if (GLib) {
+        const r = parseInt((GLib as any).getenv('LINES') ?? '0', 10);
+        if (r > 0) return r;
+      }
+    } catch { /* ignore */ }
+    return 24;
+  }
+}
+
+class ProcessReadStream extends EventEmitter {
+  readonly fd: number;
+  isRaw = false;
+
+  constructor(fd: number) {
+    super();
+    this.fd = fd;
+  }
+
+  get isTTY(): boolean {
+    if (nativeTerminal) return nativeTerminal.Terminal.is_tty(this.fd);
+    return false;
+  }
+
+  setRawMode(mode: boolean): this {
+    if (nativeTerminal) {
+      nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+    }
+    this.isRaw = mode;
+    return this;
+  }
+
+  resume(): this { return this; }
+  pause(): this { return this; }
+  read(): null { return null; }
+}
+
 // Use GLib.get_monotonic_time() for hrtime if available
 function getMonotonicTime(): bigint {
   try {
@@ -469,12 +558,11 @@ class Process extends EventEmitter {
     return { user: 0, system: 0 };
   }
 
-  // Stub: stdout/stderr/stdin — these need stream to be implemented fully
   // Note: Cannot check globalThis.process.stdout here — on GJS globalThis.process
   // IS this instance, so that would cause infinite recursion.
-  readonly stdout: { write: (data: string) => boolean; fd: number } = { write: (data: string) => { console.log(data); return true; }, fd: 1 };
-  readonly stderr: { write: (data: string) => boolean; fd: number } = { write: (data: string) => { console.error(data); return true; }, fd: 2 };
-  readonly stdin: { fd: number } = { fd: 0 };
+  readonly stdout = new ProcessWriteStream(1);
+  readonly stderr = new ProcessWriteStream(2);
+  readonly stdin = new ProcessReadStream(0);
 
   abort(): void {
     this.exit(1);
@@ -498,6 +586,21 @@ class Process extends EventEmitter {
 
 // Create singleton process instance
 const process = new Process();
+
+// Wire SIGWINCH → process.stdout.emit('resize') when native terminal is available.
+// Runs only on GJS (nativeTerminal is null on Node.js).
+if (nativeTerminal) {
+  try {
+    const watcher = new nativeTerminal.ResizeWatcher();
+    watcher.connect('resized', (_obj: any, rows: number, cols: number) => {
+      // Re-emit on both streams; consumers (chalk, inquirer) listen on stdout.
+      process.stdout.emit('resize');
+      process.stderr.emit('resize');
+      void rows; void cols; // captured in getters, no need to cache here
+    });
+    watcher.start();
+  } catch { /* ignore if ResizeWatcher instantiation fails */ }
+}
 
 // Re-export everything
 export const platform = process.platform;
