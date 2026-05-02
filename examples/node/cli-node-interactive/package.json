@@ -1,0 +1,33 @@
+{
+  "name": "@gjsify/example-node-cli-node-interactive",
+  "description": "Interactive CLI demonstrating @inquirer/prompts and yargs on both Node.js and GJS",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "yarn start:node",
+    "start:gjs": "gjsify run dist/index.gjs.js",
+    "start:node": "node dist/index.node.mjs",
+    "build": "yarn build:gjs && yarn build:node",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
+    "test": "yarn build && echo 'Interactive example built successfully (run yarn start to use interactively)'"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@inquirer/prompts": "^8.4.2",
+    "@types/node": "^25.6.0",
+    "@types/yargs": "^17.0.35",
+    "typescript": "^6.0.3",
+    "yargs": "^18.0.0"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "private": true,
+  "version": "0.2.0"
+}

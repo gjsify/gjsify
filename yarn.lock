@@ -3062,6 +3062,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-node-cli-node-interactive@workspace:examples/node/cli-node-interactive":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-interactive@workspace:examples/node/cli-node-interactive"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@inquirer/prompts": "npm:^8.4.2"
+    "@types/node": "npm:^25.6.0"
+    "@types/yargs": "npm:^17.0.35"
+    typescript: "npm:^6.0.3"
+    yargs: "npm:^18.0.0"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-node-cli-node-os@workspace:examples/node/cli-node-os":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-node-cli-node-os@workspace:examples/node/cli-node-os"

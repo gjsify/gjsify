@@ -35,7 +35,8 @@ console.log('PATH (first 60 chars):', (process.env['PATH'] ?? '').slice(0, 60) +
 process.env['GJSIFY_EXAMPLE_VAR'] = 'hello';
 console.log('Set GJSIFY_EXAMPLE_VAR:', process.env['GJSIFY_EXAMPLE_VAR']);
 delete process.env['GJSIFY_EXAMPLE_VAR'];
-console.log('After delete:', process.env['GJSIFY_EXAMPLE_VAR']);   // undefined
+const afterDelete = process.env['GJSIFY_EXAMPLE_VAR'];
+console.log('After delete:', afterDelete === undefined ? 'undefined' : afterDelete);
 
 // ── Current working directory ─────────────────────────────────────────────────
 console.log('\n--- Working directory ---');
