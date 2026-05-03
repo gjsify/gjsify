@@ -265,7 +265,9 @@ class ProcessWriteStream extends EventEmitter {
       try { gio = (_gi as any)['GioUnix']; } catch { /* try Gio */ }
       if (!gio) { try { gio = (_gi as any)['Gio']; } catch { /* absent */ } }
       if (gio) {
-        const Cls = gio.OutputStream ?? gio.UnixOutputStream;
+        // GioUnix namespace: class is `OutputStream`. Gio namespace: concrete class
+        // is `UnixOutputStream`; `OutputStream` is abstract. Same fix as InputStream.
+        const Cls = gio.UnixOutputStream ?? gio.OutputStream;
         if (Cls) { try { this._outGio = Cls.new(this.fd, false); } catch { /* fallback */ } }
       }
     }
@@ -407,8 +409,11 @@ class ProcessReadStream extends EventEmitter {
     ensureMainLoop();
 
     if (!this._stdinGio) {
-      // GioUnix (GJS ≥ 1.88): class is InputStream.  Gio (older): UnixInputStream.
-      const Cls = (this._gio as any).InputStream ?? (this._gio as any).UnixInputStream;
+      // GioUnix namespace: class is `InputStream` (no "Unix" prefix).
+      // Gio namespace: concrete class is `UnixInputStream`; `InputStream` is abstract.
+      // Prefer UnixInputStream so Gio fallback picks the right class; GioUnix has no
+      // UnixInputStream, so ?? falls through to InputStream.
+      const Cls = (this._gio as any).UnixInputStream ?? (this._gio as any).InputStream;
       if (!Cls) { this._reading = false; return; }
       try {
         this._stdinGio = Cls.new(this.fd, false);
