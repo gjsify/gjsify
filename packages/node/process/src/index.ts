@@ -313,6 +313,12 @@ class ProcessWriteStream extends EventEmitter {
     return 80;
   }
 
+  // No-op: stdout/stderr must never be closed — the process owns the fds.
+  // Called by Stream.pipe's onend handler when a piped source (e.g. MuteStream)
+  // emits 'end'. Without this, pipe throws TypeError and the prompt crashes.
+  end(): void {}
+  destroy(): void {}
+
   get rows(): number {
     if (nativeTerminal) {
       const [ok, rows] = nativeTerminal.Terminal.get_size(this.fd);
@@ -394,6 +400,11 @@ class ProcessReadStream extends EventEmitter {
   private _startReading(): void {
     if (!this._gio || this._reading) return;
     this._reading = true;
+    // Keep the GLib main loop alive while waiting for stdin — same as
+    // http.Server.listen() does for network sockets. Without this, gjs -m
+    // exits as soon as module evaluation completes even though read_bytes_async
+    // is pending, because GJS only stays alive when runAsync() registered a hook.
+    ensureMainLoop();
 
     if (!this._stdinGio) {
       // GioUnix (GJS ≥ 1.88): class is InputStream.  Gio (older): UnixInputStream.

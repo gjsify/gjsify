@@ -39,6 +39,10 @@ export class Interface extends EventEmitter {
   private _crlfDelay: number;
   private _lineBuffer = '';
   private _questionCallback: ((answer: string) => void) | null = null;
+  // Keep references so close() removes only our listeners (not the keypress parser's).
+  private _boundOnData: ((chunk: Buffer | string) => void) | null = null;
+  private _boundOnEnd: (() => void) | null = null;
+  private _boundOnError: ((err: Error) => void) | null = null;
 
   constructor(input?: Readable | InterfaceOptions, output?: Writable) {
     super();
@@ -59,9 +63,12 @@ export class Interface extends EventEmitter {
     this._crlfDelay = opts.crlfDelay ?? 100;
 
     if (this._input) {
-      this._input.on('data', (chunk: Buffer | string) => this._onData(chunk));
-      this._input.on('end', () => this._onEnd());
-      this._input.on('error', (err: Error) => this.emit('error', err));
+      this._boundOnData = (chunk: Buffer | string) => this._onData(chunk);
+      this._boundOnEnd = () => this._onEnd();
+      this._boundOnError = (err: Error) => this.emit('error', err);
+      this._input.on('data', this._boundOnData);
+      this._input.on('end', this._boundOnEnd);
+      this._input.on('error', this._boundOnError);
 
       if ('setEncoding' in this._input && typeof this._input.setEncoding === 'function') {
         this._input.setEncoding('utf8');
@@ -183,8 +190,17 @@ export class Interface extends EventEmitter {
     this._closed = true;
 
     if (this._input) {
-      this._input.removeAllListeners('data');
-      this._input.removeAllListeners('end');
+      // Remove only our own listeners — removeAllListeners would also strip the
+      // keypress parser's 'data' listener, leaving the _KEYPRESS_DECODER Symbol
+      // set but orphaned. The next Interface would see the Symbol and skip
+      // emitKeypressEvents setup (idempotency guard), so keypress events would
+      // never fire for subsequent prompts.
+      if (this._boundOnData) this._input.removeListener('data', this._boundOnData);
+      if (this._boundOnEnd) this._input.removeListener('end', this._boundOnEnd);
+      if (this._boundOnError) this._input.removeListener('error', this._boundOnError);
+      this._boundOnData = null;
+      this._boundOnEnd = null;
+      this._boundOnError = null;
     }
 
     this.emit('close');
