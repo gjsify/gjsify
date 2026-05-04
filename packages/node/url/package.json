@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/url",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "description": "Node.js url module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/domain",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "description": "Node.js domain module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

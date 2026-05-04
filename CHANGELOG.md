@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2](https://github.com/gjsify/gjsify/compare/v0.3.1...v0.3.2) (2026-05-04)
+
+### Features
+
+* Yarn PnP support, excludeGlobals, fetch bridge-free ([#61](https://github.com/gjsify/gjsify/issues/61)) ([bf7d936](https://github.com/gjsify/gjsify/commit/bf7d93648bdd877107725bdf28d63fdf552c2935))
+
 ## [0.3.1](https://github.com/gjsify/gjsify/compare/v0.3.0...v0.3.1) (2026-05-04)
 
 ### Bug Fixes

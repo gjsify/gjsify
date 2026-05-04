@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/terminal-native",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "description": "Optional Vala/GObject bridge providing Posix.isatty(), ioctl(TIOCGWINSZ), termios raw-mode and SIGWINCH for GJS. Enhances @gjsify/tty and @gjsify/process with correct terminal behaviour when installed.",
     "type": "module",
     "main": "lib/esm/index.js",

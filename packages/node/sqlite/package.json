@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/sqlite",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "description": "Node.js sqlite module for Gjs using libgda",
     "type": "module",
     "module": "lib/esm/index.js",
