@@ -12,6 +12,7 @@ import parserSuite from './parser.spec.js';
 import libSuite from './lib.spec.js';
 import generatorSuite from './generator.spec.js';
 import generatorTypedocSuite from './generator-typedoc.spec.js';
+import languageServerSuite from './language-server.spec.js';
 import cliSuite from './cli.spec.js';
 
 run({
@@ -19,5 +20,6 @@ run({
   libSuite,
   generatorSuite,
   generatorTypedocSuite,
+  languageServerSuite,
   cliSuite,
 });

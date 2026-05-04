@@ -29,6 +29,7 @@
         "@ts-for-gir/generator-html-doc": "^4.0.0-rc.9",
         "@ts-for-gir/generator-json": "^4.0.0-rc.9",
         "@ts-for-gir/generator-typescript": "^4.0.0-rc.9",
+        "@ts-for-gir/language-server": "^4.0.0-rc.9",
         "@ts-for-gir/lib": "^4.0.0-rc.9",
         "@types/node": "^25.6.0",
         "typescript": "^6.0.3"

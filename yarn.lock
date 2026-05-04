@@ -3598,6 +3598,7 @@ __metadata:
     "@ts-for-gir/generator-html-doc": "npm:^4.0.0-rc.9"
     "@ts-for-gir/generator-json": "npm:^4.0.0-rc.9"
     "@ts-for-gir/generator-typescript": "npm:^4.0.0-rc.9"
+    "@ts-for-gir/language-server": "npm:^4.0.0-rc.9"
     "@ts-for-gir/lib": "npm:^4.0.0-rc.9"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"
@@ -6839,6 +6840,16 @@ __metadata:
   version: 4.0.0-rc.9
   resolution: "@ts-for-gir/gir-module-metadata@npm:4.0.0-rc.9"
   checksum: 10/b799c5ae580d5f59ffc9ed464f7768ccb835ca2634afb3cdfcf96d96adb7544627cd5b5880584102d36fe5df8b6079717385965126788bac139044faa6c2d80e
+  languageName: node
+  linkType: hard
+
+"@ts-for-gir/language-server@npm:^4.0.0-rc.9":
+  version: 4.0.0-rc.9
+  resolution: "@ts-for-gir/language-server@npm:4.0.0-rc.9"
+  dependencies:
+    "@ts-for-gir/lib": "npm:^4.0.0-rc.9"
+    typescript: "npm:^6.0.3"
+  checksum: 10/2daff893450525ab388ef5e816a58350d64a1e6fb36289a2ec17b0ccac1b070a641039ca1c87dafbd80600fbe582e35bbbe76cca34ecdf419a3c7c5d6d64fd00
   languageName: node
   linkType: hard
 
