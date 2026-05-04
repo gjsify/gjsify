@@ -91,6 +91,14 @@ export async function detectAutoGlobals(
         currentInject = (await writeRegisterInjectFile(extraRegisterPaths)) ?? undefined;
     }
 
+    // Extra plugins passed by the caller (e.g. a custom resolver plugin needed
+    // to work around Yarn PnP zip-archive resolution). Preserved in every
+    // analysis pass; the gjsify plugin is appended last so its handlers run
+    // after any custom interceptors.
+    const callerPlugins = (esbuildUserOptions.plugins ?? []).filter(
+        (p) => p.name !== 'gjsify',
+    );
+
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         const result = await build({
             ...esbuildUserOptions,
@@ -100,6 +108,7 @@ export async function detectAutoGlobals(
             metafile: false,
             logLevel: 'silent',
             plugins: [
+                ...callerPlugins,
                 gjsifyPlugin({
                     ...pluginOptions,
                     autoGlobalsInject: currentInject,
