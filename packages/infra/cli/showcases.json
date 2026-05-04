@@ -1,0 +1,40 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "showcases": [
+        {
+            "name": "canvas2d-fireworks",
+            "category": "dom",
+            "package": "@gjsify/example-dom-canvas2d-fireworks",
+            "description": "Colorful fireworks Canvas 2D example with Adwaita controls",
+            "needsWebgl": false
+        },
+        {
+            "name": "excalibur-jelly-jumper",
+            "category": "dom",
+            "package": "@gjsify/example-dom-excalibur-jelly-jumper",
+            "description": "Excalibur.js jelly-jumper game",
+            "needsWebgl": false
+        },
+        {
+            "name": "three-geometry-teapot",
+            "category": "dom",
+            "package": "@gjsify/example-dom-three-geometry-teapot",
+            "description": "Three.js Utah teapot",
+            "needsWebgl": true
+        },
+        {
+            "name": "three-postprocessing-pixel",
+            "category": "dom",
+            "package": "@gjsify/example-dom-three-postprocessing-pixel",
+            "description": "Three.js postprocessing pixel demo",
+            "needsWebgl": true
+        },
+        {
+            "name": "express-webserver",
+            "category": "node",
+            "package": "@gjsify/example-node-express-webserver",
+            "description": "Express web server on GJS via @gjsify/http",
+            "needsWebgl": false
+        }
+    ]
+}
