@@ -257,16 +257,12 @@ class ProcessWriteStream extends EventEmitter {
   constructor(fd: number) {
     super();
     this.fd = fd;
-    // GioUnix.OutputStream (GJS ≥ 1.88) / Gio.UnixOutputStream (older):
-    // write raw bytes without the implicit newline that console.log/print add.
     const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
     if (_gi) {
       let gio: any = null;
       try { gio = (_gi as any)['GioUnix']; } catch { /* try Gio */ }
       if (!gio) { try { gio = (_gi as any)['Gio']; } catch { /* absent */ } }
       if (gio) {
-        // GioUnix namespace: class is `OutputStream`. Gio namespace: concrete class
-        // is `UnixOutputStream`; `OutputStream` is abstract. Same fix as InputStream.
         const Cls = gio.UnixOutputStream ?? gio.OutputStream;
         if (Cls) { try { this._outGio = Cls.new(this.fd, false); } catch { /* fallback */ } }
       }
@@ -281,8 +277,8 @@ class ProcessWriteStream extends EventEmitter {
         return true;
       } catch { /* fall through to console fallback */ }
     }
-    // Fallback (Node.js or GJS without Gio): console adds a trailing newline
-    // which breaks terminal UI, but is acceptable for simple logging scenarios.
+    // Fallback: console adds a trailing newline which breaks terminal UI,
+    // but is acceptable when Gio streams are unavailable.
     if (this.fd === 2) {
       console.error(data);
     } else {
@@ -315,9 +311,8 @@ class ProcessWriteStream extends EventEmitter {
     return 80;
   }
 
-  // No-op: stdout/stderr must never be closed — the process owns the fds.
-  // Called by Stream.pipe's onend handler when a piped source (e.g. MuteStream)
-  // emits 'end'. Without this, pipe throws TypeError and the prompt crashes.
+  // stdout/stderr must never be closed — the process owns the fds.
+  // pipe() calls end() when its source emits 'end' (e.g. MuteStream); no-op here.
   end(): void {}
   destroy(): void {}
 
@@ -341,15 +336,19 @@ class ProcessReadStream extends EventEmitter {
   readonly fd: number;
   isRaw = false;
   // Do NOT expose `readableFlowing` as an instance property: @inquirer/core uses
-  // `'readableFlowing' in input` to defer startCycle() via setImmediate.
-  // In GJS, setImmediate fires as a microtask — fine for TTY, but the property
-  // must stay absent so @inquirer/core calls startCycle() on its own schedule.
-  // Flow state is tracked internally via `_flowing`.
+  // `'readableFlowing' in input` to defer startCycle() via setImmediate. In GJS,
+  // setImmediate fires as a microtask — the property must stay absent so
+  // @inquirer/core calls startCycle() synchronously on its own schedule.
 
   private _gio: any = null;
   private _stdinGio: any = null;
   private _reading = false;
   private _flowing = false;
+  private _sttyCleanupRegistered = false;
+  private _mainLoopHeld = false;
+  // True while a read_bytes_async is in-flight. Prevents a second concurrent
+  // read from starting when pause()+resume() fires between GLib iterations.
+  private _pendingRead = false;
 
   constructor(fd: number) {
     super();
@@ -372,10 +371,51 @@ class ProcessReadStream extends EventEmitter {
 
   setRawMode(mode: boolean): this {
     if (nativeTerminal) {
-      nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+      const ok = nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+      if (ok) {
+        this.isRaw = mode;
+        return this;
+      }
+      // set_raw_mode returned false — fd may not be a TTY (e.g. piped stdin).
+      // Fall through to stty fallback.
     }
+    // Fallback: spawn `stty raw -echo` / `stty sane` with stdin inherited so it
+    // sees the real terminal and the setting persists in the kernel tty driver.
+    // Only works when fd 0 is actually a TTY.
+    this._setRawModeViaStty(mode);
     this.isRaw = mode;
     return this;
+  }
+
+  private _setRawModeViaStty(mode: boolean): void {
+    try {
+      const _gi: any = (globalThis as any).imports?.gi;
+      const Gio = _gi?.Gio ?? _gi?.['Gio'];
+      if (!Gio) return;
+      // G_SUBPROCESS_FLAGS_STDIN_INHERIT = 1 << 1 = 2
+      // Makes stty inherit our fd 0 (the real TTY) so tcsetattr targets the same tty.
+      const STDIN_INHERIT = Gio.SubprocessFlags?.STDIN_INHERIT ?? 2;
+      // Match the termios settings from GjsifyTerminal's set_raw_mode:
+      //   c_lflag &= ~(ICANON | ECHO)  →  -icanon -echo
+      //   c_iflag &= ~ICRNL            →  -icrnl
+      //   VMIN=1, VTIME=0              →  min 1 time 0
+      const argv = mode
+        ? ['stty', '-icanon', '-echo', '-icrnl', 'min', '1', 'time', '0']
+        : ['stty', 'icanon', 'echo', 'icrnl'];
+      const launcher = new Gio.SubprocessLauncher({ flags: STDIN_INHERIT });
+      const proc = launcher.spawnv(argv);
+      proc.wait(null);
+
+      // Register a one-time exit handler to restore cooked mode when the process
+      // exits — without this the shell inherits raw mode and becomes unusable.
+      if (mode && !this._sttyCleanupRegistered) {
+        this._sttyCleanupRegistered = true;
+        const proc_ = (globalThis as any).process;
+        if (proc_?.once && typeof proc_.once === 'function') {
+          proc_.once('exit', () => this._setRawModeViaStty(false));
+        }
+      }
+    } catch { /* stty not available or not a TTY */ }
   }
 
   setEncoding(_enc: string): this { return this; }
@@ -391,28 +431,54 @@ class ProcessReadStream extends EventEmitter {
   pause(): this {
     this._flowing = false;
     this._reading = false;
+    if (this._mainLoopHeld) {
+      this._mainLoopHeld = false;
+      // Defer the quit via GLib idle so microtask continuations run first.
+      // If the next prompt's Interface calls resume() before this idle fires,
+      // it sets _mainLoopHeld = true again and the quit is skipped.
+      // This mirrors Node.js libuv unref: pausing stdin allows the event loop
+      // to drain when no more prompts follow, but not between sequential prompts.
+      const _gi: any = (globalThis as any).imports?.gi;
+      const GLib = _gi?.GLib ?? _gi?.['GLib'];
+      if (GLib?.idle_add) {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const self = this;
+        GLib.idle_add(300 /* PRIORITY_LOW */, () => {
+          if (!self._mainLoopHeld) quitMainLoop();
+          return false; // SOURCE_REMOVE
+        });
+      } else {
+        quitMainLoop();
+      }
+    }
     return this;
   }
 
   read(): null { return null; }
 
-  // Asynchronous byte-level read loop via Gio.UnixInputStream.
-  // Each chunk is emitted as a 'data' event so readline / @inquirer/core
-  // can parse keypress sequences from raw terminal input.
   private _startReading(): void {
     if (!this._gio || this._reading) return;
+
+    // If a read_bytes_async is already in-flight from the previous loop cycle
+    // (queued before pause() set _reading = false), don't start a second
+    // concurrent read on the same fd. Just re-enable _reading so the pending
+    // callback continues the loop when it fires.
+    if (this._pendingRead) {
+      this._reading = true;
+      if (!this._mainLoopHeld) { this._mainLoopHeld = true; ensureMainLoop(); }
+      return;
+    }
+
     this._reading = true;
     // Keep the GLib main loop alive while waiting for stdin — same as
     // http.Server.listen() does for network sockets. Without this, gjs -m
     // exits as soon as module evaluation completes even though read_bytes_async
     // is pending, because GJS only stays alive when runAsync() registered a hook.
-    ensureMainLoop();
+    if (!this._mainLoopHeld) { this._mainLoopHeld = true; ensureMainLoop(); }
 
     if (!this._stdinGio) {
-      // GioUnix namespace: class is `InputStream` (no "Unix" prefix).
-      // Gio namespace: concrete class is `UnixInputStream`; `InputStream` is abstract.
-      // Prefer UnixInputStream so Gio fallback picks the right class; GioUnix has no
-      // UnixInputStream, so ?? falls through to InputStream.
+      // GioUnix: class is `InputStream`. Gio: concrete class is `UnixInputStream`;
+      // `InputStream` is abstract. The ?? chain picks the right one for each namespace.
       const Cls = (this._gio as any).UnixInputStream ?? (this._gio as any).InputStream;
       if (!Cls) { this._reading = false; return; }
       try {
@@ -424,19 +490,20 @@ class ProcessReadStream extends EventEmitter {
     }
 
     const loop = () => {
-      if (!this._reading) return;
+      if (!this._reading) { this._pendingRead = false; return; }
+      this._pendingRead = true;
       (this._stdinGio as any).read_bytes_async(
         4096,
-        0, // GLib.PRIORITY_DEFAULT
+        0,
         null,
         (src: any, res: any) => {
+          this._pendingRead = false;
           try {
             const bytes = (src as any).read_bytes_finish(res);
             const data: Uint8Array | null = bytes?.get_data?.() ?? null;
             if (data && data.byteLength > 0) {
               this.emit('data', Buffer.from(data));
             } else if (data !== null && data.byteLength === 0) {
-              // EOF
               this._reading = false;
               this.emit('end');
               return;

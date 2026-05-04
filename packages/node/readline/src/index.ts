@@ -1,5 +1,5 @@
-// Node.js readline module for GJS
 // Reference: Node.js lib/readline.js
+// Reimplemented for GJS without Node.js primordials.
 
 import { EventEmitter } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
@@ -18,9 +18,8 @@ export interface InterfaceOptions {
   tabSize?: number;
 }
 
-/**
- * readline.Interface — reads lines from a Readable stream.
- */
+const LINE_END = /\r\n|\r|\n/;
+
 export class Interface extends EventEmitter {
   terminal: boolean;
   line = '';
@@ -31,6 +30,7 @@ export class Interface extends EventEmitter {
 
   get input(): Readable | null { return this._input; }
   get output(): Writable | null { return this._output; }
+
   private _prompt: string;
   private _closed = false;
   private _paused = false;
@@ -39,10 +39,12 @@ export class Interface extends EventEmitter {
   private _crlfDelay: number;
   private _lineBuffer = '';
   private _questionCallback: ((answer: string) => void) | null = null;
-  // Keep references so close() removes only our listeners (not the keypress parser's).
+  // Per-listener refs so close() removes only our listeners, not the keypress
+  // parser's 'data' listener — which must survive across sequential prompts.
   private _boundOnData: ((chunk: Buffer | string) => void) | null = null;
   private _boundOnEnd: (() => void) | null = null;
   private _boundOnError: ((err: Error) => void) | null = null;
+  private _boundOnKeypress: ((str: string | undefined, key: Key) => void) | null = null;
 
   constructor(input?: Readable | InterfaceOptions, output?: Writable) {
     super();
@@ -75,30 +77,40 @@ export class Interface extends EventEmitter {
       }
 
       if (this.terminal) {
-        // Install keypress parser so @inquirer/core can receive keypress events.
-        // Also activate raw mode when the stream supports it (GjsifyTerminal).
         emitKeypressEvents(this._input as Readable & Record<symbol, unknown>, this as any);
         if ('setRawMode' in this._input && typeof (this._input as any).setRawMode === 'function') {
-          const isRaw = (this._input as any).isRaw;
-          if (!isRaw) (this._input as any).setRawMode(true);
+          if (!(this._input as any).isRaw) (this._input as any).setRawMode(true);
         }
         if ('resume' in this._input && typeof (this._input as any).resume === 'function') {
           (this._input as any).resume();
         }
+
+        this._boundOnKeypress = (str: string | undefined, key: Key) => {
+          if (!key) return;
+          if (key.name === 'backspace' || key.name === 'delete') {
+            if (this.cursor > 0) {
+              this.line = this.line.slice(0, this.cursor - 1) + this.line.slice(this.cursor);
+              this.cursor--;
+            }
+          } else if (
+            str && str.length === 1 && !key.ctrl && !key.meta &&
+            key.name !== 'return' && key.name !== 'enter' && key.name !== 'escape'
+          ) {
+            this.line = this.line.slice(0, this.cursor) + str + this.line.slice(this.cursor);
+            this.cursor++;
+          }
+        };
+        this._input.on('keypress', this._boundOnKeypress as (...args: unknown[]) => void);
       }
     }
   }
 
   private _onData(chunk: Buffer | string): void {
     if (this._closed || this._paused) return;
-
     const str = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     this._lineBuffer += str;
-
-    // Process lines separated by \n, \r\n, or standalone \r
-    const lineEnd = /\r\n|\r|\n/;
     let m: RegExpExecArray | null;
-    while ((m = lineEnd.exec(this._lineBuffer)) !== null) {
+    while ((m = LINE_END.exec(this._lineBuffer)) !== null) {
       const line = this._lineBuffer.substring(0, m.index);
       this._lineBuffer = this._lineBuffer.substring(m.index + m[0].length);
       this._onLine(line);
@@ -106,27 +118,21 @@ export class Interface extends EventEmitter {
   }
 
   private _onLine(line: string): void {
-    // Add to history
     if (line.length > 0 && this._historySize > 0) {
       if (this.history.length === 0 || this.history[0] !== line) {
         this.history.unshift(line);
-        if (this.history.length > this._historySize) {
-          this.history.pop();
-        }
+        if (this.history.length > this._historySize) this.history.pop();
       }
     }
-
     if (this._questionCallback) {
       const cb = this._questionCallback;
       this._questionCallback = null;
       cb(line);
     }
-
     this.emit('line', line);
   }
 
   private _onEnd(): void {
-    // Emit remaining buffer as last line
     if (this._lineBuffer.length > 0) {
       this._onLine(this._lineBuffer);
       this._lineBuffer = '';
@@ -134,107 +140,113 @@ export class Interface extends EventEmitter {
     this.close();
   }
 
-  /** Set the prompt string. */
   setPrompt(prompt: string): void {
     this._prompt = prompt;
   }
 
-  /** Get the current prompt string. */
   getPrompt(): string {
     return this._prompt;
   }
 
-  /** Write the prompt to the output stream. */
-  prompt(preserveCursor?: boolean): void {
-    if (this._closed) {
-      throw new Error('readline was closed');
-    }
-    if (this._output) {
-      this._output.write(this._prompt);
-    }
+  prompt(_preserveCursor?: boolean): void {
+    if (this._closed) throw new Error('readline was closed');
+    this._output?.write(this._prompt);
   }
 
-  /**
-   * Display the query and wait for user input.
-   */
   question(query: string, callback: (answer: string) => void): void;
   question(query: string, options: Record<string, unknown>, callback: (answer: string) => void): void;
-  question(query: string, optionsOrCallback: Record<string, unknown> | ((answer: string) => void), callback?: (answer: string) => void): void {
-    if (this._closed) {
-      throw new Error('readline was closed');
-    }
-
+  question(
+    query: string,
+    optionsOrCallback: Record<string, unknown> | ((answer: string) => void),
+    callback?: (answer: string) => void,
+  ): void {
+    if (this._closed) throw new Error('readline was closed');
     const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-
     this._questionCallback = cb;
-
-    if (this._output) {
-      this._output.write(query);
-    }
+    this._output?.write(query);
   }
 
-  /** Write data to the output stream. */
+  clearLine(_dir: number, callback?: () => void): boolean {
+    this.line = '';
+    this.cursor = 0;
+    if (callback) callback();
+    return true;
+  }
+
   write(data: string | Buffer | null, key?: { ctrl?: boolean; meta?: boolean; shift?: boolean; name?: string }): void {
     if (this._closed) return;
-
+    if (key) {
+      if (this._input) (this._input as any).emit('keypress', data ?? '', key);
+      return;
+    }
     if (data !== null && data !== undefined) {
-      if (this._output) {
-        this._output.write(data);
+      const str = typeof data === 'string' ? data : data.toString('utf8');
+      if (str) {
+        this.line = this.line.slice(0, this.cursor) + str + this.line.slice(this.cursor);
+        this.cursor += str.length;
       }
+      this._output?.write(data);
     }
   }
 
-  /** Close the interface. */
   close(): void {
     if (this._closed) return;
     this._closed = true;
 
     if (this._input) {
       // Remove only our own listeners — removeAllListeners would also strip the
-      // keypress parser's 'data' listener, leaving the _KEYPRESS_DECODER Symbol
-      // set but orphaned. The next Interface would see the Symbol and skip
-      // emitKeypressEvents setup (idempotency guard), so keypress events would
-      // never fire for subsequent prompts.
+      // keypress parser's 'data' listener. The _KEYPRESS_DECODER Symbol idempotency
+      // guard would then prevent emitKeypressEvents from re-installing for the next
+      // prompt, silencing all keypress events.
       if (this._boundOnData) this._input.removeListener('data', this._boundOnData);
       if (this._boundOnEnd) this._input.removeListener('end', this._boundOnEnd);
       if (this._boundOnError) this._input.removeListener('error', this._boundOnError);
+      if (this._boundOnKeypress) this._input.removeListener('keypress', this._boundOnKeypress as (...args: unknown[]) => void);
       this._boundOnData = null;
       this._boundOnEnd = null;
       this._boundOnError = null;
+      this._boundOnKeypress = null;
+
+      if (this.terminal && (this._input as any).isRaw &&
+          'setRawMode' in this._input && typeof (this._input as any).setRawMode === 'function') {
+        (this._input as any).setRawMode(false);
+      }
+
+      // Pause stdin so ProcessReadStream releases the GLib main loop via
+      // quitMainLoop(). Mirrors Node.js readline: close() pauses the stream
+      // so the event loop can drain and the process exits when no more prompts follow.
+      if ('pause' in this._input && typeof (this._input as any).pause === 'function') {
+        (this._input as any).pause();
+      }
     }
 
     this.emit('close');
   }
 
-  /** Pause the input stream. */
   pause(): this {
     if (this._closed) return this;
     this._paused = true;
-
     if (this._input && 'pause' in this._input && typeof this._input.pause === 'function') {
       this._input.pause();
     }
-
     this.emit('pause');
     return this;
   }
 
-  /** Resume the input stream. */
   resume(): this {
     if (this._closed) return this;
     this._paused = false;
-
     if (this._input && 'resume' in this._input && typeof this._input.resume === 'function') {
       this._input.resume();
     }
-
     this.emit('resume');
     return this;
   }
 
-  /** Get the current line content. */
   getCursorPos(): { rows: number; cols: number } {
-    return { rows: 0, cols: this.cursor };
+    const columns = (this._output as any)?.columns ?? 80;
+    const len = this._prompt.length + this.cursor;
+    return { rows: Math.floor(len / columns), cols: len % columns };
   }
 
   [Symbol.asyncIterator](): AsyncIterableIterator<string> {
@@ -263,12 +275,8 @@ export class Interface extends EventEmitter {
 
     return {
       next(): Promise<IteratorResult<string>> {
-        if (lines.length > 0) {
-          return Promise.resolve({ value: lines.shift()!, done: false });
-        }
-        if (done) {
-          return Promise.resolve({ value: undefined as unknown as string, done: true });
-        }
+        if (lines.length > 0) return Promise.resolve({ value: lines.shift()!, done: false });
+        if (done) return Promise.resolve({ value: undefined as unknown as string, done: true });
         return new Promise<IteratorResult<string>>((r) => { resolve = r; });
       },
       return(): Promise<IteratorResult<string>> {
@@ -280,47 +288,35 @@ export class Interface extends EventEmitter {
   }
 }
 
-/**
- * Create a readline Interface.
- */
-export function createInterface(input?: Readable | InterfaceOptions, output?: Writable, completer?: InterfaceOptions['completer'], terminal?: boolean): Interface {
+export function createInterface(
+  input?: Readable | InterfaceOptions,
+  output?: Writable,
+  completer?: InterfaceOptions['completer'],
+  terminal?: boolean,
+): Interface {
   if (typeof input === 'object' && input !== null && !('read' in input && typeof input.read === 'function')) {
     return new Interface(input);
   }
   return new Interface({ input: input as Readable, output, completer, terminal });
 }
 
-// --- Terminal utility functions ---
-
-/**
- * Clear the current line of a TTY stream.
- * dir: -1 = to the left, 1 = to the right, 0 = entire line
- */
 export function clearLine(stream: Writable, dir: number, callback?: () => void): boolean {
   if (!stream || typeof stream.write !== 'function') {
     if (callback) callback();
     return true;
   }
-
   const code = dir < 0 ? '\x1b[1K' : dir > 0 ? '\x1b[0K' : '\x1b[2K';
   return stream.write(code, callback);
 }
 
-/**
- * Clear from cursor to end of screen.
- */
 export function clearScreenDown(stream: Writable, callback?: () => void): boolean {
   if (!stream || typeof stream.write !== 'function') {
     if (callback) callback();
     return true;
   }
-
   return stream.write('\x1b[0J', callback);
 }
 
-/**
- * Move cursor to the specified position.
- */
 export function cursorTo(
   stream: Writable,
   x: number,
@@ -332,22 +328,11 @@ export function cursorTo(
     else if (callback) callback();
     return true;
   }
-
-  if (typeof y === 'function') {
-    callback = y;
-    y = undefined;
-  }
-
-  const code = typeof y === 'number'
-    ? `\x1b[${y + 1};${x + 1}H`
-    : `\x1b[${x + 1}G`;
-
+  if (typeof y === 'function') { callback = y; y = undefined; }
+  const code = typeof y === 'number' ? `\x1b[${y + 1};${x + 1}H` : `\x1b[${x + 1}G`;
   return stream.write(code, callback);
 }
 
-/**
- * Move cursor relative to its current position.
- */
 export function moveCursor(
   stream: Writable,
   dx: number,
@@ -358,17 +343,12 @@ export function moveCursor(
     if (callback) callback();
     return true;
   }
-
   let code = '';
   if (dx > 0) code += `\x1b[${dx}C`;
   else if (dx < 0) code += `\x1b[${-dx}D`;
   if (dy > 0) code += `\x1b[${dy}B`;
   else if (dy < 0) code += `\x1b[${-dy}A`;
-
-  if (code) {
-    return stream.write(code, callback);
-  }
-
+  if (code) return stream.write(code, callback);
   if (callback) callback();
   return true;
 }
@@ -389,8 +369,6 @@ export interface Key {
 
 const ESCAPE_CODE_TIMEOUT = 500;
 
-// Generator that accepts one character at a time via .next(ch) and emits
-// 'keypress' events on `stream` for each recognised key sequence.
 function* emitKeys(stream: { emit(event: string, ...args: unknown[]): boolean }): Generator<void, void, string> {
   while (true) {
     let ch: string = yield;
@@ -511,21 +489,18 @@ function* emitKeys(stream: { emit(event: string, ...args: unknown[]): boolean })
 const _KEYPRESS_DECODER = Symbol('keypress-decoder');
 const _ESCAPE_DECODER   = Symbol('escape-decoder');
 
-/**
- * Attach a 'data' listener to `stream` that parses raw bytes into 'keypress'
- * events.  Idempotent — calling twice on the same stream is a no-op.
- * Ported from refs/node/lib/internal/readline/emitKeypressEvents.js.
- */
+// Attach a 'data' listener that parses raw bytes into 'keypress' events.
+// Idempotent — calling twice on the same stream is a no-op.
+// Ported from refs/node/lib/internal/readline/emitKeypressEvents.js.
 export function emitKeypressEvents(stream: Readable & Record<symbol, unknown>, iface: { escapeCodeTimeout?: number } = {}): void {
   if ((stream as any)[_KEYPRESS_DECODER]) return;
 
   (stream as any)[_KEYPRESS_DECODER] = new StringDecoder('utf8');
   (stream as any)[_ESCAPE_DECODER] = emitKeys(stream as any);
-  (stream as any)[_ESCAPE_DECODER].next(); // prime the generator
+  (stream as any)[_ESCAPE_DECODER].next();
 
   const escTimeout = iface.escapeCodeTimeout ?? ESCAPE_CODE_TIMEOUT;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
   const triggerEscape = () => (stream as any)[_ESCAPE_DECODER].next('');
 
   function onData(input: Buffer | string): void {
