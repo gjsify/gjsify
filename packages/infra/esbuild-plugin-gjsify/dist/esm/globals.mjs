@@ -20135,6 +20135,14 @@ function setsEqual(a2, b) {
   for (const x of a2) if (!b.has(x)) return false;
   return true;
 }
+async function applyExcludeGlobals(detected, currentInject, extraRegisterPaths, excludeGlobals) {
+  if (!excludeGlobals?.length) return { detected, injectPath: currentInject };
+  for (const id of excludeGlobals) detected.delete(id);
+  const filtered = detectedToRegisterPaths(detected);
+  for (const p of extraRegisterPaths) filtered.add(p);
+  const injectPath = filtered.size > 0 ? await writeRegisterInjectFile(filtered) ?? void 0 : void 0;
+  return { detected, injectPath };
+}
 function detectedToRegisterPaths(detected) {
   const paths = /* @__PURE__ */ new Set();
   for (const name of detected) {
@@ -20150,6 +20158,9 @@ async function detectAutoGlobals(esbuildUserOptions, pluginOptions, verbose, opt
   if (extraRegisterPaths.size > 0) {
     currentInject = await writeRegisterInjectFile(extraRegisterPaths) ?? void 0;
   }
+  const callerPlugins = (esbuildUserOptions.plugins ?? []).filter(
+    (p) => p.name !== "gjsify"
+  );
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     const result = await build({
       ...esbuildUserOptions,
@@ -20159,6 +20170,7 @@ async function detectAutoGlobals(esbuildUserOptions, pluginOptions, verbose, opt
       metafile: false,
       logLevel: "silent",
       plugins: [
+        ...callerPlugins,
         gjsifyPlugin({
           ...pluginOptions,
           autoGlobalsInject: currentInject
@@ -20178,7 +20190,7 @@ async function detectAutoGlobals(esbuildUserOptions, pluginOptions, verbose, opt
           `[gjsify] --globals auto: converged after ${iteration - 1} iteration(s), ${detected.size} global(s)${sorted.length ? ": " + sorted.join(", ") : ""}${extras}`
         );
       }
-      return { detected, injectPath: currentInject };
+      return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals);
     }
     detected = newDetected;
     const registerPaths = detectedToRegisterPaths(detected);
@@ -20199,7 +20211,7 @@ async function detectAutoGlobals(esbuildUserOptions, pluginOptions, verbose, opt
       `[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`
     );
   }
-  return { detected, injectPath: currentInject };
+  return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals);
 }
 export {
   detectAutoGlobals,

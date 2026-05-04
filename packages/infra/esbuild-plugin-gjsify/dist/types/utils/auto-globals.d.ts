@@ -15,6 +15,15 @@ export interface DetectAutoGlobalsOptions {
      * indirection (e.g. Excalibur's `BrowserComponent.nativeComponent.matchMedia`).
      */
     extraGlobalsList?: string;
+    /**
+     * Identifiers to remove from the auto-detected set before writing the
+     * inject stub. Useful for globals that appear as false positives from
+     * dead browser-compat code in npm dependencies whose polyfills require
+     * unavailable native libraries.
+     * Example: `["fetch", "Headers", "Request", "Response", "XMLHttpRequest"]`
+     * excludes the HTTP polyfill stack (which needs gi://GjsifyHttpSoupBridge).
+     */
+    excludeGlobals?: string[];
 }
 /**
  * Run an iterative esbuild build (in-memory) with acorn-based global
