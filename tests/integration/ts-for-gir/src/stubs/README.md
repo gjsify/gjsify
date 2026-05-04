@@ -1,35 +1,42 @@
-# Phase 4b stub modules — GJS-only
+# Stub modules — GJS-only
 
-These files are aliased into the `dist/cli.gjs.mjs` bundle in place of heavy
-runtime-resolved npm packages that don't survive bundling on GJS. Two
-patterns make these packages bundle-hostile:
+These files are aliased into the `dist/cli.gjs.mjs` bundle in place of packages
+that don't survive bundling on GJS due to eager dynamic-import enumeration.
 
-1. **Eager `import.meta.url`-based filesystem reads.** `typedoc` reads its
-   own `package.json` at module-load time via
-   `Path.join(fileURLToPath(import.meta.url), '../../../package.json')`. When
-   bundled, `import.meta.url` resolves to the bundle file, so the relative
-   path escapes the package and crashes. Marking it `--external` works on
-   Node (real `node_modules` resolution) but not on GJS (`gjsify run` has no
-   bare-specifier resolver yet).
-2. **Eager dynamic-import enumeration.** `@inquirer/prompts` re-exports a
-   handful of prompt packages that each pull in the same heavy core; bundling
-   them blows up on GJS module-load.
+## Active stubs
 
-The Node bundle uses `--external typedoc,@inquirer/prompts,inquirer` because
-Node's runtime resolves them from `node_modules`. The GJS bundle swaps in
-the stubs in this directory via `--alias`. Result: the GJS bundle loads
-cleanly and every CLI command that does NOT execute the stubbed package's
-runtime code works (`--version`, `--help`, `list`, `copy`, `generate`).
-Commands that DO depend on the stubbed code (`doc`, the `select`/`input`
-prompts inside `create` and the version-conflict resolver) fail at the exact
-call site with a clear "stubbed on GJS" error.
+### `@inquirer/prompts` / `inquirer` → `inquirer-prompts.ts`
 
-`prettier` was historically in this list because `@ts-for-gir/cli` round-tripped
-generated `.d.ts` files through Prettier. As of `@ts-for-gir/cli@4.0.0-rc.8`
-the templates emit the desired shape directly and Prettier is no longer
-imported, so the stub was removed.
+`@inquirer/prompts` re-exports a handful of prompt packages that each pull in
+the same heavy core; bundling them blows up on GJS module-load due to the eager
+dynamic-import enumeration. The stub throws a clear "stubbed on GJS" error at
+the call site. Affects: interactive `create` command prompt flow and the
+version-conflict resolver in `generate`/`json`/`doc`.
+
+The Node bundle uses `--external @inquirer/prompts,inquirer` because Node's
+runtime resolves them from `node_modules`.
+
+## Previously stubbed (now removed — Phase 6)
+
+### `typedoc`, `@ts-for-gir/generator-html-doc`, `@ts-for-gir/generator-json`
+
+These were stubbed in Phase 4b because `typedoc` reads its own `package.json`
+and locale/asset files via `import.meta.url`-relative paths at module-load
+time. When bundled, `import.meta.url` resolved to the bundle file URL, causing
+all relative FS paths to escape the package and crash.
+
+**Phase 6 fix:** `esbuild-plugin-gjsify`'s `onLoad` hook now rewrites every
+`import.meta.url` reference in `node_modules` files to the build-time-known
+original file URL (analogous to Rollup's CJS-target `import.meta.url` polyfill).
+At runtime, gjsify's GLib-backed `fs` polyfill reads `package.json`, locales,
+and static assets directly from `node_modules`. The `@gjsify/module`
+`createRequire` was also fixed to walk all ancestor `node_modules` directories
+(Node.js resolution algorithm) instead of stopping at the nearest one.
+
+The stubs were deleted in Phase 6. `ts-for-gir json` and `ts-for-gir doc` now
+work natively on GJS.
 
 Stubs live in-test (not as a separate workspace package) because they're
-bound to one upstream pin (`@ts-for-gir/cli@4.0.0-rc.8`) and may need to
+bound to one upstream pin (`@ts-for-gir/cli@4.0.0-rc.9`) and may need to
 change shape with the next ts-for-gir release. Promote to a package only if
 a second consumer needs them.

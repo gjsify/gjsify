@@ -135,6 +135,31 @@ function fileUrlToPath(filenameOrURL: string | URL): string {
   return String(filenameOrURL);
 }
 
+/**
+ * Resolve a bare package specifier by walking ALL ancestor node_modules dirs.
+ * Mirrors Node.js module resolution: try nearest node_modules first, then each
+ * ancestor — so a package in a parent node_modules is found even when a closer
+ * node_modules exists but doesn't contain the requested package.
+ */
+function resolveInNodeModules(id: string, callerDir: string): Gio.File {
+  let dir = Gio.File.new_for_path(callerDir);
+  while (dir.has_parent(null)) {
+    const nodeModulesFile = dir.resolve_relative_path('node_modules');
+    if (nodeModulesFile.query_exists(null)) {
+      const candidate = nodeModulesFile.resolve_relative_path(id);
+      if (candidate.query_exists(null)) return candidate;
+      // Extensionless fallback: try appending .js (e.g. id = 'foo' → node_modules/foo.js)
+      const bn = candidate.get_basename();
+      if (bn && !hasExtension(bn)) {
+        const withJs = tryJsExtension(candidate.get_path()!);
+        if (withJs) return withJs;
+      }
+    }
+    dir = dir.get_parent()!;
+  }
+  throw new Error(`Cannot find module "${id}" - not found in any node_modules directory`);
+}
+
 /** Resolve a module specifier to an absolute file path. */
 function resolveModulePath(id: string, callerDir: string): string {
   if (isBuiltin(id)) return id;
@@ -146,23 +171,22 @@ function resolveModulePath(id: string, callerDir: string): string {
   } else if (id.startsWith('.')) {
     file = resolvePath(callerDir, id);
   } else {
-    const nodeModules = findNodeModulesDir(callerDir);
-    if (!nodeModules) {
-      throw new Error(`Cannot find module "${id}" - no node_modules directory found`);
-    }
-    file = resolvePath(nodeModules, id);
+    // Bare specifier: walk all ancestor node_modules (Node.js resolution algorithm)
+    file = resolveInNodeModules(id, callerDir);
   }
 
-  // Extension fallback for extensionless paths
-  if (!file.query_exists(null)) {
-    const basename = file.get_basename();
-    if (basename && !hasExtension(basename)) {
-      file = tryJsExtension(file.get_path()!) ?? file;
+  // Extension fallback for absolute/relative paths (bare specifiers handled in resolveInNodeModules)
+  if (id.startsWith('/') || id.startsWith('.')) {
+    if (!file.query_exists(null)) {
+      const basename = file.get_basename();
+      if (basename && !hasExtension(basename)) {
+        file = tryJsExtension(file.get_path()!) ?? file;
+      }
     }
-  }
 
-  if (!file.query_exists(null)) {
-    throw new Error(`Cannot find module "${id}"`);
+    if (!file.query_exists(null)) {
+      throw new Error(`Cannot find module "${id}"`);
+    }
   }
 
   const resolvedPath = resolveSymlink(file);

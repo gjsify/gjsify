@@ -148,6 +148,31 @@ function describeForBundle(bundle: RuntimeBundle): () => Promise<void> {
         expect(r.stdout).toContain(`${GIRS_DIR}/GjsifyHttpSoupBridge-1.0.gir`);
       }, { timeout: CLI_TEST_TIMEOUT_MS });
     });
+
+    // Phase 6: TypeDoc generators — json + doc commands no longer stubbed on GJS.
+    // The import.meta.url rewrite in esbuild-plugin-gjsify makes TypeDoc's eager
+    // filesystem reads (package.json, locales, static assets) resolve into
+    // node_modules at runtime via gjsify's GLib-backed fs polyfill.
+    await describe(`@ts-for-gir/cli TypeDoc commands (Phase 6) on ${bundle.label}`, async () => {
+
+      await it('json --help prints the json command options', async () => {
+        const r = await runCli(bundle, ['json', '--help']);
+        expect(r.code).toBe(0);
+        expect(r.stdout).toContain('Generates JSON representation from GIR files');
+        expect(r.stdout).toContain('--girDirectories');
+        expect(r.stdout).toContain('--outdir');
+        expect(r.stdout).toContain('--modules');
+      }, { timeout: CLI_TEST_TIMEOUT_MS });
+
+      await it('doc --help prints the doc command options', async () => {
+        const r = await runCli(bundle, ['doc', '--help']);
+        expect(r.code).toBe(0);
+        expect(r.stdout).toContain('Generates HTML documentation from GIR files');
+        expect(r.stdout).toContain('--girDirectories');
+        expect(r.stdout).toContain('--outdir');
+        expect(r.stdout).toContain('--modules');
+      }, { timeout: CLI_TEST_TIMEOUT_MS });
+    });
   };
 }
 

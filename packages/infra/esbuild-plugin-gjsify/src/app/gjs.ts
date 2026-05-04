@@ -5,7 +5,7 @@ import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, resolve } from 'path';
 import { readFile } from 'fs/promises';
 
@@ -153,16 +153,51 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         return { path: result.path };
     });
 
-    // Inject __dirname/__filename as compile-time constants for CJS node_modules (platform:'neutral' omits them).
-    build.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
+    // Rewrite build-time constants for node_modules that use:
+    //   - import.meta.url  (ESM packages that locate their own resources via FS path)
+    //   - __dirname / __filename  (CJS packages; esbuild platform:'neutral' omits them)
+    //
+    // In a GJS bundle, import.meta.url resolves to the *bundle* file URL — not the
+    // original package path. Replacing it with the build-time-known file URL lets
+    // Path.join(fileURLToPath(…), '../package.json') and similar patterns resolve
+    // into node_modules correctly; gjsify's GLib-backed fs polyfill handles the
+    // actual I/O at runtime. Analogous to Rollup's CJS-target import.meta.url
+    // polyfill: substitute the runtime-unknowable value with the build-time-known path.
+    //
+    // __dirname/__filename preamble is only injected when the file doesn't already
+    // declare them (some ESM packages declare __dirname = dirname(fileURLToPath(
+    // import.meta.url)) themselves — injecting again causes a duplicate-declaration
+    // error). After import.meta.url is rewritten those self-declarations resolve
+    // to the correct path automatically.
+    build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, async (args) => {
         if (!args.path.includes('node_modules')) return undefined;
         const src = await readFile(args.path, 'utf8');
-        if (!src.includes('__dirname') && !src.includes('__filename')) return undefined;
+        const hasMetaUrl = src.includes('import.meta.url');
+        const hasDirnameUse = src.includes('__dirname');
+        const hasFilenameUse = src.includes('__filename');
+        if (!hasMetaUrl && !hasDirnameUse && !hasFilenameUse) return undefined;
         const dir = dirname(args.path);
-        const preamble =
-            `var __dirname = ${JSON.stringify(dir)};\n` +
-            `var __filename = ${JSON.stringify(args.path)};\n`;
-        return { contents: preamble + src, loader: 'js', resolveDir: dir };
+        let contents = src;
+        if (hasMetaUrl) {
+            const originalUrl = pathToFileURL(args.path).href;
+            contents = contents.replace(/\bimport\.meta\.url\b/g, JSON.stringify(originalUrl));
+        }
+        // Only inject the preamble when __dirname/__filename are used but not
+        // already declared in the file (avoids duplicate-declaration errors in
+        // packages that set them from import.meta.url themselves).
+        const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
+        const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
+        const injectDirname = hasDirnameUse && !dirnameDecl;
+        const injectFilename = hasFilenameUse && !filenameDecl;
+        if (injectDirname || injectFilename) {
+            const lines: string[] = [];
+            if (injectDirname) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
+            if (injectFilename) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
+            contents = lines.join('\n') + '\n' + contents;
+        }
+        const ext = args.path.split('.').pop() ?? 'js';
+        const loader = ['ts', 'mts', 'cts', 'tsx'].includes(ext) ? 'ts' : 'js';
+        return { contents, loader, resolveDir: dir };
     });
 
     merge(build.initialOptions, esbuildOptions);

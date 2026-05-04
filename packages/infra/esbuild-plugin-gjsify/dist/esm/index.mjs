@@ -13470,7 +13470,7 @@ function registerToCommonJSPatch(build) {
 }
 
 // src/app/gjs.ts
-import { fileURLToPath as fileURLToPath3 } from "url";
+import { fileURLToPath as fileURLToPath3, pathToFileURL } from "url";
 import { dirname, resolve as resolve2 } from "path";
 import { readFile } from "fs/promises";
 var _shimDir = dirname(fileURLToPath3(import.meta.url));
@@ -13573,15 +13573,32 @@ var setupForGjs = async (build, pluginOptions) => {
     if (result.errors.length > 0) return void 0;
     return { path: result.path };
   });
-  build.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
+  build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, async (args) => {
     if (!args.path.includes("node_modules")) return void 0;
     const src = await readFile(args.path, "utf8");
-    if (!src.includes("__dirname") && !src.includes("__filename")) return void 0;
+    const hasMetaUrl = src.includes("import.meta.url");
+    const hasDirnameUse = src.includes("__dirname");
+    const hasFilenameUse = src.includes("__filename");
+    if (!hasMetaUrl && !hasDirnameUse && !hasFilenameUse) return void 0;
     const dir = dirname(args.path);
-    const preamble = `var __dirname = ${JSON.stringify(dir)};
-var __filename = ${JSON.stringify(args.path)};
-`;
-    return { contents: preamble + src, loader: "js", resolveDir: dir };
+    let contents = src;
+    if (hasMetaUrl) {
+      const originalUrl = pathToFileURL(args.path).href;
+      contents = contents.replace(/\bimport\.meta\.url\b/g, JSON.stringify(originalUrl));
+    }
+    const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
+    const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
+    const injectDirname = hasDirnameUse && !dirnameDecl;
+    const injectFilename = hasFilenameUse && !filenameDecl;
+    if (injectDirname || injectFilename) {
+      const lines = [];
+      if (injectDirname) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
+      if (injectFilename) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
+      contents = lines.join("\n") + "\n" + contents;
+    }
+    const ext = args.path.split(".").pop() ?? "js";
+    const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
+    return { contents, loader, resolveDir: dir };
   });
   merge(build.initialOptions, esbuildOptions);
   build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude);
