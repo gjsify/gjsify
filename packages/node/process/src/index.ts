@@ -5,6 +5,8 @@ import { EventEmitter } from '@gjsify/events';
 import { ensureMainLoop, quitMainLoop } from '@gjsify/utils';
 import { nativeTerminal } from '@gjsify/terminal-native';
 
+const _encoder = new TextEncoder();
+
 type ProcessPlatform = NodeJS.Platform;
 type ProcessArch = NodeJS.Architecture;
 
@@ -30,7 +32,6 @@ function getGjsGlobal(): GjsGlobalThis {
   return globalThis as unknown as GjsGlobalThis;
 }
 
-// Detect GJS version from imports.system.version (integer: MAJOR*10000 + MINOR*100 + PATCH)
 function detectGjsVersion(): string | undefined {
   try {
     const system = getGjsGlobal().imports?.system;
@@ -45,7 +46,6 @@ function detectGjsVersion(): string | undefined {
   return undefined;
 }
 
-// Detect Node.js version from native process
 function detectNodeVersion(): string | undefined {
   if (typeof globalThis.process?.versions?.node === 'string') {
     return globalThis.process.versions.node;
@@ -53,7 +53,6 @@ function detectNodeVersion(): string | undefined {
   return undefined;
 }
 
-// Detect version and versions object dynamically
 function detectVersionInfo(): { version: string; versions: Record<string, string>; title: string } {
   const nodeVersion = detectNodeVersion();
 
@@ -80,7 +79,6 @@ function detectVersionInfo(): { version: string; versions: Record<string, string
   };
 }
 
-// Detect parent process ID
 function detectPpid(): number {
   if (typeof globalThis.process?.ppid === 'number') {
     return globalThis.process.ppid;
@@ -99,22 +97,19 @@ function detectPpid(): number {
   return 0;
 }
 
-// Detect platform
 function detectPlatform(): ProcessPlatform {
   try {
     const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib) {
       const osInfo = GLib.get_os_info('ID');
-      if (osInfo) return 'linux'; // GLib is primarily Linux
+      if (osInfo) return 'linux';
     }
   } catch { /* ignore */ }
 
-  // Check if running in GJS
   if (typeof getGjsGlobal().imports?.system !== 'undefined') {
-    return 'linux'; // GJS is primarily Linux
+    return 'linux';
   }
 
-  // Fallback: check Node.js process
   if (typeof globalThis.process?.platform === 'string') {
     return globalThis.process.platform as ProcessPlatform;
   }
@@ -122,21 +117,10 @@ function detectPlatform(): ProcessPlatform {
   return 'linux';
 }
 
-// Detect architecture
 function detectArch(): ProcessArch {
   if (typeof globalThis.process?.arch === 'string') {
     return globalThis.process.arch as ProcessArch;
   }
-
-  // Try to detect via GJS system module
-  try {
-    const system = getGjsGlobal().imports?.system;
-    if (system?.programInvocationName) {
-      // On GJS we can't easily determine arch without system calls
-      // Default to x64 for now — could use GLib.spawn to check `uname -m`
-    }
-  } catch { /* ignore */ }
-
   return 'x64';
 }
 
@@ -244,9 +228,14 @@ function getPid(): number {
 
 const startTime = Date.now();
 
-// Minimal EventEmitter-backed streams for process.stdout/stderr/stdin.
-// Full stream semantics live in @gjsify/tty; these provide the subset that
-// most npm packages need: write(), fd, isTTY, columns, rows, setRawMode().
+function getGioNamespace(): any {
+  const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
+  if (!_gi) return null;
+  let gio: any = null;
+  try { gio = (_gi as any)['GioUnix']; } catch { /* try Gio */ }
+  if (!gio) { try { gio = (_gi as any)['Gio']; } catch { /* absent */ } }
+  return gio;
+}
 
 class ProcessWriteStream extends EventEmitter {
   readonly fd: number;
@@ -257,22 +246,17 @@ class ProcessWriteStream extends EventEmitter {
   constructor(fd: number) {
     super();
     this.fd = fd;
-    const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
-    if (_gi) {
-      let gio: any = null;
-      try { gio = (_gi as any)['GioUnix']; } catch { /* try Gio */ }
-      if (!gio) { try { gio = (_gi as any)['Gio']; } catch { /* absent */ } }
-      if (gio) {
-        const Cls = gio.UnixOutputStream ?? gio.OutputStream;
-        if (Cls) { try { this._outGio = Cls.new(this.fd, false); } catch { /* fallback */ } }
-      }
+    const gio = getGioNamespace();
+    if (gio) {
+      const Cls = gio.UnixOutputStream ?? gio.OutputStream;
+      if (Cls) { try { this._outGio = Cls.new(this.fd, false); } catch { /* fallback */ } }
     }
   }
 
   write(data: string | Uint8Array): boolean {
     if (this._outGio) {
       try {
-        const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+        const bytes = typeof data === 'string' ? _encoder.encode(data) : data;
         this._outGio.write_all(bytes, null);
         return true;
       } catch { /* fall through to console fallback */ }
@@ -353,15 +337,8 @@ class ProcessReadStream extends EventEmitter {
   constructor(fd: number) {
     super();
     this.fd = fd;
-    // GioUnix.InputStream (GJS ≥ 1.88) supersedes Gio.UnixInputStream.
-    // Fall back to Gio for older runtimes.
-    const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
-    if (_gi) {
-      try { this._gio = (_gi as any)['GioUnix']; } catch { /* try Gio fallback */ }
-      if (!this._gio) {
-        try { this._gio = (_gi as any)['Gio']; } catch { /* typelib absent */ }
-      }
-    }
+    // GioUnix.InputStream (GJS ≥ 1.88) supersedes Gio.UnixInputStream; fall back to Gio.
+    this._gio = getGioNamespace();
   }
 
   get isTTY(): boolean {
@@ -441,10 +418,8 @@ class ProcessReadStream extends EventEmitter {
       const _gi: any = (globalThis as any).imports?.gi;
       const GLib = _gi?.GLib ?? _gi?.['GLib'];
       if (GLib?.idle_add) {
-        // eslint-disable-next-line @typescript-eslint/no-this-alias
-        const self = this;
         GLib.idle_add(300 /* PRIORITY_LOW */, () => {
-          if (!self._mainLoopHeld) quitMainLoop();
+          if (!this._mainLoopHeld) quitMainLoop();
           return false; // SOURCE_REMOVE
         });
       } else {
@@ -520,7 +495,6 @@ class ProcessReadStream extends EventEmitter {
   }
 }
 
-// Use GLib.get_monotonic_time() for hrtime if available
 function getMonotonicTime(): bigint {
   try {
     const GLib = getGjsGlobal().imports?.gi?.GLib;
@@ -529,7 +503,6 @@ function getMonotonicTime(): bigint {
       return BigInt(GLib.get_monotonic_time()) * 1000n;
     }
   } catch { /* ignore */ }
-  // Fallback: performance.now() if available
   if (typeof performance?.now === 'function') {
     return BigInt(Math.round(performance.now() * 1e6));
   }
@@ -680,7 +653,6 @@ class Process extends EventEmitter {
   }
 
   nextTick(callback: Function, ...args: unknown[]): void {
-    // Use microtask (fires before GLib I/O callbacks) to match Node.js process.nextTick semantics.
     // GTK interleaving is handled at the stream level (@gjsify/utils nextTick → GLib.idle_add).
     if (typeof queueMicrotask === 'function') {
       queueMicrotask(() => callback(...args));
@@ -712,7 +684,6 @@ class Process extends EventEmitter {
   }
 
   memoryUsage(): { rss: number; heapTotal: number; heapUsed: number; external: number; arrayBuffers: number } {
-    // On GJS, try reading from /proc/self/status
     try {
       const GLib = getGjsGlobal().imports?.gi?.GLib;
       if (GLib) {
@@ -767,12 +738,10 @@ class Process extends EventEmitter {
   }
 }
 
-// Add hrtime.bigint
 (Process.prototype.hrtime as unknown as Record<string, () => bigint>).bigint = function(): bigint {
   return getMonotonicTime() - hrtimeBase;
 };
 
-// Create singleton process instance
 const process = new Process();
 
 // Wire SIGWINCH → process.stdout.emit('resize') when native terminal is available.
@@ -780,11 +749,10 @@ const process = new Process();
 if (nativeTerminal) {
   try {
     const watcher = new nativeTerminal.ResizeWatcher();
-    watcher.connect('resized', (_obj: any, rows: number, cols: number) => {
+    watcher.connect('resized', (_obj: any, _rows: number, _cols: number) => {
       // Re-emit on both streams; consumers (chalk, inquirer) listen on stdout.
       process.stdout.emit('resize');
       process.stderr.emit('resize');
-      void rows; void cols; // captured in getters, no need to cache here
     });
     watcher.start();
   } catch { /* ignore if ResizeWatcher instantiation fails */ }

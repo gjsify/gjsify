@@ -251,10 +251,10 @@ export class Interface extends EventEmitter {
 
   [Symbol.asyncIterator](): AsyncIterableIterator<string> {
     const lines: string[] = [];
-    let resolve: ((value: IteratorResult<string>) => void) | null = null;
+    let resolve: ((value: IteratorResult<string, undefined>) => void) | null = null;
     let done = false;
 
-    this.on('line', (line: string) => {
+    const onLine = (line: string) => {
       if (resolve) {
         const r = resolve;
         resolve = null;
@@ -262,26 +262,30 @@ export class Interface extends EventEmitter {
       } else {
         lines.push(line);
       }
-    });
-
-    this.on('close', () => {
+    };
+    const onClose = () => {
       done = true;
       if (resolve) {
         const r = resolve;
         resolve = null;
-        r({ value: undefined as unknown as string, done: true });
+        r({ value: undefined, done: true });
       }
-    });
+    };
+
+    this.on('line', onLine);
+    this.on('close', onClose);
 
     return {
-      next(): Promise<IteratorResult<string>> {
+      next: (): Promise<IteratorResult<string, undefined>> => {
         if (lines.length > 0) return Promise.resolve({ value: lines.shift()!, done: false });
-        if (done) return Promise.resolve({ value: undefined as unknown as string, done: true });
-        return new Promise<IteratorResult<string>>((r) => { resolve = r; });
+        if (done) return Promise.resolve({ value: undefined, done: true });
+        return new Promise<IteratorResult<string, undefined>>((r) => { resolve = r; });
       },
-      return(): Promise<IteratorResult<string>> {
+      return: (): Promise<IteratorResult<string, undefined>> => {
         done = true;
-        return Promise.resolve({ value: undefined as unknown as string, done: true });
+        this.removeListener('line', onLine);
+        this.removeListener('close', onClose);
+        return Promise.resolve({ value: undefined, done: true });
       },
       [Symbol.asyncIterator]() { return this; },
     };
@@ -489,7 +493,6 @@ function* emitKeys(stream: { emit(event: string, ...args: unknown[]): boolean })
 const _KEYPRESS_DECODER = Symbol('keypress-decoder');
 const _ESCAPE_DECODER   = Symbol('escape-decoder');
 
-// Attach a 'data' listener that parses raw bytes into 'keypress' events.
 // Idempotent — calling twice on the same stream is a no-op.
 // Ported from refs/node/lib/internal/readline/emitKeypressEvents.js.
 export function emitKeypressEvents(stream: Readable & Record<symbol, unknown>, iface: { escapeCodeTimeout?: number } = {}): void {

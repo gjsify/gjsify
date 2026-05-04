@@ -120,8 +120,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         ? [build.initialOptions.inject as string]
         : [];
 
-    // Inject the console shim for GJS builds (default: enabled).
-    // The shim replaces all `console` references in the bundle with print()/printerr()-based
+    // The shim replaces all `console` references with print()/printerr()-based
     // implementations that bypass GLib.log_structured() — no prefix, ANSI codes work.
     if (pluginOptions.consoleShim !== false) {
         // Resolve relative to the compiled shims/ directory next to this file
@@ -130,7 +129,6 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         esbuildOptions.inject = [...userInject];
     }
 
-    // Append pre-computed globals stub (from --globals CLI flag) if present.
     if (pluginOptions.autoGlobalsInject) {
         esbuildOptions.inject = [
             ...(esbuildOptions.inject ?? []),
