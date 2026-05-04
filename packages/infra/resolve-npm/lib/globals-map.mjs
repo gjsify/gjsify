@@ -46,6 +46,7 @@ export const GJS_GLOBALS_GROUPS = {
         'MouseEvent', 'PointerEvent', 'KeyboardEvent', 'WheelEvent', 'FocusEvent',
         'EventSource',
         'WebSocket',
+        'WebAssembly',
         'DOMException',
         'performance', 'PerformanceObserver',
         'XMLHttpRequest',
@@ -143,6 +144,14 @@ export const GJS_GLOBALS_MAP = {
     // MessageEvent is shared with dom-events in practice — whichever register
     // runs first installs it; both guard with typeof === 'undefined'.
     WebSocket:            'websocket/register',
+
+    // --- WebAssembly Promise APIs ------------------------------------------
+    // Reach via marker (see METHOD_MARKERS in detect-free-globals.ts):
+    // bare `WebAssembly.compile(...)` / `.instantiate(...)` etc. trigger
+    // injection of the Promise polyfill. The synchronous `new WebAssembly.{Module,Instance}`
+    // path also free-references `WebAssembly` and ends up here, but the
+    // register module is a no-op when the natives already work.
+    WebAssembly:          'webassembly/register/promise',
 
     // --- Performance -------------------------------------------------------
     performance:          '@gjsify/web-globals/register/performance',

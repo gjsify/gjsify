@@ -51,13 +51,16 @@ async function getPnpPlugin(): Promise<Plugin | null> {
 		const gjsifyIssuer = fileURLToPath(import.meta.url);
 
 		// Two-hop relay: node-polyfills and web-polyfills have all individual
-		// @gjsify/* packages as direct deps. Resolving from their paths allows
-		// PnP to reach e.g. @gjsify/node-globals (dep of node-polyfills).
+		// @gjsify/* packages as direct deps. Resolving from their package.json
+		// paths allows PnP to use them as issuers — sub-path imports
+		// (`@gjsify/foo/register/bar`) then resolve through the polyfill's
+		// dep graph. Resolve to package.json (always present, exports-agnostic)
+		// rather than main/module (the polyfills meta packages have no main).
 		const requireFromGjsify = createRequire(gjsifyIssuer);
 		const relayIssuers: string[] = [];
 		for (const pkg of ["@gjsify/node-polyfills", "@gjsify/web-polyfills"]) {
 			try {
-				relayIssuers.push(requireFromGjsify.resolve(pkg));
+				relayIssuers.push(requireFromGjsify.resolve(`${pkg}/package.json`));
 			} catch {
 				// polyfills package not in dep tree — relay won't cover it
 			}

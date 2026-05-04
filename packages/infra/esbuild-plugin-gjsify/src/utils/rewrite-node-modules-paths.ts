@@ -42,7 +42,17 @@ function getBundleDir(build: PluginBuild): string {
 
 async function loadAndRewrite(args: OnLoadArgs, build: PluginBuild): Promise<OnLoadResult | undefined> {
     if (!args.path.includes('node_modules')) return undefined;
-    const src = await readFile(args.path, 'utf8');
+    let src: string;
+    try {
+        src = await readFile(args.path, 'utf8');
+    } catch (err) {
+        // Yarn PnP virtual paths (e.g. `pnp:/.../typescript-zip.zip/...` or
+        // unhydrated `.zip/...` cache paths) are not readable via Node's
+        // native fs. Fall through so the @yarnpkg/esbuild-plugin-pnp's own
+        // onLoad (which knows how to read zip-cached files) handles them.
+        // Without this guard the plugin chain aborts the whole build.
+        return undefined;
+    }
     const hasMetaUrl = src.includes('import.meta.url');
     const hasDirname = src.includes('__dirname');
     const hasFilename = src.includes('__filename');
@@ -78,5 +88,13 @@ async function loadAndRewrite(args: OnLoadArgs, build: PluginBuild): Promise<OnL
 }
 
 export function registerNodeModulesPathRewrite(build: PluginBuild): void {
-    build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, (args) => loadAndRewrite(args, build));
+    const filter = /\.(m?js|cjs|[cm]?tsx?)$/;
+    // Default "file" namespace covers regular node_modules + workspace files.
+    build.onLoad({ filter }, (args) => loadAndRewrite(args, build));
+    // "pnp" namespace covers zip-cached packages resolved by
+    // @yarnpkg/esbuild-plugin-pnp. Without this, ESM packages in PnP zips
+    // skip our `import.meta.url` rewrite, and CJS packages skip the
+    // `__dirname` / `__filename` injection — leading to runtime
+    // ReferenceError in the bundle (e.g. typescript.js).
+    build.onLoad({ filter, namespace: "pnp" }, (args) => loadAndRewrite(args, build));
 }

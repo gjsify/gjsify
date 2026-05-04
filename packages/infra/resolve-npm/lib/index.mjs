@@ -228,6 +228,13 @@ export const ALIASES_WEB_FOR_GJS = {
     'webrtc/register/error': '@gjsify/webrtc/register/error',
     'webrtc/register/media': '@gjsify/webrtc/register/media',
     'webrtc/register/media-devices': '@gjsify/webrtc/register/media-devices',
+
+    // WebAssembly Promise APIs polyfill — wraps the synchronous Module/Instance
+    // constructors so WebAssembly.{compile,instantiate,validate,...} resolve
+    // instead of throwing the SpiderMonkey 128 stub error.
+    'webassembly': '@gjsify/webassembly',
+    'webassembly/register': '@gjsify/webassembly/register',
+    'webassembly/register/promise': '@gjsify/webassembly/register/promise',
 }
 
 /** General record of modules for Node */
@@ -356,4 +363,13 @@ export const ALIASES_WEB_FOR_NODE = {
     '@gjsify/webrtc/register/error': '@gjsify/empty',
     '@gjsify/webrtc/register/media': '@gjsify/empty',
     '@gjsify/webrtc/register/media-devices': '@gjsify/empty',
+
+    // WebAssembly Promise APIs — native on Node (no polyfill needed); the
+    // bare `webassembly` specifier maps to /globals so consumers can import
+    // typed helpers without dragging the polyfill into the bundle.
+    'webassembly': '@gjsify/webassembly/globals',
+    'webassembly/register': '@gjsify/empty',
+    'webassembly/register/promise': '@gjsify/empty',
+    '@gjsify/webassembly/register': '@gjsify/empty',
+    '@gjsify/webassembly/register/promise': '@gjsify/empty',
 }

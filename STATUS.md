@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-05-04 — Phases 6b + 8 of ts-for-gir integration. Runtime-relative `import.meta.url` rewriting (ESM) + absolute `__dirname`/`__filename` literals (CJS) factored into shared `utils/rewrite-node-modules-paths.ts` (deduplicated across GJS + Node app targets). Phase 6b: `generator-typedoc.spec.ts` (3 JSON tests cross-platform; 2 HTML tests Node-only — TypeDoc shiki needs WebAssembly). Phase 8 partial: `language-server.spec.ts` (21 pure-TS tests, Node-only — `typescript` CJS pkg). Node: 276/276 ✓. GJS: 212/212 ✓ (3 ignored). v0.3.4 published; downstream `gjsify/ts-for-gir` PR #378 surfaced 3 v0.3.5 follow-ups (PnP zip read, two-hop relay, shebang config) — see Open TODOs.
+> Last updated: 2026-05-04 — Phase A v0.3.5 bug fixes landed: PnP zip read (rewrite-node-modules-paths now skips unreadable fs paths and registers for `pnp` namespace), PnP two-hop relay (resolves polyfills via `package.json`, not `main`), shebang config (yargs default removed). New `@gjsify/webassembly` package — Promise-API polyfill (compile/instantiate/validate/streaming) wrapping SpiderMonkey 128's synchronous Module/Instance constructors. 15 tests ✓ on Node + GJS. Auto-globals detector picks up `WebAssembly.{compile,instantiate,validate}` via new METHOD_MARKERS. Earlier (Phases 6b + 8): runtime-relative `import.meta.url` rewriting (ESM) + absolute `__dirname`/`__filename` literals (CJS) in shared `utils/rewrite-node-modules-paths.ts`; `generator-typedoc.spec.ts` (3 JSON tests cross-platform, 2 HTML tests Node-only); `language-server.spec.ts` (21 pure-TS tests, Node-only). Node: 291/291 ✓. GJS: 227/227 ✓ (3 ignored).
 
 ## Summary
 
@@ -11,7 +11,7 @@ The project comprises **43 Node.js packages** (+1 meta), **19 Web API packages**
 |----------|-------|------|---------|------|
 | Node.js APIs | 43 | 35 (81%) | 5 (12%) | 4 (9%) |
 | Node.js meta | 1 | 1 | — | — |
-| Web APIs | 19 | 17 (89%) | 2 (11%) | — |
+| Web APIs | 20 | 18 (90%) | 2 (10%) | — |
 | Web meta | 1 | 1 | — | — |
 | DOM / Bridges | 8 | 8 (100%) | — | — |
 | Browser UI | 3 | 3 (adwaita-web, adwaita-fonts, adwaita-icons) | — | — |
@@ -100,7 +100,7 @@ The project comprises **43 Node.js packages** (+1 meta), **19 Web API packages**
 
 ## Web API Packages (`packages/web/`)
 
-All 19 packages have real implementations (plus 1 meta). New in this cycle: `@gjsify/xmlhttprequest` (split out of fetch), `@gjsify/domparser` (excalibur-tiled), `@gjsify/webrtc`, `@gjsify/webrtc-native`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons`, `@gjsify/web-polyfills`.
+All 20 packages have real implementations (plus 1 meta). New in this cycle: `@gjsify/xmlhttprequest` (split out of fetch), `@gjsify/domparser` (excalibur-tiled), `@gjsify/webrtc`, `@gjsify/webrtc-native`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons`, `@gjsify/web-polyfills`, `@gjsify/webassembly` (Promise-API polyfill).
 
 | Package | GNOME Libs | Tests | Web APIs |
 |---------|-----------|-------|----------|
@@ -122,6 +122,7 @@ All 19 packages have real implementations (plus 1 meta). New in this cycle: `@gj
 | **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 302 (4 specs) | **Phase 1–4 — Data Channel + Media + Stats & Advanced.** RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN config, addTransceiver, addTrack, removeTrack, getStats, restartIce, setConfiguration), RTCDataChannel (string + binary send/receive, bufferedAmount, binaryType), RTCRtpSender (track, getParameters/setParameters, replaceTrack, getCapabilities, getStats delegation), RTCRtpReceiver (track with muted→unmuted via ReceiverBridge, jitterBufferTarget, getStats delegation), RTCRtpTransceiver (mid, direction, stop, setCodecPreferences), MediaStream, MediaStreamTrack (GStreamer source integration, enabled→valve), getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback), MediaDevices, **RTCDTMFSender** (spec-compliant tone/duration/gap, `tonechange` event), **RTCCertificate** (generateCertificate, W3C expiry), **RTCDtlsTransport / RTCIceTransport / RTCSctpTransport** (thin proxies), **RTCStatsReport** (GstStructure → W3C camelCase conversion via `gst-stats-parser.ts`). Outgoing pipeline: source→valve→convert→encode(opus/vp8)→payloader→capsfilter→webrtcbin. End-to-end bidirectional audio verified. Registers via `@gjsify/webrtc/register` (granular subpaths) — `--globals auto` picks them up. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
 | **webrtc-native** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | — | Vala/GObject library consumed by `@gjsify/webrtc`. Exposes three main-thread signal bridges: `WebrtcbinBridge` (wraps webrtcbin's `on-negotiation-needed` / `on-ice-candidate` / `on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open` / `on-close` / `on-error` / `on-message-string` / `on-message-data` / `on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Each bridge connects on the C side (never invokes JS on the streaming thread) and re-emits via `GLib.Idle.add()` on the main context. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/`; CI (`.github/workflows/prebuilds.yml`) rebuilds on Vala source changes (native runners for x86_64/aarch64; QEMU via `uraimo/run-on-arch-action` for ppc64/s390x/riscv64). |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
+| **webassembly** | — | 15 | WebAssembly Promise-API polyfill — `compile`, `compileStreaming`, `instantiate`, `instantiateStreaming`, `validate` wrap SpiderMonkey 128's working synchronous `new WebAssembly.Module(buffer)` / `new WebAssembly.Instance(module, imports)` constructors. Granular `/register/promise` subpath. Auto-injected by `--globals auto` whenever the bundle references `WebAssembly.<method>` (via new `METHOD_MARKERS` in `detect-free-globals.ts`). |
 
 ### WebRTC Status
 
@@ -606,98 +607,14 @@ Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated 
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-### `@gjsify/webassembly` — polyfill the Promise-based WebAssembly APIs
+### Completed (Phase A — gjsify v0.3.5)
 
-**Priority: Medium — unblocks ts-for-gir `doc` on GJS + any future consumer using WASM-backed libs (shiki/oniguruma, esbuild-wasm, sql.js, …).**
+- ✅ **`@gjsify/webassembly` — Promise-based WebAssembly APIs polyfill.** Wraps SpiderMonkey 128's working synchronous `new WebAssembly.{Module,Instance}` constructors so `compile`/`compileStreaming`/`instantiate`/`instantiateStreaming`/`validate` resolve instead of throwing `WebAssembly Promise APIs not supported in this runtime`. Granular subpath `@gjsify/webassembly/register/promise`. Added to `GJS_GLOBALS_GROUPS.web` + `GJS_GLOBALS_MAP`; new `METHOD_MARKERS` entries (`WebAssembly.compile/instantiate/validate/...`) so `--globals auto` injects the polyfill from method-call sites alone (the bare `WebAssembly` identifier is also covered). 15 tests ✓ on Node + GJS.
+- ✅ **PnP zip-cached files (rewrite-node-modules-paths.ts).** Wrap `fs.readFile()` in try/catch (skip rewrite when path is unreadable, fall through to `@yarnpkg/esbuild-plugin-pnp`'s own reader). Additionally register the rewrite hook for `namespace: "pnp"` so ESM `import.meta.url` and CJS `__dirname`/`__filename` injection still applies inside zip-resolved files.
+- ✅ **PnP two-hop relay (getPnpPlugin).** Resolve relay issuers via `${pkg}/package.json` instead of bare `pkg`. The polyfill meta packages have no `main` field, so `require.resolve(pkg)` previously failed silently → relay short-circuited and every transitive `@gjsify/*` register subpath had to be redeclared by external consumers.
+- ✅ **`--shebang` config override.** Yargs `default: false` removed so `cliArgs.shebang` is `undefined` when the flag is absent → `shebang: true` from `.gjsifyrc.js` is honoured.
 
-**Verified on GJS 1.88.0 / SpiderMonkey 140:**
-- `WebAssembly` exists as a global object ✓
-- `new WebAssembly.Module(buffer)` works (synchronous compile) ✓
-- `new WebAssembly.Instance(module, imports)` works (synchronous instantiate) ✓
-- `WebAssembly.{compile,compileStreaming,instantiate,instantiateStreaming,validate}` exist as `function` typeof but throw `Error: WebAssembly Promise APIs not supported in this runtime.` at first call ✗
-
-Since the synchronous constructors work, the Promise-based APIs are trivially polyfillable in JS:
-
-```ts
-// new packages/web/webassembly/src/register/promise.ts
-WebAssembly.compile = (buf) => {
-    try { return Promise.resolve(new WebAssembly.Module(buf)); }
-    catch (e) { return Promise.reject(e); }
-};
-WebAssembly.instantiate = (bufOrMod, imports) => {
-    try {
-        const isModule = bufOrMod instanceof WebAssembly.Module;
-        const module = isModule ? bufOrMod : new WebAssembly.Module(bufOrMod);
-        const instance = new WebAssembly.Instance(module, imports);
-        // Spec: Buffer input → { module, instance }; Module input → Instance
-        return Promise.resolve(isModule ? instance : { module, instance });
-    } catch (e) { return Promise.reject(e); }
-};
-WebAssembly.validate = (buf) => {
-    try { new WebAssembly.Module(buf); return true; }
-    catch { return false; }
-};
-// compileStreaming / instantiateStreaming: feed Response.arrayBuffer() into above
-```
-
-Steps:
-1. New package `packages/web/webassembly/` with `src/register/promise.ts` (above)
-2. Add to `GJS_GLOBALS_MAP` so `--globals auto` injects it whenever
-   `WebAssembly.compile` etc. appear in the bundle
-3. Validate via `tests/integration/ts-for-gir/` — once shipped, drop the
-   bail in `ts-for-gir/packages/cli/src/commands/doc.ts` and verify
-   the GJS bundle generates HTML docs end-to-end (the JSON pipeline
-   already runs natively via Phase 6 on v0.3.4).
-
-Once landed, remove the `WebAssembly Promise APIs` "Upstream GJS Patch
-Candidate" entry — this is a gjsify-side fix.
-
-### Bugs surfaced by ts-for-gir GJS-bundle integration (gjsify v0.3.4 → v0.3.5)
-
-External consumers of `gjsify build` (e.g. `gjsify/ts-for-gir` PR #378) hit
-three bugs in v0.3.4 that currently force workarounds. All three are fixable
-in `packages/infra/{cli,esbuild-plugin-gjsify}/` and should land in v0.3.5.
-
-**Priority: High — they block clean external use of `gjsify build`.**
-
-1. **`rewrite-node-modules-paths.ts` cannot read PnP zip-cached files.**
-   The `onLoad` hook does `await readFile(args.path, 'utf8')`, which throws
-   on Yarn PnP virtual paths like `pnp:/.../typescript-zip.zip/...`. esbuild
-   then loads the file via the PnP plugin's reader but our `__dirname` /
-   `__filename` injection never runs, so bundled `typescript.js` crashes
-   at runtime with `ReferenceError: __filename is not defined`.
-   Workaround in ts-for-gir: `nodeLinker: node-modules` to flatten the
-   zip cache.
-   Proper fix: detect PnP/zip paths and either skip them (with a warning)
-   or read content via PnP's API instead of `fs.readFile`.
-
-2. **`getPnpPlugin()` two-hop relay misses some `@gjsify/*` packages.**
-   The relay through `@gjsify/node-polyfills` / `@gjsify/web-polyfills`
-   is supposed to make every `@gjsify/<pkg>/register/*` path declared
-   transitively resolvable from a consumer that only has `@gjsify/cli`
-   as a direct dep. In practice, ts-for-gir had to declare every
-   register-target package directly (`@gjsify/buffer`, `node-globals`,
-   `web-globals`, `abort-controller`, `compression-streams`, `dom-events`,
-   `dom-exception`, `web-streams`, `webcrypto`, plus the source-aliased
-   `@gjsify/{fs,path,url,util,module,os,zlib,child_process}`).
-   Either the relay's `pnpApi.resolveRequest()` returns `null` for
-   sub-path imports (`@gjsify/foo/register/bar`), or the issuer file
-   path doesn't reach a PnP-declared context.
-   Proper fix: trace why the relay's resolveRequest returns null and
-   either fix the issuer path or fall back to walking the whole
-   PnP-declared dep graph.
-
-3. **`shebang: true` in `.gjsifyrc.js` is overridden by CLI default.**
-   `commands/build.ts` declares `--shebang` with `default: false`;
-   yargs always sets `cliArgs.shebang = false` when the flag is absent.
-   `config.ts` then overwrites the config-file value via
-   `if (cliArgs.shebang !== undefined) configData.shebang = cliArgs.shebang`.
-   Net effect: `shebang: true` from `.gjsifyrc.js` is ignored unless the
-   user also passes `--shebang` on the command line.
-   Workaround: pass `--shebang` explicitly.
-   Proper fix: drop the yargs `default: false` so the CLI value is
-   `undefined` when the user didn't pass it, OR change the merge logic
-   to compare against the default before overriding.
+Once Phase B lands and the PR #378 cleanup confirms green, remove the `WebAssembly Promise APIs` "Upstream GJS Patch Candidate" entry — this is a gjsify-side fix now shipped.
 
 ### Split `@gjsify/node-globals/register` into topic-specific packages
 
@@ -777,6 +694,48 @@ Today's partial-implementation covers DatabaseSync/StatementSync against Node 24
 **Priority: Medium — Phase 2–4 have all landed.**
 
 Promote [examples/dom/webrtc-loopback](examples/dom/webrtc-loopback) to `showcases/dom/webrtc-loopback/` — Media Phase 2/3 and Stats Phase 4 are now complete, making a polished showcase viable. The showcase should demonstrate both data-channel (loopback) and media paths (getUserMedia audio). Four additional private examples exist (`webrtc-dtmf`, `webrtc-states`, `webrtc-trickle-ice`, `webrtc-video`) that could be folded in or referenced. Follow the standard showcase rules: publish as `@gjsify/example-dom-webrtc-loopback`, export `./browser` entry, add as dep in `packages/infra/cli/package.json`.
+
+### Bundler migration — Vite 8 / Rolldown long-term goal
+
+**Priority: Strategic / Long-term — no immediate action; track here so it doesn't get lost.**
+
+The Rollup/Rolldown plugin API is structurally a better fit for what `packages/infra/esbuild-plugin-gjsify/` actually does than esbuild's hooks. Today's load-bearing mechanisms work _around_ esbuild rather than _with_ it:
+
+- **Auto-globals iterative multi-pass** (`utils/auto-globals.ts` + `utils/detect-free-globals.ts`) re-builds N times because esbuild has no native equivalent to Rollup's `@rollup/plugin-inject` (acorn-based identifier→import injection) — it would collapse to one declarative pass.
+- **`__toCommonJS` output patching** (`app/gjs.ts` `onEnd`) only exists because esbuild emits that wrapper for ESM+neutral; Rolldown does not.
+- **Per-file `import.meta.url` rewrite** (`utils/rewrite-node-modules-paths.ts`) routes the original path through `pluginData` because esbuild's `onLoad` does not pass `id` natively; Rollup's `transform(code, id)` does.
+- **Banner ordering** for the synchronous `globalThis.process` stub is sequenced manually; Vite's `enforce: 'pre'/'post'` is declarative.
+- **CSS lowering** (`@gjsify/esbuild-plugin-css` with `target: firefox60` for GTK4 nesting flatten) is hand-rolled; Lightning CSS via Vite is more capable. easy6502 already uses this combo at [easy6502/packages/app-gnome/vite.config.js](../easy6502/packages/app-gnome/vite.config.js).
+
+**Where the win actually lives:**
+
+1. **Plugin API ergonomics** — porting the 8 esbuild plugins removes ~50% of the workaround code (iterative loops, output-shape patches, manual banner sequencing).
+2. **Convergence with consumers** — sister projects already build GJS apps with Vite 8 + `@gjsify/vite-plugin-blueprint` / `@gjsify/vite-plugin-gettext` ([easy6502/packages/app-gnome/](../easy6502/packages/app-gnome/), [pixel-rpg/map-editor/packages/gjs/](../pixel-rpg/map-editor/packages/gjs/)). Right now gjsify-CLI = esbuild while the apps it serves = Vite. Single-stack would ease maintenance + plugin reuse.
+3. **Dev-server / HMR** — entirely new capability for website, playgrounds, examples and (long-term) GJS-side hot-reload. esbuild has no equivalent. Astro reference at `refs/astro/` shows the pattern. Existing groundwork in `examples/gtk/three-geometry-shapes/refs/gjsify-vite/`.
+4. **Code-splitting + dynamic imports** — Rolldown does proper splitting; relevant once `@gjsify/integration-ts-for-gir` style bundles grow.
+5. **Source-map fidelity through chained transforms** — Rollup keeps the chain; relevant for Deepkit + Blueprint + auto-globals stacked transforms.
+
+**Why not now:**
+
+- Rolldown is `1.0.0-rc.18` (April 2026). Output-shape stability is a hard prerequisite for the GJS-specific output post-processing.
+- Yarn-PnP `onResolve` fallthrough, `mainFields`/`conditions` precedence (the `bitfield`/`require` condition fix), and the synchronous-process-stub banner are all portable but each needs explicit Rolldown equivalent + parity test.
+- Engine speed: esbuild remains faster on cold builds. Marginal but real.
+
+**Two-track migration path:**
+
+1. **Now → near-term: build `@gjsify/vite-plugin-gjsify` (consumer-side first).** Ports the platform orchestration of `esbuild-plugin-gjsify` (GJS / Node / Browser targets, externals, `--globals auto`, alias map) to a Rollup-style plugin running inside Vite. Validates all GJS-specific transforms under Rolldown output _without_ touching the gjsify-CLI engine. Companion plugins (`vite-plugin-blueprint`, `vite-plugin-gettext`) already exist and are field-tested in `easy6502`/`pixel-rpg`. Migrate `vite-plugin-blueprint` from `@gjsify/vite-plugin-blueprint` (currently external) into `packages/infra/vite-plugin-blueprint/` so blueprint + alias + transform-ext + css + deepkit all live as a coherent Vite-plugin family alongside the esbuild family.
+2. **When (a) Rolldown 1.0 stable lands AND (b) the Vite-plugin track has parity for the five load-bearing mechanisms above: cut `gjsify build` engine to Rolldown.** The CLI keeps its public surface (`--app gjs|node|browser`, `--globals auto`, `--define`, `--external`, `--alias`); only the underlying bundler swaps. By that point the Rolldown port is routine, not wagering.
+
+**Acceptance criteria for engine-cut readiness:**
+
+- All five load-bearing mechanisms have proven Rolldown equivalents in the consumer-side track.
+- Full integration suite (`webtorrent`, `socket.io`, `streamx`, `autobahn`, `axios`, `mcp-typescript-sdk`, `mcp-inspector-cli`, `ts-for-gir`) passes on Rolldown engine — no regressions.
+- All showcases build + run identically on both engines for at least one release cycle (parallel CI).
+
+**Out-of-scope in this entry:**
+
+- Replacing `esbuild-plugin-deepkit` is independent — `@deepkit/type-compiler` integrates with TypeScript program directly; either plugin host wraps the same compiler. Migrate alongside, not as a blocker.
+- The `gjsify install` future command (separate Open-TODO context) is bundler-agnostic.
 
 ---
 

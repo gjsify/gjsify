@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased] — Phase A bug fixes for v0.3.5
+
+### Bug Fixes
+
+* **esbuild-plugin-gjsify:** `rewrite-node-modules-paths` handles Yarn PnP zip-cached files. Skips paths fs.readFile cannot open and registers the rewrite hook for the `pnp` namespace too — bundled `typescript.js` from a PnP zip no longer crashes with `ReferenceError: __filename is not defined`.
+* **cli:** `getPnpPlugin` two-hop relay now resolves through the polyfill packages' `package.json` paths instead of their `main`. The meta polyfills have no `main`/`module` field, so the previous resolution fell back silently and missed every transitive `@gjsify/*` register subpath. External consumers no longer need to redeclare each `@gjsify/<pkg>` as a direct devDep.
+* **cli:** `--shebang` no longer overrides `shebang: true` from `.gjsifyrc.js`. Yargs' `default: false` made `cliArgs.shebang` always defined, which clobbered the config-file value through the `if (cliArgs.shebang !== undefined)` merge.
+
+### Features
+
+* **webassembly:** new `@gjsify/webassembly` package — Promise-API polyfill that wraps SpiderMonkey 128's working synchronous `new WebAssembly.Module(buffer)` / `new WebAssembly.Instance(module, imports)` constructors. Replaces `WebAssembly.{compile,compileStreaming,instantiate,instantiateStreaming,validate}` (which throw `WebAssembly Promise APIs not supported in this runtime` on first call). 15 tests pass on both Node + GJS.
+* **resolve-npm:** `WebAssembly` added to `GJS_GLOBALS_GROUPS.web` and `GJS_GLOBALS_MAP`. `--globals auto` injects the polyfill whenever `WebAssembly.{compile,instantiate,validate}` etc. appear in the bundle (via new `METHOD_MARKERS` in `detect-free-globals.ts`).
+
 ## [0.3.4](https://github.com/gjsify/gjsify/compare/v0.3.3...v0.3.4) (2026-05-04)
 
 ### Features

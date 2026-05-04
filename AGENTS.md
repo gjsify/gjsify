@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.3.4, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (19 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.3.4, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (20 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
 
 ## Governance — non-negotiable
 
@@ -81,6 +81,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | eventsource | Soup 3.0 | EventSource (SSE) |
 | websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent. NUL-byte-safe text frames (send via `send_message(TEXT, GLib.Bytes)` — Soup's `send_text` truncates at `\0`). RFC 6455 fuzz-validated via Autobahn |
 | webstorage | Gio | localStorage, sessionStorage |
+| webassembly | — | Promise-API polyfill — `compile`, `compileStreaming`, `instantiate`, `instantiateStreaming`, `validate` wrap SpiderMonkey 128's working synchronous `new WebAssembly.{Module,Instance}` constructors. Granular `/register/promise` subpath. Auto-injected by `--globals auto` via new `WebAssembly.<method>` METHOD_MARKERS. |
 | webaudio | Gst 1.0, GstApp 1.0 | AudioContext(decodeAudioData via GStreamer decodebin), AudioBufferSourceNode(appsrc→volume→autoaudiosink), GainNode(AudioParam+setTargetAtTime), AudioBuffer(PCM Float32), HTMLAudioElement(canPlayType+playbin). Phase 1 |
 | webrtc | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | Full W3C WebRTC — RTCPeerConnection, RTCDataChannel (string+binary), RTCRtpSender/Receiver/Transceiver, MediaStream, MediaStreamTrack, getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback chain), RTCDTMFSender, RTCCertificate, RTCStatsReport, RTCIceCandidate, RTCSessionDescription. Tee-multiplexer for shared-source fan-out (VideoBridge preview ↔ PC sender). Backed by `@gjsify/webrtc-native` |
 | webrtc-native | Gst 1.0, GstWebRTC 1.0 | **Vala/GObject prebuild.** Three main-thread signal bridges: `WebrtcbinBridge` (wraps `on-negotiation-needed`/`on-ice-candidate`/`on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open`/`on-close`/`on-error`/`on-message-string`/`on-message-data`/`on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Captures signals on C side, re-emits via `GLib.Idle.add()` on the GLib main context — makes webrtcbin's streaming-thread callbacks safe to handle from JS. Ships as `.so` + `.typelib` prebuild for linux-{x86_64,aarch64} |
