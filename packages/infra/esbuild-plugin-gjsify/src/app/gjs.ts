@@ -5,9 +5,9 @@ import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
+import { registerNodeModulesPathRewrite } from "../utils/rewrite-node-modules-paths.js";
 import { fileURLToPath } from 'url';
-import { dirname, join, relative, resolve } from 'path';
-import { readFile } from 'fs/promises';
+import { dirname, resolve } from 'path';
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -153,71 +153,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         return { path: result.path };
     });
 
-    // Rewrite node_modules files that use:
-    //   - import.meta.url  (ESM packages that locate their own resources via FS path)
-    //   - __dirname / __filename  (CJS packages; esbuild platform:'neutral' omits them)
-    //
-    // For ESM files (those already containing import.meta.url): we replace each
-    // occurrence with a runtime-relative URL expression:
-    //
-    //   new URL("<relPathFromBundleDirToSource>", import.meta.url).href
-    //
-    // The relative path from the bundle output directory to the source file is stable
-    // as long as the relative layout (e.g. node_modules/ next to dist/) is preserved
-    // at the deploy site — which holds for locally-built and npm-distributed packages.
-    // At runtime, .pathname gives the absolute FS path; gjsify's GLib-backed fs
-    // polyfill reads package.json, locales, and static assets from node_modules.
-    //
-    // For CJS files (no import.meta.url): __dirname/__filename are injected as absolute
-    // string literals (same as before). Introducing import.meta.url into CJS files would
-    // make esbuild treat them as ESM, conflicting with module.exports/require patterns.
-    //
-    // __dirname/__filename preamble is only injected when the file doesn't already
-    // declare them (some ESM packages declare __dirname = dirname(fileURLToPath(
-    // import.meta.url)) themselves — injecting again causes a duplicate-declaration
-    // error). After import.meta.url is rewritten those self-declarations resolve
-    // to the correct path automatically.
-    build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, async (args) => {
-        if (!args.path.includes('node_modules')) return undefined;
-        const src = await readFile(args.path, 'utf8');
-        const hasMetaUrl = src.includes('import.meta.url');
-        const hasDirnameUse = src.includes('__dirname');
-        const hasFilenameUse = src.includes('__filename');
-        if (!hasMetaUrl && !hasDirnameUse && !hasFilenameUse) return undefined;
-        const dir = dirname(args.path);
-        let contents = src;
-        if (hasMetaUrl) {
-            // ESM file: compute relative path from bundle output dir → source file.
-            // Stable across machines as long as the bundle/node_modules layout is preserved.
-            const outFile = build.initialOptions.outfile
-                ?? join(build.initialOptions.outdir ?? '.', 'bundle.mjs');
-            const bundleDir = dirname(resolve(outFile));
-            const relPath = relative(bundleDir, args.path);
-            const relDir = relative(bundleDir, dir) || '.';
-            const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-            contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-            // Only inject preamble when __dirname/__filename are not already declared.
-            const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-            const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-            const lines: string[] = [];
-            if (hasDirnameUse && !dirnameDecl) lines.push(`var __dirname = new URL(${JSON.stringify(relDir + '/')}, import.meta.url).pathname.replace(/\\/$/, "");`);
-            if (hasFilenameUse && !filenameDecl) lines.push(`var __filename = ${runtimeFileUrl}.pathname;`);
-            if (lines.length > 0) contents = lines.join('\n') + '\n' + contents;
-        } else {
-            // CJS file: inject __dirname/__filename as absolute string literals.
-            // Do NOT use import.meta.url here — it would make esbuild treat the module
-            // as ESM, conflicting with module.exports/require and breaking bundling.
-            const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-            const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-            const lines: string[] = [];
-            if (hasDirnameUse && !dirnameDecl) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
-            if (hasFilenameUse && !filenameDecl) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
-            if (lines.length > 0) contents = lines.join('\n') + '\n' + contents;
-        }
-        const ext = args.path.split('.').pop() ?? 'js';
-        const loader = ['ts', 'mts', 'cts', 'tsx'].includes(ext) ? 'ts' : 'js';
-        return { contents, loader, resolveDir: dir };
-    });
+    registerNodeModulesPathRewrite(build);
 
     merge(build.initialOptions, esbuildOptions);
 

@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-05-04 — Phase 6b + Phase 8 of ts-for-gir integration: (1) `esbuild-plugin-gjsify` `onLoad` hooks upgraded to runtime-relative `import.meta.url` rewriting (ESM/CJS split — CJS files get absolute `__dirname`/`__filename` literals to avoid making esbuild treat them as ESM); (2) Phase 6b adds `generator-typedoc.spec.ts` — `JsonDefinitionGenerator` programmatic tests (3 tests, GJS + Node); HTML tests Node-only (WASM limit); (3) Phase 8 adds `language-server.spec.ts` — `@ts-for-gir/language-server` API surface + `validateTypeScript`/`getIdentifierType`/`expectIdentifierType` with pure-TS inputs (21 tests, Node-only). Node: 276/276 green. GJS: 212/212 green, 3 ignored.
+> Last updated: 2026-05-04 — Phases 6b + 8 of ts-for-gir integration. Runtime-relative `import.meta.url` rewriting (ESM) + absolute `__dirname`/`__filename` literals (CJS) factored into shared `utils/rewrite-node-modules-paths.ts` (deduplicated across GJS + Node app targets). Phase 6b: `generator-typedoc.spec.ts` (3 JSON tests cross-platform; 2 HTML tests Node-only — TypeDoc shiki needs WebAssembly). Phase 8 partial: `language-server.spec.ts` (21 pure-TS tests, Node-only — `typescript` CJS pkg). Node: 276/276 ✓. GJS: 212/212 ✓ (3 ignored).
 
 ## Summary
 

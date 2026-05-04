@@ -3226,15 +3226,15 @@ var require_pattern = __commonJS({
     exports.removeDuplicateSlashes = removeDuplicateSlashes;
     function partitionAbsoluteAndRelative(patterns) {
       const absolute = [];
-      const relative3 = [];
+      const relative2 = [];
       for (const pattern of patterns) {
         if (isAbsolute(pattern)) {
           absolute.push(pattern);
         } else {
-          relative3.push(pattern);
+          relative2.push(pattern);
         }
       }
-      return [absolute, relative3];
+      return [absolute, relative2];
     }
     exports.partitionAbsoluteAndRelative = partitionAbsoluteAndRelative;
     function isAbsolute(pattern) {
@@ -13469,11 +13469,56 @@ function registerToCommonJSPatch(build) {
   });
 }
 
+// src/utils/rewrite-node-modules-paths.ts
+import { dirname, join, relative, resolve as resolve2 } from "node:path";
+import { readFile } from "node:fs/promises";
+var DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
+var FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
+function getBundleDir(build) {
+  const outFile = build.initialOptions.outfile ?? join(build.initialOptions.outdir ?? ".", "bundle.mjs");
+  return dirname(resolve2(outFile));
+}
+async function loadAndRewrite(args, build) {
+  if (!args.path.includes("node_modules")) return void 0;
+  const src = await readFile(args.path, "utf8");
+  const hasMetaUrl = src.includes("import.meta.url");
+  const hasDirname = src.includes("__dirname");
+  const hasFilename = src.includes("__filename");
+  if (!hasMetaUrl && !hasDirname && !hasFilename) return void 0;
+  const dir = dirname(args.path);
+  const dirnameDeclared = DIRNAME_DECL_RE.test(src);
+  const filenameDeclared = FILENAME_DECL_RE.test(src);
+  const preamble = [];
+  let contents = src;
+  if (hasMetaUrl) {
+    const bundleDir = getBundleDir(build);
+    const relPath = relative(bundleDir, args.path);
+    const relDir = relative(bundleDir, dir) || ".";
+    const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+    contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
+    if (hasDirname && !dirnameDeclared) {
+      preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
+    }
+    if (hasFilename && !filenameDeclared) {
+      preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+    }
+  } else {
+    if (hasDirname && !dirnameDeclared) preamble.push(`var __dirname = ${JSON.stringify(dir)};`);
+    if (hasFilename && !filenameDeclared) preamble.push(`var __filename = ${JSON.stringify(args.path)};`);
+  }
+  if (preamble.length > 0) contents = preamble.join("\n") + "\n" + contents;
+  const ext = args.path.split(".").pop() ?? "js";
+  const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
+  return { contents, loader, resolveDir: dir };
+}
+function registerNodeModulesPathRewrite(build) {
+  build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, (args) => loadAndRewrite(args, build));
+}
+
 // src/app/gjs.ts
 import { fileURLToPath as fileURLToPath3 } from "url";
-import { dirname, join, relative, resolve as resolve2 } from "path";
-import { readFile } from "fs/promises";
-var _shimDir = dirname(fileURLToPath3(import.meta.url));
+import { dirname as dirname2, resolve as resolve3 } from "path";
+var _shimDir = dirname2(fileURLToPath3(import.meta.url));
 var GJS_PROCESS_STUB = [
   'if(typeof globalThis.process==="undefined"){',
   "const _s=imports.system,_G=imports.gi.GLib;",
@@ -13553,7 +13598,7 @@ var setupForGjs = async (build, pluginOptions) => {
   };
   const userInject = Array.isArray(build.initialOptions.inject) ? build.initialOptions.inject : build.initialOptions.inject ? [build.initialOptions.inject] : [];
   if (pluginOptions.consoleShim !== false) {
-    esbuildOptions.inject = [resolve2(_shimDir, "../shims/console-gjs.js"), ...userInject];
+    esbuildOptions.inject = [resolve3(_shimDir, "../shims/console-gjs.js"), ...userInject];
   } else if (userInject.length > 0) {
     esbuildOptions.inject = [...userInject];
   }
@@ -13573,40 +13618,7 @@ var setupForGjs = async (build, pluginOptions) => {
     if (result.errors.length > 0) return void 0;
     return { path: result.path };
   });
-  build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, async (args) => {
-    if (!args.path.includes("node_modules")) return void 0;
-    const src = await readFile(args.path, "utf8");
-    const hasMetaUrl = src.includes("import.meta.url");
-    const hasDirnameUse = src.includes("__dirname");
-    const hasFilenameUse = src.includes("__filename");
-    if (!hasMetaUrl && !hasDirnameUse && !hasFilenameUse) return void 0;
-    const dir = dirname(args.path);
-    let contents = src;
-    if (hasMetaUrl) {
-      const outFile = build.initialOptions.outfile ?? join(build.initialOptions.outdir ?? ".", "bundle.mjs");
-      const bundleDir = dirname(resolve2(outFile));
-      const relPath = relative(bundleDir, args.path);
-      const relDir = relative(bundleDir, dir) || ".";
-      const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-      contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-      const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-      const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-      const lines = [];
-      if (hasDirnameUse && !dirnameDecl) lines.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
-      if (hasFilenameUse && !filenameDecl) lines.push(`var __filename = ${runtimeFileUrl}.pathname;`);
-      if (lines.length > 0) contents = lines.join("\n") + "\n" + contents;
-    } else {
-      const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-      const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-      const lines = [];
-      if (hasDirnameUse && !dirnameDecl) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
-      if (hasFilenameUse && !filenameDecl) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
-      if (lines.length > 0) contents = lines.join("\n") + "\n" + contents;
-    }
-    const ext = args.path.split(".").pop() ?? "js";
-    const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
-    return { contents, loader, resolveDir: dir };
-  });
+  registerNodeModulesPathRewrite(build);
   merge(build.initialOptions, esbuildOptions);
   build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude);
   const aliases = { ...getAliasesForGjs({ external }), ...pluginOptions.aliases };
@@ -13623,8 +13635,6 @@ var setupForGjs = async (build, pluginOptions) => {
 
 // src/app/node.ts
 import * as deepkitPlugin5 from "@gjsify/esbuild-plugin-deepkit";
-import { dirname as dirname2, join as join2, relative as relative2, resolve as resolve3 } from "node:path";
-import { readFile as readFile2 } from "node:fs/promises";
 var setupForNode = async (build, pluginOptions) => {
   const userExternal = build.initialOptions.external ?? [];
   const external = [...EXTERNALS_NODE, "gi://*", "@girs/*", "node-datachannel", ...userExternal];
@@ -13684,40 +13694,7 @@ var setupForNode = async (build, pluginOptions) => {
       window: "globalThis"
     }
   };
-  build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, async (args) => {
-    if (!args.path.includes("node_modules")) return void 0;
-    const src = await readFile2(args.path, "utf8");
-    const hasMetaUrl = src.includes("import.meta.url");
-    const hasDirname = src.includes("__dirname");
-    const hasFilename = src.includes("__filename");
-    if (!hasMetaUrl && !hasDirname && !hasFilename) return void 0;
-    const dir = dirname2(args.path);
-    let contents = src;
-    if (hasMetaUrl) {
-      const outFile = build.initialOptions.outfile ?? join2(build.initialOptions.outdir ?? ".", "bundle.mjs");
-      const bundleDir = dirname2(resolve3(outFile));
-      const relPath = relative2(bundleDir, args.path);
-      const relDir = relative2(bundleDir, dir) || ".";
-      const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-      contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-      const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-      const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-      const lines = [];
-      if (hasDirname && !dirnameDecl) lines.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
-      if (hasFilename && !filenameDecl) lines.push(`var __filename = ${runtimeFileUrl}.pathname;`);
-      if (lines.length > 0) contents = lines.join("\n") + "\n" + contents;
-    } else {
-      const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-      const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-      const lines = [];
-      if (hasDirname && !dirnameDecl) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
-      if (hasFilename && !filenameDecl) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
-      if (lines.length > 0) contents = lines.join("\n") + "\n" + contents;
-    }
-    const ext = args.path.split(".").pop() ?? "js";
-    const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
-    return { contents, loader, resolveDir: dir };
-  });
+  registerNodeModulesPathRewrite(build);
   merge(build.initialOptions, esbuildOptions);
   build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude);
   const aliases = { ...getAliasesForNode({ external }), ...pluginOptions.aliases };

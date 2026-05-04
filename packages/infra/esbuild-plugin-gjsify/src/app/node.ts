@@ -4,9 +4,8 @@ import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForNode, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
+import { registerNodeModulesPathRewrite } from "../utils/rewrite-node-modules-paths.js";
 import { EXTERNALS_NODE } from "@gjsify/resolve-npm";
-import { dirname, join, relative, resolve } from 'node:path';
-import { readFile } from 'node:fs/promises';
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -80,54 +79,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         }
     };
 
-    // Rewrite node_modules files that use import.meta.url or __dirname/__filename.
-    //
-    // For ESM files (containing import.meta.url): replace with a runtime-relative URL.
-    //   new URL("<relPathFromBundleDir>", import.meta.url).href
-    // This is stable across machines when the bundle / node_modules layout is preserved.
-    //
-    // For CJS files (no import.meta.url): inject __dirname/__filename as absolute
-    // string literals. Introducing import.meta.url into CJS would make esbuild treat
-    // the module as ESM, conflicting with module.exports/require. Bundled `typescript`
-    // (isFileSystemCaseSensitive calls swapCase(__filename)) is the canonical consumer.
-    //
-    // Mirrors the GJS target's logic in gjs.ts — consistent across both targets.
-    build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, async (args) => {
-        if (!args.path.includes('node_modules')) return undefined;
-        const src = await readFile(args.path, 'utf8');
-        const hasMetaUrl = src.includes('import.meta.url');
-        const hasDirname = src.includes('__dirname');
-        const hasFilename = src.includes('__filename');
-        if (!hasMetaUrl && !hasDirname && !hasFilename) return undefined;
-        const dir = dirname(args.path);
-        let contents = src;
-        if (hasMetaUrl) {
-            const outFile = build.initialOptions.outfile
-                ?? join(build.initialOptions.outdir ?? '.', 'bundle.mjs');
-            const bundleDir = dirname(resolve(outFile));
-            const relPath = relative(bundleDir, args.path);
-            const relDir = relative(bundleDir, dir) || '.';
-            const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-            contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-            const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-            const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-            const lines: string[] = [];
-            if (hasDirname && !dirnameDecl) lines.push(`var __dirname = new URL(${JSON.stringify(relDir + '/')}, import.meta.url).pathname.replace(/\\/$/, "");`);
-            if (hasFilename && !filenameDecl) lines.push(`var __filename = ${runtimeFileUrl}.pathname;`);
-            if (lines.length > 0) contents = lines.join('\n') + '\n' + contents;
-        } else {
-            // CJS-only file: absolute string literals, no import.meta.url injection.
-            const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-            const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-            const lines: string[] = [];
-            if (hasDirname && !dirnameDecl) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
-            if (hasFilename && !filenameDecl) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
-            if (lines.length > 0) contents = lines.join('\n') + '\n' + contents;
-        }
-        const ext = args.path.split('.').pop() ?? 'js';
-        const loader = ['ts', 'mts', 'cts', 'tsx'].includes(ext) ? 'ts' : 'js';
-        return { contents, loader, resolveDir: dir };
-    });
+    registerNodeModulesPathRewrite(build);
 
     merge(build.initialOptions, esbuildOptions);
 
